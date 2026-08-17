@@ -1,0 +1,62 @@
+name: Packed Ripgrep Runtime
+
+on:
+  pull_request:
+    paths:
+      - "libs/bindings/**"
+      - "libs/frontman-core/**"
+      - "libs/frontman-nextjs/**"
+      - "libs/frontman-vite/**"
+      - "test/ripgrep-runtime/**"
+      - "yarn.lock"
+      - ".github/workflows/ripgrep-runtime.yml"
+  push:
+    branches: [main]
+    paths:
+      - "libs/bindings/**"
+      - "libs/frontman-core/**"
+      - "libs/frontman-nextjs/**"
+      - "libs/frontman-vite/**"
+      - "test/ripgrep-runtime/**"
+      - "yarn.lock"
+      - ".github/workflows/ripgrep-runtime.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  packed-consumer:
+    name: ${{ matrix.integration }} / Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        integration: [nextjs, vite]
+        node: [18.0.0]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup build Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24.4.1"
+
+      - name: Enable Corepack
+        run: corepack enable && corepack install
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Pack integration
+        run: make -C test/ripgrep-runtime pack PACKAGE=${{ matrix.integration }}
+
+      - name: Setup consumer Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Test packed runtime
+        run: |
+          TARBALL=$(node -e 'const p=require("./test/ripgrep-runtime/.artifacts/${{ matrix.integration }}-pack.json")[0]; process.stdout.write(require("node:path").resolve("test/ripgrep-runtime/.artifacts", p.filename))')
+          node test/ripgrep-runtime/run-consumer.mjs "${{ matrix.integration }}" "$TARBALL"

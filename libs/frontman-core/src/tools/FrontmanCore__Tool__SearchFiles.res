@@ -56,15 +56,6 @@ type backendError = {
   targetPath: string,
 }
 
-let getRipgrepPath = (): option<string> => {
-  try {
-    let vsCodeRipgrep = %raw(`require('@vscode/ripgrep')`)
-    Some(vsCodeRipgrep["rgPath"])
-  } catch {
-  | _ => None
-  }
-}
-
 let buildRipgrepArgs = (~searchPath: string): array<string> => {
   let args = []
 
@@ -232,7 +223,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
   let maxResults = input.maxResults->Option.getOr(20)
 
-  let result = switch getRipgrepPath() {
+  let result = switch await FrontmanBindings.Ripgrep.getRipgrepPath() {
   | Some(rgPath) =>
     let ripgrepResult = await executeRipgrep(
       ~rgPath,

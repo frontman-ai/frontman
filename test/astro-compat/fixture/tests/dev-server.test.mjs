@@ -77,4 +77,13 @@ test("packed integration works in Astro dev server", {timeout: 120_000}, async t
   assert.match(body, /index\.astro/)
   assert.match(body, /\[slug\]\.astro/)
   assert.match(body, /health\.json\.ts/)
+
+  const searchResponse = await fetch(`${origin}${toolPath}`, {
+    method: "POST",
+    headers: {"content-type": "application/json"},
+    body: JSON.stringify({name: "search_files", arguments: {pattern: "package.json"}}),
+  })
+  const searchBody = await searchResponse.text()
+  assert.equal(searchResponse.status, 200)
+  assert.match(searchBody, /package\.json/)
 })

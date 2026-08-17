@@ -2336,6 +2336,7 @@ __metadata:
     "@frontman/bindings": "npm:*"
     "@rescript/runtime": "npm:12.3.0"
     "@rescript/webapi": "npm:*"
+    "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
     dom-element-to-component-source: "npm:0.5.0"
     lighthouse: "npm:^13.4.0"
@@ -2348,6 +2349,9 @@ __metadata:
     vitest: "catalog:"
   peerDependencies:
     astro: ^5.0.0 || ^6.0.0 || ^7.0.0
+  dependenciesMeta:
+    "@vscode/ripgrep":
+      optional: true
   languageName: unknown
   linkType: soft
 
@@ -2470,6 +2474,7 @@ __metadata:
     "@rescript/runtime": "npm:12.3.0"
     "@rescript/webapi": "npm:*"
     "@sentry/nextjs": "npm:^10.66.0"
+    "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
     dom-element-to-component-source: "npm:0.5.0"
     lighthouse: "npm:^13.4.0"
@@ -2489,6 +2494,9 @@ __metadata:
     next: ^13.2.0 || ^14.0 || ^15.0 || ^16.0
     react: ^18.2.0 || ^19.0.0
     react-dom: ^18.2.0 || ^19.0.0
+  dependenciesMeta:
+    "@vscode/ripgrep":
+      optional: true
   peerDependenciesMeta:
     "@opentelemetry/api":
       optional: true
@@ -2532,6 +2540,7 @@ __metadata:
     "@frontman-ai/frontman-protocol": "npm:*"
     "@rescript/runtime": "npm:12.3.0"
     "@rescript/webapi": "npm:*"
+    "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
     dom-element-to-component-source: "npm:0.5.0"
     lighthouse: "npm:^13.4.0"
@@ -2543,6 +2552,9 @@ __metadata:
     vitest: "catalog:"
   peerDependencies:
     vite: ">=5.0.0"
+  dependenciesMeta:
+    "@vscode/ripgrep":
+      optional: true
   bin:
     frontman-vite: ./dist/cli.js
   languageName: unknown
