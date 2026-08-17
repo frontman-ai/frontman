@@ -60,6 +60,9 @@
 		"chrome-launcher": "^1.1.2",
 		"lighthouse": "^13.4.0"
 	},
+	"optionalDependencies": {
+		"@vscode/ripgrep": "^1.18.0"
+	},
 	"peerDependencies": {
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/sdk-logs": ">=0.52.0 <1.0.0",

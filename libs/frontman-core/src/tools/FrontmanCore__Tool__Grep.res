@@ -64,15 +64,6 @@ type output = {
 
 let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
-let getRipgrepPath = (): option<string> => {
-  try {
-    let vsCodeRipgrep = %raw(`require('@vscode/ripgrep')`)
-    Some(vsCodeRipgrep["rgPath"])
-  } catch {
-  | _ => None
-  }
-}
-
 let buildRipgrepArgs = (
   ~pattern: string,
   ~searchPath: string,
@@ -419,7 +410,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
     }
   }
 
-  let result = switch getRipgrepPath() {
+  let result = switch await FrontmanBindings.Ripgrep.getRipgrepPath() {
   | Some(rgPath) =>
     let result = await executeRipgrep(
       ~rgPath,
