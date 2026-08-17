@@ -81,7 +81,7 @@
 		"@tiptap/extension-text": "^3.28.0",
 		"@tiptap/extensions": "^3.27.3",
 		"@tiptap/pm": "^3.27.3",
-		"@tiptap/react": "^3.27.3"
+		"@tiptap/react": "^3.28.0"
 	},
 	"peerDependencies": {
 		"react": "^19.2.7",
