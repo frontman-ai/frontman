@@ -159,14 +159,6 @@
 	overflow: hidden;
 	white-space: nowrap;
 	color: rgb(196 181 253);
-	animation: frontman-hide-paste-hint 1ms 5s forwards;
-}
-
-@keyframes frontman-hide-paste-hint {
-	to {
-		max-width: 0;
-		opacity: 0;
-	}
 }
 
 .frontman-prompt-pill-remove {

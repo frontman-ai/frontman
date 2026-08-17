@@ -40,7 +40,7 @@ module TiptapExtensions = FrontmanBindings.Bindings__Tiptap__Extensions
 type fileAttachmentNodeOptions = {onPreviewImage: string => unit}
 type fileAttachmentAttrs = editorFileAttachment
 type pastedTextAttrs = {id: string, text: string, label: string}
-type expandablePaste = {chipId: string, text: string, expiresAt: float}
+type expandablePaste = {chipId: string, text: string}
 type insertTarget =
   | Cursor(int)
   | Range(TiptapCore.insertRange)
@@ -95,6 +95,8 @@ let isLongPromptPasteText = text => text->lineCount >= 3 || text->String.length 
 
 let getPastedTextLabel = text => `Pasted ~${text->lineCount->Int.toString} lines`
 
+let expandablePasteWindowMs = 5000
+
 let getPasteExpandShortcut = userAgent => userAgent->String.includes("Mac") ? "Cmd+V" : "Ctrl+V"
 
 let isPasteShortcut = (event: WebAPI.UiEventsTypes.keyboardEvent) =>
@@ -105,6 +107,13 @@ let isModifierKey = key =>
   | "Meta" | "Control" | "Alt" | "Shift" => true
   | _ => false
   }
+
+/* rechecks if the chip content is same as the clipboard content before expanding */
+let expandablePasteContext: React.Context.t<option<string>> = React.createContext(None)
+
+module ExpandablePasteProvider = {
+  let make = React.Context.provider(expandablePasteContext)
+}
 
 let truncateChipLabel = label => {
   switch label->String.length > 20 {
@@ -191,6 +200,7 @@ module FileAttachmentView = {
 module PastedTextView = {
   let make = (props: TiptapReact.nodeViewProps<unit>) => {
     let attrs = pastedTextAttrsFromNode(props.node)
+    let expandableChipId = React.useContext(expandablePasteContext)
     let label = switch attrs.label {
     | "" => getPastedTextLabel(attrs.text)
     | label => label
@@ -201,11 +211,15 @@ module PastedTextView = {
     >
       <span className="frontman-prompt-paste-label">
         <span> {React.string(label)} </span>
-        <span className="frontman-prompt-paste-hint">
-          {React.string(
-            `${WebAPI.Global.navigator->navigatorUserAgent->getPasteExpandShortcut} to expand`,
-          )}
-        </span>
+        {switch expandableChipId == Some(attrs.id) {
+        | false => React.null
+        | true =>
+          <span className="frontman-prompt-paste-hint">
+            {React.string(
+              `${WebAPI.Global.navigator->navigatorUserAgent->getPasteExpandShortcut} to expand`,
+            )}
+          </span>
+        }}
       </span>
       <button
         ariaLabel="Remove pasted text"
@@ -386,7 +400,7 @@ let insertPastedText = (editor, text) => {
   ->TiptapCore.run
   ->ignore
 
-  {chipId, text, expiresAt: Date.now() +. 5000.0}
+  {chipId, text}
 }
 
 /* get the live range by chip id instead of using the insert-time position*/
@@ -499,8 +513,11 @@ let make = (
   let lastSubmitSignalRef = React.useRef(submitSignal)
   let lastAttachSignalRef = React.useRef(attachSignal)
   let lastDropFilesSignalRef = React.useRef(dropFilesSignal)
+  let (expandablePaste, setExpandablePaste) = React.useState((): option<expandablePaste> => None)
   let expandablePasteRef: React.ref<option<expandablePaste>> = React.useRef(None)
+  let expandablePasteTimerRef: React.ref<option<int>> = React.useRef(None)
 
+  expandablePasteRef.current = expandablePaste
   placeholderRef.current = placeholder
   disabledRef.current = disabled
   isEnrichingAnnotationsRef.current = isEnrichingAnnotations
@@ -511,7 +528,32 @@ let make = (
   onFileSizeErrorRef.current = onFileSizeError
 
   let isInputBlocked = () => disabledRef.current || isEnrichingAnnotationsRef.current
-  let cancelExpandablePaste = () => expandablePasteRef.current = None
+
+  let clearExpandablePasteTimer = () => {
+    expandablePasteTimerRef.current->Option.forEach(WebAPI.Global.clearTimeout)
+    expandablePasteTimerRef.current = None
+  }
+
+  let cancelExpandablePaste = () => {
+    switch expandablePasteRef.current {
+    | None => ()
+    | Some(_) =>
+      clearExpandablePasteTimer()
+      expandablePasteRef.current = None
+      setExpandablePaste(_ => None)
+    }
+  }
+
+  let startExpandablePaste = paste => {
+    clearExpandablePasteTimer()
+    expandablePasteRef.current = Some(paste)
+    setExpandablePaste(_ => Some(paste))
+    expandablePasteTimerRef.current = Some(
+      WebAPI.Global.setTimeout(~handler=cancelExpandablePaste, ~timeout=expandablePasteWindowMs),
+    )
+  }
+
+  React.useEffect0(() => Some(clearExpandablePasteTimer))
 
   let submitEditor = editor => {
     let serialized = editor->TiptapCore.getJSON->Obj.magic->serializePromptEditorContent
@@ -601,15 +643,13 @@ let make = (
           event->WebAPI.ClipboardEvent.preventDefault
           true
         | Some(currentEditor) =>
+          let dataTransfer = event.clipboardData->Null.toOption
+          let acceptedFiles = dataTransfer->getClipboardFiles->Array.filter(isAcceptedPromptFile)
+          let text =
+            dataTransfer->Option.map(WebAPI.DataTransfer.getData(_, "text/plain"))->Option.getOr("")
+
           let insertNewPaste = () => {
             cancelExpandablePaste()
-            let dataTransfer = event.clipboardData->Null.toOption
-            let acceptedFiles = dataTransfer->getClipboardFiles->Array.filter(isAcceptedPromptFile)
-            let text =
-              dataTransfer
-              ->Option.map(WebAPI.DataTransfer.getData(_, "text/plain"))
-              ->Option.getOr("")
-
             switch (acceptedFiles->Array.length > 0, text == "" || !isLongPromptPasteText(text)) {
             | (true, _) =>
               event->WebAPI.ClipboardEvent.preventDefault
@@ -618,13 +658,13 @@ let make = (
             | (false, true) => false
             | (false, false) =>
               event->WebAPI.ClipboardEvent.preventDefault
-              expandablePasteRef.current = Some(insertPastedText(currentEditor, text))
+              startExpandablePaste(insertPastedText(currentEditor, text))
               true
             }
           }
 
           switch expandablePasteRef.current {
-          | Some(paste) if Date.now() <= paste.expiresAt =>
+          | Some(paste) if text != "" && text == paste.text =>
             /* expand only when it is still in the doc*/
             switch findPastedTextChipRange(currentEditor, paste.chipId) {
             | Some(range) =>
@@ -748,11 +788,13 @@ let make = (
       ref={ReactDOM.Ref.domRef(fileInputRef)}
       type_="file"
     />
-    <TiptapReact.EditorContent
-      editor
-      className={`frontman-prompt-editor-content ${disabled || isEnrichingAnnotations
-          ? "frontman-prompt-editor-content-disabled"
-          : ""}`}
-    />
+    <ExpandablePasteProvider value={expandablePaste->Option.map(paste => paste.chipId)}>
+      <TiptapReact.EditorContent
+        editor
+        className={`frontman-prompt-editor-content ${disabled || isEnrichingAnnotations
+            ? "frontman-prompt-editor-content-disabled"
+            : ""}`}
+      />
+    </ExpandablePasteProvider>
   </div>
 }
