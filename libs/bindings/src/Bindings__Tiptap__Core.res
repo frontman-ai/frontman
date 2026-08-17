@@ -11,9 +11,25 @@ type editorState = {selection: selection, doc: proseMirrorNode}
 type insertRange = {from: int, to_: int}
 type htmlAttributes
 type htmlRenderContext = {"HTMLAttributes": htmlAttributes}
-type nodeSpec
 type attributeSpec = {default: string}
 type parseRule = {tag: string}
+
+module Content: {
+  type t
+
+  let text: string => t
+  let node: (~type_: string, ~attrs: Dict.t<JSON.t>) => t
+} = {
+  type t = {
+    @as("type")
+    type_: string,
+    text?: string,
+    attrs?: Dict.t<JSON.t>,
+  }
+
+  let text = text => {type_: "text", text}
+  let node = (~type_, ~attrs) => {type_, attrs}
+}
 
 type nodeOptions<'options> = {
   name: string,
@@ -50,9 +66,8 @@ external descendants: (proseMirrorNode, (proseMirrorNode, int) => bool) => unit 
 
 @send external chain: editor => chain = "chain"
 @send external focus: chain => chain = "focus"
-@send external insertContentAtPos: (chain, int, nodeSpec) => chain = "insertContentAt"
-@send external insertContentAtRange: (chain, insertRange, nodeSpec) => chain = "insertContentAt"
-@send external insertTextAtRange: (chain, insertRange, string) => chain = "insertContentAt"
+@send external insertContentAtPos: (chain, int, Content.t) => chain = "insertContentAt"
+@send external insertContentAtRange: (chain, insertRange, Content.t) => chain = "insertContentAt"
 @send external setTextSelection: (chain, int) => chain = "setTextSelection"
 @send external run: chain => bool = "run"
 
@@ -63,6 +78,5 @@ module Commands = {
 
   @get external commands: editor => t = "commands"
   @send external clearContent: t => unit = "clearContent"
-  @send external setTextSelection: (t, int) => bool = "setTextSelection"
   @send external splitBlock: t => bool = "splitBlock"
 }

@@ -108,7 +108,6 @@ let isModifierKey = key =>
   | _ => false
   }
 
-/* rechecks if the chip content is same as the clipboard content before expanding */
 let expandablePasteContext: React.Context.t<option<string>> = React.createContext(None)
 
 module ExpandablePasteProvider = {
@@ -299,13 +298,6 @@ let stringAttrs = pairs => {
   attrs
 }
 
-let nodeSpec = (~type_, ~attrs): TiptapCore.nodeSpec => {
-  let spec = Dict.make()
-  spec->Dict.set("type", JSON.Encode.string(type_))
-  spec->Dict.set("attrs", JSON.Encode.object(attrs))
-  spec->Obj.magic
-}
-
 let fileAttachmentToAttrs = (fileAttachment: editorFileAttachment) => {
   stringAttrs([
     ("id", fileAttachment.id),
@@ -371,7 +363,10 @@ let getInsertedAtomEnd = target => {
 let insertFileAttachment = (editor, fileAttachment, insertTarget) => {
   let insertedAtomEnd = getInsertedAtomEnd(insertTarget)
   let chain = editor->TiptapCore.chain->TiptapCore.focus
-  let content = nodeSpec(~type_="fileAttachment", ~attrs=fileAttachment->fileAttachmentToAttrs)
+  let content = TiptapCore.Content.node(
+    ~type_="fileAttachment",
+    ~attrs=fileAttachment->fileAttachmentToAttrs,
+  )
 
   switch insertTarget {
   | Cursor(position) => chain->TiptapCore.insertContentAtPos(position, content)
@@ -389,7 +384,7 @@ let insertPastedText = (editor, text) => {
   let insertedAtomEnd = getInsertedAtomEnd(insertTarget)
   let chipId = generateId()
   let attrs = stringAttrs([("id", chipId), ("text", text), ("label", getPastedTextLabel(text))])
-  let content = nodeSpec(~type_="pastedText", ~attrs)
+  let content = TiptapCore.Content.node(~type_="pastedText", ~attrs)
   let chain = editor->TiptapCore.chain->TiptapCore.focus
 
   switch insertTarget {
@@ -403,7 +398,6 @@ let insertPastedText = (editor, text) => {
   {chipId, text}
 }
 
-/* get the live range by chip id instead of using the insert-time position*/
 let findPastedTextChipRange = (editor, chipId): option<TiptapCore.insertRange> => {
   let state: TiptapCore.editorState = editor->TiptapCore.state
   let found = ref(None)
@@ -429,7 +423,7 @@ let expandPastedText = (editor, paste, range: TiptapCore.insertRange) => {
   editor
   ->TiptapCore.chain
   ->TiptapCore.focus
-  ->TiptapCore.insertTextAtRange(range, paste.text)
+  ->TiptapCore.insertContentAtRange(range, TiptapCore.Content.text(paste.text))
   ->TiptapCore.setTextSelection(range.from + paste.text->String.length)
   ->TiptapCore.run
   ->ignore
@@ -665,7 +659,6 @@ let make = (
 
           switch expandablePasteRef.current {
           | Some(paste) if text != "" && text == paste.text =>
-            /* expand only when it is still in the doc*/
             switch findPastedTextChipRange(currentEditor, paste.chipId) {
             | Some(range) =>
               event->WebAPI.ClipboardEvent.preventDefault
