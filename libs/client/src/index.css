@@ -148,6 +148,19 @@
 	flex-shrink: 0;
 }
 
+.frontman-prompt-paste-label {
+	display: inline-flex;
+	flex-wrap: wrap;
+	column-gap: 0.25rem;
+}
+
+.frontman-prompt-paste-hint {
+	max-width: 10rem;
+	overflow: hidden;
+	white-space: nowrap;
+	color: rgb(196 181 253);
+}
+
 .frontman-prompt-pill-remove {
 	margin-left: 0.125rem;
 	color: rgb(167 139 250);
