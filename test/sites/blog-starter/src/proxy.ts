@@ -12,6 +12,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 		projectRoot: process.cwd(),
 		basePath: "frontman",
 		serverName: "blog-starter",
+		serverVersion: "1.0.0",
 	});
 
 	const response = await frontman(request);
