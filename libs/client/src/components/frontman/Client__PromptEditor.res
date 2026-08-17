@@ -40,7 +40,7 @@ module TiptapExtensions = FrontmanBindings.Bindings__Tiptap__Extensions
 type fileAttachmentNodeOptions = {onPreviewImage: string => unit}
 type fileAttachmentAttrs = editorFileAttachment
 type pastedTextAttrs = {id: string, text: string, label: string}
-type expandablePaste = {text: string, from: int, to_: int, expiresAt: float}
+type expandablePaste = {chipId: string, text: string, expiresAt: float}
 type insertTarget =
   | Cursor(int)
   | Range(TiptapCore.insertRange)
@@ -372,16 +372,9 @@ let insertFileAttachment = (editor, fileAttachment, insertTarget) => {
 
 let insertPastedText = (editor, text) => {
   let insertTarget = getSelectionInsertTarget(editor)
-  let insertedAtomStart = switch insertTarget {
-  | Cursor(position) => position
-  | Range({from}) => from
-  }
   let insertedAtomEnd = getInsertedAtomEnd(insertTarget)
-  let attrs = stringAttrs([
-    ("id", generateId()),
-    ("text", text),
-    ("label", getPastedTextLabel(text)),
-  ])
+  let chipId = generateId()
+  let attrs = stringAttrs([("id", chipId), ("text", text), ("label", getPastedTextLabel(text))])
   let content = nodeSpec(~type_="pastedText", ~attrs)
   let chain = editor->TiptapCore.chain->TiptapCore.focus
 
@@ -393,15 +386,37 @@ let insertPastedText = (editor, text) => {
   ->TiptapCore.run
   ->ignore
 
-  {text, from: insertedAtomStart, to_: insertedAtomEnd, expiresAt: Date.now() +. 5000.0}
+  {chipId, text, expiresAt: Date.now() +. 5000.0}
 }
 
-let expandPastedText = (editor, paste) => {
+/* get the live range by chip id instead of using the insert-time position*/
+let findPastedTextChipRange = (editor, chipId): option<TiptapCore.insertRange> => {
+  let state: TiptapCore.editorState = editor->TiptapCore.state
+  let found = ref(None)
+
+  state.doc->TiptapCore.descendants((node, position) => {
+    switch found.contents {
+    | Some(_) => false
+    | None =>
+      switch node->TiptapCore.nodeType->TiptapCore.nodeTypeName == "pastedText" &&
+        node->TiptapCore.nodeAttrs->attrString("id") == chipId {
+      | true =>
+        found := Some({TiptapCore.from: position, to_: position + node->TiptapCore.nodeSize})
+        false
+      | false => true
+      }
+    }
+  })
+
+  found.contents
+}
+
+let expandPastedText = (editor, paste, range: TiptapCore.insertRange) => {
   editor
   ->TiptapCore.chain
   ->TiptapCore.focus
-  ->TiptapCore.insertTextAtRange({from: paste.from, to_: paste.to_}, paste.text)
-  ->TiptapCore.setTextSelection(paste.from + paste.text->String.length)
+  ->TiptapCore.insertTextAtRange(range, paste.text)
+  ->TiptapCore.setTextSelection(range.from + paste.text->String.length)
   ->TiptapCore.run
   ->ignore
 }
@@ -586,13 +601,7 @@ let make = (
           event->WebAPI.ClipboardEvent.preventDefault
           true
         | Some(currentEditor) =>
-          switch expandablePasteRef.current {
-          | Some(paste) if Date.now() <= paste.expiresAt =>
-            event->WebAPI.ClipboardEvent.preventDefault
-            cancelExpandablePaste()
-            expandPastedText(currentEditor, paste)
-            true
-          | _ =>
+          let insertNewPaste = () => {
             cancelExpandablePaste()
             let dataTransfer = event.clipboardData->Null.toOption
             let acceptedFiles = dataTransfer->getClipboardFiles->Array.filter(isAcceptedPromptFile)
@@ -612,6 +621,20 @@ let make = (
               expandablePasteRef.current = Some(insertPastedText(currentEditor, text))
               true
             }
+          }
+
+          switch expandablePasteRef.current {
+          | Some(paste) if Date.now() <= paste.expiresAt =>
+            /* expand only when it is still in the doc*/
+            switch findPastedTextChipRange(currentEditor, paste.chipId) {
+            | Some(range) =>
+              event->WebAPI.ClipboardEvent.preventDefault
+              cancelExpandablePaste()
+              expandPastedText(currentEditor, paste, range)
+              true
+            | None => insertNewPaste()
+            }
+          | _ => insertNewPaste()
           }
         }
       },

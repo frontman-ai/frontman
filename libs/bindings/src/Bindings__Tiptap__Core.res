@@ -4,7 +4,9 @@ type nodeExtension = extension
 type nodeConstructor
 type chain
 type selection = {from: int, to_: int}
-type editorState = {selection: selection}
+type proseMirrorNodeType
+type proseMirrorNode
+type editorState = {selection: selection, doc: proseMirrorNode}
 
 type insertRange = {from: int, to_: int}
 type htmlAttributes
@@ -38,6 +40,13 @@ external mergeAttributes: (htmlAttributes, Dict.t<string>) => htmlAttributes = "
 @send external setEditable: (editor, bool) => unit = "setEditable"
 @get external isEmpty: editor => bool = "isEmpty"
 @get external state: editor => editorState = "state"
+
+@get external nodeType: proseMirrorNode => proseMirrorNodeType = "type"
+@get external nodeTypeName: proseMirrorNodeType => string = "name"
+@get external nodeAttrs: proseMirrorNode => Dict.t<unknown> = "attrs"
+@get external nodeSize: proseMirrorNode => int = "nodeSize"
+@send
+external descendants: (proseMirrorNode, (proseMirrorNode, int) => bool) => unit = "descendants"
 
 @send external chain: editor => chain = "chain"
 @send external focus: chain => chain = "focus"
