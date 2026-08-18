@@ -1,5 +1,11 @@
 # @rescript/webapi
 
+## 0.1.2
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
 ## 0.1.1
 
 ### Patch Changes

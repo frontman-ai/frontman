@@ -1,5 +1,25 @@
 # @frontman-ai/client
 
+## 1.0.5
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
+- [#1416](https://github.com/frontman-ai/frontman/pull/1416) [`f8c6c52`](https://github.com/frontman-ai/frontman/commit/f8c6c52a79a148168e061db6f3aec36839519d80) Thanks [@uinstinct](https://github.com/uinstinct)! - Allow a second paste within five seconds to expand a pasted-text chip in place.
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent task failures from rendering duplicate error banners and reconnect cleanly after React Strict Mode lifecycle cleanup.
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Stop reporting Astro DOM ancestors as component invocation callsites, attach React component props instead of selected host-element props when ownership matches, and preserve current-page context in task diagnostics.
+
+- [#1402](https://github.com/frontman-ai/frontman/pull/1402) [`c30f33e`](https://github.com/frontman-ai/frontman/commit/c30f33ea32ecb3d50c4e8aef41c42c54a8274277) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make Frontman work immediately on WordPress sites using Plain permalinks.
+
+- [#1410](https://github.com/frontman-ai/frontman/pull/1410) [`f0868c4`](https://github.com/frontman-ai/frontman/commit/f0868c487e4f1d8cbf42d3b75c583921d657bbe4) Thanks [@uinstinct](https://github.com/uinstinct)! - Keep the thinking indicator visible for the whole AI turn, including while text is streaming.
+
+- [#1436](https://github.com/frontman-ai/frontman/pull/1436) [`0224d40`](https://github.com/frontman-ai/frontman/commit/0224d40b3b6b61800553e6833ca90ea8f68b0096) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Align Tiptap packages on version 3.30.1 and upgrade the repository to Yarn 4.18.
+
+- [#1409](https://github.com/frontman-ai/frontman/pull/1409) [`6732667`](https://github.com/frontman-ai/frontman/commit/673266773033f17eb9b6a7ad6929a753b18fdd75) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use explicit new-tab sign-in and sign-out flows in top-level and embedded Frontman clients. Ensure WordPress installations receive the updated hosted client instead of a browser-cached bundle.
+
 ## 1.0.4
 
 ### Patch Changes
