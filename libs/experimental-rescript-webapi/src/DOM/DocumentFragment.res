@@ -39,6 +39,13 @@ Returns the first element within node's descendants whose ID is elementId.
   external getElementById: (T.t, string) => null<DomTypes.element> = "getElementById"
 
   /**
+  Returns the child elements.
+  [Read more on MDN](https://developer.mozilla.org/docs/Web/API/DocumentFragment/children)
+  */
+  @get
+  external children: T.t => DomTypes.htmlCollection<DomTypes.element> = "children"
+
+  /**
 Inserts nodes before the first child of node, while replacing strings in nodes with equivalent Text nodes.
 
 Throws a "HierarchyRequestError" DOMException if the constraints of the node tree are violated.

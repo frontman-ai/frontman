@@ -35,9 +35,6 @@ let maxOutputBytes = 30_000
 
 let keyAttributes = ["id", "class", "data-testid", "href", "src", "type", "placeholder", "alt"]
 
-@scope("Array") @val
-external collectionToArray: 'collection => array<'item> = "from"
-
 @new external makeTextEncoder: unit => textEncoder = "TextEncoder"
 @send external encode: (textEncoder, string) => Uint8Array.t = "encode"
 @get external byteLength: Uint8Array.t => int = "byteLength"
@@ -83,22 +80,14 @@ let findSelector = (
 let childElements = (~element: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): array<walkChild> => {
   let lightChildren =
     element.children
-    ->collectionToArray
+    ->WebAPI.HTMLCollection.toArray
     ->Array.mapWithIndex((child, index) => {
       element: child,
       relation: LightChild(index + 1),
     })
   switch (pierceShadowDom, element.shadowRoot->Null.toOption) {
   | (true, Some(shadowRoot)) => {
-      let shadowChildren =
-        shadowRoot.childNodes
-        ->collectionToArray
-        ->Array.filterMap((node: WebAPI.DOMAPI.node) =>
-          switch node.nodeType === 1 {
-          | true => Some(node->WebAPI.Node.asElement)
-          | false => None
-          }
-        )
+      let shadowChildren = shadowRoot->WebAPI.ShadowRoot.children->WebAPI.HTMLCollection.toArray
       Array.concat(
         lightChildren,
         shadowChildren->Array.mapWithIndex((child, index) => {
@@ -114,7 +103,7 @@ let childElements = (~element: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): a
 let directText = (element: WebAPI.DOMAPI.element): string => {
   let node = element->WebAPI.Element.asNode
   node.childNodes
-  ->collectionToArray
+  ->WebAPI.NodeList.toArray
   ->Array.filterMap((node: WebAPI.DOMAPI.node) =>
     switch node.nodeType === 3 {
     | false => None

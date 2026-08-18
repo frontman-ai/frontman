@@ -1,12 +1,3 @@
-@val
-external nodeListToElements: WebAPI.DOMAPI.nodeList => array<WebAPI.DOMAPI.element> = "Array.from"
-
-@val
-external collectionToElements: 'collection => array<WebAPI.DOMAPI.element> = "Array.from"
-
-@get
-external shadowElementChildren: WebAPI.DOMAPI.shadowRoot => WebAPI.DOMAPI.nodeList = "children"
-
 let shadowPathSeparator = " >>> "
 
 type selectorKind =
@@ -32,7 +23,7 @@ let parseShadowIndexes = (segment: string): array<int> =>
 let resolveShadowSegment = (root: WebAPI.DOMAPI.shadowRoot, segment: string): option<
   WebAPI.DOMAPI.element,
 > => {
-  let children = ref(root->shadowElementChildren->nodeListToElements)
+  let children = ref(root->WebAPI.ShadowRoot.children->WebAPI.HTMLCollection.toArray)
   let selected = ref(None)
   segment
   ->parseShadowIndexes
@@ -40,7 +31,7 @@ let resolveShadowSegment = (root: WebAPI.DOMAPI.shadowRoot, segment: string): op
     switch children.contents->Array.get(index - 1) {
     | Some(element) => {
         selected := Some(element)
-        children := element.children->collectionToElements
+        children := element.children->WebAPI.HTMLCollection.toArray
       }
     | None => {
         selected := None
@@ -57,7 +48,9 @@ let resolveShadowPath = (~doc: WebAPI.DOMAPI.document, ~segments: array<string>)
   segments
   ->Array.slice(~start=1, ~end=segments->Array.length)
   ->Array.reduce(
-    doc->WebAPI.Document.querySelectorAll(segments->Array.getUnsafe(0))->nodeListToElements,
+    doc
+    ->WebAPI.Document.querySelectorAll(segments->Array.getUnsafe(0))
+    ->WebAPI.NodeList.toArray,
     (hosts, segment) =>
       hosts->Array.filterMap(host =>
         host.shadowRoot
@@ -70,13 +63,13 @@ let resolveCssSelector = (~doc: WebAPI.DOMAPI.document, ~selector: string): arra
   WebAPI.DOMAPI.element,
 > =>
   try {
-    doc->WebAPI.Document.querySelectorAll(selector)->nodeListToElements
+    doc->WebAPI.Document.querySelectorAll(selector)->WebAPI.NodeList.toArray
   } catch {
   | JsExn(_) =>
     let segments = selector->String.split(shadowPathSeparator)
     switch segments->Array.length > 1 {
     | true => resolveShadowPath(~doc, ~segments)
-    | false => doc->WebAPI.Document.querySelectorAll(selector)->nodeListToElements
+    | false => doc->WebAPI.Document.querySelectorAll(selector)->WebAPI.NodeList.toArray
     }
   }
 

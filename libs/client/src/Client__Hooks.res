@@ -9,10 +9,9 @@ module EventHelpers = {
     iframeDoc
     ->Option.map(doc => WebAPI.Document.querySelectorAll(doc, "iframe"))
     ->Option.map(frames =>
-      frames
-      ->Obj.magic
-      ->Array.forEach(element => {
-        let iframeDoc = element->WebAPI.HTMLIFrameElement.contentDocument
+      frames->WebAPI.NodeList.forEach(element => {
+        let iframeDoc =
+          element->WebAPI.Element.asRescriptElement->WebAPI.HTMLIFrameElement.contentDocument
         iframeExecuteEventListener(eventListener, handler, iframeDoc)->Option.ignore
         iframeDoc
         ->Option.map(

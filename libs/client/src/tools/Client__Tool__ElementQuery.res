@@ -1,6 +1,3 @@
-@val
-external nodeListToElements: WebAPI.DOMAPI.nodeList => array<WebAPI.DOMAPI.element> = "Array.from"
-
 let effectiveRole = (element: WebAPI.DOMAPI.element): string =>
   switch FrontmanBindings.Bindings__DomAccessibilityApi.getRole(element)->Null.toOption {
   | Some(role) if role !== "" => role
@@ -148,7 +145,7 @@ let queryInteractiveElements = (
   ~nameFilter: option<string>,
   ~limit: option<int>,
 ): array<resolvedElement> => {
-  let elements = document->WebAPI.Document.querySelectorAll("*")->nodeListToElements
+  let elements = document->WebAPI.Document.querySelectorAll("*")->WebAPI.NodeList.toArray
   let results = []
   let index = ref(0)
   let belowLimit = () => limit->Option.mapOr(true, limit => results->Array.length < limit)
@@ -198,18 +195,14 @@ let resolveByRoleAndName = (
 }
 
 let childMatchesText = (element: WebAPI.DOMAPI.element, lowerText: string): bool => {
-  let children = element.children
-  let found = ref(false)
-  let index = ref(0)
-  while index.contents < children.length && !found.contents {
-    let child = children->WebAPI.HTMLCollection.item(index.contents)
+  element.children
+  ->WebAPI.HTMLCollection.toArray
+  ->Array.some(child =>
     switch isEffectivelyHidden(child) {
-    | true => ()
-    | false => found := child->getVisibleText->String.toLowerCase->String.includes(lowerText)
+    | true => false
+    | false => child->getVisibleText->String.toLowerCase->String.includes(lowerText)
     }
-    index := index.contents + 1
-  }
-  found.contents
+  )
 }
 
 let findMatchingElements = (~root: WebAPI.DOMAPI.element, ~query: string): array<
@@ -218,7 +211,7 @@ let findMatchingElements = (~root: WebAPI.DOMAPI.element, ~query: string): array
   let lowerQuery = query->String.toLowerCase
   root
   ->WebAPI.Element.querySelectorAll("*")
-  ->nodeListToElements
+  ->WebAPI.NodeList.toArray
   ->Array.filter(element =>
     switch isEffectivelyHidden(element) {
     | true => false
