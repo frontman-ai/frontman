@@ -164,6 +164,8 @@ module Lens = {
     updateTaskData(task, d => {...d, activePopupAnnotationId: id})
 }
 
+type completedIdleTurn = {taskId: string, agentId: string}
+
 module Selectors = {
   let messages = (task: Task.t): option<array<Message.t>> => {
     switch task {
@@ -266,6 +268,22 @@ module Selectors = {
   let pendingQuestion = (task: Task.t): option<Client__Question__Types.pendingQuestion> => {
     switch task {
     | Task.Loaded({pendingQuestion}) => pendingQuestion
+    | _ => None
+    }
+  }
+
+  let completedIdleTurn = (task: Task.t): option<completedIdleTurn> => {
+    switch (task, Task.getMessages(task)->Array.last) {
+    | (
+        Task.Loaded({
+          id: taskId,
+          isAgentRunning: false,
+          lastTurnCancelled: false,
+          pendingQuestion: None,
+        }),
+        Some(Message.Assistant(Message.Completed({agentId, _}))),
+      ) =>
+      Some({taskId, agentId})
     | _ => None
     }
   }

@@ -29,7 +29,6 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
       deleteSession: _dummyDeleteSession,
       apiBaseUrl: _apiBaseUrl,
     }),
-    sessionInitialized: true,
     userProfile: None,
     openrouterKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
     anthropicKeySettings: {

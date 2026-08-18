@@ -100,7 +100,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
-  let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
@@ -128,7 +127,6 @@ let make = (~onConfigureProvider: unit => unit) => {
     ~messages,
     ~isAgentRunning,
     ~hasActiveACPSession,
-    ~sessionInitialized,
   )
 
   let hasPendingQuestion =
@@ -363,7 +361,7 @@ let make = (~onConfigureProvider: unit => unit) => {
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
-        {switch sessionInitialized {
+        {switch hasActiveACPSession {
         | true => React.null
         | false =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">

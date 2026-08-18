@@ -114,7 +114,6 @@ let withPlanHandoffContext = (state: Client__State__Types.state): Client__State_
     deleteSession: (_, ~onComplete as _) => (),
     apiBaseUrl: "http://localhost:4000",
   }),
-  sessionInitialized: true,
   agentCatalog: Some([planner, executor]),
   selectedAgentId: Some(planner.id),
 }
@@ -125,7 +124,7 @@ describe("Client State Reducer - Plan Handoff", () => {
 
     t
     ->expect(Reducer.Selectors.pendingPlanHandoff(state))
-    ->Expect.toEqual(Some({Reducer.executorAgentId: executor.id}))
+    ->Expect.toEqual(Some({Reducer.taskId: "test-task-1", executorAgentId: executor.id}))
   })
 
   test("execute atomically consumes the handoff and sends through the executor", t => {
@@ -1300,7 +1299,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
           deleteSession: (_, ~onComplete as _) => (),
           apiBaseUrl: "http://localhost:4000",
         }),
-        sessionInitialized: true,
         selectedModelValue: None,
       }
     }
@@ -1512,7 +1510,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     test(
       "provider setup is required only for an initialized session with loaded empty settings",
       t => {
-        let initializedState = {...Reducer.defaultState, sessionInitialized: true}
+        let initializedState = _makeStateWithSession()
         let loadingState = {
           ...initializedState,
           openrouterKeySettings: {source: Loading, saveStatus: Idle},
@@ -1542,8 +1540,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
           verificationUrl: "https://example.com/device",
         })
         let state = {
-          ...Reducer.defaultState,
-          sessionInitialized: true,
+          ..._makeStateWithSession(),
           anthropicOAuthStatus: authorizing,
           openaiOAuthStatus: showingCode,
         }
@@ -1569,10 +1566,10 @@ describe("Client State Reducer - Annotations on Messages", () => {
     test(
       "clearing the ACP session invalidates loaded provider settings",
       t => {
-        let state = {...Reducer.defaultState, sessionInitialized: true}
+        let state = _makeStateWithSession()
         let (nextState, _effects) = Reducer.next(state, ClearAcpSession)
 
-        t->expect(nextState.sessionInitialized)->Expect.toBe(false)
+        t->expect(Reducer.Selectors.hasActiveACPSession(nextState))->Expect.toBe(false)
       },
     )
   })
