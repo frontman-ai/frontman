@@ -7,13 +7,10 @@
  */
 module Icons = Client__ToolIcons
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
-module Node = WebAPI.Node
 
 type inputItem = FileAttachment({id: string, name: string, mediaType: string, dataUrl: string})
 
 let isComposerBeamActive = (~hasFocus, ~isInputDisabled) => !hasFocus && !isInputDisabled
-
-external asNode: {..} => WebAPI.DomTypes.node = "%identity"
 
 module ModelSelector = {
   module Select = Client__UI__Select
@@ -465,7 +462,10 @@ let make = (
       onBlur={event =>
         switch ReactEvent.Focus.relatedTarget(event) {
         | Some(target)
-          if Node.contains(event->ReactEvent.Focus.currentTarget->asNode, target->asNode) => ()
+          if WebAPI.Node.contains(
+            ReactEvent.Focus.currentTarget(event)->Obj.magic->WebAPI.Element.asNode,
+            target->Obj.magic->WebAPI.Element.asNode,
+          ) => ()
         | _ => setHasComposerFocus(_ => false)
         }}
     >
