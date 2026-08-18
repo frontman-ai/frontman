@@ -2407,6 +2407,7 @@ __metadata:
     "@types/react-dom": "npm:^19.2.3"
     "@zumer/snapdom": "npm:^2.12.9"
     babel-plugin-react-compiler: "npm:^1.0.0"
+    border-beam: "npm:^1.3.0"
     dom-accessibility-api: "npm:^0.7.1"
     dom-element-to-component-source: "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb"
     lucide-react: "npm:^1.25.0"
@@ -8304,6 +8305,16 @@ __metadata:
   version: 1.0.0
   resolution: "boolbase@npm:1.0.0"
   checksum: 10c0/e4b53deb4f2b85c52be0e21a273f2045c7b6a6ea002b0e139c744cb6f95e9ec044439a52883b0d74dedd1ff3da55ed140cfdddfed7fb0cccbed373de5dce1bcf
+  languageName: node
+  linkType: hard
+
+"border-beam@npm:^1.3.0":
+  version: 1.3.0
+  resolution: "border-beam@npm:1.3.0"
+  peerDependencies:
+    react: ">=18.0.0"
+    react-dom: ">=18.0.0"
+  checksum: 10c0/4c252d7ced08f989e42f3ca614d23632223149a48bc8f479656b74d275c766cfa1bf3c270480dd34a7a873f1adc4d6a5a0dea67fe274edff0c612f515b06e99b
   languageName: node
   linkType: hard
 

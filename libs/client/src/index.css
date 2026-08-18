@@ -90,6 +90,20 @@
 	background: rgb(255 255 255 / 0.02);
 }
 
+@media (prefers-reduced-motion: reduce) {
+	.frontman-composer-beam.frontman-composer-beam[data-active],
+	.frontman-composer-beam.frontman-composer-beam[data-fading],
+	.frontman-composer-beam.frontman-composer-beam[data-active]::before,
+	.frontman-composer-beam.frontman-composer-beam[data-fading]::before,
+	.frontman-composer-beam.frontman-composer-beam[data-active]::after,
+	.frontman-composer-beam.frontman-composer-beam[data-fading]::after,
+	.frontman-composer-beam.frontman-composer-beam[data-active] [data-beam-bloom],
+	.frontman-composer-beam.frontman-composer-beam[data-fading]
+		[data-beam-bloom] {
+		animation: none;
+	}
+}
+
 .frontman-prompt-editor-content {
 	width: 100%;
 	color: rgb(244 244 245);
