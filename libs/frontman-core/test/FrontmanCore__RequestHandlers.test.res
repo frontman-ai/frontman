@@ -3,6 +3,7 @@ open Vitest
 module RequestHandlers = FrontmanCore__RequestHandlers
 module ToolRegistry = FrontmanCore__ToolRegistry
 module Relay = FrontmanAiFrontmanProtocol.FrontmanProtocol__Relay
+module Path = FrontmanBindings.Path
 
 module Helpers = {
   let handlerConfig: RequestHandlers.handlerConfig = {
@@ -13,6 +14,10 @@ module Helpers = {
   }
 
   let registry = ToolRegistry.coreTools()
+
+  let projectRoot = Path.join([FrontmanBindings.Process.cwd(), "test", "fixtures", "rsc-source"])
+  let sourceRoot = Path.join([projectRoot, "src"])
+  let sourceFile = Path.join([sourceRoot, "ServerPost.tsx"])
 
   let makePostRequest = (url: string, body: JSON.t): WebAPI.FetchAPI.request => {
     let headers = WebAPI.HeadersInit.fromDict(
@@ -26,6 +31,33 @@ module Helpers = {
         headers,
       },
     )
+  }
+
+  let resolveSourceLocationBody = (request: RequestHandlers.sourceContext): JSON.t =>
+    request->S.decodeOrThrow(
+      ~from=RequestHandlers.sourceContextSchema,
+      ~to=S.json->S.noValidation(true),
+    )
+
+  let sourceLocation = (~file: string, ~componentName="App"): RequestHandlers.sourceLocation => {
+    componentName: Some(componentName),
+    tagName: None,
+    file,
+    line: 1,
+    column: 0,
+    componentProps: None,
+  }
+
+  let sourceRequest = (context: RequestHandlers.sourceContext): WebAPI.FetchAPI.request =>
+    makePostRequest(
+      "http://localhost/frontman/resolve-source-location",
+      resolveSourceLocationBody(context),
+    )
+
+  let successfulResolver = async (context, _options): RequestHandlers.sourceResolutionResult => {
+    success: true,
+    data: Some(context),
+    error: None,
   }
 }
 
@@ -226,39 +258,136 @@ describe("RequestHandlers", _t => {
 
   describe("handleResolveSourceLocation", _t => {
     testAsync(
-      "normalizes resolved files relative to configured sourceRoot",
+      "normalizes a complete context through one real package fixture",
       async t => {
-        let body = JSON.Encode.object(
-          Dict.fromArray([
-            ("componentName", JSON.Encode.string("App")),
-            ("file", JSON.Encode.string("/workspace/apps/web/src/App.tsx")),
-            ("line", JSON.Encode.float(12.0)),
-            ("column", JSON.Encode.float(4.0)),
-          ]),
-        )
-
-        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+        let generatedFile = Path.join([Helpers.projectRoot, ".next", "server", "rsc-chunk.js"])
+        let context: RequestHandlers.sourceContext = {
+          definition: Some({
+            ...Helpers.sourceLocation(~file=Helpers.sourceFile, ~componentName="ClientButton"),
+            tagName: Some("BUTTON"),
+            componentProps: Some(Dict.fromArray([("label", JSON.Encode.string("Save"))])),
+          }),
+          invocations: [
+            {
+              ...Helpers.sourceLocation(
+                ~file=`about://React/Server/file://${generatedFile}`,
+                ~componentName="ServerPost",
+              ),
+              tagName: Some("ARTICLE"),
+              line: 2,
+              column: 2,
+            },
+          ],
+        }
 
         let response = await RequestHandlers.handleResolveSourceLocation(
-          ~sourceRoot="/workspace/apps/web",
-          req,
+          ~projectRoot=Helpers.projectRoot,
+          ~sourceRoot=Helpers.sourceRoot,
+          Helpers.sourceRequest(context),
         )
 
         t->expect(response.status)->Expect.toBe(200)
-        let json = await response->WebAPI.Response.json
-        let result = json->S.parseOrThrow(~to=RequestHandlers.resolveSourceLocationResponseSchema)
-        t->expect(result.file)->Expect.toBe("src/App.tsx")
+        let result =
+          (await response->WebAPI.Response.json)->S.parseOrThrow(
+            ~to=RequestHandlers.sourceContextSchema,
+          )
+        let definition = result.definition->Option.getOrThrow
+        let invocation = result.invocations->Array.get(0)->Option.getOrThrow
+        t->expect(definition.file)->Expect.toBe("ServerPost.tsx")
+        t->expect(definition.componentProps->Option.isSome)->Expect.toBe(true)
+        t->expect(invocation.file)->Expect.toBe("ServerPost.tsx")
+        t->expect(invocation.line)->Expect.toBe(3)
       },
     )
 
     testAsync(
-      "returns 400 for completely invalid JSON body",
+      "delegates the complete context once with canonical projectRoot",
       async t => {
-        let body = JSON.Encode.string("not an object")
+        let calls: array<(
+          RequestHandlers.sourceContext,
+          RequestHandlers.resolveSourceContextOptions,
+        )> = []
+        let resolver = async (context, options) => {
+          calls->Array.push((context, options))->ignore
+          await Helpers.successfulResolver(context, options)
+        }
+        let context: RequestHandlers.sourceContext = {
+          definition: Some({
+            ...Helpers.sourceLocation(~file=Helpers.sourceFile, ~componentName="Definition"),
+            tagName: Some("SECTION"),
+            componentProps: Some(Dict.fromArray([("enabled", JSON.Encode.bool(true))])),
+          }),
+          invocations: [
+            {
+              ...Helpers.sourceLocation(~file="ServerPost.tsx", ~componentName="Invocation"),
+              tagName: Some("ARTICLE"),
+              componentProps: Some(Dict.make()),
+            },
+          ],
+        }
+
+        let response = await RequestHandlers.handleResolveSourceLocation(
+          ~projectRoot=`${Helpers.sourceRoot}/..`,
+          ~sourceRoot=Helpers.sourceRoot,
+          ~resolveSourceContext=resolver,
+          Helpers.sourceRequest(context),
+        )
+
+        t->expect(response.status)->Expect.toBe(200)
+        t->expect(calls->Array.length)->Expect.toBe(1)
+        let (receivedContext, options) = calls->Array.get(0)->Option.getOrThrow
+        t->expect(receivedContext)->Expect.toEqual(context)
+        t->expect(options.projectRoot)->Expect.toBe(Helpers.projectRoot)
+      },
+    )
+
+    testAsync(
+      "rejects bounded source contexts without calling the resolver",
+      async t => {
+        let calls = []
+        let resolver = async (context, options) => {
+          calls->Array.push(context)->ignore
+          await Helpers.successfulResolver(context, options)
+        }
+        let tooManyInvocations: RequestHandlers.sourceContext = {
+          definition: None,
+          invocations: Array.make(~length=11, Helpers.sourceLocation(~file="ServerPost.tsx")),
+        }
+        let oversized: RequestHandlers.sourceContext = {
+          definition: Some({
+            ...Helpers.sourceLocation(~file="x"->String.repeat(100_000)),
+            tagName: Some("DIV"),
+            componentProps: Some(Dict.make()),
+          }),
+          invocations: [],
+        }
+
+        let responses = await Promise.all(
+          [tooManyInvocations, oversized]->Array.map(
+            context =>
+              RequestHandlers.handleResolveSourceLocation(
+                ~sourceRoot=Helpers.sourceRoot,
+                ~resolveSourceContext=resolver,
+                Helpers.sourceRequest(context),
+              ),
+          ),
+        )
+
+        t->expect(responses->Array.map(response => response.status))->Expect.toEqual([422, 413])
+        t->expect(calls->Array.length)->Expect.toBe(0)
+      },
+    )
+
+    testAsync(
+      "returns 400 for malformed source context schema",
+      async t => {
+        let body = JSON.parseOrThrow(`{
+          "invocations": [{"file":"src/App.tsx","line":"bad","column":1}]
+        }`)
         let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
 
         let response = await RequestHandlers.handleResolveSourceLocation(
-          ~sourceRoot="/test/project",
+          ~sourceRoot=Helpers.sourceRoot,
           req,
         )
 
@@ -269,176 +398,85 @@ describe("RequestHandlers", _t => {
     )
 
     testAsync(
-      "returns 400 for missing required fields",
+      "returns stable package errors without generated paths",
       async t => {
-        let body = JSON.Encode.object(
-          Dict.fromArray([("componentName", JSON.Encode.string("Foo"))]),
-        )
-        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+        let generatedPath = "/private/workspace/.next/server/app/page.js"
+        let assertSafeError = async (code, expectedDetails) => {
+          let resolver = async (_context, _options): RequestHandlers.sourceResolutionResult => {
+            success: false,
+            data: None,
+            error: Some({code, message: `Could not resolve ${generatedPath}`}),
+          }
+          let context: RequestHandlers.sourceContext = {definition: None, invocations: []}
+          let response = await RequestHandlers.handleResolveSourceLocation(
+            ~sourceRoot=Helpers.sourceRoot,
+            ~resolveSourceContext=resolver,
+            Helpers.sourceRequest(context),
+          )
 
-        let response = await RequestHandlers.handleResolveSourceLocation(
-          ~sourceRoot="/test/project",
-          req,
-        )
+          t->expect(response.status)->Expect.toBe(422)
+          let text = await response->WebAPI.Response.text
+          t->expect(text->String.includes(expectedDetails))->Expect.toBe(true)
+          t->expect(text->String.includes(generatedPath))->Expect.toBe(false)
+        }
 
-        t->expect(response.status)->Expect.toBe(400)
-        let text = await response->WebAPI.Response.text
-        t->expect(text->String.includes("Invalid request"))->Expect.toBe(true)
+        let _ = await Promise.all([
+          assertSafeError("GENERATED_FILE_NOT_FOUND", "Generated source file was not found"),
+          assertSafeError("SOURCE_MAP_NOT_FOUND", "Source map was not found"),
+          assertSafeError("POSITION_NOT_FOUND", "Source map position was not found"),
+        ])
       },
     )
 
     testAsync(
-      "returns 400 when line is wrong type",
+      "returns 500 when the package unexpectedly throws",
       async t => {
-        let body = JSON.Encode.object(
-          Dict.fromArray([
-            ("componentName", JSON.Encode.string("App")),
-            ("file", JSON.Encode.string("src/App.tsx")),
-            ("line", JSON.Encode.string("not a number")),
-            ("column", JSON.Encode.float(1.0)),
-          ]),
-        )
-        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+        let resolver = async (_context, _options) => JsError.throwWithMessage("package exploded")
+        let context: RequestHandlers.sourceContext = {definition: None, invocations: []}
 
         let response = await RequestHandlers.handleResolveSourceLocation(
-          ~sourceRoot="/test/project",
-          req,
+          ~sourceRoot=Helpers.sourceRoot,
+          ~resolveSourceContext=resolver,
+          Helpers.sourceRequest(context),
         )
 
-        t->expect(response.status)->Expect.toBe(400)
-      },
-    )
-  })
-
-  describe("Sury schemas", _t => {
-    test(
-      "resolveSourceLocationRequestSchema parses valid input",
-      t => {
-        let json = JSON.Encode.object(
-          Dict.fromArray([
-            ("componentName", JSON.Encode.string("MyComponent")),
-            ("file", JSON.Encode.string("src/MyComponent.tsx")),
-            ("line", JSON.Encode.float(42.0)),
-            ("column", JSON.Encode.float(10.0)),
-          ]),
-        )
-
-        let parsed = json->S.parseOrThrow(~to=RequestHandlers.resolveSourceLocationRequestSchema)
-
-        t->expect(parsed.componentName)->Expect.toBe("MyComponent")
-        t->expect(parsed.file)->Expect.toBe("src/MyComponent.tsx")
-        t->expect(parsed.line)->Expect.toBe(42)
-        t->expect(parsed.column)->Expect.toBe(10)
+        t->expect(response.status)->Expect.toBe(500)
+        let text = await response->WebAPI.Response.text
+        t->expect(text->String.includes("RESOLUTION_FAILED"))->Expect.toBe(true)
+        t->expect(text->String.includes("package exploded"))->Expect.toBe(false)
       },
     )
 
-    test(
-      "resolveSourceLocationResponseSchema serializes correctly",
-      t => {
-        let response: RequestHandlers.resolveSourceLocationResponse = {
-          componentName: "App",
-          file: "src/App.tsx",
-          line: 5,
-          column: 3,
-        }
-
-        let json =
-          response->S.decodeOrThrow(
-            ~from=RequestHandlers.resolveSourceLocationResponseSchema,
-            ~to=S.json,
+    testAsync(
+      "rejects virtual, nonexistent, and outside-sourceRoot returned paths",
+      async t => {
+        let rejectReturnedPath = async (file, expectedDetails) => {
+          let resolver = async (_context, _options): RequestHandlers.sourceResolutionResult => {
+            success: true,
+            data: Some({
+              definition: None,
+              invocations: [Helpers.sourceLocation(~file)],
+            }),
+            error: None,
+          }
+          let context: RequestHandlers.sourceContext = {definition: None, invocations: []}
+          let response = await RequestHandlers.handleResolveSourceLocation(
+            ~sourceRoot=Helpers.sourceRoot,
+            ~resolveSourceContext=resolver,
+            Helpers.sourceRequest(context),
           )
-        let obj = json->JSON.Decode.object->Option.getOrThrow
 
-        t
-        ->expect(obj->Dict.get("componentName")->Option.flatMap(JSON.Decode.string))
-        ->Expect.toEqual(Some("App"))
-        t
-        ->expect(obj->Dict.get("file")->Option.flatMap(JSON.Decode.string))
-        ->Expect.toEqual(Some("src/App.tsx"))
-      },
-    )
-
-    test(
-      "errorResponseSchema serializes with details",
-      t => {
-        let err: RequestHandlers.errorResponse = {
-          error: "Something failed",
-          details: Some("stack trace here"),
+          t->expect(response.status)->Expect.toBe(422)
+          let text = await response->WebAPI.Response.text
+          t->expect(text->String.includes(expectedDetails))->Expect.toBe(true)
         }
+        let outsideFile = Path.join([Helpers.projectRoot, ".next", "server", "rsc-chunk.js"])
 
-        let json =
-          err->S.decodeOrThrow(
-            ~from=RequestHandlers.errorResponseSchema,
-            ~to=S.json->S.noValidation(true),
-          )
-        let obj = json->JSON.Decode.object->Option.getOrThrow
-
-        t
-        ->expect(obj->Dict.get("error")->Option.flatMap(JSON.Decode.string))
-        ->Expect.toEqual(Some("Something failed"))
-        t
-        ->expect(obj->Dict.get("details")->Option.flatMap(JSON.Decode.string))
-        ->Expect.toEqual(Some("stack trace here"))
-      },
-    )
-
-    test(
-      "errorResponseSchema serializes without details",
-      t => {
-        let err: RequestHandlers.errorResponse = {
-          error: "Something failed",
-          details: None,
-        }
-
-        let json =
-          err->S.decodeOrThrow(
-            ~from=RequestHandlers.errorResponseSchema,
-            ~to=S.json->S.noValidation(true),
-          )
-        let text = JSON.stringify(json)
-
-        t->expect(text->String.includes("Something failed"))->Expect.toBe(true)
-      },
-    )
-
-    test(
-      "resolveSourceLocationRequestSchema rejects missing fields",
-      t => {
-        let json = JSON.Encode.object(
-          Dict.fromArray([("componentName", JSON.Encode.string("Foo"))]),
-        )
-
-        let result = try {
-          let _ = json->S.parseOrThrow(~to=RequestHandlers.resolveSourceLocationRequestSchema)
-          Ok()
-        } catch {
-        | _ => Error("parse failed")
-        }
-
-        t->expect(result)->Expect.toEqual(Error("parse failed"))
-      },
-    )
-
-    test(
-      "resolveSourceLocationRequestSchema rejects wrong types",
-      t => {
-        let json = JSON.Encode.object(
-          Dict.fromArray([
-            ("componentName", JSON.Encode.float(123.0)),
-            ("file", JSON.Encode.string("ok")),
-            ("line", JSON.Encode.float(1.0)),
-            ("column", JSON.Encode.float(1.0)),
-          ]),
-        )
-
-        let result = try {
-          let _ = json->S.parseOrThrow(~to=RequestHandlers.resolveSourceLocationRequestSchema)
-          Ok()
-        } catch {
-        | _ => Error("parse failed")
-        }
-
-        t->expect(result)->Expect.toEqual(Error("parse failed"))
+        let _ = await Promise.all([
+          rejectReturnedPath("about://React/Server/virtual", "remained virtual"),
+          rejectReturnedPath("Missing.tsx", "does not exist"),
+          rejectReturnedPath(outsideFile, "outside source root"),
+        ])
       },
     )
   })

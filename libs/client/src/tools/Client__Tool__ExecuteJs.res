@@ -135,7 +135,7 @@ let execute = async (
   ~taskId as _: string,
   ~toolCallId as _: string,
 ): Tool.MCP.CallToolResult.t => {
-  await Client__Tool__ElementResolver.withPreviewDoc(
+  await Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=async () =>
       Tool.structuredResult(
         {

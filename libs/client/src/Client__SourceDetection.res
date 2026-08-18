@@ -1,8 +1,8 @@
 let getElementSourceLocation = async (
   ~element: WebAPI.DOMAPI.element,
   ~window: WebAPI.DOMAPI.window,
-): option<Client__Types.SourceLocation.t> => {
-  let reactResult = await Client__DOMElementToComponentSource.getElementSourceLocation(~element)
+): option<Client__SourceContext.t> => {
+  let reactResult = await Client__DOMElementToComponentSource.getElementSourceContext(~element)
 
   switch reactResult {
   | Some(_) => reactResult
@@ -10,8 +10,11 @@ let getElementSourceLocation = async (
     let vueResult = Client__Vue__SourceDetection.getElementSourceLocation(~element)
 
     switch vueResult {
-    | Some(_) => vueResult
-    | None => Client__AstroSourceDetection.getElementSourceLocation(~element, ~window)
+    | Some(location) => Some(Client__SourceContext.fromDefinition(location))
+    | None =>
+      Client__AstroSourceDetection.getElementSourceLocation(~element, ~window)->Option.map(
+        Client__SourceContext.fromDefinition,
+      )
     }
   }
 }

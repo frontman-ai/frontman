@@ -13,6 +13,7 @@ let sleep = (ms: int): promise<unit> => {
   })
 }
 
+@@live
 let execute = async (
   ctx: Tool.serverExecutionContext,
   input: CoreEditFile.input,
@@ -47,6 +48,7 @@ let execute = async (
   }
 }
 
+@@live
 let getCoreErrorLogsSince = (beforeTimestamp: float): array<logEntry> => {
   let recentLogs = FrontmanCore__LogCapture.getLogs(~since=beforeTimestamp, ~level=Error)
   let errorLogs = FrontmanCore__LogCapture.getLogs(

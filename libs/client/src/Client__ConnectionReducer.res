@@ -95,6 +95,7 @@ type createSessionRequest = {
 
 type action =
   | Initialize(initPayload)
+  | Dispose
   | BeginAuthenticationRetry
   | RetryAuthentication
   | BeginLogout
@@ -217,6 +218,8 @@ module Selectors = {
 
 let reduce = (state: state, action: action): (state, array<effect>) => {
   switch (state, action) {
+  | (_, Dispose) => (initialState, [])
+
   | ({acp: ACPDisconnected, relay: RelayDisconnected}, Initialize({config, relay, mcpServer})) =>
     let acpConfig = ACP.makeConfig(
       ~endpoint=config.endpoint,

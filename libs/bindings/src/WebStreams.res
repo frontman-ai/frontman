@@ -18,6 +18,9 @@ type textEncoder
 
 @new external makeTextEncoder: unit => textEncoder = "TextEncoder"
 @send external encode: (textEncoder, string) => Uint8Array.t = "encode"
+@get external byteLength: Uint8Array.t => int = "byteLength"
+
+let utf8ByteSize = (text: string): int => makeTextEncoder()->encode(text)->byteLength
 
 type readableStreamController
 

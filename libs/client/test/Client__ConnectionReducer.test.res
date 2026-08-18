@@ -136,6 +136,22 @@ describe("Connection Reducer", () => {
         t->expect(effectKinds(effects))->Expect.toEqual([#logInfo])
       },
     )
+
+    test(
+      "allows initialization after provider disposal",
+      t => {
+        let (initializedState, _) = initialize(Reducer.initialState)
+        let (disposedState, disposeEffects) = Reducer.reduce(initializedState, Dispose)
+        let (reinitializedState, reinitializeEffects) = initialize(disposedState)
+
+        t->expect(disposedState)->Expect.toEqual(Reducer.initialState)
+        t->expect(disposeEffects)->Expect.toEqual([])
+        t->expect(reinitializedState.acp)->Expect.toBe(Reducer.ACPConnecting)
+        t
+        ->expect(effectKinds(reinitializeEffects))
+        ->Expect.toEqual([#connectACP, #connectRelay])
+      },
+    )
   })
 
   describe("Authentication Retry", () => {

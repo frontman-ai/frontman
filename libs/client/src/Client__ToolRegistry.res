@@ -26,7 +26,7 @@ let registerAll = (registry: t, mcpServer: MCPServer.t): MCPServer.t => {
 let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {
   let tools = switch framework {
   | Astro =>
-    let getPreviewDoc = Client__Tool__ElementResolver.getPreviewDoc
+    let getPreviewDoc = Client__Tool__PreviewContext.get
     Array.concat(
       coreBrowserTools,
       FrontmanAiAstroBrowser.FrontmanAstroBrowser__Registry.browserTools(~getPreviewDoc),

@@ -55,7 +55,7 @@
 		"@zumer/snapdom": "^2.12.9",
 		"babel-plugin-react-compiler": "^1.0.0",
 		"dom-accessibility-api": "^0.7.1",
-		"dom-element-to-component-source": "^0.5.0",
+		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
 		"lucide-react": "^1.25.0",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7",

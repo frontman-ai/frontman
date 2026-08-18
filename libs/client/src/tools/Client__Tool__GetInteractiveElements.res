@@ -71,7 +71,7 @@ let execute = async (
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
 ): Tool.MCP.CallToolResult.t => {
-  Client__Tool__ElementResolver.withPreviewDoc(
+  Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=() =>
       Tool.structuredResult(
         {
@@ -85,19 +85,22 @@ let execute = async (
       ),
     ({doc, win}) => {
       try {
-        let resolved = Client__Tool__ElementResolver.collectInteractiveElements(
+        let resolved = Client__Tool__ElementQuery.queryInteractiveElements(
           ~document=doc,
           ~contentWindow=win,
-          ~roleFilter=?input.role,
-          ~nameFilter=?input.name,
-          ~maxElements,
+          ~roleFilter=input.role,
+          ~nameFilter=input.name,
+          ~limit=Some(maxElements),
         )
 
         let elements = resolved->Array.mapWithIndex((el, idx) => {
-          let selector = Client__Tool__ElementResolver.generateSelector(
+          let selector = switch Client__ElementInspector.findSelector(
             ~element=el.element,
-            ~document=Some(doc),
-          )
+            ~document=doc,
+          ) {
+          | Ok(selector) => Some(selector)
+          | Error(_) => None
+          }
 
           {
             index: idx,
@@ -105,9 +108,7 @@ let execute = async (
             name: el.name,
             tag: el.tag,
             selector,
-            detectionMethod: Client__Tool__ElementResolver.detectionMethodToString(
-              el.detectionMethod,
-            ),
+            detectionMethod: Client__Tool__ElementQuery.detectionMethodToString(el.detectionMethod),
             visibleText: el.visibleText,
           }
         })
@@ -131,7 +132,7 @@ let execute = async (
             elements: None,
             totalCount: None,
             truncated: None,
-            error: Some(Client__Tool__ElementResolver.exnMessage(exn)),
+            error: Some(Client__Tool__PreviewContext.exnMessage(exn)),
           },
           outputSchema,
         )

@@ -14,10 +14,10 @@ Workflow:
 3. Use full mode only when you need exact markup for a small, specific component
 
 Modes:
-- **simplified** (default): Pruned indented representation showing tag names, key attributes (id, class, role, aria-*, href, src, etc.), React/Vue/Astro component names (as \`component="..."\` attributes), and short text snippets. Script/style/SVG stripped. Capped at 200 nodes.
+- **simplified** (default): Line-oriented parent, selected, and child descriptors with selectors when resolvable, key attributes, accessibility role/name, component names, child counts, and escaped text. Script/style/SVG and form-control values stripped. Capped at 200 nodes and 30KB.
 - **full**: Raw outerHTML. Capped at 15KB. Use only when you need exact markup for a specific component.
 
-If the subtree is too large, the tool will **reject the request** and return a list of the element's direct children so you can pick a narrower target. This is by design — it prevents wasting your context window on huge DOM dumps.
+Simplified mode stops at the node or output limit and returns selectors so you can continue with a narrower target. Full mode rejects oversized subtrees.
 
 Examples:
 - Inspect a section: {"selector": "#main-content"}
@@ -33,18 +33,20 @@ type input = {
   )
   selector: string,
   @s.describe(
-    "Output mode: 'simplified' (default) returns a pruned text representation, 'full' returns raw outerHTML (capped at 15KB, use only for small components)."
+    "Output mode: 'simplified' (default) returns line-oriented element descriptors, 'full' returns raw outerHTML (capped at 15KB, use only for small components)."
   )
   mode: option<[#full | #simplified]>,
   @s.describe(
-    "Maximum tree depth in simplified mode. Defaults to 5. Nodes beyond this depth are summarized as '...N children'."
+    "Maximum target subtree depth in simplified mode. Defaults to 1. Descriptors report child counts at the depth boundary. Call get_dom again with a returned selector to inspect another part of the tree."
   )
   maxDepth: option<int>,
   @s.describe(
-    "Maximum number of element nodes to include. Defaults to 200. If the subtree exceeds this, the request is rejected with a hint showing the element's direct children so you can narrow your selector."
+    "Maximum number of element nodes to include. Defaults to 200. Simplified mode stops at this limit and returns a narrowing hint; full mode rejects larger subtrees."
   )
   maxNodes: option<int>,
-  @s.describe("Whether to traverse into shadow DOM roots. Defaults to false.")
+  @s.describe(
+    "Whether simplified mode traverses open shadow DOM roots. Defaults to false. Returned indexed paths use ' >>> ' at each shadow boundary and can be passed back as selector."
+  )
   pierceShadowDom: option<bool>,
 }
 
@@ -53,7 +55,7 @@ type output = {
   @s.describe("Whether the DOM query succeeded") @live
   success: bool,
   @s.describe(
-    "The DOM content: pruned text in simplified mode, raw HTML in full mode. Absent when the subtree is too large."
+    "The DOM content: line-oriented element descriptors in simplified mode, raw HTML in full mode. Absent when the subtree is too large."
   )
   @live
   html: option<string>,
@@ -72,230 +74,23 @@ type output = {
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
-let maxOutputBytes = 30_000
 let fullModeMaxBytes = 15_000
-let defaultMaxDepth = 5
+let defaultMaxDepth = 1
 let defaultMaxNodes = 200
 let hardMaxNodes = 500
-let textTruncateLen = 80
 
-let truncate = (text: string, ~maxLen: int): string =>
-  switch text->String.length > maxLen {
-  | true => text->String.slice(~start=0, ~end=maxLen) ++ "..."
-  | false => text
-  }
-
-let simplifiedAttributes = [
-  "id",
-  "class",
-  "role",
-  "aria-label",
-  "aria-labelledby",
-  "aria-describedby",
-  "aria-hidden",
-  "aria-expanded",
-  "aria-selected",
-  "aria-checked",
-  "aria-disabled",
-  "aria-live",
-  "aria-controls",
-  "data-testid",
-  "data-test-id",
-  "href",
-  "src",
-  "type",
-  "name",
-  "for",
-  "action",
-  "method",
-  "value",
-  "placeholder",
-  "alt",
-  "title",
-]
-
-let simplifiedAttributeSet = simplifiedAttributes->Array.map(a => (a, true))->Dict.fromArray
-
-let contentStrippedTags = ["script", "style", "svg"]->Array.map(t => (t, true))->Dict.fromArray
-
-let countDescendants = (el: WebAPI.DOMAPI.element): int =>
-  el
-  ->WebAPI.Element.querySelectorAll("*")
-  ->Client__Tool__ElementResolver.nodeListToElements
-  ->Array.length
-
-let describeDirectChildren = (el: WebAPI.DOMAPI.element): string => {
-  let children = el.children
-  let descriptions: array<string> = []
-  let count = children.length
-  let maxToShow = 15
-
-  for i in 0 to Math.Int.min(count, maxToShow) - 1 {
-    let child = children->WebAPI.HTMLCollection.item(i)
-    let tag = child.tagName->String.toLowerCase
-    let id = child->WebAPI.Element.getAttribute("id")->Null.toOption
-    let cls = child->WebAPI.Element.getAttribute("class")->Null.toOption
-    let role = child->WebAPI.Element.getAttribute("role")->Null.toOption
-
-    let desc = switch (id, role, cls) {
-    | (Some(id), _, _) => `<${tag} id="${id}">`
-    | (_, Some(r), _) => `<${tag} role="${r}">`
-    | (_, _, Some(c)) =>
-      let shortClass = c->truncate(~maxLen=27)
-      `<${tag} class="${shortClass}">`
-    | _ => `<${tag}>`
-    }
-    descriptions->Array.push(desc)->ignore
-  }
-
-  if count > maxToShow {
-    descriptions->Array.push(`...and ${Int.toString(count - maxToShow)} more`)->ignore
-  }
-
-  descriptions->Array.join(", ")
-}
+let countElements = (el: WebAPI.DOMAPI.element): int =>
+  (el->WebAPI.Element.querySelectorAll("*")).length + 1
 
 let buildTooLargeHint = (
   ~el: WebAPI.DOMAPI.element,
-  ~descendantCount: int,
+  ~document: WebAPI.DOMAPI.document,
+  ~elementCount: int,
   ~maxNodes: int,
 ): string => {
-  let tag = el.tagName->String.toLowerCase
-  let childrenDesc = describeDirectChildren(el)
-  let childCount = el.children.length
-
-  `Subtree too large: <${tag}> has ${Int.toString(
-      descendantCount,
-    )} descendant elements (limit: ${Int.toString(maxNodes)}). ` ++
-  `It has ${Int.toString(
-      childCount,
-    )} direct children: ${childrenDesc}. ` ++ `Target a specific child instead.`
-}
-
-type walkState = {
-  mutable output: string,
-  mutable nodeCount: int,
-  mutable stopped: bool,
-  maxNodes: int,
-  window: option<WebAPI.DOMAPI.window>,
-}
-
-let buildSimplifiedAttrs = (el: WebAPI.DOMAPI.element): string => {
-  let attrNames = el->WebAPI.Element.getAttributeNames
-  let parts: array<string> = []
-
-  attrNames->Array.forEach(attrName => {
-    let included =
-      simplifiedAttributeSet->Dict.get(attrName)->Option.isSome ||
-        attrName->String.startsWith("aria-")
-    if included {
-      switch el->WebAPI.Element.getAttribute(attrName)->Null.toOption {
-      | None => ()
-      | Some(value) =>
-        let displayValue = value->truncate(~maxLen=57)
-        parts->Array.push(` ${attrName}="${displayValue}"`)->ignore
-      }
-    }
-  })
-
-  parts->Array.join("")
-}
-
-let getDirectText = (el: WebAPI.DOMAPI.element): string => {
-  let childNodes = (el :> WebAPI.DOMAPI.node).childNodes
-  let text = ref("")
-  for i in 0 to childNodes.length - 1 {
-    let node = WebAPI.NodeListOf.item(childNodes, i)
-
-    if node.nodeType === 3 {
-      let content = node.nodeValue->Null.toOption->Option.getOr("")->String.trim
-      if content !== "" {
-        text := text.contents ++ (text.contents !== "" ? " " : "") ++ content
-      }
-    }
-  }
-  text.contents
-}
-
-let indent = (depth: int): string => {
-  let spaces = ref("")
-  for _ in 1 to depth * 2 {
-    spaces := spaces.contents ++ " "
-  }
-  spaces.contents
-}
-
-let rec walkSimplified = (
-  ~el: WebAPI.DOMAPI.element,
-  ~depth: int,
-  ~maxDepth: int,
-  ~pierceShadowDom: bool,
-  ~state: walkState,
-): unit => {
-  if state.stopped || state.nodeCount >= state.maxNodes {
-    state.stopped = true
-    ()
-  } else {
-    state.nodeCount = state.nodeCount + 1
-    let tag = el.tagName->String.toLowerCase
-    let pad = indent(depth)
-
-    switch contentStrippedTags->Dict.get(tag) {
-    | Some(_) => state.output = state.output ++ pad ++ `<!-- ${tag} -->\n`
-    | None =>
-      let attrs = buildSimplifiedAttrs(el)
-      let attrs = switch Client__ComponentName.getForElement(el, ~window=?state.window) {
-      | Some(name) => attrs ++ ` component="${name}"`
-      | None => attrs
-      }
-      let children = Client__Tool__ElementResolver.getChildElements(el, ~pierceShadowDom)
-      let childCount = children->Array.length
-      let directText = getDirectText(el)
-      let hasShadow = pierceShadowDom && Client__Tool__ElementResolver.hasShadowRoot(el)
-
-      switch (childCount, directText, hasShadow) {
-      | (0, text, false) if text !== "" =>
-        let truncated = text->truncate(~maxLen=textTruncateLen)
-        state.output = state.output ++ pad ++ `<${tag}${attrs}>"${truncated}"</${tag}>\n`
-
-      | (0, _, false) => state.output = state.output ++ pad ++ `<${tag}${attrs} />\n`
-
-      | _ =>
-        if depth >= maxDepth {
-          let summary = switch childCount {
-          | 0 => ""
-          | n => `<!-- ...${Int.toString(n)} children -->`
-          }
-          switch directText {
-          | "" => state.output = state.output ++ pad ++ `<${tag}${attrs}>${summary}</${tag}>\n`
-          | text =>
-            let truncated = text->truncate(~maxLen=textTruncateLen)
-            state.output =
-              state.output ++ pad ++ `<${tag}${attrs}>"${truncated}" ${summary}</${tag}>\n`
-          }
-        } else {
-          state.output = state.output ++ pad ++ `<${tag}${attrs}>\n`
-
-          if hasShadow {
-            state.output = state.output ++ indent(depth + 1) ++ "<!-- #shadow-root (open) -->\n"
-          }
-
-          if directText !== "" {
-            let truncated = directText->truncate(~maxLen=textTruncateLen)
-            state.output = state.output ++ indent(depth + 1) ++ `"${truncated}"\n`
-          }
-
-          children->Array.forEach(child => {
-            if !state.stopped {
-              walkSimplified(~el=child, ~depth=depth + 1, ~maxDepth, ~pierceShadowDom, ~state)
-            }
-          })
-
-          state.output = state.output ++ pad ++ `</${tag}>\n`
-        }
-      }
-    }
-  }
+  let overview = Client__ElementInspector.inspect(~element=el, ~document, ~maxDepth=1, ~maxNodes=16)
+  `Subtree has ${elementCount->Int.toString} elements (limit: ${maxNodes->Int.toString}). ` ++
+  `Target a child selector from this overview instead:\n${overview.html}`
 }
 
 let errorResult = (
@@ -317,15 +112,15 @@ let errorResult = (
 
 let successResult = (
   ~html: string,
-  ~nodeCount: option<int>,
+  ~nodeCount: int,
   ~hint: option<string>=?,
 ): Tool.MCP.CallToolResult.t =>
   Tool.structuredResult(
     {
       success: true,
       html: Some(html),
-      nodeCount,
-      byteSize: Some(html->String.length),
+      nodeCount: Some(nodeCount),
+      byteSize: Some(Client__ElementInspector.utf8ByteSize(html)),
       hint,
       error: None,
     },
@@ -337,11 +132,11 @@ let execute = async (
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
 ): Tool.MCP.CallToolResult.t => {
-  Client__Tool__ElementResolver.withPreviewDoc(
+  Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=() => errorResult(~error="Preview frame not available"),
-    ({doc, win}) => {
+    ({doc, win: _}) => {
       try {
-        let (element, _matchCount) = Client__Tool__ElementResolver.resolveBySelector(
+        let (element, _matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
           ~doc,
           ~selector=input.selector,
         )
@@ -350,92 +145,69 @@ let execute = async (
         | None => errorResult(~error=`No element found for selector: ${input.selector}`)
 
         | Some(el) =>
-          let mode = input.mode->Option.getOr(#simplified)
-          let pierceShadowDom = input.pierceShadowDom->Option.getOr(false)
           let maxNodes =
             input.maxNodes
             ->Option.getOr(defaultMaxNodes)
             ->Math.Int.min(hardMaxNodes)
             ->Math.Int.max(1)
 
-          let descendantCount = countDescendants(el)
-
-          switch mode {
+          switch input.mode->Option.getOr(#simplified) {
           | #full =>
-            if descendantCount > maxNodes {
+            let elementCount = countElements(el)
+            if elementCount > maxNodes {
               errorResult(
                 ~error=`Subtree too large for full mode (${Int.toString(
-                    descendantCount,
+                    elementCount,
                   )} elements, limit: ${Int.toString(maxNodes)}).`,
-                ~hint=buildTooLargeHint(~el, ~descendantCount, ~maxNodes),
-                ~nodeCount=descendantCount,
+                ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
+                ~nodeCount=elementCount,
               )
             } else {
               let raw = el.outerHTML
-              let byteSize = raw->String.length
+              let byteSize = Client__ElementInspector.utf8ByteSize(raw)
               if byteSize > fullModeMaxBytes {
                 errorResult(
                   ~error=`HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
                       fullModeMaxBytes,
                     )}). Use simplified mode for an overview, or target a smaller component.`,
-                  ~hint=buildTooLargeHint(~el, ~descendantCount, ~maxNodes),
-                  ~nodeCount=descendantCount,
+                  ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
+                  ~nodeCount=elementCount,
                 )
               } else {
-                successResult(~html=raw, ~nodeCount=Some(descendantCount))
+                successResult(~html=raw, ~nodeCount=elementCount)
               }
             }
 
           | #simplified =>
-            if descendantCount > maxNodes {
-              errorResult(
-                ~error=`Subtree too large: ${Int.toString(
-                    descendantCount,
-                  )} elements (limit: ${Int.toString(maxNodes)}).`,
-                ~hint=buildTooLargeHint(~el, ~descendantCount, ~maxNodes),
-                ~nodeCount=descendantCount,
-              )
-            } else {
-              let maxDepth = input.maxDepth->Option.getOr(defaultMaxDepth)
-              let state: walkState = {
-                output: "",
-                nodeCount: 0,
-                stopped: false,
-                maxNodes,
-                window: Some(win),
-              }
-
-              walkSimplified(~el, ~depth=0, ~maxDepth, ~pierceShadowDom, ~state)
-
-              if state.output->String.length > maxOutputBytes {
-                errorResult(
-                  ~error=`Output too large (${Int.toString(
-                      state.output->String.length,
-                    )} bytes, limit: ${Int.toString(
-                      maxOutputBytes,
-                    )}). Reduce maxDepth or narrow your selector.`,
-                  ~hint=buildTooLargeHint(~el, ~descendantCount, ~maxNodes),
-                  ~nodeCount=state.nodeCount,
-                )
-              } else {
-                let hint = switch state.stopped {
-                | true =>
-                  Some(
-                    `Walker stopped at ${Int.toString(
-                        state.nodeCount,
-                      )} nodes (limit: ${Int.toString(
-                        maxNodes,
-                      )}). Some elements were omitted. Narrow your selector for complete results.`,
-                  )
-                | false => None
-                }
-                successResult(~html=state.output, ~nodeCount=Some(state.nodeCount), ~hint?)
-              }
+            let maxDepth = input.maxDepth->Option.getOr(defaultMaxDepth)
+            let pierceShadowDom = input.pierceShadowDom->Option.getOr(false)
+            let selectedSelector = switch Client__Tool__SelectorResolver.classifySelector(
+              input.selector,
+            ) {
+            | CssSelector(_) => Some(input.selector)
+            | XPathExpression(_) => None
             }
+            let inspection = Client__ElementInspector.inspect(
+              ~element=el,
+              ~document=doc,
+              ~maxDepth,
+              ~maxNodes,
+              ~pierceShadowDom,
+              ~selectedSelector?,
+            )
+
+            let hint = switch inspection.truncated {
+            | true =>
+              Some(
+                `Output stopped at the ${maxNodes->Int.toString}-node or ${Client__ElementInspector.maxOutputBytes->Int.toString}-byte limit. Narrow your selector for complete results.`,
+              )
+            | false => None
+            }
+            successResult(~html=inspection.html, ~nodeCount=inspection.nodeCount, ~hint?)
           }
         }
       } catch {
-      | exn => errorResult(~error=Client__Tool__ElementResolver.exnMessage(exn))
+      | exn => errorResult(~error=Client__Tool__PreviewContext.exnMessage(exn))
       }
     },
   )

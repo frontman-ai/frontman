@@ -16,6 +16,7 @@ let getSuffixRoutePrefix = (~path: string, ~basePath: string): option<string> =>
   }
 }
 
+@@live
 let isFrontmanRoute = (~pathname: string, ~basePath: string, ~method: string): bool => {
   let prefix = "/" ++ basePath->String.toLowerCase
   let path = pathname->String.toLowerCase
@@ -138,7 +139,11 @@ let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t):
     | ("post", p) if p == resolveSourceLocationPath =>
       Some(
         (
-          await RequestHandlers.handleResolveSourceLocation(~sourceRoot=config.sourceRoot, req)
+          await RequestHandlers.handleResolveSourceLocation(
+            ~projectRoot=config.projectRoot,
+            ~sourceRoot=config.sourceRoot,
+            req,
+          )
         )->CORS.withCors,
       )
 

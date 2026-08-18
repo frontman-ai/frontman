@@ -5,7 +5,6 @@ module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
 module ContentBlock = Client__Task__Types.ContentBlock
 
-let annotationToContentBlocks = Client__Task__Types.annotationToContentBlocks
 let taskToPageContextBlocks = Client__Task__Types.taskToPageContextBlocks
 let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsToContentBlocks
 

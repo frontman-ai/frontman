@@ -88,7 +88,7 @@ let execute = async (
 ): Tool.MCP.CallToolResult.t => {
   let fullPage = input.fullPage->Option.getOr(false)
 
-  await Client__Tool__ElementResolver.withPreviewDoc(
+  await Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=async () =>
       Tool.MCP.CallToolResult.makeError("Preview frame document not available"),
     async ({doc, win}) => {
@@ -151,7 +151,7 @@ let execute = async (
               imageResultFromDataUrl(jpgImage.src)
             }
           } catch {
-          | exn => Tool.MCP.CallToolResult.makeError(Client__Tool__ElementResolver.exnMessage(exn))
+          | exn => Tool.MCP.CallToolResult.makeError(Client__Tool__PreviewContext.exnMessage(exn))
           }
         }
       }

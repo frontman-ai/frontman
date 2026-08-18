@@ -29,6 +29,7 @@ let addTools = (registry: t, newTools: array<tool>): t => {
   tools: Array.concat(registry.tools, newTools),
 }
 
+@@live
 let replaceByName = (registry: t, replacement: tool): t => {
   module R = unpack(replacement)
   {

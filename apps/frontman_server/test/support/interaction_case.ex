@@ -72,6 +72,7 @@ defmodule FrontmanServer.InteractionCase do
     Accepted keys in `extra`:
       * `:index`          — annotation_index (defaults to 0)
       * `:component_name` — React/component name
+      * `:element_context` — bounded parent/selected/children DOM context
       * `:css_classes`    — CSS class string
       * `:nearby_text`    — visible text near the element
       * `:comment`        — user comment
@@ -96,6 +97,7 @@ defmodule FrontmanServer.InteractionCase do
         (extra[:metadata] || %{})
         |> Map.merge(base_meta)
         |> maybe_put("component_name", extra[:component_name])
+        |> maybe_put("element_context", extra[:element_context])
         |> maybe_put("component_props", extra[:component_props])
         |> maybe_put("css_classes", extra[:css_classes])
         |> maybe_put("nearby_text", extra[:nearby_text])

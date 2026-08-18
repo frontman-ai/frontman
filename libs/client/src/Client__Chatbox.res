@@ -93,6 +93,16 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   result
 }
 
+let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): bool =>
+  !(
+    messages->Array.some(message =>
+      switch message {
+      | Message.Error(error) => Message.ErrorMessage.id(error) == turnErrorId
+      | _ => false
+      }
+    )
+  )
+
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
@@ -373,7 +383,8 @@ let make = (~onConfigureProvider: unit => unit) => {
 
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({id, message, category}), Some(taskId)) =>
+        | (None, Some({id, message, category}), Some(taskId))
+          if shouldRenderTurnError(messages, id) =>
           <ErrorBanner
             error=message
             category

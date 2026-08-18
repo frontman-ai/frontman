@@ -40,6 +40,7 @@ module MessageAnnotation = {
   type t = {
     id: string,
     selector: result<option<string>, string>,
+    elementContext: result<option<string>, string>,
     tagName: string,
     cssClasses: option<string>,
     comment: option<string>,
@@ -63,6 +64,7 @@ module MessageAnnotation = {
   let fromAnnotation = (annotation: Client__Annotation__Types.t): t => {
     id: annotation.id,
     selector: annotation.selector,
+    elementContext: annotation.elementContext,
     tagName: annotation.tagName,
     cssClasses: annotation.cssClasses,
     comment: annotation.comment,
