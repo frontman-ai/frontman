@@ -45,19 +45,19 @@ Output is capped at 30 KB.
 
 Inspects a specific section of the DOM in the web preview.
 
-| Parameter         | Type     | Description                                              |
-| ----------------- | -------- | -------------------------------------------------------- |
-| `selector`        | string   | CSS selector or XPath expression targeting a DOM subtree |
-| `mode`            | string?  | `"simplified"` (default) or `"full"`                     |
-| `maxDepth`        | number?  | Maximum tree depth in simplified mode. Default: 5        |
-| `maxNodes`        | number?  | Maximum element nodes to include. Default: 200           |
-| `pierceShadowDom` | boolean? | Traverse into shadow DOM roots. Default: `false`         |
+| Parameter         | Type     | Description                                                                                   |
+| ----------------- | -------- | --------------------------------------------------------------------------------------------- |
+| `selector`        | string   | CSS selector, XPath expression, or returned indexed path such as `#host >>> 1/2`                |
+| `mode`            | string?  | `"simplified"` (default) or `"full"`                                                          |
+| `maxDepth`        | number?  | Maximum subtree depth in simplified mode. Default: 1                                          |
+| `maxNodes`        | number?  | Maximum element nodes to include. Default: 200                                                |
+| `pierceShadowDom` | boolean? | Traverse open shadow roots and return indexed `>>>` paths in simplified mode. Default: `false`   |
 
-**Simplified mode** returns a pruned indented representation with tag names, key attributes (id, class, role, aria-\*, href, src), framework component names, and short text snippets. Script, style, and SVG elements are stripped. Capped at 200 nodes.
+**Simplified mode** returns line-oriented parent, selected, and child descriptors with navigable selectors, key attributes, accessibility data, framework component names, child counts, and escaped text. Script, style, SVG, and form-control values are stripped. Output is capped at 200 nodes and 30 KB.
 
 **Full mode** returns raw `outerHTML`. Capped at 15 KB. Use only when you need exact markup for a small, specific component.
 
-If a subtree is too large, the tool rejects the request and returns a list of the element's direct children so the agent can pick a narrower target. This prevents wasting context window on huge DOM dumps.
+Simplified mode stops at its node or output limit and returns a narrowing hint. Full mode rejects oversized subtrees. With `pierceShadowDom: true`, open shadow roots are included. In returned paths, `>>>` crosses a shadow boundary and `/` walks indexed children inside it; pass the path back to inspect deeper shadow content.
 
 ### `get_interactive_elements`
 

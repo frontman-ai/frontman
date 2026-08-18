@@ -105,10 +105,15 @@ type resolution =
   | Error(string)
   | Resolved({element: option<WebAPI.DOMAPI.element>, matchCount: int})
 
-let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): resolution =>
+let resolveTarget = (
+  ~doc: WebAPI.DOMAPI.document,
+  ~contentWindow: WebAPI.DOMAPI.window,
+  ~input: input,
+  ~index: int,
+): resolution =>
   switch input.selector {
   | Some(selector) =>
-    let (element, matchCount) = Client__Tool__ElementResolver.resolveBySelector(
+    let (element, matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
       ~doc,
       ~selector,
       ~index,
@@ -117,8 +122,9 @@ let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): 
   | None =>
     switch (input.role, input.name) {
     | (Some(role), Some(name)) =>
-      let (element, matchCount) = Client__Tool__ElementResolver.resolveByRoleAndName(
+      let (element, matchCount) = Client__Tool__ElementQuery.resolveByRoleAndName(
         ~document=doc,
+        ~contentWindow,
         ~role,
         ~name,
         ~index,
@@ -129,7 +135,7 @@ let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): 
     | (None, None) =>
       switch input.text {
       | Some(text) =>
-        let (element, matchCount) = Client__Tool__ElementResolver.resolveByText(
+        let (element, matchCount) = Client__Tool__ElementQuery.resolveByText(
           ~document=doc,
           ~text,
           ~index,
@@ -163,11 +169,11 @@ let execute = async (
   let action = input.action->Option.getOr(#click)
   let index = Math.Int.max(0, input.index->Option.getOr(0))
 
-  Client__Tool__ElementResolver.withPreviewDoc(
+  Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=() => errorResult("Preview frame document not available"),
-    ({doc, win: _}) => {
+    ({doc, win}) => {
       try {
-        switch resolveTarget(~doc, ~input, ~index) {
+        switch resolveTarget(~doc, ~contentWindow=win, ~input, ~index) {
         | Error(msg) => errorResult(msg)
         | Resolved({element: None, matchCount: 0}) =>
           errorResult("No element found matching the given criteria", ~matchCount=0)
@@ -183,7 +189,7 @@ let execute = async (
           Tool.structuredResult(
             {
               success: true,
-              interactedElement: Some(Client__Tool__ElementResolver.describeElement(el)),
+              interactedElement: Some(Client__Tool__ElementQuery.describeElement(el)),
               action: Some(actionToString(action)),
               matchCount: Some(matchCount),
               error: None,
@@ -192,7 +198,7 @@ let execute = async (
           )
         }
       } catch {
-      | exn => errorResult(Client__Tool__ElementResolver.exnMessage(exn))
+      | exn => errorResult(Client__Tool__PreviewContext.exnMessage(exn))
       }
     },
   )

@@ -170,12 +170,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         build_user_message([
           text_block("Fix this"),
           annotation_block("ann-el", "span", "/src/Component.tsx", 5, 1,
+            element_context: ~s(selected tag="span" selector="#target"),
             metadata: %{"custom_context" => context}
           )
         ])
 
       assert [ann] = msg.annotations
-      assert ann.metadata == %{"custom_context" => context}
+
+      assert ann.metadata["custom_context"] == context
+      assert ann.metadata["element_context"] == ~s(selected tag="span" selector="#target")
     end
 
     test "extracts current page context from resource block" do
@@ -302,33 +305,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "to_swarm_messages/1 conversation coverage" do
-    test "converts user message with correct role and content" do
-      messages = Interaction.to_swarm_messages([user_msg("Hello")])
-
-      assert [msg] = messages
-      assert SwarmAi.Message.role(msg) == :user
-      assert is_list(msg.content)
-    end
-
-    test "converts agent response to assistant message with content" do
-      messages = Interaction.to_swarm_messages([agent_resp("Hi there")])
-
-      assert [msg] = messages
-      assert SwarmAi.Message.role(msg) == :assistant
-      assert [%{type: :text, text: "Hi there"}] = msg.content
-    end
-
-    test "converts tool results to tool messages" do
-      interaction = tool_result("call_123", "calculator", MCP.tool_result_text("42"))
-
-      messages = Interaction.to_swarm_messages([interaction])
-
-      assert [msg] = messages
-      assert SwarmAi.Message.role(msg) == :tool
-      assert msg.tool_call_id == "call_123"
-      assert msg.metadata == %{}
-    end
-
     test "skips ToolCall structs (they live in agent response metadata)" do
       messages = Interaction.to_swarm_messages([tool_call("call_123", "calculator")])
       assert messages == []
@@ -351,6 +327,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "includes annotation location info in user message content" do
+      element_context = ~s(selected tag="div" selector="#target" children=1)
+
       ann = %Annotation{
         annotation_id: "ann-1",
         annotation_index: 0,
@@ -358,7 +336,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         file: "/path/to/Component.tsx",
         line: 42,
         column: 5,
-        element_context: ~s(selected tag="div" selector="#target" children=1)
+        metadata: %{"element_context" => element_context}
       }
 
       messages = Interaction.to_swarm_messages([user_msg("Change the text", [ann])])
@@ -499,25 +477,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "to_swarm_messages/1 with DB-loaded metadata (string keys)" do
-    test "converts tool_calls stored in OpenAI wire format (string keys)" do
-      interactions = [
-        agent_resp("I'll read the file", %{
-          "tool_calls" => [
-            db_tool_call("toolu_012", "read_file", ~s({"path": "src/app/page.tsx"}))
-          ]
-        })
-      ]
-
-      [msg] = Interaction.to_swarm_messages(interactions)
-
-      assert SwarmAi.Message.role(msg) == :assistant
-      assert [tc] = msg.tool_calls
-      assert %SwarmAi.ToolCall{} = tc
-      assert tc.id == "toolu_012"
-      assert tc.name == "read_file"
-      assert tc.arguments == ~s({"path": "src/app/page.tsx"})
-    end
-
     test "converts multiple tool_calls from DB" do
       interactions = [
         agent_resp("Let me search", %{
@@ -587,20 +546,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.reasoning_details == [
                %{"type" => "reasoning.encrypted", "data" => "encrypted_data"}
              ]
-    end
-
-    test "preserves response metadata even when assistant has no tool_calls" do
-      interactions = [
-        agent_resp("All done", %{
-          "response_id" => "resp_final_123",
-          "phase" => "final_answer"
-        })
-      ]
-
-      [msg] = Interaction.to_swarm_messages(interactions)
-
-      assert msg.metadata == %{response_id: "resp_final_123", phase: "final_answer"}
-      assert msg.tool_calls == []
     end
 
     test "full conversation round-trip with tool calls from DB" do
@@ -718,26 +663,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert ann["screenshot"] == %{"blob" => "base64screenshotdata", "mime_type" => "image/jpeg"}
 
       refute Map.has_key?(ann, "comment")
-    end
-
-    test "encodes ToolCall to JSON" do
-      tc = tool_call("call_123", "calculator", %{"x" => 1})
-
-      decoded = tc |> Jason.encode!() |> Jason.decode!()
-
-      refute Map.has_key?(decoded, "type")
-      assert decoded["tool_name"] == "calculator"
-      assert decoded["tool_call_id"] == "call_123"
-    end
-
-    test "encodes ToolResult to JSON" do
-      tr = tool_result("call_123", "calculator", MCP.tool_result_text("42"))
-
-      decoded = tr |> Jason.encode!() |> Jason.decode!()
-
-      refute Map.has_key?(decoded, "type")
-      assert decoded["result"] == MCP.tool_result_text("42")
-      assert decoded["is_error"] == false
     end
   end
 

@@ -151,6 +151,28 @@ let unresolvedReactSourceResponse = (~details: string): WebAPI.FetchAPI.response
   WebAPI.Response.jsonR(~data=json, ~init={status: 422})
 }
 
+let safeSourceResolutionError = (error: sourceResolutionError): string =>
+  switch error.code {
+  | "INVALID_REACT_URL" => "INVALID_REACT_URL: React source URL is invalid"
+  | "GENERATED_FILE_NOT_FOUND" => "GENERATED_FILE_NOT_FOUND: Generated source file was not found"
+  | "SOURCE_MAP_NOT_FOUND" => "SOURCE_MAP_NOT_FOUND: Source map was not found"
+  | "POSITION_NOT_FOUND" => "POSITION_NOT_FOUND: Source map position was not found"
+  | _ => "RESOLUTION_FAILED: Source resolution failed"
+  }
+
+let sourceLocationToJson = (location: sourceLocation): JSON.t =>
+  location->S.decodeOrThrow(~from=sourceLocationSchema, ~to=S.json->S.noValidation(true))
+
+let sourceContextToJson = (context: sourceContext): JSON.t => {
+  let fields = Dict.fromArray([
+    ("invocations", context.invocations->Array.map(sourceLocationToJson)->JSON.Encode.array),
+  ])
+  context.definition->Option.forEach(definition =>
+    fields->Dict.set("definition", sourceLocationToJson(definition))
+  )
+  JSON.Encode.object(fields)
+}
+
 let handleGetTools = (
   ~registry: FrontmanCore__ToolRegistry.t,
   ~config: handlerConfig,
@@ -275,18 +297,19 @@ let handleResolveSourceLocation = async (
         let packageResult = await resolveSourceContext(request, {projectRoot: canonicalProjectRoot})
         switch (packageResult.success, packageResult.data, packageResult.error) {
         | (false, _, Some(error)) =>
-          unresolvedReactSourceResponse(~details=`${error.code}: ${error.message}`)
+          Console.warn({
+            "event": "source_resolution_failed",
+            "code": error.code,
+            "details": error.message,
+          })
+          unresolvedReactSourceResponse(~details=safeSourceResolutionError(error))
         | (false, _, None) => JsError.throwWithMessage("Source resolver failed without an error")
         | (true, None, _) => JsError.throwWithMessage("Source resolver succeeded without data")
         | (true, Some(resolved), _) =>
           switch await normalizeResolvedContext(~canonicalSourceRoot, resolved) {
           | Error(details) => unresolvedReactSourceResponse(~details)
           | Ok(responseContext) =>
-            let json =
-              responseContext->S.decodeOrThrow(
-                ~from=sourceContextSchema,
-                ~to=S.json->S.noValidation(true),
-              )
+            let json = sourceContextToJson(responseContext)
             let headers = WebAPI.HeadersInit.fromDict(
               Dict.fromArray([("Content-Type", "application/json")]),
             )
@@ -297,9 +320,10 @@ let handleResolveSourceLocation = async (
       | exn =>
         let msg =
           exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        Console.error({"event": "source_resolution_exception", "details": msg})
         let json = {
           error: "Failed to resolve source context",
-          details: Some(msg),
+          details: Some("RESOLUTION_FAILED: Source resolution failed"),
         }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json->S.noValidation(true))
         WebAPI.Response.jsonR(~data=json, ~init={status: 500})
       }

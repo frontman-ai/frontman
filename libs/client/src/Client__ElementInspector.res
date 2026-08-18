@@ -22,6 +22,15 @@ type walkState = {
   encoder: textEncoder,
 }
 
+type childRelation =
+  | LightChild(int)
+  | ShadowChild(int)
+
+type walkChild = {
+  element: WebAPI.DOMAPI.element,
+  relation: childRelation,
+}
+
 let maxOutputBytes = 30_000
 
 let keyAttributes = ["id", "class", "data-testid", "href", "src", "type", "placeholder", "alt"]
@@ -71,8 +80,36 @@ let findSelector = (
   | exn => Error(errorMessage(exn))
   }
 
-let childElements = (element: WebAPI.DOMAPI.element): array<WebAPI.DOMAPI.element> =>
-  collectionToArray(element.children)
+let childElements = (~element: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): array<walkChild> => {
+  let lightChildren =
+    element.children
+    ->collectionToArray
+    ->Array.mapWithIndex((child, index) => {
+      element: child,
+      relation: LightChild(index + 1),
+    })
+  switch (pierceShadowDom, element.shadowRoot->Null.toOption) {
+  | (true, Some(shadowRoot)) => {
+      let shadowChildren =
+        shadowRoot.childNodes
+        ->collectionToArray
+        ->Array.filterMap((node: WebAPI.DOMAPI.node) =>
+          switch node.nodeType === 1 {
+          | true => Some(node->WebAPI.Node.asElement)
+          | false => None
+          }
+        )
+      Array.concat(
+        lightChildren,
+        shadowChildren->Array.mapWithIndex((child, index) => {
+          element: child,
+          relation: ShadowChild(index + 1),
+        }),
+      )
+    }
+  | (false, Some(_)) | (false, None) | (true, None) => lightChildren
+  }
+}
 
 let directText = (element: WebAPI.DOMAPI.element): string => {
   let node = element->WebAPI.Element.asNode
@@ -158,7 +195,8 @@ let describe = (
   ~element: WebAPI.DOMAPI.element,
   ~document: WebAPI.DOMAPI.document,
   ~selector: option<string>,
-): (string, array<WebAPI.DOMAPI.element>) => {
+  ~pierceShadowDom: bool,
+): (string, array<walkChild>) => {
   let fields = [relation]
   pushField(fields, "tag", element.tagName->String.toLowerCase)
   keyAttributes->Array.forEach(name =>
@@ -198,7 +236,7 @@ let describe = (
   | "" => ()
   | text => pushField(fields, "text", text)
   }
-  let children = childElements(element)
+  let children = childElements(~element, ~pierceShadowDom)
   fields->Array.push(`children=${children->Array.length->Int.toString}`)->ignore
   (fields->Array.join(" "), children)
 }
@@ -209,6 +247,8 @@ let rec walk = (
   ~selector: option<string>,
   ~depth: int,
   ~maxDepth: int,
+  ~pierceShadowDom: bool,
+  ~insideShadowDom: bool,
   ~state: walkState,
 ): unit =>
   switch state.truncated || state.nodeCount >= state.maxNodes {
@@ -222,6 +262,7 @@ let rec walk = (
       ~element,
       ~document,
       ~selector,
+      ~pierceShadowDom,
     )
     let appended = appendLine(state, "  "->String.repeat(depth) ++ description)
     switch appended {
@@ -230,15 +271,25 @@ let rec walk = (
     }
     switch appended && depth < maxDepth {
     | true =>
-      children->Array.forEachWithIndex((child, index) => {
-        let childSelector =
-          selector->Option.map(selector => `${selector} > :nth-child(${(index + 1)->Int.toString})`)
+      children->Array.forEach(child => {
+        let childSelector = selector->Option.map(selector =>
+          switch (child.relation, insideShadowDom) {
+          | (ShadowChild(index), _) => `${selector} >>> ${index->Int.toString}`
+          | (LightChild(index), true) => `${selector}/${index->Int.toString}`
+          | (LightChild(index), false) => `${selector} > :nth-child(${index->Int.toString})`
+          }
+        )
         walk(
-          ~element=child,
+          ~element=child.element,
           ~document,
           ~selector=childSelector,
           ~depth=depth + 1,
           ~maxDepth,
+          ~pierceShadowDom,
+          ~insideShadowDom=switch child.relation {
+          | ShadowChild(_) => true
+          | LightChild(_) => insideShadowDom
+          },
           ~state,
         )
       })
@@ -257,8 +308,13 @@ let inspect = (
   ~document: WebAPI.DOMAPI.document,
   ~maxDepth: int,
   ~maxNodes: int,
+  ~pierceShadowDom=false,
+  ~selectedSelector: option<string>=?,
 ): t => {
-  let selector = findSelector(~element, ~document=Some(document))
+  let selector = switch selectedSelector {
+  | Some(selector) => Ok(selector)
+  | None => findSelector(~element, ~document=Some(document))
+  }
   let selectedSelector = switch selector {
   | Ok(selector) => Some(selector)
   | Error(_) => None
@@ -270,6 +326,7 @@ let inspect = (
       ~element=parent->WebAPI.HTMLElement.asElement,
       ~document,
       ~selector=None,
+      ~pierceShadowDom=false,
     )
     description
   | None => "parent none"
@@ -285,7 +342,18 @@ let inspect = (
     encoder: makeTextEncoder(),
   }
   appendLine(state, parent)->ignore
-  walk(~element, ~document, ~selector=selectedSelector, ~depth=0, ~maxDepth, ~state)
+  walk(
+    ~element,
+    ~document,
+    ~selector=selectedSelector,
+    ~depth=0,
+    ~maxDepth,
+    ~pierceShadowDom,
+    ~insideShadowDom=selectedSelector->Option.mapOr(false, selector =>
+      selector->String.includes(" >>> ")
+    ),
+    ~state,
+  )
   switch state.truncated {
   | true => appendLine(state, `truncated nodes=${state.nodeCount->Int.toString}`)->ignore
   | false => ()

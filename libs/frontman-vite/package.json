@@ -61,9 +61,6 @@
 	"optionalDependencies": {
 		"@vscode/ripgrep": "^1.18.0"
 	},
-	"optionalDependencies": {
-		"@vscode/ripgrep": "^1.18.0"
-	},
 	"peerDependencies": {
 		"vite": ">=5.0.0"
 	},
@@ -72,7 +69,7 @@
 		"@frontman-ai/frontman-protocol": "*",
 		"@rescript/runtime": "12.3.0",
 		"@rescript/webapi": "*",
-		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#commit=f1eb78e0ad7708ffdc0d0a3f4e59075f58f2113f",
+		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#commit=3a8fdf555784647d5ed70f5362c4c9fbc5772d5c",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "11.0.0-alpha.10",

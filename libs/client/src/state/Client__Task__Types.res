@@ -733,12 +733,6 @@ let messageAnnotationToBlockData = (
   }
 }
 
-let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<ContentBlock.t> => {
-  let blockData = annotation->Message.MessageAnnotation.fromAnnotation->messageAnnotationToBlockData
-
-  annotationContentBlocks(blockData, ~index)
-}
-
 let getDocumentTitle: WebAPI.DOMAPI.document => string = %raw(`
   function(doc) { return doc.title || ""; }
 `)
@@ -938,8 +932,11 @@ let annotationMetaToMessageAnnotation = (
     }
   }
 
-  let sourceLocation = switch (meta.file, meta.line, meta.column) {
-  | (Some(file), Some(line), Some(column)) =>
+  let sourceLocation = switch (meta.sourceLocationError, meta.file, meta.line, meta.column) {
+  | (Some(_), Some(_), Some(_), Some(_)) =>
+    panic("Annotation metadata contains both a source location and a source location error")
+  | (Some(error), _, _, _) => Error(error)
+  | (None, Some(file), Some(line), Some(column)) =>
     Ok(
       Some({
         Message.MessageAnnotation.file,
@@ -951,7 +948,7 @@ let annotationMetaToMessageAnnotation = (
         parent: meta.parent->Option.flatMap(parseParentLocation),
       }),
     )
-  | _ => Ok(None)
+  | (None, _, _, _) => Ok(None)
   }
 
   {

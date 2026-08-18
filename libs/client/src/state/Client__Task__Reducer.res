@@ -1322,18 +1322,13 @@ let fetchAnnotationDetails = (
 
       let resolvedSourceLocationPromise = switch sourceContext {
       | Ok(Some(context)) =>
-        Client__SourceLocationResolver.resolve(context)->Promise.then(result => {
-          switch result {
-          | Ok(resolved) => Promise.resolve(Ok(Some(resolved)))
-          | Error(err) =>
-            switch Client__SourceContext.hasReactLocation(context) {
-            | true => Promise.resolve(Error(err))
-            | false =>
-              Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
-              Promise.resolve(Ok(Client__SourceContext.toSourceLocation(context)))
-            }
-          }
-        })
+        switch Client__SourceContext.hasReactLocation(context) {
+        | true =>
+          Client__SourceLocationResolver.resolve(context)->Promise.then(result =>
+            Promise.resolve(result->Result.map(resolved => Some(resolved)))
+          )
+        | false => Promise.resolve(Ok(Client__SourceContext.toSourceLocation(context)))
+        }
       | Ok(None) => Promise.resolve(Ok(None))
       | Error(_) as err => Promise.resolve(err)
       }

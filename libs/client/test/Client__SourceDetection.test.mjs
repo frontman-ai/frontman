@@ -24,6 +24,29 @@ beforeEach(() => {
 	getAstroSourceLocation.mockReturnValue(undefined);
 });
 
+function sourceLocation(componentName, file, line, overrides = {}) {
+	return {
+		componentName,
+		tagName: "component",
+		file,
+		line,
+		column: 1,
+		componentProps: undefined,
+		...overrides,
+	};
+}
+
+function contextLocation(location) {
+	return {
+		componentName: location.componentName,
+		tagName: location.tagName,
+		file: location.file,
+		line: location.line,
+		column: location.column,
+		componentProps: location.componentProps,
+	};
+}
+
 it("returns the React source context unchanged", async () => {
 	const context = {
 		definition: undefined,
@@ -46,54 +69,42 @@ it("returns the React source context unchanged", async () => {
 	expect(getAstroSourceLocation).not.toHaveBeenCalled();
 });
 
-it("wraps a Vue location as definition with no invocations", async () => {
-	getVueSourceLocation.mockReturnValue({
-		componentName: "Counter",
-		tagName: "button",
-		file: "src/Counter.vue",
-		line: 8,
-		column: 1,
-		parent: undefined,
-		componentProps: { initial: 1 },
+it("preserves Vue ancestry in nearest-to-farthest order", async () => {
+	const nearest = sourceLocation("Panel", "src/Panel.vue", 4);
+	const farthest = sourceLocation("App", "src/App.vue", 1, {
+		parent: nearest,
 	});
+	const selected = sourceLocation("Counter", "src/Counter.vue", 8, {
+		tagName: "button",
+		componentProps: { initial: 1 },
+		parent: farthest,
+	});
+	getVueSourceLocation.mockReturnValue(selected);
 
 	await expect(
 		getElementSourceLocation(document.createElement("button"), window),
 	).resolves.toEqual({
-		definition: {
-			componentName: "Counter",
-			tagName: "button",
-			file: "src/Counter.vue",
-			line: 8,
-			column: 1,
-			componentProps: { initial: 1 },
-		},
-		invocations: [],
+		definition: contextLocation(selected),
+		invocations: [contextLocation(nearest), contextLocation(farthest)],
 	});
 });
 
-it("wraps an Astro location as definition with no invocations", async () => {
-	getAstroSourceLocation.mockReturnValue({
-		componentName: "Card",
-		tagName: "article",
-		file: "src/components/Card.astro",
-		line: 12,
-		column: 3,
-		parent: undefined,
-		componentProps: undefined,
+it("preserves Astro ancestry in nearest-to-farthest order", async () => {
+	const nearest = sourceLocation("Page", "src/pages/index.astro", 5);
+	const farthest = sourceLocation("Layout", "src/layouts/Layout.astro", 1, {
+		parent: nearest,
 	});
+	const selected = sourceLocation("Card", "src/components/Card.astro", 12, {
+		tagName: "article",
+		column: 3,
+		parent: farthest,
+	});
+	getAstroSourceLocation.mockReturnValue(selected);
 
 	await expect(
 		getElementSourceLocation(document.createElement("article"), window),
 	).resolves.toEqual({
-		definition: {
-			componentName: "Card",
-			tagName: "article",
-			file: "src/components/Card.astro",
-			line: 12,
-			column: 3,
-			componentProps: undefined,
-		},
-		invocations: [],
+		definition: contextLocation(selected),
+		invocations: [contextLocation(nearest), contextLocation(farthest)],
 	});
 });

@@ -388,26 +388,33 @@ describe("RequestHandlers", _t => {
     )
 
     testAsync(
-      "returns package structured failures as 422",
+      "returns stable package errors without generated paths",
       async t => {
-        let resolver = async (_context, _options): RequestHandlers.sourceResolutionResult => {
-          success: false,
-          data: None,
-          error: Some({code: "POSITION_NOT_FOUND", message: "No original position"}),
+        let generatedPath = "/private/workspace/.next/server/app/page.js"
+        let assertSafeError = async (code, expectedDetails) => {
+          let resolver = async (_context, _options): RequestHandlers.sourceResolutionResult => {
+            success: false,
+            data: None,
+            error: Some({code, message: `Could not resolve ${generatedPath}`}),
+          }
+          let context: RequestHandlers.sourceContext = {definition: None, invocations: []}
+          let response = await RequestHandlers.handleResolveSourceLocation(
+            ~sourceRoot=Helpers.sourceRoot,
+            ~resolveSourceContext=resolver,
+            Helpers.sourceRequest(context),
+          )
+
+          t->expect(response.status)->Expect.toBe(422)
+          let text = await response->WebAPI.Response.text
+          t->expect(text->String.includes(expectedDetails))->Expect.toBe(true)
+          t->expect(text->String.includes(generatedPath))->Expect.toBe(false)
         }
-        let context: RequestHandlers.sourceContext = {definition: None, invocations: []}
 
-        let response = await RequestHandlers.handleResolveSourceLocation(
-          ~sourceRoot=Helpers.sourceRoot,
-          ~resolveSourceContext=resolver,
-          Helpers.sourceRequest(context),
-        )
-
-        t->expect(response.status)->Expect.toBe(422)
-        let text = await response->WebAPI.Response.text
-        t
-        ->expect(text->String.includes("POSITION_NOT_FOUND: No original position"))
-        ->Expect.toBe(true)
+        let _ = await Promise.all([
+          assertSafeError("GENERATED_FILE_NOT_FOUND", "Generated source file was not found"),
+          assertSafeError("SOURCE_MAP_NOT_FOUND", "Source map was not found"),
+          assertSafeError("POSITION_NOT_FOUND", "Source map position was not found"),
+        ])
       },
     )
 
@@ -425,7 +432,8 @@ describe("RequestHandlers", _t => {
 
         t->expect(response.status)->Expect.toBe(500)
         let text = await response->WebAPI.Response.text
-        t->expect(text->String.includes("package exploded"))->Expect.toBe(true)
+        t->expect(text->String.includes("RESOLUTION_FAILED"))->Expect.toBe(true)
+        t->expect(text->String.includes("package exploded"))->Expect.toBe(false)
       },
     )
 

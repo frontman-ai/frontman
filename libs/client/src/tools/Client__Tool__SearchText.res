@@ -127,17 +127,17 @@ let execute = async (
   switch input.query->String.trim {
   | "" => errorResult(~error="Query string cannot be empty")
   | _ =>
-    Client__Tool__ElementResolver.withPreviewDoc(
+    Client__Tool__PreviewContext.withPreview(
       ~onUnavailable=() => errorResult(~error="Preview frame not available"),
       ({doc, win: _}) => {
         try {
-          switch Client__Tool__ElementResolver.resolveRootOrBody(~doc, ~selector=input.selector) {
+          switch Client__Tool__SelectorResolver.resolveRootOrBody(~doc, ~selector=input.selector) {
           | Error(msg) => errorResult(~error=msg)
           | Ok(root) =>
             let maxResults = input.maxResults->Option.getOr(defaultMaxResults)
             let contextChars = input.contextChars->Option.getOr(defaultContextChars)
 
-            let allMatches = Client__Tool__ElementResolver.findMatchingElements(
+            let allMatches = Client__Tool__ElementQuery.findMatchingElements(
               ~root,
               ~query=input.query,
             )
@@ -150,23 +150,23 @@ let execute = async (
               ->Array.mapWithIndex((el, idx) => {
                 index: idx,
                 text: buildContextSnippet(
-                  ~text=Client__Tool__ElementResolver.getVisibleText(el),
+                  ~text=Client__Tool__ElementQuery.getVisibleText(el),
                   ~query=input.query,
                   ~contextChars,
                 ),
-                selector: Client__Tool__ElementResolver.generateSelector(
+                selector: Client__Tool__ElementQuery.generateSelector(
                   ~element=el,
                   ~document=Some(doc),
                 ),
                 tag: el.tagName->String.toLowerCase,
-                role: Client__Tool__ElementResolver.getOptionalRole(el),
-                accessibleName: Client__Tool__ElementResolver.getOptionalAccessibleName(el),
+                role: Client__Tool__ElementQuery.getOptionalRole(el),
+                accessibleName: Client__Tool__ElementQuery.getOptionalAccessibleName(el),
               })
 
             successResult(~matches, ~totalCount, ~truncated)
           }
         } catch {
-        | exn => errorResult(~error=Client__Tool__ElementResolver.exnMessage(exn))
+        | exn => errorResult(~error=Client__Tool__PreviewContext.exnMessage(exn))
         }
       },
     )

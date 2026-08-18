@@ -71,7 +71,7 @@ let execute = async (
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
 ): Tool.MCP.CallToolResult.t => {
-  Client__Tool__ElementResolver.withPreviewDoc(
+  Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=() =>
       Tool.structuredResult(
         {
@@ -85,7 +85,7 @@ let execute = async (
       ),
     ({doc, win}) => {
       try {
-        let resolved = Client__Tool__ElementResolver.collectInteractiveElements(
+        let resolved = Client__Tool__ElementQuery.collectInteractiveElements(
           ~document=doc,
           ~contentWindow=win,
           ~roleFilter=?input.role,
@@ -94,7 +94,7 @@ let execute = async (
         )
 
         let elements = resolved->Array.mapWithIndex((el, idx) => {
-          let selector = Client__Tool__ElementResolver.generateSelector(
+          let selector = Client__Tool__ElementQuery.generateSelector(
             ~element=el.element,
             ~document=Some(doc),
           )
@@ -105,9 +105,7 @@ let execute = async (
             name: el.name,
             tag: el.tag,
             selector,
-            detectionMethod: Client__Tool__ElementResolver.detectionMethodToString(
-              el.detectionMethod,
-            ),
+            detectionMethod: Client__Tool__ElementQuery.detectionMethodToString(el.detectionMethod),
             visibleText: el.visibleText,
           }
         })
@@ -131,7 +129,7 @@ let execute = async (
             elements: None,
             totalCount: None,
             truncated: None,
-            error: Some(Client__Tool__ElementResolver.exnMessage(exn)),
+            error: Some(Client__Tool__PreviewContext.exnMessage(exn)),
           },
           outputSchema,
         )

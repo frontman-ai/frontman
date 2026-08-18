@@ -13,8 +13,15 @@ describe("server bundle runtime dependencies", _ => {
     t->expect(bundle->String.includes("runtimeRequire(specifier)"))->Expect.toBe(false)
   })
 
-  test("does not bundle source-map WASM loading", t => {
+  test("keeps the source-map runtime external", t => {
     t->expect(bundle->String.includes("mappings.wasm"))->Expect.toBe(false)
     t->expect(bundle->String.includes("import(sourceMapModule)"))->Expect.toBe(false)
+    t->expect(bundle->String.includes("from 'source-map'"))->Expect.toBe(true)
+  })
+
+  test("bundles the source resolution package", t => {
+    t
+    ->expect(bundle->String.includes("dom-element-to-component-source/server"))
+    ->Expect.toBe(false)
   })
 })

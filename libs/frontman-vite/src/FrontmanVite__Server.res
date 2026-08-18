@@ -28,15 +28,3 @@ let handleToolCall = async (
 let corsHeaders = Core.FrontmanCore__CORS.corsHeaders
 @@live
 let handleCORS = Core.FrontmanCore__CORS.handlePreflight
-
-@@live
-let handleResolveSourceLocation = async (
-  ~config: Config.t,
-  req: WebAPI.FetchAPI.request,
-): WebAPI.FetchAPI.response => {
-  await CoreRequestHandlers.handleResolveSourceLocation(
-    ~projectRoot=config.projectRoot,
-    ~sourceRoot=config.sourceRoot,
-    req,
-  )
-}

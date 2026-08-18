@@ -23,9 +23,22 @@ let fromSourceLocation = (sourceLocation: Client__Types.SourceLocation.t): locat
   componentProps: sourceLocation.componentProps,
 }
 
+let rec invocationsFromLegacyParents = (
+  sourceLocation: option<Client__Types.SourceLocation.t>,
+  invocations: array<location>,
+): array<location> =>
+  switch sourceLocation {
+  | None => invocations
+  | Some(sourceLocation) =>
+    invocationsFromLegacyParents(
+      sourceLocation.parent,
+      Array.concat([fromSourceLocation(sourceLocation)], invocations),
+    )
+  }
+
 let fromDefinition = (sourceLocation: Client__Types.SourceLocation.t): t => {
   definition: Some(fromSourceLocation(sourceLocation)),
-  invocations: [],
+  invocations: invocationsFromLegacyParents(sourceLocation.parent, []),
 }
 
 let rec locationChain = (locations: array<location>, index: int): option<

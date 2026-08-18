@@ -245,7 +245,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :annotation_index, :integer
       field :tag_name, :string
       field :selector, :string
-      field :element_context, :string
       field :comment, :string
       field :file, :string
       field :line, :integer
@@ -267,7 +266,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         :annotation_index,
         :tag_name,
         :selector,
-        :element_context,
         :comment,
         :file,
         :line,
@@ -294,7 +292,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       component_name
       component_props
       css_classes
-      element_context
       file
       line
       metadata
@@ -311,7 +308,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         annotation_index: data["annotation_index"],
         tag_name: data["tag_name"] || "unknown",
         selector: data["selector"],
-        element_context: data["element_context"],
         comment: data["comment"],
         file: data["file"],
         line: data["line"],
@@ -1025,7 +1021,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_index: ann.annotation_index,
       tag_name: ann.tag_name,
       selector: ann.selector,
-      element_context: ann.element_context,
       comment: ann.comment,
       file: ann.file,
       line: ann.line,
@@ -1261,7 +1256,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_string_field(ann.component_name, "Component"),
       annotation_string_field(ann.comment, "Comment"),
       annotation_string_field(ann.selector, "CSS Selector"),
-      annotation_string_field(ann.element_context, "Element Context"),
+      annotation_metadata_field(ann.metadata, "element_context", "Element Context"),
       annotation_string_field(ann.css_classes, "CSS Classes"),
       annotation_string_field(ann.nearby_text, "Nearby Text"),
       annotation_bbox_field(ann.bounding_box),

@@ -44,6 +44,10 @@ type input = {
     "Maximum number of element nodes to include. Defaults to 200. Simplified mode stops at this limit and returns a narrowing hint; full mode rejects larger subtrees."
   )
   maxNodes: option<int>,
+  @s.describe(
+    "Whether simplified mode traverses open shadow DOM roots. Defaults to false. Returned indexed paths use ' >>> ' at each shadow boundary and can be passed back as selector."
+  )
+  pierceShadowDom: option<bool>,
 }
 
 @schema
@@ -128,11 +132,11 @@ let execute = async (
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
 ): Tool.MCP.CallToolResult.t => {
-  Client__Tool__ElementResolver.withPreviewDoc(
+  Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=() => errorResult(~error="Preview frame not available"),
     ({doc, win: _}) => {
       try {
-        let (element, _matchCount) = Client__Tool__ElementResolver.resolveBySelector(
+        let (element, _matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
           ~doc,
           ~selector=input.selector,
         )
@@ -176,11 +180,20 @@ let execute = async (
 
           | #simplified =>
             let maxDepth = input.maxDepth->Option.getOr(defaultMaxDepth)
+            let pierceShadowDom = input.pierceShadowDom->Option.getOr(false)
+            let selectedSelector = switch Client__Tool__SelectorResolver.classifySelector(
+              input.selector,
+            ) {
+            | CssSelector(_) => Some(input.selector)
+            | XPathExpression(_) => None
+            }
             let inspection = Client__ElementInspector.inspect(
               ~element=el,
               ~document=doc,
               ~maxDepth,
               ~maxNodes,
+              ~pierceShadowDom,
+              ~selectedSelector?,
             )
 
             let hint = switch (inspection.byteTruncated, inspection.truncated) {
@@ -202,7 +215,7 @@ let execute = async (
           }
         }
       } catch {
-      | exn => errorResult(~error=Client__Tool__ElementResolver.exnMessage(exn))
+      | exn => errorResult(~error=Client__Tool__PreviewContext.exnMessage(exn))
       }
     },
   )

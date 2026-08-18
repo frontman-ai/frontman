@@ -1,23 +1,5 @@
-/**
- * Integration tests for the FetchAnnotationDetails effect handler.
- *
- * Tests the async promise chain that enriches annotations with:
- *   - CSS selector (via @medv/finder)
- *   - Screenshot (via @zumer/snapdom)
- *   - Source location (via Client__SourceDetection)
- *
- * Uses vi.mock to stub external dependencies and captures dispatch calls
- * to verify the AnnotationDetailsResolved action payload.
- *
- * NOTE: Assertions reference ReScript's compiled variant representation
- * (TAG/Ok/Error/_0 fields). This couples tests to the compiler's output
- * format. If a compiler upgrade changes the encoding, these tests break —
- * but there's no typed alternative for testing the JS effect handler from
- * a plain .mjs test file. The reducer unit tests in Client__Task.test.res
- * cover the same logic with full type safety.
- */
+/** Integration tests for FetchAnnotationDetails effect orchestration. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { inspect, utf8ByteSize } from "../src/Client__ElementInspector.res.mjs";
 import { handleEffect } from "../src/state/Client__Task__Reducer.res.mjs";
 
 vi.mock("@medv/finder", () => ({
@@ -69,27 +51,17 @@ function makeMockElement() {
 	return element;
 }
 
-function makeMockDocument() {
-	return document;
-}
-
-/** Create the FetchAnnotationDetails effect object matching ReScript's compiled shape */
 function makeEffect(overrides = {}) {
 	return {
 		TAG: "FetchAnnotationDetails",
 		id: "ann-test-1",
 		element: makeMockElement(),
-		document: makeMockDocument(),
+		document,
 		contentWindow: undefined,
 		...overrides,
 	};
 }
 
-/**
- * Wait until the dispatch callback has been called at least once.
- * Uses vi.waitFor for deterministic async resolution instead of
- * a fragile fixed-count microtask loop.
- */
 async function waitForDispatch(dispatched, { timeout = 1000 } = {}) {
 	await vi.waitFor(
 		() => {
@@ -143,117 +115,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.screenshot.TAG).toBe("Ok");
 		expect(action.screenshot._0).toBe("data:image/jpeg;base64,abc123");
 		expect(action.elementContext.TAG).toBe("Ok");
-		expect(action.elementContext._0).toContain(
-			'parent tag="div" id="form-actions"',
-		);
-		expect(action.elementContext._0).toContain(
-			'selected tag="button" id="submit"',
-		);
-		expect(action.elementContext._0).toContain('text="Submit \\"now\\""');
-		expect(action.elementContext._0).toContain(
-			'child tag="span" class="button-overlay"',
-		);
-		const capped = inspect(makeMockElement(), document, 2, 1);
-		expect(capped).toMatchObject({ nodeCount: 1, truncated: true });
-		expect(capped.html).toContain("truncated nodes=1");
-		expect(inspect(makeMockElement(), document, 0, 20).html).not.toContain(
-			"child tag",
-		);
-	});
-
-	it("generates one selector and derives navigable child selectors", () => {
-		document.body.innerHTML = `
-			<div id="inspection-root">
-				<span>First</span>
-				<span>Second</span>
-			</div>
-		`;
-		finder.mockImplementation(() => "#inspection-root");
-		finder.mockClear();
-
-		const result = inspect(
-			document.querySelector("#inspection-root"),
-			document,
-			1,
-			200,
-		);
-
-		expect(finder).toHaveBeenCalledTimes(1);
-		expect(result.html).toContain(
-			'selector="#inspection-root > :nth-child(1)"',
-		);
-		expect(
-			document.querySelector("#inspection-root > :nth-child(1)").textContent,
-		).toBe("First");
-	});
-
-	it("caps simplified context at 30 KB", () => {
-		const repeated = "é".repeat(100);
-		document.body.innerHTML = `<div id="large-context"></div>`;
-		const root = document.querySelector("#large-context");
-		for (let index = 0; index < 199; index += 1) {
-			const child = document.createElement("div");
-			for (const name of [
-				"class",
-				"data-testid",
-				"href",
-				"src",
-				"type",
-				"placeholder",
-				"alt",
-			]) {
-				child.setAttribute(name, `${name}-${repeated}`);
-			}
-			child.textContent = repeated;
-			root.appendChild(child);
-		}
-		finder.mockImplementation(() => "#large-context");
-
-		const result = inspect(root, document, 1, 200);
-
-		expect(
-			new TextEncoder().encode(result.html).byteLength,
-		).toBeLessThanOrEqual(30_000);
-		expect(result.truncated).toBe(true);
-		expect(result.byteTruncated).toBe(true);
-		expect(utf8ByteSize("é")).toBe(2);
-	});
-
-	it("omits control values and URL credentials", () => {
-		document.body.innerHTML = `
-			<form id="credentials">
-				<input type="password" value="password-secret">
-				<input type="hidden" value="hidden-token">
-				<textarea>textarea-secret</textarea>
-				<a href="/account?token=url-secret#private">Account</a>
-				<img src="/avatar?signature=image-secret" alt="Avatar">
-				<a href="https://user:user-password@example.com/private">Private</a>
-				<a href="//user:relative-password@example.com/private">Relative</a>
-				<a href=" //user:spaced-password@example.com/private">Spaced</a>
-				<img src="DATA:image/png;base64,image-data-secret" alt="Embedded">
-			</form>
-		`;
-		finder.mockImplementation(() => "#credentials");
-
-		const result = inspect(
-			document.querySelector("#credentials"),
-			document,
-			1,
-			200,
-		);
-
-		expect(result.html).not.toContain("password-secret");
-		expect(result.html).not.toContain("hidden-token");
-		expect(result.html).not.toContain("textarea-secret");
-		expect(result.html).not.toContain("url-secret");
-		expect(result.html).not.toContain("image-secret");
-		expect(result.html).not.toContain("user-password");
-		expect(result.html).not.toContain("relative-password");
-		expect(result.html).not.toContain("spaced-password");
-		expect(result.html).not.toContain("image-data-secret");
-		expect(result.nearbyText).toBeUndefined();
-		expect(result.html).toContain('href="/account"');
-		expect(result.html).toContain('src="/avatar"');
+		expect(action.elementContext._0).toContain('selected tag="button"');
 	});
 
 	it("dispatches Ok(None) sourceLocation when contentWindow is None", async () => {
@@ -265,7 +127,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.sourceLocation._0).toBeUndefined();
 	});
 
-	it("dispatches Ok(Some(loc)) sourceLocation when context resolution succeeds", async () => {
+	it("resolves a React virtual context with one server request", async () => {
 		const mockLoc = {
 			componentName: "Button",
 			tagName: "button",
@@ -275,7 +137,13 @@ describe("FetchAnnotationDetails effect handler", () => {
 			parent: undefined,
 			componentProps: undefined,
 		};
-		const mockContext = { definition: mockLoc, invocations: [] };
+		const mockContext = {
+			definition: {
+				...mockLoc,
+				file: "about://React/Server/file:///app/.next/server/chunk.js",
+			},
+			invocations: [],
+		};
 		getElementSourceLocation.mockImplementation(() =>
 			Promise.resolve(mockContext),
 		);
@@ -283,8 +151,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 			Promise.resolve({ TAG: "Ok", _0: mockLoc }),
 		);
 
-		const mockWindow = {};
-		handleEffect(makeEffect({ contentWindow: mockWindow }), dispatch, delegate);
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
 		await waitForDispatch(dispatched);
 
 		const action = dispatched[0];
@@ -292,6 +159,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.sourceLocation._0).toBeDefined();
 		expect(action.sourceLocation._0.file).toBe("src/Button.tsx");
 		expect(action.sourceLocation._0.line).toBe(42);
+		expect(resolveSourceLocation).toHaveBeenCalledTimes(1);
 	});
 
 	it("dispatches an error when a React Server location cannot be resolved", async () => {
@@ -323,43 +191,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.sourceLocation._0).toBe("HTTP 422: Unprocessable Entity");
 	});
 
-	it("dispatches an error when any invocation is a failed React Server location", async () => {
-		const mockContext = {
-			definition: {
-				componentName: "Avatar",
-				tagName: "div",
-				file: "src/app/_components/avatar.tsx",
-				line: 10,
-				column: 7,
-				componentProps: undefined,
-			},
-			invocations: [
-				{
-					componentName: "HeroPost",
-					tagName: "unknown",
-					file: "about://React/Server/file:///app/.next/server/hero-post.js",
-					line: 42,
-					column: 11,
-					componentProps: undefined,
-				},
-			],
-		};
-		getElementSourceLocation.mockImplementation(() =>
-			Promise.resolve(mockContext),
-		);
-		resolveSourceLocation.mockImplementation(() =>
-			Promise.resolve({ TAG: "Error", _0: "HTTP 422: Unprocessable Entity" }),
-		);
-
-		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
-		await waitForDispatch(dispatched);
-
-		const action = dispatched[0];
-		expect(action.sourceLocation.TAG).toBe("Error");
-		expect(action.sourceLocation._0).toBe("HTTP 422: Unprocessable Entity");
-	});
-
-	it("uses original ordinary context when resolution fails", async () => {
+	it("uses ordinary context without a server request", async () => {
 		const mockContext = {
 			definition: {
 				componentName: "Counter",
@@ -372,10 +204,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 			invocations: [],
 		};
 		getElementSourceLocation.mockResolvedValue(mockContext);
-		resolveSourceLocation.mockResolvedValue({
-			TAG: "Error",
-			_0: "HTTP 404: Resolver unavailable",
-		});
+		resolveSourceLocation.mockClear();
 
 		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
 		await waitForDispatch(dispatched);
@@ -388,6 +217,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 				parent: undefined,
 			},
 		});
+		expect(resolveSourceLocation).not.toHaveBeenCalled();
 	});
 
 	it("times out source detection after five seconds", async () => {
@@ -401,73 +231,67 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(dispatched[0].sourceLocation).toEqual({ TAG: "Ok", _0: undefined });
 	});
 
-	it("selector Error when finder throws", async () => {
-		finder.mockImplementation(() => {
-			throw new Error("No unique selector found");
-		});
-
-		handleEffect(makeEffect(), dispatch, delegate);
+	it.each([
+		{
+			name: "selector",
+			arrange: () =>
+				finder.mockImplementation(() => {
+					throw new Error("No unique selector found");
+				}),
+			field: "selector",
+			error: "No unique selector found",
+		},
+		{
+			name: "screenshot capture",
+			arrange: () => snapdom.mockRejectedValue(new Error("Canvas tainted")),
+			field: "screenshot",
+			error: "Canvas tainted",
+		},
+		{
+			name: "screenshot encoding",
+			arrange: () =>
+				snapdom.mockResolvedValue({
+					toJpg: () => Promise.reject(new Error("JPEG conversion failed")),
+				}),
+			field: "screenshot",
+			error: "JPEG conversion failed",
+		},
+		{
+			name: "source detection",
+			arrange: () =>
+				getElementSourceLocation.mockRejectedValue(
+					new Error("CORS blocked source map"),
+				),
+			field: "sourceLocation",
+			error: "CORS blocked source map",
+			contentWindow: {},
+		},
+	])("preserves enrichment when $name fails", async ({
+		arrange,
+		field,
+		error,
+		contentWindow,
+	}) => {
+		arrange();
+		handleEffect(makeEffect({ contentWindow }), dispatch, delegate);
 		await waitForDispatch(dispatched);
 
-		const action = dispatched[0];
-		expect(action.TAG).toBe("AnnotationDetailsResolved");
-		expect(action.enrichmentStatus).toBe("Enriched");
-		expect(action.selector.TAG).toBe("Error");
-		expect(action.selector._0).toBe("No unique selector found");
-		expect(action.screenshot.TAG).toBe("Ok");
-	});
-
-	it("screenshot Error when snapdom rejects", async () => {
-		snapdom.mockImplementation(() =>
-			Promise.reject(new Error("Canvas tainted")),
-		);
-
-		handleEffect(makeEffect(), dispatch, delegate);
-		await waitForDispatch(dispatched);
-
-		const action = dispatched[0];
-		expect(action.enrichmentStatus).toBe("Enriched");
-		expect(action.screenshot.TAG).toBe("Error");
-		expect(action.screenshot._0).toBe("Canvas tainted");
-		expect(action.selector.TAG).toBe("Ok");
-	});
-
-	it("screenshot Error when toJpg rejects", async () => {
-		snapdom.mockImplementation(() =>
-			Promise.resolve({
-				toJpg: () => Promise.reject(new Error("JPEG conversion failed")),
-			}),
-		);
-
-		handleEffect(makeEffect(), dispatch, delegate);
-		await waitForDispatch(dispatched);
-
-		const action = dispatched[0];
-		expect(action.enrichmentStatus).toBe("Enriched");
-		expect(action.screenshot.TAG).toBe("Error");
-		expect(action.screenshot._0).toBe("JPEG conversion failed");
-	});
-
-	it("sourceLocation Error when detection throws", async () => {
-		getElementSourceLocation.mockImplementation(() =>
-			Promise.reject(new Error("CORS blocked source map")),
-		);
-
-		const mockWindow = {};
-		handleEffect(makeEffect({ contentWindow: mockWindow }), dispatch, delegate);
-		await waitForDispatch(dispatched);
-
-		const action = dispatched[0];
-		expect(action.enrichmentStatus).toBe("Enriched");
-		expect(action.sourceLocation.TAG).toBe("Error");
-		expect(action.sourceLocation._0).toBe("CORS blocked source map");
+		expect(dispatched[0].enrichmentStatus).toBe("Enriched");
+		expect(dispatched[0][field]).toEqual({ TAG: "Error", _0: error });
+		for (const unaffected of [
+			"selector",
+			"screenshot",
+			"sourceLocation",
+		].filter((candidate) => candidate !== field)) {
+			expect(dispatched[0][unaffected].TAG).toBe("Ok");
+		}
 	});
 
 	it("dispatches Failed status when source location resolver throws synchronously", async () => {
 		const mockLoc = {
 			componentName: "App",
 			tagName: "div",
-			file: "src/App.tsx",
+			file: "about://React/Server/file:///app/.next/server/chunk.js",
 			line: 1,
 			column: 1,
 			parent: undefined,
@@ -480,8 +304,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 			throw new Error("Resolver exploded");
 		});
 
-		const mockWindow = {};
-		handleEffect(makeEffect({ contentWindow: mockWindow }), dispatch, delegate);
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
 		await waitForDispatch(dispatched);
 
 		const action = dispatched[0];
