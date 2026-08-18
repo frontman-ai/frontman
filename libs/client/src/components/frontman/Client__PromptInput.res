@@ -10,6 +10,14 @@ module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 type inputItem = FileAttachment({id: string, name: string, mediaType: string, dataUrl: string})
 
+let isComposerBeamActive = (~hasFocus, ~isInputDisabled) => !hasFocus && !isInputDisabled
+
+let focusMovedInsideComposer: ReactEvent.Focus.t => bool = %raw(`
+  function(event) {
+    return event.relatedTarget !== null && event.currentTarget.contains(event.relatedTarget);
+  }
+`)
+
 module ModelSelector = {
   module Select = Client__UI__Select
   module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
@@ -320,6 +328,7 @@ let make = (
   ~isEnrichingAnnotations: bool=false,
 ) => {
   let (hasContent, setHasContent) = React.useState(() => false)
+  let (hasComposerFocus, setHasComposerFocus) = React.useState(() => false)
   let (submitSignal, setSubmitSignal) = React.useState(() => 0)
   let (attachSignal, setAttachSignal) = React.useState(() => 0)
   let (dropFilesSignal, setDropFilesSignal) = React.useState(() => 0)
@@ -446,95 +455,114 @@ let make = (
     | None => React.null
     }}
 
-    <div
-      className="mx-3 mb-2 overflow-hidden rounded-xl border bg-white/[0.025] transition-colors
-                 focus-within:ring-1 focus-within:ring-white/20"
-      style={{borderColor: composerBorderColor}}
+    <Client__BorderBeam
+      size=#"pulse-outside"
+      colorVariant=#ocean
+      theme=#dark
+      duration=2.8
+      strength=0.85
+      borderRadius=15.0
+      active={isComposerBeamActive(~hasFocus=hasComposerFocus, ~isInputDisabled)}
+      className="frontman-composer-beam mx-3 mb-2"
+      onFocus={_ => setHasComposerFocus(_ => true)}
+      onBlur={event =>
+        switch focusMovedInsideComposer(event) {
+        | true => ()
+        | false => setHasComposerFocus(_ => false)
+        }}
     >
-      <div className="flex items-center px-2 py-1">
-        <div className="flex flex-1 items-center gap-1 min-w-0 overflow-hidden transition-opacity">
-          <AttachButton
-            onClick={openAttachPicker}
-            disabled={isInputDisabled || isEnrichingAnnotations}
-            showLabel={showToolbarLabels}
-          />
-
-          {switch onSelectElement {
-          | Some(handler) =>
-            <SelectElementButton
-              onClick={handler}
-              isSelecting={isSelecting}
-              hasAnnotations={hasAnnotations}
+      <div
+        className="overflow-hidden rounded-xl border bg-white/[0.025] transition-colors
+                   focus-within:ring-1 focus-within:ring-white/20"
+        style={{borderColor: composerBorderColor}}
+      >
+        <div className="flex items-center px-2 py-1">
+          <div
+            className="flex flex-1 items-center gap-1 min-w-0 overflow-hidden transition-opacity"
+          >
+            <AttachButton
+              onClick={openAttachPicker}
+              disabled={isInputDisabled || isEnrichingAnnotations}
               showLabel={showToolbarLabels}
             />
-          | None => React.null
-          }}
-        </div>
-      </div>
 
-      <div className="border-t border-white/8">
-        <Client__PromptEditor
-          disabled={isInputDisabled}
-          placeholder={currentPlaceholder}
-          isEnrichingAnnotations
-          hasAnnotations
-          submitSignal
-          attachSignal
-          dropFilesSignal
-          droppedFiles
-          onHasContentChange={value => setHasContent(_ => value)}
-          onSubmit={handleEditorSubmit}
-          onPreviewImage={src => setPreviewSrc(_ => Some(src))}
-          onFileSizeError={message => setFileSizeError(_ => Some(message))}
-        />
-      </div>
-
-      <div className="flex min-w-0 items-center gap-2 border-t border-white/8 px-2 py-1">
-        <div
-          className={`grid min-w-0 flex-1 ${hasAgentSelector
-              ? "grid-cols-2"
-              : "grid-cols-1"} gap-2`}
-        >
-          {switch (agentCatalog, selectedAgentId) {
-          | (Some(agents), Some(agentId)) if agents->Array.length > 0 =>
-            <AgentSelector agents selectedAgentId={agentId} onAgentChange />
-          | _ => React.null
-          }}
-
-          {switch (isModelsConfigLoading, modelConfigOption) {
-          | (true, _) =>
-            <div className="inline-flex h-9 min-w-0 items-center gap-1 px-2 text-xs">
-              <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
-              <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
-              <span className="truncate text-zinc-500"> {React.string("Loading...")} </span>
-            </div>
-          | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
-            <button
-              type_="button"
-              onClick={_ => onConfigureProvider()}
-              className="inline-flex h-9 min-w-0 items-center gap-1 rounded-md px-2 text-xs
-                         text-violet-300 bg-violet-600/15 hover:bg-violet-600/25
-                         transition-colors cursor-pointer"
-            >
-              <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
-              <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
-              <span className="truncate"> {React.string("Configure provider")} </span>
-            </button>
-          | (false, Some(configOption)) =>
-            <div className="min-w-0 overflow-hidden">
-              <ModelSelector
-                configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
+            {switch onSelectElement {
+            | Some(handler) =>
+              <SelectElementButton
+                onClick={handler}
+                isSelecting={isSelecting}
+                hasAnnotations={hasAnnotations}
+                showLabel={showToolbarLabels}
               />
-            </div>
-          | (false, None) => React.null
-          }}
+            | None => React.null
+            }}
+          </div>
         </div>
 
-        <SubmitButton
-          disabled={isSubmitDisabled} showStop={showStopButton} onClick={doSubmit} onCancel
-        />
+        <div className="border-t border-white/8">
+          <Client__PromptEditor
+            disabled={isInputDisabled}
+            placeholder={currentPlaceholder}
+            isEnrichingAnnotations
+            hasAnnotations
+            submitSignal
+            attachSignal
+            dropFilesSignal
+            droppedFiles
+            onHasContentChange={value => setHasContent(_ => value)}
+            onSubmit={handleEditorSubmit}
+            onPreviewImage={src => setPreviewSrc(_ => Some(src))}
+            onFileSizeError={message => setFileSizeError(_ => Some(message))}
+          />
+        </div>
+
+        <div className="flex min-w-0 items-center gap-2 border-t border-white/8 px-2 py-1">
+          <div
+            className={`grid min-w-0 flex-1 ${hasAgentSelector
+                ? "grid-cols-2"
+                : "grid-cols-1"} gap-2`}
+          >
+            {switch (agentCatalog, selectedAgentId) {
+            | (Some(agents), Some(agentId)) if agents->Array.length > 0 =>
+              <AgentSelector agents selectedAgentId={agentId} onAgentChange />
+            | _ => React.null
+            }}
+
+            {switch (isModelsConfigLoading, modelConfigOption) {
+            | (true, _) =>
+              <div className="inline-flex h-9 min-w-0 items-center gap-1 px-2 text-xs">
+                <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
+                <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
+                <span className="truncate text-zinc-500"> {React.string("Loading...")} </span>
+              </div>
+            | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
+              <button
+                type_="button"
+                onClick={_ => onConfigureProvider()}
+                className="inline-flex h-9 min-w-0 items-center gap-1 rounded-md px-2 text-xs
+                           text-violet-300 bg-violet-600/15 hover:bg-violet-600/25
+                           transition-colors cursor-pointer"
+              >
+                <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
+                <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
+                <span className="truncate"> {React.string("Configure provider")} </span>
+              </button>
+            | (false, Some(configOption)) =>
+              <div className="min-w-0 overflow-hidden">
+                <ModelSelector
+                  configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
+                />
+              </div>
+            | (false, None) => React.null
+            }}
+          </div>
+
+          <SubmitButton
+            disabled={isSubmitDisabled} showStop={showStopButton} onClick={doSubmit} onCancel
+          />
+        </div>
       </div>
-    </div>
+    </Client__BorderBeam>
 
     {switch previewSrc {
     | Some(src) => <Client__ImagePreview src onClose={() => setPreviewSrc(_ => None)} />
