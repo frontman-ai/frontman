@@ -12,7 +12,7 @@ type inputItem = FileAttachment({id: string, name: string, mediaType: string, da
 
 let isComposerBeamActive = (~hasFocus, ~isInputDisabled) => !hasFocus && !isInputDisabled
 
-@send external contains: ({..}, {..}) => bool = "contains"
+external asNode: {..} => WebAPI.DomTypes.node = "%identity"
 
 module ModelSelector = {
   module Select = Client__UI__Select
@@ -463,7 +463,11 @@ let make = (
       onFocus={_ => setHasComposerFocus(_ => true)}
       onBlur={event =>
         switch ReactEvent.Focus.relatedTarget(event) {
-        | Some(target) if ReactEvent.Focus.currentTarget(event)->contains(target) => ()
+        | Some(target)
+          if WebAPI.Node.contains(
+            asNode(ReactEvent.Focus.currentTarget(event)),
+            asNode(target),
+          ) => ()
         | _ => setHasComposerFocus(_ => false)
         }}
     >
