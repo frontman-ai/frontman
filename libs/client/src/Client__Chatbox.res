@@ -135,6 +135,40 @@ let make = (~onConfigureProvider: unit => unit) => {
     Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
   let hasAnnotations = Array.length(annotations) > 0
 
+  let sendUserMessage = (
+    ~content: array<Client__State.UserContentPart.t>,
+    ~annotations: array<Client__Message.MessageAnnotation.t>,
+    ~agentId: string,
+  ) => {
+    let sendMessage = (sessionId: string) => {
+      Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations, ~agentId)
+    }
+    switch session {
+    | Some(sess) => sendMessage(sess.sessionId)
+    | None =>
+      createSession(~onComplete=result => {
+        switch result {
+        | Ok(sessionId) => sendMessage(sessionId)
+        | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
+        }
+      })
+    }
+  }
+
+  let pendingPlanHandoff = React.useMemo3(
+    () => Client__PlanExecution.pendingHandoff(~messages, ~agentCatalog, ~isAgentRunning),
+    (messages, agentCatalog, isAgentRunning),
+  )
+
+  let handleExecutePlan = (handoff: Client__PlanExecution.handoff) => {
+    Client__State.Actions.setSelectedAgentId(~agentId=handoff.executorAgentId)
+    sendUserMessage(
+      ~content=[Client__State.UserContentPart.Text({text: Client__PlanExecution.executePrompt})],
+      ~annotations=[],
+      ~agentId=handoff.executorAgentId,
+    )
+  }
+
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
     let messageAnnotations =
@@ -143,25 +177,7 @@ let make = (~onConfigureProvider: unit => unit) => {
     let sendWithContent = content => {
       switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => ()
-      | true =>
-        let sendMessage = (sessionId: string) => {
-          Client__State.Actions.addUserMessage(
-            ~sessionId,
-            ~content,
-            ~annotations=messageAnnotations,
-            ~agentId,
-          )
-        }
-        switch session {
-        | Some(sess) => sendMessage(sess.sessionId)
-        | None =>
-          createSession(~onComplete=result => {
-            switch result {
-            | Ok(sessionId) => sendMessage(sessionId)
-            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
-            }
-          })
-        }
+      | true => sendUserMessage(~content, ~annotations=messageAnnotations, ~agentId)
       }
     }
 
@@ -370,6 +386,12 @@ let make = (~onConfigureProvider: unit => unit) => {
         {displayItems
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
+
+        {switch (pendingPlanHandoff, hasPendingQuestion) {
+        | (Some(handoff), false) =>
+          <Client__ExecutePlanBanner onExecute={() => handleExecutePlan(handoff)} />
+        | _ => React.null
+        }}
 
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
