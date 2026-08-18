@@ -12,11 +12,7 @@ type inputItem = FileAttachment({id: string, name: string, mediaType: string, da
 
 let isComposerBeamActive = (~hasFocus, ~isInputDisabled) => !hasFocus && !isInputDisabled
 
-let focusMovedInsideComposer: ReactEvent.Focus.t => bool = %raw(`
-  function(event) {
-    return event.relatedTarget !== null && event.currentTarget.contains(event.relatedTarget);
-  }
-`)
+@send external contains: ({..}, {..}) => bool = "contains"
 
 module ModelSelector = {
   module Select = Client__UI__Select
@@ -466,9 +462,9 @@ let make = (
       className="frontman-composer-beam mx-3 mb-2"
       onFocus={_ => setHasComposerFocus(_ => true)}
       onBlur={event =>
-        switch focusMovedInsideComposer(event) {
-        | true => ()
-        | false => setHasComposerFocus(_ => false)
+        switch ReactEvent.Focus.relatedTarget(event) {
+        | Some(target) if ReactEvent.Focus.currentTarget(event)->contains(target) => ()
+        | _ => setHasComposerFocus(_ => false)
         }}
     >
       <div
