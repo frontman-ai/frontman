@@ -177,67 +177,6 @@ describe("Client State Reducer - Plan Handoff", () => {
     t->expect(executeEffects)->Expect.toEqual([])
   })
 
-  test("failed executor submission restores the pending handoff", t => {
-    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
-    let state = {
-      ...TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext,
-      acpSession: AcpSessionActive({
-        sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
-          onComplete(Error("Executor prompt rejected")),
-        cancelPrompt: () => (),
-        retryTurn: _ => (),
-        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-        deleteSession: (_, ~onComplete as _) => (),
-        apiBaseUrl: "http://localhost:4000",
-      }),
-    }
-    let (executing, effects) = Reducer.next(state, ExecutePendingPlan({id: "user-execute-plan"}))
-    let dispatched = ref(None)
-
-    effects->Array.forEach(
-      effect => Reducer.handleEffect(effect, executing, action => dispatched := Some(action)),
-    )
-
-    let failureAction = dispatched.contents->Option.getOrThrow
-    let (failed, _) = Reducer.next(executing, failureAction)
-    t->expect(Reducer.Selectors.isAgentRunning(failed))->Expect.toBe(false)
-    t
-    ->expect(Reducer.Selectors.pendingPlanHandoff(failed))
-    ->Expect.toEqual(Some({Reducer.executorAgentId: executor.id}))
-  })
-
-  test("late submission failure does not stop an accepted turn", t => {
-    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
-    let completePrompt = ref(None)
-    let state = {
-      ...TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext,
-      acpSession: AcpSessionActive({
-        sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
-          completePrompt := Some(onComplete),
-        cancelPrompt: () => (),
-        retryTurn: _ => (),
-        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-        deleteSession: (_, ~onComplete as _) => (),
-        apiBaseUrl: "http://localhost:4000",
-      }),
-    }
-    let (executing, effects) = Reducer.next(state, ExecutePendingPlan({id: "user-execute-plan"}))
-    let dispatched = ref(None)
-    effects->Array.forEach(
-      effect => Reducer.handleEffect(effect, executing, action => dispatched := Some(action)),
-    )
-    let (accepted, _) = Reducer.next(
-      executing,
-      TaskAction({target: ForTask("test-task-1"), action: ExecutionStateRunning}),
-    )
-
-    let onComplete = completePrompt.contents->Option.getOrThrow
-    onComplete(Error("Late rejection"))
-    let staleFailure = dispatched.contents->Option.getOrThrow
-    let (unchanged, _) = Reducer.next(accepted, staleFailure)
-    t->expect(Reducer.Selectors.isAgentRunning(unchanged))->Expect.toBe(true)
-  })
-
   test("cancelled partial planner output never becomes a pending handoff", t => {
     let partialPlan = Reducer.Message.Assistant(
       Streaming({id: "assistant-plan", textBuffer: "1. Part", agentId: planner.id}),
@@ -888,26 +827,15 @@ describe("Client State Reducer - Task Management Actions", () => {
     let tasks = Dict.make()
     tasks->Dict.set("task-1", task1)
 
-    let pendingPlanSubmissions = Dict.fromArray([("task-1", "user-execute-plan")])
-    let state = {
-      ...TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1")),
-      pendingPlanSubmissions,
-    }
+    let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
     let (nextState, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
 
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
-    t->expect(nextState.pendingPlanSubmissions->Dict.get("task-1"))->Expect.toEqual(None)
     switch nextState.currentTask {
     | Task.New(_) => t->expect(true)->Expect.toBe(true)
     | Task.Selected(_) => t->expect(false)->Expect.toBe(true)
     }
-
-    let (_, staleEffects) = Reducer.next(
-      nextState,
-      PlanSubmissionFailed({taskId: "task-1", submissionId: "user-execute-plan"}),
-    )
-    t->expect(staleEffects)->Expect.toEqual([])
   })
 
   test("AddUserMessage after deleting last task creates new task", t => {

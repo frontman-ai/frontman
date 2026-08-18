@@ -20,7 +20,6 @@ let effectKinds = effects =>
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
     | Reducer.LoadTaskEffect(_) => #loadTask
     | Reducer.DeleteSessionEffect(_) => #deleteSession
-    | Reducer.NotifySendPromptRejected(_) => #sendPromptRejected
     | Reducer.NotifyDeleteSessionRejected(_) => #deleteRejected
     | Reducer.CleanupSessionEffect(_) => #cleanupSession
     }
@@ -416,28 +415,6 @@ describe("Connection Reducer", () => {
   })
 
   describe("Prompt Sending", () => {
-    test(
-      "rejects a prompt when there is no active session",
-      t => {
-        let completion = ref(None)
-        let emptyBlocks: array<ContentBlock.t> = []
-        let (_, effects) = Reducer.reduce(
-          Reducer.initialState,
-          SendPrompt({
-            text: "execute",
-            additionalBlocks: emptyBlocks,
-            onComplete: result => completion := Some(result),
-            _meta: None,
-          }),
-        )
-
-        effects->Array.forEach(
-          effect => Reducer.handleEffect(effect, Reducer.initialState, _ => ()),
-        )
-        t->expect(completion.contents)->Expect.toEqual(Some(Error("No active session")))
-      },
-    )
-
     test(
       "allows another prompt while previous prompt is still in flight",
       t => {

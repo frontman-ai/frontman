@@ -34,7 +34,6 @@ type action =
     })
   | CancelTurn
   | ExecutePendingPlan({id: string})
-  | PlanSubmissionFailed({taskId: string, submissionId: string})
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask
@@ -93,7 +92,7 @@ type action =
   | DismissUpdateBanner
 
 type effect =
-  | TaskEffect({target: taskTarget, effect: TaskReducer.effect, planSubmissionId: option<string>})
+  | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
@@ -121,20 +120,14 @@ module Lens = {
     switch target {
     | Task.New(task) =>
       let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-      let wrappedEffects = taskEffects->Array.map(eff => TaskEffect({
-        target: CurrentTask,
-        effect: eff,
-        planSubmissionId: None,
-      }))
+      let wrappedEffects =
+        taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
       {...state, currentTask: Task.New(updated)}->StateReducer.update(~sideEffects=wrappedEffects)
     | Task.Selected(id) =>
       let task = state.tasks->Dict.get(id)->Option.getOrThrow
       let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-      let wrappedEffects = taskEffects->Array.map(eff => TaskEffect({
-        target: ForTask(id),
-        effect: eff,
-        planSubmissionId: None,
-      }))
+      let wrappedEffects =
+        taskEffects->Array.map(eff => TaskEffect({target: ForTask(id), effect: eff}))
       let tasks = state.tasks->Dict.copy
       tasks->Dict.set(id, updated)
       {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
@@ -235,7 +228,6 @@ let defaultState: state = {
   selectedModelValue: loadSelectedModelValueFromStorage(),
   agentCatalog: None,
   selectedAgentId: None,
-  pendingPlanSubmissions: Dict.make(),
   pendingProviderAutoSelect: None,
   sessionsLoadState: Client__State__Types.SessionsNotLoaded,
   updateInfo: None,
@@ -529,12 +521,12 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 
 let sendMessageToAPIImpl = (
   state: state,
+  _dispatch,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
   ~taskId,
   ~agentId,
-  ~onError: string => unit,
 ) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
@@ -558,17 +550,8 @@ let sendMessageToAPIImpl = (
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
     let _meta = Some(JSON.Encode.object(metadata))
 
-    sendPrompt(
-      message,
-      ~additionalBlocks,
-      ~onComplete=result =>
-        switch result {
-        | Ok(_) => ()
-        | Error(error) => onError(error)
-        },
-      ~_meta,
-    )
-  | NoAcpSession => onError("No active ACP session")
+    sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
+  | NoAcpSession => Log.error("Cannot send message: no active ACP session")
   }
 }
 
@@ -674,7 +657,7 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
-  | TaskEffect({target, effect: taskEffect, planSubmissionId}) => {
+  | TaskEffect({target, effect: taskEffect}) => {
       let taskDispatch = (taskAction: TaskReducer.action) => {
         dispatch(TaskAction({target, action: taskAction}))
       }
@@ -693,17 +676,12 @@ let handleEffect = (effect, state: state, dispatch) => {
           }
           sendMessageToAPIImpl(
             state,
+            dispatch,
             ~message=text,
             ~attachments,
             ~annotations,
             ~taskId,
             ~agentId,
-            ~onError=error => {
-              Log.error(~ctx={"error": error}, "Send message failed")
-              planSubmissionId->Option.forEach(submissionId =>
-                dispatch(PlanSubmissionFailed({taskId, submissionId}))
-              )
-            },
           )
         | NeedCancelPrompt =>
           switch state.acpSession {
@@ -1093,24 +1071,9 @@ let handleEffect = (effect, state: state, dispatch) => {
 let next = (state: state, action) => {
   switch action {
   | TaskAction({target, action: taskAction}) =>
-    let (updatedState, effects) = switch target {
+    switch target {
     | CurrentTask => state->Lens.delegateToTask(state.currentTask, taskAction)
     | ForTask(taskId) => state->Lens.delegateToTask(Task.Selected(taskId), taskAction)
-    }
-    switch taskAction {
-    | ExecutionStateRunning | ExecutionStateIdle | ExecutionStateRequiresAction | AgentError(_) =>
-      let taskId = switch target {
-      | ForTask(taskId) => Some(taskId)
-      | CurrentTask => Selectors.currentTaskId(state)
-      }
-      switch taskId {
-      | Some(taskId) =>
-        let pendingPlanSubmissions = updatedState.pendingPlanSubmissions->Dict.copy
-        pendingPlanSubmissions->Dict.delete(taskId)
-        {...updatedState, pendingPlanSubmissions}->StateReducer.update(~sideEffects=effects)
-      | None => updatedState->StateReducer.update(~sideEffects=effects)
-      }
-    | _ => updatedState->StateReducer.update(~sideEffects=effects)
     }
 
   | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
@@ -1139,27 +1102,12 @@ let next = (state: state, action) => {
           )
         switch pendingPlanHandoff {
         | Some(_) =>
-          let sendEffects = sendEffects->Array.map(effect =>
-            switch effect {
-            | TaskEffect({target, effect}) =>
-              TaskEffect({
-                target,
-                effect,
-                planSubmissionId: Some(id),
-              })
-            | effect => effect
-            }
-          )
           let (runningState, runningEffects) =
             updatedState->Lens.delegateToTask(
               Task.Selected(taskId),
               TaskReducer.ExecutionStateRunning,
             )
-          let pendingPlanSubmissions = runningState.pendingPlanSubmissions->Dict.copy
-          pendingPlanSubmissions->Dict.set(taskId, id)
-          {...runningState, pendingPlanSubmissions}->StateReducer.update(
-            ~sideEffects=Array.concat(sendEffects, runningEffects),
-          )
+          runningState->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
         | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
         }
       }
@@ -1194,27 +1142,12 @@ let next = (state: state, action) => {
       let effects = Array.concat(sendEffects, runningEffects)->Array.map(effect => TaskEffect({
         target: ForTask(taskId),
         effect,
-        planSubmissionId: Some(id),
       }))
-      let pendingPlanSubmissions = state.pendingPlanSubmissions->Dict.copy
-      pendingPlanSubmissions->Dict.set(taskId, id)
       {
         ...state,
         tasks,
         selectedAgentId: Some(executorAgentId),
-        pendingPlanSubmissions,
       }->StateReducer.update(~sideEffects=effects)
-    | _ => state->StateReducer.update
-    }
-
-  | PlanSubmissionFailed({taskId, submissionId}) =>
-    switch state.pendingPlanSubmissions->Dict.get(taskId) {
-    | Some(pendingId) if pendingId == submissionId =>
-      let (updatedState, effects) =
-        state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.ExecutionStateIdle)
-      let pendingPlanSubmissions = updatedState.pendingPlanSubmissions->Dict.copy
-      pendingPlanSubmissions->Dict.delete(taskId)
-      {...updatedState, pendingPlanSubmissions}->StateReducer.update(~sideEffects=effects)
     | _ => state->StateReducer.update
     }
 
@@ -1240,8 +1173,6 @@ let next = (state: state, action) => {
   | DeleteTask({taskId}) => {
       let updatedTasks = state.tasks->Dict.copy
       updatedTasks->Dict.delete(taskId)
-      let pendingPlanSubmissions = state.pendingPlanSubmissions->Dict.copy
-      pendingPlanSubmissions->Dict.delete(taskId)
 
       let newCurrentTask = switch state.currentTask {
       | Task.Selected(currentId) if currentId == taskId =>
@@ -1270,7 +1201,6 @@ let next = (state: state, action) => {
         ...state,
         tasks: updatedTasks,
         currentTask: newCurrentTask,
-        pendingPlanSubmissions,
       }->StateReducer.update
     }
 
