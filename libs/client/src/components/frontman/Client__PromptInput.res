@@ -7,6 +7,7 @@
  */
 module Icons = Client__ToolIcons
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module Node = WebAPI.Node
 
 type inputItem = FileAttachment({id: string, name: string, mediaType: string, dataUrl: string})
 
@@ -464,10 +465,7 @@ let make = (
       onBlur={event =>
         switch ReactEvent.Focus.relatedTarget(event) {
         | Some(target)
-          if WebAPI.Node.contains(
-            asNode(ReactEvent.Focus.currentTarget(event)),
-            asNode(target),
-          ) => ()
+          if Node.contains(event->ReactEvent.Focus.currentTarget->asNode, target->asNode) => ()
         | _ => setHasComposerFocus(_ => false)
         }}
     >
