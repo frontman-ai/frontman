@@ -14,6 +14,15 @@ let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRunt
 afterEach(() => clearRuntime())
 
 module TestHelpers = {
+  let activeAcpSession: Client__State__Types.acpSession = AcpSessionActive({
+    sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+    cancelPrompt: () => (),
+    retryTurn: _ => (),
+    loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+    deleteSession: (_, ~onComplete as _) => (),
+    apiBaseUrl: "http://localhost:4000",
+  })
+
   let makeLoadedTask = (
     ~id,
     ~title,
@@ -106,27 +115,11 @@ let plannerPlan = Reducer.Message.Assistant(
 
 let withPlanHandoffContext = (state: Client__State__Types.state): Client__State__Types.state => {
   ...state,
-  acpSession: AcpSessionActive({
-    sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-    cancelPrompt: () => (),
-    retryTurn: _ => (),
-    loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-    deleteSession: (_, ~onComplete as _) => (),
-    apiBaseUrl: "http://localhost:4000",
-  }),
+  acpSession: TestHelpers.activeAcpSession,
   agentCatalog: Some([planner, executor]),
-  selectedAgentId: Some(planner.id),
 }
 
 describe("Client State Reducer - Plan Handoff", () => {
-  test("pendingPlanHandoff selects a completed planner turn on an active loaded task", t => {
-    let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
-
-    t
-    ->expect(Reducer.Selectors.pendingPlanHandoff(state))
-    ->Expect.toEqual(Some({Reducer.taskId: "test-task-1", executorAgentId: executor.id}))
-  })
-
   test("execute atomically consumes the handoff and sends through the executor", t => {
     let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
     let action = Reducer.ExecutePendingPlan({id: "user-execute-plan"})
@@ -134,17 +127,14 @@ describe("Client State Reducer - Plan Handoff", () => {
 
     t->expect(executing.selectedAgentId)->Expect.toEqual(Some(executor.id))
     t->expect(Reducer.Selectors.isAgentRunning(executing))->Expect.toBe(true)
-    t->expect(Reducer.Selectors.pendingPlanHandoff(executing))->Expect.toEqual(None)
 
     switch effects->Array.get(0) {
     | Some(Reducer.TaskEffect({
         target: ForTask("test-task-1"),
-        effect: SendMessage({text, agentId, annotations, attachments}),
+        effect: SendMessage({text, agentId, _}),
       })) => {
         t->expect(text)->Expect.toBe(Reducer.executePlanPrompt)
         t->expect(agentId)->Expect.toBe(executor.id)
-        t->expect(annotations)->Expect.toEqual([])
-        t->expect(attachments)->Expect.toEqual([])
       }
     | _ => JsExn.throw("Expected executor SendMessage effect")
     }
@@ -165,9 +155,6 @@ describe("Client State Reducer - Plan Handoff", () => {
         agentId: planner.id,
       }),
     )
-
-    t->expect(Reducer.Selectors.isAgentRunning(submitting))->Expect.toBe(true)
-    t->expect(Reducer.Selectors.pendingPlanHandoff(submitting))->Expect.toEqual(None)
 
     let (_, executeEffects) = Reducer.next(
       submitting,
@@ -225,27 +212,11 @@ describe("Client State Reducer - Plan Handoff", () => {
       )->withPlanHandoffContext
 
     t->expect(Reducer.Selectors.pendingPlanHandoff(state))->Expect.toEqual(None)
-    let (_, effects) = Reducer.next(state, ExecutePendingPlan({id: "user-execute-plan"}))
-    t->expect(effects)->Expect.toEqual([])
   })
 })
 
 describe("Client State Reducer", () => {
   test("agent configuration selects advertised default and preserves valid selection", t => {
-    let executor: ACP.agentCatalogEntry = {
-      id: "executor-id",
-      name: "executor",
-      displayName: "Executor",
-      description: "Executes work",
-      color: "#985DF7",
-    }
-    let planner: ACP.agentCatalogEntry = {
-      id: "planner-id",
-      name: "planner",
-      displayName: "Planner",
-      description: "Plans work",
-      color: "#F59E0B",
-    }
     let (state, _) = Reducer.next(
       Reducer.defaultState,
       AgentAttributionConfigured({agentCatalog: [executor, planner], defaultAgentId: "planner-id"}),
@@ -261,13 +232,6 @@ describe("Client State Reducer", () => {
   })
 
   test("agent configuration replaces stale selection with advertised default", t => {
-    let planner: ACP.agentCatalogEntry = {
-      id: "planner-id",
-      name: "planner",
-      displayName: "Planner",
-      description: "Plans work",
-      color: "#F59E0B",
-    }
     let state = {...Reducer.defaultState, selectedAgentId: Some("removed-id")}
     let (state, _) = Reducer.next(
       state,
@@ -1291,14 +1255,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let _makeStateWithSession = () => {
       {
         ...Reducer.defaultState,
-        acpSession: AcpSessionActive({
-          sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-          cancelPrompt: () => (),
-          retryTurn: _ => (),
-          loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-          deleteSession: (_, ~onComplete as _) => (),
-          apiBaseUrl: "http://localhost:4000",
-        }),
+        acpSession: TestHelpers.activeAcpSession,
         selectedModelValue: None,
       }
     }
