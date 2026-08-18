@@ -85,19 +85,22 @@ let execute = async (
       ),
     ({doc, win}) => {
       try {
-        let resolved = Client__Tool__ElementQuery.collectInteractiveElements(
+        let resolved = Client__Tool__ElementQuery.queryInteractiveElements(
           ~document=doc,
           ~contentWindow=win,
-          ~roleFilter=?input.role,
-          ~nameFilter=?input.name,
-          ~maxElements,
+          ~roleFilter=input.role,
+          ~nameFilter=input.name,
+          ~limit=Some(maxElements),
         )
 
         let elements = resolved->Array.mapWithIndex((el, idx) => {
-          let selector = Client__Tool__ElementQuery.generateSelector(
+          let selector = switch Client__ElementInspector.findSelector(
             ~element=el.element,
             ~document=Some(doc),
-          )
+          ) {
+          | Ok(selector) => Some(selector)
+          | Error(_) => None
+          }
 
           {
             index: idx,

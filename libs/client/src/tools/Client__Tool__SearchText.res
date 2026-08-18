@@ -154,13 +154,26 @@ let execute = async (
                   ~query=input.query,
                   ~contextChars,
                 ),
-                selector: Client__Tool__ElementQuery.generateSelector(
+                selector: switch Client__ElementInspector.findSelector(
                   ~element=el,
                   ~document=Some(doc),
-                ),
+                ) {
+                | Ok(selector) => Some(selector)
+                | Error(_) => None
+                },
                 tag: el.tagName->String.toLowerCase,
-                role: Client__Tool__ElementQuery.getOptionalRole(el),
-                accessibleName: Client__Tool__ElementQuery.getOptionalAccessibleName(el),
+                role: switch FrontmanBindings.Bindings__DomAccessibilityApi.getRole(
+                  el,
+                )->Null.toOption {
+                | Some("") | None => None
+                | role => role
+                },
+                accessibleName: switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(
+                  el,
+                ) {
+                | "" => None
+                | name => Some(name)
+                },
               })
 
             successResult(~matches, ~totalCount, ~truncated)

@@ -134,13 +134,13 @@ let resolveTarget = (
       Error("Both 'role' and 'name' are required when using role-based targeting")
     | (None, None) =>
       switch input.text {
+      | Some(text) if text->String.trim === "" => Error("Text targeting cannot be empty")
       | Some(text) =>
-        let (element, matchCount) = Client__Tool__ElementQuery.resolveByText(
-          ~document=doc,
-          ~text,
-          ~index,
+        let matches = Client__Tool__ElementQuery.findMatchingElements(
+          ~root=doc.body->WebAPI.HTMLElement.asElement,
+          ~query=text,
         )
-        Resolved({element, matchCount})
+        Resolved({element: matches->Array.get(index), matchCount: matches->Array.length})
       | None =>
         Error(
           "No targeting strategy provided. Use 'selector', 'role'+'name', or 'text' to identify the element.",
@@ -186,10 +186,16 @@ let execute = async (
           )
         | Resolved({element: Some(el), matchCount}) =>
           performAction(el, action)
+          let role = Client__Tool__ElementQuery.effectiveRole(el)
           Tool.structuredResult(
             {
               success: true,
-              interactedElement: Some(Client__Tool__ElementQuery.describeElement(el)),
+              interactedElement: Some(
+                switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el) {
+                | "" => role
+                | name => `${role} '${name}'`
+                },
+              ),
               action: Some(actionToString(action)),
               matchCount: Some(matchCount),
               error: None,

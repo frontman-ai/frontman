@@ -4,18 +4,6 @@ let effectiveRole = (element: WebAPI.DOMAPI.element): string =>
   | Some(_) | None => element.tagName->String.toLowerCase
   }
 
-let getOptionalRole = (element: WebAPI.DOMAPI.element): option<string> =>
-  switch FrontmanBindings.Bindings__DomAccessibilityApi.getRole(element)->Null.toOption {
-  | Some("") | None => None
-  | role => role
-  }
-
-let getOptionalAccessibleName = (element: WebAPI.DOMAPI.element): option<string> =>
-  switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(element) {
-  | "" => None
-  | name => Some(name)
-  }
-
 let interactiveRoleSet =
   [
     "button",
@@ -66,11 +54,14 @@ let isEffectivelyHidden = (element: WebAPI.DOMAPI.element): bool => {
   rect.height <= 0.0
 }
 
-let getVisibleText = (element: WebAPI.DOMAPI.element): string =>
-  switch element->WebAPI.Element.asHTMLElement->WebAPI.HTMLElement.innerText {
-  | "" => (element :> WebAPI.DOMAPI.node)->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
-  | text => text
-  }
+@get
+external innerText: WebAPI.DOMAPI.element => Nullable.t<string> = "innerText"
+
+let getVisibleText = (element: WebAPI.DOMAPI.element): string => {
+  let textContent =
+    (element :> WebAPI.DOMAPI.node)->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
+  element->innerText->Nullable.toOption->Option.getOr(textContent)
+}
 
 let truncateText = (text: string): option<string> =>
   switch text->String.trim {
@@ -85,7 +76,7 @@ let detectInteractivity = (
   ~role: string,
 ): option<detectionMethod> =>
   switch true {
-  | _ if role !== "" && interactiveRoleSet->Dict.get(role)->Option.isSome => Some(Semantic)
+  | _ if interactiveRoleSet->Dict.get(role->String.toLowerCase)->Option.isSome => Some(Semantic)
   | _ if WebAPI.Window.getComputedStyle(contentWindow, ~elt=element).cursor === "pointer" =>
     Some(CursorPointer)
   | _ if element->WebAPI.Element.hasAttribute("tabindex") =>
@@ -98,20 +89,6 @@ let detectInteractivity = (
     }
   | _ => None
   }
-
-let passesFilters = (
-  ~role: string,
-  ~name: string,
-  ~roleFilter: option<string>,
-  ~nameFilter: option<string>,
-): bool => {
-  let roleMatches = roleFilter->Option.mapOr(true, filter => role === filter->String.toLowerCase)
-  let nameMatches =
-    nameFilter->Option.mapOr(true, filter =>
-      name->String.toLowerCase->String.includes(filter->String.toLowerCase)
-    )
-  roleMatches && nameMatches
-}
 
 let resolveInteractiveElement = (
   ~contentWindow: WebAPI.DOMAPI.window,
@@ -153,29 +130,24 @@ let queryInteractiveElements = (
     let element = elements->Array.getUnsafe(index.contents)
     index := index.contents + 1
     switch resolveInteractiveElement(~contentWindow, element) {
-    | Some(result)
-      if passesFilters(~role=result.role, ~name=result.name, ~roleFilter, ~nameFilter) =>
-      results->Array.push(result)->ignore
-    | Some(_) | None => ()
+    | None => ()
+    | Some(result) =>
+      let roleMatches =
+        roleFilter->Option.mapOr(true, filter =>
+          result.role->String.toLowerCase === filter->String.toLowerCase
+        )
+      let nameMatches =
+        nameFilter->Option.mapOr(true, filter =>
+          result.name->String.toLowerCase->String.includes(filter->String.toLowerCase)
+        )
+      switch roleMatches && nameMatches {
+      | true => results->Array.push(result)->ignore
+      | false => ()
+      }
     }
   }
   results
 }
-
-let collectInteractiveElements = (
-  ~document: WebAPI.DOMAPI.document,
-  ~contentWindow: WebAPI.DOMAPI.window,
-  ~roleFilter: option<string>=?,
-  ~nameFilter: option<string>=?,
-  ~maxElements: int,
-): array<resolvedElement> =>
-  queryInteractiveElements(
-    ~document,
-    ~contentWindow,
-    ~roleFilter,
-    ~nameFilter,
-    ~limit=Some(maxElements),
-  )
 
 let resolveByRoleAndName = (
   ~document: WebAPI.DOMAPI.document,
@@ -220,29 +192,4 @@ let findMatchingElements = (~root: WebAPI.DOMAPI.element, ~query: string): array
         !childMatchesText(element, lowerQuery)
     }
   )
-}
-
-let resolveByText = (~document: WebAPI.DOMAPI.document, ~text: string, ~index: int): (
-  option<WebAPI.DOMAPI.element>,
-  int,
-) => {
-  let matches = findMatchingElements(~root=document.body->WebAPI.HTMLElement.asElement, ~query=text)
-  (matches->Array.get(index), matches->Array.length)
-}
-
-let generateSelector = (
-  ~element: WebAPI.DOMAPI.element,
-  ~document: option<WebAPI.DOMAPI.document>,
-): option<string> =>
-  switch Client__ElementInspector.findSelector(~element, ~document) {
-  | Ok(selector) => Some(selector)
-  | Error(_) => None
-  }
-
-let describeElement = (element: WebAPI.DOMAPI.element): string => {
-  let label = effectiveRole(element)
-  switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(element) {
-  | "" => label
-  | name => `${label} '${name}'`
-  }
 }
