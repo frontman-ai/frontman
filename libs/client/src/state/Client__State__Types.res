@@ -114,7 +114,6 @@ type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   acpSession: acpSession,
-  sessionInitialized: bool,
   userProfile: option<userProfile>,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,

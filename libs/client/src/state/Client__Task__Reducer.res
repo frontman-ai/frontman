@@ -164,6 +164,8 @@ module Lens = {
     updateTaskData(task, d => {...d, activePopupAnnotationId: id})
 }
 
+type completedIdleTurn = {taskId: string, agentId: string}
+
 module Selectors = {
   let messages = (task: Task.t): option<array<Message.t>> => {
     switch task {
@@ -266,6 +268,22 @@ module Selectors = {
   let pendingQuestion = (task: Task.t): option<Client__Question__Types.pendingQuestion> => {
     switch task {
     | Task.Loaded({pendingQuestion}) => pendingQuestion
+    | _ => None
+    }
+  }
+
+  let completedIdleTurn = (task: Task.t): option<completedIdleTurn> => {
+    switch (task, Task.getMessages(task)->Array.last) {
+    | (
+        Task.Loaded({
+          id: taskId,
+          isAgentRunning: false,
+          lastTurnCancelled: false,
+          pendingQuestion: None,
+        }),
+        Some(Message.Assistant(Message.Completed({agentId, _}))),
+      ) =>
+      Some({taskId, agentId})
     | _ => None
     }
   }
@@ -886,7 +904,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
 
   | (Task.Loaded(data), ExecutionStateRunning) =>
-    let task = Task.Loaded({...data, isAgentRunning: true, turnError: None, retryStatus: None})
+    let task = Task.Loaded({
+      ...data,
+      isAgentRunning: true,
+      lastTurnCancelled: false,
+      turnError: None,
+      retryStatus: None,
+    })
     (Lens.drainQueuedUserMessages(task), [])
 
   | (Task.Loaded(_data), ExecutionStateIdle) =>
@@ -938,6 +962,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           Task.Loaded({
             ...d,
             isAgentRunning: false,
+            lastTurnCancelled: true,
             turnError: None,
             retryStatus: None,
             pendingQuestion: None,
@@ -948,6 +973,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           other->Task.updateLoadedData(d => {
             ...d,
             isAgentRunning: false,
+            lastTurnCancelled: true,
             turnError: None,
             pendingQuestion: None,
           }),
@@ -983,12 +1009,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         ...data,
         retryStatus: Some(retryStatus),
         isAgentRunning: true,
+        lastTurnCancelled: false,
       }),
       [],
     )
 
   | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
-      Task.Loaded({...data, turnError: None, isAgentRunning: true}),
+      Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
       [RetryTurnEffect({retriedErrorId: retriedErrorId})],
     )
 
@@ -1040,6 +1067,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           annotations,
           activePopupAnnotationId,
           isAgentRunning,
+          lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
           turnError: None,

@@ -5,6 +5,10 @@ module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
 
 let name = "Client::StateReducer"
 
+let plannerAgentName = "planner"
+let executorAgentName = "executor"
+let executePlanPrompt = "Execute the plan above."
+
 module UserContentPart = Client__State__Types.UserContentPart
 module Message = Client__State__Types.Message
 module Task = Client__State__Types.Task
@@ -17,6 +21,8 @@ type taskTarget = CurrentTask | ForTask(string)
 
 type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 
+type pendingPlanHandoff = {taskId: string, executorAgentId: string}
+
 type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   | AddUserMessage({
@@ -27,6 +33,7 @@ type action =
       agentId: string,
     })
   | CancelTurn
+  | ExecutePendingPlan({id: string})
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask
@@ -109,21 +116,28 @@ module Lens = {
     {...state, tasks}
   }
 
-  let delegateToTask = (state: state, target: Task.currentTask, taskAction: TaskReducer.action) => {
-    switch target {
-    | Task.New(task) =>
-      let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-      let wrappedEffects =
-        taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
-      {...state, currentTask: Task.New(updated)}->StateReducer.update(~sideEffects=wrappedEffects)
-    | Task.Selected(id) =>
-      let task = state.tasks->Dict.get(id)->Option.getOrThrow
-      let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-      let wrappedEffects =
-        taskEffects->Array.map(eff => TaskEffect({target: ForTask(id), effect: eff}))
-      let tasks = state.tasks->Dict.copy
-      tasks->Dict.set(id, updated)
-      {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
+  let delegateToNewTask = (state: state, task: Task.t, taskAction: TaskReducer.action) => {
+    let (updated, taskEffects) = TaskReducer.next(task, taskAction)
+    let wrappedEffects =
+      taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
+    {...state, currentTask: Task.New(updated)}->StateReducer.update(~sideEffects=wrappedEffects)
+  }
+
+  let delegateToTaskId = (state: state, taskId: string, taskAction: TaskReducer.action) => {
+    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+    let (updated, taskEffects) = TaskReducer.next(task, taskAction)
+    let wrappedEffects =
+      taskEffects->Array.map(eff => TaskEffect({target: ForTask(taskId), effect: eff}))
+    let tasks = state.tasks->Dict.copy
+    tasks->Dict.set(taskId, updated)
+    {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
+  }
+
+  let delegateToTask = (state: state, target: taskTarget, taskAction: TaskReducer.action) => {
+    switch (target, state.currentTask) {
+    | (CurrentTask, Task.New(task)) => delegateToNewTask(state, task, taskAction)
+    | (CurrentTask, Task.Selected(taskId)) | (ForTask(taskId), _) =>
+      delegateToTaskId(state, taskId, taskAction)
     }
   }
 }
@@ -182,10 +196,13 @@ let setApiKeySaveStatus = (state, provider, saveStatus) =>
 let markApiKeySaved = (state, provider) =>
   updateApiKeySettings(state, provider, _settings => {source: UserOverride, saveStatus: Saved})
 
-let setAllApiKeySources = (state, source) =>
-  apiKeyProviders->Array.reduce(state, (state, provider) =>
-    state->setApiKeySource(provider, source)
-  )
+let setAllApiKeySources = (state: state, source) => {
+  ...state,
+  openrouterKeySettings: {...state.openrouterKeySettings, source},
+  anthropicKeySettings: {...state.anthropicKeySettings, source},
+  fireworksKeySettings: {...state.fireworksKeySettings, source},
+  nvidiaKeySettings: {...state.nvidiaKeySettings, source},
+}
 
 let hasApiKeySource = (source: Client__State__Types.apiKeySource) =>
   switch source {
@@ -197,7 +214,6 @@ let defaultState: state = {
   tasks: Dict.make(),
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   acpSession: NoAcpSession,
-  sessionInitialized: false,
   userProfile: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
@@ -346,10 +362,6 @@ module Selectors = {
     }
   }
 
-  let sessionInitialized = (state: state): bool => {
-    state.sessionInitialized
-  }
-
   let userProfile = (state: state): option<Client__State__Types.userProfile> => {
     state.userProfile
   }
@@ -414,6 +426,24 @@ module Selectors = {
     }
   }
 
+  let pendingPlanHandoff = (state: state): option<pendingPlanHandoff> => {
+    let findAgent = name =>
+      state.agentCatalog->Option.flatMap(catalog =>
+        catalog->Array.find(agent => agent.name == name)
+      )
+    switch (
+      state.acpSession,
+      findAgent(plannerAgentName),
+      findAgent(executorAgentName),
+      TaskReducer.Selectors.completedIdleTurn(currentTask(state)),
+    ) {
+    | (AcpSessionActive(_), Some(planner), Some(executor), Some({taskId, agentId}))
+      if agentId == planner.id =>
+      Some({taskId, executorAgentId: executor.id})
+    | _ => None
+    }
+  }
+
   let hasAnyProviderConfigured = (state: state): bool => {
     switch state.anthropicOAuthStatus {
     | Connected(_) => true
@@ -448,7 +478,7 @@ module Selectors = {
   }
 
   let providerSetupRequired = (state: state): bool => {
-    state.sessionInitialized && providerSettingsLoaded(state) && !hasAnyProviderConfigured(state)
+    hasActiveACPSession(state) && providerSettingsLoaded(state) && !hasAnyProviderConfigured(state)
   }
 }
 
@@ -1029,11 +1059,7 @@ let handleEffect = (effect, state: state, dispatch) => {
 
 let next = (state: state, action) => {
   switch action {
-  | TaskAction({target, action: taskAction}) =>
-    switch target {
-    | CurrentTask => state->Lens.delegateToTask(state.currentTask, taskAction)
-    | ForTask(taskId) => state->Lens.delegateToTask(Task.Selected(taskId), taskAction)
-    }
+  | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
   | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
       let textContent = TaskReducer.extractTextFromUserContent(content)
@@ -1049,22 +1075,51 @@ let next = (state: state, action) => {
           currentTask: Task.Selected(sessionId),
         }
         promotedState->Lens.delegateToTask(
-          Task.Selected(sessionId),
+          ForTask(sessionId),
           TaskReducer.AddUserMessage({id, content, annotations, agentId}),
         )
       | Task.Selected(taskId) =>
-        state->Lens.delegateToTask(
-          Task.Selected(taskId),
-          TaskReducer.AddUserMessage({id, content, annotations, agentId}),
-        )
+        let pendingPlanHandoff = Selectors.pendingPlanHandoff(state)
+        let (updatedState, sendEffects) =
+          state->Lens.delegateToTask(
+            ForTask(taskId),
+            TaskReducer.AddUserMessage({id, content, annotations, agentId}),
+          )
+        switch pendingPlanHandoff {
+        | Some(_) =>
+          let (runningState, runningEffects) =
+            updatedState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
+          runningState->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
+        | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
+        }
       }
     }
 
   | CancelTurn =>
     switch state.currentTask {
-    | Task.Selected(taskId) =>
-      state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.CancelTurn)
+    | Task.Selected(taskId) => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.CancelTurn)
     | Task.New(_) => state->StateReducer.update
+    }
+
+  | ExecutePendingPlan({id}) =>
+    switch Selectors.pendingPlanHandoff(state) {
+    | Some({taskId, executorAgentId}) =>
+      let (messageState, sendEffects) = state->Lens.delegateToTask(
+        ForTask(taskId),
+        TaskReducer.AddUserMessage({
+          id,
+          content: [UserContentPart.Text({text: executePlanPrompt})],
+          annotations: [],
+          agentId: executorAgentId,
+        }),
+      )
+      let (runningState, runningEffects) =
+        messageState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
+      {
+        ...runningState,
+        selectedAgentId: Some(executorAgentId),
+      }->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
+    | _ => state->StateReducer.update
     }
 
   | SwitchTask({taskId}) => {
@@ -1072,7 +1127,7 @@ let next = (state: state, action) => {
       let needsLoad = Task.isUnloaded(task)
       let (updatedState, taskEffects) = if needsLoad {
         state->Lens.delegateToTask(
-          Task.Selected(taskId),
+          ForTask(taskId),
           TaskReducer.LoadStarted({previewUrl: getInitialUrl()}),
         )
       } else {
@@ -1147,11 +1202,10 @@ let next = (state: state, action) => {
         deleteSession,
         apiBaseUrl,
       }),
-      sessionInitialized: true,
     }
-    switch state.sessionInitialized {
-    | true => stateWithSession->StateReducer.update
-    | false =>
+    switch state.acpSession {
+    | AcpSessionActive(_) => stateWithSession->StateReducer.update
+    | NoAcpSession =>
       {
         ...stateWithSession,
         anthropicOAuthStatus: Client__State__Types.FetchingStatus,
@@ -1184,7 +1238,6 @@ let next = (state: state, action) => {
       ...state,
       tasks: updatedTasks,
       acpSession: NoAcpSession,
-      sessionInitialized: false,
     }->StateReducer.update
 
   | FetchUserProfile({apiBaseUrl}) =>

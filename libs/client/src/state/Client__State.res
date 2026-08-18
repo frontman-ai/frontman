@@ -113,6 +113,11 @@ module Actions = {
 
   let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
 
+  let executePendingPlan = () => {
+    let id = `user-${Date.now()->Float.toString}`
+    Client__State__Store.dispatch(ExecutePendingPlan({id: id}))
+  }
+
   let setAcpSession = (
     ~sendPrompt,
     ~cancelPrompt,
