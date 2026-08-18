@@ -1,7 +1,7 @@
 {
 	"name": "@frontman-ai/frontman-core",
 	"private": true,
-	"version": "1.0.3",
+	"version": "1.0.4",
 	"description": "Core server-side tools for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
