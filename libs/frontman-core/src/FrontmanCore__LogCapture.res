@@ -35,6 +35,7 @@ type logEntry = {
   timestamp: string,
   level: logLevel,
   message: string,
+  @live
   attributes: option<JSON.t>,
   @live
   resource: option<JSON.t>,

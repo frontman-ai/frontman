@@ -16,6 +16,7 @@ let getSuffixRoutePrefix = (~path: string, ~basePath: string): option<string> =>
   }
 }
 
+@@live
 let isFrontmanRoute = (~pathname: string, ~basePath: string, ~method: string): bool => {
   let prefix = "/" ++ basePath->String.toLowerCase
   let path = pathname->String.toLowerCase
