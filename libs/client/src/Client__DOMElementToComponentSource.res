@@ -15,28 +15,7 @@ let getElementSourceContext = async (~element: WebAPI.DOMAPI.element): option<
 > => {
   let result = await getElementSourceContextRaw(~element)
   switch result.success {
-  | true =>
-    result.data->Option.map(context => {
-      switch context.definition {
-      | Some(definition) =>
-        switch context.invocations->Array.get(0) {
-        | Some(invocation) =>
-          switch definition.componentName == invocation.componentName {
-          | true =>
-            switch invocation.componentProps {
-            | Some(componentProps) => {
-                ...context,
-                definition: Some({...definition, componentProps: Some(componentProps)}),
-              }
-            | None => context
-            }
-          | false => context
-          }
-        | None => context
-        }
-      | None => context
-      }
-    })
+  | true => result.data
   | false => None
   }
 }

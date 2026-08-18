@@ -1,40 +1,23 @@
-let _reactComponentName: WebAPI.DOMAPI.element => Nullable.t<string> = %raw(`
-  function(element) {
-    var frameworkComponents = ["SegmentViewNode", "LayoutRouterContext", "InnerLayoutRouter"];
-    function componentName(node) {
-      if (!node) return null;
-      var type = node.type;
-      return node.name || (type && (type.displayName || type.name)) || null;
-    }
-    function isApplicationComponent(name) {
-      return name && name !== "Fragment" && name !== "Suspense" &&
-        !name.startsWith("_") && !frameworkComponents.includes(name);
-    }
-    try {
-      var keys = Object.keys(element);
-      for (var i = 0; i < keys.length; i++) {
-        if (keys[i].startsWith("__reactFiber$") || keys[i].startsWith("__reactInternalInstance$")) {
-          var fiber = element[keys[i]];
-          var owner = fiber._debugOwner;
-          while (owner) {
-            var ownerName = componentName(owner);
-            if (isApplicationComponent(ownerName)) return ownerName;
-            owner = owner.owner || owner._debugOwner;
-          }
-          var current = fiber;
-          while (current) {
-            if (current.type && typeof current.type === "function") {
-              var name = componentName(current);
-              if (isApplicationComponent(name)) return name;
-            }
-            current = current.return;
-          }
-        }
-      }
-    } catch (e) {}
-    return null;
-  }
-`)
+@@live
+type componentNameOptions = {
+  excludedNames: array<string>,
+  includeUnderscorePrefixed: bool,
+  maxDepth: int,
+}
+
+@module("dom-element-to-component-source")
+external reactComponentName: (WebAPI.DOMAPI.element, componentNameOptions) => Nullable.t<string> =
+  "getElementComponentName"
+
+let _reactComponentName = element =>
+  reactComponentName(
+    element,
+    {
+      excludedNames: ["SegmentViewNode", "LayoutRouterContext", "InnerLayoutRouter"],
+      includeUnderscorePrefixed: false,
+      maxDepth: 10,
+    },
+  )->Nullable.toOption
 
 let _vueComponentName = (element: WebAPI.DOMAPI.element): option<string> => {
   switch Client__Vue__SourceDetection.getVueComponent(element)->Nullable.toOption {
@@ -64,7 +47,7 @@ let getForElement = (
   element: WebAPI.DOMAPI.element,
   ~window: option<WebAPI.DOMAPI.window>=?,
 ): option<string> => {
-  switch _reactComponentName(element)->Nullable.toOption {
+  switch _reactComponentName(element) {
   | Some(name) => Some(name)
   | None =>
     switch _vueComponentName(element) {

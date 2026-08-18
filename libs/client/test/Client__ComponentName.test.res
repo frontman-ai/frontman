@@ -8,10 +8,10 @@ let makeReactElement: (string, string) => WebAPI.DOMAPI.element = %raw(`
   function(tag, componentName) {
     var el = { tagName: tag, parentElement: null };
     el["__reactFiber$test123"] = {
-      type: function FakeComponent() {},
+      type: "div",
+      _debugOwner: {name: componentName, owner: null},
       return: null
     };
-    el["__reactFiber$test123"].type.displayName = componentName;
     return el;
   }
 `)
@@ -52,10 +52,10 @@ describe("Client__ComponentName.getForElement", () => {
       (function() {
         var el = { tagName: "div", parentElement: null };
         el["__reactFiber$test123"] = {
-          type: function RC() {},
+          type: "div",
+          _debugOwner: {name: "ReactComponent", owner: null},
           return: null
         };
-        el["__reactFiber$test123"].type.displayName = "ReactComponent";
         el.__vueParentComponent = {
           type: { __name: "VueComponent" },
           props: null,
@@ -68,80 +68,9 @@ describe("Client__ComponentName.getForElement", () => {
     t->expect(result)->Expect.toEqual(Some("ReactComponent"))
   })
 
-  test("skips Fragment and Suspense component names", t => {
-    let el: WebAPI.DOMAPI.element = %raw(`
-      (function() {
-        var el = { tagName: "div", parentElement: null };
-        el["__reactFiber$test123"] = {
-          type: function Fragment() {},
-          return: null
-        };
-        el["__reactFiber$test123"].type.displayName = "Fragment";
-        return el;
-      })()
-    `)
-    let result = Client__ComponentName.getForElement(el)
-    t->expect(result)->Expect.toEqual(None)
-  })
-
-  test("skips component names starting with underscore", t => {
-    let el: WebAPI.DOMAPI.element = %raw(`
-      (function() {
-        var el = { tagName: "div", parentElement: null };
-        var fn = function() {};
-        fn.displayName = "_InternalComponent";
-        el["__reactFiber$test123"] = {
-          type: fn,
-          return: null
-        };
-        return el;
-      })()
-    `)
-    let result = Client__ComponentName.getForElement(el)
-    t->expect(result)->Expect.toEqual(None)
-  })
-
   test("skips Next.js framework component names", t => {
     let el = makeReactElement("div", "SegmentViewNode")
     let result = Client__ComponentName.getForElement(el)
     t->expect(result)->Expect.toEqual(None)
-  })
-
-  test("prefers React debug owner over framework fiber ancestors", t => {
-    let el: WebAPI.DOMAPI.element = %raw(`
-      (function() {
-        var el = { tagName: "div", parentElement: null };
-        el["__reactFiber$test123"] = {
-          type: "div",
-          _debugOwner: {name: "Avatar", owner: null},
-          return: {
-            type: function RedirectErrorBoundary() {},
-            return: null
-          }
-        };
-        return el;
-      })()
-    `)
-    let result = Client__ComponentName.getForElement(el)
-    t->expect(result)->Expect.toEqual(Some("Avatar"))
-  })
-
-  test("walks up React fiber tree to find nearest function component", t => {
-    let el: WebAPI.DOMAPI.element = %raw(`
-      (function() {
-        var el = { tagName: "span", parentElement: null };
-        el["__reactFiber$test123"] = {
-          type: "span",
-          return: {
-            type: function TableHeader() {},
-            return: null
-          }
-        };
-        el["__reactFiber$test123"].return.type.displayName = "TableHeader";
-        return el;
-      })()
-    `)
-    let result = Client__ComponentName.getForElement(el)
-    t->expect(result)->Expect.toEqual(Some("TableHeader"))
   })
 })

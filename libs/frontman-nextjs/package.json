@@ -58,7 +58,7 @@
 	"dependencies": {
 		"@sentry/nextjs": "^10.66.0",
 		"chrome-launcher": "^1.1.2",
-		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#commit=3a8fdf555784647d5ed70f5362c4c9fbc5772d5c",
+		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
 		"lighthouse": "^13.4.0",
 		"source-map": "^0.7.6"
 	},
