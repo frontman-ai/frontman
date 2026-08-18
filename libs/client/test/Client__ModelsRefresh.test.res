@@ -44,6 +44,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     selectedModelValue,
     agentCatalog: None,
     selectedAgentId: None,
+    pendingPlanSubmissions: Dict.make(),
     pendingProviderAutoSelect,
     sessionsLoadState: Types.SessionsNotLoaded,
     updateInfo: None,

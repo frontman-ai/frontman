@@ -153,6 +153,10 @@ type effect =
       taskId: string,
       onComplete: result<unit, string> => unit,
     })
+  | NotifySendPromptRejected({
+      onComplete: result<ACPTypes.promptResult, string> => unit,
+      reason: string,
+    })
   | NotifyDeleteSessionRejected({onComplete: result<unit, string> => unit, reason: string})
   | CleanupSessionEffect({session: ACP.session})
 
@@ -420,9 +424,9 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | (_, RetryTurn(_)) => (state, [LogError("Cannot retry turn: no active session")])
 
-  | ({session: NoSession | SessionCreating(_) | SessionError(_)}, SendPrompt(_)) => (
+  | ({session: NoSession | SessionCreating(_) | SessionError(_)}, SendPrompt({onComplete})) => (
       state,
-      [LogError("Cannot send prompt: no active session")],
+      [NotifySendPromptRejected({onComplete, reason: "No active session"})],
     )
 
   | (
@@ -562,6 +566,10 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
   | TrackRelay(outcome) => Client__Heap.trackRelayConnection(outcome)
+  | NotifySendPromptRejected({onComplete, reason}) => {
+      Log.error(reason)
+      onComplete(Error(reason))
+    }
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
   | ConnectACP({config, signal}) =>
     let connect = async () => {

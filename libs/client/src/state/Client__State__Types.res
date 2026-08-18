@@ -127,6 +127,7 @@ type state = {
   selectedModelValue: option<ACPConfig.sessionConfigValueId>,
   agentCatalog: option<array<ACPTypes.agentCatalogEntry>>,
   selectedAgentId: option<string>,
+  pendingPlanSubmissions: Dict.t<string>,
   pendingProviderAutoSelect: option<string>,
   sessionsLoadState: sessionsLoadState,
   updateInfo: option<updateInfo>,

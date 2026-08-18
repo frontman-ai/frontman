@@ -32,6 +32,7 @@ let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
     selectedModelValue: None,
     agentCatalog: None,
     selectedAgentId: None,
+    pendingPlanSubmissions: Dict.make(),
     pendingProviderAutoSelect: None,
     sessionsLoadState: Types.SessionsNotLoaded,
     updateInfo: None,
