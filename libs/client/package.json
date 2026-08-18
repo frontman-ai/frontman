@@ -56,7 +56,7 @@
 		"babel-plugin-react-compiler": "^1.0.0",
 		"dom-accessibility-api": "^0.7.1",
 		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#commit=3a8fdf555784647d5ed70f5362c4c9fbc5772d5c",
-		"lucide-react": "^1.24.0",
+		"lucide-react": "^1.25.0",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7",
 		"rescript": "catalog:",
@@ -76,12 +76,12 @@
 		"@floating-ui/dom": "^1.8.0",
 		"@tiptap/core": "^3.27.3",
 		"@tiptap/extension-document": "^3.27.3",
-		"@tiptap/extension-paragraph": "^3.27.3",
+		"@tiptap/extension-paragraph": "^3.28.0",
 		"@tiptap/extension-placeholder": "^3.27.3",
 		"@tiptap/extension-text": "^3.28.0",
-		"@tiptap/extensions": "^3.27.3",
+		"@tiptap/extensions": "^3.28.0",
 		"@tiptap/pm": "^3.27.3",
-		"@tiptap/react": "^3.27.3"
+		"@tiptap/react": "^3.28.0"
 	},
 	"peerDependencies": {
 		"react": "^19.2.7",
