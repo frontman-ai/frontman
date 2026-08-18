@@ -15,9 +15,6 @@ let executePrompt = "Execute the plan above."
 
 type handoff = {executorAgentId: string}
 
-let findAgentByName = (catalog: array<Client__Agent.t>, name: string): option<Client__Agent.t> =>
-  catalog->Array.find(agent => agent.name == name)
-
 let hasText = (content: array<AssistantContentPart.t>): bool =>
   content->Array.some(part =>
     switch part {
@@ -38,11 +35,9 @@ let pendingHandoff = (
   switch (isAgentRunning, agentCatalog, messages->Array.last) {
   | (false, Some(catalog), Some(Message.Assistant(Message.Completed({content, agentId, _}))))
     if hasText(content) =>
-    switch (
-      findAgentByName(catalog, plannerAgentName),
-      findAgentByName(catalog, executorAgentName),
-    ) {
-    | (Some(planner), Some(executor)) if planner.id == agentId =>
+    let messageAgent = Client__Agent.findOrThrow(agentCatalog, agentId)
+    switch catalog->Array.find(agent => agent.name == executorAgentName) {
+    | Some(executor) if messageAgent.name == plannerAgentName =>
       Some({executorAgentId: executor.id})
     | _ => None
     }
