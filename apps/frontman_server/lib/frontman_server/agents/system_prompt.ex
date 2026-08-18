@@ -77,7 +77,7 @@ defmodule FrontmanServer.Agents.SystemPrompt do
 
     You are working with a WordPress site. Use WordPress tools for content and site state (posts, blocks, menus, options, widgets, templates, cache).
     Inspect relevant WordPress data before state-dependent recommendations or changes.
-    Do not make claims unsupported by inspected data.
+    Do not make state-dependent claims unsupported by inspected WordPress data.
 
     **Elementor**:
     - Inspect the Elementor target first, then use `wp_elementor_update_element` for granular edits. It inspects the actual Elementor element and handles normal settings updates vs HTML-widget fragment updates from `old_html`/`new_html`.
