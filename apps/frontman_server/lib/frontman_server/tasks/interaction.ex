@@ -996,6 +996,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       messages: value.messages,
       timestamp: timestamp_json(value.timestamp),
       annotations: Enum.map(value.annotations, &annotation_json_map/1),
+      current_page: value.current_page,
       selected_figma_node: selected_figma_node_json_map(value.selected_figma_node),
       images: Enum.map(value.images, &user_image_json_map/1)
     }

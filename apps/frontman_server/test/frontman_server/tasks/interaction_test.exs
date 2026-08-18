@@ -1,7 +1,6 @@
 defmodule FrontmanServer.Tasks.InteractionTest do
   use FrontmanServer.InteractionCase, async: true
 
-  alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
@@ -326,65 +325,25 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert Enum.map(messages, &SwarmAi.Message.role/1) == [:user, :assistant, :tool, :assistant]
     end
 
-    test "includes annotation location info in user message content" do
-      element_context = ~s(selected tag="div" selector="#target" children=1)
-
-      ann = %Annotation{
-        annotation_id: "ann-1",
-        annotation_index: 0,
-        tag_name: "div",
-        file: "/path/to/Component.tsx",
-        line: 42,
-        column: 5,
-        metadata: %{
-          "element_context" => element_context,
-          "css_classes" => "hero",
-          "nearby_text" => "Welcome"
-        }
-      }
-
-      messages = Interaction.to_swarm_messages([user_msg("Change the text", [ann])])
-      text = extract_text(hd(messages))
-
-      assert text =~ "Change the text"
-      assert text =~ "[Annotated Elements]"
-      assert text =~ "/path/to/Component.tsx"
-      assert text =~ "Line: 42"
-      assert text =~ "Element Context:"
-      assert text =~ "selector=\"#target\""
-      refute text =~ "CSS Classes:"
-      refute text =~ "Nearby Text:"
-    end
-
-    test "includes source location errors in user message content" do
-      ann = %Annotation{
-        annotation_id: "ann-source-error",
-        annotation_index: 0,
-        tag_name: "div",
-        selector: ".target",
-        metadata: %{
-          "source_location_error" => "HTTP 422: Could not resolve React source location"
-        }
-      }
-
-      messages = Interaction.to_swarm_messages([user_msg("Inspect this", [ann])])
-      text = extract_text(hd(messages))
-
-      assert text =~
-               "Source Location Error: HTTP 422: Could not resolve React source location"
-    end
-
-    test "keeps annotated JSX definition separate from component invocation chain" do
+    test "formats complete page and annotation context exactly" do
       ann = %Annotation{
         annotation_id: "ann-avatar",
         annotation_index: 0,
         tag_name: "div",
+        selector: ".avatar-name",
         component_name: "Avatar",
+        component_props: %{"name" => "JJ Kasper"},
         file: "src/app/_components/avatar.tsx",
         line: 10,
         column: 7,
+        bounding_box: %Interaction.BoundingBox{x: 10.5, y: 20.0, width: 200.0, height: 50.0},
+        metadata: %{
+          "element_context" => ~s(selected tag="div" selector=".avatar-name" children=1),
+          "source_location_error" => "source map unavailable"
+        },
         parent: %Interaction.ParentLocation{
           component_name: "HeroPost",
+          component_props: %{"slug" => "hello-world"},
           file: "src/app/_components/hero-post.tsx",
           line: 42,
           column: 11,
@@ -397,34 +356,55 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         }
       }
 
-      messages = Interaction.to_swarm_messages([user_msg("Show the call tree", [ann])])
-      text = extract_text(hd(messages))
+      msg = %{
+        user_msg("Show the call tree", [ann])
+        | current_page: %Interaction.CurrentPage{
+            url: "https://example.com/posts/hello-world",
+            viewport_width: 1440,
+            viewport_height: 900,
+            device_pixel_ratio: 2.0,
+            title: "Hello World",
+            color_scheme: "dark",
+            scroll_y: 320
+          }
+      }
 
-      assert text =~ "Component: Avatar"
-      assert text =~ "File: src/app/_components/avatar.tsx\n  Line: 10\n  Column: 7"
-      assert text =~ "Parent: 1. src/app/_components/hero-post.tsx:42:11 (HeroPost)"
-      assert text =~ "2. src/app/page.tsx:18:5 (Index)"
+      assert [message] = Interaction.to_swarm_messages([msg])
+      text = extract_text(message)
+
+      assert text =~
+               """
+               Show the call tree
+               [Current Page Context]
+               URL: https://example.com/posts/hello-world
+               Viewport: 1440x900
+               Device Pixel Ratio: 2.0
+               Page Title: Hello World
+               Color Scheme: dark
+               Scroll Position: 320px
+               """
+
+      assert text =~
+               """
+               [Annotated Elements]
+               Annotation 1:
+                 Tag: <div>
+                 File: src/app/_components/avatar.tsx
+                 Line: 10
+                 Column: 7
+                 Component: Avatar
+                 CSS Selector: .avatar-name
+                 Element Context: selected tag="div" selector=".avatar-name" children=1
+                 Bounding Box: {x: 10.5, y: 20.0, width: 200.0, height: 50.0}
+                 Props: {"name":"JJ Kasper"}
+                 Source Location Error: source map unavailable
+                 Parent: 1. src/app/_components/hero-post.tsx:42:11 (HeroPost)
+                  Props: {"slug":"hello-world"}
+                 2. src/app/page.tsx:18:5 (Index)
+               """
 
       assert :binary.match(text, "src/app/_components/avatar.tsx") <
                :binary.match(text, "src/app/_components/hero-post.tsx")
-    end
-
-    test "includes bounding_box in annotation LLM message" do
-      ann = %Annotation{
-        annotation_id: "ann-bb",
-        annotation_index: 0,
-        tag_name: "div",
-        file: "/src/Layout.tsx",
-        line: 10,
-        column: 1,
-        bounding_box: %Interaction.BoundingBox{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
-      }
-
-      messages = Interaction.to_swarm_messages([user_msg("Fix layout", [ann])])
-      text = extract_text(hd(messages))
-
-      assert text =~ "Bounding Box:"
-      assert text =~ "200"
     end
 
     test "does not add annotation section when annotations is empty" do
@@ -433,29 +413,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert text =~ "Just a regular message"
       refute text =~ "[Annotated Elements]"
-    end
-
-    test "includes current page context in user message content" do
-      msg = %{
-        user_msg("Fix this route")
-        | current_page: %Interaction.CurrentPage{
-            url: "https://example.com/settings",
-            viewport_width: 1440,
-            viewport_height: 900,
-            device_pixel_ratio: 2.0,
-            title: "Settings",
-            color_scheme: "light",
-            scroll_y: 0
-          }
-      }
-
-      [llm_msg] = Interaction.to_swarm_messages([msg])
-      text = extract_text(llm_msg)
-
-      assert text =~ CurrentPageContext.header()
-      assert text =~ "URL: https://example.com/settings"
-      assert text =~ "Viewport: 1440x900"
-      assert text =~ "Page Title: Settings"
     end
 
     test "lists attachment URI without tool-specific guidance" do
@@ -629,6 +586,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       msg =
         build_user_message([
           text_block("Fix this"),
+          current_page_block("https://example.com/settings", %{
+            "viewport_width" => 1440,
+            "viewport_height" => 900,
+            "device_pixel_ratio" => 2.0,
+            "title" => "Settings",
+            "color_scheme" => "dark",
+            "scroll_y" => 320
+          }),
           annotation_block("ann-full", "H1", "/src/Hero.tsx", 30, 5,
             component_name: "Hero",
             element_context: ~s(selected tag="h1" selector="#hero-title"),
@@ -648,6 +613,17 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       refute Map.has_key?(decoded, "type")
       assert decoded["messages"] == ["Fix this"]
+
+      assert decoded["current_page"] == %{
+               "url" => "https://example.com/settings",
+               "viewport_width" => 1440,
+               "viewport_height" => 900,
+               "device_pixel_ratio" => 2.0,
+               "title" => "Settings",
+               "color_scheme" => "dark",
+               "scroll_y" => 320
+             }
+
       assert [ann] = decoded["annotations"]
       assert ann["annotation_id"] == "ann-full"
       assert ann["tag_name"] == "H1"

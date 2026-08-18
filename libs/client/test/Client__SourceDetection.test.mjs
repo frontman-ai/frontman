@@ -8,11 +8,6 @@ vi.mock("../src/Client__Vue__SourceDetection.res.mjs", () => ({
 	getElementSourceLocation: vi.fn(),
 }));
 
-vi.mock("../src/Client__AstroSourceDetection.res.mjs", () => ({
-	getElementSourceLocation: vi.fn(),
-}));
-
-import { getElementSourceLocation as getAstroSourceLocation } from "../src/Client__AstroSourceDetection.res.mjs";
 import { getElementSourceContext } from "../src/Client__DOMElementToComponentSource.res.mjs";
 import { getElementSourceLocation } from "../src/Client__SourceDetection.res.mjs";
 import { getElementSourceLocation as getVueSourceLocation } from "../src/Client__Vue__SourceDetection.res.mjs";
@@ -21,7 +16,7 @@ beforeEach(() => {
 	vi.resetAllMocks();
 	getElementSourceContext.mockResolvedValue(undefined);
 	getVueSourceLocation.mockReturnValue(undefined);
-	getAstroSourceLocation.mockReturnValue(undefined);
+	delete window.__frontman_annotations__;
 });
 
 function sourceLocation(componentName, file, line, overrides = {}) {
@@ -66,7 +61,6 @@ it("returns the React source context unchanged", async () => {
 		getElementSourceLocation(document.createElement("div"), window),
 	).resolves.toEqual(context);
 	expect(getVueSourceLocation).not.toHaveBeenCalled();
-	expect(getAstroSourceLocation).not.toHaveBeenCalled();
 });
 
 it("preserves Vue ancestry in nearest-to-farthest order", async () => {
@@ -89,22 +83,50 @@ it("preserves Vue ancestry in nearest-to-farthest order", async () => {
 	});
 });
 
-it("preserves Astro ancestry in nearest-to-farthest order", async () => {
-	const nearest = sourceLocation("Page", "src/pages/index.astro", 5);
-	const farthest = sourceLocation("Layout", "src/layouts/Layout.astro", 1, {
-		parent: nearest,
-	});
-	const selected = sourceLocation("Card", "src/components/Card.astro", 12, {
-		tagName: "article",
-		column: 3,
-		parent: farthest,
-	});
-	getAstroSourceLocation.mockReturnValue(selected);
+it.each([
+	[
+		"direct annotation without DOM ancestry",
+		"src/components/Card.astro",
+		"12:3",
+		true,
+	],
+	["nearest project annotation", "src/components/Card.astro", "12:3", false],
+	[
+		"nearest dependency annotation",
+		"/project/node_modules/design-system/Card.astro",
+		"8:2",
+		false,
+	],
+])("uses Astro %s", async (_name, file, loc, direct) => {
+	const component = document.createElement("section");
+	const selected = document.createElement(direct ? "article" : "span");
+	component.append(selected);
+	const annotated = direct ? selected : component;
+	const annotations = new Map([
+		[annotated, { file, loc, displayName: "Card" }],
+	]);
+	if (direct) {
+		annotations.set(component, {
+			file: "src/pages/index.astro",
+			loc: "5:1",
+			displayName: "Page",
+		});
+	}
+	window.__frontman_annotations__ = {
+		get: (element) => annotations.get(element),
+		getContentFile: () => undefined,
+	};
+	const [line, column] = loc.split(":").map(Number);
 
-	await expect(
-		getElementSourceLocation(document.createElement("article"), window),
-	).resolves.toEqual({
-		definition: contextLocation(selected),
-		invocations: [contextLocation(nearest), contextLocation(farthest)],
+	await expect(getElementSourceLocation(selected, window)).resolves.toEqual({
+		definition: {
+			componentName: "Card",
+			tagName: direct ? "article" : "section",
+			file,
+			line,
+			column,
+			componentProps: undefined,
+		},
+		invocations: [],
 	});
 });
