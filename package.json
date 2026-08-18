@@ -9,7 +9,7 @@
 	"bugs": {
 		"url": "https://github.com/frontman-ai/frontman/issues"
 	},
-	"packageManager": "yarn@4.10.3",
+	"packageManager": "yarn@4.18.0",
 	"enableGlobalCache": false,
 	"workspaces": [
 		"apps/frontman_server/assets",
