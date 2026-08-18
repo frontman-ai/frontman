@@ -5,7 +5,7 @@ pubDate: 2026-03-03T10:00:00Z
 description: 'Compare open-source AI coding tools in 2026 by workflow: agents, assistants, CLI, BYOK, local models, and self-hosted options, with current licenses.'
 image: '/blog/best-open-source-ai-coding-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools', 'open-source']
-updatedDate: 2026-07-20T00:00:00Z
+updatedDate: 2026-08-15T00:00:00Z
 faq:
   - question: 'What are the best open-source AI coding tools in 2026?'
     answer: 'The best choice depends on workflow: OpenCode or Aider for terminal work, Cline or Kilo Code for IDE and CLI agents, OpenHands for autonomous tasks, Goose for desktop and CLI automation, Tabby for self-hosted completion, and Stagewise for browser-centered frontend work.'
@@ -34,29 +34,50 @@ imageAlt: 'Open-source AI coding tools compared by terminal, IDE, autonomous, se
 
 **Disclosure:** We build Frontman, which is included below for browser-workflow comparison. Frontman is source-available, not fully open source: its server uses AGPL-3.0 plus restrictions on AI training and AI-assisted competitive reproduction. It is also a narrow frontend agent, not the best general coding agent. OpenCode, Cline, Aider, Goose, OpenHands, Kilo Code, and Tabby are stronger choices outside visual frontend editing.
 
-**Source status checked:** July 20, 2026. Star counts are approximate snapshots from official GitHub repositories. Product status, licenses, interfaces, and model support use official repositories and documentation linked below. This is a source-backed workflow comparison, not a hands-on benchmark of every tool.
+**Source status checked:** August 15, 2026. Star counts are approximate snapshots from official GitHub repositories. Product status, licenses, interfaces, and model support use official repositories and documentation linked below. This is a source-backed workflow comparison, not a hands-on benchmark of every tool.
 
 > **Release tracker:** See the [monthly open-source AI releases roundup](/open-source-ai-releases/) for recent project changes. For Cline specifically, use the source-backed [Cline review](/blog/cline-ai-coding-tool-review/). For archived Roo Code, read [Roo Code vs Cline](/blog/roo-code-vs-cline/).
+
+## What changed since July 2026
+
+- [OpenCode](https://github.com/anomalyco/opencode) and [OpenHands](https://github.com/OpenHands/OpenHands) both shipped releases on August 13, confirming active development.
+- OpenHands now presents Agent Canvas as its primary self-hosted control center for OpenHands and other ACP-compatible agents. Its older local GUI and CLI are legacy interfaces.
+- Void and Roo Code remain archived. Continue remains available but describes version 2.0 as its final release. Project statuses and star counts below reflect the August 15 source check.
 
 ## Best open-source AI coding tools by workflow
 
 | Tool | Best workflow | Approx. stars | License | Model control | Status |
 | --- | --- | ---: | --- | --- | --- |
-| [OpenCode](https://github.com/anomalyco/opencode) | Terminal agent; local web and beta desktop interfaces | 188k | [MIT](https://github.com/anomalyco/opencode/blob/dev/LICENSE) | BYOK, custom endpoints, local models | Active |
-| [OpenHands](https://github.com/OpenHands/OpenHands) | Autonomous tasks through Agent Canvas, CLI, SDK, or server | 81k | [MIT core; PolyForm enterprise directory](https://github.com/OpenHands/OpenHands/blob/main/LICENSE) | BYOK, local models, self-hosted runtimes | Active; architecture transitioning |
-| [Cline](https://github.com/cline/cline) | IDE and CLI agent with Plan/Act and approval controls | 65k | [Apache-2.0 core; JetBrains plugin closed-source](https://github.com/cline/cline/blob/main/LICENSE) | BYOK, custom endpoints, local models | Active |
-| [Goose](https://github.com/aaif-goose/goose) | CLI and desktop automation | 51k | [Apache-2.0](https://github.com/aaif-goose/goose/blob/main/LICENSE) | BYOK, custom endpoints, local models | Active |
+| [OpenCode](https://github.com/anomalyco/opencode) | Terminal agent; local web and beta desktop interfaces | 198k | [MIT](https://github.com/anomalyco/opencode/blob/dev/LICENSE) | BYOK, custom endpoints, local models | Active |
+| [OpenHands](https://github.com/OpenHands/OpenHands) | Autonomous tasks through Agent Canvas, CLI, SDK, or server | 84k | [MIT core; PolyForm enterprise directory](https://github.com/OpenHands/OpenHands/blob/main/LICENSE) | BYOK, local models, self-hosted runtimes | Active; architecture transitioning |
+| [Cline](https://github.com/cline/cline) | IDE and CLI agent with Plan/Act and approval controls | 66k | [Apache-2.0 core; JetBrains plugin closed-source](https://github.com/cline/cline/blob/main/LICENSE) | BYOK, custom endpoints, local models | Active |
+| [Goose](https://github.com/aaif-goose/goose) | CLI and desktop automation | 53k | [Apache-2.0](https://github.com/aaif-goose/goose/blob/main/LICENSE) | BYOK, custom endpoints, local models | Active |
 | [Aider](https://github.com/Aider-AI/aider) | Git-native terminal pair programming | 48k | [Apache-2.0](https://github.com/Aider-AI/aider/blob/main/LICENSE.txt) | BYOK, custom endpoints, local models | Maintained |
 | [Continue](https://github.com/continuedev/continue) | Historical IDE assistant and CLI | 35k | [Apache-2.0](https://github.com/continuedev/continue/blob/main/LICENSE) | BYOK and local models in final release | Final release; no active maintenance |
 | [Tabby](https://github.com/TabbyML/tabby) | Self-hosted completion and chat | 34k | [Apache-2.0 core; licensed enterprise directory](https://github.com/TabbyML/tabby/blob/main/LICENSE) | Self-hosted local models | Active |
 | [Void](https://github.com/voideditor/void) | Historical open-source VS Code fork | 29k | [Apache-2.0](https://github.com/voideditor/void/blob/main/LICENSE.txt) | BYOK and local models | Archived June 2026 |
-| [Kilo Code](https://github.com/Kilo-Org/kilocode) | VS Code, JetBrains, and CLI agent | 26k | [MIT](https://github.com/Kilo-Org/kilocode/blob/main/LICENSE) | BYOK, custom endpoints, local models | Active |
+| [Kilo Code](https://github.com/Kilo-Org/kilocode) | VS Code, JetBrains, and CLI agent | 27k | [MIT](https://github.com/Kilo-Org/kilocode/blob/main/LICENSE) | BYOK, custom endpoints, local models | Active |
 | [Roo Code](https://github.com/RooCodeInc/Roo-Code) | Historical mode-based VS Code agent | 24k | [Apache-2.0](https://github.com/RooCodeInc/Roo-Code/blob/main/LICENSE) | BYOK and local models in final release | Archived May 2026 |
 | [bolt.diy](https://github.com/stackblitz-labs/bolt.diy) | Browser-based app generation and import | 20k | [MIT source; commercial WebContainers terms can apply](https://github.com/stackblitz-labs/bolt.diy/blob/main/LICENSE) | BYOK, custom endpoints, local models | Not archived |
-| [Stagewise](https://github.com/stagewise-io/stagewise) | Agentic IDE with browser and app previews | 6.7k | [AGPL-3.0](https://github.com/stagewise-io/stagewise/blob/main/LICENSE) | BYOK, custom providers, local models | Active |
-| [Frontman](https://github.com/frontman-ai/frontman) | Browser-based editing of existing frontend apps; included for disclosure and workflow comparison | 626 | [Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL server with field-of-use restrictions](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/LICENSE) | BYOK across documented cloud providers | Active |
+| [Stagewise](https://github.com/stagewise-io/stagewise) | Agentic IDE with browser and app previews | 6.8k | [AGPL-3.0](https://github.com/stagewise-io/stagewise/blob/main/LICENSE) | BYOK, custom providers, local models | Active |
+| [Frontman](https://github.com/frontman-ai/frontman) | Browser-based editing of existing frontend apps; included for disclosure and workflow comparison | 658 | [Source-available: Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL server with field-of-use restrictions](https://github.com/frontman-ai/frontman/blob/main/apps/frontman_server/LICENSE) | BYOK across documented cloud providers | Active |
 
 Stars show project visibility, not output quality or production readiness. License names also do not describe the entire commercial boundary: OpenHands and Tabby have separately licensed enterprise directories, Cline's JetBrains plugin is closed-source, bolt.diy depends on WebContainers terms for some commercial use, and Frontman's server includes supplementary AI restrictions.
+
+## OpenHands vs OpenCode: which should you choose?
+
+Choose **OpenCode** when you want to drive coding sessions directly from a terminal, desktop app, web UI, or IDE. Choose **OpenHands** when you want a self-hosted control plane for delegating autonomous work across agents and execution backends.
+
+| Decision | OpenCode | OpenHands |
+| --- | --- | --- |
+| Best fit | Developers actively steering work in a repository | Teams delegating autonomous or repeatable engineering tasks |
+| Main interface | Terminal UI, CLI, web, desktop, and IDE integration | Agent Canvas, agent server, and SDK; legacy CLI available |
+| Control model | Granular `allow`, `ask`, and `deny` permissions for tools | Canvas orchestration plus isolation through local, Docker, VM, or cloud backends |
+| Local models | Supports local providers such as Ollama and LM Studio | Supports local servers such as Ollama, LM Studio, vLLM, and SGLang |
+| Extensibility | Custom agents, commands, tools, plugins, and MCP servers | OpenHands agents plus ACP-compatible third-party agents |
+| License | MIT | MIT core; enterprise directory under PolyForm Free Trial |
+
+Both can run with local models and both can modify code. The difference is workflow: OpenCode centers the developer's interactive session; OpenHands centers agent orchestration and execution environments.
 
 ## Cline AI coding agent official status in 2026
 
