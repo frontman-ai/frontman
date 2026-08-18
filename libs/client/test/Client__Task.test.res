@@ -773,6 +773,7 @@ let _sampleMessageAnnotations: array<MessageAnnotation.t> = [
     screenshot: Ok(None),
     sourceLocation: Ok(None),
     boundingBox: None,
+    penShape: None,
     nearbyText: Some("Submit"),
     elementorContext: None,
   },
@@ -785,6 +786,7 @@ let _sampleMessageAnnotations: array<MessageAnnotation.t> = [
     screenshot: Ok(None),
     sourceLocation: Ok(None),
     boundingBox: None,
+    penShape: None,
     nearbyText: Some("Welcome"),
     elementorContext: None,
   },
@@ -1180,7 +1182,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     ~sourceLocation: result<option<Client__Types.SourceLocation.t>, string>=Ok(None),
     ~cssClasses: option<string>=?,
     ~nearbyText: option<string>=?,
-    ~boundingBox: option<Annotation.boundingBox>=?,
+    ~boundingBox: option<Annotation.viewportBoundingBox>=?,
     ~enrichmentStatus: Annotation.enrichmentStatus=Enriched,
   ): TaskReducer.action => AnnotationDetailsResolved({
     id,
@@ -1226,7 +1228,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
         ~screenshot=Ok(Some("data:image/jpeg;base64,abc")),
         ~cssClasses="btn-submit",
         ~nearbyText="Submit",
-        ~boundingBox={x: 10.0, y: 20.0, width: 100.0, height: 50.0},
+        ~boundingBox=Annotation.viewportBoundingBox(~x=10.0, ~y=20.0, ~width=100.0, ~height=50.0),
       ),
     )
     let ann = _getAnnotation(task2, 0)
@@ -1236,7 +1238,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     t->expect(ann.cssClasses)->Expect.toEqual(Some("btn-submit"))
     t->expect(ann.nearbyText)->Expect.toEqual(Some("Submit"))
     switch ann.boundingBox {
-    | Some(bb) =>
+    | Some(Annotation.ViewportBoundingBox(bb)) =>
       t->expect(bb.x)->Expect.toBe(10.0)
       t->expect(bb.width)->Expect.toBe(100.0)
     | None => t->expect("boundingBox")->Expect.toBe("should be Some")

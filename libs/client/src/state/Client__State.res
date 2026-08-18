@@ -69,6 +69,11 @@ module Actions = {
   let toggleWebPreviewSelection = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotationMode}))
 
+  let toggleWebPreviewPen = () =>
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: TogglePenAnnotationMode}),
+    )
+
   let toggleAnnotation = (~element, ~tagName) =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: ToggleAnnotation({element, tagName})}),
@@ -77,6 +82,11 @@ module Actions = {
   let addAnnotation = (~element, ~tagName) =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: AddAnnotation({element, tagName})}),
+    )
+
+  let addPenAnnotation = (~annotation) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: AddPenAnnotation(annotation)}),
     )
 
   let addAnnotations = (~elements) =>

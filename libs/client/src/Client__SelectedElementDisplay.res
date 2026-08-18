@@ -10,14 +10,19 @@ module AnnotationRow = {
     let (commentDraft, setCommentDraft) = React.useState(() => annotation.comment->Option.getOr(""))
     let inputRef = React.useRef(Nullable.null)
 
-    let textContent = annotation.nearbyText->Option.getOr(
-      annotation.element
-      ->WebAPI.Element.asNode
-      ->WebAPI.Node.textContent
-      ->Null.toOption
-      ->Option.getOr("")
-      ->String.trim,
-    )
+    let textContent = switch annotation.penShape {
+    | Some({documentBoundingBox: Annotation.DocumentBoundingBox(box)}) =>
+      `Pen mark: x=${box.x->Float.toString}, y=${box.y->Float.toString}, width=${box.width->Float.toString}, height=${box.height->Float.toString}`
+    | None =>
+      annotation.nearbyText->Option.getOr(
+        annotation.element
+        ->WebAPI.Element.asNode
+        ->WebAPI.Node.textContent
+        ->Null.toOption
+        ->Option.getOr("")
+        ->String.trim,
+      )
+    }
 
     let displayText = switch textContent->String.length > 60 {
     | true => textContent->String.slice(~start=0, ~end=60) ++ "..."
@@ -73,10 +78,13 @@ module AnnotationRow = {
         )}
         <div className="font-mono text-xs text-zinc-400 truncate flex items-center gap-1">
           {React.string(
-            if displayText->String.length > 0 {
-              `<${tagName}>: ${displayText}`
-            } else {
-              `<${tagName}>`
+            switch annotation.penShape {
+            | Some(_) => `${displayText} in <${tagName}>`
+            | None =>
+              switch displayText->String.length > 0 {
+              | true => `<${tagName}>: ${displayText}`
+              | false => `<${tagName}>`
+              }
             },
           )}
           {switch annotation.enrichmentStatus {
@@ -177,9 +185,7 @@ let make = () => {
       <div className="flex items-center gap-2 px-0.5 py-1.5">
         <Icons.CursorClickIcon size=14 className="text-zinc-400 flex-shrink-0" />
         <span className="text-xs font-medium text-zinc-400 flex-grow">
-          {React.string(
-            count == 1 ? "Annotated Element" : `Annotated Elements (${Int.toString(count)})`,
-          )}
+          {React.string(count == 1 ? "Annotated Item" : `Annotated Items (${Int.toString(count)})`)}
         </span>
         <button
           onClick={_ => Client__State.Actions.clearAnnotations()}

@@ -33,13 +33,18 @@ module Marker = {
     let (rect, setRect) = React.useState(() => None)
 
     React.useEffect(() => {
-      let boundingRect = WebAPI.Element.getBoundingClientRect(annotation.element)
-      setRect(_ => Some(boundingRect))
+      setRect(_ => Some(Client__WebPreview__AnnotationGeometry.boundingBox(annotation)))
       None
-    }, (annotation.element, scrollTimestamp, mutationTimestamp))
+    }, (annotation.element, annotation.penShape, scrollTimestamp, mutationTimestamp))
 
-    let parentEl = getParentEl(annotation.element)
-    let firstChildEl = annotation.element.firstElementChild->Null.toOption
+    let parentEl = switch annotation.penShape {
+    | Some(_) => None
+    | None => getParentEl(annotation.element)
+    }
+    let firstChildEl = switch annotation.penShape {
+    | Some(_) => None
+    | None => annotation.element.firstElementChild->Null.toOption
+    }
 
     let (borderClass, badgeColorClass) = switch annotation.enrichmentStatus {
     | Annotation.Enriching => (
@@ -57,17 +62,28 @@ module Marker = {
     }
 
     switch rect {
-    | Some(rect) =>
+    | Some(Annotation.ViewportBoundingBox(rect)) =>
       <div
         className="absolute pointer-events-none z-[9999]"
         style={
-          left: `${Float.toString(rect.left)}px`,
-          top: `${Float.toString(rect.top)}px`,
+          left: `${Float.toString(rect.x)}px`,
+          top: `${Float.toString(rect.y)}px`,
           width: `${Float.toString(rect.width)}px`,
           height: `${Float.toString(rect.height)}px`,
         }
       >
         <div className={borderClass} />
+        {switch annotation.penShape {
+        | Some(shape) =>
+          <svg className="absolute inset-0 overflow-visible pointer-events-none">
+            <Client__WebPreview__PenPolyline
+              points={shape.documentPoints->Annotation.localPointsFromDocument(
+                shape.documentBoundingBox,
+              )}
+            />
+          </svg>
+        | None => React.null
+        }}
         <div
           className={`absolute -top-3 -left-3 flex items-center justify-center w-6 h-6 rounded-full ${badgeColorClass} text-white text-[10px] font-bold shadow-sm border-2 border-white pointer-events-auto cursor-pointer hover:bg-red-500 transition-colors`}
           onClick={e => {
@@ -78,48 +94,52 @@ module Marker = {
         >
           {React.int(index + 1)}
         </div>
-        <div
-          className="absolute -top-3 -right-3 flex flex-col items-center bg-violet-600 text-white shadow-sm border-2 border-white rounded-full pointer-events-auto overflow-hidden"
-        >
-          {switch parentEl {
-          | Some(parent) =>
-            <button
-              type_="button"
-              className="flex items-center justify-center w-5 h-3 hover:bg-white/25 transition-colors"
-              title="Select parent element"
-              onClick={e => {
-                ReactEvent.Mouse.stopPropagation(e)
-                ReactEvent.Mouse.preventDefault(e)
-                onNavigate(parent)
-              }}
-            >
-              <Icons.ChevronUpIcon className="size-2.5" />
-            </button>
-          | None =>
-            <div className="flex items-center justify-center w-5 h-3 opacity-25 cursor-default">
-              <Icons.ChevronUpIcon className="size-2.5" />
-            </div>
-          }}
-          {switch firstChildEl {
-          | Some(child) =>
-            <button
-              type_="button"
-              className="flex items-center justify-center w-5 h-3 hover:bg-white/25 transition-colors"
-              title="Select first child element"
-              onClick={e => {
-                ReactEvent.Mouse.stopPropagation(e)
-                ReactEvent.Mouse.preventDefault(e)
-                onNavigate(child)
-              }}
-            >
-              <Icons.ChevronDownIcon className="size-2.5" />
-            </button>
-          | None =>
-            <div className="flex items-center justify-center w-5 h-3 opacity-25 cursor-default">
-              <Icons.ChevronDownIcon className="size-2.5" />
-            </div>
-          }}
-        </div>
+        {switch annotation.penShape {
+        | Some(_) => React.null
+        | None =>
+          <div
+            className="absolute -top-3 -right-3 flex flex-col items-center bg-violet-600 text-white shadow-sm border-2 border-white rounded-full pointer-events-auto overflow-hidden"
+          >
+            {switch parentEl {
+            | Some(parent) =>
+              <button
+                type_="button"
+                className="flex items-center justify-center w-5 h-3 hover:bg-white/25 transition-colors"
+                title="Select parent element"
+                onClick={e => {
+                  ReactEvent.Mouse.stopPropagation(e)
+                  ReactEvent.Mouse.preventDefault(e)
+                  onNavigate(parent)
+                }}
+              >
+                <Icons.ChevronUpIcon className="size-2.5" />
+              </button>
+            | None =>
+              <div className="flex items-center justify-center w-5 h-3 opacity-25 cursor-default">
+                <Icons.ChevronUpIcon className="size-2.5" />
+              </div>
+            }}
+            {switch firstChildEl {
+            | Some(child) =>
+              <button
+                type_="button"
+                className="flex items-center justify-center w-5 h-3 hover:bg-white/25 transition-colors"
+                title="Select first child element"
+                onClick={e => {
+                  ReactEvent.Mouse.stopPropagation(e)
+                  ReactEvent.Mouse.preventDefault(e)
+                  onNavigate(child)
+                }}
+              >
+                <Icons.ChevronDownIcon className="size-2.5" />
+              </button>
+            | None =>
+              <div className="flex items-center justify-center w-5 h-3 opacity-25 cursor-default">
+                <Icons.ChevronDownIcon className="size-2.5" />
+              </div>
+            }}
+          </div>
+        }}
       </div>
     | None => React.null
     }

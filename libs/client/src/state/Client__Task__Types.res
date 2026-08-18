@@ -423,6 +423,26 @@ let boundingBoxMetaSchema: S.t<boundingBoxMeta> = S.object(s => {
   height: s.field("height", S.float),
 })
 
+type pointMeta = {
+  x: float,
+  y: float,
+}
+
+let pointMetaSchema: S.t<pointMeta> = S.object(s => {
+  x: s.field("x", S.float),
+  y: s.field("y", S.float),
+})
+
+type penShapeMeta = {
+  points: array<pointMeta>,
+  boundingBox: boundingBoxMeta,
+}
+
+let penShapeMetaSchema: S.t<penShapeMeta> = S.object(s => {
+  points: s.field("points", S.array(pointMetaSchema)),
+  boundingBox: s.field("bounding_box", boundingBoxMetaSchema),
+})
+
 type rec parentLocationMeta = {
   file: string,
   line: int,
@@ -470,6 +490,7 @@ type annotationMeta = {
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
   boundingBox: option<boundingBoxMeta>,
+  penShape: option<penShapeMeta>,
 }
 
 let annotationMetaSchema: S.t<annotationMeta> = S.object(s => {
@@ -489,6 +510,7 @@ let annotationMetaSchema: S.t<annotationMeta> = S.object(s => {
   nearbyText: s.field("nearby_text", S.option(S.string)),
   elementorContext: s.field("elementor", S.option(Client__ElementorDetection.schema)),
   boundingBox: s.field("bounding_box", S.option(boundingBoxMetaSchema)),
+  penShape: s.field("pen_shape", S.option(penShapeMetaSchema)),
 })
 
 let elementorText = (context: Client__ElementorDetection.t, ~tagName: string): string =>
@@ -499,6 +521,34 @@ let elementorTargetText = (context: Client__ElementorDetection.t): string =>
   | Some(postId) => `post_id=${postId->Int.toString}, element_id=${context.elementId}`
   | None => `element_id=${context.elementId}`
   }
+
+let documentBoundingBoxToMeta = (Annotation.DocumentBoundingBox(bb)): boundingBoxMeta => {
+  x: bb.x,
+  y: bb.y,
+  width: bb.width,
+  height: bb.height,
+}
+
+let penShapeToMeta = (shape: Annotation.penShape): penShapeMeta => {
+  points: shape.documentPoints->Array.map(point => {
+    let Annotation.DocumentPoint(point) = point
+    {x: point.x, y: point.y}
+  }),
+  boundingBox: documentBoundingBoxToMeta(shape.documentBoundingBox),
+}
+
+let boundingBoxText = (bb: boundingBoxMeta): string =>
+  `x=${bb.x->Float.toString}, y=${bb.y->Float.toString}, width=${bb.width->Float.toString}, height=${bb.height->Float.toString}`
+
+let penShapeText = (shape: penShapeMeta, ~tagName: string, ~selector: option<string>): string => {
+  let container = switch selector {
+  | Some(sel) => `<${tagName}> matching ${sel}`
+  | None => `<${tagName}>`
+  }
+  `Annotated pen mark inside ${container}; document bounding box: ${boundingBoxText(
+      shape.boundingBox,
+    )}; path points: ${shape.points->Array.length->Int.toString}`
+}
 
 let nearbyTextWithElementorHint = (
   ~nearbyText: option<string>,
@@ -546,6 +596,7 @@ type annotationBlockData = {
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
   boundingBox: option<boundingBoxMeta>,
+  penShape: option<penShapeMeta>,
 }
 
 let rec sourceLocationFromMessageAnnotation = (
@@ -600,32 +651,40 @@ let makeAnnotationMeta = (annotation: annotationBlockData, ~index: int): JSON.t 
     ),
     elementorContext: annotation.elementorContext,
     boundingBox: annotation.boundingBox,
+    penShape: annotation.penShape,
   }->S.decodeOrThrow(~from=annotationMetaSchema, ~to=S.json->S.noValidation(true))
 }
 
 let annotationResourceUriAndText = (annotation: annotationBlockData): (string, string) =>
-  switch annotation.sourceLocation {
-  | Some(loc) => {
-      let l = loc.line->Int.toString
-      let c = loc.column->Int.toString
-      (
-        `file://${loc.file}:${l}:${c}`,
-        `Annotated element: <${annotation.tagName}> at ${loc.file}:${l}:${c}`,
-      )
-    }
+  switch annotation.penShape {
+  | Some(shape) => (
+      `pen-shape://${annotation.id}`,
+      penShapeText(shape, ~tagName=annotation.tagName, ~selector=annotation.selector),
+    )
   | None =>
-    switch annotation.elementorContext {
-    | Some(context) => (
-        Client__ElementorDetection.uri(context),
-        elementorText(context, ~tagName=annotation.tagName),
-      )
-    | None =>
-      switch annotation.selector {
-      | Some(sel) => (
-          `selector://${sel}`,
-          `Annotated element: <${annotation.tagName}> matching ${sel}`,
+    switch annotation.sourceLocation {
+    | Some(loc) => {
+        let l = loc.line->Int.toString
+        let c = loc.column->Int.toString
+        (
+          `file://${loc.file}:${l}:${c}`,
+          `Annotated element: <${annotation.tagName}> at ${loc.file}:${l}:${c}`,
         )
-      | None => (`element://${annotation.tagName}`, `Annotated element: <${annotation.tagName}>`)
+      }
+    | None =>
+      switch annotation.elementorContext {
+      | Some(context) => (
+          Client__ElementorDetection.uri(context),
+          elementorText(context, ~tagName=annotation.tagName),
+        )
+      | None =>
+        switch annotation.selector {
+        | Some(sel) => (
+            `selector://${sel}`,
+            `Annotated element: <${annotation.tagName}> matching ${sel}`,
+          )
+        | None => (`element://${annotation.tagName}`, `Annotated element: <${annotation.tagName}>`)
+        }
       }
     }
   }
@@ -691,9 +750,7 @@ let annotationContentBlocks = (annotation: annotationBlockData, ~index: int): ar
   ]->Array.filterMap(x => x)
 }
 
-let messageAnnotationBoundingBoxMeta = (
-  bb: Message.MessageAnnotation.boundingBox,
-): boundingBoxMeta => {
+let messageAnnotationBoundingBoxMeta = (Annotation.ViewportBoundingBox(bb)): boundingBoxMeta => {
   x: bb.x,
   y: bb.y,
   width: bb.width,
@@ -715,6 +772,7 @@ let messageAnnotationToBlockData = (
   nearbyText: annotation.nearbyText,
   elementorContext: annotation.elementorContext,
   boundingBox: annotation.boundingBox->Option.map(messageAnnotationBoundingBoxMeta),
+  penShape: annotation.penShape->Option.map(penShapeToMeta),
 }
 
 let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<ContentBlock.t> => {
@@ -946,11 +1004,20 @@ let annotationMetaToMessageAnnotation = (
     comment: meta.comment,
     screenshot: Ok(screenshot),
     sourceLocation,
-    boundingBox: meta.boundingBox->Option.map(bb => {
-      Message.MessageAnnotation.x: bb.x,
-      y: bb.y,
-      width: bb.width,
-      height: bb.height,
+    boundingBox: meta.boundingBox->Option.map(bb =>
+      Annotation.viewportBoundingBox(~x=bb.x, ~y=bb.y, ~width=bb.width, ~height=bb.height)
+    ),
+    penShape: meta.penShape->Option.map(shape => {
+      Annotation.documentPoints: shape.points->Array.map(point => Annotation.DocumentPoint({
+        x: point.x,
+        y: point.y,
+      })),
+      documentBoundingBox: Annotation.documentBoundingBox(
+        ~x=shape.boundingBox.x,
+        ~y=shape.boundingBox.y,
+        ~width=shape.boundingBox.width,
+        ~height=shape.boundingBox.height,
+      ),
     }),
     nearbyText: meta.nearbyText,
     elementorContext: meta.elementorContext,

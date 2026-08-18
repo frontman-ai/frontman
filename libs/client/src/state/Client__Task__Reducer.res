@@ -282,6 +282,13 @@ type annotationElement = {
   tagName: string,
 }
 
+type penAnnotation = {
+  element: WebAPI.DOMAPI.element,
+  tagName: string,
+  documentPoints: array<Annotation.documentPoint>,
+  documentBoundingBox: Annotation.documentBoundingBox,
+}
+
 type action =
   | TextDeltaReceived({messageId: string, text: string, agentId: string})
   | ToolInputReceived({id: string, input: JSON.t})
@@ -301,8 +308,10 @@ type action =
     })
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
+  | TogglePenAnnotationMode
   | ToggleAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
   | AddAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
+  | AddPenAnnotation(penAnnotation)
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
@@ -310,7 +319,7 @@ type action =
       sourceLocation: result<option<Client__Types.SourceLocation.t>, string>,
       cssClasses: option<string>,
       nearbyText: option<string>,
-      boundingBox: option<Annotation.boundingBox>,
+      boundingBox: option<Annotation.viewportBoundingBox>,
       elementorContext: option<Client__ElementorDetection.t>,
       enrichmentStatus: Annotation.enrichmentStatus,
     })
@@ -397,8 +406,10 @@ let actionToString = (action: action): string =>
   | ToolErrorReceived(_) => "ToolErrorReceived"
   | SetAnnotationMode(_) => "SetAnnotationMode"
   | ToggleAnnotationMode => "ToggleAnnotationMode"
+  | TogglePenAnnotationMode => "TogglePenAnnotationMode"
   | ToggleAnnotation(_) => "ToggleAnnotation"
   | AddAnnotation(_) => "AddAnnotation"
+  | AddPenAnnotation(_) => "AddPenAnnotation"
   | AnnotationDetailsResolved(_) => "AnnotationDetailsResolved"
   | AddAnnotations(_) => "AddAnnotations"
   | RemoveAnnotation(_) => "RemoveAnnotation"
@@ -477,6 +488,30 @@ let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): arr
 }
 
 let getTaskIdForError = (task: Task.t): string => Task.getId(task)->Option.getOr("(no id)")
+
+let setAnnotationModeClosingPopup = (task: Task.t, mode: Annotation.annotationMode): Task.t => {
+  let updated = Lens.setAnnotationMode(task, mode)
+  switch mode {
+  | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
+  | _ => updated
+  }
+}
+
+let addAnnotationAndFetch = (task: Task.t, annotation: Annotation.t): (Task.t, array<effect>) => {
+  let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
+  let effects = [
+    FetchAnnotationDetails({
+      id: annotation.id,
+      element: annotation.element,
+      document: previewFrame.contentDocument,
+      contentWindow: previewFrame.contentWindow,
+    }),
+  ]
+  let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
+  let updated = Lens.setAnnotations(task, allAnnotations)
+  let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
+  (updated, effects)
+}
 
 let updatePendingQuestion = (
   task: Task.t,
@@ -579,26 +614,27 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
     (Lens.setDeviceMode(task, newDeviceMode), [])
 
-  | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
-      let updated = Lens.setAnnotationMode(task, mode)
-      let updated = switch mode {
-      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
-      | _ => updated
-      }
-      (updated, [])
-    }
+  | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode | TogglePenAnnotationMode) => (
+      task,
+      [],
+    )
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => (
+      setAnnotationModeClosingPopup(task, mode),
+      [],
+    )
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotationMode) => {
       let newMode = switch Task.getAnnotationMode(task) {
       | Annotation.Off => Annotation.Selecting
       | _ => Annotation.Off
       }
-      let updated = Lens.setAnnotationMode(task, newMode)
-      let updated = switch newMode {
-      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
-      | _ => updated
+      (setAnnotationModeClosingPopup(task, newMode), [])
+    }
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), TogglePenAnnotationMode) => {
+      let newMode = switch Task.getAnnotationMode(task) {
+      | Annotation.Drawing => Annotation.Off
+      | _ => Annotation.Drawing
       }
-      (updated, [])
+      (setAnnotationModeClosingPopup(task, newMode), [])
     }
 
   | (Task.Unloaded(_), ToggleAnnotation(_)) => (task, [])
@@ -612,38 +648,25 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         (updated, [])
       | None =>
         let annotation = Annotation.make(~element, ~tagName)
-        let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-        let effects = [
-          FetchAnnotationDetails({
-            id: annotation.id,
-            element,
-            document: previewFrame.contentDocument,
-            contentWindow: previewFrame.contentWindow,
-          }),
-        ]
-        let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-        let updated = Lens.setAnnotations(task, allAnnotations)
-        let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
-        (updated, effects)
+        addAnnotationAndFetch(task, annotation)
       }
     }
 
   | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, tagName})) => {
       let annotation = Annotation.make(~element, ~tagName)
-      let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
-      let effects = [
-        FetchAnnotationDetails({
-          id: annotation.id,
-          element,
-          document: previewFrame.contentDocument,
-          contentWindow: previewFrame.contentWindow,
-        }),
-      ]
-      let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-      let updated = Lens.setAnnotations(task, allAnnotations)
-      let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
-      (updated, effects)
+      addAnnotationAndFetch(task, annotation)
+    }
+
+  | (Task.Unloaded(_), AddPenAnnotation(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddPenAnnotation(pen)) => {
+      let annotation = Annotation.makePenShape(
+        ~element=pen.element,
+        ~tagName=pen.tagName,
+        ~documentPoints=pen.documentPoints,
+        ~documentBoundingBox=pen.documentBoundingBox,
+      )
+      addAnnotationAndFetch(task, annotation)
     }
 
   | (Task.Unloaded(_), AnnotationDetailsResolved(_)) => (task, [])
@@ -669,7 +692,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         sourceLocation,
         cssClasses,
         nearbyText,
-        boundingBox,
+        boundingBox: switch a.penShape {
+        | Some(_) => a.boundingBox
+        | None => boundingBox
+        },
         elementorContext,
         enrichmentStatus,
       }),
@@ -1340,12 +1366,12 @@ let fetchAnnotationDetails = (
   }
 
   let rect = WebAPI.Element.getBoundingClientRect(element)
-  let boundingBox: Annotation.boundingBox = {
-    x: rect.left,
-    y: rect.top,
-    width: rect.width,
-    height: rect.height,
-  }
+  let boundingBox = Annotation.viewportBoundingBox(
+    ~x=rect.left,
+    ~y=rect.top,
+    ~width=rect.width,
+    ~height=rect.height,
+  )
 
   let elementorContext =
     document->Option.flatMap(doc =>

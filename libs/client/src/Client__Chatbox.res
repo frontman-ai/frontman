@@ -110,9 +110,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
-  let webPreviewIsSelecting = Client__State.useSelector(
-    Client__State.Selectors.webPreviewIsSelecting,
-  )
+  let annotationMode = Client__State.useSelector(Client__State.Selectors.annotationMode)
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasEnrichingAnnotations = Client__State.useSelector(
     Client__State.Selectors.hasEnrichingAnnotations,
@@ -134,6 +132,14 @@ let make = (~onConfigureProvider: unit => unit) => {
   let hasPendingQuestion =
     Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
   let hasAnnotations = Array.length(annotations) > 0
+  let isSelectingElement = switch annotationMode {
+  | Client__Annotation__Types.Selecting => true
+  | _ => false
+  }
+  let isDrawingShape = switch annotationMode {
+  | Client__Annotation__Types.Drawing => true
+  | _ => false
+  }
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
@@ -411,7 +417,9 @@ let make = (~onConfigureProvider: unit => unit) => {
           isAgentRunning
           hasActiveACPSession
           onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
-          isSelecting={webPreviewIsSelecting}
+          onDrawShape={Client__State.Actions.toggleWebPreviewPen}
+          isSelecting={isSelectingElement}
+          isDrawing={isDrawingShape}
           hasAnnotations
           isEnrichingAnnotations={hasEnrichingAnnotations}
         />

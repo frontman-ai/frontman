@@ -19,12 +19,8 @@ let resolveAttachmentImage = (att: fileAttachmentData): resolvedImageData => {
 }
 
 module MessageAnnotation = {
-  type boundingBox = {
-    x: float,
-    y: float,
-    width: float,
-    height: float,
-  }
+  type boundingBox = Client__Annotation__Types.viewportBoundingBox
+  type penShape = Client__Annotation__Types.penShape
 
   @@live
   type rec sourceLocation = {
@@ -46,6 +42,7 @@ module MessageAnnotation = {
     screenshot: result<option<string>, string>,
     sourceLocation: result<option<sourceLocation>, string>,
     boundingBox: option<boundingBox>,
+    penShape: option<penShape>,
     nearbyText: option<string>,
     elementorContext: option<Client__ElementorDetection.t>,
   }
@@ -70,12 +67,8 @@ module MessageAnnotation = {
     sourceLocation: annotation.sourceLocation->Result.map(opt =>
       opt->Option.map(sourceLocationFromClientTypes)
     ),
-    boundingBox: annotation.boundingBox->Option.map(bb => {
-      x: bb.x,
-      y: bb.y,
-      width: bb.width,
-      height: bb.height,
-    }),
+    boundingBox: annotation.boundingBox,
+    penShape: annotation.penShape,
     nearbyText: annotation.nearbyText,
     elementorContext: annotation.elementorContext,
   }

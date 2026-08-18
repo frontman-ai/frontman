@@ -25,10 +25,9 @@ let make = (
   let (rect, setRect) = React.useState(() => None)
 
   React.useEffect(() => {
-    let boundingRect = WebAPI.Element.getBoundingClientRect(annotation.element)
-    setRect(_ => Some(boundingRect))
+    setRect(_ => Some(Client__WebPreview__AnnotationGeometry.boundingBox(annotation)))
     None
-  }, (annotation.element, scrollTimestamp, mutationTimestamp))
+  }, (annotation.element, annotation.penShape, scrollTimestamp, mutationTimestamp))
 
   React.useEffect(() => {
     switch (rect, inputRef.current->Nullable.toOption) {
@@ -40,10 +39,7 @@ let make = (
 
   let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
     switch ReactEvent.Keyboard.key(e) {
-    | "Enter" =>
-      ReactEvent.Keyboard.preventDefault(e)
-      onClose()
-    | "Escape" =>
+    | "Enter" | "Escape" =>
       ReactEvent.Keyboard.preventDefault(e)
       onClose()
     | _ => ()
@@ -57,9 +53,9 @@ let make = (
   }
 
   switch rect {
-  | Some(rect) => {
-      let top = rect.top +. rect.height +. 8.0
-      let left = rect.left
+  | Some(Annotation.ViewportBoundingBox(rect)) => {
+      let top = rect.y +. rect.height +. 8.0
+      let left = rect.x
 
       <div
         className="absolute z-[10000] pointer-events-auto"
@@ -78,7 +74,10 @@ let make = (
               {React.int(index + 1)}
             </div>
             <span className="text-[11px] text-gray-500 font-medium">
-              {React.string(`<${annotation.tagName}>`)}
+              {switch annotation.penShape {
+              | Some(_) => React.string(`Pen mark in <${annotation.tagName}>`)
+              | None => React.string(`<${annotation.tagName}>`)
+              }}
             </span>
           </div>
           <div className="flex items-center gap-1">
