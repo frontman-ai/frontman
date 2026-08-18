@@ -80,6 +80,134 @@ module TestHelpers = {
   }
 }
 
+let planner: ACP.agentCatalogEntry = {
+  id: "planner-id",
+  name: "planner",
+  displayName: "Planner",
+  description: "Plans work",
+  color: "#F59E0B",
+}
+
+let executor: ACP.agentCatalogEntry = {
+  id: "executor-id",
+  name: "executor",
+  displayName: "Executor",
+  description: "Executes work",
+  color: "#985DF7",
+}
+
+let plannerPlan = Reducer.Message.Assistant(
+  Completed({
+    id: "assistant-plan",
+    content: [AssistantContentPart.text("1. Do X")],
+    agentId: planner.id,
+  }),
+)
+
+let withPlanHandoffContext = (state: Client__State__Types.state): Client__State__Types.state => {
+  ...state,
+  acpSession: AcpSessionActive({
+    sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+    cancelPrompt: () => (),
+    retryTurn: _ => (),
+    loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+    deleteSession: (_, ~onComplete as _) => (),
+    apiBaseUrl: "http://localhost:4000",
+  }),
+  sessionInitialized: true,
+  agentCatalog: Some([planner, executor]),
+  selectedAgentId: Some(planner.id),
+}
+
+describe("Client State Reducer - Plan Handoff", () => {
+  test("pendingPlanHandoff selects a completed planner turn on an active loaded task", t => {
+    let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
+
+    t
+    ->expect(Reducer.Selectors.pendingPlanHandoff(state))
+    ->Expect.toEqual(Some({Reducer.executorAgentId: executor.id}))
+  })
+
+  test("execute atomically consumes the handoff and sends through the executor", t => {
+    let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
+    let action = Reducer.ExecutePendingPlan({id: "user-execute-plan"})
+    let (executing, effects) = Reducer.next(state, action)
+
+    t->expect(executing.selectedAgentId)->Expect.toEqual(Some(executor.id))
+    t->expect(Reducer.Selectors.isAgentRunning(executing))->Expect.toBe(true)
+    t->expect(Reducer.Selectors.pendingPlanHandoff(executing))->Expect.toEqual(None)
+
+    switch effects->Array.get(0) {
+    | Some(Reducer.TaskEffect({
+        target: ForTask("test-task-1"),
+        effect: SendMessage({text, agentId, annotations, attachments}),
+      })) => {
+        t->expect(text)->Expect.toBe(Reducer.executePlanPrompt)
+        t->expect(agentId)->Expect.toBe(executor.id)
+        t->expect(annotations)->Expect.toEqual([])
+        t->expect(attachments)->Expect.toEqual([])
+      }
+    | _ => JsExn.throw("Expected executor SendMessage effect")
+    }
+
+    let (_, duplicateEffects) = Reducer.next(executing, action)
+    t->expect(duplicateEffects)->Expect.toEqual([])
+  })
+
+  test("cancelled partial planner output never becomes a pending handoff", t => {
+    let partialPlan = Reducer.Message.Assistant(
+      Streaming({id: "assistant-plan", textBuffer: "1. Part", agentId: planner.id}),
+    )
+    let running =
+      TestHelpers.makeStateWithTask(
+        ~messages=[partialPlan],
+        ~isAgentRunning=true,
+      )->withPlanHandoffContext
+    let (cancelled, _) = Reducer.next(running, CancelTurn)
+
+    t->expect(Reducer.Selectors.pendingPlanHandoff(cancelled))->Expect.toEqual(None)
+
+    let (serverIdle, _) = Reducer.next(
+      cancelled,
+      TaskAction({target: ForTask("test-task-1"), action: ExecutionStateIdle}),
+    )
+    t->expect(Reducer.Selectors.pendingPlanHandoff(serverIdle))->Expect.toEqual(None)
+  })
+
+  test("pendingPlanHandoff is unavailable while task history is loading", t => {
+    let unloaded = Task.makeUnloaded(
+      ~id="test-task-1",
+      ~title="Plan",
+      ~createdAt=1000.0,
+      ~updatedAt=1000.0,
+    )
+    let (loading, _) = TaskReducer.next(
+      unloaded,
+      LoadStarted({previewUrl: "http://localhost:3000"}),
+    )
+    let (loading, _) = TaskReducer.next(
+      loading,
+      TextDeltaReceived({
+        messageId: "assistant-plan",
+        text: "1. Do X",
+        agentId: planner.id,
+      }),
+    )
+    let (loading, _) = TaskReducer.next(loading, ExecutionStateIdle)
+    let tasks = Dict.make()
+    tasks->Dict.set("test-task-1", loading)
+    let state =
+      TestHelpers.makeStateWithTasks(
+        ~tasks,
+        ~currentTask=Task.Selected("test-task-1"),
+      )->withPlanHandoffContext
+
+    t->expect(Reducer.Selectors.pendingPlanHandoff(state))->Expect.toEqual(None)
+    let (_, effects) = Reducer.next(state, ExecutePendingPlan({id: "user-execute-plan"}))
+    t->expect(effects)->Expect.toEqual([])
+  })
+})
+
 describe("Client State Reducer", () => {
   test("agent configuration selects advertised default and preserves valid selection", t => {
     let executor: ACP.agentCatalogEntry = {

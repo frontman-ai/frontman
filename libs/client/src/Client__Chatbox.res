@@ -155,19 +155,7 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   }
 
-  let pendingPlanHandoff = React.useMemo3(
-    () => Client__PlanExecution.pendingHandoff(~messages, ~agentCatalog, ~isAgentRunning),
-    (messages, agentCatalog, isAgentRunning),
-  )
-
-  let handleExecutePlan = (handoff: Client__PlanExecution.handoff) => {
-    Client__State.Actions.setSelectedAgentId(~agentId=handoff.executorAgentId)
-    sendUserMessage(
-      ~content=[Client__State.UserContentPart.Text({text: Client__PlanExecution.executePrompt})],
-      ~annotations=[],
-      ~agentId=handoff.executorAgentId,
-    )
-  }
+  let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
@@ -387,10 +375,10 @@ let make = (~onConfigureProvider: unit => unit) => {
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
 
-        {switch (pendingPlanHandoff, hasPendingQuestion) {
-        | (Some(handoff), false) =>
-          <Client__ExecutePlanBanner onExecute={() => handleExecutePlan(handoff)} />
-        | _ => React.null
+        {switch pendingPlanHandoff {
+        | Some(_) =>
+          <Client__ExecutePlanBanner onExecute={Client__State.Actions.executePendingPlan} />
+        | None => React.null
         }}
 
         {switch (retryStatus, turnError, currentTaskId) {

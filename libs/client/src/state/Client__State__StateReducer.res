@@ -5,6 +5,10 @@ module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
 
 let name = "Client::StateReducer"
 
+let plannerAgentName = "planner"
+let executorAgentName = "executor"
+let executePlanPrompt = "Execute the plan above."
+
 module UserContentPart = Client__State__Types.UserContentPart
 module Message = Client__State__Types.Message
 module Task = Client__State__Types.Task
@@ -17,6 +21,8 @@ type taskTarget = CurrentTask | ForTask(string)
 
 type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 
+type pendingPlanHandoff = {executorAgentId: string}
+
 type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   | AddUserMessage({
@@ -27,6 +33,7 @@ type action =
       agentId: string,
     })
   | CancelTurn
+  | ExecutePendingPlan({id: string})
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask
@@ -411,6 +418,41 @@ module Selectors = {
     | Task.Selected(id) =>
       state.tasks->Dict.get(id)->Option.flatMap(TaskReducer.Selectors.pendingQuestion)
     | Task.New(_) => None
+    }
+  }
+
+  /* Last message of the current task, only when the session is live and the task is idle */
+  let lastMessageOfIdleCurrentTask = (state: state): option<Message.t> => {
+    switch (state.sessionInitialized, state.acpSession, state.currentTask) {
+    | (true, AcpSessionActive(_), Task.Selected(taskId)) =>
+      switch state.tasks->Dict.get(taskId) {
+      | Some(Task.Loaded({
+          messages,
+          isAgentRunning: false,
+          lastTurnCancelled: false,
+          pendingQuestion: None,
+        })) =>
+        messages->Client__MessageStore.toArray->Array.last
+      | _ => None
+      }
+    | _ => None
+    }
+  }
+
+  let pendingPlanHandoff = (state: state): option<pendingPlanHandoff> => {
+    let findAgent = name =>
+      state.agentCatalog->Option.flatMap(catalog =>
+        catalog->Array.find(agent => agent.name == name)
+      )
+    switch (
+      findAgent(plannerAgentName),
+      findAgent(executorAgentName),
+      lastMessageOfIdleCurrentTask(state),
+    ) {
+    | (Some(planner), Some(executor), Some(Message.Assistant(Message.Completed({agentId, _}))))
+      if agentId == planner.id =>
+      Some({executorAgentId: executor.id})
+    | _ => None
     }
   }
 
@@ -1065,6 +1107,37 @@ let next = (state: state, action) => {
     | Task.Selected(taskId) =>
       state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.CancelTurn)
     | Task.New(_) => state->StateReducer.update
+    }
+
+  | ExecutePendingPlan({id}) =>
+    switch (Selectors.pendingPlanHandoff(state), state.currentTask) {
+    | (Some({executorAgentId}), Task.Selected(taskId)) =>
+      let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+      let (taskWithMessage, sendEffects) = TaskReducer.next(
+        task,
+        TaskReducer.AddUserMessage({
+          id,
+          content: [UserContentPart.Text({text: executePlanPrompt})],
+          annotations: [],
+          agentId: executorAgentId,
+        }),
+      )
+      let (runningTask, runningEffects) = TaskReducer.next(
+        taskWithMessage,
+        TaskReducer.ExecutionStateRunning,
+      )
+      let tasks = state.tasks->Dict.copy
+      tasks->Dict.set(taskId, runningTask)
+      let effects = Array.concat(sendEffects, runningEffects)->Array.map(effect => TaskEffect({
+        target: ForTask(taskId),
+        effect,
+      }))
+      {
+        ...state,
+        tasks,
+        selectedAgentId: Some(executorAgentId),
+      }->StateReducer.update(~sideEffects=effects)
+    | _ => state->StateReducer.update
     }
 
   | SwitchTask({taskId}) => {
