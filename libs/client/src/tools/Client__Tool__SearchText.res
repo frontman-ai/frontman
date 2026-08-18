@@ -154,10 +154,7 @@ let execute = async (
                   ~query=input.query,
                   ~contextChars,
                 ),
-                selector: switch Client__ElementInspector.findSelector(
-                  ~element=el,
-                  ~document=Some(doc),
-                ) {
+                selector: switch Client__ElementInspector.findSelector(~element=el, ~document=doc) {
                 | Ok(selector) => Some(selector)
                 | Error(_) => None
                 },

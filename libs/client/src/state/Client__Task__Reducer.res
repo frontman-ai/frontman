@@ -1283,25 +1283,38 @@ let fetchAnnotationDetails = (
   }
 
   let sourceLocationPromise = {
-    let detectionPromise = switch contentWindow {
+    let sourceLocationWork = switch contentWindow {
     | Some(window) =>
       Client__SourceDetection.getElementSourceLocation(~element, ~window)
-      ->Promise.then(result => Promise.resolve(Ok(result)))
+      ->Promise.then(result => {
+        let context = result->Option.map(Client__SourceContext.stripFileQueries)
+        switch context {
+        | Some(context) if Client__SourceContext.hasReactLocation(context) =>
+          Client__SourceLocationResolver.resolve(context)->Promise.then(result =>
+            Promise.resolve(result->Result.map(resolved => Some(resolved)))
+          )
+        | Some(context) => Promise.resolve(Ok(Client__SourceContext.toSourceLocation(context)))
+        | None => Promise.resolve(Ok(None))
+        }
+      })
       ->Promise.catch(error => {
         let msg = formatError(error)
         Log.error(
           ~ctx={"annotationId": id},
           ~error=JsExn.fromException(error),
-          "Source location detection failed",
+          "Source location detection or resolution failed",
         )
         Promise.resolve(Error(msg))
       })
     | None => Promise.resolve(Ok(None))
     }
     let timeoutPromise = Promise.make((resolve, _) => {
-      let _ = setTimeout(() => resolve(Ok(None)), 5000)
+      let _ = setTimeout(
+        () => resolve(Error("Source location detection or resolution timed out")),
+        5000,
+      )
     })
-    Promise.race([detectionPromise, timeoutPromise])
+    Promise.race([sourceLocationWork, timeoutPromise])
   }
 
   let (cssClasses, nearbyText, boundingBox) = switch inspection {
@@ -1316,42 +1329,23 @@ let fetchAnnotationDetails = (
 
   let _ =
     Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
-    ->Promise.then(((selector, screenshotResult, sourceContext)) => {
-      let sourceContext =
-        sourceContext->Result.map(opt => opt->Option.map(Client__SourceContext.stripFileQueries))
-
-      let resolvedSourceLocationPromise = switch sourceContext {
-      | Ok(Some(context)) =>
-        switch Client__SourceContext.hasReactLocation(context) {
-        | true =>
-          Client__SourceLocationResolver.resolve(context)->Promise.then(result =>
-            Promise.resolve(result->Result.map(resolved => Some(resolved)))
-          )
-        | false => Promise.resolve(Ok(Client__SourceContext.toSourceLocation(context)))
-        }
-      | Ok(None) => Promise.resolve(Ok(None))
-      | Error(_) as err => Promise.resolve(err)
-      }
-
+    ->Promise.then(((selector, screenshotResult, sourceLocation)) => {
       let screenshot = screenshotResult->Result.map(opt => opt->Option.map(s => s.src))
-
-      resolvedSourceLocationPromise->Promise.then(finalSourceLocation => {
-        dispatch(
-          AnnotationDetailsResolved({
-            id,
-            selector,
-            elementContext,
-            screenshot,
-            sourceLocation: finalSourceLocation,
-            cssClasses,
-            nearbyText,
-            boundingBox,
-            elementorContext,
-            enrichmentStatus: Enriched,
-          }),
-        )
-        Promise.resolve()
-      })
+      dispatch(
+        AnnotationDetailsResolved({
+          id,
+          selector,
+          elementContext,
+          screenshot,
+          sourceLocation,
+          cssClasses,
+          nearbyText,
+          boundingBox,
+          elementorContext,
+          enrichmentStatus: Enriched,
+        }),
+      )
+      Promise.resolve()
     })
     ->Promise.catch(err => {
       let errorMsg = formatError(err)

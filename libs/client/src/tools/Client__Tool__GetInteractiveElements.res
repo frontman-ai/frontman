@@ -96,7 +96,7 @@ let execute = async (
         let elements = resolved->Array.mapWithIndex((el, idx) => {
           let selector = switch Client__ElementInspector.findSelector(
             ~element=el.element,
-            ~document=Some(doc),
+            ~document=doc,
           ) {
           | Ok(selector) => Some(selector)
           | Error(_) => None

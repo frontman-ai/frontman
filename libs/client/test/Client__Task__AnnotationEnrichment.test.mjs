@@ -62,6 +62,17 @@ function makeEffect(overrides = {}) {
 	};
 }
 
+const virtualContext = {
+	definition: undefined,
+	invocations: [
+		{
+			file: "about://React/Server/file:///app/.next/server/chunk.js",
+			line: 1,
+			column: 0,
+		},
+	],
+};
+
 async function waitForDispatch(dispatched, { timeout = 1000 } = {}) {
 	await vi.waitFor(
 		() => {
@@ -163,22 +174,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 	});
 
 	it("dispatches an error when a React Server location cannot be resolved", async () => {
-		const mockContext = {
-			definition: undefined,
-			invocations: [
-				{
-					componentName: "ServerPost",
-					tagName: "article",
-					file: "about://React/Server/file:///app/.next/server/chunk.js",
-					line: 1,
-					column: 0,
-					componentProps: undefined,
-				},
-			],
-		};
-		getElementSourceLocation.mockImplementation(() =>
-			Promise.resolve(mockContext),
-		);
+		getElementSourceLocation.mockResolvedValue(virtualContext);
 		resolveSourceLocation.mockImplementation(() =>
 			Promise.resolve({ TAG: "Error", _0: "HTTP 422: Unprocessable Entity" }),
 		);
@@ -220,15 +216,26 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(resolveSourceLocation).not.toHaveBeenCalled();
 	});
 
-	it("times out source detection after five seconds", async () => {
+	it.each([
+		"detection",
+		"resolution",
+	])("times out source %s after five seconds", async (stage) => {
 		vi.useFakeTimers();
-		getElementSourceLocation.mockImplementation(() => new Promise(() => {}));
+		if (stage === "detection") {
+			getElementSourceLocation.mockImplementation(() => new Promise(() => {}));
+		} else {
+			getElementSourceLocation.mockResolvedValue(virtualContext);
+			resolveSourceLocation.mockImplementation(() => new Promise(() => {}));
+		}
 
 		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
 		await vi.advanceTimersByTimeAsync(5000);
 
 		expect(dispatched).toHaveLength(1);
-		expect(dispatched[0].sourceLocation).toEqual({ TAG: "Ok", _0: undefined });
+		expect(dispatched[0].sourceLocation).toEqual({
+			TAG: "Error",
+			_0: "Source location detection or resolution timed out",
+		});
 	});
 
 	it.each([
@@ -287,7 +294,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		}
 	});
 
-	it("dispatches Failed status when source location resolver throws synchronously", async () => {
+	it("isolates a synchronous source resolver failure", async () => {
 		const mockLoc = {
 			componentName: "App",
 			tagName: "div",
@@ -309,10 +316,13 @@ describe("FetchAnnotationDetails effect handler", () => {
 
 		const action = dispatched[0];
 		expect(action.TAG).toBe("AnnotationDetailsResolved");
-		expect(action.enrichmentStatus.TAG).toBe("Failed");
-		expect(action.enrichmentStatus.error).toBe("Resolver exploded");
-		expect(action.selector.TAG).toBe("Error");
-		expect(action.screenshot.TAG).toBe("Error");
+		expect(action.enrichmentStatus).toBe("Enriched");
+		expect(action.sourceLocation).toEqual({
+			TAG: "Error",
+			_0: "Resolver exploded",
+		});
+		expect(action.selector.TAG).toBe("Ok");
+		expect(action.screenshot.TAG).toBe("Ok");
 		expect(action.sourceLocation.TAG).toBe("Error");
 	});
 });

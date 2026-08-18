@@ -5,7 +5,7 @@ vi.mock("@medv/finder", () => ({
 }));
 
 import { finder } from "@medv/finder";
-import { inspect, utf8ByteSize } from "../src/Client__ElementInspector.res.mjs";
+import { inspect } from "../src/Client__ElementInspector.res.mjs";
 
 beforeEach(() => {
 	document.body.innerHTML = "";
@@ -18,16 +18,20 @@ it("describes bounded context with navigable child selectors", () => {
 		<main><div id="inspection-root">Root "text"<span>First</span><span>Second</span></div></main>
 	`;
 	const root = document.querySelector("#inspection-root");
+	finder.mockImplementation((element) =>
+		element === root ? "#inspection-root" : "main",
+	);
 	const result = inspect(root, document, 1, 20);
 
-	expect(result.html).toContain('parent tag="main"');
+	expect(result.html).toContain('parent tag="main" selector="main"');
+	expect(document.querySelector("main")).toBe(root.parentElement);
 	expect(result.html).toContain('selected tag="div" id="inspection-root"');
 	expect(result.html).toContain('text="Root \\"text\\""');
 	expect(result.html).toContain('selector="#inspection-root > :nth-child(1)"');
 	expect(
 		document.querySelector("#inspection-root > :nth-child(1)").textContent,
 	).toBe("First");
-	expect(finder).toHaveBeenCalledTimes(1);
+	expect(finder).toHaveBeenCalledTimes(2);
 	expect(inspect(root, document, 0, 20).html).not.toContain("child tag");
 	expect(inspect(root, document, 2, 1)).toMatchObject({
 		nodeCount: 1,
@@ -48,8 +52,8 @@ it("caps simplified context at 30 KB of UTF-8", () => {
 	expect(new TextEncoder().encode(result.html).byteLength).toBeLessThanOrEqual(
 		30_000,
 	);
-	expect(result).toMatchObject({ truncated: true, byteTruncated: true });
-	expect(utf8ByteSize("é")).toBe(2);
+	expect(result.truncated).toBe(true);
+	expect(result.html).toContain("truncated nodes=");
 });
 
 it("omits control values and URL secrets", () => {

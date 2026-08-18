@@ -252,8 +252,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :component_name, :string
       field :component_props, :map
       embeds_one :parent, ParentLocation
-      field :css_classes, :string
-      field :nearby_text, :string
       field :metadata, :map, default: %{}
       embeds_one :bounding_box, BoundingBox
       embeds_one :screenshot, Screenshot
@@ -272,8 +270,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         :column,
         :component_name,
         :component_props,
-        :css_classes,
-        :nearby_text,
         :metadata
       ])
       |> cast_embed(:parent, with: &ParentLocation.changeset/2)
@@ -291,11 +287,9 @@ defmodule FrontmanServer.Tasks.Interaction do
       comment
       component_name
       component_props
-      css_classes
       file
       line
       metadata
-      nearby_text
       parent
       screenshot
       selector
@@ -315,8 +309,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         component_name: data["component_name"],
         component_props: data["component_props"],
         parent: data["parent"],
-        css_classes: data["css_classes"],
-        nearby_text: data["nearby_text"],
         metadata: metadata_from_map(data),
         bounding_box: data["bounding_box"],
         screenshot: data["screenshot"]
@@ -1028,8 +1020,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       component_name: ann.component_name,
       component_props: ann.component_props,
       parent: ann.parent,
-      css_classes: ann.css_classes,
-      nearby_text: ann.nearby_text,
       bounding_box: ann.bounding_box,
       screenshot: ann.screenshot
     }
@@ -1257,8 +1247,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_string_field(ann.comment, "Comment"),
       annotation_string_field(ann.selector, "CSS Selector"),
       annotation_metadata_field(ann.metadata, "element_context", "Element Context"),
-      annotation_string_field(ann.css_classes, "CSS Classes"),
-      annotation_string_field(ann.nearby_text, "Nearby Text"),
       annotation_bbox_field(ann.bounding_box),
       annotation_props_field(ann.component_props),
       annotation_metadata_field(ann.metadata, "source_location_error", "Source Location Error"),

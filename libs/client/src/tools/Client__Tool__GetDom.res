@@ -196,20 +196,12 @@ let execute = async (
               ~selectedSelector?,
             )
 
-            let hint = switch (inspection.byteTruncated, inspection.truncated) {
-            | (true, _) =>
+            let hint = switch inspection.truncated {
+            | true =>
               Some(
-                `Output stopped at ${Client__ElementInspector.maxOutputBytes->Int.toString} bytes. Narrow your selector for complete results.`,
+                `Output stopped at the ${maxNodes->Int.toString}-node or ${Client__ElementInspector.maxOutputBytes->Int.toString}-byte limit. Narrow your selector for complete results.`,
               )
-            | (false, true) =>
-              Some(
-                `Walker stopped at ${Int.toString(
-                    inspection.nodeCount,
-                  )} nodes (limit: ${Int.toString(
-                    maxNodes,
-                  )}). Some elements were omitted. Narrow your selector for complete results.`,
-              )
-            | (false, false) => None
+            | false => None
             }
             successResult(~html=inspection.html, ~nodeCount=inspection.nodeCount, ~hint?)
           }

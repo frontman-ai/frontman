@@ -1,3 +1,5 @@
+module WebStreams = FrontmanBindings.WebStreams
+
 type t = {
   selector: result<option<string>, string>,
   cssClasses: option<string>,
@@ -6,20 +8,16 @@ type t = {
   html: string,
   nodeCount: int,
   truncated: bool,
-  byteTruncated: bool,
 }
-
-type textEncoder
 
 type walkState = {
   lines: array<string>,
   mutable nodeCount: int,
   mutable truncated: bool,
-  mutable byteTruncated: bool,
   mutable byteSize: int,
   maxNodes: int,
   maxBytes: int,
-  encoder: textEncoder,
+  encoder: WebStreams.textEncoder,
 }
 
 type childRelation =
@@ -32,14 +30,11 @@ type walkChild = {
 }
 
 let maxOutputBytes = 30_000
+let truncationMarkerBytes = 32
 
 let keyAttributes = ["id", "class", "data-testid", "href", "src", "type", "placeholder", "alt"]
 
-@new external makeTextEncoder: unit => textEncoder = "TextEncoder"
-@send external encode: (textEncoder, string) => Uint8Array.t = "encode"
-@get external byteLength: Uint8Array.t => int = "byteLength"
-
-let utf8ByteSize = (text: string): int => makeTextEncoder()->encode(text)->byteLength
+let utf8ByteSize = WebStreams.utf8ByteSize
 
 let quote = value => JSON.stringifyAny(value)->Option.getOr(`""`)
 
@@ -52,20 +47,16 @@ let truncate = (text: string, ~maxLen: int): string =>
 let errorMessage = (exn: exn): string =>
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
 
-let findSelector = (
-  ~element: WebAPI.DOMAPI.element,
-  ~document: option<WebAPI.DOMAPI.document>,
-): result<string, string> =>
+let findSelector = (~element: WebAPI.DOMAPI.element, ~document: WebAPI.DOMAPI.document): result<
+  string,
+  string,
+> =>
   try {
-    let root = switch document {
-    | Some(document) => document.documentElement->WebAPI.HTMLElement.asElement
-    | None => element
-    }
     Ok(
       FrontmanBindings.Bindings__Finder.finder(
         ~element,
         ~options={
-          root,
+          root: document.documentElement->WebAPI.HTMLElement.asElement,
           idName: (~name as _) => true,
           className: (~name as _) => true,
           tagName: (~name as _) => true,
@@ -164,11 +155,10 @@ let appendLine = (state: walkState, line: string): bool => {
   | 0 => 0
   | _ => 1
   }
-  let lineBytes = state.encoder->encode(line)->byteLength
+  let lineBytes = state.encoder->WebStreams.encode(line)->WebStreams.byteLength
   switch state.byteSize + separatorBytes + lineBytes > state.maxBytes {
   | true => {
       state.truncated = true
-      state.byteTruncated = true
       false
     }
   | false => {
@@ -302,7 +292,7 @@ let inspect = (
 ): t => {
   let selector = switch selectedSelector {
   | Some(selector) => Ok(selector)
-  | None => findSelector(~element, ~document=Some(document))
+  | None => findSelector(~element, ~document)
   }
   let selectedSelector = switch selector {
   | Ok(selector) => Some(selector)
@@ -310,11 +300,16 @@ let inspect = (
   }
   let parent = switch element.parentElement->Null.toOption {
   | Some(parent) =>
+    let parent = parent->WebAPI.HTMLElement.asElement
+    let parentSelector = switch findSelector(~element=parent, ~document) {
+    | Ok(selector) => Some(selector)
+    | Error(_) => None
+    }
     let (description, _) = describe(
       ~relation="parent",
-      ~element=parent->WebAPI.HTMLElement.asElement,
+      ~element=parent,
       ~document,
-      ~selector=None,
+      ~selector=parentSelector,
       ~pierceShadowDom=false,
     )
     description
@@ -324,11 +319,10 @@ let inspect = (
     lines: [],
     nodeCount: 0,
     truncated: false,
-    byteTruncated: false,
     byteSize: 0,
     maxNodes,
-    maxBytes: maxOutputBytes,
-    encoder: makeTextEncoder(),
+    maxBytes: maxOutputBytes - truncationMarkerBytes,
+    encoder: WebStreams.makeTextEncoder(),
   }
   appendLine(state, parent)->ignore
   walk(
@@ -344,7 +338,7 @@ let inspect = (
     ~state,
   )
   switch state.truncated {
-  | true => appendLine(state, `truncated nodes=${state.nodeCount->Int.toString}`)->ignore
+  | true => state.lines->Array.push(`truncated nodes=${state.nodeCount->Int.toString}`)->ignore
   | false => ()
   }
   let rect = element->WebAPI.Element.getBoundingClientRect
@@ -359,6 +353,5 @@ let inspect = (
     html: state.lines->Array.join("\n"),
     nodeCount: state.nodeCount,
     truncated: state.truncated,
-    byteTruncated: state.byteTruncated,
   }
 }

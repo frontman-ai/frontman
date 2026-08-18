@@ -11,6 +11,7 @@ module WebStreams = FrontmanBindings.WebStreams
 external realpath: string => promise<string> = "realpath"
 
 let maxSourceInvocations = 10
+let maxSourceRequestBytes = 100_000
 
 type handlerConfig = {
   projectRoot: string,
@@ -75,10 +76,6 @@ let canonicalPath = async (path: string): option<string> => {
   }
 }
 
-let pathInside = (~sourceRoot: string, path: string): bool => {
-  SafePath.resolve(~sourceRoot, ~inputPath=path)->Result.isOk
-}
-
 let normalizeResolvedLocation = async (
   ~canonicalSourceRoot: string,
   location: sourceLocation,
@@ -91,7 +88,8 @@ let normalizeResolvedLocation = async (
     | Ok(safePath) =>
       switch await canonicalPath(SafePath.toString(safePath)) {
       | None => Error("Resolved source does not exist")
-      | Some(path) if pathInside(~sourceRoot=canonicalSourceRoot, path) =>
+      | Some(path)
+        if SafePath.resolve(~sourceRoot=canonicalSourceRoot, ~inputPath=path)->Result.isOk =>
         Ok({
           ...location,
           file: PathContext.toRelativePath(~sourceRoot=canonicalSourceRoot, ~absolutePath=path),
@@ -159,19 +157,6 @@ let safeSourceResolutionError = (error: sourceResolutionError): string =>
   | "POSITION_NOT_FOUND" => "POSITION_NOT_FOUND: Source map position was not found"
   | _ => "RESOLUTION_FAILED: Source resolution failed"
   }
-
-let sourceLocationToJson = (location: sourceLocation): JSON.t =>
-  location->S.decodeOrThrow(~from=sourceLocationSchema, ~to=S.json->S.noValidation(true))
-
-let sourceContextToJson = (context: sourceContext): JSON.t => {
-  let fields = Dict.fromArray([
-    ("invocations", context.invocations->Array.map(sourceLocationToJson)->JSON.Encode.array),
-  ])
-  context.definition->Option.forEach(definition =>
-    fields->Dict.set("definition", sourceLocationToJson(definition))
-  )
-  JSON.Encode.object(fields)
-}
 
 let handleGetTools = (
   ~registry: FrontmanCore__ToolRegistry.t,
@@ -272,15 +257,28 @@ let handleResolveSourceLocation = async (
   let canonicalSourceRoot = (await canonicalPath(sourceRoot))->Option.getOr(sourceRoot)
 
   let request = try {
-    let body = await req->WebAPI.Request.json
-    Ok(body->S.parseOrThrow(~to=sourceContextSchema))
+    let body = await req->WebAPI.Request.text
+    switch WebStreams.utf8ByteSize(body) > maxSourceRequestBytes {
+    | true => Error(#tooLarge)
+    | false => Ok(body->JSON.parseOrThrow->S.parseOrThrow(~to=sourceContextSchema))
+    }
   } catch {
   | exn =>
-    Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid request"))
+    Error(
+      #invalid(
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid request"),
+      ),
+    )
   }
 
   switch request {
-  | Error(msg) =>
+  | Error(#tooLarge) =>
+    let json = {
+      error: "Source context exceeds 100000 bytes",
+      details: None,
+    }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json)
+    WebAPI.Response.jsonR(~data=json, ~init={status: 413})
+  | Error(#invalid(msg)) =>
     let json =
       {error: `Invalid request: ${msg}`, details: None}->S.decodeOrThrow(
         ~from=errorResponseSchema,
@@ -309,7 +307,11 @@ let handleResolveSourceLocation = async (
           switch await normalizeResolvedContext(~canonicalSourceRoot, resolved) {
           | Error(details) => unresolvedReactSourceResponse(~details)
           | Ok(responseContext) =>
-            let json = sourceContextToJson(responseContext)
+            let json =
+              responseContext->S.decodeOrThrow(
+                ~from=sourceContextSchema,
+                ~to=S.json->S.noValidation(true),
+              )
             let headers = WebAPI.HeadersInit.fromDict(
               Dict.fromArray([("Content-Type", "application/json")]),
             )

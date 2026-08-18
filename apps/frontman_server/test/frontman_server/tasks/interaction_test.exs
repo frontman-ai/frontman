@@ -104,8 +104,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert [ann1, ann2] = msg.annotations
       assert ann1.annotation_index == 0
       assert ann1.component_name == "Header"
-      assert ann1.css_classes == "header main"
-      assert ann1.nearby_text == "Welcome"
+      assert ann1.metadata["css_classes"] == "header main"
+      assert ann1.metadata["nearby_text"] == "Welcome"
       assert ann2.annotation_index == 1
       assert ann2.comment == "Make this red"
     end
@@ -336,7 +336,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         file: "/path/to/Component.tsx",
         line: 42,
         column: 5,
-        metadata: %{"element_context" => element_context}
+        metadata: %{
+          "element_context" => element_context,
+          "css_classes" => "hero",
+          "nearby_text" => "Welcome"
+        }
       }
 
       messages = Interaction.to_swarm_messages([user_msg("Change the text", [ann])])
@@ -348,6 +352,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert text =~ "Line: 42"
       assert text =~ "Element Context:"
       assert text =~ "selector=\"#target\""
+      refute text =~ "CSS Classes:"
+      refute text =~ "Nearby Text:"
     end
 
     test "includes source location errors in user message content" do

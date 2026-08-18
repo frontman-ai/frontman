@@ -342,29 +342,39 @@ describe("RequestHandlers", _t => {
     )
 
     testAsync(
-      "rejects more than ten invocations without calling the resolver",
+      "rejects bounded source contexts without calling the resolver",
       async t => {
         let calls = []
         let resolver = async (context, options) => {
           calls->Array.push(context)->ignore
           await Helpers.successfulResolver(context, options)
         }
-        let invocation = Helpers.sourceLocation(~file="ServerPost.tsx")
-        let context: RequestHandlers.sourceContext = {
+        let tooManyInvocations: RequestHandlers.sourceContext = {
           definition: None,
-          invocations: Array.make(~length=11, invocation),
+          invocations: Array.make(~length=11, Helpers.sourceLocation(~file="ServerPost.tsx")),
+        }
+        let oversized: RequestHandlers.sourceContext = {
+          definition: Some({
+            ...Helpers.sourceLocation(~file="x"->String.repeat(100_000)),
+            tagName: Some("DIV"),
+            componentProps: Some(Dict.make()),
+          }),
+          invocations: [],
         }
 
-        let response = await RequestHandlers.handleResolveSourceLocation(
-          ~sourceRoot=Helpers.sourceRoot,
-          ~resolveSourceContext=resolver,
-          Helpers.sourceRequest(context),
+        let responses = await Promise.all(
+          [tooManyInvocations, oversized]->Array.map(
+            context =>
+              RequestHandlers.handleResolveSourceLocation(
+                ~sourceRoot=Helpers.sourceRoot,
+                ~resolveSourceContext=resolver,
+                Helpers.sourceRequest(context),
+              ),
+          ),
         )
 
-        t->expect(response.status)->Expect.toBe(422)
+        t->expect(responses->Array.map(response => response.status))->Expect.toEqual([422, 413])
         t->expect(calls->Array.length)->Expect.toBe(0)
-        let text = await response->WebAPI.Response.text
-        t->expect(text->String.includes("at most 10 invocations"))->Expect.toBe(true)
       },
     )
 
