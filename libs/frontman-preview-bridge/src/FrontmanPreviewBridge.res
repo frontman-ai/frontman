@@ -17,7 +17,6 @@ type slot = {
   installation: t,
 }
 
-let currentWindow = () => WebAPI.Window.current
 let pageHideEvent = WebAPI.EventTypes.Custom("pagehide")
 let installationKey =
   Symbol.getFor("@frontman-ai/frontman-preview-bridge/installation")->Option.getOrThrow
@@ -35,7 +34,7 @@ let handler:
 
 let existing = (): option<t> => {
   let stored: option<Nullable.t<Obj.t>> = Object.getSymbol(
-    Obj.magic(currentWindow()),
+    Obj.magic(WebAPI.Window.current),
     installationKey,
   )
   switch stored->Option.flatMap(Nullable.toOption) {
@@ -57,7 +56,7 @@ let sameConfig: (t, config) => bool = (installation, config) =>
   installation.channel === config.channel
 
 let create: config => t = config => {
-  let window = currentWindow()
+  let window = WebAPI.Window.current
   let transport = WindowTransport.Child.make({
     parentWindow: config.parentWindow,
     parentOrigin: config.parentOrigin,
@@ -114,7 +113,7 @@ let install: config => t = config => {
       let installation = create(config)
       try {
         Object.setSymbol(
-          Obj.magic(currentWindow()),
+          Obj.magic(WebAPI.Window.current),
           installationKey,
           Obj.magic({
             marker: installationMarker,
