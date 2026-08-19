@@ -126,7 +126,7 @@ class Frontman_Tool_Options {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_options',
-			'Lists all WordPress options that can be read or modified via wp_get_option/wp_update_option, with their current values.',
+			'Lists non-sensitive WordPress options that can be read or modified via wp_get_option/wp_update_option, with their current values. Use wp_get_option for explicit reads of options omitted from bulk output.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -313,7 +313,7 @@ class Frontman_Tool_Options {
 	public function list_options( array $input ): array {
 		$result = [];
 
-		foreach ( self::READABLE_OPTIONS as $name ) {
+		foreach ( array_diff( self::READABLE_OPTIONS, [ 'admin_email' ] ) as $name ) {
 			$value = get_option( $name );
 			if ( is_array( $value ) || is_object( $value ) ) {
 				$value = '(complex value - use wp_get_option to read)';

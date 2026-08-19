@@ -521,28 +521,27 @@ jobs:
 
   test-frontman-server:
     name: Test frontman-server
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: read
       pull-requests: write
       checks: write
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Start PostgreSQL
+        run: |
+          container_name="frontman-postgres-${{ github.run_id }}"
+          docker rm --force "$container_name" 2>/dev/null || true
+          docker run --detach --rm \
+            --name "$container_name" \
+            --network "container:$(hostname)" \
+            --env POSTGRES_USER=postgres \
+            --env POSTGRES_PASSWORD=postgres \
+            --env POSTGRES_DB=postgres \
+            postgres:16
+          timeout 60 bash -c "until docker exec '$container_name' pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done"
 
       - name: Install native build dependencies
         run: |
@@ -626,6 +625,10 @@ jobs:
         if: always()
         run: |
           rm -rf apps/frontman_server/_build apps/frontman_server/deps
+
+      - name: Stop PostgreSQL
+        if: always()
+        run: docker rm --force "frontman-postgres-${{ github.run_id }}" 2>/dev/null || true
 
   lint-frontman-server:
     name: Lint frontman-server
