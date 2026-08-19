@@ -2343,7 +2343,7 @@ __metadata:
   resolution: "@frontman-ai/astro-browser@workspace:libs/frontman-astro-browser"
   dependencies:
     "@frontman-ai/frontman-protocol": "workspace:*"
-    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/runtime": "catalog:"
     "@rescript/webapi": "npm:*"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
@@ -2362,7 +2362,7 @@ __metadata:
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@frontman/bindings": "npm:*"
-    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/runtime": "catalog:"
     "@rescript/webapi": "npm:*"
     "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
@@ -2400,7 +2400,7 @@ __metadata:
     "@frontman/logs": "workspace:*"
     "@medv/finder": "npm:^4.0.2"
     "@rescript/react": "npm:^0.15.0"
-    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/runtime": "catalog:"
     "@rescript/webapi": "npm:*"
     "@tailwindcss/vite": "npm:^4.3.2"
     "@tiptap/core": "npm:3.30.1"
@@ -2463,7 +2463,7 @@ __metadata:
   dependencies:
     "@frontman-ai/frontman-protocol": "npm:2.0.0"
     "@frontman/bindings": "npm:0.3.1"
-    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/runtime": "catalog:"
     "@rescript/webapi": "npm:*"
     "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
@@ -2477,6 +2477,22 @@ __metadata:
   dependenciesMeta:
     "@vscode/ripgrep":
       optional: true
+  languageName: unknown
+  linkType: soft
+
+"@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge":
+  version: 0.0.0-use.local
+  resolution: "@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge"
+  dependencies:
+    "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
+    "@frontman-ai/frontman-protocol": "workspace:*"
+    "@frontman/bindings": "workspace:*"
+    "@rescript/runtime": "catalog:"
+    "@rescript/webapi": "catalog:"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    vite: "catalog:"
+    vitest: "catalog:"
   languageName: unknown
   linkType: soft
 
@@ -2506,7 +2522,7 @@ __metadata:
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
-    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/runtime": "catalog:"
     "@rescript/webapi": "npm:*"
     "@sentry/nextjs": "npm:^10.66.0"
     "@vscode/ripgrep": "npm:^1.18.0"
@@ -2551,7 +2567,7 @@ __metadata:
   resolution: "@frontman-ai/react-statestore@workspace:libs/react-statestore"
   dependencies:
     "@rescript/react": "npm:^0.15.0"
-    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/runtime": "catalog:"
     "@testing-library/dom": "npm:^10.4.1"
     "@testing-library/react": "npm:^16.3.2"
     jsdom: "npm:^29.1.1"
@@ -2574,7 +2590,7 @@ __metadata:
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
     "@frontman-ai/frontman-protocol": "npm:*"
-    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/runtime": "catalog:"
     "@rescript/webapi": "npm:*"
     "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
@@ -2602,7 +2618,8 @@ __metadata:
   resolution: "@frontman/bindings@workspace:libs/bindings"
   dependencies:
     "@rescript/react": "npm:^0.15.0"
-    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/runtime": "catalog:"
+    "@rescript/webapi": "catalog:"
     react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
     rescript: "catalog:"
@@ -2676,7 +2693,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/logs@workspace:libs/logs"
   dependencies:
-    "@rescript/runtime": "npm:12.3.0"
+    "@rescript/runtime": "catalog:"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     vite: "catalog:"
