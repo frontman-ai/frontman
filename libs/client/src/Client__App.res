@@ -85,7 +85,7 @@ let make = (~apiBaseUrl: string) => {
             style={{width: `${Int.toString(chatboxWidth)}px`}}
             className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
           >
-            <Client__Chatbox onConfigureProvider=openSettingsProviders />
+            <Client__ConversationPanel onConfigureProvider=openSettingsProviders />
             <div
               className={[
                 "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",

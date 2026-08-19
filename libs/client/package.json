@@ -81,7 +81,9 @@
 		"@tiptap/extension-text": "^3.28.0",
 		"@tiptap/extensions": "^3.28.0",
 		"@tiptap/pm": "^3.27.3",
-		"@tiptap/react": "^3.28.0"
+		"@tiptap/react": "^3.28.0",
+		"diff": "^8.0.2",
+		"react-diff-viewer-continued": "^4.4.0"
 	},
 	"peerDependencies": {
 		"react": "^19.2.7",

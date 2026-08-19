@@ -162,6 +162,20 @@ module Lens = {
 
   let setActivePopupAnnotationId = (task: Task.t, id: option<string>): Task.t =>
     updateTaskData(task, d => {...d, activePopupAnnotationId: id})
+
+  let refreshCompletedFileChanges = (task: Task.t): Task.t =>
+    switch task {
+    | Task.Loaded(data) =>
+      Task.Loaded({
+        ...data,
+        completedFileChanges: Client__FileChanges.refresh(
+          data.completedFileChanges,
+          MessageStore.toArray(data.messages),
+        ),
+      })
+    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) =>
+      failwith("[Lens.refreshCompletedFileChanges] Expected a loaded task")
+    }
 }
 
 module Selectors = {
@@ -275,6 +289,9 @@ module Selectors = {
     | Task.Loaded({retryStatus}) => retryStatus
     | _ => None
     }
+
+  let completedFileChanges = (task: Task.t): Client__FileChanges.snapshot =>
+    Task.getCompletedFileChanges(task)
 }
 
 type annotationElement = {
@@ -889,8 +906,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loaded(_data), ExecutionStateIdle) =>
     let completed = task->Lens.completeStreamingMessage
     switch completed {
-    | Task.Loaded(d) => (Task.Loaded({...d, isAgentRunning: false, retryStatus: None}), [])
-    | other => (other->Task.updateLoadedData(d => {...d, isAgentRunning: false}), [])
+    | Task.Loaded(d) => (
+        Task.Loaded({
+          ...d,
+          isAgentRunning: false,
+          retryStatus: None,
+        })->Lens.refreshCompletedFileChanges,
+        [],
+      )
+    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) =>
+      failwith("ExecutionStateIdle changed a loaded task into an invalid state")
     }
 
   | (Task.Loaded(data), ExecutionStateRequiresAction) => (
@@ -938,18 +963,11 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
             turnError: None,
             retryStatus: None,
             pendingQuestion: None,
-          }),
+          })->Lens.refreshCompletedFileChanges,
           allEffects,
         )
-      | other => (
-          other->Task.updateLoadedData(d => {
-            ...d,
-            isAgentRunning: false,
-            turnError: None,
-            pendingQuestion: None,
-          }),
-          allEffects,
-        )
+      | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) =>
+        failwith("CancelTurn changed a loaded task into an invalid state")
       }
     }
 
@@ -967,7 +985,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           turnError: Some({id, message: error, category}),
           isAgentRunning: false,
           retryStatus: None,
-        }),
+        })->Lens.refreshCompletedFileChanges,
         [],
       )
     | _ => failwith("AgentError changed a loaded task into an invalid state")
@@ -1043,6 +1061,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           retryStatus: None,
           imageAttachments: Dict.make(),
           pendingQuestion: None,
+          completedFileChanges: Client__FileChanges.aggregate(
+            ~revision=1,
+            MessageStore.toArray(messages),
+          ),
         }),
         [],
       )

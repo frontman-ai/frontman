@@ -71,6 +71,7 @@ module Task = {
         retryStatus: option<retryStatus>,
         imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
         pendingQuestion: option<Client__Question__Types.pendingQuestion>,
+        completedFileChanges: Client__FileChanges.snapshot,
       })
 
   type currentTask =
@@ -157,6 +158,12 @@ module Task = {
     switch task {
     | Loaded({imageAttachments}) => imageAttachments
     | New(_) | Unloaded(_) | Loading(_) => Dict.make()
+    }
+
+  let getCompletedFileChanges = (task: t): Client__FileChanges.snapshot =>
+    switch task {
+    | Loaded({completedFileChanges}) => completedFileChanges
+    | New(_) | Unloaded(_) | Loading(_) => Client__FileChanges.empty
     }
 
   let getWebPreviewIsSelecting = (task: t): bool => getAnnotationMode(task) != Annotation.Off
@@ -248,6 +255,7 @@ module Task = {
         retryStatus: None,
         imageAttachments: Dict.make(),
         pendingQuestion: None,
+        completedFileChanges: Client__FileChanges.empty,
       })
     | Unloaded(_) | Loading(_) | Loaded(_) =>
       failwith("[Task.newToLoaded] Can only transition from New state")
@@ -297,6 +305,7 @@ module Task = {
         retryStatus,
         imageAttachments,
         pendingQuestion,
+        completedFileChanges,
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
@@ -328,6 +337,7 @@ module Task = {
           retryStatus,
           imageAttachments,
           pendingQuestion: updated.pendingQuestion,
+          completedFileChanges,
         })
       }
     | Loading({

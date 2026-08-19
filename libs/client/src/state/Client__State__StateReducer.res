@@ -290,6 +290,9 @@ module Selectors = {
     TaskReducer.Selectors.planEntries(currentTask(state))->Option.getOr([])
   }
 
+  let completedFileChanges = (state: state): Client__FileChanges.snapshot =>
+    TaskReducer.Selectors.completedFileChanges(currentTask(state))
+
   let queuedUserMessages = (state: state): array<Message.t> => {
     TaskReducer.Selectors.queuedUserMessages(currentTask(state))->Option.getOr([])
   }
