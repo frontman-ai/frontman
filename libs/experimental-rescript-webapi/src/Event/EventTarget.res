@@ -4,8 +4,6 @@
 @new
 external make: unit => EventTypes.eventTarget = "EventTarget"
 
-external asElement: EventTypes.eventTarget => DomTypes.element = "%identity"
-
 module Impl = (
   T: {
     type t

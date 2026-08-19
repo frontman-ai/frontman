@@ -45,7 +45,9 @@ let make = (
   let rafId: ref<option<int>> = ref(None)
 
   let cancelFlush = () => {
-    rafId.contents->Option.forEach(WebAPI.Global.cancelAnimationFrame)
+    rafId.contents->Option.forEach(id =>
+      WebAPI.Window.cancelAnimationFrame(WebAPI.Window.current, id)
+    )
     rafId := None
   }
 
@@ -95,7 +97,8 @@ let make = (
     messages->Dict.set(messageId, updatedEntry)
     switch rafId.contents {
     | Some(_) => ()
-    | None => rafId := Some(WebAPI.Global.requestAnimationFrame(_ => flush()))
+    | None =>
+      rafId := Some(WebAPI.Window.requestAnimationFrame(WebAPI.Window.current, _ => flush()))
     }
   }
   let addUserBlock = (~taskId, ~messageId, ~block, ~agentId) => {

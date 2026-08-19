@@ -1,13 +1,3 @@
-/**
-[Read more on MDN](https://developer.mozilla.org/docs/Web/API/DataTransferItemList/item)
-*/
-@send
-external item: (UiEventsTypes.dataTransferItemList, int) => UiEventsTypes.dataTransferItem = "item"
-
-/**
-Returns the indexed item. Some browser clipboard item lists are array-like
-without an `item()` method.
-*/
 @get_index
 external get: (UiEventsTypes.dataTransferItemList, int) => UiEventsTypes.dataTransferItem = ""
 

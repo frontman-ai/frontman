@@ -1,6 +1,3 @@
-@get
-external href: DomTypes.location => string = "href"
-
 /**
 Navigates to the given URL.
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Location/assign)

@@ -13,7 +13,7 @@ let collectRequestBody: NodeHttp.incomingMessage => promise<NodeHttp.Buffer.t> =
   }
 `)
 
-let copyHeaders: (WebAPI.FetchAPI.headers, NodeHttp.serverResponse) => unit = %raw(`
+let copyHeaders: (WebAPI.FetchTypes.headers, NodeHttp.serverResponse) => unit = %raw(`
   function(headers, res) {
     headers.forEach(function(value, key) {
       res.setHeader(key, value);
@@ -21,9 +21,9 @@ let copyHeaders: (WebAPI.FetchAPI.headers, NodeHttp.serverResponse) => unit = %r
   }
 `)
 
-type webMiddleware = WebAPI.FetchAPI.request => promise<option<WebAPI.FetchAPI.response>>
+type webMiddleware = WebAPI.Request.t => promise<option<WebAPI.Response.t>>
 
-let toWebRequest = async (req: NodeHttp.incomingMessage): WebAPI.FetchAPI.request => {
+let toWebRequest = async (req: NodeHttp.incomingMessage): WebAPI.Request.t => {
   let host = req->NodeHttp.headers->Dict.get("host")->Option.getOr("localhost")
   let url = `http://${host}${req->NodeHttp.url}`
   let method = req->NodeHttp.method
@@ -37,7 +37,7 @@ let toWebRequest = async (req: NodeHttp.incomingMessage): WebAPI.FetchAPI.reques
 
   let headersDict = req->NodeHttp.headers
 
-  let init: WebAPI.FetchAPI.requestInit = {
+  let init: WebAPI.Request.requestInit = {
     method,
     headers: WebAPI.HeadersInit.fromDict(headersDict),
     body: ?(body->Option.map(b => WebAPI.BodyInit.fromTypedArray(b))),
@@ -51,7 +51,7 @@ let toWebRequest = async (req: NodeHttp.incomingMessage): WebAPI.FetchAPI.reques
 }
 
 let writeWebResponse = async (
-  webResponse: WebAPI.FetchAPI.response,
+  webResponse: WebAPI.Response.t,
   res: NodeHttp.serverResponse,
 ): unit => {
   res->NodeHttp.setStatusCode(webResponse.status)

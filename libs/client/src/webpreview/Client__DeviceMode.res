@@ -129,13 +129,14 @@ let storageKeyOrientation = "frontman:device-orientation"
 
 let persist = (deviceMode: deviceMode, orientation: orientation): unit => {
   try {
-    FrontmanBindings.LocalStorage.setItem(
-      storageKeyDeviceMode,
-      JSON.stringify(deviceModeToJson(deviceMode)),
+    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
+    storage->WebAPI.Storage.setItem(
+      ~key=storageKeyDeviceMode,
+      ~value=JSON.stringify(deviceModeToJson(deviceMode)),
     )
-    FrontmanBindings.LocalStorage.setItem(
-      storageKeyOrientation,
-      JSON.stringify(orientationToJson(orientation)),
+    storage->WebAPI.Storage.setItem(
+      ~key=storageKeyOrientation,
+      ~value=JSON.stringify(orientationToJson(orientation)),
     )
   } catch {
   | _ => ()

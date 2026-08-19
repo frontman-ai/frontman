@@ -10,11 +10,11 @@
 module Annotation = Client__Annotation__Types
 module Icons = Client__UI__Icons
 
-let getParentEl = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.element> =>
+let getParentEl = (element: WebAPI.DomTypes.element): option<WebAPI.DomTypes.element> =>
   element.parentElement
   ->Null.toOption
   ->Option.flatMap(pe => {
-    switch (pe->Obj.magic: WebAPI.DOMAPI.element).tagName->String.toLowerCase {
+    switch (pe->Obj.magic: WebAPI.DomTypes.element).tagName->String.toLowerCase {
     | "body" | "html" => None
     | _ => Some(pe->Obj.magic)
     }
@@ -28,7 +28,7 @@ module Marker = {
     ~scrollTimestamp: float,
     ~mutationTimestamp: float,
     ~onRemove: string => unit,
-    ~onNavigate: WebAPI.DOMAPI.element => unit,
+    ~onNavigate: WebAPI.DomTypes.element => unit,
   ) => {
     let (rect, setRect) = React.useState(() => None)
 
@@ -132,7 +132,7 @@ let make = (
   ~scrollTimestamp: float,
   ~mutationTimestamp: float,
   ~onRemove: string => unit,
-  ~onNavigate: (string, WebAPI.DOMAPI.element) => unit,
+  ~onNavigate: (string, WebAPI.DomTypes.element) => unit,
 ) => {
   annotations
   ->Array.mapWithIndex((annotation, index) => {

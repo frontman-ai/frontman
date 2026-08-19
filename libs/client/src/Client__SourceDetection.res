@@ -1,6 +1,6 @@
 let getElementSourceLocation = async (
-  ~element: WebAPI.DOMAPI.element,
-  ~window: WebAPI.DOMAPI.window,
+  ~element: WebAPI.DomTypes.element,
+  ~window: WebAPI.DomTypes.window,
 ): option<Client__SourceContext.t> => {
   let reactResult = await Client__DOMElementToComponentSource.getElementSourceContext(~element)
 

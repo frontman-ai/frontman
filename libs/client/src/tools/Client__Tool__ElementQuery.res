@@ -1,4 +1,4 @@
-let effectiveRole = (element: WebAPI.DOMAPI.element): string =>
+let effectiveRole = (element: WebAPI.DomTypes.element): string =>
   switch FrontmanBindings.Bindings__DomAccessibilityApi.getRole(element)->Null.toOption {
   | Some(role) if role !== "" => role
   | Some(_) | None => element.tagName->String.toLowerCase
@@ -39,7 +39,7 @@ let detectionMethodToString = method =>
   }
 
 type resolvedElement = {
-  element: WebAPI.DOMAPI.element,
+  element: WebAPI.DomTypes.element,
   role: string,
   name: string,
   tag: string,
@@ -47,7 +47,7 @@ type resolvedElement = {
   visibleText: option<string>,
 }
 
-let isEffectivelyHidden = (element: WebAPI.DOMAPI.element): bool => {
+let isEffectivelyHidden = (element: WebAPI.DomTypes.element): bool => {
   let rect = element->WebAPI.Element.getBoundingClientRect
   FrontmanBindings.Bindings__DomAccessibilityApi.isInaccessible(element) ||
   rect.width <= 0.0 ||
@@ -55,11 +55,11 @@ let isEffectivelyHidden = (element: WebAPI.DOMAPI.element): bool => {
 }
 
 @get
-external innerText: WebAPI.DOMAPI.element => Nullable.t<string> = "innerText"
+external innerText: WebAPI.DomTypes.element => Nullable.t<string> = "innerText"
 
-let getVisibleText = (element: WebAPI.DOMAPI.element): string => {
+let getVisibleText = (element: WebAPI.DomTypes.element): string => {
   let textContent =
-    (element :> WebAPI.DOMAPI.node)->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
+    (element :> WebAPI.DomTypes.node)->WebAPI.Node.textContent->Null.toOption->Option.getOr("")
   element->innerText->Nullable.toOption->Option.getOr(textContent)
 }
 
@@ -71,8 +71,8 @@ let truncateText = (text: string): option<string> =>
   }
 
 let detectInteractivity = (
-  ~contentWindow: WebAPI.DOMAPI.window,
-  ~element: WebAPI.DOMAPI.element,
+  ~contentWindow: WebAPI.DomTypes.window,
+  ~element: WebAPI.DomTypes.element,
   ~role: string,
 ): option<detectionMethod> =>
   switch true {
@@ -91,8 +91,8 @@ let detectInteractivity = (
   }
 
 let resolveInteractiveElement = (
-  ~contentWindow: WebAPI.DOMAPI.window,
-  element: WebAPI.DOMAPI.element,
+  ~contentWindow: WebAPI.DomTypes.window,
+  element: WebAPI.DomTypes.element,
 ): option<resolvedElement> =>
   switch isEffectivelyHidden(element) {
   | true => None
@@ -116,8 +116,8 @@ let resolveInteractiveElement = (
   }
 
 let queryInteractiveElements = (
-  ~document: WebAPI.DOMAPI.document,
-  ~contentWindow: WebAPI.DOMAPI.window,
+  ~document: WebAPI.DomTypes.document,
+  ~contentWindow: WebAPI.DomTypes.window,
   ~roleFilter: option<string>,
   ~nameFilter: option<string>,
   ~limit: option<int>,
@@ -150,12 +150,12 @@ let queryInteractiveElements = (
 }
 
 let resolveByRoleAndName = (
-  ~document: WebAPI.DOMAPI.document,
-  ~contentWindow: WebAPI.DOMAPI.window,
+  ~document: WebAPI.DomTypes.document,
+  ~contentWindow: WebAPI.DomTypes.window,
   ~role: string,
   ~name: string,
   ~index: int,
-): (option<WebAPI.DOMAPI.element>, int) => {
+): (option<WebAPI.DomTypes.element>, int) => {
   let matches = queryInteractiveElements(
     ~document,
     ~contentWindow,
@@ -166,7 +166,7 @@ let resolveByRoleAndName = (
   (matches->Array.get(index)->Option.map(match => match.element), matches->Array.length)
 }
 
-let childMatchesText = (element: WebAPI.DOMAPI.element, lowerText: string): bool => {
+let childMatchesText = (element: WebAPI.DomTypes.element, lowerText: string): bool => {
   element.children
   ->WebAPI.HTMLCollection.toArray
   ->Array.some(child =>
@@ -177,8 +177,8 @@ let childMatchesText = (element: WebAPI.DOMAPI.element, lowerText: string): bool
   )
 }
 
-let findMatchingElements = (~root: WebAPI.DOMAPI.element, ~query: string): array<
-  WebAPI.DOMAPI.element,
+let findMatchingElements = (~root: WebAPI.DomTypes.element, ~query: string): array<
+  WebAPI.DomTypes.element,
 > => {
   let lowerQuery = query->String.toLowerCase
   root

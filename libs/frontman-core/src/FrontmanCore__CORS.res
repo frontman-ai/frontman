@@ -4,7 +4,7 @@ let corsHeaders = Dict.fromArray([
   ("Access-Control-Allow-Headers", "Content-Type"),
 ])
 
-let withCors = (response: WebAPI.FetchAPI.response): WebAPI.FetchAPI.response => {
+let withCors = (response: WebAPI.Response.t): WebAPI.Response.t => {
   let headers = response.headers
   corsHeaders->Dict.forEachWithKey((value, key) => {
     headers->WebAPI.Headers.set(~name=key, ~value)
@@ -12,7 +12,7 @@ let withCors = (response: WebAPI.FetchAPI.response): WebAPI.FetchAPI.response =>
   response
 }
 
-let handlePreflight = (): WebAPI.FetchAPI.response => {
+let handlePreflight = (): WebAPI.Response.t => {
   let headers = WebAPI.HeadersInit.fromDict(corsHeaders)
   WebAPI.Response.fromNull(~init={status: 204, headers})
 }

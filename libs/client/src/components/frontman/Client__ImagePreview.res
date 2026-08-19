@@ -49,7 +49,7 @@ let make = (~src: string, ~onClose: unit => unit) => {
         onCloseRef.current()
       }
     }
-    let doc = WebAPI.Global.document
+    let doc = WebAPI.Window.current->WebAPI.Window.document
     WebAPI.Document.addEventListener(doc, Custom("keydown"), handleKeyDown->Obj.magic)
     Some(
       () => WebAPI.Document.removeEventListener(doc, Custom("keydown"), handleKeyDown->Obj.magic),
@@ -214,5 +214,7 @@ let make = (~src: string, ~onClose: unit => unit) => {
       onDoubleClick={handleDoubleClick}
       onClick={e => ReactEvent.Mouse.stopPropagation(e)}
     />
-  </div>->ReactDOM.createPortal(WebAPI.Document.body(WebAPI.Global.document)->Obj.magic)
+  </div>->ReactDOM.createPortal(
+    WebAPI.Document.body(WebAPI.Window.current->WebAPI.Window.document)->Obj.magic,
+  )
 }

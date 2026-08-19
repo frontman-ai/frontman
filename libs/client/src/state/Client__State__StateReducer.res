@@ -153,8 +153,10 @@ let migrateOpenAIModelValue = value =>
 
 let loadSelectedModelValueFromStorage = (): option<string> => {
   try {
-    FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
-    ->Nullable.toOption
+    WebAPI.Window.current
+    ->WebAPI.Window.localStorage
+    ->WebAPI.Storage.getItem(selectedModelStorageKey)
+    ->Null.toOption
     ->Option.map(migrateOpenAIModelValue)
   } catch {
   | _ => None
@@ -163,7 +165,9 @@ let loadSelectedModelValueFromStorage = (): option<string> => {
 
 let saveSelectedModelValueToStorage = (value: string): unit => {
   try {
-    FrontmanBindings.LocalStorage.setItem(selectedModelStorageKey, value)
+    WebAPI.Window.current
+    ->WebAPI.Window.localStorage
+    ->WebAPI.Storage.setItem(~key=selectedModelStorageKey, ~value)
   } catch {
   | exn => Log.error(~error=JsExn.fromException(exn), "saveSelectedModelValueToStorage failed")
   }
@@ -517,7 +521,7 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
     let url = `${apiBaseUrl}/api/user/me`
 
     try {
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
         let userProfile =
@@ -550,7 +554,7 @@ let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
     let url = `${apiBaseUrl}/api/user/api-keys`
 
     try {
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
         let apiKeysResponse =
@@ -579,7 +583,7 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
     let url = `${apiBaseUrl}/api/user/api-keys`
 
     try {
-      let response = await WebAPI.Global.fetch(
+      let response = await WebAPI.Fetch.fetch(
         url,
         ~init={
           credentials: Include,
@@ -663,7 +667,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/status`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
           let {connected, expiresAt} =
@@ -681,7 +685,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/authorize-url`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
           let {authorizeUrl, verifier} =
@@ -710,7 +714,7 @@ let handleEffect = (effect, state: state, dispatch) => {
             ("verifier", JSON.Encode.string(verifier)),
           ]),
         )
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "POST",
@@ -747,7 +751,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/disconnect`
 
       try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "DELETE",
@@ -770,7 +774,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/openai/status`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
           let {connected, expiresAt} =
@@ -791,7 +795,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/openai/initiate`
 
       try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "POST",
@@ -840,7 +844,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         } else {
           try {
             let url = `${apiBaseUrl}/api/oauth/openai/poll`
-            let response = await WebAPI.Global.fetch(
+            let response = await WebAPI.Fetch.fetch(
               url,
               ~init={
                 method: "POST",
@@ -897,7 +901,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/openai/disconnect`
 
       try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "DELETE",
@@ -943,7 +947,7 @@ let handleEffect = (effect, state: state, dispatch) => {
     let fetch = async () => {
       try {
         let url = `${apiBaseUrl}/api/integrations/latest-versions`
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         switch response.ok {
         | false =>
           Sentry.captureConnectionError(

@@ -50,7 +50,7 @@ let extractResult = json => {
 let extractInput = json => {
   let {todos} = S.parseOrThrow(json, ~to=todoPayloadSchema)
   todos->Array.map((todo): todoItem => {
-    id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+    id: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
     content: todo.content,
     status: parseStatus(todo.status),
   })

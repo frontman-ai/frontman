@@ -351,7 +351,7 @@ module Provider = {
     let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
       dispatch(
         CreateSession({
-          sessionId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+          sessionId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
           onMcpMessage: logMCPMessage,

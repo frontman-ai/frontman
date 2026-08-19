@@ -22,7 +22,8 @@ let clamp = (~min, ~max, value) => {
 }
 
 let loadSavedWidth = (): int => {
-  switch FrontmanBindings.LocalStorage.getItem(storageKey)->Nullable.toOption {
+  let storage = WebAPI.Window.current->WebAPI.Window.localStorage
+  switch storage->WebAPI.Storage.getItem(storageKey)->Null.toOption {
   | Some(value) =>
     switch Int.fromString(value) {
     | Some(width) => clamp(~min=minWidth, ~max=maxWidth, width)
@@ -33,7 +34,9 @@ let loadSavedWidth = (): int => {
 }
 
 let saveWidth = (width: int): unit => {
-  FrontmanBindings.LocalStorage.setItem(storageKey, Int.toString(width))
+  WebAPI.Window.current
+  ->WebAPI.Window.localStorage
+  ->WebAPI.Storage.setItem(~key=storageKey, ~value=Int.toString(width))
 }
 
 type state = {
@@ -68,10 +71,9 @@ let use = () => {
         {...prev, isResizing: false}
       })
 
-      let body = WebAPI.Document.body(WebAPI.Global.document)->Null.toOption
+      let body = WebAPI.Document.body(WebAPI.Window.current->WebAPI.Window.document)->Null.toOption
       body->Option.forEach(body => {
-        let htmlBody: WebAPI.DOMAPI.htmlElement = Obj.magic(body)
-        let style = WebAPI.HTMLElement.style(htmlBody)
+        let style = WebAPI.HTMLElement.style(body)
         WebAPI.CSSStyleDeclaration.removeProperty(style, "cursor")->ignore
         WebAPI.CSSStyleDeclaration.removeProperty(style, "user-select")->ignore
       })
@@ -79,7 +81,7 @@ let use = () => {
   }, [])
 
   React.useEffect(() => {
-    let doc = WebAPI.Global.document
+    let doc = WebAPI.Window.current->WebAPI.Window.document
 
     WebAPI.Document.addEventListener(doc, Custom("mousemove"), handleMouseMove->Obj.magic)
     WebAPI.Document.addEventListener(doc, Custom("mouseup"), handleMouseUp->Obj.magic)
@@ -102,10 +104,9 @@ let use = () => {
 
     setState(prev => {...prev, isResizing: true})
 
-    let body = WebAPI.Document.body(WebAPI.Global.document)->Null.toOption
+    let body = WebAPI.Document.body(WebAPI.Window.current->WebAPI.Window.document)->Null.toOption
     body->Option.forEach(body => {
-      let htmlBody: WebAPI.DOMAPI.htmlElement = Obj.magic(body)
-      let style = WebAPI.HTMLElement.style(htmlBody)
+      let style = WebAPI.HTMLElement.style(body)
       WebAPI.CSSStyleDeclaration.setProperty(style, ~property="cursor", ~value="col-resize")
       WebAPI.CSSStyleDeclaration.setProperty(style, ~property="user-select", ~value="none")
     })

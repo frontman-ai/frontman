@@ -41,9 +41,6 @@ external location: t => DomTypes.location = "location"
 @get
 external history: t => HistoryTypes.history = "history"
 
-@get
-external navigation: t => Navigation.t = "navigation"
-
 /**
     Defines a new custom element, mapping the given name to the given constructor as an autonomous custom element.
     [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Window/customElements)

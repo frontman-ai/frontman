@@ -120,7 +120,7 @@ let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
   })
 }
 
-let checkAborted = (signal: option<WebAPI.EventAPI.abortSignal>): result<unit, string> => {
+let checkAborted = (signal: option<WebAPI.EventTypes.abortSignal>): result<unit, string> => {
   switch signal {
   | Some(s) if s.aborted => Error("Connection aborted")
   | _ => Ok()
@@ -138,7 +138,7 @@ type tokenError =
 
 let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
   try {
-    let response = await WebAPI.Global.fetch(tokenUrl, ~init={credentials: Include})
+    let response = await WebAPI.Fetch.fetch(tokenUrl, ~init={credentials: Include})
     if response.ok {
       let json = await response->WebAPI.Response.json
       switch json
@@ -164,7 +164,7 @@ let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
 }
 
 @@live
-let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
+let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSignal>=?): result<
   connection,
   connectError,
 > => {

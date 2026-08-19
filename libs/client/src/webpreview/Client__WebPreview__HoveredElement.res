@@ -1,14 +1,11 @@
 @react.component
-let make = (~element: option<Null.t<WebAPI.EventAPI.eventTarget>>, ~scrollTimestamp: float) => {
+let make = (~element: option<WebAPI.DomTypes.element>, ~scrollTimestamp: float) => {
   let (info, setInfo) = React.useState(() => None)
-  let hasElement = element->Option.flatMap(Null.toOption)->Option.isSome
+  let hasElement = element->Option.isSome
 
   React.useEffect(() => {
-    switch element->Option.flatMap(Null.toOption) {
-    | Some(target) => {
-        let element = WebAPI.EventTarget.asElement(target)
-        setInfo(_ => Some(Client__WebPreview__Utils.getElementInfo(element)))
-      }
+    switch element {
+    | Some(element) => setInfo(_ => Some(Client__WebPreview__Utils.getElementInfo(element)))
     | None => ()
     }
     None

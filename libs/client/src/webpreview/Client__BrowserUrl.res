@@ -61,14 +61,14 @@ let stripSuffix = pathname => {
 }
 
 let getInitialUrl = () => {
-  let currentUrl =
-    WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.href->WebAPI.URL.make(~url=_)
+  let location = WebAPI.Window.current->WebAPI.Window.location
+  let currentUrl = WebAPI.URL.make(~url=location.href)
   let (routePrefix, sitePath) = _getRoutePaths()
-  let previewPath =
-    WebAPI.Global.location.pathname->stripSuffix->String.replace(routePrefix, sitePath)
+  let previewPath = location.pathname->stripSuffix->String.replace(routePrefix, sitePath)
   let default = `${currentUrl.protocol}//${currentUrl.host}${previewPath}`
 
-  WebAPI.Global.document
+  WebAPI.Window.current
+  ->WebAPI.Window.document
   ->WebAPI.Document.querySelector("#frontman-entrypoint-url")
   ->Null.flatMap(element => {
     element->WebAPI.Element.asNode->WebAPI.Node.textContent
@@ -118,13 +118,12 @@ let syncBrowserUrl = (~previewUrl) => {
   | "" | "/" => `/${_getBasePath()}/`
   | path => `${path}/${_getBasePath()}/`
   }
-  switch WebAPI.Global.location.pathname == newPath {
+  let location = WebAPI.Window.current->WebAPI.Window.location
+  switch location.pathname == newPath {
   | true => ()
   | false =>
-    WebAPI.Global.history->WebAPI.History.replaceState(
-      ~data=JSON.Encode.null,
-      ~unused="",
-      ~url=newPath,
-    )
+    WebAPI.Window.current
+    ->WebAPI.Window.history
+    ->WebAPI.History.replaceState(~data=JSON.Encode.null, ~unused="", ~url=newPath)
   }
 }

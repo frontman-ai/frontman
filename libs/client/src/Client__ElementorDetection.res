@@ -17,7 +17,7 @@ let schema: S.t<t> = S.object(s => {
   editHint: s.field("edit_hint", S.string),
 })
 
-let _attr = (element: WebAPI.DOMAPI.element, name: string): option<string> =>
+let _attr = (element: WebAPI.DomTypes.element, name: string): option<string> =>
   element
   ->WebAPI.Element.getAttribute(name)
   ->Null.toOption
@@ -51,10 +51,10 @@ let _parseClassPostId = (className: string): option<int> =>
   })
   ->Array.get(0)
 
-let _postIdFromRoot = (element: WebAPI.DOMAPI.element): option<int> =>
+let _postIdFromRoot = (element: WebAPI.DomTypes.element): option<int> =>
   _attr(element, "data-elementor-id")->Option.flatMap(id => Int.fromString(id, ~radix=10))
 
-let _postIdFromDocument = (document: WebAPI.DOMAPI.document): option<int> => {
+let _postIdFromDocument = (document: WebAPI.DomTypes.document): option<int> => {
   let rootPostId =
     document
     ->WebAPI.Document.querySelector("[data-elementor-id]")
@@ -72,11 +72,12 @@ let _postIdFromDocument = (document: WebAPI.DOMAPI.document): option<int> => {
   }
 }
 
-let _closestElementorRoot = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.element> =>
+let _closestElementorRoot = (element: WebAPI.DomTypes.element): option<WebAPI.DomTypes.element> =>
   element->WebAPI.Element.closest("[data-elementor-id]")->Null.toOption
 
-let _closestElementorElement = (element: WebAPI.DOMAPI.element): option<WebAPI.DOMAPI.element> =>
-  element->WebAPI.Element.closest(".elementor-element[data-id]")->Null.toOption
+let _closestElementorElement = (element: WebAPI.DomTypes.element): option<
+  WebAPI.DomTypes.element,
+> => element->WebAPI.Element.closest(".elementor-element[data-id]")->Null.toOption
 
 let _makeHint = (~postId: option<int>, ~elementId: string): string => {
   let target = switch postId {
@@ -87,8 +88,8 @@ let _makeHint = (~postId: option<int>, ~elementId: string): string => {
 }
 
 let getElementorContext = (
-  ~element: WebAPI.DOMAPI.element,
-  ~document: WebAPI.DOMAPI.document,
+  ~element: WebAPI.DomTypes.element,
+  ~document: WebAPI.DomTypes.document,
 ): option<t> =>
   switch _closestElementorElement(element) {
   | None => None

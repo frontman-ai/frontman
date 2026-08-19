@@ -131,7 +131,7 @@ let make = (
           ~label="Open in new window",
           ~onClick=_ =>
             WebAPI.Window.open_(
-              WebAPI.Global.window,
+              WebAPI.Window.current,
               ~url=previewUrl,
               ~target="_blank",
               ~features="noopener,noreferrer",
@@ -157,7 +157,7 @@ let make = (
           ~label="Help",
           ~onClick=_ =>
             WebAPI.Window.open_(
-              WebAPI.Global.window,
+              WebAPI.Window.current,
               ~url="https://frontman.sh/docs",
               ~target="_blank",
               ~features="noopener,noreferrer",

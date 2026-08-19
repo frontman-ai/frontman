@@ -59,10 +59,10 @@ type output = {
 let emptyResult = (~message): Tool.MCP.CallToolResult.t =>
   Tool.structuredResult({audits: [], message: Some(message)}, outputSchema)
 
-let resolveRuleField = (field: 'a, element: WebAPI.DOMAPI.element): string => {
+let resolveRuleField = (field: 'a, element: WebAPI.DomTypes.element): string => {
   switch typeof(field) {
   | #function =>
-    let fn: WebAPI.DOMAPI.element => string = Obj.magic(field)
+    let fn: WebAPI.DomTypes.element => string = Obj.magic(field)
     fn(element)
   | _ => Obj.magic(field)
   }
@@ -76,11 +76,11 @@ type auditRule = {
 }
 
 type rawAudit = {
-  auditedElement: WebAPI.DOMAPI.element,
+  auditedElement: WebAPI.DomTypes.element,
   rule: auditRule,
 }
 
-@get external getAudits: WebAPI.DOMAPI.element => Nullable.t<array<rawAudit>> = "audits"
+@get external getAudits: WebAPI.DomTypes.element => Nullable.t<array<rawAudit>> = "audits"
 
 let categoryFromCode = (code: string): string =>
   switch code->String.startsWith("perf-") {
@@ -88,7 +88,7 @@ let categoryFromCode = (code: string): string =>
   | false => "a11y"
   }
 
-let elementSelector = (el: WebAPI.DOMAPI.element): string => {
+let elementSelector = (el: WebAPI.DomTypes.element): string => {
   let tag = el.tagName->String.toLowerCase
   let cls = el->WebAPI.Element.getAttribute("class")->Null.toOption->Option.getOr("")->String.trim
   switch cls {
@@ -97,9 +97,9 @@ let elementSelector = (el: WebAPI.DOMAPI.element): string => {
   }
 }
 
-let elementTextSnippet = (el: WebAPI.DOMAPI.element): string => {
+let elementTextSnippet = (el: WebAPI.DomTypes.element): string => {
   let text =
-    (el :> WebAPI.DOMAPI.node)
+    (el :> WebAPI.DomTypes.node)
     ->WebAPI.Node.textContent
     ->Null.toOption
     ->Option.getOr("")
@@ -126,7 +126,7 @@ let convertAudit = (raw: rawAudit): auditEntry => {
   }
 }
 
-let extractAudits = (doc: WebAPI.DOMAPI.document): Tool.MCP.CallToolResult.t => {
+let extractAudits = (doc: WebAPI.DomTypes.document): Tool.MCP.CallToolResult.t => {
   let toolbar = doc->WebAPI.Document.querySelector("astro-dev-toolbar")->Null.toOption
   switch toolbar {
   | None => emptyResult(~message="Astro dev toolbar not found. Is this an Astro dev page?")
