@@ -81,7 +81,6 @@ module File = {
                 disableWordDiff=false
                 hideSummary=true
                 styles=Client__DiffViewer.styles
-                infiniteLoading={{pageSize: 30, containerHeight: "70vh", overscan: 20}}
               />
             }}
           </div>

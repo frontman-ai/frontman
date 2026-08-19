@@ -1,11 +1,5 @@
 @@live
 
-type infiniteLoading = {
-  pageSize: int,
-  containerHeight: string,
-  overscan: int,
-}
-
 type darkVariables = {
   diffViewerBackground: string,
   diffViewerColor: string,
@@ -81,5 +75,4 @@ external make: (
   ~disableWordDiff: bool=?,
   ~hideSummary: bool=?,
   ~styles: styles=?,
-  ~infiniteLoading: infiniteLoading=?,
 ) => React.element = "default"
