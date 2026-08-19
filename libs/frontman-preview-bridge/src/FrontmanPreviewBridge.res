@@ -1,11 +1,11 @@
-type config<'parentWindow> = {
-  parentWindow: 'parentWindow,
+type config = {
+  parentWindow: WebAPI.DomTypes.window,
   parentOrigin: string,
   channel: string,
 }
 
 type t = {
-  parentWindow: Obj.t,
+  parentWindow: WebAPI.DomTypes.window,
   parentOrigin: string,
   channel: string,
   runtime: Runtime.t<unit>,
@@ -51,93 +51,86 @@ let existing = (): option<t> => {
   }
 }
 
-let sameConfig:
-  type parentWindow. (t, config<parentWindow>) => bool =
-  (installation, config) =>
-    installation.parentWindow === Obj.magic(config.parentWindow) &&
-    installation.parentOrigin === config.parentOrigin &&
-    installation.channel === config.channel
+let sameConfig: (t, config) => bool = (installation, config) =>
+  installation.parentWindow === config.parentWindow &&
+  installation.parentOrigin === config.parentOrigin &&
+  installation.channel === config.channel
 
-let create:
-  type parentWindow. config<parentWindow> => t =
-  config => {
-    let window = currentWindow()
-    let parentWindow = Obj.magic(config.parentWindow)
-    let transport = WindowTransport.Child.make({
-      parentWindow: config.parentWindow,
-      parentOrigin: config.parentOrigin,
-      channel: config.channel,
-      maxChunkBytes: 1_000_000,
-    })
-    let runtime = Runtime.make(transport, ~limits, ~handler)
-    let disposed = ref(false)
-    let removePageHide = ref(() => ())
-    let disposeInternal = () => {
-      switch disposed.contents {
-      | true => ()
-      | false => {
-          disposed := true
-          Runtime.close(runtime)
-          removePageHide.contents()
-        }
-      }
-    }
-    let onPageHide = event => {
-      switch FrontmanBindings.PageTransitionEvent.persisted(event) {
-      | true => ()
-      | false => disposeInternal()
-      }
-    }
-
-    try {
-      WebAPI.Window.addEventListener(window, pageHideEvent, onPageHide)
-      removePageHide := (() => WebAPI.Window.removeEventListener(window, pageHideEvent, onPageHide))
-    } catch {
-    | error => {
+let create: config => t = config => {
+  let window = currentWindow()
+  let transport = WindowTransport.Child.make({
+    parentWindow: config.parentWindow,
+    parentOrigin: config.parentOrigin,
+    channel: config.channel,
+    maxChunkBytes: 1_000_000,
+  })
+  let runtime = Runtime.make(transport, ~limits, ~handler)
+  let disposed = ref(false)
+  let removePageHide = ref(() => ())
+  let disposeInternal = () => {
+    switch disposed.contents {
+    | true => ()
+    | false => {
+        disposed := true
         Runtime.close(runtime)
-        JsError.throw(Obj.magic(error))
+        removePageHide.contents()
       }
     }
-
-    {
-      parentWindow,
-      parentOrigin: config.parentOrigin,
-      channel: config.channel,
-      runtime,
-      disposeInternal,
+  }
+  let onPageHide = event => {
+    switch FrontmanBindings.PageTransitionEvent.persisted(event) {
+    | true => ()
+    | false => disposeInternal()
     }
   }
 
-let install:
-  type parentWindow. config<parentWindow> => t =
-  config => {
-    switch existing() {
-    | Some(installation) if sameConfig(installation, config) => installation
-    | Some(_) =>
-      JsError.throwWithMessage(
-        "Frontman preview bridge is already installed with different configuration",
-      )
-    | None => {
-        let installation = create(config)
-        try {
-          Object.setSymbol(
-            Obj.magic(currentWindow()),
-            installationKey,
-            Obj.magic({
-              marker: installationMarker,
-              installation,
-            }),
-          )
-          installation
-        } catch {
-        | error => {
-            installation.disposeInternal()
-            JsError.throw(Obj.magic(error))
-          }
+  try {
+    WebAPI.Window.addEventListener(window, pageHideEvent, onPageHide)
+    removePageHide := (() => WebAPI.Window.removeEventListener(window, pageHideEvent, onPageHide))
+  } catch {
+  | error => {
+      Runtime.close(runtime)
+      JsError.throw(Obj.magic(error))
+    }
+  }
+
+  {
+    parentWindow: config.parentWindow,
+    parentOrigin: config.parentOrigin,
+    channel: config.channel,
+    runtime,
+    disposeInternal,
+  }
+}
+
+let install: config => t = config => {
+  switch existing() {
+  | Some(installation) if sameConfig(installation, config) => installation
+  | Some(_) =>
+    JsError.throwWithMessage(
+      "Frontman preview bridge is already installed with different configuration",
+    )
+  | None => {
+      let installation = create(config)
+      try {
+        Object.setSymbol(
+          Obj.magic(currentWindow()),
+          installationKey,
+          Obj.magic({
+            marker: installationMarker,
+            installation,
+          }),
+        )
+        installation
+      } catch {
+      | error => {
+          installation.disposeInternal()
+          JsError.throw(Obj.magic(error))
         }
       }
     }
   }
+}
 
 let status = installation => Runtime.status(installation.runtime)
 let dispose = installation => installation.disposeInternal()

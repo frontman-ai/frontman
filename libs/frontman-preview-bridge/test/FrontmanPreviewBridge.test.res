@@ -7,13 +7,13 @@ let makeWindow = () => {
   let properties: Dict.t<Obj.t> = Obj.magic(window)
   properties->Dict.set("parent", Obj.magic(window))
   globalThis->Dict.set("window", Obj.magic(window))
-  window
+  (Obj.magic(window): WebAPI.DomTypes.window)
 }
 
 describe("preview bridge installation", _t => {
   test("creates one connecting runtime for matching configuration", t => {
     let parentWindow = makeWindow()
-    let config: FrontmanPreviewBridge.config<WebAPI.EventTypes.eventTarget> = {
+    let config: FrontmanPreviewBridge.config = {
       parentWindow,
       parentOrigin: "https://parent.example.com",
       channel: "preview-task-id",
@@ -50,7 +50,7 @@ describe("preview bridge installation", _t => {
     ->expect(
       () =>
         FrontmanPreviewBridge.install({
-          parentWindow: WebAPI.EventTarget.make(),
+          parentWindow: Obj.magic(WebAPI.EventTarget.make()),
           parentOrigin: "https://other-parent.example.com",
           channel: "preview-task-id",
         })->ignore,
@@ -82,7 +82,7 @@ describe("preview bridge installation", _t => {
 
   test("disposal is terminal and idempotent", t => {
     let parentWindow = makeWindow()
-    let config: FrontmanPreviewBridge.config<WebAPI.EventTypes.eventTarget> = {
+    let config: FrontmanPreviewBridge.config = {
       parentWindow,
       parentOrigin: "https://parent.example.com",
       channel: "preview-task-id",
