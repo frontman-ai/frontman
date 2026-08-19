@@ -698,15 +698,11 @@ let handleEffect = (effect, state: state, dispatch) => {
         let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let connected =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool))
-            ->Option.getOr(false)
-          let expiresAt =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
+          let {connected, expiresAt} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthStatusResponseSchema,
+            )
           dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
@@ -723,21 +719,12 @@ let handleEffect = (effect, state: state, dispatch) => {
         let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let authorizeUrl =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj =>
-              obj->Dict.get("authorize_url")->Option.flatMap(JSON.Decode.string)
+          let {authorizeUrl, verifier} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthAuthorizeUrlResponseSchema,
             )
-          let verifier =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("verifier")->Option.flatMap(JSON.Decode.string))
-          switch (authorizeUrl, verifier) {
-          | (Some(authorizeUrl), Some(verifier)) =>
-            dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
-          | _ => dispatch(AnthropicOAuthError({error: "Invalid response from server"}))
-          }
+          dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
         } else {
           dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
         }
@@ -769,21 +756,19 @@ let handleEffect = (effect, state: state, dispatch) => {
         )
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let expiresAt =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
-          switch expiresAt {
-          | Some(expiresAt) => dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
-          | None => dispatch(AnthropicOAuthError({error: "Invalid response from server"}))
-          }
+          let {expiresAt} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthExchangeResponseSchema,
+            )
+          dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
         } else {
           let json = await response->WebAPI.Response.json
-          let error =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("error")->Option.flatMap(JSON.Decode.string))
-            ->Option.getOr("Failed to exchange code")
+          let {error} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthErrorResponseSchema,
+            )
           dispatch(AnthropicOAuthError({error: error}))
         }
       } catch {

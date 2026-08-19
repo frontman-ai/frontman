@@ -63,6 +63,31 @@ type apiKeySettings = {
   saveStatus: apiKeySaveStatus,
 }
 
+@schema
+type anthropicOAuthStatusResponse = {
+  connected: bool,
+  @as("expires_at")
+  expiresAt: option<string>,
+}
+
+@schema
+type anthropicOAuthAuthorizeUrlResponse = {
+  @as("authorize_url")
+  authorizeUrl: string,
+  verifier: string,
+}
+
+@schema
+type anthropicOAuthExchangeResponse = {
+  @as("expires_at")
+  expiresAt: string,
+}
+
+@schema
+type anthropicOAuthErrorResponse = {
+  error: string,
+}
+
 module ACPConfig = {
   type sessionConfigOption = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption
   type sessionConfigValueId = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId
