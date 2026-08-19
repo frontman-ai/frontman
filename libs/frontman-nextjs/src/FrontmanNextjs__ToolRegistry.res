@@ -13,6 +13,7 @@ let make = (): t => {
   CoreRegistry.coreTools()
   ->CoreRegistry.addTools(nextjsTools)
   ->CoreRegistry.replaceByName(module(FrontmanNextjs__Tool__EditFile))
+  ->CoreRegistry.replaceByName(module(FrontmanNextjs__Tool__WriteFile))
 }
 
 let getToolByName = CoreRegistry.getToolByName

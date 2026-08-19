@@ -4,6 +4,8 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 module FileTracker = FrontmanCore__FileTracker
 module ExnUtils = FrontmanCore__ExnUtils
+module FileChange = FrontmanCore__FileChange
+module ProtocolFileChange = FrontmanAiFrontmanProtocol.FrontmanProtocol__FileChange
 
 let name = Tool.ToolNames.writeFile
 let access = Tool.Write
@@ -59,57 +61,61 @@ let writeContent = (resolvedPath: string, content: string, encoding: option<[#ba
   }
 }
 
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
+type execution = {output: output, fileChange: ProtocolFileChange.envelope}
+
+let executeWithFileChange = async (
+  ctx: Tool.serverExecutionContext,
+  input: input,
+): result<execution, string> => {
   switch (input.content, input.image_ref) {
-  | (None, None) =>
-    Tool.MCP.CallToolResult.makeError("Either content or image_ref must be provided")
-  | (Some(_), Some(_)) =>
-    Tool.MCP.CallToolResult.makeError("Provide either content or image_ref, not both")
-  | (None, Some(_)) =>
-    Tool.MCP.CallToolResult.makeError("image_ref must be resolved to content before execution")
+  | (None, None) => Error("Either content or image_ref must be provided")
+  | (Some(_), Some(_)) => Error("Provide either content or image_ref, not both")
+  | (None, Some(_)) => Error("image_ref must be resolved to content before execution")
   | (Some(content), None) =>
     switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
-    | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
+    | Error(err) => Error(PathContext.formatError(err))
     | Ok(resolved) =>
-      let fileExists = try {
-        let _ = await Fs.Promises.stat(resolved.resolvedPath)
-        true
-      } catch {
-      | _ => false
-      }
-      let guardResult = switch fileExists {
-      | false => Ok()
-      | true => await FileTracker.assertEditSafe(resolved.resolvedPath)
+      let previousContent = try { Some(await Fs.Promises.readFile(resolved.resolvedPath)) } catch { | _ => None }
+      let guardResult = switch previousContent {
+      | None => Ok()
+      | Some(_) => await FileTracker.assertEditSafe(resolved.resolvedPath)
       }
       switch guardResult {
-      | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
+      | Error(msg) => Error(msg)
       | Ok() =>
         try {
           let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
           await writeContent(resolved.resolvedPath, content, input.encoding)
           let stats = await Fs.Promises.stat(resolved.resolvedPath)
-          FileTracker.recordWrite(
-            resolved.resolvedPath,
-            ~mtimeMs=Fs.mtimeMs(stats),
-            ~size=Fs.size(stats),
-          )
-          Tool.structuredResult(
-            {
+          FileTracker.recordWrite(resolved.resolvedPath, ~mtimeMs=Fs.mtimeMs(stats), ~size=Fs.size(stats))
+          let binary = switch input.encoding { | Some(#base64) => true | None => FileChange.isBinary(content) }
+          Ok({
+            output: {
               _context: {
                 sourceRoot: resolved.sourceRoot,
                 resolvedPath: resolved.resolvedPath,
                 relativePath: resolved.relativePath,
               },
             },
-            outputSchema,
-          )
+            fileChange: FileChange.make(
+              ~path=resolved.relativePath,
+              ~status=switch previousContent { | None => ProtocolFileChange.Added | Some(_) => ProtocolFileChange.Modified },
+              ~oldText=previousContent,
+              ~currentText=Some(content),
+              ~binary,
+            ),
+          })
         } catch {
-        | exn =>
-          Tool.MCP.CallToolResult.makeError(
-            `Failed to write file ${input.path}: ${ExnUtils.message(exn)}`,
-          )
+        | exn => Error(`Failed to write file ${input.path}: ${ExnUtils.message(exn)}`)
         }
       }
     }
+  }
+}
+
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
+  switch await executeWithFileChange(ctx, input) {
+  | Ok(execution) => Tool.structuredResult(execution.output, outputSchema)
+  | Error(message) => Tool.MCP.CallToolResult.makeError(message)
   }
 }

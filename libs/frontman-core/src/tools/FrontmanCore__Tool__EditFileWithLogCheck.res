@@ -13,37 +13,48 @@ let sleep = (ms: int): promise<unit> => {
   })
 }
 
-let execute = async (
+let executeWithFileChange = async (
   ctx: Tool.serverExecutionContext,
   input: CoreEditFile.input,
   ~getErrorLogsSince: float => array<logEntry>,
-): Tool.MCP.CallToolResult.t => {
+): result<CoreEditFile.execution, string> => {
   let beforeTimestamp = Date.now()
-  let result = await CoreEditFile.executeOutput(ctx, input)
+  let result = await CoreEditFile.executeOutputWithFileChange(ctx, input)
 
   switch result {
-  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
-  | Ok(output) =>
+  | Error(msg) => Error(msg)
+  | Ok(execution) =>
     await sleep(800)
 
     let allErrors = getErrorLogsSince(beforeTimestamp)
     switch allErrors->Array.length > 0 {
-    | false => Tool.structuredResult(output, CoreEditFile.outputSchema)
+    | false => Ok(execution)
     | true =>
       let errorMessages =
         allErrors
         ->Array.slice(~start=0, ~end=5)
         ->Array.map(entry => entry.message)
         ->Array.join("\n")
-      Tool.structuredResult(
-        {
-          ...output,
-          message: output.message ++
+      Ok({
+        ...execution,
+        output: {
+          ...execution.output,
+          message: execution.output.message ++
           `\n\nWarning: Dev server errors detected after edit:\n${errorMessages}`,
         },
-        CoreEditFile.outputSchema,
-      )
+      })
     }
+  }
+}
+
+let execute = async (
+  ctx: Tool.serverExecutionContext,
+  input: CoreEditFile.input,
+  ~getErrorLogsSince: float => array<logEntry>,
+): Tool.MCP.CallToolResult.t => {
+  switch await executeWithFileChange(ctx, input, ~getErrorLogsSince) {
+  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
+  | Ok(execution) => Tool.structuredResult(execution.output, CoreEditFile.outputSchema)
   }
 }
 

@@ -15,6 +15,17 @@ describe("ToolRegistry", _t => {
     ->Expect.toBe(false)
   })
 
+  test("replaces both filesystem mutation tools", t => {
+    let registry = ToolRegistry.make()
+    let edit = registry->ToolRegistry.getToolByName("edit_file")->Option.getOrThrow
+    let write = registry->ToolRegistry.getToolByName("write_file")->Option.getOrThrow
+    module Edit = unpack(edit)
+    module Write = unpack(write)
+
+    t->expect(Edit.description)->Expect.toBe(FrontmanNextjs__Tool__EditFile.description)
+    t->expect(Write.description)->Expect.toBe(FrontmanNextjs__Tool__WriteFile.description)
+  })
+
   test("serializes tools with correct structure", t => {
     let registry = ToolRegistry.make()
     let definitions = registry->ToolRegistry.getToolDefinitions

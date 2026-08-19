@@ -4,6 +4,8 @@ module PathContext = FrontmanCore__PathContext
 module FileTracker = FrontmanCore__FileTracker
 module ExnUtils = FrontmanCore__ExnUtils
 module Matcher = FrontmanCore__Tool__EditFile__Matcher
+module FileChange = FrontmanCore__FileChange
+module ProtocolFileChange = FrontmanAiFrontmanProtocol.FrontmanProtocol__FileChange
 
 let name = "edit_file"
 let access = Tool.ReadWrite
@@ -58,17 +60,28 @@ let toPathCtx = (r: PathContext.resolveResult): pathContext => {
   relativePath: r.relativePath,
 }
 
+type execution = {output: output, fileChange: ProtocolFileChange.envelope}
+
 let createFile = async (
   ~resolved: PathContext.resolveResult,
   ~content: string,
   ~displayPath: string,
-): result<output, string> => {
+): result<execution, string> => {
   try {
     let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
     await Fs.Promises.writeFile(resolved.resolvedPath, content)
     let stats = await Fs.Promises.stat(resolved.resolvedPath)
     FileTracker.recordWrite(resolved.resolvedPath, ~mtimeMs=Fs.mtimeMs(stats), ~size=Fs.size(stats))
-    Ok({message: "File created successfully.", _context: toPathCtx(resolved)})
+    Ok({
+      output: {message: "File created successfully.", _context: toPathCtx(resolved)},
+      fileChange: FileChange.make(
+        ~path=resolved.relativePath,
+        ~status=ProtocolFileChange.Added,
+        ~oldText=None,
+        ~currentText=Some(content),
+        ~binary=FileChange.isBinary(content),
+      ),
+    })
   } catch {
   | exn => Error(`Failed to create file ${displayPath}: ${ExnUtils.message(exn)}`)
   }
@@ -80,7 +93,7 @@ let findAndReplace = async (
   ~newText: string,
   ~replaceAll: bool,
   ~displayPath: string,
-): result<output, string> => {
+): result<execution, string> => {
   try {
     let content = await Fs.Promises.readFile(resolved.resolvedPath)
     let coverageWarning = FileTracker.checkCoverage(resolved.resolvedPath, ~content, ~oldText)
@@ -98,7 +111,16 @@ let findAndReplace = async (
       | Some(warning) => `Edit applied successfully.\n\n${warning}`
       | None => "Edit applied successfully."
       }
-      Ok({message, _context: toPathCtx(resolved)})
+      Ok({
+        output: {message, _context: toPathCtx(resolved)},
+        fileChange: FileChange.make(
+          ~path=resolved.relativePath,
+          ~status=ProtocolFileChange.Modified,
+          ~oldText=Some(content),
+          ~currentText=Some(newContent),
+          ~binary=FileChange.isBinary(content) || FileChange.isBinary(newContent),
+        ),
+      })
     | NotFound =>
       Error(
         `oldText not found in file ${displayPath}. Make sure the text matches exactly, or read the file again to see its current content.`,
@@ -113,8 +135,8 @@ let findAndReplace = async (
   }
 }
 
-let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<
-  output,
+let executeOutputWithFileChange = async (ctx: Tool.serverExecutionContext, input: input): result<
+  execution,
   string,
 > => {
   switch input.oldText == input.newText {
@@ -140,6 +162,11 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
       }
     }
   }
+}
+
+let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<output, string> => {
+  let result = await executeOutputWithFileChange(ctx, input)
+  result->Result.map(execution => execution.output)
 }
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
