@@ -112,31 +112,27 @@ let make = (~className: option<string>=?, ~children: React.element) => {
       let el = container->FrontmanBindings.Bindings__WebAPI.elementFromReact
       let prevClientHeight = ref(el.clientHeight)
 
-      let contentObserver = WebAPI.ResizeObserver.make(_entries =>
-        _observer => {
-          let nearBottom =
-            el.scrollTop +. el.clientHeight->Int.toFloat >= el.scrollHeight->Int.toFloat -. 150.0
-          if nearBottom {
+      let contentObserver = WebAPI.ResizeObserver.make((_entries, _observer) => {
+        let nearBottom =
+          el.scrollTop +. el.clientHeight->Int.toFloat >= el.scrollHeight->Int.toFloat -. 150.0
+        if nearBottom {
+          el.scrollTop = el.scrollHeight->Int.toFloat
+        }
+      })
+      contentObserver->WebAPI.ResizeObserver.observe(~target=content)
+
+      let containerObserver = WebAPI.ResizeObserver.make((_entries, _observer) => {
+        let newClientHeight = el.clientHeight
+        if newClientHeight < prevClientHeight.contents {
+          let wasAtBottom =
+            el.scrollTop +. prevClientHeight.contents->Int.toFloat >=
+              el.scrollHeight->Int.toFloat -. 150.0
+          if wasAtBottom {
             el.scrollTop = el.scrollHeight->Int.toFloat
           }
         }
-      )
-      contentObserver->WebAPI.ResizeObserver.observe(~target=content)
-
-      let containerObserver = WebAPI.ResizeObserver.make(_entries =>
-        _observer => {
-          let newClientHeight = el.clientHeight
-          if newClientHeight < prevClientHeight.contents {
-            let wasAtBottom =
-              el.scrollTop +. prevClientHeight.contents->Int.toFloat >=
-                el.scrollHeight->Int.toFloat -. 150.0
-            if wasAtBottom {
-              el.scrollTop = el.scrollHeight->Int.toFloat
-            }
-          }
-          prevClientHeight := newClientHeight
-        }
-      )
+        prevClientHeight := newClientHeight
+      })
       containerObserver->WebAPI.ResizeObserver.observe(~target=el)
 
       Some(

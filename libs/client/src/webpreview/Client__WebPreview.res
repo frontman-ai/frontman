@@ -14,18 +14,16 @@ let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => 
       let rect = webElement->WebAPI.Element.getBoundingClientRect
       setSize(_ => (rect.width->Float.toInt, rect.height->Float.toInt))
 
-      let observer = WebAPI.ResizeObserver.make(entries =>
-        _observer => {
-          entries
-          ->Array.get(0)
-          ->Option.forEach(
-            entry => {
-              let cr = entry.contentRect
-              setSize(_ => (cr.width->Float.toInt, cr.height->Float.toInt))
-            },
-          )
-        }
-      )
+      let observer = WebAPI.ResizeObserver.make((entries, _observer) => {
+        entries
+        ->Array.get(0)
+        ->Option.forEach(
+          entry => {
+            let cr = entry.contentRect
+            setSize(_ => (cr.width->Float.toInt, cr.height->Float.toInt))
+          },
+        )
+      })
       observer->WebAPI.ResizeObserver.observe(~target=webElement)
       Some(() => observer->WebAPI.ResizeObserver.disconnect)
     }
