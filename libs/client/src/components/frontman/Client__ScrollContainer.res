@@ -75,15 +75,24 @@ let make = (~className: option<string>=?, ~children: React.element) => {
   React.useEffect0(() => {
     switch (sentinelRef.current->Nullable.toOption, containerRef.current->Nullable.toOption) {
     | (Some(sentinel), Some(container)) =>
-      let observer = FrontmanBindings.Bindings__IntersectionObserver.make(entries => {
-        entries->Array.forEach(
-          entry => {
-            setIsAtBottom(_ => entry.isIntersecting)
-          },
-        )
-      }, {root: container, rootMargin: "10px", threshold: [0.0]})
-      observer->FrontmanBindings.Bindings__IntersectionObserver.observe(sentinel)
-      Some(() => FrontmanBindings.Bindings__IntersectionObserver.disconnect(observer))
+      let sentinel = sentinel->FrontmanBindings.Bindings__WebAPI.elementFromReact
+      let container = container->FrontmanBindings.Bindings__WebAPI.elementFromReact
+      let observer = WebAPI.IntersectionObserver.make(
+        ~callback=(entries, _observer) => {
+          entries->Array.forEach(
+            entry => {
+              setIsAtBottom(_ => entry.isIntersecting)
+            },
+          )
+        },
+        ~options={
+          root: container->WebAPI.IntersectionObserver.IntersectionObserverRoot.fromElement,
+          rootMargin: "10px",
+          threshold: [0.0],
+        },
+      )
+      observer->WebAPI.IntersectionObserver.observe(sentinel)
+      Some(() => observer->WebAPI.IntersectionObserver.disconnect)
     | _ => None
     }
   })
@@ -99,36 +108,41 @@ let make = (~className: option<string>=?, ~children: React.element) => {
   React.useEffect0(() => {
     switch (contentRef.current->Nullable.toOption, containerRef.current->Nullable.toOption) {
     | (Some(content), Some(container)) =>
-      let el: WebAPI.DOMAPI.element = container->Obj.magic
+      let content = content->FrontmanBindings.Bindings__WebAPI.elementFromReact
+      let el = container->FrontmanBindings.Bindings__WebAPI.elementFromReact
       let prevClientHeight = ref(el.clientHeight)
 
-      let contentObserver = FrontmanBindings.ResizeObserver.make(_ => {
-        let nearBottom =
-          el.scrollTop +. el.clientHeight->Int.toFloat >= el.scrollHeight->Int.toFloat -. 150.0
-        if nearBottom {
-          el.scrollTop = el.scrollHeight->Int.toFloat
-        }
-      })
-      contentObserver->FrontmanBindings.ResizeObserver.observe(content)
-
-      let containerObserver = FrontmanBindings.ResizeObserver.make(_ => {
-        let newClientHeight = el.clientHeight
-        if newClientHeight < prevClientHeight.contents {
-          let wasAtBottom =
-            el.scrollTop +. prevClientHeight.contents->Int.toFloat >=
-              el.scrollHeight->Int.toFloat -. 150.0
-          if wasAtBottom {
+      let contentObserver = WebAPI.ResizeObserver.make(_entries =>
+        _observer => {
+          let nearBottom =
+            el.scrollTop +. el.clientHeight->Int.toFloat >= el.scrollHeight->Int.toFloat -. 150.0
+          if nearBottom {
             el.scrollTop = el.scrollHeight->Int.toFloat
           }
         }
-        prevClientHeight := newClientHeight
-      })
-      containerObserver->FrontmanBindings.ResizeObserver.observe(container)
+      )
+      contentObserver->WebAPI.ResizeObserver.observe(~target=content)
+
+      let containerObserver = WebAPI.ResizeObserver.make(_entries =>
+        _observer => {
+          let newClientHeight = el.clientHeight
+          if newClientHeight < prevClientHeight.contents {
+            let wasAtBottom =
+              el.scrollTop +. prevClientHeight.contents->Int.toFloat >=
+                el.scrollHeight->Int.toFloat -. 150.0
+            if wasAtBottom {
+              el.scrollTop = el.scrollHeight->Int.toFloat
+            }
+          }
+          prevClientHeight := newClientHeight
+        }
+      )
+      containerObserver->WebAPI.ResizeObserver.observe(~target=el)
 
       Some(
         () => {
-          FrontmanBindings.ResizeObserver.disconnect(contentObserver)
-          FrontmanBindings.ResizeObserver.disconnect(containerObserver)
+          contentObserver->WebAPI.ResizeObserver.disconnect
+          containerObserver->WebAPI.ResizeObserver.disconnect
         },
       )
     | _ => None

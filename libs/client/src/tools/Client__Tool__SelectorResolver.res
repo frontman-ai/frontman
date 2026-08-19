@@ -20,8 +20,8 @@ let parseShadowIndexes = (segment: string): array<int> =>
     }
   )
 
-let resolveShadowSegment = (root: WebAPI.DOMAPI.shadowRoot, segment: string): option<
-  WebAPI.DOMAPI.element,
+let resolveShadowSegment = (root: WebAPI.DomTypes.shadowRoot, segment: string): option<
+  WebAPI.DomTypes.element,
 > => {
   let children = ref(root->WebAPI.ShadowRoot.children->WebAPI.HTMLCollection.toArray)
   let selected = ref(None)
@@ -42,8 +42,8 @@ let resolveShadowSegment = (root: WebAPI.DOMAPI.shadowRoot, segment: string): op
   selected.contents
 }
 
-let resolveShadowPath = (~doc: WebAPI.DOMAPI.document, ~segments: array<string>): array<
-  WebAPI.DOMAPI.element,
+let resolveShadowPath = (~doc: WebAPI.DomTypes.document, ~segments: array<string>): array<
+  WebAPI.DomTypes.element,
 > =>
   segments
   ->Array.slice(~start=1, ~end=segments->Array.length)
@@ -59,8 +59,8 @@ let resolveShadowPath = (~doc: WebAPI.DOMAPI.document, ~segments: array<string>)
       ),
   )
 
-let resolveCssSelector = (~doc: WebAPI.DOMAPI.document, ~selector: string): array<
-  WebAPI.DOMAPI.element,
+let resolveCssSelector = (~doc: WebAPI.DomTypes.document, ~selector: string): array<
+  WebAPI.DomTypes.element,
 > =>
   try {
     doc->WebAPI.Document.querySelectorAll(selector)->WebAPI.NodeList.toArray
@@ -73,11 +73,13 @@ let resolveCssSelector = (~doc: WebAPI.DOMAPI.document, ~selector: string): arra
     }
   }
 
-let resolveXPath = (~doc: WebAPI.DOMAPI.document, ~xpath: string): array<WebAPI.DOMAPI.element> => {
+let resolveXPath = (~doc: WebAPI.DomTypes.document, ~xpath: string): array<
+  WebAPI.DomTypes.element,
+> => {
   let snapshot =
     doc->WebAPI.Document.evaluate(
       ~expression=xpath,
-      ~contextNode=(doc :> WebAPI.DOMAPI.node),
+      ~contextNode=(doc :> WebAPI.DomTypes.node),
       ~type_=7,
     )
   let elements = []
@@ -85,7 +87,10 @@ let resolveXPath = (~doc: WebAPI.DOMAPI.document, ~xpath: string): array<WebAPI.
   while index.contents < snapshot.snapshotLength {
     let node = snapshot->WebAPI.XPathResult.snapshotItem(index.contents)
     switch node.nodeType === 1 {
-    | true => elements->Array.push(node->WebAPI.Node.asElement)->ignore
+    | true =>
+      node
+      ->FrontmanBindings.Bindings__WebAPI.elementFromNode
+      ->Option.forEach(element => elements->Array.push(element)->ignore)
     | false => ()
     }
     index := index.contents + 1
@@ -93,8 +98,8 @@ let resolveXPath = (~doc: WebAPI.DOMAPI.document, ~xpath: string): array<WebAPI.
   elements
 }
 
-let resolveBySelector = (~doc: WebAPI.DOMAPI.document, ~selector: string, ~index: int=0): (
-  option<WebAPI.DOMAPI.element>,
+let resolveBySelector = (~doc: WebAPI.DomTypes.document, ~selector: string, ~index: int=0): (
+  option<WebAPI.DomTypes.element>,
   int,
 ) => {
   let elements = switch classifySelector(selector) {
@@ -104,8 +109,8 @@ let resolveBySelector = (~doc: WebAPI.DOMAPI.document, ~selector: string, ~index
   (elements->Array.get(index), elements->Array.length)
 }
 
-let resolveRootOrBody = (~doc: WebAPI.DOMAPI.document, ~selector: option<string>): result<
-  WebAPI.DOMAPI.element,
+let resolveRootOrBody = (~doc: WebAPI.DomTypes.document, ~selector: option<string>): result<
+  WebAPI.DomTypes.element,
   string,
 > =>
   switch selector {

@@ -21,7 +21,7 @@ let resolve = async (sourceContext: Client__SourceContext.t): result<
   let requestBody = requestJson->JSON.stringifyAny->Option.getOrThrow
 
   try {
-    let response = await WebAPI.Global.fetch(
+    let response = await WebAPI.Fetch.fetch(
       url,
       ~init={
         method: "POST",

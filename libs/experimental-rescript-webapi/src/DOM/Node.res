@@ -6,7 +6,6 @@ module Impl = (
   include EventTarget.Impl({type t = T.t})
 
   external asNode: T.t => DomTypes.node = "%identity"
-  external asElement: T.t => DomTypes.element = "%identity"
 
   @get
   external textContent: T.t => Null.t<string> = "textContent"

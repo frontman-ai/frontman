@@ -13,6 +13,7 @@ FrontmanLogs.Logs.addHandler(FrontmanAiFrontmanClient.FrontmanClient__Sentry__Lo
 Client__Heap.init()
 
 @val external importMetaUrl: string = "import.meta.url"
+external asReactElement: WebAPI.DomTypes.element => Dom.element = "%identity"
 
 type clientConfig = {
   clientName: string,
@@ -44,12 +45,15 @@ let getConfig = (): clientConfig => {
   }
 }
 
-WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoaded"), _event => {
-  let rootElement = WebAPI.Global.document->WebAPI.Document.querySelector("#root")
+WebAPI.Window.current
+->WebAPI.Window.document
+->WebAPI.Document.addEventListener(Custom("DOMContentLoaded"), _event => {
+  let rootElement =
+    WebAPI.Window.current->WebAPI.Window.document->WebAPI.Document.querySelector("#root")
 
   switch rootElement->Null.toOption {
   | Some(rootElement) =>
-    let root = ReactDOM.Client.createRoot(rootElement->WebAPI.Element.asRescriptElement)
+    let root = ReactDOM.Client.createRoot(rootElement->asReactElement)
     let config = getConfig()
     Client__State.Actions.fetchUserProfile(~apiBaseUrl=config.apiBaseUrl)
     root->ReactDOM.Client.Root.render(

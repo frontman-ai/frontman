@@ -50,7 +50,7 @@ type state = {
   session: sessionState,
   relayInstance: option<Relay.t>,
   mcpServer: option<MCPServer.t>,
-  abortController: option<WebAPI.EventAPI.abortController>,
+  abortController: option<WebAPI.EventTypes.abortController>,
 }
 
 @schema
@@ -124,15 +124,15 @@ type effect =
   | LogError(string)
   | LogInfo(string)
   | TrackRelay(Client__Heap.relayOutcome)
-  | ConnectACP({config: ACP.config, signal: WebAPI.EventAPI.abortSignal})
-  | ScheduleAuthRetry({signal: WebAPI.EventAPI.abortSignal})
+  | ConnectACP({config: ACP.config, signal: WebAPI.EventTypes.abortSignal})
+  | ScheduleAuthRetry({signal: WebAPI.EventTypes.abortSignal})
   | LogoutEffect({
       connection: ACP.connection,
       session: option<ACP.session>,
       tokenUrl: string,
-      signal: WebAPI.EventAPI.abortSignal,
+      signal: WebAPI.EventTypes.abortSignal,
     })
-  | ConnectRelay(Relay.t, WebAPI.EventAPI.abortSignal)
+  | ConnectRelay(Relay.t, WebAPI.EventTypes.abortSignal)
   | CreateSessionEffect({
       connection: ACP.connection,
       mcpServer: MCPServer.t,
@@ -507,25 +507,25 @@ let cleanupSession = (session: ACP.session): unit => {
 
 let wait = (timeout: int): promise<unit> =>
   Promise.make((resolve, _) => {
-    let _ = WebAPI.Global.setTimeout(~timeout, ~handler=resolve)
+    let _ = WebAPI.Window.setTimeout(WebAPI.Window.current, ~timeout, ~handler=resolve)
   })
 
 let fetchLogoutStatus = async (tokenUrl: string): option<int> => {
   let controller = WebAPI.AbortController.make()
-  let timeout = WebAPI.Global.setTimeout(~timeout=1000, ~handler=() =>
+  let timeout = WebAPI.Window.setTimeout(WebAPI.Window.current, ~timeout=1000, ~handler=() =>
     WebAPI.AbortController.abort(controller)
   )
 
   try {
-    let response = await WebAPI.Global.fetch(
+    let response = await WebAPI.Fetch.fetch(
       tokenUrl,
       ~init={credentials: Include, signal: Null.make(controller.signal)},
     )
-    WebAPI.Global.clearTimeout(timeout)
+    WebAPI.Window.clearTimeout(WebAPI.Window.current, timeout)
     Some(response.status)
   } catch {
   | exn =>
-    WebAPI.Global.clearTimeout(timeout)
+    WebAPI.Window.clearTimeout(WebAPI.Window.current, timeout)
     switch exn->JsExn.fromException->Option.map(FrontmanBindings.JsException.name) {
     | Some("AbortError") | Some("TypeError") => None
     | _ => throw(exn)
@@ -535,7 +535,7 @@ let fetchLogoutStatus = async (tokenUrl: string): option<int> => {
 
 let rec waitForLogout = async (
   ~tokenUrl: string,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
   ~attempt: int,
 ): unit => {
   await wait(1000)
@@ -547,7 +547,7 @@ let rec waitForLogout = async (
     switch (signal.aborted, status, attempt < 15) {
     | (true, _, _) => ()
     | (false, Some(401), _) | (false, _, false) =>
-      WebAPI.Global.window->WebAPI.Window.location->WebAPI.Location.reload
+      WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
     | (false, _, true) => await waitForLogout(~tokenUrl, ~signal, ~attempt=attempt + 1)
     }
   }
@@ -598,7 +598,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     }
     connect()->ignore
   | ScheduleAuthRetry({signal}) =>
-    let _ = WebAPI.Global.setTimeout(~timeout=2000, ~handler=() => {
+    let _ = WebAPI.Window.setTimeout(WebAPI.Window.current, ~timeout=2000, ~handler=() => {
       switch signal.aborted {
       | true => ()
       | false => dispatch(RetryAuthentication)

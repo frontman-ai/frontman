@@ -18,7 +18,7 @@ type input = {
 }
 
 let _cropCanvasToViewport = (
-  sourceCanvas: WebAPI.DOMAPI.htmlCanvasElement,
+  sourceCanvas: WebAPI.DomTypes.htmlCanvasElement,
   ~scrollX: float,
   ~scrollY: float,
   ~viewportW: int,
@@ -43,10 +43,10 @@ let _cropCanvasToViewport = (
   if sw <= 0.0 || sh <= 0.0 {
     sourceCanvas->HTMLCanvasElement.toDataURL(~type_="image/jpeg", ~quality=qualityJson)
   } else {
-    let crop = Global.document->Document.createCanvasElement
+    let crop = Window.current->Window.document->Document.createCanvasElement
     crop.width = sw->Float.toInt
     crop.height = sh->Float.toInt
-    let ctx = crop->HTMLCanvasElement.getContext_2D
+    let ctx = crop->HTMLCanvasElement.getContext2D
 
     ctx->CanvasRenderingContext2D.drawImageWithCanvasSubRectangle(
       ~image=sourceCanvas,

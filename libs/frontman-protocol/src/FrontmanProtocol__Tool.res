@@ -29,8 +29,8 @@ type access =
 let accessSchema = S.union([S.literal(Read), S.literal(Write), S.literal(ReadWrite)])
 
 type previewContext = {
-  doc: WebAPI.DOMAPI.document,
-  win: WebAPI.DOMAPI.window,
+  doc: WebAPI.DomTypes.document,
+  win: WebAPI.DomTypes.window,
 }
 
 module ToolNames = {

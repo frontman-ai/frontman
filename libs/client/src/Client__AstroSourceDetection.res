@@ -2,7 +2,7 @@ module Annotations = FrontmanBindings.AstroAnnotations
 
 let makeSourceLocation = (
   annotation: Annotations.annotation,
-  element: WebAPI.DOMAPI.element,
+  element: WebAPI.DomTypes.element,
   ~parent: option<Client__Types.SourceLocation.t>,
 ): option<Client__Types.SourceLocation.t> => {
   Client__SourcePath.parseLoc(annotation.loc)->Option.map(((line, column)) => {
@@ -24,11 +24,11 @@ let makeSourceLocation = (
 }
 
 let rec findAnnotation = (
-  element: WebAPI.DOMAPI.element,
+  element: WebAPI.DomTypes.element,
   api: Annotations.annotationsApi,
   remaining: int,
   projectOnly: bool,
-): option<(Annotations.annotation, WebAPI.DOMAPI.element)> => {
+): option<(Annotations.annotation, WebAPI.DomTypes.element)> => {
   let annotation = switch api.get(element)->Nullable.toOption {
   | Some(annotation) =>
     switch (projectOnly, Client__SourcePath.isNodeModulesPath(annotation.file)) {
@@ -53,8 +53,8 @@ let rec findAnnotation = (
 }
 
 let getElementSourceLocation = (
-  ~element: WebAPI.DOMAPI.element,
-  ~window: WebAPI.DOMAPI.window,
+  ~element: WebAPI.DomTypes.element,
+  ~window: WebAPI.DomTypes.window,
 ): option<Client__Types.SourceLocation.t> => {
   switch Annotations.getAnnotationsApi(window) {
   | None => None

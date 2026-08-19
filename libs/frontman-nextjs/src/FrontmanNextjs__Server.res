@@ -47,7 +47,7 @@ let toHandlerConfig = (config: config): CoreRequestHandlers.handlerConfig => {
 }
 
 @@live
-let handleGetTools = (server: t): WebAPI.FetchAPI.response => {
+let handleGetTools = (server: t): WebAPI.Response.t => {
   CoreRequestHandlers.handleGetTools(
     ~registry=server.registry,
     ~config=toHandlerConfig(server.config),
@@ -55,7 +55,7 @@ let handleGetTools = (server: t): WebAPI.FetchAPI.response => {
 }
 
 @@live
-let handleToolCall = async (server: t, req: WebAPI.FetchAPI.request): WebAPI.FetchAPI.response => {
+let handleToolCall = async (server: t, req: WebAPI.Request.t): WebAPI.Response.t => {
   await CoreRequestHandlers.handleToolCall(
     ~registry=server.registry,
     ~config=toHandlerConfig(server.config),

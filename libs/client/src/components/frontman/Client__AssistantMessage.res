@@ -31,7 +31,11 @@ let make = (~variant: variant, ~content: string, ~agent: Client__Agent.t, ~isNew
             className="flex items-center justify-center w-5 h-5 border-none bg-transparent rounded cursor-pointer opacity-50 hover:opacity-80 transition-opacity text-zinc-200"
             title="Copy to clipboard"
             onClick={_ => {
-              let _ = WebAPI.Global.navigator.clipboard->WebAPI.Clipboard.writeText(content)
+              let _ =
+                WebAPI.Window.current
+                ->WebAPI.Window.navigator
+                ->WebAPI.Navigator.clipboard
+                ->WebAPI.Clipboard.writeText(content)
             }}
           >
             <Icons.CopyIcon size=14 />

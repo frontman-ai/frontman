@@ -46,7 +46,7 @@ let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
 let executeInWindow: (
   ('a, int) => string,
-  WebAPI.DOMAPI.window,
+  WebAPI.DomTypes.window,
   string,
   int,
   int,

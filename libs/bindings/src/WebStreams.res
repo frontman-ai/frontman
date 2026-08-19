@@ -4,7 +4,7 @@ type readResult<'t> = {
 }
 
 @send
-external readChunk: WebAPI.FileAPI.readableStreamReader<'t> => promise<readResult<'t>> = "read"
+external readChunk: WebAPI.FileTypes.readableStreamReader<'t> => promise<readResult<'t>> = "read"
 
 type textDecoder
 
@@ -34,5 +34,5 @@ type underlyingSource = {
 }
 
 @module("stream/web") @new
-external makeReadableStream: underlyingSource => WebAPI.FileAPI.readableStream<Uint8Array.t> =
+external makeReadableStream: underlyingSource => WebAPI.ReadableStream.t<Uint8Array.t> =
   "ReadableStream"

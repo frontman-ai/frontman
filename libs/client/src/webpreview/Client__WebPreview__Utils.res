@@ -1,5 +1,5 @@
 type elementInfo = {
-  rect: WebAPI.DOMAPI.domRect,
+  rect: WebAPI.DomTypes.domRect,
   tagName: string,
   id: option<string>,
   className: option<string>,
@@ -21,7 +21,7 @@ let getElementId = (id: string): option<string> => {
   id->String.length > 0 ? Some(id) : None
 }
 
-let getElementInfo = (element: WebAPI.DOMAPI.element): elementInfo => {
+let getElementInfo = (element: WebAPI.DomTypes.element): elementInfo => {
   let rect = WebAPI.Element.getBoundingClientRect(element)
   let tagName = element.tagName->String.toLowerCase
   let id = getElementId(element.id)

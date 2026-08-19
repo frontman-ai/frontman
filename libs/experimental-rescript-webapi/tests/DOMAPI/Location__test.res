@@ -7,6 +7,3 @@ let href = location.href
 location->Location.reload
 
 let a = 0
-
-// testing out editor autocomplete
-let fn = (l: DOM.location) => l->Location.reload

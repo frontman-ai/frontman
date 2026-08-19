@@ -3,9 +3,6 @@
   "namespace": "WebAPI",
   "sources": [
     {
-      "dir": "src"
-    },
-    {
       "dir": "src/Base",
       "subdirs": true,
       "feature": "WebAPI.Base",
@@ -241,13 +238,13 @@
       "dir": "src/File",
       "subdirs": true,
       "feature": "WebAPI.File",
-		"public": [
-			"Blob",
-			"File",
-			"FileReader",
-			"FileSystemDirectoryHandle",
-			"FileSystemFileHandle",
-			"FileSystemHandle",
+      "public": [
+        "Blob",
+        "File",
+        "FileReader",
+        "FileSystemDirectoryHandle",
+        "FileSystemFileHandle",
+        "FileSystemHandle",
         "FileSystemWritableFileStream",
         "ReadableStream",
         "WritableStream",
@@ -443,15 +440,15 @@
     {
       "dir": "src/UIEvents",
       "subdirs": true,
-		"feature": "WebAPI.UIEvents",
-		"public": [
-			"ClipboardEvent",
-			"CompositionEvent",
-			"DataTransfer",
-			"DataTransferItem",
-			"DataTransferItemList",
-			"DragEvent",
-			"FocusEvent",
+      "feature": "WebAPI.UIEvents",
+      "public": [
+        "ClipboardEvent",
+        "CompositionEvent",
+        "DataTransfer",
+        "DataTransferItem",
+        "DataTransferItemList",
+        "DragEvent",
+        "FocusEvent",
         "InputEvent",
         "KeyboardEvent",
         "MouseEvent",
