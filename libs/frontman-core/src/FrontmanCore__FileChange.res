@@ -27,9 +27,24 @@ let make = (~path: string, ~status: FileChange.status, ~oldText: option<string>,
   }
 }
 
-let textResult = (~message: string, envelope: FileChange.envelope): Tool.MCP.CallToolResult.t => {
+/**
+ * Emits the tool's own structured output plus the file-change envelope under a
+ * reserved key, so the declared outputSchema stays satisfied. The text content
+ * carries only `message` — the envelope holds whole-file snapshots and must not
+ * be stringified into what the model reads.
+ */
+let textResultWithFileChange = (
+  ~message: string,
+  ~output: 'output,
+  ~outputSchema: S.t<'output>,
+  envelope: FileChange.envelope,
+): Tool.MCP.CallToolResult.t => {
+  let structuredContent =
+    output
+    ->S.decodeOrThrow(~from=outputSchema, ~to=S.json->S.noValidation(true))
+    ->JSON.Decode.object
+    ->Option.getOrThrow
   let envelopeJson = envelope->S.decodeOrThrow(~from=FileChange.envelopeSchema, ~to=S.json->S.noValidation(true))
-  let structuredContent = Dict.make()
   structuredContent->Dict.set(FileChange.reservedKey, envelopeJson)
   Tool.textResultWithStructured(message, structuredContent)
 }

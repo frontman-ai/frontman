@@ -1,17 +1,11 @@
 module FileChange = FrontmanAiFrontmanProtocol.FrontmanProtocol__FileChange
 module Message = Client__Message
 
-@schema
-type structuredContent = {
-  @as("frontmanFileChange")
-  fileChange: option<FileChange.envelope>,
-}
-
+/** `rawOutput` is the tool result's `structuredContent` map, not the whole result. */
 @schema
 type rawOutput = {
   @as("frontmanFileChange")
   fileChange: option<FileChange.envelope>,
-  structuredContent: option<structuredContent>,
 }
 
 @schema
@@ -26,13 +20,10 @@ type legacyEditInput = {
 type legacyPathContext = {relativePath: string}
 
 @schema
-type legacyStructuredContent = {
-  message: string,
+type legacyEditOutput = {
+  message: option<string>,
   _context: option<legacyPathContext>,
 }
-
-@schema
-type legacyRawOutput = {structuredContent: option<legacyStructuredContent>}
 
 type lineChange
 
@@ -71,10 +62,8 @@ type pending = {
 
 let empty: snapshot = {files: [], revision: 0}
 
-let parseEnvelope = (json: JSON.t): option<FileChange.envelope> => {
-  let output = S.parseOrThrow(json, ~to=rawOutputSchema)
-  output.fileChange->Option.orElse(output.structuredContent->Option.flatMap(content => content.fileChange))
-}
+let parseEnvelope = (json: JSON.t): option<FileChange.envelope> =>
+  S.parseOrThrow(json, ~to=rawOutputSchema).fileChange
 
 let parseLegacyEditInput = (json: JSON.t): legacyEditInput => {
   switch typeof(json) {
@@ -93,32 +82,33 @@ let legacyEditEnvelope = (~toolName: string, ~input: option<JSON.t>, json: JSON.
 > => {
   switch (toolName, input) {
   | ("edit_file", Some(inputJson)) => {
-    let output = S.parseOrThrow(json, ~to=legacyRawOutputSchema)
-    switch output.structuredContent {
-    | Some({message, _context})
-      if message->String.startsWith("Edit applied successfully.") || message == "File created successfully." => {
-        let input = inputJson->parseLegacyEditInput
-        switch input.replaceAll {
-        | Some(true) => None
-        | None | Some(false) =>
-          let path = _context->Option.mapOr(input.path, context => context.relativePath)
-          let created = input.oldText == ""
-          Some({
-            version: 1,
-            path,
-            status: created ? FileChange.Added : FileChange.Modified,
-            oldPath: None,
-            oldText: created ? None : Some(input.oldText),
-            currentText: Some(input.newText),
-            textAvailable: true,
-            unavailableReason: None,
-            wrote: true,
-          })
+      let output = S.parseOrThrow(json, ~to=legacyEditOutputSchema)
+      switch output.message {
+      | Some(message)
+        if message->String.startsWith("Edit applied successfully.") ||
+          message == "File created successfully." => {
+          let input = inputJson->parseLegacyEditInput
+          switch input.replaceAll {
+          | Some(true) => None
+          | None | Some(false) =>
+            let path = output._context->Option.mapOr(input.path, context => context.relativePath)
+            let created = input.oldText == ""
+            Some({
+              version: 1,
+              path,
+              status: created ? FileChange.Added : FileChange.Modified,
+              oldPath: None,
+              oldText: created ? None : Some(input.oldText),
+              currentText: Some(input.newText),
+              textAvailable: true,
+              unavailableReason: None,
+              wrote: true,
+            })
+          }
         }
+      | None | Some(_) => None
       }
-    | None | Some(_) => None
     }
-  }
   | _ => None
   }
 }
@@ -131,7 +121,11 @@ let envelopesFromMessages = (messages: array<Message.t>): array<FileChange.envel
         input,
         result: Some({rawOutput: Some(json)}),
         _,
-      }) => parseEnvelope(json)->Option.orElse(legacyEditEnvelope(~toolName, ~input, json))
+      }) =>
+      switch parseEnvelope(json) {
+      | Some(envelope) => Some(envelope)
+      | None => legacyEditEnvelope(~toolName, ~input, json)
+      }
     | Message.User(_) | Message.Assistant(_) | Message.Error(_) | Message.ToolCall(_) => None
     }
   )

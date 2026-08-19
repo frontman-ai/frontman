@@ -31,13 +31,6 @@ let rawOutput = (change: FileChange.envelope): JSON.t => {
   JSON.Encode.object(Dict.fromArray([(FileChange.reservedKey, encoded)]))
 }
 
-let nestedRawOutput = (change: FileChange.envelope): JSON.t => {
-  let encoded =
-    change->S.decodeOrThrow(~from=FileChange.envelopeSchema, ~to=S.json->S.noValidation(true))
-  let structuredContent = JSON.Encode.object(Dict.fromArray([(FileChange.reservedKey, encoded)]))
-  JSON.Encode.object(Dict.fromArray([("structuredContent", structuredContent)]))
-}
-
 let legacyEditInput = (~path, ~oldText, ~newText): JSON.t =>
   JSON.Encode.object(
     Dict.fromArray([
@@ -49,14 +42,9 @@ let legacyEditInput = (~path, ~oldText, ~newText): JSON.t =>
 
 let legacyEditOutput = (~path, ~message="Edit applied successfully."): JSON.t => {
   let context = JSON.Encode.object(Dict.fromArray([("relativePath", JSON.Encode.string(path))]))
-  let structuredContent =
-    JSON.Encode.object(
-      Dict.fromArray([
-        ("message", JSON.Encode.string(message)),
-        ("_context", context),
-      ]),
-    )
-  JSON.Encode.object(Dict.fromArray([("structuredContent", structuredContent)]))
+  JSON.Encode.object(
+    Dict.fromArray([("message", JSON.Encode.string(message)), ("_context", context)]),
+  )
 }
 
 let toolCall = (~id, change): Message.t => Message.ToolCall({
@@ -71,7 +59,14 @@ let toolCall = (~id, change): Message.t => Message.ToolCall({
   spawningToolName: None,
 })
 
-let legacyEditToolCall = (~id, ~path, ~oldText, ~newText, ~serialized=false): Message.t => {
+let legacyEditToolCall = (
+  ~id,
+  ~path,
+  ~oldText,
+  ~newText,
+  ~serialized=false,
+  ~message="Edit applied successfully.",
+): Message.t => {
   let input = legacyEditInput(~path, ~oldText, ~newText)
   let input = switch serialized {
   | true => input->JSON.stringifyAny->Option.getOrThrow->JSON.Encode.string
@@ -83,7 +78,7 @@ let legacyEditToolCall = (~id, ~path, ~oldText, ~newText, ~serialized=false): Me
   state: Message.OutputAvailable,
   inputBuffer: "",
   input: Some(input),
-  result: Some({rawOutput: Some(legacyEditOutput(~path)), content: []}),
+  result: Some({rawOutput: Some(legacyEditOutput(~path, ~message)), content: []}),
   errorText: None,
   parentAgentId: None,
   spawningToolName: None,
@@ -96,9 +91,26 @@ describe("conversation file changes", () => {
     t->expect(Client__FileChanges.parseEnvelope(emptyOutput))->Expect.toEqual(None)
   })
 
-  test("reads a file-change envelope nested in structuredContent", t => {
+  test("reads a file-change envelope from the reserved structuredContent key", t => {
     let change = envelope(~oldText=Some("old"), ~currentText=Some("new"))
-    t->expect(Client__FileChanges.parseEnvelope(nestedRawOutput(change)))->Expect.toEqual(Some(change))
+    t->expect(Client__FileChanges.parseEnvelope(rawOutput(change)))->Expect.toEqual(Some(change))
+  })
+
+  test("ignores a legacy edit result whose message reports no write", t => {
+    let snapshot = Client__FileChanges.aggregate(
+      ~revision=1,
+      [
+        legacyEditToolCall(
+          ~id="tool-1",
+          ~path="src/app.tsx",
+          ~oldText="before",
+          ~newText="after",
+          ~message="oldText not found in file src/app.tsx.",
+        ),
+      ],
+    )
+
+    t->expect(Array.length(snapshot.files))->Expect.toBe(0)
   })
 
   test("derives a change from a successful legacy edit result", t => {
