@@ -1,0 +1,20 @@
+{
+	"name": "@frontman-ai/frontman-preview-bridge",
+	"private": true,
+	"version": "0.1.0",
+	"description": "Child-side runtime for Frontman preview capsules",
+	"license": "Apache-2.0",
+	"type": "module",
+	"dependencies": {
+		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
+		"@frontman-ai/frontman-protocol": "workspace:*",
+		"@rescript/runtime": "12.3.0"
+	},
+	"devDependencies": {
+		"playwright": "^1.61.1",
+		"rescript": "catalog:",
+		"rescript-vitest": "catalog:",
+		"vite": "catalog:",
+		"vitest": "catalog:"
+	}
+}

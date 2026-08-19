@@ -2480,6 +2480,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge":
+  version: 0.0.0-use.local
+  resolution: "@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge"
+  dependencies:
+    "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
+    "@frontman-ai/frontman-protocol": "workspace:*"
+    "@rescript/runtime": "npm:12.3.0"
+    playwright: "npm:^1.61.1"
+    rescript: "catalog:"
+    rescript-vitest: "catalog:"
+    vite: "catalog:"
+    vitest: "catalog:"
+  languageName: unknown
+  linkType: soft
+
 "@frontman-ai/frontman-protocol@npm:*, @frontman-ai/frontman-protocol@npm:2.0.0, @frontman-ai/frontman-protocol@workspace:*, @frontman-ai/frontman-protocol@workspace:libs/frontman-protocol":
   version: 0.0.0-use.local
   resolution: "@frontman-ai/frontman-protocol@workspace:libs/frontman-protocol"
