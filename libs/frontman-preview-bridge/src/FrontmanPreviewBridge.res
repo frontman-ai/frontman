@@ -1,11 +1,9 @@
 type config = {
-  parentWindow: WebAPI.DomTypes.window,
   parentOrigin: string,
   channel: string,
 }
 
 type t = {
-  parentWindow: WebAPI.DomTypes.window,
   parentOrigin: string,
   channel: string,
   runtime: Runtime.t<unit>,
@@ -46,14 +44,12 @@ let existing = (): option<t> => {
 }
 
 let sameConfig: (t, config) => bool = (installation, config) =>
-  installation.parentWindow === config.parentWindow &&
-  installation.parentOrigin === config.parentOrigin &&
-  installation.channel === config.channel
+  installation.parentOrigin === config.parentOrigin && installation.channel === config.channel
 
 let create: config => t = config => {
   let window = WebAPI.Window.current
   let transport = WindowTransport.Child.make({
-    parentWindow: config.parentWindow,
+    parentWindow: window->WebAPI.Window.parent,
     parentOrigin: config.parentOrigin,
     channel: config.channel,
     maxChunkBytes: 1_000_000,
@@ -89,7 +85,6 @@ let create: config => t = config => {
   }
 
   {
-    parentWindow: config.parentWindow,
     parentOrigin: config.parentOrigin,
     channel: config.channel,
     runtime,
@@ -126,5 +121,4 @@ let install: config => t = config => {
   }
 }
 
-let status = installation => Runtime.status(installation.runtime)
 let dispose = installation => installation.disposeInternal()

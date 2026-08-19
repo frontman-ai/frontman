@@ -14,9 +14,8 @@ let makeWindow = () => {
 
 describe("preview bridge installation", _t => {
   test("creates one connecting runtime for matching configuration", t => {
-    let parentWindow = makeWindow()
+    makeWindow()->ignore
     let config: FrontmanPreviewBridge.config = {
-      parentWindow,
       parentOrigin: "https://parent.example.com",
       channel: "preview-task-id",
     }
@@ -25,15 +24,13 @@ describe("preview bridge installation", _t => {
     let second = FrontmanPreviewBridge.install(config)
 
     t->expect(first === second)->Expect.toBe(true)
-    t->expect(FrontmanPreviewBridge.status(first))->Expect.toEqual(Runtime.Connecting)
 
     FrontmanPreviewBridge.dispose(first)
   })
 
   test("rejects conflicting duplicate configuration", t => {
-    let parentWindow = makeWindow()
+    makeWindow()->ignore
     let installation = FrontmanPreviewBridge.install({
-      parentWindow,
       parentOrigin: "https://parent.example.com",
       channel: "preview-task-id",
     })
@@ -42,7 +39,6 @@ describe("preview bridge installation", _t => {
     ->expect(
       () =>
         FrontmanPreviewBridge.install({
-          parentWindow,
           parentOrigin: "https://parent.example.com",
           channel: "other-task-id",
         })->ignore,
@@ -52,7 +48,6 @@ describe("preview bridge installation", _t => {
     ->expect(
       () =>
         FrontmanPreviewBridge.install({
-          parentWindow: Obj.magic(WebAPI.EventTarget.make()),
           parentOrigin: "https://other-parent.example.com",
           channel: "preview-task-id",
         })->ignore,
@@ -63,14 +58,13 @@ describe("preview bridge installation", _t => {
   })
 
   test("rejects an occupied installation slot", t => {
-    let parentWindow = makeWindow()
+    makeWindow()->ignore
     Object.setSymbol(globalThis, installationKey, {"marker": "other-application"})
 
     t
     ->expect(
       () =>
         FrontmanPreviewBridge.install({
-          parentWindow,
           parentOrigin: "https://parent.example.com",
           channel: "preview-task-id",
         })->ignore,
@@ -79,9 +73,8 @@ describe("preview bridge installation", _t => {
   })
 
   test("disposal is terminal and idempotent", t => {
-    let parentWindow = makeWindow()
+    makeWindow()->ignore
     let config: FrontmanPreviewBridge.config = {
-      parentWindow,
       parentOrigin: "https://parent.example.com",
       channel: "preview-task-id",
     }
@@ -90,9 +83,6 @@ describe("preview bridge installation", _t => {
     FrontmanPreviewBridge.dispose(installation)
     FrontmanPreviewBridge.dispose(installation)
 
-    t
-    ->expect(FrontmanPreviewBridge.status(installation))
-    ->Expect.toEqual(Runtime.Closed("Runtime closed"))
     t->expect(FrontmanPreviewBridge.install(config) === installation)->Expect.toBe(true)
   })
 })

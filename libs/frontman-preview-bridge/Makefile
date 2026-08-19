@@ -22,7 +22,7 @@ test: build
 	yarn vitest run
 
 format:
-	yarn rescript format src/*.res test/*.res
+	yarn rescript format src/*.res src/*.resi test/*.res
 
 clean:
 	yarn rescript clean

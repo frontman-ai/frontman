@@ -13,7 +13,6 @@ let parentOrigin = requiredAttribute(script, "data-frontman-parent-origin")
 let channel = requiredAttribute(script, "data-frontman-channel")
 
 FrontmanPreviewBridge.install({
-  parentWindow: WebAPI.Window.current->WebAPI.Window.parent,
   parentOrigin,
   channel,
 })->ignore
