@@ -6,8 +6,6 @@ type bootstrapMessage = {
   channel: string,
 }
 
-type readyMessage = {kind: string}
-
 afterEach(() => {
   Vi.useRealTimers()->ignore
 })
@@ -37,7 +35,9 @@ describe("preview parent runtime", _t => {
             "https://preview.example.com",
             Some(port),
           ) =>
-          MessagePort.postMessage(port, ({kind: "ready"}: readyMessage))
+          let ready: Dict.t<string> = Dict.make()
+          ready->Dict.set("kind", "ready")
+          MessagePort.postMessage(port, ready)
         | _ => ()
         }
       },
