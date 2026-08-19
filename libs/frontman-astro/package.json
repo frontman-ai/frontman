@@ -71,7 +71,7 @@
 		"@frontman-ai/frontman-core": "*",
 		"@frontman-ai/frontman-protocol": "*",
 		"@frontman/bindings": "*",
-		"@rescript/runtime": "12.3.0",
+		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "*",
 		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
 		"rescript": "catalog:",
