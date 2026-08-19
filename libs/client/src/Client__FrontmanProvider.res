@@ -216,6 +216,7 @@ module Provider = {
           | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
           | ACPDisconnected | ACPConnecting | ACPLoggingOut | ACPAuthRequired(_) | ACPError(_) => ()
           }
+          dispatch(Dispose)
         },
       )
     })

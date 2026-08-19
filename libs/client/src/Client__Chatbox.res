@@ -93,6 +93,16 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   result
 }
 
+let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): bool =>
+  !(
+    messages->Array.some(message =>
+      switch message {
+      | Message.Error(error) => Message.ErrorMessage.id(error) == turnErrorId
+      | _ => false
+      }
+    )
+  )
+
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
@@ -100,7 +110,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
-  let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
@@ -128,12 +137,33 @@ let make = (~onConfigureProvider: unit => unit) => {
     ~messages,
     ~isAgentRunning,
     ~hasActiveACPSession,
-    ~sessionInitialized,
   )
 
   let hasPendingQuestion =
     Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
   let hasAnnotations = Array.length(annotations) > 0
+
+  let sendUserMessage = (
+    ~content: array<Client__State.UserContentPart.t>,
+    ~annotations: array<Client__Message.MessageAnnotation.t>,
+    ~agentId: string,
+  ) => {
+    let sendMessage = (sessionId: string) => {
+      Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations, ~agentId)
+    }
+    switch session {
+    | Some(sess) => sendMessage(sess.sessionId)
+    | None =>
+      createSession(~onComplete=result => {
+        switch result {
+        | Ok(sessionId) => sendMessage(sessionId)
+        | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
+        }
+      })
+    }
+  }
+
+  let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
@@ -143,25 +173,7 @@ let make = (~onConfigureProvider: unit => unit) => {
     let sendWithContent = content => {
       switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => ()
-      | true =>
-        let sendMessage = (sessionId: string) => {
-          Client__State.Actions.addUserMessage(
-            ~sessionId,
-            ~content,
-            ~annotations=messageAnnotations,
-            ~agentId,
-          )
-        }
-        switch session {
-        | Some(sess) => sendMessage(sess.sessionId)
-        | None =>
-          createSession(~onComplete=result => {
-            switch result {
-            | Ok(sessionId) => sendMessage(sessionId)
-            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
-            }
-          })
-        }
+      | true => sendUserMessage(~content, ~annotations=messageAnnotations, ~agentId)
       }
     }
 
@@ -359,7 +371,7 @@ let make = (~onConfigureProvider: unit => unit) => {
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
-        {switch sessionInitialized {
+        {switch hasActiveACPSession {
         | true => React.null
         | false =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
@@ -371,9 +383,16 @@ let make = (~onConfigureProvider: unit => unit) => {
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
 
+        {switch pendingPlanHandoff {
+        | Some(_) =>
+          <Client__ExecutePlanBanner onExecute={Client__State.Actions.executePendingPlan} />
+        | None => React.null
+        }}
+
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({id, message, category}), Some(taskId)) =>
+        | (None, Some({id, message, category}), Some(taskId))
+          if shouldRenderTurnError(messages, id) =>
           <ErrorBanner
             error=message
             category

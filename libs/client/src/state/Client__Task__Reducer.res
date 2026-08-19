@@ -178,6 +178,8 @@ module Lens = {
     }
 }
 
+type completedIdleTurn = {taskId: string, agentId: string}
+
 module Selectors = {
   let messages = (task: Task.t): option<array<Message.t>> => {
     switch task {
@@ -284,6 +286,22 @@ module Selectors = {
     }
   }
 
+  let completedIdleTurn = (task: Task.t): option<completedIdleTurn> => {
+    switch (task, Task.getMessages(task)->Array.last) {
+    | (
+        Task.Loaded({
+          id: taskId,
+          isAgentRunning: false,
+          lastTurnCancelled: false,
+          pendingQuestion: None,
+        }),
+        Some(Message.Assistant(Message.Completed({agentId, _}))),
+      ) =>
+      Some({taskId, agentId})
+    | _ => None
+    }
+  }
+
   let retryStatus = (task: Task.t): option<Types.Task.retryStatus> =>
     switch task {
     | Task.Loaded({retryStatus}) => retryStatus
@@ -323,6 +341,7 @@ type action =
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
+      elementContext: result<option<string>, string>,
       screenshot: result<option<string>, string>,
       sourceLocation: result<option<Client__Types.SourceLocation.t>, string>,
       cssClasses: option<string>,
@@ -670,6 +689,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       AnnotationDetailsResolved({
         id,
         selector,
+        elementContext,
         screenshot,
         sourceLocation,
         cssClasses,
@@ -682,6 +702,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       Lens.updateAnnotation(task, id, a => {
         ...a,
         selector,
+        elementContext,
         screenshot,
         sourceLocation,
         cssClasses,
@@ -900,7 +921,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
 
   | (Task.Loaded(data), ExecutionStateRunning) =>
-    let task = Task.Loaded({...data, isAgentRunning: true, turnError: None, retryStatus: None})
+    let task = Task.Loaded({
+      ...data,
+      isAgentRunning: true,
+      lastTurnCancelled: false,
+      turnError: None,
+      retryStatus: None,
+    })
     (Lens.drainQueuedUserMessages(task), [])
 
   | (Task.Loaded(_data), ExecutionStateIdle) =>
@@ -960,6 +987,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           Task.Loaded({
             ...d,
             isAgentRunning: false,
+            lastTurnCancelled: true,
             turnError: None,
             retryStatus: None,
             pendingQuestion: None,
@@ -998,12 +1026,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         ...data,
         retryStatus: Some(retryStatus),
         isAgentRunning: true,
+        lastTurnCancelled: false,
       }),
       [],
     )
 
   | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
-      Task.Loaded({...data, turnError: None, isAgentRunning: true}),
+      Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
       [RetryTurnEffect({retriedErrorId: retriedErrorId})],
     )
 
@@ -1055,6 +1084,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           annotations,
           activePopupAnnotationId,
           isAgentRunning,
+          lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
           turnError: None,
@@ -1260,33 +1290,25 @@ let fetchAnnotationDetails = (
   ~contentWindow: option<WebAPI.DOMAPI.window>,
   ~dispatch: action => unit,
 ) => {
-  let selectorPromise = switch document {
-  | Some(doc) =>
-    Promise.resolve()
-    ->Promise.then(_ => {
-      let selector = FrontmanBindings.Bindings__Finder.finder(
-        ~element,
-        ~options={
-          root: doc.documentElement->WebAPI.HTMLElement.asElement,
-          idName: (~name as _) => true,
-          className: (~name as _) => true,
-          tagName: (~name as _) => true,
-          attr: (~name as _, ~value as _) => false,
-        },
-      )
-      Promise.resolve(Ok(Some(selector)))
-    })
-    ->Promise.catch(error => {
-      let msg = formatError(error)
+  let inspection = switch document {
+  | Some(document) =>
+    try {
+      Ok(Client__ElementInspector.inspect(~element, ~document, ~maxDepth=1, ~maxNodes=200))
+    } catch {
+    | exn =>
+      let message = formatError(exn)
       Log.error(
         ~ctx={"annotationId": id},
-        ~error=JsExn.fromException(error),
-        "Selector generation failed",
+        ~error=JsExn.fromException(exn),
+        "Element inspection failed",
       )
-      Promise.resolve(Error(msg))
-    })
-  | None => Promise.resolve(Error("Preview document not available"))
+      Error(message)
+    }
+  | None => Error("Preview document not available")
   }
+
+  let selectorPromise = Promise.resolve(inspection->Result.flatMap(result => result.selector))
+  let elementContext = inspection->Result.map(result => Some(result.html))
 
   let screenshotPromise = {
     let limits = Client__ImageLimits.conservative
@@ -1310,63 +1332,43 @@ let fetchAnnotationDetails = (
   }
 
   let sourceLocationPromise = {
-    let detectionPromise = switch contentWindow {
+    let sourceLocationWork = switch contentWindow {
     | Some(window) =>
       Client__SourceDetection.getElementSourceLocation(~element, ~window)
-      ->Promise.then(result => Promise.resolve(Ok(result)))
+      ->Promise.then(result => {
+        let context = result->Option.map(Client__SourceContext.stripFileQueries)
+        switch context {
+        | Some(context) if Client__SourceContext.hasReactLocation(context) =>
+          Client__SourceLocationResolver.resolve(context)->Promise.then(result =>
+            Promise.resolve(result->Result.map(resolved => Some(resolved)))
+          )
+        | Some(context) => Promise.resolve(Ok(Client__SourceContext.toSourceLocation(context)))
+        | None => Promise.resolve(Ok(None))
+        }
+      })
       ->Promise.catch(error => {
         let msg = formatError(error)
         Log.error(
           ~ctx={"annotationId": id},
           ~error=JsExn.fromException(error),
-          "Source location detection failed",
+          "Source location detection or resolution failed",
         )
         Promise.resolve(Error(msg))
       })
     | None => Promise.resolve(Ok(None))
     }
     let timeoutPromise = Promise.make((resolve, _) => {
-      let _ = setTimeout(() => resolve(Ok(None)), 5000)
+      let _ = setTimeout(
+        () => resolve(Error("Source location detection or resolution timed out")),
+        5000,
+      )
     })
-    Promise.race([detectionPromise, timeoutPromise])
+    Promise.race([sourceLocationWork, timeoutPromise])
   }
 
-  let cssClasses =
-    element
-    ->WebAPI.Element.getAttribute("class")
-    ->Null.toOption
-    ->Option.flatMap(cls => {
-      let trimmed = cls->String.trim
-      switch trimmed->String.length > 0 {
-      | true => Some(trimmed)
-      | false => None
-      }
-    })
-
-  let nearbyText = {
-    let own =
-      element
-      ->WebAPI.Element.asNode
-      ->WebAPI.Node.textContent
-      ->Null.toOption
-      ->Option.getOr("")
-      ->String.trim
-    let truncated = switch own->String.length > 200 {
-    | true => own->String.slice(~start=0, ~end=200) ++ "..."
-    | false => own
-    }
-    switch truncated->String.length > 0 {
-    | true => Some(truncated)
-    | false => None
-    }
-  }
-
-  let rect = WebAPI.Element.getBoundingClientRect(element)
-  let boundingBox: Annotation.boundingBox = {
-    x: rect.left,
-    y: rect.top,
-    width: rect.width,
-    height: rect.height,
+  let (cssClasses, nearbyText, boundingBox) = switch inspection {
+  | Ok(result) => (result.cssClasses, result.nearbyText, Some(result.boundingBox))
+  | Error(_) => (None, None, None)
   }
 
   let elementorContext =
@@ -1377,52 +1379,22 @@ let fetchAnnotationDetails = (
   let _ =
     Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
     ->Promise.then(((selector, screenshotResult, sourceLocation)) => {
-      let sourceLocationWithTagName = sourceLocation->Result.map(opt =>
-        opt->Option.map(
-          sourceLoc => {
-            {
-              ...sourceLoc,
-              file: sourceLoc.file
-              ->String.split("?")
-              ->Array.get(0)
-              ->Option.getOr(sourceLoc.file),
-            }
-          },
-        )
-      )
-
-      let resolvedSourceLocationPromise = switch sourceLocationWithTagName {
-      | Ok(Some(sourceLoc)) =>
-        Client__SourceLocationResolver.resolve(sourceLoc)->Promise.then(result => {
-          switch result {
-          | Ok(resolved) => Promise.resolve(Ok(Some(resolved)))
-          | Error(err) =>
-            Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
-            Promise.resolve(Ok(Some(sourceLoc)))
-          }
-        })
-      | Ok(None) => Promise.resolve(Ok(None))
-      | Error(_) as err => Promise.resolve(err)
-      }
-
       let screenshot = screenshotResult->Result.map(opt => opt->Option.map(s => s.src))
-
-      resolvedSourceLocationPromise->Promise.then(finalSourceLocation => {
-        dispatch(
-          AnnotationDetailsResolved({
-            id,
-            selector,
-            screenshot,
-            sourceLocation: finalSourceLocation,
-            cssClasses,
-            nearbyText,
-            boundingBox: Some(boundingBox),
-            elementorContext,
-            enrichmentStatus: Enriched,
-          }),
-        )
-        Promise.resolve()
-      })
+      dispatch(
+        AnnotationDetailsResolved({
+          id,
+          selector,
+          elementContext,
+          screenshot,
+          sourceLocation,
+          cssClasses,
+          nearbyText,
+          boundingBox,
+          elementorContext,
+          enrichmentStatus: Enriched,
+        }),
+      )
+      Promise.resolve()
     })
     ->Promise.catch(err => {
       let errorMsg = formatError(err)
@@ -1435,11 +1407,12 @@ let fetchAnnotationDetails = (
         AnnotationDetailsResolved({
           id,
           selector: Error(errorMsg),
+          elementContext: Error(errorMsg),
           screenshot: Error(errorMsg),
           sourceLocation: Error(errorMsg),
           cssClasses,
           nearbyText,
-          boundingBox: Some(boundingBox),
+          boundingBox,
           elementorContext,
           enrichmentStatus: Failed({error: errorMsg}),
         }),

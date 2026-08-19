@@ -23,6 +23,35 @@ let makeSourceLocation = (
   })
 }
 
+let rec findAnnotation = (
+  element: WebAPI.DOMAPI.element,
+  api: Annotations.annotationsApi,
+  remaining: int,
+  projectOnly: bool,
+): option<(Annotations.annotation, WebAPI.DOMAPI.element)> => {
+  let annotation = switch api.get(element)->Nullable.toOption {
+  | Some(annotation) =>
+    switch (projectOnly, Client__SourcePath.isNodeModulesPath(annotation.file)) {
+    | (false, false) | (false, true) | (true, false) => Some((annotation, element))
+    | (true, true) => None
+    }
+  | None => None
+  }
+
+  switch annotation {
+  | Some(annotation) => Some(annotation)
+  | None =>
+    switch element->WebAPI.Element.parentElement->Null.toOption {
+    | Some(parent) =>
+      switch remaining > 0 {
+      | true => findAnnotation(parent, api, remaining - 1, projectOnly)
+      | false => None
+      }
+    | None => None
+    }
+  }
+}
+
 let getElementSourceLocation = (
   ~element: WebAPI.DOMAPI.element,
   ~window: WebAPI.DOMAPI.window,
@@ -30,32 +59,11 @@ let getElementSourceLocation = (
   switch Annotations.getAnnotationsApi(window) {
   | None => None
   | Some(api) => {
-      let ancestors: array<(Annotations.annotation, WebAPI.DOMAPI.element)> = []
-
-      switch api.get(element)->Nullable.toOption {
-      | Some(ann) => ancestors->Array.push((ann, element))
-      | None => ()
-      }
-
-      let current = ref(element->WebAPI.Element.parentElement->Null.toOption)
-      let depth = ref(0)
-      let maxDepth = 50
-
-      while current.contents->Option.isSome && depth.contents < maxDepth {
-        let el = current.contents->Option.getOrThrow
-        switch api.get(el)->Nullable.toOption {
-        | Some(ann) => ancestors->Array.push((ann, el))
-        | None => ()
-        }
-        current := el->WebAPI.Element.parentElement->Null.toOption
-        depth := depth.contents + 1
-      }
-
-      let firstSourceIdx =
-        ancestors->Array.findIndex(((ann, _)) => !Client__SourcePath.isNodeModulesPath(ann.file))
-
-      switch firstSourceIdx {
-      | -1 =>
+      let nearestAnnotation = findAnnotation(element, api, 50, false)
+      switch findAnnotation(element, api, 50, true) {
+      | Some((annotation, annotatedElement)) =>
+        makeSourceLocation(annotation, annotatedElement, ~parent=None)
+      | None =>
         let contentFile = switch api.getContentFile {
         | Some(getContentFile) =>
           getContentFile(element)
@@ -75,28 +83,10 @@ let getElementSourceLocation = (
             componentProps: None,
           })
         | None =>
-          switch ancestors->Array.get(0) {
+          switch nearestAnnotation {
           | None => None
-          | Some((selectedAnn, selectedEl)) =>
-            makeSourceLocation(selectedAnn, selectedEl, ~parent=None)
-          }
-        }
-      | selectedIdx =>
-        switch ancestors->Array.get(selectedIdx) {
-        | None => None
-        | Some((selectedAnn, selectedEl)) => {
-            let (parentChain, _) =
-              ancestors
-              ->Array.slice(~start=selectedIdx + 1, ~end=Array.length(ancestors))
-              ->Array.reduce((None, selectedAnn.file), ((parentChain, lastFile), (ann, el)) => {
-                if ann.file != lastFile && !Client__SourcePath.isNodeModulesPath(ann.file) {
-                  (makeSourceLocation(ann, el, ~parent=parentChain), ann.file)
-                } else {
-                  (parentChain, lastFile)
-                }
-              })
-
-            makeSourceLocation(selectedAnn, selectedEl, ~parent=parentChain)
+          | Some((annotation, annotatedElement)) =>
+            makeSourceLocation(annotation, annotatedElement, ~parent=None)
           }
         }
       }

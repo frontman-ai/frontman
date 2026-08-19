@@ -65,6 +65,7 @@ module Task = {
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
         isAgentRunning: bool,
+        lastTurnCancelled: bool,
         planEntries: array<ACPTypes.planEntry>,
         queuedUserMessages: array<Message.t>,
         turnError: option<turnErrorInfo>,
@@ -249,6 +250,7 @@ module Task = {
         annotations,
         activePopupAnnotationId,
         isAgentRunning: false,
+        lastTurnCancelled: false,
         planEntries: [],
         queuedUserMessages: [],
         turnError: None,
@@ -268,6 +270,7 @@ module Task = {
     annotations: array<Annotation.t>,
     activePopupAnnotationId: option<string>,
     isAgentRunning: bool,
+    lastTurnCancelled: bool,
     planEntries: array<ACPTypes.planEntry>,
     queuedUserMessages: array<Message.t>,
     turnError: option<turnErrorInfo>,
@@ -299,6 +302,7 @@ module Task = {
         annotations,
         activePopupAnnotationId,
         isAgentRunning,
+        lastTurnCancelled,
         planEntries,
         queuedUserMessages,
         turnError,
@@ -313,6 +317,7 @@ module Task = {
           annotations,
           activePopupAnnotationId,
           isAgentRunning,
+          lastTurnCancelled,
           planEntries,
           queuedUserMessages,
           turnError,
@@ -331,6 +336,7 @@ module Task = {
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
           isAgentRunning: updated.isAgentRunning,
+          lastTurnCancelled: updated.lastTurnCancelled,
           planEntries: updated.planEntries,
           queuedUserMessages: updated.queuedUserMessages,
           turnError: updated.turnError,
@@ -358,6 +364,7 @@ module Task = {
           annotations,
           activePopupAnnotationId,
           isAgentRunning,
+          lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
           turnError: None,
@@ -384,6 +391,7 @@ module Task = {
           annotations,
           activePopupAnnotationId,
           isAgentRunning: false,
+          lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
           turnError: None,
@@ -469,6 +477,7 @@ type annotationMeta = {
   annotationId: string,
   tagName: string,
   selector: option<string>,
+  elementContext: option<string>,
   comment: option<string>,
   file: option<string>,
   line: option<int>,
@@ -476,6 +485,8 @@ type annotationMeta = {
   componentName: option<string>,
   componentProps: option<Dict.t<JSON.t>>,
   parent: option<JSON.t>,
+  @live
+  sourceLocationError: option<string>,
   cssClasses: option<string>,
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
@@ -488,6 +499,7 @@ let annotationMetaSchema: S.t<annotationMeta> = S.object(s => {
   annotationId: s.field("annotation_id", S.string),
   tagName: s.field("tag_name", S.string),
   selector: s.field("selector", S.option(S.string)),
+  elementContext: s.field("element_context", S.option(S.string)),
   comment: s.field("comment", S.option(S.string)),
   file: s.field("file", S.option(S.string)),
   line: s.field("line", S.option(S.int)),
@@ -495,6 +507,7 @@ let annotationMetaSchema: S.t<annotationMeta> = S.object(s => {
   componentName: s.field("component_name", S.option(S.string)),
   componentProps: s.field("component_props", S.option(S.dict(S.json))),
   parent: s.field("parent", S.option(S.json)),
+  sourceLocationError: s.field("source_location_error", S.option(S.string)),
   cssClasses: s.field("css_classes", S.option(S.string)),
   nearbyText: s.field("nearby_text", S.option(S.string)),
   elementorContext: s.field("elementor", S.option(Client__ElementorDetection.schema)),
@@ -550,8 +563,10 @@ type annotationBlockData = {
   tagName: string,
   comment: option<string>,
   selector: option<string>,
+  elementContext: option<string>,
   screenshot: option<string>,
   sourceLocation: option<parentLocationMeta>,
+  sourceLocationError: option<string>,
   cssClasses: option<string>,
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
@@ -595,6 +610,7 @@ let makeAnnotationMeta = (annotation: annotationBlockData, ~index: int): JSON.t 
     annotationId: annotation.id,
     tagName: annotation.tagName,
     selector: annotation.selector,
+    elementContext: annotation.elementContext,
     comment: annotation.comment,
     file,
     line,
@@ -602,6 +618,7 @@ let makeAnnotationMeta = (annotation: annotationBlockData, ~index: int): JSON.t 
     componentName,
     componentProps,
     parent,
+    sourceLocationError: annotation.sourceLocationError,
     cssClasses: annotation.cssClasses,
     nearbyText: nearbyTextWithElementorHint(
       ~nearbyText=annotation.nearbyText,
@@ -713,24 +730,25 @@ let messageAnnotationBoundingBoxMeta = (
 let messageAnnotationToBlockData = (
   annotation: Message.MessageAnnotation.t,
 ): annotationBlockData => {
-  id: annotation.id,
-  tagName: annotation.tagName,
-  comment: annotation.comment,
-  selector: annotation.selector->Result.getOr(None),
-  screenshot: annotation.screenshot->Result.getOr(None),
-  sourceLocation: annotation.sourceLocation
-  ->Result.getOr(None)
-  ->Option.map(sourceLocationFromMessageAnnotation),
-  cssClasses: annotation.cssClasses,
-  nearbyText: annotation.nearbyText,
-  elementorContext: annotation.elementorContext,
-  boundingBox: annotation.boundingBox->Option.map(messageAnnotationBoundingBoxMeta),
-}
+  let (sourceLocation, sourceLocationError) = switch annotation.sourceLocation {
+  | Ok(sourceLocation) => (sourceLocation->Option.map(sourceLocationFromMessageAnnotation), None)
+  | Error(error) => (None, Some(error))
+  }
 
-let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<ContentBlock.t> => {
-  let blockData = annotation->Message.MessageAnnotation.fromAnnotation->messageAnnotationToBlockData
-
-  annotationContentBlocks(blockData, ~index)
+  {
+    id: annotation.id,
+    tagName: annotation.tagName,
+    comment: annotation.comment,
+    selector: annotation.selector->Result.getOr(None),
+    elementContext: annotation.elementContext->Result.getOr(None),
+    screenshot: annotation.screenshot->Result.getOr(None),
+    sourceLocation,
+    sourceLocationError,
+    cssClasses: annotation.cssClasses,
+    nearbyText: annotation.nearbyText,
+    elementorContext: annotation.elementorContext,
+    boundingBox: annotation.boundingBox->Option.map(messageAnnotationBoundingBoxMeta),
+  }
 }
 
 let getDocumentTitle: WebAPI.DOMAPI.document => string = %raw(`
@@ -932,8 +950,11 @@ let annotationMetaToMessageAnnotation = (
     }
   }
 
-  let sourceLocation = switch (meta.file, meta.line, meta.column) {
-  | (Some(file), Some(line), Some(column)) =>
+  let sourceLocation = switch (meta.sourceLocationError, meta.file, meta.line, meta.column) {
+  | (Some(_), Some(_), Some(_), Some(_)) =>
+    panic("Annotation metadata contains both a source location and a source location error")
+  | (Some(error), _, _, _) => Error(error)
+  | (None, Some(file), Some(line), Some(column)) =>
     Ok(
       Some({
         Message.MessageAnnotation.file,
@@ -945,13 +966,14 @@ let annotationMetaToMessageAnnotation = (
         parent: meta.parent->Option.flatMap(parseParentLocation),
       }),
     )
-  | _ => Ok(None)
+  | (None, _, _, _) => Ok(None)
   }
 
   {
     id: meta.annotationId,
     tagName: meta.tagName,
     selector: Ok(meta.selector),
+    elementContext: Ok(meta.elementContext),
     cssClasses: meta.cssClasses,
     comment: meta.comment,
     screenshot: Ok(screenshot),

@@ -1,4 +1,4 @@
-/** The production API server host (without protocol). */
+@@live
 let apiHost = "api.frontman.sh"
 
 @@live

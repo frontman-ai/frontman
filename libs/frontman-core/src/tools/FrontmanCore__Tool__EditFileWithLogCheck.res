@@ -47,6 +47,7 @@ let executeWithFileChange = async (
   }
 }
 
+@@live
 let execute = async (
   ctx: Tool.serverExecutionContext,
   input: CoreEditFile.input,
@@ -57,7 +58,6 @@ let execute = async (
   | Ok(execution) => Tool.structuredResult(execution.output, CoreEditFile.outputSchema)
   }
 }
-
 let getCoreErrorLogsSince = (beforeTimestamp: float): array<logEntry> => {
   let recentLogs = FrontmanCore__LogCapture.getLogs(~since=beforeTimestamp, ~level=Error)
   let errorLogs = FrontmanCore__LogCapture.getLogs(

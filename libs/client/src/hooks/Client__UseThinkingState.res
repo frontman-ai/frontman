@@ -45,15 +45,10 @@ let use = (
   ~messages: array<Message.t>,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
-  ~sessionInitialized: bool,
 ): thinkingState => {
   let lastMessage = messages->Array.get(Array.length(messages) - 1)
 
-  let showThinking =
-    hasActiveACPSession &&
-    sessionInitialized &&
-    isAgentRunning &&
-    !isTurnEnded(lastMessage)
+  let showThinking = hasActiveACPSession && isAgentRunning && !isTurnEnded(lastMessage)
 
   let thinkingContext = if showThinking {
     getThinkingContext(lastMessage)
@@ -71,14 +66,8 @@ let useWithMessageId = (
   ~messages: array<Message.t>,
   ~isAgentRunning: bool,
   ~hasActiveACPSession: bool,
-  ~sessionInitialized: bool,
 ): (thinkingState, string) => {
-  let state = use(
-    ~messages,
-    ~isAgentRunning,
-    ~hasActiveACPSession,
-    ~sessionInitialized,
-  )
+  let state = use(~messages, ~isAgentRunning, ~hasActiveACPSession)
 
   let messageId = switch messages->Array.get(Array.length(messages) - 1) {
   | Some(msg) => Message.getId(msg) ++ "-thinking"

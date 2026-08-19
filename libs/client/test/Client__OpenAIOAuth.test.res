@@ -8,7 +8,6 @@ let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
     tasks: Dict.make(),
     currentTask: Types.Task.New(Types.Task.makeNew(~previewUrl="http://localhost:3000")),
     acpSession: NoAcpSession,
-    sessionInitialized: false,
     userProfile: None,
     openrouterKeySettings: {
       source: Types.None,

@@ -201,11 +201,11 @@ See [Self-Hosting and License](#self-hosting-and-license) above, plus the respec
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=frontman-ai%2Ffrontman&type=date&legend=top-left">
+<a href="https://star-history.dera.page/#frontman-ai/frontman&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=frontman-ai/frontman&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=frontman-ai/frontman&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=frontman-ai/frontman&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=frontman-ai/frontman&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=frontman-ai/frontman&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=frontman-ai/frontman&type=date&legend=top-left" />
  </picture>
 </a>
 

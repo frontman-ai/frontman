@@ -1,6 +1,6 @@
 {
 	"name": "@frontman-ai/nextjs",
-	"version": "1.0.4",
+	"version": "1.0.5",
 	"description": "Next.js integration for Frontman - AI-powered development tools and observability",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -58,7 +58,9 @@
 	"dependencies": {
 		"@sentry/nextjs": "^10.66.0",
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^13.4.0"
+		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
+		"lighthouse": "^13.4.0",
+		"source-map": "^0.7.6"
 	},
 	"optionalDependencies": {
 		"@vscode/ripgrep": "^1.18.0"
@@ -90,7 +92,6 @@
 		"@frontman-ai/frontman-protocol": "*",
 		"@rescript/runtime": "12.3.0",
 		"@rescript/webapi": "*",
-		"dom-element-to-component-source": "0.5.0",
 		"next": "^16.2.10",
 		"react": "^19.2.7",
 		"react-dom": "^19.2.7",
