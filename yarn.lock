@@ -2487,7 +2487,6 @@ __metadata:
     "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
     "@frontman-ai/frontman-protocol": "workspace:*"
     "@rescript/runtime": "npm:12.3.0"
-    playwright: "npm:^1.61.1"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     vite: "catalog:"

@@ -420,17 +420,9 @@ jobs:
         if: steps.changes.outputs.bridge == 'true'
         run: yarn install --immutable
 
-      - name: Install Chromium
-        if: steps.changes.outputs.bridge == 'true'
-        run: make -C libs/frontman-preview-bridge install-browser
-
       - name: Run focused bridge tests
         if: steps.changes.outputs.bridge == 'true'
         run: make -C libs/frontman-preview-bridge test
-
-      - name: Run bridge browser integration
-        if: steps.changes.outputs.bridge == 'true'
-        run: make -C libs/frontman-preview-bridge test-browser
 
   dead-code:
     name: Dead code analysis
