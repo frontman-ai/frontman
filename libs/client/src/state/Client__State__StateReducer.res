@@ -204,12 +204,6 @@ let setAllApiKeySources = (state: state, source) => {
   nvidiaKeySettings: {...state.nvidiaKeySettings, source},
 }
 
-let hasApiKeySource = (source: Client__State__Types.apiKeySource) =>
-  switch source {
-  | UserOverride => true
-  | Loading | Client__State__Types.None => false
-  }
-
 let defaultState: state = {
   tasks: Dict.make(),
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
@@ -444,41 +438,15 @@ module Selectors = {
     }
   }
 
-  let hasAnyProviderConfigured = (state: state): bool => {
-    switch state.anthropicOAuthStatus {
-    | Connected(_) => true
-    | _ =>
-      switch state.openaiOAuthStatus {
-      | OpenAIConnected(_) => true
-      | _ =>
-        hasApiKeySource(state.openrouterKeySettings.source) ||
-        hasApiKeySource(state.nvidiaKeySettings.source) ||
-        hasApiKeySource(state.fireworksKeySettings.source) ||
-        hasApiKeySource(state.anthropicKeySettings.source)
-      }
-    }
-  }
-
-  let providerSettingsLoaded = (state: state): bool => {
-    let apiKeySettingsLoaded = switch (
-      state.openrouterKeySettings.source,
-      state.nvidiaKeySettings.source,
-      state.fireworksKeySettings.source,
-      state.anthropicKeySettings.source,
-    ) {
-    | (Loading, _, _, _) | (_, Loading, _, _) | (_, _, Loading, _) | (_, _, _, Loading) => false
-    | _ => true
-    }
-    let oauthSettingsLoaded = switch (state.anthropicOAuthStatus, state.openaiOAuthStatus) {
-    | (FetchingStatus, _) | (_, OpenAIFetchingStatus) => false
-    | _ => true
-    }
-
-    apiKeySettingsLoaded && oauthSettingsLoaded
-  }
-
   let providerSetupRequired = (state: state): bool => {
-    hasActiveACPSession(state) && providerSettingsLoaded(state) && !hasAnyProviderConfigured(state)
+    switch (state.acpSession, state.configOptions) {
+    | (AcpSessionActive(_), Some(configOptions)) =>
+      switch configOptions->ACP.findConfigOptionByCategory(ACP.Model) {
+      | Some(modelConfig) => ACP.sessionConfigOptionFirstOption(modelConfig)->Option.isNone
+      | None => false
+      }
+    | _ => false
+    }
   }
 }
 
@@ -1192,7 +1160,7 @@ let next = (state: state, action) => {
     }
 
   | SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}) =>
-    let stateWithSession = {
+    {
       ...state,
       acpSession: AcpSessionActive({
         sendPrompt,
@@ -1202,24 +1170,7 @@ let next = (state: state, action) => {
         deleteSession,
         apiBaseUrl,
       }),
-    }
-    switch state.acpSession {
-    | AcpSessionActive(_) => stateWithSession->StateReducer.update
-    | NoAcpSession =>
-      {
-        ...stateWithSession,
-        anthropicOAuthStatus: Client__State__Types.FetchingStatus,
-        openaiOAuthStatus: Client__State__Types.OpenAIFetchingStatus,
-      }
-      ->setAllApiKeySources(Client__State__Types.Loading)
-      ->StateReducer.update(
-        ~sideEffects=[
-          FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
-          FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
-          FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
-        ],
-      )
-    }
+    }->StateReducer.update
 
   | ClearAcpSession =>
     let updatedTasks = state.tasks->Dict.copy
@@ -1287,15 +1238,8 @@ let next = (state: state, action) => {
         ~message="ConfigOptionsReceived missing model config option",
       )
 
-    let firstModelValue = switch modelConfigOption {
-    | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
-      groups
-      ->Array.get(0)
-      ->Option.flatMap(g => g.options->Array.get(0))
-      ->Option.map(opt => opt.value)
-    | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) =>
-      failwith("Model config option must use grouped options")
-    }
+    let firstModelValue =
+      modelConfigOption->ACP.sessionConfigOptionFirstOption->Option.map(option => option.value)
 
     let (selectedModelValue, didAutoSelect) = switch state.pendingProviderAutoSelect {
     | Some(providerId) =>
@@ -1305,8 +1249,7 @@ let next = (state: state, action) => {
         ->Array.find(g => g.group == providerId)
         ->Option.flatMap(g => g.options->Array.get(0))
         ->Option.map(opt => opt.value)
-      | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) =>
-        failwith("Model config option must use grouped options")
+      | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) => None
       }
       switch providerModelValue {
       | Some(value) => (Some(value), true)

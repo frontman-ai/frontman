@@ -55,7 +55,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
-  alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMProvider
   alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
@@ -78,17 +77,9 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
         {_key, value} -> value == []
       end)
 
-    provider = Providers.model_provider_name(client.model)
-
-    preflight_opts = [
-      images_supported: images_supported?(client.model),
-      llm_vendor: Providers.model_llm_vendor_name(client.model),
-      max_image_dimension: Providers.max_image_dimension(provider)
-    ]
-
     reqllm_messages =
       messages
-      |> LLMRequestPreflight.run(preflight_opts)
+      |> LLMRequestPreflight.run(model: client.model)
       |> Enum.map(&to_reqllm_message/1)
 
     case LLMProvider.stream_text(
@@ -150,13 +141,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
 
   defp normalize_reqllm_chunk(%{type: :meta} = chunk) do
     chunk
-  end
-
-  defp images_supported?(model) do
-    case ReqLLM.model(model) do
-      {:ok, %{modalities: %{input: input}}} when is_list(input) -> :image in input
-      _ -> true
-    end
   end
 
   defp normalize_index(index) when is_integer(index), do: index

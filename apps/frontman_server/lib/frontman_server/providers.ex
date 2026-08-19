@@ -22,11 +22,6 @@ defmodule FrontmanServer.Providers do
     OpenAIOAuth
   }
 
-  @providers Application.compile_env!(:frontman_server, :providers)
-             |> Enum.map(fn {provider, config} -> {Atom.to_string(provider), config} end)
-
-  @provider_configs Map.new(@providers)
-
   @doc """
   Prepares ReqLLM arguments for a request. Resolves model and provider auth.
 
@@ -46,12 +41,18 @@ defmodule FrontmanServer.Providers do
   def prepare_llm_args(_scope, nil, _opts), do: {:error, :missing_model}
 
   def prepare_llm_args(scope, model, opts) when is_binary(model) and model != "" do
-    provider = model_provider_name(model)
+    with {:ok, {credential_source, resolved_model}} <- resolve_catalog_model(model) do
+      case oauth_llm_opts(credential_source, resolve_oauth_token(scope, credential_source)) do
+        {:ok, llm_opts} ->
+          {:ok,
+           {resolved_model, Keyword.merge(llm_opts ++ transport_llm_opts(resolved_model), opts)}}
 
-    case oauth_llm_opts(provider, resolve_oauth_token(scope, provider)) do
-      {:ok, llm_opts} -> {:ok, {model, Keyword.merge(llm_opts, opts)}}
-      {:error, reason} -> {:error, reason}
-      :use_api_key -> api_key_llm_args(scope, provider, model, opts)
+        {:error, reason} ->
+          {:error, reason}
+
+        :use_api_key ->
+          api_key_llm_args(scope, credential_source, resolved_model, opts)
+      end
     end
   end
 
@@ -62,9 +63,7 @@ defmodule FrontmanServer.Providers do
      [
        auth_mode: :oauth,
        access_token: access_token,
-       with_claude_subscription: true,
-       anthropic_prompt_cache: true,
-       anthropic_cache_messages: -1
+       with_claude_subscription: true
      ]}
   end
 
@@ -82,17 +81,36 @@ defmodule FrontmanServer.Providers do
   defp api_key_llm_args(scope, provider, model, opts) do
     case get_api_key(scope, provider) do
       %ApiKey{key: key} when is_binary(key) and key != "" ->
-        {:ok, {model, Keyword.merge(api_key_llm_opts(provider, key), opts)}}
+        {:ok, {model, Keyword.merge([api_key: key] ++ transport_llm_opts(model), opts)}}
 
       nil ->
         {:error, :no_api_key}
     end
   end
 
-  defp api_key_llm_opts("anthropic", key),
-    do: [api_key: key, anthropic_prompt_cache: true, anthropic_cache_messages: -1]
+  defp transport_llm_opts(%LLMDB.Model{provider: :anthropic}),
+    do: [anthropic_prompt_cache: true, anthropic_cache_messages: -1]
 
-  defp api_key_llm_opts(_provider, key), do: [api_key: key]
+  defp transport_llm_opts(%LLMDB.Model{}), do: []
+
+  defp resolve_catalog_model(model) do
+    with {:ok, {group, model_id}} <- model_parts(model),
+         {^group, config} <- Enum.find(providers(), &match?({^group, _}, &1)),
+         entry when is_tuple(entry) <-
+           Enum.find(config.models, &(elem(&1, 1) == model_id)),
+         {_name, ^model_id, model_spec} = model_entry(entry, group),
+         {:ok, resolved_model} <- ReqLLM.model(model_spec) do
+      credential_source = config |> Map.get(:credential_source, group) |> to_string()
+      {:ok, {credential_source, resolved_model}}
+    else
+      nil -> {:error, :unknown_model}
+      :error -> {:error, :unknown_model}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp model_entry({name, model_id}, group), do: {name, model_id, model_string(group, model_id)}
+  defp model_entry({name, model_id, model_spec}, _group), do: {name, model_id, model_spec}
 
   def model_from_client_params(nil), do: :error
 
@@ -102,9 +120,9 @@ defmodule FrontmanServer.Providers do
   end
 
   def model_from_client_params(params) when is_binary(params) do
-    case String.split(params, ":", parts: 2) do
-      [provider, name] when provider != "" and name != "" -> {:ok, model_string(provider, name)}
-      _invalid -> :error
+    case model_parts(params) do
+      {:ok, {provider, name}} -> {:ok, model_string(provider, name)}
+      :error -> :error
     end
   end
 
@@ -186,43 +204,10 @@ defmodule FrontmanServer.Providers do
   end
 
   @doc """
-  Returns the provider-specific maximum image dimension when constrained.
-  """
-  def max_image_dimension(provider) when is_binary(provider) do
-    provider_config(provider).max_image_dimension
-  end
-
-  @doc """
   Returns a human-friendly model name for logs and telemetry.
   """
   def display_model_name(model_ref) when is_binary(model_ref), do: model_ref
   def display_model_name(%{id: id}) when is_binary(id), do: id
-
-  @doc """
-  Returns the provider name from a model reference.
-  """
-  def model_provider_name(model_ref) when is_binary(model_ref) do
-    {provider, _name} = model_parts(model_ref)
-    provider
-  end
-
-  def model_provider_name(%{provider: provider}) when is_atom(provider),
-    do: Atom.to_string(provider)
-
-  @doc """
-  Returns the underlying LLM vendor from a model reference.
-  """
-  def model_llm_vendor_name(model_ref) when is_binary(model_ref) do
-    {provider, name} = model_parts(model_ref)
-    llm_vendor_name(provider, name)
-  end
-
-  def model_llm_vendor_name(%{provider: :openrouter, id: id}) when is_binary(id) do
-    openrouter_vendor_name(id)
-  end
-
-  def model_llm_vendor_name(%{provider: provider}) when is_atom(provider),
-    do: Atom.to_string(provider)
 
   @doc """
   Stores or updates a user API key for a provider.
@@ -442,9 +427,10 @@ defmodule FrontmanServer.Providers do
       end)
 
     provider_configs =
-      Enum.filter(@providers, fn
-        {provider, %{models: [_ | _]}} ->
-          provider in oauth_providers or provider in api_key_providers
+      Enum.filter(providers(), fn
+        {provider, %{models: [_ | _]} = config} ->
+          credential_source = config |> Map.get(:credential_source, provider) |> to_string()
+          credential_source in oauth_providers or credential_source in api_key_providers
 
         {_provider, _config} ->
           false
@@ -454,7 +440,9 @@ defmodule FrontmanServer.Providers do
       Enum.map(provider_configs, fn {provider, config} ->
         options =
           config.models
-          |> Enum.map(fn {name, value, _llm_db} ->
+          |> Enum.map(fn entry ->
+            {name, value, _model_spec} = model_entry(entry, provider)
+
             %{
               name: name,
               value: model_string(provider, value)
@@ -467,24 +455,18 @@ defmodule FrontmanServer.Providers do
     %{groups: groups}
   end
 
-  defp provider_config(provider) do
-    Map.fetch!(@provider_configs, String.downcase(provider))
+  defp providers do
+    :frontman_server
+    |> Application.fetch_env!(:providers)
+    |> Enum.map(fn {provider, config} -> {to_string(provider), config} end)
   end
 
   defp model_parts(model) when is_binary(model) do
     case String.split(model, ":", parts: 2) do
-      [provider, name] when provider != "" and name != "" -> {provider, name}
+      [provider, name] when provider != "" and name != "" -> {:ok, {provider, name}}
+      _invalid -> :error
     end
   end
 
   defp model_string(provider, name), do: "#{provider}:#{name}"
-
-  defp llm_vendor_name("openrouter", name), do: openrouter_vendor_name(name)
-  defp llm_vendor_name(provider, _name), do: provider
-
-  defp openrouter_vendor_name(name) do
-    case String.split(name, "/", parts: 2) do
-      [vendor, _rest] when vendor != "" -> vendor
-    end
-  end
 end

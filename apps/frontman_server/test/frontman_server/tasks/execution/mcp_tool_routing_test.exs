@@ -82,7 +82,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       execution_request =
         execution_request_fixture(
           mcp_tools: [mcp_tool_def],
-          model: "openrouter:anthropic/claude-sonnet-4-20250514",
+          model: "openrouter:anthropic/claude-sonnet-4.6",
           project_traits: []
         )
 

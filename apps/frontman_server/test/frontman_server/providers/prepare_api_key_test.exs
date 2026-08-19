@@ -5,7 +5,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   Tests the priority order: OAuth > user key.
   This is the primary entry point for all LLM key resolution in the system.
   """
-  use FrontmanServer.DataCase, async: true
+  use FrontmanServer.DataCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
 
@@ -33,9 +33,9 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
+        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
 
-      assert model == "anthropic:claude-sonnet-4-5"
+      assert %LLMDB.Model{provider: :anthropic, id: "claude-sonnet-4-6"} = model
       assert llm_opts[:access_token] == "oauth_access"
       assert llm_opts[:auth_mode] == :oauth
       assert llm_opts[:with_claude_subscription] == true
@@ -49,7 +49,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, {model, llm_opts}} =
         Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-5")
 
-      assert model == "anthropic:claude-sonnet-5"
+      assert %LLMDB.Model{provider: :anthropic, id: "claude-sonnet-5"} = model
       assert llm_opts[:api_key] == "user_key_456"
       assert llm_opts[:anthropic_prompt_cache] == true
       assert llm_opts[:anthropic_cache_messages] == -1
@@ -59,7 +59,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
+        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
 
       context =
         Context.new([
@@ -83,7 +83,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
     test "returns :no_api_key when no key source is available", %{scope: scope} do
       assert {:error, :no_api_key} =
-               Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
+               Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
     end
 
     test "refreshes expired Anthropic OAuth token before resolving LLM args", %{scope: scope} do
@@ -95,7 +95,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_anthropic_refresh_success()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
+        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:access_token] == "fresh_access"
       assert llm_opts[:auth_mode] == :oauth
@@ -112,7 +112,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_anthropic_refresh_permanent_failure()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
+        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:api_key] == "user_key_456"
       assert is_nil(Providers.get_oauth_token(scope, "anthropic"))
@@ -128,7 +128,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_anthropic_refresh_transient_failure()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
+        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:api_key] == "user_key_456"
       refute is_nil(Providers.get_oauth_token(scope, "anthropic"))
@@ -136,7 +136,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_anthropic_refresh_success()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-5")
+        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:access_token] == "fresh_access"
     end
@@ -151,7 +151,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, {model, llm_opts}} =
         Providers.prepare_llm_args(scope, "openrouter:anthropic/claude-fable-5")
 
-      assert model == "openrouter:anthropic/claude-fable-5"
+      assert %LLMDB.Model{provider: :openrouter, id: "anthropic/claude-fable-5"} = model
       assert llm_opts[:api_key] == "sk-or-user-test"
     end
 
@@ -163,7 +163,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, {model, llm_opts}} =
         Providers.prepare_llm_args(scope, "openai_codex:gpt-5.6-sol", max_tokens: 16_384)
 
-      assert model == "openai_codex:gpt-5.6-sol"
+      assert %LLMDB.Model{provider: :openai_codex, id: "gpt-5.6-sol"} = model
       assert llm_opts[:access_token] == "openai_access"
       assert llm_opts[:auth_mode] == :oauth
       assert llm_opts[:chatgpt_account_id] == "acc-789"
@@ -176,7 +176,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_openai_refresh_success()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "openai_codex:gpt-5.3-codex")
+        Providers.prepare_llm_args(scope, "openai_codex:gpt-5.3-codex-spark")
 
       assert llm_opts[:access_token] == "fresh_openai_access"
       assert llm_opts[:auth_mode] == :oauth
@@ -189,7 +189,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_openai_refresh_permanent_failure()
 
       assert {:error, :no_api_key} =
-               Providers.prepare_llm_args(scope, "openai_codex:gpt-5.3-codex")
+               Providers.prepare_llm_args(scope, "openai_codex:gpt-5.3-codex-spark")
 
       assert is_nil(Providers.get_oauth_token(scope, "openai_codex"))
     end
@@ -208,6 +208,41 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
       assert {:error, :invalid_oauth_token} =
                Providers.prepare_llm_args(scope, "openai_codex:gpt-5.5")
+    end
+
+    test "reads runtime catalog and separates group, credential, and transport", %{scope: scope} do
+      original_providers = Application.fetch_env!(:frontman_server, :providers)
+      on_exit(fn -> Application.put_env(:frontman_server, :providers, original_providers) end)
+
+      Application.put_env(:frontman_server, :providers,
+        custom: %{
+          display_name: "Custom",
+          credential_source: "anthropic",
+          models: [
+            {"Qwen3 Coder", "qwen3-coder",
+             %LLMDB.Model{
+               provider: :openai,
+               id: "qwen3-coder",
+               base_url: "http://vllm:8000/v1"
+             }}
+          ]
+        }
+      )
+
+      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "runtime-key")
+      assert %{groups: [%{id: "custom"}]} = Providers.model_config_data(scope)
+
+      assert {:ok, {%LLMDB.Model{} = resolved_model, llm_opts}} =
+               Providers.prepare_llm_args(scope, "custom:qwen3-coder")
+
+      assert resolved_model.provider == :openai
+      assert resolved_model.id == "qwen3-coder"
+      assert resolved_model.base_url == "http://vllm:8000/v1"
+      assert llm_opts[:api_key] == "runtime-key"
+      refute llm_opts[:anthropic_prompt_cache]
+
+      assert {:error, :unknown_model} =
+               Providers.prepare_llm_args(scope, "future_provider:missing")
     end
   end
 
@@ -241,15 +276,15 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
   end
 
-  describe "model provider names" do
-    test "openai_codex is the provider id" do
-      assert Providers.model_provider_name("openai_codex:gpt-5.5") == "openai_codex"
-      assert Providers.model_provider_name(%{provider: :openai_codex}) == "openai_codex"
-      assert Providers.model_llm_vendor_name("openai_codex:gpt-5.5") == "openai_codex"
-      assert Providers.model_llm_vendor_name(%{provider: :openai_codex}) == "openai_codex"
+  describe "packaged LLMDB metadata" do
+    test "NVIDIA Kimi K2.6 no longer needs Frontman metadata" do
+      model = ReqLLM.model!("nvidia:moonshotai/kimi-k2.6")
 
-      assert Providers.max_image_dimension(Providers.model_provider_name("openai_codex:gpt-5.5")) ==
-               nil
+      assert model.capabilities.reasoning.enabled
+      assert model.capabilities.streaming.tool_calls
+      assert model.capabilities.tools.enabled
+      assert model.limits == %{context: 262_144, output: 262_144}
+      assert model.modalities == %{input: [:text, :image, :video], output: [:text]}
     end
   end
 
