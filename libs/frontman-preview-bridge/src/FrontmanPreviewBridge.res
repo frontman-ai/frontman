@@ -33,19 +33,14 @@ let handler:
   (_message, _sender, _context) => Response.none
 
 let existing = (): option<t> => {
-  let stored: option<Nullable.t<Obj.t>> = Object.getSymbol(
-    Obj.magic(WebAPI.Window.current),
-    installationKey,
-  )
+  let stored: option<Nullable.t<slot>> = Object.getSymbol(globalThis, installationKey)
   switch stored->Option.flatMap(Nullable.toOption) {
   | None => None
-  | Some(value) => {
-      let slot: slot = Obj.magic(value)
-      switch slot.marker === installationMarker {
-      | true => Some(slot.installation)
-      | false =>
-        JsError.throwWithMessage("Frontman preview bridge installation slot is already occupied")
-      }
+  | Some(value) =>
+    switch value.marker === installationMarker {
+    | true => Some(value.installation)
+    | false =>
+      JsError.throwWithMessage("Frontman preview bridge installation slot is already occupied")
     }
   }
 }
@@ -89,7 +84,7 @@ let create: config => t = config => {
   } catch {
   | error => {
       Runtime.close(runtime)
-      JsError.throw(Obj.magic(error))
+      throw(error)
     }
   }
 
@@ -113,18 +108,18 @@ let install: config => t = config => {
       let installation = create(config)
       try {
         Object.setSymbol(
-          Obj.magic(WebAPI.Window.current),
+          globalThis,
           installationKey,
-          Obj.magic({
+          {
             marker: installationMarker,
             installation,
-          }),
+          },
         )
         installation
       } catch {
       | error => {
           installation.disposeInternal()
-          JsError.throw(Obj.magic(error))
+          throw(error)
         }
       }
     }

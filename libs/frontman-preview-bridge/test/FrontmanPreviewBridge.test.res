@@ -1,12 +1,14 @@
 open Vitest
 
-@val external globalThis: Dict.t<Obj.t> = "globalThis"
+let installationKey =
+  Symbol.getFor("@frontman-ai/frontman-preview-bridge/installation")->Option.getOrThrow
 
 let makeWindow = () => {
+  Object.setSymbol(globalThis, installationKey, undefined)
   let window = WebAPI.EventTarget.make()
   let properties: Dict.t<Obj.t> = Obj.magic(window)
   properties->Dict.set("parent", Obj.magic(window))
-  globalThis->Dict.set("window", Obj.magic(window))
+  Object.set(globalThis, "window", window)
   (Obj.magic(window): WebAPI.DomTypes.window)
 }
 
@@ -62,11 +64,7 @@ describe("preview bridge installation", _t => {
 
   test("rejects an occupied installation slot", t => {
     let parentWindow = makeWindow()
-    Object.setSymbol(
-      Obj.magic(parentWindow),
-      Symbol.getFor("@frontman-ai/frontman-preview-bridge/installation")->Option.getOrThrow,
-      Obj.magic({"marker": "other-application"}),
-    )
+    Object.setSymbol(globalThis, installationKey, {"marker": "other-application"})
 
     t
     ->expect(
