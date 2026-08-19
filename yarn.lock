@@ -1341,6 +1341,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@bluehotdog/reworker@https://github.com/frontman-ai/reworker.git#head=main":
+  version: 0.0.2
+  resolution: "@bluehotdog/reworker@https://github.com/frontman-ai/reworker.git#commit=29ad2c9b7a610dead396126609224eedbdb83772"
+  peerDependencies:
+    rescript: ^12.0.0
+  checksum: 10c0/bfe753fc1ee0da0a1bcae409715e0f5b180179c68760dff30c749b0f49bea136b52b598bb4bbf3d03148198b8ed63df3c41c044240ceb3539ab02a2e70e12da8
+  languageName: node
+  linkType: hard
+
 "@braintree/sanitize-url@npm:^7.1.2":
   version: 7.1.2
   resolution: "@braintree/sanitize-url@npm:7.1.2"
@@ -2475,9 +2484,13 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman-ai/frontman-protocol@workspace:libs/frontman-protocol"
   dependencies:
+    "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
     "@rescript/webapi": "npm:*"
     rescript: "catalog:"
+    rescript-vitest: "catalog:"
     sury: "npm:11.0.0-alpha.10"
+    vite: "catalog:"
+    vitest: "catalog:"
   languageName: unknown
   linkType: soft
 

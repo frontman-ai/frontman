@@ -1,9 +1,10 @@
 .DEFAULT_GOAL := help
-.PHONY: help build clean export-schemas check-schemas
+.PHONY: help build test clean export-schemas check-schemas
 
-HELP_TARGETS := help build clean export-schemas check-schemas
+HELP_TARGETS := help build test clean export-schemas check-schemas
 HELP_help := Display this help message
 HELP_build := Build ReScript
+HELP_test := Run tests
 HELP_clean := Clean build artifacts
 HELP_export-schemas := Export Sury schemas to JSON Schema files
 HELP_check-schemas := Verify committed schemas are up to date
@@ -13,6 +14,9 @@ help:
 
 build:
 	yarn rescript build
+
+test: build
+	yarn vitest run
 
 clean:
 	yarn rescript clean

@@ -3,3 +3,4 @@ module Relay = FrontmanProtocol__Relay
 module Tool = FrontmanProtocol__Tool
 module ACP = FrontmanProtocol__ACP
 module JsonRpc = FrontmanProtocol__JsonRpc
+module Preview = FrontmanProtocol__Preview
