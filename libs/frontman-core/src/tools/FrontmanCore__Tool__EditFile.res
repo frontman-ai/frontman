@@ -60,7 +60,7 @@ let toPathCtx = (r: PathContext.resolveResult): pathContext => {
   relativePath: r.relativePath,
 }
 
-type execution = {output: output, fileChange: ProtocolFileChange.envelope}
+type execution = FileChange.execution<output>
 
 let createFile = async (
   ~resolved: PathContext.resolveResult,
@@ -135,7 +135,7 @@ let findAndReplace = async (
   }
 }
 
-let executeOutputWithFileChange = async (ctx: Tool.serverExecutionContext, input: input): result<
+let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<
   execution,
   string,
 > => {
@@ -164,14 +164,10 @@ let executeOutputWithFileChange = async (ctx: Tool.serverExecutionContext, input
   }
 }
 
-let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<output, string> => {
-  let result = await executeOutputWithFileChange(ctx, input)
-  result->Result.map(execution => execution.output)
-}
-
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch await executeOutput(ctx, input) {
-  | Ok(output) => Tool.structuredResult(output, outputSchema)
+  | Ok({output, fileChange}) =>
+    FileChange.textResultWithFileChange(~message=output.message, ~output, ~outputSchema, fileChange)
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

@@ -61,61 +61,71 @@ let writeContent = (resolvedPath: string, content: string, encoding: option<[#ba
   }
 }
 
-type execution = {output: output, fileChange: ProtocolFileChange.envelope}
-
-let executeWithFileChange = async (
-  ctx: Tool.serverExecutionContext,
-  input: input,
-): result<execution, string> => {
+let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch (input.content, input.image_ref) {
-  | (None, None) => Error("Either content or image_ref must be provided")
-  | (Some(_), Some(_)) => Error("Provide either content or image_ref, not both")
-  | (None, Some(_)) => Error("image_ref must be resolved to content before execution")
+  | (None, None) =>
+    Tool.MCP.CallToolResult.makeError("Either content or image_ref must be provided")
+  | (Some(_), Some(_)) =>
+    Tool.MCP.CallToolResult.makeError("Provide either content or image_ref, not both")
+  | (None, Some(_)) =>
+    Tool.MCP.CallToolResult.makeError("image_ref must be resolved to content before execution")
   | (Some(content), None) =>
     switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
-    | Error(err) => Error(PathContext.formatError(err))
+    | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
     | Ok(resolved) =>
-      let previousContent = try { Some(await Fs.Promises.readFile(resolved.resolvedPath)) } catch { | _ => None }
+      let previousContent = try {
+        Some(await Fs.Promises.readFile(resolved.resolvedPath))
+      } catch {
+      | _ => None
+      }
       let guardResult = switch previousContent {
       | None => Ok()
       | Some(_) => await FileTracker.assertEditSafe(resolved.resolvedPath)
       }
       switch guardResult {
-      | Error(msg) => Error(msg)
+      | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
       | Ok() =>
         try {
           let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
           await writeContent(resolved.resolvedPath, content, input.encoding)
           let stats = await Fs.Promises.stat(resolved.resolvedPath)
-          FileTracker.recordWrite(resolved.resolvedPath, ~mtimeMs=Fs.mtimeMs(stats), ~size=Fs.size(stats))
-          let binary = switch input.encoding { | Some(#base64) => true | None => FileChange.isBinary(content) }
-          Ok({
-            output: {
+          FileTracker.recordWrite(
+            resolved.resolvedPath,
+            ~mtimeMs=Fs.mtimeMs(stats),
+            ~size=Fs.size(stats),
+          )
+          let binary = switch input.encoding {
+          | Some(#base64) => true
+          | None => FileChange.isBinary(content)
+          }
+          FileChange.textResultWithFileChange(
+            ~message="File written successfully.",
+            ~output={
               _context: {
                 sourceRoot: resolved.sourceRoot,
                 resolvedPath: resolved.resolvedPath,
                 relativePath: resolved.relativePath,
               },
             },
-            fileChange: FileChange.make(
+            ~outputSchema,
+            FileChange.make(
               ~path=resolved.relativePath,
-              ~status=switch previousContent { | None => ProtocolFileChange.Added | Some(_) => ProtocolFileChange.Modified },
+              ~status=switch previousContent {
+              | None => ProtocolFileChange.Added
+              | Some(_) => ProtocolFileChange.Modified
+              },
               ~oldText=previousContent,
               ~currentText=Some(content),
               ~binary,
             ),
-          })
+          )
         } catch {
-        | exn => Error(`Failed to write file ${input.path}: ${ExnUtils.message(exn)}`)
+        | exn =>
+          Tool.MCP.CallToolResult.makeError(
+            `Failed to write file ${input.path}: ${ExnUtils.message(exn)}`,
+          )
         }
       }
     }
-  }
-}
-
-let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
-  switch await executeWithFileChange(ctx, input) {
-  | Ok(execution) => Tool.structuredResult(execution.output, outputSchema)
-  | Error(message) => Tool.MCP.CallToolResult.makeError(message)
   }
 }

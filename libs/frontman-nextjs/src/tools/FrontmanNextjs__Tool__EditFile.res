@@ -32,14 +32,5 @@ let getErrorLogsSince = (beforeTimestamp: float): array<EditFileWithLogCheck.log
 }
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
-  switch await EditFileWithLogCheck.executeWithFileChange(ctx, input, ~getErrorLogsSince) {
-  | Ok(execution) =>
-    Core.FrontmanCore__FileChange.textResultWithFileChange(
-      ~message=execution.output.message,
-      ~output=execution.output,
-      ~outputSchema=CoreEditFile.outputSchema,
-      execution.fileChange,
-    )
-  | Error(message) => Tool.MCP.CallToolResult.makeError(message)
-  }
+  await EditFileWithLogCheck.execute(ctx, input, ~getErrorLogsSince)
 }

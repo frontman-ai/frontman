@@ -1,5 +1,6 @@
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module CoreEditFile = FrontmanCore__Tool__EditFile
+module FileChange = FrontmanCore__FileChange
 
 type logEntry = {
   @live
@@ -13,49 +14,36 @@ let sleep = (ms: int): promise<unit> => {
   })
 }
 
-let executeWithFileChange = async (
-  ctx: Tool.serverExecutionContext,
-  input: CoreEditFile.input,
-  ~getErrorLogsSince: float => array<logEntry>,
-): result<CoreEditFile.execution, string> => {
-  let beforeTimestamp = Date.now()
-  let result = await CoreEditFile.executeOutputWithFileChange(ctx, input)
-
-  switch result {
-  | Error(msg) => Error(msg)
-  | Ok(execution) =>
-    await sleep(800)
-
-    let allErrors = getErrorLogsSince(beforeTimestamp)
-    switch allErrors->Array.length > 0 {
-    | false => Ok(execution)
-    | true =>
-      let errorMessages =
-        allErrors
-        ->Array.slice(~start=0, ~end=5)
-        ->Array.map(entry => entry.message)
-        ->Array.join("\n")
-      Ok({
-        ...execution,
-        output: {
-          ...execution.output,
-          message: execution.output.message ++
-          `\n\nWarning: Dev server errors detected after edit:\n${errorMessages}`,
-        },
-      })
-    }
-  }
-}
-
 @@live
 let execute = async (
   ctx: Tool.serverExecutionContext,
   input: CoreEditFile.input,
   ~getErrorLogsSince: float => array<logEntry>,
 ): Tool.MCP.CallToolResult.t => {
-  switch await executeWithFileChange(ctx, input, ~getErrorLogsSince) {
+  let beforeTimestamp = Date.now()
+
+  switch await CoreEditFile.executeOutput(ctx, input) {
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
-  | Ok(execution) => Tool.structuredResult(execution.output, CoreEditFile.outputSchema)
+  | Ok({output, fileChange}) =>
+    await sleep(800)
+
+    let message = switch getErrorLogsSince(beforeTimestamp) {
+    | [] => output.message
+    | allErrors =>
+      let errorMessages =
+        allErrors
+        ->Array.slice(~start=0, ~end=5)
+        ->Array.map(entry => entry.message)
+        ->Array.join("\n")
+      output.message ++ `\n\nWarning: Dev server errors detected after edit:\n${errorMessages}`
+    }
+
+    FileChange.textResultWithFileChange(
+      ~message,
+      ~output={...output, message},
+      ~outputSchema=CoreEditFile.outputSchema,
+      fileChange,
+    )
   }
 }
 let getCoreErrorLogsSince = (beforeTimestamp: float): array<logEntry> => {

@@ -2,9 +2,6 @@ module MCP = FrontmanProtocol__MCP
 
 let textResult = MCP.CallToolResult.makeText
 
-let textResultWithStructured = (text: string, structuredContent: Dict.t<JSON.t>) =>
-  MCP.CallToolResult.makeTextWithStructured(text, structuredContent)
-
 let structuredResult = (value: 'a, schema: S.t<'a>): MCP.CallToolResult.t => {
   let json = value->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
   MCP.CallToolResult.makeStructured(json->JSON.Decode.object->Option.getOrThrow)
