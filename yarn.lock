@@ -2362,6 +2362,7 @@ __metadata:
     "@babel/core": "npm:^8.0.1"
     "@base-ui/react": "npm:^1.4.1"
     "@biomejs/biome": "npm:^2.5.3"
+    "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
     "@floating-ui/dom": "npm:^1.8.0"
     "@frontman-ai/astro-browser": "workspace:*"
     "@frontman-ai/frontman-client": "workspace:*"
