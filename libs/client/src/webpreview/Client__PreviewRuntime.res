@@ -10,21 +10,19 @@ let handler:
   type response. (Types.message<response>, unit, Runtime.context) => Response.t<response> =
   (_message, _sender, _context) => Response.none
 
-let make = (~iframe: WebAPI.DomTypes.element, ~targetOrigin, ~channel) => {
-  let iframeElement: WebAPI.DomTypes.htmliFrameElement = Obj.magic(iframe)
+let make = (~iframe: WebAPI.DomTypes.htmliFrameElement, ~targetOrigin, ~channel) => {
   let targetWindow =
-    iframeElement
+    iframe
     ->WebAPI.HTMLIFrameElement.contentWindow
     ->Option.getOrThrow(~message="Preview iframe requires a contentWindow")
-  let iframeTarget: WebAPI.DomTypes.eventTarget = Obj.magic(iframe)
   let transport = WindowTransport.Parent.make({
     targetWindow,
     targetOrigin,
     channel,
     subscribeLoad: listener => {
       let onLoad = _event => listener()
-      iframeTarget->WebAPI.EventTarget.addEventListener(WebAPI.EventTypes.Load, onLoad)
-      () => iframeTarget->WebAPI.EventTarget.removeEventListener(WebAPI.EventTypes.Load, onLoad)
+      iframe->WebAPI.HTMLIFrameElement.addEventListener(WebAPI.EventTypes.Load, onLoad)
+      () => iframe->WebAPI.HTMLIFrameElement.removeEventListener(WebAPI.EventTypes.Load, onLoad)
     },
     connectionTimeoutMs: 5000,
     maxChunkBytes: 1_000_000,
