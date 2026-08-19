@@ -2,4 +2,4 @@
 "@frontman-ai/frontman-protocol": minor
 ---
 
-Add typed Reworker preview capability negotiation and protocol versioning.
+Add lockstep typed Reworker preview messages and structured errors.

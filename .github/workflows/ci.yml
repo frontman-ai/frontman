@@ -358,6 +358,10 @@ jobs:
         if: steps.changes.outputs.protocol == 'true'
         run: make build
 
+      - name: Test preview protocol
+        if: steps.changes.outputs.protocol == 'true'
+        run: make -C libs/frontman-protocol test
+
       - name: Check schemas are up to date
         if: steps.changes.outputs.protocol == 'true'
         run: make -C libs/frontman-protocol check-schemas
