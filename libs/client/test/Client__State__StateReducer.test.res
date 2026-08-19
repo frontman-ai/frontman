@@ -73,29 +73,28 @@ module TestHelpers = {
   }
 
   let modelConfigOptions = (~group="future_provider", ~models: array<string>) => {
-    let options: array<ACP.sessionConfigSelectOption> = models->Array.map(value => {
-      let option: ACP.sessionConfigSelectOption = {
-        value,
-        name: value,
-        description: None,
-        _meta: None,
-      }
-      option
-    })
-    let modelGroup: ACP.sessionConfigSelectGroup = {
-      group,
-      name: group,
-      options,
-      _meta: None,
-    }
-
     [
       ACP.SelectConfigOption({
         id: "model",
         name: "Model",
         description: None,
         category: Some(ACP.Model),
-        options: ACP.Grouped([modelGroup]),
+        options: ACP.Grouped([
+          {
+            group,
+            name: group,
+            options: models->Array.map(value => {
+              let option: ACP.sessionConfigSelectOption = {
+                value,
+                name: value,
+                description: None,
+                _meta: None,
+              }
+              option
+            }),
+            _meta: None,
+          },
+        ]),
         _meta: None,
       }),
     ]
@@ -1438,47 +1437,22 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
 
     test(
-      "provider setup stays hidden without active ACP model config",
+      "provider setup follows ACP model availability",
       t => {
-        t->expect(Reducer.Selectors.providerSetupRequired(Reducer.defaultState))->Expect.toBe(false)
-        t
-        ->expect(Reducer.Selectors.providerSetupRequired(_makeStateWithSession()))
-        ->Expect.toBe(false)
-      },
-    )
-
-    test(
-      "provider setup is required when ACP reports no usable models",
-      t => {
-        let state = {
-          ..._makeStateWithSession(),
+        let sessionState = _makeStateWithSession()
+        let emptyState = {
+          ...sessionState,
           configOptions: Some(TestHelpers.modelConfigOptions(~models=[])),
-          openrouterKeySettings: {source: UserOverride, saveStatus: Idle},
         }
-
-        t->expect(Reducer.Selectors.providerSetupRequired(state))->Expect.toBe(true)
-      },
-    )
-
-    test(
-      "any ACP model group, including a future provider, satisfies setup",
-      t => {
-        let knownState = {
-          ..._makeStateWithSession(),
-          configOptions: Some(
-            TestHelpers.modelConfigOptions(
-              ~group="anthropic",
-              ~models=["anthropic:claude-sonnet-5"],
-            ),
-          ),
-        }
-        let futureState = {
-          ..._makeStateWithSession(),
+        let futureProviderState = {
+          ...sessionState,
           configOptions: Some(TestHelpers.modelConfigOptions(~models=["future_provider:model"])),
         }
 
-        t->expect(Reducer.Selectors.providerSetupRequired(knownState))->Expect.toBe(false)
-        t->expect(Reducer.Selectors.providerSetupRequired(futureState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSetupRequired(Reducer.defaultState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSetupRequired(sessionState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSetupRequired(emptyState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.providerSetupRequired(futureProviderState))->Expect.toBe(false)
       },
     )
 

@@ -344,11 +344,11 @@ type sessionConfigOption =
       _meta: option<JSON.t>,
     })
 
-let sessionConfigOptionHasOptions = (configOption: sessionConfigOption) => {
+let sessionConfigOptionFirstOption = (configOption: sessionConfigOption) => {
   switch configOption {
   | SelectConfigOption({options: Grouped(groups)}) =>
-    groups->Array.some(group => group.options->Array.length > 0)
-  | SelectConfigOption({options: Ungrouped(options)}) => options->Array.length > 0
+    groups->Array.findMap(group => group.options->Array.get(0))
+  | SelectConfigOption({options: Ungrouped(options)}) => options->Array.get(0)
   }
 }
 

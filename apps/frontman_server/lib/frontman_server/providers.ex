@@ -43,9 +43,15 @@ defmodule FrontmanServer.Providers do
   def prepare_llm_args(scope, model, opts) when is_binary(model) and model != "" do
     with {:ok, {credential_source, resolved_model}} <- resolve_catalog_model(model) do
       case oauth_llm_opts(credential_source, resolve_oauth_token(scope, credential_source)) do
-        {:ok, llm_opts} -> {:ok, {resolved_model, Keyword.merge(llm_opts, opts)}}
-        {:error, reason} -> {:error, reason}
-        :use_api_key -> api_key_llm_args(scope, credential_source, resolved_model, opts)
+        {:ok, llm_opts} ->
+          {:ok,
+           {resolved_model, Keyword.merge(llm_opts ++ transport_llm_opts(resolved_model), opts)}}
+
+        {:error, reason} ->
+          {:error, reason}
+
+        :use_api_key ->
+          api_key_llm_args(scope, credential_source, resolved_model, opts)
       end
     end
   end
@@ -57,9 +63,7 @@ defmodule FrontmanServer.Providers do
      [
        auth_mode: :oauth,
        access_token: access_token,
-       with_claude_subscription: true,
-       anthropic_prompt_cache: true,
-       anthropic_cache_messages: -1
+       with_claude_subscription: true
      ]}
   end
 
@@ -77,24 +81,25 @@ defmodule FrontmanServer.Providers do
   defp api_key_llm_args(scope, provider, model, opts) do
     case get_api_key(scope, provider) do
       %ApiKey{key: key} when is_binary(key) and key != "" ->
-        {:ok, {model, Keyword.merge(api_key_llm_opts(provider, key), opts)}}
+        {:ok, {model, Keyword.merge([api_key: key] ++ transport_llm_opts(model), opts)}}
 
       nil ->
         {:error, :no_api_key}
     end
   end
 
-  defp api_key_llm_opts("anthropic", key),
-    do: [api_key: key, anthropic_prompt_cache: true, anthropic_cache_messages: -1]
+  defp transport_llm_opts(%LLMDB.Model{provider: :anthropic}),
+    do: [anthropic_prompt_cache: true, anthropic_cache_messages: -1]
 
-  defp api_key_llm_opts(_provider, key), do: [api_key: key]
+  defp transport_llm_opts(%LLMDB.Model{}), do: []
 
   defp resolve_catalog_model(model) do
     with {:ok, {group, model_id}} <- model_parts(model),
          {^group, config} <- Enum.find(providers(), &match?({^group, _}, &1)),
          entry when is_tuple(entry) <-
-           Enum.find(config.models, &(model_entry_id(&1) == model_id)),
-         {:ok, resolved_model} <- ReqLLM.model(model_entry_spec(entry, group)) do
+           Enum.find(config.models, &(elem(&1, 1) == model_id)),
+         {_name, ^model_id, model_spec} = model_entry(entry, group),
+         {:ok, resolved_model} <- ReqLLM.model(model_spec) do
       credential_source = config |> Map.get(:credential_source, group) |> to_string()
       {:ok, {credential_source, resolved_model}}
     else
@@ -104,12 +109,8 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  defp model_entry_id({_name, model_id}), do: model_id
-  defp model_entry_id({_name, model_id, _model_spec}), do: model_id
-
-  defp model_entry_spec({_name, model_id}, group), do: model_string(group, model_id)
-
-  defp model_entry_spec({_name, _model_id, model_spec}, _group), do: model_spec
+  defp model_entry({name, model_id}, group), do: {name, model_id, model_string(group, model_id)}
+  defp model_entry({name, model_id, model_spec}, _group), do: {name, model_id, model_spec}
 
   def model_from_client_params(nil), do: :error
 
@@ -119,9 +120,9 @@ defmodule FrontmanServer.Providers do
   end
 
   def model_from_client_params(params) when is_binary(params) do
-    case String.split(params, ":", parts: 2) do
-      [provider, name] when provider != "" and name != "" -> {:ok, model_string(provider, name)}
-      _invalid -> :error
+    case model_parts(params) do
+      {:ok, {provider, name}} -> {:ok, model_string(provider, name)}
+      :error -> :error
     end
   end
 
@@ -439,8 +440,8 @@ defmodule FrontmanServer.Providers do
       Enum.map(provider_configs, fn {provider, config} ->
         options =
           config.models
-          |> Enum.map(fn model_entry ->
-            {name, value} = model_picker_data(model_entry)
+          |> Enum.map(fn entry ->
+            {name, value, _model_spec} = model_entry(entry, provider)
 
             %{
               name: name,
@@ -459,9 +460,6 @@ defmodule FrontmanServer.Providers do
     |> Application.fetch_env!(:providers)
     |> Enum.map(fn {provider, config} -> {to_string(provider), config} end)
   end
-
-  defp model_picker_data({name, value}), do: {name, value}
-  defp model_picker_data({name, value, _model_spec}), do: {name, value}
 
   defp model_parts(model) when is_binary(model) do
     case String.split(model, ":", parts: 2) do

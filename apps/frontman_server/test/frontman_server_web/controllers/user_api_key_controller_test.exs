@@ -1,6 +1,8 @@
 defmodule FrontmanServerWeb.UserApiKeyControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
 
+  @fireworks_model "fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo"
+
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
@@ -42,10 +44,7 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
                Enum.find(groups, &(&1.id == "fireworks_ai"))
 
       {:ok, {%LLMDB.Model{provider: :fireworks_ai}, llm_opts}} =
-        Providers.prepare_llm_args(
-          scope,
-          "fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo"
-        )
+        Providers.prepare_llm_args(scope, @fireworks_model)
 
       assert llm_opts[:api_key] == "sk-fireworks-test-123"
     end
@@ -66,18 +65,12 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert response["status"] == "ok"
 
       {:ok, {%LLMDB.Model{provider: :fireworks_ai}, llm_opts}} =
-        Providers.prepare_llm_args(
-          Scope.for_user(user),
-          "fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo"
-        )
+        Providers.prepare_llm_args(Scope.for_user(user), @fireworks_model)
 
       assert llm_opts[:api_key] == "sk-fireworks-current-user"
 
       {:ok, {%LLMDB.Model{provider: :fireworks_ai}, other_llm_opts}} =
-        Providers.prepare_llm_args(
-          other_scope,
-          "fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo"
-        )
+        Providers.prepare_llm_args(other_scope, @fireworks_model)
 
       assert other_llm_opts[:api_key] == "sk-fireworks-other-user"
     end

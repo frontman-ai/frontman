@@ -18,6 +18,9 @@ defmodule FrontmanServer.Image do
 
   @max_dimension 7680
 
+  @spec max_dimension() :: pos_integer()
+  def max_dimension, do: @max_dimension
+
   @doc """
   Checks whether a binary image exceeds a dimension limit on either axis.
 

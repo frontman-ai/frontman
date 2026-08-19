@@ -93,7 +93,9 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
        when image_count > 20,
        do: 2000
 
-  defp model_max_image_dimension(%LLMDB.Model{provider: :anthropic}, _image_count), do: 7680
+  defp model_max_image_dimension(%LLMDB.Model{provider: :anthropic}, _image_count),
+    do: Image.max_dimension()
+
   defp model_max_image_dimension(%LLMDB.Model{}, _image_count), do: nil
 
   defp image_count(messages) do

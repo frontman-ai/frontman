@@ -325,12 +325,10 @@ let make = (
   let (fileSizeError, setFileSizeError) = React.useState((): option<string> => None)
   let (showToolbarLabels, setShowToolbarLabels) = React.useState(() => true)
   let formRef = React.useRef(Nullable.null)
+  let hasModelOptions =
+    modelConfigOption->Option.flatMap(ACP.sessionConfigOptionFirstOption)->Option.isSome
   let noModelsConfigured =
-    !isModelsConfigLoading &&
-    switch modelConfigOption {
-    | Some(configOption) => !ACP.sessionConfigOptionHasOptions(configOption)
-    | None => false
-    }
+    !isModelsConfigLoading && modelConfigOption->Option.isSome && !hasModelOptions
   let hasAgentSelector = switch (agentCatalog, selectedAgentId) {
   | (Some(agents), Some(_)) => agents->Array.length > 0
   | _ => false
@@ -525,7 +523,7 @@ let make = (
                 <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
                 <span className="truncate text-zinc-500"> {React.string("Loading...")} </span>
               </div>
-            | (false, Some(configOption)) if !ACP.sessionConfigOptionHasOptions(configOption) =>
+            | (false, Some(_)) if !hasModelOptions =>
               <button
                 type_="button"
                 onClick={_ => onConfigureProvider()}

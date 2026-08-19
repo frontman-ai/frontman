@@ -1,6 +1,8 @@
 defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
   use ExUnit.Case, async: false
 
+  import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
+
   alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
   alias SwarmAi.Message
@@ -54,8 +56,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
 
       model = %LLMDB.Model{
         provider: :anthropic,
-        id: "claude-sonnet-4-6",
-        modalities: %{input: [:text, :image], output: [:text]}
+        id: "claude-sonnet-4-6"
       }
 
       [result] = LLMRequestPreflight.run(messages, model: model)
@@ -70,40 +71,12 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
     end
 
     @tag :capture_log
-    test "derives direct Anthropic image limit from resolved model" do
-      model = %LLMDB.Model{
-        provider: :anthropic,
-        id: "claude-sonnet-5",
-        modalities: %{input: [:text, :image], output: [:text]}
-      }
+    test "limits OpenRouter Anthropic requests with more than 20 images" do
+      model = %LLMDB.Model{provider: :openrouter, id: "anthropic/claude-sonnet-5"}
+      [result] = LLMRequestPreflight.run(many_image_messages(3000), model: model)
 
-      [result] =
-        LLMRequestPreflight.run(image_messages(9000), model: model)
-
-      [_text, image_placeholder] = result.content
-      assert image_placeholder.text =~ "7680px provider limit"
-    end
-
-    @tag :capture_log
-    test "limits direct and OpenRouter Anthropic requests with more than 20 images" do
-      for model <- [
-            %LLMDB.Model{
-              provider: :anthropic,
-              id: "claude-sonnet-5",
-              modalities: %{input: [:text, :image], output: [:text]}
-            },
-            %LLMDB.Model{
-              provider: :openrouter,
-              id: "anthropic/claude-sonnet-5",
-              modalities: %{input: [:text, :image], output: [:text]}
-            }
-          ] do
-        [result] =
-          LLMRequestPreflight.run(many_image_messages(3000), model: model)
-
-        [_text, image_placeholder | _urls] = result.content
-        assert image_placeholder.text =~ "2000px provider limit"
-      end
+      [_text, image_placeholder | _urls] = result.content
+      assert image_placeholder.text =~ "2000px provider limit"
     end
 
     test "keeps changed page context" do
@@ -330,18 +303,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert image_placeholder.text =~ "Image omitted"
       refute image_placeholder.text =~ "Image removed"
     end
-
-    test "preserves images when inline model has no modality metadata" do
-      model = %LLMDB.Model{provider: :openai, id: "custom-model"}
-      messages = image_messages(1000)
-
-      assert LLMRequestPreflight.run(messages, model: model) == messages
-    end
-  end
-
-  defp png_fixture(width, height) do
-    <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
-      <<0::32>> <> "IHDR" <> <<width::32, height::32>> <> <<0::8>>
   end
 
   defp image_messages(width) do

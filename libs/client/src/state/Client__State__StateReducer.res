@@ -442,7 +442,7 @@ module Selectors = {
     switch (state.acpSession, state.configOptions) {
     | (AcpSessionActive(_), Some(configOptions)) =>
       switch configOptions->ACP.findConfigOptionByCategory(ACP.Model) {
-      | Some(modelConfig) => !ACP.sessionConfigOptionHasOptions(modelConfig)
+      | Some(modelConfig) => ACP.sessionConfigOptionFirstOption(modelConfig)->Option.isNone
       | None => false
       }
     | _ => false
@@ -1238,15 +1238,8 @@ let next = (state: state, action) => {
         ~message="ConfigOptionsReceived missing model config option",
       )
 
-    let firstModelValue = switch modelConfigOption {
-    | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
-      groups
-      ->Array.get(0)
-      ->Option.flatMap(g => g.options->Array.get(0))
-      ->Option.map(opt => opt.value)
-    | ACP.SelectConfigOption({options: ACP.Ungrouped(options)}) =>
-      options->Array.get(0)->Option.map(opt => opt.value)
-    }
+    let firstModelValue =
+      modelConfigOption->ACP.sessionConfigOptionFirstOption->Option.map(option => option.value)
 
     let (selectedModelValue, didAutoSelect) = switch state.pendingProviderAutoSelect {
     | Some(providerId) =>

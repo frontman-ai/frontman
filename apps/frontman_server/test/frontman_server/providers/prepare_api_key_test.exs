@@ -212,27 +212,25 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
     test "reads runtime catalog and separates group, credential, and transport", %{scope: scope} do
       original_providers = Application.fetch_env!(:frontman_server, :providers)
-
-      custom_model = %LLMDB.Model{
-        provider: :openai,
-        id: "qwen3-coder",
-        base_url: "http://vllm:8000/v1"
-      }
-
-      custom_provider =
-        {:custom,
-         %{
-           display_name: "Custom",
-           credential_source: "custom_key",
-           models: [{"Qwen3 Coder", "qwen3-coder", custom_model}]
-         }}
-
-      Application.put_env(:frontman_server, :providers, original_providers ++ [custom_provider])
       on_exit(fn -> Application.put_env(:frontman_server, :providers, original_providers) end)
 
-      {:ok, _} = Providers.upsert_api_key(scope, "custom_key", "runtime-key")
+      Application.put_env(:frontman_server, :providers,
+        custom: %{
+          display_name: "Custom",
+          credential_source: "anthropic",
+          models: [
+            {"Qwen3 Coder", "qwen3-coder",
+             %LLMDB.Model{
+               provider: :openai,
+               id: "qwen3-coder",
+               base_url: "http://vllm:8000/v1"
+             }}
+          ]
+        }
+      )
 
-      assert Enum.any?(Providers.model_config_data(scope).groups, &(&1.id == "custom"))
+      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "runtime-key")
+      assert %{groups: [%{id: "custom"}]} = Providers.model_config_data(scope)
 
       assert {:ok, {%LLMDB.Model{} = resolved_model, llm_opts}} =
                Providers.prepare_llm_args(scope, "custom:qwen3-coder")
@@ -241,9 +239,8 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert resolved_model.id == "qwen3-coder"
       assert resolved_model.base_url == "http://vllm:8000/v1"
       assert llm_opts[:api_key] == "runtime-key"
-    end
+      refute llm_opts[:anthropic_prompt_cache]
 
-    test "rejects selections missing from the runtime catalog", %{scope: scope} do
       assert {:error, :unknown_model} =
                Providers.prepare_llm_args(scope, "future_provider:missing")
     end
@@ -281,21 +278,13 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
   describe "packaged LLMDB metadata" do
     test "NVIDIA Kimi K2.6 no longer needs Frontman metadata" do
-      {:ok, snapshot} = LLMDB.Loader.load(custom: %{})
+      model = ReqLLM.model!("nvidia:moonshotai/kimi-k2.6")
 
-      assert %LLMDB.Model{
-               capabilities: %{
-                 chat: true,
-                 reasoning: %{enabled: true},
-                 streaming: %{tool_calls: true},
-                 tools: %{enabled: true}
-               },
-               limits: %{context: 262_144, output: 262_144},
-               modalities: %{input: input, output: [:text]}
-             } = snapshot.models_by_key[{:nvidia, "moonshotai/kimi-k2.6"}]
-
-      assert :image in input
-      assert :video in input
+      assert model.capabilities.reasoning.enabled
+      assert model.capabilities.streaming.tool_calls
+      assert model.capabilities.tools.enabled
+      assert model.limits == %{context: 262_144, output: 262_144}
+      assert model.modalities == %{input: [:text, :image, :video], output: [:text]}
     end
   end
 

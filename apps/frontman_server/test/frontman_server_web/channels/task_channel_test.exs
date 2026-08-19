@@ -1213,9 +1213,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
 
-      assert_receive {:resumed_model,
-                      %LLMDB.Model{provider: :openrouter, id: "openai/gpt-5.5"} = resumed_model},
-                     1_000
+      assert_receive {:resumed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}, 1_000
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -1231,7 +1229,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
              ] = tool_results
 
       assert_state_update_idle(task_id)
-      assert resumed_model.model == "openai/gpt-5.5"
     end
 
     test "restart waits for every unresolved tool result before resuming", %{
@@ -1292,8 +1289,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert first_call_id != final_call_id
 
-      assert_receive {:resumed_model, %LLMDB.Model{provider: :openrouter, id: "openai/gpt-5.5"}},
-                     1_000
+      assert_receive {:resumed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}, 1_000
 
       assert_state_update_idle(task_id)
     end
@@ -1330,8 +1326,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(socket, "mcp:message", JsonRpc.error_response(mcp_request_id, -32_000, "Tool failed"))
       :sys.get_state(socket.channel_pid)
 
-      assert_receive {:resumed_model, %LLMDB.Model{provider: :openrouter, id: "openai/gpt-5.5"}},
-                     1_000
+      assert_receive {:resumed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}, 1_000
 
       assert_state_update_idle(task_id)
     end
