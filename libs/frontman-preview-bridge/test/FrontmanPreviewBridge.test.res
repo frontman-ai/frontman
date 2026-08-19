@@ -1,14 +1,9 @@
 open Vitest
 
-type browserWindow
-
 @val external globalThis: Dict.t<Obj.t> = "globalThis"
-@new external makeEventTarget: unit => browserWindow = "EventTarget"
-@scope("Symbol") @val external symbolFor: string => Obj.t = "for"
-@set_index external setProperty: (browserWindow, Obj.t, Obj.t) => unit = ""
 
 let makeWindow = () => {
-  let window = makeEventTarget()
+  let window = WebAPI.EventTarget.make()
   let properties: Dict.t<Obj.t> = Obj.magic(window)
   properties->Dict.set("parent", Obj.magic(window))
   globalThis->Dict.set("window", Obj.magic(window))
@@ -18,7 +13,7 @@ let makeWindow = () => {
 describe("preview bridge installation", _t => {
   test("creates one connecting runtime for matching configuration", t => {
     let parentWindow = makeWindow()
-    let config: FrontmanPreviewBridge.config<browserWindow> = {
+    let config: FrontmanPreviewBridge.config<WebAPI.EventTypes.eventTarget> = {
       parentWindow,
       parentOrigin: "https://parent.example.com",
       channel: "preview-task-id",
@@ -55,7 +50,7 @@ describe("preview bridge installation", _t => {
     ->expect(
       () =>
         FrontmanPreviewBridge.install({
-          parentWindow: makeEventTarget(),
+          parentWindow: WebAPI.EventTarget.make(),
           parentOrigin: "https://other-parent.example.com",
           channel: "preview-task-id",
         })->ignore,
@@ -67,8 +62,9 @@ describe("preview bridge installation", _t => {
 
   test("rejects an occupied installation slot", t => {
     let parentWindow = makeWindow()
-    parentWindow->setProperty(
-      symbolFor("@frontman-ai/frontman-preview-bridge/installation"),
+    FrontmanBindings.BrowserWindow.setBySymbol(
+      Obj.magic(parentWindow),
+      FrontmanBindings.Symbol.for_("@frontman-ai/frontman-preview-bridge/installation"),
       Obj.magic({"marker": "other-application"}),
     )
 
@@ -86,7 +82,7 @@ describe("preview bridge installation", _t => {
 
   test("disposal is terminal and idempotent", t => {
     let parentWindow = makeWindow()
-    let config: FrontmanPreviewBridge.config<browserWindow> = {
+    let config: FrontmanPreviewBridge.config<WebAPI.EventTypes.eventTarget> = {
       parentWindow,
       parentOrigin: "https://parent.example.com",
       channel: "preview-task-id",

@@ -25,6 +25,11 @@
 			"suffix": ".res.mjs"
 		}
 	],
-	"dependencies": ["@bluehotdog/reworker", "@frontman-ai/frontman-protocol"],
+	"dependencies": [
+		"@bluehotdog/reworker",
+		"@frontman-ai/frontman-protocol",
+		"@frontman/bindings",
+		"@rescript/webapi"
+	],
 	"dev-dependencies": ["rescript-vitest"]
 }

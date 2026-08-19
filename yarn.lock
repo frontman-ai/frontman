@@ -2486,7 +2486,9 @@ __metadata:
   dependencies:
     "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
     "@frontman-ai/frontman-protocol": "workspace:*"
+    "@frontman/bindings": "workspace:*"
     "@rescript/runtime": "catalog:"
+    "@rescript/webapi": "catalog:"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     vite: "catalog:"
@@ -2617,6 +2619,7 @@ __metadata:
   dependencies:
     "@rescript/react": "npm:^0.15.0"
     "@rescript/runtime": "catalog:"
+    "@rescript/webapi": "catalog:"
     react: "npm:^19.2.7"
     react-dom: "npm:^19.2.7"
     rescript: "catalog:"

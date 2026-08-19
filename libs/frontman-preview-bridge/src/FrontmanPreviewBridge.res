@@ -1,7 +1,3 @@
-type browserWindow
-type pageTransitionEvent
-type symbol
-
 type config<'parentWindow> = {
   parentWindow: 'parentWindow,
   parentOrigin: string,
@@ -21,20 +17,11 @@ type slot = {
   installation: t,
 }
 
-@val external currentWindow: browserWindow = "window"
-@send
-external addEventListener: (browserWindow, string, pageTransitionEvent => unit) => unit =
-  "addEventListener"
-@send
-external removeEventListener: (browserWindow, string, pageTransitionEvent => unit) => unit =
-  "removeEventListener"
-@get external persisted: pageTransitionEvent => bool = "persisted"
-@scope("Symbol") @val external symbolFor: string => symbol = "for"
-@get_index
-external getInstallationSlot: (browserWindow, symbol) => Nullable.t<Obj.t> = ""
-@set_index external setInstallationSlot: (browserWindow, symbol, slot) => unit = ""
-
-let installationKey = symbolFor("@frontman-ai/frontman-preview-bridge/installation")
+let currentWindow = () => WebAPI.Window.current
+let pageHideEvent = WebAPI.EventTypes.Custom("pagehide")
+let installationKey = FrontmanBindings.Symbol.for_(
+  "@frontman-ai/frontman-preview-bridge/installation",
+)
 let installationMarker = "@frontman-ai/frontman-preview-bridge/installation/v1"
 
 let limits: Runtime.limits = {
@@ -48,7 +35,10 @@ let handler:
   (_message, _sender, _context) => Response.none
 
 let existing = (): option<t> => {
-  switch getInstallationSlot(currentWindow, installationKey)->Nullable.toOption {
+  switch FrontmanBindings.BrowserWindow.getBySymbol(
+    currentWindow(),
+    installationKey,
+  )->Nullable.toOption {
   | None => None
   | Some(value) => {
       let slot: slot = Obj.magic(value)
@@ -71,6 +61,7 @@ let sameConfig:
 let create:
   type parentWindow. config<parentWindow> => t =
   config => {
+    let window = currentWindow()
     let parentWindow = Obj.magic(config.parentWindow)
     let transport = WindowTransport.Child.make({
       parentWindow: config.parentWindow,
@@ -92,15 +83,15 @@ let create:
       }
     }
     let onPageHide = event => {
-      switch persisted(event) {
+      switch FrontmanBindings.PageTransitionEvent.persisted(event) {
       | true => ()
       | false => disposeInternal()
       }
     }
 
     try {
-      addEventListener(currentWindow, "pagehide", onPageHide)
-      removePageHide := (() => removeEventListener(currentWindow, "pagehide", onPageHide))
+      WebAPI.Window.addEventListener(window, pageHideEvent, onPageHide)
+      removePageHide := (() => WebAPI.Window.removeEventListener(window, pageHideEvent, onPageHide))
     } catch {
     | error => {
         Runtime.close(runtime)
@@ -129,13 +120,13 @@ let install:
     | None => {
         let installation = create(config)
         try {
-          setInstallationSlot(
-            currentWindow,
+          FrontmanBindings.BrowserWindow.setBySymbol(
+            currentWindow(),
             installationKey,
-            {
+            Obj.magic({
               marker: installationMarker,
               installation,
-            },
+            }),
           )
           installation
         } catch {
