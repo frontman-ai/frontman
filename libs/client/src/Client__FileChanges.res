@@ -2,10 +2,37 @@ module FileChange = FrontmanAiFrontmanProtocol.FrontmanProtocol__FileChange
 module Message = Client__Message
 
 @schema
-type rawOutput = {
+type structuredContent = {
   @as("frontmanFileChange")
   fileChange: option<FileChange.envelope>,
 }
+
+@schema
+type rawOutput = {
+  @as("frontmanFileChange")
+  fileChange: option<FileChange.envelope>,
+  structuredContent: option<structuredContent>,
+}
+
+@schema
+type legacyEditInput = {
+  path: string,
+  oldText: string,
+  newText: string,
+  replaceAll: option<bool>,
+}
+
+@schema
+type legacyPathContext = {relativePath: string}
+
+@schema
+type legacyStructuredContent = {
+  message: string,
+  _context: option<legacyPathContext>,
+}
+
+@schema
+type legacyRawOutput = {structuredContent: option<legacyStructuredContent>}
 
 type lineChange
 
@@ -44,13 +71,67 @@ type pending = {
 
 let empty: snapshot = {files: [], revision: 0}
 
-let parseEnvelope = (json: JSON.t): option<FileChange.envelope> =>
-  S.parseOrThrow(json, ~to=rawOutputSchema).fileChange
+let parseEnvelope = (json: JSON.t): option<FileChange.envelope> => {
+  let output = S.parseOrThrow(json, ~to=rawOutputSchema)
+  output.fileChange->Option.orElse(output.structuredContent->Option.flatMap(content => content.fileChange))
+}
+
+let parseLegacyEditInput = (json: JSON.t): legacyEditInput => {
+  switch typeof(json) {
+  | #string =>
+    json
+    ->S.parseOrThrow(~to=S.string)
+    ->JSON.parseOrThrow
+    ->S.parseOrThrow(~to=legacyEditInputSchema)
+  | #object => json->S.parseOrThrow(~to=legacyEditInputSchema)
+  | _ => failwith("Legacy edit input must be a JSON object or serialized JSON object")
+  }
+}
+
+let legacyEditEnvelope = (~toolName: string, ~input: option<JSON.t>, json: JSON.t): option<
+  FileChange.envelope,
+> => {
+  switch (toolName, input) {
+  | ("edit_file", Some(inputJson)) => {
+    let output = S.parseOrThrow(json, ~to=legacyRawOutputSchema)
+    switch output.structuredContent {
+    | Some({message, _context})
+      if message->String.startsWith("Edit applied successfully.") || message == "File created successfully." => {
+        let input = inputJson->parseLegacyEditInput
+        switch input.replaceAll {
+        | Some(true) => None
+        | None | Some(false) =>
+          let path = _context->Option.mapOr(input.path, context => context.relativePath)
+          let created = input.oldText == ""
+          Some({
+            version: 1,
+            path,
+            status: created ? FileChange.Added : FileChange.Modified,
+            oldPath: None,
+            oldText: created ? None : Some(input.oldText),
+            currentText: Some(input.newText),
+            textAvailable: true,
+            unavailableReason: None,
+            wrote: true,
+          })
+        }
+      }
+    | None | Some(_) => None
+    }
+  }
+  | _ => None
+  }
+}
 
 let envelopesFromMessages = (messages: array<Message.t>): array<FileChange.envelope> =>
   messages->Array.filterMap(message =>
     switch message {
-    | Message.ToolCall({result: Some({rawOutput: Some(json)}), _}) => parseEnvelope(json)
+    | Message.ToolCall({
+        toolName,
+        input,
+        result: Some({rawOutput: Some(json)}),
+        _,
+      }) => parseEnvelope(json)->Option.orElse(legacyEditEnvelope(~toolName, ~input, json))
     | Message.User(_) | Message.Assistant(_) | Message.Error(_) | Message.ToolCall(_) => None
     }
   )
