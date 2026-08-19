@@ -19,9 +19,8 @@ type slot = {
 
 let currentWindow = () => WebAPI.Window.current
 let pageHideEvent = WebAPI.EventTypes.Custom("pagehide")
-let installationKey = FrontmanBindings.Symbol.for_(
-  "@frontman-ai/frontman-preview-bridge/installation",
-)
+let installationKey =
+  Symbol.getFor("@frontman-ai/frontman-preview-bridge/installation")->Option.getOrThrow
 let installationMarker = "@frontman-ai/frontman-preview-bridge/installation/v1"
 
 let limits: Runtime.limits = {
@@ -35,10 +34,11 @@ let handler:
   (_message, _sender, _context) => Response.none
 
 let existing = (): option<t> => {
-  switch FrontmanBindings.BrowserWindow.getBySymbol(
-    currentWindow(),
+  let stored: option<Nullable.t<Obj.t>> = Object.getSymbol(
+    Obj.magic(currentWindow()),
     installationKey,
-  )->Nullable.toOption {
+  )
+  switch stored->Option.flatMap(Nullable.toOption) {
   | None => None
   | Some(value) => {
       let slot: slot = Obj.magic(value)
@@ -120,8 +120,8 @@ let install:
     | None => {
         let installation = create(config)
         try {
-          FrontmanBindings.BrowserWindow.setBySymbol(
-            currentWindow(),
+          Object.setSymbol(
+            Obj.magic(currentWindow()),
             installationKey,
             Obj.magic({
               marker: installationMarker,

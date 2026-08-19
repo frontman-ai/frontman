@@ -62,9 +62,9 @@ describe("preview bridge installation", _t => {
 
   test("rejects an occupied installation slot", t => {
     let parentWindow = makeWindow()
-    FrontmanBindings.BrowserWindow.setBySymbol(
+    Object.setSymbol(
       Obj.magic(parentWindow),
-      FrontmanBindings.Symbol.for_("@frontman-ai/frontman-preview-bridge/installation"),
+      Symbol.getFor("@frontman-ai/frontman-preview-bridge/installation")->Option.getOrThrow,
       Obj.magic({"marker": "other-application"}),
     )
 
