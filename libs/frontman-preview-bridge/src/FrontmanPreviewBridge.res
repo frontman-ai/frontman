@@ -4,21 +4,11 @@ type config = {
 }
 
 type t = {
-  parentOrigin: string,
-  channel: string,
   runtime: Runtime.t<unit>,
   disposeInternal: unit => unit,
 }
 
-type slot = {
-  marker: string,
-  installation: t,
-}
-
 let pageHideEvent = WebAPI.EventTypes.Custom("pagehide")
-let installationKey =
-  Symbol.getFor("@frontman-ai/frontman-preview-bridge/installation")->Option.getOrThrow
-let installationMarker = "@frontman-ai/frontman-preview-bridge/installation/v1"
 
 let limits: Runtime.limits = {
   requestTimeoutMs: 5000,
@@ -30,23 +20,7 @@ let handler:
   type response. (Types.message<response>, unit, Runtime.context) => Response.t<response> =
   (_message, _sender, _context) => Response.none
 
-let existing = (): option<t> => {
-  let stored: option<Nullable.t<slot>> = Object.getSymbol(globalThis, installationKey)
-  switch stored->Option.flatMap(Nullable.toOption) {
-  | None => None
-  | Some(value) =>
-    switch value.marker === installationMarker {
-    | true => Some(value.installation)
-    | false =>
-      JsError.throwWithMessage("Frontman preview bridge installation slot is already occupied")
-    }
-  }
-}
-
-let sameConfig: (t, config) => bool = (installation, config) =>
-  installation.parentOrigin === config.parentOrigin && installation.channel === config.channel
-
-let create: config => t = config => {
+let install: config => t = config => {
   let window = WebAPI.Window.current
   let transport = WindowTransport.Child.make({
     parentWindow: window->WebAPI.Window.parent,
@@ -85,39 +59,8 @@ let create: config => t = config => {
   }
 
   {
-    parentOrigin: config.parentOrigin,
-    channel: config.channel,
     runtime,
     disposeInternal,
-  }
-}
-
-let install: config => t = config => {
-  switch existing() {
-  | Some(installation) if sameConfig(installation, config) => installation
-  | Some(_) =>
-    JsError.throwWithMessage(
-      "Frontman preview bridge is already installed with different configuration",
-    )
-  | None => {
-      let installation = create(config)
-      try {
-        Object.setSymbol(
-          globalThis,
-          installationKey,
-          {
-            marker: installationMarker,
-            installation,
-          },
-        )
-        installation
-      } catch {
-      | error => {
-          installation.disposeInternal()
-          throw(error)
-        }
-      }
-    }
   }
 }
 
