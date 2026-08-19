@@ -43,7 +43,7 @@ let make = (
         href="https://frontman.sh/docs"
         target="_blank"
         rel="noopener noreferrer"
-        className="text-xs text-red-400/40 hover:text-red-300 px-3 py-1 transition-colors"
+        className="text-xs text-red-300 underline underline-offset-2 decoration-red-500/50 hover:text-red-200 hover:decoration-red-400 px-3 py-1 transition-colors"
       >
         {React.string("Get help")}
       </a>
