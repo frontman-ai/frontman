@@ -5,8 +5,10 @@ let requiredAttribute = (script, name) => {
   }
 }
 
+let document = WebAPI.Window.current->WebAPI.Window.document
+
 let script =
-  WebAPI.Global.document.currentScript
+  document.currentScript
   ->Null.toOption
   ->Option.getOrThrow(~message="Frontman preview bridge requires document.currentScript")
 let parentOrigin = requiredAttribute(script, "data-frontman-parent-origin")
