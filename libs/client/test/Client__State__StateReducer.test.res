@@ -72,7 +72,7 @@ module TestHelpers = {
     Reducer.Selectors.currentTaskId(state)
   }
 
-  let modelConfigOptions = (~group="future_provider", ~models: array<string>) => {
+  let modelConfigOptions = (~models: array<string>) => {
     [
       ACP.SelectConfigOption({
         id: "model",
@@ -81,8 +81,8 @@ module TestHelpers = {
         category: Some(ACP.Model),
         options: ACP.Grouped([
           {
-            group,
-            name: group,
+            group: "future_provider",
+            name: "Future Provider",
             options: models->Array.map(value => {
               let option: ACP.sessionConfigSelectOption = {
                 value,
