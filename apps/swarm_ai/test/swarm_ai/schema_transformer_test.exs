@@ -47,6 +47,14 @@ defmodule SwarmAi.SchemaTransformerTest do
       assert SchemaTransformer.provider_for_model(model) == :openai_strict
     end
 
+    test "returns :openai_strict for OpenRouter OpenAI and Azure model structs" do
+      openai = %{provider: :openrouter, id: "openai/gpt-5.5"}
+      azure = %{provider: :openrouter, id: "azure/gpt-4"}
+
+      assert SchemaTransformer.provider_for_model(openai) == :openai_strict
+      assert SchemaTransformer.provider_for_model(azure) == :openai_strict
+    end
+
     test "returns :flexible for model struct with :anthropic provider" do
       model = %{provider: :anthropic, model: "claude-3-opus", id: "claude-3-opus"}
       assert SchemaTransformer.provider_for_model(model) == :flexible

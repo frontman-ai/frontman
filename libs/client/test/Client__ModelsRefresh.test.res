@@ -140,6 +140,24 @@ module SampleConfig = {
   let configWithFireworksOnly = [_makeModelConfigOption(~groups=[_fireworksGroup])]
 
   let configWithNoModels = [_makeModelConfigOption(~groups=[])]
+
+  let configWithUngroupedModels = [
+    ACP.SelectConfigOption({
+      id: "model",
+      name: "Model",
+      description: None,
+      category: Some(ACP.Model),
+      options: ACP.Ungrouped([
+        {
+          value: "future_provider:model",
+          name: "Future Model",
+          description: None,
+          _meta: None,
+        },
+      ]),
+      _meta: None,
+    }),
+  ]
 }
 
 describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
@@ -183,6 +201,16 @@ describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
 })
 
 describe("ConfigOptionsReceived auto-selects model from newly connected provider", () => {
+  test("selects first model from valid ungrouped options", t => {
+    let (nextState, _effects) = Reducer.next(
+      _makeState(),
+      ConfigOptionsReceived({configOptions: SampleConfig.configWithUngroupedModels}),
+    )
+
+    t->expect(nextState.selectedModelValue)->Expect.toEqual(Some("future_provider:model"))
+    t->expect(nextState.configOptions)->Expect.toEqual(Some(SampleConfig.configWithUngroupedModels))
+  })
+
   test("auto-selects first Anthropic model when pendingProviderAutoSelect is anthropic", t => {
     let state = _makeState(
       ~pendingProviderAutoSelect=Some("anthropic"),

@@ -40,9 +40,17 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   end
 
   defp strip_unsupported_images(messages, opts) do
-    case Keyword.get(opts, :images_supported, true) do
+    case images_supported?(opts) do
       false -> Enum.map(messages, &strip_message_images/1)
       _ -> messages
+    end
+  end
+
+  defp images_supported?(opts) do
+    case Keyword.fetch(opts, :model) do
+      {:ok, %LLMDB.Model{modalities: %{input: input}}} when is_list(input) -> :image in input
+      {:ok, %LLMDB.Model{}} -> true
+      :error -> true
     end
   end
 
@@ -59,17 +67,34 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   defp strip_image_part(part), do: part
 
   defp constrain_image_dimensions(messages, opts) do
-    max =
-      case {Keyword.get(opts, :llm_vendor), image_count(messages)} do
-        {"anthropic", count} when count > 20 -> 2000
-        _ -> Keyword.get(opts, :max_image_dimension)
-      end
+    max = max_image_dimension(opts, image_count(messages))
 
     case max do
       max when is_integer(max) -> Enum.map(messages, &constrain_message_images(&1, max))
       _ -> messages
     end
   end
+
+  defp max_image_dimension(opts, image_count) do
+    case Keyword.fetch(opts, :model) do
+      {:ok, %LLMDB.Model{} = model} -> model_max_image_dimension(model, image_count)
+      :error -> nil
+    end
+  end
+
+  defp model_max_image_dimension(%LLMDB.Model{provider: :anthropic}, image_count)
+       when image_count > 20,
+       do: 2000
+
+  defp model_max_image_dimension(
+         %LLMDB.Model{provider: :openrouter, id: "anthropic/" <> _},
+         image_count
+       )
+       when image_count > 20,
+       do: 2000
+
+  defp model_max_image_dimension(%LLMDB.Model{provider: :anthropic}, _image_count), do: 7680
+  defp model_max_image_dimension(%LLMDB.Model{}, _image_count), do: nil
 
   defp image_count(messages) do
     Enum.reduce(messages, 0, fn

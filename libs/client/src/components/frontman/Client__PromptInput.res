@@ -169,14 +169,6 @@ module AgentSelector = {
   }
 }
 
-let modelConfigOptionHasModels = (configOption: ACP.sessionConfigOption) => {
-  switch configOption {
-  | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
-    groups->Array.some(group => group.options->Array.length > 0)
-  | ACP.SelectConfigOption({options: ACP.Ungrouped(options)}) => options->Array.length > 0
-  }
-}
-
 module SelectElementButton = {
   @react.component
   let make = (
@@ -336,7 +328,7 @@ let make = (
   let noModelsConfigured =
     !isModelsConfigLoading &&
     switch modelConfigOption {
-    | Some(configOption) => !modelConfigOptionHasModels(configOption)
+    | Some(configOption) => !ACP.sessionConfigOptionHasOptions(configOption)
     | None => false
     }
   let hasAgentSelector = switch (agentCatalog, selectedAgentId) {
@@ -533,7 +525,7 @@ let make = (
                 <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
                 <span className="truncate text-zinc-500"> {React.string("Loading...")} </span>
               </div>
-            | (false, Some(configOption)) if !modelConfigOptionHasModels(configOption) =>
+            | (false, Some(configOption)) if !ACP.sessionConfigOptionHasOptions(configOption) =>
               <button
                 type_="button"
                 onClick={_ => onConfigureProvider()}
