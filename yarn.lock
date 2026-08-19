@@ -1341,12 +1341,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@bluehotdog/reworker@https://github.com/frontman-ai/reworker/archive/12f1cbd08b768a8ed06826c23f05338ae3ac61ee.tar.gz":
+"@bluehotdog/reworker@https://github.com/frontman-ai/reworker.git#head=main":
   version: 0.0.2
-  resolution: "@bluehotdog/reworker@https://github.com/frontman-ai/reworker/archive/12f1cbd08b768a8ed06826c23f05338ae3ac61ee.tar.gz"
+  resolution: "@bluehotdog/reworker@https://github.com/frontman-ai/reworker.git#commit=29ad2c9b7a610dead396126609224eedbdb83772"
   peerDependencies:
     rescript: ^12.0.0
-  checksum: 10c0/71c0a133b2cdba218502a5d8a462a0e26871337ef56a47c189ac6684e2511077615b1c044fd6d4edcac8729f3b858a4eaf08c38c0cd9ff617d4340e21ace07af
+  checksum: 10c0/bfe753fc1ee0da0a1bcae409715e0f5b180179c68760dff30c749b0f49bea136b52b598bb4bbf3d03148198b8ed63df3c41c044240ceb3539ab02a2e70e12da8
   languageName: node
   linkType: hard
 
@@ -2484,7 +2484,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman-ai/frontman-protocol@workspace:libs/frontman-protocol"
   dependencies:
-    "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker/archive/12f1cbd08b768a8ed06826c23f05338ae3ac61ee.tar.gz"
+    "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
     "@rescript/webapi": "npm:*"
     rescript: "catalog:"
     rescript-vitest: "catalog:"

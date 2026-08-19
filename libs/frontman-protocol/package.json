@@ -34,7 +34,7 @@
 		"build": "rescript build"
 	},
 	"dependencies": {
-		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker/archive/12f1cbd08b768a8ed06826c23f05338ae3ac61ee.tar.gz",
+		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
 		"sury": "11.0.0-alpha.10"
 	},
 	"devDependencies": {
