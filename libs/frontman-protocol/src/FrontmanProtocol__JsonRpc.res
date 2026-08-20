@@ -13,22 +13,29 @@ module ErrorCode = {
 module Id: {
   type t
 
+  let fromInt: int => t
+  let fromString: string => t
   let toJson: t => JSON.t
   let schema: S.t<t>
 } = {
-  type t = IntId(int) | StringId(string)
+  type t = NumberId(float) | StringId(string)
+
+  @scope("Number") @val
+  external isSafeInteger: float => bool = "isSafeInteger"
+
+  let fromInt = value => NumberId(Int.toFloat(value))
+  let fromString = value => StringId(value)
 
   let fromJson = id =>
     switch (id->JSON.Decode.string, id->JSON.Decode.float) {
     | (Some(value), _) => Some(StringId(value))
-    | (_, Some(value)) if Float.fromInt(Float.toInt(value)) == value =>
-      Some(IntId(Float.toInt(value)))
+    | (_, Some(value)) if isSafeInteger(value) => Some(NumberId(value))
     | _ => None
     }
 
   let toJson = id =>
     switch id {
-    | IntId(value) => JSON.Encode.int(value)
+    | NumberId(value) => JSON.Encode.float(value)
     | StringId(value) => JSON.Encode.string(value)
     }
 
@@ -36,7 +43,7 @@ module Id: {
     parser: value =>
       switch value->fromJson {
       | Some(id) => id
-      | None => s.fail("JSON-RPC id must be a string or number")
+      | None => s.fail("JSON-RPC id must be a string or safe integral number")
       },
     serializer: id => id->toJson,
   })
