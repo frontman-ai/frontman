@@ -3,10 +3,6 @@ module Button = Client__UI__Button
 module Tooltip = Client__UI__Tooltip
 module FrontmanLogo = Client__FrontmanLogo
 
-@send external locationAssign: ('a, string) => unit = "assign"
-@send external blur: Dom.element => unit = "blur"
-@send external focus: WebAPI.DomTypes.element => unit = "focus"
-
 let renderToolbarButton = (~label, ~onClick, ~children, ~className="") =>
   <Tooltip>
     <Tooltip.Trigger
@@ -58,18 +54,15 @@ let make = (
         | false => ()
         | true =>
           previewFrame.contentWindow->Option.forEach(contentWindow => {
-            contentWindow->WebAPI.Window.location->locationAssign(resolvedUrl)
+            contentWindow->WebAPI.Window.location->WebAPI.Location.assign(resolvedUrl)
           })
           Client__State.Actions.setPreviewUrl(~url=resolvedUrl)
           Client__State.Actions.clearAnnotations()
           Client__BrowserUrl.syncBrowserUrl(~previewUrl=resolvedUrl)
         }
       }
-      let target: Dom.element = ReactEvent.Keyboard.target(e)->Obj.magic
-      target->blur
-    | "Escape" =>
-      let target: Dom.element = ReactEvent.Keyboard.target(e)->Obj.magic
-      target->blur
+      ReactEvent.Keyboard.currentTarget(e)["blur"]()
+    | "Escape" => ReactEvent.Keyboard.currentTarget(e)["blur"]()
     | _ => ()
     }
   }
@@ -95,11 +88,7 @@ let make = (
       clearSession()
       Client__State.Actions.clearCurrentTask()
     }
-    WebAPI.Window.current
-    ->WebAPI.Window.document
-    ->WebAPI.Document.querySelector(".frontman-prompt-editor .ProseMirror")
-    ->Null.toOption
-    ->Option.forEach(focus)
+    Client__PromptEditor.focus()
   }
 
   let deviceModeActive = Client__DeviceMode.isActive(deviceMode)

@@ -33,9 +33,18 @@ type rec jsonContentNode = {
 @get external inputFiles: Dom.element => Null.t<WebAPI.DomTypes.fileList> = "files"
 @set external setInputValue: (Dom.element, string) => unit = "value"
 @get external navigatorUserAgent: WebAPI.DomTypes.navigator => string = "userAgent"
+
 module TiptapReact = FrontmanBindings.Bindings__Tiptap__React
 module TiptapCore = FrontmanBindings.Bindings__Tiptap__Core
 module TiptapExtensions = FrontmanBindings.Bindings__Tiptap__Extensions
+
+let activeEditorRef: ref<Null.t<TiptapCore.editor>> = ref(Null.null)
+
+let focus = () => {
+  activeEditorRef.contents
+  ->Null.toOption
+  ->Option.forEach(editor => editor->TiptapCore.chain->TiptapCore.focus->TiptapCore.run->ignore)
+}
 
 type fileAttachmentNodeOptions = {onPreviewImage: string => unit}
 type fileAttachmentAttrs = editorFileAttachment
@@ -710,10 +719,15 @@ let make = (
 
   React.useEffect1(() => {
     editorRef.current = editor
+    activeEditorRef.contents = editor
     Some(
       () => {
         switch editorRef.current == editor {
         | true => editorRef.current = Null.null
+        | false => ()
+        }
+        switch activeEditorRef.contents == editor {
+        | true => activeEditorRef.contents = Null.null
         | false => ()
         }
       },
