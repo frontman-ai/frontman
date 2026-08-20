@@ -564,7 +564,11 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
   | Task.Loaded({pendingQuestion: Some(pq)} as data) =>
     switch cancelled {
     | true => (
-        Task.Loaded({...data, pendingQuestion: None, isAgentRunning: false}),
+        Task.Loaded({
+          ...data,
+          pendingQuestion: None,
+          isAgentRunning: false,
+        })->Lens.refreshCompletedFileChanges,
         [RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"})],
       )
     | false =>
@@ -1091,8 +1095,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           retryStatus: None,
           imageAttachments: Dict.make(),
           pendingQuestion: None,
-          completedFileChanges: Client__FileChanges.aggregate(
+          completedFileChanges: Client__FileChanges.aggregateCompleted(
             ~revision=1,
+            ~isAgentRunning,
             MessageStore.toArray(messages),
           ),
         }),

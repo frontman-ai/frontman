@@ -17,6 +17,13 @@ let statusClass = status =>
   | FileChange.Renamed => "text-sky-300 bg-sky-500/10"
   }
 
+let unavailableReasonLabel = (reason: Client__FileChanges.unavailableReason): string =>
+  switch reason {
+  | Client__FileChanges.Binary => "Text diff unavailable for binary files"
+  | Client__FileChanges.SizeLimited => "Text diff unavailable because the file is too large"
+  | Client__FileChanges.Discontinuous => "Text diff unavailable because recorded edits do not form a continuous history"
+  }
+
 module File = {
   @react.component
   let make = (~file: Client__FileChanges.file, ~revision: int) => {
@@ -26,7 +33,6 @@ module File = {
     | Some(oldPath) => `${oldPath} → ${file.path}`
     | None => file.path
     }
-
     <section className="border-b border-white/8 last:border-b-0">
       <button
         type_="button"
@@ -44,17 +50,19 @@ module File = {
         <span className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-200">
           {React.string(pathLabel)}
         </span>
-        {file.textAvailable
-          ? <span className="shrink-0 font-mono text-xs">
-              <span className="text-emerald-400">
-                {React.string(`+${Int.toString(file.addedLines)}`)}
-              </span>
-              <span className="mx-1 text-zinc-600"> {React.string("/")} </span>
-              <span className="text-rose-400">
-                {React.string(`-${Int.toString(file.removedLines)}`)}
-              </span>
+        {switch file.unavailableReason {
+        | Some(_) => React.null
+        | None =>
+          <span className="shrink-0 font-mono text-xs">
+            <span className="text-emerald-400">
+              {React.string(`+${Int.toString(file.addedLines)}`)}
             </span>
-          : React.null}
+            <span className="mx-1 text-zinc-600"> {React.string("/")} </span>
+            <span className="text-rose-400">
+              {React.string(`-${Int.toString(file.removedLines)}`)}
+            </span>
+          </span>
+        }}
         <span
           className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${statusClass(
               file.status,
@@ -65,12 +73,12 @@ module File = {
       </button>
       {expanded
         ? <div id=rowId className="overflow-x-auto border-t border-white/8">
-            {switch file.textAvailable {
-            | false =>
+            {switch file.unavailableReason {
+            | Some(reason) =>
               <div className="px-10 py-5 text-xs text-zinc-500">
-                {React.string("Text diff unavailable")}
+                {React.string(unavailableReasonLabel(reason))}
               </div>
-            | true =>
+            | None =>
               <Client__DiffViewer
                 path={file.path}
                 oldPath={file.oldPath}

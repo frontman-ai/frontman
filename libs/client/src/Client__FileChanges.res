@@ -27,6 +27,8 @@ type legacyEditOutput = {
 
 type lineChange
 
+type unavailableReason = Binary | SizeLimited | Discontinuous
+
 @module("diff")
 external diffLines: (string, string) => array<lineChange> = "diffLines"
 
@@ -40,9 +42,9 @@ type file = {
   status: FileChange.status,
   oldText: option<string>,
   currentText: option<string>,
-  textAvailable: bool,
   addedLines: int,
   removedLines: int,
+  unavailableReason: option<unavailableReason>,
 }
 
 type snapshot = {
@@ -53,11 +55,13 @@ type snapshot = {
 type pending = {
   path: string,
   oldPath: option<string>,
+  latestEnvelopeOldPath: option<string>,
   firstStatus: FileChange.status,
   latestStatus: FileChange.status,
   firstOldText: option<string>,
+  latestOldText: option<string>,
   latestCurrentText: option<string>,
-  unavailable: bool,
+  unavailableReason: option<unavailableReason>,
 }
 
 let empty: snapshot = {files: [], revision: 0}
@@ -94,15 +98,12 @@ let legacyEditEnvelope = (~toolName: string, ~input: option<JSON.t>, json: JSON.
             let path = output._context->Option.mapOr(input.path, context => context.relativePath)
             let created = input.oldText == ""
             Some({
-              version: 1,
               path,
               status: created ? FileChange.Added : FileChange.Modified,
               oldPath: None,
               oldText: created ? None : Some(input.oldText),
               currentText: Some(input.newText),
-              textAvailable: true,
               unavailableReason: None,
-              wrote: true,
             })
           }
         }
@@ -116,12 +117,7 @@ let legacyEditEnvelope = (~toolName: string, ~input: option<JSON.t>, json: JSON.
 let envelopesFromMessages = (messages: array<Message.t>): array<FileChange.envelope> =>
   messages->Array.filterMap(message =>
     switch message {
-    | Message.ToolCall({
-        toolName,
-        input,
-        result: Some({rawOutput: Some(json)}),
-        _,
-      }) =>
+    | Message.ToolCall({toolName, input, result: Some({rawOutput: Some(json)}), _}) =>
       switch parseEnvelope(json) {
       | Some(envelope) => Some(envelope)
       | None => legacyEditEnvelope(~toolName, ~input, json)
@@ -130,59 +126,83 @@ let envelopesFromMessages = (messages: array<Message.t>): array<FileChange.envel
     }
   )
 
-let unavailablePending = (pending: pending, envelope: FileChange.envelope): pending => {
+let unavailableReasonFromProtocol = (reason: FileChange.unavailableReason): unavailableReason =>
+  switch reason {
+  | FileChange.Binary => Binary
+  | FileChange.SizeLimited => SizeLimited
+  }
+
+let unavailablePending = (
+  pending: pending,
+  envelope: FileChange.envelope,
+  ~reason: unavailableReason,
+): pending => {
   ...pending,
   path: envelope.path,
   oldPath: pending.oldPath->Option.orElse(envelope.oldPath),
+  latestEnvelopeOldPath: envelope.oldPath,
   latestStatus: envelope.status,
+  latestOldText: envelope.oldText,
   latestCurrentText: envelope.currentText,
-  unavailable: true,
+  unavailableReason: Some(reason),
 }
 
 let foldEnvelope = (files: Dict.t<pending>, envelope: FileChange.envelope): unit => {
-  switch envelope.wrote {
-  | false => ()
-  | true =>
-    let previousWithKey = switch files->Dict.get(envelope.path) {
-    | Some(previous) => Some((envelope.path, previous))
-    | None =>
-      envelope.oldPath->Option.flatMap(oldPath =>
-        files->Dict.get(oldPath)->Option.map(previous => (oldPath, previous))
-      )
-    }
-    switch previousWithKey {
-    | None =>
-      files->Dict.set(
-        envelope.path,
-        {
-          path: envelope.path,
-          oldPath: envelope.oldPath,
-          firstStatus: envelope.status,
-          latestStatus: envelope.status,
-          firstOldText: envelope.oldText,
-          latestCurrentText: envelope.currentText,
-          unavailable: !envelope.textAvailable,
-        },
-      )
-    | Some((previousKey, previous)) =>
-      let next = switch (previous.unavailable, envelope.textAvailable) {
-      | (true, true | false) | (false, false) => previous->unavailablePending(envelope)
-      | (false, true) if previous.latestCurrentText != envelope.oldText =>
-        previous->unavailablePending(envelope)
-      | (false, true) => {
-          ...previous,
-          path: envelope.path,
-          oldPath: previous.oldPath->Option.orElse(envelope.oldPath),
-          latestStatus: envelope.status,
-          latestCurrentText: envelope.currentText,
-        }
+  switch (envelope.oldText, envelope.currentText, envelope.unavailableReason) {
+  | (None, None, None) => failwith("A file change without text must include an unavailable reason")
+  | _ => ()
+  }
+  let previousWithKey = switch files->Dict.get(envelope.path) {
+  | Some(previous) => Some((envelope.path, previous))
+  | None =>
+    envelope.oldPath->Option.flatMap(oldPath =>
+      files->Dict.get(oldPath)->Option.map(previous => (oldPath, previous))
+    )
+  }
+  switch previousWithKey {
+  | None =>
+    files->Dict.set(
+      envelope.path,
+      {
+        path: envelope.path,
+        oldPath: envelope.oldPath,
+        latestEnvelopeOldPath: envelope.oldPath,
+        firstStatus: envelope.status,
+        latestStatus: envelope.status,
+        firstOldText: envelope.oldText,
+        latestOldText: envelope.oldText,
+        latestCurrentText: envelope.currentText,
+        unavailableReason: envelope.unavailableReason->Option.map(unavailableReasonFromProtocol),
+      },
+    )
+  | Some((previousKey, previous)) =>
+    let next = switch (previous.unavailableReason, envelope.unavailableReason) {
+    | (Some(reason), None | Some(_)) => previous->unavailablePending(envelope, ~reason)
+    | (None, Some(reason)) =>
+      previous->unavailablePending(envelope, ~reason=unavailableReasonFromProtocol(reason))
+    | (None, None)
+      if previous.path == envelope.path &&
+      previous.latestEnvelopeOldPath == envelope.oldPath &&
+      previous.latestStatus == envelope.status &&
+      previous.latestOldText == envelope.oldText &&
+      previous.latestCurrentText == envelope.currentText => previous
+    | (None, None) if previous.latestCurrentText != envelope.oldText =>
+      previous->unavailablePending(envelope, ~reason=Discontinuous)
+    | (None, None) => {
+        ...previous,
+        path: envelope.path,
+        oldPath: previous.oldPath->Option.orElse(envelope.oldPath),
+        latestEnvelopeOldPath: envelope.oldPath,
+        latestStatus: envelope.status,
+        latestOldText: envelope.oldText,
+        latestCurrentText: envelope.currentText,
       }
-      switch previousKey == envelope.path {
-      | true => ()
-      | false => files->Dict.delete(previousKey)
-      }
-      files->Dict.set(envelope.path, next)
     }
+    switch previousKey == envelope.path {
+    | true => ()
+    | false => files->Dict.delete(previousKey)
+    }
+    files->Dict.set(envelope.path, next)
   }
 }
 
@@ -202,8 +222,8 @@ let lineCounts = (~oldText: string, ~currentText: string): (int, int) =>
   })
 
 let toFile = (pending: pending): option<file> => {
-  switch pending.unavailable {
-  | true =>
+  switch pending.unavailableReason {
+  | Some(unavailableReason) =>
     Some({
       path: pending.path,
       oldPath: pending.oldPath,
@@ -215,12 +235,13 @@ let toFile = (pending: pending): option<file> => {
       },
       oldText: None,
       currentText: None,
-      textAvailable: false,
       addedLines: 0,
       removedLines: 0,
+      unavailableReason: Some(unavailableReason),
     })
-  | false if pending.firstOldText == pending.latestCurrentText => None
-  | false =>
+  | None if pending.oldPath->Option.isNone && pending.firstOldText == pending.latestCurrentText =>
+    None
+  | None =>
     let status = switch (pending.oldPath, pending.firstOldText, pending.latestCurrentText) {
     | (Some(_), _, _) => FileChange.Renamed
     | (None, None, Some(_)) => FileChange.Added
@@ -237,9 +258,9 @@ let toFile = (pending: pending): option<file> => {
       status,
       oldText: pending.firstOldText,
       currentText: pending.latestCurrentText,
-      textAvailable: true,
       addedLines,
       removedLines,
+      unavailableReason: None,
     })
   }
 }
@@ -259,6 +280,27 @@ let aggregate = (~revision: int, messages: array<Message.t>): snapshot => {
     files: pendingByPath->Dict.valuesToArray->Array.filterMap(toFile)->Array.toSorted(comparePaths),
     revision,
   }
+}
+
+let aggregateCompleted = (
+  ~revision: int,
+  ~isAgentRunning: bool,
+  messages: array<Message.t>,
+): snapshot => {
+  let messages = switch isAgentRunning {
+  | false => messages
+  | true =>
+    switch messages->Array.findLastIndex(message =>
+      switch message {
+      | Message.User(_) => true
+      | Message.Assistant(_) | Message.Error(_) | Message.ToolCall(_) => false
+      }
+    ) {
+    | -1 => []
+    | currentTurnStart => messages->Array.slice(~start=0, ~end=currentTurnStart)
+    }
+  }
+  aggregate(~revision, messages)
 }
 
 let refresh = (previous: snapshot, messages: array<Message.t>): snapshot =>

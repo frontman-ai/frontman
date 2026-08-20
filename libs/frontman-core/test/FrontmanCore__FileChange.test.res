@@ -1,21 +1,19 @@
 open Vitest
 
 module FileChange = FrontmanCore__FileChange
+module EditFile = FrontmanCore__Tool__EditFile
 module ProtocolFileChange = FrontmanAiFrontmanProtocol.FrontmanProtocol__FileChange
 
 describe("FileChange", _t => {
-  test("keeps available text snapshots below the per-mutation limit", t => {
-    let change = FileChange.make(
-      ~path="src/app.tsx",
-      ~status=ProtocolFileChange.Modified,
-      ~oldText=Some("before"),
-      ~currentText=Some("after"),
-      ~binary=false,
-    )
-
-    t->expect(change.textAvailable)->Expect.toBe(true)
-    t->expect(change.oldText)->Expect.toEqual(Some("before"))
-    t->expect(change.currentText)->Expect.toEqual(Some("after"))
+  testAsync("edit_file delegates file creation to write_file", async t => {
+    let ctx = {
+      FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.projectRoot: "/tmp",
+      sourceRoot: "/tmp",
+    }
+    switch await EditFile.executeOutput(ctx, {path: "new.txt", oldText: "", newText: "content"}) {
+    | Error(message) => t->expect(message->String.includes("write_file"))->Expect.toBe(true)
+    | Ok(_) => t->expect("an error")->Expect.toBe("a created file")
+    }
   })
 
   test("marks binary writes unavailable without retaining text", t => {
@@ -27,7 +25,6 @@ describe("FileChange", _t => {
       ~binary=true,
     )
 
-    t->expect(change.textAvailable)->Expect.toBe(false)
     t->expect(change.oldText)->Expect.toEqual(None)
     t->expect(change.currentText)->Expect.toEqual(None)
     t->expect(change.unavailableReason)->Expect.toEqual(Some(ProtocolFileChange.Binary))
@@ -43,7 +40,8 @@ describe("FileChange", _t => {
       ~binary=false,
     )
 
-    t->expect(change.textAvailable)->Expect.toBe(false)
+    t->expect(change.oldText)->Expect.toEqual(None)
+    t->expect(change.currentText)->Expect.toEqual(None)
     t->expect(change.unavailableReason)->Expect.toEqual(Some(ProtocolFileChange.SizeLimited))
   })
 })

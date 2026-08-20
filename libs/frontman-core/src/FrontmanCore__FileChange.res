@@ -22,25 +22,20 @@ let make = (
       currentText->Option.mapOr(0, NodeBuffer.byteLength)
   let unavailableReason = switch (binary, bytes > maxSnapshotBytes) {
   | (true, _) => Some(FileChange.Binary)
-  | (_, true) => Some(FileChange.SizeLimited)
-  | _ => None
+  | (false, true) => Some(FileChange.SizeLimited)
+  | (false, false) => None
+  }
+  let (oldText, currentText) = switch unavailableReason {
+  | Some(_) => (None, None)
+  | None => (oldText, currentText)
   }
   {
-    version: 1,
     path,
     status,
     oldPath: None,
-    oldText: switch unavailableReason {
-    | Some(_) => None
-    | None => oldText
-    },
-    currentText: switch unavailableReason {
-    | Some(_) => None
-    | None => currentText
-    },
-    textAvailable: unavailableReason->Option.isNone,
+    oldText,
+    currentText,
     unavailableReason,
-    wrote: true,
   }
 }
 

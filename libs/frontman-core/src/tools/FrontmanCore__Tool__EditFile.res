@@ -13,7 +13,7 @@ let description = `Edits a file by replacing text using fuzzy matching.
 
 Parameters:
 - path (required): Path to file - either relative to source root or absolute (must be under source root)
-- oldText (required): The text to find and replace. An empty oldText creates a new file with newText as content.
+- oldText (required): The text to find and replace. Must not be empty.
 - newText (required): The replacement text (must differ from oldText)
 - replaceAll (optional): If true, replaces all occurrences. Default: false.
 
@@ -27,7 +27,7 @@ IMPORTANT: You must read_file before editing. The tool will reject edits on unre
 @schema
 type input = {
   path: string,
-  @s.describe("The text to find. Empty string creates a new file.")
+  @s.describe("The non-empty text to find.")
   oldText: string,
   @s.describe("The replacement text")
   newText: string,
@@ -61,31 +61,6 @@ let toPathCtx = (r: PathContext.resolveResult): pathContext => {
 }
 
 type execution = FileChange.execution<output>
-
-let createFile = async (
-  ~resolved: PathContext.resolveResult,
-  ~content: string,
-  ~displayPath: string,
-): result<execution, string> => {
-  try {
-    let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
-    await Fs.Promises.writeFile(resolved.resolvedPath, content)
-    let stats = await Fs.Promises.stat(resolved.resolvedPath)
-    FileTracker.recordWrite(resolved.resolvedPath, ~mtimeMs=Fs.mtimeMs(stats), ~size=Fs.size(stats))
-    Ok({
-      output: {message: "File created successfully.", _context: toPathCtx(resolved)},
-      fileChange: FileChange.make(
-        ~path=resolved.relativePath,
-        ~status=ProtocolFileChange.Added,
-        ~oldText=None,
-        ~currentText=Some(content),
-        ~binary=FileChange.isBinary(content),
-      ),
-    })
-  } catch {
-  | exn => Error(`Failed to create file ${displayPath}: ${ExnUtils.message(exn)}`)
-  }
-}
 
 let findAndReplace = async (
   ~resolved: PathContext.resolveResult,
@@ -146,7 +121,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
     | Error(err) => Error(PathContext.formatError(err))
     | Ok(resolved) =>
       switch input.oldText {
-      | "" => await createFile(~resolved, ~content=input.newText, ~displayPath=input.path)
+      | "" => Error("oldText must not be empty; use write_file to create files")
       | oldText =>
         switch await FileTracker.assertEditSafe(resolved.resolvedPath) {
         | Error(msg) => Error(msg)

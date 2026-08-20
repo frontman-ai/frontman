@@ -31,8 +31,8 @@ let frameworkDisplayName = (id: frameworkId): string =>
 
 let supportsFileChanges = (id: frameworkId): bool =>
   switch id {
-  | Nextjs => true
-  | Vite | Astro | Wordpress => false
+  | Nextjs | Astro | Vite => true
+  | Wordpress => false
   }
 
 @schema

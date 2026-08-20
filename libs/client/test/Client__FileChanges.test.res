@@ -11,18 +11,14 @@ let envelope = (
   ~oldPath=None,
   ~oldText,
   ~currentText,
-  ~textAvailable=true,
   ~unavailableReason=None,
 ): FileChange.envelope => {
-  version: 1,
   path,
   status,
   oldPath,
   oldText,
   currentText,
-  textAvailable,
   unavailableReason,
-  wrote: true,
 }
 
 let rawOutput = (change: FileChange.envelope): JSON.t => {
@@ -40,7 +36,7 @@ let legacyEditInput = (~path, ~oldText, ~newText): JSON.t =>
     ]),
   )
 
-let legacyEditOutput = (~path, ~message="Edit applied successfully."): JSON.t => {
+let legacyEditOutput = (~path, ~message): JSON.t => {
   let context = JSON.Encode.object(Dict.fromArray([("relativePath", JSON.Encode.string(path))]))
   JSON.Encode.object(
     Dict.fromArray([("message", JSON.Encode.string(message)), ("_context", context)]),
@@ -73,15 +69,15 @@ let legacyEditToolCall = (
   | false => input
   }
   Message.ToolCall({
-  id,
-  toolName: "edit_file",
-  state: Message.OutputAvailable,
-  inputBuffer: "",
-  input: Some(input),
-  result: Some({rawOutput: Some(legacyEditOutput(~path, ~message)), content: []}),
-  errorText: None,
-  parentAgentId: None,
-  spawningToolName: None,
+    id,
+    toolName: "edit_file",
+    state: Message.OutputAvailable,
+    inputBuffer: "",
+    input: Some(input),
+    result: Some({rawOutput: Some(legacyEditOutput(~path, ~message)), content: []}),
+    errorText: None,
+    parentAgentId: None,
+    spawningToolName: None,
   })
 }
 
@@ -169,6 +165,30 @@ describe("conversation file changes", () => {
     }
   })
 
+  test("ignores a repeated file-change envelope", t => {
+    let change = envelope(~oldText=Some("before"), ~currentText=Some("after"))
+    let files = Client__FileChanges.aggregate(
+      ~revision=1,
+      [toolCall(~id="tool-1", change), toolCall(~id="tool-2", change)],
+    ).files
+
+    switch files {
+    | [{oldText: Some("before"), currentText: Some("after"), unavailableReason: None}] => ()
+    | _ => t->expect(false)->Expect.toBe(true)
+    }
+  })
+
+  test("rejects a textless envelope without an unavailable reason", t => {
+    let malformed = envelope(~oldText=None, ~currentText=None)
+
+    Expect.toThrow(
+      t->expect(
+        () =>
+          Client__FileChanges.aggregate(~revision=1, [toolCall(~id="tool-1", malformed)])->ignore,
+      ),
+    )
+  })
+
   test("omits a file whose final content matches its baseline", t => {
     let first = envelope(~oldText=Some("before"), ~currentText=Some("after"))
     let second = envelope(~oldText=Some("after"), ~currentText=Some("before"))
@@ -197,20 +217,29 @@ describe("conversation file changes", () => {
       ~status=FileChange.Renamed,
       ~oldPath=Some("c.txt"),
       ~oldText=Some("c"),
-      ~currentText=Some("d"),
+      ~currentText=Some("c"),
     )
-    let files = Client__FileChanges.aggregate(
+    let currentTurn = Message.User({
+      id: "user",
+      content: [],
+      annotations: [],
+      agentId: "executor-id",
+    })
+    let currentChange = envelope(~path="z.txt", ~oldText=None, ~currentText=Some("z"))
+    let files = Client__FileChanges.aggregateCompleted(
       ~revision=1,
+      ~isAgentRunning=true,
       [
         toolCall(~id="tool-a", added),
         toolCall(~id="tool-b", deleted),
         toolCall(~id="tool-c", renamed),
+        currentTurn,
+        toolCall(~id="tool-current", currentChange),
       ],
     ).files
 
     switch files {
-    | [{status: FileChange.Added}, {status: FileChange.Deleted}, {status: FileChange.Renamed}] =>
-      t->expect(true)->Expect.toBe(true)
+    | [{status: FileChange.Added}, {status: FileChange.Deleted}, {status: FileChange.Renamed}] => ()
     | _ => t->expect(false)->Expect.toBe(true)
     }
   })
@@ -238,12 +267,37 @@ describe("conversation file changes", () => {
     }
   })
 
-  test("keeps unavailable and discontinuous chains unavailable", t => {
+  test("keeps consecutive content-preserving renames", t => {
+    let firstRename = envelope(
+      ~path="middle.txt",
+      ~status=FileChange.Renamed,
+      ~oldPath=Some("original.txt"),
+      ~oldText=Some("content"),
+      ~currentText=Some("content"),
+    )
+    let secondRename = envelope(
+      ~path="final.txt",
+      ~status=FileChange.Renamed,
+      ~oldPath=Some("middle.txt"),
+      ~oldText=Some("content"),
+      ~currentText=Some("content"),
+    )
+    let files = Client__FileChanges.aggregate(
+      ~revision=1,
+      [toolCall(~id="tool-1", firstRename), toolCall(~id="tool-2", secondRename)],
+    ).files
+
+    switch files {
+    | [{path: "final.txt", oldPath: Some("original.txt"), status: FileChange.Renamed}] => ()
+    | _ => t->expect(false)->Expect.toBe(true)
+    }
+  })
+
+  test("preserves binary and discontinuous unavailable reasons", t => {
     let binary = envelope(
       ~path="binary.dat",
       ~oldText=None,
       ~currentText=None,
-      ~textAvailable=false,
       ~unavailableReason=Some(FileChange.Binary),
     )
     let laterText = envelope(~path="binary.dat", ~oldText=Some("old"), ~currentText=Some("new"))
@@ -263,8 +317,34 @@ describe("conversation file changes", () => {
       ],
     ).files
 
-    t->expect(Array.length(files))->Expect.toBe(2)
-    t->expect(files->Array.every(file => !file.textAvailable))->Expect.toBe(true)
+    switch files {
+    | [
+        {path: "binary.dat", unavailableReason: Some(Client__FileChanges.Binary)},
+        {path: "gap.txt", unavailableReason: Some(Client__FileChanges.Discontinuous)},
+      ] => ()
+    | _ => t->expect(false)->Expect.toBe(true)
+    }
+    t
+    ->expect(files->Array.every(file => file.oldText == None && file.currentText == None))
+    ->Expect.toBe(true)
+  })
+
+  test("preserves the size-limited unavailable reason", t => {
+    let sizeLimited = envelope(
+      ~path="large.txt",
+      ~oldText=None,
+      ~currentText=None,
+      ~unavailableReason=Some(FileChange.SizeLimited),
+    )
+    let files = Client__FileChanges.aggregate(
+      ~revision=1,
+      [toolCall(~id="tool-1", sizeLimited)],
+    ).files
+
+    switch files {
+    | [{unavailableReason: Some(Client__FileChanges.SizeLimited)}] => ()
+    | _ => t->expect(false)->Expect.toBe(true)
+    }
   })
 
   test("publishes a new snapshot only when the turn becomes idle", t => {

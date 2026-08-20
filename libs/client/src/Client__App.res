@@ -34,6 +34,23 @@ let make = (~apiBaseUrl: string) => {
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 
   let (chatOpen, setChatOpen) = React.useState(() => true)
+  let (selectedWorkspaceView, setSelectedWorkspaceView) = React.useState(() =>
+    Client__WorkspacePanel.Preview
+  )
+  let completedFileChanges = Client__State.useSelector(Client__State.Selectors.completedFileChanges)
+  let fileChangeCount = Array.length(completedFileChanges.files)
+  let workspaceView = Client__WorkspacePanel.availableView(
+    ~view=selectedWorkspaceView,
+    ~fileChangeCount,
+  )
+
+  React.useEffect(() => {
+    switch fileChangeCount {
+    | 0 => setSelectedWorkspaceView(_ => Client__WorkspacePanel.Preview)
+    | _ => ()
+    }
+    None
+  }, [fileChangeCount])
 
   let (settingsOpen, setSettingsOpen) = React.useState(() => false)
   let (settingsInitialTab, setSettingsInitialTab) = React.useState(() => None)
@@ -71,6 +88,8 @@ let make = (~apiBaseUrl: string) => {
     <Client__TopBar
       chatboxWidth
       chatOpen
+      workspaceView
+      onWorkspaceViewChange={view => setSelectedWorkspaceView(_ => view)}
       onToggleChat={() => setChatOpen(prev => !prev)}
       onSettingsClick={() => setSettingsOpen(_ => true)}
     />
@@ -99,7 +118,9 @@ let make = (~apiBaseUrl: string) => {
           </div>
         : React.null}
       <div className="grow h-full min-w-0">
-        <Client__WebPreview />
+        <Client__WorkspacePanel
+          view=workspaceView preview={<Client__WebPreview />} changes={<Client__ChangesView />}
+        />
       </div>
     </div>
   </div>

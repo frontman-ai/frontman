@@ -7,12 +7,26 @@ type fileContents = {
 
 type fileDiff
 
+type highlighterOptions = {
+  themes: array<string>,
+  langs: array<string>,
+}
+
+type highlighterState = Loading | Ready(string) | Failed(string, string)
+
 @module("@pierre/diffs")
 external parseDiffFromFile: (Nullable.t<fileContents>, Nullable.t<fileContents>) => fileDiff =
   "parseDiffFromFile"
 
+@module("@pierre/diffs")
+external getFiletypeFromFileName: string => string = "getFiletypeFromFileName"
+
+@module("@pierre/diffs")
+external preloadHighlighter: highlighterOptions => promise<unit> = "preloadHighlighter"
+
 type options = {
   diffStyle: string,
+  theme: string,
   themeType: string,
   hunkSeparators: string,
   lineDiffType: string,
@@ -25,6 +39,7 @@ type options = {
 
 let options: options = {
   diffStyle: "unified",
+  theme: "pierre-dark",
   themeType: "dark",
   hunkSeparators: "line-info",
   lineDiffType: "word",
@@ -58,6 +73,37 @@ let make = (
   ~oldText: option<string>,
   ~newText: option<string>,
 ) => {
+  let (highlighterState, setHighlighterState) = React.useState(() => Loading)
+
+  React.useEffect(() => {
+    let active = ref(true)
+    preloadHighlighter({
+      themes: [options.theme],
+      langs: [getFiletypeFromFileName(path)],
+    })
+    ->Promise.then(_ => {
+      switch active.contents {
+      | true => setHighlighterState(_ => Ready(path))
+      | false => ()
+      }
+      Promise.resolve()
+    })
+    ->Promise.catch(error => {
+      let message =
+        error
+        ->JsExn.fromException
+        ->Option.flatMap(JsExn.message)
+        ->Option.getOr("Diff highlighter failed to load")
+      switch active.contents {
+      | true => setHighlighterState(_ => Failed(path, message))
+      | false => ()
+      }
+      Promise.resolve()
+    })
+    ->ignore
+    Some(() => active := false)
+  }, [path])
+
   let fileDiff = React.useMemo4(() => {
     let oldFile = switch oldText {
     | Some(contents) => Nullable.make({name: oldPath->Option.getOr(path), contents})
@@ -70,5 +116,13 @@ let make = (
     parseDiffFromFile(oldFile, newFile)
   }, (path, oldPath, oldText, newText))
 
-  <FileDiff fileDiff options style />
+  switch highlighterState {
+  | Ready(readyPath) if readyPath == path => <FileDiff fileDiff options style />
+  | Failed(failedPath, message) if failedPath == path => JsError.throwWithMessage(message)
+  | Loading | Ready(_) | Failed(_, _) =>
+    <div className="flex items-center justify-center gap-2 px-4 py-6 text-xs text-zinc-500">
+      <Client__UI__Spinner className="size-3.5" />
+      <span> {React.string("Preparing diff")} </span>
+    </div>
+  }
 }
