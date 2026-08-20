@@ -72,15 +72,10 @@ module File = {
               </div>
             | true =>
               <Client__DiffViewer
-                oldValue={file.oldText->Option.getOr("")}
-                newValue={file.currentText->Option.getOr("")}
-                splitView=false
-                showDiffOnly=true
-                extraLinesSurroundingDiff=3
-                useDarkTheme=true
-                disableWordDiff=false
-                hideSummary=true
-                styles=Client__DiffViewer.styles
+                path={file.path}
+                oldPath={file.oldPath}
+                oldText={file.oldText}
+                newText={file.currentText}
               />
             }}
           </div>

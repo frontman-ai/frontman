@@ -1,78 +1,74 @@
 @@live
 
-type darkVariables = {
-  diffViewerBackground: string,
-  diffViewerColor: string,
-  addedBackground: string,
-  addedColor: string,
-  removedBackground: string,
-  removedColor: string,
-  wordAddedBackground: string,
-  wordRemovedBackground: string,
-  addedGutterBackground: string,
-  removedGutterBackground: string,
-  gutterBackground: string,
-  gutterBackgroundDark: string,
-  gutterColor: string,
-  codeFoldBackground: string,
-  codeFoldGutterBackground: string,
-  emptyLineBackground: string,
+type fileContents = {
+  name: string,
+  contents: string,
 }
 
-type variablesStyle = {dark: darkVariables}
-type lineStyle = {fontFamily: string, fontSize: string, lineHeight: string}
-type contentTextStyle = {padding: string}
-type gutterStyle = {minWidth: string, padding: string}
-type diffContainerStyle = {width: string}
+type fileDiff
 
-type styles = {
-  variables: variablesStyle,
-  line: lineStyle,
-  contentText: contentTextStyle,
-  gutter: gutterStyle,
-  diffContainer: diffContainerStyle,
+@module("@pierre/diffs")
+external parseDiffFromFile: (Nullable.t<fileContents>, Nullable.t<fileContents>) => fileDiff =
+  "parseDiffFromFile"
+
+type options = {
+  diffStyle: string,
+  themeType: string,
+  hunkSeparators: string,
+  lineDiffType: string,
+  diffIndicators: string,
+  disableFileHeader: bool,
+  collapsedContextThreshold: int,
+  expansionLineCount: int,
+  overflow: string,
 }
 
-let styles: styles = {
-  variables: {
-    dark: {
-      diffViewerBackground: "#130d20",
-      diffViewerColor: "#d4d4d8",
-      addedBackground: "rgba(16, 185, 129, 0.12)",
-      addedColor: "#d1fae5",
-      removedBackground: "rgba(244, 63, 94, 0.12)",
-      removedColor: "#ffe4e6",
-      wordAddedBackground: "rgba(16, 185, 129, 0.28)",
-      wordRemovedBackground: "rgba(244, 63, 94, 0.28)",
-      addedGutterBackground: "rgba(16, 185, 129, 0.18)",
-      removedGutterBackground: "rgba(244, 63, 94, 0.18)",
-      gutterBackground: "#1c142b",
-      gutterBackgroundDark: "#171020",
-      gutterColor: "#71717a",
-      codeFoldBackground: "#21182f",
-      codeFoldGutterBackground: "#1c142b",
-      emptyLineBackground: "#171020",
-    },
-  },
-  line: {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-    fontSize: "12px",
-    lineHeight: "20px",
-  },
-  contentText: {padding: "0 10px"},
-  gutter: {minWidth: "44px", padding: "0 8px"},
-  diffContainer: {width: "100%"},
+let options: options = {
+  diffStyle: "unified",
+  themeType: "dark",
+  hunkSeparators: "line-info",
+  lineDiffType: "word",
+  diffIndicators: "bars",
+  disableFileHeader: true,
+  collapsedContextThreshold: 3,
+  expansionLineCount: 20,
+  overflow: "scroll",
 }
 
-@react.component @module("react-diff-viewer-continued")
-external make: (
-  ~oldValue: string,
-  ~newValue: string,
-  ~splitView: bool=?,
-  ~showDiffOnly: bool=?,
-  ~extraLinesSurroundingDiff: int=?,
-  ~useDarkTheme: bool=?,
-  ~disableWordDiff: bool=?,
-  ~hideSummary: bool=?,
-  ~styles: styles=?,
-) => React.element = "default"
+let style =
+  ({}: ReactDOM.Style.t)
+  ->ReactDOM.Style.unsafeAddProp("--diffs-dark-bg", "#130d20")
+  ->ReactDOM.Style.unsafeAddProp("--diffs-font-size", "12px")
+  ->ReactDOM.Style.unsafeAddProp("--diffs-line-height", "20px")
+
+module FileDiff = {
+  @react.component @module("@pierre/diffs/react")
+  external make: (
+    ~fileDiff: fileDiff,
+    ~options: options=?,
+    ~className: string=?,
+    ~style: ReactDOM.Style.t=?,
+  ) => React.element = "FileDiff"
+}
+
+@react.component
+let make = (
+  ~path: string,
+  ~oldPath: option<string>,
+  ~oldText: option<string>,
+  ~newText: option<string>,
+) => {
+  let fileDiff = React.useMemo4(() => {
+    let oldFile = switch oldText {
+    | Some(contents) => Nullable.make({name: oldPath->Option.getOr(path), contents})
+    | None => Nullable.null
+    }
+    let newFile = switch newText {
+    | Some(contents) => Nullable.make({name: path, contents})
+    | None => Nullable.null
+    }
+    parseDiffFromFile(oldFile, newFile)
+  }, (path, oldPath, oldText, newText))
+
+  <FileDiff fileDiff options style />
+}
