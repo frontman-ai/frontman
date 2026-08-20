@@ -23,8 +23,6 @@ defmodule FrontmanServer.Application do
     :user_name,
     :reason,
     :error_code,
-    :raw_arguments,
-    :decode_error,
     :loop_id
   ]
 

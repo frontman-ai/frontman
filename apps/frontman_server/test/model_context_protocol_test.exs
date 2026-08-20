@@ -82,6 +82,7 @@ defmodule ModelContextProtocolTest do
       Logger.configure(level: prev_level)
 
       assert log =~ "MCP tool call: read_file"
+      refute log =~ "/tmp/test.txt"
     end
   end
 end

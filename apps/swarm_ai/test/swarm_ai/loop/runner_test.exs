@@ -1,6 +1,8 @@
 defmodule SwarmAi.Loop.RunnerTest do
   use SwarmAi.Testing, async: true
 
+  import ExUnit.CaptureLog
+
   alias SwarmAi.{LLM, Loop, Message}
   alias SwarmAi.Loop.{Config, Runner, Step}
 
@@ -324,21 +326,25 @@ defmodule SwarmAi.Loop.RunnerTest do
 
     @tag :capture_log
     test "truncated stream preserves invalid JSON for debugging (no masking)" do
+      secret = "frontman-stream-secret-1445"
+
       stream = [
         StreamChunk.tool_call("read_file", %{}, %{id: "call_trunc", index: 0}),
         StreamChunk.meta(%{
-          tool_call_args: %{index: 0, fragment: ~s[{"path": "app/admin/products/page.tsx"]}
+          tool_call_args: %{index: 0, fragment: ~s[{"path": "#{secret}"]}
         }),
         StreamChunk.meta(%{finish_reason: :tool_calls})
       ]
 
-      response = LLM.Response.from_stream(stream)
+      log = capture_log(fn -> send(self(), {:response, LLM.Response.from_stream(stream)}) end)
+      assert_receive {:response, response}
 
       assert length(response.tool_calls) == 1
       [tool_call] = response.tool_calls
       assert tool_call.id == "call_trunc"
       assert tool_call.name == "read_file"
-      assert tool_call.arguments == ~s[{"path": "app/admin/products/page.tsx"]
+      assert tool_call.arguments == ~s[{"path": "#{secret}"]
+      refute log =~ secret
     end
 
     @tag :capture_log
