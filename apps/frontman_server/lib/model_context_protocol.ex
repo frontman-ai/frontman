@@ -113,7 +113,7 @@ defmodule ModelContextProtocol do
   tool call id remains in params.callId for agent/tool-result correlation.
   """
   def build_tool_execution(%ToolCallParams{} = params) do
-    Logger.info("MCP tool call: #{params.tool_name} arguments=#{inspect(params.arguments)}")
+    Logger.info("MCP tool call: #{params.tool_name}")
 
     JsonRpc.request(params.request_id, "tools/call", %{
       "name" => params.tool_name,
