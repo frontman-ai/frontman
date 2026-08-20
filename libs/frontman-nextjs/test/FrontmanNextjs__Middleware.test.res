@@ -14,7 +14,7 @@ module Helpers = {
       host: "localhost:3000",
       clientUrl: "http://localhost:3000/client.js?clientName=nextjs&host=localhost:3000",
     }
-    Middleware.createMiddleware(configInput)
+    request => Middleware.createMiddleware(configInput)(request)
   }
 
   let makeGetRequest = (url: string): WebAPI.FetchAPI.request => {
@@ -87,13 +87,14 @@ describe("FrontmanNextjs Middleware (adapter)", _t => {
           JSON.Encode.object(Dict.make()),
         )
         let options = Helpers.makeOptionsRequest("http://localhost:3000/mcp")
-        let customBaseMiddleware = Middleware.createMiddleware({
-          projectRoot: "/test/project",
-          sourceRoot: "/test/project",
-          basePath: "fm",
-          host: "localhost:3000",
-          clientUrl: "http://localhost:3000/client.js?clientName=nextjs&host=localhost:3000",
-        })
+        let customBaseMiddleware = request =>
+          Middleware.createMiddleware({
+            projectRoot: "/test/project",
+            sourceRoot: "/test/project",
+            basePath: "fm",
+            host: "localhost:3000",
+            clientUrl: "http://localhost:3000/client.js?clientName=nextjs&host=localhost:3000",
+          })(request)
         let customBase = Helpers.makePostRequest(
           "http://localhost:3000/fm/mcp",
           JSON.Encode.object(Dict.make()),

@@ -62,9 +62,6 @@ type metaValidationError =
   | UnsupportedProtocolVersion(string)
   | MissingExecutionContextCapability(string)
 
-let exceptionMessage = exn =>
-  exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-
 let parse = (json: JSON.t): result<mcpMessage, string> =>
   switch json->Decoders.parseSchema(JsonRpc.Wire.messageSchema) {
   | Error(error) => Error(error)

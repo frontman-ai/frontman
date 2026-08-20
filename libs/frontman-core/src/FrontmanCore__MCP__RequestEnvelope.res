@@ -1,6 +1,7 @@
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 
 type envelopeFields = {
+  @live
   jsonrpc: string,
   id: JsonRpc.Id.t,
   method: string,

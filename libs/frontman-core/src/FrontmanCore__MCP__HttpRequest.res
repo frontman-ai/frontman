@@ -45,10 +45,10 @@ let bodyErrorResponse = error =>
 let validateAfterSecurity = async (
   ~request: WebAPI.FetchAPI.request,
   ~origin: string,
-  ~rawHeaders: option<RawHeaders.t>=None,
+  ~rawHeaders: option<RawHeaders.t>,
   ~registry: ToolRegistry.t,
   ~requiredClientCapabilities: option<DecodedRequest.requiredClientCapabilities>=None,
-  ~serverIdentity: option<DecodedRequest.serverIdentity>=None,
+  ~serverIdentity: option<DecodedRequest.serverIdentity>,
 ): t => {
   switch MediaTypes.validate(request.headers) {
   | Error(error) => Rejected(mediaErrorResponse(error)->HttpSecurity.withOrigin(~origin))
@@ -72,6 +72,7 @@ let validateAfterSecurity = async (
   }
 }
 
+@@live
 let validate = async (
   ~request: WebAPI.FetchAPI.request,
   ~security: HttpSecurity.policy,

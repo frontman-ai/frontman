@@ -26,7 +26,7 @@ module NoExecutionTool = {
   )
 
   @schema
-  type input = {value?: string}
+  type input = {@live value?: string}
 
   let execute = async (_context, _input) => {
     executionCount.contents = executionCount.contents + 1
@@ -35,8 +35,8 @@ module NoExecutionTool = {
 }
 
 type annotatedProperty = {
-  @as("type") type_: string,
-  @as("x-mcp-header") header: string,
+  @live @as("type") type_: string,
+  @live @as("x-mcp-header") header: string,
 }
 
 external annotatedPropertyAsSchema: annotatedProperty => JSONSchema.t = "%identity"
@@ -51,7 +51,7 @@ module PhysicalHeaderTool = {
   )
 
   @schema
-  type payload = {value: string}
+  type payload = {@live value: string}
 
   type input = payload
 

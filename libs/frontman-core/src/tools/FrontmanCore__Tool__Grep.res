@@ -218,7 +218,7 @@ let executeRipgrep = async (
   ~caseInsensitive: bool,
   ~literal: bool,
   ~maxResults: int,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: WebAPI.EventAPI.abortSignal,
 ): result<output, string> => {
   let args = buildRipgrepArgs(
     ~pattern,
@@ -230,7 +230,7 @@ let executeRipgrep = async (
     ~maxResults,
   )
 
-  let result = await ChildProcess.spawnResult(rgPath, args, ~signal?)
+  let result = await ChildProcess.spawnResult(rgPath, args, ~signal)
 
   switch result {
   | Ok({stdout}) => Ok(parseGrepOutput(stdout, ~maxResults))
@@ -253,7 +253,7 @@ let executeGitGrep = async (
   ~maxResults: int,
   ~glob: option<string>,
   ~type_: option<string>,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: WebAPI.EventAPI.abortSignal,
 ): result<output, string> => {
   let args = buildGitGrepArgs(~pattern, ~caseInsensitive, ~literal, ~maxResults, ~glob, ~type_)
 
@@ -279,7 +279,7 @@ let executeGitGrep = async (
   | None => ()
   }
 
-  let result = await ChildProcess.spawnResult("git", args, ~cwd, ~signal?)
+  let result = await ChildProcess.spawnResult("git", args, ~cwd, ~signal)
 
   switch result {
   | Ok({stdout}) => Ok(parseGrepOutput(stdout, ~maxResults))
@@ -354,7 +354,7 @@ let executePlainGrep = async (
   ~maxResults: int,
   ~glob: option<string>,
   ~type_: option<string>,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: WebAPI.EventAPI.abortSignal,
 ): result<output, string> => {
   let args = buildPlainGrepArgs(
     ~pattern,
@@ -366,7 +366,7 @@ let executePlainGrep = async (
     ~type_,
   )
 
-  let result = await ChildProcess.spawnResult("grep", args, ~signal?)
+  let result = await ChildProcess.spawnResult("grep", args, ~signal)
 
   switch result {
   | Ok({stdout}) => Ok(parseGrepOutput(stdout, ~maxResults))

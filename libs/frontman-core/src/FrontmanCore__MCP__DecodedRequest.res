@@ -159,7 +159,7 @@ let validateCustomHeaders = (~rawHeaders, accepted: accepted): result<
   }
 }
 
-let completeToolResult = (~id, ~result, ~serverIdentity=None): WebAPI.FetchAPI.response => {
+let completeToolResult = (~id, ~result, ~serverIdentity): WebAPI.FetchAPI.response => {
   let result = result->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json)
   let result = switch serverIdentity {
   | None => result
@@ -195,10 +195,14 @@ let completeListToolsResult = (~id, ~result): WebAPI.FetchAPI.response => {
 }
 
 type callToolResultFields = {
+  @live
   content: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t>,
   structuredContent: option<JSON.t>,
+  @live
   isError: option<bool>,
+  @live
   _meta: option<MCP.ResultMeta.t>,
+  @live
   resultType: string,
 }
 

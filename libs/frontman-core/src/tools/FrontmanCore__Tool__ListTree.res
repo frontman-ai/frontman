@@ -369,11 +369,11 @@ let detectMonorepo = async (rootPath: string): monorepoInfo => {
   {monorepoType, workspaces}
 }
 
-let getTrackedFiles = async (~cwd: string, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
+let getTrackedFiles = async (~cwd: string, ~signal: WebAPI.EventAPI.abortSignal): result<
   array<string>,
   string,
 > => {
-  let result = await ChildProcess.spawnResult("git", ["ls-files"], ~cwd, ~signal?)
+  let result = await ChildProcess.spawnResult("git", ["ls-files"], ~cwd, ~signal)
 
   switch result {
   | Ok({stdout}) =>

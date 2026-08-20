@@ -2,8 +2,11 @@ type validator = JSON.t => bool
 type ajv
 
 type ajvOptions = {
+  @live
   strict: bool,
+  @live
   allErrors: bool,
+  @live
   validateFormats: bool,
 }
 

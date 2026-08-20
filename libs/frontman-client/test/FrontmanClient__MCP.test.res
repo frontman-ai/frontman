@@ -17,7 +17,10 @@ module LimitedLocalTool = {
   let executionCount = ref(0)
 
   @schema
-  type input = {value: option<string>}
+  type input = {
+    @live
+    value: option<string>,
+  }
 
   let execute = async (_input, ~taskId as _, ~toolCallId as _, ~signal as _) => {
     executionCount := executionCount.contents + 1

@@ -9,7 +9,7 @@ external isExactMcpRequest: NodeHttp.incomingMessage => bool = "isExactMcpReques
 
 type webMiddleware = (
   WebAPI.FetchAPI.request,
-  ~rawHeaders: RawHeaders.t=?,
+  ~rawHeaders: RawHeaders.t,
 ) => promise<option<WebAPI.FetchAPI.response>>
 
 let adaptToConnect = (

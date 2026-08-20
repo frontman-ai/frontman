@@ -11,7 +11,7 @@ let adaptMiddlewareToVite = (
   ~mcp: option<McpEndpoint.config>=None,
   middleware: (
     WebAPI.FetchAPI.request,
-    ~rawHeaders: Core.FrontmanCore__MCP__RawHeaders.t=?,
+    ~rawHeaders: Core.FrontmanCore__MCP__RawHeaders.t,
   ) => promise<option<WebAPI.FetchAPI.response>>,
 ): ((incomingMessage, serverResponse, unit => unit) => promise<unit>) => {
   async (req, res, next) => {
@@ -123,11 +123,10 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
         serverVersion: config.serverVersion,
         allowedPreflightHeaders: [],
       })
-      let adaptedMiddleware = adaptMiddlewareToVite(
-        ~basePath=config.basePath,
-        ~mcp,
-        middleware.middleware,
-      )
+      let adaptedMiddleware = adaptMiddlewareToVite(~basePath=config.basePath, ~mcp, (
+        request,
+        ~rawHeaders,
+      ) => middleware.middleware(request, ~rawHeaders))
 
       server.middlewares->useMiddleware((req, res, next) => {
         let _ = adaptedMiddleware(req, res, next)->Promise.catch(error => {

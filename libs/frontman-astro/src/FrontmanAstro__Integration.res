@@ -115,7 +115,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
                     allowedPreflightHeaders: [],
                   })
                   let connectMiddleware = ViteAdapter.adaptToConnect(
-                    middleware.middleware,
+                    (request, ~rawHeaders) => middleware.middleware(request, ~rawHeaders),
                     ~basePath=config.basePath,
                     ~mcp,
                   )

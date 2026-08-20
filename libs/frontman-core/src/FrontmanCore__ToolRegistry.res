@@ -21,7 +21,7 @@ let make = (): t => {
 external jsonSchemaAsJson: JSONSchema.t => JSON.t = "%identity"
 
 @schema
-type mcpToolAnnotations = {readOnlyHint: bool}
+type mcpToolAnnotations = {@live readOnlyHint: bool}
 
 let mcpAnnotations = (access: Tool.access): MCP.ToolAnnotations.t =>
   {
@@ -137,6 +137,7 @@ let coreTools = (): t =>
     module(FrontmanCore__Tool__ListTree),
   ])
 
+@@live
 let replaceByName = (registry: t, replacement: tool): t => {
   module R = unpack(replacement)
   let tools = registry.tools->Array.map(m => {

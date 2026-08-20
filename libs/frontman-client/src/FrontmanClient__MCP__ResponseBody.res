@@ -19,7 +19,7 @@ let idleTimeoutMs = 60000
 
 @get external byteLength: Uint8Array.t => int = "byteLength"
 @send external charAt: (string, int) => string = "charAt"
-type decoderOptions = {fatal: bool}
+type decoderOptions = {@live fatal: bool}
 @new external makeStrictDecoder: (string, decoderOptions) => WebStreams.textDecoder = "TextDecoder"
 @new external emptyBytes: int => Uint8Array.t = "Uint8Array"
 

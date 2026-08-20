@@ -84,7 +84,7 @@ let makeTrackedResponse: unit => trackedResponse = %raw(`
   }
 `)
 
-let makeStreamingRequest = (~url, ~body="{}") => {
+let makeStreamingRequest = (~url, ~body) => {
   let request = readableFrom([WebStreams.makeTextEncoder()->WebStreams.encode(body)])
   request->setMethod("POST")
   request->setUrl(url)
@@ -100,9 +100,9 @@ describe("Astro Node adapter physical headers", _t => {
     let received = Promise.make((resolve, _reject) => resolveReceived.contents = Some(resolve))
     let resolveNext = ref(None)
     let nextCalled = Promise.make((resolve, _reject) => resolveNext.contents = Some(resolve))
-    let middleware = (_request, ~rawHeaders=?) => {
+    let middleware = (_request, ~rawHeaders) => {
       let resolve = resolveReceived.contents->Option.getOrThrow
-      resolve(rawHeaders->Option.getOrThrow)
+      resolve(rawHeaders)
       Promise.resolve(None)
     }
     let adapted = ViteAdapter.adaptToConnect(middleware, ~basePath="frontman")
@@ -142,7 +142,7 @@ describe("Astro Node adapter physical headers", _t => {
     let resolveNext = ref(None)
     let nextCalled = Promise.make((resolve, _reject) => resolveNext := Some(resolve))
     let adapted = ViteAdapter.adaptToConnect(
-      (request: WebAPI.FetchAPI.request, ~rawHeaders=?) => {
+      (request: WebAPI.FetchAPI.request, ~rawHeaders) => {
         rawHeaders->ignore
         bodyUsedAtDispatch := request.bodyUsed
         request
@@ -173,7 +173,7 @@ describe("Astro Node adapter physical headers", _t => {
     let nextCount = ref(0)
     let request = makeStreamingRequest(~url="/mcp", ~body="must remain unread")
     let adapted = ViteAdapter.adaptToConnect(
-      (_request, ~rawHeaders=?) => {
+      (_request, ~rawHeaders) => {
         rawHeaders->ignore
         middlewareCount.contents = middlewareCount.contents + 1
         Promise.resolve(None)
@@ -208,7 +208,7 @@ describe("Astro Node adapter physical headers", _t => {
     let middlewareCount = ref(0)
     let nextCount = ref(0)
     let adapted = ViteAdapter.adaptToConnect(
-      (_request, ~rawHeaders=?) => {
+      (_request, ~rawHeaders) => {
         rawHeaders->ignore
         middlewareCount.contents = middlewareCount.contents + 1
         Promise.resolve(None)

@@ -90,6 +90,7 @@ module ErrorResult = {
     MCP.CallToolResult.makeError("This tool intentionally returns an error for testing")
 }
 
+@@live
 let makeMiddleware = allowedOrigins => {
   let registry =
     Registry.make()->Registry.addTools([
@@ -111,7 +112,7 @@ let makeMiddleware = allowedOrigins => {
     serverVersion: "1.0.0",
     allowedPreflightHeaders: [],
   }
-  Plugin.adaptMiddlewareToVite(~basePath="frontman", ~mcp=Some(mcp), (_request, ~rawHeaders=?) => {
+  Plugin.adaptMiddlewareToVite(~basePath="frontman", ~mcp=Some(mcp), (_request, ~rawHeaders) => {
     rawHeaders->ignore
     Promise.resolve(None)
   })

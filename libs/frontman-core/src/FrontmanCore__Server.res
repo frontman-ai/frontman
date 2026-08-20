@@ -17,13 +17,15 @@ type executeResult =
   | ExecutionError(string)
 
 @schema
-type resultMetaFields = {@as("io.modelcontextprotocol/serverInfo") serverInfo: MCP.Implementation.t}
+type resultMetaFields = {
+  @live @as("io.modelcontextprotocol/serverInfo") serverInfo: MCP.Implementation.t,
+}
 
 @schema
-type toolCapability = {listChanged: bool}
+type toolCapability = {@live listChanged: bool}
 
 @schema
-type serverCapabilitiesFields = {tools: toolCapability}
+type serverCapabilitiesFields = {@live tools: toolCapability}
 
 let serverInfo = (~serverName, ~serverVersion): MCP.Implementation.t => {
   name: serverName,

@@ -17,10 +17,15 @@ type raced<'value> = Completed('value) | Stopped(terminalReason)
 type timeoutId
 
 type streamingRequestInit = {
+  @live
   method: string,
+  @live
   headers: WebAPI.HeadersInit.t,
+  @live
   body: WebAPI.BodyInit.t,
+  @live
   duplex: string,
+  @live
   signal: WebAPI.EventAPI.abortSignal,
 }
 
@@ -225,7 +230,7 @@ let rec pumpResponse = async (~reader, ~nodeResponse, ~lifecycle, ~onCommitted):
   }
 }
 
-let writeResponse = async (~webResponse, ~nodeResponse, ~lifecycle, ~onCommitted=() => ()) => {
+let writeResponse = async (~webResponse, ~nodeResponse, ~lifecycle, ~onCommitted) => {
   writeHeaders(~webResponse, ~nodeResponse)
   switch webResponse.body->Null.toOption {
   | None => ()

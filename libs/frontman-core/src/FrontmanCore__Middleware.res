@@ -104,14 +104,17 @@ let buildEntrypointUrl = (
   }
 }
 
+@@live
 let createMiddleware = (~config: MiddlewareConfig.t): (
   (
     WebAPI.FetchAPI.request,
     ~rawHeaders: RawHeaders.t=?,
   ) => promise<option<WebAPI.FetchAPI.response>>
 ) => {
-  let middleware = async (req: WebAPI.FetchAPI.request, ~rawHeaders: option<RawHeaders.t>=?) => {
-    rawHeaders->ignore
+  let middleware = async (
+    req: WebAPI.FetchAPI.request,
+    ~rawHeaders as _: option<RawHeaders.t>=?,
+  ) => {
     let method = req.method->String.toLowerCase
     let url = WebAPI.URL.make(~url=req.url)
     let pathname = url.pathname

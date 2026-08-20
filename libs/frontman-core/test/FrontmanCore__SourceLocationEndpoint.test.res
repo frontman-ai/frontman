@@ -40,12 +40,12 @@ module Helpers = {
     }
   }
 
-  let preflight = (~origin=allowedOrigin, ~requestedMethod="POST", ~requestedHeaders=?) => {
-    let headers = [("Origin", origin), ("Access-Control-Request-Method", requestedMethod)]
-    let headers = switch requestedHeaders {
-    | Some(value) => [("Access-Control-Request-Headers", value), ...headers]
-    | None => headers
-    }
+  let preflight = (~requestedHeaders) => {
+    let headers = [
+      ("Origin", allowedOrigin),
+      ("Access-Control-Request-Method", "POST"),
+      ("Access-Control-Request-Headers", requestedHeaders),
+    ]
     WebAPI.Request.fromURL(
       "http://localhost/frontman/resolve-source-location",
       ~init={method: "OPTIONS", headers: WebAPI.HeadersInit.fromKeyValueArray(headers)},

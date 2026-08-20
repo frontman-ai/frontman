@@ -61,7 +61,7 @@ let makeServerResponse: unit => Bindings.serverResponse = %raw(`
   }
 `)
 
-let makeStreamingRequest = (~url, ~body="{}") => {
+let makeStreamingRequest = (~url, ~body) => {
   let request = readableFrom([WebStreams.makeTextEncoder()->WebStreams.encode(body)])
   request->setMethod("POST")
   request->setUrl(url)
@@ -74,8 +74,8 @@ describe("Vite Node adapter physical headers", _t => {
   testAsync("passes physical fields through the adapted middleware", async t => {
     let received = ref(None)
     let nextCount = ref(0)
-    let middleware = (_request, ~rawHeaders=?) => {
-      received.contents = rawHeaders
+    let middleware = (_request, ~rawHeaders) => {
+      received.contents = Some(rawHeaders)
       Promise.resolve(None)
     }
     let adapted = Plugin.adaptMiddlewareToVite(~basePath="frontman", middleware)
@@ -110,7 +110,7 @@ describe("Vite Node adapter physical headers", _t => {
   testAsync("streams a matched request without pre-buffering", async t => {
     let bodyUsedAtDispatch = ref(true)
     let body = ref("")
-    let middleware = (request: WebAPI.FetchAPI.request, ~rawHeaders=?) => {
+    let middleware = (request: WebAPI.FetchAPI.request, ~rawHeaders) => {
       rawHeaders->ignore
       bodyUsedAtDispatch := request.bodyUsed
       request
@@ -142,7 +142,7 @@ describe("Vite Node adapter physical headers", _t => {
     let request = makeStreamingRequest(~url="/mcp", ~body="must remain unread")
     let adapted = Plugin.adaptMiddlewareToVite(
       ~basePath="frontman",
-      (_request, ~rawHeaders=?) => {
+      (_request, ~rawHeaders) => {
         rawHeaders->ignore
         middlewareCount.contents = middlewareCount.contents + 1
         Promise.resolve(None)
@@ -178,7 +178,7 @@ describe("Vite Node adapter physical headers", _t => {
     let adapted = Plugin.adaptMiddlewareToVite(
       ~basePath="frontman",
       ~mcp=Some(mcp),
-      (_request, ~rawHeaders=?) => {
+      (_request, ~rawHeaders) => {
         rawHeaders->ignore
         middlewareCount.contents = middlewareCount.contents + 1
         Promise.resolve(None)

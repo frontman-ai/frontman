@@ -77,9 +77,9 @@ let makeRequest = (~body="{}", ~rawHeaders) => {
   request
 }
 
-let security = (~allowedOrigins=["https://client.example"]) =>
+let security = () =>
   AdapterSecurity.make({
-    allowedOrigins,
+    allowedOrigins: ["https://client.example"],
     authorize: async _headers => #authorized,
   })
 

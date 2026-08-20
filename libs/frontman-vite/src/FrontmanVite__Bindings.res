@@ -6,8 +6,14 @@ type connectServer = {@live use: connectMiddleware => unit}
 @send external useMiddleware: (connectServer, connectMiddleware) => unit = "use"
 
 type viteDevServer = {middlewares: connectServer}
-type serverConfig = {cors: bool}
-type config = {server: serverConfig}
+type serverConfig = {
+  @live
+  cors: bool,
+}
+type config = {
+  @live
+  server: serverConfig,
+}
 
 type plugin = {
   @live

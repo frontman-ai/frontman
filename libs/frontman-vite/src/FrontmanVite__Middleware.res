@@ -35,4 +35,5 @@ let make = (config: Config.t): bundle => {
   {middleware: CoreMiddleware.createMiddleware(~config=middlewareConfig), registry}
 }
 
+@@live
 let createMiddleware = (config: Config.t) => make(config).middleware

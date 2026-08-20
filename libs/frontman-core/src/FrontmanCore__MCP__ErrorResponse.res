@@ -11,8 +11,11 @@ type unsupportedVersionData = {
 
 @schema
 type standardErrorResponse = {
+  @live
   jsonrpc: string,
+  @live
   id: option<JsonRpc.Id.t>,
+  @live
   error: JsonRpc.RpcError.t,
 }
 

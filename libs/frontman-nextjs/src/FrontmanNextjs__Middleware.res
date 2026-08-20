@@ -21,6 +21,7 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   sourceLocationSecurity: config.sourceLocationSecurity,
 }
 
+@@live
 let createMiddleware = (configInput: Config.jsConfigInput) => {
   let config = Config.makeFromObject(configInput)
   let middlewareConfig = toMiddlewareConfig(config)

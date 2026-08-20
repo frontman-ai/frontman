@@ -7,7 +7,6 @@ let schemaNodeLimit = 1024
 let instanceDepthLimit = 64
 let instanceNodeLimit = 65536
 let instanceByteLimit = 2097152
-let operationTimeLimitMs = 100
 
 @module("./mcp-json-schema.mjs") @return(nullable)
 external compileInternal: JSON.t => option<validator> = "compileSchema"

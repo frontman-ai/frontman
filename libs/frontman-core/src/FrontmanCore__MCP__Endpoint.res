@@ -27,7 +27,7 @@ let standardPreflightHeaders = [
   "mcp-name",
 ]
 
-let emptyResponse = (~status, ~headers=[]) =>
+let emptyResponse = (~status, ~headers) =>
   WebAPI.Response.fromNull(~init={status, headers: WebAPI.HeadersInit.fromKeyValueArray(headers)})
 
 let allowedPreflightHeader = (~config, header) => {

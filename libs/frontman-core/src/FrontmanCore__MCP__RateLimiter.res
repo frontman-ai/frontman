@@ -3,7 +3,6 @@ type t
 type decision = Allowed | Rejected(int) | Failed
 
 let requestLimit = 256
-let windowMs = 60000
 let principalLimit = 4096
 let principalByteLimit = 8192
 

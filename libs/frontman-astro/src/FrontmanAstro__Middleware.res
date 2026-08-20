@@ -4,6 +4,7 @@ module Core = FrontmanAiFrontmanCore
 module CoreMiddleware = Core.FrontmanCore__Middleware
 module CoreMiddlewareConfig = Core.FrontmanCore__MiddlewareConfig
 
+@@live
 type routeDiscovery =
   | Filesystem
   | ResolvedRoutes({getRoutes: unit => array<FrontmanBindings.Astro.integrationResolvedRoute>})
@@ -15,6 +16,7 @@ type bundle = {
     WebAPI.FetchAPI.request,
     ~rawHeaders: Core.FrontmanCore__MCP__RawHeaders.t=?,
   ) => promise<option<WebAPI.FetchAPI.response>>,
+  @live
   registry: Core.FrontmanCore__ToolRegistry.t,
 }
 
@@ -47,5 +49,6 @@ let make = (
   {middleware: CoreMiddleware.createMiddleware(~config=middlewareConfig), registry}
 }
 
+@@live
 let createMiddleware = (config, ~routeDiscovery, ~loadContentApi) =>
   make(config, ~routeDiscovery, ~loadContentApi).middleware

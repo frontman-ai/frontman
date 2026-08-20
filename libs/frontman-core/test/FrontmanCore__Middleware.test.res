@@ -25,7 +25,7 @@ module Helpers = {
     sourceLocationSecurity: Some(sourceLocationSecurity),
   }
 
-  let middleware = Middleware.createMiddleware(~config)
+  let middleware = req => Middleware.createMiddleware(~config)(req)
 
   let makeGetRequest = (url: string): WebAPI.FetchAPI.request => {
     WebAPI.Request.fromURL(url)
@@ -159,8 +159,9 @@ describe("Middleware (integration)", _t => {
       "sets a path-scoped HttpOnly MCP cookie without exposing it in HTML",
       async t => {
         let config = {...Helpers.config, mcpBrowserToken: Some("secret token;value")}
-        let middleware = Middleware.createMiddleware(~config)
-        let result = await middleware(Helpers.makeGetRequest("https://localhost/frontman"))
+        let result = await Middleware.createMiddleware(~config)(
+          Helpers.makeGetRequest("https://localhost/frontman"),
+        )
 
         switch result {
         | Some(response) =>
@@ -183,8 +184,9 @@ describe("Middleware (integration)", _t => {
       "omits Secure from the MCP cookie on local HTTP",
       async t => {
         let config = {...Helpers.config, mcpBrowserToken: Some("local-token")}
-        let middleware = Middleware.createMiddleware(~config)
-        let result = await middleware(Helpers.makeGetRequest("http://localhost/frontman"))
+        let result = await Middleware.createMiddleware(~config)(
+          Helpers.makeGetRequest("http://localhost/frontman"),
+        )
 
         switch result {
         | Some(response) =>

@@ -10,7 +10,9 @@ module Tool = Protocol.FrontmanProtocol__Tool
 module JsonRpc = Protocol.FrontmanProtocol__JsonRpc
 
 type callResponse = {
+  @live
   jsonrpc: string,
+  @live
   id: JsonRpc.Id.t,
   result: MCP.CallToolResult.t,
 }
@@ -73,7 +75,7 @@ module RequiredInputTool = {
   )
 
   @schema
-  type input = {value: string}
+  type input = {@live value: string}
 
   let executionCount = ref(0)
   let execute = async (_context, _input) => {

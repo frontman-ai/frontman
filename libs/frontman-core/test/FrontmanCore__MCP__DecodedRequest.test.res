@@ -24,7 +24,7 @@ type completeErrorResult = {
 
 @schema
 type textContent = {
-  @as("type") type_: string,
+  @live @as("type") type_: string,
   text: string,
 }
 
@@ -38,8 +38,8 @@ type completeResult = {
 let executionCount = ref(0)
 
 type annotatedProperty = {
-  @as("type") type_: string,
-  @as("x-mcp-header") header: string,
+  @live @as("type") type_: string,
+  @live @as("x-mcp-header") header: string,
 }
 
 external annotatedPropertyAsSchema: annotatedProperty => JSONSchema.t = "%identity"
@@ -97,7 +97,7 @@ module OptionalInputTool = {
   )
 
   @schema
-  type input = {value?: string}
+  type input = {@live value?: string}
 
   let execute = async (_context, _input) => {
     executionCount.contents = executionCount.contents + 1
@@ -174,7 +174,7 @@ module StructuredTool = {
   type input = {mode: string}
 
   @schema
-  type output = {value: string}
+  type output = {@live value: string}
 
   let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 

@@ -7,7 +7,14 @@ type request = {
   limits: Engine.limits,
 }
 
-type response = {ok: bool, error: option<string>, ready?: bool}
+type response = {
+  @live
+  ok: bool,
+  @live
+  error: option<string>,
+  @live
+  ready?: bool,
+}
 type messageEvent<'value> = {data: 'value}
 type scope
 

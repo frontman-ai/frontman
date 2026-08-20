@@ -8,9 +8,13 @@ type validationError =
   | WorkerFailed(string)
 
 type request = {
+  @live
   operation: string,
+  @live
   schema: JSON.t,
+  @live
   value: JSON.t,
+  @live
   limits: limits,
 }
 
@@ -19,9 +23,9 @@ type messageEvent<'value> = {data: 'value}
 type errorEvent = {message: string}
 type timeoutId
 type worker
-type workerOptions = {@as("type") type_: string}
+type workerOptions = {@as("type") @live type_: string}
 type blob
-type blobOptions = {@as("type") type_: string}
+type blobOptions = {@as("type") @live type_: string}
 
 let defaultLimits = Engine.defaultLimits
 let validationTimeoutMs = 100

@@ -15,7 +15,9 @@ module Helpers = {
     | None => WebAPI.Headers.make()
     }
 
-  let stream = (~chunks, ~cancelled=ref(false), ~pulls=ref(0)) => {
+  let stream = (~chunks) => {
+    let cancelled = ref(false)
+    let pulls = ref(0)
     let index = ref(0)
     let body = WebStreams.makeReadableStream({
       pull: controller => {
