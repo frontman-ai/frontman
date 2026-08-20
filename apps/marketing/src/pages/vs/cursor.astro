@@ -7,7 +7,7 @@ import { createComparisonReview, frontmanLicenseShort } from '../../content/fron
 const seo: SEOInfo = {
   title: 'Frontman vs Cursor Design Mode: Visual AI Coding',
   description:
-    'Compare Frontman with Cursor Design Mode for click-to-edit UI work, browser context, framework integration, pricing, BYOK, and self-hosting.',
+    'Compare browser-first Frontman for designers and PMs with Cursor Design Mode inside a full developer environment. Features, pricing, BYOK, and architecture.',
 }
 
 const review: ComparisonReview = {
@@ -42,6 +42,7 @@ const competitor: CompetitorInfo = {
 }
 
 const features: ComparisonFeature[] = [
+  { name: 'Built for non-technical teammates', frontman: 'yes', competitor: 'partial', frontmanNote: 'Designers and PMs work from the running app', competitorNote: 'Visual controls inside a developer environment' },
   { name: 'Visual editing interface', frontman: 'yes', competitor: 'yes', frontmanNote: 'Runs alongside the app in a normal browser', competitorNote: 'Design Mode in the Cursor Agents Window browser' },
   { name: 'Click-to-select elements', frontman: 'yes', competitor: 'yes', frontmanNote: 'Single- and multi-element selection', competitorNote: 'Single- and multi-element selection' },
   { name: 'Drawing and voice prompts', frontman: 'no', competitor: 'yes', competitorNote: 'Draw on the page or narrate changes' },
@@ -50,7 +51,7 @@ const features: ComparisonFeature[] = [
   { name: 'Browser console access', frontman: 'yes', competitor: 'yes', frontmanNote: 'Captures browser logs and errors', competitorNote: 'Native Browser reads console logs and network traffic' },
   { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'yes', frontmanNote: 'Changes appear in the running app', competitorNote: 'Design Mode shows changes as the app hot reloads' },
   { name: 'Dedicated framework integration', frontman: 'yes', competitor: 'no', frontmanNote: 'Local Next.js, Astro, and Vite integrations', competitorNote: 'General code, terminal, and browser tools' },
-  { name: 'Visual workflow outside Cursor', frontman: 'yes', competitor: 'no', frontmanNote: 'The product interface runs in a normal browser', competitorNote: 'Design Mode requires the Cursor Agents Window' },
+  { name: 'IDE-free day-to-day workflow', frontman: 'yes', competitor: 'no', frontmanNote: 'After developer setup, visual users only need the browser', competitorNote: 'Requires the Cursor developer application and Agents Window' },
   { name: 'File-based editing', frontman: 'yes', competitor: 'yes', frontmanNote: 'Edits source files — real code, not overrides', competitorNote: 'Full file system access' },
   { name: 'Autocomplete', frontman: 'no', competitor: 'yes', competitorNote: 'Tab completion, inline suggestions' },
   { name: 'Multi-file refactoring', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can edit multiple files, but not its primary workflow', competitorNote: 'Cross-file edits, Composer, agent mode' },
@@ -64,11 +65,15 @@ const features: ComparisonFeature[] = [
 const faqs: FAQ[] = [
   {
     question: 'Can our designers actually use Frontman without learning an IDE?',
-    answer: 'Yes. Frontman runs in a normal browser alongside the running app, so designers can click elements, describe changes, and review the result without using an editor or terminal. Cursor also offers visual editing, but its Design Mode runs inside the Cursor Agents Window development environment.',
+    answer: 'Yes. A developer first installs the Frontman integration and runs the project. After that setup, designers and PMs work from the running app in a normal browser: they click elements, describe changes, and review results without navigating source files, using a terminal, or learning an IDE. Cursor also offers visual editing, but Design Mode requires users to work inside the Cursor developer application and Agents Window.',
   },
   {
     question: 'Does Cursor have a visual editor like Frontman?',
     answer: 'Yes. Cursor Design Mode lets users select one or more elements in a running app, draw on the page, or dictate a prompt. It gives the agent element attributes, computed styles, React Fiber props, component information, and a screenshot, then shows edits through hot reload. Frontman is no longer differentiated simply by seeing the browser.',
+  },
+  {
+    question: 'Why use Frontman if Cursor already has Design Mode?',
+    answer: 'Frontman is designed for people who work on the product but do not work in a development environment. Once an engineer installs the framework integration, designers and PMs make visual changes from the running app without adopting Cursor, an IDE, a terminal, or a code-navigation workflow. Cursor Design Mode is a strong choice for developers who already want Cursor\'s broader coding platform.',
   },
   {
     question: 'Do Frontman and Cursor Design Mode edit real source code?',
@@ -106,23 +111,23 @@ const alternatives: Alternative[] = [
   competitor={competitor}
   review={review}
   heroTitle="Frontman vs Cursor"
-  heroSubtitle="Two Visual Editing Workflows, Built Around Different Environments"
+  heroSubtitle="Browser-First for Product Teams vs a Full Developer Environment"
   features={features}
   faqs={faqs}
   alternatives={alternatives}
 >
   <Fragment slot="hero-summary">
     <p>
-      <strong>Quick answer:</strong> Cursor now competes directly with Frontman on visual UI editing. Cursor Design Mode can select elements, inspect computed styles and React component context, attach screenshots, edit code, and show the result through hot reload. Choose Cursor when you want those capabilities inside a broad engineering environment. Choose Frontman when you want a browser-first workflow with dedicated local framework integration that does not require your team to work inside Cursor.
+      <strong>Quick answer:</strong> Both tools can select rendered elements, inspect runtime context, edit source code, and show the result through hot reload. The key difference is who must operate the tool. Frontman is built so designers and PMs can make UI changes from the running app without learning an IDE or terminal. Cursor Design Mode puts visual editing inside Cursor's full developer environment, alongside its codebase, terminal, and general-purpose agent tools.
     </p>
     <p>
-      <a href="https://frontman.sh" class="text-link">Frontman</a> runs alongside your app in a normal browser. Its browser tools inspect the live page while a local Next.js, Astro, or Vite integration provides component, source-map, build-error, and filesystem context. Designers, PMs, and engineers can select elements, request changes, and review real source-code diffs without using an IDE.
+      <a href="https://frontman.sh" class="text-link">Frontman</a> requires a developer to install its Next.js, Astro, or Vite integration and run the project. From there, the working interface is the app itself in a normal browser. Designers, PMs, and engineers can select elements, request changes, and review real source-code diffs without opening an editor, navigating the source tree, or using a terminal.
     </p>
     <p>
       <a href="https://cursor.com/docs/agent/design-mode" class="text-link" rel="nofollow">Cursor Design Mode</a> lives in the browser inside the Cursor Agents Window. It supports element selection, multi-select, drawing, and voice prompts. Cursor supplies the agent with the selected element's attributes, computed styles, React Fiber props, component information, and a screenshot. Its native Browser also exposes console logs and network traffic without an external MCP installation.
     </p>
     <p class="summary-emphasis">
-      The honest difference is no longer "browser versus files." Both tools see the rendered app and edit files. Frontman centers the workflow on your app and framework integration; Cursor centers it on a proprietary, general-purpose development environment with substantially broader engineering tools.
+      The honest difference is no longer "browser versus files." It is an app-first tool for a broader product team versus visual features inside a full developer platform. Cursor offers far more engineering capability; Frontman keeps the person requesting the UI change in the running app instead of Cursor's developer application.
     </p>
   </Fragment>
 
@@ -183,9 +188,10 @@ const alternatives: Alternative[] = [
   </Fragment>
 
   <Fragment slot="frontman-differentiators">
-    <p><strong>The workflow starts in your app, not Cursor.</strong> Frontman opens alongside the running product in a normal browser. A designer or PM does not need to adopt Cursor's Agents Window, editor, terminal, or account workflow to request and review a UI change.</p>
+    <p><strong>Frontman is designed for people who work on the product, not necessarily in the codebase.</strong> Designers and PMs start from the interface they already understand: the running app. They point at what should change and describe the result instead of finding a component, opening an editor, or translating visual feedback into an engineering ticket.</p>
+    <p><strong>Developer setup does not become a developer-only workflow.</strong> An engineer installs the framework integration and runs the project. The teammates making day-to-day visual changes then work in a normal browser without adopting Cursor's Agents Window, classic editor, terminal, or code-navigation workflow.</p>
     <p><strong>Framework context comes from a dedicated local integration.</strong> Frontman's Next.js, Astro, and Vite packages connect browser selection to component metadata, source maps, dev-server build errors, and filesystem operations. Cursor instead combines browser observations with its general-purpose codebase and terminal tools.</p>
-    <p><strong>The scope is deliberately narrower.</strong> Frontman does not try to replace autocomplete, a terminal, cloud agents, or a general-purpose IDE. It focuses its interface and context on reviewing the running app and making source changes from that visual starting point.</p>
+    <p><strong>The scope is deliberately narrower.</strong> Frontman does not try to replace autocomplete, a terminal, cloud agents, or a general-purpose IDE. That narrower scope is the point: non-technical teammates are not dropped into a full development environment to make a copy, spacing, or component adjustment.</p>
     <p><strong>Both tools produce reviewable code.</strong> Click-to-edit, screenshots, computed styles, source edits, and hot reload are shared capabilities now. The choice is about where the workflow lives and how much of the surrounding development platform your team wants.</p>
 	<p><strong>Source-available and BYOK.</strong> The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and the server is AGPL-3.0-only with AI Supplementary Terms. Self-hosting remains available and puts server orchestration and task-history persistence on your infrastructure; relevant context may still be transmitted to your configured LLM provider. Hosted Frontman Pro is available now. You bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with your Claude or ChatGPT subscription via OAuth.</p>
   </Fragment>
@@ -193,6 +199,7 @@ const alternatives: Alternative[] = [
   <Fragment slot="who-should-use-competitor">
     <p>Cursor is the better choice when visual editing should be one capability inside a broader engineering platform. Specifically:</p>
     <ul>
+      <li><strong>Developers and technical users</strong> who are comfortable working inside a codebase-oriented development environment</li>
       <li><strong>Backend developers</strong> working in Python, Go, Rust, or any non-frontend language</li>
       <li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
       <li><strong>Agentic coding workflows</strong> — if you want the AI to plan, execute, and iterate across files and terminal</li>
@@ -204,10 +211,10 @@ const alternatives: Alternative[] = [
   </Fragment>
 
   <Fragment slot="who-should-use-frontman">
-    <p>Frontman is built for teams that want the visual workflow without adopting Cursor as their development environment. Specifically:</p>
+    <p>Frontman is built for product teams that need non-technical teammates to participate in UI implementation without turning them into IDE users. Specifically:</p>
     <ul>
       <li><strong>Design system teams at growing startups</strong> — your system is live, your components are real, and you need designers and engineers iterating on them together without a Figma-to-ticket-to-PR bottleneck</li>
-      <li><strong>Designers who want to iterate directly on the product</strong> — click elements in the running app, describe changes, and see results without learning an IDE or terminal</li>
+      <li><strong>Designers who want to iterate directly on the product</strong> — click elements in the running app, describe changes, and see results without learning an IDE, terminal, or source tree</li>
       <li><strong>PMs who ship small UI changes themselves</strong> — update copy, adjust spacing, tweak component props. Every change is a real code diff your engineers can review</li>
       <li><strong>Engineering leads reducing design-to-code handoff friction</strong> — fewer "make it match the Figma" tickets, more direct iteration on the actual product</li>
       <li><strong>Teams using Next.js, Astro, or Vite</strong> — deep framework plugin integration means Frontman understands your component structure, not just file contents</li>
