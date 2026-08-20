@@ -32,7 +32,7 @@ type rec jsonContentNode = {
 @send external clickElement: Dom.element => unit = "click"
 @get external inputFiles: Dom.element => Null.t<WebAPI.DomTypes.fileList> = "files"
 @set external setInputValue: (Dom.element, string) => unit = "value"
-@get external navigatorUserAgent: WebAPI.Global.navigator => string = "userAgent"
+@get external navigatorUserAgent: WebAPI.DomTypes.navigator => string = "userAgent"
 module TiptapReact = FrontmanBindings.Bindings__Tiptap__React
 module TiptapCore = FrontmanBindings.Bindings__Tiptap__Core
 module TiptapExtensions = FrontmanBindings.Bindings__Tiptap__Extensions
@@ -215,7 +215,10 @@ module PastedTextView = {
         | true =>
           <span className="frontman-prompt-paste-hint">
             {React.string(
-              `${WebAPI.Global.navigator->navigatorUserAgent->getPasteExpandShortcut} to expand`,
+              `${WebAPI.Window.current
+                ->WebAPI.Window.navigator
+                ->navigatorUserAgent
+                ->getPasteExpandShortcut} to expand`,
             )}
           </span>
         }}
@@ -232,7 +235,8 @@ module PastedTextView = {
   }
 }
 
-let generateId = () => `att_${WebAPI.Global.crypto->WebAPI.Crypto.randomUUID}`
+let generateId = () =>
+  `att_${WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID}`
 
 let filesFromFileList = (fileList: WebAPI.DomTypes.fileList) => {
   let files = []
@@ -509,7 +513,7 @@ let make = (
   let lastDropFilesSignalRef = React.useRef(dropFilesSignal)
   let (expandablePaste, setExpandablePaste) = React.useState((): option<expandablePaste> => None)
   let expandablePasteRef: React.ref<option<expandablePaste>> = React.useRef(None)
-  let expandablePasteTimerRef: React.ref<option<int>> = React.useRef(None)
+  let expandablePasteTimerRef: React.ref<option<WebAPI.DomTypes.timeoutId>> = React.useRef(None)
 
   expandablePasteRef.current = expandablePaste
   placeholderRef.current = placeholder
@@ -524,7 +528,9 @@ let make = (
   let isInputBlocked = () => disabledRef.current || isEnrichingAnnotationsRef.current
 
   let clearExpandablePasteTimer = () => {
-    expandablePasteTimerRef.current->Option.forEach(WebAPI.Global.clearTimeout)
+    expandablePasteTimerRef.current->Option.forEach(timeout =>
+      WebAPI.Window.clearTimeout(WebAPI.Window.current, timeout)
+    )
     expandablePasteTimerRef.current = None
   }
 
@@ -543,7 +549,11 @@ let make = (
     expandablePasteRef.current = Some(paste)
     setExpandablePaste(_ => Some(paste))
     expandablePasteTimerRef.current = Some(
-      WebAPI.Global.setTimeout(~handler=cancelExpandablePaste, ~timeout=expandablePasteWindowMs),
+      WebAPI.Window.setTimeout(
+        WebAPI.Window.current,
+        ~handler=cancelExpandablePaste,
+        ~timeout=expandablePasteWindowMs,
+      ),
     )
   }
 

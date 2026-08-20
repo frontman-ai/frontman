@@ -1,5 +1,5 @@
 type finderOptions = {
-  root: WebAPI.DOMAPI.element,
+  root: WebAPI.DomTypes.element,
   idName: (~name: string) => bool,
   className: (~name: string) => bool,
   tagName: (~name: string) => bool,
@@ -10,4 +10,4 @@ type finderOptions = {
   maxNumberOfPathChecks?: int,
 }
 @module("@medv/finder")
-external finder: (~element: WebAPI.DOMAPI.element, ~options: finderOptions) => string = "finder"
+external finder: (~element: WebAPI.DomTypes.element, ~options: finderOptions) => string = "finder"

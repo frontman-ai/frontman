@@ -53,4 +53,4 @@ type resizeObserver = private {}
 
 type resizeObserverOptions = {mutable box?: resizeObserverBoxOptions}
 
-type resizeObserverCallback = array<resizeObserverEntry> => resizeObserver => unit
+type resizeObserverCallback = (array<resizeObserverEntry>, resizeObserver) => unit

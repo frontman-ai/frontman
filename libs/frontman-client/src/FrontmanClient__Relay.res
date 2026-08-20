@@ -33,13 +33,13 @@ let isConnected = (relay: t): bool => {
 
 let getState = (relay: t): relayState => relay.state.contents
 
-let connect = async (relay: t, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
+let connect = async (relay: t, ~signal: option<WebAPI.EventTypes.abortSignal>=?): result<
   unit,
   string,
 > => {
   let url = `${relay.baseUrl}/frontman/tools`
   try {
-    let response = await WebAPI.Global.fetch(
+    let response = await WebAPI.Fetch.fetch(
       url,
       ~init={
         headers: WebAPI.HeadersInit.fromDict(relay.requestHeaders),
@@ -135,7 +135,7 @@ let executeTool = async (
     relay.requestHeaders->Dict.forEachWithKey((value, key) => headers->Dict.set(key, value))
 
     try {
-      let response = await WebAPI.Global.fetch(
+      let response = await WebAPI.Fetch.fetch(
         url,
         ~init={
           method: "POST",

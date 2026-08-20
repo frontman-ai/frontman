@@ -35,7 +35,7 @@
 	"dependencies": {
 		"@frontman-ai/frontman-protocol": "2.0.0",
 		"@frontman/bindings": "0.3.1",
-		"@rescript/runtime": "12.3.0",
+		"@rescript/runtime": "catalog:",
 		"chrome-launcher": "^1.1.2",
 		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
 		"lighthouse": "^13.4.0",

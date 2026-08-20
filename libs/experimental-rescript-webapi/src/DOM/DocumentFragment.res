@@ -13,6 +13,9 @@ module Impl = (
 
   external asDocumentFragment: T.t => DomTypes.documentFragment = "%identity"
 
+  @get
+  external children: T.t => DomTypes.htmlCollection<DomTypes.element> = "children"
+
   /**
 Inserts nodes after the last child of node, while replacing strings in nodes with equivalent Text nodes.
 
@@ -37,13 +40,6 @@ Returns the first element within node's descendants whose ID is elementId.
 */
   @send
   external getElementById: (T.t, string) => null<DomTypes.element> = "getElementById"
-
-  /**
-  Returns the child elements.
-  [Read more on MDN](https://developer.mozilla.org/docs/Web/API/DocumentFragment/children)
-  */
-  @get
-  external children: T.t => DomTypes.htmlCollection<DomTypes.element> = "children"
 
   /**
 Inserts nodes before the first child of node, while replacing strings in nodes with equivalent Text nodes.

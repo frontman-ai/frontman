@@ -63,7 +63,7 @@ type output = {
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
-let dispatchHoverEvents = (el: WebAPI.DOMAPI.element): unit => {
+let dispatchHoverEvents = (el: WebAPI.DomTypes.element): unit => {
   let enterEvt = WebAPI.MouseEvent.make(
     ~type_="mouseenter",
     ~eventInitDict={bubbles: false, cancelable: false},
@@ -72,18 +72,18 @@ let dispatchHoverEvents = (el: WebAPI.DOMAPI.element): unit => {
     ~type_="mouseover",
     ~eventInitDict={bubbles: true, cancelable: true},
   )
-  let target = (el :> WebAPI.EventAPI.eventTarget)
+  let target = (el :> WebAPI.EventTypes.eventTarget)
   target->WebAPI.EventTarget.dispatchEvent(enterEvt->WebAPI.MouseEvent.asEvent)->ignore
   target->WebAPI.EventTarget.dispatchEvent(overEvt->WebAPI.MouseEvent.asEvent)->ignore
 }
 
-let clickElement = (el: WebAPI.DOMAPI.element): unit => {
-  let htmlEl: WebAPI.DOMAPI.htmlElement = el->Obj.magic
+let clickElement = (el: WebAPI.DomTypes.element): unit => {
+  let htmlEl: WebAPI.DomTypes.htmlElement = el->Obj.magic
   htmlEl->WebAPI.HTMLElement.click
 }
 
-let focusElement = (el: WebAPI.DOMAPI.element): unit => {
-  let htmlEl: WebAPI.DOMAPI.htmlElement = el->Obj.magic
+let focusElement = (el: WebAPI.DomTypes.element): unit => {
+  let htmlEl: WebAPI.DomTypes.htmlElement = el->Obj.magic
   htmlEl->WebAPI.HTMLElement.focus
 }
 
@@ -94,7 +94,7 @@ let actionToString = (action: [#click | #hover | #focus]): string =>
   | #focus => "focused"
   }
 
-let performAction = (el: WebAPI.DOMAPI.element, action: [#click | #hover | #focus]): unit =>
+let performAction = (el: WebAPI.DomTypes.element, action: [#click | #hover | #focus]): unit =>
   switch action {
   | #click => clickElement(el)
   | #hover => dispatchHoverEvents(el)
@@ -103,11 +103,11 @@ let performAction = (el: WebAPI.DOMAPI.element, action: [#click | #hover | #focu
 
 type resolution =
   | Error(string)
-  | Resolved({element: option<WebAPI.DOMAPI.element>, matchCount: int})
+  | Resolved({element: option<WebAPI.DomTypes.element>, matchCount: int})
 
 let resolveTarget = (
-  ~doc: WebAPI.DOMAPI.document,
-  ~contentWindow: WebAPI.DOMAPI.window,
+  ~doc: WebAPI.DomTypes.document,
+  ~contentWindow: WebAPI.DomTypes.window,
   ~input: input,
   ~index: int,
 ): resolution =>

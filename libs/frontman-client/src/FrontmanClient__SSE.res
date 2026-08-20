@@ -78,10 +78,10 @@ let processBlocks = (blocks: array<string>, ~onProgress: option<string => unit>)
   })
 }
 
-let readStream = async (
-  response: WebAPI.FetchAPI.response,
-  ~onProgress: option<string => unit>=?,
-): result<JSON.t, string> => {
+let readStream = async (response: WebAPI.Response.t, ~onProgress: option<string => unit>=?): result<
+  JSON.t,
+  string,
+> => {
   switch response.body->Null.toOption {
   | None => Error("No response body")
   | Some(body) =>

@@ -19,6 +19,7 @@
 		"libs/experimental-rescript-webapi",
 		"libs/frontman-client",
 		"libs/frontman-protocol",
+		"libs/frontman-preview-bridge",
 		"libs/frontman-core",
 		"libs/frontman-astro",
 		"libs/frontman-astro-browser",

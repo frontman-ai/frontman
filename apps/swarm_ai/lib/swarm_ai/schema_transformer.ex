@@ -84,6 +84,11 @@ defmodule SwarmAi.SchemaTransformer do
     :openai_strict
   end
 
+  def provider_for_model(%{provider: :openrouter, id: id})
+      when is_binary(id) do
+    if openai_model?(id), do: :openai_strict, else: :flexible
+  end
+
   def provider_for_model(%{provider: _}) do
     :flexible
   end

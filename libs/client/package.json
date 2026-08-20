@@ -46,7 +46,7 @@
 		"@frontman/logs": "workspace:*",
 		"@medv/finder": "^4.0.2",
 		"@rescript/react": "^0.15.0",
-		"@rescript/runtime": "12.3.0",
+		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "*",
 		"@tailwindcss/vite": "^4.3.2",
 		"@types/babel__core": "^7",

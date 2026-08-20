@@ -114,7 +114,7 @@ type astroIntegration = {
   hooks: astroHooks,
 }
 
-type toolbarCanvas = WebAPI.DOMAPI.shadowRoot
+type toolbarCanvas = WebAPI.DomTypes.shadowRoot
 
 type toolbarApp
 

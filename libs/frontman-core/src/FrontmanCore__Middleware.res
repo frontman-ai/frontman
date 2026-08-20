@@ -81,7 +81,7 @@ let buildEntrypointUrl = (
 }
 
 let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t): (
-  WebAPI.FetchAPI.request => promise<option<WebAPI.FetchAPI.response>>
+  WebAPI.Request.t => promise<option<WebAPI.Response.t>>
 ) => {
   let handlerConfig: RequestHandlers.handlerConfig = {
     projectRoot: config.projectRoot,
@@ -90,9 +90,7 @@ let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t):
     serverVersion: config.serverVersion,
   }
 
-  let middleware: WebAPI.FetchAPI.request => promise<
-    option<WebAPI.FetchAPI.response>,
-  > = async req => {
+  let middleware: WebAPI.Request.t => promise<option<WebAPI.Response.t>> = async req => {
     let method = req.method->String.toLowerCase
     let url = WebAPI.URL.make(~url=req.url)
     let pathname = url.pathname

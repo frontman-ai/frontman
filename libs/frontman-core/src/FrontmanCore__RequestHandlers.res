@@ -141,7 +141,7 @@ let normalizeResolvedContext = async (~canonicalSourceRoot: string, context: sou
   }
 }
 
-let unresolvedReactSourceResponse = (~details: string): WebAPI.FetchAPI.response => {
+let unresolvedReactSourceResponse = (~details: string): WebAPI.Response.t => {
   let json = {
     error: "Could not resolve React source context",
     details: Some(details),
@@ -161,7 +161,7 @@ let safeSourceResolutionError = (error: sourceResolutionError): string =>
 let handleGetTools = (
   ~registry: FrontmanCore__ToolRegistry.t,
   ~config: handlerConfig,
-): WebAPI.FetchAPI.response => {
+): WebAPI.Response.t => {
   let response = CoreServer.getToolsResponse(
     ~registry,
     ~serverName=config.serverName,
@@ -177,8 +177,8 @@ let handleGetTools = (
 let handleToolCall = async (
   ~registry: FrontmanCore__ToolRegistry.t,
   ~config: handlerConfig,
-  req: WebAPI.FetchAPI.request,
-): WebAPI.FetchAPI.response => {
+  req: WebAPI.Request.t,
+): WebAPI.Response.t => {
   let body = await req->WebAPI.Request.json
 
   let request = try {
@@ -250,8 +250,8 @@ let handleResolveSourceLocation = async (
   ~projectRoot: option<string>=?,
   ~sourceRoot: string,
   ~resolveSourceContext: resolveSourceContext=resolveElementSourceContext,
-  req: WebAPI.FetchAPI.request,
-): WebAPI.FetchAPI.response => {
+  req: WebAPI.Request.t,
+): WebAPI.Response.t => {
   let projectRoot = projectRoot->Option.getOr(sourceRoot)
   let canonicalProjectRoot = (await canonicalPath(projectRoot))->Option.getOr(projectRoot)
   let canonicalSourceRoot = (await canonicalPath(sourceRoot))->Option.getOr(sourceRoot)

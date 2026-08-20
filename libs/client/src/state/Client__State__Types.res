@@ -63,6 +63,53 @@ type apiKeySettings = {
   saveStatus: apiKeySaveStatus,
 }
 
+@schema
+type oauthStatusResponse = {
+  connected: bool,
+  @as("expires_at")
+  expiresAt: option<string>,
+}
+
+@schema
+type anthropicOAuthAuthorizeUrlResponse = {
+  @as("authorize_url")
+  authorizeUrl: string,
+  verifier: string,
+}
+
+@schema
+type anthropicOAuthExchangeResponse = {
+  @as("expires_at")
+  expiresAt: string,
+}
+
+@schema
+type anthropicOAuthErrorResponse = {
+  error: string,
+}
+
+@schema
+type openAIDeviceAuthResponse = {
+  @as("device_auth_id")
+  deviceAuthId: string,
+  @as("user_code")
+  userCode: string,
+  @as("verification_url")
+  verificationUrl: string,
+}
+
+@schema
+type openAIDeviceAuthPollStatus =
+  | @as("connected") DeviceAuthConnected
+  | @as("pending") DeviceAuthPending
+
+@schema
+type openAIDeviceAuthPollResponse = {
+  status: openAIDeviceAuthPollStatus,
+  @as("expires_at")
+  expiresAt: option<string>,
+}
+
 module ACPConfig = {
   type sessionConfigOption = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption
   type sessionConfigValueId = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId

@@ -6,21 +6,21 @@ external make: unit => DomTypes.document = "Document"
 
 include Node.Impl({type t = DomTypes.document})
 
+@get
+external body: DomTypes.document => Null.t<DomTypes.htmlElement> = "body"
+
+@send
+external createCanvasElement: (
+  DomTypes.document,
+  @as(json`"canvas"`) _,
+) => DomTypes.htmlCanvasElement = "createElement"
+
 /**
 Returns the first element within node's descendants whose ID is elementId.
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Document/getElementById)
 */
 @send
 external getElementById: (DomTypes.document, string) => null<DomTypes.element> = "getElementById"
-
-@get
-external body: DomTypes.document => Null.t<DomTypes.htmlElement> = "body"
-
-@send
-external createCanvasElement_: (DomTypes.document, string) => DomTypes.htmlCanvasElement =
-  "createElement"
-
-let createCanvasElement = document => createCanvasElement_(document, "canvas")
 
 /**
 [Read more on MDN](https://developer.mozilla.org/docs/Web/API/Document/getAnimations)

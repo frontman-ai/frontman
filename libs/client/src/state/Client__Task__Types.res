@@ -26,8 +26,8 @@ module Task = {
 
   type previewFrame = {
     url: string,
-    contentDocument: option<WebAPI.DOMAPI.document>,
-    contentWindow: option<WebAPI.DOMAPI.window>,
+    contentDocument: option<WebAPI.DomTypes.document>,
+    contentWindow: option<WebAPI.DomTypes.window>,
     deviceMode: Client__DeviceMode.deviceMode,
     orientation: Client__DeviceMode.orientation,
   }
@@ -211,7 +211,7 @@ module Task = {
 
   let makeNew = (~previewUrl: string): t => {
     New({
-      clientId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+      clientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
       previewFrame: {
         url: previewUrl,
         contentDocument: None,
@@ -751,11 +751,11 @@ let messageAnnotationToBlockData = (
   }
 }
 
-let getDocumentTitle: WebAPI.DOMAPI.document => string = %raw(`
+let getDocumentTitle: WebAPI.DomTypes.document => string = %raw(`
   function(doc) { return doc.title || ""; }
 `)
 
-let getColorScheme: WebAPI.DOMAPI.window => string = %raw(`
+let getColorScheme: WebAPI.DomTypes.window => string = %raw(`
   function(win) {
     try {
       return win.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";

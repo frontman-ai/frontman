@@ -1,10 +1,10 @@
 open Vitest
 
-let makePlainElement: string => WebAPI.DOMAPI.element = %raw(`
+let makePlainElement: string => WebAPI.DomTypes.element = %raw(`
   function(tag) { return { tagName: tag, parentElement: null } }
 `)
 
-let makeReactElement: (string, string) => WebAPI.DOMAPI.element = %raw(`
+let makeReactElement: (string, string) => WebAPI.DomTypes.element = %raw(`
   function(tag, componentName) {
     var el = { tagName: tag, parentElement: null };
     el["__reactFiber$test123"] = {
@@ -16,7 +16,7 @@ let makeReactElement: (string, string) => WebAPI.DOMAPI.element = %raw(`
   }
 `)
 
-let makeVueElement: (string, string) => WebAPI.DOMAPI.element = %raw(`
+let makeVueElement: (string, string) => WebAPI.DomTypes.element = %raw(`
   function(tag, componentName) {
     var el = { tagName: tag, parentElement: null };
     el.__vueParentComponent = {
@@ -48,7 +48,7 @@ describe("Client__ComponentName.getForElement", () => {
   })
 
   test("React takes priority over Vue when both are present", t => {
-    let el: WebAPI.DOMAPI.element = %raw(`
+    let el: WebAPI.DomTypes.element = %raw(`
       (function() {
         var el = { tagName: "div", parentElement: null };
         el["__reactFiber$test123"] = {

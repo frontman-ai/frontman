@@ -25,7 +25,7 @@ type childRelation =
   | ShadowChild(int)
 
 type walkChild = {
-  element: WebAPI.DOMAPI.element,
+  element: WebAPI.DomTypes.element,
   relation: childRelation,
 }
 
@@ -47,7 +47,7 @@ let truncate = (text: string, ~maxLen: int): string =>
 let errorMessage = (exn: exn): string =>
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
 
-let findSelector = (~element: WebAPI.DOMAPI.element, ~document: WebAPI.DOMAPI.document): result<
+let findSelector = (~element: WebAPI.DomTypes.element, ~document: WebAPI.DomTypes.document): result<
   string,
   string,
 > =>
@@ -68,7 +68,9 @@ let findSelector = (~element: WebAPI.DOMAPI.element, ~document: WebAPI.DOMAPI.do
   | exn => Error(errorMessage(exn))
   }
 
-let childElements = (~element: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): array<walkChild> => {
+let childElements = (~element: WebAPI.DomTypes.element, ~pierceShadowDom: bool): array<
+  walkChild,
+> => {
   let lightChildren =
     element.children
     ->WebAPI.HTMLCollection.toArray
@@ -91,11 +93,11 @@ let childElements = (~element: WebAPI.DOMAPI.element, ~pierceShadowDom: bool): a
   }
 }
 
-let directText = (element: WebAPI.DOMAPI.element): string => {
+let directText = (element: WebAPI.DomTypes.element): string => {
   let node = element->WebAPI.Element.asNode
   node.childNodes
   ->WebAPI.NodeList.toArray
-  ->Array.filterMap((node: WebAPI.DOMAPI.node) =>
+  ->Array.filterMap((node: WebAPI.DomTypes.node) =>
     switch node.nodeType === 3 {
     | false => None
     | true =>
@@ -108,7 +110,7 @@ let directText = (element: WebAPI.DOMAPI.element): string => {
   ->Array.join(" ")
 }
 
-let contextText = (element: WebAPI.DOMAPI.element): string =>
+let contextText = (element: WebAPI.DomTypes.element): string =>
   switch element.tagName->String.toLowerCase {
   | "input" | "script" | "style" | "svg" | "textarea" => ""
   | _ => directText(element)
@@ -171,8 +173,8 @@ let appendLine = (state: walkState, line: string): bool => {
 
 let describe = (
   ~relation: string,
-  ~element: WebAPI.DOMAPI.element,
-  ~document: WebAPI.DOMAPI.document,
+  ~element: WebAPI.DomTypes.element,
+  ~document: WebAPI.DomTypes.document,
   ~selector: option<string>,
   ~pierceShadowDom: bool,
 ): (string, array<walkChild>) => {
@@ -221,8 +223,8 @@ let describe = (
 }
 
 let rec walk = (
-  ~element: WebAPI.DOMAPI.element,
-  ~document: WebAPI.DOMAPI.document,
+  ~element: WebAPI.DomTypes.element,
+  ~document: WebAPI.DomTypes.document,
   ~selector: option<string>,
   ~depth: int,
   ~maxDepth: int,
@@ -283,8 +285,8 @@ let optionalTrimmed = (value: Null.t<string>): option<string> =>
   }
 
 let inspect = (
-  ~element: WebAPI.DOMAPI.element,
-  ~document: WebAPI.DOMAPI.document,
+  ~element: WebAPI.DomTypes.element,
+  ~document: WebAPI.DomTypes.document,
   ~maxDepth: int,
   ~maxNodes: int,
   ~pierceShadowDom=false,

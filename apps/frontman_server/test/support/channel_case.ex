@@ -184,7 +184,7 @@ defmodule FrontmanServerWeb.ChannelCase do
 
       build_prompt_request()
       build_prompt_request(id: 42, text: "Next question")
-      build_prompt_request(_meta: %{"model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"}})
+      build_prompt_request(_meta: %{"model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}})
   """
   def build_prompt_request(opts \\ []) do
     id = Keyword.get(opts, :id, 1)
@@ -192,7 +192,7 @@ defmodule FrontmanServerWeb.ChannelCase do
 
     meta =
       Keyword.get(opts, :_meta, %{
-        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
         "agent" => "test-frontman"
       })
 

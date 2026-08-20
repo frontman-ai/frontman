@@ -19,7 +19,7 @@ module Helpers = {
   let sourceRoot = Path.join([projectRoot, "src"])
   let sourceFile = Path.join([sourceRoot, "ServerPost.tsx"])
 
-  let makePostRequest = (url: string, body: JSON.t): WebAPI.FetchAPI.request => {
+  let makePostRequest = (url: string, body: JSON.t): WebAPI.Request.t => {
     let headers = WebAPI.HeadersInit.fromDict(
       Dict.fromArray([("Content-Type", "application/json")]),
     )
@@ -48,7 +48,7 @@ module Helpers = {
     componentProps: None,
   }
 
-  let sourceRequest = (context: RequestHandlers.sourceContext): WebAPI.FetchAPI.request =>
+  let sourceRequest = (context: RequestHandlers.sourceContext): WebAPI.Request.t =>
     makePostRequest(
       "http://localhost/frontman/resolve-source-location",
       resolveSourceLocationBody(context),

@@ -153,8 +153,10 @@ let migrateOpenAIModelValue = value =>
 
 let loadSelectedModelValueFromStorage = (): option<string> => {
   try {
-    FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
-    ->Nullable.toOption
+    WebAPI.Window.current
+    ->WebAPI.Window.localStorage
+    ->WebAPI.Storage.getItem(selectedModelStorageKey)
+    ->Null.toOption
     ->Option.map(migrateOpenAIModelValue)
   } catch {
   | _ => None
@@ -163,7 +165,9 @@ let loadSelectedModelValueFromStorage = (): option<string> => {
 
 let saveSelectedModelValueToStorage = (value: string): unit => {
   try {
-    FrontmanBindings.LocalStorage.setItem(selectedModelStorageKey, value)
+    WebAPI.Window.current
+    ->WebAPI.Window.localStorage
+    ->WebAPI.Storage.setItem(~key=selectedModelStorageKey, ~value)
   } catch {
   | exn => Log.error(~error=JsExn.fromException(exn), "saveSelectedModelValueToStorage failed")
   }
@@ -203,12 +207,6 @@ let setAllApiKeySources = (state: state, source) => {
   fireworksKeySettings: {...state.fireworksKeySettings, source},
   nvidiaKeySettings: {...state.nvidiaKeySettings, source},
 }
-
-let hasApiKeySource = (source: Client__State__Types.apiKeySource) =>
-  switch source {
-  | UserOverride => true
-  | Loading | Client__State__Types.None => false
-  }
 
 let defaultState: state = {
   tasks: Dict.make(),
@@ -447,41 +445,15 @@ module Selectors = {
     }
   }
 
-  let hasAnyProviderConfigured = (state: state): bool => {
-    switch state.anthropicOAuthStatus {
-    | Connected(_) => true
-    | _ =>
-      switch state.openaiOAuthStatus {
-      | OpenAIConnected(_) => true
-      | _ =>
-        hasApiKeySource(state.openrouterKeySettings.source) ||
-        hasApiKeySource(state.nvidiaKeySettings.source) ||
-        hasApiKeySource(state.fireworksKeySettings.source) ||
-        hasApiKeySource(state.anthropicKeySettings.source)
-      }
-    }
-  }
-
-  let providerSettingsLoaded = (state: state): bool => {
-    let apiKeySettingsLoaded = switch (
-      state.openrouterKeySettings.source,
-      state.nvidiaKeySettings.source,
-      state.fireworksKeySettings.source,
-      state.anthropicKeySettings.source,
-    ) {
-    | (Loading, _, _, _) | (_, Loading, _, _) | (_, _, Loading, _) | (_, _, _, Loading) => false
-    | _ => true
-    }
-    let oauthSettingsLoaded = switch (state.anthropicOAuthStatus, state.openaiOAuthStatus) {
-    | (FetchingStatus, _) | (_, OpenAIFetchingStatus) => false
-    | _ => true
-    }
-
-    apiKeySettingsLoaded && oauthSettingsLoaded
-  }
-
   let providerSetupRequired = (state: state): bool => {
-    hasActiveACPSession(state) && providerSettingsLoaded(state) && !hasAnyProviderConfigured(state)
+    switch (state.acpSession, state.configOptions) {
+    | (AcpSessionActive(_), Some(configOptions)) =>
+      switch configOptions->ACP.findConfigOptionByCategory(ACP.Model) {
+      | Some(modelConfig) => ACP.sessionConfigOptionFirstOption(modelConfig)->Option.isNone
+      | None => false
+      }
+    | _ => false
+    }
   }
 }
 
@@ -552,7 +524,7 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
     let url = `${apiBaseUrl}/api/user/me`
 
     try {
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
         let userProfile =
@@ -585,7 +557,7 @@ let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
     let url = `${apiBaseUrl}/api/user/api-keys`
 
     try {
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
         let apiKeysResponse =
@@ -614,7 +586,7 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
     let url = `${apiBaseUrl}/api/user/api-keys`
 
     try {
-      let response = await WebAPI.Global.fetch(
+      let response = await WebAPI.Fetch.fetch(
         url,
         ~init={
           credentials: Include,
@@ -698,18 +670,11 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/status`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let connected =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool))
-            ->Option.getOr(false)
-          let expiresAt =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
+          let {connected, expiresAt} =
+            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.oauthStatusResponseSchema)
           dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
@@ -723,24 +688,15 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/authorize-url`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let authorizeUrl =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj =>
-              obj->Dict.get("authorize_url")->Option.flatMap(JSON.Decode.string)
+          let {authorizeUrl, verifier} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthAuthorizeUrlResponseSchema,
             )
-          let verifier =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("verifier")->Option.flatMap(JSON.Decode.string))
-          switch (authorizeUrl, verifier) {
-          | (Some(authorizeUrl), Some(verifier)) =>
-            dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
-          | _ => dispatch(AnthropicOAuthError({error: "Invalid response from server"}))
-          }
+          dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
         } else {
           dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
         }
@@ -761,7 +717,7 @@ let handleEffect = (effect, state: state, dispatch) => {
             ("verifier", JSON.Encode.string(verifier)),
           ]),
         )
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "POST",
@@ -772,21 +728,19 @@ let handleEffect = (effect, state: state, dispatch) => {
         )
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let expiresAt =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
-          switch expiresAt {
-          | Some(expiresAt) => dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
-          | None => dispatch(AnthropicOAuthError({error: "Invalid response from server"}))
-          }
+          let {expiresAt} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthExchangeResponseSchema,
+            )
+          dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
         } else {
           let json = await response->WebAPI.Response.json
-          let error =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("error")->Option.flatMap(JSON.Decode.string))
-            ->Option.getOr("Failed to exchange code")
+          let {error} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthErrorResponseSchema,
+            )
           dispatch(AnthropicOAuthError({error: error}))
         }
       } catch {
@@ -800,7 +754,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/disconnect`
 
       try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "DELETE",
@@ -823,18 +777,11 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/openai/status`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let connected =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool))
-            ->Option.getOr(false)
-          let expiresAt =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
+          let {connected, expiresAt} =
+            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.oauthStatusResponseSchema)
           dispatch(OpenAIOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
@@ -851,7 +798,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/openai/initiate`
 
       try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "POST",
@@ -861,23 +808,12 @@ let handleEffect = (effect, state: state, dispatch) => {
         )
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let obj = json->JSON.Decode.object
-          let deviceAuthId =
-            obj->Option.flatMap(o =>
-              o->Dict.get("device_auth_id")->Option.flatMap(JSON.Decode.string)
+          let {deviceAuthId, userCode, verificationUrl} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.openAIDeviceAuthResponseSchema,
             )
-          let userCode =
-            obj->Option.flatMap(o => o->Dict.get("user_code")->Option.flatMap(JSON.Decode.string))
-          let verificationUrl =
-            obj->Option.flatMap(o =>
-              o->Dict.get("verification_url")->Option.flatMap(JSON.Decode.string)
-            )
-          switch (deviceAuthId, userCode, verificationUrl) {
-          | (Some(deviceAuthId), Some(userCode), Some(verificationUrl)) =>
-            dispatch(OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
-          | _ =>
-            dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Invalid response from server"}))
-          }
+          dispatch(OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
         } else {
           dispatch(
             OpenAIOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
@@ -911,7 +847,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         } else {
           try {
             let url = `${apiBaseUrl}/api/oauth/openai/poll`
-            let response = await WebAPI.Global.fetch(
+            let response = await WebAPI.Fetch.fetch(
               url,
               ~init={
                 method: "POST",
@@ -922,22 +858,16 @@ let handleEffect = (effect, state: state, dispatch) => {
             )
             if response.ok {
               let json = await response->WebAPI.Response.json
-              let status =
-                json
-                ->JSON.Decode.object
-                ->Option.flatMap(obj => obj->Dict.get("status")->Option.flatMap(JSON.Decode.string))
-                ->Option.getOr("")
+              let {status, expiresAt} =
+                json->S.decodeOrThrow(
+                  ~from=S.json,
+                  ~to=Client__State__Types.openAIDeviceAuthPollResponseSchema,
+                )
               switch status {
-              | "connected" =>
-                let expiresAt =
-                  json
-                  ->JSON.Decode.object
-                  ->Option.flatMap(obj =>
-                    obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string)
-                  )
-                  ->Option.getOr("")
+              | Client__State__Types.DeviceAuthConnected =>
+                let expiresAt = expiresAt->Option.getOrThrow
                 dispatch(OpenAIOAuthConnected({deviceAuthId, expiresAt}))
-              | _ =>
+              | Client__State__Types.DeviceAuthPending =>
                 await Promise.make((resolve, _) => {
                   let _ = setTimeout(() => resolve(), intervalMs)
                 })
@@ -974,7 +904,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/openai/disconnect`
 
       try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "DELETE",
@@ -1020,7 +950,7 @@ let handleEffect = (effect, state: state, dispatch) => {
     let fetch = async () => {
       try {
         let url = `${apiBaseUrl}/api/integrations/latest-versions`
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         switch response.ok {
         | false =>
           Sentry.captureConnectionError(
@@ -1195,7 +1125,7 @@ let next = (state: state, action) => {
     }
 
   | SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}) =>
-    let stateWithSession = {
+    {
       ...state,
       acpSession: AcpSessionActive({
         sendPrompt,
@@ -1205,24 +1135,7 @@ let next = (state: state, action) => {
         deleteSession,
         apiBaseUrl,
       }),
-    }
-    switch state.acpSession {
-    | AcpSessionActive(_) => stateWithSession->StateReducer.update
-    | NoAcpSession =>
-      {
-        ...stateWithSession,
-        anthropicOAuthStatus: Client__State__Types.FetchingStatus,
-        openaiOAuthStatus: Client__State__Types.OpenAIFetchingStatus,
-      }
-      ->setAllApiKeySources(Client__State__Types.Loading)
-      ->StateReducer.update(
-        ~sideEffects=[
-          FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
-          FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
-          FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
-        ],
-      )
-    }
+    }->StateReducer.update
 
   | ClearAcpSession =>
     let updatedTasks = state.tasks->Dict.copy
@@ -1290,15 +1203,8 @@ let next = (state: state, action) => {
         ~message="ConfigOptionsReceived missing model config option",
       )
 
-    let firstModelValue = switch modelConfigOption {
-    | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
-      groups
-      ->Array.get(0)
-      ->Option.flatMap(g => g.options->Array.get(0))
-      ->Option.map(opt => opt.value)
-    | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) =>
-      failwith("Model config option must use grouped options")
-    }
+    let firstModelValue =
+      modelConfigOption->ACP.sessionConfigOptionFirstOption->Option.map(option => option.value)
 
     let (selectedModelValue, didAutoSelect) = switch state.pendingProviderAutoSelect {
     | Some(providerId) =>
@@ -1308,8 +1214,7 @@ let next = (state: state, action) => {
         ->Array.find(g => g.group == providerId)
         ->Option.flatMap(g => g.options->Array.get(0))
         ->Option.map(opt => opt.value)
-      | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) =>
-        failwith("Model config option must use grouped options")
+      | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) => None
       }
       switch providerModelValue {
       | Some(value) => (Some(value), true)
@@ -1361,15 +1266,12 @@ let next = (state: state, action) => {
     }
 
   | AnthropicOAuthStatusReceived({connected, expiresAt}) =>
-    let status = if connected {
-      switch expiresAt {
-      | Some(expiresAtStr) =>
-        let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
-        Client__State__Types.Connected({expiresAt: expiresAtMs})
-      | None => Client__State__Types.Connected({expiresAt: 0.0})
-      }
-    } else {
-      Client__State__Types.NotConnected
+    let status = switch (connected, expiresAt) {
+    | (true, Some(expiresAtStr)) =>
+      let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
+      Client__State__Types.Connected({expiresAt: expiresAtMs})
+    | (true, None) => failwith("Connected Anthropic OAuth status missing expires_at")
+    | (false, _) => Client__State__Types.NotConnected
     }
     {...state, anthropicOAuthStatus: status}->StateReducer.update
 
@@ -1457,15 +1359,12 @@ let next = (state: state, action) => {
     }
 
   | OpenAIOAuthStatusReceived({connected, expiresAt}) =>
-    let status = if connected {
-      switch expiresAt {
-      | Some(expiresAtStr) =>
-        let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
-        Client__State__Types.OpenAIConnected({expiresAt: expiresAtMs})
-      | None => Client__State__Types.OpenAIConnected({expiresAt: 0.0})
-      }
-    } else {
-      Client__State__Types.OpenAINotConnected
+    let status = switch (connected, expiresAt) {
+    | (true, Some(expiresAtStr)) =>
+      let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
+      Client__State__Types.OpenAIConnected({expiresAt: expiresAtMs})
+    | (true, None) => failwith("Connected OpenAI OAuth status missing expires_at")
+    | (false, _) => Client__State__Types.OpenAINotConnected
     }
     {...state, openaiOAuthStatus: status}->StateReducer.update
 

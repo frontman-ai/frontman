@@ -132,8 +132,8 @@ module Lens = {
 
   let setPreviewFrame = (
     task: Task.t,
-    ~contentDocument: option<WebAPI.DOMAPI.document>,
-    ~contentWindow: option<WebAPI.DOMAPI.window>,
+    ~contentDocument: option<WebAPI.DomTypes.document>,
+    ~contentWindow: option<WebAPI.DomTypes.window>,
   ): Task.t => updatePreviewFrame(task, pf => {...pf, contentDocument, contentWindow})
 
   let setDeviceMode = (task: Task.t, deviceMode: Client__DeviceMode.deviceMode): Task.t =>
@@ -313,7 +313,7 @@ module Selectors = {
 }
 
 type annotationElement = {
-  element: WebAPI.DOMAPI.element,
+  element: WebAPI.DomTypes.element,
   tagName: string,
 }
 
@@ -336,8 +336,8 @@ type action =
     })
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
-  | ToggleAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
-  | AddAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
+  | ToggleAnnotation({element: WebAPI.DomTypes.element, tagName: string})
+  | AddAnnotation({element: WebAPI.DomTypes.element, tagName: string})
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
@@ -357,8 +357,8 @@ type action =
   | SetActivePopupAnnotationId({id: option<string>})
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
-      contentDocument: option<WebAPI.DOMAPI.document>,
-      contentWindow: option<WebAPI.DOMAPI.window>,
+      contentDocument: option<WebAPI.DomTypes.document>,
+      contentWindow: option<WebAPI.DomTypes.window>,
     })
   | SetDeviceMode({deviceMode: Client__DeviceMode.deviceMode})
   | SetOrientation({orientation: Client__DeviceMode.orientation})
@@ -398,9 +398,9 @@ type action =
 type effect =
   | FetchAnnotationDetails({
       id: string,
-      element: WebAPI.DOMAPI.element,
-      document: option<WebAPI.DOMAPI.document>,
-      contentWindow: option<WebAPI.DOMAPI.window>,
+      element: WebAPI.DomTypes.element,
+      document: option<WebAPI.DomTypes.document>,
+      contentWindow: option<WebAPI.DomTypes.window>,
     })
   | SendMessage({
       text: string,
@@ -502,7 +502,7 @@ let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): arr
       })
     | File({file}) =>
       Some({
-        Message.id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+        Message.id: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
         dataUrl: file,
         mediaType: "application/octet-stream",
         filename: "file",
@@ -1285,9 +1285,9 @@ let formatError = (exn: exn): string =>
 
 let fetchAnnotationDetails = (
   ~id: string,
-  ~element: WebAPI.DOMAPI.element,
-  ~document: option<WebAPI.DOMAPI.document>,
-  ~contentWindow: option<WebAPI.DOMAPI.window>,
+  ~element: WebAPI.DomTypes.element,
+  ~document: option<WebAPI.DomTypes.document>,
+  ~contentWindow: option<WebAPI.DomTypes.window>,
   ~dispatch: action => unit,
 ) => {
   let inspection = switch document {

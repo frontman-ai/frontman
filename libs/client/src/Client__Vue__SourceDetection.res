@@ -37,15 +37,15 @@ module VueComponent = {
     }
 }
 
-let getVueComponent: WebAPI.DOMAPI.element => Nullable.t<vueComponentInstance> = %raw(`
+let getVueComponent: WebAPI.DomTypes.element => Nullable.t<vueComponentInstance> = %raw(`
   function(el) { return el.__vueParentComponent }
 `)
 
 @scope("Array") @val
 external isArray: 'a => bool = "isArray"
 
-let findVueInstance = (startElement: WebAPI.DOMAPI.element): option<(
-  WebAPI.DOMAPI.element,
+let findVueInstance = (startElement: WebAPI.DomTypes.element): option<(
+  WebAPI.DomTypes.element,
   vueComponentInstance,
 )> => {
   let el = ref(Some(startElement))
@@ -138,7 +138,7 @@ let serializeProps = (rawProps: Nullable.t<Dict.t<JSON.t>>): option<Dict.t<JSON.
 
 let makeSourceLocation = (
   instance: vueComponentInstance,
-  element: WebAPI.DOMAPI.element,
+  element: WebAPI.DomTypes.element,
   ~parent: option<Client__Types.SourceLocation.t>,
 ): option<Client__Types.SourceLocation.t> => {
   switch VueComponent.getFile(instance) {
@@ -160,7 +160,7 @@ let makeSourceLocation = (
   }
 }
 
-let getElementSourceLocation = (~element: WebAPI.DOMAPI.element): option<
+let getElementSourceLocation = (~element: WebAPI.DomTypes.element): option<
   Client__Types.SourceLocation.t,
 > => {
   switch findVueInstance(element) {

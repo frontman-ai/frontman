@@ -2,21 +2,22 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #WebPreviewStage
 })
 
-external asKeyboardEvent: WebAPI.EventAPI.event => WebAPI.UIEventsAPI.keyboardEvent = "%identity"
-external asMouseEvent: WebAPI.EventAPI.event => WebAPI.UIEventsAPI.mouseEvent = "%identity"
+external asKeyboardEvent: WebAPI.EventTypes.event => WebAPI.UiEventsTypes.keyboardEvent =
+  "%identity"
+external asMouseEvent: WebAPI.EventTypes.event => WebAPI.UiEventsTypes.mouseEvent = "%identity"
 external elementFromPoint: (
-  WebAPI.DOMAPI.document,
+  WebAPI.DomTypes.document,
   ~x: int,
   ~y: int,
-) => Nullable.t<WebAPI.DOMAPI.element> = "elementFromPoint"
+) => Nullable.t<WebAPI.DomTypes.element> = "elementFromPoint"
 
 let _findElementsInRect: (
-  WebAPI.DOMAPI.document,
+  WebAPI.DomTypes.document,
   float,
   float,
   float,
   float,
-) => array<WebAPI.DOMAPI.element> = %raw(`
+) => array<WebAPI.DomTypes.element> = %raw(`
   function(doc, rx, ry, rw, rh) {
     var meaningfulTags = new Set([
       "A","ABBR","ADDRESS","ARTICLE","ASIDE","AUDIO","B","BLOCKQUOTE",
@@ -101,7 +102,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           }
         }
         let iframeTarget = doc->WebAPI.Document.asEventTarget
-        let windowTarget = WebAPI.Global.window->WebAPI.Window.asEventTarget
+        let windowTarget = WebAPI.Window.current->WebAPI.Window.asEventTarget
         iframeTarget->WebAPI.EventTarget.addEventListener(Keydown, handleKeyDown)
         windowTarget->WebAPI.EventTarget.addEventListener(Keydown, handleKeyDown)
         Some(
@@ -280,10 +281,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           | true => wasDragging.current = false
           | false =>
             switch target {
-            | Some(eventTarget) => {
-                let element = WebAPI.EventTarget.asElement(eventTarget)
-                Client__State.Actions.toggleAnnotation(~element, ~tagName=element.tagName)
-              }
+            | Some(element) =>
+              Client__State.Actions.toggleAnnotation(~element, ~tagName=element.tagName)
             | None => Log.error("Element clicked: unknown")
             }
           }

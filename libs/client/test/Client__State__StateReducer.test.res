@@ -72,6 +72,34 @@ module TestHelpers = {
     Reducer.Selectors.currentTaskId(state)
   }
 
+  let modelConfigOptions = (~models: array<string>) => {
+    [
+      ACP.SelectConfigOption({
+        id: "model",
+        name: "Model",
+        description: None,
+        category: Some(ACP.Model),
+        options: ACP.Grouped([
+          {
+            group: "future_provider",
+            name: "Future Provider",
+            options: models->Array.map(value => {
+              let option: ACP.sessionConfigSelectOption = {
+                value,
+                name: value,
+                description: None,
+                _meta: None,
+              }
+              option
+            }),
+            _meta: None,
+          },
+        ]),
+        _meta: None,
+      }),
+    ]
+  }
+
   let acceptUserMessage = (
     state,
     ~taskId,
@@ -1409,80 +1437,22 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
 
     test(
-      "provider settings remain unloaded while any status is being fetched",
+      "provider setup follows ACP model availability",
       t => {
-        let loadingState = {
-          ...Reducer.defaultState,
-          anthropicOAuthStatus: FetchingStatus,
-          openaiOAuthStatus: OpenAIFetchingStatus,
-          openrouterKeySettings: {
-            source: Loading,
-            saveStatus: Idle,
-          },
+        let sessionState = _makeStateWithSession()
+        let emptyState = {
+          ...sessionState,
+          configOptions: Some(TestHelpers.modelConfigOptions(~models=[])),
         }
-
-        t->expect(Reducer.Selectors.providerSettingsLoaded(loadingState))->Expect.toBe(false)
-      },
-    )
-
-    test(
-      "provider settings are loaded after every status settles",
-      t => {
-        let loadedState = {
-          ...Reducer.defaultState,
-          anthropicOAuthStatus: NotConnected,
-          openaiOAuthStatus: OpenAINotConnected,
-        }
-
-        t->expect(Reducer.Selectors.providerSettingsLoaded(loadedState))->Expect.toBe(true)
-      },
-    )
-
-    test(
-      "provider settings are loaded after OAuth flow or fetch failure",
-      t => {
-        let authorizing: Client__State__Types.anthropicOAuthStatus = Authorizing({
-          authorizeUrl: "https://example.com",
-          verifier: "verifier",
-        })
-        let showingCode: Client__State__Types.openaiOAuthStatus = OpenAIShowingCode({
-          deviceAuthId: "device-auth-id",
-          userCode: "ABCD-EFGH",
-          verificationUrl: "https://example.com/device",
-        })
-        let activeFlowState = {
-          ...Reducer.defaultState,
-          anthropicOAuthStatus: authorizing,
-          openaiOAuthStatus: showingCode,
-        }
-        let failedState = {
-          ...Reducer.defaultState,
-          anthropicOAuthStatus: Error("status unavailable"),
-          openaiOAuthStatus: OpenAINotConnected,
-        }
-
-        t->expect(Reducer.Selectors.providerSettingsLoaded(activeFlowState))->Expect.toBe(true)
-        t->expect(Reducer.Selectors.providerSettingsLoaded(failedState))->Expect.toBe(true)
-      },
-    )
-
-    test(
-      "provider setup is required only for an initialized session with loaded empty settings",
-      t => {
-        let initializedState = _makeStateWithSession()
-        let loadingState = {
-          ...initializedState,
-          openrouterKeySettings: {source: Loading, saveStatus: Idle},
-        }
-        let configuredState = {
-          ...initializedState,
-          openrouterKeySettings: {source: UserOverride, saveStatus: Idle},
+        let futureProviderState = {
+          ...sessionState,
+          configOptions: Some(TestHelpers.modelConfigOptions(~models=["future_provider:model"])),
         }
 
         t->expect(Reducer.Selectors.providerSetupRequired(Reducer.defaultState))->Expect.toBe(false)
-        t->expect(Reducer.Selectors.providerSetupRequired(loadingState))->Expect.toBe(false)
-        t->expect(Reducer.Selectors.providerSetupRequired(configuredState))->Expect.toBe(false)
-        t->expect(Reducer.Selectors.providerSetupRequired(initializedState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.providerSetupRequired(sessionState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSetupRequired(emptyState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.providerSetupRequired(futureProviderState))->Expect.toBe(false)
       },
     )
 
@@ -1512,13 +1482,13 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
 
     test(
-      "initializing a new ACP session fetches provider settings",
+      "initializing a new ACP session does not fetch provider settings",
       t => {
         let (nextState, effects) = Reducer.next(Reducer.defaultState, _setAcpSessionAction())
 
-        t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(FetchingStatus)
-        t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(OpenAIFetchingStatus)
-        t->expect(effects->Array.length)->Expect.toBe(3)
+        t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(NotConnected)
+        t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(OpenAINotConnected)
+        t->expect(effects->Array.length)->Expect.toBe(0)
       },
     )
 

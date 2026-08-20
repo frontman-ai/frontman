@@ -31,6 +31,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
 
   alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
@@ -440,11 +441,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
 
     test "startup failure persists terminal error on the same turn" do
-      scope = user_scope_fixture()
+      scope = Scope.for_user(user_fixture())
       task_id = task_with_pubsub_fixture(scope).id
 
       {:ok, _, 1} =
-        submit_user_message(scope, task_id, user_content("Hello"), model: "missing:test")
+        submit_user_message(scope, task_id, user_content("Hello"),
+          model: "openrouter:openai/gpt-5.5"
+        )
 
       assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
 
@@ -458,7 +461,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
 
     test "submits browser context prompt through production recording path" do
-      scope = user_scope_fixture()
+      scope = Scope.for_user(user_fixture())
       task_id = task_with_pubsub_fixture(scope).id
 
       content_blocks = [
@@ -490,7 +493,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       ]
 
       {:ok, returned, 1} =
-        submit_user_message(scope, task_id, content_blocks, model: "missing:test")
+        submit_user_message(scope, task_id, content_blocks, model: "openrouter:openai/gpt-5.5")
 
       assert %Interaction.CurrentPage{url: "http://localhost:4321/"} = returned.data.current_page
 

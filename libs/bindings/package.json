@@ -8,7 +8,8 @@
 		"./src/*.res.mjs": "./src/*.res.mjs"
 	},
 	"dependencies": {
-		"@rescript/runtime": "12.3.0"
+		"@rescript/runtime": "catalog:",
+		"@rescript/webapi": "catalog:"
 	},
 	"devDependencies": {
 		"@rescript/react": "^0.15.0",

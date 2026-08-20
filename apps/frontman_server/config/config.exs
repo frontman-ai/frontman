@@ -208,27 +208,6 @@ config :phoenix, :json_library, Jason
 
 import_config "providers.exs"
 
-providers = Keyword.fetch!(read_config(:frontman_server), :providers)
-
-llm_db_custom =
-  providers
-  |> Enum.filter(fn {_provider, provider_config} -> provider_config.models != [] end)
-  |> Enum.map(fn {provider, provider_config} ->
-    models =
-      provider_config
-      |> Map.fetch!(:models)
-      |> Enum.reject(fn {_name, _value, metadata} -> metadata == :packaged end)
-      |> Map.new(fn {name, value, metadata} -> {value, Map.put(metadata, :name, name)} end)
-
-    llm_db_provider =
-      provider_config
-      |> Map.fetch!(:llm_db_provider)
-      |> Keyword.put(:models, models)
-
-    {provider, llm_db_provider}
-  end)
-  |> Map.new()
-
 config :req_llm,
   receive_timeout: 150_000,
   finch: [
@@ -241,7 +220,5 @@ config :req_llm,
       ]
     }
   ]
-
-config :llm_db, custom: llm_db_custom
 
 import_config "#{config_env()}.exs"

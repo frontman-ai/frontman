@@ -65,7 +65,7 @@ let generateHTML = (config: MiddlewareConfig.t, ~enableReactScan=false): string 
 </html>`
 }
 
-let serve = (config: MiddlewareConfig.t, ~enableReactScan=false): WebAPI.FetchAPI.response => {
+let serve = (config: MiddlewareConfig.t, ~enableReactScan=false): WebAPI.Response.t => {
   let html = generateHTML(config, ~enableReactScan)
   let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "text/html")]))
   WebAPI.Response.fromString(html, ~init={headers: headers})
@@ -75,7 +75,7 @@ let serveWithEntrypoint = (
   ~config: MiddlewareConfig.t,
   ~entrypointUrl: option<string>,
   ~enableReactScan: bool,
-): WebAPI.FetchAPI.response => {
+): WebAPI.Response.t => {
   let effectiveConfig = switch entrypointUrl {
   | Some(_) => {...config, entrypointUrl}
   | None => config

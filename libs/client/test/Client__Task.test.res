@@ -759,7 +759,7 @@ describe("Task - Running-independent streamed events", () => {
 module Annotation = Client__Annotation__Types
 module MessageAnnotation = Client__Message.MessageAnnotation
 
-let _makeMockElement: unit => WebAPI.DOMAPI.element = %raw(`
+let _makeMockElement: unit => WebAPI.DomTypes.element = %raw(`
   function() { return { tagName: "DIV" }; }
 `)
 

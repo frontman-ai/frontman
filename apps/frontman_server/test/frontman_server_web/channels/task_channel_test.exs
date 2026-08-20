@@ -26,7 +26,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServer.Tasks.Interaction
   alias ModelContextProtocol, as: MCP
 
-  @persisted_restart_model "openrouter:persisted/restart-model"
+  @persisted_restart_model "openrouter:openai/gpt-5.5"
 
   defp response_metadata(turn_started_id \\ "turn-1", ordinal \\ 0) do
     %{
@@ -342,7 +342,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           build_acp_request("session/prompt", 46, %{
             "prompt" => content_blocks,
             "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
               "agent" => "test-frontman"
             }
           })
@@ -376,7 +376,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           build_acp_request("session/prompt", 45, %{
             "prompt" => [%{"type" => "text", "text" => "Hello"}],
             "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"}
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}
             }
           })
         )
@@ -407,7 +407,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "acp:message",
           build_prompt_request(
             _meta: %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
               "agent" => "missing"
             }
           )
@@ -431,7 +431,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           build_acp_request("session/prompt", 44, %{
             "prompt" => [%{"type" => "text", "text" => ""}],
             "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
               "agent" => "test-frontman"
             }
           })
@@ -1021,7 +1021,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         Tasks.submit_user_message(scope, %{
           task_id: task.id,
           message: user_content("queued elsewhere"),
-          model: "openrouter:google/gemini-3-flash-preview",
+          model: "openrouter:google/gemini-3.1-pro-preview",
           agent_id: "test-frontman"
         })
 
@@ -1213,7 +1213,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
 
-      assert_receive {:resumed_model, resumed_model}, 1_000
+      assert_receive {:resumed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}, 1_000
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
@@ -1229,7 +1229,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
              ] = tool_results
 
       assert_state_update_idle(task_id)
-      assert resumed_model == @persisted_restart_model
     end
 
     test "restart waits for every unresolved tool result before resuming", %{
@@ -1289,7 +1288,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
 
       assert first_call_id != final_call_id
-      assert_receive {:resumed_model, @persisted_restart_model}, 1_000
+
+      assert_receive {:resumed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}, 1_000
+
       assert_state_update_idle(task_id)
     end
 
@@ -1325,7 +1326,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(socket, "mcp:message", JsonRpc.error_response(mcp_request_id, -32_000, "Tool failed"))
       :sys.get_state(socket.channel_pid)
 
-      assert_receive {:resumed_model, @persisted_restart_model}, 1_000
+      assert_receive {:resumed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}, 1_000
+
       assert_state_update_idle(task_id)
     end
 

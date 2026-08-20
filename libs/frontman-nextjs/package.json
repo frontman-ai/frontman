@@ -90,7 +90,7 @@
 	"devDependencies": {
 		"@frontman-ai/frontman-core": "*",
 		"@frontman-ai/frontman-protocol": "*",
-		"@rescript/runtime": "12.3.0",
+		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "*",
 		"next": "^16.2.10",
 		"react": "^19.2.7",

@@ -6,7 +6,7 @@ type componentNameOptions = {
 }
 
 @module("dom-element-to-component-source")
-external reactComponentName: (WebAPI.DOMAPI.element, componentNameOptions) => Nullable.t<string> =
+external reactComponentName: (WebAPI.DomTypes.element, componentNameOptions) => Nullable.t<string> =
   "getElementComponentName"
 
 let _reactComponentName = element =>
@@ -19,16 +19,17 @@ let _reactComponentName = element =>
     },
   )->Nullable.toOption
 
-let _vueComponentName = (element: WebAPI.DOMAPI.element): option<string> => {
+let _vueComponentName = (element: WebAPI.DomTypes.element): option<string> => {
   switch Client__Vue__SourceDetection.getVueComponent(element)->Nullable.toOption {
   | Some(instance) => Client__Vue__SourceDetection.VueComponent.getName(instance)
   | None => None
   }
 }
 
-let _astroComponentName = (element: WebAPI.DOMAPI.element, ~window: WebAPI.DOMAPI.window): option<
-  string,
-> => {
+let _astroComponentName = (
+  element: WebAPI.DomTypes.element,
+  ~window: WebAPI.DomTypes.window,
+): option<string> => {
   switch FrontmanBindings.AstroAnnotations.getAnnotationsApi(window) {
   | Some(api) =>
     switch api.get(element)->Nullable.toOption {
@@ -44,8 +45,8 @@ let _astroComponentName = (element: WebAPI.DOMAPI.element, ~window: WebAPI.DOMAP
 }
 
 let getForElement = (
-  element: WebAPI.DOMAPI.element,
-  ~window: option<WebAPI.DOMAPI.window>=?,
+  element: WebAPI.DomTypes.element,
+  ~window: option<WebAPI.DomTypes.window>=?,
 ): option<string> => {
   switch _reactComponentName(element) {
   | Some(name) => Some(name)

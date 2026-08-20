@@ -738,6 +738,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$GLOBALS['frontman_test_menu_item_to_term'][25] = 7;
 
 		$GLOBALS['frontman_test_options']['blogname'] = 'Old Blog Name';
+		$GLOBALS['frontman_test_options']['admin_email'] = 'admin@example.com';
 		$GLOBALS['frontman_test_options']['stylesheet'] = 'frontman-theme';
 		$GLOBALS['frontman_test_custom_css']['frontman-theme'] = '.old { color: red; }';
 		$custom_css_post = new WP_Post();
@@ -1028,6 +1029,11 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_same( $slash_sensitive_title, $menu['after']['title'], 'wp_update_menu_item preserves backslashes through WordPress unslashing' );
 
 		$option_tool = new Frontman_Tool_Options();
+		$listed_options = $option_tool->list_options( [] );
+		$this->assert_true( ! in_array( 'admin_email', array_column( $listed_options, 'name' ), true ), 'wp_list_options omits the administrator email' );
+		$this->assert_true( ! in_array( 'admin@example.com', array_column( $listed_options, 'value' ), true ), 'wp_list_options does not expose the administrator email value' );
+		$this->assert_true( in_array( 'blogname', array_column( $listed_options, 'name' ), true ), 'wp_list_options retains non-sensitive options' );
+		$this->assert_same( 'admin@example.com', $option_tool->get_option( [ 'name' => 'admin_email' ] )['value'], 'wp_get_option explicitly reads the administrator email' );
 		$option = $option_tool->update_option( [ 'name' => 'blogname', 'value' => 'New Blog Name' ] );
 		$this->assert_same( 'Old Blog Name', $option['before'], 'wp_update_option returns previous option value' );
 		$this->assert_same( 'New Blog Name', $option['value'], 'wp_update_option returns updated option value' );

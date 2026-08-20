@@ -3,7 +3,7 @@ module Middleware = FrontmanVite__Middleware
 module Core = FrontmanAiFrontmanCore
 open FrontmanVite__Bindings
 
-let headersToDict: WebAPI.FetchAPI.headers => Dict.t<string> = %raw(`
+let headersToDict: WebAPI.FetchTypes.headers => Dict.t<string> = %raw(`
   function headersToDict(headers) {
     const dict = {};
     headers.forEach(function(value, key) {
@@ -23,10 +23,7 @@ let collectBody: incomingMessage => promise<nodeBuffer> = %raw(`
   }
 `)
 
-let pipeStreamToResponse: (
-  WebAPI.FileAPI.readableStream<'a>,
-  serverResponse,
-) => promise<unit> = %raw(`
+let pipeStreamToResponse: (WebAPI.ReadableStream.t<'a>, serverResponse) => promise<unit> = %raw(`
   async function pipeStreamToResponse(stream, res) {
     const reader = stream.getReader();
     try {
@@ -43,7 +40,7 @@ let pipeStreamToResponse: (
 
 let adaptMiddlewareToVite = (
   ~basePath: string,
-  middleware: WebAPI.FetchAPI.request => promise<option<WebAPI.FetchAPI.response>>,
+  middleware: WebAPI.Request.t => promise<option<WebAPI.Response.t>>,
 ): ((incomingMessage, serverResponse, unit => unit) => promise<unit>) => {
   async (req, res, next) => {
     let reqUrl = req.url->Null.toOption->Option.getOr("/")

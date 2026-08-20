@@ -6,7 +6,8 @@ import { exit } from "process";
 const currentFileName = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFileName);
 const repoRoot = path.resolve(currentDir, "..");
-const compiledTestsDir = path.join(repoRoot, "lib", "bs", "tests");
+const testsDir = path.join(repoRoot, "tests");
+const compiledSuffix = ".res.mjs";
 
 const runtimeTests = [
   "FetchAPI/Headers__test.res",
@@ -17,7 +18,7 @@ const runtimeTests = [
 ];
 
 const compiledRuntimeTests = runtimeTests.map((testFile) =>
-  testFile.replace(/\.res$/, ".res.mjs"),
+  testFile.replace(/\.res$/, compiledSuffix),
 );
 
 // Compile all tests
@@ -28,7 +29,7 @@ const errorRed = "\x1b[31m";
 const resetColor = "\x1b[0m";
 
 for (const testFile of compiledRuntimeTests) {
-  const absoluteTestFile = path.join(compiledTestsDir, testFile);
+  const absoluteTestFile = path.join(testsDir, testFile);
   const result = spawnSync(
     process.execPath,
     [

@@ -1,7 +1,7 @@
 @react.component
 let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
-  let (iframeElement, setIframeElement): (option<WebAPI.DOMAPI.element>, _) = React.useState(() =>
+  let (iframeElement, setIframeElement): (option<WebAPI.DomTypes.element>, _) = React.useState(() =>
     None
   )
   let (attachmentKey, setAttachmentKey) = React.useState(() => 0)

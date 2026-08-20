@@ -11,7 +11,7 @@ let toHandlerConfig = (config: Config.t): CoreRequestHandlers.handlerConfig => {
 }
 
 @@live
-let handleGetTools = (~registry: ToolRegistry.t, ~config: Config.t): WebAPI.FetchAPI.response => {
+let handleGetTools = (~registry: ToolRegistry.t, ~config: Config.t): WebAPI.Response.t => {
   CoreRequestHandlers.handleGetTools(~registry, ~config=toHandlerConfig(config))
 }
 
@@ -19,8 +19,8 @@ let handleGetTools = (~registry: ToolRegistry.t, ~config: Config.t): WebAPI.Fetc
 let handleToolCall = async (
   ~registry: ToolRegistry.t,
   ~config: Config.t,
-  req: WebAPI.FetchAPI.request,
-): WebAPI.FetchAPI.response => {
+  req: WebAPI.Request.t,
+): WebAPI.Response.t => {
   await CoreRequestHandlers.handleToolCall(~registry, ~config=toHandlerConfig(config), req)
 }
 

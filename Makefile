@@ -129,9 +129,10 @@ HELP_e2e-vite := Run Vite e2e test
 HELP_e2e-vue-vite := Run Vue + Vite e2e test
 
 HELP_UTIL_TITLE := Utilities
-HELP_UTIL_TARGETS := kill-all-processes pull-webapi debug-task push
+HELP_UTIL_TARGETS := kill-all-processes pull-webapi test-webapi debug-task push
 HELP_kill-all-processes := Kill all running make dev processes
 HELP_pull-webapi := Pull latest experimental-rescript-webapi subtree
+HELP_test-webapi := Run vendored WebAPI runtime tests
 HELP_debug-task := Debug task interactions (ARGS="list" or ARGS="show ...")
 HELP_push := Git push current branch
 
@@ -230,7 +231,7 @@ rescript-build:
 	yarn rescript build
 
 rescript-format:
-	git ls-files -z -- '*.res' '*.resi' ':(exclude)libs/experimental-rescript-webapi/**' | xargs -0 yarn rescript format
+	git ls-files -z -- '*.res' '*.resi' ':(exclude)libs/experimental-rescript-webapi/**' | xargs -0 -r sh -c 'for file do if [ -f "$$file" ]; then printf "%s\0" "$$file"; fi; done' sh | xargs -0 -r yarn rescript format
 
 reanalyze:
 	@printf "$(YELLOW)Running ReScript dead code analysis...$(RESET)\n"
@@ -562,13 +563,18 @@ test-wordpress-runtime:
 
 
 
-.PHONY: kill-all-processes pull-webapi debug-task push
+WEBAPI_COMMIT := 5e2d4d5db8257fea0fb3cc2dde5c4699d263a62f
+
+.PHONY: kill-all-processes pull-webapi test-webapi debug-task push
 
 kill-all-processes:
 	@ps aux | grep "[m]ake dev" | awk '{print $$2}' | xargs -r kill 2>/dev/null || true
 
 pull-webapi:
-	git subtree pull --prefix libs/experimental-rescript-webapi https://github.com/rescript-lang/experimental-rescript-webapi.git main --squash
+	git subtree pull --prefix libs/experimental-rescript-webapi https://github.com/rescript-lang/experimental-rescript-webapi.git $(WEBAPI_COMMIT) --squash
+
+test-webapi:
+	yarn workspace @rescript/webapi test
 
 debug-task:
 	cd apps/frontman_server && $(MAKE) debug-task ARGS="$(ARGS)"

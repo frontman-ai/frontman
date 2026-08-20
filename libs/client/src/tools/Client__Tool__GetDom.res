@@ -79,12 +79,12 @@ let defaultMaxDepth = 1
 let defaultMaxNodes = 200
 let hardMaxNodes = 500
 
-let countElements = (el: WebAPI.DOMAPI.element): int =>
+let countElements = (el: WebAPI.DomTypes.element): int =>
   (el->WebAPI.Element.querySelectorAll("*")).length + 1
 
 let buildTooLargeHint = (
-  ~el: WebAPI.DOMAPI.element,
-  ~document: WebAPI.DOMAPI.document,
+  ~el: WebAPI.DomTypes.element,
+  ~document: WebAPI.DomTypes.document,
   ~elementCount: int,
   ~maxNodes: int,
 ): string => {

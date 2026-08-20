@@ -2,7 +2,7 @@ open Vitest
 
 module Vue = Client__Vue__SourceDetection
 
-let makeTestElement: string => WebAPI.DOMAPI.element = %raw(`
+let makeTestElement: string => WebAPI.DomTypes.element = %raw(`
   function(tag) { return { tagName: tag, parentElement: null } }
 `)
 

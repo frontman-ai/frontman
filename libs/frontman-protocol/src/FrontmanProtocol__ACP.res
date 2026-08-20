@@ -344,6 +344,14 @@ type sessionConfigOption =
       _meta: option<JSON.t>,
     })
 
+let sessionConfigOptionFirstOption = (configOption: sessionConfigOption) => {
+  switch configOption {
+  | SelectConfigOption({options: Grouped(groups)}) =>
+    groups->Array.findMap(group => group.options->Array.get(0))
+  | SelectConfigOption({options: Ungrouped(options)}) => options->Array.get(0)
+  }
+}
+
 let sessionConfigOptionSchema = S.union([
   S.object(s => {
     s.tag("type", "select")

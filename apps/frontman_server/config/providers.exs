@@ -4,109 +4,85 @@ providers = [
   {:openai_codex,
    %{
      display_name: "OpenAI",
-     max_image_dimension: nil,
-     llm_db_provider: [],
      models: [
-       {"GPT-5.6 Terra", "gpt-5.6-terra", :packaged},
-       {"GPT-5.6 Sol", "gpt-5.6-sol", :packaged},
-       {"GPT-5.6 Luna", "gpt-5.6-luna", :packaged},
-       {"GPT-5.5", "gpt-5.5", :packaged},
-       {"GPT-5.4", "gpt-5.4", :packaged},
-       {"GPT-5.4 Mini", "gpt-5.4-mini", :packaged},
-       {"GPT-5.3 Codex Spark", "gpt-5.3-codex-spark", :packaged}
+       {"GPT-5.6 Terra", "gpt-5.6-terra"},
+       {"GPT-5.6 Sol", "gpt-5.6-sol"},
+       {"GPT-5.6 Luna", "gpt-5.6-luna"},
+       {"GPT-5.5", "gpt-5.5"},
+       {"GPT-5.4", "gpt-5.4"},
+       {"GPT-5.4 Mini", "gpt-5.4-mini"},
+       {"GPT-5.3 Codex Spark", "gpt-5.3-codex-spark"}
      ]
    }},
   {:anthropic,
    %{
      display_name: "Anthropic (Claude Pro/Max)",
-     max_image_dimension: 7680,
-     llm_db_provider: [],
      models: [
-       {"Claude Sonnet 5", "claude-sonnet-5", :packaged},
-       {"Claude Fable 5", "claude-fable-5", :packaged},
-       {"Claude Opus 4.8", "claude-opus-4-8", :packaged},
-       {"Claude Opus 4.7", "claude-opus-4-7", :packaged},
-       {"Claude Opus 4.6", "claude-opus-4-6", :packaged},
-       {"Claude Opus 4.5", "claude-opus-4-5", :packaged},
-       {"Claude Opus 4", "claude-opus-4-20250514", :packaged},
-       {"Claude Sonnet 4.6", "claude-sonnet-4-6", :packaged},
-       {"Claude Sonnet 4", "claude-sonnet-4-20250514", :packaged},
-       {"Claude Haiku 4.5", "claude-haiku-4-5-20251001", :packaged}
+       {"Claude Sonnet 5", "claude-sonnet-5"},
+       {"Claude Fable 5", "claude-fable-5"},
+       {"Claude Opus 4.8", "claude-opus-4-8"},
+       {"Claude Opus 4.7", "claude-opus-4-7"},
+       {"Claude Opus 4.6", "claude-opus-4-6"},
+       {"Claude Opus 4.5", "claude-opus-4-5"},
+       {"Claude Opus 4", "claude-opus-4-20250514"},
+       {"Claude Sonnet 4.6", "claude-sonnet-4-6"},
+       {"Claude Sonnet 4", "claude-sonnet-4-20250514"},
+       {"Claude Haiku 4.5", "claude-haiku-4-5-20251001"}
      ]
    }},
   {:openrouter,
    %{
      display_name: "OpenRouter",
-     max_image_dimension: nil,
-     llm_db_provider: [],
      models: [
-       {"GPT-5.6 Terra", "openai/gpt-5.6-terra", :packaged},
-       {"GPT-5.6 Sol", "openai/gpt-5.6-sol", :packaged},
-       {"GPT-5.6 Luna", "openai/gpt-5.6-luna", :packaged},
-       {"GPT-5.5", "openai/gpt-5.5", :packaged},
-       {"GPT-5.5 Pro", "openai/gpt-5.5-pro", :packaged},
-       {"GPT-5.4", "openai/gpt-5.4", :packaged},
-       {"GPT-5.4 Pro", "openai/gpt-5.4-pro", :packaged},
-       {"GPT-5.3 Codex", "openai/gpt-5.3-codex", :packaged},
-       {"Claude Fable 5", "anthropic/claude-fable-5", :packaged},
-       {"Claude Sonnet 5", "anthropic/claude-sonnet-5", :packaged},
-       {"Claude Opus 4.8", "anthropic/claude-opus-4.8", :packaged},
-       {"Claude Opus 4.8 Fast", "anthropic/claude-opus-4.8-fast", :packaged},
-       {"Claude Opus 4.7", "anthropic/claude-opus-4.7", :packaged},
-       {"Claude Opus 4.7 Fast", "anthropic/claude-opus-4.7-fast", :packaged},
-       {"Claude Sonnet Latest", "~anthropic/claude-sonnet-latest", :packaged},
-       {"Claude Haiku Latest", "~anthropic/claude-haiku-latest", :packaged},
-       {"Claude Sonnet 4.6", "anthropic/claude-sonnet-4.6", :packaged},
-       {"Claude Haiku 4.5", "anthropic/claude-haiku-4.5", :packaged},
-       {"Gemini 3.1 Pro Preview", "google/gemini-3.1-pro-preview", :packaged},
-       {"Gemini Flash Latest", "~google/gemini-flash-latest", :packaged},
-       {"Kimi Latest", "~moonshotai/kimi-latest", :packaged},
-       {"MiniMax M2.7", "minimax/minimax-m2.7", :packaged}
+       {"GPT-5.6 Terra", "openai/gpt-5.6-terra"},
+       {"GPT-5.6 Sol", "openai/gpt-5.6-sol"},
+       {"GPT-5.6 Luna", "openai/gpt-5.6-luna"},
+       {"GPT-5.5", "openai/gpt-5.5"},
+       {"GPT-5.5 Pro", "openai/gpt-5.5-pro"},
+       {"GPT-5.4", "openai/gpt-5.4"},
+       {"GPT-5.4 Pro", "openai/gpt-5.4-pro"},
+       {"GPT-5.3 Codex", "openai/gpt-5.3-codex"},
+       {"Claude Fable 5", "anthropic/claude-fable-5"},
+       {"Claude Sonnet 5", "anthropic/claude-sonnet-5"},
+       {"Claude Opus 4.8", "anthropic/claude-opus-4.8"},
+       {"Claude Opus 4.8 Fast", "anthropic/claude-opus-4.8-fast"},
+       {"Claude Opus 4.7", "anthropic/claude-opus-4.7"},
+       {"Claude Opus 4.7 Fast", "anthropic/claude-opus-4.7-fast"},
+       {"Claude Sonnet Latest", "~anthropic/claude-sonnet-latest"},
+       {"Claude Haiku Latest", "~anthropic/claude-haiku-latest"},
+       {"Claude Sonnet 4.6", "anthropic/claude-sonnet-4.6"},
+       {"Claude Haiku 4.5", "anthropic/claude-haiku-4.5"},
+       {"Gemini 3.1 Pro Preview", "google/gemini-3.1-pro-preview"},
+       {"Gemini Flash Latest", "~google/gemini-flash-latest"},
+       {"Kimi Latest", "~moonshotai/kimi-latest"},
+       {"MiniMax M2.7", "minimax/minimax-m2.7"}
      ]
    }},
   {:fireworks_ai,
    %{
      display_name: "Fireworks AI",
-     max_image_dimension: nil,
-     llm_db_provider: [],
      models: [
-       {"Kimi K2.6 Turbo", "accounts/fireworks/routers/kimi-k2p6-turbo", :packaged}
+       {"Kimi K2.6 Turbo", "accounts/fireworks/routers/kimi-k2p6-turbo"}
      ]
    }},
   {:nvidia,
    %{
      display_name: "NVIDIA",
-     max_image_dimension: nil,
-     llm_db_provider: [],
      models: [
-       {"Kimi K2.6", "moonshotai/kimi-k2.6",
-        %{
-          capabilities: %{
-            chat: true,
-            reasoning: %{enabled: true},
-            streaming: %{tool_calls: true},
-            tools: %{enabled: true}
-          },
-          limits: %{context: 262_144, output: 65_536},
-          modalities: %{input: [:text, :image], output: [:text]}
-        }},
-       {"DeepSeek V4 Flash", "deepseek-ai/deepseek-v4-flash", :packaged},
-       {"MiniMax M2.7", "minimaxai/minimax-m2.7", :packaged},
-       {"Qwen3 Coder 480B", "qwen/qwen3-coder-480b-a35b-instruct", :packaged}
+       {"Kimi K2.6", "moonshotai/kimi-k2.6"},
+       {"DeepSeek V4 Flash", "deepseek-ai/deepseek-v4-flash"},
+       {"MiniMax M2.7", "minimaxai/minimax-m2.7"},
+       {"Qwen3 Coder 480B", "qwen/qwen3-coder-480b-a35b-instruct"}
      ]
    }},
   {:google,
    %{
      display_name: "Google",
-     max_image_dimension: nil,
-     llm_db_provider: [],
      models: []
    }},
   {:xai,
    %{
      display_name: "xAI",
-     max_image_dimension: nil,
-     llm_db_provider: [],
      models: []
    }}
 ]

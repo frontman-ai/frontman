@@ -18,7 +18,7 @@ type enrichmentStatus =
 
 type t = {
   id: string,
-  element: WebAPI.DOMAPI.element,
+  element: WebAPI.DomTypes.element,
   comment: option<string>,
   selector: result<option<string>, string>,
   elementContext: result<option<string>, string>,
@@ -32,8 +32,8 @@ type t = {
   enrichmentStatus: enrichmentStatus,
 }
 
-let make = (~element: WebAPI.DOMAPI.element, ~tagName: string): t => {
-  id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+let make = (~element: WebAPI.DomTypes.element, ~tagName: string): t => {
+  id: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
   element,
   comment: None,
   selector: Ok(None),
@@ -48,5 +48,5 @@ let make = (~element: WebAPI.DOMAPI.element, ~tagName: string): t => {
   enrichmentStatus: Enriching,
 }
 
-let findByElement = (annotations: array<t>, element: WebAPI.DOMAPI.element): option<t> =>
+let findByElement = (annotations: array<t>, element: WebAPI.DomTypes.element): option<t> =>
   annotations->Array.find(a => a.element === element)
