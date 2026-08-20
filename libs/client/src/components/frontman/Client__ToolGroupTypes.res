@@ -12,6 +12,7 @@ type toolsSummary = {
   searches: int,
   definitions: int,
   browserSnapshots: int,
+  errors: int,
   tools: array<string>,
 }
 
@@ -21,6 +22,7 @@ let emptySummary: toolsSummary = {
   searches: 0,
   definitions: 0,
   browserSnapshots: 0,
+  errors: 0,
   tools: [],
 }
 

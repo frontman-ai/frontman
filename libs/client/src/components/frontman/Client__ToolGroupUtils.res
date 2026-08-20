@@ -10,7 +10,6 @@
  * Key rules:
  * - Read-only operations are grouped → Reduces noise
  * - Mutations break groups → Important changes are always visible
- * - Error states are NOT grouped → Failures should be visible
  * - Single items are NOT grouped → No grouping overhead for singles
  */
 module Message = Client__State__Types.Message
@@ -137,6 +136,14 @@ let incrementIf = (count, condition) =>
   }
 
 /**
+ * Check if a tool call has an error state
+ * Failed tools stay grouped, but are counted in the group summary
+ */
+let hasError = (tc: Message.toolCall): bool => {
+  tc.state == Message.OutputError || Option.isSome(tc.errorText)
+}
+
+/**
  * Calculate summary statistics from grouped tool calls
  */
 let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
@@ -165,12 +172,15 @@ let calculateSummary = (tools: array<Message.toolCall>): Types.toolsSummary => {
       includesAny(name, browserSnapshotNeedles),
     )
 
+    let errors = incrementIf(acc.errors, hasError(tool))
+
     {
       files,
       directories,
       searches,
       definitions,
       browserSnapshots,
+      errors,
       tools: Array.concat(acc.tools, [tool.toolName]),
     }
   })
@@ -199,6 +209,7 @@ let unique = (arr: array<string>): array<string> => {
  * 3. search → "N search(es)"
  * 4. definition → "found N definition(s)"
  * 5. snapshot → "N snapshot(s)"
+ * 6. errors → "N failed"
  */
 let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
   let labels = []
@@ -248,20 +259,17 @@ let generateSummaryLabels = (summary: Types.toolsSummary): array<string> => {
     labels
   }
 
-  if Array.length(labels) == 0 {
+  let labels = if Array.length(labels) == 0 {
     let count = Array.length(summary.tools)
     [`${Int.toString(count)} operation${count == 1 ? "" : "s"}`]
   } else {
     labels
   }
-}
 
-/**
- * Check if a tool call has an error state
- * Error states should NOT be grouped - failures should be visible
- */
-let hasError = (tc: Message.toolCall): bool => {
-  tc.state == Message.OutputError || Option.isSome(tc.errorText)
+  switch summary.errors > 0 {
+  | true => Array.concat(labels, [`${Int.toString(summary.errors)} failed`])
+  | false => labels
+  }
 }
 
 /**
@@ -269,8 +277,8 @@ let hasError = (tc: Message.toolCall): bool => {
  *
  * Algorithm:
  * 1. For each message, check if it's groupable
- * 2. If groupable AND no error → add to current group
- * 3. If not groupable OR has error → close current group, render individually
+ * 2. If groupable → add to current group
+ * 3. If not groupable → close current group, render individually
  * 4. At end, close any remaining group
  * 5. Single-item groups are expanded to individuals (no grouping overhead)
  * 6. Subagent tool calls (identified by parentAgentId) are grouped separately with "Processed" prefix
@@ -325,7 +333,7 @@ let groupToolCalls = (toolCalls: array<Message.toolCall>, ~minGroupSize: int): a
   }
 
   let shouldGroupToolCall = (tc: Message.toolCall): bool =>
-    !hasError(tc) && !breaksGrouping(tc.toolName) && isGroupableTool(tc.toolName)
+    !breaksGrouping(tc.toolName) && isGroupableTool(tc.toolName)
 
   toolCalls->Array.forEach(tc => {
     let isSubagent = isSubagentToolCall(tc)
