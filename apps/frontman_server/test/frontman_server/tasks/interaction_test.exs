@@ -4,6 +4,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
+  alias FrontmanServer.Tasks.ToolCallExecutionClaim
 
   alias FrontmanServer.Tasks.Interaction.{
     Annotation,
@@ -295,6 +296,20 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert SwarmAi.Message.role(msg) == :tool
       assert msg.tool_call_id == "call_123"
       assert msg.metadata == %{}
+    end
+
+    test "converts empty error results without losing historical error state" do
+      interaction =
+        tool_result(
+          "call_123",
+          "calculator",
+          %{"resultType" => "complete", "content" => [], "isError" => true},
+          is_error: true
+        )
+
+      assert [msg] = Interaction.to_swarm_messages([interaction])
+      assert msg.content == []
+      assert msg.metadata == %{is_error: true}
     end
 
     test "skips ToolCall structs (they live in agent response metadata)" do
@@ -631,13 +646,90 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "encodes ToolCall to JSON" do
-      tc = tool_call("call_123", "calculator", %{"x" => 1})
+      tc = %{
+        tool_call("call_123", "calculator", %{"x" => 1})
+        | output_schema: %{"type" => "number"},
+          execution_claim: %ToolCallExecutionClaim{
+            owner_connection_id: "connection-1",
+            generation: 1,
+            lease_expires_at: DateTime.add(Interaction.now(), 30, :second),
+            dispatch_state: :started,
+            resolution_state: :unresolved,
+            replay_policy: :verified_idempotent
+          }
+      }
 
       decoded = tc |> Jason.encode!() |> Jason.decode!()
 
       refute Map.has_key?(decoded, "type")
+      refute Map.has_key?(decoded, "execution_claim")
+      refute Map.has_key?(decoded, "output_schema")
       assert decoded["tool_name"] == "calculator"
       assert decoded["tool_call_id"] == "call_123"
+    end
+
+    test "ToolCall persists its invocation-time output schema" do
+      output_schema = %{"type" => "object", "required" => ["answer"]}
+
+      tool_call =
+        %Interaction.ToolCall{}
+        |> Interaction.ToolCall.changeset(%{
+          tool_call_id: "call_123",
+          tool_name: "calculator",
+          arguments: %{"x" => 1},
+          output_schema: output_schema
+        })
+        |> Ecto.Changeset.apply_action!(:insert)
+
+      assert tool_call.output_schema == output_schema
+    end
+
+    test "ToolCall claim state validates strictly" do
+      started_at = Interaction.now()
+
+      valid_claim = %{
+        owner_connection_id: "connection-1",
+        generation: 1,
+        started_at: started_at,
+        deadline_at: DateTime.add(started_at, 600, :second),
+        lease_expires_at: DateTime.add(Interaction.now(), 30, :second),
+        dispatch_state: :claimed,
+        resolution_state: :unresolved,
+        replay_policy: :non_idempotent,
+        recovery_state: :none
+      }
+
+      tool_call =
+        %Interaction.ToolCall{}
+        |> Interaction.ToolCall.changeset(%{
+          tool_call_id: "call_123",
+          tool_name: "calculator",
+          arguments: %{"x" => 1},
+          execution_claim: valid_claim
+        })
+        |> Ecto.Changeset.apply_action!(:insert)
+
+      assert %ToolCallExecutionClaim{} = tool_call.execution_claim
+      assert tool_call.execution_claim.generation == 1
+
+      for invalid_claim <- [
+            %{valid_claim | owner_connection_id: ""},
+            %{valid_claim | generation: 0},
+            %{valid_claim | dispatch_state: :unknown},
+            %{valid_claim | resolution_state: :unknown},
+            %{valid_claim | replay_policy: :unknown},
+            %{valid_claim | recovery_state: :unknown}
+          ] do
+        changeset =
+          Interaction.ToolCall.changeset(%Interaction.ToolCall{}, %{
+            tool_call_id: "call_123",
+            tool_name: "calculator",
+            arguments: %{},
+            execution_claim: invalid_claim
+          })
+
+        refute changeset.valid?
+      end
     end
 
     test "encodes ToolResult to JSON" do
@@ -678,6 +770,18 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert tool_result.result == Map.put(result, "_meta", %{})
       refute tool_result.is_error
+    end
+
+    test "ToolResult changeset rejects noncanonical results" do
+      changeset =
+        Interaction.ToolResult.changeset(%Interaction.ToolResult{}, %{
+          tool_call_id: "call_123",
+          tool_name: "calculator",
+          result: %{"content" => []}
+        })
+
+      assert %{result: ["is not a complete MCP tool result"]} =
+               Ecto.Changeset.traverse_errors(changeset, fn {message, _opts} -> message end)
     end
   end
 

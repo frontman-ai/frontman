@@ -69,7 +69,8 @@ defmodule SwarmAi.SupervisorTest do
 
       {:ok, pid} = run_agent(runtime, "task-kill", %MockLLM{response: "slow", delay_ms: 5000})
 
-      Process.exit(pid, :kill)
+      execution_pid = :sys.get_state(pid).worker_pid
+      Process.exit(execution_pid, :kill)
       await_exit(pid)
 
       assert_receive {:test_event, "task-kill", {:terminated, :killed}}, 2000

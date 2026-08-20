@@ -10,10 +10,14 @@ import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
 
 const upstreamSchema = JSON.parse(await readFile(new URL("mcp-upstream/schema.json", import.meta.url)))
 const generatedSchema = JSON.parse(await readFile(new URL("../schemas/mcp/requestMeta.json", import.meta.url)))
+const generatedMetadataSchema = JSON.parse(
+  await readFile(new URL("../schemas/mcp/metaObject.json", import.meta.url)),
+)
 const oracle = createOracle(upstreamSchema)
 const ajv = new Ajv2020({strict: true})
 addFormats(ajv)
 const validateGenerated = ajv.compile(generatedSchema)
+const validateGeneratedMetadata = ajv.compile(generatedMetadataSchema)
 const wireValue = value => JSON.parse(JSON.stringify(value))
 
 const minimal = {
@@ -85,6 +89,24 @@ test("request metadata rejects malformed reserved fields", () => {
     assert.throws(() => S.parseOrThrow(fixture, RequestMeta.schema))
     assert.equal(oracle.validate("RequestMetaObject", fixture).valid, false)
     assert.equal(validateGenerated(fixture), false)
+  }
+})
+
+test("generic metadata rejects trace propagation fields and preserves vendor fields", () => {
+  const vendorMetadata = {"com.example/value": [null, 1.5, true]}
+  const parsed = S.parseOrThrow(vendorMetadata, Metadata.schema)
+
+  assert.deepEqual(wireValue(S.decodeOrThrow(parsed, Metadata.schema, S.json)), vendorMetadata)
+  assert.equal(validateGeneratedMetadata(vendorMetadata), true)
+
+  for (const field of ["traceparent", "tracestate", "baggage"]) {
+    const metadata = {...vendorMetadata, [field]: "must-not-propagate"}
+    const requestMetadata = {...minimal, ...metadata}
+
+    assert.throws(() => S.parseOrThrow(metadata, Metadata.schema))
+    assert.throws(() => S.parseOrThrow(requestMetadata, RequestMeta.schema))
+    assert.equal(validateGeneratedMetadata(metadata), false)
+    assert.equal(validateGenerated(requestMetadata), false)
   }
 })
 

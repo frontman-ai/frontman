@@ -3,6 +3,26 @@ function isFrontmanRoute(path, basePath) {
   return path === prefix || path.startsWith(`${prefix}/`) || path.endsWith(prefix) || path.endsWith(`${prefix}/`)
 }
 
+const exactMcpRequests = new WeakSet()
+const internalMcpPath = "/__frontman_exact_mcp"
+
+export function prepareFrontmanRequest(request, basePath, trailingSlash, mcpEnabled) {
+  const rawUrl = request.url || ""
+  const queryIndex = rawUrl.indexOf("?")
+  const path = queryIndex === -1 ? rawUrl : rawUrl.slice(0, queryIndex)
+  const query = queryIndex === -1 ? "" : rawUrl.slice(queryIndex)
+  if (path === "/mcp" && mcpEnabled) {
+    exactMcpRequests.add(request)
+    request.url = `${internalMcpPath}${query}`
+    return
+  }
+  request.url = canonicalizeFrontmanUrl(rawUrl, basePath, trailingSlash)
+}
+
+export function isExactMcpRequest(request) {
+  return exactMcpRequests.has(request)
+}
+
 export function canonicalizeFrontmanUrl(rawUrl, basePath, trailingSlash) {
   if (!rawUrl || trailingSlash === "ignore") return rawUrl
 
@@ -21,14 +41,14 @@ export function canonicalizeFrontmanUrl(rawUrl, basePath, trailingSlash) {
   }
 }
 
-export function prependFrontmanRouteRewrite(server, basePath, trailingSlash) {
+export function prependFrontmanRouteRewrite(server, basePath, trailingSlash, mcpEnabled) {
   const httpServer = server.httpServer
   if (!httpServer || trailingSlash === "ignore") return
 
   const listeners = httpServer.listeners("request").slice()
   httpServer.removeAllListeners("request")
   httpServer.on("request", request => {
-    request.url = canonicalizeFrontmanUrl(request.url || "", basePath, trailingSlash)
+    prepareFrontmanRequest(request, basePath, trailingSlash, mcpEnabled)
   })
   for (const listener of listeners) httpServer.on("request", listener)
 }

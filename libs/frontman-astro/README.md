@@ -44,7 +44,7 @@ The integration automatically (in dev mode only):
 - Captures source annotations so the AI knows which `.astro` file and line each element comes from
 - Maps Markdown and MDX output back to its content file with both Sätteri and unified processors
 - Serves the Frontman UI at `/<basePath>/` (default: `/frontman/`)
-- Exposes tool endpoints for AI interactions (file edits, screenshots, etc.)
+- Exposes framework tools at exact `POST /mcp` through MCP Streamable HTTP when explicit MCP security is configured
 
 > **Note:** Astro 5 and 6 element source detection requires `devToolbar.enabled: true` (the default). Astro 7 uses Frontman-owned source annotations and does not depend on Dev Toolbar attributes.
 
@@ -61,6 +61,7 @@ All options are optional with sensible defaults:
 | `serverName` | `"frontman-astro"` | Server name included in tool responses |
 | `serverVersion` | `"1.0.0"` | Server version included in tool responses |
 | `clientUrl` | Auto-generated from `host` | URL to the Frontman client bundle (must include a `host` query parameter) |
+| `mcp` | Disabled | `{ allowedOrigins, authorize }` security policy required to expose exact `/mcp` |
 
 ### Environment variables
 
@@ -80,6 +81,8 @@ The integration uses four Astro hooks:
 - **`astro:routes:resolved`** — Captures Astro's resolved route manifest
 
 No manual middleware file needed. No SSR adapter required. Works with static (`output: 'static'`) Astro projects.
+
+The `/frontman` UI and source-location handling remain integration routes. Framework tool discovery and calls use the single sessionless MCP endpoint at `POST /mcp`; deprecated private tool-call and GET event-stream routes are not exposed.
 
 ## Requirements
 

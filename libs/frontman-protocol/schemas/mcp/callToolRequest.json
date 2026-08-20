@@ -29,7 +29,20 @@
           "additionalProperties": true,
           "maxProperties": 64,
           "propertyNames": {
-            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+            "allOf": [
+              {
+                "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+              },
+              {
+                "not": {
+                  "enum": [
+                    "traceparent",
+                    "tracestate",
+                    "baggage"
+                  ]
+                }
+              }
+            ]
           },
           "properties": {
             "io.modelcontextprotocol/protocolVersion": {
@@ -216,7 +229,20 @@
                             "additionalProperties": true,
                             "maxProperties": 64,
                             "propertyNames": {
-                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                              "allOf": [
+                                {
+                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                },
+                                {
+                                  "not": {
+                                    "enum": [
+                                      "traceparent",
+                                      "tracestate",
+                                      "baggage"
+                                    ]
+                                  }
+                                }
+                              ]
                             }
                           },
                           "annotations": {
@@ -266,7 +292,20 @@
                             "additionalProperties": true,
                             "maxProperties": 64,
                             "propertyNames": {
-                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                              "allOf": [
+                                {
+                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                },
+                                {
+                                  "not": {
+                                    "enum": [
+                                      "traceparent",
+                                      "tracestate",
+                                      "baggage"
+                                    ]
+                                  }
+                                }
+                              ]
                             }
                           },
                           "annotations": {
@@ -317,7 +356,20 @@
                             "additionalProperties": true,
                             "maxProperties": 64,
                             "propertyNames": {
-                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                              "allOf": [
+                                {
+                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                },
+                                {
+                                  "not": {
+                                    "enum": [
+                                      "traceparent",
+                                      "tracestate",
+                                      "baggage"
+                                    ]
+                                  }
+                                }
+                              ]
                             }
                           },
                           "annotations": {
@@ -371,7 +423,20 @@
                             "additionalProperties": true,
                             "maxProperties": 64,
                             "propertyNames": {
-                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                              "allOf": [
+                                {
+                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                },
+                                {
+                                  "not": {
+                                    "enum": [
+                                      "traceparent",
+                                      "tracestate",
+                                      "baggage"
+                                    ]
+                                  }
+                                }
+                              ]
                             }
                           }
                         },
@@ -410,7 +475,20 @@
                                       "additionalProperties": true,
                                       "maxProperties": 64,
                                       "propertyNames": {
-                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                        "allOf": [
+                                          {
+                                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                          },
+                                          {
+                                            "not": {
+                                              "enum": [
+                                                "traceparent",
+                                                "tracestate",
+                                                "baggage"
+                                              ]
+                                            }
+                                          }
+                                        ]
                                       }
                                     },
                                     "annotations": {
@@ -460,7 +538,20 @@
                                       "additionalProperties": true,
                                       "maxProperties": 64,
                                       "propertyNames": {
-                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                        "allOf": [
+                                          {
+                                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                          },
+                                          {
+                                            "not": {
+                                              "enum": [
+                                                "traceparent",
+                                                "tracestate",
+                                                "baggage"
+                                              ]
+                                            }
+                                          }
+                                        ]
                                       }
                                     },
                                     "annotations": {
@@ -511,7 +602,20 @@
                                       "additionalProperties": true,
                                       "maxProperties": 64,
                                       "propertyNames": {
-                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                        "allOf": [
+                                          {
+                                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                          },
+                                          {
+                                            "not": {
+                                              "enum": [
+                                                "traceparent",
+                                                "tracestate",
+                                                "baggage"
+                                              ]
+                                            }
+                                          }
+                                        ]
                                       }
                                     },
                                     "annotations": {
@@ -604,7 +708,20 @@
                                       "additionalProperties": true,
                                       "maxProperties": 64,
                                       "propertyNames": {
-                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                        "allOf": [
+                                          {
+                                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                          },
+                                          {
+                                            "not": {
+                                              "enum": [
+                                                "traceparent",
+                                                "tracestate",
+                                                "baggage"
+                                              ]
+                                            }
+                                          }
+                                        ]
                                       }
                                     },
                                     "annotations": {
@@ -648,7 +765,20 @@
                                       "additionalProperties": true,
                                       "maxProperties": 64,
                                       "propertyNames": {
-                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                        "allOf": [
+                                          {
+                                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                          },
+                                          {
+                                            "not": {
+                                              "enum": [
+                                                "traceparent",
+                                                "tracestate",
+                                                "baggage"
+                                              ]
+                                            }
+                                          }
+                                        ]
                                       }
                                     },
                                     "annotations": {
@@ -693,7 +823,20 @@
                                               "additionalProperties": true,
                                               "maxProperties": 64,
                                               "propertyNames": {
-                                                "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                "allOf": [
+                                                  {
+                                                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                  },
+                                                  {
+                                                    "not": {
+                                                      "enum": [
+                                                        "traceparent",
+                                                        "tracestate",
+                                                        "baggage"
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
                                               }
                                             }
                                           },
@@ -721,7 +864,20 @@
                                               "additionalProperties": true,
                                               "maxProperties": 64,
                                               "propertyNames": {
-                                                "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                "allOf": [
+                                                  {
+                                                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                  },
+                                                  {
+                                                    "not": {
+                                                      "enum": [
+                                                        "traceparent",
+                                                        "tracestate",
+                                                        "baggage"
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
                                               }
                                             }
                                           },
@@ -751,7 +907,20 @@
                             "additionalProperties": true,
                             "maxProperties": 64,
                             "propertyNames": {
-                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                              "allOf": [
+                                {
+                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                },
+                                {
+                                  "not": {
+                                    "enum": [
+                                      "traceparent",
+                                      "tracestate",
+                                      "baggage"
+                                    ]
+                                  }
+                                }
+                              ]
                             }
                           }
                         },
@@ -779,7 +948,20 @@
                                   "additionalProperties": true,
                                   "maxProperties": 64,
                                   "propertyNames": {
-                                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                    "allOf": [
+                                      {
+                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                      },
+                                      {
+                                        "not": {
+                                          "enum": [
+                                            "traceparent",
+                                            "tracestate",
+                                            "baggage"
+                                          ]
+                                        }
+                                      }
+                                    ]
                                   }
                                 },
                                 "annotations": {
@@ -829,7 +1011,20 @@
                                   "additionalProperties": true,
                                   "maxProperties": 64,
                                   "propertyNames": {
-                                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                    "allOf": [
+                                      {
+                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                      },
+                                      {
+                                        "not": {
+                                          "enum": [
+                                            "traceparent",
+                                            "tracestate",
+                                            "baggage"
+                                          ]
+                                        }
+                                      }
+                                    ]
                                   }
                                 },
                                 "annotations": {
@@ -880,7 +1075,20 @@
                                   "additionalProperties": true,
                                   "maxProperties": 64,
                                   "propertyNames": {
-                                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                    "allOf": [
+                                      {
+                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                      },
+                                      {
+                                        "not": {
+                                          "enum": [
+                                            "traceparent",
+                                            "tracestate",
+                                            "baggage"
+                                          ]
+                                        }
+                                      }
+                                    ]
                                   }
                                 },
                                 "annotations": {
@@ -934,7 +1142,20 @@
                                   "additionalProperties": true,
                                   "maxProperties": 64,
                                   "propertyNames": {
-                                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                    "allOf": [
+                                      {
+                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                      },
+                                      {
+                                        "not": {
+                                          "enum": [
+                                            "traceparent",
+                                            "tracestate",
+                                            "baggage"
+                                          ]
+                                        }
+                                      }
+                                    ]
                                   }
                                 }
                               },
@@ -973,7 +1194,20 @@
                                             "additionalProperties": true,
                                             "maxProperties": 64,
                                             "propertyNames": {
-                                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                              "allOf": [
+                                                {
+                                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                },
+                                                {
+                                                  "not": {
+                                                    "enum": [
+                                                      "traceparent",
+                                                      "tracestate",
+                                                      "baggage"
+                                                    ]
+                                                  }
+                                                }
+                                              ]
                                             }
                                           },
                                           "annotations": {
@@ -1023,7 +1257,20 @@
                                             "additionalProperties": true,
                                             "maxProperties": 64,
                                             "propertyNames": {
-                                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                              "allOf": [
+                                                {
+                                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                },
+                                                {
+                                                  "not": {
+                                                    "enum": [
+                                                      "traceparent",
+                                                      "tracestate",
+                                                      "baggage"
+                                                    ]
+                                                  }
+                                                }
+                                              ]
                                             }
                                           },
                                           "annotations": {
@@ -1074,7 +1321,20 @@
                                             "additionalProperties": true,
                                             "maxProperties": 64,
                                             "propertyNames": {
-                                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                              "allOf": [
+                                                {
+                                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                },
+                                                {
+                                                  "not": {
+                                                    "enum": [
+                                                      "traceparent",
+                                                      "tracestate",
+                                                      "baggage"
+                                                    ]
+                                                  }
+                                                }
+                                              ]
                                             }
                                           },
                                           "annotations": {
@@ -1167,7 +1427,20 @@
                                             "additionalProperties": true,
                                             "maxProperties": 64,
                                             "propertyNames": {
-                                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                              "allOf": [
+                                                {
+                                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                },
+                                                {
+                                                  "not": {
+                                                    "enum": [
+                                                      "traceparent",
+                                                      "tracestate",
+                                                      "baggage"
+                                                    ]
+                                                  }
+                                                }
+                                              ]
                                             }
                                           },
                                           "annotations": {
@@ -1211,7 +1484,20 @@
                                             "additionalProperties": true,
                                             "maxProperties": 64,
                                             "propertyNames": {
-                                              "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                              "allOf": [
+                                                {
+                                                  "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                },
+                                                {
+                                                  "not": {
+                                                    "enum": [
+                                                      "traceparent",
+                                                      "tracestate",
+                                                      "baggage"
+                                                    ]
+                                                  }
+                                                }
+                                              ]
                                             }
                                           },
                                           "annotations": {
@@ -1256,7 +1542,20 @@
                                                     "additionalProperties": true,
                                                     "maxProperties": 64,
                                                     "propertyNames": {
-                                                      "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                      "allOf": [
+                                                        {
+                                                          "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                        },
+                                                        {
+                                                          "not": {
+                                                            "enum": [
+                                                              "traceparent",
+                                                              "tracestate",
+                                                              "baggage"
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
                                                     }
                                                   }
                                                 },
@@ -1284,7 +1583,20 @@
                                                     "additionalProperties": true,
                                                     "maxProperties": 64,
                                                     "propertyNames": {
-                                                      "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                      "allOf": [
+                                                        {
+                                                          "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                                        },
+                                                        {
+                                                          "not": {
+                                                            "enum": [
+                                                              "traceparent",
+                                                              "tracestate",
+                                                              "baggage"
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
                                                     }
                                                   }
                                                 },
@@ -1314,7 +1626,20 @@
                                   "additionalProperties": true,
                                   "maxProperties": 64,
                                   "propertyNames": {
-                                    "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                    "allOf": [
+                                      {
+                                        "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                                      },
+                                      {
+                                        "not": {
+                                          "enum": [
+                                            "traceparent",
+                                            "tracestate",
+                                            "baggage"
+                                          ]
+                                        }
+                                      }
+                                    ]
                                   }
                                 }
                               },
@@ -1341,7 +1666,20 @@
                     "additionalProperties": true,
                     "maxProperties": 64,
                     "propertyNames": {
-                      "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                      "allOf": [
+                        {
+                          "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                        },
+                        {
+                          "not": {
+                            "enum": [
+                              "traceparent",
+                              "tracestate",
+                              "baggage"
+                            ]
+                          }
+                        }
+                      ]
                     }
                   }
                 },
@@ -1371,7 +1709,20 @@
                           "additionalProperties": true,
                           "maxProperties": 64,
                           "propertyNames": {
-                            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                            "allOf": [
+                              {
+                                "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+                              },
+                              {
+                                "not": {
+                                  "enum": [
+                                    "traceparent",
+                                    "tracestate",
+                                    "baggage"
+                                  ]
+                                }
+                              }
+                            ]
                           }
                         }
                       },

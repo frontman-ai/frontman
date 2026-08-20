@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { startVite, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
-import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
-import { installVite } from "../helpers/installer.js";
+import { proveRecoveryAfterFrameworkMcpFailure } from "../helpers/frontman-ui.js";
+import { configureInstalledMcpVite } from "../helpers/installer.js";
+import { MCP_ORIGIN, MCP_TOKEN } from "../helpers/mcp.js";
 
 const PORT = 3012;
 
@@ -13,7 +14,7 @@ describe("Vite E2E", () => {
   let server: FrameworkServer;
 
   beforeAll(async () => {
-    installVite();
+    configureInstalledMcpVite([MCP_ORIGIN, `http://localhost:${PORT}`], MCP_TOKEN);
 
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -34,18 +35,14 @@ describe("Vite E2E", () => {
     });
 
     expect(response?.status()).toBe(200);
-    await page
-      .getByRole("heading", { name: "Hello World" })
-      .waitFor({ state: "visible" });
+    await page.getByRole("heading", { name: "Hello World" }).waitFor({ state: "visible" });
   });
 
-  it("should make a text change via AI prompt", async () => {
+  it("keeps browser operations usable after MCP failure and ACP reconnect", async () => {
     page = await context.newPage();
 
-    await openFrontmanUI(page, PORT);
+    const marker = await proveRecoveryAfterFrameworkMcpFailure(page, context, PORT, "src/App.tsx");
 
-    await sendPrompt(page, 'Change the h1 heading text in src/App.tsx to say "Hello Frontman"');
-
-    expect(headingFileContains(server, "Hello Frontman")).toBe(true);
+    expect(headingFileContains(server, marker)).toBe(true);
   });
 });

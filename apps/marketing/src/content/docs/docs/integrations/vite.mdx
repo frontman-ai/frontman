@@ -86,6 +86,7 @@ All options are optional.
 | `entrypointUrl` | `string` | — | Custom entrypoint URL for the AI API. |
 | `isLightTheme` | `boolean` | `false` | Render the Frontman UI with a light color scheme. |
 | `isDev` | `boolean` | `true` unless `host === "api.frontman.sh"` | Override dev/prod mode detection. |
+| `mcp` | `{ allowedOrigins, authorize }` | Disabled | Explicit Origin allowlist and authorization callback required to expose exact `/mcp`. |
 
 ## Accessing Frontman
 
@@ -97,7 +98,7 @@ Start your Vite dev server (`npm run dev` or `vite`) and open `http://localhost:
 
 `frontmanPlugin()` returns an array of two Vite plugins, which Vite flattens automatically:
 
-**Main middleware plugin** — Registers a Connect middleware via the `configureServer` hook. The middleware intercepts all `/{basePath}/*` requests and routes them to the appropriate handler: Frontman UI, tool call API (`POST /frontman/tools/call`), or SSE event stream (`GET /frontman/tools`). The middleware bridges between the Node.js `IncomingMessage`/`ServerResponse` API (used by Vite's Connect server) and the Web Fetch `Request`/`Response` API used internally.
+**Main middleware plugin** — Registers a Connect middleware via the `configureServer` hook. It serves the `/{basePath}/*` UI and source-location routes and, with explicit `mcp` security configuration, separately handles exact `POST /mcp` for `server/discover`, `tools/list`, and `tools/call`. The endpoint returns JSON today; the browser client also accepts standard MCP SSE responses. Deprecated private tool-call and GET event-stream routes are not exposed. The middleware bridges Vite's Node.js request/response API to the internal Web Fetch API.
 
 **Vue source plugin** — A dev-only plugin that enriches `.vue` Single File Components with precise source location metadata. It reads each `.vue` file to find the `<template>` block's starting line number and injects it as `__frontman_templateLine` into the compiled component options object. The Frontman client combines this with `__file` (provided by `@vitejs/plugin-vue`) to resolve any clicked template element back to its exact file and line. This plugin is inactive in production builds.
 

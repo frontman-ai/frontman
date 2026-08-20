@@ -5,7 +5,11 @@ module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
 let sourceRoot = "/tmp/frontman-astro-content-collections-test"
 let projectRoot = sourceRoot ++ "/apps/site"
-let ctx = {FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.projectRoot, sourceRoot}
+let ctx = {
+  FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.projectRoot,
+  sourceRoot,
+  signal: WebAPI.AbortController.make().signal,
+}
 
 let decodeToolResult = (result: MCP.CallToolResult.t): result<Tool.output, string> => {
   let json =

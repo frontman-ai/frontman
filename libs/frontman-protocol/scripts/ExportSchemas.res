@@ -1,7 +1,6 @@
 module ACP = FrontmanProtocol__ACP
 module MCP = FrontmanProtocol__MCP
 module ContentBlock = FrontmanProtocol__ContentBlock
-module Relay = FrontmanProtocol__Relay
 module JsonRpc = FrontmanProtocol__JsonRpc
 module MCPMetadata = FrontmanProtocol__MCPMetadata
 
@@ -27,9 +26,6 @@ let schemasDir = FrontmanBindings.Path.join([
 ])
 
 let entries: array<schemaEntry> = [
-  {dir: "relay", name: "toolsResponse", schema: Relay.toolsResponseSchema->toUnknownSchema},
-  {dir: "relay", name: "toolCallRequest", schema: Relay.toolCallRequestSchema->toUnknownSchema},
-  {dir: "relay", name: "remoteTool", schema: Relay.remoteToolSchema->toUnknownSchema},
   {dir: "acp", name: "initializeParams", schema: ACP.initializeParamsSchema->toUnknownSchema},
   {dir: "acp", name: "initializeResult", schema: ACP.initializeResultSchema->toUnknownSchema},
   {

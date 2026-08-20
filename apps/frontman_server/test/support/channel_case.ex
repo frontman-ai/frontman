@@ -25,12 +25,28 @@ defmodule FrontmanServerWeb.ChannelCase do
 
   using do
     quote do
-      import Phoenix.ChannelTest
+      import Phoenix.ChannelTest, except: [subscribe_and_join: 3]
       import FrontmanServerWeb.ChannelCase
 
       @endpoint FrontmanServerWeb.Endpoint
 
       @acp_message AgentClientProtocol.event_acp_message()
+    end
+  end
+
+  @doc false
+  def subscribe_and_join(socket, topic, payload) do
+    supervisor = Process.get(:channel_case_channel_supervisor)
+    socket = %{socket | transport: {Phoenix.ChannelTest, supervisor}}
+
+    case Phoenix.ChannelTest.subscribe_and_join(socket, topic, payload) do
+      {:ok, reply, joined_socket} ->
+        Process.unlink(joined_socket.channel_pid)
+        track_task_channel(joined_socket.channel_pid)
+        {:ok, reply, joined_socket}
+
+      error ->
+        error
     end
   end
 
@@ -41,17 +57,39 @@ defmodule FrontmanServerWeb.ChannelCase do
   the channel process has fully processed the message before assertions.
   """
   defmacro complete_mcp_handshake(socket, opts \\ []) do
+    complete_mcp_handshake_ast(socket, opts, true)
+  end
+
+  @doc "Completes the MCP handshake without requiring a task channel."
+  defmacro complete_mcp_handshake_for_scope(scope, opts \\ []) do
+    complete_mcp_handshake_ast(scope, opts, false)
+  end
+
+  defp complete_mcp_handshake_ast(connection, opts, synchronize_task_channel?) do
     quote do
-      socket = unquote(socket)
+      connection = unquote(connection)
       tools = unquote(opts) |> Keyword.get(:tools, [])
 
-      load_project_context = unquote(opts) |> Keyword.get(:load_project_context, true)
+      scope =
+        unquote(
+          if synchronize_task_channel?,
+            do: quote(do: connection.assigns.scope),
+            else: quote(do: connection)
+        )
 
-      :sys.get_state(socket.channel_pid)
+      {:ok, _, mcp_socket} =
+        FrontmanServerWeb.UserSocket
+        |> socket("mcp-owner-#{System.unique_integer([:positive])}", %{scope: scope})
+        |> subscribe_and_join("tasks", %{})
+
+      FrontmanServerWeb.ChannelCase.track_task_channel(mcp_socket.channel_pid)
+
+      push(mcp_socket, "mcp:ready", %{})
+      :sys.get_state(mcp_socket.channel_pid)
       assert_push("mcp:message", %{"id" => init_request_id, "method" => "server/discover"})
 
       init_result = %{
-        "resultType" => "discovery",
+        "resultType" => "complete",
         "supportedVersions" => [ModelContextProtocol.protocol_version()],
         "capabilities" => %{
           "tools" => %{},
@@ -67,75 +105,36 @@ defmodule FrontmanServerWeb.ChannelCase do
         "cacheScope" => "private"
       }
 
-      push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
-      :sys.get_state(socket.channel_pid)
+      push(mcp_socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
+      :sys.get_state(mcp_socket.channel_pid)
 
       assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
 
       push(
-        socket,
+        mcp_socket,
         "mcp:message",
         JsonRpc.success_response(tools_request_id, %{
-          "resultType" => "tools",
+          "resultType" => "complete",
           "tools" => tools,
           "ttlMs" => 0,
           "cacheScope" => "private"
         })
       )
 
-      :sys.get_state(socket.channel_pid)
+      :sys.get_state(mcp_socket.channel_pid)
 
-      case load_project_context do
-        true ->
-          assert_push("mcp:message", %{
-            "id" => project_rules_request_id,
-            "method" => "tools/call",
-            "params" => %{"name" => "load_agent_instructions"}
-          })
+      unquote(
+        if synchronize_task_channel? do
+          quote do
+            :sys.get_state(connection.channel_pid)
+            :sys.get_state(connection.channel_pid)
+          end
+        else
+          quote do: :ok
+        end
+      )
 
-          push(
-            socket,
-            "mcp:message",
-            JsonRpc.success_response(project_rules_request_id, %{
-              "resultType" => "complete",
-              "content" => [
-                %{
-                  "type" => "text",
-                  "text" =>
-                    Jason.encode!([
-                      %{"fullPath" => "/project/AGENTS.md", "content" => "project rules"}
-                    ])
-                }
-              ]
-            })
-          )
-
-          :sys.get_state(socket.channel_pid)
-
-          assert_push("mcp:message", %{
-            "id" => project_structure_request_id,
-            "method" => "tools/call",
-            "params" => %{"name" => "list_tree"}
-          })
-
-          push(
-            socket,
-            "mcp:message",
-            JsonRpc.success_response(project_structure_request_id, %{
-              "resultType" => "complete",
-              "content" => []
-            })
-          )
-
-          :sys.get_state(socket.channel_pid)
-
-        false ->
-          :ok
-      end
-
-      assert_push(@acp_message, %{
-        "method" => "mcp_initialization_complete"
-      })
+      mcp_socket
     end
   end
 
@@ -163,11 +162,14 @@ defmodule FrontmanServerWeb.ChannelCase do
       {:ok, %FrontmanServer.Tasks.TaskSchema{id: ^task_id}} =
         FrontmanServer.Tasks.create_task(scope, task_id, framework)
 
+      track_task_execution(task_id)
+
       {:ok, _reply, socket} =
         FrontmanServerWeb.UserSocket
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
+      track_task_channel(socket.channel_pid)
       Mox.allow(FrontmanServer.Tasks.Execution.LLMProviderMock, self(), socket.channel_pid)
 
       {socket, task_id}
@@ -234,6 +236,83 @@ defmodule FrontmanServerWeb.ChannelCase do
     end
   end
 
+  @doc "Waits until the supervised execution for a task has terminated."
+  def await_task_execution(task_id, timeout \\ 5_000) do
+    task_id
+    |> execution_processes()
+    |> await_processes(task_id, timeout)
+  end
+
+  @doc "Cancels a supervised task execution and waits for its worker to terminate."
+  def stop_task_execution(task_id, timeout \\ 5_000) do
+    registry = SwarmAi.registry_name(FrontmanServer.AgentRuntime)
+    processes = Registry.lookup(registry, task_id) |> Enum.map(&elem(&1, 0))
+
+    case processes do
+      [_pid] ->
+        SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
+        await_processes(processes, task_id, timeout)
+
+      [] ->
+        await_processes(processes, task_id, timeout)
+    end
+  end
+
+  @doc false
+  def track_task_execution(task_id) do
+    case Process.get(:channel_case_task_tracker) do
+      nil -> :ok
+      tracker -> Agent.update(tracker, &MapSet.put(&1, task_id))
+    end
+
+    :ok
+  end
+
+  @doc false
+  def track_task_channel(channel_pid) do
+    case Process.get(:channel_case_channel_tracker) do
+      nil -> :ok
+      tracker -> Agent.update(tracker, &MapSet.put(&1, channel_pid))
+    end
+
+    :ok
+  end
+
+  defp execution_processes(task_id) do
+    registry = SwarmAi.registry_name(FrontmanServer.AgentRuntime)
+    Registry.lookup(registry, task_id) |> Enum.map(&elem(&1, 0))
+  end
+
+  defp await_processes([], _task_id, _timeout), do: :ok
+
+  defp await_processes(pids, task_id, timeout) do
+    case wait_for_processes(pids, timeout) do
+      :ok -> :ok
+      :timeout -> flunk("execution processes for task #{task_id} did not terminate")
+    end
+  end
+
+  defp wait_for_processes(pids, timeout) do
+    monitors = pids |> Enum.uniq() |> Map.new(&{Process.monitor(&1), &1})
+    deadline = System.monotonic_time(:millisecond) + timeout
+    wait_for_process_down(monitors, deadline)
+  end
+
+  defp wait_for_process_down(monitors, _deadline) when map_size(monitors) == 0, do: :ok
+
+  defp wait_for_process_down(monitors, deadline) do
+    remaining = max(deadline - System.monotonic_time(:millisecond), 0)
+
+    receive do
+      {:DOWN, monitor, :process, _pid, _reason} ->
+        wait_for_process_down(Map.delete(monitors, monitor), deadline)
+    after
+      remaining ->
+        Enum.each(monitors, fn {monitor, _pid} -> Process.demonitor(monitor, [:flush]) end)
+        :timeout
+    end
+  end
+
   setup tags do
     if tags[:shared_sandbox] && tags[:async] do
       raise "Cannot combine shared_sandbox: true with async: true - shared sandbox requires synchronous execution"
@@ -248,7 +327,6 @@ defmodule FrontmanServerWeb.ChannelCase do
     LLMProvider.stub_llm_response("Test response")
 
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     {:ok, user} =
       Accounts.register_user(%{
@@ -259,7 +337,72 @@ defmodule FrontmanServerWeb.ChannelCase do
 
     scope = Scope.for_user(user)
     {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+    {:ok, tracker} = Agent.start(fn -> MapSet.new() end)
+    {:ok, channel_tracker} = Agent.start(fn -> MapSet.new() end)
+
+    {:ok, channel_supervisor} =
+      Supervisor.start_link([], strategy: :one_for_one, max_restarts: 1_000_000, max_seconds: 1)
+
+    Process.unlink(channel_supervisor)
+    Process.put(:channel_case_task_tracker, tracker)
+    Process.put(:channel_case_channel_tracker, channel_tracker)
+    Process.put(:channel_case_channel_supervisor, channel_supervisor)
+
+    on_exit(fn ->
+      tracker
+      |> Agent.get(& &1)
+      |> Enum.each(&stop_task_execution/1)
+
+      channel_tracker
+      |> Agent.get(& &1)
+      |> Enum.sort_by(&channel_stop_priority/1)
+      |> Enum.each(&stop_channel/1)
+
+      Supervisor.stop(channel_supervisor, :normal, 5_000)
+      Agent.stop(channel_tracker)
+      Agent.stop(tracker)
+      Sandbox.stop_owner(pid)
+    end)
 
     {:ok, scope: scope, user: user}
+  end
+
+  defp channel_stop_priority(channel_pid) do
+    case Process.info(channel_pid, :dictionary) do
+      {:dictionary, dictionary} ->
+        case Keyword.get(dictionary, :"$logger_metadata", %{}) do
+          %{topic: "tasks"} -> 1
+          _metadata -> 0
+        end
+
+      nil ->
+        0
+    end
+  end
+
+  defp stop_channel(channel_pid) do
+    monitor = Process.monitor(channel_pid)
+
+    case Process.alive?(channel_pid) do
+      true ->
+        try do
+          GenServer.stop(channel_pid, :normal, 5_000)
+        catch
+          :exit, _stop_reason -> await_channel_exit(channel_pid, monitor)
+        end
+
+      false ->
+        await_channel_exit(channel_pid, monitor)
+    end
+
+    Process.demonitor(monitor, [:flush])
+  end
+
+  defp await_channel_exit(channel_pid, monitor) do
+    receive do
+      {:DOWN, ^monitor, :process, ^channel_pid, reason} -> reason
+    after
+      5_000 -> flunk("channel #{inspect(channel_pid)} did not terminate")
+    end
   end
 end

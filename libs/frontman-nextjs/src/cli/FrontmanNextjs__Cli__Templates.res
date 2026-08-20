@@ -21,8 +21,18 @@ let middlewareTemplate = (host: string) =>
   `import { createMiddleware } from '@frontman-ai/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 
+const sourceLocationOrigins = process.env.FRONTMAN_MCP_ALLOWED_ORIGINS
+  ?.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const mcpBrowserToken = process.env.FRONTMAN_MCP_TOKEN;
+
 const frontman = createMiddleware({
   host: '${host}',
+  mcpBrowserToken,
+  sourceLocation: sourceLocationOrigins?.length
+    ? { allowedOrigins: sourceLocationOrigins }
+    : undefined,
 });
 
 export async function middleware(req: NextRequest) {
@@ -41,8 +51,18 @@ let proxyTemplate = (host: string) =>
   `import { createMiddleware } from '@frontman-ai/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
 
+const sourceLocationOrigins = process.env.FRONTMAN_MCP_ALLOWED_ORIGINS
+  ?.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+const mcpBrowserToken = process.env.FRONTMAN_MCP_TOKEN;
+
 const frontman = createMiddleware({
   host: '${host}',
+  mcpBrowserToken,
+  sourceLocation: sourceLocationOrigins?.length
+    ? { allowedOrigins: sourceLocationOrigins }
+    : undefined,
 });
 
 export async function proxy(req: NextRequest): Promise<NextResponse> {
@@ -70,6 +90,77 @@ let instrumentationTemplate = () =>
 }
 `
 
+let mcpApiRouteTemplate = () =>
+  `import { timingSafeEqual } from 'node:crypto';
+import { createMcpHandler } from '@frontman-ai/nextjs';
+
+const token = process.env.FRONTMAN_MCP_TOKEN;
+const allowedOrigins = process.env.FRONTMAN_MCP_ALLOWED_ORIGINS
+  ?.split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+if (!token) throw new Error('FRONTMAN_MCP_TOKEN is required');
+if (!allowedOrigins?.length) throw new Error('FRONTMAN_MCP_ALLOWED_ORIGINS is required');
+
+const cookieName = 'frontman_mcp_session';
+const expectedCookie = Buffer.from(encodeURIComponent(token));
+const expectedAuthorization = Buffer.from(\`Bearer \${token}\`);
+const matches = (supplied: Buffer, expected: Buffer) =>
+  supplied.length === expected.length && timingSafeEqual(supplied, expected);
+const credentials = (headers: Headers) => {
+  const cookieValues = (headers.get('Cookie') ?? '')
+    .split(';')
+    .map((part) => part.trim())
+    .flatMap((part) => {
+      const separator = part.indexOf('=');
+      return separator >= 0 && part.slice(0, separator) === cookieName
+        ? [part.slice(separator + 1)]
+        : [];
+    });
+  const authorization = headers.get('Authorization');
+  const cookieMatches = cookieValues.length === 1
+    && matches(Buffer.from(cookieValues[0]), expectedCookie);
+  const authorizationMatches = authorization
+    ? matches(Buffer.from(authorization), expectedAuthorization)
+    : false;
+  return { authorization, authorizationMatches, cookieMatches, cookieValues };
+};
+
+const handler = createMcpHandler({
+  mcp: {
+    allowedOrigins,
+    authorize: async (headers) => {
+      const { authorization, authorizationMatches, cookieMatches, cookieValues } = credentials(headers);
+      if (cookieValues.length === 0 && !authorization) return 'missing-authentication';
+      if (cookieValues.length > 1) return 'insufficient-authorization';
+      return cookieMatches || authorizationMatches
+        ? 'authorized'
+        : 'insufficient-authorization';
+    },
+    principal: (headers) => credentials(headers).cookieMatches
+      ? 'configured-browser-cookie'
+      : 'configured-bearer-token',
+  },
+});
+
+export default handler;
+
+export const config = {
+  api: { bodyParser: false },
+};
+`
+
+let nextConfigTemplate = () =>
+  `const nextConfig = {
+  async rewrites() {
+    return [{ source: '/mcp', destination: '/api/frontman-mcp' }];
+  },
+};
+
+export default nextConfig;
+`
+
 module ManualInstructions = {
   let middleware = (fileName: string, host: string) => {
     let h = Style.yellowBold
@@ -87,9 +178,14 @@ module ManualInstructions = {
   ${bar}
   ${bar}  ${s("2.")} Create the middleware instance ${d("(after imports)")}:
   ${bar}
-  ${bar}     ${d(`const frontman = createMiddleware({ host: '${host}' });`)}
+  ${bar}     ${d(
+        "const sourceLocationOrigins = process.env.FRONTMAN_MCP_ALLOWED_ORIGINS?.split(',').map((origin) => origin.trim()).filter(Boolean);",
+      )}
+  ${bar}     ${d(
+        `const frontman = createMiddleware({ host: '${host}', sourceLocation: sourceLocationOrigins?.length ? { allowedOrigins: sourceLocationOrigins } : undefined });`,
+      )}
   ${bar}
-  ${bar}  ${s("3.")} In your middleware function, add as the ${b("very first lines")}:
+  ${bar}  ${s("3.")} Run Frontman before other middleware behavior:
   ${bar}
   ${bar}     ${d("// Handles routes only when NODE_ENV === 'development' by default")}
   ${bar}     ${d(
@@ -129,9 +225,14 @@ module ManualInstructions = {
   ${bar}
   ${bar}  ${s("2.")} Create the middleware instance ${d("(after imports)")}:
   ${bar}
-  ${bar}     ${d(`const frontman = createMiddleware({ host: '${host}' });`)}
+  ${bar}     ${d(
+        "const sourceLocationOrigins = process.env.FRONTMAN_MCP_ALLOWED_ORIGINS?.split(',').map((origin) => origin.trim()).filter(Boolean);",
+      )}
+  ${bar}     ${d(
+        `const frontman = createMiddleware({ host: '${host}', sourceLocation: sourceLocationOrigins?.length ? { allowedOrigins: sourceLocationOrigins } : undefined });`,
+      )}
   ${bar}
-  ${bar}  ${s("3.")} In your proxy function, add Frontman handler as the ${b("very first lines")}:
+  ${bar}  ${s("3.")} Run Frontman before other proxy behavior:
   ${bar}
   ${bar}     ${d("// Handles routes only when NODE_ENV === 'development' by default")}
   ${bar}     ${d(
@@ -258,7 +359,7 @@ Add the following to your ${fileName}:
   4. Update your matcher config to include Frontman routes:
 
       export const config = {
-        matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/', ...yourExistingMatchers],
+         matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/', ...yourExistingMatchers],
       };
 
 For full documentation, see: https://frontman.sh/docs/nextjs
@@ -317,6 +418,8 @@ module SuccessMessages = {
     `  ${Style.check} Updated ${Style.bold(fileName)} ${Style.dim(
         `(host: '${oldHost}' -> '${newHost}')`,
       )}`
+
+  let configUpdated = (fileName: string) => `  ${Style.check} Updated ${Style.bold(fileName)}`
 
   let fileAutoEdited = (fileName: string) =>
     `  ${Style.check} Auto-edited ${Style.bold(fileName)} ${Style.dim(

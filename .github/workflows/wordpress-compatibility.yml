@@ -4,6 +4,11 @@ on:
   pull_request:
     paths:
       - "libs/frontman-wordpress/**"
+      - "libs/frontman-protocol/**"
+      - "docs/mcp/**"
+      - "test/e2e/helpers/mcp.ts"
+      - "plaan.md"
+      - ".changeset/modern-wordpress-mcp.md"
       - "scripts/test-wordpress-plugin-runtime.sh"
       - "scripts/package-wordpress-plugin.sh"
       - "scripts/validate-wordpress-plugin-release.sh"
@@ -14,6 +19,11 @@ on:
       - main
     paths:
       - "libs/frontman-wordpress/**"
+      - "libs/frontman-protocol/**"
+      - "docs/mcp/**"
+      - "test/e2e/helpers/mcp.ts"
+      - "plaan.md"
+      - ".changeset/modern-wordpress-mcp.md"
       - "scripts/test-wordpress-plugin-runtime.sh"
       - "scripts/package-wordpress-plugin.sh"
       - "scripts/validate-wordpress-plugin-release.sh"
@@ -24,22 +34,19 @@ permissions:
   contents: read
 
 jobs:
-  wordpress-runtime:
-    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }}
+  wordpress-7:
+    name: WordPress 7.0.2 / PHP ${{ matrix.php }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - wordpress: "6.0.9"
-            php: "7.4"
-          - wordpress: "7.0.2"
-            php: "7.4"
-          - wordpress: "7.0.2"
-            php: "8.4"
+        php:
+          - "7.4"
+          - "8.4"
+          - "8.5"
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Run isolated PHP tests
         run: |
@@ -51,6 +58,6 @@ jobs:
 
       - name: Run WordPress runtime tests
         env:
-          WORDPRESS_VERSION: ${{ matrix.wordpress }}
+          WORDPRESS_VERSION: "7.0.2"
           PHP_VERSION: ${{ matrix.php }}
         run: bash scripts/test-wordpress-plugin-runtime.sh

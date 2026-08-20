@@ -8,23 +8,32 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
   use FrontmanServer.ExecutionCase
 
+  import Phoenix.ChannelTest
+  import FrontmanServerWeb.ChannelCase, only: [complete_mcp_handshake_for_scope: 1]
+
   import FrontmanServer.InteractionCase.Helpers,
-    only: [assert_receive_interaction: 2, swarm_tool_call: 1, swarm_tool_call: 2]
+    only: [
+      assert_receive_interaction: 2,
+      swarm_tool_call: 1,
+      swarm_tool_call: 2
+    ]
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tools.MCP
+
+  @endpoint FrontmanServerWeb.Endpoint
 
   describe "MCP tool call broadcast" do
     setup do
-      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-      on_exit(fn -> Sandbox.stop_owner(pid) end)
+      FrontmanServer.DataCase.start_shared_owner!()
 
       scope = user_scope_fixture()
       task_id = task_with_pubsub_fixture(scope, framework: "nextjs").id
+      complete_mcp_handshake_for_scope(scope)
 
       {:ok, task_id: task_id, scope: scope}
     end
@@ -87,14 +96,10 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   defp submit_user_message_and_run(scope, task_id, execution_request, message) do
     case Tasks.submit_user_message(
            scope,
-           Map.merge(execution_request, %{
-             task_id: task_id,
-             message_id: Ecto.UUID.generate(),
-             message: message
-           })
+           Map.merge(execution_request, %{task_id: task_id, message: message})
          ) do
       {:ok, interaction} ->
-        case Tasks.execute_next_turn(scope, task_id, execution_request) do
+        case Tasks.run_next_turn(scope, task_id, execution_request) do
           :ok ->
             {:ok, interaction, latest_turn_number(task_id)}
 
@@ -126,11 +131,11 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
   describe "MCP tool registration timing" do
     setup do
-      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-      on_exit(fn -> Sandbox.stop_owner(pid) end)
+      FrontmanServer.DataCase.start_shared_owner!()
 
       scope = user_scope_fixture()
       task_id = task_with_pubsub_fixture(scope, framework: "nextjs").id
+      complete_mcp_handshake_for_scope(scope)
 
       {:ok, task_id: task_id, scope: scope}
     end
@@ -160,7 +165,10 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       )
 
       registered =
-        case Registry.lookup(FrontmanServer.ProcessRegistry, {:tool_call, task_id, expected_id}) do
+        case Registry.lookup(
+               FrontmanServer.ToolCallRegistry,
+               {:tool_call, task_id, expected_id}
+             ) do
           [{_pid, _}] -> true
           [] -> false
         end
@@ -171,6 +179,25 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       assert :ok = Tasks.cancel_execution(scope, task_id)
 
       assert_receive_interaction(%Tasks.Interaction.AgentError{kind: "cancelled"}, _turn_number)
+    end
+
+    test "duplicate task-scoped registration fails before publishing", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      tool_call = swarm_tool_call("mcp_tool")
+      key = {:tool_call, task_id, tool_call.id}
+      assert {:ok, _owner} = Registry.register(FrontmanServer.ToolCallRegistry, key, %{})
+
+      assert_raise RuntimeError, ~r/already registered/, fn ->
+        ToolExecutor.start_mcp_tool(scope, task_id, 1, nil, tool_call)
+      end
+
+      refute_receive {:interaction,
+                      %FrontmanServer.Tasks.InteractionSchema{
+                        data: %Tasks.Interaction.ToolCall{}
+                      }},
+                     100
     end
   end
 end

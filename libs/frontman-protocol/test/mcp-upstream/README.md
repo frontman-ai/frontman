@@ -24,14 +24,16 @@ This directory vendors the official MCP `2026-07-28` generated JSON Schema, exam
 - Commit: `c321dd32035556e6769d3724a8ee97d87c3faaac`
 - Source archive: https://github.com/modelcontextprotocol/conformance/archive/c321dd32035556e6769d3724a8ee97d87c3faaac.tar.gz
 - Archive SHA-256: `57ecc92fc89d9a51139713a7ea92e1376929b2a1bcae2b735b4c303e15ed23d9`
+- Official npm package: `@modelcontextprotocol/conformance@0.2.0-alpha.11`
+- Package SHA-256: `67d28b0d50d64458232945d9b3af75178add5d05819c748ec2c8b26e5cb038c5`
 - License: MIT for the pinned commit
 - Local modifications: none
 
-The archive is pinned for later integration. Phase 0 verifies its checksum offline but does not claim runtime conformance before the protocol implementation exists.
+The source archive preserves provenance. The official npm package supplies the published executable used by the applicable runtime conformance gate; neither artifact is fetched or updated during verification.
 
 ## Verification
 
-Run `make -C libs/frontman-protocol mcp-verify` or root `make mcp-verify`. The command verifies every vendored checksum, loads the unchanged schema with Ajv's JSON Schema 2020-12 validator, validates each official example against the upstream definition named by its parent directory, and checks the complete normative traceability corpus for exact row counts, columns, and unique IDs.
+Run `make -C libs/frontman-protocol mcp-verify` for the offline oracle gate. It verifies every vendored checksum, loads the unchanged schema with Ajv's JSON Schema 2020-12 validator, validates each official example against the upstream definition named by its parent directory, and checks the complete normative traceability corpus for exact row counts, columns, and unique IDs. Root `make mcp-verify` is configured as the broader serial aggregate and requires `test/e2e/.env` before any expensive gate begins; no complete aggregate run is implied when that preflight fails.
 
 ## Refresh
 
@@ -41,4 +43,5 @@ Run `make -C libs/frontman-protocol mcp-verify` or root `make mcp-verify`. The c
 4. Select an official conformance runner commit and replace its source archive without modification.
 5. Regenerate `SHA256SUMS` in deterministic path order.
 6. Update the provenance fields above.
-7. Run root `make mcp-verify` without network access.
+7. Run `make -C libs/frontman-protocol mcp-verify` without network access.
+8. Run root `make mcp-verify` with the credentialed E2E environment available.

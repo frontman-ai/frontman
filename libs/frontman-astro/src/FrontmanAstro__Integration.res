@@ -42,6 +42,7 @@ external prependFrontmanRouteRewrite: (
   Bindings.viteDevServer,
   string,
   Bindings.trailingSlash,
+  bool,
 ) => unit = "prependFrontmanRouteRewrite"
 
 @module("./markdown-content-file.mjs")
@@ -96,18 +97,27 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
 
             let middlewarePlugin = Bindings.makeVitePlugin({
               name: "frontman-middleware",
+              enforce: "pre",
               configureServer: ?Some(
                 server => {
                   let loadContentApi = async () =>
                     await server->Bindings.ssrLoadModule("astro:content")
-                  let webMiddleware = Middleware.createMiddleware(
-                    config,
-                    ~routeDiscovery,
-                    ~loadContentApi,
-                  )
+                  let middleware = Middleware.make(config, ~routeDiscovery, ~loadContentApi)
+                  let mcp: option<
+                    FrontmanAiFrontmanCore.FrontmanCore__MCP__Endpoint.config,
+                  > = config.mcpSecurity->Option.map(security => {
+                    FrontmanAiFrontmanCore.FrontmanCore__MCP__Endpoint.security,
+                    registry: middleware.registry,
+                    projectRoot: config.projectRoot,
+                    sourceRoot: config.sourceRoot,
+                    serverName: config.serverName,
+                    serverVersion: config.serverVersion,
+                    allowedPreflightHeaders: [],
+                  })
                   let connectMiddleware = ViteAdapter.adaptToConnect(
-                    webMiddleware,
+                    middleware.middleware,
                     ~basePath=config.basePath,
+                    ~mcp,
                   )
 
                   server.middlewares->Bindings.use(connectMiddleware)
@@ -126,6 +136,10 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
             ctx.updateConfig({
               vite: ?Some({
                 plugins: ?Some(vitePlugins),
+                server: ?switch config.mcpSecurity {
+                | Some(_) => Some({cors: ?Some(false)})
+                | None => None
+                },
               }),
             })
 
@@ -168,7 +182,12 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
         ({server, toolbar}) => {
           FrontmanAiFrontmanCore.FrontmanCore__LogCapture.initialize()
 
-          prependFrontmanRouteRewrite(server, config.basePath, trailingSlash.contents)
+          prependFrontmanRouteRewrite(
+            server,
+            config.basePath,
+            trailingSlash.contents,
+            config.mcpSecurity->Option.isSome,
+          )
 
           toolbar->Bindings.toolbarOnAppInitialized("frontman:toolbar", () => {
             Console.log("[Frontman] Dev toolbar app initialized")

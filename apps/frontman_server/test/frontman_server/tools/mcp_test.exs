@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tools.MCPTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias FrontmanServer.Tools.MCP
 
@@ -43,6 +43,21 @@ defmodule FrontmanServer.Tools.MCPTest do
       assert tool.visible_to_agent
       assert tool.timeout_ms == 600_000
       assert tool.on_timeout == :error
+    end
+  end
+
+  describe "from_maps/1" do
+    @tag :capture_log
+    test "excludes malformed schemas without poisoning valid siblings" do
+      valid = %{"name" => "valid", "inputSchema" => %{"type" => "object"}}
+
+      invalid = %{
+        "name" => "invalid",
+        "inputSchema" => %{"type" => "object"},
+        "outputSchema" => %{"$ref" => "https://example.com/schema"}
+      }
+
+      assert [%MCP{name: "valid"}] = MCP.from_maps([invalid, valid])
     end
   end
 

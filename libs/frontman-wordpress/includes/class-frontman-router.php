@@ -8,8 +8,7 @@
  *
  *   GET  /frontman                        → Serve the UI (preview: homepage)
  *   GET  /about/frontman                  → Serve the UI (preview: /about)
- *   GET  /frontman/tools                  → Tool list
- *   POST /frontman/tools/call             → Dispatch tool call (SSE)
+ *   POST /mcp                             → MCP request
  *   POST /frontman/resolve-source-location → Not supported in WordPress PHP mode
  *
  * Suffix-based routing: appending /frontman to any WordPress URL opens
@@ -48,43 +47,23 @@ class Frontman_Router {
 	/**
 	 * Intercept Frontman requests before WordPress resolves them.
 	 *
-	 * Handles two route styles:
-	 *   Prefix: /frontman/tools, /frontman/tools/call (API endpoints)
-	 *   Suffix: /any/path/frontman (UI with that path in the web preview)
+	 * Handles exact /mcp and suffix /any/path/frontman UI routes.
 	 */
 	public function intercept( \WP $wp ): void {
 		$request_uri = $this->get_request_path();
-		$method      = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_key( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
+		$method      = isset( $_SERVER['REQUEST_METHOD'] ) ? wp_unslash( $_SERVER['REQUEST_METHOD'] ) : 'GET';
 		$route       = $this->classify_route( $request_uri, $method );
 
-		if ( 'prefix' === $route['type'] ) {
-			$sub_path = $route['subPath'];
+		if ( 'mcp' === $route['type'] ) {
+			$this->handle_mcp( $method );
+			exit;
+		}
 
+		if ( 'source-location' === $route['type'] ) {
 			$this->require_auth( true );
-			if ( $method === 'POST' ) {
-				$this->require_nonce();
-			}
-
-			switch ( true ) {
-				case $method === 'GET' && $sub_path === 'tools':
-					$this->handle_get_tools();
-					exit;
-
-				case $method === 'POST' && $sub_path === 'tools/call':
-					$this->handle_tool_call();
-					exit;
-
-				case $method === 'POST' && $sub_path === 'resolve-source-location':
-					$this->handle_resolve_source_location();
-					exit;
-
-				case $method === 'OPTIONS':
-					status_header( 204 );
-					exit;
-
-				default:
-					wp_send_json( [ 'error' => 'Not found' ], 404 );
-			}
+			$this->require_nonce();
+			$this->handle_resolve_source_location();
+			exit;
 		}
 
 		if ( 'suffix' !== $route['type'] ) {
@@ -97,7 +76,7 @@ class Frontman_Router {
 
 		$canonical = $this->get_canonical_redirect( $suffix_prefix );
 		if ( $canonical !== null ) {
-			wp_safe_redirect( Frontman_UI::url( $canonical ), 302 );
+			wp_safe_redirect( home_url( $canonical ), 302 );
 			exit;
 		}
 
@@ -112,6 +91,13 @@ class Frontman_Router {
 	 * @return array{type:string, subPath?:string, prefix?:string}
 	 */
 	private function classify_route( string $request_uri, string $method ): array {
+		if ( '/mcp' === $request_uri ) {
+			return [ 'type' => 'mcp' ];
+		}
+		if ( '/mcp/' !== $request_uri ) {
+			$request_uri = rtrim( $request_uri, '/' );
+		}
+
 		if ( 'GET' === $method ) {
 			$suffix_prefix = $this->get_suffix_prefix( $request_uri );
 			if ( null !== $suffix_prefix ) {
@@ -122,11 +108,8 @@ class Frontman_Router {
 			}
 		}
 
-		if ( preg_match( '#^/frontman/(.+)$#', $request_uri, $matches ) ) {
-			return [
-				'type'    => 'prefix',
-				'subPath' => $matches[1],
-			];
+		if ( '/frontman/resolve-source-location' === $request_uri && 'POST' === $method ) {
+			return [ 'type' => 'source-location' ];
 		}
 
 		return [ 'type' => 'none' ];
@@ -160,7 +143,7 @@ class Frontman_Router {
 	 * /frontman           → '' (bare route, preview homepage)
 	 * /about/frontman     → 'about'
 	 * /blog/post/frontman → 'blog/post'
-	 * /frontman/tools     → null (not a suffix route — has sub-path)
+	 * /frontman/tools     → null
 	 *
 	 * @return string|null The prefix path (may be empty), or null if not a suffix route.
 	 */
@@ -232,140 +215,94 @@ class Frontman_Router {
 			}
 		}
 
-		if ( '/index.php' === $path ) {
-			$path = '/';
-		} elseif ( 0 === strpos( $path, '/index.php/' ) ) {
-			$path = substr( $path, strlen( '/index.php' ) );
+		if ( $path === '' ) {
+			return '/';
 		}
 
-		$path = rtrim( $path, '/' );
-
-		if ( $path === '' || $path[0] !== '/' ) {
+		if ( $path[0] !== '/' ) {
 			$path = '/' . $path;
 		}
 
 		return $path;
 	}
 
-	/**
-	 * Read JSON body from the request. Decoded values are sanitized against the
-	 * destination tool schema before dispatch in handle_tool_call().
-	 */
-	private function read_json_body(): array {
-		if ( ! current_user_can( 'manage_options' ) ) {
-			Frontman_Auth::send_error(
-				new \WP_Error(
-					'frontman_forbidden',
-					__( 'Insufficient permissions. Administrator access required.', 'frontman-agentic-ai-editor' ),
-					[ 'status' => 403 ]
-				),
-				true
-			);
+	private function handle_mcp( string $method ): void {
+		$home = wp_parse_url( home_url() );
+		if ( ! is_array( $home ) || ! isset( $home['scheme'], $home['host'] ) ) {
+			throw new \RuntimeException( 'WordPress home URL has no HTTP Origin' );
+		}
+		$origin = strtolower( $home['scheme'] ) . '://' . strtolower( $home['host'] );
+		if ( isset( $home['port'] ) ) {
+			$origin .= ':' . (int) $home['port'];
 		}
 
-		$nonce = Frontman_Auth::request_nonce();
-		if ( '' === $nonce || ! wp_verify_nonce( $nonce, Frontman_Auth::nonce_action() ) ) {
-			Frontman_Auth::send_error(
-				new \WP_Error(
-					'frontman_invalid_nonce',
-					__( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
-					[ 'status' => 403 ]
-				),
-				true
-			);
-		}
+		$mcp = new Frontman_MCP( $this->tools, $origin );
+		$response = $mcp->handle(
+			$method,
+			$this->request_headers(),
+			function (): string { return $this->read_mcp_body(); },
+			function () use ( $method ): array {
+				$auth = Frontman_Auth::check();
+				if ( is_wp_error( $auth ) ) {
+					$data = $auth->get_error_data();
+					return [ 'status' => is_array( $data ) && isset( $data['status'] ) ? (int) $data['status'] : 403 ];
+				}
+				if ( 'POST' === $method ) {
+					$nonce = Frontman_Auth::verify_nonce();
+					if ( is_wp_error( $nonce ) ) {
+						return [ 'status' => 403 ];
+					}
+				}
+				return [
+					'status'    => 200,
+					'principal' => 'wordpress:' . (int) get_current_blog_id() . ':user:' . (int) get_current_user_id(),
+				];
+			}
+		);
 
-		$raw = file_get_contents( 'php://input' );
-		if ( ! is_string( $raw ) || '' === $raw ) {
-			return [];
+		status_header( $response['status'] );
+		foreach ( $response['headers'] as $name => $value ) {
+			header( $name . ': ' . $value );
 		}
-
-		$raw  = wp_check_invalid_utf8( $raw, true );
-		$data = json_decode( $raw, true );
-		return is_array( $data ) ? $this->sanitize_json_body( $data ) : [];
+		echo $response['body'];
 	}
 
-	/**
-	 * Validate the supported top-level JSON shape without altering tool content.
-	 */
-	private function sanitize_json_body( array $data ): array {
-		$body = [
-			'name' => sanitize_key( $data['name'] ?? '' ),
-		];
-
-		if ( isset( $data['arguments'] ) && is_array( $data['arguments'] ) ) {
-			$body['arguments'] = $data['arguments'];
+	private function read_mcp_body(): string {
+		$stream = fopen( 'php://input', 'rb' );
+		if ( false === $stream ) {
+			throw new \RuntimeException( 'Failed to open MCP request body' );
 		}
-
-		if ( isset( $data['input'] ) && is_array( $data['input'] ) ) {
-			$body['input'] = $data['input'];
+		$body = '';
+		while ( ! feof( $stream ) && strlen( $body ) <= 2097152 ) {
+			$chunk = fread( $stream, min( 8192, 2097153 - strlen( $body ) ) );
+			if ( false === $chunk ) {
+				fclose( $stream );
+				throw new \RuntimeException( 'Failed to read MCP request body' );
+			}
+			$body .= $chunk;
 		}
-
+		fclose( $stream );
 		return $body;
 	}
 
-	/**
-	 * GET /frontman/tools — return plugin tool definitions.
-	 */
-	private function handle_get_tools(): void {
-		$all_tools = $this->tools->all_definitions();
-
-		wp_send_json(
-			[
-				'tools'           => $all_tools,
-				'serverInfo'      => [
-					'name'    => 'frontman-wordpress',
-					'version' => FRONTMAN_VERSION,
-				],
-				'protocolVersion' => '1.0',
-			],
-			200
-		);
-	}
-
-	/**
-	 * POST /frontman/tools/call — route by tool name.
-	 *
-	 * Tools are handled locally in the WordPress plugin.
-	 */
-	private function handle_tool_call(): void {
-		$body      = $this->read_json_body();
-		$name      = sanitize_key( $body['name'] ?? '' );
-		$raw_input = $body['arguments'] ?? $body['input'] ?? [];
-		$input     = is_array( $raw_input ) ? $this->tools->sanitize_input( $name, $raw_input ) : [];
-
-		if ( empty( $name ) ) {
-			$this->send_sse_tool_result( Frontman_Tools::error_result( 'Missing tool name' ) );
-			return;
-		}
-
-		if ( $this->tools->is_wp_tool( $name ) ) {
-			try {
-				$result = $this->tools->call( $name, $input );
-				$this->send_sse_tool_result( $result );
-			} catch ( \Throwable $e ) {
-				$this->send_sse_tool_result( Frontman_Tools::error_result( $e->getMessage() ) );
+	private function request_headers(): array {
+		$headers = [];
+		foreach ( $_SERVER as $name => $value ) {
+			if ( ! is_string( $value ) ) {
+				continue;
 			}
-			return;
+			if ( 0 === strpos( $name, 'HTTP_' ) ) {
+				$header = str_replace( ' ', '-', ucwords( strtolower( str_replace( '_', ' ', substr( $name, 5 ) ) ) ) );
+				$headers[ $header ] = wp_unslash( $value );
+			}
 		}
-
-		$this->send_sse_tool_result( Frontman_Tools::error_result( 'Unknown tool: ' . $name ) );
-	}
-
-	/**
-	 * Send an MCP callToolResult payload over SSE.
-	 */
-	private function send_sse_tool_result( array $result ): void {
-		header( 'Content-Type: text/event-stream' );
-		header( 'Cache-Control: no-cache' );
-		header( 'X-Accel-Buffering: no' );
-
-		$payload = wp_json_encode( $result, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
-		if ( ! is_string( $payload ) ) {
-			$payload = '{}';
+		if ( isset( $_SERVER['CONTENT_TYPE'] ) ) {
+			$headers['Content-Type'] = wp_unslash( $_SERVER['CONTENT_TYPE'] );
 		}
-
-		echo "event: result\ndata: " . $payload . "\n\n";
+		if ( isset( $_SERVER['CONTENT_LENGTH'] ) ) {
+			$headers['Content-Length'] = wp_unslash( $_SERVER['CONTENT_LENGTH'] );
+		}
+		return $headers;
 	}
 
 	/**

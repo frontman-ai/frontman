@@ -10,12 +10,13 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   require Logger
 
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.MCPConnection
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.CanonicalToolResult
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend
   alias ModelContextProtocol, as: MCP
-  alias SwarmAi.Message.ContentPart
   alias SwarmAi.ToolExecution
 
   def execute(%Scope{} = scope, %{
@@ -78,7 +79,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           tool_call: tool_call,
           timeout_ms: tool_def.timeout_ms,
           on_timeout_policy: tool_def.on_timeout,
-          start: {__MODULE__, :start_mcp_tool, [scope, task_id, turn_number]},
+          start:
+            {__MODULE__, :start_mcp_tool, [scope, task_id, turn_number, tool_def.output_schema]},
           on_timeout:
             {__MODULE__, :handle_timeout, [scope, task_id, turn_number, tool_def.on_timeout]}
         }
@@ -129,14 +131,22 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   @doc false
-  def start_mcp_tool(%Scope{} = scope, task_id, turn_number, tool_call)
+  def start_mcp_tool(%Scope{} = scope, task_id, turn_number, output_schema, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
     SentryContext.set_task_scope_context(scope, task_id)
 
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     register_mcp_tool(task_id, tool_call)
-    publish_mcp_tool_call(scope, task_id, turn_number, tool_call)
+
+    {reference, persisted_tool_call} =
+      publish_mcp_tool_call(scope, task_id, turn_number, tool_call, output_schema)
+
+    case MCPConnection.execute_tool(scope, reference, persisted_tool_call) do
+      :ok -> :ok
+      :unavailable -> raise "No browser MCP connection is available"
+    end
+
     :ok
   end
 
@@ -156,7 +166,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     Logger.error("Backend tool timeout", metadata)
 
-    persist_error_tool_result(scope, task_id, turn_number, tool_call, timeout_msg)
+    persist_unclaimed_cancellation(
+      scope,
+      task_id,
+      turn_number,
+      tool_call,
+      "Tool timed out",
+      timeout_msg
+    )
+
     :ok
   end
 
@@ -165,7 +183,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
     Logger.info("ToolExecutor: #{cancel_msg}")
 
-    persist_error_tool_result(scope, task_id, turn_number, tool_call, cancel_msg)
+    persist_unclaimed_cancellation(
+      scope,
+      task_id,
+      turn_number,
+      tool_call,
+      cancel_msg,
+      cancel_msg
+    )
+
     :ok
   end
 
@@ -178,59 +204,56 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       when is_integer(turn_number) and turn_number > 0 do
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
 
-    persist_error_tool_result(scope, task_id, turn_number, tool_call, cancel_msg)
+    persist_unclaimed_cancellation(
+      scope,
+      task_id,
+      turn_number,
+      tool_call,
+      cancel_msg,
+      cancel_msg
+    )
+
     :ok
   end
 
-  defp to_swarm_tool_result(tool_call, %{"content" => content} = result) do
+  defp to_swarm_tool_result(tool_call, %{"content" => _content} = result) do
     is_error = MCP.error?(result)
 
     SwarmAi.ToolResult.make(
       tool_call.id,
-      Enum.map(content, fn
-        %{"type" => "text", "text" => text} ->
-          ContentPart.text(text)
-
-        %{"type" => "image", "data" => data, "mimeType" => mime_type} ->
-          ContentPart.image(Base.decode64!(data), mime_type)
-      end),
+      CanonicalToolResult.to_swarm_content(result),
       is_error
     )
   end
 
   defp register_mcp_tool(task_id, tool_call) do
-    case Registry.register(
-           FrontmanServer.ProcessRegistry,
-           tool_registry_key(task_id, tool_call.id),
-           %{
-             caller_pid: self()
-           }
-         ) do
-      {:ok, _pid} ->
+    key = {:tool_call, task_id, tool_call.id}
+
+    case Registry.register(FrontmanServer.ToolCallRegistry, key, %{caller_pid: self()}) do
+      {:ok, _owner} ->
         :ok
 
-      {:error, {:already_registered, _pid}} ->
-        raise "Duplicate MCP tool executor registration for task #{task_id}, call #{tool_call.id}"
+      {:error, {:already_registered, owner}} ->
+        raise "Tool call #{inspect(key)} is already registered to #{inspect(owner)}"
     end
   end
 
-  defp tool_registry_key(task_id, tool_call_id), do: {:tool_call, task_id, tool_call_id}
-
-  defp publish_mcp_tool_call(%Scope{} = scope, task_id, turn_number, tool_call) do
-    case Tasks.request_client_tool(scope, task_id, turn_number, tool_call) do
-      {:ok, _interaction} ->
-        :ok
-
-      {:error, {:invalid_tool_arguments, _message}} ->
-        Logger.error("Tool argument parse failure", tool_parse_metadata(tool_call, task_id))
-
-        persist_error_tool_result(
-          scope,
-          task_id,
-          turn_number,
-          tool_call,
-          "Failed to parse arguments for tool"
-        )
+  defp publish_mcp_tool_call(
+         %Scope{} = scope,
+         task_id,
+         turn_number,
+         tool_call,
+         output_schema
+       ) do
+    case Tasks.request_client_tool_with_reference(
+           scope,
+           task_id,
+           turn_number,
+           tool_call,
+           output_schema
+         ) do
+      {:ok, reference, persisted_tool_call} ->
+        {reference, persisted_tool_call}
 
       {:error, reason} ->
         Logger.error(
@@ -252,7 +275,14 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     case SwarmAi.ToolCall.parse_arguments(tool_call) do
       {:error, _message} ->
-        Logger.error("Tool argument parse failure", tool_parse_metadata(tool_call, task_id))
+        metadata = [
+          error_type: "tool_parse_error",
+          tool_name: tool_call.name,
+          tool_call_id: tool_call.id,
+          task_id: task_id
+        ]
+
+        Logger.error("Tool argument parse failure", metadata)
 
         persist_error_tool_result(
           scope,
@@ -273,15 +303,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           turn_number
         )
     end
-  end
-
-  defp tool_parse_metadata(tool_call, task_id) do
-    [
-      error_type: "tool_parse_error",
-      tool_name: tool_call.name,
-      tool_call_id: tool_call.id,
-      task_id: task_id
-    ]
   end
 
   defp do_run_backend_tool(scope, module, args, context, tool_call, task_id, turn_number) do
@@ -351,6 +372,42 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp persist_error_tool_result(scope, task_id, turn_number, tool_call, reason) do
     persist_tool_result(scope, task_id, turn_number, tool_call, MCP.tool_result_error(reason))
+  end
+
+  defp persist_unclaimed_cancellation(
+         scope,
+         task_id,
+         turn_number,
+         tool_call,
+         cancellation_reason,
+         result_reason
+       ) do
+    case MCPConnection.cancel_tool(scope, task_id, tool_call.id, cancellation_reason) do
+      :claimed_cancelled ->
+        :ok
+
+      status when status in [:not_found, :unavailable] ->
+        persist_claimed_or_legacy_cancellation(
+          scope,
+          task_id,
+          turn_number,
+          tool_call,
+          result_reason
+        )
+    end
+  end
+
+  defp persist_claimed_or_legacy_cancellation(scope, task_id, turn_number, tool_call, reason) do
+    case Tasks.cancel_current_claimed_tool_call(scope, task_id, turn_number, tool_call, reason) do
+      {:ok, _result, _executor_status} ->
+        :ok
+
+      {:error, error} when error in [:unclaimed, :not_found] ->
+        persist_error_tool_result(scope, task_id, turn_number, tool_call, reason)
+
+      {:error, error} ->
+        raise "Failed to cancel durable MCP tool claim: #{inspect(error)}"
+    end
   end
 
   defp persist_tool_result(scope, task_id, turn_number, tool_call, result) do

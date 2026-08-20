@@ -79,4 +79,15 @@ export default defineConfig([
     target: 'es2020',
     treeshake: true,
   },
+  {
+    entry: { 'mcp-json-schema-worker': '../frontman-core/src/mcp-json-schema-worker.mjs' },
+    format: ['esm'],
+    outDir: 'dist',
+    outExtension: () => ({ js: '.mjs' }),
+    clean: false,
+    noExternal: ['ajv'],
+    platform: 'node',
+    target: 'node22',
+    treeshake: true,
+  },
 ]);

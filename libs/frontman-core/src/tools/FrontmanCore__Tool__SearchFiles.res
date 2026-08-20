@@ -151,10 +151,11 @@ let executeRipgrep = async (
   ~pattern: string,
   ~searchPath: string,
   ~maxResults: int,
+  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
 ): result<output, backendError> => {
   let args = buildRipgrepArgs(~searchPath)
 
-  let result = await ChildProcess.spawnResult(rgPath, args)
+  let result = await ChildProcess.spawnResult(rgPath, args, ~signal?)
 
   switch result {
   | Ok({stdout}) => {
@@ -177,11 +178,13 @@ let executeRipgrep = async (
   }
 }
 
-let executeGitLsFiles = async (~pattern: string, ~searchPath: string, ~maxResults: int): result<
-  output,
-  backendError,
-> => {
-  let result = await ChildProcess.spawnResult("git", ["ls-files"], ~cwd=searchPath)
+let executeGitLsFiles = async (
+  ~pattern: string,
+  ~searchPath: string,
+  ~maxResults: int,
+  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+): result<output, backendError> => {
+  let result = await ChildProcess.spawnResult("git", ["ls-files"], ~cwd=searchPath, ~signal?)
 
   switch result {
   | Ok({stdout}) => {
@@ -230,19 +233,30 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
       ~pattern=input.pattern,
       ~searchPath,
       ~maxResults,
+      ~signal=ctx.signal,
     )
 
     switch ripgrepResult {
     | Ok(output) => Ok(output)
     | Error(ripgrepError) =>
-      switch await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults) {
+      switch await executeGitLsFiles(
+        ~pattern=input.pattern,
+        ~searchPath,
+        ~maxResults,
+        ~signal=ctx.signal,
+      ) {
       | Ok(output) => Ok(output)
       | Error(gitError) =>
         Error(formatFallbackError(~firstError=ripgrepError, ~secondError=gitError))
       }
     }
   | None =>
-    switch await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults) {
+    switch await executeGitLsFiles(
+      ~pattern=input.pattern,
+      ~searchPath,
+      ~maxResults,
+      ~signal=ctx.signal,
+    ) {
     | Ok(output) => Ok(output)
     | Error(gitError) => Error(formatBackendError(gitError))
     }

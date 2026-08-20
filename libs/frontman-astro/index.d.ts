@@ -1,5 +1,20 @@
 import type { AstroIntegration } from "astro";
 
+export type McpAuthorization =
+  | "authorized"
+  | "missing-authentication"
+  | "insufficient-authorization";
+
+export interface McpSecurityConfig {
+  allowedOrigins: readonly string[];
+  authorize(headers: Headers): Promise<McpAuthorization>;
+  principal?(headers: Headers): string;
+}
+
+export interface SourceLocationSecurityConfig {
+  allowedOrigins: readonly string[];
+}
+
 export interface FrontmanConfig {
   /**
    * Path to the project root directory.
@@ -51,6 +66,12 @@ export interface FrontmanConfig {
    * @default "https://app.frontman.sh/frontman.css" in production, omitted in development
    */
   clientCssUrl?: string;
+
+  mcpBrowserToken?: string;
+
+  mcp?: McpSecurityConfig;
+
+  sourceLocation?: SourceLocationSecurityConfig;
 
 }
 

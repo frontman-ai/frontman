@@ -2,14 +2,14 @@ open Vitest
 
 module ToolRegistry = Client__ToolRegistry
 module FrontmanClient = FrontmanAiFrontmanClient
-module Relay = FrontmanClient.FrontmanClient__Relay
+module MCPClient = FrontmanClient.FrontmanClient__MCP__Client
 module MCPServer = FrontmanClient.FrontmanClient__MCP__Server
 module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
 let toolDefinitions = framework => {
   let registry = ToolRegistry.forFramework(framework)
-  let relay = Relay.make(~baseUrl="http://localhost:3000")
-  let server = ToolRegistry.registerAll(registry, MCPServer.make(~relay))
+  let frameworkClient = MCPClient.make(~baseUrl="http://localhost:3000")
+  let server = ToolRegistry.registerAll(registry, MCPServer.make(~frameworkClient))
   server
   ->MCPServer.getToolsJson
   ->Array.map(json => json->JSON.Decode.object->Option.getOrThrow)
@@ -55,6 +55,19 @@ describe("ToolRegistry", _t => {
   test("does not serialize internal browser tool policy", t => {
     let tool = toolByName(Client__RuntimeConfig.Nextjs, "take_screenshot")
 
+    t->expect(tool->Dict.has("access"))->Expect.toBe(false)
+    t->expect(tool->Dict.has("visibleToAgent"))->Expect.toBe(false)
+    t->expect(tool->Dict.has("executionMode"))->Expect.toBe(false)
+  })
+
+  test("serializes standard read-only metadata for Astro audit", t => {
+    let tool = toolByName(Client__RuntimeConfig.Astro, "get_astro_audit")
+    let parsed = tool->JSON.Encode.object->S.parseOrThrow(~to=MCP.Tool.schema)
+    let annotations = parsed.annotations->Option.getOrThrow
+
+    t
+    ->expect(annotations->MCP.ToolAnnotations.toJson->JSON.stringify)
+    ->Expect.toBe(`{"readOnlyHint":true}`)
     t->expect(tool->Dict.has("access"))->Expect.toBe(false)
     t->expect(tool->Dict.has("visibleToAgent"))->Expect.toBe(false)
     t->expect(tool->Dict.has("executionMode"))->Expect.toBe(false)

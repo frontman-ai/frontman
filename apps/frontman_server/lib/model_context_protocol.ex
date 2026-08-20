@@ -31,6 +31,7 @@ defmodule ModelContextProtocol do
   @safe_integer_max 9_007_199_254_740_991
   @metadata_bytes_max 16_384
   @metadata_keys_max 64
+  @reserved_metadata_keys ["baggage", "traceparent", "tracestate"]
   @metadata_key_regex ~r/^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$/
 
   @error_header_mismatch -32_020
@@ -89,6 +90,14 @@ defmodule ModelContextProtocol do
   def tool_result_error(text) when is_binary(text) do
     complete_result([%{"type" => "text", "text" => text}], true)
   end
+
+  @spec validate_tool_result(term()) :: :ok | {:error, :invalid_call_tool_result}
+  def validate_tool_result(%{"resultType" => "complete", "content" => content} = result)
+      when is_list(content) do
+    validate_call_result_fields(result)
+  end
+
+  def validate_tool_result(_result), do: {:error, :invalid_call_tool_result}
 
   @spec discover_request(String.t() | integer()) :: map()
   def discover_request(request_id) do
@@ -153,8 +162,9 @@ defmodule ModelContextProtocol do
   def parse_response(message, method) when is_map(message) and is_binary(method) do
     with :ok <- validate_response_envelope(message),
          {:ok, parsed} <- parse_response_body(message),
-         :ok <- validate_method_response(parsed, method) do
-      {:ok, parsed}
+         normalized <- normalize_method_result(parsed),
+         :ok <- validate_method_response(normalized, method) do
+      {:ok, normalized}
     end
   end
 
@@ -257,18 +267,35 @@ defmodule ModelContextProtocol do
 
   defp parse_response_body(_message), do: {:error, :invalid_message}
 
+  defp normalize_method_result({:success, id, result}) do
+    {:success, id, Map.put_new(result, "resultType", "complete")}
+  end
+
+  defp normalize_method_result({:error, _id, _error} = parsed), do: parsed
+
   defp validate_method_response({:error, _id, _error}, _method), do: :ok
 
-  defp validate_method_response({:success, _id, result}, "server/discover") do
+  defp validate_method_response({:success, _id, result}, "server/discover"),
+    do: validate_discover_result(result)
+
+  defp validate_method_response({:success, _id, result}, "tools/list"),
+    do: validate_tools_list_result(result)
+
+  defp validate_method_response({:success, _id, result}, "tools/call"),
+    do: validate_call_tool_response(result)
+
+  defp validate_method_response(_parsed, _method), do: {:error, :unknown_method}
+
+  defp validate_discover_result(result) do
     case result do
       %{
-        "resultType" => type,
+        "resultType" => "complete",
         "supportedVersions" => versions,
         "capabilities" => capabilities,
         "ttlMs" => ttl,
         "cacheScope" => scope
       }
-      when is_binary(type) and is_list(versions) and is_map(capabilities) and is_integer(ttl) and
+      when is_list(versions) and is_map(capabilities) and is_integer(ttl) and
              ttl >= 0 and scope in ["private", "public"] ->
         with :ok <- validate_versions(versions),
              :ok <- validate_server_capabilities(capabilities),
@@ -284,10 +311,10 @@ defmodule ModelContextProtocol do
     end
   end
 
-  defp validate_method_response({:success, _id, result}, "tools/list") do
+  defp validate_tools_list_result(result) do
     case result do
-      %{"resultType" => type, "tools" => tools, "ttlMs" => ttl, "cacheScope" => scope}
-      when is_binary(type) and is_list(tools) and is_integer(ttl) and ttl >= 0 and
+      %{"resultType" => "complete", "tools" => tools, "ttlMs" => ttl, "cacheScope" => scope}
+      when is_list(tools) and is_integer(ttl) and ttl >= 0 and
              scope in ["private", "public"] ->
         with :ok <- validate_tools(tools),
              :ok <- validate_optional_string(result, "nextCursor"),
@@ -302,17 +329,13 @@ defmodule ModelContextProtocol do
     end
   end
 
-  defp validate_method_response({:success, _id, result}, "tools/call") do
-    case result do
-      %{"resultType" => "complete", "content" => content} when is_list(content) ->
-        validate_call_result_fields(result)
+  defp validate_call_tool_response(%{"resultType" => "complete"} = result),
+    do: validate_tool_result(result)
 
-      _ ->
-        {:error, :invalid_call_tool_result}
-    end
-  end
+  defp validate_call_tool_response(%{"resultType" => "input_required"} = result),
+    do: validate_input_required_result(result)
 
-  defp validate_method_response(_parsed, _method), do: {:error, :unknown_method}
+  defp validate_call_tool_response(_result), do: {:error, :invalid_call_tool_result}
 
   defp validate_versions(versions) do
     case Enum.all?(versions, &is_binary/1) do
@@ -416,41 +439,395 @@ defmodule ModelContextProtocol do
     end
   end
 
+  defp validate_input_required_result(result) do
+    with true <- valid_input_required_fields?(result),
+         :ok <- validate_optional_result_meta(result) do
+      :ok
+    else
+      _invalid -> {:error, :invalid_call_tool_result}
+    end
+  end
+
+  defp valid_input_required_fields?(%{"inputRequests" => requests} = result)
+       when is_map(requests) do
+    Enum.all?(requests, fn {_id, request} -> valid_input_request?(request) end) and
+      optional_binary?(result, "requestState")
+  end
+
+  defp valid_input_required_fields?(%{"requestState" => request_state} = result)
+       when is_binary(request_state) do
+    optional_input_requests?(result)
+  end
+
+  defp valid_input_required_fields?(_result), do: false
+
+  defp optional_input_requests?(result) do
+    case Map.fetch(result, "inputRequests") do
+      :error ->
+        true
+
+      {:ok, requests} when is_map(requests) ->
+        Enum.all?(requests, fn {_id, request} -> valid_input_request?(request) end)
+
+      {:ok, _requests} ->
+        false
+    end
+  end
+
+  defp valid_input_request?(%{"method" => "roots/list"} = request) do
+    case Map.fetch(request, "params") do
+      :error -> true
+      {:ok, params} when is_map(params) -> optional_metadata?(params, "_meta")
+      {:ok, _params} -> false
+    end
+  end
+
+  defp valid_input_request?(%{"method" => "elicitation/create", "params" => params})
+       when is_map(params),
+       do: valid_elicitation_params?(params)
+
+  defp valid_input_request?(%{"method" => "sampling/createMessage", "params" => params})
+       when is_map(params),
+       do: valid_sampling_params?(params)
+
+  defp valid_input_request?(_request), do: false
+
+  defp valid_elicitation_params?(%{"mode" => "url", "message" => message, "url" => url})
+       when is_binary(message),
+       do: valid_uri?(url)
+
+  defp valid_elicitation_params?(
+         %{
+           "message" => message,
+           "requestedSchema" => %{"type" => "object", "properties" => properties} = schema
+         } = params
+       )
+       when is_binary(message) and is_map(properties) do
+    optional_form_mode?(params) and optional_binary?(schema, "$schema") and
+      optional_string_list?(schema, "required") and
+      Enum.all?(properties, fn {_name, definition} -> valid_primitive_schema?(definition) end)
+  end
+
+  defp valid_elicitation_params?(_params), do: false
+
+  defp optional_form_mode?(params) do
+    case Map.fetch(params, "mode") do
+      :error -> true
+      {:ok, "form"} -> true
+      {:ok, _mode} -> false
+    end
+  end
+
+  defp valid_primitive_schema?(%{"type" => "string"} = schema) do
+    optional_binary?(schema, "title") and optional_binary?(schema, "description") and
+      optional_non_negative_integer?(schema, "minLength") and
+      optional_non_negative_integer?(schema, "maxLength") and optional_format?(schema) and
+      optional_binary?(schema, "default") and valid_string_choices?(schema)
+  end
+
+  defp valid_primitive_schema?(%{"type" => type} = schema) when type in ["integer", "number"] do
+    optional_binary?(schema, "title") and optional_binary?(schema, "description") and
+      optional_number?(schema, "minimum") and optional_number?(schema, "maximum") and
+      optional_number?(schema, "default")
+  end
+
+  defp valid_primitive_schema?(%{"type" => "boolean"} = schema) do
+    optional_binary?(schema, "title") and optional_binary?(schema, "description") and
+      optional_boolean?(schema, "default")
+  end
+
+  defp valid_primitive_schema?(%{"type" => "array", "items" => items} = schema)
+       when is_map(items) do
+    optional_binary?(schema, "title") and optional_binary?(schema, "description") and
+      optional_non_negative_integer?(schema, "minItems") and
+      optional_non_negative_integer?(schema, "maxItems") and
+      optional_string_list?(schema, "default") and valid_array_choices?(items)
+  end
+
+  defp valid_primitive_schema?(_schema), do: false
+
+  defp valid_string_choices?(%{"oneOf" => choices}) when is_list(choices),
+    do: Enum.all?(choices, &valid_titled_choice?/1)
+
+  defp valid_string_choices?(%{"enum" => choices} = schema) when is_list(choices) do
+    Enum.all?(choices, &is_binary/1) and optional_string_list?(schema, "enumNames")
+  end
+
+  defp valid_string_choices?(_schema), do: true
+
+  defp valid_array_choices?(%{"type" => "string", "enum" => choices}) when is_list(choices),
+    do: Enum.all?(choices, &is_binary/1)
+
+  defp valid_array_choices?(%{"anyOf" => choices}) when is_list(choices),
+    do: Enum.all?(choices, &valid_titled_choice?/1)
+
+  defp valid_array_choices?(_items), do: false
+
+  defp valid_titled_choice?(%{"const" => value, "title" => title}),
+    do: is_binary(value) and is_binary(title)
+
+  defp valid_titled_choice?(_choice), do: false
+
+  defp valid_sampling_params?(%{"messages" => messages, "maxTokens" => max_tokens} = params)
+       when is_list(messages) and is_integer(max_tokens) do
+    Enum.all?(messages, &valid_sampling_message?/1) and valid_sampling_sequence?(messages) and
+      valid_sampling_optional_params?(params)
+  end
+
+  defp valid_sampling_params?(_params), do: false
+
+  defp valid_sampling_optional_params?(params) do
+    all_true?([
+      valid_optional_model_preferences?(params),
+      optional_binary?(params, "systemPrompt"),
+      optional_include_context?(params),
+      optional_number?(params, "temperature"),
+      optional_string_list?(params, "stopSequences"),
+      optional_map?(params, "metadata"),
+      valid_optional_sampling_tools?(params),
+      valid_optional_tool_choice?(params)
+    ])
+  end
+
+  defp valid_sampling_message?(%{"role" => role, "content" => content} = message)
+       when role in ["assistant", "user"] do
+    optional_metadata?(message, "_meta") and
+      content
+      |> List.wrap()
+      |> Enum.all?(&valid_sampling_content?/1)
+  end
+
+  defp valid_sampling_message?(_message), do: false
+
+  defp valid_sampling_content?(%{"type" => type} = content)
+       when type in ["text", "image", "audio"],
+       do: valid_content_block?(content)
+
+  defp valid_sampling_content?(
+         %{
+           "type" => "tool_use",
+           "id" => id,
+           "name" => name,
+           "input" => input
+         } = content
+       )
+       when is_binary(id) and is_binary(name) and is_map(input),
+       do: optional_metadata?(content, "_meta")
+
+  defp valid_sampling_content?(
+         %{
+           "type" => "tool_result",
+           "toolUseId" => tool_use_id,
+           "content" => content
+         } = result
+       )
+       when is_binary(tool_use_id) and is_list(content) do
+    Enum.all?(content, &valid_content_block?/1) and optional_boolean?(result, "isError") and
+      optional_metadata?(result, "_meta")
+  end
+
+  defp valid_sampling_content?(_content), do: false
+
+  defp valid_sampling_sequence?(messages) do
+    messages
+    |> Enum.with_index()
+    |> Enum.all?(fn {message, index} ->
+      valid_sampling_message_position?(messages, message, index)
+    end)
+  end
+
+  defp valid_sampling_message_position?(messages, %{"role" => "assistant"} = message, index) do
+    result_ids = sampling_ids(message, "tool_result", "toolUseId")
+    use_ids = sampling_ids(message, "tool_use", "id")
+
+    case {result_ids, use_ids} do
+      {[_ | _], _uses} -> false
+      {[], []} -> true
+      {[], uses} -> matching_tool_message?(Enum.at(messages, index + 1), "user", uses)
+    end
+  end
+
+  defp valid_sampling_message_position?(messages, %{"role" => "user"} = message, index) do
+    use_ids = sampling_ids(message, "tool_use", "id")
+    result_ids = sampling_ids(message, "tool_result", "toolUseId")
+
+    case {use_ids, result_ids} do
+      {[_ | _], _results} -> false
+      {[], []} -> true
+      {[], results} -> matching_tool_message?(Enum.at(messages, index - 1), "assistant", results)
+    end
+  end
+
+  defp matching_tool_message?(%{"role" => role} = message, role, expected_ids) do
+    actual_ids =
+      sampling_ids(message, "tool_use", "id") ++ sampling_ids(message, "tool_result", "toolUseId")
+
+    content_count = message["content"] |> List.wrap() |> length()
+
+    length(actual_ids) == content_count and unique_ids?(actual_ids) and unique_ids?(expected_ids) and
+      Enum.sort(actual_ids) == Enum.sort(expected_ids)
+  end
+
+  defp matching_tool_message?(_message, _role, _expected_ids), do: false
+
+  defp unique_ids?(ids), do: MapSet.size(MapSet.new(ids)) == length(ids)
+
+  defp sampling_ids(message, type, id_key) do
+    message["content"]
+    |> List.wrap()
+    |> Enum.flat_map(fn
+      %{"type" => ^type, ^id_key => id} -> [id]
+      _content -> []
+    end)
+  end
+
+  defp valid_optional_sampling_tools?(params) do
+    case Map.fetch(params, "tools") do
+      :error -> true
+      {:ok, tools} when is_list(tools) -> Enum.all?(tools, &valid_tool?/1)
+      {:ok, _tools} -> false
+    end
+  end
+
+  defp valid_optional_model_preferences?(params) do
+    case Map.fetch(params, "modelPreferences") do
+      :error -> true
+      {:ok, preferences} when is_map(preferences) -> valid_model_preferences?(preferences)
+      {:ok, _preferences} -> false
+    end
+  end
+
+  defp valid_model_preferences?(preferences) do
+    valid_optional_model_hints?(preferences) and optional_priority?(preferences, "costPriority") and
+      optional_priority?(preferences, "intelligencePriority") and
+      optional_priority?(preferences, "speedPriority")
+  end
+
+  defp valid_optional_model_hints?(preferences) do
+    case Map.fetch(preferences, "hints") do
+      :error -> true
+      {:ok, hints} when is_list(hints) -> Enum.all?(hints, &valid_model_hint?/1)
+      {:ok, _hints} -> false
+    end
+  end
+
+  defp valid_model_hint?(hint) when is_map(hint), do: optional_binary?(hint, "name")
+  defp valid_model_hint?(_hint), do: false
+
+  defp valid_optional_tool_choice?(params) do
+    case Map.fetch(params, "toolChoice") do
+      :error -> true
+      {:ok, choice} when is_map(choice) -> optional_tool_choice_mode?(choice)
+      {:ok, _choice} -> false
+    end
+  end
+
+  defp optional_tool_choice_mode?(choice) do
+    case Map.fetch(choice, "mode") do
+      :error -> true
+      {:ok, mode} -> mode in ["auto", "none", "required"]
+    end
+  end
+
+  defp optional_include_context?(params) do
+    case Map.fetch(params, "includeContext") do
+      :error -> true
+      {:ok, context} -> context in ["allServers", "none", "thisServer"]
+    end
+  end
+
+  defp optional_format?(schema) do
+    case Map.fetch(schema, "format") do
+      :error -> true
+      {:ok, format} -> format in ["date", "date-time", "email", "uri"]
+    end
+  end
+
   defp valid_content_block?(%{"type" => "text", "text" => text} = block)
        when is_binary(text),
        do: valid_content_block_fields?(block)
 
-  defp valid_content_block?(%{"type" => type, "data" => data, "mimeType" => mime_type} = block)
-       when type in ["image", "audio"] and is_binary(data) and is_binary(mime_type),
-       do: valid_content_block_fields?(block)
+  defp valid_content_block?(%{"type" => "image"} = block), do: valid_media_block?(block)
+  defp valid_content_block?(%{"type" => "audio"} = block), do: valid_media_block?(block)
 
-  defp valid_content_block?(%{"type" => "resource_link", "name" => name, "uri" => uri} = block)
-       when is_binary(name) and is_binary(uri),
-       do:
-         valid_content_block_fields?(block) and optional_integer?(block, "size") and
-           optional_binary?(block, "title") and optional_binary?(block, "description") and
-           optional_binary?(block, "mimeType") and valid_optional_icons?(block, "icons")
+  defp valid_content_block?(%{"type" => "resource_link"} = block) do
+    all_true?([
+      is_binary(block["name"]),
+      is_binary(block["uri"]),
+      valid_uri?(block["uri"]),
+      valid_content_block_fields?(block),
+      optional_integer?(block, "size"),
+      optional_binary?(block, "title"),
+      optional_binary?(block, "description"),
+      optional_binary?(block, "mimeType"),
+      valid_optional_icons?(block, "icons")
+    ])
+  end
 
   defp valid_content_block?(%{"type" => "resource", "resource" => resource} = block)
        when is_map(resource) do
-    valid_embedded_resource?(resource) and valid_content_block_fields?(block)
+    all_true?([valid_embedded_resource?(resource), valid_content_block_fields?(block)])
   end
 
   defp valid_content_block?(_block), do: false
 
-  defp valid_content_block_fields?(block) do
-    optional_metadata?(block, "_meta") and valid_annotations?(Map.get(block, "annotations"))
+  defp valid_media_block?(block) do
+    all_true?([
+      is_binary(block["data"]),
+      is_binary(block["mimeType"]),
+      valid_base64?(block["data"]),
+      valid_content_block_fields?(block)
+    ])
   end
 
-  defp valid_embedded_resource?(%{"uri" => uri, "text" => text} = resource)
-       when is_binary(uri) and is_binary(text),
-       do: optional_binary?(resource, "mimeType") and optional_metadata?(resource, "_meta")
+  defp valid_content_block_fields?(block) do
+    all_true?([
+      optional_metadata?(block, "_meta"),
+      valid_annotations?(Map.get(block, "annotations"))
+    ])
+  end
 
-  defp valid_embedded_resource?(%{"uri" => uri, "blob" => blob} = resource)
-       when is_binary(uri) and is_binary(blob),
-       do: optional_binary?(resource, "mimeType") and optional_metadata?(resource, "_meta")
+  defp valid_embedded_resource?(%{"text" => text} = resource) when is_binary(text) do
+    all_true?([
+      is_binary(resource["uri"]),
+      valid_uri?(resource["uri"]),
+      optional_binary?(resource, "mimeType"),
+      optional_metadata?(resource, "_meta")
+    ])
+  end
+
+  defp valid_embedded_resource?(%{"blob" => blob} = resource) when is_binary(blob) do
+    all_true?([
+      is_binary(resource["uri"]),
+      valid_uri?(resource["uri"]),
+      valid_base64?(blob),
+      optional_binary?(resource, "mimeType"),
+      optional_metadata?(resource, "_meta")
+    ])
+  end
 
   defp valid_embedded_resource?(_resource), do: false
+
+  defp valid_base64?(value) when is_binary(value) do
+    case ModelContextProtocol.BoundedBase64.decode(value, 8_388_608) do
+      {:ok, _decoded} -> true
+      {:error, _reason} -> false
+    end
+  end
+
+  defp valid_base64?(_value), do: false
+
+  defp valid_uri?(value) when is_binary(value) do
+    case URI.new(value) do
+      {:ok, %URI{scheme: scheme}} when is_binary(scheme) -> true
+      {:ok, %URI{scheme: nil}} -> false
+      {:error, _part} -> false
+    end
+  end
+
+  defp valid_uri?(_value), do: false
+
+  defp all_true?(values), do: Enum.all?(values, & &1)
 
   defp valid_annotations?(nil), do: true
 
@@ -476,6 +853,14 @@ defmodule ModelContextProtocol do
 
   defp optional_priority?(annotations) do
     case Map.fetch(annotations, "priority") do
+      :error -> true
+      {:ok, priority} when is_number(priority) -> priority >= 0 and priority <= 1
+      {:ok, _priority} -> false
+    end
+  end
+
+  defp optional_priority?(map, key) do
+    case Map.fetch(map, key) do
       :error -> true
       {:ok, priority} when is_number(priority) -> priority >= 0 and priority <= 1
       {:ok, _priority} -> false
@@ -557,11 +942,16 @@ defmodule ModelContextProtocol do
 
   defp valid_metadata?(metadata)
        when is_map(metadata) and map_size(metadata) <= @metadata_keys_max do
-    Enum.all?(Map.keys(metadata), &(is_binary(&1) and Regex.match?(@metadata_key_regex, &1))) and
+    Enum.all?(Map.keys(metadata), &valid_metadata_key?/1) and
       metadata_bytes(metadata) <= @metadata_bytes_max
   end
 
   defp valid_metadata?(_metadata), do: false
+
+  defp valid_metadata_key?(key) when is_binary(key),
+    do: key not in @reserved_metadata_keys and Regex.match?(@metadata_key_regex, key)
+
+  defp valid_metadata_key?(_key), do: false
 
   defp metadata_bytes(metadata), do: metadata |> Jason.encode!() |> byte_size()
 
@@ -592,6 +982,10 @@ defmodule ModelContextProtocol do
   defp optional_map?(map, key), do: not Map.has_key?(map, key) or is_map(map[key])
   defp optional_binary?(map, key), do: not Map.has_key?(map, key) or is_binary(map[key])
   defp optional_integer?(map, key), do: not Map.has_key?(map, key) or is_integer(map[key])
+  defp optional_number?(map, key), do: not Map.has_key?(map, key) or is_number(map[key])
+
+  defp optional_non_negative_integer?(map, key),
+    do: not Map.has_key?(map, key) or (is_integer(map[key]) and map[key] >= 0)
 
   defp complete_result(content, is_error) do
     %{"resultType" => "complete", "content" => content, "isError" => is_error}

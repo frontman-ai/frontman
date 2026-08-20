@@ -3,7 +3,6 @@ type t = [
   | #ACP
   | #MCP
   | #MCPServer
-  | #Relay
   | #Session
   | #Phoenix
   | #ConnectionReducer

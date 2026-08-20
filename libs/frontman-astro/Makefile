@@ -32,10 +32,10 @@ test-watch:
 	yarn vitest
 
 lint:
-	yarn rescript format --check src test
+	yarn rescript format --check
 
 format:
-	yarn rescript format src test
+	yarn rescript format
 
 clean:
 	yarn rescript clean

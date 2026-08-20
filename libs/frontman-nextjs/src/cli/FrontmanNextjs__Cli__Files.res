@@ -10,6 +10,7 @@ module Style = FrontmanNextjs__Cli__Style
 type fileResult =
   | Created(string)
   | Updated({fileName: string, oldHost: string, newHost: string})
+  | UpdatedConfig(string)
   | Skipped(string)
   | ManualEditRequired({fileName: string, details: string})
   | AutoEdited(string)
@@ -24,6 +25,8 @@ let updateHostInContent = (content: string, newHost: string): string => {
   let safeHost = escapeReplacement(newHost)
   content->String.replaceRegExp(hostPattern, `host: '${safeHost}'`)
 }
+
+let hasFrontmanMiddleware = (~fileType, content) => AutoEdit.validateOutput(~content, ~fileType)
 
 let readFile = async (path: string): option<string> => {
   try {
@@ -122,19 +125,33 @@ let handleMiddleware = async (
     }
 
   | HasFrontman({host: existingHost}) =>
-    switch existingHost == host {
-    | true => Ok(Skipped(fileName))
-    | false =>
-      switch dryRun {
-      | true => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
+    switch await readFile(filePath) {
+    | Some(content) if !hasFrontmanMiddleware(~fileType=AutoEdit.Middleware, content) =>
+      await handleNeedsManualEdit(
+        ~filePath,
+        ~fileName,
+        ~host,
+        ~fileType=AutoEdit.Middleware,
+        ~dryRun,
+        ~autoEdit,
+        ~manualDetails=Templates.ManualInstructions.middleware(fileName, host),
+      )
+    | None => Error(`Failed to read ${fileName}`)
+    | Some(_) =>
+      switch existingHost == host {
+      | true => Ok(Skipped(fileName))
       | false =>
-        switch await readFile(filePath) {
-        | None => Error(`Failed to read ${fileName}`)
-        | Some(content) =>
-          let newContent = updateHostInContent(content, host)
-          switch await writeFile(filePath, newContent) {
-          | Ok() => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
-          | Error(e) => Error(e)
+        switch dryRun {
+        | true => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
+        | false =>
+          switch await readFile(filePath) {
+          | None => Error(`Failed to read ${fileName}`)
+          | Some(content) =>
+            let newContent = updateHostInContent(content, host)
+            switch await writeFile(filePath, newContent) {
+            | Ok() => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
+            | Error(e) => Error(e)
+            }
           }
         }
       }
@@ -183,19 +200,33 @@ let handleProxy = async (
     }
 
   | HasFrontman({host: existingHost}) =>
-    switch existingHost == host {
-    | true => Ok(Skipped(fileName))
-    | false =>
-      switch dryRun {
-      | true => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
+    switch await readFile(filePath) {
+    | Some(content) if !hasFrontmanMiddleware(~fileType=AutoEdit.Proxy, content) =>
+      await handleNeedsManualEdit(
+        ~filePath,
+        ~fileName,
+        ~host,
+        ~fileType=AutoEdit.Proxy,
+        ~dryRun,
+        ~autoEdit,
+        ~manualDetails=Templates.ManualInstructions.proxy(fileName, host),
+      )
+    | None => Error(`Failed to read ${fileName}`)
+    | Some(_) =>
+      switch existingHost == host {
+      | true => Ok(Skipped(fileName))
       | false =>
-        switch await readFile(filePath) {
-        | None => Error(`Failed to read ${fileName}`)
-        | Some(content) =>
-          let newContent = updateHostInContent(content, host)
-          switch await writeFile(filePath, newContent) {
-          | Ok() => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
-          | Error(e) => Error(e)
+        switch dryRun {
+        | true => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
+        | false =>
+          switch await readFile(filePath) {
+          | None => Error(`Failed to read ${fileName}`)
+          | Some(content) =>
+            let newContent = updateHostInContent(content, host)
+            switch await writeFile(filePath, newContent) {
+            | Ok() => Ok(Updated({fileName, oldHost: existingHost, newHost: host}))
+            | Error(e) => Error(e)
+            }
           }
         }
       }
@@ -264,11 +295,100 @@ let handleInstrumentation = async (
   }
 }
 
+let handleMcpApiRoute = async (~projectDir: string, ~hasSrcDir: bool, ~dryRun: bool): result<
+  fileResult,
+  string,
+> => {
+  let relativePath = switch hasSrcDir {
+  | true => ["src", "pages", "api", "frontman-mcp.ts"]
+  | false => ["pages", "api", "frontman-mcp.ts"]
+  }
+  let fileName = relativePath->Array.join("/")
+  let filePath = Path.join([projectDir, ...relativePath])
+  switch await readFile(filePath) {
+  | Some(content) if AutoEdit.validateMcpApiRoute(content) => Ok(Skipped(fileName))
+  | Some(_) =>
+    Ok(
+      ManualEditRequired({
+        fileName,
+        details: `${fileName} already exists; expose createMcpHandler with bodyParser disabled`,
+      }),
+    )
+  | None =>
+    switch dryRun {
+    | true => Ok(Created(fileName))
+    | false =>
+      let directory = Path.join([projectDir, ...relativePath->Array.slice(~start=0, ~end=-1)])
+      let _ = await Fs.Promises.mkdir(directory, {recursive: true})
+      switch await writeFile(filePath, Templates.mcpApiRouteTemplate()) {
+      | Ok() => Ok(Created(fileName))
+      | Error(error) => Error(error)
+      }
+    }
+  }
+}
+
+let handleMcpRewrite = async (~projectDir: string, ~dryRun: bool): result<fileResult, string> => {
+  let mjsPath = Path.join([projectDir, "next.config.mjs"])
+  let jsPath = Path.join([projectDir, "next.config.js"])
+  let tsPath = Path.join([projectDir, "next.config.ts"])
+  let existing = switch await readFile(mjsPath) {
+  | Some(content) => Some(("next.config.mjs", mjsPath, content))
+  | None =>
+    switch await readFile(jsPath) {
+    | Some(content) => Some(("next.config.js", jsPath, content))
+    | None =>
+      switch await readFile(tsPath) {
+      | Some(content) => Some(("next.config.ts", tsPath, content))
+      | None => None
+      }
+    }
+  }
+  switch existing {
+  | Some((fileName, _, content)) if AutoEdit.validateMcpRewrite(content) => Ok(Skipped(fileName))
+  | Some((fileName, filePath, content)) if content->String.includes("const nextConfig = {};") =>
+    switch dryRun {
+    | true => Ok(UpdatedConfig(fileName))
+    | false =>
+      let updated = content->String.replace(
+        "const nextConfig = {};",
+        `const nextConfig = {
+  async rewrites() {
+    return [{ source: '/mcp', destination: '/api/frontman-mcp' }];
+  },
+};`,
+      )
+      switch await writeFile(filePath, updated) {
+      | Ok() => Ok(UpdatedConfig(fileName))
+      | Error(error) => Error(error)
+      }
+    }
+  | Some((fileName, _, _)) =>
+    Ok(
+      ManualEditRequired({
+        fileName,
+        details: `${fileName} must rewrite exact /mcp to /api/frontman-mcp in its rewrites() configuration`,
+      }),
+    )
+  | None =>
+    let fileName = "next.config.mjs"
+    switch dryRun {
+    | true => Ok(Created(fileName))
+    | false =>
+      switch await writeFile(Path.join([projectDir, fileName]), Templates.nextConfigTemplate()) {
+      | Ok() => Ok(Created(fileName))
+      | Error(error) => Error(error)
+      }
+    }
+  }
+}
+
 let formatResult = (result: fileResult): string => {
   switch result {
   | Created(fileName) => Templates.SuccessMessages.fileCreated(fileName)
   | Updated({fileName, oldHost, newHost}) =>
     Templates.SuccessMessages.hostUpdated(fileName, oldHost, newHost)
+  | UpdatedConfig(fileName) => Templates.SuccessMessages.configUpdated(fileName)
   | Skipped(fileName) => Templates.SuccessMessages.fileSkipped(fileName)
   | ManualEditRequired({fileName, _}) => Templates.SuccessMessages.manualEditRequired(fileName)
   | AutoEdited(fileName) => Templates.SuccessMessages.fileAutoEdited(fileName)

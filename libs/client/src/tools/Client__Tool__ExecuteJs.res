@@ -134,6 +134,7 @@ let execute = async (
   input: input,
   ~taskId as _: string,
   ~toolCallId as _: string,
+  ~signal as _: WebAPI.EventAPI.abortSignal,
 ): Tool.MCP.CallToolResult.t => {
   await Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=async () =>

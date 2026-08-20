@@ -85,17 +85,19 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 			$this->assert_false( in_array( $tool_name, $tool_names, true ), $tool_name . ' must not be exposed by the WordPress plugin' );
 		}
 
-		$access_by_name = [];
+		$read_only_by_name = [];
 		foreach ( $definitions as $definition ) {
-			$this->assert_true( isset( $definition['access'] ), $definition['name'] . ' declares access' );
-			$this->assert_true( in_array( $definition['access'], [ 'read', 'write', 'read-write' ], true ), $definition['name'] . ' has valid access' );
-			$access_by_name[ $definition['name'] ] = $definition['access'];
+			$this->assert_true( isset( $definition['annotations']['readOnlyHint'] ), $definition['name'] . ' declares standard read-only behavior' );
+			$this->assert_true( is_bool( $definition['annotations']['readOnlyHint'] ), $definition['name'] . ' has a boolean read-only hint' );
+			$this->assert_false( isset( $definition['access'] ), $definition['name'] . ' omits private Relay access' );
+			$this->assert_false( isset( $definition['visibleToAgent'] ), $definition['name'] . ' omits private Relay visibility' );
+			$read_only_by_name[ $definition['name'] ] = $definition['annotations']['readOnlyHint'];
 		}
 
-		$this->assert_same( 'read', $access_by_name['wp_list_posts'], 'wp_list_posts access' );
-		$this->assert_same( 'write', $access_by_name['wp_create_post'], 'wp_create_post access' );
-		$this->assert_same( 'read-write', $access_by_name['wp_update_post'], 'wp_update_post access' );
-		$this->assert_same( 'read-write', $access_by_name['wp_clear_cache'], 'wp_clear_cache access' );
+		$this->assert_same( true, $read_only_by_name['wp_list_posts'], 'wp_list_posts is read-only' );
+		$this->assert_same( false, $read_only_by_name['wp_create_post'], 'wp_create_post is not read-only' );
+		$this->assert_same( false, $read_only_by_name['wp_update_post'], 'wp_update_post is not read-only' );
+		$this->assert_same( false, $read_only_by_name['wp_clear_cache'], 'wp_clear_cache is not read-only' );
 
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
 	}

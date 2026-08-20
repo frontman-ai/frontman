@@ -33,7 +33,7 @@ test-watch:
 	yarn vitest
 
 lint:
-	yarn rescript format --check src
+	yarn rescript format --check
 
 format:
 	yarn rescript format

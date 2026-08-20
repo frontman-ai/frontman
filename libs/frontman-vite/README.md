@@ -79,6 +79,7 @@ frontmanPlugin({
   clientUrl: 'https://...',        // Custom client bundle URL (default: inferred from isDev)
   clientCssUrl: 'https://...',     // Custom client CSS URL (default: inferred from isDev)
   entrypointUrl: 'http://...',     // Custom entrypoint URL for the API
+  mcp: mcpSecurity,                // { allowedOrigins, authorize }; required for POST /mcp
 });
 ```
 
@@ -127,17 +128,14 @@ Vite Dev Server
 ├─> GET /frontman
 │   └─> Serves Frontman UI (HTML + client bundle + CSS)
 │
-├─> GET /frontman/tools
-│   └─> Returns tool definitions (file read, write, search, etc.)
-│
-├─> POST /frontman/tools/call
-│   └─> Executes tool → returns SSE stream with results
+├─> POST /mcp
+│   └─> Discovers and executes tools through MCP Streamable HTTP
 │
 ├─> POST /frontman/resolve-source-location
 │   └─> Resolves source maps to original component locations
 │
-└─> OPTIONS /frontman/*
-    └─> CORS preflight handling
+└─> OPTIONS /mcp
+    └─> Origin-checked CORS preflight handling
 ```
 
 Non-frontman routes pass through to Vite's normal dev server handling.
@@ -147,7 +145,8 @@ Non-frontman routes pass through to Vite's normal dev server handling.
 **Node.js ↔ Web API Adapter**
 - Vite's dev server uses Node.js `IncomingMessage`/`ServerResponse`
 - Frontman middleware uses Web API `Request`/`Response`
-- The plugin adapts between the two, including SSE stream piping
+- The plugin adapts between the two, including JSON and standard MCP SSE responses
+- `/mcp` is registered only when explicit `mcp.allowedOrigins` and `mcp.authorize` configuration is supplied
 
 ## Troubleshooting
 
@@ -165,7 +164,7 @@ This happens when the installer can't find a `plugins: [` array in your Vite con
 
 ### CORS errors in browser console
 
-The plugin includes CORS headers for all `/frontman/*` routes. If you're seeing CORS errors, verify the request is going to the correct Vite dev server URL.
+The MCP endpoint echoes only an allowed request Origin; it never enables wildcard CORS. Verify `mcp.allowedOrigins`, the request Origin (including its effective port), and your `mcp.authorize` callback.
 
 ## License
 

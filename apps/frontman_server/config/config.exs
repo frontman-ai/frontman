@@ -199,7 +199,10 @@ config :logger, :default_formatter,
     :function,
     :reason,
     :error_code,
+    :error_type,
     :task_id,
+    :tool_call_id,
+    :tool_name,
     :user_id,
     :user_name
   ]

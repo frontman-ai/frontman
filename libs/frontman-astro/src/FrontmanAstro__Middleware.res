@@ -10,6 +10,14 @@ type routeDiscovery =
 
 type loadContentApi = unit => promise<FrontmanAstro__Tool__GetContentCollections.contentApi>
 
+type bundle = {
+  middleware: (
+    WebAPI.FetchAPI.request,
+    ~rawHeaders: Core.FrontmanCore__MCP__RawHeaders.t=?,
+  ) => promise<option<WebAPI.FetchAPI.response>>,
+  registry: Core.FrontmanCore__ToolRegistry.t,
+}
+
 let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   projectRoot: config.projectRoot,
   sourceRoot: config.sourceRoot,
@@ -21,18 +29,23 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   entrypointUrl: config.entrypointUrl,
   frameworkId: CoreMiddlewareConfig.Astro,
   traits: [],
+  mcpBrowserToken: config.mcpBrowserToken,
+  sourceLocationSecurity: config.sourceLocationSecurity,
 }
 
-let createMiddleware = (
+let make = (
   config: Config.t,
   ~routeDiscovery: routeDiscovery,
   ~loadContentApi: loadContentApi,
-) => {
+): bundle => {
   let registry = switch routeDiscovery {
   | Filesystem => ToolRegistry.makeWithAstroRuntime(~loadContentApi)
   | ResolvedRoutes({getRoutes}) =>
     ToolRegistry.makeWithResolvedRoutesAndAstroRuntime(~getRoutes, ~loadContentApi)
   }
   let middlewareConfig = toMiddlewareConfig(config)
-  CoreMiddleware.createMiddleware(~config=middlewareConfig, ~registry)
+  {middleware: CoreMiddleware.createMiddleware(~config=middlewareConfig), registry}
 }
+
+let createMiddleware = (config, ~routeDiscovery, ~loadContentApi) =>
+  make(config, ~routeDiscovery, ~loadContentApi).middleware

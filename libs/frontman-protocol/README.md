@@ -17,18 +17,14 @@ Types for AI agent communication:
 - `tools/list` - List available tools
 - `tools/call` - Execute a tool
 
-### Relay
-
-Framework tool relay protocol:
-- `remoteTool` - Remote tool execution request
-- `toolsResponse` - Tool execution response
-
 ### Tool
 
 Tool interface definitions:
 - `ServerTool` module type - Server-side tool with execution context
 - `BrowserTool` module type - Browser-side tool without context
 - `ExecutionContext` - Tool execution context with project/source root
+
+Framework integrations expose these tools through the MCP `server/discover`, `tools/list`, and `tools/call` contracts. There is no separate Relay protocol or private tool route contract.
 
 ## Development
 

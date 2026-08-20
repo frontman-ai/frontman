@@ -104,7 +104,7 @@ defmodule ModelContextProtocolTest do
                )
 
       list_result = %{
-        "resultType" => "tools",
+        "resultType" => "complete",
         "tools" => [
           %{
             "name" => "read_file",
@@ -134,6 +134,78 @@ defmodule ModelContextProtocolTest do
                MCP.parse_response(JsonRpc.success_response(3, call_result), "tools/call")
     end
 
+    test "normalizes absent result types to complete for implemented methods" do
+      results = [
+        {"server/discover", Map.delete(discover_result(), "resultType")},
+        {"tools/list", %{"tools" => [], "ttlMs" => 0, "cacheScope" => "private"}},
+        {"tools/call", %{"content" => []}}
+      ]
+
+      for {method, result} <- results do
+        assert {:ok, {:success, 1, normalized}} =
+                 MCP.parse_response(JsonRpc.success_response(1, result), method)
+
+        assert normalized["resultType"] == "complete"
+      end
+    end
+
+    test "recognizes input-required only for tools/call" do
+      result = %{
+        "resultType" => "input_required",
+        "inputRequests" => %{
+          "roots" => %{"method" => "roots/list", "params" => %{}},
+          "login" => %{
+            "method" => "elicitation/create",
+            "params" => %{
+              "message" => "Log in",
+              "requestedSchema" => %{
+                "type" => "object",
+                "properties" => %{"name" => %{"type" => "string"}},
+                "required" => ["name"]
+              }
+            }
+          },
+          "sample" => %{
+            "method" => "sampling/createMessage",
+            "params" => %{
+              "messages" => [
+                %{"role" => "user", "content" => %{"type" => "text", "text" => "Help"}}
+              ],
+              "maxTokens" => 100
+            }
+          }
+        },
+        "requestState" => "opaque-state",
+        "_meta" => %{"example.com/result" => true},
+        "vendorField" => %{"preserved" => true}
+      }
+
+      assert {:ok, {:success, 1, ^result}} =
+               MCP.parse_response(JsonRpc.success_response(1, result), "tools/call")
+
+      assert {:error, :invalid_discover_result} =
+               MCP.parse_response(JsonRpc.success_response(1, result), "server/discover")
+
+      assert {:error, :invalid_tools_list_result} =
+               MCP.parse_response(JsonRpc.success_response(1, result), "tools/list")
+
+      for method <- ["server/discover", "tools/list", "tools/call"] do
+        assert {:error, _reason} =
+                 MCP.parse_response(
+                   JsonRpc.success_response(1, %{"resultType" => "unknown"}),
+                   method
+                 )
+      end
+
+      request_state_only = %{"resultType" => "input_required", "requestState" => "opaque"}
+
+      assert {:ok, {:success, 2, ^request_state_only}} =
+               MCP.parse_response(
+                 JsonRpc.success_response(2, request_state_only),
+                 "tools/call"
+               )
+    end
+
     test "rejects unsafe IDs, mixed envelopes, incomplete results, and malformed content" do
       assert {:error, :invalid_id} =
                MCP.parse_response(%{
@@ -151,14 +223,129 @@ defmodule ModelContextProtocolTest do
                })
 
       for result <- [
-            %{"content" => []},
-            %{"resultType" => "input_required", "content" => []},
+            %{"resultType" => "unknown", "content" => []},
+            %{"resultType" => "input_required"},
+            %{"resultType" => "input_required", "inputRequests" => nil},
+            %{"resultType" => "input_required", "requestState" => 1},
+            %{
+              "resultType" => "input_required",
+              "inputRequests" => %{"request" => %{"method" => "unknown", "params" => %{}}}
+            },
+            %{
+              "resultType" => "input_required",
+              "inputRequests" => %{
+                "sample" => %{
+                  "method" => "sampling/createMessage",
+                  "params" => %{"messages" => [], "maxTokens" => 1.5}
+                }
+              }
+            },
             %{"resultType" => "complete", "content" => [%{"type" => "text"}]},
+            %{
+              "resultType" => "complete",
+              "content" => [
+                %{"type" => "image", "data" => "not-base64", "mimeType" => "image/png"}
+              ]
+            },
+            %{
+              "resultType" => "complete",
+              "content" => [%{"type" => "resource_link", "name" => "bad", "uri" => "relative"}]
+            },
             %{"resultType" => "complete", "content" => [], "isError" => "false"}
           ] do
         assert {:error, :invalid_call_tool_result} =
                  MCP.parse_response(JsonRpc.success_response(1, result), "tools/call")
       end
+    end
+
+    test "rejects immediate reserved keys at schema-defined metadata boundaries" do
+      for key <- ["traceparent", "tracestate", "baggage"] do
+        for result <- [
+              %{"content" => [], "_meta" => %{key => "secret"}},
+              %{
+                "content" => [
+                  %{"type" => "text", "text" => "ok", "_meta" => %{key => "secret"}}
+                ]
+              },
+              %{
+                "resultType" => "input_required",
+                "inputRequests" => %{
+                  "roots" => %{
+                    "method" => "roots/list",
+                    "params" => %{"_meta" => %{key => "secret"}}
+                  }
+                }
+              }
+            ] do
+          assert {:error, :invalid_call_tool_result} =
+                   MCP.parse_response(JsonRpc.success_response(1, result), "tools/call")
+        end
+      end
+    end
+
+    test "preserves nested _meta keys inside open ordinary JSON" do
+      nested = %{"_meta" => %{"traceparent" => "ordinary-json", "baggage" => [1, true]}}
+
+      complete = %{
+        "content" => [
+          %{
+            "type" => "text",
+            "text" => "ok",
+            "_meta" => %{"vendor.example/content" => nested},
+            "vendor.example/value" => nested
+          }
+        ],
+        "structuredContent" => nested,
+        "vendor.example/result" => nested,
+        "_meta" => %{"vendor.example/result" => nested}
+      }
+
+      assert {:ok, {:success, 1, normalized}} =
+               MCP.parse_response(JsonRpc.success_response(1, complete), "tools/call")
+
+      assert normalized["structuredContent"] == nested
+      assert normalized["vendor.example/result"] == nested
+
+      input_required = %{
+        "resultType" => "input_required",
+        "inputRequests" => %{
+          "sample" => %{
+            "method" => "sampling/createMessage",
+            "params" => %{
+              "messages" => [
+                %{
+                  "role" => "assistant",
+                  "content" => %{
+                    "type" => "tool_use",
+                    "id" => "call-1",
+                    "name" => "open_tool",
+                    "input" => nested
+                  }
+                },
+                %{
+                  "role" => "user",
+                  "content" => %{
+                    "type" => "tool_result",
+                    "toolUseId" => "call-1",
+                    "content" => []
+                  }
+                }
+              ],
+              "maxTokens" => 10,
+              "tools" => [
+                %{
+                  "name" => "open_tool",
+                  "inputSchema" => %{"type" => "object", "vendor.example/schema" => nested}
+                }
+              ]
+            }
+          },
+          "roots" => %{"method" => "roots/list", "vendor.example/value" => nested}
+        }
+      }
+
+      assert {:ok, {:success, 2, ^input_required}} =
+               MCP.parse_response(JsonRpc.success_response(2, input_required), "tools/call")
     end
 
     test "checks modern named error payloads" do
@@ -210,7 +397,7 @@ defmodule ModelContextProtocolTest do
 
   defp discover_result do
     %{
-      "resultType" => "discovery",
+      "resultType" => "complete",
       "supportedVersions" => [MCP.protocol_version()],
       "capabilities" => %{
         "tools" => %{},

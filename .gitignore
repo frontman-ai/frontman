@@ -39,6 +39,7 @@ Thumbs.db
 .chunkhound.json
 .chunkhound
 .certs/
+.mcp-conformance-*
 opencode.json*
 scripts/certs/
 mprocs.log

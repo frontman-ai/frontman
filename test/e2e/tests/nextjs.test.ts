@@ -11,8 +11,12 @@ import {
 	startNextjs,
 	stopFramework,
 } from "../helpers/framework.js";
-import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
+import {
+	openFrontmanUI,
+	proveRecoveryAfterFrameworkMcpFailure,
+} from "../helpers/frontman-ui.js";
 import { installNextjs } from "../helpers/installer.js";
+import { MCP_ORIGIN, MCP_TOKEN } from "../helpers/mcp.js";
 
 const PORT = 3010;
 
@@ -27,7 +31,11 @@ describe("Next.js E2E", () => {
 
 		browser = await chromium.launch({ headless: true });
 		context = await browser.newContext({ ignoreHTTPSErrors: true });
-		server = await startNextjs(PORT);
+		server = await startNextjs(PORT, {
+			...process.env,
+			FRONTMAN_MCP_ALLOWED_ORIGINS: `${MCP_ORIGIN},http://localhost:${PORT}`,
+			FRONTMAN_MCP_TOKEN: MCP_TOKEN,
+		});
 	});
 
 	afterAll(async () => {
@@ -111,16 +119,17 @@ describe("Next.js E2E", () => {
 		await selectorPage.close();
 	});
 
-	it("should make a text change via AI prompt", async () => {
+	it("keeps browser operations usable after MCP failure and ACP reconnect", async () => {
 		page = await context.newPage();
 
-		await openFrontmanUI(page, PORT, { assertHealthy: server.assertHealthy });
-
-		await sendPrompt(
+		const marker = await proveRecoveryAfterFrameworkMcpFailure(
 			page,
-			'Change the h1 heading text in pages/index.tsx to say "Hello Frontman"',
+			context,
+			PORT,
+			"pages/index.tsx",
+			{ assertHealthy: server.assertHealthy },
 		);
 
-		expect(headingFileContains(server, "Hello Frontman")).toBe(true);
+		expect(headingFileContains(server, marker)).toBe(true);
 	});
 });

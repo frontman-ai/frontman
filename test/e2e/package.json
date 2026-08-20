@@ -4,12 +4,14 @@
 	"type": "module",
 	"scripts": {
 		"test": "vitest run",
+		"test:mcp": "vitest run --config vitest.mcp.config.ts",
 		"test:nextjs": "vitest run tests/nextjs.test.ts",
 		"test:astro": "vitest run tests/astro.test.ts",
 		"test:vite": "vitest run tests/vite.test.ts",
 		"test:vue-vite": "vitest run tests/vue-vite.test.ts"
 	},
 	"devDependencies": {
+		"@wp-playground/cli": "3.1.49",
 		"playwright": "^1.61.1",
 		"vitest": "catalog:"
 	}

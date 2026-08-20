@@ -9,6 +9,10 @@ defmodule FrontmanServer.Tools.MCP do
   Utilities for MCP tools from external clients.
   """
 
+  require Logger
+
+  alias FrontmanServer.JSONSchema
+
   @enforce_keys [:name, :input_schema, :timeout_ms, :on_timeout]
   defstruct name: nil,
             title: nil,
@@ -44,7 +48,7 @@ defmodule FrontmanServer.Tools.MCP do
 
   @spec from_maps(list(map())) :: list(%__MODULE__{})
   def from_maps(tools) when is_list(tools) do
-    Enum.map(tools, &from_map/1)
+    Enum.flat_map(tools, &from_valid_map/1)
   end
 
   @spec to_swarm_tools(list(%__MODULE__{})) :: list(SwarmAi.Tool.t())
@@ -64,4 +68,22 @@ defmodule FrontmanServer.Tools.MCP do
       on_timeout: tool.on_timeout
     )
   end
+
+  defp from_valid_map(tool) do
+    with :ok <- JSONSchema.validate_schema(tool["inputSchema"]),
+         :ok <- validate_optional_schema(tool["outputSchema"]) do
+      [from_map(tool)]
+    else
+      {:error, reason} ->
+        Logger.warning("Excluding MCP tool with invalid schema",
+          tool_name: tool["name"],
+          reason: reason
+        )
+
+        []
+    end
+  end
+
+  defp validate_optional_schema(nil), do: :ok
+  defp validate_optional_schema(schema), do: JSONSchema.validate_schema(schema)
 end

@@ -15,7 +15,6 @@ const wireValue = value => JSON.parse(JSON.stringify(value))
 const validKeys = [
   "",
   "progressToken",
-  "traceparent",
   "io.modelcontextprotocol/protocolVersion",
   "ai.frontman/execution-context",
   "a/",
@@ -45,6 +44,14 @@ test("metadata preserves valid keys and arbitrary JSON values", () => {
 
   assert.deepEqual(encoded, fixture)
   assert.equal(oracle.validate("MetaObject", encoded).valid, true)
+  assert.equal(validateGenerated(encoded), true)
+})
+
+test("metadata rejects reserved trace propagation fields", () => {
+  for (const key of ["traceparent", "tracestate", "baggage"]) {
+    assert.throws(() => S.parseOrThrow({[key]: "must-not-propagate"}, Metadata.schema))
+    assert.equal(validateGenerated({[key]: "must-not-propagate"}), false)
+  }
 })
 
 test("metadata rejects keys outside the normative grammar", () => {

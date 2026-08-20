@@ -2,8 +2,10 @@ type t = Dict.t<JSON.t>
 
 let maxBytes = 16384
 let maxKeys = 64
+let reservedTraceKeys = ["traceparent", "tracestate", "baggage"]
 let keyPattern = /^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\s\S])/
 let isValidKey = key => keyPattern->RegExp.test(key)
+let isReservedTraceKey = key => reservedTraceKeys->Array.includes(key)
 
 type textEncoder
 
@@ -16,7 +18,12 @@ let jsonSchema: JSONSchema.t = {
   type_: JSONSchema.Arrayable.single(#object),
   maxProperties: maxKeys,
   propertyNames: JSONSchema.Schema({
-    pattern: keyPattern->RegExp.source,
+    allOf: [
+      JSONSchema.Schema({pattern: keyPattern->RegExp.source}),
+      JSONSchema.Schema({
+        not: JSONSchema.Schema({enum: reservedTraceKeys->Array.map(JSON.Encode.string)}),
+      }),
+    ],
   }),
 }
 
@@ -25,6 +32,10 @@ let schema =
   ->S.refine(
     value => value->Dict.keysToArray->Array.every(isValidKey),
     ~error="MCP metadata contains an invalid key",
+  )
+  ->S.refine(
+    value => value->Dict.keysToArray->Array.every(key => !isReservedTraceKey(key)),
+    ~error="MCP metadata contains reserved trace propagation fields",
   )
   ->S.refine(
     value => value->Dict.keysToArray->Array.length <= maxKeys,

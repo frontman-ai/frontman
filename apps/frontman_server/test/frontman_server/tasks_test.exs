@@ -240,6 +240,128 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, ^turn_number, [%Interaction.ToolCall{tool_call_id: "question_1"}]} =
                Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
     end
+
+    test "terminalizes an active MCP claim atomically and fences its late response", %{
+      scope: scope
+    } do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+      tool_call = named_swarm_tool_call("claimed_restart", "read_file")
+
+      assert {:ok, reference, %Interaction.ToolCall{}} =
+               Tasks.request_client_tool_with_reference(scope, task_id, turn_number, tool_call)
+
+      assert {:ok, token} =
+               Tasks.acquire_tool_call_claim(
+                 scope,
+                 reference,
+                 "browser-owner",
+                 60_000,
+                 :non_idempotent
+               )
+
+      assert {:ok, ^token} = Tasks.mark_tool_call_dispatch_started(scope, token)
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert [%Interaction.ToolCall{execution_claim: %{resolution_state: :cancelled}}] =
+               Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))
+
+      assert [%Interaction.ToolResult{is_error: true}] =
+               Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+
+      assert {:ok, %Interaction.ToolResult{is_error: true}, :already_resolved} =
+               Tasks.complete_claimed_tool_call(
+                 scope,
+                 token,
+                 MCP.tool_result_text("late browser result")
+               )
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert Enum.count(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1)) == 1
+    end
+
+    test "snapshotted output schema rejects a mismatched peer result once", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+      tool_call = named_swarm_tool_call("schema_result", "read_file")
+      output_schema = %{"type" => "integer"}
+
+      assert {:ok, reference, %Interaction.ToolCall{output_schema: ^output_schema}} =
+               Tasks.request_client_tool_with_reference(
+                 scope,
+                 task_id,
+                 turn_number,
+                 tool_call,
+                 output_schema
+               )
+
+      assert {:ok, token} =
+               Tasks.acquire_tool_call_claim(
+                 scope,
+                 reference,
+                 "browser-owner",
+                 60_000,
+                 :non_idempotent
+               )
+
+      assert {:ok, token} = Tasks.mark_tool_call_dispatch_started(scope, token)
+
+      assert {:ok, %Interaction.ToolResult{result: result, is_error: true}, :no_executor} =
+               Tasks.complete_claimed_tool_call(
+                 scope,
+                 token,
+                 %{
+                   "resultType" => "complete",
+                   "content" => [],
+                   "structuredContent" => "wrong"
+                 }
+               )
+
+      assert MCP.extract_content_text(result) == "Invalid MCP tool result"
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert Enum.count(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1)) == 1
+    end
+  end
+
+  describe "paused execution recovery" do
+    test "terminalizes an active MCP claim in the same transaction as its result", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+      tool_call = named_swarm_tool_call("claimed_timeout", "question")
+
+      assert {:ok, reference, %Interaction.ToolCall{}} =
+               Tasks.request_client_tool_with_reference(scope, task_id, turn_number, tool_call)
+
+      assert {:ok, token} =
+               Tasks.acquire_tool_call_claim(
+                 scope,
+                 reference,
+                 "browser-owner",
+                 60_000,
+                 :non_idempotent
+               )
+
+      assert {:ok, ^token} = Tasks.mark_tool_call_dispatch_started(scope, token)
+
+      assert :ok =
+               Tasks.handle_swarm_event(
+                 scope,
+                 task_id,
+                 turn_number,
+                 {:paused, {:timeout, tool_call.id, tool_call.name, 120_000}}
+               )
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert [%Interaction.ToolCall{execution_claim: %{resolution_state: :cancelled}}] =
+               Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))
+
+      assert Enum.count(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1)) == 1
+      assert Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentPaused{}, &1))
+    end
   end
 
   describe "swarm event persistence" do
@@ -547,6 +669,96 @@ defmodule FrontmanServer.TasksTest do
                task_id
                |> raw_interaction_data("tool_result")
                |> Enum.map(& &1["result"])
+    end
+  end
+
+  describe "canonical tool-result migration" do
+    test "adds the complete discriminator while preserving legacy result content", %{scope: scope} do
+      task_id = task_fixture(scope).id
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 1, %{
+        "tool_call_id" => "legacy-call",
+        "result" => %{
+          "content" => [%{"type" => "text", "text" => "legacy"}],
+          "structuredContent" => false,
+          "isError" => true,
+          "_meta" => %{"vendor.example/secret" => "secret"}
+        },
+        "is_error" => true
+      })
+
+      all_content = [
+        %{"type" => "text", "text" => "text"},
+        %{"type" => "image", "data" => Base.encode64("image"), "mimeType" => "image/png"},
+        %{"type" => "audio", "data" => Base.encode64("audio"), "mimeType" => "audio/wav"},
+        %{"type" => "resource_link", "name" => "Docs", "uri" => "https://example.com/docs"},
+        %{"type" => "resource", "resource" => %{"uri" => "file:///text", "text" => "text"}},
+        %{
+          "type" => "resource",
+          "resource" => %{"uri" => "file:///blob", "blob" => Base.encode64("blob")}
+        }
+      ]
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 2, %{
+        "tool_call_id" => "canonical-call",
+        "result" => %{
+          "resultType" => "complete",
+          "content" => all_content,
+          "structuredContent" => nil,
+          "_meta" => %{}
+        },
+        "is_error" => false
+      })
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 3, %{
+        "tool_call_id" => "empty-call",
+        "result" => %{"resultType" => "complete", "content" => []},
+        "is_error" => false
+      })
+
+      run_canonical_tool_result_migration()
+
+      assert [result, canonical, empty] = raw_interaction_data(task_id, "tool_result")
+
+      assert result["result"] == %{
+               "resultType" => "complete",
+               "content" => [%{"type" => "text", "text" => "legacy"}],
+               "structuredContent" => false,
+               "isError" => true,
+               "_meta" => %{}
+             }
+
+      assert canonical["result"] == %{
+               "resultType" => "complete",
+               "content" => all_content,
+               "structuredContent" => nil,
+               "_meta" => %{}
+             }
+
+      assert empty["result"] == %{
+               "resultType" => "complete",
+               "content" => [],
+               "_meta" => %{}
+             }
+    end
+
+    test "fails visibly when a persisted result is malformed", %{scope: scope} do
+      task_id = task_fixture(scope).id
+
+      insert_legacy_interaction_row(task_id, Interaction.ToolResult, 1, %{
+        "tool_call_id" => "malformed-call",
+        "result" => %{
+          "resultType" => "complete",
+          "content" => [%{"type" => "text"}]
+        },
+        "is_error" => false
+      })
+
+      assert_raise RuntimeError,
+                   ~r/Cannot canonicalize 1 malformed persisted tool results/,
+                   fn ->
+                     run_canonical_tool_result_migration()
+                   end
     end
   end
 
@@ -1068,6 +1280,22 @@ defmodule FrontmanServer.TasksTest do
              )
   end
 
+  defp run_canonical_tool_result_migration do
+    Code.require_file("priv/repo/migrations/20260812000000_canonicalize_tool_results.exs")
+
+    assert :ok =
+             Runner.run(
+               Repo,
+               Repo.config(),
+               0,
+               FrontmanServer.Repo.Migrations.CanonicalizeToolResults,
+               :forward,
+               :up,
+               :up,
+               log: false
+             )
+  end
+
   defp raw_interaction_data(task_id, type) do
     %{rows: rows} =
       Repo.query!(
@@ -1164,6 +1392,28 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "project context fingerprint deduplication" do
+    test "suppresses identical context and persists changed context", %{scope: scope} do
+      task_id = task_fixture(scope).id
+
+      assert {:ok, %Interaction.DiscoveredProjectRule{}} =
+               Tasks.add_discovered_project_rule(scope, task_id, "AGENTS.md", "one", "first")
+
+      assert {:ok, :already_loaded} =
+               Tasks.add_discovered_project_rule(scope, task_id, "AGENTS.md", "one", "first")
+
+      assert {:ok, %Interaction.DiscoveredProjectRule{}} =
+               Tasks.add_discovered_project_rule(scope, task_id, "AGENTS.md", "two", "second")
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert Enum.count(
+               task.interaction_rows,
+               &match?(%{data: %Interaction.DiscoveredProjectRule{}}, &1)
+             ) == 2
+    end
+  end
+
   describe "add_discovered_project_structure/3" do
     test "adds structure to task", %{scope: scope} do
       task_id = task_fixture(scope).id
@@ -1245,7 +1495,7 @@ defmodule FrontmanServer.TasksTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        %{"content" => [], "structuredContent" => write_result},
+        %{"resultType" => "complete", "content" => [], "structuredContent" => write_result},
         turn_number
       )
 
@@ -1280,7 +1530,7 @@ defmodule FrontmanServer.TasksTest do
         scope,
         task_a,
         %{id: "c1", name: "todo_write"},
-        %{"content" => [], "structuredContent" => write_result},
+        %{"resultType" => "complete", "content" => [], "structuredContent" => write_result},
         turn_number
       )
 

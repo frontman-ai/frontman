@@ -67,8 +67,8 @@ let callLLMCached = async (
 
   let cached = await readCache(cacheKey)
   switch cached->Nullable.toOption {
-  | Some(content) => Ok(content)
-  | None =>
+  | Some(content) if AutoEdit.validateOutput(~content, ~fileType) => Ok(content)
+  | Some(_) | None =>
     let result = await AutoEdit.callLLM(~existingContent, ~fileType, ~host)
     switch result {
     | Ok(content) =>
@@ -269,7 +269,7 @@ describe("AutoEdit LLM Integration", _t => {
           ->expect(
             verifyFrontmanBeforeExisting(
               ~content,
-              ~frontmanMarker="/frontman",
+              ~frontmanMarker="frontman(req)",
               ~existingMarker="/api/external",
             ),
           )
@@ -365,8 +365,10 @@ describe("AutoEdit LLM Integration", _t => {
       t => {
         let validContent = `import { createMiddleware } from '@frontman-ai/nextjs';
 const frontman = createMiddleware({ host: 'test.host' });
-export function middleware(req) { const r = await frontman(req); }
-export const config = { matcher: ['/frontman/:path*'] };`
+export function middleware(req) {
+  const r = await frontman(req);
+}
+export const config = { matcher: ['/frontman', '/frontman/:path*'] };`
         let isValid = AutoEdit.validateOutput(~content=validContent, ~fileType=AutoEdit.Middleware)
         t->expect(isValid)->Expect.toBe(true)
       },
@@ -387,6 +389,21 @@ export function middleware(req) { const r = await frontman(req); }`
     )
 
     test(
+      "rejects middleware output without a Frontman matcher",
+      t => {
+        let invalidContent = `import { createMiddleware } from '@frontman-ai/nextjs';
+const frontman = createMiddleware({ host: 'test.host' });
+export async function middleware(req) {
+  const response = await frontman(req);
+}
+export const config = { matcher: ['/dashboard/:path*'] };`
+        t
+        ->expect(AutoEdit.validateOutput(~content=invalidContent, ~fileType=AutoEdit.Middleware))
+        ->Expect.toBe(false)
+      },
+    )
+
+    test(
       "accepts valid proxy output",
       t => {
         let validContent = `import { createMiddleware } from '@frontman-ai/nextjs';
@@ -394,7 +411,7 @@ const frontman = createMiddleware({ host: 'test.host' });
 export function proxy(req) {
   if (req.nextUrl.pathname.startsWith('/frontman')) { return frontman(req); }
 }
-export const config = { matcher: ['/frontman/:path*'] };`
+export const config = { matcher: ['/frontman', '/frontman/:path*'] };`
         let isValid = AutoEdit.validateOutput(~content=validContent, ~fileType=AutoEdit.Proxy)
         t->expect(isValid)->Expect.toBe(true)
       },

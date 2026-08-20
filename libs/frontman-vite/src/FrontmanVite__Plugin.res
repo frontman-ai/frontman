@@ -1,94 +1,57 @@
 module Config = FrontmanVite__Config
 module Middleware = FrontmanVite__Middleware
 module Core = FrontmanAiFrontmanCore
+module NodeHttp = FrontmanBindings.NodeHttp
+module Chassis = Core.FrontmanCore__NodeWebChassis
+module McpEndpoint = Core.FrontmanCore__MCP__Endpoint
 open FrontmanVite__Bindings
-
-let headersToDict: WebAPI.FetchTypes.headers => Dict.t<string> = %raw(`
-  function headersToDict(headers) {
-    const dict = {};
-    headers.forEach(function(value, key) {
-      dict[key] = value;
-    });
-    return dict;
-  }
-`)
-
-let collectBody: incomingMessage => promise<nodeBuffer> = %raw(`
-  async function collectBody(req) {
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
-    return Buffer.concat(chunks);
-  }
-`)
-
-let pipeStreamToResponse: (WebAPI.ReadableStream.t<'a>, serverResponse) => promise<unit> = %raw(`
-  async function pipeStreamToResponse(stream, res) {
-    const reader = stream.getReader();
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        res.write(value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
-  }
-`)
 
 let adaptMiddlewareToVite = (
   ~basePath: string,
-  middleware: WebAPI.Request.t => promise<option<WebAPI.Response.t>>,
+  ~mcp: option<McpEndpoint.config>=None,
+  middleware: (
+    WebAPI.FetchAPI.request,
+    ~rawHeaders: Core.FrontmanCore__MCP__RawHeaders.t=?,
+  ) => promise<option<WebAPI.FetchAPI.response>>,
 ): ((incomingMessage, serverResponse, unit => unit) => promise<unit>) => {
   async (req, res, next) => {
-    let reqUrl = req.url->Null.toOption->Option.getOr("/")
-    let pathname = reqUrl->String.toLowerCase
-    let pathOnly = switch pathname->String.indexOf("?") {
-    | -1 => pathname
-    | idx => pathname->String.slice(~start=0, ~end=idx)
+    let reqUrl = req->NodeHttp.url
+    let pathOnly = switch reqUrl->String.indexOf("?") {
+    | -1 => reqUrl
+    | idx => reqUrl->String.slice(~start=0, ~end=idx)
     }
+    let isMcpRoute = pathOnly == "/mcp" && mcp->Option.isSome
     let isFrontmanRoute = Core.FrontmanCore__Middleware.isFrontmanRoute(
       ~pathname=pathOnly,
       ~basePath,
-      ~method=req.method->Null.toOption->Option.getOr("GET"),
+      ~method=req->NodeHttp.method,
     )
-    switch isFrontmanRoute {
-    | false => next()
-    | true =>
-      let bodyBuffer = await collectBody(req)
-
-      let host = req.headers->Dict.get("host")->Option.getOr("localhost")
-      let url = `http://${host}${reqUrl}`
-
-      let method = req.method->Null.toOption->Option.getOr("GET")
-      let headers = WebAPI.HeadersInit.fromDict(req.headers)
-      let hasBody = bufferLength(bodyBuffer) > 0
-
-      let body = switch hasBody {
-      | true => Some(WebAPI.BodyInit.fromArrayBuffer((Obj.magic(bodyBuffer): ArrayBuffer.t)))
-      | false => None
+    switch (isMcpRoute, isFrontmanRoute) {
+    | (true, _) =>
+      let config = mcp->Option.getOrThrow
+      let outcome = await Chassis.handle(
+        ~nodeRequest=req,
+        ~nodeResponse=res,
+        ~absoluteTimeoutMs=McpEndpoint.absoluteTimeoutMs,
+        ~gate=(headers, _rawHeaders) =>
+          McpEndpoint.gate(~config, ~method=req->NodeHttp.method, ~headers),
+        ~dispatch=adapted => McpEndpoint.dispatch(~config, adapted),
+      )
+      switch outcome {
+      | Chassis.Passed => failwith("The active MCP endpoint passed through")
+      | Chassis.Responded | Chassis.Cancelled | Chassis.TimedOut => ()
       }
-
-      let webRequest = WebAPI.Request.fromURL(url, ~init={method, headers, ?body})
-
-      let responseOption = await middleware(webRequest)
-
-      switch responseOption {
-      | None => next()
-      | Some(webResponse) =>
-        setStatusCode(res, webResponse.status)
-
-        let headerDict = headersToDict(webResponse.headers)
-        writeHead(res, webResponse.status, headerDict)
-
-        switch webResponse.body->Null.toOption {
-        | Some(stream) => await pipeStreamToResponse(stream, res)
-        | None => ()
-        }
-
-        endResponse(res)
+    | (false, false) => next()
+    | (false, true) =>
+      let outcome = await Chassis.handle(
+        ~nodeRequest=req,
+        ~nodeResponse=res,
+        ~gate=(_headers, _rawHeaders) => Promise.resolve(Chassis.Granted()),
+        ~dispatch=adapted => middleware(adapted.request, ~rawHeaders=adapted.rawHeaders),
+      )
+      switch outcome {
+      | Chassis.Passed => next()
+      | Chassis.Responded | Chassis.Cancelled | Chassis.TimedOut => ()
       }
     }
   }
@@ -102,7 +65,12 @@ type pluginOptions = {
   entrypointUrl?: string,
   projectRoot?: string,
   sourceRoot?: string,
+  serverName?: string,
+  serverVersion?: string,
   host?: string,
+  mcpBrowserToken?: string,
+  mcp?: Config.AdapterSecurity.input,
+  sourceLocation?: Core.FrontmanCore__SourceLocationEndpoint.input,
 }
 
 @@live
@@ -111,6 +79,8 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
 
   let middlewarePlugin = {
     name: "frontman",
+    enforce: "pre",
+    config: () => {server: {cors: opts.mcp->Option.isNone}},
     configureServer: server => {
       FrontmanAiFrontmanCore.FrontmanCore__LogCapture.initialize()
 
@@ -121,7 +91,12 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
       let entrypointUrl = opts.entrypointUrl
       let projectRoot = opts.projectRoot
       let sourceRoot = opts.sourceRoot
+      let serverName = opts.serverName
+      let serverVersion = opts.serverVersion
       let host = opts.host
+      let mcpBrowserToken = opts.mcpBrowserToken
+      let mcp = opts.mcp
+      let sourceLocation = opts.sourceLocation
       let configInput: Config.jsConfigInput = {
         ?isDev,
         ?basePath,
@@ -130,11 +105,29 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
         ?entrypointUrl,
         ?projectRoot,
         ?sourceRoot,
+        ?serverName,
+        ?serverVersion,
         ?host,
+        ?mcpBrowserToken,
+        ?mcp,
+        ?sourceLocation,
       }
       let config = Config.makeFromObject(configInput)
-      let middleware = Middleware.createMiddleware(config)
-      let adaptedMiddleware = adaptMiddlewareToVite(~basePath=config.basePath, middleware)
+      let middleware = Middleware.make(config)
+      let mcp: option<McpEndpoint.config> = config.mcpSecurity->Option.map(security => {
+        McpEndpoint.security,
+        registry: middleware.registry,
+        projectRoot: config.projectRoot,
+        sourceRoot: config.sourceRoot,
+        serverName: config.serverName,
+        serverVersion: config.serverVersion,
+        allowedPreflightHeaders: [],
+      })
+      let adaptedMiddleware = adaptMiddlewareToVite(
+        ~basePath=config.basePath,
+        ~mcp,
+        middleware.middleware,
+      )
 
       server.middlewares->useMiddleware((req, res, next) => {
         let _ = adaptedMiddleware(req, res, next)->Promise.catch(error => {
@@ -144,8 +137,12 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
             ->Option.flatMap(JsExn.message)
             ->Option.getOr("Unknown error")
           Console.error2("Frontman middleware error:", msg)
-          setStatusCode(res, 500)
-          endResponseWithData(res, "Internal Server Error")
+          switch res->NodeHttp.headersSent {
+          | false =>
+            res->NodeHttp.setStatusCode(500)
+            res->NodeHttp.endWithData("Internal Server Error")
+          | true => res->NodeHttp.end
+          }
           Promise.resolve()
         })
       })

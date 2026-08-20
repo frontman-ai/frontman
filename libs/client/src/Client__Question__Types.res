@@ -17,11 +17,15 @@ type questionAnswer =
   | CustomText(string)
   | Skipped
 
+type questionWaiter = {
+  resolveOk: JSON.t => unit,
+  resolveError: string => unit,
+}
+
 type pendingQuestion = {
   questions: array<questionItem>,
   answers: Dict.t<questionAnswer>,
   currentStep: int,
   toolCallId: string,
-  resolveOk: JSON.t => unit,
-  resolveError: string => unit,
+  waiters: array<questionWaiter>,
 }

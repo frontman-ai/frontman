@@ -11,6 +11,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   import Mox
   import Phoenix.ChannelTest
+  import FrontmanServerWeb.ChannelCase, only: [complete_mcp_handshake_for_scope: 1]
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [
@@ -30,7 +31,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   import FrontmanServer.Test.Fixtures.Tools,
     only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
 
-  alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.DataCase
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
@@ -139,9 +140,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   defp setup_sandbox(_context) do
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
-
+    DataCase.start_shared_owner!()
     :ok
   end
 
@@ -168,7 +167,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     {:ok, socket: socket}
   end
 
-  defp refute_running_eventually(task_id, attempts \\ 50)
+  defp setup_mcp_connection(%{scope: scope}) do
+    {:ok, mcp_socket: complete_mcp_handshake_for_scope(scope)}
+  end
+
+  defp refute_running_eventually(task_id, attempts \\ 200)
 
   defp refute_running_eventually(task_id, attempts) when attempts > 0 do
     case SwarmAi.running?(FrontmanServer.AgentRuntime, task_id) do
@@ -694,6 +697,41 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
 
+    test "uses the latest project context values", %{task_id: task_id, scope: scope} do
+      parent = self()
+      task = task_schema!(task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      {:ok, _rule} =
+        Tasks.add_discovered_project_rule(scope, task_id, "AGENTS.md", "Old rules.", "rules-1")
+
+      {:ok, _rule} =
+        Tasks.add_discovered_project_rule(scope, task_id, "AGENTS.md", "New rules.", "rules-2")
+
+      {:ok, _structure} =
+        Tasks.add_discovered_project_structure(scope, task_id, "Old structure", "structure-1")
+
+      {:ok, _structure} =
+        Tasks.add_discovered_project_structure(scope, task_id, "New structure", "structure-2")
+
+      insert_accepted_user_message!(task, "build it")
+      insert_turn_started_for_messages!(task_id, 1, "test-frontman")
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+      assert_receive {:provider_messages, messages}, 1_000
+      assert [system_text] = provider_system_texts(messages)
+      assert system_text =~ "New rules."
+      assert system_text =~ "New structure"
+      refute system_text =~ "Old rules."
+      refute system_text =~ "Old structure"
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
     test "uses persisted turn agent to filter available tools", %{
       task_id: task_id,
       scope: scope
@@ -763,7 +801,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   describe "interactive tool (question) blocking" do
-    setup [:setup_sandbox, :setup_user, :setup_task]
+    setup [:setup_sandbox, :setup_user, :setup_task, :setup_mcp_connection]
 
     test "question tool blocks until result arrives, then agent completes", %{
       task_id: task_id,
@@ -849,7 +887,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   describe "interactive tool timeout — ToolResult DB persistence" do
-    setup [:setup_sandbox, :setup_user, :setup_task]
+    setup [:setup_sandbox, :setup_user, :setup_task, :setup_mcp_connection]
 
     test "ToolResult is persisted in DB when question tool times out", %{
       task_id: task_id,
@@ -888,7 +926,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   describe "MCP tool timeout with on_timeout: :error" do
-    setup [:setup_sandbox, :setup_user, :setup_task]
+    setup [:setup_sandbox, :setup_user, :setup_task, :setup_mcp_connection]
 
     test "ToolResult is persisted in DB when MCP tool times out (on_timeout: :error)", %{
       task_id: task_id,

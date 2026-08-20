@@ -1,7 +1,9 @@
 {
 	"name": "@frontman-ai/frontman-client",
-	"private": true,
-	"version": "3.0.0",
+	"publishConfig": {
+		"access": "public"
+	},
+	"version": "1.0.4",
 	"description": "Browser-side client for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -26,15 +28,18 @@
 		"src"
 	],
 	"scripts": {
-		"build": "rescript build"
+		"build": "rescript build",
+		"prepublishOnly": "yarn build"
 	},
 	"dependencies": {
 		"@frontman/logs": "workspace:*",
 		"@sentry/browser": "^10.63.0",
-		"phoenix": "^1.8.9"
+		"ajv": "^8.17.1",
+		"ajv-formats": "^3.0.1",
+		"phoenix": "^1.8.8"
 	},
 	"devDependencies": {
-		"@rescript/webapi": "catalog:",
+		"@rescript/webapi": "*",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",

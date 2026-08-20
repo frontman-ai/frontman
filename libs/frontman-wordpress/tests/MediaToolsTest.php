@@ -258,6 +258,19 @@ class Frontman_Media_Tools_Test_Runner {
 		$this->assert_true( null !== $definition, 'wp_upload_media is registered' );
 		$this->assert_true( isset( $definition->input_schema['properties']['image_ref'] ), 'wp_upload_media schema exposes image_ref' );
 		$this->assert_true( isset( $definition->input_schema['properties']['content'] ), 'wp_upload_media schema accepts resolved content' );
+		$this->assert_same(
+			[
+				'version'           => 1,
+				'referenceArgument' => 'image_ref',
+				'contentArgument'   => 'content',
+				'encodingArgument'  => 'encoding',
+				'encodingValue'     => 'base64',
+				'removeReference'   => false,
+				'mediaTypeArgument' => 'mime_type',
+			],
+			$definition->to_array()['_meta']['ai.frontman/attachment-resolution'],
+			'wp_upload_media advertises complete attachment resolution metadata'
+		);
 	}
 
 	private function test_sanitizer_preserves_upload_content(): void {

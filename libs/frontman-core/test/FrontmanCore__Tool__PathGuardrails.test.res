@@ -37,6 +37,7 @@ let cleanup = async (dir: string) => {
 let makeCtx = (dir: string): Tool.serverExecutionContext => {
   projectRoot: dir,
   sourceRoot: dir,
+  signal: WebAPI.AbortController.make().signal,
 }
 
 let makeFixture = async () => {

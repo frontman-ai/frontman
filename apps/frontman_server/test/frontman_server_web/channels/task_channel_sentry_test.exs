@@ -22,10 +22,10 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
     Logger.reset_metadata([])
 
     {socket, task_id} = join_task_channel(scope, framework: "nextjs")
-    complete_mcp_handshake(socket)
+    mcp_socket = complete_mcp_handshake(socket)
 
     turn_number = start_turn_fixture(scope, task_id)
-    {:ok, socket: socket, task_id: task_id, turn_number: turn_number}
+    {:ok, socket: socket, mcp_socket: mcp_socket, task_id: task_id, turn_number: turn_number}
   end
 
   describe "backend tool result status normalization (Gap 1)" do
@@ -86,7 +86,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
   describe "MCP tool error Sentry reporting (Gap 4)" do
     @tag :capture_log
     test "reports MCP tool error to Sentry with context", %{
-      socket: socket,
+      mcp_socket: mcp_socket,
       task_id: task_id,
       scope: scope,
       turn_number: turn_number
@@ -95,6 +95,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
         tool_call("call_mcp_err_#{:rand.uniform(1_000_000)}", "testMcpTool", %{"key" => "value"})
 
       {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+      register_tool_result_waiter(task_id, tool_call.tool_call_id)
+      FrontmanServer.MCPConnection.load_task(scope, task_id)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
@@ -108,12 +110,15 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       }
 
       push(
-        socket,
+        mcp_socket,
         "mcp:message",
         JsonRpc.error_response(mcp_request_id, mcp_error["code"], mcp_error["message"])
       )
 
-      :sys.get_state(socket.channel_pid)
+      :sys.get_state(mcp_socket.channel_pid)
+
+      assert_receive {:tool_result, tool_call_id, _content, true}
+      assert tool_call_id == tool_call.tool_call_id
 
       assert_push("acp:message", %{
         "method" => "session/update",
@@ -145,7 +150,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
     @tag :capture_log
     test "MCP tool error with missing message field defaults to 'Unknown MCP error'", %{
-      socket: socket,
+      mcp_socket: mcp_socket,
       task_id: task_id,
       scope: scope,
       turn_number: turn_number
@@ -154,6 +159,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
         tool_call("call_mcp_no_msg_#{:rand.uniform(1_000_000)}", "anotherMcpTool")
 
       {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+      register_tool_result_waiter(task_id, tool_call.tool_call_id)
+      FrontmanServer.MCPConnection.load_task(scope, task_id)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
@@ -161,12 +168,15 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       })
 
       push(
-        socket,
+        mcp_socket,
         "mcp:message",
         JsonRpc.error_response(mcp_request_id, -32_000, "Unknown MCP error")
       )
 
-      :sys.get_state(socket.channel_pid)
+      :sys.get_state(mcp_socket.channel_pid)
+
+      assert_receive {:tool_result, tool_call_id, _content, true}
+      assert tool_call_id == tool_call.tool_call_id
 
       reports = Sentry.Test.pop_sentry_reports()
 
@@ -179,5 +189,13 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
       assert report.extra[:logger_metadata][:error_code] == -32_000
       refute Map.has_key?(report.extra[:logger_metadata], :error_message)
     end
+  end
+
+  defp register_tool_result_waiter(task_id, tool_call_id) do
+    Registry.register(
+      FrontmanServer.ToolCallRegistry,
+      {:tool_call, task_id, tool_call_id},
+      %{caller_pid: self()}
+    )
   end
 end

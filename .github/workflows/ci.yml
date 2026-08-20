@@ -188,6 +188,40 @@ jobs:
           overall_coverage_fail_threshold: 0
           artifact_name: coverage-${{ github.job }}-%name%
 
+  test-framework-adapters:
+    name: Test framework adapters
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable && corepack install
+
+      - name: Cache dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Test Astro adapter
+        run: make -C libs/frontman-astro test
+
+      - name: Test Vite adapter
+        run: make -C libs/frontman-vite test
+
+      - name: Test Astro browser tools
+        run: make -C libs/frontman-astro-browser test
+
   test-react-statestore:
     name: Test react-statestore
     runs-on: ubuntu-latest

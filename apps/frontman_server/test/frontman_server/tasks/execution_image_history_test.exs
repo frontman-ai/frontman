@@ -2,6 +2,8 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   use FrontmanServer.ExecutionCase
 
   import Mox
+  import Phoenix.ChannelTest
+  import FrontmanServerWeb.ChannelCase, only: [complete_mcp_handshake_for_scope: 1]
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 2, text_block: 1]
@@ -10,27 +12,27 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Image
   alias FrontmanServer.Providers
-  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
 
+  @endpoint FrontmanServerWeb.Endpoint
+
   setup :verify_on_exit!
 
   setup do
-    pid = Sandbox.start_owner!(Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    FrontmanServer.DataCase.start_shared_owner!()
 
     scope = user_scope_fixture()
     :ok = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
     :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
     task_id = task_with_pubsub_fixture(scope).id
+    complete_mcp_handshake_for_scope(scope)
 
     {:ok, scope: scope, task_id: task_id}
   end

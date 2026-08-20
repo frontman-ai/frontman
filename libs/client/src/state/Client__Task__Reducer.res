@@ -77,8 +77,7 @@ module Lens = {
         }
       let firstAgentId = data.queuedUserMessages->Array.getUnsafe(0)->messageAgentId
       let prefixLength = switch data.queuedUserMessages->Array.findIndex(message =>
-        data.pendingUserMessageIds->Array.includes(Message.getId(message)) ||
-          message->messageAgentId != firstAgentId
+        message->messageAgentId != firstAgentId
       ) {
       | -1 => data.queuedUserMessages->Array.length
       | index => index
@@ -133,8 +132,8 @@ module Lens = {
 
   let setPreviewFrame = (
     task: Task.t,
-    ~contentDocument: option<WebAPI.DomTypes.document>,
-    ~contentWindow: option<WebAPI.DomTypes.window>,
+    ~contentDocument: option<WebAPI.DOMAPI.document>,
+    ~contentWindow: option<WebAPI.DOMAPI.window>,
   ): Task.t => updatePreviewFrame(task, pf => {...pf, contentDocument, contentWindow})
 
   let setDeviceMode = (task: Task.t, deviceMode: Client__DeviceMode.deviceMode): Task.t =>
@@ -163,23 +162,7 @@ module Lens = {
 
   let setActivePopupAnnotationId = (task: Task.t, id: option<string>): Task.t =>
     updateTaskData(task, d => {...d, activePopupAnnotationId: id})
-
-  let refreshCompletedFileChanges = (task: Task.t): Task.t =>
-    switch task {
-    | Task.Loaded(data) =>
-      Task.Loaded({
-        ...data,
-        completedFileChanges: Client__FileChanges.refresh(
-          Task.getCompletedFileChanges(task),
-          MessageStore.toArray(data.messages),
-        ),
-      })
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) =>
-      failwith("[Lens.refreshCompletedFileChanges] Expected a loaded task")
-    }
 }
-
-type completedIdleTurn = {taskId: string, agentId: string}
 
 module Selectors = {
   let messages = (task: Task.t): option<array<Message.t>> => {
@@ -287,34 +270,15 @@ module Selectors = {
     }
   }
 
-  let completedIdleTurn = (task: Task.t): option<completedIdleTurn> => {
-    switch (task, Task.getMessages(task)->Array.last) {
-    | (
-        Task.Loaded({
-          id: taskId,
-          isAgentRunning: false,
-          lastTurnCancelled: false,
-          pendingQuestion: None,
-        }),
-        Some(Message.Assistant(Message.Completed({agentId, _}))),
-      ) =>
-      Some({taskId, agentId})
-    | _ => None
-    }
-  }
-
   let retryStatus = (task: Task.t): option<Types.Task.retryStatus> =>
     switch task {
     | Task.Loaded({retryStatus}) => retryStatus
     | _ => None
     }
-
-  let completedFileChanges = (task: Task.t): Client__FileChanges.snapshot =>
-    Task.getCompletedFileChanges(task)
 }
 
 type annotationElement = {
-  element: WebAPI.DomTypes.element,
+  element: WebAPI.DOMAPI.element,
   tagName: string,
 }
 
@@ -330,19 +294,18 @@ type action =
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
   | AddUserMessage({
-      id: Message.UserMessageId.t,
+      id: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
     })
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
-  | ToggleAnnotation({element: WebAPI.DomTypes.element, tagName: string})
-  | AddAnnotation({element: WebAPI.DomTypes.element, tagName: string})
+  | ToggleAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
+  | AddAnnotation({element: WebAPI.DOMAPI.element, tagName: string})
   | AnnotationDetailsResolved({
       id: string,
       selector: result<option<string>, string>,
-      elementContext: result<option<string>, string>,
       screenshot: result<option<string>, string>,
       sourceLocation: result<option<Client__Types.SourceLocation.t>, string>,
       cssClasses: option<string>,
@@ -358,8 +321,8 @@ type action =
   | SetActivePopupAnnotationId({id: option<string>})
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
-      contentDocument: option<WebAPI.DomTypes.document>,
-      contentWindow: option<WebAPI.DomTypes.window>,
+      contentDocument: option<WebAPI.DOMAPI.document>,
+      contentWindow: option<WebAPI.DOMAPI.window>,
     })
   | SetDeviceMode({deviceMode: Client__DeviceMode.deviceMode})
   | SetOrientation({orientation: Client__DeviceMode.orientation})
@@ -370,7 +333,6 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
-  | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError
@@ -396,16 +358,16 @@ type action =
   | QuestionSubmitted
   | QuestionAllSkipped
   | QuestionCancelled
+  | QuestionTerminated({message: string})
 
 type effect =
   | FetchAnnotationDetails({
       id: string,
-      element: WebAPI.DomTypes.element,
-      document: option<WebAPI.DomTypes.document>,
-      contentWindow: option<WebAPI.DomTypes.window>,
+      element: WebAPI.DOMAPI.element,
+      document: option<WebAPI.DOMAPI.document>,
+      contentWindow: option<WebAPI.DOMAPI.window>,
     })
   | SendMessage({
-      id: Message.UserMessageId.t,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
@@ -415,11 +377,15 @@ type effect =
   | RetryTurnEffect({retriedErrorId: string})
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
   | RejectQuestionToolEffect({resolveError: string => unit, message: string})
-  | SyncBrowserUrl(string)
+
+let resolveQuestionEffects = (waiters: array<Client__Question__Types.questionWaiter>, answerJson) =>
+  waiters->Array.map(({resolveOk}) => ResolveQuestionToolEffect({resolveOk, answerJson}))
+
+let rejectQuestionEffects = (waiters: array<Client__Question__Types.questionWaiter>, message) =>
+  waiters->Array.map(({resolveError}) => RejectQuestionToolEffect({resolveError, message}))
 
 type delegated =
   | NeedSendMessage({
-      id: Message.UserMessageId.t,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
@@ -427,7 +393,6 @@ type delegated =
     })
   | NeedCancelPrompt
   | NeedRetryTurn({retriedErrorId: string})
-  | NeedSyncBrowserUrl(string)
 
 let actionToString = (action: action): string =>
   switch action {
@@ -458,7 +423,6 @@ let actionToString = (action: action): string =>
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
   | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
-  | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
   | ClearTurnError => "ClearTurnError"
@@ -474,6 +438,7 @@ let actionToString = (action: action): string =>
   | QuestionSubmitted => "QuestionSubmitted"
   | QuestionAllSkipped => "QuestionAllSkipped"
   | QuestionCancelled => "QuestionCancelled"
+  | QuestionTerminated(_) => "QuestionTerminated"
   }
 
 let normalizeUrl = (url: string): string => {
@@ -509,7 +474,7 @@ let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): arr
       })
     | File({file}) =>
       Some({
-        Message.id: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+        Message.id: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
         dataUrl: file,
         mediaType: "application/octet-stream",
         filename: "file",
@@ -571,18 +536,14 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
   | Task.Loaded({pendingQuestion: Some(pq)} as data) =>
     switch cancelled {
     | true => (
-        Task.Loaded({
-          ...data,
-          pendingQuestion: None,
-          isAgentRunning: false,
-        })->Lens.refreshCompletedFileChanges,
-        [RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"})],
+        Task.Loaded({...data, pendingQuestion: None, isAgentRunning: false}),
+        rejectQuestionEffects(pq.waiters, "Cancelled by user"),
       )
     | false =>
       let answerJson = buildQuestionToolOutput(pq, ~skippedAll, ~cancelled)
       (
         Task.Loaded({...data, pendingQuestion: None, isAgentRunning: true}),
-        [ResolveQuestionToolEffect({resolveOk: pq.resolveOk, answerJson})],
+        resolveQuestionEffects(pq.waiters, answerJson),
       )
     }
   | _ => (task, [])
@@ -600,7 +561,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | true =>
       let updated = Lens.setAnnotations(updated, [])
       let updated = Lens.setActivePopupAnnotationId(updated, None)
-      (updated, [SyncBrowserUrl(url)])
+      (updated, [])
     | false => (updated, [])
     }
 
@@ -700,7 +661,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       AnnotationDetailsResolved({
         id,
         selector,
-        elementContext,
         screenshot,
         sourceLocation,
         cssClasses,
@@ -713,7 +673,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       Lens.updateAnnotation(task, id, a => {
         ...a,
         selector,
-        elementContext,
         screenshot,
         sourceLocation,
         cssClasses,
@@ -874,57 +833,38 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
 
   | (Task.Loaded(data), UserMessageReceived({id, content, annotations, agentId})) =>
-    let wasPending = data.pendingUserMessageIds->Array.includes(id)
-    let pendingUserMessageIds =
-      data.pendingUserMessageIds->Array.filter(pendingId => pendingId != id)
     switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
     | index if index >= 0 =>
       let queuedUserMessages = data.queuedUserMessages->Array.copy
-      let existing = queuedUserMessages->Array.getUnsafe(index)
-      let updated = switch wasPending {
-      | true =>
-        switch existing {
-        | Message.User({agentId: existingAgentId, _}) =>
-          requireSameAgent(
-            ~existingAgentId,
-            ~agentId,
-            ~message=`[TaskReducer] Agent changed within message ${id}`,
-          )
-          Message.User({id, content, annotations, agentId})
-        | _ => failwith(`[TaskReducer] Message ${id} changed roles`)
-        }
-      | false => mergeUserMessage(existing, ~id, ~content, ~annotations, ~agentId)
-      }
+      let updated = mergeUserMessage(
+        queuedUserMessages->Array.getUnsafe(index),
+        ~id,
+        ~content,
+        ~annotations,
+        ~agentId,
+      )
       queuedUserMessages->Array.setUnsafe(index, updated)
-      (Task.Loaded({...data, queuedUserMessages, pendingUserMessageIds}), [])
+      (Task.Loaded({...data, queuedUserMessages}), [])
     | _ =>
       switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
       | Some(message) =>
         let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
-        (Lens.updateMessage(Task.Loaded({...data, pendingUserMessageIds}), id, _ => updated), [])
+        (Lens.updateMessage(task, id, _ => updated), [])
       | None =>
         let userMessage = Message.User({id, content, annotations, agentId})
         (
           Task.Loaded({
             ...data,
             queuedUserMessages: Array.concat(data.queuedUserMessages, [userMessage]),
-            pendingUserMessageIds,
           }),
           [],
         )
       }
     }
 
-  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
+  | (Task.Loaded(data), AddUserMessage({id: _, content, annotations, agentId})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
-    let messageId = Message.UserMessageId.toString(id)
-    let pendingMessage = Message.User({
-      id: messageId,
-      content,
-      annotations,
-      agentId,
-    })
 
     let updatedImageAttachments = data.imageAttachments->Dict.copy
     attachments->Array.forEach(att => {
@@ -938,40 +878,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         turnError: None,
         retryStatus: None,
         imageAttachments: updatedImageAttachments,
-        queuedUserMessages: Array.concat(data.queuedUserMessages, [pendingMessage]),
-        pendingUserMessageIds: Array.concat(data.pendingUserMessageIds, [messageId]),
         annotations: [],
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
       }),
-      [SendMessage({id, text, attachments, annotations, agentId})],
+      [SendMessage({text, attachments, annotations, agentId})],
     )
-
-  | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
-      let messageId = Message.UserMessageId.toString(id)
-      switch data.pendingUserMessageIds->Array.includes(messageId) {
-      | true =>
-        let queuedUserMessages =
-          data.queuedUserMessages->Array.filter(message => Message.getId(message) != messageId)
-        let pendingUserMessageIds =
-          data.pendingUserMessageIds->Array.filter(pendingId => pendingId != messageId)
-        (
-          Task.Loaded({
-            ...data,
-            queuedUserMessages,
-            pendingUserMessageIds,
-            turnError: Some({
-              id: messageId,
-              message: error,
-              category: #unknown,
-              retryErrorId: None,
-            }),
-          }),
-          [],
-        )
-      | false => (task, [])
-      }
-    }
 
   | (Task.Loaded(data), PlanReceived({entries})) => (
       Task.Loaded({...data, planEntries: entries}),
@@ -979,28 +891,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
 
   | (Task.Loaded(data), ExecutionStateRunning) =>
-    let task = Task.Loaded({
-      ...data,
-      isAgentRunning: true,
-      lastTurnCancelled: false,
-      turnError: None,
-      retryStatus: None,
-    })
+    let task = Task.Loaded({...data, isAgentRunning: true, turnError: None, retryStatus: None})
     (Lens.drainQueuedUserMessages(task), [])
 
   | (Task.Loaded(_data), ExecutionStateIdle) =>
     let completed = task->Lens.completeStreamingMessage
     switch completed {
-    | Task.Loaded(d) => (
-        Task.Loaded({
-          ...d,
-          isAgentRunning: false,
-          retryStatus: None,
-        })->Lens.refreshCompletedFileChanges,
-        [],
-      )
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) =>
-      failwith("ExecutionStateIdle changed a loaded task into an invalid state")
+    | Task.Loaded(d) => (Task.Loaded({...d, isAgentRunning: false, retryStatus: None}), [])
+    | other => (other->Task.updateLoadedData(d => {...d, isAgentRunning: false}), [])
     }
 
   | (Task.Loaded(data), ExecutionStateRequiresAction) => (
@@ -1019,7 +917,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
 
   | (Task.Loaded(data), CancelTurn) =>
-    if !data.isAgentRunning {
+    if !data.isAgentRunning && Option.isNone(data.pendingQuestion) {
       (task, [])
     } else {
       let completed = Lens.completeStreamingMessage(task)
@@ -1034,9 +932,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         )
       )
       let questionEffects = switch data.pendingQuestion {
-      | Some(pq) => [
-          RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"}),
-        ]
+      | Some(pq) => rejectQuestionEffects(pq.waiters, "Cancelled by user")
       | None => []
       }
       let allEffects = Array.concat([CancelPrompt], questionEffects)
@@ -1045,15 +941,21 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           Task.Loaded({
             ...d,
             isAgentRunning: false,
-            lastTurnCancelled: true,
             turnError: None,
             retryStatus: None,
             pendingQuestion: None,
-          })->Lens.refreshCompletedFileChanges,
+          }),
           allEffects,
         )
-      | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) =>
-        failwith("CancelTurn changed a loaded task into an invalid state")
+      | other => (
+          other->Task.updateLoadedData(d => {
+            ...d,
+            isAgentRunning: false,
+            turnError: None,
+            pendingQuestion: None,
+          }),
+          allEffects,
+        )
       }
     }
 
@@ -1061,18 +963,23 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
-  | (Task.Loaded(_), AgentError({id, error, category})) =>
+  | (Task.Loaded(data), AgentError({id, error, category})) =>
     let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
     let completed = task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg)
+    let questionEffects = switch data.pendingQuestion {
+    | Some(pendingQuestion) => rejectQuestionEffects(pendingQuestion.waiters, error)
+    | None => []
+    }
     switch completed {
     | Task.Loaded(data) => (
         Task.Loaded({
           ...data,
-          turnError: Some({id, message: error, category, retryErrorId: Some(id)}),
+          turnError: Some({id, message: error, category}),
           isAgentRunning: false,
           retryStatus: None,
-        })->Lens.refreshCompletedFileChanges,
-        [],
+          pendingQuestion: None,
+        }),
+        questionEffects,
       )
     | _ => failwith("AgentError changed a loaded task into an invalid state")
     }
@@ -1084,13 +991,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         ...data,
         retryStatus: Some(retryStatus),
         isAgentRunning: true,
-        lastTurnCancelled: false,
       }),
       [],
     )
 
   | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
-      Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
+      Task.Loaded({...data, turnError: None, isAgentRunning: true}),
       [RetryTurnEffect({retriedErrorId: retriedErrorId})],
     )
 
@@ -1142,19 +1048,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           annotations,
           activePopupAnnotationId,
           isAgentRunning,
-          lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
-          pendingUserMessageIds: [],
           turnError: None,
           retryStatus: None,
           imageAttachments: Dict.make(),
           pendingQuestion: None,
-          completedFileChanges: Client__FileChanges.aggregateCompleted(
-            ~revision=1,
-            ~isAgentRunning,
-            MessageStore.toArray(messages),
-          ),
         }),
         [],
       )
@@ -1166,6 +1065,27 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     Log.error(~ctx={"error": error}, "Task load failed")
     (Task.Unloaded({id, title, createdAt, updatedAt}), [])
 
+  | (
+      Task.Loaded({pendingQuestion: Some(pendingQuestion)} as data),
+      QuestionReceived({questions, toolCallId, resolveOk, resolveError}),
+    ) =>
+    switch toolCallId == pendingQuestion.toolCallId && questions == pendingQuestion.questions {
+    | true => (
+        Task.Loaded({
+          ...data,
+          pendingQuestion: Some({
+            ...pendingQuestion,
+            waiters: Array.concat(pendingQuestion.waiters, [{resolveOk, resolveError}]),
+          }),
+        }),
+        [],
+      )
+    | false => (
+        task,
+        [RejectQuestionToolEffect({resolveError, message: "Another question is already pending"})],
+      )
+    }
+
   | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
       Task.Loaded({
         ...data,
@@ -1174,8 +1094,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           answers: Dict.make(),
           currentStep: 0,
           toolCallId,
-          resolveOk,
-          resolveError,
+          waiters: [{resolveOk, resolveError}],
         }),
       }),
       [],
@@ -1258,6 +1177,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     (task, Array.concat(questionEffects, [CancelPrompt]))
 
   | (
+      Task.Loaded({pendingQuestion: Some(pendingQuestion)} as data),
+      QuestionTerminated({message}),
+    ) => (
+      Task.Loaded({...data, pendingQuestion: None, isAgentRunning: false}),
+      rejectQuestionEffects(pendingQuestion.waiters, message),
+    )
+
+  | (Task.Loaded({pendingQuestion: None}), QuestionTerminated(_)) => (task, [])
+
+  | (
       Task.New(_) | Task.Unloaded(_),
       TextDeltaReceived(_)
       | ToolCallReceived(_)
@@ -1281,7 +1210,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Unloaded(_),
       AddUserMessage(_)
-      | UserMessageSendFailed(_)
       | PlanReceived(_)
       | ExecutionStateRunning
       | ExecutionStateIdle
@@ -1297,7 +1225,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | QuestionPerQuestionSkipped(_)
       | QuestionSubmitted
       | QuestionAllSkipped
-      | QuestionCancelled,
+      | QuestionCancelled
+      | QuestionTerminated(_),
     ) =>
     failwith(
       `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
@@ -1346,30 +1275,38 @@ let formatError = (exn: exn): string =>
 
 let fetchAnnotationDetails = (
   ~id: string,
-  ~element: WebAPI.DomTypes.element,
-  ~document: option<WebAPI.DomTypes.document>,
-  ~contentWindow: option<WebAPI.DomTypes.window>,
+  ~element: WebAPI.DOMAPI.element,
+  ~document: option<WebAPI.DOMAPI.document>,
+  ~contentWindow: option<WebAPI.DOMAPI.window>,
   ~dispatch: action => unit,
 ) => {
-  let inspection = switch document {
-  | Some(document) =>
-    try {
-      Ok(Client__ElementInspector.inspect(~element, ~document, ~maxDepth=1, ~maxNodes=200))
-    } catch {
-    | exn =>
-      let message = formatError(exn)
+  let selectorPromise = switch document {
+  | Some(doc) =>
+    Promise.resolve()
+    ->Promise.then(_ => {
+      let selector = FrontmanBindings.Bindings__Finder.finder(
+        ~element,
+        ~options={
+          root: doc.documentElement->WebAPI.HTMLElement.asElement,
+          idName: (~name as _) => true,
+          className: (~name as _) => true,
+          tagName: (~name as _) => true,
+          attr: (~name as _, ~value as _) => false,
+        },
+      )
+      Promise.resolve(Ok(Some(selector)))
+    })
+    ->Promise.catch(error => {
+      let msg = formatError(error)
       Log.error(
         ~ctx={"annotationId": id},
-        ~error=JsExn.fromException(exn),
-        "Element inspection failed",
+        ~error=JsExn.fromException(error),
+        "Selector generation failed",
       )
-      Error(message)
-    }
-  | None => Error("Preview document not available")
+      Promise.resolve(Error(msg))
+    })
+  | None => Promise.resolve(Error("Preview document not available"))
   }
-
-  let selectorPromise = Promise.resolve(inspection->Result.flatMap(result => result.selector))
-  let elementContext = inspection->Result.map(result => Some(result.html))
 
   let screenshotPromise = {
     let limits = Client__ImageLimits.conservative
@@ -1393,43 +1330,63 @@ let fetchAnnotationDetails = (
   }
 
   let sourceLocationPromise = {
-    let sourceLocationWork = switch contentWindow {
+    let detectionPromise = switch contentWindow {
     | Some(window) =>
       Client__SourceDetection.getElementSourceLocation(~element, ~window)
-      ->Promise.then(result => {
-        let context = result->Option.map(Client__SourceContext.stripFileQueries)
-        switch context {
-        | Some(context) if Client__SourceContext.hasReactLocation(context) =>
-          Client__SourceLocationResolver.resolve(context)->Promise.then(result =>
-            Promise.resolve(result->Result.map(resolved => Some(resolved)))
-          )
-        | Some(context) => Promise.resolve(Ok(Client__SourceContext.toSourceLocation(context)))
-        | None => Promise.resolve(Ok(None))
-        }
-      })
+      ->Promise.then(result => Promise.resolve(Ok(result)))
       ->Promise.catch(error => {
         let msg = formatError(error)
         Log.error(
           ~ctx={"annotationId": id},
           ~error=JsExn.fromException(error),
-          "Source location detection or resolution failed",
+          "Source location detection failed",
         )
         Promise.resolve(Error(msg))
       })
     | None => Promise.resolve(Ok(None))
     }
     let timeoutPromise = Promise.make((resolve, _) => {
-      let _ = setTimeout(
-        () => resolve(Error("Source location detection or resolution timed out")),
-        5000,
-      )
+      let _ = setTimeout(() => resolve(Ok(None)), 5000)
     })
-    Promise.race([sourceLocationWork, timeoutPromise])
+    Promise.race([detectionPromise, timeoutPromise])
   }
 
-  let (cssClasses, nearbyText, boundingBox) = switch inspection {
-  | Ok(result) => (result.cssClasses, result.nearbyText, Some(result.boundingBox))
-  | Error(_) => (None, None, None)
+  let cssClasses =
+    element
+    ->WebAPI.Element.getAttribute("class")
+    ->Null.toOption
+    ->Option.flatMap(cls => {
+      let trimmed = cls->String.trim
+      switch trimmed->String.length > 0 {
+      | true => Some(trimmed)
+      | false => None
+      }
+    })
+
+  let nearbyText = {
+    let own =
+      element
+      ->WebAPI.Element.asNode
+      ->WebAPI.Node.textContent
+      ->Null.toOption
+      ->Option.getOr("")
+      ->String.trim
+    let truncated = switch own->String.length > 200 {
+    | true => own->String.slice(~start=0, ~end=200) ++ "..."
+    | false => own
+    }
+    switch truncated->String.length > 0 {
+    | true => Some(truncated)
+    | false => None
+    }
+  }
+
+  let rect = WebAPI.Element.getBoundingClientRect(element)
+  let boundingBox: Annotation.boundingBox = {
+    x: rect.left,
+    y: rect.top,
+    width: rect.width,
+    height: rect.height,
   }
 
   let elementorContext =
@@ -1440,22 +1397,52 @@ let fetchAnnotationDetails = (
   let _ =
     Promise.all3((selectorPromise, screenshotPromise, sourceLocationPromise))
     ->Promise.then(((selector, screenshotResult, sourceLocation)) => {
-      let screenshot = screenshotResult->Result.map(opt => opt->Option.map(s => s.src))
-      dispatch(
-        AnnotationDetailsResolved({
-          id,
-          selector,
-          elementContext,
-          screenshot,
-          sourceLocation,
-          cssClasses,
-          nearbyText,
-          boundingBox,
-          elementorContext,
-          enrichmentStatus: Enriched,
-        }),
+      let sourceLocationWithTagName = sourceLocation->Result.map(opt =>
+        opt->Option.map(
+          sourceLoc => {
+            {
+              ...sourceLoc,
+              file: sourceLoc.file
+              ->String.split("?")
+              ->Array.get(0)
+              ->Option.getOr(sourceLoc.file),
+            }
+          },
+        )
       )
-      Promise.resolve()
+
+      let resolvedSourceLocationPromise = switch sourceLocationWithTagName {
+      | Ok(Some(sourceLoc)) =>
+        Client__SourceLocationResolver.resolve(sourceLoc)->Promise.then(result => {
+          switch result {
+          | Ok(resolved) => Promise.resolve(Ok(Some(resolved)))
+          | Error(err) =>
+            Log.warning(~ctx={"error": err}, "Source location resolution failed, using original")
+            Promise.resolve(Ok(Some(sourceLoc)))
+          }
+        })
+      | Ok(None) => Promise.resolve(Ok(None))
+      | Error(_) as err => Promise.resolve(err)
+      }
+
+      let screenshot = screenshotResult->Result.map(opt => opt->Option.map(s => s.src))
+
+      resolvedSourceLocationPromise->Promise.then(finalSourceLocation => {
+        dispatch(
+          AnnotationDetailsResolved({
+            id,
+            selector,
+            screenshot,
+            sourceLocation: finalSourceLocation,
+            cssClasses,
+            nearbyText,
+            boundingBox: Some(boundingBox),
+            elementorContext,
+            enrichmentStatus: Enriched,
+          }),
+        )
+        Promise.resolve()
+      })
     })
     ->Promise.catch(err => {
       let errorMsg = formatError(err)
@@ -1468,12 +1455,11 @@ let fetchAnnotationDetails = (
         AnnotationDetailsResolved({
           id,
           selector: Error(errorMsg),
-          elementContext: Error(errorMsg),
           screenshot: Error(errorMsg),
           sourceLocation: Error(errorMsg),
           cssClasses,
           nearbyText,
-          boundingBox,
+          boundingBox: Some(boundingBox),
           elementorContext,
           enrichmentStatus: Failed({error: errorMsg}),
         }),
@@ -1486,12 +1472,11 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) =>
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({id, text, attachments, annotations, agentId}) =>
-    delegate(NeedSendMessage({id, text, attachments, annotations, agentId}))
+  | SendMessage({text, attachments, annotations, agentId}) =>
+    delegate(NeedSendMessage({text, attachments, annotations, agentId}))
   | CancelPrompt => delegate(NeedCancelPrompt)
   | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
   | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
-  | SyncBrowserUrl(url) => delegate(NeedSyncBrowserUrl(url))
   }
 }

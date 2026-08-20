@@ -15,6 +15,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
+  import FrontmanServer.ChangesetSanitizer
   import PolymorphicEmbed
 
   alias FrontmanServer.Tasks.Interaction
@@ -39,7 +40,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @type_values Keyword.keys(@types)
   @task_scoped_types [:discovered_project_rule, :discovered_project_structure]
 
-  @primary_key {:id, Ecto.UUID, autogenerate: false}
+  @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   @accepted_message_types [:user_message]
   @tiebreaker_range 1_000_000
@@ -64,12 +65,33 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   def types, do: @types
   def task_scoped_types, do: @task_scoped_types
 
-  def changeset(%__MODULE__{} = interaction, attrs) when is_map(attrs) do
+  @doc """
+  Changesets for creating interaction rows from payload attrs.
+  """
+  def create_changeset(task_id, type, attrs, turn_number)
+      when is_binary(task_id) and is_atom(type) and is_map(attrs) and
+             (is_integer(turn_number) or is_nil(turn_number)) do
+    %__MODULE__{
+      task_id: task_id,
+      type: type,
+      sequence: generate_sequence(),
+      turn_number: turn_number
+    }
+    |> create_changeset(%{data: strip_null_bytes_from_value(attrs)})
+  end
+
+  def create_changeset(%__MODULE__{} = interaction, attrs) do
     interaction
-    |> cast(attrs, [:id, :type, :turn_number])
-    |> put_change(:sequence, generate_sequence())
+    |> cast(attrs, [])
     |> cast_polymorphic_embed(:data, required: true, with: polymorphic_changesets())
     |> validate_create()
+  end
+
+  @doc false
+  def update_data_changeset(%__MODULE__{} = interaction, attrs) when is_map(attrs) do
+    interaction
+    |> cast(%{data: attrs}, [])
+    |> cast_polymorphic_embed(:data, required: true, with: polymorphic_changesets())
   end
 
   def for_task(query \\ __MODULE__, task_id) when is_binary(task_id) do
@@ -80,6 +102,14 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.turn_number == ^turn_number)
   end
 
+  @doc """
+  Filters interactions to those at or before the given turn number.
+  """
+  def up_to_turn(query \\ __MODULE__, turn_number)
+      when is_integer(turn_number) and turn_number > 0 do
+    from(i in query, where: i.turn_number <= ^turn_number)
+  end
+
   def ordered(query \\ __MODULE__) do
     from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id])
   end
@@ -88,12 +118,24 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.type == ^type)
   end
 
+  def by_ids(query \\ __MODULE__, ids) when is_list(ids) do
+    from(i in query, where: i.id in ^ids)
+  end
+
+  def select_ids(query \\ __MODULE__) do
+    from(i in query, select: i.id)
+  end
+
+  def locked_for_update(query \\ __MODULE__) do
+    from(i in query, lock: "FOR UPDATE")
+  end
+
   def data_equals(query \\ __MODULE__, field, value) do
     from(i in query, where: fragment("?->>?", i.data, ^field) == ^value)
   end
 
-  def limited_data_values(query, field, limit) do
-    from(i in query, select: fragment("?->>?", i.data, ^field), limit: ^limit)
+  def data_path_equals(query \\ __MODULE__, path, value) when is_list(path) do
+    from(i in query, where: fragment("?#>>?", i.data, ^path) == ^value)
   end
 
   def duplicate_tool_result?(%Ecto.Changeset{} = changeset) do
@@ -115,6 +157,25 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     )
   end
 
+  def recoverable_tool_call_claims(query \\ __MODULE__, count)
+      when is_integer(count) and count > 0 do
+    from(i in query,
+      where: i.type == :tool_call,
+      where: fragment("? #>> '{execution_claim,resolution_state}'", i.data) == "unresolved",
+      where:
+        fragment(
+          "(? #>> '{execution_claim,deadline_at}')::timestamptz < clock_timestamp() OR ((? #>> '{execution_claim,lease_expires_at}')::timestamptz < clock_timestamp() AND ? #>> '{execution_claim,dispatch_state}' = 'started' AND ? #>> '{execution_claim,replay_policy}' = 'non_idempotent')",
+          i.data,
+          i.data,
+          i.data,
+          i.data
+        ),
+      order_by: [asc: i.inserted_at, asc: i.id],
+      limit: ^count,
+      select: i.id
+    )
+  end
+
   def to_json_map(%__MODULE__{type: type, data: data}) when is_struct(data) do
     data
     |> Interaction.to_json_map()
@@ -129,10 +190,9 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   defp validate_create(changeset) do
     changeset
-    |> validate_required([:id, :task_id, :type, :data, :sequence])
+    |> validate_required([:task_id, :type, :data, :sequence])
     |> validate_turn_number()
     |> foreign_key_constraint(:task_id)
-    |> unique_constraint(:id, name: :interactions_pkey)
     |> unique_constraint([:task_id, :data],
       name: @tool_result_unique_constraint,
       message: "duplicate tool result for this tool_call_id"

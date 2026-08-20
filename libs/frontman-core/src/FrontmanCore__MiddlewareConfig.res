@@ -26,4 +26,6 @@ type t = {
   entrypointUrl: option<string>,
   frameworkId: frameworkId,
   traits: array<string>,
+  mcpBrowserToken: option<string>,
+  sourceLocationSecurity: option<FrontmanCore__MCP__HttpSecurity.policy>,
 }

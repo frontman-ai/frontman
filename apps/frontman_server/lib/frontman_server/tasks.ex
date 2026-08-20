@@ -6,10 +6,13 @@
 
 defmodule FrontmanServer.Tasks do
   @moduledoc """
-  Public API for tasks.
+  Public API for task management.
 
-  A task is a durable conversation between a user and one or more agents.
-  It owns user messages, turn history, project context, and execution state.
+  Tasks are containers for interactions in a conversation with agents.
+  Each task represents a conversation thread with an AI agent.
+
+  This context provides the boundary for all task-related operations,
+  delegating to the domain layer and infrastructure as appropriate.
   """
 
   @exports [
@@ -26,6 +29,12 @@ defmodule FrontmanServer.Tasks do
     Interaction.AgentRetry,
     Interaction.ToolCall,
     Interaction.ToolResult,
+    Interaction.DiscoveredProjectRule,
+    Interaction.DiscoveredProjectStructure,
+    CanonicalToolResult,
+    ToolCallClaimToken,
+    ToolCallExecutionClaim,
+    ToolCallExecutionReference,
     RetryCoordinator,
     Todos.Todo
   ]
@@ -46,17 +55,23 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Tasks.{
+    CanonicalToolResult,
     Execution,
     Execution.ErrorClassifier,
     History,
     Interaction,
     InteractionSchema,
     TaskSchema,
-    Todos
+    Todos,
+    ToolCallClaimToken,
+    ToolCallExecutionClaim,
+    ToolCallExecutionReference
   }
 
   alias FrontmanServer.Workers.GenerateTitle
   require Logger
+
+  @tool_call_timeout_ms 600_000
 
   defp get_task_by_id(scope, task_id) do
     case task_id
@@ -155,119 +170,114 @@ defmodule FrontmanServer.Tasks do
     |> Repo.all()
   end
 
-  @max_project_rules 32
+  @doc """
+  Adds a discovered project rule to the task.
 
-  @doc "Adds discovered project rules to the task, deduplicated by path."
-  def add_discovered_project_rules(scope, task_id, rules) when is_list(rules) do
-    enforce_project_rule_limit!(length(rules), task_id)
+  Deduplicates by path - returns `{:ok, :already_loaded}` if already present.
+  """
+  def add_discovered_project_rule(scope, task_id, path, content) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      interactions = task_id |> load_interaction_rows() |> Enum.map(& &1.data)
 
-    Repo.transact(fn ->
-      case get_task_by_id_for_update(scope, task_id) do
-        %TaskSchema{} = task -> insert_project_rules(task, rules)
-        nil -> {:error, :not_found}
+      if rule_loaded?(interactions, path) do
+        {:ok, :already_loaded}
+      else
+        persist_discovered_project_rule(
+          schema,
+          path,
+          content,
+          context_fingerprint({path, content})
+        )
       end
-    end)
-    |> case do
-      {:ok, {task, rows}} ->
-        Enum.each(rows, &broadcast_task(task.id, {:interaction, &1}))
-        {:ok, rows}
-
-      {:error, reason} ->
-        {:error, reason}
     end
   end
 
-  defp insert_project_rules(task, rules) do
-    loaded_paths =
-      task.id
-      |> InteractionSchema.for_task()
-      |> InteractionSchema.of_type(:discovered_project_rule)
-      |> InteractionSchema.limited_data_values("path", @max_project_rules + 1)
-      |> Repo.all()
+  @spec add_discovered_project_rule(term(), String.t(), String.t(), String.t(), String.t()) ::
+          {:ok, term()} | {:error, term()}
+  def add_discovered_project_rule(scope, task_id, path, content, context_fingerprint) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      interactions = task_id |> load_interaction_rows() |> Enum.map(& &1.data)
 
-    attrs =
-      rules
-      |> Enum.uniq_by(&elem(&1, 0))
-      |> Enum.reject(fn {path, _content} -> path in loaded_paths end)
-      |> Enum.map(fn {path, content} ->
-        %{
-          id: Ecto.UUID.generate(),
-          type: :discovered_project_rule,
-          data: %{path: path, content: content},
-          turn_number: nil
-        }
-      end)
-
-    enforce_project_rule_limit!(length(loaded_paths) + length(attrs), task.id)
-
-    case attrs do
-      [] ->
-        {:ok, {task, []}}
-
-      [_ | _] ->
-        rows =
-          Enum.map(attrs, fn attrs ->
-            task
-            |> Ecto.build_assoc(:interaction_rows)
-            |> InteractionSchema.changeset(attrs)
-            |> Repo.insert!()
-          end)
-
-        {1, _} =
-          TaskSchema
-          |> TaskSchema.by_id(task.id)
-          |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)])
-
-        {:ok, {task, rows}}
+      if context_loaded?(interactions, context_fingerprint) do
+        {:ok, :already_loaded}
+      else
+        persist_discovered_project_rule(schema, path, content, context_fingerprint)
+      end
     end
   end
 
-  defp enforce_project_rule_limit!(count, _task_id) when count <= @max_project_rules, do: :ok
-
-  defp enforce_project_rule_limit!(count, task_id),
-    do:
-      raise(
-        "project rule count #{count} exceeded limit #{@max_project_rules} for task #{task_id}"
-      )
-
-  @doc "Stores the discovered project structure summary for a task."
+  @doc """
+  Stores a discovered project structure summary for a task.
+  """
   def add_discovered_project_structure(scope, task_id, summary) do
-    with {:ok, %TaskSchema{} = task} <- get_task_by_id(scope, task_id),
-         false <-
-           task.id
-           |> InteractionSchema.for_task()
-           |> InteractionSchema.of_type(:discovered_project_structure)
-           |> Repo.exists?() do
-      record_interaction(task, :discovered_project_structure, %{summary: summary}, nil)
-    else
-      true -> {:ok, :already_loaded}
-      {:error, reason} -> {:error, reason}
+    add_discovered_project_structure(scope, task_id, summary, context_fingerprint(summary))
+  end
+
+  @spec add_discovered_project_structure(term(), String.t(), String.t(), String.t()) ::
+          {:ok, term()} | {:error, term()}
+  def add_discovered_project_structure(scope, task_id, summary, context_fingerprint) do
+    with {:ok, %TaskSchema{} = task} <- get_task_by_id(scope, task_id) do
+      interactions = task.id |> load_interaction_rows() |> Enum.map(& &1.data)
+
+      if context_loaded?(interactions, context_fingerprint) do
+        {:ok, :already_loaded}
+      else
+        record_interaction(
+          task,
+          :discovered_project_structure,
+          %{
+            summary: summary,
+            context_fingerprint: context_fingerprint
+          },
+          nil
+        )
+      end
     end
   end
 
-  defp record_interaction(%TaskSchema{} = task_schema, type, data, turn_number) do
-    attrs = %{
-      id: Ecto.UUID.generate(),
-      type: type,
-      data: data,
-      turn_number: turn_number
-    }
+  defp context_loaded?(interactions, context_fingerprint) do
+    Enum.any?(interactions, fn
+      %Interaction.DiscoveredProjectRule{context_fingerprint: ^context_fingerprint} -> true
+      %Interaction.DiscoveredProjectStructure{context_fingerprint: ^context_fingerprint} -> true
+      _ -> false
+    end)
+  end
 
-    with {:ok, row} <- record_interaction_row(task_schema, attrs) do
+  defp rule_loaded?(interactions, path) do
+    Enum.any?(interactions, fn
+      %Interaction.DiscoveredProjectRule{path: ^path} -> true
+      _other -> false
+    end)
+  end
+
+  defp persist_discovered_project_rule(schema, path, content, context_fingerprint) do
+    record_interaction(
+      schema,
+      :discovered_project_rule,
+      %{path: path, content: content, context_fingerprint: context_fingerprint},
+      nil
+    )
+  end
+
+  defp context_fingerprint(value) do
+    :crypto.hash(:sha256, :erlang.term_to_binary(value))
+    |> Base.encode16(case: :lower)
+  end
+
+  defp record_interaction(%TaskSchema{} = task_schema, type, attrs, turn_number) do
+    with {:ok, row} <- record_interaction_row(task_schema, type, attrs, turn_number) do
       {:ok, row.data}
     end
   end
 
-  defp record_interaction_row(%TaskSchema{} = task, attrs) do
+  defp record_interaction_row(%TaskSchema{} = task_schema, type, attrs, turn_number) do
     Repo.transact(fn ->
       with {:ok, schema} <-
-             task
-             |> Ecto.build_assoc(:interaction_rows)
-             |> InteractionSchema.changeset(attrs)
+             InteractionSchema.create_changeset(task_schema.id, type, attrs, turn_number)
              |> Repo.insert(),
            {1, _} <-
              TaskSchema
-             |> TaskSchema.by_id(task.id)
+             |> TaskSchema.by_id(task_schema.id)
              |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)]) do
         {:ok, schema}
       else
@@ -277,7 +287,11 @@ defmodule FrontmanServer.Tasks do
     end)
     |> case do
       {:ok, %InteractionSchema{} = interaction_schema} ->
-        broadcast_task(task.id, {:interaction, interaction_schema})
+        broadcast_task(
+          task_schema.id,
+          {:interaction, interaction_schema}
+        )
+
         {:ok, interaction_schema}
 
       {:error, reason} ->
@@ -327,7 +341,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, :completed) do
-    persist_execution_outcome(scope, task_id, turn_number, :completed)
+    persist_agent_run_result(scope, task_id, turn_number, :completed)
   end
 
   defp persist_swarm_event(
@@ -339,7 +353,7 @@ defmodule FrontmanServer.Tasks do
     {reason_str, category, retryable} = ErrorClassifier.classify_error(reason)
 
     with :ok <-
-           persist_execution_outcome(
+           persist_agent_run_result(
              scope,
              task_id,
              turn_number,
@@ -361,11 +375,11 @@ defmodule FrontmanServer.Tasks do
       extra: %{task_id: task_id, reason: inspect(message)}
     )
 
-    persist_execution_outcome(scope, task_id, turn_number, {:crashed, message})
+    persist_agent_run_result(scope, task_id, turn_number, {:crashed, message})
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:cancelled, _}) do
-    persist_execution_outcome(scope, task_id, turn_number, :cancelled)
+    persist_agent_run_result(scope, task_id, turn_number, :cancelled)
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:terminated, _}) do
@@ -377,18 +391,18 @@ defmodule FrontmanServer.Tasks do
       Enum.split_with(unresolved_tool_calls, &keeps_turn_open_after_restart?/1)
 
     Enum.each(interrupted_tool_calls, fn tool_call ->
-      resolve_tool_request(
+      cancel_claimed_or_resolve_legacy_tool(
         scope,
         task_id,
+        turn_number,
         %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-        ModelContextProtocol.tool_result_error("Interrupted by restart"),
-        turn_number: turn_number
+        "Interrupted by restart"
       )
     end)
 
     case interactive_tool_calls do
       [] ->
-        persist_execution_outcome(scope, task_id, turn_number, :terminated)
+        persist_agent_run_result(scope, task_id, turn_number, :terminated)
 
       [_ | _] ->
         :ok
@@ -403,15 +417,15 @@ defmodule FrontmanServer.Tasks do
        ) do
     reason = "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)"
 
-    resolve_tool_request(
+    cancel_claimed_or_resolve_legacy_tool(
       scope,
       task_id,
+      turn_number,
       %{id: tool_call_id, name: tool_name},
-      ModelContextProtocol.tool_result_error(reason),
-      turn_number: turn_number
+      reason
     )
 
-    persist_execution_outcome(
+    persist_agent_run_result(
       scope,
       task_id,
       turn_number,
@@ -422,8 +436,8 @@ defmodule FrontmanServer.Tasks do
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:chunk, _, _}), do: :ok
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:tool_call, _}), do: :ok
 
-  defp persist_execution_outcome(scope, task_id, turn_number, outcome) do
-    with {:ok, _interaction} <- record_execution_outcome(scope, task_id, turn_number, outcome) do
+  defp persist_agent_run_result(scope, task_id, turn_number, outcome) do
+    with {:ok, _interaction} <- record_agent_run_result(scope, task_id, turn_number, outcome) do
       :ok
     end
   end
@@ -467,13 +481,12 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Accepts a user prompt into session history.
 
-  Starting execution is handled separately by `execute_next_turn/3`.
+  Starting execution is handled separately by `run_next_turn/3`.
   """
   def submit_user_message(
         %Scope{} = scope,
         %{
           task_id: task_id,
-          message_id: message_id,
           message: [_ | _] = content_blocks,
           model: model,
           agent_id: agent_id
@@ -486,15 +499,7 @@ defmodule FrontmanServer.Tasks do
          {:ok, task_schema} <- get_task_by_id(scope, task_id),
          first_message? <- accepted_user_message_count(task_id) == 0,
          {:ok, accepted_row} <-
-           record_interaction_row(
-             task_schema,
-             %{
-               id: message_id,
-               type: :user_message,
-               data: Map.put(user_message_attrs, :id, message_id),
-               turn_number: nil
-             }
-           ) do
+           record_interaction_row(task_schema, :user_message, user_message_attrs, nil) do
       if first_message? do
         GenerateTitle.new(%{
           user_id: scope.user.id,
@@ -555,26 +560,30 @@ defmodule FrontmanServer.Tasks do
 
     with {:ok, history} <- History.new(rows),
          {nil, [_ | _] = accepted_messages} <-
-           {History.active_turn_number(history), History.pending_accepted_messages(history)},
-         turn_number = History.next_turn_number(history),
-         default_agent_id = Agents.default_agent_id(scope),
-         first_accepted_message = List.first(accepted_messages),
-         agent_id = accepted_message_agent_id(first_accepted_message, default_agent_id),
-         {:ok, turn_model} <- accepted_message_model(first_accepted_message),
-         accepted_messages =
-           Enum.take_while(accepted_messages, fn row ->
-             accepted_message_agent_id(row, default_agent_id) == agent_id and
-               accepted_message_model(row) == {:ok, turn_model}
-           end),
-         user_message_ids = Enum.map(accepted_messages, & &1.id),
-         {:ok, agent} <- Agents.get_agent(scope, agent_id),
-         turn_started_attrs = %{
-           agent_id: agent.id,
-           user_message_ids: user_message_ids
-         },
-         {:ok, turn_started_row} <-
-           insert_turn_started(task_schema, turn_started_attrs, turn_number) do
-      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}}
+           {History.active_run_turn_number(history), History.pending_accepted_messages(history)} do
+      turn_number = History.next_turn_number(history)
+      default_agent_id = Agents.default_agent_id(scope)
+      agent_id = accepted_message_agent_id(List.first(accepted_messages), default_agent_id)
+
+      accepted_messages =
+        Enum.take_while(accepted_messages, fn row ->
+          accepted_message_agent_id(row, default_agent_id) == agent_id
+        end)
+
+      user_message_ids = Enum.map(accepted_messages, & &1.id)
+
+      with {:ok, turn_model} <- turn_model_for_accepted_messages(accepted_messages),
+           {:ok, agent} <- Agents.get_agent(scope, agent_id),
+           turn_started_attrs = %{
+             agent_id: agent.id,
+             user_message_ids: user_message_ids
+           },
+           {:ok, turn_started_row} <-
+             insert_turn_started(task_schema, turn_started_attrs, turn_number) do
+        {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}}
+      else
+        {:error, reason} -> {:error, reason}
+      end
     else
       {:error, reason} -> {:error, reason}
       {nil, []} -> {:error, :no_accepted_messages}
@@ -582,11 +591,16 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp accepted_message_model(%InteractionSchema{data: %Interaction.UserMessage{model: model}})
-       when is_binary(model) and model != "",
-       do: {:ok, model}
+  defp turn_model_for_accepted_messages(accepted_messages) do
+    case List.last(accepted_messages) do
+      %InteractionSchema{data: %Interaction.UserMessage{model: model}}
+      when is_binary(model) and model != "" ->
+        {:ok, model}
 
-  defp accepted_message_model(_missing), do: {:error, :missing_model}
+      _missing ->
+        {:error, :missing_model}
+    end
+  end
 
   defp accepted_message_agent_id(
          %InteractionSchema{data: %Interaction.UserMessage{agent_id: agent_id}},
@@ -604,17 +618,13 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp insert_turn_started(%TaskSchema{} = task_schema, turn_started_attrs, turn_number) do
-    attrs = %{
-      id: Ecto.UUID.generate(),
-      type: :turn_started,
-      data: turn_started_attrs,
-      turn_number: turn_number
-    }
-
     with {:ok, schema} <-
-           task_schema
-           |> Ecto.build_assoc(:interaction_rows)
-           |> InteractionSchema.changeset(attrs)
+           InteractionSchema.create_changeset(
+             task_schema.id,
+             :turn_started,
+             turn_started_attrs,
+             turn_number
+           )
            |> Repo.insert(),
          {1, _} <-
            TaskSchema
@@ -639,17 +649,17 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc "Records how the given execution ended."
-  def record_execution_outcome(scope, task_id, turn_number, outcome)
+  @doc "Records how the given agent run ended."
+  def record_agent_run_result(scope, task_id, turn_number, outcome)
       when is_integer(turn_number) and turn_number > 0 do
     with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
-      {type, attrs} = build_execution_outcome(outcome)
+      {type, attrs} = build_agent_run_result(outcome)
 
       record_interaction(task_schema, type, attrs, turn_number)
     end
   end
 
-  defp build_execution_outcome(outcome) do
+  defp build_agent_run_result(outcome) do
     case outcome do
       :completed ->
         {:agent_completed, %{result: nil}}
@@ -692,9 +702,1120 @@ defmodule FrontmanServer.Tasks do
   @doc "Records a client-handled tool request in the given turn."
   def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
       when is_integer(turn_number) and turn_number > 0 do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
-         {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data) do
-      record_interaction(schema, :tool_call, attrs, turn_number)
+    with {:ok, _reference, interaction} <-
+           request_client_tool_with_reference(scope, task_id, turn_number, tool_call_data) do
+      {:ok, interaction}
+    end
+  end
+
+  @doc "Records a client tool request and retains its durable interaction identity."
+  @spec request_client_tool_with_reference(
+          Scope.t(),
+          Ecto.UUID.t(),
+          pos_integer(),
+          SwarmAi.ToolCall.t(),
+          map() | nil
+        ) ::
+          {:ok, ToolCallExecutionReference.t(), Interaction.ToolCall.t()} | {:error, term()}
+  def request_client_tool_with_reference(
+        %Scope{} = scope,
+        task_id,
+        turn_number,
+        %SwarmAi.ToolCall{} = tool_call_data,
+        output_schema \\ nil
+      )
+      when is_binary(task_id) and is_integer(turn_number) and turn_number > 0 do
+    with {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, output_schema),
+         {:ok, row} <- insert_serialized_tool_call(scope, task_id, turn_number, attrs) do
+      broadcast_task(task_id, {:interaction, row})
+      {:ok, execution_reference(row), row.data}
+    end
+  end
+
+  @doc "Atomically acquires an unclaimed or expired durable tool-call lease."
+  @spec acquire_tool_call_claim(
+          Scope.t(),
+          ToolCallExecutionReference.t(),
+          String.t(),
+          pos_integer(),
+          ToolCallExecutionClaim.replay_policy(),
+          pos_integer()
+        ) :: {:ok, ToolCallClaimToken.t()} | {:error, term()}
+  def acquire_tool_call_claim(
+        %Scope{} = scope,
+        %ToolCallExecutionReference{} = reference,
+        owner_connection_id,
+        lease_duration_ms,
+        replay_policy,
+        timeout_ms \\ @tool_call_timeout_ms
+      )
+      when is_binary(owner_connection_id) and owner_connection_id != "" and
+             is_integer(lease_duration_ms) and lease_duration_ms > 0 and
+             replay_policy in [:verified_idempotent, :non_idempotent] and
+             is_integer(timeout_ms) and timeout_ms > 0 do
+    Repo.transact(fn ->
+      with {:ok, row} <- lock_tool_call(scope, reference),
+           :ok <- ensure_tool_call_unresolved(row),
+           {database_now, lease_expires_at, deadline_at} <-
+             generate_tool_call_times(lease_duration_ms, timeout_ms),
+           {:ok, generation} <- next_claim_generation(row.data.execution_claim, database_now),
+           {started_at, deadline_at} <-
+             durable_tool_call_times(row.data.execution_claim, database_now, deadline_at),
+           claim = %ToolCallExecutionClaim{
+             owner_connection_id: owner_connection_id,
+             generation: generation,
+             started_at: started_at,
+             deadline_at: deadline_at,
+             lease_expires_at: lease_expires_at,
+             dispatch_state: :claimed,
+             resolution_state: :unresolved,
+             replay_policy: replay_policy,
+             recovery_state: :none
+           },
+           {:ok, _row} <- persist_tool_call_claim(row, claim) do
+        {:ok, claim_token(reference, claim)}
+      end
+    end)
+  end
+
+  @doc "Classifies whether a durable tool-call lease is still active at database time."
+  @spec classify_tool_call_lease(DateTime.t(), DateTime.t()) :: :active | :expired
+  def classify_tool_call_lease(%DateTime{} = lease_expires_at, %DateTime{} = database_now) do
+    case DateTime.compare(lease_expires_at, database_now) do
+      ordering when ordering in [:gt, :eq] -> :active
+      :lt -> :expired
+    end
+  end
+
+  @doc "Classifies whether a durable tool-call deadline still accepts completion."
+  @spec classify_tool_call_deadline(DateTime.t(), DateTime.t()) :: :active | :expired
+  def classify_tool_call_deadline(%DateTime{} = deadline_at, %DateTime{} = database_now) do
+    case DateTime.compare(deadline_at, database_now) do
+      ordering when ordering in [:gt, :eq] -> :active
+      :lt -> :expired
+    end
+  end
+
+  @doc "Generates a durable tool-call lease from one authoritative database timestamp."
+  @spec generate_tool_call_lease(pos_integer()) :: {DateTime.t(), DateTime.t()}
+  def generate_tool_call_lease(lease_duration_ms)
+      when is_integer(lease_duration_ms) and lease_duration_ms > 0 do
+    %{rows: [[database_now, lease_expires_at]]} =
+      Repo.query!(
+        """
+        SELECT database_now, database_now + ($1 * interval '1 millisecond')
+        FROM (SELECT clock_timestamp() AS database_now) AS database_clock
+        """,
+        [lease_duration_ms]
+      )
+
+    {database_now, lease_expires_at}
+  end
+
+  defp generate_tool_call_times(lease_duration_ms, timeout_ms) do
+    %{rows: [[database_now, lease_expires_at, deadline_at]]} =
+      Repo.query!(
+        """
+        SELECT database_now,
+               database_now + ($1 * interval '1 millisecond'),
+               database_now + ($2 * interval '1 millisecond')
+        FROM (SELECT clock_timestamp() AS database_now) AS database_clock
+        """,
+        [lease_duration_ms, timeout_ms]
+      )
+
+    {database_now, lease_expires_at, deadline_at}
+  end
+
+  defp durable_tool_call_times(nil, database_now, deadline_at),
+    do: {database_now, deadline_at}
+
+  defp durable_tool_call_times(%ToolCallExecutionClaim{} = claim, _database_now, _deadline_at),
+    do: {claim.started_at, claim.deadline_at}
+
+  @doc "Returns the database-clock delay until a durable tool-call deadline expires."
+  @spec tool_call_deadline_delay_ms(Scope.t(), ToolCallClaimToken.t()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  def tool_call_deadline_delay_ms(%Scope{} = scope, %ToolCallClaimToken{} = token) do
+    Repo.transact(fn ->
+      with {:ok, row} <- lock_tool_call(scope, token.reference),
+           {:ok, claim} <- matching_unresolved_claim(row.data.execution_claim, token),
+           database_now <- database_now() do
+        {:ok, max(DateTime.diff(claim.deadline_at, database_now, :millisecond), 0)}
+      end
+    end)
+  end
+
+  @doc "Returns the database-clock delay until the current durable claim lease expires."
+  @spec tool_call_claim_delay_ms(Scope.t(), ToolCallExecutionReference.t()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  def tool_call_claim_delay_ms(%Scope{} = scope, %ToolCallExecutionReference{} = reference) do
+    Repo.transact(fn ->
+      with {:ok, row} <- lock_tool_call(scope, reference),
+           %ToolCallExecutionClaim{resolution_state: :unresolved} = claim <-
+             row.data.execution_claim,
+           database_now <- database_now() do
+        {:ok, max(DateTime.diff(claim.lease_expires_at, database_now, :millisecond), 0)}
+      else
+        nil -> {:error, :unclaimed}
+        %ToolCallExecutionClaim{} -> {:error, :already_resolved}
+      end
+    end)
+  end
+
+  @doc "Records that dispatch may have begun for the matching claim generation."
+  @spec mark_tool_call_dispatch_started(Scope.t(), ToolCallClaimToken.t()) ::
+          {:ok, ToolCallClaimToken.t()} | {:error, term()}
+  def mark_tool_call_dispatch_started(%Scope{} = scope, %ToolCallClaimToken{} = token) do
+    update_active_claim(scope, token, fn row, claim, _database_now ->
+      persist_claim_update(token, row, claim, %{dispatch_state: :started})
+    end)
+  end
+
+  @doc "Renews the matching active claim using the database clock."
+  @spec renew_tool_call_claim(Scope.t(), ToolCallClaimToken.t(), pos_integer()) ::
+          {:ok, ToolCallClaimToken.t()} | {:error, term()}
+  def renew_tool_call_claim(%Scope{} = scope, %ToolCallClaimToken{} = token, lease_duration_ms)
+      when is_integer(lease_duration_ms) and lease_duration_ms > 0 do
+    Repo.transact(fn ->
+      with {:ok, row} <- lock_tool_call(scope, token.reference),
+           {database_now, lease_expires_at} <- generate_tool_call_lease(lease_duration_ms),
+           {:ok, claim} <- active_claim(row.data.execution_claim, token, database_now),
+           {:ok, updated_row} <-
+             persist_tool_call_claim(row, %{claim | lease_expires_at: lease_expires_at}) do
+        {:ok, claim_token(token.reference, updated_row.data.execution_claim)}
+      end
+    end)
+  end
+
+  @doc "Completes a claimed tool call and stores its canonical result in one transaction."
+  @spec complete_claimed_tool_call(Scope.t(), ToolCallClaimToken.t(), map()) ::
+          {:ok, Interaction.ToolResult.t(), :notified | :no_executor | :already_resolved}
+          | {:error, term()}
+  def complete_claimed_tool_call(
+        %Scope{} = scope,
+        %ToolCallClaimToken{} = token,
+        result
+      )
+      when is_map(result) do
+    complete_claimed_tool_call_with_resolution(scope, token, result, :completed)
+  end
+
+  @doc "Cancels a claimed tool call and stores its canonical error result atomically."
+  @spec cancel_claimed_tool_call(Scope.t(), ToolCallClaimToken.t(), String.t()) ::
+          {:ok, Interaction.ToolResult.t(), :notified | :no_executor | :already_resolved}
+          | {:error, term()}
+  def cancel_claimed_tool_call(
+        %Scope{} = scope,
+        %ToolCallClaimToken{} = token,
+        reason
+      )
+      when is_binary(reason) and reason != "" do
+    complete_claimed_tool_call_with_resolution(
+      scope,
+      token,
+      ModelContextProtocol.tool_result_error(reason),
+      :cancelled
+    )
+  end
+
+  @doc "Selects timeout as the terminal result after the durable absolute deadline."
+  @spec timeout_claimed_tool_call(Scope.t(), ToolCallClaimToken.t(), String.t()) ::
+          {:ok, Interaction.ToolResult.t(), :notified | :no_executor | :already_resolved}
+          | {:error, term()}
+  def timeout_claimed_tool_call(%Scope{} = scope, %ToolCallClaimToken{} = token, reason)
+      when is_binary(reason) and reason != "" do
+    transaction_result =
+      Repo.transact(fn ->
+        with {:ok, row} <- lock_tool_call(scope, token.reference) do
+          timeout_current_claim(row, token, reason)
+        end
+      end)
+
+    complete_claimed_tool_call_after_commit(transaction_result, token.reference.task_id)
+  end
+
+  @doc false
+  @spec recover_tool_call_claims(pos_integer()) :: [:pending | {:resolved, Ecto.UUID.t()}]
+  def recover_tool_call_claims(count) when is_integer(count) and count > 0 do
+    InteractionSchema.recoverable_tool_call_claims(count)
+    |> Repo.all()
+    |> Enum.map(&recover_tool_call_claim/1)
+  end
+
+  @doc "Returns whether supervised recovery left an active task ready to resume."
+  @spec restart_recovery_pending?(Scope.t(), Ecto.UUID.t()) :: boolean()
+  def restart_recovery_pending?(%Scope{} = scope, task_id) when is_binary(task_id) do
+    case get_task_by_id(scope, task_id) do
+      {:ok, _task} -> pending_restart_recovery_exists?(task_id)
+      {:error, :not_found} -> false
+    end
+  end
+
+  @doc "Marks every pending restart recovery for one authorized task as resumed."
+  @spec complete_restart_recovery(Scope.t(), Ecto.UUID.t()) :: :ok | {:error, term()}
+  def complete_restart_recovery(%Scope{} = scope, task_id) when is_binary(task_id) do
+    case Repo.transact(fn -> complete_restart_recovery_transaction(scope, task_id) end) do
+      {:ok, :ok} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc "Cancels the current claimed execution identified by its exact persisted tool identity."
+  @spec cancel_current_claimed_tool_call(
+          Scope.t(),
+          Ecto.UUID.t(),
+          pos_integer(),
+          %{required(:id) => String.t(), required(:name) => String.t()},
+          String.t()
+        ) ::
+          {:ok, Interaction.ToolResult.t(), :notified | :no_executor | :already_resolved}
+          | {:error, :unclaimed | term()}
+  def cancel_current_claimed_tool_call(
+        %Scope{} = scope,
+        task_id,
+        turn_number,
+        %{id: tool_call_id, name: tool_name} = tool_call,
+        reason
+      )
+      when is_binary(task_id) and is_integer(turn_number) and turn_number > 0 and
+             is_binary(tool_call_id) and is_binary(tool_name) and
+             is_binary(reason) and reason != "" do
+    transaction_result =
+      Repo.transact(fn ->
+        with {:ok, row} <- lock_logical_tool_call(scope, task_id, turn_number, tool_call) do
+          cancel_current_claim(row, reason)
+        end
+      end)
+
+    transaction_result
+    |> complete_claimed_tool_call_after_commit(task_id)
+    |> finalize_identity_claim_recovery(scope, task_id, turn_number, tool_call_id)
+  end
+
+  @doc "Atomically cancels every unresolved claimed tool call for one task."
+  @spec cancel_claimed_tool_calls_for_task(Scope.t(), Ecto.UUID.t(), String.t()) ::
+          {:ok, non_neg_integer()} | {:error, term()}
+  def cancel_claimed_tool_calls_for_task(%Scope{} = scope, task_id, reason)
+      when is_binary(task_id) and is_binary(reason) and reason != "" do
+    transaction_result =
+      Repo.transact(fn ->
+        with %TaskSchema{} <- get_task_by_id_for_update(scope, task_id),
+             recovery_rows <- lock_pending_restart_recoveries(task_id),
+             rows <- lock_unresolved_tool_calls(task_id),
+             :ok <- persist_resumed_recoveries(recovery_rows),
+             {:ok, results} <- cancel_locked_tool_calls(rows, reason) do
+          {:ok, results}
+        else
+          nil -> {:error, :not_found}
+          {:error, reason} -> {:error, reason}
+        end
+      end)
+
+    notify_cancelled_tool_calls(transaction_result, task_id)
+  end
+
+  @doc "Terminally resolves an expired non-idempotent dispatch whose outcome is ambiguous."
+  @spec fail_ambiguous_tool_call(Scope.t(), ToolCallExecutionReference.t()) ::
+          {:ok, Interaction.ToolResult.t(), :notified | :no_executor | :already_resolved}
+          | {:error, term()}
+  def fail_ambiguous_tool_call(%Scope{} = scope, %ToolCallExecutionReference{} = reference) do
+    transaction_result =
+      Repo.transact(fn ->
+        with {:ok, row} <- lock_tool_call(scope, reference),
+             database_now <- database_now(),
+             {:ok, claim} <- ambiguous_expired_claim(row.data.execution_claim, database_now),
+             result =
+               ModelContextProtocol.tool_result_error(
+                 "Tool execution outcome is ambiguous after connection ownership expired"
+               ),
+             {:ok, result_row} <- insert_claimed_tool_result(row, result),
+             {:ok, _row} <-
+               persist_tool_call_claim(row, %{
+                 claim
+                 | resolution_state: :cancelled,
+                   recovery_state: :pending_resume
+               }) do
+          {:ok, result_row}
+        end
+      end)
+
+    transaction_result
+    |> complete_claimed_tool_call_after_commit(reference.task_id)
+    |> finalize_claim_recovery(scope, reference)
+  end
+
+  defp insert_serialized_tool_call(scope, task_id, turn_number, attrs) do
+    Repo.transact(fn ->
+      case get_task_by_id_for_update(scope, task_id) do
+        %TaskSchema{} = task -> insert_unique_tool_call(task, turn_number, attrs)
+        nil -> {:error, :not_found}
+      end
+    end)
+  end
+
+  defp insert_unique_tool_call(task, turn_number, attrs) do
+    case logical_tool_call_rows(task.id, turn_number, attrs.tool_call_id, false) do
+      [] -> insert_tool_call_row(task, turn_number, attrs)
+      [_row] -> {:error, :duplicate_tool_call}
+      [_first, _second | _rest] -> {:error, :duplicate_logical_tool_call}
+    end
+  end
+
+  defp insert_tool_call_row(task, turn_number, attrs) do
+    with {:ok, row} <-
+           InteractionSchema.create_changeset(task.id, :tool_call, attrs, turn_number)
+           |> Repo.insert(),
+         {1, _} <-
+           TaskSchema
+           |> TaskSchema.by_id(task.id)
+           |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)]) do
+      {:ok, row}
+    else
+      {:error, reason} -> {:error, reason}
+      {0, _} -> {:error, :not_found}
+    end
+  end
+
+  defp lock_tool_call(scope, %ToolCallExecutionReference{} = reference) do
+    case get_task_by_id_for_update(scope, reference.task_id) do
+      %TaskSchema{} -> lock_exact_tool_call(reference)
+      nil -> {:error, :not_found}
+    end
+  end
+
+  defp lock_logical_tool_call(scope, task_id, turn_number, tool_call) do
+    case get_task_by_id_for_update(scope, task_id) do
+      %TaskSchema{} ->
+        case logical_tool_call_rows(task_id, turn_number, tool_call.id, true) do
+          [%InteractionSchema{data: %Interaction.ToolCall{tool_name: tool_name}} = row]
+          when tool_name == tool_call.name ->
+            {:ok, row}
+
+          [_row] ->
+            {:error, :interaction_mismatch}
+
+          [] ->
+            {:error, :not_found}
+
+          [_first, _second | _rest] ->
+            {:error, :duplicate_logical_tool_call}
+        end
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  defp lock_exact_tool_call(%ToolCallExecutionReference{} = reference) do
+    rows =
+      logical_tool_call_rows(
+        reference.task_id,
+        reference.turn_number,
+        reference.tool_call_id,
+        true
+      )
+
+    case rows do
+      [%InteractionSchema{id: interaction_id} = row]
+      when interaction_id == reference.interaction_id ->
+        ensure_reference_matches(row, reference)
+
+      [_row] ->
+        {:error, :interaction_mismatch}
+
+      [] ->
+        {:error, :not_found}
+
+      [_first, _second | _rest] ->
+        {:error, :duplicate_logical_tool_call}
+    end
+  end
+
+  defp lock_unresolved_tool_calls(task_id) do
+    ids =
+      InteractionSchema
+      |> InteractionSchema.for_task(task_id)
+      |> InteractionSchema.unresolved_tool_calls()
+      |> InteractionSchema.ordered()
+      |> InteractionSchema.select_ids()
+      |> Repo.all()
+
+    InteractionSchema
+    |> InteractionSchema.by_ids(ids)
+    |> InteractionSchema.ordered()
+    |> InteractionSchema.locked_for_update()
+    |> Repo.all()
+  end
+
+  defp lock_pending_restart_recoveries(task_id) do
+    InteractionSchema
+    |> InteractionSchema.for_task(task_id)
+    |> InteractionSchema.of_type(:tool_call)
+    |> InteractionSchema.data_path_equals(["execution_claim", "recovery_state"], "pending_resume")
+    |> InteractionSchema.ordered()
+    |> InteractionSchema.locked_for_update()
+    |> Repo.all()
+  end
+
+  defp pending_restart_recovery_exists?(task_id) do
+    InteractionSchema
+    |> InteractionSchema.for_task(task_id)
+    |> InteractionSchema.of_type(:tool_call)
+    |> InteractionSchema.data_path_equals(["execution_claim", "recovery_state"], "pending_resume")
+    |> Repo.exists?()
+  end
+
+  defp complete_restart_recovery_transaction(scope, task_id) do
+    with %TaskSchema{} <- get_task_by_id_for_update(scope, task_id),
+         rows <- lock_pending_restart_recoveries(task_id),
+         :ok <- persist_resumed_recoveries(rows) do
+      {:ok, :ok}
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp persist_resumed_recoveries(rows) do
+    Enum.reduce_while(rows, :ok, fn row, :ok ->
+      claim = row.data.execution_claim
+
+      case persist_tool_call_claim(row, %{claim | recovery_state: :resumed}) do
+        {:ok, _row} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp cancel_locked_tool_calls(rows, reason) do
+    Enum.reduce_while(rows, {:ok, []}, fn row, {:ok, results} ->
+      cancel_locked_tool_call_result(row, reason, results)
+    end)
+  end
+
+  defp cancel_locked_tool_call_result(row, reason, results) do
+    case ensure_tool_call_unresolved(row) do
+      :ok -> cancel_unresolved_locked_tool_call(row, reason, results)
+      {:error, :already_resolved} -> {:cont, {:ok, results}}
+      {:error, error} -> {:halt, {:error, error}}
+    end
+  end
+
+  defp cancel_unresolved_locked_tool_call(row, reason, results) do
+    case cancel_locked_tool_call(row, reason) do
+      {:ok, %InteractionSchema{} = result_row} ->
+        {:cont, {:ok, [result_row | results]}}
+
+      {:error, error} ->
+        {:halt, {:error, error}}
+    end
+  end
+
+  defp notify_cancelled_tool_calls({:ok, results}, task_id) do
+    Enum.each(results, fn result_row ->
+      broadcast_task(task_id, {:interaction, result_row})
+      notify_recorded_tool_result(task_id, result_row.data)
+    end)
+
+    {:ok, length(results)}
+  end
+
+  defp notify_cancelled_tool_calls({:error, reason}, _task_id), do: {:error, reason}
+
+  defp cancel_locked_tool_call(
+         %InteractionSchema{data: %{execution_claim: nil}} = row,
+         reason
+       ) do
+    insert_claimed_tool_result(row, ModelContextProtocol.tool_result_error(reason))
+  end
+
+  defp cancel_locked_tool_call(%InteractionSchema{} = row, reason) do
+    claim = row.data.execution_claim
+
+    with {:ok, result_row} <-
+           insert_claimed_tool_result(row, ModelContextProtocol.tool_result_error(reason)),
+         {:ok, _row} <-
+           persist_tool_call_claim(row, %{
+             claim
+             | resolution_state: :cancelled,
+               recovery_state: :resumed
+           }) do
+      {:ok, result_row}
+    end
+  end
+
+  defp ensure_tool_call_unresolved(row) do
+    case canonical_claimed_tool_result(row) do
+      {:ok, {:canonical, %InteractionSchema{}}} -> {:error, :already_resolved}
+      {:error, :terminal_claim_without_result} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp logical_tool_call_rows(task_id, turn_number, tool_call_id, lock?) do
+    query =
+      InteractionSchema
+      |> InteractionSchema.for_task(task_id)
+      |> InteractionSchema.for_turn(turn_number)
+      |> InteractionSchema.of_type(:tool_call)
+      |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
+
+    query = if lock?, do: InteractionSchema.locked_for_update(query), else: query
+    Repo.all(query)
+  end
+
+  defp ensure_reference_matches(
+         %InteractionSchema{data: %Interaction.ToolCall{tool_name: tool_name}} = row,
+         %ToolCallExecutionReference{tool_name: tool_name}
+       ) do
+    {:ok, row}
+  end
+
+  defp ensure_reference_matches(%InteractionSchema{}, %ToolCallExecutionReference{}) do
+    {:error, :interaction_mismatch}
+  end
+
+  defp next_claim_generation(nil, _database_now), do: {:ok, 1}
+
+  defp next_claim_generation(
+         %ToolCallExecutionClaim{resolution_state: :unresolved} = claim,
+         database_now
+       ) do
+    case classify_tool_call_lease(claim.lease_expires_at, database_now) do
+      :active -> {:error, :already_claimed}
+      :expired -> expired_claim_generation(claim)
+    end
+  end
+
+  defp next_claim_generation(%ToolCallExecutionClaim{}, _database_now),
+    do: {:error, :already_resolved}
+
+  defp recover_tool_call_claim(interaction_id) do
+    transaction_result =
+      Repo.transact(fn ->
+        case lock_recovery_tool_call(interaction_id) do
+          {:ok, row} -> recover_locked_tool_call_claim(row, database_now())
+          {:error, :not_found} -> {:ok, :pending}
+        end
+      end)
+
+    case transaction_result do
+      {:ok, %InteractionSchema{} = result_row} ->
+        case complete_claimed_tool_call_after_commit({:ok, result_row}, result_row.task_id) do
+          {:ok, _result, :notified} -> complete_recovered_tool_call_recovery(interaction_id)
+          {:ok, _result, :no_executor} -> :ok
+        end
+
+        {:resolved, interaction_id}
+
+      {:ok, :pending} ->
+        :pending
+
+      {:error, reason} ->
+        raise "Failed to recover durable MCP tool claim: #{inspect(reason)}"
+    end
+  end
+
+  defp lock_recovery_tool_call(interaction_id) do
+    case Repo.get(InteractionSchema, interaction_id) do
+      %InteractionSchema{task_id: task_id} ->
+        task_id
+        |> TaskSchema.by_id()
+        |> TaskSchema.locked_for_update()
+        |> Repo.one!()
+
+        InteractionSchema
+        |> InteractionSchema.by_ids([interaction_id])
+        |> InteractionSchema.locked_for_update()
+        |> Repo.one()
+        |> case do
+          %InteractionSchema{} = row -> {:ok, row}
+          nil -> {:error, :not_found}
+        end
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  defp recover_locked_tool_call_claim(
+         %InteractionSchema{
+           data: %{
+             execution_claim: %ToolCallExecutionClaim{resolution_state: :unresolved} = claim
+           }
+         } = row,
+         database_now
+       ) do
+    case classify_tool_call_deadline(claim.deadline_at, database_now) do
+      :expired ->
+        resolve_recovered_claim(row, claim, "Tool execution timed out", :pending_resume)
+
+      :active ->
+        recover_unexpired_tool_call_claim(row, claim, database_now)
+    end
+  end
+
+  defp recover_locked_tool_call_claim(
+         %InteractionSchema{data: %{execution_claim: %ToolCallExecutionClaim{}}},
+         _database_now
+       ),
+       do: {:ok, :pending}
+
+  defp recover_unexpired_tool_call_claim(
+         row,
+         %ToolCallExecutionClaim{
+           dispatch_state: :started,
+           replay_policy: :non_idempotent
+         } = claim,
+         database_now
+       ) do
+    case classify_tool_call_lease(claim.lease_expires_at, database_now) do
+      :expired ->
+        resolve_recovered_claim(
+          row,
+          claim,
+          "Tool execution outcome is ambiguous after connection ownership expired",
+          :pending_resume
+        )
+
+      :active ->
+        {:ok, :pending}
+    end
+  end
+
+  defp recover_unexpired_tool_call_claim(_row, %ToolCallExecutionClaim{}, _database_now),
+    do: {:ok, :pending}
+
+  defp resolve_recovered_claim(row, claim, reason, recovery_state \\ :pending_resume) do
+    with {:ok, result_row} <-
+           insert_claimed_tool_result(row, ModelContextProtocol.tool_result_error(reason)),
+         {:ok, _row} <-
+           persist_tool_call_claim(row, %{
+             claim
+             | resolution_state: :cancelled,
+               recovery_state: recovery_state
+           }) do
+      {:ok, result_row}
+    end
+  end
+
+  defp complete_recovered_tool_call_recovery(interaction_id) do
+    case Repo.transact(fn ->
+           complete_recovered_tool_call_recovery_transaction(interaction_id)
+         end) do
+      {:ok, :ok} -> :ok
+      {:error, reason} -> raise "Failed to finalize recovered MCP tool claim: #{inspect(reason)}"
+    end
+  end
+
+  defp complete_recovered_tool_call_recovery_transaction(interaction_id) do
+    with {:ok, row} <- lock_recovery_tool_call(interaction_id),
+         %ToolCallExecutionClaim{} = claim <- row.data.execution_claim,
+         {:ok, _row} <- persist_tool_call_claim(row, %{claim | recovery_state: :resumed}) do
+      {:ok, :ok}
+    end
+  end
+
+  defp expired_claim_generation(%ToolCallExecutionClaim{dispatch_state: :claimed} = claim),
+    do: {:ok, claim.generation + 1}
+
+  defp expired_claim_generation(
+         %ToolCallExecutionClaim{dispatch_state: :started, replay_policy: :verified_idempotent} =
+           claim
+       ),
+       do: {:ok, claim.generation + 1}
+
+  defp expired_claim_generation(%ToolCallExecutionClaim{dispatch_state: :started}),
+    do: {:error, :dispatch_ambiguous}
+
+  defp ambiguous_expired_claim(
+         %ToolCallExecutionClaim{
+           dispatch_state: :started,
+           resolution_state: :unresolved,
+           replay_policy: :non_idempotent
+         } = claim,
+         database_now
+       ) do
+    case classify_tool_call_lease(claim.lease_expires_at, database_now) do
+      :active -> {:error, :already_claimed}
+      :expired -> {:ok, claim}
+    end
+  end
+
+  defp ambiguous_expired_claim(%ToolCallExecutionClaim{}, _database_now),
+    do: {:error, :not_ambiguous}
+
+  defp ambiguous_expired_claim(nil, _database_now), do: {:error, :not_ambiguous}
+
+  defp update_active_claim(scope, token, update) do
+    Repo.transact(fn ->
+      with {:ok, row} <- lock_tool_call(scope, token.reference),
+           database_now <- database_now(),
+           {:ok, claim} <- active_claim(row.data.execution_claim, token, database_now) do
+        update.(row, claim, database_now)
+      end
+    end)
+  end
+
+  defp active_claim(
+         %ToolCallExecutionClaim{
+           owner_connection_id: owner_connection_id,
+           generation: generation,
+           resolution_state: :unresolved
+         } = claim,
+         %ToolCallClaimToken{
+           owner_connection_id: owner_connection_id,
+           generation: generation
+         },
+         database_now
+       ) do
+    case classify_tool_call_deadline(claim.deadline_at, database_now) do
+      :expired ->
+        {:error, :deadline_expired}
+
+      :active ->
+        case classify_tool_call_lease(claim.lease_expires_at, database_now) do
+          :active -> {:ok, claim}
+          :expired -> {:error, :claim_expired}
+        end
+    end
+  end
+
+  defp active_claim(%ToolCallExecutionClaim{}, %ToolCallClaimToken{}, _database_now),
+    do: {:error, :stale_claim}
+
+  defp active_claim(nil, %ToolCallClaimToken{}, _database_now), do: {:error, :stale_claim}
+
+  defp matching_unresolved_claim(
+         %ToolCallExecutionClaim{
+           owner_connection_id: owner_connection_id,
+           generation: generation,
+           resolution_state: :unresolved
+         } = claim,
+         %ToolCallClaimToken{
+           owner_connection_id: owner_connection_id,
+           generation: generation
+         }
+       ),
+       do: {:ok, claim}
+
+  defp matching_unresolved_claim(%ToolCallExecutionClaim{}, %ToolCallClaimToken{}),
+    do: {:error, :stale_claim}
+
+  defp matching_unresolved_claim(nil, %ToolCallClaimToken{}), do: {:error, :stale_claim}
+
+  defp ensure_dispatch_started(%ToolCallExecutionClaim{dispatch_state: :started}), do: :ok
+
+  defp ensure_dispatch_started(%ToolCallExecutionClaim{dispatch_state: :claimed}),
+    do: {:error, :dispatch_not_started}
+
+  defp persist_claim_update(token, row, claim, attrs) do
+    updated_claim = struct!(claim, attrs)
+
+    with {:ok, updated_row} <- persist_tool_call_claim(row, updated_claim) do
+      {:ok, claim_token(token.reference, updated_row.data.execution_claim)}
+    end
+  end
+
+  defp persist_tool_call_claim(%InteractionSchema{} = row, %ToolCallExecutionClaim{} = claim) do
+    attrs =
+      row.data
+      |> Map.from_struct()
+      |> Map.put(:execution_claim, Map.from_struct(claim))
+
+    row
+    |> InteractionSchema.update_data_changeset(attrs)
+    |> Repo.update()
+  end
+
+  defp database_now do
+    %{rows: [[database_now]]} = Repo.query!("SELECT clock_timestamp()")
+    database_now
+  end
+
+  defp execution_reference(%InteractionSchema{
+         id: interaction_id,
+         task_id: task_id,
+         turn_number: turn_number,
+         data: %Interaction.ToolCall{
+           tool_call_id: tool_call_id,
+           tool_name: tool_name
+         }
+       }) do
+    %ToolCallExecutionReference{
+      interaction_id: interaction_id,
+      task_id: task_id,
+      turn_number: turn_number,
+      tool_call_id: tool_call_id,
+      tool_name: tool_name
+    }
+  end
+
+  defp execution_reference_from_identity(task_id, turn_number, tool_call_id) do
+    InteractionSchema
+    |> InteractionSchema.for_task(task_id)
+    |> InteractionSchema.for_turn(turn_number)
+    |> InteractionSchema.of_type(:tool_call)
+    |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
+    |> Repo.one!()
+    |> execution_reference()
+  end
+
+  defp finalize_identity_claim_recovery(
+         {:ok, _result, :notified} = result,
+         scope,
+         task_id,
+         turn_number,
+         tool_call_id
+       ) do
+    reference = execution_reference_from_identity(task_id, turn_number, tool_call_id)
+    finalize_claim_recovery(result, scope, reference)
+  end
+
+  defp finalize_identity_claim_recovery(
+         result,
+         _scope,
+         _task_id,
+         _turn_number,
+         _tool_call_id
+       ),
+       do: result
+
+  defp claim_token(reference, claim) do
+    %ToolCallClaimToken{
+      reference: reference,
+      owner_connection_id: claim.owner_connection_id,
+      generation: claim.generation,
+      started_at: claim.started_at,
+      deadline_at: claim.deadline_at,
+      lease_expires_at: claim.lease_expires_at
+    }
+  end
+
+  defp tool_call_data(%Interaction.ToolCall{} = tool_call) do
+    %{
+      id: tool_call.tool_call_id,
+      name: tool_call.tool_name,
+      output_schema: tool_call.output_schema
+    }
+  end
+
+  defp complete_claimed_tool_call_with_resolution(scope, token, result, resolution_state) do
+    transaction_result =
+      Repo.transact(fn ->
+        with {:ok, row} <- lock_tool_call(scope, token.reference) do
+          complete_current_claim(row, token, result, resolution_state)
+        end
+      end)
+
+    transaction_result
+    |> complete_claimed_tool_call_after_commit(token.reference.task_id)
+    |> finalize_claim_recovery(scope, token.reference)
+  end
+
+  defp insert_claimed_tool_result(row, result) do
+    InteractionSchema.create_changeset(
+      row.task_id,
+      :tool_result,
+      Interaction.ToolResult.attrs(tool_call_data(row.data), result),
+      row.turn_number
+    )
+    |> Repo.insert()
+  end
+
+  defp cancel_current_claim(%InteractionSchema{data: %{execution_claim: nil}}, _reason),
+    do: {:error, :unclaimed}
+
+  defp cancel_current_claim(
+         %InteractionSchema{data: %{execution_claim: %{resolution_state: :unresolved} = claim}} =
+           row,
+         reason
+       ) do
+    with {:ok, result_row} <-
+           insert_claimed_tool_result(row, ModelContextProtocol.tool_result_error(reason)),
+         {:ok, _row} <-
+           persist_tool_call_claim(row, %{
+             claim
+             | resolution_state: :cancelled,
+               recovery_state: :pending_resume
+           }) do
+      {:ok, result_row}
+    end
+  end
+
+  defp cancel_current_claim(%InteractionSchema{} = row, _reason),
+    do: canonical_claimed_tool_result(row)
+
+  defp complete_current_claim(
+         %InteractionSchema{data: %{execution_claim: %{resolution_state: :unresolved}}} = row,
+         token,
+         result,
+         resolution_state
+       ) do
+    with database_now <- database_now(),
+         {:ok, claim} <- matching_unresolved_claim(row.data.execution_claim, token) do
+      case classify_tool_call_deadline(claim.deadline_at, database_now) do
+        :active -> complete_active_claim(row, claim, result, resolution_state, database_now)
+        :expired -> resolve_recovered_claim(row, claim, "Tool execution timed out")
+      end
+    end
+  end
+
+  defp complete_current_claim(
+         %InteractionSchema{data: %{execution_claim: nil}},
+         _token,
+         _result,
+         _state
+       ),
+       do: {:error, :stale_claim}
+
+  defp complete_current_claim(%InteractionSchema{} = row, _token, _result, _resolution_state),
+    do: canonical_claimed_tool_result(row)
+
+  defp complete_active_claim(row, claim, result, resolution_state, database_now) do
+    with {:ok, claim} <-
+           active_claim(claim, claim_token(execution_reference(row), claim), database_now),
+         :ok <- ensure_dispatch_started(claim),
+         canonical_result <- canonical_completion_result(row, result, resolution_state),
+         {:ok, result_row} <- insert_claimed_tool_result(row, canonical_result),
+         {:ok, _row} <-
+           persist_tool_call_claim(row, %{
+             claim
+             | resolution_state: resolution_state,
+               recovery_state: :pending_resume
+           }) do
+      {:ok, result_row}
+    end
+  end
+
+  defp timeout_current_claim(
+         %InteractionSchema{data: %{execution_claim: %{resolution_state: :unresolved}}} = row,
+         token,
+         reason
+       ) do
+    with {:ok, claim} <- matching_unresolved_claim(row.data.execution_claim, token),
+         database_now <- database_now() do
+      case classify_tool_call_deadline(claim.deadline_at, database_now) do
+        :expired -> resolve_recovered_claim(row, claim, reason)
+        :active -> {:error, {:deadline_active, deadline_delay_ms(claim, database_now)}}
+      end
+    end
+  end
+
+  defp timeout_current_claim(%InteractionSchema{} = row, _token, _reason),
+    do: canonical_claimed_tool_result(row)
+
+  defp deadline_delay_ms(claim, database_now) do
+    max(DateTime.diff(claim.deadline_at, database_now, :millisecond), 1)
+  end
+
+  defp canonical_peer_tool_result(result, output_schema) do
+    case CanonicalToolResult.canonicalize(result, output_schema) do
+      {:ok, canonical} ->
+        canonical
+
+      {:error, :invalid_call_tool_result} ->
+        ModelContextProtocol.tool_result_error("Invalid MCP tool result")
+    end
+  end
+
+  defp canonical_completion_result(row, result, :completed) do
+    canonical_peer_tool_result(result, row.data.output_schema)
+  end
+
+  defp canonical_completion_result(_row, result, :cancelled), do: result
+
+  defp canonical_claimed_tool_result(row) do
+    case InteractionSchema
+         |> InteractionSchema.for_task(row.task_id)
+         |> InteractionSchema.for_turn(row.turn_number)
+         |> InteractionSchema.of_type(:tool_result)
+         |> InteractionSchema.data_equals("tool_call_id", row.data.tool_call_id)
+         |> Repo.all() do
+      [%InteractionSchema{} = result_row] -> {:ok, {:canonical, result_row}}
+      [] -> {:error, :terminal_claim_without_result}
+      [_first, _second | _rest] -> {:error, :duplicate_tool_result}
+    end
+  end
+
+  defp complete_claimed_tool_call_after_commit(
+         {:ok, %InteractionSchema{} = result_row},
+         task_id
+       ) do
+    :telemetry.execute(
+      [:frontman_server, :mcp, :tool_call, :committed],
+      %{},
+      %{
+        result_interaction_id: result_row.id,
+        task_id: task_id,
+        tool_call_id: result_row.data.tool_call_id
+      }
+    )
+
+    broadcast_task(task_id, {:interaction, result_row})
+    notify_recorded_tool_result(task_id, result_row.data)
+  end
+
+  defp complete_claimed_tool_call_after_commit(
+         {:ok, {:canonical, %InteractionSchema{data: result}}},
+         _task_id
+       ) do
+    {:ok, result, :already_resolved}
+  end
+
+  defp complete_claimed_tool_call_after_commit({:error, reason}, _task_id),
+    do: {:error, reason}
+
+  defp finalize_claim_recovery(
+         {:ok, _result, :notified} = result,
+         scope,
+         reference
+       ) do
+    :ok = complete_tool_call_recovery(scope, reference)
+    result
+  end
+
+  defp finalize_claim_recovery(result, _scope, _reference), do: result
+
+  defp complete_tool_call_recovery(scope, reference) do
+    case Repo.transact(fn -> complete_tool_call_recovery_transaction(scope, reference) end) do
+      {:ok, :ok} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp complete_tool_call_recovery_transaction(scope, reference) do
+    with {:ok, row} <- lock_tool_call(scope, reference),
+         %ToolCallExecutionClaim{} = claim <- row.data.execution_claim,
+         {:ok, _row} <-
+           persist_tool_call_claim(row, %{claim | recovery_state: :resumed}) do
+      {:ok, :ok}
+    else
+      nil -> {:error, :stale_claim}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp cancel_claimed_or_resolve_legacy_tool(scope, task_id, turn_number, tool_call, reason) do
+    case cancel_current_claimed_tool_call(scope, task_id, turn_number, tool_call, reason) do
+      {:ok, _result, _status} ->
+        :ok
+
+      {:error, error} when error in [:unclaimed, :not_found] ->
+        {:ok, _result, _status} =
+          resolve_tool_request(
+            scope,
+            task_id,
+            tool_call,
+            ModelContextProtocol.tool_result_error(reason),
+            turn_number: turn_number
+          )
+
+        :ok
+
+      {:error, reason} ->
+        raise "Failed to terminally resolve durable tool call: #{inspect(reason)}"
     end
   end
 
@@ -727,7 +1848,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp resolve_recorded_tool_result({:ok, interaction}, task_id, _turn_number, _tool_call_id) do
-    notify_recorded_tool_result(interaction, task_id)
+    notify_recorded_tool_result(task_id, interaction)
   end
 
   defp resolve_recorded_tool_result(
@@ -747,14 +1868,14 @@ defmodule FrontmanServer.Tasks do
           |> Repo.one!()
           |> Map.fetch!(:data)
 
-        notify_recorded_tool_result(interaction, task_id)
+        notify_recorded_tool_result(task_id, interaction)
 
       false ->
         {:error, changeset}
     end
   end
 
-  defp notify_recorded_tool_result(interaction, task_id) do
+  defp notify_recorded_tool_result(task_id, interaction) do
     {:ok, interaction, Execution.notify_tool_result(task_id, interaction)}
   end
 
@@ -777,18 +1898,19 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Returns unresolved tool calls and the turn number for the active execution.
+  Returns unresolved tool calls and turn number for the active agent run.
 
-  `TurnStarted` starts execution for a new turn. `AgentRetry` restarts execution
-  in the same turn. Completion, error, and pause records stop execution.
+  `TurnStarted` starts a normal agent run. `AgentRetry` starts a new agent run
+  in the same turn. Agent completed, error, and paused interactions close only
+  the active run attempt for their turn number.
   """
-  def get_active_turn_unresolved_tool_calls(scope, task_id) do
+  def get_active_run_unresolved_tool_calls(scope, task_id) do
     with {:ok, _schema} <- get_task_by_id(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, history} <- History.new(rows) do
-      case History.active_turn_number(history) do
+      case History.active_run_turn_number(history) do
         nil ->
-          {:ok, :no_active_turn}
+          {:ok, :no_active_run}
 
         turn_number ->
           tool_calls =
@@ -804,6 +1926,34 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc "Returns strong durable references with exact persisted unresolved tool calls."
+  @spec get_active_run_unresolved_tool_call_executions(Scope.t(), Ecto.UUID.t()) ::
+          {:ok, :no_active_run}
+          | {:ok, pos_integer(), [{ToolCallExecutionReference.t(), Interaction.ToolCall.t()}]}
+          | {:error, term()}
+  def get_active_run_unresolved_tool_call_executions(%Scope{} = scope, task_id)
+      when is_binary(task_id) do
+    with {:ok, _schema} <- get_task_by_id(scope, task_id),
+         rows = load_interaction_rows(task_id),
+         {:ok, history} <- History.new(rows) do
+      case History.active_run_turn_number(history) do
+        nil ->
+          {:ok, :no_active_run}
+
+        turn_number ->
+          executions =
+            InteractionSchema.for_task(task_id)
+            |> InteractionSchema.for_turn(turn_number)
+            |> InteractionSchema.unresolved_tool_calls()
+            |> InteractionSchema.ordered()
+            |> Repo.all()
+            |> Enum.map(&{execution_reference(&1), &1.data})
+
+          {:ok, turn_number, executions}
+      end
+    end
+  end
+
   @doc "Records a retry request and starts execution."
   def retry_execution(scope, task_id, retried_error_id, execution) do
     with {:ok, schema} <- get_task_by_id(scope, task_id),
@@ -815,16 +1965,17 @@ defmodule FrontmanServer.Tasks do
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          retry_attrs = %{retried_error_id: retried_error_id},
          {:ok, _retry} <- record_interaction(schema, :agent_retry, retry_attrs, turn_number) do
-      start_execution(scope, schema, turn_number, agent, execution)
+      run_execution(scope, schema, turn_number, agent, execution)
     end
   end
 
-  @doc "Executes the next accepted-message turn when work is available."
-  def execute_next_turn(%Scope{} = scope, task_id, execution) when is_binary(task_id) do
+  @doc "Starts and runs the next accepted-message turn when work is available."
+  def run_next_turn(%Scope{} = scope, task_id, execution) when is_binary(task_id) do
     case start_next_turn(scope, task_id) do
       {:ok, task, turn_number, turn_model, agent} ->
-        execution = Map.put(execution, :model, turn_model)
-        start_execution(scope, task, turn_number, agent, execution)
+        with {:ok, execution} <- put_missing_execution_model(execution, turn_model) do
+          run_execution(scope, task, turn_number, agent, execution)
+        end
 
       stop when stop in [:already_running, :no_accepted_messages] ->
         stop
@@ -871,14 +2022,14 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc "Resumes execution for the active turn."
+  @doc "Resumes execution for the active agent run."
   def resume_execution(scope, task_id, execution) do
     with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- History.new(task.interaction_rows),
-         turn_number when is_integer(turn_number) <- History.active_turn_number(history),
+         turn_number when is_integer(turn_number) <- History.active_run_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          {:ok, execution} <- ensure_execution_model(history, turn_number, execution) do
-      start_execution(scope, task, turn_number, agent, execution)
+      run_execution(scope, task, turn_number, agent, execution)
     else
       nil -> {:error, :not_running}
       {:error, reason} -> {:error, reason}
@@ -891,10 +2042,26 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  defp ensure_execution_model(_history, _turn_number, %{model: model} = execution)
+       when is_binary(model) and model != "" do
+    {:ok, execution}
+  end
+
   defp ensure_execution_model(history, turn_number, execution) do
-    with {:ok, model} <- History.turn_model(history, turn_number) do
-      {:ok, Map.put(execution, :model, model)}
+    case History.turn_model(history, turn_number) do
+      {:ok, model} -> {:ok, Map.put(execution, :model, model)}
+      {:error, reason} -> {:error, reason}
     end
+  end
+
+  defp put_missing_execution_model(%{model: model} = execution, _turn_model)
+       when is_binary(model) and model != "" do
+    {:ok, execution}
+  end
+
+  defp put_missing_execution_model(execution, turn_model)
+       when is_binary(turn_model) and turn_model != "" do
+    {:ok, Map.put(execution, :model, turn_model)}
   end
 
   @doc """
@@ -904,11 +2071,11 @@ defmodule FrontmanServer.Tasks do
   """
   def cancel_execution(scope, task_id) do
     with {:ok, _schema} <- get_task_by_id(scope, task_id) do
-      SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
+      SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id, 30_000)
     end
   end
 
-  defp start_execution(scope, task, turn_number, agent, execution)
+  defp run_execution(scope, task, turn_number, agent, execution)
        when is_integer(turn_number) and turn_number > 0 do
     rows = load_interaction_rows(task.id)
     {:ok, history} = History.new(rows)
@@ -917,7 +2084,7 @@ defmodule FrontmanServer.Tasks do
     tool_policy = Agents.tool_policy(agent)
     response_context = History.response_context(history, turn_number, agent.id)
 
-    case Execution.start(
+    case Execution.run(
            scope,
            task,
            turn_number,
@@ -940,26 +2107,46 @@ defmodule FrontmanServer.Tasks do
 
   defp prompt_context(%TaskSchema{} = task, rows, execution) do
     interactions = Enum.map(rows, &Map.fetch!(&1, :data))
+    project_rules = latest_project_rules(interactions)
+    project_structure = latest_project_structure(interactions)
 
     %{
       framework: task.framework,
       project_traits: Map.get(execution, :project_traits, []),
-      project_rules:
-        Enum.flat_map(interactions, fn
-          %Interaction.DiscoveredProjectRule{} = rule ->
-            [%{path: rule.path, content: rule.content, timestamp: rule.timestamp}]
-
-          _interaction ->
-            []
-        end),
-      project_structure:
-        Enum.find_value(interactions, fn
-          %Interaction.DiscoveredProjectStructure{summary: summary} -> summary
-          _interaction -> nil
-        end),
+      project_rules: project_rules,
+      project_structure: project_structure,
       has_annotations:
         Enum.any?(interactions, &match?(%Interaction.UserMessage{annotations: [_ | _]}, &1))
     }
+  end
+
+  defp latest_project_rules(interactions) do
+    interactions
+    |> Enum.reverse()
+    |> Enum.reduce({MapSet.new(), []}, fn
+      %Interaction.DiscoveredProjectRule{} = rule, {paths, rules} ->
+        case MapSet.member?(paths, rule.path) do
+          true -> {paths, rules}
+          false -> {MapSet.put(paths, rule.path), [project_rule_context(rule) | rules]}
+        end
+
+      _interaction, acc ->
+        acc
+    end)
+    |> elem(1)
+  end
+
+  defp project_rule_context(rule) do
+    %{path: rule.path, content: rule.content, timestamp: rule.timestamp}
+  end
+
+  defp latest_project_structure(interactions) do
+    interactions
+    |> Enum.reverse()
+    |> Enum.find_value(fn
+      %Interaction.DiscoveredProjectStructure{summary: summary} -> summary
+      _interaction -> nil
+    end)
   end
 
   defp record_execution_start_failure(scope, task_id, turn_number, reason)
@@ -969,7 +2156,7 @@ defmodule FrontmanServer.Tasks do
     {message, category, retryable} = ErrorClassifier.classify_error(reason)
 
     {:ok, _error} =
-      record_execution_outcome(
+      record_agent_run_result(
         scope,
         task_id,
         turn_number,
@@ -1000,23 +2187,20 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Lists all todos from an already-loaded task.
+  Lists all todos for a task.
 
   Todos are managed through tool calls, not direct API calls.
   This function is for reading the current todos only.
   """
-  @spec list_todos(TaskSchema.t()) :: [Todos.Todo.t()]
-  def list_todos(%TaskSchema{interaction_rows: rows}) when is_list(rows) do
-    rows
-    |> Todos.list_todos()
-    |> Map.values()
-    |> Enum.sort_by(& &1.created_at, DateTime)
-  end
-
-  @doc "Lists all todos for a task."
   def list_todos(scope, task_id) do
     with {:ok, task} <- get_task(scope, task_id) do
-      {:ok, list_todos(task)}
+      todos =
+        task.interaction_rows
+        |> Todos.list_todos()
+        |> Map.values()
+        |> Enum.sort_by(& &1.created_at, DateTime)
+
+      {:ok, todos}
     end
   end
 end

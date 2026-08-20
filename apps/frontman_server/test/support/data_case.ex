@@ -53,9 +53,24 @@ defmodule FrontmanServer.DataCase do
   sequential execution to avoid cross-test contamination.
   """
   def setup_sandbox_for_async_tasks(_context) do
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    start_shared_owner!()
     :ok
+  end
+
+  @doc "Starts a shared sandbox owner and drains executions started during its lifetime."
+  def start_shared_owner! do
+    existing_executions = execution_processes()
+    owner_pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
+
+    on_exit(fn ->
+      existing_executions
+      |> new_execution_processes()
+      |> stop_execution_processes()
+
+      Sandbox.stop_owner(owner_pid)
+    end)
+
+    owner_pid
   end
 
   @doc """
@@ -72,5 +87,45 @@ defmodule FrontmanServer.DataCase do
         opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
       end)
     end)
+  end
+
+  defp execution_processes do
+    registry = SwarmAi.registry_name(FrontmanServer.AgentRuntime)
+
+    Registry.select(registry, [{{:"$1", :"$2", :_}, [], [{{:"$1", :"$2"}}]}])
+    |> MapSet.new()
+  end
+
+  defp new_execution_processes(existing_executions) do
+    execution_processes()
+    |> MapSet.difference(existing_executions)
+    |> MapSet.to_list()
+  end
+
+  defp stop_execution_processes(executions) do
+    monitors =
+      Map.new(executions, fn {task_id, execution_pid} ->
+        {Process.monitor(execution_pid), task_id}
+      end)
+
+    Enum.each(executions, fn {task_id, _execution_pid} ->
+      SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
+    end)
+
+    await_execution_processes(monitors, System.monotonic_time(:millisecond) + 5_000)
+  end
+
+  defp await_execution_processes(monitors, _deadline) when map_size(monitors) == 0, do: :ok
+
+  defp await_execution_processes(monitors, deadline) do
+    remaining = max(deadline - System.monotonic_time(:millisecond), 0)
+
+    receive do
+      {:DOWN, monitor, :process, _pid, _reason} ->
+        await_execution_processes(Map.delete(monitors, monitor), deadline)
+    after
+      remaining ->
+        flunk("execution processes did not terminate: #{inspect(Map.values(monitors))}")
+    end
   end
 end

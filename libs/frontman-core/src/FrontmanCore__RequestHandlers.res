@@ -1,64 +1,28 @@
-module Protocol = FrontmanAiFrontmanProtocol
-module MCP = Protocol.FrontmanProtocol__MCP
-module Relay = Protocol.FrontmanProtocol__Relay
-module CoreServer = FrontmanCore__Server
-module CoreSSE = FrontmanCore__SSE
 module PathContext = FrontmanCore__PathContext
-module SafePath = FrontmanCore__SafePath
-module WebStreams = FrontmanBindings.WebStreams
+module DOMElementToComponentSource = FrontmanBindings.DOMElementToComponentSource
+module RequestBody = FrontmanCore__MCP__RequestBody
+module BodyReader = FrontmanCore__MCP__BodyReader
+module BodyDecoder = FrontmanCore__MCP__BodyDecoder
 
-@module("node:fs/promises")
-external realpath: string => promise<string> = "realpath"
-
-let maxSourceInvocations = 10
-let maxSourceRequestBytes = 100_000
-
-type handlerConfig = {
-  projectRoot: string,
-  sourceRoot: string,
-  serverName: string,
-  serverVersion: string,
+@schema
+type resolveSourceLocationRequest = {
+  componentName: string,
+  file: string,
+  line: int,
+  column: int,
 }
 
 @schema
-type sourceLocation = {
+type resolveSourceLocationResponse = {
   @live
-  componentName: option<string>,
+  componentName: string,
   @live
-  tagName: option<string>,
   file: string,
+  @live
   line: int,
   @live
   column: int,
-  componentProps: option<Dict.t<JSON.t>>,
 }
-
-@schema
-type sourceContext = {
-  definition: option<sourceLocation>,
-  invocations: array<sourceLocation>,
-}
-
-type sourceResolutionError = {
-  code: string,
-  message: string,
-}
-
-type sourceResolutionResult = {
-  success: bool,
-  data: option<sourceContext>,
-  error: option<sourceResolutionError>,
-}
-
-type resolveSourceContextOptions = {projectRoot: string}
-
-type resolveSourceContext = (
-  sourceContext,
-  resolveSourceContextOptions,
-) => promise<sourceResolutionResult>
-
-@module("dom-element-to-component-source/server")
-external resolveElementSourceContext: resolveSourceContext = "resolveElementSourceContext"
 
 @schema
 type errorResponse = {
@@ -68,263 +32,80 @@ type errorResponse = {
   details: option<string>,
 }
 
-let canonicalPath = async (path: string): option<string> => {
-  try {
-    Some(await realpath(path))
-  } catch {
-  | _ => None
-  }
-}
-
-let normalizeResolvedLocation = async (
-  ~canonicalSourceRoot: string,
-  location: sourceLocation,
-): result<sourceLocation, string> => {
-  switch location.file->String.startsWith("about://") {
-  | true => Error("Resolved source remained virtual")
-  | false =>
-    switch SafePath.resolve(~sourceRoot=canonicalSourceRoot, ~inputPath=location.file) {
-    | Error(_) => Error("Resolved source is outside source root")
-    | Ok(safePath) =>
-      switch await canonicalPath(SafePath.toString(safePath)) {
-      | None => Error("Resolved source does not exist")
-      | Some(path)
-        if SafePath.resolve(~sourceRoot=canonicalSourceRoot, ~inputPath=path)->Result.isOk =>
-        Ok({
-          ...location,
-          file: PathContext.toRelativePath(~sourceRoot=canonicalSourceRoot, ~absolutePath=path),
-        })
-      | Some(_) => Error("Resolved source is outside source root")
-      }
-    }
-  }
-}
-
-let rec normalizeResolvedInvocations = async (
-  ~canonicalSourceRoot: string,
-  invocations: array<sourceLocation>,
-  index: int,
-): result<array<sourceLocation>, string> => {
-  switch invocations->Array.get(index) {
-  | None => Ok([])
-  | Some(invocation) =>
-    switch await normalizeResolvedLocation(~canonicalSourceRoot, invocation) {
-    | Error(details) => Error(details)
-    | Ok(invocation) =>
-      switch await normalizeResolvedInvocations(~canonicalSourceRoot, invocations, index + 1) {
-      | Error(details) => Error(details)
-      | Ok(rest) => Ok(Array.concat([invocation], rest))
-      }
-    }
-  }
-}
-
-let normalizeResolvedContext = async (~canonicalSourceRoot: string, context: sourceContext): result<
-  sourceContext,
-  string,
-> => {
-  let definitionResult = switch context.definition {
-  | None => Ok(None)
-  | Some(definition) =>
-    switch await normalizeResolvedLocation(~canonicalSourceRoot, definition) {
-    | Error(details) => Error(details)
-    | Ok(definition) => Ok(Some(definition))
-    }
-  }
-  switch definitionResult {
-  | Error(details) => Error(details)
-  | Ok(definition) =>
-    switch await normalizeResolvedInvocations(~canonicalSourceRoot, context.invocations, 0) {
-    | Error(details) => Error(details)
-    | Ok(invocations) => Ok({definition, invocations})
-    }
-  }
-}
-
-let unresolvedReactSourceResponse = (~details: string): WebAPI.Response.t => {
-  let json = {
-    error: "Could not resolve React source context",
-    details: Some(details),
-  }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json)
-  WebAPI.Response.jsonR(~data=json, ~init={status: 422})
-}
-
-let safeSourceResolutionError = (error: sourceResolutionError): string =>
-  switch error.code {
-  | "INVALID_REACT_URL" => "INVALID_REACT_URL: React source URL is invalid"
-  | "GENERATED_FILE_NOT_FOUND" => "GENERATED_FILE_NOT_FOUND: Generated source file was not found"
-  | "SOURCE_MAP_NOT_FOUND" => "SOURCE_MAP_NOT_FOUND: Source map was not found"
-  | "POSITION_NOT_FOUND" => "POSITION_NOT_FOUND: Source map position was not found"
-  | _ => "RESOLUTION_FAILED: Source resolution failed"
-  }
-
-let handleGetTools = (
-  ~registry: FrontmanCore__ToolRegistry.t,
-  ~config: handlerConfig,
-): WebAPI.Response.t => {
-  let response = CoreServer.getToolsResponse(
-    ~registry,
-    ~serverName=config.serverName,
-    ~serverVersion=config.serverVersion,
-  )
-
-  let json =
-    response->S.decodeOrThrow(~from=Relay.toolsResponseSchema, ~to=S.json->S.noValidation(true))
-  let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
-  WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
-}
-
-let handleToolCall = async (
-  ~registry: FrontmanCore__ToolRegistry.t,
-  ~config: handlerConfig,
-  req: WebAPI.Request.t,
-): WebAPI.Response.t => {
-  let body = await req->WebAPI.Request.json
-
-  let request = try {
-    Ok(body->S.parseOrThrow(~to=Relay.toolCallRequestSchema))
-  } catch {
-  | exn =>
-    Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid request"))
-  }
-
-  switch request {
-  | Error(msg) =>
-    let errorResult = MCP.CallToolResult.makeError(`Invalid request: ${msg}`)
-    let json =
-      errorResult->S.decodeOrThrow(
-        ~from=MCP.CallToolResult.schema,
-        ~to=S.json->S.noValidation(true),
-      )
-    WebAPI.Response.jsonR(~data=json, ~init={status: 400})
-
-  | Ok(request) =>
-    let ctx: CoreServer.executionContext = {
-      projectRoot: config.projectRoot,
-      sourceRoot: config.sourceRoot,
-    }
-
-    let resultPromise = CoreServer.executeTool(
-      ~registry,
-      ~ctx,
-      ~name=request.name,
-      ~arguments=request.arguments,
-    )
-
-    let encoder = WebStreams.makeTextEncoder()
-    let stream = WebStreams.makeReadableStream({
-      start: controller => {
-        let _ =
-          resultPromise
-          ->Promise.then(result => {
-            let eventData = CoreSSE.resultEvent(CoreServer.resultToMCP(result))
-            controller->WebStreams.enqueue(encoder->WebStreams.encode(eventData))
-            controller->WebStreams.close
-            Promise.resolve()
-          })
-          ->Promise.catch(error => {
-            let msg =
-              error
-              ->JsExn.fromException
-              ->Option.flatMap(JsExn.message)
-              ->Option.getOr("Unknown error")
-            let errorResult = MCP.CallToolResult.makeError(`Tool execution failed: ${msg}`)
-            controller->WebStreams.enqueue(
-              encoder->WebStreams.encode(CoreSSE.resultEvent(errorResult)),
-            )
-            controller->WebStreams.close
-            Promise.resolve()
-          })
-      },
-    })
-
-    WebAPI.Response.fromReadableStream(stream, ~init={headers: CoreSSE.headers()})
-  }
-}
-
 let handleResolveSourceLocation = async (
-  ~projectRoot: option<string>=?,
   ~sourceRoot: string,
-  ~resolveSourceContext: resolveSourceContext=resolveElementSourceContext,
-  req: WebAPI.Request.t,
-): WebAPI.Response.t => {
-  let projectRoot = projectRoot->Option.getOr(sourceRoot)
-  let canonicalProjectRoot = (await canonicalPath(projectRoot))->Option.getOr(projectRoot)
-  let canonicalSourceRoot = (await canonicalPath(sourceRoot))->Option.getOr(sourceRoot)
-
-  let request = try {
-    let body = await req->WebAPI.Request.text
-    switch WebStreams.utf8ByteSize(body) > maxSourceRequestBytes {
-    | true => Error(#tooLarge)
-    | false => Ok(body->JSON.parseOrThrow->S.parseOrThrow(~to=sourceContextSchema))
-    }
-  } catch {
-  | exn =>
-    Error(
-      #invalid(
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid request"),
+  req: WebAPI.FetchAPI.request,
+): WebAPI.FetchAPI.response => {
+  let request = switch await RequestBody.decode(req) {
+  | Error(RequestBody.BodyAlreadyUsed) =>
+    failwith("Source-location request body was already consumed")
+  | Error(RequestBody.ReaderError(BodyReader.BodyTooLarge))
+  | Error(RequestBody.DecoderError(BodyDecoder.BodyTooLarge)) =>
+    Error(#bodyTooLarge)
+  | Error(RequestBody.ReaderError(BodyReader.BodyTimedOut)) => Error(#bodyTimedOut)
+  | Error(
+      RequestBody.MissingBody
+      | RequestBody.ReaderError(BodyReader.InvalidContentLength | BodyReader.BodyTooFragmented)
+      | RequestBody.DecoderError(
+        BodyDecoder.InvalidUtf8 | BodyDecoder.JsonTooDeep | BodyDecoder.InvalidJson,
       ),
-    )
+    ) =>
+    Error(#invalidBody)
+  | Ok(body) =>
+    try {
+      Ok(body->S.parseOrThrow(~to=resolveSourceLocationRequestSchema))
+    } catch {
+    | S.Exn(_) => Error(#invalidRequest)
+    }
   }
 
   switch request {
-  | Error(#tooLarge) =>
-    let json = {
-      error: "Source context exceeds 100000 bytes",
-      details: None,
-    }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json)
-    WebAPI.Response.jsonR(~data=json, ~init={status: 413})
-  | Error(#invalid(msg)) =>
+  | Error(#bodyTooLarge) => WebAPI.Response.fromNull(~init={status: 413})
+  | Error(#bodyTimedOut) => WebAPI.Response.fromNull(~init={status: 408})
+  | Error(#invalidBody | #invalidRequest) =>
     let json =
-      {error: `Invalid request: ${msg}`, details: None}->S.decodeOrThrow(
+      {error: "Invalid request", details: None}->S.decodeOrThrow(
         ~from=errorResponseSchema,
         ~to=S.json,
       )
     WebAPI.Response.jsonR(~data=json, ~init={status: 400})
 
   | Ok(request) =>
-    switch request.invocations->Array.length > maxSourceInvocations {
-    | true =>
-      unresolvedReactSourceResponse(~details="Source context must contain at most 10 invocations")
-    | false =>
-      try {
-        let packageResult = await resolveSourceContext(request, {projectRoot: canonicalProjectRoot})
-        switch (packageResult.success, packageResult.data, packageResult.error) {
-        | (false, _, Some(error)) =>
-          Console.warn({
-            "event": "source_resolution_failed",
-            "code": error.code,
-            "details": error.message,
-          })
-          unresolvedReactSourceResponse(~details=safeSourceResolutionError(error))
-        | (false, _, None) => JsError.throwWithMessage("Source resolver failed without an error")
-        | (true, None, _) => JsError.throwWithMessage("Source resolver succeeded without data")
-        | (true, Some(resolved), _) =>
-          switch await normalizeResolvedContext(~canonicalSourceRoot, resolved) {
-          | Error(details) => unresolvedReactSourceResponse(~details)
-          | Ok(responseContext) =>
-            let json =
-              responseContext->S.decodeOrThrow(
-                ~from=sourceContextSchema,
-                ~to=S.json->S.noValidation(true),
-              )
-            let headers = WebAPI.HeadersInit.fromDict(
-              Dict.fromArray([("Content-Type", "application/json")]),
-            )
-            WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
-          }
-        }
-      } catch {
-      | exn =>
-        let msg =
-          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        Console.error({"event": "source_resolution_exception", "details": msg})
-        let json = {
-          error: "Failed to resolve source context",
-          details: Some("RESOLUTION_FAILED: Source resolution failed"),
-        }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json->S.noValidation(true))
-        WebAPI.Response.jsonR(~data=json, ~init={status: 500})
+    try {
+      let sourceLocation: DOMElementToComponentSource.sourceLocation = {
+        componentName: request.componentName,
+        file: request.file,
+        line: request.line,
+        column: request.column,
+        componentProps: None,
+        parent: None,
       }
+
+      let resolved = await DOMElementToComponentSource.resolveSourceLocationInServer(sourceLocation)
+
+      let relativeFile = PathContext.toRelativePath(~sourceRoot, ~absolutePath=resolved.file)
+
+      let responseJson: resolveSourceLocationResponse = {
+        componentName: resolved.componentName,
+        file: relativeFile,
+        line: resolved.line,
+        column: resolved.column,
+      }
+
+      let json =
+        responseJson->S.decodeOrThrow(~from=resolveSourceLocationResponseSchema, ~to=S.json)
+      let headers = WebAPI.HeadersInit.fromDict(
+        Dict.fromArray([("Content-Type", "application/json")]),
+      )
+      WebAPI.Response.jsonR(~data=json, ~init={headers: headers})
+    } catch {
+    | exn =>
+      exn->ignore
+      let json = {
+        error: "Failed to resolve source location",
+        details: None,
+      }->S.decodeOrThrow(~from=errorResponseSchema, ~to=S.json->S.noValidation(true))
+      WebAPI.Response.jsonR(~data=json, ~init={status: 500})
     }
   }
 }

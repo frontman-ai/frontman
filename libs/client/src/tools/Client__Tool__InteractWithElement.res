@@ -165,6 +165,7 @@ let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
+  ~signal as _signal: WebAPI.EventAPI.abortSignal,
 ): Tool.MCP.CallToolResult.t => {
   let action = input.action->Option.getOr(#click)
   let index = Math.Int.max(0, input.index->Option.getOr(0))

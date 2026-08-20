@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { startAstro, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
-import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
+import { openFrontmanUI, proveRecoveryAfterFrameworkMcpFailure } from "../helpers/frontman-ui.js";
 import { installAstro } from "../helpers/installer.js";
+import { MCP_ORIGIN, MCP_TOKEN, mcpRequest } from "../helpers/mcp.js";
 
 const PORT = 3011;
 
@@ -13,7 +14,10 @@ describe("Astro E2E", () => {
   let server: FrameworkServer;
 
   beforeAll(async () => {
-    installAstro();
+    installAstro({
+      allowedOrigins: [MCP_ORIGIN, `http://localhost:${PORT}`],
+      token: MCP_TOKEN,
+    });
 
     browser = await chromium.launch({ headless: true });
     context = await browser.newContext({ ignoreHTTPSErrors: true });
@@ -34,19 +38,17 @@ describe("Astro E2E", () => {
     expect(html).toContain("Hello World");
   });
 
-  it("should return resolved routes from get_client_pages", async () => {
-    const res = await fetch(`http://127.0.0.1:${PORT}/frontman/tools/call/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "get_client_pages", arguments: {} }),
+  it("should return resolved routes from get_client_pages over MCP", async () => {
+    const res = await mcpRequest(`http://127.0.0.1:${PORT}`, "tools/call", "get-client-pages", {
+      name: "get_client_pages",
+      arguments: {},
     });
     expect(res.status).toBe(200);
 
-    const body = await res.text();
-    const dataLine = body.split("\n").find((l) => l.startsWith("data: "));
-    expect(dataLine).toBeDefined();
-    const envelope = JSON.parse(dataLine!.slice(6));
-    const routes = JSON.parse(envelope.content[0].text);
+    const envelope = await res.json();
+    expect(envelope.id).toBe("get-client-pages");
+    expect(envelope.result.resultType).toBe("complete");
+    const routes = JSON.parse(envelope.result.content[0].text);
 
     for (const route of routes) {
       expect(route).toHaveProperty("origin");
@@ -70,21 +72,18 @@ describe("Astro E2E", () => {
     await preview.getByRole("link", { name: "About" }).click();
 
     await page.waitForFunction(
-      (expectedUrl) =>
-        document.querySelector<HTMLInputElement>('input[type="text"]')?.value === expectedUrl,
+      (expectedUrl) => document.querySelector<HTMLInputElement>('input[type="text"]')?.value === expectedUrl,
       `http://localhost:${PORT}/about/`,
     );
     await page.waitForURL(`http://localhost:${PORT}/about/frontman/`);
     await page.close();
   });
 
-  it("should make a text change via AI prompt", async () => {
+  it("keeps browser operations usable after MCP failure and ACP reconnect", async () => {
     page = await context.newPage();
 
-    await openFrontmanUI(page, PORT);
+    const marker = await proveRecoveryAfterFrameworkMcpFailure(page, context, PORT, "src/pages/index.astro");
 
-    await sendPrompt(page, 'Change the h1 heading text in src/pages/index.astro to say "Hello Frontman"');
-
-    expect(headingFileContains(server, "Hello Frontman")).toBe(true);
+    expect(headingFileContains(server, marker)).toBe(true);
   });
 });

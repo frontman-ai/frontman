@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['test/**/*.test.res.mjs'],
+    setupFiles: ['test/setup.mjs'],
     globals: true,
     passWithNoTests: true,
 

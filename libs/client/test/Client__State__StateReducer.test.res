@@ -2007,5 +2007,84 @@ describe("Client State Reducer - Annotations on Messages", () => {
         t->expect(Reducer.Selectors.hasActiveACPSession(nextState))->Expect.toBe(false)
       },
     )
+
+    test(
+      "clearing the ACP session rejects pending question waiters",
+      t => {
+        let errors = ref([])
+        let task = TestHelpers.makeLoadedTask(
+          ~id="task-1",
+          ~title="Task",
+          ~previewUrl="http://localhost:3000",
+          ~createdAt=1.,
+          ~messages=[],
+          ~isAgentRunning=true,
+        )
+        let (taskWithQuestion, _) = Client__Task__Reducer.next(
+          task,
+          QuestionReceived({
+            questions: [],
+            toolCallId: "tc-1",
+            resolveOk: _ => (),
+            resolveError: error => errors := Array.concat(errors.contents, [error]),
+          }),
+        )
+        let tasks = Dict.make()
+        tasks->Dict.set("task-1", taskWithQuestion)
+        let state = {...Reducer.defaultState, tasks}
+        let (nextState, effects) = Reducer.next(state, ClearAcpSession)
+
+        effects->Array.forEach(effect => Reducer.handleEffect(effect, nextState, _ => ()))
+
+        t->expect(errors.contents)->Expect.toEqual(["Connection lost"])
+        t
+        ->expect(
+          nextState.tasks
+          ->Dict.get("task-1")
+          ->Option.flatMap(Client__Task__Reducer.Selectors.pendingQuestion),
+        )
+        ->Expect.toBe(None)
+      },
+    )
+
+    test(
+      "deleting and clearing tasks reject pending question waiters",
+      t => {
+        [
+          (Reducer.DeleteTask({taskId: "task-1"}), "Task deleted"),
+          (Reducer.ClearCurrentTask, "Task cleared"),
+        ]->Array.forEach(
+          ((action, expectedError)) => {
+            let errors = ref([])
+            let task = TestHelpers.makeLoadedTask(
+              ~id="task-1",
+              ~title="Task",
+              ~previewUrl="http://localhost:3000",
+              ~createdAt=1.,
+            )
+            let (taskWithQuestion, _) = Client__Task__Reducer.next(
+              task,
+              QuestionReceived({
+                questions: [],
+                toolCallId: "tc-1",
+                resolveOk: _ => (),
+                resolveError: error => errors := Array.concat(errors.contents, [error]),
+              }),
+            )
+            let tasks = Dict.make()
+            tasks->Dict.set("task-1", taskWithQuestion)
+            let state = {
+              ...Reducer.defaultState,
+              tasks,
+              currentTask: Task.Selected("task-1"),
+            }
+            let (nextState, effects) = Reducer.next(state, action)
+
+            effects->Array.forEach(effect => Reducer.handleEffect(effect, nextState, _ => ()))
+            t->expect(errors.contents)->Expect.toEqual([expectedError])
+          },
+        )
+      },
+    )
   })
 })

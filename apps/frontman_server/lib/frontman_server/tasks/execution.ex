@@ -18,6 +18,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.CanonicalToolResult
   alias FrontmanServer.Tasks.Execution.{LLMClient, ToolExecutor}
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
@@ -28,7 +29,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias SwarmAi.Message.Tool
 
   @doc """
-  Starts an agent execution asynchronously for a task.
+  Runs an agent execution for a task.
 
   Resolves provider auth, builds the root agent from the task,
   and submits the agent to SwarmAi.
@@ -42,7 +43,7 @@ defmodule FrontmanServer.Tasks.Execution do
   - `{:error, {:start_failed, reason}}` - Execution worker failed to start
   - `{:error, :no_api_key}` - No API key available
   """
-  def start(
+  def run(
         %Scope{} = scope,
         %TaskSchema{} = task,
         turn_number,
@@ -59,7 +60,7 @@ defmodule FrontmanServer.Tasks.Execution do
              is_list(interaction_rows) and is_list(mcp_tools) do
     max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
 
-    case Providers.resolve_model_access(scope, requested_model, max_tokens: max_tokens) do
+    case Providers.prepare_llm_args(scope, requested_model, max_tokens: max_tokens) do
       {:ok, {model_spec, llm_opts}} ->
         backend_tool_modules = Tools.backend_tool_modules(tool_policy)
         mcp_tools = Tools.mcp_tools(mcp_tools, tool_policy)
@@ -141,25 +142,24 @@ defmodule FrontmanServer.Tasks.Execution do
   """
   def notify_tool_result(task_id, %Interaction.ToolResult{
         tool_call_id: tool_call_id,
-        result: %{"content" => content},
+        result: result,
         is_error: is_error
       })
-      when is_list(content),
-      do: notify_tool_result(task_id, tool_call_id, content, is_error)
-
-  def notify_tool_result(_task_id, %Interaction.ToolResult{}), do: :no_executor
+      when is_binary(task_id) do
+    notify_tool_result(
+      task_id,
+      tool_call_id,
+      CanonicalToolResult.to_swarm_content(result),
+      is_error
+    )
+  end
 
   defp notify_tool_result(task_id, tool_call_id, content, is_error) do
-    case Elixir.Registry.lookup(
-           FrontmanServer.ProcessRegistry,
-           tool_registry_key(task_id, tool_call_id)
-         ) do
-      [{_pid, %{caller_pid: caller}}] ->
-        content_parts =
-          content
-          |> Enum.map(&to_swarm_content_part/1)
+    key = {:tool_call, task_id, tool_call_id}
 
-        send(caller, {:tool_result, tool_call_id, content_parts, is_error})
+    case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, key) do
+      [{_pid, %{caller_pid: caller}}] ->
+        send(caller, {:tool_result, tool_call_id, content, is_error})
 
         :notified
 
@@ -167,8 +167,6 @@ defmodule FrontmanServer.Tasks.Execution do
         :no_executor
     end
   end
-
-  defp tool_registry_key(task_id, tool_call_id), do: {:tool_call, task_id, tool_call_id}
 
   defp prompt_messages(rows, turn_number)
        when is_list(rows) and is_integer(turn_number) and turn_number > 0 do
@@ -236,9 +234,4 @@ defmodule FrontmanServer.Tasks.Execution do
   end
 
   defp decay_image_part(part, _tool_call_id), do: part
-
-  defp to_swarm_content_part(%{"type" => "text", "text" => text}), do: ContentPart.text(text)
-
-  defp to_swarm_content_part(%{"type" => "image", "data" => data, "mimeType" => mime_type}),
-    do: ContentPart.image(Base.decode64!(data), mime_type)
 end

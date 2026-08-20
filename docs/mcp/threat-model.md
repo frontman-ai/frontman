@@ -49,7 +49,7 @@ Adding any of them requires a threat-model update before capability advertisemen
 | Framework handler -> project/WordPress tool | The registry and server-derived execution context determine available capability. Tool names, annotations, and arguments cannot grant additional access. |
 | Phoenix process -> PostgreSQL | PostgreSQL is the authority for claims and terminal result uniqueness. Node-local Registry is only waiter routing and cannot establish ownership. |
 | Canonical persisted result -> ACP, model, UI, and history replay | Persisted JSON is not trusted merely because it is durable. One validated canonical representation is used by every consumer; migration fails visibly on malformed legacy rows. |
-| Repository -> vendored upstream archive | A matching repository checksum proves local consistency, not upstream safety or authenticity. Archives and runners execute only in isolated verification environments. |
+| Repository -> vendored upstream archive | A matching repository checksum proves local consistency, not upstream safety or authenticity. The current Node permission and API guards reduce accidental exposure but are not an OS-enforced hostile-code sandbox. |
 
 ## Threats And Mitigations
 
@@ -68,8 +68,12 @@ Adding any of them requires a threat-model update before capability advertisemen
 - Missing, `null`, malformed, duplicate, or unlisted Origin returns HTTP `403` with an empty body before authentication, body read, JSON parse, or execution.
 - Accepted cross-origin responses echo only the validated Origin and set `Vary: Origin`; `/mcp` never uses wildcard CORS.
 - Local development servers bind to loopback where adapters permit it.
-- `/frontman/resolve-source-location` receives a separately explicit Origin and authorization policy so migration does not leave a sibling disclosure path.
+- `/frontman/resolve-source-location` has a separate explicit Origin policy, Origin-only preflight, no credential permission, strict JSON media validation, and bounded body decoding so migration does not leave a sibling disclosure path.
 - Host and forwarded-header handling is adapter-owned and must not synthesize an allowed Origin from attacker-controlled values.
+
+The framework boundary implements the first three mitigations for `/mcp` requests and proves Origin rejection precedes its header-only authorization callback and all body processing. Next.js, Vite, and Astro activate only with explicit configured MCP allowlists and authorization; they do not derive authority from request or Frontman asset/server URLs. Their shared Node/Web chassis runs the security gate before Web body-stream construction. The active endpoint validates Origin-only preflight, authenticates every non-preflight request exactly once, and preserves the approved validation order. The generated Next.js route requires an environment-supplied bearer token and Origin allowlist. Application-owned Vite and Astro callbacks remain responsible for validating real credentials rather than returning unconditional authorization.
+
+The non-MCP source-location endpoint separately requires an allowlisted Origin for preflight and every request, rejects missing or malformed configuration closed, allows only `Content-Type` in preflight, and never emits `Access-Control-Allow-Credentials`. It deliberately does not invoke the MCP authorization callback because the browser source resolver does not possess MCP credentials. Vite and Astro inherit the explicit MCP allowlist unless a narrower `sourceLocation.allowedOrigins` is supplied; Next middleware accepts the same explicit source-location option, and generated middleware reads the configured MCP Origin environment list. Origin and media rejection occur before body access, and accepted JSON uses the shared two-megabyte, UTF-8, depth, fragmentation, and idle-time bounded decoder.
 
 ### Authentication And Authorization
 
@@ -104,7 +108,7 @@ Adding any of them requires a threat-model update before capability advertisemen
 - The existing authenticated `TasksChannel` is the sole connection-wide MCP request owner; task channels only observe persisted interactions.
 - PostgreSQL atomically claims the durable `tool_call_id` before send. One active owner may send, retry, cancel, renew, or accept a response.
 - The browser deduplicates the preserved durable Frontman tool-call identifier.
-- The 60-second database-time lease renews every 20 seconds; disconnect attempts immediate release. Takeover uses compare-and-set, and former-owner responses are ignored.
+- The 60-second database-time lease renews every 20 seconds. Graceful disconnect transactionally cancels started work; abrupt loss permits bounded takeover only after expiry. Takeover uses compare-and-set, and former-owner responses are ignored.
 - Result persistence and claim completion are one transaction and produce one terminal result.
 - Frontman never automatically replays after uncertain non-idempotent execution. It records that explicit user resolution is required. Automatic retry is allowed only when execution provably did not begin or verified tool-level idempotency is bound to the same durable identifier.
 
@@ -120,10 +124,11 @@ Adding any of them requires a threat-model update before capability advertisemen
 **Mitigations**
 
 - Every sent request has one owner, start timestamp, immutable ten-minute absolute deadline, applicable 60-second idle timer, and cancellation mechanism.
-- Phoenix cancellation propagates to the browser `AbortController`; HTTP cancellation aborts fetch and reader; response-stream closure reaches the framework tool context.
+- The shared Node/Web chassis turns request abort, response close, or the active framework's immutable ten-minute deadline into one matching tool-context abort signal, cancels owned child processes and open response readers, resolves backpressure waits, suppresses late output, and removes listeners. The browser transport and Phoenix owner propagate cancellation through request-owned AbortSignals and durable claim transitions. Fresh-process and process-crash proof applies to the supported single-Phoenix-node deployment; multi-node behavior is out of scope.
 - Pending-state removal and terminal transition are atomic. Cancellation is terminal even if underlying work cannot stop.
 - A cancelled or completed ID enters bounded late-response tracking. Every non-pending response is unable to resolve another request.
 - The question tool permits one unresolved resolver and explicitly rejects or resolves it during cancellation, disconnect, and replacement attempts.
+- BlueHotDog accepted terminal cancellation visibility without a distinct transient cancellation-request UI state. This is a reviewed SHOULD deviation and does not weaken cancellation ownership or terminal fencing.
 
 ### Resource Exhaustion
 
@@ -140,8 +145,9 @@ Adding any of them requires a threat-model update before capability advertisemen
 - Count raw bytes before buffering/decoding and preflight Base64 before incremental decode.
 - Catalog publication and result persistence are all-or-nothing; no truncation silently changes semantics.
 - Schema work runs in an interruptible Worker or equivalent isolation, not synchronously on the browser main thread.
-- Pending requests and concurrent tool execution require separate per-connection and per-principal concurrency/rate limits before release; values must be added to the implementation limits if Phase 0 expands to require them.
-- Adapter black-box tests verify disconnect and cancellation release readers, streams, timers, workers, claims, and request context.
+- JavaScript and WordPress enforce 256 requests per 60 seconds per trusted principal. The browser custom-Phoenix server independently enforces 256 new underlying tool executions per 60-second browser-server window and caps 256 active durable executions; identical joins and completed durable replays do not re-execute work.
+- Chassis and endpoint tests verify disconnect/deadline cancellation, response suppression, reader release, backpressure release, timer/listener cleanup, tool-context signal identity, and owned child-process termination. Active adapter black-box tests must additionally verify real socket/proxy behavior, workers, and durable claims before release.
+- Frameworks own their listener and host process. Local deployments remain responsible for loopback or equivalently protected binding, least-privilege filesystem/network/resource access, and platform sandboxing where warranted; BlueHotDog reviewed and accepted these as residual host responsibilities rather than endpoint-code MUSTs.
 
 ### Schema References And Header Injection
 
@@ -170,9 +176,9 @@ Adding any of them requires a threat-model update before capability advertisemen
 
 **Mitigations**
 
-- Structured logs contain only request correlation ID, authenticated principal ID, task ID, method, tool name, categorical outcome, configured limit, byte/count measurements, and timing.
+- Structured logs may contain request correlation ID, authenticated principal ID, task ID, durable tool-call ID, method, tool name, categorical reason/outcome, configured limit, byte/count measurements, and timing. Reasons must come from a reviewed payload-safe categorical set.
 - Never log request/response bodies, argument values, `_meta` values, schemas, Base64, source content, authorization headers, cookies, or nonces.
-- Remove current complete-argument and malformed-argument-prefix logging paths.
+- Complete-argument, malformed-argument-prefix, decoder-diagnostic, and peer-error-message logging paths are removed and covered by secret-marker regressions.
 - `x-mcp-header` remains an explicit server-authored schema choice; sensitive fields are not annotated. Proxies and tracing suppress `/mcp` payload/header capture.
 - Protocol errors expose the minimum stable category and never include rejected data.
 
@@ -191,7 +197,8 @@ Adding any of them requires a threat-model update before capability advertisemen
 - Content block count and decoded per-block/result media budgets are enforced before persistence; invalid content produces one bounded canonical protocol-error result.
 - Resource links are preserved but never automatically fetched. Embedded content is preserved within limits and never executed.
 - Empty content and arbitrary JSON structured content remain valid. Output schema validation is bounded and occurs before persistence.
-- Preserve protocol metadata required for replay and caching; redact only explicitly classified sensitive vendor metadata.
+- JavaScript validates structured output against the selected tool's `outputSchema` for successful and `isError: true` results; invalid or missing structured output returns a correlated JSON-RPC `-32603` instead of emitting another schema-invalid tool result.
+- Scrub result `_meta` before canonical persistence because peer metadata may contain credentials. Persist only separately classified canonical fields required by Frontman's replay and caching model.
 
 ### Provenance And Archive Execution
 
@@ -207,7 +214,7 @@ Adding any of them requires a threat-model update before capability advertisemen
 - Pin immutable upstream commits, source URLs, versions, licenses, and SHA-256 values; vendor generated schema/examples unchanged and verify offline.
 - Review provenance and artifact diffs independently during refresh. A matching checksum proves only equality to the reviewed pin.
 - Inspect archive entries before extraction; reject absolute paths, parent traversal, device entries, and escaping symlinks.
-- Run conformance code in an isolated, unprivileged environment with no repository write access beyond disposable output, no secrets, bounded resources, and no network.
+- Run conformance code with narrowly allowlisted repository reads, no repository write access beyond disposable output, no secrets, bounded execution time, V8 heap, Worker count, captured output, and portable Node/API network guards. These are defense-in-depth regression controls, not an OS-enforced isolation boundary against a malicious pinned runner. Hostile-artifact assurance requires a disposable sandbox/container, separate unprivileged identity, read-only mounts, OS-enforced egress policy, and an outer memory/process limit.
 - The authoritative TypeScript source remains checksum-pinned rather than executed or vendored as authored runtime source.
 
 ### Browser And Phoenix Compromise
@@ -223,7 +230,7 @@ Adding any of them requires a threat-model update before capability advertisemen
 - Treat the browser as an authenticated but untrusted protocol peer. Phoenix validates every response against exact pending ID type, method, owner, deadline, and schema before persistence.
 - Server-derived scope and database ownership remain authoritative; browser metadata cannot rebind a tool call to another user or task.
 - CSP, dependency review, and avoidance of unsafe URL execution reduce browser compromise risk but do not replace server authorization.
-- Multi-node claims use database transactions rather than process identity or node-local Registry.
+- Durable claims use database transactions for the supported single-node deployment. Node-local Registry still owns waiter routing; multi-node election, scheduling, recovery, partitions, and cross-node delivery are unsupported.
 - A compromised authorized browser may still invoke tools available to that user; high-risk product actions may require additional user confirmation outside core MCP.
 
 ## Validation Evidence
@@ -231,26 +238,22 @@ Adding any of them requires a threat-model update before capability advertisemen
 ### Current Evidence
 
 - The MCP `2026-07-28` TypeScript schema is pinned by immutable URL and SHA-256.
-- The generated JSON Schema, 129 official examples, license, and conformance source archive are vendored with checksums under `libs/frontman-protocol/test/mcp-upstream/`.
+- The generated JSON Schema, 129 official examples, license, conformance source archive, and official executable package are vendored with checksums under `libs/frontman-protocol/test/mcp-upstream/`.
 - Offline checksum, JSON Schema 2020-12 loading, and named official-example validation pass as recorded in `plaan.md`.
-- Current architecture and defects are documented in `plaan.md`, including wildcard CORS, duplicate task-channel execution, incomplete cancellation, unsafe logging, partial content handling, and node-local ownership.
-- WordPress currently enforces cookie authentication, administrator capability, and POST nonce checks. These controls are migration invariants, not proof that `/mcp` is implemented.
+- Current architecture and remaining release gates are documented in `plaan.md`; accepted Phase 9 closes unsafe argument/error logging and partial content handling, Phase 7 closes the supported single-node restart/process-crash recovery seams, and Item 24 removes the private Relay runtime and shipped artifacts. The semantic-review remediation is implemented and independently rereviewed but awaits explicit acceptance, including disposition of `BASE-AUTH-001`. The applicable official conformance gate runs the pinned package from disposable storage with a secret-free environment and loopback-only socket policy.
+- WordPress `/mcp` is implemented and enforces cookie authentication, administrator capability, POST nonce checks, and method-based `Mcp-Name` authority for `tools/call`, `prompts/get`, and `resources/read`, including malformed named-method precedence. Real WordPress and Playground vectors are current evidence.
+- Browser and Phoenix clients normalize absent `resultType`, recognize valid `input_required` without retrying, keep cursors opaque under a page bound, restart one invalid-cursor listing once, and calculate cache expiry from result receipt.
+- Reserved `traceparent`, `tracestate`, and `baggage` metadata is rejected at shared, browser, Phoenix, framework, and WordPress validation boundaries because trace propagation is not implemented.
+- A focused browser-client test receives a hostile `401` `resource_metadata` challenge and proves exactly one original `/mcp` POST with zero metadata, well-known, token, or registration requests.
 
-### Planned Release Evidence
+### Remaining Release Evidence
 
-- Boundary and one-over-boundary tests for every row in `implementation-limits.md`.
-- Shared black-box adapter suite for Vite, Astro, Next.js, and WordPress covering Origin, headers, status codes, malformed JSON, body limits, execution, and cancellation.
-- Hostile-Origin tests prove HTTP `403` and zero side effects for missing, `null`, malformed, DNS-rebinding, and unlisted origins.
-- Multi-tab, multi-channel, multi-node, disconnect, lease-expiry, former-owner, late-response, and uncertain non-idempotent execution tests.
-- Real in-process HTTP tests for discovery, pagination including empty cursors, caching isolation, schema exclusion, JSON/SSE parsing, size limits, timeout, and reader cancellation.
-- Canonical result tests for empty content, every standard content block, invalid/oversized media, arbitrary structured JSON, persistence, ACP, live delivery, and history replay.
-- Captured-log and Sentry tests prove secret fixtures never appear in normal diagnostics.
-- Network-denial tests prove schemas and embedded resource links cause no outbound dereference.
-- Isolated archive extraction and conformance execution tests validate path and resource controls.
-- Pinned official conformance runner completes with zero failures, expected failures, or skipped applicable cases.
-- Independent review follows normative traceability from specification requirement to code and positive/negative tests.
+- Independently review and explicitly accept or reject the implemented whole-Phase-10 semantic-review remediation. Implementation alone is not acceptance.
+- Run provider-backed installed Next.js, Astro, Vite, and Vue-Vite application recovery E2E and then the complete root aggregate.
+- Decide whether hostile conformance artifacts are in scope; if so, replace portable Node guards with an OS-enforced disposable sandbox and outer resource limits.
+- Run final package/version/publishing and release review after all blockers close.
 
-Planned evidence is not current assurance. Frontman must not claim MCP `2026-07-28`
+Remaining evidence is not current assurance. Frontman must not claim MCP `2026-07-28`
 conformance until the release acceptance criteria in `plaan.md` are complete.
 
 ## Residual Risks
@@ -263,6 +266,7 @@ conformance until the release acceptance criteria in `plaan.md` are complete.
 - Twelve-megabyte wire responses and eight-megabyte decoded media can still create transient memory amplification from Base64, JSON, canonical persistence, and downstream conversion despite incremental limits.
 - JSON Schema implementations may disagree on edge cases, and bounded validation can reject valid but unusually complex third-party schemas.
 - Official schemas, examples, and conformance tooling may contain defects or omit prose-only security, timing, and lifecycle requirements.
+- Node's portable permission model does not impose a hard total-RSS limit on external buffers or native allocations. The checksum-pinned runner is still capable of resource exhaustion within the CI host despite its timeout, V8 heap, Worker, and output limits; run the gate on an isolated CI worker with an outer memory limit when defending against a malicious pinned artifact is required.
 - A reviewed checksum cannot protect against an upstream compromise that occurred before artifact selection.
 - Cross-language implementations may share the same mistaken interpretation; independent upstream and security review remain necessary.
 - Third-party proxies, WordPress plugins, framework middleware, and hosting configuration may rewrite Origin, headers, routes, bodies, buffering, or disconnect behavior outside Frontman's control.

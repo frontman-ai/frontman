@@ -1587,6 +1587,7 @@ type serverInterface<'server> = {
     ~taskId: string,
     ~toolCallId: string,
     ~onProgress: option<string => unit>,
+    ~signal: WebAPI.EventAPI.abortSignal,
   ) => promise<CallToolResult.t>,
 }
 
@@ -1601,5 +1602,6 @@ module type Server = {
     ~taskId: string,
     ~toolCallId: string,
     ~onProgress: option<string => unit>=?,
+    ~signal: WebAPI.EventAPI.abortSignal,
   ) => promise<CallToolResult.t>
 }

@@ -68,7 +68,7 @@ HELP_dev-nextjs-prebuilt := Start Next.js test site with prebuilt integration
 HELP_dev-marketing := Start development server for marketing site
 
 HELP_BUILD_TITLE := Build & Quality
-HELP_BUILD_TARGETS := install hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments mcp-verify clean
+HELP_BUILD_TARGETS := install hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments mcp-conformance mcp-verify clean
 HELP_install := Install dependencies
 HELP_hooks-install := Install git pre-commit hooks via Lefthook
 HELP_setup-elixir-tools := Install Hex/Rebar for the active mise Elixir
@@ -79,7 +79,8 @@ HELP_rescript-build := Build ReScript project (one-shot)
 HELP_rescript-format := Format ReScript source
 HELP_reanalyze := Run ReScript dead code analysis
 HELP_check-source-comments := Test scanner and check repository source comments
-HELP_mcp-verify := Verify the MCP oracle and normative traceability offline
+HELP_mcp-conformance := Run the pinned official MCP conformance scenarios
+HELP_mcp-verify := Run the serial MCP aggregate verification gate
 HELP_clean := Clean ReScript build artifacts
 
 HELP_SSL_TITLE := SSL & Networking
@@ -88,7 +89,7 @@ HELP_ssl-setup := Setup local SSL certificates using mkcert
 HELP_tunnel := Start SSH tunnel to DevPod server (fallback if dnsmasq not configured)
 
 HELP_WT_TITLE := Worktrees
-HELP_WT_TARGETS := work wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-urls wt-logs
+HELP_WT_TARGETS := work wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-gc wt-urls wt-logs
 HELP_work := Set up worktree from GitHub issue or PR (REF=<number|url>)
 HELP_wt := Dashboard — shows all worktrees, pod status, URLs, and actions
 HELP_wt-new := Create containerized worktree (BRANCH=...)
@@ -97,6 +98,7 @@ HELP_wt-stop := Pause worktree pod, preserve volumes (BRANCH=...)
 HELP_wt-start := Resume a paused worktree pod (BRANCH=...)
 HELP_wt-sh := Shell into dev container (BRANCH=...)
 HELP_wt-rm := Full cleanup: pod + volumes + worktree (BRANCH=...)
+HELP_wt-gc := Remove worktrees whose branches are merged into main
 HELP_wt-urls := Show service URLs for a worktree (BRANCH=...)
 HELP_wt-logs := Tail dev container logs (BRANCH=...)
 
@@ -118,23 +120,21 @@ HELP_release := Create a release PR from pending changesets
 HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
 HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
 HELP_test-wordpress-core-tools := Run PHP tests for WordPress tool implementations
-HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
+HELP_test-wordpress-runtime := Run plugin integration tests in WordPress 7.0.2 containers
 
 HELP_E2E_TITLE := E2E Tests
-HELP_E2E_TARGETS := e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start
+HELP_E2E_TARGETS := e2e mcp-blackbox e2e-nextjs e2e-astro e2e-vite e2e-vue-vite
 HELP_e2e := Run all e2e tests (loads secrets from test/e2e/.env)
+HELP_mcp-blackbox := Run real-process Next.js, Astro, and Vite MCP transport tests
 HELP_e2e-nextjs := Run Next.js e2e test
-HELP_e2e-nextjs-compat := Run packed Next.js dev/build compatibility check (NEXT_VERSION=16)
 HELP_e2e-astro := Run Astro e2e test
 HELP_e2e-vite := Run Vite e2e test
 HELP_e2e-vue-vite := Run Vue + Vite e2e test
-HELP_e2e-oauth-start := Run OAuth start smoke e2e test
 
 HELP_UTIL_TITLE := Utilities
-HELP_UTIL_TARGETS := kill-all-processes pull-webapi test-webapi debug-task push
+HELP_UTIL_TARGETS := kill-all-processes pull-webapi debug-task push
 HELP_kill-all-processes := Kill all running make dev processes
 HELP_pull-webapi := Pull latest experimental-rescript-webapi subtree
-HELP_test-webapi := Run vendored WebAPI runtime tests
 HELP_debug-task := Debug task interactions (ARGS="list" or ARGS="show ...")
 HELP_push := Git push current branch
 
@@ -177,7 +177,7 @@ dev-marketing:
 
 
 
-.PHONY: install build rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments mcp-verify
+.PHONY: install build rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments mcp-conformance mcp-verify mcp-verify-preflight mcp-check-generated
 
 install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
@@ -233,7 +233,7 @@ rescript-build:
 	yarn rescript build
 
 rescript-format:
-	git ls-files -z -- '*.res' '*.resi' ':(exclude)libs/experimental-rescript-webapi/**' | xargs -0 -r sh -c 'for file do if [ -f "$$file" ]; then printf "%s\0" "$$file"; fi; done' sh | xargs -0 -r yarn rescript format
+	git ls-files -z -- '*.res' '*.resi' ':(exclude)libs/experimental-rescript-webapi/**' | xargs -0 yarn rescript format
 
 reanalyze:
 	@printf "$(YELLOW)Running ReScript dead code analysis...$(RESET)\n"
@@ -243,8 +243,53 @@ check-source-comments:
 	node --test test/no-comments/no-comments.test.mjs
 	node scripts/no-comments.mjs --check
 
+mcp-conformance:
+	$(MAKE) -C libs/frontman-protocol mcp-conformance
+
 mcp-verify:
+	$(MAKE) mcp-verify-preflight
+	node --test test/mcp-verify/mcp-verify.test.mjs
 	$(MAKE) -C libs/frontman-protocol mcp-verify
+	$(MAKE) -C libs/frontman-client lint
+	$(MAKE) -C libs/frontman-client test
+	$(MAKE) -C libs/frontman-core lint
+	$(MAKE) -C libs/frontman-core test
+	$(MAKE) -C libs/frontman-nextjs lint
+	$(MAKE) -C libs/frontman-nextjs test
+	$(MAKE) -C libs/frontman-astro lint
+	$(MAKE) -C libs/frontman-astro test
+	$(MAKE) -C libs/frontman-vite lint
+	$(MAKE) -C libs/frontman-vite test
+	$(MAKE) -C libs/frontman-astro-browser lint
+	$(MAKE) -C libs/frontman-astro-browser test
+	$(MAKE) -C libs/client lint
+	$(MAKE) -C libs/client test
+	$(MAKE) -C libs/logs check
+	$(MAKE) -C libs/react-statestore check
+	$(MAKE) -C apps/swarm_ai lint
+	$(MAKE) -C apps/swarm_ai test
+	$(MAKE) -C apps/frontman_server lint
+	$(MAKE) -C apps/frontman_server test
+	$(MAKE) -C apps/frontman_notifier lint
+	$(MAKE) -C apps/frontman_notifier test
+	$(MAKE) -C apps/marketing test
+	$(MAKE) -C apps/marketing build
+	$(MAKE) test-wordpress-core-tools
+	$(MAKE) test-wordpress-runtime
+	$(MAKE) -C test/astro-compat test
+	$(MAKE) mcp-blackbox
+	$(MAKE) mcp-conformance
+	$(MAKE) e2e
+	$(MAKE) check-source-comments
+	$(MAKE) mcp-check-generated
+	@printf "$(GREEN)MCP aggregate verification passed.$(RESET)\n"
+
+mcp-verify-preflight:
+	@test -f test/e2e/.env || { printf "$(YELLOW)Error: Credentialed MCP verification is unavailable because test/e2e/.env is missing.$(RESET)\n"; exit 1; }
+
+mcp-check-generated:
+	$(MAKE) -C libs/frontman-protocol check-schemas
+	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; cp -R apps/frontman_server/priv/static/browser-test "$$tmp/browser-test"; cd apps/frontman_server && mix esbuild browser_test; diff -ru "$$tmp/browser-test" priv/static/browser-test
 
 clean:
 	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
@@ -254,21 +299,23 @@ clean:
 
 
 
-.PHONY: e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start
+.PHONY: e2e mcp-blackbox e2e-nextjs e2e-astro e2e-vite e2e-vue-vite
 
 e2e:
 	@printf "$(YELLOW)Running all e2e tests...$(RESET)\n"
 	$(call run_e2e)
 
+mcp-blackbox:
+	@printf "$(YELLOW)Building adapters and running MCP black-box tests...$(RESET)\n"
+	$(MAKE) -C libs/frontman-nextjs build
+	$(MAKE) -C libs/frontman-vite build
+	$(MAKE) -C libs/frontman-astro build
+	@VERSION=$$(bash scripts/validate-wordpress-plugin-release.sh); $(MAKE) package-wordpress-plugin VERSION="$$VERSION"
+	cd test/e2e && yarn vitest run --config vitest.mcp.config.ts
+
 e2e-nextjs:
 	@printf "$(YELLOW)Running Next.js e2e test...$(RESET)\n"
 	$(call run_e2e,tests/nextjs.test.ts)
-
-e2e-nextjs-compat:
-	@printf "$(YELLOW)Running packed Next.js compatibility check...$(RESET)\n"
-	yarn rescript
-	yarn workspace @frontman-ai/nextjs build
-	NEXT_VERSION=$${NEXT_VERSION:-16} bash scripts/ci/nextjs-compat.sh
 
 e2e-astro:
 	@printf "$(YELLOW)Running Astro e2e test...$(RESET)\n"
@@ -281,10 +328,6 @@ e2e-vite:
 e2e-vue-vite:
 	@printf "$(YELLOW)Running Vue + Vite e2e test...$(RESET)\n"
 	$(call run_e2e,tests/vue-vite.test.ts)
-
-e2e-oauth-start:
-	@printf "$(YELLOW)Running OAuth start smoke e2e test...$(RESET)\n"
-	$(call run_e2e,tests/oauth-start.test.ts)
 
 
 
@@ -338,7 +381,7 @@ DEV_IMAGE := frontman-dev:latest
 
 export MD5CMD := $(shell if command -v md5sum >/dev/null 2>&1; then echo 'md5sum | cut -c1-4'; else echo 'md5 | cut -c1-4'; fi)
 
-.PHONY: wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-urls wt-logs work
+.PHONY: wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-gc wt-urls wt-logs work
 
 work:
 	@if [ -z "$(REF)" ]; then \
@@ -382,6 +425,9 @@ wt-sh:
 wt-rm:
 	$(call resolve_branch,wt-rm)
 	@BRANCH="$(BRANCH)" bash ./bin/wt-pod-remove
+
+wt-gc:
+	@bash ./bin/wt-gc
 
 wt-urls:
 	$(call resolve_branch,wt-urls)
@@ -566,6 +612,7 @@ test-wordpress-core-tools:
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/WooCommerceToolsTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PluginDependenciesTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/McpTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/RouterTest.php
 
 test-wordpress-runtime:
@@ -575,18 +622,13 @@ test-wordpress-runtime:
 
 
 
-WEBAPI_COMMIT := 5e2d4d5db8257fea0fb3cc2dde5c4699d263a62f
-
-.PHONY: kill-all-processes pull-webapi test-webapi debug-task push
+.PHONY: kill-all-processes pull-webapi debug-task push
 
 kill-all-processes:
 	@ps aux | grep "[m]ake dev" | awk '{print $$2}' | xargs -r kill 2>/dev/null || true
 
 pull-webapi:
-	git subtree pull --prefix libs/experimental-rescript-webapi https://github.com/rescript-lang/experimental-rescript-webapi.git $(WEBAPI_COMMIT) --squash
-
-test-webapi:
-	yarn workspace @rescript/webapi test
+	git subtree pull --prefix libs/experimental-rescript-webapi https://github.com/rescript-lang/experimental-rescript-webapi.git main --squash
 
 debug-task:
 	cd apps/frontman_server && $(MAKE) debug-task ARGS="$(ARGS)"

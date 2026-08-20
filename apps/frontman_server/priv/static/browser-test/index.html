@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ACP + MCP + Relay Client Test</title>
+  <title>ACP + Framework MCP Client Test</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -190,7 +190,7 @@
     .log-entry.success { color: #27ae60; }
     .log-entry.error { color: #e74c3c; }
     .log-entry.warn { color: #f39c12; }
-    .log-entry.relay { color: #2ecc71; }
+    .log-entry.framework-mcp { color: #2ecc71; }
     .log-entry.mcp { color: #e056fd; }
     .log-entry .time { color: #444; margin-right: 8px; }
 
@@ -208,24 +208,24 @@
 </head>
 <body>
   <div class="main-panel">
-    <h1>ACP + MCP + Relay Test</h1>
+    <h1>ACP + Framework MCP Test</h1>
 
     <div class="step active" id="step1">
       <div class="step-header">
         <div class="step-indicator">1</div>
-        <div class="step-title">Connect to Relay</div>
+        <div class="step-title">Connect to Framework MCP</div>
         <div class="step-status" id="step1Status">waiting</div>
       </div>
       <div class="step-body">
-        <label for="relayEndpoint">Relay Endpoint</label>
-        <input type="text" id="relayEndpoint" value="http://localhost:3000" />
+        <label for="frameworkMcpEndpoint">Framework MCP Endpoint</label>
+        <input type="text" id="frameworkMcpEndpoint" value="http://localhost:3000" />
         <div class="action-row">
-          <button class="btn-primary" id="connectRelayBtn">Connect</button>
-          <button class="btn-secondary" id="disconnectRelayBtn" style="display:none">Disconnect</button>
+          <button class="btn-primary" id="connectFrameworkMcpBtn">Connect</button>
+          <button class="btn-secondary" id="disconnectFrameworkMcpBtn" style="display:none">Disconnect</button>
         </div>
-        <details class="info-panel" id="relayInfo" style="display:none">
-          <summary>Relay Tools</summary>
-          <ul class="tools-list" id="relayToolsList"></ul>
+        <details class="info-panel" id="frameworkMcpInfo" style="display:none">
+          <summary>Framework MCP Tools</summary>
+          <ul class="tools-list" id="frameworkMcpToolsList"></ul>
         </details>
       </div>
     </div>
@@ -315,7 +315,7 @@
   </div>
 
   <script type="module">
-    import { ACP, MCP, MCPServer, Relay, Socket, Channel } from './browser-test.js';
+    import { ACP, MCP, MCPClient, MCPServer, Socket, Channel } from './browser-test.js';
 
     const logEl = document.getElementById('log');
     const clearLogBtn = document.getElementById('clearLogBtn');
@@ -325,13 +325,13 @@
     const step1Status = document.getElementById('step1Status');
     const step2Status = document.getElementById('step2Status');
     const step3Status = document.getElementById('step3Status');
-    const connectRelayBtn = document.getElementById('connectRelayBtn');
-    const disconnectRelayBtn = document.getElementById('disconnectRelayBtn');
+    const connectFrameworkMcpBtn = document.getElementById('connectFrameworkMcpBtn');
+    const disconnectFrameworkMcpBtn = document.getElementById('disconnectFrameworkMcpBtn');
     const connectBtn = document.getElementById('connectBtn');
     const disconnectBtn = document.getElementById('disconnectBtn');
     const createSessionBtn = document.getElementById('createSessionBtn');
-    const relayInfoEl = document.getElementById('relayInfo');
-    const relayToolsListEl = document.getElementById('relayToolsList');
+    const frameworkMcpInfoEl = document.getElementById('frameworkMcpInfo');
+    const frameworkMcpToolsListEl = document.getElementById('frameworkMcpToolsList');
     const serverInfoEl = document.getElementById('serverInfo');
     const serverInfoContentEl = document.getElementById('serverInfoContent');
     const mcpInfoEl = document.getElementById('mcpInfo');
@@ -349,7 +349,7 @@
     const planEntriesEl = document.getElementById('planEntries');
     const planCountEl = document.getElementById('planCount');
 
-    let relay = null;
+    let frameworkClient = null;
     let connection = null;
     let session = null;
     let mcpHandler = null;
@@ -406,7 +406,14 @@
     function logMcpMessage(direction, payload) {
       const isSend = direction === 'Send';
       const arrow = isSend ? '→' : '←';
-      log(`${arrow} MCP ${JSON.stringify(payload)}`, 'mcp');
+      const category = payload?.method
+        ? `request ${payload.method}`
+        : payload?.error
+          ? `error response ${payload.error.code ?? 'unknown'}`
+          : payload?.result
+            ? 'success response'
+            : 'message';
+      log(`${arrow} MCP ${category}`, 'mcp');
 
       if (isSend && payload.result && payload.result.protocolVersion) {
         mcpStatusEl.textContent = 'ready';
@@ -414,15 +421,15 @@
       }
     }
 
-    function displayRelayTools(tools) {
-      relayToolsListEl.innerHTML = '';
+    function displayFrameworkMcpTools(tools) {
+      frameworkMcpToolsListEl.innerHTML = '';
       tools.forEach(tool => {
         const li = document.createElement('li');
         li.className = 'tool-item';
         li.innerHTML = `<div class="tool-name">${tool.name}</div><div class="tool-desc">${tool.description?.split('\n')[0] || ''}</div>`;
-        relayToolsListEl.appendChild(li);
+        frameworkMcpToolsListEl.appendChild(li);
       });
-      relayInfoEl.style.display = 'block';
+      frameworkMcpInfoEl.style.display = 'block';
     }
 
     function displayMcpTools() {
@@ -437,60 +444,59 @@
       });
     }
 
-    async function connectRelay() {
-      const endpoint = document.getElementById('relayEndpoint').value;
+    async function connectFrameworkMcp() {
+      const endpoint = document.getElementById('frameworkMcpEndpoint').value;
       step1Status.textContent = 'connecting...';
-      connectRelayBtn.disabled = true;
+      connectFrameworkMcpBtn.disabled = true;
 
       try {
-        relay = Relay.make(endpoint);
-        const result = await Relay.connect(relay);
+        frameworkClient = MCPClient.make(endpoint);
+        const result = await MCPClient.connect(frameworkClient);
 
         if (result.TAG === 'Ok') {
-          log('Relay connected', 'success');
+          log('Framework MCP connected', 'success');
 
-          const state = Relay.getState(relay);
+          const state = MCPClient.getState(frameworkClient);
           if (state.TAG === 'Connected') {
             const { tools, serverInfo } = state;
-            log(`${serverInfo.name} v${serverInfo.version} - ${tools.length} tools`, 'relay');
-            tools.forEach((tool) => log(`==> ${JSON.stringify(tool)}`));
-            displayRelayTools(tools);
+            log(`${serverInfo.name} v${serverInfo.version} - ${tools.length} tools`, 'framework-mcp');
+            displayFrameworkMcpTools(tools);
           }
 
-          mcpServer = MCPServer.make(relay, 'browser-test-mcp', '1.0.0');
+          mcpServer = MCPServer.make(frameworkClient, 'browser-test-mcp', '1.0.0');
 
-          disconnectRelayBtn.style.display = 'inline-block';
+          disconnectFrameworkMcpBtn.style.display = 'inline-block';
           advanceToStep(2);
         } else {
-          log(`Relay failed: ${result._0}`, 'error');
+          log(`Framework MCP failed: ${result._0}`, 'error');
           step1Status.textContent = 'error';
-          connectRelayBtn.disabled = false;
+          connectFrameworkMcpBtn.disabled = false;
         }
       } catch (err) {
-        log(`Relay error: ${err.message}`, 'error');
+        log(`Framework MCP error: ${err.message}`, 'error');
         step1Status.textContent = 'error';
-        connectRelayBtn.disabled = false;
+        connectFrameworkMcpBtn.disabled = false;
       }
     }
 
-    function disconnectRelay() {
-      if (relay) {
-        Relay.disconnect(relay);
-        relay = null;
+    function disconnectFrameworkMcp() {
+      if (frameworkClient) {
+        MCPClient.disconnect(frameworkClient);
+        frameworkClient = null;
         mcpServer = null;
-        log('Relay disconnected', 'info');
+        log('Framework MCP disconnected', 'info');
       }
-      disconnectRelayBtn.style.display = 'none';
-      connectRelayBtn.disabled = false;
-      relayInfoEl.style.display = 'none';
+      disconnectFrameworkMcpBtn.style.display = 'none';
+      connectFrameworkMcpBtn.disabled = false;
+      frameworkMcpInfoEl.style.display = 'none';
       resetToStep(1);
 
       if (connection) disconnectAcp();
     }
 
     async function connectAcp() {
-      if (!relay || !mcpServer) {
-        log('Connect relay first', 'error');
+      if (!frameworkClient || !mcpServer) {
+        log('Connect framework MCP first', 'error');
         return;
       }
 
@@ -770,8 +776,8 @@
       });
     });
 
-    connectRelayBtn.addEventListener('click', connectRelay);
-    disconnectRelayBtn.addEventListener('click', disconnectRelay);
+    connectFrameworkMcpBtn.addEventListener('click', connectFrameworkMcp);
+    disconnectFrameworkMcpBtn.addEventListener('click', disconnectFrameworkMcp);
     connectBtn.addEventListener('click', connectAcp);
     disconnectBtn.addEventListener('click', disconnectAcp);
     createSessionBtn.addEventListener('click', createSession);

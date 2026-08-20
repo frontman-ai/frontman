@@ -127,6 +127,27 @@ defmodule AgentClientProtocol.HistoryTest do
     assert update["_meta"]["frontman.dev/agentErrorId"] == "error-id"
   end
 
+  test "preserves explicit null structured content in replay" do
+    rows = [
+      row("turn-row", :turn_started, 1, turn("turn-id", [])),
+      row("tool-result", :tool_result, 1, %Interaction.ToolResult{
+        tool_call_id: "call",
+        tool_name: "read_file",
+        result: %{
+          "resultType" => "complete",
+          "content" => [],
+          "structuredContent" => nil
+        },
+        is_error: false,
+        timestamp: @timestamp
+      })
+    ]
+
+    assert {:ok, replay} = build(rows)
+    [update] = Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
+    assert Map.fetch(update, "rawOutput") == {:ok, nil}
+  end
+
   test "crashes when history references an agent outside the global catalog" do
     rows = [
       row("turn-row", 1, %{

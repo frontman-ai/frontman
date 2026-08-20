@@ -8,59 +8,8 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
-  alias FrontmanServer.Tools.MCP, as: MCPTool
   alias ModelContextProtocol, as: MCP
-
-  test "two tasks with the same tool call id receive only their own result" do
-    Sandbox.unboxed_run(Repo, fn ->
-      scope = user_scope_fixture()
-
-      try do
-        shared_tool_call_id = "call_shared_#{System.unique_integer([:positive])}"
-        first_task_id = task_fixture(scope).id
-        second_task_id = task_fixture(scope).id
-        first_turn_number = start_turn_fixture(scope, first_task_id)
-        second_turn_number = start_turn_fixture(scope, second_task_id)
-
-        first_executor =
-          start_executor(scope, first_task_id, first_turn_number, shared_tool_call_id)
-
-        second_executor =
-          start_executor(scope, second_task_id, second_turn_number, shared_tool_call_id)
-
-        assert_tool_executor_registered(first_task_id, shared_tool_call_id)
-        assert_tool_executor_registered(second_task_id, shared_tool_call_id)
-
-        assert {:ok, _interaction, :notified} =
-                 resolve(
-                   scope,
-                   first_task_id,
-                   first_turn_number,
-                   "first task result",
-                   shared_tool_call_id
-                 )
-
-        assert {:ok, _interaction, :notified} =
-                 resolve(
-                   scope,
-                   second_task_id,
-                   second_turn_number,
-                   "second task result",
-                   shared_tool_call_id
-                 )
-
-        assert {:ok, [%SwarmAi.ToolResult{content: [%{text: "first task result"}]}]} =
-                 Task.await(first_executor, 1_000)
-
-        assert {:ok, [%SwarmAi.ToolResult{content: [%{text: "second task result"}]}]} =
-                 Task.await(second_executor, 1_000)
-      after
-        Repo.delete!(Scope.user(scope))
-      end
-    end)
-  end
 
   test "concurrent tool results resolve to one canonical interaction" do
     Sandbox.unboxed_run(Repo, fn ->
@@ -96,9 +45,13 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
         [{:ok, canonical, :no_executor}, {:ok, canonical, :no_executor}] = results
 
-        Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, task_id, "call_dedup"}, %{
-          caller_pid: self()
-        })
+        Registry.register(
+          FrontmanServer.ToolCallRegistry,
+          {:tool_call, task_id, "call_dedup"},
+          %{
+            caller_pid: self()
+          }
+        )
 
         assert {:ok, ^canonical, :notified} =
                  resolve(scope, task_id, turn_number, "late result")
@@ -116,52 +69,63 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
     end)
   end
 
-  defp start_executor(scope, task_id, turn_number, tool_call_id) do
-    Task.async(fn ->
-      Sandbox.unboxed_run(Repo, fn ->
-        ToolExecutor.execute(scope, %{
-          task_id: task_id,
-          turn_number: turn_number,
-          tool_calls: [%SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}],
-          task_supervisor: SwarmAi.task_supervisor_name(FrontmanServer.AgentRuntime),
-          backend_tool_modules: [],
-          mcp_tool_defs: [mcp_tool_def()],
-          execution_mode: :serial
-        })
-      end)
+  test "identical tool call ids route only to their task executors" do
+    Sandbox.unboxed_run(Repo, fn ->
+      scope = user_scope_fixture()
+
+      try do
+        first_task = task_fixture(scope)
+        second_task = task_fixture(scope)
+        first_turn = start_turn_fixture(scope, first_task.id)
+        second_turn = start_turn_fixture(scope, second_task.id)
+        tool_call_id = "shared-call"
+
+        assert {:ok, _owner} = register_receiver(first_task.id, tool_call_id, :first)
+        assert {:ok, _owner} = register_receiver(second_task.id, tool_call_id, :second)
+
+        resolvers = [
+          Task.async(fn ->
+            resolve(scope, first_task.id, first_turn, "first result", tool_call_id)
+          end),
+          Task.async(fn ->
+            resolve(scope, second_task.id, second_turn, "second result", tool_call_id)
+          end)
+        ]
+
+        assert Enum.all?(resolvers, fn resolver ->
+                 match?({:ok, _interaction, :notified}, Task.await(resolver, 1_000))
+               end)
+
+        assert_receive {:first, {:tool_result, ^tool_call_id, first_result, false}}
+        assert_receive {:second, {:tool_result, ^tool_call_id, second_result, false}}
+        assert [%{text: "first result"}] = first_result
+        assert [%{text: "second result"}] = second_result
+        refute_receive {:first, {:tool_result, ^tool_call_id, [%{text: "second result"}], false}}
+        refute_receive {:second, {:tool_result, ^tool_call_id, [%{text: "first result"}], false}}
+      after
+        Repo.delete!(Scope.user(scope))
+      end
     end)
   end
 
-  defp mcp_tool_def do
-    %MCPTool{
-      name: "some_tool",
-      description: "Some client tool",
-      input_schema: %{},
-      timeout_ms: 1_000,
-      on_timeout: :error
-    }
+  defp register_receiver(task_id, tool_call_id, label) do
+    parent = self()
+
+    Registry.register(
+      FrontmanServer.ToolCallRegistry,
+      {:tool_call, task_id, tool_call_id},
+      %{caller_pid: spawn_link(fn -> forward_tool_result(parent, label) end)}
+    )
   end
 
-  defp assert_tool_executor_registered(task_id, tool_call_id) do
-    assert eventually(fn ->
-             Registry.lookup(FrontmanServer.ProcessRegistry, {:tool_call, task_id, tool_call_id})
-           end) == [{:registered}]
-  end
-
-  defp eventually(fun), do: eventually(fun, 50)
-
-  defp eventually(fun, attempts) when attempts > 0 do
-    case fun.() do
-      [] ->
-        Process.sleep(10)
-        eventually(fun, attempts - 1)
-
-      [_entry] ->
-        [{:registered}]
+  defp forward_tool_result(parent, label) do
+    receive do
+      {:tool_result, _tool_call_id, _content, _is_error} = result ->
+        send(parent, {label, result})
+    after
+      1_000 -> raise "timed out waiting for tool result"
     end
   end
-
-  defp eventually(_fun, 0), do: []
 
   defp resolve(scope, task_id, turn_number, result, tool_call_id \\ "call_dedup") do
     Tasks.resolve_tool_request(

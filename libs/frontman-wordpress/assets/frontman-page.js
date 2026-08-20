@@ -8,7 +8,7 @@ if (typeof process === "undefined") {
 	window.__frontmanRuntime = {
 		framework: config ? config.getAttribute("data-framework") || "wordpress" : "wordpress",
 		basePath: config ? config.getAttribute("data-base-path") || "frontman" : "frontman",
-		relayBaseUrl: config ? config.getAttribute("data-relay-base-url") || null : null,
+		mcpBaseUrl: config ? config.getAttribute("data-mcp-base-url") || null : null,
 		wpNonce: config ? config.getAttribute("data-wp-nonce") || "" : "",
 		traits: []
 	};

@@ -33,6 +33,7 @@ let cleanup = async (dir: string) => {
 let makeCtx = (dir: string): Tool.serverExecutionContext => {
   projectRoot: dir,
   sourceRoot: dir,
+  signal: WebAPI.AbortController.make().signal,
 }
 
 describe("ListTree Tool - execute (integration)", _t => {

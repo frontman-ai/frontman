@@ -19,7 +19,7 @@ apps/
 
 libs/
   client/               React UI components (ReScript) — @frontman-ai/client
-  frontman-client/      ACP/Relay/MCP protocol implementation
+  frontman-client/      ACP and MCP client/server implementation
   frontman-protocol/    Protocol type definitions + Sury schemas
   frontman-core/        Core utilities
   react-statestore/     State management (useSyncExternalStore)
@@ -66,33 +66,33 @@ Client                          Server                          LLM Provider
 ```
 
 **Sequence:**
-1. `TaskChannel.handle_in("acp:message")` receives prompt
-2. `Providers.resolve_model_access/3` resolves provider auth and ReqLLM arguments
-3. `Execution.start` starts agent execution with the prompt, model configuration, and tools
+1. `TaskChannel.handle_in("acp:message")` receives and persists the prompt
+2. `TaskChannel` waits for the selected MCP owner's terminal catalog and, when required by the framework, owner-scoped project-context readiness
+3. `Execution.run` builds a root agent run from prompt, model config, and tools
 4. `SwarmAi.run(runtime, agent)` starts supervised execution
 5. SwarmAi calls LLM via `ReqLLM` (custom Req wrapper), receives response
 6. `ToolExecutor.make` routes tool calls:
    - Backend tools → `ToolExecution.Sync`: executed in supervised tasks (todo list, web_fetch)
-   - MCP tools → `ToolExecution.Await`: registered in `ProcessRegistry`, published to client via channel, executor blocks until Registry receives result
+   - MCP tools → `ToolExecution.Await`: registered in `ToolCallRegistry`, published to client via channel, executor blocks until Registry receives result
 7. `SwarmDispatcher` persists each interaction to PostgreSQL, then broadcasts via PubSub
 8. Channel pushes events to client for UI rendering
 9. Loop repeats until LLM returns `turn_complete`
 
 **Persist-then-broadcast:** All agent events are persisted to PostgreSQL *before* being broadcast via PubSub. If the client disconnects, no data is lost. On reconnect, full history is loaded from the database and deserialized via `Interaction.to_swarm_messages/1`.
 
-### Tool Relay (File Operations)
+### Framework MCP Tools (File Operations)
 
-File tools (read_file, write_file, edit_file, grep, etc.) don't run on the Frontman server — they relay through the browser to the user's dev server:
+File tools (read_file, write_file, edit_file, grep, etc.) don't run on the Frontman server. The browser calls the user's dev server through MCP Streamable HTTP:
 
 ```
-Agent (server) ──MCP tool call──► Browser (client) ──HTTP──► Dev Server (local)
+Agent (server) ──MCP tool call──► Browser (client) ──POST /mcp──► Dev Server (local)
                                                                │
 Agent (server) ◄──MCP tool result── Browser (client) ◄────────┘
 ```
 
 The Frontman server has no direct filesystem access. All file operations execute on the machine running the dev server, routed through the browser's MCP client. This means:
 - File tools require an active browser connection
-- The dev server framework integration (Next.js/Astro/Vite middleware) handles the actual filesystem I/O
+- The dev server framework integration's MCP endpoint handles the actual filesystem I/O
 - Tools are registered in `libs/frontman-core/src/FrontmanCore__ToolRegistry.res`
 
 ---
@@ -109,7 +109,7 @@ Application
 ├── DNSCluster
 ├── Phoenix.PubSub (FrontmanServer.PubSub)
 ├── SwarmAi (named: FrontmanServer.AgentRuntime)
-├── Registry (FrontmanServer.ProcessRegistry)
+├── Registry (FrontmanServer.ToolCallRegistry)
 ├── Oban (background jobs)
 └── Endpoint (HTTP/WebSocket)
 ```
@@ -119,7 +119,8 @@ Application
 | Context | Modules | Responsibility |
 |---------|---------|---------------|
 | Accounts | User, UserToken, UserIdentity | Registration, session tokens, OAuth (WorkOS for GitHub/Google), email verification |
-| Tasks | Task, Interaction, Execution, ToolExecutor | Conversation tasks, timeline storage, execution, tool routing, PubSub topics |
+| Tasks | Task, Interaction | CRUD for conversation sessions, interaction storage (JSONB), PubSub topics |
+| Execution | Execution, SwarmDispatcher, ToolExecutor | Agent run orchestration, prompt building, tool routing, result notification |
 | Providers | ApiKey, OauthToken, ModelCatalog | Key resolution hierarchy, OAuth token management, model catalog |
 | Tools | Backend, ToolExecutor | Tool registry, backend implementations (TodoList/Add/Update/Remove), MCP aggregation |
 | Organizations | Organization, Membership | Team workspaces, membership roles |
@@ -140,9 +141,9 @@ Application
 
 Encrypted fields: `api_keys.key`, `oauth_tokens.access_token` — use `FrontmanServer.Encrypted.Binary` (Cloak vault).
 
-### Task Timeline
+### Interaction Domain Model
 
-Interactions are typed timeline records persisted as JSONB:
+Interactions are typed domain events persisted as JSONB:
 
 | Type | Purpose |
 |------|---------|
@@ -167,13 +168,15 @@ MCP tool metadata includes:
 - `executionMode` — `"interactive"` (shorter timeout, pauses agent on timeout) vs default (longer timeout)
 - `timeout_ms`, `on_timeout` — `:error` (fail the tool call) vs `:pause_agent` (pause and wait for user)
 
-`MCPInitializer` negotiates available tools during session init via `tools/list` handshake.
+Joined `tasks` channels are connection candidates. `MCPConnection` selects one owner per user; that owner discovers tools, loads and persists project context, and owns browser request correlation. `TaskChannel` is a per-task ACP observer and runner gate. It starts or resumes execution only after catalog readiness and, for frameworks that require it, an owner-scoped terminal context signal. Context absence, disabled loading, nonfatal failure, and timeout are terminal and allow execution to proceed.
+
+Owner failover re-gates context against the successor and redispatches durable unresolved calls without cancelling a live execution. Last-owner loss cancels affected SwarmAi executions through lifecycle quiescence, cancels browser requests where the channel is still alive, clears process-local request ownership, and publishes an unavailable catalog. PostgreSQL interaction rows provide generation-fenced claims, immutable execution deadlines, terminal results, and recovery markers. A supervised single-node recovery owner resolves overdue work and reconnect resumes durable results; Registry and PubSub remain addressing/delivery mechanisms, not ownership authority. Multi-node recovery and distributed scheduling are unsupported.
 
 ### WebSocket Channels
 
 - **UserSocket** — Two auth paths: session cookie (same-origin) or signed token (cross-origin, 2-week validity)
-- **TasksChannel** (`"tasks"`) — Session listing/creation/deletion, config option broadcasts, ACP protocol init
-- **TaskChannel** (`"task:*"`) — Per-task: ACP prompts, MCP tool call/response routing, streaming agent responses, history loading
+- **TasksChannel** (`"tasks"`) — Session management, config and ACP initialization, plus connection-owner MCP discovery, context hydration, tool routing, cancellation, and redispatch
+- **TaskChannel** (`"task:*"`) — Per-task ACP observer: prompts, streaming responses, history loading, and execution readiness gating
 
 Wire format: JSON-RPC 2.0. Event types: `"acp:message"`, `"mcp:message"`. No catch-all handlers — malformed messages crash the channel.
 
@@ -243,8 +246,8 @@ Main.res
 └── FrontmanProvider (React context)
     └── ConnectionReducer
         ├── ACP connection (handshake, session mgmt)
-        ├── Relay (WebSocket transport)
-        └── MCP Server (tool registration, call dispatch)
+        ├── MCP Streamable HTTP client (framework tools)
+        └── MCP Server (browser tool registration and dispatch)
 ```
 
 `FrontmanProvider` exposes: `sendPrompt`, `cancelPrompt`, `loadTask`, `deleteSession`, `connectionState`.
@@ -299,7 +302,7 @@ Question tool: creates a Promise that blocks the agent loop. Dispatches `Questio
 
 ### Core File Tools (frontman-core)
 
-Registered in `FrontmanCore__ToolRegistry`, relayed through the browser to the dev server:
+Registered in `FrontmanCore__ToolRegistry` and exposed by the dev server's exact `/mcp` endpoint:
 
 | Tool | Module | Function |
 |------|--------|----------|
@@ -335,11 +338,11 @@ Session update types: `UserMessageChunk`, `AssistantMessageStart`, `ToolCallStar
 
 Three published npm packages inject Frontman into dev servers:
 
-- **@frontman-ai/astro** (`libs/frontman-astro`) — Astro integration hook + Vite middleware, dev toolbar app, serves Frontman UI at `/<basePath>/`, captures Astro 5/6 `data-astro-source-*` annotations, injects Astro 7 `data-frontman-source-*` annotations, maps Sätteri and unified Markdown output to source files, and injects component props as HTML comments
-- **@frontman-ai/nextjs** (`libs/frontman-nextjs`) — Middleware (Next.js 15.x, 15.5 minimum) or proxy (Next.js 16.x), serves Frontman UI at `/frontman`, OpenTelemetry instrumentation (tracks HTTP requests, route rendering, API execution), LogCapture (auto-patches console.log, process.stdout.write, error handlers — circular buffer of 1024 entries via `globalThis`)
-- **@frontman-ai/vite** (`libs/frontman-vite`) — Vite middleware plugin, auto-detects framework from vite.config (React, Vue, Svelte), adapts Web API to Vite's Node.js request/response
+- **@frontman-ai/astro** (`libs/frontman-astro`) — Astro integration hook + Vite middleware, exact `/mcp` endpoint, dev toolbar app, serves Frontman UI at `/<basePath>/`, captures Astro 5/6 `data-astro-source-*` annotations, injects Astro 7 `data-frontman-source-*` annotations, maps Sätteri and unified Markdown output to source files, and injects component props as HTML comments
+- **@frontman-ai/nextjs** (`libs/frontman-nextjs`) — Middleware (Next.js 15) or proxy (Next.js 16+) for the `/frontman` UI, generated Node Pages API route plus exact `/mcp` rewrite, OpenTelemetry instrumentation (tracks HTTP requests, route rendering, API execution), LogCapture (auto-patches console.log, process.stdout.write, error handlers — circular buffer of 1024 entries via `globalThis`)
+- **@frontman-ai/vite** (`libs/frontman-vite`) — Vite middleware plugin with an exact `/mcp` endpoint, auto-detects framework from vite.config (React, Vue, Svelte), adapts Web API to Vite's Node.js request/response
 
-All three packages inject the Frontman client UI into dev servers, establish WebSocket connection to the Frontman backend, and handle MCP tool relay (routing file operations from the agent through the browser to the local filesystem).
+All three packages inject the Frontman client UI into dev servers and expose local tools through sessionless MCP Streamable HTTP at exact `POST /mcp`. The browser maintains the WebSocket connection to the Frontman backend and acts as the MCP client for the local framework endpoint.
 
 ---
 
@@ -376,7 +379,7 @@ Each feature branch gets:
 - Deterministic port range derived from 4-char branch name hash
 - Caddy routing: `{hash}.{service}.frontman.local → localhost:{port}`
 
-Management: `make wt` (dashboard), `make wt-new`, `make wt-dev`, `make wt-stop`, `make wt-start`, `make wt-sh`, `make wt-rm`.
+Management: `make wt` (dashboard), `make wt-new`, `make wt-dev`, `make wt-stop`, `make wt-start`, `make wt-sh`, `make wt-rm`, `make wt-gc`.
 
 ### CI/CD
 

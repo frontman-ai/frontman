@@ -25,3 +25,21 @@ test("traceability verification rejects duplicate IDs", async () => {
     /Traceability matrices contain duplicate requirement IDs: REQ-1/,
   )
 })
+
+for (const placeholder of [
+  "ABSENCE-JS",
+  "ABSENCE-WP",
+  "ABSENCE-PHX",
+  "ABSENCE-CONFORMANCE",
+  "No production OAuth owner; scoped source review",
+]) {
+  test(`traceability verification rejects deprecated evidence placeholder ${placeholder}`, async () => {
+    const root = await mkdtemp(join(tmpdir(), "frontman-mcp-traceability-"))
+    const row = `| REQ-1 | text | applicable | scoped ${placeholder} evidence | positive | negative | planned | notes |\n`
+    await writeFile(join(root, "matrix.md"), header + row)
+    await assert.rejects(
+      verifyTraceability(root, new Map([["matrix.md", 1]])),
+      new RegExp(`matrix.md requirement REQ-1 uses deprecated evidence placeholder: ${placeholder}`),
+    )
+  })
+}

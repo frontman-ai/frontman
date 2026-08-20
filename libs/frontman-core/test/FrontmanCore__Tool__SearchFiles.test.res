@@ -182,6 +182,7 @@ describe("SearchFiles Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: SearchFiles.input = {
@@ -220,6 +221,7 @@ describe("SearchFiles Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: SearchFiles.input = {
@@ -256,6 +258,7 @@ describe("SearchFiles Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: SearchFiles.input = {
@@ -292,6 +295,7 @@ describe("SearchFiles Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: SearchFiles.input = {
@@ -325,6 +329,7 @@ describe("SearchFiles Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: SearchFiles.input = {
@@ -356,6 +361,7 @@ describe("SearchFiles Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: SearchFiles.input = {

@@ -6,10 +6,11 @@
 
 defmodule FrontmanServer.Tasks.Interaction do
   @moduledoc """
-  Persisted timeline record types for a task.
+  Domain interaction types for the LLM agent system.
 
-  The timeline stores user messages, execution state, agent responses, tool
-  activity, and project context. Streaming chunks are ephemeral.
+  Interactions represent domain events that occur during a task's lifecycle.
+  These are stored as the source of truth, while streaming tokens are ephemeral
+  transport mechanisms for real-time UX.
   """
 
   @interaction_modules [
@@ -27,7 +28,9 @@ defmodule FrontmanServer.Tasks.Interaction do
   ]
 
   alias FrontmanServer.CurrentPageContext
+  alias FrontmanServer.Tasks.CanonicalToolResult
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.ToolCallExecutionClaim
   alias SwarmAi.Message, as: SwarmMessage
   alias SwarmAi.Message.ContentPart, as: SwarmContentPart
   alias SwarmAi.ToolCall, as: SwarmToolCall
@@ -251,6 +254,8 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :component_name, :string
       field :component_props, :map
       embeds_one :parent, ParentLocation
+      field :css_classes, :string
+      field :nearby_text, :string
       field :metadata, :map, default: %{}
       embeds_one :bounding_box, BoundingBox
       embeds_one :screenshot, Screenshot
@@ -269,6 +274,8 @@ defmodule FrontmanServer.Tasks.Interaction do
         :column,
         :component_name,
         :component_props,
+        :css_classes,
+        :nearby_text,
         :metadata
       ])
       |> cast_embed(:parent, with: &ParentLocation.changeset/2)
@@ -286,9 +293,11 @@ defmodule FrontmanServer.Tasks.Interaction do
       comment
       component_name
       component_props
+      css_classes
       file
       line
       metadata
+      nearby_text
       parent
       screenshot
       selector
@@ -308,6 +317,8 @@ defmodule FrontmanServer.Tasks.Interaction do
         component_name: data["component_name"],
         component_props: data["component_props"],
         parent: data["parent"],
+        css_classes: data["css_classes"],
+        nearby_text: data["nearby_text"],
         metadata: metadata_from_map(data),
         bounding_box: data["bounding_box"],
         screenshot: data["screenshot"]
@@ -750,7 +761,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents an agent execution ending with an error (failed, crashed, or cancelled).
 
-    Persisted so that reconnecting clients see the terminal interaction for every execution,
+    Persisted so that reconnecting clients see the terminal interaction for every agent run,
     even when the channel process was dead when the error occurred.
     """
 
@@ -832,20 +843,29 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :tool_call_id, :string
       field :tool_name, :string
       field :arguments, :map
+      field :output_schema, :map
+      embeds_one :execution_claim, ToolCallExecutionClaim, on_replace: :update
       field :timestamp, :utc_datetime_usec
     end
 
     def changeset(%__MODULE__{} = tool_call, attrs) do
-      Interaction.cast_timestamped(tool_call, attrs, [
+      tool_call
+      |> Interaction.cast_timestamped(attrs, [
         :id,
         :tool_call_id,
         :tool_name,
         :arguments,
+        :output_schema,
         :timestamp
       ])
+      |> Ecto.Changeset.cast_embed(:execution_claim,
+        with: &ToolCallExecutionClaim.changeset/2,
+        invalid_message: "must be a valid execution claim"
+      )
+      |> Ecto.Changeset.validate_required([:tool_call_id, :tool_name, :arguments])
     end
 
-    def attrs(%SwarmAi.ToolCall{} = tc) do
+    def attrs(%SwarmAi.ToolCall{} = tc, output_schema \\ nil) do
       tc = SwarmAi.ToolCall.strip_null_arguments(tc)
 
       case SwarmAi.ToolCall.parse_arguments(tc) do
@@ -854,7 +874,8 @@ defmodule FrontmanServer.Tasks.Interaction do
            %{
              tool_call_id: tc.id,
              tool_name: tc.name,
-             arguments: arguments
+             arguments: arguments,
+             output_schema: output_schema
            }}
 
         {:error, message} ->
@@ -888,9 +909,8 @@ defmodule FrontmanServer.Tasks.Interaction do
         :result,
         :timestamp
       ])
-      |> scrub_result_metadata()
+      |> canonicalize_result()
       |> derive_is_error()
-      |> validate_change(:result, &validate_result/2)
       |> validate_required([:tool_call_id, :tool_name, :result, :is_error])
     end
 
@@ -903,32 +923,25 @@ defmodule FrontmanServer.Tasks.Interaction do
       }
     end
 
-    defp scrub_result_metadata(changeset) do
+    defp canonicalize_result(changeset) do
       case get_change(changeset, :result) do
-        %{} = result -> put_change(changeset, :result, Map.put(result, "_meta", %{}))
+        %{} = result -> canonicalize_result(changeset, CanonicalToolResult.canonicalize(result))
         _missing_or_invalid -> changeset
       end
+    end
+
+    defp canonicalize_result(changeset, {:ok, result}), do: put_change(changeset, :result, result)
+
+    defp canonicalize_result(changeset, {:error, :invalid_call_tool_result}) do
+      add_error(changeset, :result, "is not a complete MCP tool result")
     end
 
     defp derive_is_error(changeset) do
       case get_field(changeset, :result) do
-        %{"isError" => true} -> put_change(changeset, :is_error, true)
-        %{} -> put_change(changeset, :is_error, false)
+        %{} = result -> put_change(changeset, :is_error, CanonicalToolResult.error?(result))
         _missing_or_invalid -> changeset
       end
     end
-
-    defp validate_result(:result, %{"content" => content}) when is_list(content) do
-      case Enum.find(content, fn
-             %{"type" => "image", "data" => data} -> Base.decode64(data) == :error
-             _content -> false
-           end) do
-        nil -> []
-        _invalid_image -> [result: "contains invalid base64 image data"]
-      end
-    end
-
-    defp validate_result(:result, _result), do: []
   end
 
   defmodule DiscoveredProjectRule do
@@ -941,45 +954,47 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     use Ecto.Schema
 
-    @content_bytes_limit 64 * 1024
-
     @primary_key false
     embedded_schema do
       field :path, :string
       field :content, :string
+      field :context_fingerprint, :string
       field :timestamp, :utc_datetime_usec
     end
 
     def changeset(%__MODULE__{} = discovered_project_rule, attrs) do
-      discovered_project_rule
-      |> Interaction.cast_timestamped(attrs, [:path, :content, :timestamp])
-      |> Ecto.Changeset.validate_length(:path, count: :bytes, max: @content_bytes_limit)
-      |> Ecto.Changeset.validate_length(:content, count: :bytes, max: @content_bytes_limit)
+      Interaction.cast_timestamped(discovered_project_rule, attrs, [
+        :path,
+        :content,
+        :context_fingerprint,
+        :timestamp
+      ])
     end
   end
 
   defmodule DiscoveredProjectStructure do
     @moduledoc """
-    Represents a discovered project structure summary (from list_tree during MCP init).
+    Represents a discovered project structure summary from list_tree.
 
-    Stored once per task during initialization. Injected into the system prompt
+    Stored as task-scoped context. Injected into the system prompt
     so the agent always has structural awareness of the project.
     """
 
     use Ecto.Schema
 
-    @summary_bytes_limit 512 * 1024
-
     @primary_key false
     embedded_schema do
       field :summary, :string
+      field :context_fingerprint, :string
       field :timestamp, :utc_datetime_usec
     end
 
     def changeset(%__MODULE__{} = discovered_project_structure, attrs) do
-      discovered_project_structure
-      |> Interaction.cast_timestamped(attrs, [:summary, :timestamp])
-      |> Ecto.Changeset.validate_length(:summary, count: :bytes, max: @summary_bytes_limit)
+      Interaction.cast_timestamped(discovered_project_structure, attrs, [
+        :summary,
+        :context_fingerprint,
+        :timestamp
+      ])
     end
   end
 
@@ -1007,10 +1022,17 @@ defmodule FrontmanServer.Tasks.Interaction do
       messages: value.messages,
       timestamp: timestamp_json(value.timestamp),
       annotations: Enum.map(value.annotations, &annotation_json_map/1),
-      current_page: value.current_page,
       selected_figma_node: selected_figma_node_json_map(value.selected_figma_node),
       images: Enum.map(value.images, &user_image_json_map/1)
     }
+  end
+
+  def to_json_map(%ToolCall{} = value) do
+    value
+    |> Map.from_struct()
+    |> Map.delete(:execution_claim)
+    |> Map.delete(:output_schema)
+    |> stringify_timestamp()
   end
 
   def to_json_map(value) when is_struct(value) do
@@ -1032,6 +1054,8 @@ defmodule FrontmanServer.Tasks.Interaction do
       component_name: ann.component_name,
       component_props: ann.component_props,
       parent: ann.parent,
+      css_classes: ann.css_classes,
+      nearby_text: ann.nearby_text,
       bounding_box: ann.bounding_box,
       screenshot: ann.screenshot
     }
@@ -1105,7 +1129,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       %SwarmMessage.Assistant{
         content: [],
-        tool_calls: to_swarm_tool_calls(meta["tool_calls"]),
+        tool_calls: swarm_tool_calls(meta["tool_calls"]),
         metadata: swarm_metadata(msg),
         reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
       }
@@ -1119,20 +1143,20 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       %SwarmMessage.Assistant{
         content: [SwarmContentPart.text(content)],
-        tool_calls: to_swarm_tool_calls(meta["tool_calls"]),
+        tool_calls: swarm_tool_calls(meta["tool_calls"]),
         metadata: swarm_metadata(msg),
         reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
       }
     ]
   end
 
-  defp to_swarm_message(%ToolResult{result: %{"content" => content}} = result)
-       when is_list(content) do
+  defp to_swarm_message(%ToolResult{result: result, is_error: is_error} = tool_result) do
     [
       %SwarmMessage.Tool{
-        content: Enum.map(content, &tool_result_content_part/1),
-        tool_call_id: result.tool_call_id,
-        name: result.tool_name
+        content: CanonicalToolResult.to_swarm_content(result),
+        tool_call_id: tool_result.tool_call_id,
+        name: tool_result.tool_name,
+        metadata: tool_result_metadata(is_error)
       }
     ]
   end
@@ -1164,11 +1188,8 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp text_parts(""), do: []
   defp text_parts(text), do: [SwarmContentPart.text(text)]
 
-  defp tool_result_content_part(%{"type" => "text", "text" => text}),
-    do: SwarmContentPart.text(text)
-
-  defp tool_result_content_part(%{"type" => "image", "data" => data, "mimeType" => mime_type}),
-    do: SwarmContentPart.image(Base.decode64!(data), mime_type)
+  defp tool_result_metadata(true), do: %{is_error: true}
+  defp tool_result_metadata(false), do: %{}
 
   defp append_annotation_screenshot_parts(parts, []), do: parts
 
@@ -1259,10 +1280,10 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_string_field(ann.component_name, "Component"),
       annotation_string_field(ann.comment, "Comment"),
       annotation_string_field(ann.selector, "CSS Selector"),
-      annotation_metadata_field(ann.metadata, "element_context", "Element Context"),
+      annotation_string_field(ann.css_classes, "CSS Classes"),
+      annotation_string_field(ann.nearby_text, "Nearby Text"),
       annotation_bbox_field(ann.bounding_box),
       annotation_props_field(ann.component_props),
-      annotation_metadata_field(ann.metadata, "source_location_error", "Source Location Error"),
       annotation_parent_field(ann.parent)
     ]
     |> Enum.join()
@@ -1280,11 +1301,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     do: "\n  Props: #{Jason.encode!(props, pretty: false)}"
 
   defp annotation_props_field(_), do: ""
-
-  defp annotation_metadata_field(metadata, key, label) when is_map(metadata),
-    do: annotation_string_field(metadata[key], label)
-
-  defp annotation_metadata_field(_, _, _), do: ""
 
   defp annotation_parent_field(nil), do: ""
   defp annotation_parent_field(parent), do: "\n  Parent: #{format_parent_chain(parent, 1)}"
@@ -1341,10 +1357,10 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_attachment_context(text, _), do: text
 
-  @doc "Converts persisted tool-call records into Swarm tool calls."
-  def to_swarm_tool_calls(nil), do: []
+  defp swarm_tool_calls(nil), do: []
+  defp swarm_tool_calls([]), do: []
 
-  def to_swarm_tool_calls(tool_calls) when is_list(tool_calls) do
+  defp swarm_tool_calls(tool_calls) when is_list(tool_calls) do
     Enum.map(tool_calls, &swarm_tool_call/1)
   end
 

@@ -5,7 +5,7 @@ module Log = FrontmanLogs.Logs.Make({
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
-module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
+module MCPClient = FrontmanAiFrontmanClient.FrontmanClient__MCP__Client
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer
 module RuntimeConfig = Client__RuntimeConfig
@@ -93,11 +93,8 @@ type connectionState = Reducer.Selectors.connectionStatus
 type contextValue = {
   connectionState: connectionState,
   session: option<ACP.session>,
-  relay: option<Relay.t>,
+  frameworkServerInfo: option<Reducer.frameworkServerInfo>,
   authRedirectUrl: option<string>,
-  beginAuthenticationRetry: unit => unit,
-  requireAuthentication: unit => unit,
-  beginLogout: unit => unit,
   createSession: (~onComplete: result<string, string> => unit) => unit,
   clearSession: unit => unit,
   sendPrompt: (
@@ -115,11 +112,8 @@ type contextValue = {
 let defaultContextValue: contextValue = {
   connectionState: Disconnected,
   session: None,
-  relay: None,
+  frameworkServerInfo: None,
   authRedirectUrl: None,
-  beginAuthenticationRetry: () => (),
-  requireAuthentication: () => (),
-  beginLogout: () => (),
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
@@ -141,12 +135,27 @@ module Provider = {
   @react.component
   let make = (
     ~endpoint: string,
+    ~tokenUrl: string,
     ~loginUrl: string,
     ~clientName: string="frontman-client",
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    let (state, dispatch) = StateReducer.useReducer(module(Reducer), Reducer.initialState)
+    let logACPMessage = React.useCallback0((direction: ACP.messageDirection, _payload: JSON.t) => {
+      let arrow = direction == Send ? `→` : `←`
+      Log.debug(`ACP ${arrow}`)
+    })
+
+    let logMCPMessage = React.useCallback0((direction, _payload) => {
+      let arrow = direction == FrontmanAiFrontmanClient.FrontmanClient__MCP.Send ? `→` : `←`
+      Log.debug(`MCP ${arrow}`)
+    })
+
+    let initialConnectionState = {
+      ...Reducer.initialState,
+      initialAuthBehavior: Client__FtueState.getAuthBehavior(),
+    }
+    let (state, dispatch) = StateReducer.useReducer(module(Reducer), initialConnectionState)
     let connectionStateRef = React.useRef(state)
 
     React.useEffect(() => {
@@ -155,16 +164,22 @@ module Provider = {
     }, [state])
 
     React.useEffect0(() => {
-      let baseUrl = Client__RelayBaseUrl.current()
-
       let runtimeConfig = RuntimeConfig.read()
+      let baseUrl = runtimeConfig.mcpBaseUrl->Option.getOr(Client__MCPBaseUrl.current())
       let _meta = RuntimeConfig.toMeta(runtimeConfig)
-      let relayHeaders = Dict.make()
-      runtimeConfig.wpNonce->Option.forEach(nonce => relayHeaders->Dict.set("X-WP-Nonce", nonce))
+      let frameworkHeaders = Dict.make()
+      runtimeConfig.wpNonce->Option.forEach(nonce =>
+        frameworkHeaders->Dict.set("X-WP-Nonce", nonce)
+      )
 
-      let relay = Relay.make(~baseUrl, ~requestHeaders=relayHeaders)
+      let frameworkMCPClient = MCPClient.make(~baseUrl, ~requestHeaders=frameworkHeaders)
       let toolRegistry = Client__ToolRegistry.forFramework(runtimeConfig.framework)
-      let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
+      let mcpServer = MCPServer.make(
+        ~frameworkClient=frameworkMCPClient,
+        ~serverName=clientName,
+        ~serverVersion=clientVersion,
+        ~authorizeTool=Client__ToolConsent.make(),
+      )
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
 
       MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
@@ -176,9 +191,11 @@ module Provider = {
 
       let config: Reducer.initConfig = {
         endpoint,
+        tokenUrl,
         loginUrl,
         clientName,
         clientVersion,
+        onACPMessage: logACPMessage,
         _meta,
         onTitleUpdated: Some(
           (taskId, title) => {
@@ -187,7 +204,7 @@ module Provider = {
         ),
       }
 
-      dispatch(Initialize({config, relay, mcpServer}))
+      dispatch(Initialize({config, frameworkMCPClient, mcpServer}))
 
       Some(
         () => {
@@ -196,16 +213,15 @@ module Provider = {
           state.abortController->Option.forEach(controller =>
             WebAPI.AbortController.abort(controller)
           )
-          state.relayInstance->Option.forEach(relay => Relay.disconnect(relay))
+          state.frameworkMCPClient->Option.forEach(MCPClient.disconnect)
           let activeSession = switch state.session {
           | SessionActive(session) => Some(session)
           | NoSession | SessionCreating(_) | SessionError(_) => None
           }
           switch state.acp {
           | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
-          | ACPDisconnected | ACPConnecting | ACPLoggingOut | ACPAuthRequired(_) | ACPError(_) => ()
+          | ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_) => ()
           }
-          dispatch(Dispose)
         },
       )
     })
@@ -303,11 +319,11 @@ module Provider = {
       | Plan({entries}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.planReceived(~taskId, ~entries)
-      | StateUpdate({state, stopReason}) =>
+      | StateUpdate({state, stopReason: _}) =>
         Client__TextDeltaBuffer.flush()
         switch state {
         | Running => Client__State.Actions.executionStateRunning(~taskId)
-        | Idle => Client__State.Actions.executionStateIdle(~taskId, ~stopReason)
+        | Idle => Client__State.Actions.executionStateIdle(~taskId)
         | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
         }
       | ConfigOptionUpdate({configOptions}) =>
@@ -340,9 +356,10 @@ module Provider = {
     let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
       dispatch(
         CreateSession({
-          sessionId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+          sessionId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
+          onMcpMessage: logMCPMessage,
           onComplete,
         }),
       )
@@ -369,6 +386,7 @@ module Provider = {
           needsHistory,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
+          onMcpMessage: logMCPMessage,
           onComplete,
         }),
       )
@@ -379,23 +397,12 @@ module Provider = {
     }, [dispatch])
 
     let authRedirectUrl = Reducer.Selectors.getAuthRedirectUrl(state)
-    let beginAuthenticationRetry = React.useCallback1(() => {
-      dispatch(BeginAuthenticationRetry)
-    }, [dispatch])
-    let requireAuthentication = React.useCallback1(
-      () => dispatch(RequireAuthentication),
-      [dispatch],
-    )
-    let beginLogout = React.useCallback1(() => dispatch(BeginLogout), [dispatch])
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
       session: Reducer.Selectors.getSession(state),
-      relay: state.relayInstance,
+      frameworkServerInfo: Reducer.Selectors.getFrameworkServerInfo(state),
       authRedirectUrl,
-      beginAuthenticationRetry,
-      requireAuthentication,
-      beginLogout,
       createSession,
       clearSession,
       sendPrompt,

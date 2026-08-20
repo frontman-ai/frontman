@@ -51,13 +51,23 @@ defmodule FrontmanServer.Application do
       {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: FrontmanServer.PubSub},
       {SwarmAi, name: FrontmanServer.AgentRuntime},
-      {Registry, keys: :unique, name: FrontmanServer.ProcessRegistry},
+      {Registry, keys: :unique, name: FrontmanServer.ToolCallRegistry},
+      {Registry, keys: :duplicate, name: FrontmanServer.MCPConnectionRegistry},
+      FrontmanServer.MCPConnectionState,
+      mcp_recovery_child(),
       {Oban, Application.fetch_env!(:frontman_server, Oban)},
       FrontmanServerWeb.Endpoint
     ]
 
     opts = [strategy: :one_for_one, name: FrontmanServer.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  defp mcp_recovery_child do
+    case Application.get_env(:frontman_server, :mcp_recovery_enabled, true) do
+      true -> FrontmanServer.MCPRecovery
+      false -> %{id: FrontmanServer.MCPRecovery, start: {Function, :identity, [:ignore]}}
+    end
   end
 
   def sentry_logger_filter(%{msg: msg, meta: meta}, _opts) do

@@ -15,14 +15,17 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
+  alias FrontmanServer.Tasks.ToolCallClaimToken
+  alias FrontmanServer.Tasks.ToolCallExecutionClaim
 
   setup do
     scope = user_scope_fixture()
     task = task_fixture(scope)
 
-    %{task: task}
+    %{scope: scope, task: task}
   end
 
   describe "changeset/2 turn_number validation" do
@@ -43,7 +46,7 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       interactions = [
         struct!(Interaction.AgentResponse, Interaction.AgentResponse.attrs("response")),
         tool_call("call_1", "read_file"),
-        tool_result("call_1", "read_file", %{"ok" => true}),
+        tool_result("call_1", "read_file", ModelContextProtocol.tool_result_text("ok")),
         agent_completed(),
         agent_error("failed"),
         agent_paused("read_file", 1_000),
@@ -162,6 +165,105 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       assert decoded["type"] == "tool_call"
       assert decoded["tool_call_id"] == "call_1"
       assert decoded["tool_name"] == "read_file"
+    end
+
+    test "round-trips every typed tool-call and claim field without exposing claims publicly", %{
+      scope: scope,
+      task: task
+    } do
+      lease_expires_at = DateTime.add(Interaction.now(), 30, :second)
+      started_at = Interaction.now()
+      deadline_at = DateTime.add(started_at, 600, :second)
+
+      row =
+        InteractionSchema.create_changeset(
+          task.id,
+          :tool_call,
+          %{
+            tool_call_id: "claimed-call",
+            tool_name: "read_file",
+            arguments: %{"path" => "README.md"},
+            execution_claim: %{
+              owner_connection_id: "connection-1",
+              generation: 2,
+              started_at: started_at,
+              deadline_at: deadline_at,
+              lease_expires_at: lease_expires_at,
+              dispatch_state: :started,
+              resolution_state: :unresolved,
+              replay_policy: :verified_idempotent,
+              recovery_state: :none
+            }
+          },
+          1
+        )
+        |> Repo.insert!()
+
+      reference = %Tasks.ToolCallExecutionReference{
+        interaction_id: row.id,
+        task_id: task.id,
+        turn_number: 1,
+        tool_call_id: "claimed-call",
+        tool_name: "read_file"
+      }
+
+      token = %ToolCallClaimToken{
+        reference: reference,
+        owner_connection_id: "connection-1",
+        generation: 2,
+        started_at: started_at,
+        deadline_at: deadline_at,
+        lease_expires_at: lease_expires_at
+      }
+
+      assert {:ok, %ToolCallClaimToken{generation: 2}} =
+               Tasks.mark_tool_call_dispatch_started(scope, token)
+
+      loaded = Repo.get!(InteractionSchema, row.id)
+
+      assert {:ok, dumped} =
+               Ecto.Type.dump(InteractionSchema.__schema__(:type, :data), loaded.data)
+
+      assert {:ok, typed} =
+               Ecto.Type.load(InteractionSchema.__schema__(:type, :data), dumped)
+
+      reloaded = Repo.get!(InteractionSchema, row.id)
+
+      for tool_call <- [loaded.data, typed, reloaded.data] do
+        assert %Interaction.ToolCall{
+                 id: _id,
+                 tool_call_id: "claimed-call",
+                 tool_name: "read_file",
+                 arguments: %{"path" => "README.md"},
+                 timestamp: %DateTime{},
+                 execution_claim: %ToolCallExecutionClaim{
+                   owner_connection_id: "connection-1",
+                   generation: 2,
+                   started_at: ^started_at,
+                   deadline_at: ^deadline_at,
+                   lease_expires_at: ^lease_expires_at,
+                   dispatch_state: :started,
+                   resolution_state: :unresolved,
+                   replay_policy: :verified_idempotent,
+                   recovery_state: :none
+                 }
+               } = tool_call
+      end
+
+      assert %ToolCallExecutionClaim{
+               owner_connection_id: "connection-1",
+               generation: 2,
+               dispatch_state: :started,
+               resolution_state: :unresolved,
+               replay_policy: :verified_idempotent,
+               recovery_state: :none
+             } = reloaded.data.execution_claim
+
+      public = reloaded |> Jason.encode!() |> Jason.decode!()
+      refute Map.has_key?(public, "execution_claim")
+      assert public["tool_call_id"] == "claimed-call"
+      assert public["tool_name"] == "read_file"
+      assert public["arguments"] == %{"path" => "README.md"}
     end
   end
 

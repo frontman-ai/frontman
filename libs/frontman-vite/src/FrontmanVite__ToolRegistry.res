@@ -15,8 +15,6 @@ let make = (): t => {
 @@live
 let getToolByName = CoreRegistry.getToolByName
 @@live
-let getToolDefinitions = CoreRegistry.getToolDefinitions
-@@live
 let addTools = CoreRegistry.addTools
 @@live
 let count = CoreRegistry.count

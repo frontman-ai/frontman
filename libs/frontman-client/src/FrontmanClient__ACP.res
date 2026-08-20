@@ -7,6 +7,8 @@ module Socket = FrontmanClient__Phoenix__Socket
 module Constants = FrontmanClient__Transport__Constants
 module Sentry = FrontmanClient__Sentry
 module Decoders = FrontmanClient__Decoders
+module MCP = FrontmanClient__MCP
+module MCPTypes = FrontmanClient__MCP__Types
 module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
@@ -62,6 +64,7 @@ type connection = {
   clientConfig: Client.config,
   state: ref<Client.state>,
   onMessage: option<(messageDirection, JSON.t) => unit>,
+  detachMcp: ref<option<unit => unit>>,
 }
 
 @@live
@@ -74,15 +77,38 @@ type session = {
 
 let cleanupChannel = channel => {
   channel->Channel.off(~event=#"acp:message")
-  channel->Channel.off(~event=#"mcp:message")
   channel->Channel.off(~event=#title_updated)
   Channel.leave(channel)->ignore
 }
 
-let cleanupSessionChannel = (session: session): unit => cleanupChannel(session.channel)
+let cleanupSessionChannel = (session: session): unit => {
+  cleanupChannel(session.channel)
+}
+
+let detachMcp = (conn: connection) => {
+  conn.detachMcp.contents->Option.forEach(detach => detach())
+  conn.detachMcp := None
+}
+
+let attachMcp = (
+  conn: connection,
+  serverInterface: MCPTypes.serverInterface<'server>,
+  onMessage: option<(MCP.messageDirection, JSON.t) => unit>,
+) => {
+  switch conn.detachMcp.contents {
+  | Some(_) => ()
+  | None =>
+    let handler = MCP.attach(~channel=conn.channel, ~serverInterface, ~onMessage?)
+    conn.detachMcp := Some(() => MCP.detach(handler))
+    conn.channel
+    ->Channel.push(~event=#"mcp:ready", ~payload=JSON.Encode.object(Dict.make()))
+    ->ignore
+  }
+}
 
 let disconnect = (conn: connection, ~session: option<session>=?): unit => {
   session->Option.forEach(cleanupSessionChannel)
+  detachMcp(conn)
   conn.channel->Channel.off(~event=#"acp:message")
   conn.channel->Channel.off(~event=#config_options_updated)
   Channel.leave(conn.channel)->ignore
@@ -228,12 +254,14 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
     | (Ok(), Ok()) =>
       switch config.onConfigOptionsUpdated {
       | Some(callback) =>
-        channel->Channel.on(~event=#config_options_updated, ~callback=payload => {
+        channel
+        ->Channel.on(~event=#config_options_updated, ~callback=payload => {
           switch payload->Decoders.parseSchema(Types.configOptionsUpdatedSchema) {
           | Ok({configOptions}) => callback(configOptions)
           | Error(e) => Log.error(`Failed to parse config_options_updated payload: ${e}`)
           }
         })
+        ->ignore
       | None => ()
       }
 
@@ -250,12 +278,30 @@ let connect = async (config: config, ~signal: option<WebAPI.EventAPI.abortSignal
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
         state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
+        socket->Socket.onOpen(~callback=() => {
+          let reinitialize = async () => {
+            switch await Protocol.sendInitialize(
+              ~channel,
+              ~state,
+              ~clientConfig,
+              ~onMessage=config.onMessage,
+            ) {
+            | Ok(result) =>
+              state :=
+                state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
+              Log.info("ACP reinitialized after reconnect")
+            | Error(error) => Log.error(`ACP reconnect initialization failed: ${error}`)
+            }
+          }
+          reinitialize()->ignore
+        })
         Ok({
           socket,
           channel,
           clientConfig,
           state,
           onMessage: config.onMessage,
+          detachMcp: ref(None),
         })
       }
     }
@@ -276,9 +322,6 @@ let isInitialized = (conn: connection): bool => {
 let getAgentAttributionConfiguration = (conn: connection): option<
   Types.agentAttributionConfigurationMetadata,
 > => conn.state.contents.agentAttributionConfiguration
-
-module MCP = FrontmanClient__MCP
-module MCPTypes = FrontmanClient__MCP__Types
 
 exception SessionMessageParseError(string)
 
@@ -321,23 +364,14 @@ let joinSession = async (
     ~onParseError=Some(handleParseError),
   )
 
-  mcpServerInterface->Option.forEach(serverInterface => {
-    let handler: MCP.mcpHandler<'server> = {
-      serverInterface,
-      channel: sessionChannel,
-      onMessage: onMcpMessage,
-    }
-    sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
-      MCP.handleMessage(handler, payload)->ignore
-    })
-  })
-
-  sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
+  sessionChannel
+  ->Channel.on(~event=#title_updated, ~callback=payload => {
     switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
     | Ok({sessionId, title}) => onTitleUpdated(sessionId, title)
     | Error(e) => Log.error(`Failed to parse title_updated payload: ${e}`)
     }
   })
+  ->ignore
 
   let joinResult = await joinChannel(sessionChannel)
 
@@ -352,6 +386,9 @@ let joinSession = async (
     errMsg
   })
   ->Result.map(_ => {
+    mcpServerInterface->Option.forEach(serverInterface =>
+      attachMcp(conn, serverInterface, onMcpMessage)
+    )
     Sentry.addBreadcrumb(~category=#session, ~message=`Joined session ${sessionId}`)
     {
       sessionId,

@@ -9,6 +9,9 @@ defmodule SwarmAi.ExecutionWorker do
   typedstruct enforce: true do
     field(:runtime, atom())
     field(:loop, SwarmAi.Loop.t())
+    field(:worker_pid, pid(), enforce: false)
+    field(:worker_monitor, reference(), enforce: false)
+    field(:final_status, SwarmAi.Loop.status(), enforce: false)
   end
 
   @spec start_link({atom(), SwarmAi.Loop.t()}) :: GenServer.on_start()
@@ -23,110 +26,148 @@ defmodule SwarmAi.ExecutionWorker do
 
   @impl true
   def init({runtime, %SwarmAi.Loop{} = loop}) do
-    spawn_death_watcher(loop)
+    Process.flag(:trap_exit, true)
+    lifecycle_pid = self()
+    callers = [lifecycle_pid | Process.get(:"$callers", [])]
+    worker_loop = dispatch_through_lifecycle(loop, lifecycle_pid)
+
+    {worker_pid, worker_monitor} =
+      :erlang.spawn_opt(
+        fn ->
+          Process.put(:"$callers", callers)
+
+          receive do
+            :run ->
+              final_loop =
+                SwarmAi.Executor.run(worker_loop, SwarmAi.task_supervisor_name(runtime))
+
+              send(lifecycle_pid, {:execution_finished, final_loop.status})
+          end
+        end,
+        [:link, :monitor]
+      )
 
     state = %__MODULE__{
       runtime: runtime,
-      loop: loop
+      loop: loop,
+      worker_pid: worker_pid,
+      worker_monitor: worker_monitor
     }
 
     {:ok, state, {:continue, :run}}
   end
 
   @impl true
-  def handle_continue(:run, %__MODULE__{loop: loop, runtime: runtime} = state) do
-    registry = SwarmAi.registry_name(runtime)
-    task_supervisor = SwarmAi.task_supervisor_name(runtime)
-
-    final_loop =
-      try do
-        SwarmAi.Executor.run(loop, task_supervisor)
-      after
-        unregister(registry, loop)
-      end
-
-    final_loop.dispatch_event.(final_loop.status)
-
-    {:stop, :normal, state}
+  def handle_continue(:run, %__MODULE__{worker_pid: worker_pid} = state) do
+    send(worker_pid, :run)
+    {:noreply, state}
   end
 
-  defp unregister(registry, %SwarmAi.Loop{task_id: task_id}) do
-    Registry.unregister(registry, task_id)
-  catch
-    :exit, {:noproc, _} -> :ok
-    :exit, :noproc -> :ok
+  @impl true
+  def handle_call({:dispatch_event, event}, _from, %__MODULE__{} = state) do
+    {:reply, state.loop.dispatch_event.(event), state}
   end
 
-  defp spawn_death_watcher(%SwarmAi.Loop{} = loop) do
-    worker_pid = self()
-
-    pid =
-      spawn(fn ->
-        try do
-          monitor_ref = Process.monitor(worker_pid)
-          send(worker_pid, {:watcher_ready, self()})
-          watcher_loop(monitor_ref, worker_pid, loop)
-        rescue
-          error ->
-            Logger.error(
-              "SwarmAi death watcher crashed: #{Exception.format(:error, error, __STACKTRACE__)}"
-            )
-        catch
-          :exit, reason ->
-            Logger.error("SwarmAi death watcher exited: #{Exception.format_exit(reason)}")
-
-          :throw, reason ->
-            Logger.error("SwarmAi death watcher threw: #{inspect(reason)}")
-        end
-      end)
-
-    receive do
-      {:watcher_ready, ^pid} -> pid
-    after
-      5_000 -> raise "SwarmAi death watcher failed to start"
-    end
+  @impl true
+  def handle_info(
+        {:execution_finished, status},
+        %__MODULE__{final_status: nil} = state
+      ) do
+    {:noreply, %{state | final_status: status}}
   end
 
-  defp watcher_loop(monitor_ref, worker_pid, %SwarmAi.Loop{} = loop) do
-    receive do
-      {:DOWN, ^monitor_ref, :process, ^worker_pid, :normal} ->
+  def handle_info(
+        {:DOWN, worker_monitor, :process, worker_pid, reason},
+        %__MODULE__{worker_pid: worker_pid, worker_monitor: worker_monitor} = state
+      ) do
+    dispatch_terminal_event(state.loop, reason, state.final_status)
+    Registry.unregister(SwarmAi.registry_name(state.runtime), state.loop.task_id)
+    {:stop, lifecycle_stop_reason(reason), %{state | worker_pid: nil, worker_monitor: nil}}
+  end
+
+  def handle_info(
+        {:EXIT, worker_pid, _reason},
+        %__MODULE__{worker_pid: worker_pid} = state
+      ) do
+    {:noreply, state}
+  end
+
+  def handle_info({:EXIT, _linked_pid, reason}, %__MODULE__{} = state) do
+    {:stop, reason, state}
+  end
+
+  def handle_info(:cancel_execution, %__MODULE__{worker_pid: worker_pid} = state)
+      when is_pid(worker_pid) do
+    Process.exit(worker_pid, :cancelled)
+    {:noreply, state}
+  end
+
+  def handle_info(:cancel_execution, %__MODULE__{} = state), do: {:noreply, state}
+
+  @impl true
+  def terminate(reason, %__MODULE__{worker_pid: worker_pid} = state) when is_pid(worker_pid) do
+    Process.exit(worker_pid, :shutdown)
+
+    case reason do
+      :normal ->
         :ok
 
-      {:DOWN, ^monitor_ref, :process, ^worker_pid, :cancelled} ->
-        Logger.info("Execution cancelled for #{loop.task_id}")
-        event = {:cancelled, nil}
-        loop.dispatch_event.(event)
+      :cancelled ->
+        :ok
 
-      {:DOWN, ^monitor_ref, :process, ^worker_pid, :shutdown} ->
-        Logger.info("Execution terminated by supervisor for #{loop.task_id}, reason: :shutdown")
-        event = {:terminated, nil}
-        loop.dispatch_event.(event)
+      :killed ->
+        dispatch_terminal_event(state.loop, :killed, nil)
 
-      {:DOWN, ^monitor_ref, :process, ^worker_pid, :killed} ->
-        Logger.info("Execution terminated by supervisor for #{loop.task_id}, reason: :killed")
-        event = {:terminated, :killed}
-        loop.dispatch_event.(event)
+      {:shutdown, shutdown_reason} ->
+        dispatch_terminal_event(state.loop, {:shutdown, shutdown_reason}, nil)
 
-      {:DOWN, ^monitor_ref, :process, ^worker_pid, {:shutdown, reason}} ->
-        Logger.info(fn ->
-          "Execution terminated by supervisor for #{loop.task_id}, reason: #{inspect(reason)}"
-        end)
-
-        event = {:terminated, reason}
-        loop.dispatch_event.(event)
-
-      {:DOWN, ^monitor_ref, :process, ^worker_pid, reason} ->
-        message = Exception.format_exit(reason)
-
-        Logger.warning(fn ->
-          "Execution crashed for #{loop.task_id}, reason: #{inspect(reason)}"
-        end)
-
-        event = {:crashed, %{message: message}}
-        loop.dispatch_event.(event)
-
-      _other ->
-        watcher_loop(monitor_ref, worker_pid, loop)
+      _reason ->
+        dispatch_terminal_event(state.loop, :shutdown, nil)
     end
   end
+
+  def terminate(_reason, %__MODULE__{}), do: :ok
+
+  defp dispatch_through_lifecycle(%SwarmAi.Loop{} = loop, lifecycle_pid) do
+    %{loop | dispatch_event: &GenServer.call(lifecycle_pid, {:dispatch_event, &1}, 30_000)}
+  end
+
+  defp dispatch_terminal_event(%SwarmAi.Loop{} = loop, :normal, status) do
+    loop.dispatch_event.(status)
+  end
+
+  defp dispatch_terminal_event(%SwarmAi.Loop{} = loop, :cancelled, _status) do
+    Logger.info("Execution cancelled for #{loop.task_id}")
+    loop.dispatch_event.({:cancelled, nil})
+  end
+
+  defp dispatch_terminal_event(%SwarmAi.Loop{} = loop, :shutdown, _status) do
+    Logger.info("Execution terminated by supervisor for #{loop.task_id}, reason: :shutdown")
+    loop.dispatch_event.({:terminated, nil})
+  end
+
+  defp dispatch_terminal_event(%SwarmAi.Loop{} = loop, :killed, _status) do
+    Logger.info("Execution terminated by supervisor for #{loop.task_id}, reason: :killed")
+    loop.dispatch_event.({:terminated, :killed})
+  end
+
+  defp dispatch_terminal_event(%SwarmAi.Loop{} = loop, {:shutdown, reason}, _status) do
+    Logger.info(fn ->
+      "Execution terminated by supervisor for #{loop.task_id}, reason: #{inspect(reason)}"
+    end)
+
+    loop.dispatch_event.({:terminated, reason})
+  end
+
+  defp dispatch_terminal_event(%SwarmAi.Loop{} = loop, reason, _status) do
+    Logger.warning(fn ->
+      "Execution crashed for #{loop.task_id}, reason: #{inspect(reason)}"
+    end)
+
+    loop.dispatch_event.({:crashed, %{message: Exception.format_exit(reason)}})
+  end
+
+  defp lifecycle_stop_reason(:normal), do: :normal
+  defp lifecycle_stop_reason(:cancelled), do: :normal
+  defp lifecycle_stop_reason(reason), do: reason
 end
