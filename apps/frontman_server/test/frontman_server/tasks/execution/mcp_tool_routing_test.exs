@@ -26,7 +26,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      assert_push("mcp:message", %{"method" => "initialize"})
+      assert_push("mcp:message", %{"method" => "server/discover"})
 
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 

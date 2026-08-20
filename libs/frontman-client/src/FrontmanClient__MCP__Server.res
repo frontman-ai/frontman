@@ -220,25 +220,33 @@ let executeTool = async (
   }
 }
 
-let buildInitializeResult = (server: t): Types.initializeResult => {
+let buildDiscoverResult = (server: t): Types.discoverResult => {
   {
-    protocolVersion: Types.protocolVersion,
+    resultType: "complete",
+    supportedVersions: [Types.protocolVersion],
     capabilities: {
-      tools: Some(Dict.make()),
-      resources: None,
-      prompts: None,
+      tools: {listChanged: false},
+      extensions: {executionContext: {version: 1}},
     },
-    serverInfo: server.serverInfo,
+    ttlMs: 0,
+    cacheScope: "private",
+    _meta: {serverInfo: server.serverInfo},
   }
 }
 
 let buildToolsListResult = (server: t): Types.toolsListResult => {
-  {tools: getToolsJson(server)}
+  {
+    resultType: "complete",
+    tools: getToolsJson(server),
+    ttlMs: 0,
+    cacheScope: "private",
+    _meta: {serverInfo: server.serverInfo},
+  }
 }
 
 let toInterface = (server: t): Types.serverInterface<t> => {
   server,
-  buildInitializeResult,
+  buildDiscoverResult,
   buildToolsListResult,
   executeTool: (server, ~name, ~arguments, ~taskId, ~callId, ~onProgress) =>
     executeTool(server, ~name, ~arguments?, ~taskId, ~callId, ~onProgress?),

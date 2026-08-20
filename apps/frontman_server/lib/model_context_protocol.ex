@@ -13,7 +13,7 @@ defmodule ModelContextProtocol do
   Agent Client Protocol messages.
 
   This module:
-  - Builds MCP requests (initialize, tools/call)
+  - Builds MCP requests (server/discover, tools/list, tools/call)
   - Extracts data from MCP-specific response formats
   - Handles MCP content arrays and error flags
 
@@ -24,7 +24,8 @@ defmodule ModelContextProtocol do
 
   require Logger
 
-  @protocol_version "DRAFT-2025-v3"
+  @protocol_version "2026-07-28"
+  @execution_context_extension "ai.frontman/execution-context"
   @client_name "frontman-server"
   @client_version "1.0.0"
 
@@ -33,10 +34,11 @@ defmodule ModelContextProtocol do
     Parameters for building an MCP tools/call request.
     """
 
-    @enforce_keys [:request_id, :tool_name, :arguments, :call_id]
+    @enforce_keys [:request_id, :tool_name, :arguments, :task_id, :call_id]
     defstruct request_id: nil,
               tool_name: nil,
               arguments: nil,
+              task_id: nil,
               call_id: nil
   end
 
@@ -51,7 +53,11 @@ defmodule ModelContextProtocol do
 
   @spec tool_result_text(String.t()) :: map()
   def tool_result_text(text) when is_binary(text) do
-    %{"content" => [%{"type" => "text", "text" => text}], "isError" => false}
+    %{
+      "resultType" => "complete",
+      "content" => [%{"type" => "text", "text" => text}],
+      "isError" => false
+    }
   end
 
   @spec tool_result_json(map()) :: map()
@@ -63,27 +69,25 @@ defmodule ModelContextProtocol do
   def tool_result_image(data, mime_type) when is_binary(data) and is_binary(mime_type) do
     %{
       "content" => [%{"type" => "image", "data" => data, "mimeType" => mime_type}],
+      "resultType" => "complete",
       "isError" => false
     }
   end
 
   @spec tool_result_error(String.t()) :: map()
   def tool_result_error(text) when is_binary(text) do
-    %{"content" => [%{"type" => "text", "text" => text}], "isError" => true}
+    %{
+      "resultType" => "complete",
+      "content" => [%{"type" => "text", "text" => text}],
+      "isError" => true
+    }
   end
 
   @doc """
-  Returns params for an MCP initialize request.
-
-  Use with `JsonRpc.request(id, "initialize", MCPProtocol.initialize_params())`.
+  Returns params for MCP discovery and list requests.
   """
-  def initialize_params do
-    %{
-      "protocolVersion" => @protocol_version,
-      "capabilities" => %{},
-      "clientInfo" => client_info()
-    }
-  end
+  @spec request_params() :: map()
+  def request_params, do: %{"_meta" => request_meta()}
 
   @doc """
   Extracts text content from MCP content array.
@@ -109,8 +113,8 @@ defmodule ModelContextProtocol do
   @doc """
   Builds an MCP tool execution request.
 
-  Uses an integer JSON-RPC request id for protocol correlation. The durable
-  tool call id remains in params.callId for agent/tool-result correlation.
+  Uses an integer JSON-RPC request id for protocol correlation. Task and call
+  identifiers are carried by the negotiated execution-context extension.
   """
   def build_tool_execution(%ToolCallParams{} = params) do
     Logger.info("MCP tool call: #{params.tool_name} arguments=#{inspect(params.arguments)}")
@@ -118,7 +122,21 @@ defmodule ModelContextProtocol do
     JsonRpc.request(params.request_id, "tools/call", %{
       "name" => params.tool_name,
       "arguments" => params.arguments,
-      "callId" => params.call_id
+      "_meta" =>
+        Map.put(request_meta(), @execution_context_extension, %{
+          "taskId" => params.task_id,
+          "callId" => params.call_id
+        })
     })
+  end
+
+  defp request_meta do
+    %{
+      "io.modelcontextprotocol/protocolVersion" => @protocol_version,
+      "io.modelcontextprotocol/clientCapabilities" => %{
+        "extensions" => %{@execution_context_extension => %{"version" => 1}}
+      },
+      "io.modelcontextprotocol/clientInfo" => client_info()
+    }
   end
 end

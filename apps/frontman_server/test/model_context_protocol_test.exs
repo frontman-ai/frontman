@@ -1,87 +1,48 @@
 defmodule ModelContextProtocolTest do
   use ExUnit.Case, async: true
 
-  describe "initialize_params/0" do
-    test "returns params for MCP initialize request" do
-      params = ModelContextProtocol.initialize_params()
+  alias ModelContextProtocol, as: MCP
 
-      assert params["protocolVersion"] == "DRAFT-2025-v3"
-      assert params["capabilities"] == %{}
-      assert params["clientInfo"]["name"] == "frontman-server"
-      assert params["clientInfo"]["version"] == "1.0.0"
-    end
+  test "builds required MCP 2026 request metadata" do
+    assert %{
+             "_meta" => %{
+               "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
+               "io.modelcontextprotocol/clientCapabilities" => %{
+                 "extensions" => %{
+                   "ai.frontman/execution-context" => %{"version" => 1}
+                 }
+               },
+               "io.modelcontextprotocol/clientInfo" => %{
+                 "name" => "frontman-server",
+                 "version" => "1.0.0"
+               }
+             }
+           } = MCP.request_params()
   end
 
-  describe "protocol_version/0" do
-    test "returns the MCP protocol version" do
-      assert ModelContextProtocol.protocol_version() == "DRAFT-2025-v3"
-    end
-  end
-
-  describe "client_info/0" do
-    test "returns client info map" do
-      info = ModelContextProtocol.client_info()
-
-      assert info["name"] == "frontman-server"
-      assert info["version"] == "1.0.0"
-    end
-  end
-
-  describe "build_tool_execution/1" do
-    import ExUnit.CaptureLog
-
-    test "builds valid JSON-RPC tools/call request" do
-      params = %ModelContextProtocol.ToolCallParams{
+  test "builds tools/call with execution context only in metadata" do
+    request =
+      MCP.build_tool_execution(%MCP.ToolCallParams{
         request_id: 789,
         tool_name: "search_files",
         arguments: %{"query" => "test"},
+        task_id: "task-1",
         call_id: "call-789"
-      }
+      })
 
-      request = ModelContextProtocol.build_tool_execution(params)
+    assert request["method"] == "tools/call"
+    assert request["params"]["name"] == "search_files"
+    refute Map.has_key?(request["params"], "callId")
 
-      assert request["id"] == 789
-      assert request["jsonrpc"] == "2.0"
-      assert request["method"] == "tools/call"
-      assert request["params"]["name"] == "search_files"
-      assert request["params"]["arguments"] == %{"query" => "test"}
-      assert request["params"]["callId"] == "call-789"
-    end
+    assert request["params"]["_meta"]["ai.frontman/execution-context"] == %{
+             "taskId" => "task-1",
+             "callId" => "call-789"
+           }
+  end
 
-    test "uses integer JSON-RPC id and preserves tool call id in params" do
-      params = %ModelContextProtocol.ToolCallParams{
-        request_id: 1,
-        tool_name: "read_file",
-        arguments: %{"path" => "/tmp/test.txt"},
-        call_id: "call-1"
-      }
-
-      request1 = ModelContextProtocol.build_tool_execution(params)
-
-      assert request1["id"] == 1
-      assert request1["params"]["callId"] == "call-1"
-    end
-
-    @tag capture_log: true
-    test "logs tool calls" do
-      prev_level = Logger.level()
-      Logger.configure(level: :info)
-
-      params = %ModelContextProtocol.ToolCallParams{
-        request_id: 1,
-        tool_name: "read_file",
-        arguments: %{"path" => "/tmp/test.txt"},
-        call_id: "call-log-1"
-      }
-
-      log =
-        capture_log(fn ->
-          ModelContextProtocol.build_tool_execution(params)
-        end)
-
-      Logger.configure(level: prev_level)
-
-      assert log =~ "MCP tool call: read_file"
-    end
+  test "terminal tool results are complete" do
+    assert MCP.tool_result_text("ok")["resultType"] == "complete"
+    assert MCP.tool_result_image("data", "image/png")["resultType"] == "complete"
+    assert MCP.tool_result_error("bad")["resultType"] == "complete"
   end
 end

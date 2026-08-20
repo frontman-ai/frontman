@@ -9,7 +9,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   Pure functional state machine for MCP initialization.
 
   Manages browser-side MCP setup:
-  1. Initialize MCP connection
+  1. Discover MCP server capabilities
   2. Load tool definitions
   3. Optionally load project rules and structure for code projects
   4. Signal completion
@@ -30,18 +30,20 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   alias JsonRpc
   alias ModelContextProtocol, as: MCP
 
+  @execution_context_extension "ai.frontman/execution-context"
+
   @doc """
-  Creates the initial state and returns the MCP initialize request to send.
+  Creates the initial state and returns the MCP discovery request to send.
   """
   def start(task_id, scope, framework) do
     request_id = System.unique_integer([:positive])
-    request = JsonRpc.request(request_id, "initialize", MCP.initialize_params())
+    request = JsonRpc.request(request_id, "server/discover", MCP.request_params())
 
     state = %{
-      status: :initializing_mcp,
+      status: :discovering_mcp,
       task_id: task_id,
       scope: scope,
-      mcp_init_request_id: request_id,
+      discovery_request_id: request_id,
       tools_request_id: nil,
       project_rules_request_id: nil,
       project_structure_request_id: nil,
@@ -51,7 +53,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       tools: nil
     }
 
-    Logger.info("MCPInitializer: Starting MCP initialization for task #{task_id}")
+    Logger.info("MCPInitializer: Discovering MCP server for task #{task_id}")
 
     {state, [{:push_mcp, request}]}
   end
@@ -61,8 +63,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   """
   def handle_response(state, request_id, result) do
     cond do
-      request_id == state.mcp_init_request_id ->
-        handle_init_response(result, state)
+      request_id == state.discovery_request_id ->
+        handle_discovery_response(result, state)
 
       request_id == state.tools_request_id ->
         handle_tools_response(result, state)
@@ -84,10 +86,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   """
   def handle_error(state, request_id, error) do
     cond do
-      request_id == state.mcp_init_request_id ->
-        Logger.error("MCPInitializer: MCP initialization failed", error_code: error_code(error))
-        state = %{state | status: :failed}
-        {state, [{:initialization_failed, error["message"]}]}
+      request_id == state.discovery_request_id ->
+        Logger.error("MCPInitializer: MCP discovery failed", error_code: error_code(error))
+        fail_initialization(state, error["message"])
 
       request_id == state.tools_request_id ->
         Logger.warning("MCPInitializer: Tools list failed", error_code: error_code(error))
@@ -109,35 +110,141 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  defp handle_init_response(result, state) do
-    Logger.info("MCPInitializer: MCP initialized for task #{state.task_id}")
+  defp handle_discovery_response(result, state) do
+    case validate_discovery_response(result) do
+      {:ok, capabilities, server_info} ->
+        Logger.info("MCPInitializer: MCP server discovered for task #{state.task_id}")
 
-    state = %{
-      state
-      | mcp_capabilities: result["capabilities"],
-        mcp_server_info: result["serverInfo"],
-        mcp_init_request_id: nil
-    }
+        state = %{
+          state
+          | mcp_capabilities: capabilities,
+            mcp_server_info: server_info,
+            discovery_request_id: nil
+        }
 
-    notification = JsonRpc.notification("notifications/initialized", %{})
+        request_id = System.unique_integer([:positive])
+        request = JsonRpc.request(request_id, "tools/list", MCP.request_params())
 
-    request_id = System.unique_integer([:positive])
-    request = JsonRpc.request(request_id, "tools/list", %{})
+        state = %{state | status: :loading_tools, tools_request_id: request_id}
 
-    state = %{state | status: :loading_tools, tools_request_id: request_id}
+        {state, [{:push_mcp, request}]}
 
-    {state, [{:push_mcp, notification}, {:push_mcp, request}]}
+      {:error, message} ->
+        fail_initialization(state, message)
+    end
+  end
+
+  defp validate_discovery_response(%{
+         "resultType" => "complete",
+         "supportedVersions" => supported_versions,
+         "capabilities" =>
+           %{
+             "tools" => %{"listChanged" => list_changed},
+             "extensions" => extensions
+           } = capabilities,
+         "ttlMs" => ttl_ms,
+         "cacheScope" => "private",
+         "_meta" => %{
+           "io.modelcontextprotocol/serverInfo" =>
+             %{"name" => name, "version" => version} = server_info
+         }
+       }) do
+    with true <- is_list(supported_versions),
+         true <- Enum.all?(supported_versions, &is_binary/1),
+         true <- is_boolean(list_changed),
+         true <- is_map(extensions),
+         true <- valid_extensions?(extensions),
+         true <- is_integer(ttl_ms),
+         true <- ttl_ms >= 0,
+         true <- is_binary(name),
+         true <- is_binary(version),
+         true <- MCP.protocol_version() in supported_versions,
+         %{"version" => 1} <- Map.get(extensions, @execution_context_extension) do
+      {:ok, capabilities, server_info}
+    else
+      _ -> {:error, "Invalid or incompatible MCP discovery response"}
+    end
+  end
+
+  defp validate_discovery_response(_result),
+    do: {:error, "Invalid or incompatible MCP discovery response"}
+
+  defp valid_extensions?(extensions) do
+    Enum.all?(extensions, fn
+      {name, %{"version" => version}} -> [is_binary(name), is_integer(version)] |> Enum.all?()
+      _ -> false
+    end)
   end
 
   defp handle_tools_response(result, state) do
-    raw_tools = Map.get(result, "tools", [])
-    tools = MCPTools.from_maps(raw_tools)
+    case validate_tools_response(result) do
+      {:ok, raw_tools} ->
+        tools = MCPTools.from_maps(raw_tools)
 
-    Logger.info("MCPInitializer: Received #{length(tools)} tools from MCP server")
+        Logger.info("MCPInitializer: Received #{length(tools)} tools from MCP server")
 
-    state = %{state | tools: tools, tools_request_id: nil}
+        state = %{state | tools: tools, tools_request_id: nil}
+        maybe_request_project_context(state)
 
-    maybe_request_project_context(state)
+      {:error, message} ->
+        fail_initialization(state, message)
+    end
+  end
+
+  defp validate_tools_response(%{
+         "resultType" => "complete",
+         "tools" => tools,
+         "ttlMs" => ttl_ms,
+         "cacheScope" => "private",
+         "_meta" => %{
+           "io.modelcontextprotocol/serverInfo" => %{"name" => name, "version" => version}
+         }
+       }) do
+    with true <- is_list(tools),
+         true <- is_integer(ttl_ms),
+         true <- ttl_ms >= 0,
+         true <- is_binary(name),
+         true <- is_binary(version),
+         true <- Enum.all?(tools, &valid_tool?/1) do
+      {:ok, tools}
+    else
+      false -> {:error, "Invalid MCP tools/list response"}
+    end
+  end
+
+  defp validate_tools_response(_result), do: {:error, "Invalid MCP tools/list response"}
+
+  defp valid_tool?(
+         %{
+           "name" => name,
+           "description" => description,
+           "inputSchema" => input_schema
+         } = tool
+       ) do
+    [
+      is_binary(name),
+      name != "",
+      is_binary(description),
+      is_map(input_schema),
+      valid_optional_tool_field?(tool, "outputSchema", &is_map/1),
+      valid_optional_tool_field?(tool, "visibleToAgent", &is_boolean/1),
+      valid_optional_tool_field?(tool, "executionMode", &is_binary/1),
+      valid_optional_tool_field?(tool, "access", &(&1 in ["read", "write", "read-write"]))
+    ]
+    |> Enum.all?()
+  end
+
+  defp valid_tool?(_tool), do: false
+
+  defp valid_optional_tool_field?(tool, field, predicate) do
+    case Map.fetch(tool, field) do
+      {:ok, value} -> predicate.(value)
+      :error -> true
+    end
+  end
+
+  defp fail_initialization(state, message) do
+    {%{state | status: :failed}, [{:initialization_failed, message}]}
   end
 
   defp maybe_request_project_context(%{load_project_context: true} = state),
@@ -151,10 +258,12 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     call_id = "project_rules_init_#{request_id}"
 
     request =
-      JsonRpc.request(request_id, "tools/call", %{
-        "callId" => call_id,
-        "name" => "load_agent_instructions",
-        "arguments" => %{"startPath" => "."}
+      MCP.build_tool_execution(%MCP.ToolCallParams{
+        request_id: request_id,
+        tool_name: "load_agent_instructions",
+        arguments: %{"startPath" => "."},
+        task_id: state.task_id,
+        call_id: call_id
       })
 
     state = %{state | status: :loading_project_rules, project_rules_request_id: request_id}
@@ -200,10 +309,12 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     call_id = "project_structure_init_#{request_id}"
 
     request =
-      JsonRpc.request(request_id, "tools/call", %{
-        "callId" => call_id,
-        "name" => "list_tree",
-        "arguments" => %{}
+      MCP.build_tool_execution(%MCP.ToolCallParams{
+        request_id: request_id,
+        tool_name: "list_tree",
+        arguments: %{},
+        task_id: state.task_id,
+        call_id: call_id
       })
 
     state = %{

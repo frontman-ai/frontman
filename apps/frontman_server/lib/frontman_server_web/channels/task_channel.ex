@@ -469,7 +469,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp mcp_initialization_request?(%{} = init_state, id) when is_integer(id) do
     id in [
-      init_state.mcp_init_request_id,
+      init_state.discovery_request_id,
       init_state.tools_request_id,
       init_state.project_rules_request_id,
       init_state.project_structure_request_id
@@ -982,6 +982,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         request_id: request_id,
         tool_name: tool_call.tool_name,
         arguments: tool_call.arguments,
+        task_id: task_id,
         call_id: tool_call.tool_call_id
       })
 

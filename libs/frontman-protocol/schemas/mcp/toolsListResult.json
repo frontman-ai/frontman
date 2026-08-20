@@ -1,12 +1,72 @@
 {
   "type": "object",
   "properties": {
+    "resultType": {
+      "type": "string",
+      "const": "complete"
+    },
     "tools": {
-      "items": {},
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": {
+            "type": "string"
+          },
+          "inputSchema": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "name",
+          "description",
+          "inputSchema"
+        ]
+      },
       "type": "array"
+    },
+    "ttlMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
+    },
+    "cacheScope": {
+      "type": "string",
+      "const": "private"
+    },
+    "_meta": {
+      "type": "object",
+      "properties": {
+        "io.modelcontextprotocol/serverInfo": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "version"
+          ]
+        }
+      },
+      "required": [
+        "io.modelcontextprotocol/serverInfo"
+      ]
     }
   },
   "required": [
-    "tools"
+    "resultType",
+    "tools",
+    "ttlMs",
+    "cacheScope",
+    "_meta"
   ]
 }

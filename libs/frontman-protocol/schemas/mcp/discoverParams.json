@@ -50,40 +50,16 @@
             "name",
             "version"
           ]
-        },
-        "ai.frontman/execution-context": {
-          "type": "object",
-          "properties": {
-            "taskId": {
-              "type": "string"
-            },
-            "callId": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "taskId",
-            "callId"
-          ]
         }
       },
       "required": [
         "io.modelcontextprotocol/protocolVersion",
         "io.modelcontextprotocol/clientCapabilities",
-        "io.modelcontextprotocol/clientInfo",
-        "ai.frontman/execution-context"
+        "io.modelcontextprotocol/clientInfo"
       ]
-    },
-    "name": {
-      "type": "string"
-    },
-    "arguments": {
-      "type": "object",
-      "additionalProperties": true
     }
   },
   "required": [
-    "_meta",
-    "name"
+    "_meta"
   ]
 }
