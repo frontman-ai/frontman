@@ -12,6 +12,7 @@ module Log = FrontmanLogs.Logs.Make({
 })
 
 type remoteTool = {
+  @live
   name: string,
   definition: Types.Tool.t,
   inputSchema: JSON.t,
