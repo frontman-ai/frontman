@@ -1,5 +1,4 @@
 let protocolVersion = "2026-07-28"
-let executionContextExtension = "ai.frontman/execution-context"
 
 @schema
 type info = {
@@ -123,8 +122,9 @@ module CallToolResult: {
   }
 
   let makeTextWithStructured = (text, structuredContent) => {
+    resultType: "complete",
     content: [TextContent({text, _meta: None, annotations: None})],
-    structuredContent,
+    structuredContent: JSON.Encode.object(structuredContent),
   }
 
   let makeImage = (~data, ~mimeType) => {
