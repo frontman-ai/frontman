@@ -5,6 +5,7 @@ module FrontmanLogo = Client__FrontmanLogo
 
 @send external locationAssign: ('a, string) => unit = "assign"
 @send external blur: Dom.element => unit = "blur"
+@send external focus: WebAPI.DomTypes.element => unit = "focus"
 
 let renderToolbarButton = (~label, ~onClick, ~children, ~className="") =>
   <Tooltip>
@@ -94,6 +95,11 @@ let make = (
       clearSession()
       Client__State.Actions.clearCurrentTask()
     }
+    WebAPI.Window.current
+    ->WebAPI.Window.document
+    ->WebAPI.Document.querySelector(".frontman-prompt-editor .ProseMirror")
+    ->Null.toOption
+    ->Option.forEach(focus)
   }
 
   let deviceModeActive = Client__DeviceMode.isActive(deviceMode)
