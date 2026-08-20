@@ -28,14 +28,17 @@ type rec jsonContentNode = {
   content?: array<jsonContentNode>,
 }
 
-@new external makeError: string => JsExn.t = "Error"
-@send external clickElement: Dom.element => unit = "click"
-@get external inputFiles: Dom.element => Null.t<WebAPI.DomTypes.fileList> = "files"
-@set external setInputValue: (Dom.element, string) => unit = "value"
-@get external navigatorUserAgent: WebAPI.DomTypes.navigator => string = "userAgent"
 module TiptapReact = FrontmanBindings.Bindings__Tiptap__React
 module TiptapCore = FrontmanBindings.Bindings__Tiptap__Core
 module TiptapExtensions = FrontmanBindings.Bindings__Tiptap__Extensions
+
+let activeEditorRef: ref<Null.t<TiptapCore.editor>> = ref(Null.null)
+
+let focus = () => {
+  activeEditorRef.contents
+  ->Null.toOption
+  ->Option.forEach(editor => editor->TiptapCore.chain->TiptapCore.focus->TiptapCore.run->ignore)
+}
 
 type fileAttachmentNodeOptions = {onPreviewImage: string => unit}
 type fileAttachmentAttrs = editorFileAttachment
@@ -217,7 +220,7 @@ module PastedTextView = {
             {React.string(
               `${WebAPI.Window.current
                 ->WebAPI.Window.navigator
-                ->navigatorUserAgent
+                ->WebAPI.Navigator.userAgent
                 ->getPasteExpandShortcut} to expand`,
             )}
           </span>
@@ -291,7 +294,7 @@ let readFileAsDataUrl = (file: browserFile): promise<string> => {
       ->Option.getOrThrow(~message="FileReader result missing after load")
       ->resolve
     })
-    reader->WebAPI.FileReader.setOnerror(_ => reject(makeError("Failed to read file")))
+    reader->WebAPI.FileReader.setOnerror(_ => reject(JsError.make("Failed to read file")))
     reader->WebAPI.FileReader.readAsDataURL((file :> WebAPI.FileTypes.blob))
   })
 }
@@ -710,10 +713,15 @@ let make = (
 
   React.useEffect1(() => {
     editorRef.current = editor
+    activeEditorRef.contents = editor
     Some(
       () => {
         switch editorRef.current == editor {
         | true => editorRef.current = Null.null
+        | false => ()
+        }
+        switch activeEditorRef.contents == editor {
+        | true => activeEditorRef.contents = Null.null
         | false => ()
         }
       },
@@ -746,7 +754,10 @@ let make = (
       lastAttachSignalRef.current = attachSignal
       switch disabledRef.current || isEnrichingAnnotationsRef.current {
       | true => ()
-      | false => fileInputRef.current->Nullable.toOption->Option.forEach(clickElement)
+      | false =>
+        fileInputRef.current
+        ->Nullable.toOption
+        ->Option.forEach(element => (element->ReactDOM.domElementToObj)["click"]())
       }
     }
     None
@@ -769,16 +780,16 @@ let make = (
     None
   }, (dropFilesSignal, editor, droppedFiles))
 
-  let handleFileInputChange = _ => {
-    switch (editorRef.current->Null.toOption, fileInputRef.current->Nullable.toOption) {
-    | (Some(currentEditor), Some(input)) =>
-      input
-      ->inputFiles
+  let handleFileInputChange = (event: ReactEvent.Form.t) => {
+    let input = ReactEvent.Form.currentTarget(event)
+    switch editorRef.current->Null.toOption {
+    | Some(currentEditor) =>
+      input["files"]
       ->Null.toOption
       ->Option.map(filesFromFileList)
       ->Option.forEach(files => addFiles(currentEditor, files)->ignore)
-      input->setInputValue("")
-    | _ => ()
+      input["value"] = ""
+    | None => ()
     }
   }
 
