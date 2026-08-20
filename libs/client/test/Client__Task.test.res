@@ -983,6 +983,8 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
       task,
       QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
     )
+    let (cancelledTask, _) = TaskReducer.next(taskWithQuestion, QuestionCancelled)
+    t->expect(Task.getCompletedFileChanges(cancelledTask).revision)->Expect.toBe(1)
 
     let (taskWithAnswer, _) = TaskReducer.next(
       taskWithQuestion,

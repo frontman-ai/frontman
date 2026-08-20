@@ -4,6 +4,9 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module PathContext = FrontmanCore__PathContext
 module FileTracker = FrontmanCore__FileTracker
 module ExnUtils = FrontmanCore__ExnUtils
+module FileChange = FrontmanCore__FileChange
+module FsUtils = FrontmanCore__FsUtils
+module ProtocolFileChange = FrontmanAiFrontmanProtocol.FrontmanProtocol__FileChange
 
 let name = Tool.ToolNames.writeFile
 let access = Tool.Write
@@ -71,20 +74,15 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
     switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
     | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
     | Ok(resolved) =>
-      let fileExists = try {
-        let _ = await Fs.Promises.stat(resolved.resolvedPath)
-        true
-      } catch {
-      | _ => false
-      }
-      let guardResult = switch fileExists {
-      | false => Ok()
-      | true => await FileTracker.assertEditSafe(resolved.resolvedPath)
-      }
-      switch guardResult {
-      | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
-      | Ok() =>
-        try {
+      try {
+        let previousContent = await FsUtils.readFileIfExists(resolved.resolvedPath)
+        let guardResult = switch previousContent {
+        | None => Ok()
+        | Some(_) => await FileTracker.assertEditSafe(resolved.resolvedPath)
+        }
+        switch guardResult {
+        | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
+        | Ok() =>
           let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
           await writeContent(resolved.resolvedPath, content, input.encoding)
           let stats = await Fs.Promises.stat(resolved.resolvedPath)
@@ -93,22 +91,39 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
             ~mtimeMs=Fs.mtimeMs(stats),
             ~size=Fs.size(stats),
           )
-          Tool.structuredResult(
-            {
+          let binary = switch input.encoding {
+          | Some(#base64) => true
+          | None =>
+            FileChange.isBinary(content) ||
+            previousContent->Option.mapOr(false, FileChange.isBinary)
+          }
+          FileChange.textResultWithFileChange(
+            ~message="File written successfully.",
+            ~output={
               _context: {
                 sourceRoot: resolved.sourceRoot,
                 resolvedPath: resolved.resolvedPath,
                 relativePath: resolved.relativePath,
               },
             },
-            outputSchema,
-          )
-        } catch {
-        | exn =>
-          Tool.MCP.CallToolResult.makeError(
-            `Failed to write file ${input.path}: ${ExnUtils.message(exn)}`,
+            ~outputSchema,
+            FileChange.make(
+              ~path=resolved.relativePath,
+              ~status=switch previousContent {
+              | None => ProtocolFileChange.Added
+              | Some(_) => ProtocolFileChange.Modified
+              },
+              ~oldText=previousContent,
+              ~currentText=Some(content),
+              ~binary,
+            ),
           )
         }
+      } catch {
+      | exn =>
+        Tool.MCP.CallToolResult.makeError(
+          `Failed to write file ${input.path}: ${ExnUtils.message(exn)}`,
+        )
       }
     }
   }

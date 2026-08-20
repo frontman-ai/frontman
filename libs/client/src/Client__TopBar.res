@@ -17,6 +17,8 @@ let renderToolbarButton = (~label, ~onClick, ~children, ~className="") =>
 let make = (
   ~chatboxWidth: int,
   ~chatOpen: bool=true,
+  ~workspaceView: Client__WorkspacePanel.view,
+  ~onWorkspaceViewChange: Client__WorkspacePanel.view => unit,
   ~onToggleChat: unit => unit=() => (),
   ~onSettingsClick: unit => unit,
 ) => {
@@ -25,6 +27,10 @@ let make = (
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
   let deviceMode = Client__State.useSelector(Client__State.Selectors.deviceMode)
+  let completedFileChanges = Client__State.useSelector(Client__State.Selectors.completedFileChanges)
+  let supportsChanges =
+    Client__RuntimeConfig.read().framework->Client__RuntimeConfig.supportsFileChanges
+  let fileChangeCount = Array.length(completedFileChanges.files)
 
   let {clearSession} = Client__FrontmanProvider.useFrontman()
 
@@ -84,9 +90,12 @@ let make = (
   }
 
   let handleNewTask = () => {
-    if !isNewTask {
+    onWorkspaceViewChange(Client__WorkspacePanel.Preview)
+    switch isNewTask {
+    | false =>
       clearSession()
       Client__State.Actions.clearCurrentTask()
+    | true => ()
     }
     Client__PromptEditor.focus()
   }
@@ -107,7 +116,7 @@ let make = (
             <div className="flex items-center justify-center w-7 h-7 shrink-0">
               <FrontmanLogo size=18 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
             </div>
-            <div className="flex-1 min-w-0 overflow-hidden">
+            <div className="flex flex-1 min-w-0 items-center gap-0.5 overflow-hidden">
               <Client__TopBar__TaskDropdown onNewTask={handleNewTask} />
             </div>
           </>
@@ -117,37 +126,47 @@ let make = (
       </div>
       <div className="w-px h-full bg-[#1e1538] shrink-0" />
       <div className="flex items-center h-full flex-1 min-w-0 px-1 gap-1">
-        {renderToolbarButton(
-          ~label="Reload",
-          ~onClick=_ => handleReload(),
-          ~children=<Icons.ReloadIcon />,
-        )}
-        {renderToolbarButton(
-          ~label="Open in new window",
-          ~onClick=_ =>
-            WebAPI.Window.open_(
-              WebAPI.Window.current,
-              ~url=previewUrl,
-              ~target="_blank",
-              ~features="noopener,noreferrer",
-            )->ignore,
-          ~children=<Icons.OpenInNewWindowIcon />,
-        )}
-        <input
-          type_="text"
-          value={displayedUrl}
-          onChange={handleUrlChange}
-          onKeyDown={handleUrlKeyDown}
-          onFocus={handleUrlFocus}
-          onBlur={handleUrlBlur}
-          className="flex-1 min-w-0 h-6 px-2 text-xs bg-white/5 border border-white/10 rounded text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50"
+        <Client__WorkspaceTabs
+          view=workspaceView fileChangeCount supportsChanges onViewChange=onWorkspaceViewChange
         />
-        {renderToolbarButton(
-          ~label=deviceModeActive ? "Exit device mode" : "Toggle device mode",
-          ~onClick=_ => Client__State.Actions.toggleDeviceMode(),
-          ~className=deviceModeActive ? "bg-blue-500/15 text-blue-400" : "",
-          ~children=<Icons.MobileIcon />,
-        )}
+        <Client__TopBar__WorkspaceControls
+          view=workspaceView
+          fileChangeCount
+          isAgentRunning
+          previewControls={<>
+            {renderToolbarButton(
+              ~label="Reload",
+              ~onClick=_ => handleReload(),
+              ~children=<Icons.ReloadIcon />,
+            )}
+            {renderToolbarButton(
+              ~label="Open in new window",
+              ~onClick=_ =>
+                WebAPI.Window.open_(
+                  WebAPI.Window.current,
+                  ~url=previewUrl,
+                  ~target="_blank",
+                  ~features="noopener,noreferrer",
+                )->ignore,
+              ~children=<Icons.OpenInNewWindowIcon />,
+            )}
+            <input
+              type_="text"
+              value={displayedUrl}
+              onChange={handleUrlChange}
+              onKeyDown={handleUrlKeyDown}
+              onFocus={handleUrlFocus}
+              onBlur={handleUrlBlur}
+              className="flex-1 min-w-0 h-6 px-2 text-xs bg-white/5 border border-white/10 rounded text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50"
+            />
+            {renderToolbarButton(
+              ~label=deviceModeActive ? "Exit device mode" : "Toggle device mode",
+              ~onClick=_ => Client__State.Actions.toggleDeviceMode(),
+              ~className=deviceModeActive ? "bg-blue-500/15 text-blue-400" : "",
+              ~children=<Icons.MobileIcon />,
+            )}
+          </>}
+        />
         {renderToolbarButton(
           ~label="Help",
           ~onClick=_ =>

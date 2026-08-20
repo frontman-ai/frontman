@@ -8,6 +8,24 @@ afterEach(() => {
 })
 
 describe("Client__RuntimeConfig", _t => {
+  test("file changes are supported by project-backed frameworks", t => {
+    t
+    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Nextjs))
+    ->Expect.toBe(true)
+    t
+    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Vite))
+    ->Expect.toBe(true)
+    t
+    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Astro))
+    ->Expect.toBe(true)
+  })
+
+  test("file changes are unsupported by WordPress", t => {
+    t
+    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Wordpress))
+    ->Expect.toBe(false)
+  })
+
   test("read works without wpNonce for non-WordPress integrations", t => {
     _setRuntime(
       JSON.Encode.object(

@@ -4,6 +4,8 @@ module PathContext = FrontmanCore__PathContext
 module FileTracker = FrontmanCore__FileTracker
 module ExnUtils = FrontmanCore__ExnUtils
 module Matcher = FrontmanCore__Tool__EditFile__Matcher
+module FileChange = FrontmanCore__FileChange
+module ProtocolFileChange = FrontmanAiFrontmanProtocol.FrontmanProtocol__FileChange
 
 let name = "edit_file"
 let access = Tool.ReadWrite
@@ -11,7 +13,7 @@ let description = `Edits a file by replacing text using fuzzy matching.
 
 Parameters:
 - path (required): Path to file - either relative to source root or absolute (must be under source root)
-- oldText (required): The text to find and replace. An empty oldText creates a new file with newText as content.
+- oldText (required): The text to find and replace. Must not be empty.
 - newText (required): The replacement text (must differ from oldText)
 - replaceAll (optional): If true, replaces all occurrences. Default: false.
 
@@ -25,7 +27,7 @@ IMPORTANT: You must read_file before editing. The tool will reject edits on unre
 @schema
 type input = {
   path: string,
-  @s.describe("The text to find. Empty string creates a new file.")
+  @s.describe("The non-empty text to find.")
   oldText: string,
   @s.describe("The replacement text")
   newText: string,
@@ -58,21 +60,7 @@ let toPathCtx = (r: PathContext.resolveResult): pathContext => {
   relativePath: r.relativePath,
 }
 
-let createFile = async (
-  ~resolved: PathContext.resolveResult,
-  ~content: string,
-  ~displayPath: string,
-): result<output, string> => {
-  try {
-    let _ = await Fs.Promises.mkdir(PathContext.dirname(resolved), {recursive: true})
-    await Fs.Promises.writeFile(resolved.resolvedPath, content)
-    let stats = await Fs.Promises.stat(resolved.resolvedPath)
-    FileTracker.recordWrite(resolved.resolvedPath, ~mtimeMs=Fs.mtimeMs(stats), ~size=Fs.size(stats))
-    Ok({message: "File created successfully.", _context: toPathCtx(resolved)})
-  } catch {
-  | exn => Error(`Failed to create file ${displayPath}: ${ExnUtils.message(exn)}`)
-  }
-}
+type execution = FileChange.execution<output>
 
 let findAndReplace = async (
   ~resolved: PathContext.resolveResult,
@@ -80,7 +68,7 @@ let findAndReplace = async (
   ~newText: string,
   ~replaceAll: bool,
   ~displayPath: string,
-): result<output, string> => {
+): result<execution, string> => {
   try {
     let content = await Fs.Promises.readFile(resolved.resolvedPath)
     let coverageWarning = FileTracker.checkCoverage(resolved.resolvedPath, ~content, ~oldText)
@@ -98,7 +86,16 @@ let findAndReplace = async (
       | Some(warning) => `Edit applied successfully.\n\n${warning}`
       | None => "Edit applied successfully."
       }
-      Ok({message, _context: toPathCtx(resolved)})
+      Ok({
+        output: {message, _context: toPathCtx(resolved)},
+        fileChange: FileChange.make(
+          ~path=resolved.relativePath,
+          ~status=ProtocolFileChange.Modified,
+          ~oldText=Some(content),
+          ~currentText=Some(newContent),
+          ~binary=FileChange.isBinary(content) || FileChange.isBinary(newContent),
+        ),
+      })
     | NotFound =>
       Error(
         `oldText not found in file ${displayPath}. Make sure the text matches exactly, or read the file again to see its current content.`,
@@ -114,7 +111,7 @@ let findAndReplace = async (
 }
 
 let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<
-  output,
+  execution,
   string,
 > => {
   switch input.oldText == input.newText {
@@ -124,7 +121,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
     | Error(err) => Error(PathContext.formatError(err))
     | Ok(resolved) =>
       switch input.oldText {
-      | "" => await createFile(~resolved, ~content=input.newText, ~displayPath=input.path)
+      | "" => Error("oldText must not be empty; use write_file to create files")
       | oldText =>
         switch await FileTracker.assertEditSafe(resolved.resolvedPath) {
         | Error(msg) => Error(msg)
@@ -144,7 +141,8 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch await executeOutput(ctx, input) {
-  | Ok(output) => Tool.structuredResult(output, outputSchema)
+  | Ok({output, fileChange}) =>
+    FileChange.textResultWithFileChange(~message=output.message, ~output, ~outputSchema, fileChange)
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

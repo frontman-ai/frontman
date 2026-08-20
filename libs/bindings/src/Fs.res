@@ -1,6 +1,8 @@
 type fd
 type stats
 
+@get external errorCode: JsExn.t => Nullable.t<string> = "code"
+
 module Promises = {
   @module("fs") @scope("promises")
   external readFile: (string, @as("utf8") _) => promise<string> = "readFile"

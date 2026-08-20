@@ -1,5 +1,6 @@
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module CoreEditFile = FrontmanCore__Tool__EditFile
+module FileChange = FrontmanCore__FileChange
 
 type logEntry = {
   @live
@@ -20,35 +21,31 @@ let execute = async (
   ~getErrorLogsSince: float => array<logEntry>,
 ): Tool.MCP.CallToolResult.t => {
   let beforeTimestamp = Date.now()
-  let result = await CoreEditFile.executeOutput(ctx, input)
 
-  switch result {
+  switch await CoreEditFile.executeOutput(ctx, input) {
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
-  | Ok(output) =>
+  | Ok({output, fileChange}) =>
     await sleep(800)
 
-    let allErrors = getErrorLogsSince(beforeTimestamp)
-    switch allErrors->Array.length > 0 {
-    | false => Tool.structuredResult(output, CoreEditFile.outputSchema)
-    | true =>
+    let message = switch getErrorLogsSince(beforeTimestamp) {
+    | [] => output.message
+    | allErrors =>
       let errorMessages =
         allErrors
         ->Array.slice(~start=0, ~end=5)
         ->Array.map(entry => entry.message)
         ->Array.join("\n")
-      Tool.structuredResult(
-        {
-          ...output,
-          message: output.message ++
-          `\n\nWarning: Dev server errors detected after edit:\n${errorMessages}`,
-        },
-        CoreEditFile.outputSchema,
-      )
+      output.message ++ `\n\nWarning: Dev server errors detected after edit:\n${errorMessages}`
     }
+
+    FileChange.textResultWithFileChange(
+      ~message,
+      ~output={...output, message},
+      ~outputSchema=CoreEditFile.outputSchema,
+      fileChange,
+    )
   }
 }
-
-@@live
 let getCoreErrorLogsSince = (beforeTimestamp: float): array<logEntry> => {
   let recentLogs = FrontmanCore__LogCapture.getLogs(~since=beforeTimestamp, ~level=Error)
   let errorLogs = FrontmanCore__LogCapture.getLogs(
