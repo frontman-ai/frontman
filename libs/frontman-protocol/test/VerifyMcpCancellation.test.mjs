@@ -11,6 +11,7 @@ import {
 } from "../src/FrontmanProtocol__MCP.res.mjs"
 import * as Metadata from "../src/FrontmanProtocol__MCPMetadata.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -29,15 +30,9 @@ const officialFixtures = {
   ),
 }
 const generatedSchemas = {
-  CancelledNotification: await readJson(
-    new URL("../schemas/mcp/cancelledNotification.json", import.meta.url),
-  ),
-  CancelledNotificationParams: await readJson(
-    new URL("../schemas/mcp/cancelledNotificationParams.json", import.meta.url),
-  ),
-  NotificationMeta: await readJson(
-    new URL("../schemas/mcp/notificationMeta.json", import.meta.url),
-  ),
+  CancelledNotification: generatedSchema("mcp/cancelledNotification"),
+  CancelledNotificationParams: generatedSchema("mcp/cancelledNotificationParams"),
+  NotificationMeta: generatedSchema("mcp/notificationMeta"),
 }
 const schemas = {
   CancelledNotification: CancelledNotification.schema,

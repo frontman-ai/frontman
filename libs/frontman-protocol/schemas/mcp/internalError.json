@@ -1,17 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "code": {
-      "type": "number",
-      "const": -32603
-    },
-    "message": {
-      "type": "string"
-    },
-    "data": {}
-  },
-  "required": [
-    "code",
-    "message"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/mcp~1internalError"
 }

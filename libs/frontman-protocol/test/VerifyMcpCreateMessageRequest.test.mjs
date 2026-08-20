@@ -13,6 +13,7 @@ import {
   ToolChoice,
 } from "../src/FrontmanProtocol__MCP.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -41,18 +42,12 @@ const officialFixtures = {
   ),
 }
 const generatedSchemas = {
-  CreateMessageRequest: await readJson(
-    new URL("../schemas/mcp/createMessageRequest.json", import.meta.url),
-  ),
-  CreateMessageRequestParams: await readJson(
-    new URL("../schemas/mcp/createMessageRequestParams.json", import.meta.url),
-  ),
-  ModelPreferences: await readJson(
-    new URL("../schemas/mcp/modelPreferences.json", import.meta.url),
-  ),
-  ModelHint: await readJson(new URL("../schemas/mcp/modelHint.json", import.meta.url)),
-  SamplingMessage: await readJson(new URL("../schemas/mcp/samplingMessage.json", import.meta.url)),
-  ToolChoice: await readJson(new URL("../schemas/mcp/toolChoice.json", import.meta.url)),
+  CreateMessageRequest: generatedSchema("mcp/createMessageRequest"),
+  CreateMessageRequestParams: generatedSchema("mcp/createMessageRequestParams"),
+  ModelPreferences: generatedSchema("mcp/modelPreferences"),
+  ModelHint: generatedSchema("mcp/modelHint"),
+  SamplingMessage: generatedSchema("mcp/samplingMessage"),
+  ToolChoice: generatedSchema("mcp/toolChoice"),
 }
 const schemas = {
   CreateMessageRequest: CreateMessageRequest.schema,

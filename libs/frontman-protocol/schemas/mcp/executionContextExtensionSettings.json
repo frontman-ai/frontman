@@ -1,12 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "version": {
-      "type": "number",
-      "const": 1
-    }
-  },
-  "required": [
-    "version"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/mcp~1executionContextExtensionSettings"
 }

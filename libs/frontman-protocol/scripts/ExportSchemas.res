@@ -13,18 +13,6 @@ type schemaEntry = {
 external toUnknownSchema: S.t<'a> => S.t<unknown> = "%identity"
 external jsonSchemaAsJson: JSONSchema.t => JSON.t = "%identity"
 
-@val @scope(("import", "meta"))
-external importMetaUrl: string = "url"
-
-@module("node:url")
-external fileURLToPath: string => string = "fileURLToPath"
-
-let schemasDir = FrontmanBindings.Path.join([
-  FrontmanBindings.Path.dirname(fileURLToPath(importMetaUrl)),
-  "..",
-  "schemas",
-])
-
 let entries: array<schemaEntry> = [
   {dir: "acp", name: "initializeParams", schema: ACP.initializeParamsSchema->toUnknownSchema},
   {dir: "acp", name: "initializeResult", schema: ACP.initializeResultSchema->toUnknownSchema},
@@ -224,46 +212,27 @@ let entries: array<schemaEntry> = [
 ]
 
 let main = async () => {
-  let totalExported = ref(0)
-  let skipped = ref(0)
+  let outputPath =
+    FrontmanBindings.Process.argv
+    ->Array.get(2)
+    ->Option.getOrThrow(~message="Usage: ExportSchemas.res.mjs <output-path>")
+  let definitions = Dict.make()
 
   for i in 0 to entries->Array.length - 1 {
     let entry = entries->Array.getUnsafe(i)
-    let outDir = FrontmanBindings.Path.join([schemasDir, entry.dir])
-    let _ = await FrontmanBindings.Fs.Promises.mkdir(outDir, {recursive: true})
-
-    let jsonSchemaResult = try {
-      Ok(entry.schema->S.toJSONSchema->jsonSchemaAsJson)
-    } catch {
-    | exn =>
-      Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error"))
-    }
-
-    switch jsonSchemaResult {
-    | Ok(jsonSchema) =>
-      let outPath = FrontmanBindings.Path.join([outDir, `${entry.name}.json`])
-      await FrontmanBindings.Fs.Promises.writeFile(
-        outPath,
-        JSON.stringify(jsonSchema, ~space=2) ++ "\n",
-      )
-      totalExported := totalExported.contents + 1
-    | Error(msg) =>
-      Console.error(
-        `Skipping ${entry.dir}/${entry.name}: schema not convertible to JSON Schema (${msg})`,
-      )
-      skipped := skipped.contents + 1
-    }
+    let jsonSchema = entry.schema->S.toJSONSchema->jsonSchemaAsJson
+    definitions->Dict.set(`${entry.dir}/${entry.name}`, jsonSchema)
   }
 
-  Console.log(
-    `Exported ${totalExported.contents->Int.toString} schemas to ${schemasDir}` ++ if (
-      skipped.contents > 0
-    ) {
-      ` (${skipped.contents->Int.toString} skipped)`
-    } else {
-      ""
-    },
+  let bundle = Dict.fromArray([
+    ("$schema", JSON.String("https://json-schema.org/draft/2020-12/schema")),
+    ("$defs", JSON.Object(definitions)),
+  ])
+  await FrontmanBindings.Fs.Promises.writeFile(
+    outputPath,
+    JSON.stringify(JSON.Object(bundle), ~space=2) ++ "\n",
   )
+  Console.log(`Exported ${entries->Array.length->Int.toString} schemas to ${outputPath}`)
 }
 
 main()->ignore

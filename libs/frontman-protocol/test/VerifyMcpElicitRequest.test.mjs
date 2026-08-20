@@ -11,6 +11,7 @@ import {
   PrimitiveSchemaDefinition,
 } from "../src/FrontmanProtocol__MCP.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -31,16 +32,10 @@ const officialFixtures = {
   ),
 }
 const generatedSchemas = {
-  ElicitRequest: await readJson(new URL("../schemas/mcp/elicitRequest.json", import.meta.url)),
-  ElicitRequestFormParams: await readJson(
-    new URL("../schemas/mcp/elicitRequestFormParams.json", import.meta.url),
-  ),
-  ElicitRequestURLParams: await readJson(
-    new URL("../schemas/mcp/elicitRequestUrlParams.json", import.meta.url),
-  ),
-  PrimitiveSchemaDefinition: await readJson(
-    new URL("../schemas/mcp/primitiveSchemaDefinition.json", import.meta.url),
-  ),
+  ElicitRequest: generatedSchema("mcp/elicitRequest"),
+  ElicitRequestFormParams: generatedSchema("mcp/elicitRequestFormParams"),
+  ElicitRequestURLParams: generatedSchema("mcp/elicitRequestUrlParams"),
+  PrimitiveSchemaDefinition: generatedSchema("mcp/primitiveSchemaDefinition"),
 }
 const schemas = {
   ElicitRequest: ElicitRequest.schema,

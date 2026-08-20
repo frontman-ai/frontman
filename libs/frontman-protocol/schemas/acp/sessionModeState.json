@@ -1,35 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "currentModeId": {
-      "type": "string"
-    },
-    "availableModes": {
-      "items": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "_meta": {}
-        },
-        "required": [
-          "id",
-          "name"
-        ]
-      },
-      "type": "array"
-    },
-    "_meta": {}
-  },
-  "required": [
-    "currentModeId",
-    "availableModes"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/acp~1sessionModeState"
 }

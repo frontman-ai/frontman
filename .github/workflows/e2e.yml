@@ -19,7 +19,6 @@ on:
       - "scripts/package-wordpress-plugin.sh"
       - "scripts/validate-wordpress-plugin-release.sh"
       - "docs/mcp/**"
-      - "plaan.md"
       - ".changeset/**"
       - "Makefile"
       - "yarn.lock"

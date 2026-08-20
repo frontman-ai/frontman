@@ -5,9 +5,10 @@ import Ajv2020 from "ajv/dist/2020.js"
 import * as S from "sury/src/S.res.mjs"
 import {Extensions} from "../src/FrontmanProtocol__MCP.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema as getGeneratedSchema} from "./GeneratedSchema.mjs"
 
 const upstreamSchema = JSON.parse(await readFile(new URL("mcp-upstream/schema.json", import.meta.url)))
-const generatedSchema = JSON.parse(await readFile(new URL("../schemas/mcp/extensions.json", import.meta.url)))
+const generatedSchema = getGeneratedSchema("mcp/extensions")
 const oracle = createOracle(upstreamSchema)
 const validateGenerated = new Ajv2020({strict: true}).compile(generatedSchema)
 const wireValue = value => JSON.parse(JSON.stringify(value))

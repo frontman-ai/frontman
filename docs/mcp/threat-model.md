@@ -2,7 +2,7 @@
 
 ## Scope
 
-This threat model covers the MCP `2026-07-28` path planned in `plaan.md`:
+This threat model covers Frontman's MCP `2026-07-28` path:
 
 ```text
 Phoenix TasksChannel connection owner
@@ -239,22 +239,15 @@ The non-MCP source-location endpoint separately requires an allowlisted Origin f
 
 - The MCP `2026-07-28` TypeScript schema is pinned by immutable URL and SHA-256.
 - The generated JSON Schema, 129 official examples, license, conformance source archive, and official executable package are vendored with checksums under `libs/frontman-protocol/test/mcp-upstream/`.
-- Offline checksum, JSON Schema 2020-12 loading, and named official-example validation pass as recorded in `plaan.md`.
-- Current architecture and remaining release gates are documented in `plaan.md`; accepted Phase 9 closes unsafe argument/error logging and partial content handling, Phase 7 closes the supported single-node restart/process-crash recovery seams, and Item 24 removes the private Relay runtime and shipped artifacts. The semantic-review remediation is implemented and independently rereviewed but awaits explicit acceptance, including disposition of `BASE-AUTH-001`. The applicable official conformance gate runs the pinned package from disposable storage with a secret-free environment and loopback-only socket policy.
+- Offline checksum, JSON Schema 2020-12 loading, and named official-example validation are part of the protocol verification gate.
+- Current architecture and support limits are documented in `docs/architecture.md`, `docs/mcp/capability-support.md`, and `docs/mcp/implementation-limits.md`. The applicable official conformance gate runs the pinned package from disposable storage with a secret-free environment and loopback-only socket policy.
 - WordPress `/mcp` is implemented and enforces cookie authentication, administrator capability, POST nonce checks, and method-based `Mcp-Name` authority for `tools/call`, `prompts/get`, and `resources/read`, including malformed named-method precedence. Real WordPress and Playground vectors are current evidence.
 - Browser and Phoenix clients normalize absent `resultType`, recognize valid `input_required` without retrying, keep cursors opaque under a page bound, restart one invalid-cursor listing once, and calculate cache expiry from result receipt.
 - Reserved `traceparent`, `tracestate`, and `baggage` metadata is rejected at shared, browser, Phoenix, framework, and WordPress validation boundaries because trace propagation is not implemented.
 - A focused browser-client test receives a hostile `401` `resource_metadata` challenge and proves exactly one original `/mcp` POST with zero metadata, well-known, token, or registration requests.
 
-### Remaining Release Evidence
-
-- Independently review and explicitly accept or reject the implemented whole-Phase-10 semantic-review remediation. Implementation alone is not acceptance.
-- Run provider-backed installed Next.js, Astro, Vite, and Vue-Vite application recovery E2E and then the complete root aggregate.
-- Decide whether hostile conformance artifacts are in scope; if so, replace portable Node guards with an OS-enforced disposable sandbox and outer resource limits.
-- Run final package/version/publishing and release review after all blockers close.
-
-Remaining evidence is not current assurance. Frontman must not claim MCP `2026-07-28`
-conformance until the release acceptance criteria in `plaan.md` are complete.
+Conformance claims must retain the scope and fixture-correction disclosures in
+`docs/mcp/conformance.md` and the residual limits in `docs/mcp/implementation-limits.md`.
 
 ## Residual Risks
 

@@ -9,6 +9,7 @@ import {
   CallToolRequestParams,
 } from "../src/FrontmanProtocol__MCP.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -21,10 +22,8 @@ const paramsFixtures = await Promise.all(
   ),
 )
 const generatedSchemas = {
-  CallToolRequest: await readJson(new URL("../schemas/mcp/callToolRequest.json", import.meta.url)),
-  CallToolRequestParams: await readJson(
-    new URL("../schemas/mcp/callToolRequestParams.json", import.meta.url),
-  ),
+  CallToolRequest: generatedSchema("mcp/callToolRequest"),
+  CallToolRequestParams: generatedSchema("mcp/callToolRequestParams"),
 }
 const schemas = {
   CallToolRequest: CallToolRequest.schema,
@@ -116,8 +115,9 @@ test("tools/call preserves standard initial and retry parameter domains", () => 
 })
 
 test("tools/call has no declared private callId and retains upstream object openness", () => {
-  assert.equal(generatedSchemas.CallToolRequestParams.required.includes("callId"), false)
-  assert.equal(Object.hasOwn(generatedSchemas.CallToolRequestParams.properties, "callId"), false)
+  const definition = generatedSchemas.CallToolRequestParams.$defs["mcp/callToolRequestParams"]
+  assert.equal(definition.required.includes("callId"), false)
+  assert.equal(Object.hasOwn(definition.properties, "callId"), false)
 
   const fixture = {
     ...requestFixture,

@@ -7,12 +7,11 @@ import * as S from "sury/src/S.res.mjs"
 import {RequestMeta} from "../src/FrontmanProtocol__MCP.res.mjs"
 import * as Metadata from "../src/FrontmanProtocol__MCPMetadata.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema as getGeneratedSchema} from "./GeneratedSchema.mjs"
 
 const upstreamSchema = JSON.parse(await readFile(new URL("mcp-upstream/schema.json", import.meta.url)))
-const generatedSchema = JSON.parse(await readFile(new URL("../schemas/mcp/requestMeta.json", import.meta.url)))
-const generatedMetadataSchema = JSON.parse(
-  await readFile(new URL("../schemas/mcp/metaObject.json", import.meta.url)),
-)
+const generatedSchema = getGeneratedSchema("mcp/requestMeta")
+const generatedMetadataSchema = getGeneratedSchema("mcp/metaObject")
 const oracle = createOracle(upstreamSchema)
 const ajv = new Ajv2020({strict: true})
 addFormats(ajv)

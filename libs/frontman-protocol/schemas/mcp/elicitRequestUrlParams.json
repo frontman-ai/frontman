@@ -1,21 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "mode": {
-      "type": "string",
-      "const": "url"
-    },
-    "message": {
-      "type": "string"
-    },
-    "url": {
-      "type": "string",
-      "format": "uri"
-    }
-  },
-  "required": [
-    "mode",
-    "message",
-    "url"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/mcp~1elicitRequestUrlParams"
 }

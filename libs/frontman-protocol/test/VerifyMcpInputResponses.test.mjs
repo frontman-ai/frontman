@@ -6,10 +6,11 @@ import addFormats from "ajv-formats"
 import * as S from "sury/src/S.res.mjs"
 import {InputResponses} from "../src/FrontmanProtocol__MCP.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema as getGeneratedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
-const generatedSchema = await readJson(new URL("../schemas/mcp/inputResponses.json", import.meta.url))
+const generatedSchema = getGeneratedSchema("mcp/inputResponses")
 const officialFixture = await readJson(
   new URL(
     "mcp-upstream/examples/InputResponses/elicitation-and-sampling-input-responses.json",

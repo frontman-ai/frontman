@@ -6,9 +6,10 @@ import addFormats from "ajv-formats"
 import * as S from "sury/src/S.res.mjs"
 import {Implementation} from "../src/FrontmanProtocol__MCP.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema as getGeneratedSchema} from "./GeneratedSchema.mjs"
 
 const upstreamSchema = JSON.parse(await readFile(new URL("mcp-upstream/schema.json", import.meta.url)))
-const generatedSchema = JSON.parse(await readFile(new URL("../schemas/mcp/implementation.json", import.meta.url)))
+const generatedSchema = getGeneratedSchema("mcp/implementation")
 const oracle = createOracle(upstreamSchema)
 const ajv = new Ajv2020({strict: true})
 addFormats(ajv)

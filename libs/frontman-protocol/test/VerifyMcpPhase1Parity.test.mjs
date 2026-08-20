@@ -15,6 +15,7 @@ import {
   UnsupportedProtocolVersionError,
   protocolVersion,
 } from "../src/FrontmanProtocol__MCP.res.mjs"
+import {generatedSchema as getGeneratedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const fixtures = await readJson(new URL("fixtures/mcp-phase1-parity.json", import.meta.url))
@@ -36,9 +37,7 @@ test("Phase 1 fixtures round-trip through runtime and generated schemas", async 
     const fixture = fixtures[fixtureName]
     const parsed = S.parseOrThrow(fixture, runtimeSchema)
     const encoded = JSON.parse(JSON.stringify(S.decodeOrThrow(parsed, runtimeSchema, S.json)))
-    const generatedSchema = await readJson(
-      new URL(`../schemas/mcp/${generatedName}.json`, import.meta.url),
-    )
+    const generatedSchema = getGeneratedSchema(`mcp/${generatedName}`)
 
     assert.deepEqual(encoded, fixture)
     assert.equal(ajv.compile(generatedSchema)(fixture), true)

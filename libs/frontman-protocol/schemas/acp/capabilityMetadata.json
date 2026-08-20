@@ -1,23 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "frontman.dev": {
-      "type": "object",
-      "properties": {
-        "agentAttribution": {
-          "type": "object",
-          "properties": {
-            "version": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 65535
-            }
-          },
-          "required": [
-            "version"
-          ]
-        }
-      }
-    }
-  }
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/acp~1capabilityMetadata"
 }

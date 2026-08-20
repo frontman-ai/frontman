@@ -7,9 +7,10 @@ import * as S from "sury/src/S.res.mjs"
 import {CallToolResult, ResultMeta} from "../src/FrontmanProtocol__MCP.res.mjs"
 import * as Metadata from "../src/FrontmanProtocol__MCPMetadata.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema as getGeneratedSchema} from "./GeneratedSchema.mjs"
 
 const upstreamSchema = JSON.parse(await readFile(new URL("mcp-upstream/schema.json", import.meta.url)))
-const generatedSchema = JSON.parse(await readFile(new URL("../schemas/mcp/resultMeta.json", import.meta.url)))
+const generatedSchema = getGeneratedSchema("mcp/resultMeta")
 const oracle = createOracle(upstreamSchema)
 const ajv = new Ajv2020({strict: true})
 addFormats(ajv)

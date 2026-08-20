@@ -16,6 +16,7 @@ import {
   UnsupportedProtocolVersionError,
 } from "../src/FrontmanProtocol__MCP.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -79,9 +80,7 @@ for (const contract of contracts) {
   contract.value ??= await readJson(
     new URL(`mcp-upstream/examples/${contract.fixture}`, import.meta.url),
   )
-  contract.generatedSchema = await readJson(
-    new URL(`../schemas/mcp/${contract.generated}.json`, import.meta.url),
-  )
+  contract.generatedSchema = generatedSchema(`mcp/${contract.generated}`)
   contract.validateGenerated = ajv.compile(contract.generatedSchema)
 }
 

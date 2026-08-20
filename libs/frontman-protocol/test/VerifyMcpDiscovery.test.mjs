@@ -10,6 +10,7 @@ import {
   DiscoverResultResponse,
 } from "../src/FrontmanProtocol__MCP.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -26,11 +27,9 @@ const responseFixture = await readJson(
   ),
 )
 const generatedSchemas = {
-  DiscoverRequest: await readJson(new URL("../schemas/mcp/discoverRequest.json", import.meta.url)),
-  DiscoverResult: await readJson(new URL("../schemas/mcp/discoverResult.json", import.meta.url)),
-  DiscoverResultResponse: await readJson(
-    new URL("../schemas/mcp/discoverResultResponse.json", import.meta.url),
-  ),
+  DiscoverRequest: generatedSchema("mcp/discoverRequest"),
+  DiscoverResult: generatedSchema("mcp/discoverResult"),
+  DiscoverResultResponse: generatedSchema("mcp/discoverResultResponse"),
 }
 const schemas = {
   DiscoverRequest: DiscoverRequest.schema,

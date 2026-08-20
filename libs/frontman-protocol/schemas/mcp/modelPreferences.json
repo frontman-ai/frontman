@@ -1,31 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "hints": {
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "type": "array"
-    },
-    "costPriority": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 1
-    },
-    "intelligencePriority": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 1
-    },
-    "speedPriority": {
-      "type": "number",
-      "minimum": 0,
-      "maximum": 1
-    }
-  }
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/mcp~1modelPreferences"
 }

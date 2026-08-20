@@ -7,6 +7,7 @@ import * as S from "sury/src/S.res.mjs"
 import {StreamableHttpSseMessage} from "../src/FrontmanProtocol__MCP.res.mjs"
 import {Wire} from "../src/FrontmanProtocol__JsonRpc.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema as getGeneratedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -27,9 +28,7 @@ const officialFixtures = {
     new URL("mcp-upstream/examples/CallToolRequest/call-tool-request.json", import.meta.url),
   ),
 }
-const generatedSchema = await readJson(
-  new URL("../schemas/mcp/streamableHttpSseMessage.json", import.meta.url),
-)
+const generatedSchema = getGeneratedSchema("mcp/streamableHttpSseMessage")
 const oracle = createOracle(upstreamSchema)
 const ajv = new Ajv2020({strict: true})
 addFormats(ajv)

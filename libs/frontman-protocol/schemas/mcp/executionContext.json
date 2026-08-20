@@ -1,17 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "taskId": {
-      "type": "string",
-      "minLength": 1
-    },
-    "toolCallId": {
-      "type": "string",
-      "minLength": 1
-    }
-  },
-  "required": [
-    "taskId",
-    "toolCallId"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/mcp~1executionContext"
 }

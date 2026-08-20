@@ -1,23 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "sessionId": {
-      "type": "string"
-    },
-    "title": {
-      "type": "string"
-    },
-    "createdAt": {
-      "type": "string"
-    },
-    "updatedAt": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "sessionId",
-    "title",
-    "createdAt",
-    "updatedAt"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/acp~1sessionSummary"
 }

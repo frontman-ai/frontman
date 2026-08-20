@@ -15,6 +15,7 @@ import {
 } from "../src/FrontmanProtocol__MCP.res.mjs"
 import * as Metadata from "../src/FrontmanProtocol__MCPMetadata.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -23,13 +24,13 @@ const ajv = new Ajv2020({strict: true})
 addFormats(ajv)
 
 const generatedSchemas = {
-  cancellation: await readJson(new URL("../schemas/mcp/cancelledNotificationParams.json", import.meta.url)),
-  callParams: await readJson(new URL("../schemas/mcp/callToolRequestParams.json", import.meta.url)),
-  content: await readJson(new URL("../schemas/mcp/callToolResult.json", import.meta.url)),
-  id: await readJson(new URL("../schemas/jsonrpc/request.json", import.meta.url)),
-  metadata: await readJson(new URL("../schemas/mcp/metaObject.json", import.meta.url)),
-  requestMeta: await readJson(new URL("../schemas/mcp/requestMeta.json", import.meta.url)),
-  tool: await readJson(new URL("../schemas/mcp/tool.json", import.meta.url)),
+  cancellation: generatedSchema("mcp/cancelledNotificationParams"),
+  callParams: generatedSchema("mcp/callToolRequestParams"),
+  content: generatedSchema("mcp/callToolResult"),
+  id: generatedSchema("jsonrpc/request"),
+  metadata: generatedSchema("mcp/metaObject"),
+  requestMeta: generatedSchema("mcp/requestMeta"),
+  tool: generatedSchema("mcp/tool"),
 }
 const generated = Object.fromEntries(
   Object.entries(generatedSchemas).map(([name, schema]) => [name, ajv.compile(schema)]),

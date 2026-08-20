@@ -11,6 +11,7 @@ import {
 } from "../src/FrontmanProtocol__MCP.res.mjs"
 import {Wire} from "../src/FrontmanProtocol__JsonRpc.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -26,9 +27,7 @@ for (const name of [
   "executionContextServerCapabilities",
   "executionContextRequestMeta",
 ]) {
-  generated[name] = ajv.compile(
-    await readJson(new URL(`../schemas/mcp/${name}.json`, import.meta.url)),
-  )
+  generated[name] = ajv.compile(generatedSchema(`mcp/${name}`))
 }
 
 const identifier = "ai.frontman/execution-context"

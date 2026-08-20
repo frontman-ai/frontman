@@ -6,6 +6,7 @@ import addFormats from "ajv-formats"
 import * as S from "sury/src/S.res.mjs"
 import {InputRequests, InputRequiredResult} from "../src/FrontmanProtocol__MCP.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -31,10 +32,8 @@ const officialFixtures = {
   ),
 }
 const generatedSchemas = {
-  InputRequests: await readJson(new URL("../schemas/mcp/inputRequests.json", import.meta.url)),
-  InputRequiredResult: await readJson(
-    new URL("../schemas/mcp/inputRequiredResult.json", import.meta.url),
-  ),
+  InputRequests: generatedSchema("mcp/inputRequests"),
+  InputRequiredResult: generatedSchema("mcp/inputRequiredResult"),
 }
 const schemas = {
   InputRequests: InputRequests.schema,

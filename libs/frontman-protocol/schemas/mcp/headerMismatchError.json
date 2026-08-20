@@ -1,42 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "jsonrpc": {
-      "type": "string",
-      "const": "2.0"
-    },
-    "id": {
-      "anyOf": [
-        {
-          "type": "string"
-        },
-        {
-          "type": "integer",
-          "maximum": 9007199254740991,
-          "minimum": -9007199254740991
-        }
-      ]
-    },
-    "error": {
-      "type": "object",
-      "properties": {
-        "code": {
-          "type": "number",
-          "const": -32020
-        },
-        "message": {
-          "type": "string"
-        },
-        "data": {}
-      },
-      "required": [
-        "code",
-        "message"
-      ]
-    }
-  },
-  "required": [
-    "jsonrpc",
-    "error"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/mcp~1headerMismatchError"
 }

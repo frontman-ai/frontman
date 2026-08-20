@@ -34,7 +34,8 @@
 	],
 	"scripts": {
 		"build": "rescript build",
-		"prepublishOnly": "yarn build"
+		"prepack": "make check-schemas",
+		"prepublishOnly": "make check-schemas"
 	},
 	"dependencies": {
 		"sury": "11.0.0-alpha.10"

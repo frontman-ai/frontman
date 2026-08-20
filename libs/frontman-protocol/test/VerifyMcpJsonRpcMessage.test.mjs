@@ -6,6 +6,7 @@ import addFormats from "ajv-formats"
 import * as S from "sury/src/S.res.mjs"
 import {Wire} from "../src/FrontmanProtocol__JsonRpc.res.mjs"
 import {createOracle} from "../scripts/VerifyMcpOracle.mjs"
+import {generatedSchema} from "./GeneratedSchema.mjs"
 
 const readJson = async url => JSON.parse(await readFile(url, "utf8"))
 const upstreamSchema = await readJson(new URL("mcp-upstream/schema.json", import.meta.url))
@@ -26,12 +27,8 @@ const fixtures = {
     new URL("mcp-upstream/examples/HeaderMismatchError/header-mismatch.json", import.meta.url),
   ),
 }
-const requestGeneratedSchema = await readJson(
-  new URL("../schemas/mcp/jsonRpcRequest.json", import.meta.url),
-)
-const messageGeneratedSchema = await readJson(
-  new URL("../schemas/mcp/jsonRpcMessage.json", import.meta.url),
-)
+const requestGeneratedSchema = generatedSchema("mcp/jsonRpcRequest")
+const messageGeneratedSchema = generatedSchema("mcp/jsonRpcMessage")
 const oracle = createOracle(upstreamSchema)
 const ajv = new Ajv2020({strict: true})
 addFormats(ajv)

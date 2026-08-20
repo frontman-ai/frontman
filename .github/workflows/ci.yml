@@ -404,7 +404,7 @@ jobs:
 
       - name: Check for breaking changes
         if: steps.changes.outputs.protocol == 'true'
-        run: node libs/frontman-protocol/scripts/CheckBreakingChanges.res.mjs
+        run: make -C libs/frontman-protocol schema-compatibility
 
   dead-code:
     name: Dead code analysis
