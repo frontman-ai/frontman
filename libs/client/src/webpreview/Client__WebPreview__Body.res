@@ -1,5 +1,5 @@
 @react.component
-let make = (~clientId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
+let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let (iframeElement, setIframeElement): (option<WebAPI.DomTypes.element>, _) = React.useState(() =>
     None
@@ -69,7 +69,7 @@ let make = (~clientId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)
           | false => ()
           | true =>
             lastLocationRef.current = Some(location)
-            Client__State.Actions.observePreviewUrl(~clientId, ~url=location)
+            Client__State.Actions.observePreviewUrl(~url=location)
           }
         }
       | None => ()
@@ -88,7 +88,7 @@ let make = (~clientId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)
       | false => ()
       | true =>
         readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) =>
-          Client__State.Actions.setPreviewFrame(~clientId, ~contentDocument, ~contentWindow)
+          Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
         )
       }
     }
@@ -101,7 +101,7 @@ let make = (~clientId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)
       readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) => {
         switch contentDocument->Option.isSome {
         | false => ()
-        | true => Client__State.Actions.setPreviewFrame(~clientId, ~contentDocument, ~contentWindow)
+        | true => Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
         }
       })
     }
@@ -125,7 +125,7 @@ let make = (~clientId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)
   })
   let iframe =
     <iframe
-      className="size-full" src={iframeSrc} title={`Preview - ${clientId}`} onLoad ref={refCallback}
+      className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
     />
 
   switch (isActive, viewportStyle) {

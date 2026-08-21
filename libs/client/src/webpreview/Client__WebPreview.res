@@ -107,7 +107,7 @@ let make = () => {
         ->Array.map(((clientId, url)) => {
           <Client__WebPreview__Body
             key={clientId}
-            clientId
+            taskId={clientId}
             url={url}
             isActive={clientId == currentTaskClientId}
             viewportStyle=?viewportStyle

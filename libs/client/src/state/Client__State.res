@@ -48,17 +48,14 @@ module Actions = {
       TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
     )
 
-  let observePreviewUrl = (~clientId, ~url) =>
+  let observePreviewUrl = (~url) =>
     Client__State__Store.dispatch(
-      TaskAction({target: ForClient(clientId), action: SetPreviewUrl({url: url})}),
+      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
     )
 
-  let setPreviewFrame = (~clientId, ~contentDocument, ~contentWindow) =>
+  let setPreviewFrame = (~contentDocument, ~contentWindow) =>
     Client__State__Store.dispatch(
-      TaskAction({
-        target: ForClient(clientId),
-        action: SetPreviewFrame({contentDocument, contentWindow}),
-      }),
+      TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}),
     )
 
   let setDeviceMode = (~deviceMode) =>
