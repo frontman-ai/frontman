@@ -44,11 +44,6 @@ let make = () => {
   let containerRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let (availableWidth, availableHeight) = useContainerSize(containerRef)
 
-  React.useEffect(() => {
-    Client__DeviceMode.persist(deviceMode, deviceOrientation)
-    None
-  }, (deviceMode, deviceOrientation))
-
   let effectiveDims = Client__DeviceMode.getEffectiveDimensions(deviceMode, deviceOrientation)
 
   let viewportStyle = switch effectiveDims {

@@ -43,7 +43,12 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ToolErrorReceived({id, error})}),
     )
 
-  let setPreviewUrl = (~url) =>
+  let setCurrentPreviewUrl = (~url) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
+    )
+
+  let observePreviewUrl = (~url) =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
     )

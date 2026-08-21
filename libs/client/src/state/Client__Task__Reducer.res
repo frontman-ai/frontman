@@ -412,6 +412,7 @@ type effect =
   | RetryTurnEffect({retriedErrorId: string})
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
   | RejectQuestionToolEffect({resolveError: string => unit, message: string})
+  | SyncBrowserUrl(string)
 
 type delegated =
   | NeedSendMessage({
@@ -422,6 +423,7 @@ type delegated =
     })
   | NeedCancelPrompt
   | NeedRetryTurn({retriedErrorId: string})
+  | NeedSyncBrowserUrl(string)
 
 let actionToString = (action: action): string =>
   switch action {
@@ -593,7 +595,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | true =>
       let updated = Lens.setAnnotations(updated, [])
       let updated = Lens.setActivePopupAnnotationId(updated, None)
-      (updated, [])
+      (updated, [SyncBrowserUrl(url)])
     | false => (updated, [])
     }
 
@@ -1436,5 +1438,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
   | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
+  | SyncBrowserUrl(url) => delegate(NeedSyncBrowserUrl(url))
   }
 }
