@@ -222,4 +222,79 @@ describe("Concurrent Tasks Event Routing", () => {
 
     t->expect(Task.getMessages(taskB)->Array.length)->Expect.toBe(0)
   })
+
+  test("Preview events remain attached to their client after switching tasks", t => {
+    let taskAId = "task-a"
+    let taskBId = "task-b"
+    let state = TestSetup.createStateWithLoadedTasks(
+      ~taskIds=[taskAId, taskBId],
+      ~isAgentRunning=false,
+    )
+    let taskAClientId = state.tasks->Dict.get(taskAId)->Option.getOrThrow->Task.getClientId
+    let (stateWithB, _) = StateReducer.next(state, SwitchTask({taskId: taskBId}))
+    t
+    ->expect(StateReducer.targetIsCurrent(stateWithB, ForClient(taskAClientId)))
+    ->Expect.toBe(false)
+
+    let (finalState, effects) = StateReducer.next(
+      stateWithB,
+      TaskAction({
+        target: ForClient(taskAClientId),
+        action: SetPreviewUrl({url: "http://localhost:3000/task-a-preview"}),
+      }),
+    )
+    let taskA = finalState.tasks->Dict.get(taskAId)->Option.getOrThrow
+    let taskB = finalState.tasks->Dict.get(taskBId)->Option.getOrThrow
+
+    t
+    ->expect(Task.getPreviewFrame(taskA, ~defaultUrl="").url)
+    ->Expect.toBe("http://localhost:3000/task-a-preview")
+    t
+    ->expect(Task.getPreviewFrame(taskB, ~defaultUrl="").url)
+    ->Expect.toBe("http://localhost:3000")
+    switch effects->Array.get(0) {
+    | Some(StateReducer.TaskEffect({
+        target: ForTask(effectTaskId),
+        effect: SyncBrowserUrl(url),
+      })) => {
+        t->expect(effectTaskId)->Expect.toBe(taskAId)
+        t->expect(url)->Expect.toBe("http://localhost:3000/task-a-preview")
+      }
+    | _ => JsExn.throw("Expected task-targeted browser URL sync effect")
+    }
+  })
+
+  test("New task preview effects retain client identity after promotion", t => {
+    let newTask = Task.makeNew(~previewUrl="http://localhost:3000")
+    let clientId = Task.getClientId(newTask)
+    let state = {...StateReducer.defaultState, currentTask: Task.New(newTask)}
+    let (updatedState, effects) = StateReducer.next(
+      state,
+      TaskAction({
+        target: ForClient(clientId),
+        action: SetPreviewUrl({url: "http://localhost:3000/new-preview"}),
+      }),
+    )
+    let updatedTask = switch updatedState.currentTask {
+    | Task.New(task) => task
+    | _ => JsExn.throw("Expected a new task")
+    }
+    let promotedTask = updatedTask->Task.newToLoaded(~id="promoted-task", ~title="Promoted")
+    let tasks = Dict.make()
+    tasks->Dict.set("promoted-task", promotedTask)
+    let promotedState = {
+      ...updatedState,
+      tasks,
+      currentTask: Task.Selected("promoted-task"),
+    }
+
+    t
+    ->expect(StateReducer.targetIsCurrent(promotedState, ForClient(clientId)))
+    ->Expect.toBe(true)
+    switch effects->Array.get(0) {
+    | Some(StateReducer.TaskEffect({target: ForClient(effectClientId)})) =>
+      t->expect(effectClientId)->Expect.toBe(clientId)
+    | _ => JsExn.throw("Expected client-targeted new task effect")
+    }
+  })
 })

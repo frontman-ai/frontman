@@ -17,7 +17,7 @@ type state = Client__State__Types.state
 
 module TaskReducer = Client__Task__Reducer
 
-type taskTarget = CurrentTask | ForTask(string)
+type taskTarget = CurrentTask | ForTask(string) | ForClient(string)
 
 type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 
@@ -107,6 +107,13 @@ type effect =
   | LoadTaskEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
 
+let taskIdForClientId = (state: state, clientId: string): string =>
+  state.tasks
+  ->Dict.valuesToArray
+  ->Array.find(task => Task.getClientId(task) == clientId)
+  ->Option.flatMap(Task.getId)
+  ->Option.getOrThrow(~message=`Task with client ID ${clientId} not found`)
+
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
     let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
@@ -116,10 +123,14 @@ module Lens = {
     {...state, tasks}
   }
 
-  let delegateToNewTask = (state: state, task: Task.t, taskAction: TaskReducer.action) => {
+  let delegateToNewTask = (
+    state: state,
+    task: Task.t,
+    taskAction: TaskReducer.action,
+    ~target=CurrentTask,
+  ) => {
     let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-    let wrappedEffects =
-      taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
+    let wrappedEffects = taskEffects->Array.map(eff => TaskEffect({target, effect: eff}))
     {...state, currentTask: Task.New(updated)}->StateReducer.update(~sideEffects=wrappedEffects)
   }
 
@@ -138,6 +149,10 @@ module Lens = {
     | (CurrentTask, Task.New(task)) => delegateToNewTask(state, task, taskAction)
     | (CurrentTask, Task.Selected(taskId)) | (ForTask(taskId), _) =>
       delegateToTaskId(state, taskId, taskAction)
+    | (ForClient(clientId), Task.New(task)) if Task.getClientId(task) == clientId =>
+      delegateToNewTask(state, task, taskAction, ~target)
+    | (ForClient(clientId), _) =>
+      delegateToTaskId(state, taskIdForClientId(state, clientId), taskAction)
     }
   }
 }
@@ -519,6 +534,13 @@ let sendMessageToAPIImpl = (
   }
 }
 
+let targetIsCurrent = (state: state, target: taskTarget): bool =>
+  switch target {
+  | CurrentTask => true
+  | ForTask(taskId) => Selectors.currentTaskId(state) == Some(taskId)
+  | ForClient(clientId) => Selectors.currentTaskClientId(state) == clientId
+  }
+
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/me`
@@ -631,6 +653,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         | NeedSendMessage({text, attachments, annotations, agentId}) =>
           let taskId = switch target {
           | ForTask(id) => id
+          | ForClient(clientId) => taskIdForClientId(state, clientId)
           | CurrentTask =>
             switch state.currentTask {
             | Task.Selected(id) => id
@@ -656,6 +679,11 @@ let handleEffect = (effect, state: state, dispatch) => {
           switch state.acpSession {
           | AcpSessionActive({retryTurn}) => retryTurn(retriedErrorId)
           | NoAcpSession => Log.error("Cannot retry turn: no active ACP session")
+          }
+        | NeedSyncBrowserUrl(url) =>
+          switch targetIsCurrent(state, target) {
+          | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
+          | false => ()
           }
         }
       }

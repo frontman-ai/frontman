@@ -63,8 +63,6 @@ let make = (
             contentWindow->WebAPI.Window.location->WebAPI.Location.assign(resolvedUrl)
           })
           Client__State.Actions.setPreviewUrl(~url=resolvedUrl)
-          Client__State.Actions.clearAnnotations()
-          Client__BrowserUrl.syncBrowserUrl(~previewUrl=resolvedUrl)
         }
       }
       ReactEvent.Keyboard.currentTarget(e)["blur"]()

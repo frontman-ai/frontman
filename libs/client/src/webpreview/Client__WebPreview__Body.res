@@ -1,5 +1,5 @@
 @react.component
-let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
+let make = (~clientId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let (iframeElement, setIframeElement): (option<WebAPI.DomTypes.element>, _) = React.useState(() =>
     None
@@ -13,6 +13,17 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     ~iframeElement=trackedIframeElement,
     ~attachmentKey,
   )
+  let readPreviewFrame = () =>
+    iframeRef.current
+    ->Nullable.toOption
+    ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
+    ->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement)
+    ->Option.map(iframeElement => {
+      (
+        WebAPI.HTMLIFrameElement.contentDocument(iframeElement),
+        WebAPI.HTMLIFrameElement.contentWindow(iframeElement),
+      )
+    })
 
   React.useEffect(() => {
     switch hasLoaded {
@@ -58,8 +69,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
           | false => ()
           | true =>
             lastLocationRef.current = Some(location)
-            Client__State.Actions.setPreviewUrl(~url=location)
-            Client__BrowserUrl.syncBrowserUrl(~previewUrl=location)
+            Client__State.Actions.setPreviewUrl(~clientId, ~url=location)
           }
         }
       | None => ()
@@ -77,18 +87,9 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
       switch isActive {
       | false => ()
       | true =>
-        iframeRef.current
-        ->Nullable.toOption
-        ->Option.forEach(iframe => {
-          let iframeElement = iframe->Obj.magic
-          try {
-            let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)
-            let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)
-            Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
-          } catch {
-          | _ => ()
-          }
-        })
+        readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) =>
+          Client__State.Actions.setPreviewFrame(~clientId, ~contentDocument, ~contentWindow)
+        )
       }
     }
   }
@@ -97,20 +98,10 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     switch isActive {
     | false => ()
     | true =>
-      iframeRef.current
-      ->Nullable.toOption
-      ->Option.forEach(iframe => {
-        let iframeElement = iframe->Obj.magic
-        try {
-          let contentDocument = WebAPI.HTMLIFrameElement.contentDocument(iframeElement)
-          let contentWindow = WebAPI.HTMLIFrameElement.contentWindow(iframeElement)
-
-          switch contentDocument->Option.isSome {
-          | false => ()
-          | true => Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
-          }
-        } catch {
-        | _ => ()
+      readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) => {
+        switch contentDocument->Option.isSome {
+        | false => ()
+        | true => Client__State.Actions.setPreviewFrame(~clientId, ~contentDocument, ~contentWindow)
         }
       })
     }
@@ -119,7 +110,10 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
 
   let refCallback = ReactDOM.Ref.callbackDomRef(iframe => {
     iframeRef.current = iframe
-    let nextIframeElement = iframe->Nullable.toOption->Option.map(el => el->Obj.magic)
+    let nextIframeElement =
+      iframe
+      ->Nullable.toOption
+      ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
     setIframeElement(prevIframeElement =>
       switch (prevIframeElement, nextIframeElement) {
       | (Some(prev), Some(next)) if prev == next => prevIframeElement
@@ -129,20 +123,15 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     )
     None
   })
+  let iframe =
+    <iframe
+      className="size-full" src={iframeSrc} title={`Preview - ${clientId}`} onLoad ref={refCallback}
+    />
 
   switch (isActive, viewportStyle) {
   | (false, _) =>
-    <div className="absolute -left-[9999px] -top-[9999px] invisible size-full">
-      <iframe
-        className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
-      />
-    </div>
-  | (true, None) =>
-    <div className="flex-1 size-full">
-      <iframe
-        className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
-      />
-    </div>
+    <div className="absolute -left-[9999px] -top-[9999px] invisible size-full"> {iframe} </div>
+  | (true, None) => <div className="flex-1 size-full"> {iframe} </div>
   | (true, Some((deviceWidth, deviceHeight, scale))) =>
     let widthPx = Int.toString(deviceWidth) ++ "px"
     let heightPx = Int.toString(deviceHeight) ++ "px"
@@ -163,9 +152,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
         boxShadow: "0 0 0 1px rgba(0,0,0,0.1), 0 2px 8px rgba(0,0,0,0.08)",
       }
     >
-      <iframe
-        className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
-      />
+      {iframe}
     </div>
   }
 }

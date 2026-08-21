@@ -93,52 +93,8 @@ let isActive = (deviceMode: deviceMode): bool =>
 let defaultDeviceMode = Responsive
 let defaultOrientation = Portrait
 
-let deviceModeToJson = (deviceMode: deviceMode): JSON.t => {
-  let obj = Dict.make()
-  switch deviceMode {
-  | Responsive => obj->Dict.set("type", JSON.Encode.string("responsive"))
-  | CustomSize({width, height}) =>
-    obj->Dict.set("type", JSON.Encode.string("custom"))
-    obj->Dict.set("width", JSON.Encode.int(width))
-    obj->Dict.set("height", JSON.Encode.int(height))
-  | DevicePreset({name, category, width, height, dpr}) =>
-    obj->Dict.set("type", JSON.Encode.string("preset"))
-    obj->Dict.set("name", JSON.Encode.string(name))
-    obj->Dict.set("category", JSON.Encode.string(category))
-    obj->Dict.set("width", JSON.Encode.int(width))
-    obj->Dict.set("height", JSON.Encode.int(height))
-    obj->Dict.set("dpr", JSON.Encode.float(dpr))
-  }
-  JSON.Encode.object(obj)
-}
-
-let orientationToJson = (orientation: orientation): JSON.t =>
-  switch orientation {
-  | Portrait => JSON.Encode.string("portrait")
-  | Landscape => JSON.Encode.string("landscape")
-  }
-
 let orientationToString = (orientation: orientation): string =>
   switch orientation {
   | Portrait => "portrait"
   | Landscape => "landscape"
   }
-
-let storageKeyDeviceMode = "frontman:device-mode"
-let storageKeyOrientation = "frontman:device-orientation"
-
-let persist = (deviceMode: deviceMode, orientation: orientation): unit => {
-  try {
-    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
-    storage->WebAPI.Storage.setItem(
-      ~key=storageKeyDeviceMode,
-      ~value=JSON.stringify(deviceModeToJson(deviceMode)),
-    )
-    storage->WebAPI.Storage.setItem(
-      ~key=storageKeyOrientation,
-      ~value=JSON.stringify(orientationToJson(orientation)),
-    )
-  } catch {
-  | _ => ()
-  }
-}
