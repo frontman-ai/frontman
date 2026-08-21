@@ -270,10 +270,10 @@ describe("Client State Reducer", () => {
     t->expect(state.selectedAgentId)->Expect.toEqual(Some("planner-id"))
   })
 
-  test("AddUserMessage creates task and sends without optimistic message", t => {
+  test("AddUserMessage creates task and renders the message optimistically", t => {
     let state = Reducer.defaultState
     let action = Reducer.AddUserMessage({
-      id: "user-1",
+      id: "optimistic-1",
       sessionId: "session-1",
       content: [UserContentPart.text("Hello")],
       annotations: [],
@@ -286,12 +286,104 @@ describe("Client State Reducer", () => {
     t->expect(TestHelpers.getCurrentTaskId(nextState)->Option.isSome)->Expect.toBe(true)
 
     let messages = Reducer.Selectors.messages(nextState)
-    t->expect(messages->Array.length)->Expect.toBe(0)
+    t->expect(messages->Array.length)->Expect.toBe(1)
+    switch messages->Array.getUnsafe(0) {
+    | Reducer.Message.User({id, agentId, _}) =>
+      t->expect(id)->Expect.toBe("optimistic-1")
+      t->expect(agentId)->Expect.toBe("executor-id")
+    | _ => JsExn.throw("Expected optimistic User message")
+    }
 
     switch effects->Array.get(0) {
     | Some(Reducer.TaskEffect({effect: SendMessage({agentId})})) =>
       t->expect(agentId)->Expect.toBe("executor-id")
     | _ => JsExn.throw("Expected SendMessage effect")
+    }
+  })
+
+  test("server echo replaces the optimistic message instead of duplicating it", t => {
+    let (state, _) = Reducer.next(
+      Reducer.defaultState,
+      Reducer.AddUserMessage({
+        id: "optimistic-local-1",
+        sessionId: "session-1",
+        content: [UserContentPart.text("Hello")],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+
+    let nextState = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~id="server-row-1",
+      ~content=[UserContentPart.text("Hello")],
+    )
+
+    let messages = Reducer.Selectors.messages(nextState)
+    t->expect(messages->Array.length)->Expect.toBe(1)
+    t->expect(Reducer.Selectors.queuedUserMessages(nextState)->Array.length)->Expect.toBe(0)
+
+    switch messages->Array.getUnsafe(0) {
+    | Reducer.Message.User({id, content, _}) =>
+      t->expect(id)->Expect.toBe("server-row-1")
+      t->expect(content->Array.length)->Expect.toBe(1)
+    | _ => JsExn.throw("Expected User message")
+    }
+  })
+
+  test("AddUserMessage during a running turn queues optimistically and reconciles", t => {
+    let (state, _) = Reducer.next(
+      Reducer.defaultState,
+      Reducer.AddUserMessage({
+        id: "optimistic-local-1",
+        sessionId: "session-1",
+        content: [UserContentPart.text("First")],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let state = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~id="server-row-1",
+      ~content=[UserContentPart.text("First")],
+    )
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
+    )
+
+    let (state, _) = Reducer.next(
+      state,
+      Reducer.AddUserMessage({
+        id: "optimistic-local-2",
+        sessionId: taskId,
+        content: [UserContentPart.text("Second")],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+
+    let queued = Reducer.Selectors.queuedUserMessages(state)
+    t->expect(queued->Array.length)->Expect.toBe(1)
+
+    let state = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~id="server-row-2",
+      ~content=[UserContentPart.text("Second")],
+    )
+
+    let queued = Reducer.Selectors.queuedUserMessages(state)
+    t->expect(queued->Array.length)->Expect.toBe(1)
+    switch queued->Array.getUnsafe(0) {
+    | Reducer.Message.User({id, content, _}) =>
+      t->expect(id)->Expect.toBe("server-row-2")
+      t->expect(content->Array.length)->Expect.toBe(1)
+    | _ => JsExn.throw("Expected User message")
     }
   })
 
@@ -301,7 +393,7 @@ describe("Client State Reducer", () => {
     let (state, _) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: "optimistic-1",
         sessionId: "session-1",
         content: [UserContentPart.text("Hi")],
         annotations: [],
@@ -682,7 +774,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let (state1, _effects1) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: "optimistic-1",
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
         annotations: [],
@@ -716,7 +808,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let (state1, effects1) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: "optimistic-1",
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
         annotations: [],
@@ -873,7 +965,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     t->expect(newTaskId)->Expect.not->Expect.toBe("task-1")
 
     let messages = Reducer.Selectors.messages(stateAfterMsg)
-    t->expect(messages->Array.length)->Expect.toBe(0)
+    t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch effects->Array.get(0) {
     | Some(Reducer.TaskEffect({target: ForTask(effectTaskId), effect: SendMessage(_)})) =>
@@ -897,7 +989,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let (state1, effects1) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: "optimistic-1",
         sessionId: "session",
         content: [UserContentPart.Text({text: "Message in task 1"})],
         annotations: [],
@@ -1125,7 +1217,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: "optimistic-1",
         sessionId: "session-1",
         content: [UserContentPart.text("Fix this")],
         annotations: _sampleAnnotations,
@@ -1141,7 +1233,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ~annotations=_sampleAnnotations,
     )
 
-    let messages = Reducer.Selectors.queuedUserMessages(nextState)
+    let messages = Reducer.Selectors.messages(nextState)
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch messages->Array.get(0)->Option.getOrThrow {
@@ -1162,7 +1254,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: "optimistic-1",
         sessionId: "session-1",
         content: [],
         annotations: _sampleAnnotations,
@@ -1178,7 +1270,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ~annotations=_sampleAnnotations,
     )
 
-    let messages = Reducer.Selectors.queuedUserMessages(nextState)
+    let messages = Reducer.Selectors.messages(nextState)
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch messages->Array.get(0)->Option.getOrThrow {
@@ -1194,7 +1286,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: "optimistic-1",
         sessionId: "session-1",
         content: [UserContentPart.text("Hello")],
         annotations: [],
@@ -1205,7 +1297,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
     let nextState = TestHelpers.acceptUserMessage(state, ~taskId)
 
-    let messages = Reducer.Selectors.queuedUserMessages(nextState)
+    let messages = Reducer.Selectors.messages(nextState)
     switch messages->Array.get(0)->Option.getOrThrow {
     | Reducer.Message.User({annotations, _}) => t->expect(annotations->Array.length)->Expect.toBe(0)
     | _ => JsExn.throw("Expected User message")
@@ -1215,7 +1307,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
   test("SendMessage effect carries annotations from AddUserMessage", t => {
     let state = Reducer.defaultState
     let action = Reducer.AddUserMessage({
-      id: "user-1",
+      id: "optimistic-1",
       sessionId: "session-1",
       content: [UserContentPart.text("Fix this")],
       annotations: _sampleAnnotations,
@@ -1258,7 +1350,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, effects) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: "optimistic-1",
         sessionId: "session-1",
         content: [UserContentPart.text("Fix this")],
         annotations: [],

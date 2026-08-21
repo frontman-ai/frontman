@@ -66,6 +66,27 @@ module Lens = {
     updateMessages(task, store => MessageStore.insert(store, message))
   }
 
+  /** Client-generated user messages are inserted optimistically and later replaced
+      by the server echo, which carries a different id. Returns `None` when the
+      array holds no optimistic message. */
+  let swapFirstOptimistic = (messages: array<Message.t>, replacement: Message.t): option<
+    array<Message.t>,
+  > => {
+    let isOptimistic = message => Message.getId(message)->String.startsWith("optimistic-")
+    switch messages->Array.findIndex(isOptimistic) {
+    | -1 => None
+    | index =>
+      Some(
+        messages->Array.mapWithIndex((message, i) =>
+          switch i == index {
+          | true => replacement
+          | false => message
+          }
+        ),
+      )
+    }
+  }
+
   let drainQueuedUserMessages = (task: Task.t): Task.t =>
     switch task {
     | Task.Loaded({queuedUserMessages: []}) => task
@@ -886,17 +907,24 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         (Lens.updateMessage(task, id, _ => updated), [])
       | None =>
         let userMessage = Message.User({id, content, annotations, agentId})
-        (
-          Task.Loaded({
-            ...data,
-            queuedUserMessages: Array.concat(data.queuedUserMessages, [userMessage]),
-          }),
-          [],
-        )
+        switch data.queuedUserMessages->Lens.swapFirstOptimistic(userMessage) {
+        | Some(queuedUserMessages) => (Task.Loaded({...data, queuedUserMessages}), [])
+        | None =>
+          switch Task.getMessages(task)->Lens.swapFirstOptimistic(userMessage) {
+          | Some(messages) => (Lens.updateMessages(task, _ => MessageStore.fromArray(messages)), [])
+          | None => (
+              Task.Loaded({
+                ...data,
+                queuedUserMessages: Array.concat(data.queuedUserMessages, [userMessage]),
+              }),
+              [],
+            )
+          }
+        }
       }
     }
 
-  | (Task.Loaded(data), AddUserMessage({id: _, content, annotations, agentId})) =>
+  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
 
@@ -906,18 +934,28 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       updatedImageAttachments->Dict.set(uri, att)
     })
 
-    (
-      Task.Loaded({
-        ...data,
-        turnError: None,
-        retryStatus: None,
-        imageAttachments: updatedImageAttachments,
-        annotations: [],
-        annotationMode: Annotation.Off,
-        activePopupAnnotationId: None,
-      }),
-      [SendMessage({text, attachments, annotations, agentId})],
-    )
+    let optimisticMessage = Message.User({id, content, annotations, agentId})
+
+    let sent = Task.Loaded({
+      ...data,
+      turnError: None,
+      retryStatus: None,
+      imageAttachments: updatedImageAttachments,
+      annotations: [],
+      annotationMode: Annotation.Off,
+      activePopupAnnotationId: None,
+    })
+
+    let withOptimisticMessage = switch data.isAgentRunning {
+    | true =>
+      sent->Task.updateLoadedData(d => {
+        ...d,
+        queuedUserMessages: Array.concat(d.queuedUserMessages, [optimisticMessage]),
+      })
+    | false => sent->Lens.completeStreamingMessage->Lens.insertMessage(optimisticMessage)
+    }
+
+    (withOptimisticMessage, [SendMessage({text, attachments, annotations, agentId})])
 
   | (Task.Loaded(data), PlanReceived({entries})) => (
       Task.Loaded({...data, planEntries: entries}),
