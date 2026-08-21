@@ -90,6 +90,40 @@ describe("Task - Protocol Message Identity", () => {
     }
   })
 
+  test("staging a queued user message preserves the active assistant stream", t => {
+    let task = _startAgent()
+    let task = TaskReducer.next(
+      task,
+      TextDeltaReceived({
+        messageId: "assistant-1",
+        text: "Hello",
+        agentId: "executor-id",
+      }),
+    )->Pair.first
+    let task = TaskReducer.next(
+      task,
+      StageUserMessage({
+        id: "user-2",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Next prompt"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )->Pair.first
+    let task = TaskReducer.next(
+      task,
+      TextDeltaReceived({
+        messageId: "assistant-1",
+        text: " world",
+        agentId: "executor-id",
+      }),
+    )->Pair.first
+
+    switch TaskReducer.Selectors.streamingMessage(task) {
+    | Some(Message.Streaming({textBuffer: "Hello world"})) => ()
+    | _ => t->expect("active stream")->Expect.toBe("missing")
+    }
+  })
+
   test("ExecutionStateIdle converts streaming to completed", t => {
     let task = _startAgent()
     let (task2, _) = TaskReducer.next(

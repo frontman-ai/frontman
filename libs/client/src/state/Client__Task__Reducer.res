@@ -828,7 +828,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   | (Task.Loaded(_), StageUserMessage({id, content, annotations, agentId})) =>
     let userMessage = Message.User({id, content, annotations, agentId})
-    (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
+    (task->Lens.insertMessage(userMessage), [])
 
   | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
     let text = extractTextFromUserContent(content)

@@ -21,6 +21,7 @@ let effectKinds = effects =>
     | Reducer.LoadTaskEffect(_) => #loadTask
     | Reducer.DeleteSessionEffect(_) => #deleteSession
     | Reducer.NotifyDeleteSessionRejected(_) => #deleteRejected
+    | Reducer.NotifyCreateSessionRejected(_) => #createRejected
     | Reducer.CleanupSessionEffect(_) => #cleanupSession
     }
   )
@@ -507,6 +508,29 @@ describe("Connection Reducer", () => {
           t->expect(request.sessionId)->Expect.toBe("sess-1")
         | _ => t->expect(effectKinds(effects))->Expect.toEqual([#createSession])
         }
+      },
+    )
+
+    test(
+      "rejected CreateSession emits completion notification",
+      t => {
+        let completion = ref(None)
+        let request: Reducer.createSessionRequest = {
+          sessionId: "sess-2",
+          onUpdate: (_, _) => (),
+          onTitleUpdated: (_, _) => (),
+          onMcpMessage: (_, _) => (),
+          onComplete: result => completion := Some(result),
+        }
+        let state = {...Reducer.initialState, session: SessionCreating("sess-1")}
+        let (_, effects) = Reducer.reduce(state, CreateSession(request))
+
+        t->expect(effectKinds(effects))->Expect.toEqual([#createRejected, #logError])
+        switch effects {
+        | [notification, _] => Reducer.handleEffect(notification, state, _ => ())
+        | _ => ()
+        }
+        t->expect(completion.contents)->Expect.toEqual(Some(Error("Session is not ready")))
       },
     )
   })

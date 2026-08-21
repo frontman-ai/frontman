@@ -155,6 +155,7 @@ type effect =
       onComplete: result<unit, string> => unit,
     })
   | NotifyDeleteSessionRejected({onComplete: result<unit, string> => unit, reason: string})
+  | NotifyCreateSessionRejected({onComplete: result<string, string> => unit, reason: string})
   | CleanupSessionEffect({session: ACP.session})
 
 let initialState: state = {
@@ -473,7 +474,13 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
   | (_, ClearSession) => ({...state, session: NoSession}, [])
 
-  | (_, CreateSession(_)) => (state, [LogError("Cannot create session: not ready")])
+  | (_, CreateSession({onComplete, _})) => (
+      state,
+      [
+        NotifyCreateSessionRejected({onComplete, reason: "Session is not ready"}),
+        LogError("Cannot create session: not ready"),
+      ],
+    )
 
   | (_, Initialize(_)) => (state, [LogInfo("Initialize ignored: already initialized")])
 
@@ -566,6 +573,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LogInfo(msg) => Log.info(msg)
   | TrackRelay(outcome) => Client__Heap.trackRelayConnection(outcome)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
+  | NotifyCreateSessionRejected({onComplete, reason}) => onComplete(Error(reason))
   | ConnectACP({config, signal}) =>
     let connect = async () => {
       let result = await ACP.connect(config, ~signal)
