@@ -1,26 +1,15 @@
-/**
- * UpdateBanner - Shows a persistent, dismissible banner when a newer
- * integration package version is available on npm.
- *
- * Reads the relay's serverInfo for the installed version, maps the
- * framework to the npm package name, and fetches latest versions from
- * the Phoenix server endpoint.  The "Update" button sends a prompt
- * to the LLM asking it to perform the upgrade.
- */
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module RuntimeConfig = Client__RuntimeConfig
 
 @react.component
-let make = () => {
+let make = (~onSubmit: string => unit) => {
   let updateInfo = Client__State.useSelector(Client__State.Selectors.updateInfo)
   let updateCheckStatus = Client__State.useSelector(Client__State.Selectors.updateCheckStatus)
   let updateBannerDismissed = Client__State.useSelector(
     Client__State.Selectors.updateBannerDismissed,
   )
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
-  let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
-  let currentTaskClientId = Client__State.useSelector(Client__State.Selectors.currentTaskClientId)
-  let {relay, session, createSession} = Client__FrontmanProvider.useFrontman()
+  let {relay} = Client__FrontmanProvider.useFrontman()
 
   React.useEffect3(() => {
     switch (updateCheckStatus, relay, hasActiveACPSession) {
@@ -43,7 +32,6 @@ let make = () => {
   let handleUpdateClick = () => {
     switch updateInfo {
     | Some({npmPackage, latestVersion, installedVersion}) =>
-      let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
       let runtimeConfig = RuntimeConfig.read()
       let projectRootHint = switch runtimeConfig.projectRoot {
       | Some(root) => ` The project root is ${root}.`
@@ -55,27 +43,8 @@ let make = () => {
         ` Find which package.json contains ${npmPackage} as a dependency,` ++
         ` detect the package manager from the lock file` ++
         ` (yarn.lock, package-lock.json, pnpm-lock.yaml, or bun.lock),` ++ ` and run the appropriate update command from that package's directory.`
-      let content = [Client__State.UserContentPart.Text({text: text})]
-      let id = WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
-      let taskId = currentTaskClientId
-      Client__State.Actions.stageUserMessage(~id, ~content, ~agentId)
-      let sendMessage = (sessionId: string) => {
-        Client__State.Actions.addUserMessage(~id, ~sessionId, ~content, ~agentId)
-      }
-      switch session {
-      | Some(sess) =>
-        sendMessage(sess.sessionId)
-        Client__State.Actions.dismissUpdateBanner()
-      | None =>
-        createSession(~sessionId=taskId, ~onComplete=result => {
-          switch result {
-          | Ok(sessionId) =>
-            sendMessage(sessionId)
-            Client__State.Actions.dismissUpdateBanner()
-          | Error(error) => Client__State.Actions.userMessageSendFailed(~taskId, ~id, ~error)
-          }
-        })
-      }
+      onSubmit(text)
+      Client__State.Actions.dismissUpdateBanner()
     | None => ()
     }
   }

@@ -136,6 +136,12 @@ module Selectors = {
     }
   }
 
+  let queuedUserMessages = (task: Task.t): option<array<Message.t>> =>
+    switch task {
+    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
+    | Task.Loaded({queuedUserMessages}) => Some(queuedUserMessages)
+    }
+
   let isStreaming = (task: Task.t): option<bool> => {
     messages(task)->Option.map(msgs =>
       msgs->Array.some(msg => {
@@ -809,64 +815,109 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loading(_) | Task.Loaded(_), UserMessageReceived({id, content, annotations, agentId})) =>
-    switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
-    | Some(Message.User({agentId: existingAgentId})) => {
-        requireSameAgent(
-          ~existingAgentId,
-          ~agentId,
-          ~message=`[TaskReducer] Agent changed within message ${id}`,
-        )
-        let canonical = Message.User({id, content, annotations, agentId})
-        (Lens.updateMessage(task, id, _ => canonical), [])
+  | (Task.Loading(_), UserMessageReceived({id, content, annotations, agentId})) => {
+      let canonical = Message.User({id, content, annotations, agentId})
+      switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
+      | Some(Message.User({agentId: existingAgentId})) => {
+          requireSameAgent(
+            ~existingAgentId,
+            ~agentId,
+            ~message=`[TaskReducer] Agent changed within message ${id}`,
+          )
+          (Lens.updateMessage(task, id, _ => canonical), [])
+        }
+      | Some(_) => failwith(`[TaskReducer] Message ${id} changed roles`)
+      | None => (task->Lens.completeStreamingMessage->Lens.insertMessage(canonical), [])
       }
-    | Some(_) => failwith(`[TaskReducer] Message ${id} changed roles`)
-    | None =>
-      let userMessage = Message.User({id, content, annotations, agentId})
-      (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
     }
 
-  | (Task.Loaded(_), StageUserMessage({id, content, annotations, agentId})) =>
-    let userMessage = Message.User({id, content, annotations, agentId})
-    (task->Lens.insertMessage(userMessage), [])
+  | (Task.Loaded(data), UserMessageReceived({id, content, annotations, agentId})) => {
+      let canonical = Message.User({id, content, annotations, agentId})
+      switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
+      | index if index >= 0 =>
+        switch data.queuedUserMessages->Array.getUnsafe(index) {
+        | Message.User({agentId: existingAgentId}) => {
+            requireSameAgent(
+              ~existingAgentId,
+              ~agentId,
+              ~message=`[TaskReducer] Agent changed within message ${id}`,
+            )
+            (
+              Task.Loaded({
+                ...data,
+                messages: MessageStore.insert(data.messages, canonical),
+                queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
+                  Message.getId(message) != id
+                ),
+              }),
+              [],
+            )
+          }
+        | _ => failwith(`[TaskReducer] Message ${id} changed roles`)
+        }
+      | _ =>
+        switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
+        | Some(Message.User({agentId: existingAgentId})) => {
+            requireSameAgent(
+              ~existingAgentId,
+              ~agentId,
+              ~message=`[TaskReducer] Agent changed within message ${id}`,
+            )
+            (Lens.updateMessage(task, id, _ => canonical), [])
+          }
+        | Some(_) => failwith(`[TaskReducer] Message ${id} changed roles`)
+        | None => (task->Lens.completeStreamingMessage->Lens.insertMessage(canonical), [])
+        }
+      }
+    }
 
-  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
-    let text = extractTextFromUserContent(content)
-    let attachments = extractAttachmentsFromUserContent(content)
-
-    let updatedImageAttachments = data.imageAttachments->Dict.copy
-    attachments->Array.forEach(att => {
-      let uri = `attachment://${att.id}/${att.filename}`
-      updatedImageAttachments->Dict.set(uri, att)
-    })
-
-    (
+  | (Task.Loaded(data), StageUserMessage({id, content, annotations, agentId})) => (
       Task.Loaded({
         ...data,
-        turnError: None,
-        retryStatus: None,
-        imageAttachments: updatedImageAttachments,
-        annotations: [],
-        annotationMode: Annotation.Off,
-        activePopupAnnotationId: None,
+        queuedUserMessages: Array.concat(
+          data.queuedUserMessages,
+          [Message.User({id, content, annotations, agentId})],
+        ),
       }),
-      [SendMessage({id, text, attachments, annotations, agentId})],
+      [],
     )
+
+  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) => {
+      let text = extractTextFromUserContent(content)
+      let attachments = extractAttachmentsFromUserContent(content)
+      let imageAttachments = data.imageAttachments->Dict.copy
+      attachments->Array.forEach(att =>
+        imageAttachments->Dict.set(`attachment://${att.id}/${att.filename}`, att)
+      )
+      (
+        Task.Loaded({
+          ...data,
+          turnError: None,
+          retryStatus: None,
+          imageAttachments,
+          annotations: [],
+          annotationMode: Annotation.Off,
+          activePopupAnnotationId: None,
+        }),
+        [SendMessage({id, text, attachments, annotations, agentId})],
+      )
+    }
 
   | (Task.Loaded(data), PlanReceived({entries})) => (
       Task.Loaded({...data, planEntries: entries}),
       [],
     )
 
-  | (Task.Loaded(data), ExecutionStateRunning) =>
-    let task = Task.Loaded({
-      ...data,
-      isAgentRunning: true,
-      lastTurnCancelled: false,
-      turnError: None,
-      retryStatus: None,
-    })
-    (task, [])
+  | (Task.Loaded(data), ExecutionStateRunning) => {
+      let task = Task.Loaded({
+        ...data,
+        isAgentRunning: true,
+        lastTurnCancelled: false,
+        turnError: None,
+        retryStatus: None,
+      })
+      (task, [])
+    }
 
   | (Task.Loaded(_data), ExecutionStateIdle) =>
     let completed = task->Lens.completeStreamingMessage
@@ -937,11 +988,23 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loaded(_), UserMessageSendFailed({id, error})) =>
+  | (Task.Loaded(data), UserMessageSendFailed({id, error})) =>
     let errorMsg = Message.Error(
       Message.ErrorMessage.make(~id=`${id}-send-failed`, ~error, ~category=#unknown),
     )
-    (task->Lens.insertMessage(errorMsg), [])
+    switch data.queuedUserMessages->Array.find(message => Message.getId(message) == id) {
+    | Some(message) => (
+        Task.Loaded({
+          ...data,
+          messages: data.messages->MessageStore.insert(message)->MessageStore.insert(errorMsg),
+          queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
+            Message.getId(message) != id
+          ),
+        }),
+        [],
+      )
+    | None => (task->Lens.insertMessage(errorMsg), [])
+    }
 
   | (Task.Loading(_), AgentError({id, error, category})) =>
     let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
@@ -1023,6 +1086,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           createdAt,
           updatedAt,
           messages,
+          queuedUserMessages: [],
           previewFrame,
           annotationMode,
           annotations,
@@ -1046,9 +1110,10 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       failwith("[TaskReducer] LoadComplete: unexpected task state after completeStreamingMessage")
     }
 
-  | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) =>
-    Log.error(~ctx={"error": error}, "Task load failed")
-    (Task.Unloaded({id, title, createdAt, updatedAt}), [])
+  | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) => {
+      Log.error(~ctx={"error": error}, "Task load failed")
+      (Task.Unloaded({id, title, createdAt, updatedAt}), [])
+    }
 
   | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
       Task.Loaded({

@@ -313,6 +313,9 @@ module Selectors = {
   let completedFileChanges = (state: state): Client__FileChanges.snapshot =>
     TaskReducer.Selectors.completedFileChanges(currentTask(state))
 
+  let queuedUserMessages = (state: state): array<Message.t> =>
+    TaskReducer.Selectors.queuedUserMessages(currentTask(state))->Option.getOr([])
+
   let turnError = (state: state): option<Task.turnErrorInfo> => {
     TaskReducer.Selectors.turnError(currentTask(state))
   }
@@ -1054,36 +1057,39 @@ let next = (state: state, action) => {
     }
 
   | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
-      let textContent = TaskReducer.extractTextFromUserContent(content)
-
-      switch state.currentTask {
+      let (targetState, pendingPlanHandoff) = switch state.currentTask {
       | Task.New(newTask) =>
-        let loadedTask = Task.newToLoaded(newTask, ~id=sessionId, ~title=textContent)
-        let updatedTasks = state.tasks->Dict.copy
-        updatedTasks->Dict.set(sessionId, loadedTask)
-        let promotedState = {
-          ...state,
-          tasks: updatedTasks,
-          currentTask: Task.Selected(sessionId),
+        switch state.tasks->Dict.has(sessionId) {
+        | true => (state, None)
+        | false =>
+          let loadedTask = Task.newToLoaded(
+            newTask,
+            ~id=sessionId,
+            ~title=TaskReducer.extractTextFromUserContent(content),
+          )
+          let updatedTasks = state.tasks->Dict.copy
+          updatedTasks->Dict.set(sessionId, loadedTask)
+          ({...state, tasks: updatedTasks, currentTask: Task.Selected(sessionId)}, None)
         }
-        promotedState->Lens.delegateToTask(
+      | Task.Selected(taskId) => (
+          state,
+          switch taskId == sessionId {
+          | true => Selectors.pendingPlanHandoff(state)
+          | false => None
+          },
+        )
+      }
+      let (updatedState, sendEffects) =
+        targetState->Lens.delegateToTask(
           ForTask(sessionId),
           TaskReducer.AddUserMessage({id, content, annotations, agentId}),
         )
-      | Task.Selected(taskId) =>
-        let pendingPlanHandoff = Selectors.pendingPlanHandoff(state)
-        let (updatedState, sendEffects) =
-          state->Lens.delegateToTask(
-            ForTask(taskId),
-            TaskReducer.AddUserMessage({id, content, annotations, agentId}),
-          )
-        switch pendingPlanHandoff {
-        | Some(_) =>
-          let (runningState, runningEffects) =
-            updatedState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
-          runningState->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
-        | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
-        }
+      switch pendingPlanHandoff {
+      | Some(_) =>
+        let (runningState, runningEffects) =
+          updatedState->Lens.delegateToTask(ForTask(sessionId), TaskReducer.ExecutionStateRunning)
+        runningState->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
+      | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
       }
     }
 
@@ -1096,11 +1102,21 @@ let next = (state: state, action) => {
   | ExecutePendingPlan({id}) =>
     switch Selectors.pendingPlanHandoff(state) {
     | Some({taskId, executorAgentId}) =>
-      let (messageState, sendEffects) = state->Lens.delegateToTask(
+      let content = [UserContentPart.Text({text: executePlanPrompt})]
+      let (stagedState, _) = state->Lens.delegateToTask(
+        ForTask(taskId),
+        TaskReducer.StageUserMessage({
+          id,
+          content,
+          annotations: [],
+          agentId: executorAgentId,
+        }),
+      )
+      let (messageState, sendEffects) = stagedState->Lens.delegateToTask(
         ForTask(taskId),
         TaskReducer.AddUserMessage({
           id,
-          content: [UserContentPart.Text({text: executePlanPrompt})],
+          content,
           annotations: [],
           agentId: executorAgentId,
         }),

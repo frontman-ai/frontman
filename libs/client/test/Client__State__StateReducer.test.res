@@ -166,6 +166,10 @@ describe("Client State Reducer - Plan Handoff", () => {
 
     t->expect(executing.selectedAgentId)->Expect.toEqual(Some(executor.id))
     t->expect(Reducer.Selectors.isAgentRunning(executing))->Expect.toBe(true)
+    switch Reducer.Selectors.queuedUserMessages(executing) {
+    | [User({id: "user-execute-plan", agentId: "executor-id", _})] => ()
+    | _ => t->expect("execute-plan prompt queued")->Expect.toBe("missing")
+    }
 
     switch effects->Array.get(0) {
     | Some(Reducer.TaskEffect({
@@ -281,7 +285,7 @@ describe("Client State Reducer", () => {
     t->expect(state.selectedAgentId)->Expect.toEqual(Some("planner-id"))
   })
 
-  test("StageUserMessage promotes the task and inserts the message without effects", t => {
+  test("StageUserMessage promotes the task and queues the message without effects", t => {
     let state = Reducer.defaultState
     let taskClientId = Reducer.Selectors.currentTaskClientId(state)
     let (nextState, effects) = Reducer.next(
@@ -298,7 +302,8 @@ describe("Client State Reducer", () => {
     t->expect(TestHelpers.getCurrentTaskId(nextState))->Expect.toEqual(Some(taskClientId))
 
     t->expect(effects)->Expect.toEqual([])
-    t->expect(Reducer.Selectors.messages(nextState)->Array.length)->Expect.toBe(1)
+    t->expect(Reducer.Selectors.messages(nextState))->Expect.toEqual([])
+    t->expect(Reducer.Selectors.queuedUserMessages(nextState)->Array.length)->Expect.toBe(1)
   })
 
   test("server echo replaces staged content by exact message ID", _t => {
@@ -316,6 +321,7 @@ describe("Client State Reducer", () => {
     | [User({id: "user-1", content: [Text({text: "Canonical"})]})] => ()
     | _ => JsExn.throw("Expected one canonical user message")
     }
+    _t->expect(Reducer.Selectors.queuedUserMessages(state))->Expect.toEqual([])
   })
 
   test("definitive send failure keeps attempted message and appends an error", t => {
@@ -342,6 +348,18 @@ describe("Client State Reducer", () => {
     let state = TestHelpers.stageUserMessage(Reducer.defaultState, ~id="user-1", ~text="Hi")
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     let state = TestHelpers.stageUserMessage(state, ~id="user-2", ~text="Next")
+    let state = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~id="user-1",
+      ~content=[UserContentPart.text("Hi")],
+    )
+    let state = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~id="user-2",
+      ~content=[UserContentPart.text("Next")],
+    )
 
     let (state, _) = Reducer.next(
       state,
@@ -372,6 +390,59 @@ describe("Client State Reducer", () => {
     switch (msg0, msg1, msg2) {
     | (User({id: "user-1"}), User({id: "user-2"}), Assistant(_)) => ()
     | _ => JsExn.throw("Expected staged messages before assistant output")
+    }
+  })
+
+  test("delayed send remains bound to the task where the message was staged", t => {
+    let taskA = TestHelpers.makeLoadedTask(
+      ~id="task-a",
+      ~title="Task A",
+      ~previewUrl="http://localhost:3000",
+      ~createdAt=1000.0,
+    )
+    let taskB = TestHelpers.makeLoadedTask(
+      ~id="task-b",
+      ~title="Task B",
+      ~previewUrl="http://localhost:3000",
+      ~createdAt=2000.0,
+    )
+    let tasks = Dict.make()
+    tasks->Dict.set("task-a", taskA)
+    tasks->Dict.set("task-b", taskB)
+    let state = {
+      ...TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-a")),
+      acpSession: TestHelpers.activeAcpSession,
+    }
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask("task-a"),
+        action: StageUserMessage({
+          id: "user-a",
+          content: [UserContentPart.text("Message for A")],
+          annotations: [],
+          agentId: "executor-id",
+        }),
+      }),
+    )
+    let (state, _) = Reducer.next(state, SwitchTask({taskId: "task-b"}))
+    let (_, effects) = Reducer.next(
+      state,
+      AddUserMessage({
+        id: "user-a",
+        sessionId: "task-a",
+        content: [UserContentPart.text("Message for A")],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+
+    switch effects {
+    | [TaskEffect({target: ForTask("task-a"), effect: SendMessage({id: "user-a", _})})] => ()
+    | _ =>
+      t
+      ->expect("send effect for the task where the message was staged")
+      ->Expect.toBe("missing")
     }
   })
 
@@ -853,6 +924,50 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 
+  test("delayed send after ClearCurrentTask preserves its task and blank draft", t => {
+    let state = TestHelpers.makeStateWithTask(
+      ~messages=[
+        Reducer.Message.User({
+          id: "user-1",
+          content: [UserContentPart.Text({text: "Original"})],
+          annotations: [],
+          agentId: "executor-id",
+        }),
+      ],
+    )
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (clearedState, _) = Reducer.next(state, ClearCurrentTask)
+    let (sentState, effects) = Reducer.next(
+      clearedState,
+      AddUserMessage({
+        id: "user-2",
+        sessionId: taskId,
+        content: [UserContentPart.text("Delayed")],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+
+    switch sentState.currentTask {
+    | Task.New(_) => ()
+    | _ => t->expect("blank draft remains selected")->Expect.toBe("missing")
+    }
+    t
+    ->expect(
+      sentState.tasks
+      ->Dict.get(taskId)
+      ->Option.map(Task.getMessages)
+      ->Option.getOr([])
+      ->Array.length,
+    )
+    ->Expect.toBe(1)
+    switch effects {
+    | [TaskEffect({target: ForTask(id), effect: SendMessage({id: "user-2", _})})]
+      if id == taskId => ()
+    | _ => t->expect("send effect for preserved task")->Expect.toBe("missing")
+    }
+  })
+
   test("DeleteTask switches to New when deleting only task", t => {
     let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
@@ -944,7 +1059,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       state,
       AddUserMessage({
         id: "user-1",
-        sessionId: "session",
+        sessionId: "task-1",
         content: [UserContentPart.Text({text: "Message in task 1"})],
         annotations: [],
         agentId: "executor-id",
@@ -955,7 +1070,7 @@ describe("Client State Reducer - Task Management Actions", () => {
       state1,
       AddUserMessage({
         id: "user-2",
-        sessionId: "session",
+        sessionId: "task-1",
         content: [UserContentPart.Text({text: "Second message"})],
         annotations: [],
         agentId: "executor-id",

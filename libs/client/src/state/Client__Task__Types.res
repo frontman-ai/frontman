@@ -60,6 +60,7 @@ module Task = {
         createdAt: float,
         updatedAt: float,
         messages: Client__MessageStore.t,
+        queuedUserMessages: array<Message.t>,
         previewFrame: previewFrame,
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
@@ -244,6 +245,7 @@ module Task = {
         createdAt: timestamp,
         updatedAt: timestamp,
         messages: Client__MessageStore.make(),
+        queuedUserMessages: [],
         previewFrame,
         annotationMode,
         annotations,
@@ -264,6 +266,7 @@ module Task = {
 
   type loadedData = {
     messages: array<Message.t>,
+    queuedUserMessages: array<Message.t>,
     annotationMode: Annotation.annotationMode,
     annotations: array<Annotation.t>,
     activePopupAnnotationId: option<string>,
@@ -294,6 +297,7 @@ module Task = {
         createdAt,
         updatedAt,
         messages,
+        queuedUserMessages,
         previewFrame,
         annotationMode,
         annotations,
@@ -309,6 +313,7 @@ module Task = {
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
+          queuedUserMessages,
           annotationMode,
           annotations,
           activePopupAnnotationId,
@@ -326,6 +331,7 @@ module Task = {
           createdAt,
           updatedAt,
           messages: Client__MessageStore.fromArray(updated.messages),
+          queuedUserMessages: updated.queuedUserMessages,
           previewFrame,
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
@@ -354,6 +360,7 @@ module Task = {
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
+          queuedUserMessages: [],
           annotationMode,
           annotations,
           activePopupAnnotationId,
@@ -380,6 +387,7 @@ module Task = {
     | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) => {
         let data = {
           messages: [],
+          queuedUserMessages: [],
           annotationMode,
           annotations,
           activePopupAnnotationId,

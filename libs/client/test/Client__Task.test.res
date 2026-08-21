@@ -30,20 +30,14 @@ module TestHelpers = {
     TaskReducer.next(unloaded, LoadStarted({previewUrl: "http://localhost:3000"}))->Pair.first
   }
 
-  let acceptUserMessage = (
-    task,
-    ~id="user-1",
-    ~text="Hello",
-    ~annotations=[],
-    ~agentId="executor-id",
-  ) => {
+  let acceptUserMessage = (task, ~id="user-1", ~text="Hello", ~annotations=[]) => {
     TaskReducer.next(
       task,
       UserMessageReceived({
         id,
         content: [Client__Task__Types.UserContentPart.Text({text: text})],
         annotations,
-        agentId,
+        agentId: "executor-id",
       }),
     )->Pair.first
   }
@@ -331,32 +325,78 @@ describe("Task - Agent Running State", () => {
     }
   })
 
-  test("accepted user messages stay in transcript when execution starts", t => {
+  test("server acknowledgement moves only its staged message into transcript", t => {
     let task = TestHelpers.makeLoadedTask()
+    let stage = (task, id: string, text: string) =>
+      TaskReducer.next(
+        task,
+        StageUserMessage({
+          id,
+          content: [Client__Task__Types.UserContentPart.text(text)],
+          annotations: [],
+          agentId: "executor-id",
+        }),
+      )->Pair.first
+    let task = task->stage("queued-1", "One")->stage("queued-2", "Two")
     let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="One")
-    let task = TestHelpers.acceptUserMessage(task, ~id="queued-2", ~text="Two")
-    let task = TestHelpers.acceptUserMessage(
+
+    switch TestHelpers.getMessages(task) {
+    | [Message.User({id: "queued-1", _})] => ()
+    | _ => t->expect("accepted message in transcript")->Expect.toBe("missing")
+    }
+    switch TaskReducer.Selectors.queuedUserMessages(task) {
+    | Some([Message.User({id: "queued-2", _})]) => ()
+    | _ => t->expect("other message remains queued")->Expect.toBe("missing")
+    }
+  })
+
+  test("server acknowledgement replaces staged content", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task, _) = TaskReducer.next(
       task,
-      ~id="queued-3",
-      ~text="Three",
-      ~agentId="planner-id",
+      StageUserMessage({
+        id: "queued-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Optimistic"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Canonical")
+
+    switch TestHelpers.getMessages(task) {
+    | [
+        Message.User({
+          id: "queued-1",
+          content: [Client__Task__Types.UserContentPart.Text({text: "Canonical"})],
+          _,
+        }),
+      ] => ()
+    | _ => t->expect("canonical transcript message")->Expect.toBe("missing")
+    }
+    t->expect(TaskReducer.Selectors.queuedUserMessages(task))->Expect.toEqual(Some([]))
+  })
+
+  test("failed staged message leaves queue and shows an error", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task, _) = TaskReducer.next(
+      task,
+      StageUserMessage({
+        id: "queued-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Will fail"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let (task, _) = TaskReducer.next(
+      task,
+      UserMessageSendFailed({id: "queued-1", error: "Connection failed"}),
     )
 
-    let (runningTask, _) = TaskReducer.next(task, ExecutionStateRunning)
-
-    let messages = TestHelpers.getMessages(runningTask)
-    t->expect(messages->Array.length)->Expect.toBe(3)
-    switch (messages->Array.get(0), messages->Array.get(1), messages->Array.get(2)) {
-    | (
-        Some(Message.User({id: firstId, _})),
-        Some(Message.User({id: secondId, _})),
-        Some(Message.User({id: thirdId, _})),
-      ) => {
-        t->expect(firstId)->Expect.toBe("queued-1")
-        t->expect(secondId)->Expect.toBe("queued-2")
-        t->expect(thirdId)->Expect.toBe("queued-3")
-      }
-    | _ => t->expect("Queued messages in order")->Expect.toBe("missing")
+    t->expect(TaskReducer.Selectors.queuedUserMessages(task))->Expect.toEqual(Some([]))
+    switch TestHelpers.getMessages(task) {
+    | [Message.User({id: "queued-1", _}), Message.Error(error)] =>
+      t->expect(Message.ErrorMessage.error(error))->Expect.toBe("Connection failed")
+    | _ => t->expect("local send error")->Expect.toBe("missing")
     }
   })
 

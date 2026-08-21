@@ -7,10 +7,10 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
-  let stageUserMessage = (~id, ~content, ~annotations=[], ~agentId) =>
+  let stageUserMessage = (~id, ~content, ~annotations, ~agentId) =>
     Client__State__Store.dispatch(StageUserMessage({id, content, annotations, agentId}))
 
-  let addUserMessage = (~id, ~sessionId, ~content, ~annotations=[], ~agentId) => {
+  let addUserMessage = (~id, ~sessionId, ~content, ~annotations, ~agentId) => {
     Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
   }
 

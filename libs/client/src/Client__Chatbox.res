@@ -1,17 +1,9 @@
-/**
- * Client__Chatbox - Main chat interface component
- *
- * Renders the conversation with Frontman-style UI components:
- * - User and assistant messages
- * - Tool call blocks with icons and status
- * - TODO list integration
- * - Thinking indicators
- */
 module Log = FrontmanLogs.Logs.Make({
   let component = #Chatbox
 })
 
 module Message = Client__State__Types.Message
+module Task = Client__State__Types.Task
 
 module UserMessage = Client__UserMessage
 module AssistantMessage = Client__AssistantMessage
@@ -40,15 +32,6 @@ type displayItem =
   | TodoToolCall(Message.toolCall)
   | ErrorMsg(Message.ErrorMessage.t)
 
-/**
- * Transform messages into display items, grouping consecutive tool calls
- *
- * Algorithm:
- * 1. Iterate through messages in order
- * 2. Collect consecutive tool calls
- * 3. Let the grouping utility handle them - it will group exploration tools
- * 4. Todo tools will be rendered as singles (they break groups naturally via breaksGrouping)
- */
 let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   let result: array<displayItem> = []
   let pendingToolCalls: ref<array<Message.toolCall>> = ref([])
@@ -111,6 +94,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
+  let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
@@ -118,6 +102,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let currentTaskClientId = Client__State.useSelector(Client__State.Selectors.currentTaskClientId)
+  let currentTask = Client__State.useSelector(Client__State.Selectors.currentTask)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
@@ -144,30 +129,64 @@ let make = (~onConfigureProvider: unit => unit) => {
   let hasAnnotations = Array.length(annotations) > 0
 
   let pendingSessionRef = React.useRef(None)
+  let sessionRef = React.useRef(session)
+  sessionRef.current = session
   let sendQueueRef = React.useRef(Promise.resolve())
 
-  React.useEffect1(() => {
-    session->Option.forEach(_ => pendingSessionRef.current = None)
+  React.useEffect2(() => {
+    switch (session, pendingSessionRef.current) {
+    | (Some(sess), Some((sessionId, _, resolve))) =>
+      switch sess.sessionId == sessionId {
+      | true =>
+        let state = Client__State__Store.store->StateStore.getState
+        switch state.tasks->Dict.get(sessionId) {
+        | Some(Task.Loaded(_)) =>
+          pendingSessionRef.current = None
+          resolve(Ok(sessionId))
+        | _ => ()
+        }
+      | false =>
+        pendingSessionRef.current = None
+        resolve(Error("Selected task session is not active"))
+      }
+    | (None, Some((sessionId, _, resolve))) =>
+      let state = Client__State__Store.store->StateStore.getState
+      switch state.tasks->Dict.get(sessionId) {
+      | Some(Task.Unloaded(_)) =>
+        pendingSessionRef.current = None
+        resolve(Error("Task session failed to load"))
+      | _ => ()
+      }
+    | _ => ()
+    }
     None
-  }, [session])
+  }, (session, currentTask))
 
   let withSession = sessionId => {
-    switch session {
-    | Some(sess) => Promise.resolve(Ok(sess.sessionId))
+    switch sessionRef.current {
+    | Some(sess) if sess.sessionId == sessionId => Promise.resolve(Ok(sess.sessionId))
+    | Some(_) => Promise.resolve(Error("Selected task session is not active"))
     | None =>
       switch pendingSessionRef.current {
-      | Some(promise) => promise
-      | None =>
-        let promise = Promise.make((resolve, _) =>
+      | Some((pendingSessionId, promise, _)) if pendingSessionId == sessionId => promise
+      | _ =>
+        let resolver = ref(None)
+        let promise = Promise.make((resolve, _) => resolver := Some(resolve))
+        let resolve = resolver.contents->Option.getOrThrow
+        pendingSessionRef.current = Some((sessionId, promise, resolve))
+        let state = Client__State__Store.store->StateStore.getState
+        switch state.tasks->Dict.get(sessionId) {
+        | Some(Task.Loading(_)) => ()
+        | _ =>
           createSession(~sessionId, ~onComplete=result => {
-            switch result {
-            | Error(_) => pendingSessionRef.current = None
-            | Ok(_) => ()
+            switch (result, pendingSessionRef.current) {
+            | (Error(_), Some((pendingSessionId, _, _))) if pendingSessionId == sessionId =>
+              pendingSessionRef.current = None
+            | _ => ()
             }
             resolve(result)
           })
-        )
-        pendingSessionRef.current = Some(promise)
+        }
         promise
       }
     }
@@ -179,12 +198,25 @@ let make = (~onConfigureProvider: unit => unit) => {
     ~content: array<Client__State.UserContentPart.t>,
     ~annotations: array<Client__Message.MessageAnnotation.t>,
     ~agentId: string,
+    ~stageOnReady: bool,
   ) => {
     withSession(taskId)->Promise.then(result => {
-      switch result {
-      | Ok(sessionId) =>
+      let state = Client__State__Store.store->StateStore.getState
+      let fail = error =>
+        switch state.tasks->Dict.get(taskId) {
+        | Some(Task.Loaded(_)) => Client__State.Actions.userMessageSendFailed(~taskId, ~id, ~error)
+        | _ => ()
+        }
+      let currentTaskId = Client__State.Selectors.currentTaskClientId(state)
+      switch (result, currentTaskId == taskId) {
+      | (Ok(sessionId), true) =>
+        switch stageOnReady {
+        | true => Client__State.Actions.stageUserMessage(~id, ~content, ~annotations, ~agentId)
+        | false => ()
+        }
         Client__State.Actions.addUserMessage(~id, ~sessionId, ~content, ~annotations, ~agentId)
-      | Error(error) => Client__State.Actions.userMessageSendFailed(~taskId, ~id, ~error)
+      | (Ok(_), false) => fail("Task changed before message could be sent")
+      | (Error(error), _) => fail(error)
       }
       Promise.resolve()
     })
@@ -199,18 +231,10 @@ let make = (~onConfigureProvider: unit => unit) => {
     let messageAnnotations =
       annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
 
-    let sendWithContent = content => {
-      switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
-      | false => Promise.resolve()
-      | true => sendUserMessage(~id, ~taskId, ~content, ~annotations=messageAnnotations, ~agentId)
-      }
-    }
-
     let textParts = switch text != "" {
     | true => [Client__State.UserContentPart.Text({text: text})]
     | false => []
     }
-
     let displayFileParts = inputItems->Array.map(item =>
       switch item {
       | Client__PromptInput.FileAttachment({id, name, mediaType, dataUrl}) =>
@@ -223,16 +247,32 @@ let make = (~onConfigureProvider: unit => unit) => {
       }
     )
     let displayContent = Array.concat(textParts, displayFileParts)
-
-    switch Array.length(displayContent) > 0 || Array.length(messageAnnotations) > 0 {
-    | true =>
+    let state = Client__State__Store.store->StateStore.getState
+    let stageOnReady = switch state.tasks->Dict.get(taskId) {
+    | Some(Task.Loading(_)) | Some(Task.Unloaded(_)) => true
+    | _ =>
       Client__State.Actions.stageUserMessage(
         ~id,
         ~content=displayContent,
         ~annotations=messageAnnotations,
         ~agentId,
       )
-    | false => ()
+      false
+    }
+
+    let sendWithContent = content => {
+      switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
+      | false => Promise.resolve()
+      | true =>
+        sendUserMessage(
+          ~id,
+          ~taskId,
+          ~content,
+          ~annotations=messageAnnotations,
+          ~agentId,
+          ~stageOnReady,
+        )
+      }
     }
 
     let prepareAndSend = () =>
@@ -412,6 +452,9 @@ let make = (~onConfigureProvider: unit => unit) => {
         <ErrorBanner
           error={Message.ErrorMessage.error(err)}
           category={Message.ErrorMessage.category(err)}
+          retryable={turnError->Option.mapOr(false, turnError =>
+            turnError.id == Message.ErrorMessage.id(err)
+          )}
           onConfigureProvider
           onRetry={switch currentTaskId {
           | Some(taskId) =>
@@ -425,7 +468,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   }
 
   <div className="relative flex flex-col h-full bg-[#130d20] text-zinc-200">
-    <Client__UpdateBanner />
+    <Client__UpdateBanner onSubmit={text => handleSubmit(~text, ~inputItems=[])} />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
         {switch hasActiveACPSession {
@@ -467,6 +510,7 @@ let make = (~onConfigureProvider: unit => unit) => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
+    <Client__QueuedMessagesDrawer messages=queuedUserMessages />
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {
