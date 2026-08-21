@@ -19,6 +19,7 @@ let make = () => {
   )
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
+  let currentTaskClientId = Client__State.useSelector(Client__State.Selectors.currentTaskClientId)
   let {relay, session, createSession} = Client__FrontmanProvider.useFrontman()
 
   React.useEffect3(() => {
@@ -55,20 +56,23 @@ let make = () => {
         ` detect the package manager from the lock file` ++
         ` (yarn.lock, package-lock.json, pnpm-lock.yaml, or bun.lock),` ++ ` and run the appropriate update command from that package's directory.`
       let content = [Client__State.UserContentPart.Text({text: text})]
+      let id = WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
+      let taskId = currentTaskClientId
+      Client__State.Actions.stageUserMessage(~id, ~content, ~agentId)
       let sendMessage = (sessionId: string) => {
-        Client__State.Actions.addUserMessage(~sessionId, ~content, ~agentId)
+        Client__State.Actions.addUserMessage(~id, ~sessionId, ~content, ~agentId)
       }
       switch session {
       | Some(sess) =>
         sendMessage(sess.sessionId)
         Client__State.Actions.dismissUpdateBanner()
       | None =>
-        createSession(~onComplete=result => {
+        createSession(~sessionId=taskId, ~onComplete=result => {
           switch result {
           | Ok(sessionId) =>
             sendMessage(sessionId)
             Client__State.Actions.dismissUpdateBanner()
-          | Error(_) => ()
+          | Error(error) => Client__State.Actions.userMessageSendFailed(~taskId, ~id, ~error)
           }
         })
       }

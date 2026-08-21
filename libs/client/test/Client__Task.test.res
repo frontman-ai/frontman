@@ -53,12 +53,6 @@ module TestHelpers = {
       ~message="Expected task to have messages (not Unloaded)",
     )
   }
-
-  let getQueuedUserMessages = (task: Task.t): array<Message.t> => {
-    TaskReducer.Selectors.queuedUserMessages(task)->Option.getOrThrow(
-      ~message="Expected loaded task with queued user messages",
-    )
-  }
 }
 
 describe("Task - Protocol Message Identity", () => {
@@ -303,7 +297,7 @@ describe("Task - Agent Running State", () => {
     }
   })
 
-  test("running drains only the queued same-agent prefix into transcript", t => {
+  test("accepted user messages stay in transcript when execution starts", t => {
     let task = TestHelpers.makeLoadedTask()
     let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="One")
     let task = TestHelpers.acceptUserMessage(task, ~id="queued-2", ~text="Two")
@@ -316,23 +310,23 @@ describe("Task - Agent Running State", () => {
 
     let (runningTask, _) = TaskReducer.next(task, ExecutionStateRunning)
 
-    let queued = TestHelpers.getQueuedUserMessages(runningTask)
-    t->expect(queued->Array.length)->Expect.toBe(1)
-    switch queued->Array.get(0) {
-    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("queued-3")
-    | _ => t->expect("Planner message")->Expect.toBe("missing")
-    }
     let messages = TestHelpers.getMessages(runningTask)
-    t->expect(messages->Array.length)->Expect.toBe(2)
-    switch (messages->Array.get(0), messages->Array.get(1)) {
-    | (Some(Message.User({id: firstId, _})), Some(Message.User({id: secondId, _}))) =>
-      t->expect(firstId)->Expect.toBe("queued-1")
-      t->expect(secondId)->Expect.toBe("queued-2")
+    t->expect(messages->Array.length)->Expect.toBe(3)
+    switch (messages->Array.get(0), messages->Array.get(1), messages->Array.get(2)) {
+    | (
+        Some(Message.User({id: firstId, _})),
+        Some(Message.User({id: secondId, _})),
+        Some(Message.User({id: thirdId, _})),
+      ) => {
+        t->expect(firstId)->Expect.toBe("queued-1")
+        t->expect(secondId)->Expect.toBe("queued-2")
+        t->expect(thirdId)->Expect.toBe("queued-3")
+      }
     | _ => t->expect("Queued messages in order")->Expect.toBe("missing")
     }
   })
 
-  test("question submit leaves queued user messages queued", t => {
+  test("question submit leaves accepted user messages in transcript", t => {
     let task = TestHelpers.makeLoadedTask()
     let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Queued")
     let questions: array<Client__Question__Types.questionItem> = [
@@ -354,8 +348,7 @@ describe("Task - Agent Running State", () => {
 
     let (finalTask, _) = TaskReducer.next(taskWithAnswer, QuestionSubmitted)
 
-    t->expect(TestHelpers.getMessages(finalTask)->Array.length)->Expect.toBe(0)
-    t->expect(TestHelpers.getQueuedUserMessages(finalTask)->Array.length)->Expect.toBe(1)
+    t->expect(TestHelpers.getMessages(finalTask)->Array.length)->Expect.toBe(1)
   })
 })
 
@@ -888,7 +881,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       ~annotations=_sampleMessageAnnotations,
     )
 
-    let messages = TestHelpers.getQueuedUserMessages(task2)
+    let messages = TestHelpers.getMessages(task2)
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch messages->Array.get(0) {

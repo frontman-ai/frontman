@@ -68,10 +68,12 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @doc """
   Changesets for creating interaction rows from payload attrs.
   """
-  def create_changeset(task_id, type, attrs, turn_number)
+  def create_changeset(task_id, type, attrs, turn_number, interaction_id \\ nil)
       when is_binary(task_id) and is_atom(type) and is_map(attrs) and
-             (is_integer(turn_number) or is_nil(turn_number)) do
+             (is_integer(turn_number) or is_nil(turn_number)) and
+             (is_binary(interaction_id) or is_nil(interaction_id)) do
     %__MODULE__{
+      id: interaction_id,
       task_id: task_id,
       type: type,
       sequence: generate_sequence(),
@@ -155,6 +157,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     |> validate_required([:task_id, :type, :data, :sequence])
     |> validate_turn_number()
     |> foreign_key_constraint(:task_id)
+    |> unique_constraint(:id, name: :interactions_pkey)
     |> unique_constraint([:task_id, :data],
       name: @tool_result_unique_constraint,
       message: "duplicate tool result for this tool_call_id"

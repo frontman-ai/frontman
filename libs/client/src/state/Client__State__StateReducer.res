@@ -25,6 +25,12 @@ type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 
 type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
+  | StageUserMessage({
+      id: string,
+      content: array<UserContentPart.t>,
+      annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
+    })
   | AddUserMessage({
       id: string,
       sessionId: string,
@@ -307,10 +313,6 @@ module Selectors = {
   let completedFileChanges = (state: state): Client__FileChanges.snapshot =>
     TaskReducer.Selectors.completedFileChanges(currentTask(state))
 
-  let queuedUserMessages = (state: state): array<Message.t> => {
-    TaskReducer.Selectors.queuedUserMessages(currentTask(state))->Option.getOr([])
-  }
-
   let turnError = (state: state): option<Task.turnErrorInfo> => {
     TaskReducer.Selectors.turnError(currentTask(state))
   }
@@ -485,7 +487,8 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 
 let sendMessageToAPIImpl = (
   state: state,
-  _dispatch,
+  dispatch,
+  ~id,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
@@ -512,10 +515,29 @@ let sendMessageToAPIImpl = (
       metadata->Dict.set("model", JSON.Encode.string(modelValue))
     )
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
+    metadata->Dict.set("dev.frontman/messageId", JSON.Encode.string(id))
     let _meta = Some(JSON.Encode.object(metadata))
 
-    sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
-  | NoAcpSession => Log.error("Cannot send message: no active ACP session")
+    sendPrompt(
+      message,
+      ~additionalBlocks,
+      ~onComplete=result =>
+        switch result {
+        | Ok(_) => ()
+        | Error(error) =>
+          dispatch(
+            TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}),
+          )
+        },
+      ~_meta,
+    )
+  | NoAcpSession =>
+    dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: UserMessageSendFailed({id, error: "No active ACP session"}),
+      }),
+    )
   }
 }
 
@@ -634,7 +656,7 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({text, attachments, annotations, agentId}) =>
+        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
           let taskId = switch target {
           | ForTask(id) => id
           | CurrentTask =>
@@ -647,6 +669,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           sendMessageToAPIImpl(
             state,
             dispatch,
+            ~id,
             ~message=text,
             ~attachments,
             ~annotations,
@@ -1004,6 +1027,31 @@ let handleEffect = (effect, state: state, dispatch) => {
 let next = (state: state, action) => {
   switch action {
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
+
+  | StageUserMessage({id, content, annotations, agentId}) => {
+      let textContent = TaskReducer.extractTextFromUserContent(content)
+      switch state.currentTask {
+      | Task.New(newTask) => {
+          let taskId = Task.getClientId(newTask)
+          let loadedTask = Task.newToLoaded(newTask, ~id=taskId, ~title=textContent)
+          let updatedTasks = state.tasks->Dict.copy
+          updatedTasks->Dict.set(taskId, loadedTask)
+          {
+            ...state,
+            tasks: updatedTasks,
+            currentTask: Task.Selected(taskId),
+          }->Lens.delegateToTask(
+            ForTask(taskId),
+            TaskReducer.StageUserMessage({id, content, annotations, agentId}),
+          )
+        }
+      | Task.Selected(taskId) =>
+        state->Lens.delegateToTask(
+          ForTask(taskId),
+          TaskReducer.StageUserMessage({id, content, annotations, agentId}),
+        )
+      }
+    }
 
   | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
       let textContent = TaskReducer.extractTextFromUserContent(content)

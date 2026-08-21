@@ -67,7 +67,6 @@ module Task = {
         isAgentRunning: bool,
         lastTurnCancelled: bool,
         planEntries: array<ACPTypes.planEntry>,
-        queuedUserMessages: array<Message.t>,
         turnError: option<turnErrorInfo>,
         retryStatus: option<retryStatus>,
         imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
@@ -252,7 +251,6 @@ module Task = {
         isAgentRunning: false,
         lastTurnCancelled: false,
         planEntries: [],
-        queuedUserMessages: [],
         turnError: None,
         retryStatus: None,
         imageAttachments: Dict.make(),
@@ -272,7 +270,6 @@ module Task = {
     isAgentRunning: bool,
     lastTurnCancelled: bool,
     planEntries: array<ACPTypes.planEntry>,
-    queuedUserMessages: array<Message.t>,
     turnError: option<turnErrorInfo>,
     pendingQuestion: option<Client__Question__Types.pendingQuestion>,
   }
@@ -304,7 +301,6 @@ module Task = {
         isAgentRunning,
         lastTurnCancelled,
         planEntries,
-        queuedUserMessages,
         turnError,
         retryStatus,
         imageAttachments,
@@ -319,7 +315,6 @@ module Task = {
           isAgentRunning,
           lastTurnCancelled,
           planEntries,
-          queuedUserMessages,
           turnError,
           pendingQuestion,
         }
@@ -338,7 +333,6 @@ module Task = {
           isAgentRunning: updated.isAgentRunning,
           lastTurnCancelled: updated.lastTurnCancelled,
           planEntries: updated.planEntries,
-          queuedUserMessages: updated.queuedUserMessages,
           turnError: updated.turnError,
           retryStatus,
           imageAttachments,
@@ -366,7 +360,6 @@ module Task = {
           isAgentRunning,
           lastTurnCancelled: false,
           planEntries: [],
-          queuedUserMessages: [],
           turnError: None,
           pendingQuestion: None,
         }
@@ -393,7 +386,6 @@ module Task = {
           isAgentRunning: false,
           lastTurnCancelled: false,
           planEntries: [],
-          queuedUserMessages: [],
           turnError: None,
           pendingQuestion: None,
         }

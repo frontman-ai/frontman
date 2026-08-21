@@ -240,6 +240,63 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert response["error"]["message"] =~ "Method not found"
     end
 
+    test "echoes a valid client message id", %{socket: socket, task_id: task_id} do
+      message_id = Ecto.UUID.generate()
+
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(
+            _meta: %{
+              "model" => %{
+                "provider" => "openrouter",
+                "value" => "google/gemini-3.1-pro-preview"
+              },
+              "agent" => "test-frontman",
+              "dev.frontman/messageId" => message_id
+            }
+          )
+        )
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "user_message_chunk",
+            "messageId" => ^message_id
+          }
+        }
+      })
+
+      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
+    end
+
+    test "rejects an invalid client message id", %{socket: socket, scope: scope, task_id: task_id} do
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(
+            _meta: %{
+              "model" => %{
+                "provider" => "openrouter",
+                "value" => "google/gemini-3.1-pro-preview"
+              },
+              "agent" => "test-frontman",
+              "dev.frontman/messageId" => "not-a-uuid"
+            }
+          )
+        )
+
+      assert_reply(ref, :ok, %{"acp:message" => response})
+      assert response["error"]["code"] == JsonRpc.error_invalid_params()
+      assert response["error"]["message"] == "Invalid message id"
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert Tasks.interactions(task) == []
+    end
+
     test "forwards prompt model to title generation job", %{
       socket: socket,
       scope: scope,

@@ -75,16 +75,27 @@ let summary = task =>
 let replay = actions => {
   let task = ref(makeLoadingTask())
   let buffer = Buffer.make(
-    ~onUserFlush=(~taskId as _, ~messageId as _, ~blocks as _, ~agentId as _) => (),
+    ~onUserFlush=(~taskId as _, ~messageId, ~blocks, ~agentId) => {
+      let (content, annotations) = Client__ACP__MessageCodec.parseUserMessageBlocks(blocks)
+      task :=
+        task.contents->apply(UserMessageReceived({id: messageId, content, annotations, agentId}))
+    },
     ~onFlush=(~taskId as _, ~messageId, ~text, ~agentId) =>
       task := task.contents->apply(TextDeltaReceived({messageId, text, agentId})),
   )
   actions->Array.forEach(action =>
     switch action {
-    | #User(id, value) => {
-        buffer.flush()
-        task := task.contents->apply(user(~id, ~text=value))
-      }
+    | #User(id, value) =>
+      buffer.addUserBlock(
+        ~taskId="task-1",
+        ~messageId=id,
+        ~block=FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.TextContent({
+          text: value,
+          annotations: None,
+          _meta: None,
+        }),
+        ~agentId="executor-id",
+      )
     | #Agent(id, value) =>
       buffer.add(~taskId="task-1", ~messageId=id, ~text=value, ~agentId="executor-id")
     | #Tool(id) => {
@@ -119,8 +130,7 @@ describe("ACP message identity", () => {
     let replayed = replay(actions)
     let live =
       makeLoadingTask()
-      ->apply(user(~id="user-1", ~text="Hello "))
-      ->apply(user(~id="user-1", ~text="world"))
+      ->apply(user(~id="user-1", ~text="Hello world"))
       ->apply(delta(~id="assistant-1", ~text="First "))
       ->apply(delta(~id="assistant-1", ~text="answer"))
       ->apply(user(~id="user-2", ~text="Next"))

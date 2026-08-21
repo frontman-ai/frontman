@@ -7,10 +7,17 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
-  let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
-    let id = `user-${Date.now()->Float.toString}`
+  let stageUserMessage = (~id, ~content, ~annotations=[], ~agentId) =>
+    Client__State__Store.dispatch(StageUserMessage({id, content, annotations, agentId}))
+
+  let addUserMessage = (~id, ~sessionId, ~content, ~annotations=[], ~agentId) => {
     Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
   }
+
+  let userMessageSendFailed = (~taskId, ~id, ~error) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}),
+    )
 
   let textDeltaReceived = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) =>
     Client__State__Store.dispatch(
@@ -119,7 +126,7 @@ module Actions = {
   let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
 
   let executePendingPlan = () => {
-    let id = `user-${Date.now()->Float.toString}`
+    let id = WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
     Client__State__Store.dispatch(ExecutePendingPlan({id: id}))
   }
 

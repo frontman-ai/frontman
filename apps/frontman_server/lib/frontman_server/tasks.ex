@@ -221,10 +221,22 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp record_interaction_row(%TaskSchema{} = task_schema, type, attrs, turn_number) do
+  defp record_interaction_row(
+         %TaskSchema{} = task_schema,
+         type,
+         attrs,
+         turn_number,
+         interaction_id \\ nil
+       ) do
     Repo.transact(fn ->
       with {:ok, schema} <-
-             InteractionSchema.create_changeset(task_schema.id, type, attrs, turn_number)
+             InteractionSchema.create_changeset(
+               task_schema.id,
+               type,
+               attrs,
+               turn_number,
+               interaction_id
+             )
              |> Repo.insert(),
            {1, _} <-
              TaskSchema
@@ -441,7 +453,7 @@ defmodule FrontmanServer.Tasks do
           message: [_ | _] = content_blocks,
           model: model,
           agent_id: agent_id
-        }
+        } = params
       )
       when is_binary(task_id) and is_binary(model) and model != "" and is_binary(agent_id) and
              agent_id != "" do
@@ -450,7 +462,13 @@ defmodule FrontmanServer.Tasks do
          {:ok, task_schema} <- get_task_by_id(scope, task_id),
          first_message? <- accepted_user_message_count(task_id) == 0,
          {:ok, accepted_row} <-
-           record_interaction_row(task_schema, :user_message, user_message_attrs, nil) do
+           record_interaction_row(
+             task_schema,
+             :user_message,
+             user_message_attrs,
+             nil,
+             Map.get(params, :message_id)
+           ) do
       if first_message? do
         GenerateTitle.new(%{
           user_id: scope.user.id,

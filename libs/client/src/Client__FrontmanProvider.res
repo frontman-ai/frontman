@@ -97,7 +97,7 @@ type contextValue = {
   authRedirectUrl: option<string>,
   beginAuthenticationRetry: unit => unit,
   beginLogout: unit => unit,
-  createSession: (~onComplete: result<string, string> => unit) => unit,
+  createSession: (~sessionId: string, ~onComplete: result<string, string> => unit) => unit,
   clearSession: unit => unit,
   sendPrompt: (
     string,
@@ -118,7 +118,7 @@ let defaultContextValue: contextValue = {
   authRedirectUrl: None,
   beginAuthenticationRetry: () => (),
   beginLogout: () => (),
-  createSession: (~onComplete as _) => (),
+  createSession: (~sessionId as _, ~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   cancelPrompt: () => (),
@@ -348,17 +348,20 @@ module Provider = {
       }
     })
 
-    let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
-      dispatch(
-        CreateSession({
-          sessionId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
-          onUpdate: handleSessionUpdate,
-          onTitleUpdated: handleTitleUpdated,
-          onMcpMessage: logMCPMessage,
-          onComplete,
-        }),
-      )
-    }, [dispatch])
+    let createSession = React.useCallback1(
+      (~sessionId, ~onComplete: result<string, string> => unit) => {
+        dispatch(
+          CreateSession({
+            sessionId,
+            onUpdate: handleSessionUpdate,
+            onTitleUpdated: handleTitleUpdated,
+            onMcpMessage: logMCPMessage,
+            onComplete,
+          }),
+        )
+      },
+      [dispatch],
+    )
 
     let clearSession = React.useCallback1(() => dispatch(ClearSession), [dispatch])
 

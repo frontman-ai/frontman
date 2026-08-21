@@ -614,13 +614,15 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, model} ->
         Logger.info("process_prompt", %{task_id: task_id, model: model})
 
-        with {:ok, agent_id} <-
+        with {:ok, message_id} <- client_message_id(meta),
+             {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
              {:ok, row} <-
                Tasks.submit_user_message(
                  scope,
                  %{
                    task_id: task_id,
+                   message_id: message_id,
                    message: content_blocks,
                    model: model,
                    agent_id: agent_id
@@ -633,6 +635,9 @@ defmodule FrontmanServerWeb.TaskChannel do
           Logger.info("User message accepted for task #{task_id}")
           {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
         else
+          {:error, :invalid_message_id} ->
+            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Invalid message id")
+
           {:error, :missing_agent} ->
             reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Agent is required")
 
@@ -657,6 +662,19 @@ defmodule FrontmanServerWeb.TaskChannel do
     %{row: row, agent_id: row.data.agent_id}
     |> ACPHistory.encode_row(task_id)
     |> Enum.each(&push(socket, @acp_message, &1))
+  end
+
+  defp client_message_id(meta) do
+    case Map.fetch(meta, "dev.frontman/messageId") do
+      :error ->
+        {:ok, nil}
+
+      {:ok, message_id} ->
+        case Ecto.UUID.cast(message_id) do
+          {:ok, uuid} -> {:ok, uuid}
+          :error -> {:error, :invalid_message_id}
+        end
+    end
   end
 
   defp reply_acp_error(socket, id, code, message) do

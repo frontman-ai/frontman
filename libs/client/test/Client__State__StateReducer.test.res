@@ -115,6 +115,17 @@ module TestHelpers = {
       }),
     )->Pair.first
   }
+
+  let stageUserMessage = (state, ~id, ~text) =>
+    Reducer.next(
+      state,
+      StageUserMessage({
+        id,
+        content: [UserContentPart.text(text)],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )->Pair.first
 }
 
 let planner: ACP.agentCatalogEntry = {
@@ -270,52 +281,67 @@ describe("Client State Reducer", () => {
     t->expect(state.selectedAgentId)->Expect.toEqual(Some("planner-id"))
   })
 
-  test("AddUserMessage creates task and sends without optimistic message", t => {
+  test("StageUserMessage promotes the task and inserts the message without effects", t => {
     let state = Reducer.defaultState
-    let action = Reducer.AddUserMessage({
-      id: "user-1",
-      sessionId: "session-1",
-      content: [UserContentPart.text("Hello")],
-      annotations: [],
-      agentId: "executor-id",
-    })
-
-    let (nextState, effects) = Reducer.next(state, action)
-
-    t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
-    t->expect(TestHelpers.getCurrentTaskId(nextState)->Option.isSome)->Expect.toBe(true)
-
-    let messages = Reducer.Selectors.messages(nextState)
-    t->expect(messages->Array.length)->Expect.toBe(0)
-
-    switch effects->Array.get(0) {
-    | Some(Reducer.TaskEffect({effect: SendMessage({agentId})})) =>
-      t->expect(agentId)->Expect.toBe("executor-id")
-    | _ => JsExn.throw("Expected SendMessage effect")
-    }
-  })
-
-  test("messages maintain order", t => {
-    let state = Reducer.defaultState
-
-    let (state, _) = Reducer.next(
+    let taskClientId = Reducer.Selectors.currentTaskClientId(state)
+    let (nextState, effects) = Reducer.next(
       state,
-      AddUserMessage({
+      StageUserMessage({
         id: "user-1",
-        sessionId: "session-1",
-        content: [UserContentPart.text("Hi")],
+        content: [UserContentPart.text("Hello")],
         annotations: [],
         agentId: "executor-id",
       }),
     )
 
+    t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
+    t->expect(TestHelpers.getCurrentTaskId(nextState))->Expect.toEqual(Some(taskClientId))
+
+    t->expect(effects)->Expect.toEqual([])
+    t->expect(Reducer.Selectors.messages(nextState)->Array.length)->Expect.toBe(1)
+  })
+
+  test("server echo replaces staged content by exact message ID", _t => {
+    let state = TestHelpers.stageUserMessage(Reducer.defaultState, ~id="user-1", ~text="Local")
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+
     let state = TestHelpers.acceptUserMessage(
       state,
       ~taskId,
       ~id="user-1",
-      ~content=[UserContentPart.text("Hi")],
+      ~content=[UserContentPart.text("Canonical")],
     )
+
+    switch Reducer.Selectors.messages(state) {
+    | [User({id: "user-1", content: [Text({text: "Canonical"})]})] => ()
+    | _ => JsExn.throw("Expected one canonical user message")
+    }
+  })
+
+  test("definitive send failure keeps attempted message and appends an error", t => {
+    let state = TestHelpers.stageUserMessage(Reducer.defaultState, ~id="user-1", ~text="Hello")
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask(taskId),
+        action: UserMessageSendFailed({id: "user-1", error: "Connection failed"}),
+      }),
+    )
+
+    switch Reducer.Selectors.messages(state) {
+    | [User({id: "user-1"}), Error(error)] => {
+        t->expect(Reducer.Message.ErrorMessage.error(error))->Expect.toBe("Connection failed")
+        t->expect(Reducer.Message.ErrorMessage.category(error))->Expect.toBe(#unknown)
+      }
+    | _ => JsExn.throw("Expected attempted user message followed by error")
+    }
+  })
+
+  test("rapid staged messages maintain order before assistant output", t => {
+    let state = TestHelpers.stageUserMessage(Reducer.defaultState, ~id="user-1", ~text="Hi")
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let state = TestHelpers.stageUserMessage(state, ~id="user-2", ~text="Next")
 
     let (state, _) = Reducer.next(
       state,
@@ -338,13 +364,14 @@ describe("Client State Reducer", () => {
     )
 
     let messages = TestHelpers.getMessages(state)
-    t->expect(messages->Array.length)->Expect.toBe(2)
+    t->expect(messages->Array.length)->Expect.toBe(3)
     let msg0 = messages->Array.get(0)->Option.getOrThrow
     let msg1 = messages->Array.get(1)->Option.getOrThrow
+    let msg2 = messages->Array.get(2)->Option.getOrThrow
 
-    switch (msg0, msg1) {
-    | (User(_), Assistant(_)) => ()
-    | _ => JsExn.throw("Expected User message first, then Assistant message")
+    switch (msg0, msg1, msg2) {
+    | (User({id: "user-1"}), User({id: "user-2"}), Assistant(_)) => ()
+    | _ => JsExn.throw("Expected staged messages before assistant output")
     }
   })
 
@@ -1160,7 +1187,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ~annotations=_sampleAnnotations,
     )
 
-    let messages = Reducer.Selectors.queuedUserMessages(nextState)
+    let messages = Reducer.Selectors.messages(nextState)
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch messages->Array.get(0)->Option.getOrThrow {
@@ -1197,7 +1224,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ~annotations=_sampleAnnotations,
     )
 
-    let messages = Reducer.Selectors.queuedUserMessages(nextState)
+    let messages = Reducer.Selectors.messages(nextState)
     t->expect(messages->Array.length)->Expect.toBe(1)
 
     switch messages->Array.get(0)->Option.getOrThrow {
@@ -1224,7 +1251,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
     let nextState = TestHelpers.acceptUserMessage(state, ~taskId)
 
-    let messages = Reducer.Selectors.queuedUserMessages(nextState)
+    let messages = Reducer.Selectors.messages(nextState)
     switch messages->Array.get(0)->Option.getOrThrow {
     | Reducer.Message.User({annotations, _}) => t->expect(annotations->Array.length)->Expect.toBe(0)
     | _ => JsExn.throw("Expected User message")
@@ -1298,6 +1325,9 @@ describe("Client State Reducer - Annotations on Messages", () => {
     t
     ->expect(metadata->Dict.get("model")->Option.flatMap(JSON.Decode.string))
     ->Expect.toEqual(Some("anthropic:claude-opus-4-6"))
+    t
+    ->expect(metadata->Dict.get("dev.frontman/messageId")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some("user-1"))
   })
 
   describe("API key provider actions", () => {

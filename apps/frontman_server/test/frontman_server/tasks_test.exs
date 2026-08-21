@@ -110,6 +110,38 @@ defmodule FrontmanServer.TasksTest do
       assert row.type == :user_message
       assert row.turn_number == nil
       assert row.data.agent_id == "test-frontman"
+      assert {:ok, generated_id} = Ecto.UUID.cast(row.id)
+      assert generated_id == row.id
+    end
+
+    test "persists a caller-supplied user message id", %{scope: scope} do
+      task = task_fixture(scope)
+      message_id = Ecto.UUID.generate()
+
+      assert {:ok, %InteractionSchema{id: ^message_id}} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message_id: message_id,
+                 message: user_content("hello"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+    end
+
+    test "rejects a duplicate caller-supplied user message id", %{scope: scope} do
+      task = task_fixture(scope)
+      message_id = Ecto.UUID.generate()
+
+      attrs = %{
+        task_id: task.id,
+        message_id: message_id,
+        message: user_content("hello"),
+        model: "openrouter:openai/gpt-5.5",
+        agent_id: "test-frontman"
+      }
+
+      assert {:ok, %InteractionSchema{id: ^message_id}} = Tasks.submit_user_message(scope, attrs)
+      assert {:error, %Ecto.Changeset{}} = Tasks.submit_user_message(scope, attrs)
     end
 
     test "requires agent id", %{scope: scope} do
