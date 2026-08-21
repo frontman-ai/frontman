@@ -69,7 +69,7 @@ let make = (~clientId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)
           | false => ()
           | true =>
             lastLocationRef.current = Some(location)
-            Client__State.Actions.setPreviewUrl(~clientId, ~url=location)
+            Client__State.Actions.observePreviewUrl(~clientId, ~url=location)
           }
         }
       | None => ()

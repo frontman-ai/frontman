@@ -43,13 +43,15 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ToolErrorReceived({id, error})}),
     )
 
-  let setPreviewUrl = (~url, ~clientId=?) => {
-    let target = switch clientId {
-    | Some(clientId) => Client__State__StateReducer.ForClient(clientId)
-    | None => CurrentTask
-    }
-    Client__State__Store.dispatch(TaskAction({target, action: SetPreviewUrl({url: url})}))
-  }
+  let setCurrentPreviewUrl = (~url) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
+    )
+
+  let observePreviewUrl = (~clientId, ~url) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForClient(clientId), action: SetPreviewUrl({url: url})}),
+    )
 
   let setPreviewFrame = (~clientId, ~contentDocument, ~contentWindow) =>
     Client__State__Store.dispatch(
