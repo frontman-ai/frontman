@@ -12,7 +12,7 @@ const SEO = {
 const faqs = [
 	{
 		question: 'Does Frontman modify my production build?',
-		answer: 'No. The framework plugin only activates when NODE_ENV=development. In a production build, the middleware is stripped out by tree-shaking. Your deployment bundle is identical whether Frontman is installed or not.'
+		answer: 'Frontman is intended for development workflows, but you must verify your production build. In Next.js, installer-generated middleware or proxy code has no automatic development-only guard and can remain active in a deployment. Add an environment guard or remove the integration when Frontman must be absent, then test the built artifact and deployed /frontman route.'
 	},
 	{
 		question: 'Which frameworks does Frontman support?',

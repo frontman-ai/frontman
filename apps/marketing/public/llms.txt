@@ -19,7 +19,7 @@ Frontman closes that loop. It connects to your running application and your dev 
 
 Frontman integrates at the framework level as middleware. When installed, it turns your local dev server into an MCP server that exposes both client-side tools (component tree, performance data, click targets, console logs) and server-side tools (routes, server logs, query timing, compiled modules). The agent connects to this context in real time and always knows what is actually happening in your app.
 
-It runs exclusively in development (`NODE_ENV=development`). In production builds, the code is removed entirely by tree-shaking — not disabled, not present. Every change produces a standard git diff that goes through your team's normal PR review process.
+Frontman is intended for development workflows, but installed integrations must be checked in production builds. Next.js installer-generated middleware or proxy code has no automatic development-only guard and can remain active in a deployment. Add an environment guard or remove the integration when Frontman must be absent, then verify the built artifact and deployed `/frontman` route. Every change produces a standard git diff that goes through your team's normal PR review process.
 
 ## Key capabilities
 
