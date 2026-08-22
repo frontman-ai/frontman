@@ -254,10 +254,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           socket,
           "acp:message",
           build_prompt_request(
+            message_id: message_id,
             _meta: %{
               "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"},
               "agent" => "test-frontman",
-              "frontman.dev/messageId" => message_id,
+              "frontman.dev/messageId" => Ecto.UUID.generate(),
               "traits" => ["react", "typescript"]
             }
           )
@@ -380,13 +381,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         push(
           socket,
           "acp:message",
-          build_acp_request("session/prompt", 45, %{
-            "prompt" => [%{"type" => "text", "text" => "Hello"}],
-            "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-              "frontman.dev/messageId" => Ecto.UUID.generate()
+          build_prompt_request(
+            id: 45,
+            _meta: %{
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}
             }
-          })
+          )
         )
 
       assert_push("acp:message", %{

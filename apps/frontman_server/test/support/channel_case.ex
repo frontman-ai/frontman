@@ -43,9 +43,10 @@ defmodule FrontmanServerWeb.ChannelCase do
   defmacro complete_mcp_handshake(socket, opts \\ []) do
     quote do
       socket = unquote(socket)
-      tools = unquote(opts) |> Keyword.get(:tools, [])
+      opts = unquote(opts)
+      tools = Keyword.get(opts, :tools, [])
 
-      load_project_context = unquote(opts) |> Keyword.get(:load_project_context, true)
+      load_project_context = Keyword.get(opts, :load_project_context, true)
 
       :sys.get_state(socket.channel_pid)
       assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
@@ -172,12 +173,10 @@ defmodule FrontmanServerWeb.ChannelCase do
   @doc """
   Builds a JSON-RPC `session/prompt` request for channel tests.
 
-  Convenience wrapper around `build_acp_request/3`.
-
   ## Options
 
     * `:id` - JSON-RPC request id (default: `1`)
-    * `:message_id` - client-generated user message UUID
+    * `:message_id` - client-generated user message UUID (default: generated UUID)
     * `:text` - prompt text (default: `"Hello"`)
     * `:_meta` - _meta map with selected model and agent
 
@@ -188,21 +187,20 @@ defmodule FrontmanServerWeb.ChannelCase do
       build_prompt_request(_meta: %{"model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}})
   """
   def build_prompt_request(opts \\ []) do
-    id = Keyword.get(opts, :id, 1)
     message_id = Keyword.get_lazy(opts, :message_id, &Ecto.UUID.generate/0)
     text = Keyword.get(opts, :text, "Hello")
 
     meta =
-      %{
+      opts
+      |> Keyword.get(:_meta, %{
         "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-        "agent" => "test-frontman",
-        "frontman.dev/messageId" => message_id
-      }
-      |> Map.merge(Keyword.get(opts, :_meta, %{}))
+        "agent" => "test-frontman"
+      })
+      |> Map.put("frontman.dev/messageId", message_id)
 
     params = %{"prompt" => [%{"type" => "text", "text" => text}], "_meta" => meta}
 
-    build_acp_request("session/prompt", id, params)
+    build_acp_request("session/prompt", Keyword.get(opts, :id, 1), params)
   end
 
   @doc """
