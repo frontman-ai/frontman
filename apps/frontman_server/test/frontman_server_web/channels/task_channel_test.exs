@@ -247,6 +247,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       user: user
     } do
       complete_mcp_handshake(socket)
+      message_id = Ecto.UUID.generate()
 
       ref =
         push(
@@ -256,6 +257,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             _meta: %{
               "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"},
               "agent" => "test-frontman",
+              "frontman.dev/messageId" => message_id,
               "traits" => ["react", "typescript"]
             }
           )
@@ -268,7 +270,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "sessionId" => ^task_id,
           "update" => %{
             "sessionUpdate" => "user_message_chunk",
-            "messageId" => _message_id,
+            "messageId" => ^message_id,
             "content" => %{"type" => "text", "text" => "Hello"}
           }
         }
@@ -306,6 +308,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_state_update_idle(task_id)
 
       assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert Enum.any?(task.interaction_rows, &(&1.type == :user_message and &1.id == message_id))
       turn_row = Enum.find(task.interaction_rows, &(&1.type == :turn_started))
       response = Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentResponse{}, &1))
       assert response_message_id == "#{turn_row.id}:0"
@@ -313,6 +316,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "live user chunks equal replayed persisted chunks", %{socket: socket, task_id: task_id} do
+      message_id = Ecto.UUID.generate()
+
       selector_annotation =
         Helpers.annotation_block("selector-ann", "button", nil, nil, nil, index: 0)
         |> put_in(
@@ -343,7 +348,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "prompt" => content_blocks,
             "_meta" => %{
               "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-              "agent" => "test-frontman"
+              "agent" => "test-frontman",
+              "frontman.dev/messageId" => message_id
             }
           })
         )
@@ -361,6 +367,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       replayed_chunks = collect_all_pushes() |> user_message_updates()
 
       assert length(live_chunks) == length(content_blocks)
+      assert Enum.all?(live_chunks, &(&1["messageId"] == message_id))
       assert replayed_chunks == live_chunks
     end
 
@@ -376,7 +383,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           build_acp_request("session/prompt", 45, %{
             "prompt" => [%{"type" => "text", "text" => "Hello"}],
             "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
+              "frontman.dev/messageId" => Ecto.UUID.generate()
             }
           })
         )
@@ -421,6 +429,44 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert Tasks.interactions(task) == []
     end
 
+    test "requires a client-generated message UUID", %{socket: socket} do
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_acp_request("session/prompt", 43, %{
+            "prompt" => [%{"type" => "text", "text" => "Hello"}],
+            "_meta" => %{
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
+              "agent" => "test-frontman"
+            }
+          })
+        )
+
+      assert_reply(ref, :ok, %{"acp:message" => response})
+      assert response["error"]["code"] == JsonRpc.error_invalid_params()
+      assert response["error"]["message"] == "Message ID must be a UUID"
+    end
+
+    test "rejects malformed and duplicate message UUIDs", %{socket: socket} do
+      malformed_ref =
+        push(socket, "acp:message", build_prompt_request(message_id: "not-a-uuid"))
+
+      assert_reply(malformed_ref, :ok, %{"acp:message" => malformed_response})
+      assert malformed_response["error"]["code"] == JsonRpc.error_invalid_params()
+      assert malformed_response["error"]["message"] == "Message ID must be a UUID"
+
+      message_id = Ecto.UUID.generate()
+      first_ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
+      assert_push("acp:message", %{"params" => %{"update" => %{"messageId" => ^message_id}}})
+      assert_reply(first_ref, :ok, %{"acp:message" => %{"result" => %{}}})
+
+      duplicate_ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
+      assert_reply(duplicate_ref, :ok, %{"acp:message" => duplicate_response})
+      assert duplicate_response["error"]["code"] == JsonRpc.error_invalid_params()
+      assert duplicate_response["error"]["message"] == "Message ID already exists"
+    end
+
     test "returns invalid params for malformed text content block", %{socket: socket} do
       complete_mcp_handshake(socket)
 
@@ -432,7 +478,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "prompt" => [%{"type" => "text", "text" => ""}],
             "_meta" => %{
               "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-              "agent" => "test-frontman"
+              "agent" => "test-frontman",
+              "frontman.dev/messageId" => Ecto.UUID.generate()
             }
           })
         )
@@ -475,26 +522,39 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       ])
 
       complete_mcp_handshake(socket)
+      first_message_id = Ecto.UUID.generate()
+      second_message_id = Ecto.UUID.generate()
 
-      first_ref = push(socket, "acp:message", build_prompt_request(id: 11, text: "first"))
+      first_ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(id: 11, message_id: first_message_id, text: "first")
+        )
 
       assert_push("acp:message", %{
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "user_message_chunk"}
+          "update" => %{"sessionUpdate" => "user_message_chunk", "messageId" => ^first_message_id}
         }
       })
 
       assert_reply(first_ref, :ok, %{"acp:message" => %{"id" => 11, "result" => %{}}})
       assert_state_update_running(task_id)
 
-      second_ref = push(socket, "acp:message", build_prompt_request(id: 12, text: "second"))
+      second_ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(id: 12, message_id: second_message_id, text: "second")
+        )
 
       assert_push("acp:message", %{
         "params" => %{
           "sessionId" => ^task_id,
           "update" => %{
             "sessionUpdate" => "user_message_chunk",
+            "messageId" => ^second_message_id,
             "content" => %{"type" => "text", "text" => "second"}
           }
         }
@@ -504,6 +564,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_state_update_idle(task_id)
       assert_state_update_running_then_idle(task_id)
+
+      assert {:ok, task} = Tasks.get_task(socket.assigns.scope, task_id)
+
+      assert [^first_message_id, ^second_message_id] =
+               task.interaction_rows
+               |> Enum.filter(&(&1.type == :turn_started))
+               |> Enum.flat_map(& &1.data.user_message_ids)
     end
   end
 

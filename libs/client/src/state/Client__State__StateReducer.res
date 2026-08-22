@@ -486,6 +486,7 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 let sendMessageToAPIImpl = (
   state: state,
   _dispatch,
+  ~messageId,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
@@ -511,6 +512,7 @@ let sendMessageToAPIImpl = (
     state.selectedModelValue->Option.forEach(modelValue =>
       metadata->Dict.set("model", JSON.Encode.string(modelValue))
     )
+    metadata->Dict.set("frontman.dev/messageId", JSON.Encode.string(messageId))
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
     let _meta = Some(JSON.Encode.object(metadata))
 
@@ -634,7 +636,7 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({text, attachments, annotations, agentId}) =>
+        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
           let taskId = switch target {
           | ForTask(id) => id
           | CurrentTask =>
@@ -647,6 +649,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           sendMessageToAPIImpl(
             state,
             dispatch,
+            ~messageId=id,
             ~message=text,
             ~attachments,
             ~annotations,

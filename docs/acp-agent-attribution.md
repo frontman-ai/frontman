@@ -276,15 +276,20 @@ opaque string and MUST NOT parse its implementation-specific structure.
 For user chunks, `agentId` identifies the selected execution target for that
 message. It does not identify the human author.
 
-Every `session/prompt` request sent by Frontman MUST snapshot the selected agent
-at submission time in `_meta.agent` as a non-empty catalog ID. Model selection is
-independent and remains in `_meta.model`. Queued work, attachments, and lazy
-session creation MUST carry this captured ID rather than reading later mutable
-selection state:
+Every `session/prompt` request sent by Frontman MUST generate a UUID and include
+it in `_meta["frontman.dev/messageId"]`. The server persists this UUID as the user
+interaction row ID and uses it for live chunks, history replay, queued messages,
+and turn claims. Missing, malformed, and duplicate UUIDs are rejected.
+
+The request MUST also snapshot the selected agent at submission time in
+`_meta.agent` as a non-empty catalog ID. Model selection is independent and
+remains in `_meta.model`. Queued work, attachments, and lazy session creation
+MUST carry these captured values rather than reading later mutable state:
 
 ```json
 {
   "_meta": {
+    "frontman.dev/messageId": "550e8400-e29b-41d4-a716-446655440000",
     "model": "anthropic:claude-opus-4-6",
     "agent": "planner"
   }
@@ -294,8 +299,8 @@ selection state:
 ### Multi-block User Message
 
 One accepted user message containing text and embedded context is emitted as one
-standard `user_message_chunk` per content block. Every chunk shares the persisted
-user interaction row ID and metadata:
+standard `user_message_chunk` per content block. Every chunk shares the accepted
+client UUID and metadata:
 
 ```json
 {
@@ -305,7 +310,7 @@ user interaction row ID and metadata:
     "sessionId": "sess_abc123",
     "update": {
       "sessionUpdate": "user_message_chunk",
-      "messageId": "user_interaction_42",
+      "messageId": "550e8400-e29b-41d4-a716-446655440000",
       "content": {
         "type": "text",
         "text": "Review this file"
@@ -327,7 +332,7 @@ user interaction row ID and metadata:
     "sessionId": "sess_abc123",
     "update": {
       "sessionUpdate": "user_message_chunk",
-      "messageId": "user_interaction_42",
+      "messageId": "550e8400-e29b-41d4-a716-446655440000",
       "content": {
         "type": "resource",
         "resource": {

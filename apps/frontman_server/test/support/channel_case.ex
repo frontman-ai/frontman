@@ -177,6 +177,7 @@ defmodule FrontmanServerWeb.ChannelCase do
   ## Options
 
     * `:id` - JSON-RPC request id (default: `1`)
+    * `:message_id` - client-generated user message UUID
     * `:text` - prompt text (default: `"Hello"`)
     * `:_meta` - _meta map with selected model and agent
 
@@ -188,13 +189,16 @@ defmodule FrontmanServerWeb.ChannelCase do
   """
   def build_prompt_request(opts \\ []) do
     id = Keyword.get(opts, :id, 1)
+    message_id = Keyword.get_lazy(opts, :message_id, &Ecto.UUID.generate/0)
     text = Keyword.get(opts, :text, "Hello")
 
     meta =
-      Keyword.get(opts, :_meta, %{
+      %{
         "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-        "agent" => "test-frontman"
-      })
+        "agent" => "test-frontman",
+        "frontman.dev/messageId" => message_id
+      }
+      |> Map.merge(Keyword.get(opts, :_meta, %{}))
 
     params = %{"prompt" => [%{"type" => "text", "text" => text}], "_meta" => meta}
 

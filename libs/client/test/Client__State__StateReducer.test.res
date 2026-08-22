@@ -1259,8 +1259,9 @@ describe("Client State Reducer - Annotations on Messages", () => {
     }
   })
 
-  test("SendMessage metadata carries submission agent and selected model", t => {
+  test("SendMessage metadata carries message ID, submission agent, and selected model", t => {
     setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
+    let messageId = "550e8400-e29b-41d4-a716-446655440000"
     let sentMetadata = ref(None)
     let state = {
       ...Reducer.defaultState,
@@ -1277,7 +1278,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, effects) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: messageId,
         sessionId: "session-1",
         content: [UserContentPart.text("Fix this")],
         annotations: [],
@@ -1292,6 +1293,9 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ->JSON.Decode.object
       ->Option.getOrThrow
 
+    t
+    ->expect(metadata->Dict.get("frontman.dev/messageId")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some(messageId))
     t
     ->expect(metadata->Dict.get("agent")->Option.flatMap(JSON.Decode.string))
     ->Expect.toEqual(Some("planner-id"))

@@ -918,7 +918,8 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     )
 
     switch effects->Array.get(0) {
-    | Some(SendMessage({annotations, agentId})) => {
+    | Some(SendMessage({id, annotations, agentId})) => {
+        t->expect(id)->Expect.toBe("user-1")
         t->expect(annotations->Array.length)->Expect.toBe(2)
         t->expect(agentId)->Expect.toBe("executor-id")
       }
