@@ -8,7 +8,8 @@ defmodule FrontmanServer.Providers do
   @moduledoc "Manages API keys, OAuth tokens, and model provider access."
 
   use Boundary,
-    deps: [FrontmanServer, FrontmanServer.Accounts]
+    deps: [FrontmanServer, FrontmanServer.Accounts],
+    exports: [CustomLlmEndpoint, CustomLlmModel, CustomLlmEndpoints]
 
   alias FrontmanServer.Repo
 
@@ -18,6 +19,9 @@ defmodule FrontmanServer.Providers do
   alias FrontmanServer.Providers.{
     AnthropicOAuth,
     ApiKey,
+    CustomLlmEndpoint,
+    CustomLlmEndpoints,
+    CustomLlmModel,
     OAuthToken,
     OpenAIOAuth
   }
@@ -39,6 +43,16 @@ defmodule FrontmanServer.Providers do
   def prepare_llm_args(scope, model, opts \\ [])
 
   def prepare_llm_args(_scope, nil, _opts), do: {:error, :missing_model}
+
+  def prepare_llm_args(scope, "custom:" <> rest, opts) when is_binary(rest) and rest != "" do
+    case String.split(rest, ":", parts: 2) do
+      [endpoint_id, model_id] when endpoint_id != "" and model_id != "" ->
+        resolve_custom_model(scope, endpoint_id, model_id, opts)
+
+      _ ->
+        {:error, :unknown_model}
+    end
+  end
 
   def prepare_llm_args(scope, model, opts) when is_binary(model) and model != "" do
     with {:ok, {credential_source, resolved_model}} <- resolve_catalog_model(model) do
@@ -93,6 +107,31 @@ defmodule FrontmanServer.Providers do
 
   defp transport_llm_opts(%LLMDB.Model{}), do: []
 
+  defp resolve_custom_model(scope, endpoint_id, model_id, opts) do
+    with {:ok, endpoint} <- CustomLlmEndpoints.get_endpoint_safe(scope, endpoint_id),
+         %CustomLlmModel{} = _model <-
+           Enum.find(endpoint.models || [], &(&1.model_id == model_id)) do
+      model = %LLMDB.Model{provider: :openai, id: model_id, base_url: endpoint.base_url}
+
+      llm_opts =
+        []
+        |> maybe_put_api_key(endpoint.api_key)
+        |> Keyword.merge(transport_llm_opts(model))
+        |> Keyword.merge(opts)
+
+      {:ok, {model, llm_opts}}
+    else
+      :error -> {:error, :unknown_model}
+      nil -> {:error, :unknown_model}
+      {:error, _reason} = error -> error
+    end
+  end
+
+  defp maybe_put_api_key(opts, api_key) when is_binary(api_key) and api_key != "",
+    do: Keyword.put(opts, :api_key, api_key)
+
+  defp maybe_put_api_key(opts, _api_key), do: opts
+
   defp resolve_catalog_model(model) do
     with {:ok, {group, model_id}} <- model_parts(model),
          {^group, config} <- Enum.find(providers(), &match?({^group, _}, &1)),
@@ -114,8 +153,20 @@ defmodule FrontmanServer.Providers do
 
   def model_from_client_params(nil), do: :error
 
+  def model_from_client_params(%{"provider" => "custom", "value" => value})
+      when is_binary(value) and value != "" do
+    case String.split(value, ":", parts: 3) do
+      ["custom", endpoint_id, model_id] when endpoint_id != "" and model_id != "" ->
+        {:ok, value}
+
+      _ ->
+        :error
+    end
+  end
+
   def model_from_client_params(%{"provider" => provider, "value" => value})
-      when is_binary(provider) and is_binary(value) and provider != "" and value != "" do
+      when is_binary(provider) and is_binary(value) and provider != "" and value != "" and
+             provider != "custom" do
     {:ok, model_string(provider, value)}
   end
 
@@ -452,7 +503,28 @@ defmodule FrontmanServer.Providers do
         %{id: provider, name: config.display_name, options: options}
       end)
 
+    groups = groups ++ build_custom_endpoint_groups(scope)
+
     %{groups: groups}
+  end
+
+  defp build_custom_endpoint_groups(%Scope{user: %User{id: user_id}}) do
+    CustomLlmEndpoint
+    |> CustomLlmEndpoint.for_user(user_id)
+    |> Repo.all()
+    |> Repo.preload(:models)
+    |> Enum.filter(fn endpoint -> endpoint.models != [] and endpoint.models != nil end)
+    |> Enum.sort_by(& &1.name)
+    |> Enum.map(fn endpoint ->
+      options =
+        endpoint.models
+        |> Enum.sort_by(&{&1.position || 0, &1.model_id})
+        |> Enum.map(fn model ->
+          %{name: model.model_id, value: "custom:#{endpoint.id}:#{model.model_id}"}
+        end)
+
+      %{id: "custom:#{endpoint.id}", name: endpoint.name, options: options}
+    end)
   end
 
   defp providers do

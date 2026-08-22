@@ -215,8 +215,8 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       on_exit(fn -> Application.put_env(:frontman_server, :providers, original_providers) end)
 
       Application.put_env(:frontman_server, :providers,
-        custom: %{
-          display_name: "Custom",
+        self_hosted: %{
+          display_name: "Self-hosted",
           credential_source: "anthropic",
           models: [
             {"Qwen3 Coder", "qwen3-coder",
@@ -230,10 +230,10 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       )
 
       {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "runtime-key")
-      assert %{groups: [%{id: "custom"}]} = Providers.model_config_data(scope)
+      assert %{groups: [%{id: "self_hosted"}]} = Providers.model_config_data(scope)
 
       assert {:ok, {%LLMDB.Model{} = resolved_model, llm_opts}} =
-               Providers.prepare_llm_args(scope, "custom:qwen3-coder")
+               Providers.prepare_llm_args(scope, "self_hosted:qwen3-coder")
 
       assert resolved_model.provider == :openai
       assert resolved_model.id == "qwen3-coder"
