@@ -15,7 +15,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   use Ecto.Schema
   import Ecto.Changeset
   import Ecto.Query
-  import FrontmanServer.ChangesetSanitizer
   import PolymorphicEmbed
 
   alias FrontmanServer.Tasks.Interaction
@@ -65,26 +64,11 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   def types, do: @types
   def task_scoped_types, do: @task_scoped_types
 
-  @doc """
-  Changesets for creating interaction rows from payload attrs.
-  """
-  def create_changeset(task_id, type, attrs, turn_number, id \\ nil)
-      when is_binary(task_id) and is_atom(type) and is_map(attrs) and
-             (is_integer(turn_number) or is_nil(turn_number)) and
-             (is_binary(id) or is_nil(id)) do
-    %__MODULE__{
-      id: id,
-      task_id: task_id,
-      type: type,
-      sequence: generate_sequence(),
-      turn_number: turn_number
-    }
-    |> create_changeset(%{data: strip_null_bytes_from_value(attrs)})
-  end
-
-  def create_changeset(%__MODULE__{} = interaction, attrs) do
+  @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
+  def changeset(%__MODULE__{} = interaction, attrs) when is_map(attrs) do
     interaction
-    |> cast(attrs, [])
+    |> cast(attrs, [:id])
+    |> put_sequence()
     |> cast_polymorphic_embed(:data, required: true, with: polymorphic_changesets())
     |> validate_create()
   end
@@ -166,6 +150,13 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       name: @tool_result_unique_constraint,
       message: "duplicate tool result for this tool_call_id"
     )
+  end
+
+  defp put_sequence(changeset) do
+    case get_field(changeset, :sequence) do
+      nil -> put_change(changeset, :sequence, generate_sequence())
+      _sequence -> changeset
+    end
   end
 
   defp generate_sequence do

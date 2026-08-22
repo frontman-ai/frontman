@@ -215,16 +215,16 @@ defmodule FrontmanServer.Tasks do
     end)
   end
 
-  defp record_interaction(%TaskSchema{} = task_schema, type, attrs, turn_number) do
-    with {:ok, row} <- record_interaction_row(task_schema, type, attrs, turn_number) do
+  defp record_interaction(%TaskSchema{} = task_schema, type, data, turn_number) do
+    with {:ok, row} <- record_interaction_row(task_schema, type, data, turn_number) do
       {:ok, row.data}
     end
   end
 
-  defp record_interaction_row(%TaskSchema{} = task, type, attrs, turn_number, id \\ nil) do
+  defp record_interaction_row(%TaskSchema{} = task, type, data, turn_number, attrs \\ %{}) do
     Repo.transact(fn ->
       with {:ok, schema} <-
-             InteractionSchema.create_changeset(task.id, type, attrs, turn_number, id)
+             interaction_changeset(task, type, data, turn_number, attrs)
              |> Repo.insert(),
            {1, _} <-
              TaskSchema
@@ -254,6 +254,12 @@ defmodule FrontmanServer.Tasks do
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp interaction_changeset(%TaskSchema{} = task, type, data, turn_number, attrs \\ %{}) do
+    task
+    |> Ecto.build_assoc(:interaction_rows, type: type, turn_number: turn_number)
+    |> InteractionSchema.changeset(Map.put(attrs, :data, data))
   end
 
   defp topic(task_id), do: "task:#{task_id}"
@@ -457,7 +463,13 @@ defmodule FrontmanServer.Tasks do
          first_message? <- accepted_user_message_count(task_id) == 0,
          message_id <- Map.get_lazy(params, :message_id, &Ecto.UUID.generate/0),
          {:ok, accepted_row} <-
-           record_interaction_row(task_schema, :user_message, user_message_attrs, nil, message_id) do
+           record_interaction_row(
+             task_schema,
+             :user_message,
+             user_message_attrs,
+             nil,
+             %{id: message_id}
+           ) do
       if first_message? do
         GenerateTitle.new(%{
           user_id: scope.user.id,
@@ -580,12 +592,7 @@ defmodule FrontmanServer.Tasks do
 
   defp insert_turn_started(%TaskSchema{} = task_schema, turn_started_attrs, turn_number) do
     with {:ok, schema} <-
-           InteractionSchema.create_changeset(
-             task_schema.id,
-             :turn_started,
-             turn_started_attrs,
-             turn_number
-           )
+           interaction_changeset(task_schema, :turn_started, turn_started_attrs, turn_number)
            |> Repo.insert(),
          {1, _} <-
            TaskSchema

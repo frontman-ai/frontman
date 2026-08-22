@@ -357,7 +357,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, attrs} =
         Interaction.UserMessage.attrs(user_content("historical"), "openrouter:openai/gpt-5.5")
 
-      InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
+      interaction_changeset(task_id, :user_message, attrs, nil)
       |> Repo.insert!()
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
@@ -1383,12 +1383,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   defp insert_accepted_user_message!(task, text) do
     {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), "openrouter:openai/gpt-5.5")
 
-    InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+    interaction_changeset(task.id, :user_message, attrs, nil)
     |> Repo.insert!()
   end
 
   defp insert_turn_started_for_messages!(task_id, turn_number, agent_id \\ "test-frontman") do
-    InteractionSchema.create_changeset(
+    interaction_changeset(
       task_id,
       :turn_started,
       %{

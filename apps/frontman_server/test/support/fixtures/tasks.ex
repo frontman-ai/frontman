@@ -23,6 +23,11 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
 
   @default_test_model "openrouter:openai/gpt-5.5"
 
+  def interaction_changeset(task_id, type, data, turn_number, attrs \\ %{}) do
+    %InteractionSchema{task_id: task_id, type: type, turn_number: turn_number}
+    |> InteractionSchema.changeset(Map.put(attrs, :data, data))
+  end
+
   @doc """
   Create a task and return its schema.
 
@@ -85,10 +90,10 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model, "test-frontman")
 
     with {:ok, row} <-
-           InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+           interaction_changeset(task.id, :user_message, attrs, nil)
            |> Repo.insert(),
          {:ok, _turn_started} <-
-           InteractionSchema.create_changeset(
+           interaction_changeset(
              task.id,
              :turn_started,
              %{

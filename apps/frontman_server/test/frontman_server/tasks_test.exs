@@ -876,10 +876,10 @@ defmodule FrontmanServer.TasksTest do
       Interaction.UserMessage.attrs(user_content("test turn"), "openrouter:openai/gpt-5.5")
 
     row =
-      InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
+      interaction_changeset(task_id, :user_message, attrs, nil)
       |> Repo.insert!()
 
-    InteractionSchema.create_changeset(
+    interaction_changeset(
       task_id,
       :turn_started,
       %{
@@ -896,7 +896,7 @@ defmodule FrontmanServer.TasksTest do
   defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
     {interaction_type, attrs} = test_interaction_attrs(type, data)
 
-    InteractionSchema.create_changeset(task_id, interaction_type, attrs, turn_number)
+    interaction_changeset(task_id, interaction_type, attrs, turn_number)
     |> Repo.insert!()
   end
 
@@ -986,7 +986,7 @@ defmodule FrontmanServer.TasksTest do
        ) do
     {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
 
-    InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+    interaction_changeset(task.id, :user_message, attrs, nil)
     |> Repo.insert!()
   end
 
@@ -1129,53 +1129,6 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:error, :not_found} =
                Tasks.add_discovered_project_rule(scope, nonexistent_id, "/path", "content")
-    end
-
-    test "handles content with null bytes without crashing", %{scope: scope} do
-      task_id = task_fixture(scope).id
-
-      content_with_null = "# Rules\0with null\0bytes"
-
-      {:ok, _rule} =
-        Tasks.add_discovered_project_rule(
-          scope,
-          task_id,
-          "/project/AGENTS.md",
-          content_with_null
-        )
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      [db_rule] =
-        Enum.filter(
-          Tasks.interactions(task),
-          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
-        )
-
-      assert db_rule.path == "/project/AGENTS.md"
-      refute String.contains?(db_rule.content, <<0>>)
-      assert db_rule.content == "# Ruleswith nullbytes"
-    end
-
-    test "handles null bytes in rule file path without crashing", %{scope: scope} do
-      task_id = task_fixture(scope).id
-
-      path_with_null = "/project/AGENTS\0.md"
-
-      {:ok, _rule} =
-        Tasks.add_discovered_project_rule(scope, task_id, path_with_null, "# Clean content")
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      [db_rule] =
-        Enum.filter(
-          Tasks.interactions(task),
-          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
-        )
-
-      refute String.contains?(db_rule.path, <<0>>)
-      assert db_rule.path == "/project/AGENTS.md"
-      assert db_rule.content == "# Clean content"
     end
   end
 

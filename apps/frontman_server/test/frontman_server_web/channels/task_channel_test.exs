@@ -258,7 +258,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             _meta: %{
               "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"},
               "agent" => "test-frontman",
-              "frontman.dev/messageId" => Ecto.UUID.generate(),
               "traits" => ["react", "typescript"]
             }
           )
@@ -429,33 +428,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert Tasks.interactions(task) == []
     end
 
-    test "requires a client-generated message UUID", %{socket: socket} do
-      ref =
-        push(
-          socket,
-          "acp:message",
-          build_acp_request("session/prompt", 43, %{
-            "prompt" => [%{"type" => "text", "text" => "Hello"}],
-            "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-              "agent" => "test-frontman"
-            }
-          })
-        )
-
-      assert_reply(ref, :ok, %{"acp:message" => response})
-      assert response["error"]["code"] == JsonRpc.error_invalid_params()
-      assert response["error"]["message"] == "Message ID must be a UUID"
-    end
-
-    test "rejects malformed and duplicate message UUIDs", %{socket: socket} do
-      malformed_ref =
-        push(socket, "acp:message", build_prompt_request(message_id: "not-a-uuid"))
-
-      assert_reply(malformed_ref, :ok, %{"acp:message" => malformed_response})
-      assert malformed_response["error"]["code"] == JsonRpc.error_invalid_params()
-      assert malformed_response["error"]["message"] == "Message ID must be a UUID"
-
+    test "rejects duplicate message UUIDs", %{socket: socket} do
       message_id = Ecto.UUID.generate()
       first_ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
       assert_push("acp:message", %{"params" => %{"update" => %{"messageId" => ^message_id}}})

@@ -614,15 +614,14 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, model} ->
         Logger.info("process_prompt", %{task_id: task_id, model: model})
 
-        with {:ok, message_id} <- message_id_from_meta(meta),
-             {:ok, agent_id} <-
+        with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
              {:ok, row} <-
                Tasks.submit_user_message(
                  scope,
                  %{
                    task_id: task_id,
-                   message_id: message_id,
+                   message_id: meta["frontman.dev/messageId"],
                    message: content_blocks,
                    model: model,
                    agent_id: agent_id
@@ -635,9 +634,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           Logger.info("User message accepted for task #{task_id}")
           {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
         else
-          {:error, :invalid_message_id} ->
-            reply_invalid_params(socket, id, "Message ID must be a UUID")
-
           {:error, :duplicate_message_id} ->
             reply_invalid_params(socket, id, "Message ID already exists")
 
@@ -658,13 +654,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
       :error ->
         reply_invalid_params(socket, id, "Model is required")
-    end
-  end
-
-  defp message_id_from_meta(meta) do
-    case Ecto.UUID.cast(meta["frontman.dev/messageId"]) do
-      {:ok, message_id} -> {:ok, message_id}
-      :error -> {:error, :invalid_message_id}
     end
   end
 

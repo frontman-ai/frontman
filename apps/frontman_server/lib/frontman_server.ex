@@ -27,7 +27,6 @@ defmodule FrontmanServer do
     CurrentPageContext,
     Mailer,
     Release,
-    ChangesetSanitizer,
     Encrypted.Binary,
     {Tools, []},
     Observability.ConsoleHandler,
