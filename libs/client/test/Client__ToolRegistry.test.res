@@ -51,7 +51,6 @@ describe("ToolRegistry", _t => {
     t->expect(wordpressNames->Array.length)->Expect.toBe(8)
     t->expect(wordpressNames->Array.includes("get_astro_audit"))->Expect.toBe(false)
   })
-
   test("serializes browser tool access levels", t => {
     let access = name => toolByName(Client__RuntimeConfig.Nextjs, name)->Dict.get("access")
 
@@ -59,7 +58,6 @@ describe("ToolRegistry", _t => {
     t->expect(access("execute_js"))->Expect.toEqual(Some(JSON.Encode.string("read-write")))
     t->expect(access("set_device_mode"))->Expect.toEqual(Some(JSON.Encode.string("write")))
   })
-
   test("advertises only structured browser output schemas", t => {
     toolDefinitions(Client__RuntimeConfig.Astro)->Array.forEach(
       tool => {
@@ -77,6 +75,6 @@ describe("ToolRegistry", _t => {
     let json = result->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json)
     t
     ->expect(JSON.stringify(json))
-    ->Expect.toBe(`{"content":[{"type":"image","data":"image-data","mimeType":"image/jpeg"}]}`)
+    ->Expect.toBe(`{"resultType":"complete","content":[{"type":"image","data":"image-data","mimeType":"image/jpeg"}]}`)
   })
 })
