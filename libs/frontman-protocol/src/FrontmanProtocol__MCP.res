@@ -69,40 +69,23 @@ type toolCallParams = {
   arguments: option<Dict.t<JSON.t>>,
 }
 
-type metadataError = UnsupportedProtocolVersion({requested: string, supported: array<string>})
+type metadataError = UnsupportedProtocolVersion(string)
 
-module SupportedRequestMeta: {
-  type t
-  let validate: requestMeta => result<t, metadataError>
-  let clientCapabilities: t => clientCapabilities
-  let executionContext: t => option<executionContext>
-} = {
-  type t = requestMeta
-
-  let validate = meta =>
-    switch meta.protocolVersion == protocolVersion {
-    | true => Ok(meta)
-    | false =>
-      Error(
-        UnsupportedProtocolVersion({
-          requested: meta.protocolVersion,
-          supported: [protocolVersion],
-        }),
-      )
-    }
-
-  let clientCapabilities = meta => meta.clientCapabilities
-  let executionContext = meta => meta.executionContext
-}
+let validateRequestMeta = meta =>
+  switch meta.protocolVersion == protocolVersion {
+  | true => Ok()
+  | false => Error(UnsupportedProtocolVersion(meta.protocolVersion))
+  }
 
 type toolCallValidationError =
   | ToolCallMetadata(metadataError)
   | MissingExecutionContextCapability
   | MissingExecutionContext
+  | WrongTask
 
-module ValidToolCall: {
+module AuthorizedToolCall: {
   type t
-  let validate: toolCallParams => result<t, toolCallValidationError>
+  let authorize: (toolCallParams, ~sessionId: string) => result<t, toolCallValidationError>
   let name: t => string
   let arguments: t => option<Dict.t<JSON.t>>
   let taskId: t => string
@@ -129,51 +112,17 @@ module ValidToolCall: {
     | None => false
     }
 
-  let validate = ({_meta, name, arguments}: toolCallParams) =>
-    switch SupportedRequestMeta.validate(_meta) {
+  let authorize = ({_meta, name, arguments}, ~sessionId) =>
+    switch validateRequestMeta(_meta) {
     | Error(error) => Error(ToolCallMetadata(error))
-    | Ok(meta) =>
-      switch hasExecutionContextCapability(SupportedRequestMeta.clientCapabilities(meta)) {
-      | false => Error(MissingExecutionContextCapability)
-      | true =>
-        switch SupportedRequestMeta.executionContext(meta) {
-        | Some({taskId, callId}) => Ok({name, arguments, taskId, callId})
-        | None => Error(MissingExecutionContext)
-        }
+    | Ok() if !hasExecutionContextCapability(_meta.clientCapabilities) =>
+      Error(MissingExecutionContextCapability)
+    | Ok() =>
+      switch _meta.executionContext {
+      | None => Error(MissingExecutionContext)
+      | Some({taskId}) if taskId != sessionId => Error(WrongTask)
+      | Some({callId}) => Ok({name, arguments, taskId: sessionId, callId})
       }
-    }
-
-  let name = toolCall => toolCall.name
-  let arguments = toolCall => toolCall.arguments
-  let taskId = toolCall => toolCall.taskId
-  let callId = toolCall => toolCall.callId
-}
-
-module AuthorizedToolCall: {
-  type t
-  let authorize: (ValidToolCall.t, ~sessionId: string) => result<t, unit>
-  let name: t => string
-  let arguments: t => option<Dict.t<JSON.t>>
-  let taskId: t => string
-  let callId: t => string
-} = {
-  type t = {
-    name: string,
-    arguments: option<Dict.t<JSON.t>>,
-    taskId: string,
-    callId: string,
-  }
-
-  let authorize = (toolCall, ~sessionId) =>
-    switch ValidToolCall.taskId(toolCall) == sessionId {
-    | true =>
-      Ok({
-        name: ValidToolCall.name(toolCall),
-        arguments: ValidToolCall.arguments(toolCall),
-        taskId: sessionId,
-        callId: ValidToolCall.callId(toolCall),
-      })
-    | false => Error()
     }
 
   let name = toolCall => toolCall.name
@@ -191,8 +140,8 @@ type requiredClientCapabilities = {extensions: frontmanExtensions}
 @schema
 type missingRequiredClientCapabilityData = {requiredCapabilities: requiredClientCapabilities}
 
-let unsupportedProtocolVersionDataToJson = (~requested, ~supported) =>
-  {requested, supported}->S.decodeOrThrow(
+let unsupportedProtocolVersionDataToJson = requested =>
+  {requested, supported: [protocolVersion]}->S.decodeOrThrow(
     ~from=unsupportedProtocolVersionDataSchema,
     ~to=S.json->S.noValidation(true),
   )
@@ -274,7 +223,7 @@ let callToolResultSchema = CallToolResult.schema
 
 let toolJsonSchema = S.object(s => {
   s.field("name", S.string->S.min(1))->ignore
-  s.field("description", S.string)->ignore
+  s.field("description", S.option(S.string))->ignore
   s.field("inputSchema", S.dict(S.json))->ignore
   s.flatten(S.dict(S.json))->JSON.Encode.object
 })
@@ -317,15 +266,4 @@ type serverInterface<'server> = {
     AuthorizedToolCall.t,
     ~onProgress: option<string => unit>,
   ) => promise<executeToolResult>,
-}
-
-module type Server = {
-  type t
-  let buildDiscoverResult: t => discoverResult
-  let buildToolsListResult: t => toolsListResult
-  let executeTool: (
-    t,
-    AuthorizedToolCall.t,
-    ~onProgress: option<string => unit>=?,
-  ) => promise<executeToolResult>
 }

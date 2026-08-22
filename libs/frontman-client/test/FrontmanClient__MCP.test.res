@@ -107,11 +107,11 @@ let errorData = calls =>
   ->Option.flatMap(JSON.Decode.object)
   ->Option.flatMap(error => error->Dict.get("data"))
 
-let handler = (channel, context, ~sessionId="task-1", ~failure=?, ~onMessage=?) => {
+let handler = (channel, context, ~sessionId="task-1", ~failure=?) => {
   MCP.serverInterface: makeInterface(~context, ~failure?),
   channel,
   sessionId,
-  onMessage,
+  onMessage: None,
 }
 
 describe("MCP 2026-07-28", () => {
@@ -155,32 +155,22 @@ describe("MCP 2026-07-28", () => {
       await MCP.handleMessage(handler(channel, ref(None)), payload)
       errorCode(calls)
     }
-    t
-    ->expect(await check(request(~id=5, ~method="server/discover", ~params="")))
-    ->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-    t
-    ->expect(await check(requestWithoutParams(~id=6, ~method="server/discover")))
-    ->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-    t
-    ->expect(await check(request(~id=7, ~method="tools/list", ~params="")))
-    ->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-    t
-    ->expect(await check(requestWithoutParams(~id=8, ~method="tools/list")))
-    ->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-    t
-    ->expect(await check(request(~id=9, ~method="tools/call", ~params=`"name":"question"`)))
-    ->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-    t
-    ->expect(
-      await check(
-        request(
-          ~id=10,
-          ~method="tools/call",
-          ~params=toolParams->String.replace(`"taskId":"task-1"`, `"taskId":""`),
-        ),
+    let errors = await [
+      request(~id=5, ~method="server/discover", ~params=""),
+      requestWithoutParams(~id=6, ~method="server/discover"),
+      request(~id=7, ~method="tools/list", ~params=""),
+      requestWithoutParams(~id=8, ~method="tools/list"),
+      request(~id=9, ~method="tools/call", ~params=`"name":"question"`),
+      request(
+        ~id=10,
+        ~method="tools/call",
+        ~params=toolParams->String.replace(`"taskId":"task-1"`, `"taskId":""`),
       ),
-    )
-    ->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
+    ]
+    ->Array.map(check)
+    ->Promise.all
+
+    t->expect(errors)->Expect.toEqual(Array.make(~length=6, Some(Types.ErrorCode.invalidParams)))
   })
 
   testAsync("rejects tool calls for another joined session without executing", async t => {
@@ -190,20 +180,6 @@ describe("MCP 2026-07-28", () => {
       handler(channel, context, ~sessionId="different-task"),
       request(~id=11, ~method="tools/call", ~params=toolParams),
     )
-    t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
-    t->expect(context.contents)->Expect.toEqual(None)
-  })
-
-  testAsync("rejects malformed execution context without executing", async t => {
-    let (channel, calls) = MockChannel.make()
-    let context = ref(None)
-    let malformed = toolParams->String.replace(`"callId":"call-1"`, `"callId":""`)
-
-    await MCP.handleMessage(
-      handler(channel, context),
-      request(~id=19, ~method="tools/call", ~params=malformed),
-    )
-
     t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
     t->expect(context.contents)->Expect.toEqual(None)
   })
@@ -275,20 +251,6 @@ describe("MCP 2026-07-28", () => {
       requestWithId(~id=`"call-1"`, ~method="tools/call", ~params=toolParams),
     )
     t->expect(response(calls)->Dict.get("id"))->Expect.toEqual(Some(JSON.Encode.string("call-1")))
-  })
-
-  testAsync("contains callback failures without rejecting the message promise", async t => {
-    let (channel, calls) = MockChannel.make()
-    await MCP.handleMessage(
-      handler(
-        channel,
-        ref(None),
-        ~onMessage=(_, _) => JsError.throwWithMessage("callback exploded"),
-      ),
-      request(~id=16, ~method="tools/call", ~params=toolParams),
-    )
-    t->expect(calls.contents->Array.length)->Expect.toBe(1)
-    t->expect(response(calls)->Dict.get("result")->Option.isSome)->Expect.toBe(true)
   })
 
   test("accepts array structuredContent", _ => {

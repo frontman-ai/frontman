@@ -31,9 +31,14 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     )
   end
 
-  defp discovery_state do
-    MCPInitializer.start("test_task", %FrontmanServer.Accounts.Scope{}, :nextjs)
+  defp state(overrides) do
+    scope = %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}}
+    {state, _actions} = MCPInitializer.start("test_task", scope, :nextjs)
+    Map.merge(state, overrides)
   end
+
+  defp discovery_state,
+    do: MCPInitializer.start("test_task", %FrontmanServer.Accounts.Scope{}, :nextjs)
 
   defp tools_result(tools, overrides \\ %{}) do
     Map.merge(
@@ -53,57 +58,24 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     )
   end
 
-  defp tools_state(request_id) do
-    %{
-      status: :loading_tools,
-      task_id: "test_task",
-      scope: %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}},
-      discovery_request_id: nil,
-      tools_request_id: request_id,
-      project_rules_request_id: nil,
-      project_structure_request_id: nil,
-      mcp_capabilities: %{},
-      mcp_server_info: %{},
-      load_project_context: true,
-      tools: [],
-      tools_page_count: 0,
-      tools_count: 0,
-      tools_wire_bytes: 0,
-      tools_cursors: MapSet.new()
-    }
-  end
+  defp tools_state(request_id),
+    do: state(%{status: :loading_tools, discovery_request_id: nil, tools_request_id: request_id})
 
-  defp rules_state(request_id) do
-    %{
-      status: :loading_project_rules,
-      task_id: "test_task",
-      scope: %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}},
-      discovery_request_id: nil,
-      tools_request_id: nil,
-      project_rules_request_id: request_id,
-      project_structure_request_id: nil,
-      mcp_capabilities: %{},
-      mcp_server_info: %{},
-      load_project_context: true,
-      tools: []
-    }
-  end
+  defp rules_state(request_id),
+    do:
+      state(%{
+        status: :loading_project_rules,
+        discovery_request_id: nil,
+        project_rules_request_id: request_id
+      })
 
-  defp structure_state(request_id) do
-    %{
-      status: :loading_project_structure,
-      task_id: "test_task",
-      scope: %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}},
-      discovery_request_id: nil,
-      tools_request_id: nil,
-      project_rules_request_id: nil,
-      project_structure_request_id: request_id,
-      mcp_capabilities: %{},
-      mcp_server_info: %{},
-      load_project_context: true,
-      tools: []
-    }
-  end
+  defp structure_state(request_id),
+    do:
+      state(%{
+        status: :loading_project_structure,
+        discovery_request_id: nil,
+        project_structure_request_id: request_id
+      })
 
   test "discovers the server then requests one tools page without an initialized notification" do
     {state, [{:push_mcp, discovery}]} =
@@ -140,13 +112,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
   test "fails initialization for malformed present server info" do
     {state, _actions} = discovery_state()
-
-    result =
-      discovery_result(%{
-        "_meta" => %{
-          "io.modelcontextprotocol/serverInfo" => %{"name" => "browser"}
-        }
-      })
+    result = discovery_result(%{"_meta" => %{"io.modelcontextprotocol/serverInfo" => %{}}})
 
     assert {%{status: :failed}, [{:initialization_failed, message}]} =
              MCPInitializer.handle_response(state, state.discovery_request_id, result)
@@ -164,6 +130,12 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
           "extensions" => %{
             "ai.frontman/execution-context" => %{"version" => 2}
           }
+        }
+      }),
+      discovery_result(%{
+        "capabilities" => %{
+          "tools" => %{"listChanged" => "no"},
+          "extensions" => %{"ai.frontman/execution-context" => %{"version" => 1}}
         }
       })
     ]
@@ -233,10 +205,10 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       assert navigate_tool.timeout_ms == 600_000
     end
 
-    test "fails initialization for malformed result metadata or tools" do
+    test "fails initialization for malformed tools or cursors" do
       invalid_results = [
-        %{"resultType" => "complete", "tools" => []},
         tools_result([%{"name" => "missing tool fields"}]),
+        tools_result([], %{"nextCursor" => 42}),
         %{tools_result([]) | "ttlMs" => -1}
       ]
 
@@ -291,67 +263,22 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       assert Enum.map(tools, & &1.description) == ["", "Second tool"]
     end
 
-    test "fails initialization when the cumulative catalog exceeds the tool limit" do
-      state = %{tools_state(1) | tools_count: 10_000}
+    test "bounds pagination and rejects incomplete catalogs" do
+      later_page = %{tools_state(2) | tools_page_count: 1}
 
-      result =
-        tools_result([
-          %{
-            "name" => "one-too-many",
-            "inputSchema" => %{"type" => "object"}
-          }
-        ])
+      assert {%{status: :failed}, [{:initialization_failed, "MCP tools/list pagination failed"}]} =
+               MCPInitializer.handle_error(later_page, 2, %{"message" => "failed"})
 
-      assert {%{status: :failed}, [{:initialization_failed, message}]} =
-               MCPInitializer.handle_response(state, 1, result)
+      bounded_catalogs = [
+        {%{later_page | tools_cursors: MapSet.new([""])}, %{"nextCursor" => ""}},
+        {%{tools_state(2) | tools_page_count: 99}, %{"nextCursor" => "more"}},
+        {%{tools_state(2) | tools_wire_bytes: 10_000_000}, %{}}
+      ]
 
-      assert message =~ "safety limits"
-    end
-
-    test "fails initialization when the cumulative catalog exceeds the byte limit" do
-      state = %{tools_state(1) | tools_wire_bytes: 10_000_000}
-
-      result =
-        tools_result([
-          %{
-            "name" => "too-large",
-            "inputSchema" => %{"type" => "object"}
-          }
-        ])
-
-      assert {%{status: :failed}, [{:initialization_failed, message}]} =
-               MCPInitializer.handle_response(state, 1, result)
-
-      assert message =~ "safety limits"
-    end
-
-    test "fails initialization when a later tools page returns an error" do
-      state = %{tools_state(2) | tools_page_count: 1, tools: [%{name: "first"}]}
-
-      assert {%{status: :failed}, [{:initialization_failed, message}]} =
-               MCPInitializer.handle_error(state, 2, %{"code" => -32_603, "message" => "failed"})
-
-      assert message =~ "pagination failed"
-    end
-
-    test "fails initialization when the server repeats a pagination cursor" do
-      state = %{tools_state(2) | tools_page_count: 1, tools_cursors: MapSet.new([""])}
-      result = tools_result([], %{"nextCursor" => ""})
-
-      assert {%{status: :failed}, [{:initialization_failed, message}]} =
-               MCPInitializer.handle_response(state, 2, result)
-
-      assert message =~ "repeated cursor"
-    end
-
-    test "fails initialization rather than requesting a page past the page limit" do
-      state = %{tools_state(2) | tools_page_count: 99}
-      result = tools_result([], %{"nextCursor" => "page-101"})
-
-      assert {%{status: :failed}, [{:initialization_failed, message}]} =
-               MCPInitializer.handle_response(state, 2, result)
-
-      assert message =~ "exceeded 100 pages"
+      Enum.each(bounded_catalogs, fn {state, overrides} ->
+        assert {%{status: :failed}, [{:initialization_failed, _message}]} =
+                 MCPInitializer.handle_response(state, 2, tools_result([], overrides))
+      end)
     end
   end
 

@@ -51,14 +51,6 @@ let parse = (json: JSON.t): result<mcpMessage, string> => {
   json->Decoders.parseSchema(schema)
 }
 
-let notifyObserver = (handler: mcpHandler<'server>, direction, payload) => {
-  try {
-    handler.onMessage->Option.forEach(cb => cb(direction, payload))
-  } catch {
-  | exn => Log.error(~error=exn->JsExn.fromException, "MCP message observer failed")
-  }
-}
-
 let serializeResult = (result, schema, ~validateWith=schema) => {
   let json = result->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
   json->S.parseOrThrow(~to=validateWith)->ignore
@@ -67,7 +59,7 @@ let serializeResult = (result, schema, ~validateWith=schema) => {
 
 let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
   let payload = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
-  notifyObserver(handler, Send, payload)
+  handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
@@ -80,19 +72,19 @@ let sendError = (
 ): unit => {
   let error = JsonRpc.RpcError.make(~code, ~message, ~data)
   let payload = JsonRpc.Response.makeErrorPayloadWithId(~id, ~error)
-  notifyObserver(handler, Send, payload)
+  handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
 let sendMetadataError = (handler, id, error: Types.metadataError) =>
   switch error {
-  | UnsupportedProtocolVersion({requested, supported}) =>
+  | UnsupportedProtocolVersion(requested) =>
     sendError(
       handler,
       id,
       Types.ErrorCode.unsupportedProtocolVersion,
       "Unsupported protocol version",
-      ~data=Types.unsupportedProtocolVersionDataToJson(~requested, ~supported),
+      ~data=Types.unsupportedProtocolVersionDataToJson(requested),
     )
   }
 
@@ -115,7 +107,7 @@ let handleDiscover = (
   switch parsed {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
   | Ok({_meta}) =>
-    switch Types.SupportedRequestMeta.validate(_meta) {
+    switch Types.validateRequestMeta(_meta) {
     | Error(error) => sendMetadataError(handler, id, error)
     | Ok(_) =>
       try {
@@ -153,7 +145,7 @@ let handleToolsList = (
   switch parsed {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
   | Ok({_meta}) =>
-    switch Types.SupportedRequestMeta.validate(_meta) {
+    switch Types.validateRequestMeta(_meta) {
     | Error(error) => sendMetadataError(handler, id, error)
     | Ok(_) =>
       try {
@@ -193,7 +185,7 @@ let handleToolsCall = async (
     switch paramsResult {
     | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
     | Ok(params) =>
-      switch Types.ValidToolCall.validate(params) {
+      switch Types.AuthorizedToolCall.authorize(params, ~sessionId=handler.sessionId) {
       | Error(ToolCallMetadata(error)) => sendMetadataError(handler, id, error)
       | Error(MissingExecutionContextCapability) =>
         sendError(
@@ -205,39 +197,28 @@ let handleToolsCall = async (
         )
       | Error(MissingExecutionContext) =>
         sendError(handler, id, Types.ErrorCode.invalidParams, "Missing execution context")
-      | Ok(toolCall) =>
-        switch Types.AuthorizedToolCall.authorize(toolCall, ~sessionId=handler.sessionId) {
-        | Error() =>
-          sendError(
-            handler,
-            id,
-            Types.ErrorCode.invalidParams,
-            "Tool taskId does not match session",
+      | Error(WrongTask) =>
+        sendError(handler, id, Types.ErrorCode.invalidParams, "Tool taskId does not match session")
+      | Ok(authorizedToolCall) =>
+        try {
+          let {serverInterface} = handler
+          let result = await serverInterface.executeTool(
+            serverInterface.server,
+            authorizedToolCall,
+            ~onProgress=None,
           )
-        | Ok(authorizedToolCall) =>
-          try {
-            let {serverInterface} = handler
-            let result = await serverInterface.executeTool(
-              serverInterface.server,
-              authorizedToolCall,
-              ~onProgress=None,
-            )
-            switch result {
-            | Completed(callToolResult) =>
-              let resultJson = serializeResult(callToolResult, Types.callToolResultSchema)
-              sendResponse(handler, id, resultJson)
-            | Suspended => ()
-            }
-          } catch {
-          | exn =>
-            let msg =
-              exn
-              ->JsExn.fromException
-              ->Option.flatMap(JsExn.message)
-              ->Option.getOr("Unknown error")
-            Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
-            sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
+          switch result {
+          | Completed(callToolResult) =>
+            let resultJson = serializeResult(callToolResult, Types.callToolResultSchema)
+            sendResponse(handler, id, resultJson)
+          | Suspended => ()
           }
+        } catch {
+        | exn =>
+          let msg =
+            exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+          Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
+          sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
         }
       }
     }
@@ -247,7 +228,7 @@ let handleToolsCall = async (
 
 let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit => {
   try {
-    notifyObserver(handler, Receive, payload)
+    handler.onMessage->Option.forEach(cb => cb(Receive, payload))
 
     switch parse(payload) {
     | Ok(Request({id, method, params})) =>

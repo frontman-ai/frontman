@@ -23,7 +23,6 @@
         },
         "required": [
           "name",
-          "description",
           "inputSchema"
         ]
       },
