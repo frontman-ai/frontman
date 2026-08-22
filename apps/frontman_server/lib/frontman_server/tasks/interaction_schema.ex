@@ -81,24 +81,12 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.turn_number == ^turn_number)
   end
 
-  @doc """
-  Filters interactions to those at or before the given turn number.
-  """
-  def up_to_turn(query \\ __MODULE__, turn_number)
-      when is_integer(turn_number) and turn_number > 0 do
-    from(i in query, where: i.turn_number <= ^turn_number)
-  end
-
   def ordered(query \\ __MODULE__) do
     from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id])
   end
 
   def of_type(query \\ __MODULE__, type) when is_atom(type) do
     from(i in query, where: i.type == ^type)
-  end
-
-  def by_ids(query \\ __MODULE__, ids) when is_list(ids) do
-    from(i in query, where: i.id in ^ids)
   end
 
   def data_equals(query \\ __MODULE__, field, value) do
