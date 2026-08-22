@@ -97,6 +97,40 @@ type action =
   | ShareFrontmanLinkCopied
   | ShareFrontmanFailed
   | HighlightAnnotation({annotationId: string, selector: string})
+  | FetchCustomEndpoints
+  | FetchCustomEndpointsSuccess({endpoints: array<Client__State__Types.customEndpoint>})
+  | FetchCustomEndpointsError({error: string})
+  | SaveCustomEndpoint({
+      id: option<string>,
+      name: string,
+      baseUrl: string,
+      apiKey: option<string>,
+      onComplete: result<Client__State__Types.customEndpoint, string> => unit,
+    })
+  | SaveCustomEndpointSuccess({endpoint: Client__State__Types.customEndpoint})
+  | SaveCustomEndpointError({error: string})
+  | DeleteCustomEndpoint({id: string, onComplete: result<unit, string> => unit})
+  | DeleteCustomEndpointSuccess({id: string})
+  | DeleteCustomEndpointError({error: string})
+  | AddCustomEndpointModel({
+      endpointId: string,
+      modelId: string,
+      displayName: option<string>,
+      position: option<int>,
+      onComplete: result<Client__State__Types.customEndpointModel, string> => unit,
+    })
+  | AddCustomEndpointModelSuccess({
+      endpointId: string,
+      model: Client__State__Types.customEndpointModel,
+    })
+  | AddCustomEndpointModelError({error: string})
+  | RemoveCustomEndpointModel({
+      endpointId: string,
+      modelId: string,
+      onComplete: result<unit, string> => unit,
+    })
+  | RemoveCustomEndpointModelSuccess({endpointId: string, modelId: string})
+  | RemoveCustomEndpointModelError({error: string})
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
@@ -115,6 +149,34 @@ type effect =
   | DeleteSessionEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
   | ShareFrontmanEffect
+  | FetchCustomEndpointsEffect({apiBaseUrl: string})
+  | SaveCustomEndpointEffect({
+      apiBaseUrl: string,
+      id: option<string>,
+      name: string,
+      baseUrl: string,
+      apiKey: option<string>,
+      onComplete: result<Client__State__Types.customEndpoint, string> => unit,
+    })
+  | DeleteCustomEndpointEffect({
+      apiBaseUrl: string,
+      id: string,
+      onComplete: result<unit, string> => unit,
+    })
+  | AddCustomEndpointModelEffect({
+      apiBaseUrl: string,
+      endpointId: string,
+      modelId: string,
+      displayName: option<string>,
+      position: option<int>,
+      onComplete: result<Client__State__Types.customEndpointModel, string> => unit,
+    })
+  | RemoveCustomEndpointModelEffect({
+      apiBaseUrl: string,
+      endpointId: string,
+      modelId: string,
+      onComplete: result<unit, string> => unit,
+    })
 
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
@@ -246,6 +308,7 @@ let defaultState: state = {
   selectedAgentId: None,
   pendingProviderAutoSelect: None,
   sessionsLoadState: Client__State__Types.SessionsNotLoaded,
+  customEndpoints: None,
   updateInfo: None,
   updateCheckStatus: UpdateNotChecked,
   updateBannerDismissed: false,
@@ -449,6 +512,9 @@ module Selectors = {
     | Some(highlighted) if highlighted.taskId == currentTaskClientId(state) => Some(highlighted)
     | Some(_) | None => None
     }
+
+  let customEndpoints = (state: state): option<array<Client__State__Types.customEndpoint>> => {
+    state.customEndpoints
   }
 
   let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {
@@ -700,6 +766,224 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
     }
   }
   save()->ignore
+}
+
+let errorFromResponse = async (response): string => {
+  try {
+    let json = await response->WebAPI.Response.json
+    JSON.stringifyAny(json)->Option.getOr(
+      `HTTP ${response.status->Int.toString}: ${response.statusText}`,
+    )
+  } catch {
+  | _ => `HTTP ${response.status->Int.toString}: ${response.statusText}`
+  }
+}
+
+let fetchCustomEndpointsImpl = (dispatch, ~apiBaseUrl) => {
+  let fetch = async () => {
+    let url = `${apiBaseUrl}/api/user/custom-endpoints`
+
+    try {
+      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
+      if response.ok {
+        let json = await response->WebAPI.Response.json
+        let endpointsResponse =
+          json->S.decodeOrThrow(
+            ~from=S.json,
+            ~to=Client__State__Types.customEndpointsResponseSchema,
+          )
+        dispatch(FetchCustomEndpointsSuccess({endpoints: endpointsResponse.endpoints}))
+      } else {
+        let error = await errorFromResponse(response)
+        dispatch(FetchCustomEndpointsError({error: error}))
+      }
+    } catch {
+    | exn =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      dispatch(FetchCustomEndpointsError({error: `Failed to fetch custom endpoints: ${msg}`}))
+    }
+  }
+  fetch()->ignore
+}
+
+let encodeCustomEndpointSaveRequest = (~name, ~baseUrl, ~apiKey) => {
+  let obj = Dict.make()
+  obj->Dict.set("name", JSON.Encode.string(name))
+  obj->Dict.set("base_url", JSON.Encode.string(baseUrl))
+  apiKey->Option.forEach(key => obj->Dict.set("api_key", JSON.Encode.string(key)))
+  JSON.stringify(obj->JSON.Encode.object)
+}
+
+let saveCustomEndpointImpl = (
+  dispatch,
+  ~apiBaseUrl,
+  ~id,
+  ~name,
+  ~baseUrl,
+  ~apiKey,
+  ~onComplete,
+) => {
+  let save = async () => {
+    let url = switch id {
+    | Some(endpointId) => `${apiBaseUrl}/api/user/custom-endpoints/${endpointId}`
+    | None => `${apiBaseUrl}/api/user/custom-endpoints`
+    }
+    let method = switch id {
+    | Some(_) => "PATCH"
+    | None => "POST"
+    }
+
+    try {
+      let response = await WebAPI.Fetch.fetch(
+        url,
+        ~init={
+          credentials: Include,
+          method,
+          headers: jsonContentHeaders(),
+          body: WebAPI.BodyInit.fromString(
+            encodeCustomEndpointSaveRequest(~name, ~baseUrl, ~apiKey),
+          ),
+        },
+      )
+
+      if response.ok {
+        let json = await response->WebAPI.Response.json
+        let {endpoint} =
+          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.customEndpointResponseSchema)
+        onComplete(Ok(endpoint))
+        dispatch(SaveCustomEndpointSuccess({endpoint: endpoint}))
+      } else {
+        let error = await errorFromResponse(response)
+        onComplete(Error(error))
+        dispatch(SaveCustomEndpointError({error: error}))
+      }
+    } catch {
+    | exn =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      let error = `Failed to save custom endpoint: ${msg}`
+      onComplete(Error(error))
+      dispatch(SaveCustomEndpointError({error: error}))
+    }
+  }
+  save()->ignore
+}
+
+let deleteCustomEndpointImpl = (dispatch, ~apiBaseUrl, ~id, ~onComplete) => {
+  let remove = async () => {
+    let url = `${apiBaseUrl}/api/user/custom-endpoints/${id}`
+
+    try {
+      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include, method: "DELETE"})
+      if response.ok {
+        onComplete(Ok())
+        dispatch(DeleteCustomEndpointSuccess({id: id}))
+      } else {
+        let error = switch response.status {
+        | 404 => "not_found"
+        | _ => await errorFromResponse(response)
+        }
+        onComplete(Error(error))
+        dispatch(DeleteCustomEndpointError({error: error}))
+      }
+    } catch {
+    | exn =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      let error = `Failed to delete custom endpoint: ${msg}`
+      onComplete(Error(error))
+      dispatch(DeleteCustomEndpointError({error: error}))
+    }
+  }
+  remove()->ignore
+}
+
+let addCustomEndpointModelImpl = (
+  dispatch,
+  ~apiBaseUrl,
+  ~endpointId,
+  ~modelId,
+  ~displayName,
+  ~position,
+  ~onComplete,
+) => {
+  let add = async () => {
+    let url = `${apiBaseUrl}/api/user/custom-endpoints/${endpointId}/models`
+
+    try {
+      let bodyObj = Dict.make()
+      bodyObj->Dict.set("model_id", JSON.Encode.string(modelId))
+      displayName->Option.forEach(name =>
+        bodyObj->Dict.set("display_name", JSON.Encode.string(name))
+      )
+      position->Option.forEach(pos => bodyObj->Dict.set("position", JSON.Encode.int(pos)))
+
+      let response = await WebAPI.Fetch.fetch(
+        url,
+        ~init={
+          credentials: Include,
+          method: "POST",
+          headers: jsonContentHeaders(),
+          body: WebAPI.BodyInit.fromString(JSON.stringify(bodyObj->JSON.Encode.object)),
+        },
+      )
+      if response.ok {
+        let json = await response->WebAPI.Response.json
+        let {model} =
+          json->S.decodeOrThrow(
+            ~from=S.json,
+            ~to=Client__State__Types.customEndpointModelResponseSchema,
+          )
+        onComplete(Ok(model))
+        dispatch(AddCustomEndpointModelSuccess({endpointId, model}))
+      } else {
+        let error = switch response.status {
+        | 404 => "not_found"
+        | _ => await errorFromResponse(response)
+        }
+        onComplete(Error(error))
+        dispatch(AddCustomEndpointModelError({error: error}))
+      }
+    } catch {
+    | exn =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      let error = `Failed to add custom endpoint model: ${msg}`
+      onComplete(Error(error))
+      dispatch(AddCustomEndpointModelError({error: error}))
+    }
+  }
+  add()->ignore
+}
+
+let removeCustomEndpointModelImpl = (dispatch, ~apiBaseUrl, ~endpointId, ~modelId, ~onComplete) => {
+  let remove = async () => {
+    let url = `${apiBaseUrl}/api/user/custom-endpoints/${endpointId}/models/${modelId}`
+
+    try {
+      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include, method: "DELETE"})
+      if response.ok {
+        onComplete(Ok())
+        dispatch(RemoveCustomEndpointModelSuccess({endpointId, modelId}))
+      } else {
+        let error = switch response.status {
+        | 404 => "not_found"
+        | _ => await errorFromResponse(response)
+        }
+        onComplete(Error(error))
+        dispatch(RemoveCustomEndpointModelError({error: error}))
+      }
+    } catch {
+    | exn =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      let error = `Failed to remove custom endpoint model: ${msg}`
+      onComplete(Error(error))
+      dispatch(RemoveCustomEndpointModelError({error: error}))
+    }
+  }
+  remove()->ignore
 }
 
 let handleEffect = (effect, state: state, dispatch) => {
@@ -1089,6 +1373,45 @@ let handleEffect = (effect, state: state, dispatch) => {
       ~onCopied=() => dispatch(ShareFrontmanLinkCopied),
       ~onFailed=() => dispatch(ShareFrontmanFailed),
     )
+
+  | FetchCustomEndpointsEffect({apiBaseUrl}) => fetchCustomEndpointsImpl(dispatch, ~apiBaseUrl)
+  | SaveCustomEndpointEffect({apiBaseUrl, id, name, baseUrl, apiKey, onComplete}) =>
+    saveCustomEndpointImpl(dispatch, ~apiBaseUrl, ~id, ~name, ~baseUrl, ~apiKey, ~onComplete)
+  | DeleteCustomEndpointEffect({apiBaseUrl, id, onComplete}) =>
+    deleteCustomEndpointImpl(dispatch, ~apiBaseUrl, ~id, ~onComplete)
+  | AddCustomEndpointModelEffect({
+      apiBaseUrl,
+      endpointId,
+      modelId,
+      displayName,
+      position,
+      onComplete,
+    }) =>
+    addCustomEndpointModelImpl(
+      dispatch,
+      ~apiBaseUrl,
+      ~endpointId,
+      ~modelId,
+      ~displayName,
+      ~position,
+      ~onComplete,
+    )
+  | RemoveCustomEndpointModelEffect({apiBaseUrl, endpointId, modelId, onComplete}) =>
+    removeCustomEndpointModelImpl(dispatch, ~apiBaseUrl, ~endpointId, ~modelId, ~onComplete)
+  }
+}
+
+let mergeOrAppendEndpoint = (
+  existing: option<array<Client__State__Types.customEndpoint>>,
+  endpoint: Client__State__Types.customEndpoint,
+): array<Client__State__Types.customEndpoint> => {
+  let endpoints = existing->Option.getOr([])
+  switch endpoints->Array.findIndexOpt(e => e.id == endpoint.id) {
+  | Some(idx) =>
+    let merged = endpoints->Array.copy
+    merged[idx] = endpoint
+    merged
+  | None => Array.concat(endpoints, [endpoint])
   }
 }
 
@@ -1675,5 +1998,137 @@ let next = (state: state, action) => {
     | Some(_) | None => Some({Client__State__Types.taskId, annotationId, selector})
     }
     {...state, highlightedAnnotation: highlighted}->StateReducer.update
+
+  | FetchCustomEndpoints =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->StateReducer.update(
+        ~sideEffects=[FetchCustomEndpointsEffect({apiBaseUrl: apiBaseUrl})],
+      )
+    | NoAcpSession => state->StateReducer.update
+    }
+
+  | FetchCustomEndpointsSuccess({endpoints}) =>
+    {...state, customEndpoints: Some(endpoints)}->StateReducer.update
+
+  | FetchCustomEndpointsError({error}) =>
+    Log.error(`FetchCustomEndpoints failed: ${error}`)
+    state->StateReducer.update
+
+  | SaveCustomEndpoint({id, name, baseUrl, apiKey, onComplete}) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->StateReducer.update(
+        ~sideEffects=[
+          SaveCustomEndpointEffect({apiBaseUrl, id, name, baseUrl, apiKey, onComplete}),
+        ],
+      )
+    | NoAcpSession =>
+      onComplete(Error("No active ACP session"))
+      state->StateReducer.update
+    }
+
+  | SaveCustomEndpointSuccess({endpoint}) =>
+    {
+      ...state,
+      customEndpoints: Some(mergeOrAppendEndpoint(state.customEndpoints, endpoint)),
+    }->StateReducer.update
+
+  | SaveCustomEndpointError({error}) =>
+    Log.error(`SaveCustomEndpoint failed: ${error}`)
+    state->StateReducer.update
+
+  | DeleteCustomEndpoint({id, onComplete}) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->StateReducer.update(
+        ~sideEffects=[DeleteCustomEndpointEffect({apiBaseUrl, id, onComplete})],
+      )
+    | NoAcpSession =>
+      onComplete(Error("No active ACP session"))
+      state->StateReducer.update
+    }
+
+  | DeleteCustomEndpointSuccess({id}) =>
+    {
+      ...state,
+      customEndpoints: state.customEndpoints->Option.map(endpoints =>
+        endpoints->Array.filter(endpoint => endpoint.id != id)
+      ),
+    }->StateReducer.update
+
+  | DeleteCustomEndpointError({error}) =>
+    Log.error(`DeleteCustomEndpoint failed: ${error}`)
+    state->StateReducer.update
+
+  | AddCustomEndpointModel({endpointId, modelId, displayName, position, onComplete}) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->StateReducer.update(
+        ~sideEffects=[
+          AddCustomEndpointModelEffect({
+            apiBaseUrl,
+            endpointId,
+            modelId,
+            displayName,
+            position,
+            onComplete,
+          }),
+        ],
+      )
+    | NoAcpSession =>
+      onComplete(Error("No active ACP session"))
+      state->StateReducer.update
+    }
+
+  | AddCustomEndpointModelSuccess({endpointId, model}) =>
+    {
+      ...state,
+      customEndpoints: state.customEndpoints->Option.map(endpoints =>
+        endpoints->Array.map(endpoint =>
+          switch endpoint.id == endpointId {
+          | true => {...endpoint, models: Array.concat(endpoint.models, [model])}
+          | false => endpoint
+          }
+        )
+      ),
+    }->StateReducer.update
+
+  | AddCustomEndpointModelError({error}) =>
+    Log.error(`AddCustomEndpointModel failed: ${error}`)
+    state->StateReducer.update
+
+  | RemoveCustomEndpointModel({endpointId, modelId, onComplete}) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->StateReducer.update(
+        ~sideEffects=[
+          RemoveCustomEndpointModelEffect({apiBaseUrl, endpointId, modelId, onComplete}),
+        ],
+      )
+    | NoAcpSession =>
+      onComplete(Error("No active ACP session"))
+      state->StateReducer.update
+    }
+
+  | RemoveCustomEndpointModelSuccess({endpointId, modelId}) =>
+    {
+      ...state,
+      customEndpoints: state.customEndpoints->Option.map(endpoints =>
+        endpoints->Array.map(endpoint =>
+          switch endpoint.id == endpointId {
+          | true => {
+              ...endpoint,
+              models: endpoint.models->Array.filter(model => model.modelId != modelId),
+            }
+          | false => endpoint
+          }
+        )
+      ),
+    }->StateReducer.update
+
+  | RemoveCustomEndpointModelError({error}) =>
+    Log.error(`RemoveCustomEndpointModel failed: ${error}`)
+    state->StateReducer.update
   }
 }

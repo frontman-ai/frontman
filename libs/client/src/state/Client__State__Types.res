@@ -110,6 +110,42 @@ type openAIDeviceAuthPollResponse = {
   expiresAt: option<string>,
 }
 
+@schema
+type customEndpointModel = {
+  id: string,
+  @as("model_id")
+  modelId: string,
+  @as("display_name")
+  displayName: option<string>,
+  position: option<int>,
+}
+
+@schema
+type customEndpoint = {
+  id: string,
+  name: string,
+  @as("base_url")
+  baseUrl: string,
+  @as("has_api_key")
+  hasApiKey: bool,
+  models: array<customEndpointModel>,
+}
+
+@schema
+type customEndpointsResponse = {
+  endpoints: array<customEndpoint>,
+}
+
+@schema
+type customEndpointResponse = {
+  endpoint: customEndpoint,
+}
+
+@schema
+type customEndpointModelResponse = {
+  model: customEndpointModel,
+}
+
 module ACPConfig = {
   type sessionConfigOption = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption
   type sessionConfigValueId = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId
@@ -188,6 +224,7 @@ type state = {
   selectedAgentId: option<string>,
   pendingProviderAutoSelect: option<string>,
   sessionsLoadState: sessionsLoadState,
+  customEndpoints: option<array<customEndpoint>>,
   updateInfo: option<updateInfo>,
   updateCheckStatus: updateCheckStatus,
   updateBannerDismissed: bool,

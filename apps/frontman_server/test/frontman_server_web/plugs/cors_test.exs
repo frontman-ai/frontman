@@ -14,7 +14,11 @@ defmodule FrontmanServerWeb.Plugs.CORSTest do
 
     assert get_resp_header(conn, "vary") == ["origin"]
     assert get_resp_header(conn, "access-control-allow-origin") == ["http://localhost:3011"]
-    assert get_resp_header(conn, "access-control-allow-methods") == ["GET, POST, DELETE, OPTIONS"]
+
+    assert get_resp_header(conn, "access-control-allow-methods") == [
+             "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+           ]
+
     assert get_resp_header(conn, "access-control-allow-headers") == ["content-type"]
     assert get_resp_header(conn, "access-control-allow-credentials") == ["true"]
   end

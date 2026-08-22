@@ -277,6 +277,22 @@ module Actions = {
 
   let shareFrontman = () => Client__State__Store.dispatch(ShareFrontman)
 
+  let fetchCustomEndpoints = () => Client__State__Store.dispatch(FetchCustomEndpoints)
+
+  let saveCustomEndpoint = (~id=?, ~name, ~baseUrl, ~apiKey=?, ~onComplete) =>
+    Client__State__Store.dispatch(SaveCustomEndpoint({id, name, baseUrl, apiKey, onComplete}))
+
+  let deleteCustomEndpoint = (~id, ~onComplete) =>
+    Client__State__Store.dispatch(DeleteCustomEndpoint({id, onComplete}))
+
+  let addCustomEndpointModel = (~endpointId, ~modelId, ~displayName=?, ~position=?, ~onComplete) =>
+    Client__State__Store.dispatch(
+      AddCustomEndpointModel({endpointId, modelId, displayName, position, onComplete}),
+    )
+
+  let removeCustomEndpointModel = (~endpointId, ~modelId, ~onComplete) =>
+    Client__State__Store.dispatch(RemoveCustomEndpointModel({endpointId, modelId, onComplete}))
+
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
     Client__State__Store.dispatch(
       TaskAction({

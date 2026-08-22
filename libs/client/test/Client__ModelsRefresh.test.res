@@ -50,6 +50,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     updateBannerDismissed: false,
     firstTaskFeedbackDialogState: Waiting,
     highlightedAnnotation: None,
+    customEndpoints: None,
   }
 }
 
