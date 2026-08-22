@@ -5,16 +5,20 @@ import type { ComparisonFeature, ComparisonReview, Alternative, CompetitorInfo, 
 import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 
 const seo: SEOInfo = {
-  title: 'Frontman vs Cursor: Browser vs IDE AI Coding',
+  title: 'Frontman vs Cursor Design Mode: Visual AI Coding',
   description:
-    'Cursor is built for engineers who think in code. Frontman is built for people who think in what they see on screen. Here\'s when to use each — and when to use both.',
+    'Compare browser-first Frontman for site owners and product teams with Cursor Design Mode inside a full developer environment. Features, pricing, and architecture.',
 }
 
 const review: ComparisonReview = {
   ...createComparisonReview([
-    { label: 'Cursor official features page', url: 'https://cursor.com/features' },
-    { label: 'Cursor official documentation', url: 'https://cursor.com/docs' },
+    { label: 'Cursor Design Mode documentation', url: 'https://cursor.com/docs/agent/design-mode' },
+    { label: 'Cursor Browser documentation', url: 'https://cursor.com/docs/agent/tools/browser' },
+    { label: 'Cursor Agents Window documentation', url: 'https://cursor.com/docs/agent/agents-window' },
+    { label: 'Cursor pricing', url: 'https://cursor.com/pricing' },
+    { label: 'Cursor BYOK documentation', url: 'https://cursor.com/help/models-and-usage/api-keys' },
   ]),
+  checkedAt: '2026-08-20',
 }
 
 const competitor: CompetitorInfo = {
@@ -22,68 +26,80 @@ const competitor: CompetitorInfo = {
   slug: 'cursor',
   url: 'https://cursor.com',
   category: 'DeveloperApplication',
-  description: 'AI-powered code editor based on VS Code with autocomplete, agent mode, and multi-file refactoring.',
+  description: 'Proprietary coding agent and development environment with visual Design Mode, browser tools, autocomplete, terminal access, and multi-file editing.',
   pricing: {
     cost: '$0–$200/mo',
     model: 'Freemium, proprietary',
     features: [
-      'Hobby: Free — limited agent + tab completions',
-      'Pro: $20/mo — extended agent, unlimited tabs',
-      'Pro+: $60/mo — 3x usage on all models',
-      'Ultra: $200/mo — 20x usage, priority access',
-      'Teams: $40/user/mo — shared usage, SSO',
-      'API key mode available (full BYOK)',
+      'Hobby: Free — limited Agent requests and Composer access',
+      'Pro: $20/mo — extended Agent limits, frontier models, cloud agents',
+      'Pro+: 3x Pro limits on Agent',
+      'Ultra: 20x Pro limits on Agent and priority access to new features',
+      'Teams Standard: $40/user/mo — administration, analytics, and SSO',
+      'BYOK for supported chat models; Tab still uses Cursor models',
     ],
   },
 }
 
 const features: ComparisonFeature[] = [
-  { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'no', frontmanNote: 'Click elements, describe changes — no IDE needed', competitorNote: 'Requires IDE proficiency' },
-  { name: 'Works in the browser', frontman: 'yes', competitor: 'no', frontmanNote: 'Opens alongside your running app', competitorNote: 'VS Code fork — desktop IDE' },
-  { name: 'Click-to-select elements', frontman: 'yes', competitor: 'no', frontmanNote: 'Visual component selection', competitorNote: 'Must describe or find in file tree' },
-  { name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'no', frontmanNote: 'Browser-side MCP server inspects the live page', competitorNote: 'File-only context by default' },
-  { name: 'Sees computed CSS', frontman: 'yes', competitor: 'no', frontmanNote: 'Runtime values, not class names', competitorNote: 'Reads source files; can extend via MCP' },
-  { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'partial', frontmanNote: 'Instant in browser', competitorNote: "Can trigger builds via agent, doesn't see browser result" },
-  { name: 'Framework-aware', frontman: 'yes', competitor: 'partial', frontmanNote: 'Deep plugin integration with Next.js, Astro, Vite', competitorNote: 'MCP servers, .cursorrules, project context' },
-  { name: 'File-based editing', frontman: 'yes', competitor: 'yes', frontmanNote: 'Edits source files — real code, not overrides', competitorNote: 'Full file system access' },
+  { name: 'Built for non-technical users', frontman: 'yes', competitor: 'partial', frontmanNote: 'Site owners and product teams work from the live site', competitorNote: 'Visual controls inside a developer environment' },
+  { name: 'Visual editing interface', frontman: 'yes', competitor: 'yes', frontmanNote: 'Runs alongside the app in a normal browser', competitorNote: 'Design Mode in the Cursor Agents Window browser' },
+  { name: 'Click-to-select elements', frontman: 'yes', competitor: 'yes', frontmanNote: 'Single- and multi-element selection', competitorNote: 'Single- and multi-element selection' },
+  { name: 'Drawing and voice prompts', frontman: 'no', competitor: 'yes', competitorNote: 'Draw on the page or narrate changes' },
+  { name: 'Live DOM and computed styles', frontman: 'yes', competitor: 'yes', frontmanNote: 'Browser tools inspect the running page', competitorNote: 'Captures element attributes and computed styles' },
+  { name: 'Screenshot context', frontman: 'yes', competitor: 'yes', frontmanNote: 'Screenshots and device emulation', competitorNote: 'Includes a screenshot of the current page state' },
+  { name: 'Runtime diagnostics', frontman: 'yes', competitor: 'yes', frontmanNote: 'Framework integrations expose server logs and build errors', competitorNote: 'Native Browser reads console logs and network traffic' },
+  { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'yes', frontmanNote: 'Changes appear in the running app', competitorNote: 'Design Mode shows changes as the app hot reloads' },
+  { name: 'Dedicated site integration', frontman: 'yes', competitor: 'no', frontmanNote: 'WordPress plugin plus Next.js, Astro, and Vite integrations', competitorNote: 'General code, terminal, and browser tools' },
+  { name: 'IDE-free day-to-day workflow', frontman: 'yes', competitor: 'no', frontmanNote: 'Site owners and visual users work in the browser', competitorNote: 'Requires the Cursor developer application and Agents Window' },
+  { name: 'Source-file editing for code projects', frontman: 'yes', competitor: 'yes', frontmanNote: 'Edits Next.js, Astro, and Vite project files', competitorNote: 'Full file system access' },
+  { name: 'WordPress-native editing', frontman: 'yes', competitor: 'no', frontmanNote: 'Posts, pages, blocks, Elementor, menus, settings, and more', competitorNote: 'No WordPress-native tools documented' },
   { name: 'Autocomplete', frontman: 'no', competitor: 'yes', competitorNote: 'Tab completion, inline suggestions' },
-  { name: 'Multi-file refactoring', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can edit multiple files, but not its primary workflow', competitorNote: 'Cross-file edits, Composer, agent mode' },
+  { name: 'Multi-file refactoring', frontman: 'yes', competitor: 'yes', frontmanNote: 'Full agent harness with cross-file tools; capability follows the selected model', competitorNote: 'Cross-file edits, Composer, agent mode' },
   { name: 'Terminal integration', frontman: 'no', competitor: 'yes', competitorNote: 'Built-in terminal, agent mode, cloud agents' },
   { name: 'Backend coding', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can read/write any project file, but frontend-focused', competitorNote: 'Any language, any framework' },
   { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: frontmanLicenseShort, competitorNote: 'Proprietary' },
-  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'yes', frontmanNote: 'OpenRouter, Anthropic, OpenAI', competitorNote: 'API key mode, bring your own models' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'partial', frontmanNote: 'OpenRouter, Anthropic, OpenAI', competitorNote: 'Chat models only; requests route through Cursor servers' },
   { name: 'Self-hostable', frontman: 'yes', competitor: 'no' },
 ]
 
 const faqs: FAQ[] = [
   {
-    question: 'Can our designers actually use Frontman without learning an IDE?',
-    answer: 'Yes. Frontman runs in the browser alongside your running app — no VS Code, no terminal. Designers click elements they want to change, describe the update in plain English, and see results via hot reload. Every change produces a real source file edit that engineers can review as a normal pull request. The interface is the browser they already know.',
+    question: 'Can non-technical site owners use Frontman without learning an IDE?',
+    answer: 'Yes. A WordPress administrator can install Frontman from the Plugin Directory in wp-admin. For Next.js, Astro, or Vite, a developer installs the project integration and runs the site. After setup, site owners, marketers, designers, and PMs work from the live site in a normal browser without navigating source files, using a terminal, or learning an IDE. Cursor Design Mode instead requires users to work inside the Cursor developer application and Agents Window.',
   },
   {
-    question: 'Will this break our design system or create code engineers have to clean up?',
-    answer: "No. Frontman edits the same source files your engineers write — real component code, not CSS overrides or a separate layer. Changes go through your existing code review process. Because Frontman integrates as a framework plugin (Next.js, Astro, or Vite), it understands your component structure and source maps. Engineers review and merge like any other PR.",
+    question: 'Does Cursor have a visual editor like Frontman?',
+    answer: 'Yes. Cursor Design Mode lets users select one or more elements in a running app, draw on the page, or dictate a prompt. It gives the agent element attributes, computed styles, component information, React Fiber props when available, and a screenshot, then shows edits through hot reload. Frontman is no longer differentiated simply by seeing the browser.',
+  },
+  {
+    question: 'Why use Frontman if Cursor already has Design Mode?',
+    answer: 'Frontman is designed for people responsible for a website or product who do not work in a development environment. Site owners, marketers, designers, and PMs make changes from the live site without adopting Cursor, an IDE, a terminal, or a code-navigation workflow. Cursor Design Mode is a strong choice for developers who already want Cursor\'s broader coding platform.',
+  },
+  {
+    question: 'Do Frontman and Cursor Design Mode edit real source code?',
+    answer: 'On Next.js, Astro, and Vite projects, both tools use browser context to guide changes to project source files rather than applying a separate production-only CSS override layer. On WordPress, Frontman uses WordPress-native tools for posts, pages, blocks, Elementor content, menus, templates, settings, and other supported site data. AI-generated changes still require review and testing.',
   },
   {
     question: 'Can Frontman replace Cursor for our engineering team?',
-    answer: "For frontend visual editing — clicking elements, adjusting layout, fixing CSS — yes. For agentic coding workflows, autocomplete, terminal integration, or large codebase refactoring, no. They serve different roles on the team. Many teams use Cursor for backend and general-purpose engineering, and Frontman for cross-functional UI iteration where designers and PMs are involved.",
+    answer: 'Usually not. Cursor now overlaps directly with Frontman on visual editing and also provides autocomplete, terminal access, browser automation, and cloud agents. Both provide agent harnesses capable of broad multi-file engineering workflows; Frontman is model-agnostic and adds dedicated browser and local framework context, while Cursor integrates the workflow into its developer environment.',
   },
   {
     question: 'Does Frontman work alongside Cursor?',
     answer: 'Yes. Engineers use Cursor as their IDE for backend and general coding. Designers and PMs use Frontman in the browser for visual changes. Both edit the same source files. Changes from either tool are reflected through normal file watching and hot reload.',
   },
   {
-    question: "What does Frontman see that Cursor doesn't?",
-    answer: "Frontman integrates with your framework as a plugin and runs a browser-side MCP server that inspects the live DOM tree, computed CSS styles (not just class names), viewport layout and spacing, and can take screenshots and emulate different devices. The framework plugin captures console logs, build errors, and resolves source locations via source maps. Cursor reads your source files and doesn't natively see what they render — though it can connect to browser tools via MCP servers, that requires additional setup.",
+    question: 'What is the technical difference between Frontman and Cursor Design Mode?',
+    answer: 'Both can inspect a running page, capture computed styles and screenshots, and make project changes. Frontman combines browser tools with dedicated Next.js, Astro, and Vite integrations for code-backed sites, or a WordPress plugin with WordPress-native content and settings tools. Cursor combines its Agents Window browser with a general-purpose coding agent, terminal, codebase tools, and cloud workflows.',
   },
 	{
 		question: 'How does pricing work for a team with designers, PMs, and engineers?',
-		answer: "Self-hosting remains available under Frontman's source-available licensing terms. Hosted Frontman Pro is available now. You bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with your Claude or ChatGPT subscription via OAuth.",
+    answer: 'Frontman is free, source-available, self-hostable, and BYOK. Cursor has a free Hobby tier and paid individual plans starting at $20 per month. Cursor supports BYOK for supported chat models, but Tab still uses Cursor models and BYOK requests pass through Cursor servers for final prompt building.',
 	},
 ]
 
 const alternatives: Alternative[] = [
-  { name: 'Frontman', slug: '', oneLiner: 'Source-available AI agent with a browser interface. Designers and PMs click elements, describe changes, ship real code.' },
+  { name: 'Frontman', slug: '', oneLiner: 'Source-available AI website editor. Site owners and product teams describe changes from the live site without using an IDE.' },
   { name: 'Claude Code', slug: 'claude-code', oneLiner: 'Terminal-based AI coding agent from Anthropic. Powerful for backend and full-stack work.' },
   { name: 'GitHub Copilot', slug: 'copilot', oneLiner: 'AI pair programmer in VS Code and JetBrains. Autocomplete-focused with chat and agent features.' },
   { name: 'Windsurf', slug: 'windsurf', oneLiner: 'Now Devin Desktop: full IDE and command center for local and cloud coding agents.' },
@@ -96,112 +112,118 @@ const alternatives: Alternative[] = [
   competitor={competitor}
   review={review}
   heroTitle="Frontman vs Cursor"
-  heroSubtitle="Your Whole Team Can Ship UI Changes — Not Just Engineers"
+  heroSubtitle="For Website Owners and Product Teams vs a Full Developer Environment"
   features={features}
   faqs={faqs}
   alternatives={alternatives}
 >
   <Fragment slot="hero-summary">
     <p>
-      If you have a design system and a growing product team, you know the bottleneck: every spacing tweak, copy change, or component adjustment becomes a ticket for engineering. Designers spec it, PMs prioritize it, and developers implement it days later. The feedback loop is slow and expensive.
+      <strong>Quick answer:</strong> Both tools can select rendered elements, inspect runtime context, make real changes, and show the result in the browser. The key difference is who must operate the tool. Frontman is built for non-technical website owners and product teams who want to change a live site without learning an IDE or terminal. Cursor Design Mode puts visual editing inside Cursor's full developer environment, alongside its codebase, terminal, and general-purpose agent tools.
     </p>
     <p>
-      <a href="https://frontman.sh" class="text-link">Frontman</a> is a source-available AI agent with a distributed architecture. Browser tools inspect live DOM and computed styles, the local framework integration (Next.js, Astro, or Vite) provides component and filesystem context, and the server orchestrates the agent loop and persists task history. Designers and PMs click elements, describe changes in plain English, and Frontman edits the actual source files through the local integration — producing real code diffs engineers can review. No IDE required.
+      <a href="https://frontman.sh" class="text-link">Frontman</a> starts from the website itself. WordPress site owners install its plugin from <code>wp-admin</code>; developers add its Next.js, Astro, or Vite integration to code-backed sites. From there, site owners, marketers, designers, PMs, and engineers request and review changes from the live site without opening an editor, navigating a source tree, or using a terminal.
     </p>
     <p>
-      <a href="https://cursor.com" class="text-link" rel="nofollow">Cursor</a> is a commercial AI-powered IDE based on VS Code. It's excellent for engineers — tab completion, agentic coding, multi-file refactoring, terminal integration. But it requires IDE proficiency and doesn't natively see what your app renders in the browser.
+      <a href="https://cursor.com/docs/agent/design-mode" class="text-link" rel="nofollow">Cursor Design Mode</a> lives in the browser inside the Cursor Agents Window. It supports element selection, multi-select, drawing, and voice prompts. Cursor supplies the agent with the selected element's attributes, computed styles, component information, React Fiber props when available, and a screenshot. Its native Browser also exposes console logs and network traffic without an external MCP installation.
     </p>
     <p class="summary-emphasis">
-      The core difference: Cursor makes engineers faster in the IDE. Frontman lets your whole team — designers, PMs, and engineers — iterate on UI together in the browser. Many teams use both.
+      The honest difference is no longer "browser versus files." It is a website-first tool for the people responsible for a site versus visual features inside a full developer platform. Cursor includes a broader developer surface with autocomplete and a terminal; Frontman keeps the person requesting the change on the website while its full agent harness works across the codebase.
     </p>
   </Fragment>
 
   <Fragment slot="architecture-diagram">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" class="w-full max-w-[800px]" role="img" aria-label="Architecture comparison: Frontman works in the browser with live DOM access while Cursor works in the IDE with file system access">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" class="w-full max-w-[800px]" role="img" aria-label="Architecture comparison: Frontman connects a normal browser to dedicated website integrations while Cursor combines Design Mode with its coding agent and terminal">
       <text x="200" y="28" text-anchor="middle" fill="#A259FF" font-size="16" font-weight="700" font-family="ui-monospace, monospace">Frontman</text>
       <rect x="60" y="44" width="280" height="40" rx="8" fill="rgba(162,89,255,0.12)" stroke="#A259FF" stroke-width="1.5"/>
-      <text x="200" y="69" text-anchor="middle" fill="#fafafa" font-size="13" font-family="system-ui">Team (Designers, PMs, Engineers)</text>
+      <text x="200" y="69" text-anchor="middle" fill="#fafafa" font-size="13" font-family="system-ui">Site Owners + Product Teams</text>
       <line x1="200" y1="84" x2="200" y2="104" stroke="#A259FF" stroke-width="1.5" stroke-dasharray="4"/>
       <text x="200" y="100" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">click &amp; describe</text>
       <rect x="60" y="108" width="280" height="40" rx="8" fill="rgba(162,89,255,0.08)" stroke="#A259FF" stroke-width="1.5"/>
       <text x="200" y="133" text-anchor="middle" fill="#A259FF" font-size="13" font-weight="600" font-family="system-ui">Browser (Live App)</text>
       <line x1="200" y1="148" x2="200" y2="168" stroke="#A259FF" stroke-width="1.5" stroke-dasharray="4"/>
-      <text x="200" y="164" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">MCP server</text>
+      <text x="200" y="164" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">browser tools</text>
       <rect x="60" y="172" width="280" height="40" rx="8" fill="rgba(162,89,255,0.08)" stroke="#A259FF" stroke-width="1.5"/>
-      <text x="200" y="197" text-anchor="middle" fill="#A259FF" font-size="13" font-weight="600" font-family="system-ui">Live DOM + Computed Styles</text>
+      <text x="200" y="197" text-anchor="middle" fill="#A259FF" font-size="13" font-weight="600" font-family="system-ui">DOM + Site Integration</text>
       <line x1="200" y1="212" x2="200" y2="232" stroke="#A259FF" stroke-width="1.5" stroke-dasharray="4"/>
-      <text x="200" y="228" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">source maps</text>
+      <text x="200" y="228" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">framework files or WordPress tools</text>
       <rect x="60" y="236" width="280" height="40" rx="8" fill="rgba(162,89,255,0.06)" stroke="#A259FF" stroke-width="1"/>
-      <text x="200" y="261" text-anchor="middle" fill="#a1a1aa" font-size="13" font-family="system-ui">Source Files (real code edits)</text>
+      <text x="200" y="261" text-anchor="middle" fill="#a1a1aa" font-size="13" font-family="system-ui">Source Files or WordPress Data</text>
 
       <line x1="400" y1="20" x2="400" y2="300" stroke="#27272a" stroke-width="1" stroke-dasharray="6"/>
 
       <text x="600" y="28" text-anchor="middle" fill="#71717a" font-size="16" font-weight="700" font-family="ui-monospace, monospace">Cursor</text>
       <rect x="460" y="44" width="280" height="40" rx="8" fill="rgba(255,255,255,0.06)" stroke="#3f3f46" stroke-width="1.5"/>
-      <text x="600" y="69" text-anchor="middle" fill="#fafafa" font-size="13" font-family="system-ui">Developer</text>
+      <text x="600" y="69" text-anchor="middle" fill="#fafafa" font-size="13" font-family="system-ui">Cursor User</text>
       <line x1="600" y1="84" x2="600" y2="104" stroke="#3f3f46" stroke-width="1.5" stroke-dasharray="4"/>
-      <text x="600" y="100" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">type &amp; prompt</text>
+      <text x="600" y="100" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">select, draw, speak</text>
       <rect x="460" y="108" width="280" height="40" rx="8" fill="rgba(255,255,255,0.04)" stroke="#3f3f46" stroke-width="1.5"/>
-      <text x="600" y="133" text-anchor="middle" fill="#a1a1aa" font-size="13" font-weight="600" font-family="system-ui">VS Code IDE</text>
+      <text x="600" y="133" text-anchor="middle" fill="#a1a1aa" font-size="13" font-weight="600" font-family="system-ui">Agents Window Browser</text>
       <line x1="600" y1="148" x2="600" y2="168" stroke="#3f3f46" stroke-width="1.5" stroke-dasharray="4"/>
-      <text x="600" y="164" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">file access</text>
+      <text x="600" y="164" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">Design Mode context</text>
       <rect x="460" y="172" width="280" height="40" rx="8" fill="rgba(255,255,255,0.04)" stroke="#3f3f46" stroke-width="1.5"/>
-      <text x="600" y="197" text-anchor="middle" fill="#a1a1aa" font-size="13" font-weight="600" font-family="system-ui">File System + AST</text>
+      <text x="600" y="197" text-anchor="middle" fill="#a1a1aa" font-size="13" font-weight="600" font-family="system-ui">Browser + Code + Terminal Agent</text>
       <line x1="600" y1="212" x2="600" y2="232" stroke="#3f3f46" stroke-width="1.5" stroke-dasharray="4"/>
-      <text x="600" y="228" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">direct edits</text>
+      <text x="600" y="228" text-anchor="middle" fill="#71717a" font-size="10" font-family="system-ui">general-purpose tools</text>
       <rect x="460" y="236" width="280" height="40" rx="8" fill="rgba(255,255,255,0.03)" stroke="#3f3f46" stroke-width="1"/>
       <text x="600" y="261" text-anchor="middle" fill="#a1a1aa" font-size="13" font-family="system-ui">Source Files (real code edits)</text>
 
       <rect x="62" y="288" width="276" height="24" rx="4" fill="rgba(162,89,255,0.15)"/>
-      <text x="200" y="304" text-anchor="middle" fill="#A259FF" font-size="11" font-weight="600" font-family="system-ui">Sees what users see</text>
+      <text x="200" y="304" text-anchor="middle" fill="#A259FF" font-size="11" font-weight="600" font-family="system-ui">App-first, framework-integrated</text>
       <rect x="462" y="288" width="276" height="24" rx="4" fill="rgba(255,255,255,0.04)"/>
-      <text x="600" y="304" text-anchor="middle" fill="#71717a" font-size="11" font-weight="600" font-family="system-ui">Sees what developers write</text>
+      <text x="600" y="304" text-anchor="middle" fill="#71717a" font-size="11" font-weight="600" font-family="system-ui">Agent-first development environment</text>
     </svg>
   </Fragment>
 
   <Fragment slot="competitor-strengths">
-    <p>Cursor makes developers faster if you already live in an IDE. It's popular for good reason.</p>
+    <p>Cursor is no longer limited to reasoning from source files. Its visual workflow now overlaps directly with Frontman's core interaction model.</p>
+    <p><strong>Design Mode is a capable visual editor.</strong> Select one or more elements, draw on a frozen viewport, or describe a change by voice. Cursor gives the agent element identity, attributes, computed styles, component context, React Fiber props when available, and a screenshot. Multiple requests can run in parallel while the app hot reloads.</p>
+    <p><strong>The native Browser closes the runtime gap.</strong> Cursor Agent can navigate and interact with pages, capture screenshots, inspect console output and network traffic, detect development servers, and verify its work without installing a separate browser MCP server.</p>
     <p><strong>Autocomplete is best-in-class.</strong> Tab completion understands your codebase, predicts multi-line edits, and learns from your patterns. For raw typing speed, nothing in this comparison comes close.</p>
-    <p><strong>Agent mode is powerful.</strong> Cursor's agent can plan multi-step changes, run terminal commands, interpret output, and iterate on errors — all within the IDE. Cloud agents and background agents let work continue asynchronously. Frontman's AI agent is focused on browser-visible changes, not general-purpose coding workflows.</p>
-    <p><strong>Multi-file refactoring works.</strong> Cursor's Composer and agent mode can rename a prop across 15 files, update imports, and fix type errors in one pass. Frontman can edit multiple files, but it's not its primary workflow.</p>
+    <p><strong>Agent mode is powerful.</strong> Cursor's agent can plan multi-step changes, run terminal commands, interpret output, and iterate on errors — all within the IDE. Cloud agents and background agents let work continue asynchronously. Frontman's full agent harness can also plan and edit across a codebase, but it does not provide arbitrary terminal execution.</p>
+    <p><strong>Multi-file refactoring works in both tools.</strong> Cursor's Composer and agent mode can rename a prop across 15 files, update imports, and fix type errors in one pass. Frontman is model-agnostic and provides a full agent harness with codebase search, file reading, and cross-file editing tools, so it can perform the same class of refactor. The practical result depends on the selected model, not a Frontman limitation.</p>
     <p><strong>Backend and general-purpose coding.</strong> Cursor handles Python, Go, Rust, SQL, infrastructure-as-code — any language, any project. Frontman is frontend-focused. It can read and write any project file, but its strengths are in visual editing where browser context matters.</p>
     <p><strong>Terminal integration.</strong> Cursor's terminal agent can run commands, read output, and fix errors automatically. Frontman has no terminal — it captures console logs and build errors from the dev server, but cannot run arbitrary commands.</p>
-    <p>Cursor supports MCP servers, allowing it to connect to external tools, databases, APIs, and even browser automation. Combined with .cursorrules for project-specific context, this makes Cursor highly customizable.</p>
+    <p>Cursor supports plugins, skills, hooks, rules, and MCP servers for project-specific workflows and external integrations.</p>
     <p>Cursor has millions of users, extensive documentation, and a mature extension ecosystem inherited from VS Code.</p>
   </Fragment>
 
   <Fragment slot="frontman-differentiators">
-    <p><strong>Your whole team can touch the UI.</strong> Designers click the element that needs work, describe the change in plain English, and Frontman edits the actual source files. PMs can adjust copy, spacing, or component props without filing a ticket. Engineers review the diff like any other PR. Everyone works from the same running app — no Figma-to-code translation step, no "can you move this 4px to the left" Slack threads.</p>
-    <p><strong>It sees what the browser sees.</strong> Cursor reads your JSX files, but by default it has never seen what they render. It doesn't know that your hero section overflows at 768px, that the computed font size is 18px not 16px, or that a sibling component's margin is pushing your layout. Frontman integrates with your framework as a plugin and runs a browser-side MCP server that inspects live DOM, computed CSS, viewport layout, and rendered component hierarchy. When you click an element, Frontman resolves the source location via source maps and knows exactly which file, component, and line rendered it.</p>
-    <p><strong>Click-to-edit workflow.</strong> Instead of describing which file to open, you click the element you want to change. The AI already knows the component, its source location, its styles, and its context in the rendered page. "Make this card's shadow more subtle" works because Frontman can see the card.</p>
-    <p><strong>Hot reload closes the feedback loop.</strong> Frontman edits actual source files, and the framework's built-in HMR handles live reloading automatically. Edit, see result, edit again happens in the browser without switching windows. A designer can iterate through three variations in the time it takes to write one Jira ticket.</p>
-    <p><strong>Real code, not overrides.</strong> Every change Frontman makes is a source file edit — the same code your engineers write by hand. No visual-editor CSS overrides, no separate layer to maintain. Changes go through your existing review process and ship like any other commit. Your design system stays clean.</p>
+    <p><strong>Frontman is designed for people who own and maintain websites, not necessarily codebases.</strong> A site owner, marketer, designer, or PM starts from the interface they already understand: the live site. They point at what should change and describe the result instead of finding a component, opening an editor, or translating the request into a developer ticket.</p>
+    <p><strong>Setup does not force every user into a developer workflow.</strong> A WordPress administrator can install the plugin through the familiar <code>wp-admin</code> flow. For Next.js, Astro, and Vite, an engineer installs the project integration. The people making day-to-day site changes then work in a normal browser without adopting Cursor's Agents Window, classic editor, terminal, or code-navigation workflow.</p>
+    <p><strong>Site context comes from a dedicated integration.</strong> Frontman's WordPress plugin exposes WordPress-native content and settings tools. Its Next.js, Astro, and Vite packages connect browser selection to component metadata, source maps, dev-server build errors, and filesystem operations. Cursor instead combines browser observations with its general-purpose codebase and terminal tools.</p>
+    <p><strong>The product surface is deliberately narrower, not the editing harness.</strong> Frontman does not try to replace autocomplete, a terminal, cloud agents, or a general-purpose IDE. Its model-agnostic agent still has codebase search, file reading, and cross-file editing tools; non-technical users simply are not dropped into a full development environment to use them.</p>
+    <p><strong>Both tools produce reviewable changes.</strong> On code projects, click-to-edit, screenshots, computed styles, source edits, and hot reload are shared capabilities now. On WordPress, Frontman makes supported changes through WordPress-native tools while the site stays visible for review. The choice is about where the workflow lives and how much of the surrounding development platform your team wants.</p>
 	<p><strong>Source-available and BYOK.</strong> The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and the server is AGPL-3.0-only with AI Supplementary Terms. Self-hosting remains available and puts server orchestration and task-history persistence on your infrastructure; relevant context may still be transmitted to your configured LLM provider. Hosted Frontman Pro is available now. You bring your own API keys to Anthropic, OpenAI, or OpenRouter, or sign in with your Claude or ChatGPT subscription via OAuth.</p>
   </Fragment>
 
   <Fragment slot="who-should-use-competitor">
-    <p>Cursor is the better choice for engineers who want AI in their IDE. Specifically:</p>
+    <p>Cursor is the better choice when visual editing should be one capability inside a broader engineering platform. Specifically:</p>
     <ul>
+      <li><strong>Developers and technical users</strong> who are comfortable working inside a codebase-oriented development environment</li>
       <li><strong>Backend developers</strong> working in Python, Go, Rust, or any non-frontend language</li>
-      <li><strong>Large codebase refactoring</strong> — renaming across dozens of files, updating APIs, migrating patterns</li>
+      <li><strong>Terminal-assisted refactoring</strong> — when the workflow depends on arbitrary commands, test runners, or migrations inside the agent session</li>
       <li><strong>Agentic coding workflows</strong> — if you want the AI to plan, execute, and iterate across files and terminal</li>
       <li><strong>Autocomplete-dependent workflows</strong> — if inline suggestions are core to how you code</li>
       <li><strong>Full-stack work</strong> where you move between frontend and backend in the same session</li>
+      <li><strong>Advanced visual prompting</strong> using multi-select, page drawing, voice input, parallel agents, and native browser automation</li>
       <li><strong>Teams standardized on VS Code</strong> — Cursor inherits the entire VS Code extension ecosystem</li>
     </ul>
   </Fragment>
 
   <Fragment slot="who-should-use-frontman">
-    <p>Frontman is built for product teams where UI iteration is a bottleneck — not just individual developers. Specifically:</p>
+    <p>Frontman is built for people responsible for a website who need to make real changes without becoming IDE users. Specifically:</p>
     <ul>
+      <li><strong>WordPress site owners and maintainers</strong> — update supported pages, blocks, Elementor content, menus, templates, settings, and store data from the site preview</li>
+      <li><strong>Marketers and content teams</strong> — change website copy and supported page content without waiting for a developer ticket</li>
       <li><strong>Design system teams at growing startups</strong> — your system is live, your components are real, and you need designers and engineers iterating on them together without a Figma-to-ticket-to-PR bottleneck</li>
-      <li><strong>Designers who want to iterate directly on the product</strong> — click elements in the running app, describe changes, and see results instantly. No IDE, no terminal, no waiting for engineering capacity</li>
-      <li><strong>PMs who ship small UI changes themselves</strong> — update copy, adjust spacing, tweak component props. Every change is a real code diff your engineers can review</li>
+      <li><strong>Designers who want to iterate directly on the product</strong> — click elements in the running app, describe changes, and see results without learning an IDE, terminal, or source tree</li>
+      <li><strong>PMs who ship small UI changes themselves</strong> — update copy, adjust spacing, or tweak supported components and review the result in the live site</li>
       <li><strong>Engineering leads reducing design-to-code handoff friction</strong> — fewer "make it match the Figma" tickets, more direct iteration on the actual product</li>
       <li><strong>Teams using Next.js, Astro, or Vite</strong> — deep framework plugin integration means Frontman understands your component structure, not just file contents</li>
-      <li><strong>Companies that need infrastructure control</strong> — source-available (Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms), self-hostable, BYOK. Hosted Frontman Pro is available now.</li>
+      <li><strong>Companies that need infrastructure control</strong> — source-available, self-hostable, and BYOK, with hosted Frontman Pro also available</li>
     </ul>
-    <p>Many teams use both tools. Engineers use Cursor for backend work, refactoring, and general-purpose coding. The broader product team uses Frontman for visual iteration in the browser.</p>
+    <p>Many organizations can use both tools. Engineers can use Cursor for broad implementation work while site owners and the wider product team use Frontman for a website-first workflow. Teams already standardized on Cursor should test Design Mode before adding another tool; its overlap with Frontman is now substantial for developer-led visual work.</p>
     <p>For a deeper technical comparison including Claude Code, read our <a href="/blog/frontman-vs-cursor-vs-claude-code/" class="text-link">full comparison of Frontman, Cursor, and Claude Code</a>. Also see: <a href="/vs/stagewise/" class="text-link">Frontman vs Stagewise</a> for a comparison with another browser-based tool.</p>
   </Fragment>
 </ComparisonLayout>

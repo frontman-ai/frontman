@@ -25,7 +25,7 @@ const frameworks = [
 		id: 'astro',
 		name: 'Astro',
 		logo: astroLogo,
-		command: 'astro add @frontman-ai/astro',
+		command: 'npx astro add @frontman-ai/astro',
 		url: 'http://localhost:4321/frontman',
 		step1Title: 'Add to your project',
 		step1Description: 'Run one command in your project folder',
@@ -66,7 +66,7 @@ const frameworks = [
 ]
 ---
 
-<section id="install" class="install-section">
+<section id="install" class="install-section" data-install-agent data-agent-framework="nextjs">
 	<FloatingBlobs
 		blobs={[
 			{ color: '#9D7CFF', size: 450, startX: -12, startY: 50 },
@@ -86,7 +86,9 @@ const frameworks = [
 			<div class="framework-tabs">
 				{frameworks.map((fw, i) => (
 				<button
+					type="button"
 					class={`framework-tab ${i === 0 ? 'active' : ''}`}
+					aria-pressed={i === 0}
 					data-framework={fw.id}
 					data-command={fw.command}
 					data-url={fw.url}
@@ -114,22 +116,50 @@ const frameworks = [
 				<div class="step-card step-card--yellow">
 					<h3 class="step-title" data-step1-title>Add to your project</h3>
 					<p class="step-description" data-step1-description>Run one command in your project folder</p>
-					<div class="terminal">
-						<div class="terminal-bar">
-							<span class="terminal-dot"></span>
-							<span class="terminal-dot"></span>
-							<span class="terminal-dot"></span>
+					<div class="install-command-actions">
+						<div class="terminal">
+							<div class="terminal-bar">
+								<span class="terminal-dot"></span>
+								<span class="terminal-dot"></span>
+								<span class="terminal-dot"></span>
+							</div>
+							<div class="terminal-body">
+								<span class="terminal-prompt">$</span>
+								<code data-install-command>npx @frontman-ai/nextjs install</code>
+								<button class="copy-button" data-copy="install" aria-label="Copy to clipboard">
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+										<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+										<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+									</svg>
+								</button>
+							</div>
 						</div>
-						<div class="terminal-body">
-							<span class="terminal-prompt">$</span>
-							<code data-install-command>npx @frontman-ai/nextjs install</code>
-							<button class="copy-button" data-copy="install" aria-label="Copy to clipboard">
-								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+					</div>
+					<div class="agent-handoff">
+						<span class="agent-handoff__hint">Using an AI coding agent?</span>
+						<button
+							type="button"
+							class="agent-handoff__button"
+							data-copy-agent-instructions
+							data-ga-event="copy_agent_install_instructions"
+							data-ga-category="conversion"
+							data-ga-label="install_step"
+							aria-describedby="agent-copy-status"
+						>
+							<span data-copy-agent-icon>
+								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
 									<rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
 									<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
 								</svg>
-							</button>
-						</div>
+							</span>
+							<span data-copy-agent-success-icon hidden>
+								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+									<polyline points="20 6 9 17 4 12"></polyline>
+								</svg>
+							</span>
+							<span data-copy-agent-label>Copy for agent</span>
+						</button>
+						<span id="agent-copy-status" class="sr-only" data-copy-agent-status aria-live="polite"></span>
 					</div>
 					<a class="plugin-directory-link" data-plugin-directory-link href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" hidden>Open WordPress Plugin Directory &rarr;</a>
 				</div>
@@ -368,6 +398,38 @@ const frameworks = [
 		@apply mt-4 inline-flex text-sm font-semibold text-primary-600 underline underline-offset-4 hover:text-primary-700;
 	}
 
+	.install-command-actions {
+		@apply mt-5;
+	}
+
+	.install-command-actions .terminal {
+		@apply mt-0;
+	}
+
+	.agent-handoff {
+		@apply mt-3 flex items-center gap-2;
+	}
+
+	.agent-handoff__hint {
+		@apply text-sm text-slate-600;
+	}
+
+	.agent-handoff__button {
+		@apply inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-amber-800 underline decoration-amber-400 underline-offset-4 transition-colors hover:text-amber-950 focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-black;
+	}
+
+	.agent-handoff__button > span:first-child,
+	.agent-handoff__button > span:nth-child(2) {
+		@apply shrink-0;
+		color: #B45309;
+	}
+
+	@media (max-width: 639px) {
+		.agent-handoff {
+			@apply flex-wrap;
+		}
+	}
+
 	.ai-badges {
 		@apply mt-5 flex flex-wrap gap-2;
 	}
@@ -381,6 +443,8 @@ const frameworks = [
 </style>
 
 <script>
+	import { setupInstallAgent } from '../../../integrations/install-agent.mjs'
+
 	document.addEventListener('DOMContentLoaded', () => {
 		const tabs = document.querySelectorAll('.framework-tab')
 		const stepsTimeline = document.querySelector('.steps-timeline')
@@ -453,5 +517,7 @@ const frameworks = [
 				}
 			})
 		})
+
+		setupInstallAgent(document)
 	})
 </script>

@@ -519,6 +519,12 @@ let sendMessageToAPIImpl = (
   }
 }
 
+let targetIsCurrent = (state: state, target: taskTarget): bool =>
+  switch target {
+  | CurrentTask => true
+  | ForTask(taskId) => Selectors.currentTaskId(state) == Some(taskId)
+  }
+
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/me`
@@ -656,6 +662,11 @@ let handleEffect = (effect, state: state, dispatch) => {
           switch state.acpSession {
           | AcpSessionActive({retryTurn}) => retryTurn(retriedErrorId)
           | NoAcpSession => Log.error("Cannot retry turn: no active ACP session")
+          }
+        | NeedSyncBrowserUrl(url) =>
+          switch targetIsCurrent(state, target) {
+          | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
+          | false => ()
           }
         }
       }

@@ -807,6 +807,25 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 
+  test("SetPreviewUrl synchronizes the selected task browser URL", t => {
+    let state = TestHelpers.makeStateWithTask()
+    let previewUrl = "http://localhost:3000/products/42"
+    let (nextState, effects) = Reducer.next(
+      state,
+      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: previewUrl})}),
+    )
+
+    t->expect(Reducer.Selectors.previewUrl(nextState))->Expect.toBe(previewUrl)
+    switch effects->Array.get(0) {
+    | Some(Reducer.TaskEffect({
+        target: ForTask("test-task-1"),
+        effect: SyncBrowserUrl(syncedUrl),
+      })) =>
+      t->expect(syncedUrl)->Expect.toBe(previewUrl)
+    | _ => JsExn.throw("Expected browser URL synchronization effect")
+    }
+  })
+
   test("DeleteTask switches to New when deleting only task", t => {
     let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",

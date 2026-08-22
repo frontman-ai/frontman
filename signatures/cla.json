@@ -71,6 +71,14 @@
       "created_at": "2026-08-19T10:20:55Z",
       "repoId": 1066256303,
       "pullRequestNo": 1438
+    },
+    {
+      "name": "kevin-ho",
+      "id": 3241941,
+      "comment_id": 5377792084,
+      "created_at": "2026-08-22T04:08:58Z",
+      "repoId": 1066256303,
+      "pullRequestNo": 1496
     }
   ]
 }

@@ -209,6 +209,17 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       {:ok, _interaction} ->
         :ok
 
+      {:error, {:invalid_tool_arguments, _message}} ->
+        Logger.error("Tool argument parse failure", tool_parse_metadata(tool_call, task_id))
+
+        persist_error_tool_result(
+          scope,
+          task_id,
+          turn_number,
+          tool_call,
+          "Failed to parse arguments for tool"
+        )
+
       {:error, reason} ->
         Logger.error(
           "ToolExecutor: Failed to publish MCP tool call #{tool_call.id}: #{inspect(reason)}"
@@ -228,17 +239,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     }
 
     case SwarmAi.ToolCall.parse_arguments(tool_call) do
-      {:error, message} ->
-        metadata = [
-          error_type: "tool_parse_error",
-          tool_name: tool_call.name,
-          tool_call_id: tool_call.id,
-          task_id: task_id,
-          raw_arguments: String.slice(tool_call.arguments, 0, 500),
-          decode_error: message
-        ]
-
-        Logger.error("Tool argument parse failure", metadata)
+      {:error, _message} ->
+        Logger.error("Tool argument parse failure", tool_parse_metadata(tool_call, task_id))
 
         persist_error_tool_result(
           scope,
@@ -259,6 +261,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           turn_number
         )
     end
+  end
+
+  defp tool_parse_metadata(tool_call, task_id) do
+    [
+      error_type: "tool_parse_error",
+      tool_name: tool_call.name,
+      tool_call_id: tool_call.id,
+      task_id: task_id
+    ]
   end
 
   defp do_run_backend_tool(scope, module, args, context, tool_call, task_id, turn_number) do
