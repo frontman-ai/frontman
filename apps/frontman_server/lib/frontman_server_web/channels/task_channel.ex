@@ -191,10 +191,10 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp handle_turn_started(turn, turn_started_id, turn_number, socket) do
     task_id = socket.assigns.task_id
 
-    Enum.each(turn.user_message_ids, fn message_id ->
-      notification = ACP.build_state_update_notification(task_id, "running", nil, message_id)
-      push(socket, @acp_message, notification)
-    end)
+    notification =
+      ACP.build_state_update_notification(task_id, "running", nil, turn.user_message_id)
+
+    push(socket, @acp_message, notification)
 
     context = %{
       agent_id: turn.agent_id,
@@ -617,18 +617,19 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, model} ->
         Logger.info("process_prompt", %{task_id: task_id, model: model})
 
-        with {:ok, message_id} <- client_message_id(meta),
-             {:ok, agent_id} <-
+        with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
              {:ok, row} <-
                Tasks.submit_user_message(
                  scope,
                  %{
                    task_id: task_id,
-                   message_id: message_id,
-                   message: content_blocks,
-                   model: model,
-                   agent_id: agent_id
+                   message: %{
+                     id: Map.get(meta, "dev.frontman/messageId"),
+                     content: content_blocks,
+                     model: model,
+                     agent_id: agent_id
+                   }
                  }
                ) do
           push_user_message_chunks(socket, task_id, row)
@@ -638,9 +639,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           Logger.info("User message accepted for task #{task_id}")
           {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
         else
-          {:error, :invalid_message_id} ->
-            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Invalid message id")
-
           {:error, :missing_agent} ->
             reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Agent is required")
 
@@ -650,6 +648,9 @@ defmodule FrontmanServerWeb.TaskChannel do
           {:error, {:invalid_content_block, message}} ->
             Logger.error("Failed to add user message: #{message}")
             reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
+
+          {:error, %Ecto.Changeset{}} ->
+            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Invalid message")
 
           {:error, reason} ->
             Logger.error("Failed to add user message: #{inspect(reason)}")
@@ -665,19 +666,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     %{row: row, agent_id: row.data.agent_id}
     |> ACPHistory.encode_row(task_id)
     |> Enum.each(&push(socket, @acp_message, &1))
-  end
-
-  defp client_message_id(meta) do
-    case Map.fetch(meta, "dev.frontman/messageId") do
-      :error ->
-        {:ok, nil}
-
-      {:ok, message_id} ->
-        case Ecto.UUID.cast(message_id) do
-          {:ok, uuid} -> {:ok, uuid}
-          :error -> {:error, :invalid_message_id}
-        end
-    end
   end
 
   defp reply_acp_error(socket, id, code, message) do

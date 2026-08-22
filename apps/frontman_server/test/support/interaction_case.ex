@@ -181,12 +181,12 @@ defmodule FrontmanServer.InteractionCase do
     end
 
     @doc "Build a `%TurnStarted{}` struct."
-    def turn_started(user_message_ids) do
+    def turn_started(user_message_id) do
       %Interaction.TurnStarted{
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: "test-frontman",
-        user_message_ids: user_message_ids
+        user_message_id: user_message_id
       }
     end
 

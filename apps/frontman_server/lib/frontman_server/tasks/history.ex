@@ -87,10 +87,11 @@ defmodule FrontmanServer.Tasks.History do
   def latest_turn_number(%__MODULE__{} = history), do: next_turn_number(history) - 1
 
   def turn_model(%__MODULE__{} = history, turn_number) do
-    with {:ok, %InteractionSchema{data: %Interaction.TurnStarted{user_message_ids: ids}}} <-
+    with {:ok,
+          %InteractionSchema{data: %Interaction.TurnStarted{user_message_id: user_message_id}}} <-
            turn(history, turn_number),
          %InteractionSchema{data: %Interaction.UserMessage{model: model}} <-
-           ids |> Enum.map(&user_row(history, &1)) |> List.last(),
+           user_row(history, user_message_id),
          true <- is_binary(model) and model != "" do
       {:ok, model}
     else
@@ -326,12 +327,10 @@ defmodule FrontmanServer.Tasks.History do
   defp assign_users(owners, turn, turn_number) do
     owner = %{agent_id: turn.agent_id, turn_number: turn_number}
 
-    Enum.reduce_while(turn.user_message_ids, {:ok, owners}, fn id, {:ok, assigned} ->
-      case Map.fetch(assigned, id) do
-        :error -> {:cont, {:ok, Map.put(assigned, id, owner)}}
-        {:ok, ^owner} -> {:cont, {:ok, assigned}}
-        {:ok, _other} -> {:halt, {:error, {:user_message_in_multiple_turns, id}}}
-      end
-    end)
+    case Map.fetch(owners, turn.user_message_id) do
+      :error -> {:ok, Map.put(owners, turn.user_message_id, owner)}
+      {:ok, ^owner} -> {:ok, owners}
+      {:ok, _other} -> {:error, {:user_message_in_multiple_turns, turn.user_message_id}}
+    end
   end
 end

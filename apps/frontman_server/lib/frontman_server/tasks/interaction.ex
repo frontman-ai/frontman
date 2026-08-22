@@ -705,20 +705,19 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defmodule TurnStarted do
     @moduledoc """
-    Represents a normal agent turn starting from accepted user messages.
+    Represents a normal agent turn starting from one accepted user message.
 
-    The persisted row turn_number identifies the execution turn; user_message_ids
-    records the accepted messages included in that turn in order.
+    The persisted row turn_number identifies the execution turn.
     """
 
     use Ecto.Schema
     import Ecto.Changeset
 
-    @fields [:agent_id, :user_message_ids]
+    @fields [:agent_id, :user_message_id]
 
     embedded_schema do
       field :agent_id, :string
-      field :user_message_ids, {:array, :string}
+      field :user_message_id, :string
       field :timestamp, :utc_datetime_usec
     end
 
@@ -726,7 +725,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       turn_started
       |> Interaction.cast_timestamped(attrs, [:id, :timestamp | @fields])
       |> validate_required(@fields)
-      |> validate_length(:user_message_ids, min: 1)
     end
   end
 

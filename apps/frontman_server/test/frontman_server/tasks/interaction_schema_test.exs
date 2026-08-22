@@ -39,6 +39,14 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       assert %{turn_number: ["must be empty for user_message"]} = errors_on(changeset)
     end
 
+    test "validates UserMessage id in the changeset", %{task: task} do
+      attrs = user_msg("queued") |> Map.from_struct() |> Map.put(:id, "not-a-uuid")
+      changeset = InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+
+      refute changeset.valid?
+      assert %{id: ["is invalid"]} = errors_on(changeset)
+    end
+
     test "requires positive turn numbers for execution-bound interactions", %{task: task} do
       interactions = [
         struct!(Interaction.AgentResponse, Interaction.AgentResponse.attrs("response")),
@@ -60,9 +68,9 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
   end
 
   describe "TurnStarted" do
-    test "requires a positive turn number and non-empty user message ids", %{task: task} do
+    test "requires a positive turn number and a user message id", %{task: task} do
       user_message_id = Ecto.UUID.generate()
-      turn_started = turn_started([user_message_id])
+      turn_started = turn_started(user_message_id)
 
       changeset = create_changeset(task, turn_started, 1)
 
@@ -73,7 +81,7 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       refute missing_turn_changeset.valid?
       assert %{turn_number: ["missing for turn_started"]} = errors_on(missing_turn_changeset)
 
-      invalid_changeset = create_changeset(task, turn_started([]), 1)
+      invalid_changeset = create_changeset(task, turn_started(nil), 1)
 
       refute invalid_changeset.valid?
     end
@@ -132,7 +140,7 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
       id: Ecto.UUID.generate(),
       timestamp: Interaction.now(),
       agent_id: "test-frontman",
-      user_message_ids: [Ecto.UUID.generate()]
+      user_message_id: Ecto.UUID.generate()
     }
   end
 end

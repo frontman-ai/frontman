@@ -9,7 +9,6 @@ defmodule FrontmanServer.TasksTest do
   alias FrontmanServer.Repo.Migrations.{
     BackfillInteractionTurnNumbers,
     BackfillToolResultPayloads,
-    BackfillTurnStartedForUserMessages,
     BackfillUserMessageModels,
     ScrubToolResultMetadata
   }
@@ -101,17 +100,14 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
-                 message: user_content("hello"),
-                 model: "openrouter:openai/gpt-5.5",
-                 agent_id: "test-frontman"
+                 message: submitted_message("hello")
                })
 
       assert [row] = db_rows(task.id)
       assert row.type == :user_message
       assert row.turn_number == nil
       assert row.data.agent_id == "test-frontman"
-      assert {:ok, generated_id} = Ecto.UUID.cast(row.id)
-      assert generated_id == row.id
+      assert row.data.id == row.id
     end
 
     test "persists a caller-supplied user message id", %{scope: scope} do
@@ -121,10 +117,12 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{id: ^message_id}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
-                 message_id: message_id,
-                 message: user_content("hello"),
-                 model: "openrouter:openai/gpt-5.5",
-                 agent_id: "test-frontman"
+                 message: %{
+                   id: message_id,
+                   content: user_content("hello"),
+                   model: "openrouter:openai/gpt-5.5",
+                   agent_id: "test-frontman"
+                 }
                })
     end
 
@@ -134,10 +132,12 @@ defmodule FrontmanServer.TasksTest do
 
       attrs = %{
         task_id: task.id,
-        message_id: message_id,
-        message: user_content("hello"),
-        model: "openrouter:openai/gpt-5.5",
-        agent_id: "test-frontman"
+        message: %{
+          id: message_id,
+          content: user_content("hello"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        }
       }
 
       assert {:ok, %InteractionSchema{id: ^message_id}} = Tasks.submit_user_message(scope, attrs)
@@ -149,8 +149,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert Tasks.submit_user_message(scope, %{
                task_id: task.id,
-               message: user_content("hello"),
-               model: "openrouter:openai/gpt-5.5"
+               message: Map.delete(submitted_message("hello"), :agent_id)
              }) == {:error, :missing_agent}
     end
 
@@ -161,9 +160,7 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
-                 message: user_content("second"),
-                 model: "openrouter:openai/gpt-5.5",
-                 agent_id: "test-frontman"
+                 message: submitted_message("second")
                })
 
       assert [:user_message, :turn_started, :user_message] =
@@ -180,9 +177,7 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
-                 message: user_content("hello"),
-                 model: "openrouter:openai/gpt-5.5",
-                 agent_id: "test-frontman"
+                 message: submitted_message("hello")
                })
 
       assert :ok =
@@ -207,9 +202,7 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
-                 message: user_content("hello"),
-                 model: "openrouter:openai/gpt-5.5",
-                 agent_id: "unknown-agent"
+                 message: submitted_message("hello", agent_id: "unknown-agent")
                })
 
       assert {:error, :unknown_agent} =
@@ -410,41 +403,6 @@ defmodule FrontmanServer.TasksTest do
                InteractionSchema.for_task(task_id)
                |> InteractionSchema.of_type(:user_message)
                |> Repo.all()
-    end
-  end
-
-  describe "turn-started backfill migration" do
-    test "converts legacy turn-numbered user messages into accepted messages plus TurnStarted", %{
-      scope: scope
-    } do
-      task_id = task_fixture(scope).id
-
-      insert_legacy_interaction_row(task_id, Interaction.UserMessage, 1, %{
-        "messages" => ["legacy hello"],
-        "model" => "openrouter:openai/gpt-5.5"
-      })
-
-      insert_legacy_interaction_row(task_id, Interaction.AgentResponse, 1, %{"content" => "hello"})
-
-      insert_legacy_interaction_row(task_id, Interaction.AgentCompleted, 1, %{})
-
-      run_turn_started_backfill_migration()
-
-      rows = db_rows(task_id)
-      user_message = Enum.find(rows, &(&1.type == :user_message))
-
-      assert %InteractionSchema{turn_number: nil} = user_message
-
-      assert %InteractionSchema{
-               type: :turn_started,
-               turn_number: 1,
-               data: %Interaction.TurnStarted{
-                 agent_id: nil,
-                 user_message_ids: [user_message_id]
-               }
-             } = Enum.find(rows, &(&1.type == :turn_started))
-
-      assert user_message_id == user_message.id
     end
   end
 
@@ -907,6 +865,8 @@ defmodule FrontmanServer.TasksTest do
     {:ok, attrs} =
       Interaction.UserMessage.attrs(user_content("test turn"), "openrouter:openai/gpt-5.5")
 
+    attrs = Map.put(attrs, :id, Ecto.UUID.generate())
+
     row =
       InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
       |> Repo.insert!()
@@ -918,7 +878,7 @@ defmodule FrontmanServer.TasksTest do
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: "test-frontman",
-        user_message_ids: [row.id]
+        user_message_id: row.id
       },
       turn_number
     )
@@ -1017,6 +977,7 @@ defmodule FrontmanServer.TasksTest do
          model \\ "openrouter:openai/gpt-5.5"
        ) do
     {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
+    attrs = Map.put(attrs, :id, Ecto.UUID.generate())
 
     InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
     |> Repo.insert!()
@@ -1047,24 +1008,6 @@ defmodule FrontmanServer.TasksTest do
                Repo.config(),
                0,
                BackfillUserMessageModels,
-               :forward,
-               :up,
-               :up,
-               log: false
-             )
-  end
-
-  defp run_turn_started_backfill_migration do
-    Code.require_file(
-      "priv/repo/migrations/20260630000000_backfill_turn_started_for_user_messages.exs"
-    )
-
-    assert :ok =
-             Runner.run(
-               Repo,
-               Repo.config(),
-               0,
-               BackfillTurnStartedForUserMessages,
                :forward,
                :up,
                :up,
@@ -1376,5 +1319,15 @@ defmodule FrontmanServer.TasksTest do
 
   defp resolve_tool(scope, task_id, tool_call_data, result, turn_number) do
     Tasks.resolve_tool_request(scope, task_id, tool_call_data, result, turn_number: turn_number)
+  end
+
+  defp submitted_message(text, overrides \\ []) do
+    %{
+      id: Ecto.UUID.generate(),
+      content: user_content(text),
+      model: "openrouter:openai/gpt-5.5",
+      agent_id: "test-frontman"
+    }
+    |> Map.merge(Map.new(overrides))
   end
 end

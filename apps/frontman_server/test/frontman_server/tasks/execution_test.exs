@@ -111,7 +111,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     case Tasks.submit_user_message(
            scope,
-           Map.merge(execution, %{task_id: task_id, message: content})
+           %{
+             task_id: task_id,
+             message: submitted_message(content, execution)
+           }
          ) do
       {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution) do
@@ -236,9 +239,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
-          message: user_content("Hello"),
-          model: "openrouter:openai/gpt-5.5",
-          agent_id: "test-frontman"
+          message: submitted_message(user_content("Hello"), execution_request_fixture())
         })
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
@@ -248,87 +249,114 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       refute_running_eventually(task_id)
     end
 
-    test "claims only same-agent pending message prefix", %{
+    test "claims only the next pending message", %{
       task_id: task_id,
       scope: scope
     } do
-      expect_llm_responses(["First response", "Second response"])
+      expect_llm_responses(["First response", "Second response", "Third response"])
 
-      {:ok, _} =
+      {:ok, %{id: first_message_id}} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
-          message: user_content("frontman one"),
-          model: "openrouter:openai/gpt-5.5",
-          agent_id: "test-frontman"
+          message:
+            submitted_message(user_content("frontman one"),
+              model: "openrouter:openai/gpt-5.5",
+              agent_id: "test-frontman"
+            )
         })
 
-      {:ok, _} =
+      {:ok, %{id: second_message_id}} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
-          message: user_content("frontman two"),
-          model: "openrouter:anthropic/claude-sonnet-4-6",
-          agent_id: "test-frontman"
+          message:
+            submitted_message(user_content("frontman two"),
+              model: "openrouter:anthropic/claude-sonnet-4-6",
+              agent_id: "test-frontman"
+            )
         })
 
-      {:ok, _} =
+      {:ok, %{id: third_message_id}} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
-          message: user_content("planner"),
-          model: "openrouter:google/gemini-3-flash-preview",
-          agent_id: "test-planner"
+          message:
+            submitted_message(user_content("planner"),
+              model: "openrouter:google/gemini-3-flash-preview",
+              agent_id: "test-planner"
+            )
         })
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
 
       assert [first_turn] = turn_started_rows(task_id)
       assert first_turn.data.agent_id == "test-frontman"
-      assert length(first_turn.data.user_message_ids) == 2
+      assert first_turn.data.user_message_id == first_message_id
 
       refute_running_eventually(task_id)
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
 
       assert [_first_turn, second_turn] = turn_started_rows(task_id)
-      assert second_turn.data.agent_id == "test-planner"
-      assert length(second_turn.data.user_message_ids) == 1
+      assert second_turn.data.agent_id == "test-frontman"
+      assert second_turn.data.user_message_id == second_message_id
+
+      refute_running_eventually(task_id)
+
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+
+      assert [_first_turn, _second_turn, third_turn] = turn_started_rows(task_id)
+      assert third_turn.data.agent_id == "test-planner"
+      assert third_turn.data.user_message_id == third_message_id
     end
 
-    test "groups only contiguous messages from the same agent", %{
+    test "runs pending messages in FIFO order across agents", %{
       task_id: task_id,
       scope: scope
     } do
-      expect_llm_responses(["First response", "Second response", "Third response"])
+      expect_llm_responses([
+        "First response",
+        "Second response",
+        "Third response",
+        "Fourth response"
+      ])
 
-      {:ok, _} =
+      {:ok, %{id: first_message_id}} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
-          message: user_content("frontman one"),
-          model: "openrouter:openai/gpt-5.5",
-          agent_id: "test-frontman"
+          message:
+            submitted_message(user_content("frontman one"),
+              model: "openrouter:openai/gpt-5.5",
+              agent_id: "test-frontman"
+            )
         })
 
-      {:ok, _} =
+      {:ok, %{id: second_message_id}} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
-          message: user_content("planner"),
-          model: "openrouter:google/gemini-3-flash-preview",
-          agent_id: "test-planner"
+          message:
+            submitted_message(user_content("planner"),
+              model: "openrouter:google/gemini-3-flash-preview",
+              agent_id: "test-planner"
+            )
         })
 
-      {:ok, _} =
+      {:ok, %{id: third_message_id}} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
-          message: user_content("frontman two"),
-          model: "openrouter:anthropic/claude-sonnet-4-6",
-          agent_id: "test-frontman"
+          message:
+            submitted_message(user_content("frontman two"),
+              model: "openrouter:anthropic/claude-sonnet-4-6",
+              agent_id: "test-frontman"
+            )
         })
 
-      {:ok, _} =
+      {:ok, %{id: fourth_message_id}} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
-          message: user_content("frontman three"),
-          model: "openrouter:openai/gpt-5.5",
-          agent_id: "test-frontman"
+          message:
+            submitted_message(user_content("frontman three"),
+              model: "openrouter:openai/gpt-5.5",
+              agent_id: "test-frontman"
+            )
         })
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
@@ -339,13 +367,19 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
 
-      assert [first_turn, second_turn, third_turn] = turn_started_rows(task_id)
+      refute_running_eventually(task_id)
+
+      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+
+      assert [first_turn, second_turn, third_turn, fourth_turn] = turn_started_rows(task_id)
       assert first_turn.data.agent_id == "test-frontman"
-      assert length(first_turn.data.user_message_ids) == 1
+      assert first_turn.data.user_message_id == first_message_id
       assert second_turn.data.agent_id == "test-planner"
-      assert length(second_turn.data.user_message_ids) == 1
+      assert second_turn.data.user_message_id == second_message_id
       assert third_turn.data.agent_id == "test-frontman"
-      assert length(third_turn.data.user_message_ids) == 2
+      assert third_turn.data.user_message_id == third_message_id
+      assert fourth_turn.data.agent_id == "test-frontman"
+      assert fourth_turn.data.user_message_id == fourth_message_id
     end
 
     test "uses default agent for historical user messages without agent id", %{
@@ -356,6 +390,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, attrs} =
         Interaction.UserMessage.attrs(user_content("historical"), "openrouter:openai/gpt-5.5")
+
+      attrs = Map.put(attrs, :id, Ecto.UUID.generate())
 
       InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
       |> Repo.insert!()
@@ -379,9 +415,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task_id,
-                 message: user_content("Queued follow-up"),
-                 model: "openrouter:openai/gpt-5.5",
-                 agent_id: "test-frontman"
+                 message:
+                   submitted_message(user_content("Queued follow-up"),
+                     model: "openrouter:openai/gpt-5.5",
+                     agent_id: "test-frontman"
+                   )
                })
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
@@ -610,7 +648,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
 
-    test "includes every user message claimed by the started turn in order", %{
+    test "includes only the user message claimed by the started turn", %{
       task_id: task_id,
       scope: scope
     } do
@@ -630,7 +668,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
 
       assert_receive {:provider_messages, messages}, 1_000
-      assert provider_user_texts(messages) == ["first", "second"]
+      assert provider_user_texts(messages) == ["first"]
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
 
@@ -1382,6 +1420,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   defp insert_accepted_user_message!(task, text) do
     {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), "openrouter:openai/gpt-5.5")
+    attrs = Map.put(attrs, :id, Ecto.UUID.generate())
 
     InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
     |> Repo.insert!()
@@ -1395,20 +1434,32 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: agent_id,
-        user_message_ids: accepted_user_message_ids(task_id)
+        user_message_id: accepted_user_message_id(task_id)
       },
       turn_number
     )
     |> Repo.insert!()
   end
 
-  defp accepted_user_message_ids(task_id) do
+  defp accepted_user_message_id(task_id) do
     InteractionSchema
     |> InteractionSchema.for_task(task_id)
     |> InteractionSchema.of_type(:user_message)
     |> InteractionSchema.ordered()
     |> Repo.all()
-    |> Enum.map(& &1.id)
+    |> List.first()
+    |> Map.fetch!(:id)
+  end
+
+  defp submitted_message(content, attrs) do
+    attrs = Map.new(attrs)
+
+    %{
+      id: Ecto.UUID.generate(),
+      content: content,
+      model: Map.fetch!(attrs, :model),
+      agent_id: Map.fetch!(attrs, :agent_id)
+    }
   end
 
   defp provider_user_texts(messages) do

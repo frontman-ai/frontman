@@ -195,6 +195,7 @@ defmodule FrontmanServerWeb.ChannelCase do
         "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
         "agent" => "test-frontman"
       })
+      |> Map.put_new("dev.frontman/messageId", Ecto.UUID.generate())
 
     params = %{"prompt" => [%{"type" => "text", "text" => text}], "_meta" => meta}
 

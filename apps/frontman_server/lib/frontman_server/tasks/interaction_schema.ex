@@ -68,23 +68,23 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @doc """
   Changesets for creating interaction rows from payload attrs.
   """
-  def create_changeset(task_id, type, attrs, turn_number, interaction_id \\ nil)
+  def create_changeset(task_id, type, attrs, turn_number)
       when is_binary(task_id) and is_atom(type) and is_map(attrs) and
-             (is_integer(turn_number) or is_nil(turn_number)) and
-             (is_binary(interaction_id) or is_nil(interaction_id)) do
+             (is_integer(turn_number) or is_nil(turn_number)) do
+    params = create_params(type, strip_null_bytes_from_value(attrs))
+
     %__MODULE__{
-      id: interaction_id,
       task_id: task_id,
       type: type,
       sequence: generate_sequence(),
       turn_number: turn_number
     }
-    |> create_changeset(%{data: strip_null_bytes_from_value(attrs)})
+    |> create_changeset(params)
   end
 
   def create_changeset(%__MODULE__{} = interaction, attrs) do
     interaction
-    |> cast(attrs, [])
+    |> cast(attrs, [:id])
     |> cast_polymorphic_embed(:data, required: true, with: polymorphic_changesets())
     |> validate_create()
   end
@@ -155,6 +155,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   defp validate_create(changeset) do
     changeset
     |> validate_required([:task_id, :type, :data, :sequence])
+    |> validate_user_message_id()
     |> validate_turn_number()
     |> foreign_key_constraint(:task_id)
     |> unique_constraint(:id, name: :interactions_pkey)
@@ -162,6 +163,28 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       name: @tool_result_unique_constraint,
       message: "duplicate tool result for this tool_call_id"
     )
+  end
+
+  defp create_params(:user_message, %{id: id} = attrs), do: %{id: id, data: attrs}
+  defp create_params(_type, attrs), do: %{data: attrs}
+
+  defp validate_user_message_id(changeset) do
+    case get_field(changeset, :type) do
+      :user_message ->
+        changeset
+        |> validate_required(:id)
+        |> validate_change(:id, &validate_uuid/2)
+
+      _type ->
+        changeset
+    end
+  end
+
+  defp validate_uuid(:id, id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, _uuid} -> []
+      :error -> [id: "is invalid"]
+    end
   end
 
   defp generate_sequence do

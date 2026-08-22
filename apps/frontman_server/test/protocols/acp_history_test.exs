@@ -19,7 +19,7 @@ defmodule AgentClientProtocol.HistoryTest do
         images: [],
         timestamp: @timestamp
       }),
-      row("turn-row", :turn_started, 1, turn("turn-id", ["user-row"])),
+      row("turn-row", :turn_started, 1, turn("turn-id", "user-row")),
       row("empty-response", :agent_response, 1, response(nil)),
       row("response", :agent_response, 1, response("Answer")),
       row("tool", :tool_call, 1, %Interaction.ToolCall{
@@ -64,8 +64,9 @@ defmodule AgentClientProtocol.HistoryTest do
 
   test "crashes when history references an agent outside the global catalog" do
     rows = [
+      row("user-row", :user_message, nil, user_message("archived-id")),
       row("turn-row", :turn_started, 1, %{
-        turn("archived-turn", [])
+        turn("archived-turn", "user-row")
         | agent_id: "archived-id"
       }),
       row("response", :agent_response, 1, response("Old answer"))
@@ -76,7 +77,8 @@ defmodule AgentClientProtocol.HistoryTest do
 
   test "crashes when persisted turn has no agent ID" do
     rows = [
-      row("turn-row", :turn_started, 1, %{turn("turn-id", []) | agent_id: nil}),
+      row("user-row", :user_message, nil, user_message(nil)),
+      row("turn-row", :turn_started, 1, %{turn("turn-id", "user-row") | agent_id: nil}),
       row("response", :agent_response, 1, response("Answer"))
     ]
 
@@ -85,13 +87,14 @@ defmodule AgentClientProtocol.HistoryTest do
 
   test "replays paused terminal state as requires_action" do
     rows = [
-      row("turn-row", :turn_started, 1, turn("turn-id", [])),
+      row("user-row", :user_message, nil, user_message("executor-id")),
+      row("turn-row", :turn_started, 1, turn("turn-id", "user-row")),
       row("paused", :agent_paused, 1, %Interaction.AgentPaused{timestamp: @timestamp})
     ]
 
     assert {:ok, replay} = build(rows)
 
-    assert [%{"params" => %{"update" => update}}] = replay.notifications
+    assert [_, %{"params" => %{"update" => update}}] = replay.notifications
     assert update == %{"sessionUpdate" => "state_update", "state" => "requires_action"}
   end
 
@@ -104,17 +107,26 @@ defmodule AgentClientProtocol.HistoryTest do
          do: History.build(history, @session_id, [agent()])
   end
 
-  defp turn(id, user_message_ids) do
+  defp turn(id, user_message_id) do
     %Interaction.TurnStarted{
       id: id,
       agent_id: "executor-id",
-      user_message_ids: user_message_ids,
+      user_message_id: user_message_id,
       timestamp: @timestamp
     }
   end
 
   defp response(content) do
     %Interaction.AgentResponse{id: Ecto.UUID.generate(), content: content, timestamp: @timestamp}
+  end
+
+  defp user_message(agent_id) do
+    %Interaction.UserMessage{
+      id: Ecto.UUID.generate(),
+      agent_id: agent_id,
+      messages: ["Prompt"],
+      timestamp: @timestamp
+    }
   end
 
   defp agent do

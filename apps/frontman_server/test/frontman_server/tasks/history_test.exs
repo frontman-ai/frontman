@@ -11,7 +11,7 @@ defmodule FrontmanServer.Tasks.HistoryTest do
   test "projects row identity, pending messages, turn model, and response ordinal once" do
     rows = [
       user_row("accepted", "model-a"),
-      turn_row("turn-id", 1, ["accepted"]),
+      turn_row("turn-id", 1, "accepted"),
       response_row(1),
       response_row(1),
       user_row("pending", "model-b")
@@ -46,8 +46,8 @@ defmodule FrontmanServer.Tasks.HistoryTest do
   test "rejects one user row assigned to conflicting turns" do
     rows = [
       user_row("accepted", "model-a"),
-      turn_row("turn-one", 1, ["accepted"]),
-      %{turn_row("turn-two", 2, ["accepted"]) | data: turn("turn-two", ["accepted"], "other")}
+      turn_row("turn-one", 1, "accepted"),
+      %{turn_row("turn-two", 2, "accepted") | data: turn("turn-two", "accepted", "other")}
     ]
 
     assert {:error, {:user_message_in_multiple_turns, "accepted"}} = History.new(rows)
@@ -55,12 +55,13 @@ defmodule FrontmanServer.Tasks.HistoryTest do
 
   test "rejects turn links to missing user rows" do
     assert {:error, {:missing_user_row, "missing"}} =
-             History.new([turn_row("turn-one", 1, ["missing"])])
+             History.new([turn_row("turn-one", 1, "missing")])
   end
 
   test "rejects run rows after their turn terminated" do
     rows = [
-      turn_row("turn", 1, []),
+      user_row("accepted", "model-a"),
+      turn_row("turn", 1, "accepted"),
       %InteractionSchema{type: :agent_paused, turn_number: 1, data: %Interaction.AgentPaused{}},
       response_row(1)
     ]
@@ -73,13 +74,13 @@ defmodule FrontmanServer.Tasks.HistoryTest do
     %{interaction_row(interaction, nil) | id: id}
   end
 
-  defp turn_row(id, turn_number, user_message_ids) do
-    interaction = %{turn_started(user_message_ids) | id: id, agent_id: "executor-id"}
+  defp turn_row(id, turn_number, user_message_id) do
+    interaction = %{turn_started(user_message_id) | id: id, agent_id: "executor-id"}
     %{interaction_row(interaction, turn_number) | id: "row-#{id}"}
   end
 
-  defp turn(id, user_message_ids, agent_id) do
-    %{turn_started(user_message_ids) | id: id, agent_id: agent_id}
+  defp turn(id, user_message_id, agent_id) do
+    %{turn_started(user_message_id) | id: id, agent_id: agent_id}
   end
 
   defp response_row(turn_number) do

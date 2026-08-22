@@ -221,22 +221,10 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp record_interaction_row(
-         %TaskSchema{} = task_schema,
-         type,
-         attrs,
-         turn_number,
-         interaction_id \\ nil
-       ) do
+  defp record_interaction_row(%TaskSchema{} = task_schema, type, attrs, turn_number) do
     Repo.transact(fn ->
       with {:ok, schema} <-
-             InteractionSchema.create_changeset(
-               task_schema.id,
-               type,
-               attrs,
-               turn_number,
-               interaction_id
-             )
+             InteractionSchema.create_changeset(task_schema.id, type, attrs, turn_number)
              |> Repo.insert(),
            {1, _} <-
              TaskSchema
@@ -450,10 +438,13 @@ defmodule FrontmanServer.Tasks do
         %Scope{} = scope,
         %{
           task_id: task_id,
-          message: [_ | _] = content_blocks,
-          model: model,
-          agent_id: agent_id
-        } = params
+          message: %{
+            id: message_id,
+            content: [_ | _] = content_blocks,
+            model: model,
+            agent_id: agent_id
+          }
+        }
       )
       when is_binary(task_id) and is_binary(model) and model != "" and is_binary(agent_id) and
              agent_id != "" do
@@ -465,9 +456,8 @@ defmodule FrontmanServer.Tasks do
            record_interaction_row(
              task_schema,
              :user_message,
-             user_message_attrs,
-             nil,
-             Map.get(params, :message_id)
+             Map.put(user_message_attrs, :id, message_id),
+             nil
            ) do
       if first_message? do
         GenerateTitle.new(%{
@@ -483,12 +473,12 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  def submit_user_message(%Scope{}, %{agent_id: agent_id})
+  def submit_user_message(%Scope{}, %{message: %{agent_id: agent_id}})
       when is_binary(agent_id) and agent_id != "" do
     {:error, :missing_model}
   end
 
-  def submit_user_message(%Scope{}, %{model: _model}) do
+  def submit_user_message(%Scope{}, %{message: %{model: _model}}) do
     {:error, :missing_agent}
   end
 
@@ -528,24 +518,17 @@ defmodule FrontmanServer.Tasks do
     rows = load_interaction_rows(task_id)
 
     with {:ok, history} <- History.new(rows),
-         {nil, [_ | _] = accepted_messages} <-
+         {nil, [accepted_message | _]} <-
            {History.active_run_turn_number(history), History.pending_accepted_messages(history)} do
       turn_number = History.next_turn_number(history)
       default_agent_id = Agents.default_agent_id(scope)
-      agent_id = accepted_message_agent_id(List.first(accepted_messages), default_agent_id)
+      agent_id = accepted_message_agent_id(accepted_message, default_agent_id)
 
-      accepted_messages =
-        Enum.take_while(accepted_messages, fn row ->
-          accepted_message_agent_id(row, default_agent_id) == agent_id
-        end)
-
-      user_message_ids = Enum.map(accepted_messages, & &1.id)
-
-      with {:ok, turn_model} <- turn_model_for_accepted_messages(accepted_messages),
+      with {:ok, turn_model} <- turn_model_for_accepted_message(accepted_message),
            {:ok, agent} <- Agents.get_agent(scope, agent_id),
            turn_started_attrs = %{
              agent_id: agent.id,
-             user_message_ids: user_message_ids
+             user_message_id: accepted_message.id
            },
            {:ok, turn_started_row} <-
              insert_turn_started(task_schema, turn_started_attrs, turn_number) do
@@ -560,16 +543,13 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp turn_model_for_accepted_messages(accepted_messages) do
-    case List.last(accepted_messages) do
-      %InteractionSchema{data: %Interaction.UserMessage{model: model}}
-      when is_binary(model) and model != "" ->
-        {:ok, model}
+  defp turn_model_for_accepted_message(%InteractionSchema{
+         data: %Interaction.UserMessage{model: model}
+       })
+       when is_binary(model) and model != "",
+       do: {:ok, model}
 
-      _missing ->
-        {:error, :missing_model}
-    end
-  end
+  defp turn_model_for_accepted_message(_missing), do: {:error, :missing_model}
 
   defp accepted_message_agent_id(
          %InteractionSchema{data: %Interaction.UserMessage{agent_id: agent_id}},

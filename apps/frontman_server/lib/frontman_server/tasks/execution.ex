@@ -185,12 +185,13 @@ defmodule FrontmanServer.Tasks.Execution do
   defp row_to_messages(
          %InteractionSchema{
            type: :turn_started,
-           data: %Interaction.TurnStarted{user_message_ids: user_message_ids}
+           data: %Interaction.TurnStarted{user_message_id: user_message_id}
          },
          user_messages_by_row_id
        ) do
-    user_message_ids
-    |> Enum.map(&Map.fetch!(user_messages_by_row_id, &1))
+    user_messages_by_row_id
+    |> Map.fetch!(user_message_id)
+    |> List.wrap()
     |> Interaction.to_swarm_messages()
   end
 

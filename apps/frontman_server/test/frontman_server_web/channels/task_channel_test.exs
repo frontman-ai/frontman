@@ -285,7 +285,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_reply(ref, :ok, %{"acp:message" => response})
       assert response["error"]["code"] == JsonRpc.error_invalid_params()
-      assert response["error"]["message"] == "Invalid message id"
+      assert response["error"]["message"] == "Invalid message"
 
       assert {:ok, task} = Tasks.get_task(scope, task_id)
       assert Tasks.interactions(task) == []
@@ -391,7 +391,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "prompt" => content_blocks,
             "_meta" => %{
               "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-              "agent" => "test-frontman"
+              "agent" => "test-frontman",
+              "dev.frontman/messageId" => Ecto.UUID.generate()
             }
           })
         )
@@ -424,7 +425,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           build_acp_request("session/prompt", 45, %{
             "prompt" => [%{"type" => "text", "text" => "Hello"}],
             "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}
+              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
+              "dev.frontman/messageId" => Ecto.UUID.generate()
             }
           })
         )
@@ -1075,9 +1077,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, %Tasks.InteractionSchema{data: %Interaction.UserMessage{}}} =
         Tasks.submit_user_message(scope, %{
           task_id: task.id,
-          message: user_content("queued elsewhere"),
-          model: "openrouter:google/gemini-3.1-pro-preview",
-          agent_id: "test-frontman"
+          message: %{
+            id: Ecto.UUID.generate(),
+            content: user_content("queued elsewhere"),
+            model: "openrouter:google/gemini-3.1-pro-preview",
+            agent_id: "test-frontman"
+          }
         })
 
       push(

@@ -83,6 +83,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   def user_message_fixture(scope, task_id, content_blocks, model \\ @default_test_model) do
     task = task_schema!(scope, task_id)
     {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model, "test-frontman")
+    attrs = Map.put(attrs, :id, Ecto.UUID.generate())
 
     with {:ok, row} <-
            InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
@@ -95,7 +96,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
                id: Ecto.UUID.generate(),
                timestamp: Interaction.now(),
                agent_id: "test-frontman",
-               user_message_ids: [row.id]
+               user_message_id: row.id
              },
              next_turn_number(task_id)
            )
