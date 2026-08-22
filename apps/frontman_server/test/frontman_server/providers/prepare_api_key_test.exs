@@ -26,12 +26,8 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
   describe "prepare_llm_args/3 resolution priority" do
     test "resolves OAuth token as highest priority for anthropic", %{scope: scope} do
-      expires_at = DateTime.add(DateTime.utc_now(), 3600, :second)
-
-      {:ok, _} =
-        Providers.upsert_oauth_token(scope, "anthropic", "oauth_access", "refresh", expires_at)
-
-      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
+      {:ok, _} = upsert_anthropic_oauth_token(scope, :valid)
+      {:ok, _} = upsert_anthropic_api_key(scope)
 
       {:ok, {model, llm_opts}} =
         Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
@@ -45,7 +41,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "falls back to user key when no OAuth token", %{scope: scope} do
-      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
+      {:ok, _} = upsert_anthropic_api_key(scope)
 
       {:ok, {model, llm_opts}} =
         Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-5")
@@ -57,7 +53,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "resolved Anthropic opts mark the last message for prompt caching", %{scope: scope} do
-      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
+      {:ok, _} = upsert_anthropic_api_key(scope)
 
       {:ok, {model, llm_opts}} =
         Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
@@ -88,11 +84,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "refreshes expired Anthropic OAuth token before resolving LLM args", %{scope: scope} do
-      expired_at = DateTime.add(DateTime.utc_now(), -60, :second)
-
-      {:ok, _} =
-        Providers.upsert_oauth_token(scope, "anthropic", "expired_access", "refresh", expired_at)
-
+      {:ok, _} = upsert_anthropic_oauth_token(scope, :expired)
       expect_anthropic_refresh_success()
 
       {:ok, {_model, llm_opts}} =
@@ -103,12 +95,8 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "invalid Anthropic refresh falls back to API key and deletes token", %{scope: scope} do
-      expired_at = DateTime.add(DateTime.utc_now(), -60, :second)
-
-      {:ok, _} =
-        Providers.upsert_oauth_token(scope, "anthropic", "expired_access", "refresh", expired_at)
-
-      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
+      {:ok, _} = upsert_anthropic_oauth_token(scope, :expired)
+      {:ok, _} = upsert_anthropic_api_key(scope)
 
       expect_anthropic_refresh_permanent_failure()
 
@@ -116,23 +104,19 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
         Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:api_key] == "user_key_456"
-      assert is_nil(Providers.get_oauth_token(scope, "anthropic"))
+      refute Providers.get_oauth_token(scope, "anthropic")
     end
 
     test "transient Anthropic refresh failure keeps token and can recover", %{scope: scope} do
-      expired_at = DateTime.add(DateTime.utc_now(), -60, :second)
-
-      {:ok, _} =
-        Providers.upsert_oauth_token(scope, "anthropic", "expired_access", "refresh", expired_at)
-
-      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "user_key_456")
+      {:ok, _} = upsert_anthropic_oauth_token(scope, :expired)
+      {:ok, _} = upsert_anthropic_api_key(scope)
       expect_anthropic_refresh_transient_failure()
 
       {:ok, {_model, llm_opts}} =
         Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:api_key] == "user_key_456"
-      refute is_nil(Providers.get_oauth_token(scope, "anthropic"))
+      assert Providers.get_oauth_token(scope, "anthropic")
 
       expect_anthropic_refresh_success()
 
@@ -157,9 +141,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "openai codex oauth resolves direct ReqLLM args", %{scope: scope} do
-      expires_at = DateTime.add(DateTime.utc_now(), 3600, :second)
-
-      {:ok, _} = upsert_openai_oauth_token(scope, expires_at)
+      {:ok, _} = upsert_openai_oauth_token(scope, :valid)
 
       {:ok, {model, llm_opts}} =
         Providers.prepare_llm_args(scope, "openai_codex:gpt-5.6-sol", max_tokens: 16_384)
@@ -172,8 +154,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "refreshes expired OpenAI OAuth token before resolving LLM args", %{scope: scope} do
-      expired_at = DateTime.add(DateTime.utc_now(), -60, :second)
-      {:ok, _} = upsert_openai_oauth_token(scope, expired_at)
+      {:ok, _} = upsert_openai_oauth_token(scope, :expired)
       expect_openai_refresh_success()
 
       {:ok, {_model, llm_opts}} =
@@ -185,26 +166,23 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "permanent OpenAI refresh failure deletes expired OAuth token", %{scope: scope} do
-      expired_at = DateTime.add(DateTime.utc_now(), -60, :second)
-      {:ok, _} = upsert_openai_oauth_token(scope, expired_at)
+      {:ok, _} = upsert_openai_oauth_token(scope, :expired)
       expect_openai_refresh_permanent_failure()
 
       assert {:error, :no_api_key} =
                Providers.prepare_llm_args(scope, "openai_codex:gpt-5.3-codex-spark")
 
-      assert is_nil(Providers.get_oauth_token(scope, "openai_codex"))
+      refute Providers.get_oauth_token(scope, "openai_codex")
     end
 
     test "openai codex oauth without account id is invalid", %{scope: scope} do
-      expires_at = DateTime.add(DateTime.utc_now(), 3600, :second)
-
       {:ok, _} =
         Providers.upsert_oauth_token(
           scope,
           "openai_codex",
           "openai_access",
           "refresh",
-          expires_at
+          oauth_expiration(:valid)
         )
 
       assert {:error, :invalid_oauth_token} =
@@ -249,11 +227,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
   describe "OAuth availability refresh" do
     test "model config refreshes expired Anthropic token", %{scope: scope} do
-      expired_at = DateTime.add(DateTime.utc_now(), -60, :second)
-
-      {:ok, _} =
-        Providers.upsert_oauth_token(scope, "anthropic", "expired_access", "refresh", expired_at)
-
+      {:ok, _} = upsert_anthropic_oauth_token(scope, :expired)
       expect_anthropic_refresh_success()
 
       config = Providers.model_config_data(scope)
@@ -262,8 +236,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "connection status refreshes expired OpenAI token", %{scope: scope} do
-      expired_at = DateTime.add(DateTime.utc_now(), -60, :second)
-      {:ok, _} = upsert_openai_oauth_token(scope, expired_at)
+      {:ok, _} = upsert_openai_oauth_token(scope, :expired)
       expect_openai_refresh_success()
 
       assert %{
@@ -384,6 +357,23 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
   end
 
+  defp upsert_anthropic_api_key(scope) do
+    Providers.upsert_api_key(scope, "anthropic", "user_key_456")
+  end
+
+  defp upsert_anthropic_oauth_token(scope, expiration) do
+    Providers.upsert_oauth_token(
+      scope,
+      "anthropic",
+      anthropic_access_token(expiration),
+      "refresh",
+      oauth_expiration(expiration)
+    )
+  end
+
+  defp anthropic_access_token(:valid), do: "oauth_access"
+  defp anthropic_access_token(:expired), do: "expired_access"
+
   defp expect_anthropic_refresh_success do
     Req.Test.expect(:anthropic_oauth, fn conn ->
       Req.Test.json(conn, %{
@@ -410,13 +400,13 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end)
   end
 
-  defp upsert_openai_oauth_token(scope, expires_at) do
+  defp upsert_openai_oauth_token(scope, expiration) do
     Providers.upsert_oauth_token(
       scope,
       "openai_codex",
       "openai_access",
       "refresh",
-      expires_at,
+      oauth_expiration(expiration),
       %{"account_id" => "acc-789"}
     )
   end
@@ -438,4 +428,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       |> Req.Test.json(%{"error" => "invalid_grant"})
     end)
   end
+
+  defp oauth_expiration(:valid), do: DateTime.add(DateTime.utc_now(), 3600, :second)
+  defp oauth_expiration(:expired), do: DateTime.add(DateTime.utc_now(), -60, :second)
 end
