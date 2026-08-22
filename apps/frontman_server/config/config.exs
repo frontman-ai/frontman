@@ -210,6 +210,7 @@ import_config "providers.exs"
 
 config :req_llm,
   receive_timeout: 150_000,
+  custom_providers: [FrontmanServer.Providers.Nvidia],
   finch: [
     name: ReqLLM.Finch,
     pools: %{

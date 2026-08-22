@@ -11,6 +11,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
+  alias FrontmanServer.Providers.Nvidia
   alias ReqLLM.Context
   alias ReqLLM.Providers.Anthropic
 
@@ -285,6 +286,101 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert model.capabilities.tools.enabled
       assert model.limits == %{context: 262_144, output: 262_144}
       assert model.modalities == %{input: [:text, :image, :video], output: [:text]}
+    end
+  end
+
+  describe "advertised provider execution" do
+    test "NVIDIA models cross real provider dispatch and decode streaming responses", %{
+      scope: scope
+    } do
+      {:ok, _api_key} = Providers.upsert_api_key(scope, "nvidia", "nvapi-test")
+
+      %{groups: groups} = Providers.model_config_data(scope)
+      %{options: [nvidia_model | _]} = Enum.find(groups, &(&1.id == "nvidia"))
+      bypass = Bypass.open()
+
+      assert Nvidia.default_base_url() == "https://integrate.api.nvidia.com/v1"
+
+      Bypass.expect(bypass, "POST", "/v1/chat/completions", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        decoded_body = Jason.decode!(body)
+
+        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer nvapi-test"]
+        assert decoded_body["model"] == "moonshotai/kimi-k2.6"
+        assert decoded_body["stream"] == true
+        assert decoded_body["messages"] == [%{"role" => "user", "content" => "Hello"}]
+
+        text_event = %{
+          id: "chatcmpl-nvidia",
+          choices: [%{delta: %{content: "Hello from NVIDIA"}}]
+        }
+
+        tool_event = %{
+          id: "chatcmpl-nvidia",
+          choices: [
+            %{
+              delta: %{
+                tool_calls: [
+                  %{
+                    index: 0,
+                    id: "call_1",
+                    type: "function",
+                    function: %{name: "lookup", arguments: ~s({"q":"elixir"})}
+                  }
+                ]
+              }
+            }
+          ]
+        }
+
+        finished_event = %{
+          id: "chatcmpl-nvidia",
+          choices: [%{delta: %{}, finish_reason: "tool_calls"}]
+        }
+
+        sse_body =
+          "data: #{Jason.encode!(text_event)}\n\n" <>
+            "data: #{Jason.encode!(tool_event)}\n\n" <>
+            "data: #{Jason.encode!(finished_event)}\n\n" <>
+            "data: [DONE]\n\n"
+
+        conn
+        |> Plug.Conn.put_resp_header("content-type", "text/event-stream")
+        |> Plug.Conn.send_resp(200, sse_body)
+      end)
+
+      {:ok, {model, llm_opts}} =
+        Providers.prepare_llm_args(scope, nvidia_model.value,
+          base_url: "http://localhost:#{bypass.port}/v1"
+        )
+
+      assert {:ok, stream_response} = ReqLLM.stream_text(model, "Hello", llm_opts)
+      assert {:ok, response} = ReqLLM.StreamResponse.to_response(stream_response)
+      assert ReqLLM.Response.text(response) == "Hello from NVIDIA"
+
+      assert [%ReqLLM.ToolCall{id: "call_1", function: tool_function}] =
+               ReqLLM.Response.tool_calls(response)
+
+      assert tool_function == %{name: "lookup", arguments: ~s({"q":"elixir"})}
+    end
+
+    test "every advertised model resolves to executable transport" do
+      for {group, %{models: models}} <- Application.fetch_env!(:frontman_server, :providers),
+          model_entry <- models do
+        model_id = elem(model_entry, 1)
+
+        model_spec =
+          case model_entry do
+            {_name, ^model_id, model_spec} -> model_spec
+            {_name, ^model_id} -> "#{group}:#{model_id}"
+          end
+
+        assert {:ok, model} = ReqLLM.model(model_spec),
+               "advertised model #{group}:#{model_id} has no catalog metadata"
+
+        assert {:ok, _provider} = ReqLLM.provider(model.provider),
+               "advertised model #{group}:#{model_id} has no executable transport"
+      end
     end
   end
 
