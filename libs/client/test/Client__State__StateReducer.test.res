@@ -7,6 +7,9 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
+module UserMessageId = Client__Message.UserMessageId
+let testUserMessageId = UserMessageId.make()
+let secondTestUserMessageId = UserMessageId.make()
 
 let setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
@@ -150,7 +153,7 @@ let withPlanHandoffContext = (state: Client__State__Types.state): Client__State_
 describe("Client State Reducer - Plan Handoff", () => {
   test("execute atomically consumes the handoff and sends through the executor", t => {
     let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
-    let action = Reducer.ExecutePendingPlan({id: "user-execute-plan"})
+    let action = Reducer.ExecutePendingPlan({id: testUserMessageId})
     let (executing, effects) = Reducer.next(state, action)
 
     t->expect(executing.selectedAgentId)->Expect.toEqual(Some(executor.id))
@@ -176,7 +179,7 @@ describe("Client State Reducer - Plan Handoff", () => {
     let (submitting, _) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-follow-up",
+        id: testUserMessageId,
         sessionId: "test-task-1",
         content: [UserContentPart.text("Revise step one")],
         annotations: [],
@@ -184,10 +187,7 @@ describe("Client State Reducer - Plan Handoff", () => {
       }),
     )
 
-    let (_, executeEffects) = Reducer.next(
-      submitting,
-      ExecutePendingPlan({id: "user-execute-plan"}),
-    )
+    let (_, executeEffects) = Reducer.next(submitting, ExecutePendingPlan({id: testUserMessageId}))
     t->expect(executeEffects)->Expect.toEqual([])
   })
 
@@ -273,7 +273,7 @@ describe("Client State Reducer", () => {
   test("AddUserMessage creates task and sends without optimistic message", t => {
     let state = Reducer.defaultState
     let action = Reducer.AddUserMessage({
-      id: "user-1",
+      id: testUserMessageId,
       sessionId: "session-1",
       content: [UserContentPart.text("Hello")],
       annotations: [],
@@ -301,7 +301,7 @@ describe("Client State Reducer", () => {
     let (state, _) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session-1",
         content: [UserContentPart.text("Hi")],
         annotations: [],
@@ -682,7 +682,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let (state1, _effects1) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
         annotations: [],
@@ -695,7 +695,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let (state2, _effects2) = Reducer.next(
       state1,
       AddUserMessage({
-        id: "user-2",
+        id: secondTestUserMessageId,
         sessionId: "sessionId",
         content: [UserContentPart.text("Second message")],
         annotations: [],
@@ -716,7 +716,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let (state1, effects1) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
         annotations: [],
@@ -879,7 +879,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let (stateAfterMsg, effects) = Reducer.next(
       stateAfterDelete,
       AddUserMessage({
-        id: "user-2",
+        id: secondTestUserMessageId,
         sessionId: "session-new",
         content: [UserContentPart.text("Hello after delete")],
         annotations: [],
@@ -916,7 +916,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let (state1, effects1) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session",
         content: [UserContentPart.Text({text: "Message in task 1"})],
         annotations: [],
@@ -927,7 +927,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     let (_state2, effects2) = Reducer.next(
       state1,
       AddUserMessage({
-        id: "user-2",
+        id: secondTestUserMessageId,
         sessionId: "session",
         content: [UserContentPart.Text({text: "Second message"})],
         annotations: [],
@@ -1144,7 +1144,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session-1",
         content: [UserContentPart.text("Fix this")],
         annotations: _sampleAnnotations,
@@ -1181,7 +1181,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session-1",
         content: [],
         annotations: _sampleAnnotations,
@@ -1213,7 +1213,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session-1",
         content: [UserContentPart.text("Hello")],
         annotations: [],
@@ -1234,7 +1234,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
   test("SendMessage effect carries annotations from AddUserMessage", t => {
     let state = Reducer.defaultState
     let action = Reducer.AddUserMessage({
-      id: "user-1",
+      id: testUserMessageId,
       sessionId: "session-1",
       content: [UserContentPart.text("Fix this")],
       annotations: _sampleAnnotations,
@@ -1261,7 +1261,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
   test("SendMessage metadata carries message ID, submission agent, and selected model", t => {
     setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
-    let messageId = "550e8400-e29b-41d4-a716-446655440000"
+    let messageId = UserMessageId.make()
     let sentMetadata = ref(None)
     let state = {
       ...Reducer.defaultState,
@@ -1295,7 +1295,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
     t
     ->expect(metadata->Dict.get("frontman.dev/messageId")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some(messageId))
+    ->Expect.toEqual(Some(messageId->UserMessageId.toString))
     t
     ->expect(metadata->Dict.get("agent")->Option.flatMap(JSON.Decode.string))
     ->Expect.toEqual(Some("planner-id"))

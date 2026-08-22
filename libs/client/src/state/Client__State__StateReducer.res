@@ -26,14 +26,14 @@ type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   | AddUserMessage({
-      id: string,
+      id: Message.UserMessageId.t,
       sessionId: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
     })
   | CancelTurn
-  | ExecutePendingPlan({id: string})
+  | ExecutePendingPlan({id: Message.UserMessageId.t})
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask
@@ -512,7 +512,10 @@ let sendMessageToAPIImpl = (
     state.selectedModelValue->Option.forEach(modelValue =>
       metadata->Dict.set("model", JSON.Encode.string(modelValue))
     )
-    metadata->Dict.set("frontman.dev/messageId", JSON.Encode.string(messageId))
+    metadata->Dict.set(
+      "frontman.dev/messageId",
+      JSON.Encode.string(Message.UserMessageId.toString(messageId)),
+    )
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
     let _meta = Some(JSON.Encode.object(metadata))
 

@@ -3,6 +3,8 @@ open Vitest
 module Task = Client__Task__Types.Task
 module Message = Client__Task__Types.Message
 module TaskReducer = Client__Task__Reducer
+module UserMessageId = Client__Message.UserMessageId
+let testUserMessageId = UserMessageId.make()
 
 module TestHelpers = {
   let makeLoadedTask = () => {
@@ -270,7 +272,7 @@ describe("Task - Agent Running State", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
@@ -563,7 +565,7 @@ describe("Task - Error Handling", () => {
     let (task3, _) = TaskReducer.next(
       task2,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         content: [Client__Task__Types.UserContentPart.Text({text: "New message"})],
         annotations: [],
         agentId: "executor-id",
@@ -825,7 +827,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
@@ -845,7 +847,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
@@ -865,7 +867,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         content: [],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
@@ -910,7 +912,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     let (_task2, effects) = TaskReducer.next(
       task,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix"})],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
@@ -919,7 +921,9 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
 
     switch effects->Array.get(0) {
     | Some(SendMessage({id, annotations, agentId})) => {
-        t->expect(id)->Expect.toBe("user-1")
+        t
+        ->expect(id->UserMessageId.toString)
+        ->Expect.toBe(testUserMessageId->UserMessageId.toString)
         t->expect(annotations->Array.length)->Expect.toBe(2)
         t->expect(agentId)->Expect.toBe("executor-id")
       }

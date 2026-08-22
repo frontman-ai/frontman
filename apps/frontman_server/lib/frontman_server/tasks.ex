@@ -221,26 +221,14 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp record_interaction_row(
-         %TaskSchema{} = task_schema,
-         type,
-         attrs,
-         turn_number,
-         interaction_id \\ nil
-       ) do
+  defp record_interaction_row(%TaskSchema{} = task, type, attrs, turn_number, id \\ nil) do
     Repo.transact(fn ->
       with {:ok, schema} <-
-             InteractionSchema.create_changeset(
-               task_schema.id,
-               type,
-               attrs,
-               turn_number,
-               interaction_id
-             )
+             InteractionSchema.create_changeset(task.id, type, attrs, turn_number, id)
              |> Repo.insert(),
            {1, _} <-
              TaskSchema
-             |> TaskSchema.by_id(task_schema.id)
+             |> TaskSchema.by_id(task.id)
              |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)]) do
         {:ok, schema}
       else
@@ -251,7 +239,7 @@ defmodule FrontmanServer.Tasks do
     |> case do
       {:ok, %InteractionSchema{} = interaction_schema} ->
         broadcast_task(
-          task_schema.id,
+          task.id,
           {:interaction, interaction_schema}
         )
 

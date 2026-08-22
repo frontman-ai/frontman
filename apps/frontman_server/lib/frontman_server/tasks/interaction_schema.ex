@@ -130,13 +130,8 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     end)
   end
 
-  def duplicate_id?(%Ecto.Changeset{} = changeset) do
-    Enum.any?(changeset.errors, fn {_field, {_message, metadata}} ->
-      case {Keyword.fetch(metadata, :constraint), Keyword.fetch(metadata, :constraint_name)} do
-        {{:ok, :unique}, {:ok, "interactions_pkey"}} -> true
-        _other_constraint -> false
-      end
-    end)
+  def duplicate_id?(%Ecto.Changeset{errors: errors}) do
+    match?({_, [constraint: :unique, constraint_name: "interactions_pkey"]}, errors[:id])
   end
 
   def unresolved_tool_calls(query \\ __MODULE__) do

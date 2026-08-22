@@ -329,7 +329,7 @@ type action =
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
   | AddUserMessage({
-      id: string,
+      id: Message.UserMessageId.t,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
@@ -403,7 +403,7 @@ type effect =
       contentWindow: option<WebAPI.DomTypes.window>,
     })
   | SendMessage({
-      id: string,
+      id: Message.UserMessageId.t,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
@@ -417,7 +417,7 @@ type effect =
 
 type delegated =
   | NeedSendMessage({
-      id: string,
+      id: Message.UserMessageId.t,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,

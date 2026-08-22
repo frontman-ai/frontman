@@ -8,7 +8,7 @@ module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
   let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
-    let id = WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
+    let id = Client__Message.UserMessageId.make()
     Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
   }
 
@@ -119,7 +119,7 @@ module Actions = {
   let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
 
   let executePendingPlan = () => {
-    let id = WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
+    let id = Client__Message.UserMessageId.make()
     Client__State__Store.dispatch(ExecutePendingPlan({id: id}))
   }
 
