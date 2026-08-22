@@ -35,11 +35,18 @@ type relayState =
   | RelayConnected
   | RelayError(string)
 
+type sessionCompletion = result<string, string> => unit
+type sessionCreation = {taskId: string, waiters: array<sessionCompletion>}
+let sessionActivationCancelled = "Task session activation cancelled"
+
 type sessionState =
   | NoSession
-  | SessionCreating(string)
+  | SessionCreating(sessionCreation)
   | SessionActive(ACP.session)
   | SessionError(string)
+
+type loadExistingMode = {needsHistory: bool}
+type sessionMode = Create | LoadExisting(loadExistingMode)
 
 type state = {
   acp: acpState,
@@ -82,7 +89,6 @@ type loadTaskRequest = {
   onUpdate: (string, ACPTypes.sessionUpdate) => unit,
   onTitleUpdated: (string, string) => unit,
   onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-  onComplete: result<unit, string> => unit,
 }
 
 type createSessionRequest = {
@@ -90,7 +96,15 @@ type createSessionRequest = {
   onUpdate: (string, ACPTypes.sessionUpdate) => unit,
   onTitleUpdated: (string, string) => unit,
   onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
-  onComplete: result<string, string> => unit,
+}
+
+type ensureTaskSessionRequest = {
+  taskId: string,
+  mode: sessionMode,
+  onUpdate: (string, ACPTypes.sessionUpdate) => unit,
+  onTitleUpdated: (string, string) => unit,
+  onMcpMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
+  onComplete: sessionCompletion,
 }
 
 type action =
@@ -107,8 +121,9 @@ type action =
   | SessionCreateSuccess(ACP.session)
   | SessionCreateError({sessionId: string, error: string})
   | SessionFailed({sessionId: string, error: string})
-  | CreateSession(createSessionRequest)
+  | EnsureTaskSession(ensureTaskSessionRequest)
   | SendPrompt({
+      taskId: string,
       text: string,
       additionalBlocks: array<ContentBlock.t>,
       onComplete: result<ACPTypes.promptResult, string> => unit,
@@ -116,7 +131,6 @@ type action =
     })
   | CancelPrompt
   | RetryTurn({retriedErrorId: string})
-  | LoadTask(loadTaskRequest)
   | DeleteSession({taskId: string, onComplete: result<unit, string> => unit})
   | ClearSession
 
@@ -155,8 +169,20 @@ type effect =
       onComplete: result<unit, string> => unit,
     })
   | NotifyDeleteSessionRejected({onComplete: result<unit, string> => unit, reason: string})
-  | NotifyCreateSessionRejected({onComplete: result<string, string> => unit, reason: string})
+  | NotifySessionWaiters({waiters: array<sessionCompletion>, result: result<string, string>})
+  | NotifyPromptRejected({
+      onComplete: result<ACPTypes.promptResult, string> => unit,
+      reason: string,
+    })
   | CleanupSessionEffect({session: ACP.session})
+
+let cancelSessionWaiters = session =>
+  switch session {
+  | SessionCreating({waiters}) => [
+      NotifySessionWaiters({waiters, result: Error(sessionActivationCancelled)}),
+    ]
+  | NoSession | SessionActive(_) | SessionError(_) => []
+  }
 
 let initialState: state = {
   acp: ACPDisconnected,
@@ -325,12 +351,17 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         authRetryInFlight: false,
         session: NoSession,
       }->StateReducer.update(
-        ~sideEffect=LogoutEffect({
-          connection,
-          session,
-          tokenUrl: config.tokenUrl,
-          signal: signalController.signal,
-        }),
+        ~sideEffects=Array.concat(
+          cancelSessionWaiters(state.session),
+          [
+            LogoutEffect({
+              connection,
+              session,
+              tokenUrl: config.tokenUrl,
+              signal: signalController.signal,
+            }),
+          ],
+        ),
       )
     }
 
@@ -367,10 +398,13 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [TrackRelay(Failure(relayFailureReason(message)))],
     )
 
-  | ({session: SessionCreating(expectedSessionId)}, SessionCreateSuccess(sess))
-    if expectedSessionId == sess.sessionId => (
+  | ({session: SessionCreating({taskId, waiters})}, SessionCreateSuccess(sess))
+    if taskId == sess.sessionId => (
       {...state, session: SessionActive(sess)},
-      [LogInfo(`Session activated: ${sess.sessionId}`)],
+      [
+        LogInfo(`Session activated: ${sess.sessionId}`),
+        NotifySessionWaiters({waiters, result: Ok(sess.sessionId)}),
+      ],
     )
 
   | (_, SessionCreateSuccess(sess)) => (
@@ -378,16 +412,16 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [CleanupSessionEffect({session: sess}), LogInfo(`Stale session ignored: ${sess.sessionId}`)],
     )
 
-  | ({session: SessionCreating(expectedSessionId)}, SessionCreateError({sessionId, error}))
-    if expectedSessionId == sessionId => (
+  | (
+      {session: SessionCreating({taskId, waiters})},
+      SessionCreateError({sessionId, error}) | SessionFailed({sessionId, error}),
+    ) if taskId == sessionId => (
       {...state, session: SessionError(error)},
-      [LogError(`Session failed: ${error}`)],
+      [LogError(`Session failed: ${error}`), NotifySessionWaiters({waiters, result: Error(error)})],
     )
 
-  | (
-      {session: SessionActive({sessionId: expectedSessionId}) | SessionCreating(expectedSessionId)},
-      SessionFailed({sessionId, error}),
-    ) if expectedSessionId == sessionId => (
+  | ({session: SessionActive({sessionId: activeSessionId})}, SessionFailed({sessionId, error}))
+    if activeSessionId == sessionId => (
       {...state, session: SessionError(error)},
       [LogError(`Session failed: ${error}`)],
     )
@@ -395,22 +429,89 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   | (_, SessionFailed(_)) => (state, [LogInfo("Stale session failure ignored")])
 
   | (
+      {session: SessionActive(session)},
+      EnsureTaskSession({mode: Create | LoadExisting({needsHistory: false})} as request),
+    ) if session.sessionId == request.taskId => (
+      state,
+      [NotifySessionWaiters({waiters: [request.onComplete], result: Ok(request.taskId)})],
+    )
+
+  | ({session: SessionCreating({taskId, waiters})}, EnsureTaskSession(request))
+    if taskId == request.taskId => (
       {
-        acp: ACPConnected(conn),
-        relay: RelayConnected,
-        mcpServer: Some(mcpServer),
-        session: NoSession,
+        ...state,
+        session: SessionCreating({taskId, waiters: Array.concat(waiters, [request.onComplete])}),
       },
-      CreateSession(request),
-    ) => (
-      {...state, session: SessionCreating(request.sessionId)},
-      [CreateSessionEffect({connection: conn, mcpServer, request})],
+      [],
+    )
+
+  | (
+      {acp: ACPConnected(conn), relay: RelayConnected, mcpServer: Some(mcpServer)},
+      EnsureTaskSession(request),
+    ) => {
+      let previousSessionEffects = switch state.session {
+      | SessionCreating({waiters}) => [
+          NotifySessionWaiters({
+            waiters,
+            result: Error("Task session activation superseded"),
+          }),
+        ]
+      | SessionActive(session) if session.sessionId != request.taskId => [
+          CleanupSessionEffect({session: session}),
+        ]
+      | _ => []
+      }
+      let activation = switch request.mode {
+      | Create =>
+        CreateSessionEffect({
+          connection: conn,
+          mcpServer,
+          request: {
+            sessionId: request.taskId,
+            onUpdate: request.onUpdate,
+            onTitleUpdated: request.onTitleUpdated,
+            onMcpMessage: request.onMcpMessage,
+          },
+        })
+      | LoadExisting({needsHistory}) =>
+        LoadTaskEffect({
+          connection: conn,
+          mcpServer,
+          request: {
+            taskId: request.taskId,
+            needsHistory,
+            onUpdate: request.onUpdate,
+            onTitleUpdated: request.onTitleUpdated,
+            onMcpMessage: request.onMcpMessage,
+          },
+        })
+      }
+      (
+        {
+          ...state,
+          session: SessionCreating({taskId: request.taskId, waiters: [request.onComplete]}),
+        },
+        previousSessionEffects->Array.concat([activation]),
+      )
+    }
+
+  | (_, EnsureTaskSession(request)) => (
+      state,
+      [NotifySessionWaiters({waiters: [request.onComplete], result: Error("Not connected")})],
     )
 
   | (
       {session: SessionActive(session)},
-      SendPrompt({text, additionalBlocks, onComplete, _meta}),
-    ) => (state, [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})])
+      SendPrompt({taskId, text, additionalBlocks, onComplete, _meta}),
+    ) if session.sessionId == taskId => (
+      state,
+      [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})],
+    )
+
+  | (_, SendPrompt({onComplete, _})) => (
+      state,
+      [NotifyPromptRejected({onComplete, reason: "Requested task session is not active"})],
+    )
 
   | ({session: SessionActive(session)}, CancelPrompt) => (
       state,
@@ -423,37 +524,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (_, RetryTurn(_)) => (state, [LogError("Cannot retry turn: no active session")])
-
-  | ({session: NoSession | SessionCreating(_) | SessionError(_)}, SendPrompt(_)) => (
-      state,
-      [LogError("Cannot send prompt: no active session")],
-    )
-
-  | (
-      {acp: ACPConnected(conn), mcpServer: Some(mcpServer), session: SessionActive({sessionId})},
-      LoadTask(request),
-    ) if sessionId == request.taskId => (
-      state,
-      [LoadTaskEffect({connection: conn, mcpServer, request})],
-    )
-
-  | (
-      {acp: ACPConnected(conn), mcpServer: Some(mcpServer), session: SessionActive(oldSession)},
-      LoadTask(request),
-    ) => (
-      {...state, session: SessionCreating(request.taskId)},
-      [
-        CleanupSessionEffect({session: oldSession}),
-        LoadTaskEffect({connection: conn, mcpServer, request}),
-      ],
-    )
-
-  | ({acp: ACPConnected(conn), mcpServer: Some(mcpServer)}, LoadTask(request)) => (
-      {...state, session: SessionCreating(request.taskId)},
-      [LoadTaskEffect({connection: conn, mcpServer, request})],
-    )
-
-  | (_, LoadTask(_)) => (state, [LogError("Cannot load task: not connected")])
 
   | ({acp: ACPConnected(conn)}, DeleteSession({taskId, onComplete})) => (
       state,
@@ -472,15 +542,11 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       {...state, session: NoSession},
       [CleanupSessionEffect({session: oldSession})],
     )
-  | (_, ClearSession) => ({...state, session: NoSession}, [])
-
-  | (_, CreateSession({onComplete, _})) => (
-      state,
-      [
-        NotifyCreateSessionRejected({onComplete, reason: "Session is not ready"}),
-        LogError("Cannot create session: not ready"),
-      ],
+  | ({session: SessionCreating(_)}, ClearSession) => (
+      {...state, session: NoSession},
+      cancelSessionWaiters(state.session),
     )
+  | (_, ClearSession) => ({...state, session: NoSession}, [])
 
   | (_, Initialize(_)) => (state, [LogInfo("Initialize ignored: already initialized")])
 
@@ -560,7 +626,7 @@ let rec waitForLogout = async (
   }
 }
 
-let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
+let handleEffect = (effect: effect, _state: state, dispatch: action => unit) => {
   let dispatchConfigOptions = (configOptions: option<array<_>>) =>
     configOptions->Option.forEach(opts =>
       Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
@@ -573,7 +639,8 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LogInfo(msg) => Log.info(msg)
   | TrackRelay(outcome) => Client__Heap.trackRelayConnection(outcome)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
-  | NotifyCreateSessionRejected({onComplete, reason}) => onComplete(Error(reason))
+  | NotifySessionWaiters({waiters, result}) => waiters->Array.forEach(waiter => waiter(result))
+  | NotifyPromptRejected({onComplete, reason}) => onComplete(Error(reason))
   | ConnectACP({config, signal}) =>
     let connect = async () => {
       let result = await ACP.connect(config, ~signal)
@@ -631,7 +698,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | CreateSessionEffect({
       connection,
       mcpServer,
-      request: {sessionId, onUpdate, onTitleUpdated, onMcpMessage, onComplete},
+      request: {sessionId, onUpdate, onTitleUpdated, onMcpMessage},
     }) =>
     let create = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
@@ -652,17 +719,12 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       switch result {
       | Ok((sess, sessionNewResult)) =>
         switch creationError.contents {
-        | Some(error) =>
-          ACP.cleanupSessionChannel(sess)
-          onComplete(Error(error))
+        | Some(_) => ACP.cleanupSessionChannel(sess)
         | None =>
           dispatch(SessionCreateSuccess(sess))
-          onComplete(Ok(sess.sessionId))
           dispatchSessionResult(sessionNewResult.configOptions)
         }
-      | Error(err) =>
-        dispatch(SessionCreateError({sessionId, error: err}))
-        onComplete(Error(err))
+      | Error(err) => dispatch(SessionCreateError({sessionId, error: err}))
       }
     }
     create()->ignore
@@ -697,7 +759,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LoadTaskEffect({
       connection,
       mcpServer,
-      request: {taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete},
+      request: {taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage},
     }) =>
     let activateSession = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
@@ -735,24 +797,13 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       | Ok(session) =>
         dispatch(SessionCreateSuccess(session))
         Log.info(~ctx={"taskId": taskId}, "Session activated")
-        onComplete(Ok())
       | Error(err) =>
         dispatch(SessionCreateError({sessionId: taskId, error: err}))
         Log.error(~ctx={"error": err}, "Failed to activate session")
-        onComplete(Error(err))
       }
     }
 
-    switch state.session {
-    | SessionActive(oldSession) =>
-      switch oldSession.sessionId == taskId {
-      | true => onComplete(Ok())
-      | false =>
-        cleanupSession(oldSession)
-        activateSession()->ignore
-      }
-    | NoSession | SessionCreating(_) | SessionError(_) => activateSession()->ignore
-    }
+    activateSession()->ignore
 
   | DeleteSessionEffect({connection, taskId, onComplete}) =>
     let delete = async () => {

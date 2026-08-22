@@ -1179,6 +1179,15 @@
                     "refusal",
                     "cancelled"
                   ]
+                },
+                "_meta": {
+                  "type": "object",
+                  "properties": {
+                    "dev.frontman/messageId": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  }
                 }
               },
               "required": [

@@ -7,17 +7,8 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
-  let stageUserMessage = (~id, ~content, ~annotations, ~agentId) =>
-    Client__State__Store.dispatch(StageUserMessage({id, content, annotations, agentId}))
-
-  let addUserMessage = (~id, ~sessionId, ~content, ~annotations, ~agentId) => {
-    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
-  }
-
-  let userMessageSendFailed = (~taskId, ~id, ~error) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}),
-    )
+  let submitUserMessage = (~id, ~content, ~annotations, ~agentId, ~model) =>
+    Client__State__Store.dispatch(SubmitUserMessage({id, content, annotations, agentId, model}))
 
   let textDeltaReceived = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) =>
     Client__State__Store.dispatch(
@@ -134,12 +125,19 @@ module Actions = {
     ~sendPrompt,
     ~cancelPrompt,
     ~retryTurn,
-    ~loadTask,
+    ~ensureTaskSession,
     ~deleteSession,
     ~apiBaseUrl,
   ) =>
     Client__State__Store.dispatch(
-      SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}),
+      SetAcpSession({
+        sendPrompt,
+        cancelPrompt,
+        retryTurn,
+        ensureTaskSession,
+        deleteSession,
+        apiBaseUrl,
+      }),
     )
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
@@ -147,9 +145,9 @@ module Actions = {
   let fetchUserProfile = (~apiBaseUrl: string) =>
     Client__State__Store.dispatch(FetchUserProfile({apiBaseUrl: apiBaseUrl}))
 
-  let executionStateRunning = (~taskId: string) =>
+  let executionStateRunning = (~taskId: string, ~messageId: option<string>) =>
     Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
+      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning(messageId)}),
     )
 
   let executionStateIdle = (~taskId: string) =>

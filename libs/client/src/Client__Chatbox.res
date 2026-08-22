@@ -3,7 +3,6 @@ module Log = FrontmanLogs.Logs.Make({
 })
 
 module Message = Client__State__Types.Message
-module Task = Client__State__Types.Task
 
 module UserMessage = Client__UserMessage
 module AssistantMessage = Client__AssistantMessage
@@ -88,21 +87,17 @@ let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): b
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
-  let {session, createSession} = Client__FrontmanProvider.useFrontman()
-
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
-  let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
+  let queuedSubmissions = Client__State.useSelector(Client__State.Selectors.queuedSubmissions)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
   let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
-  let currentTaskClientId = Client__State.useSelector(Client__State.Selectors.currentTaskClientId)
-  let currentTask = Client__State.useSelector(Client__State.Selectors.currentTask)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
@@ -128,105 +123,10 @@ let make = (~onConfigureProvider: unit => unit) => {
     Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
   let hasAnnotations = Array.length(annotations) > 0
 
-  let pendingSessionRef = React.useRef(None)
-  let sessionRef = React.useRef(session)
-  sessionRef.current = session
-  let sendQueueRef = React.useRef(Promise.resolve())
-
-  React.useEffect2(() => {
-    switch (session, pendingSessionRef.current) {
-    | (Some(sess), Some((sessionId, _, resolve))) =>
-      switch sess.sessionId == sessionId {
-      | true =>
-        let state = Client__State__Store.store->StateStore.getState
-        switch state.tasks->Dict.get(sessionId) {
-        | Some(Task.Loaded(_)) =>
-          pendingSessionRef.current = None
-          resolve(Ok(sessionId))
-        | _ => ()
-        }
-      | false =>
-        pendingSessionRef.current = None
-        resolve(Error("Selected task session is not active"))
-      }
-    | (None, Some((sessionId, _, resolve))) =>
-      let state = Client__State__Store.store->StateStore.getState
-      switch state.tasks->Dict.get(sessionId) {
-      | Some(Task.Unloaded(_)) =>
-        pendingSessionRef.current = None
-        resolve(Error("Task session failed to load"))
-      | _ => ()
-      }
-    | _ => ()
-    }
-    None
-  }, (session, currentTask))
-
-  let withSession = sessionId => {
-    switch sessionRef.current {
-    | Some(sess) if sess.sessionId == sessionId => Promise.resolve(Ok(sess.sessionId))
-    | Some(_) => Promise.resolve(Error("Selected task session is not active"))
-    | None =>
-      switch pendingSessionRef.current {
-      | Some((pendingSessionId, promise, _)) if pendingSessionId == sessionId => promise
-      | _ =>
-        let resolver = ref(None)
-        let promise = Promise.make((resolve, _) => resolver := Some(resolve))
-        let resolve = resolver.contents->Option.getOrThrow
-        pendingSessionRef.current = Some((sessionId, promise, resolve))
-        let state = Client__State__Store.store->StateStore.getState
-        switch state.tasks->Dict.get(sessionId) {
-        | Some(Task.Loading(_)) => ()
-        | _ =>
-          createSession(~sessionId, ~onComplete=result => {
-            switch (result, pendingSessionRef.current) {
-            | (Error(_), Some((pendingSessionId, _, _))) if pendingSessionId == sessionId =>
-              pendingSessionRef.current = None
-            | _ => ()
-            }
-            resolve(result)
-          })
-        }
-        promise
-      }
-    }
-  }
-
-  let sendUserMessage = (
-    ~id: string,
-    ~taskId: string,
-    ~content: array<Client__State.UserContentPart.t>,
-    ~annotations: array<Client__Message.MessageAnnotation.t>,
-    ~agentId: string,
-    ~stageOnReady: bool,
-  ) => {
-    withSession(taskId)->Promise.then(result => {
-      let state = Client__State__Store.store->StateStore.getState
-      let fail = error =>
-        switch state.tasks->Dict.get(taskId) {
-        | Some(Task.Loaded(_)) => Client__State.Actions.userMessageSendFailed(~taskId, ~id, ~error)
-        | _ => ()
-        }
-      let currentTaskId = Client__State.Selectors.currentTaskClientId(state)
-      switch (result, currentTaskId == taskId) {
-      | (Ok(sessionId), true) =>
-        switch stageOnReady {
-        | true => Client__State.Actions.stageUserMessage(~id, ~content, ~annotations, ~agentId)
-        | false => ()
-        }
-        Client__State.Actions.addUserMessage(~id, ~sessionId, ~content, ~annotations, ~agentId)
-      | (Ok(_), false) => fail("Task changed before message could be sent")
-      | (Error(error), _) => fail(error)
-      }
-      Promise.resolve()
-    })
-  }
-
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let id = WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
-    let taskId = currentTaskClientId
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
     let messageAnnotations =
       annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
@@ -247,76 +147,17 @@ let make = (~onConfigureProvider: unit => unit) => {
       }
     )
     let displayContent = Array.concat(textParts, displayFileParts)
-    let state = Client__State__Store.store->StateStore.getState
-    let stageOnReady = switch state.tasks->Dict.get(taskId) {
-    | Some(Task.Loading(_)) | Some(Task.Unloaded(_)) => true
-    | _ =>
-      Client__State.Actions.stageUserMessage(
+    switch Array.length(displayContent) > 0 || Array.length(messageAnnotations) > 0 {
+    | true =>
+      Client__State.Actions.submitUserMessage(
         ~id,
         ~content=displayContent,
         ~annotations=messageAnnotations,
         ~agentId,
+        ~model=selectedModelValue,
       )
-      false
+    | false => ()
     }
-
-    let sendWithContent = content => {
-      switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
-      | false => Promise.resolve()
-      | true =>
-        sendUserMessage(
-          ~id,
-          ~taskId,
-          ~content,
-          ~annotations=messageAnnotations,
-          ~agentId,
-          ~stageOnReady,
-        )
-      }
-    }
-
-    let prepareAndSend = () =>
-      switch Array.length(inputItems) {
-      | 0 => sendWithContent(textParts)
-      | _ =>
-        inputItems
-        ->Array.map(item => {
-          switch item {
-          | Client__PromptInput.FileAttachment({id, name, mediaType, dataUrl}) =>
-            Client__ImageLimits.constrainDataUrl(
-              dataUrl,
-              Client__ImageLimits.conservative,
-            )->Promise.then(constrained => {
-              let actualMediaType = switch constrained->String.startsWith("data:image/jpeg") {
-              | true => "image/jpeg"
-              | false => mediaType
-              }
-              Promise.resolve(
-                Client__State.UserContentPart.Image({
-                  id: Some(id),
-                  image: constrained,
-                  mediaType: Some(actualMediaType),
-                  name: Some(name),
-                }),
-              )
-            })
-          }
-        })
-        ->Promise.all
-        ->Promise.then(fileParts => {
-          sendWithContent(Array.concat(textParts, fileParts))
-        })
-        ->Promise.catch(err => {
-          Log.error(~error=JsExn.fromException(err), "Image resize failed")
-          Client__State.Actions.userMessageSendFailed(
-            ~taskId,
-            ~id,
-            ~error="Image preparation failed",
-          )
-          Promise.resolve()
-        })
-      }
-    sendQueueRef.current = sendQueueRef.current->Promise.then(_ => prepareAndSend())
   }
 
   let groupCacheRef: React.ref<Dict.t<ToolGroupTypes.toolGroup>> = React.useRef(Dict.make())
@@ -510,7 +351,7 @@ let make = (~onConfigureProvider: unit => unit) => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
-    <Client__QueuedMessagesDrawer messages=queuedUserMessages />
+    <Client__QueuedMessagesDrawer submissions=queuedSubmissions />
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {

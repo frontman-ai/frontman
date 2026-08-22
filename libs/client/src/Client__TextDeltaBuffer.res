@@ -54,7 +54,6 @@ let make = (
   let flushAssistant = () => {
     let pending = buffer.contents
     buffer := Dict.make()
-    cancelFlush()
     pending->Dict.forEachWithKey((messages, taskId) =>
       messages->Dict.forEachWithKey((entry, messageId) =>
         onFlush(~taskId, ~messageId, ~text=entry.text, ~agentId=entry.agentId)
@@ -73,14 +72,23 @@ let make = (
   }
 
   let flush = () => {
+    cancelFlush()
     flushAssistant()
     flushUsers()
   }
 
+  let scheduleFlush = () =>
+    switch rafId.contents {
+    | Some(_) => ()
+    | None =>
+      rafId := Some(WebAPI.Window.requestAnimationFrame(WebAPI.Window.current, _ => flush()))
+    }
+
   let discardTask = taskId => {
     buffer.contents->Dict.delete(taskId)
     userBuffer.contents->Dict.delete(taskId)
-    switch buffer.contents->Dict.keysToArray->Array.length == 0 {
+    switch buffer.contents->Dict.keysToArray->Array.length == 0 &&
+      userBuffer.contents->Dict.keysToArray->Array.length == 0 {
     | true => cancelFlush()
     | false => ()
     }
@@ -95,28 +103,18 @@ let make = (
     | None => {text, agentId}
     }
     messages->Dict.set(messageId, updatedEntry)
-    switch rafId.contents {
-    | Some(_) => ()
-    | None =>
-      rafId := Some(WebAPI.Window.requestAnimationFrame(WebAPI.Window.current, _ => flush()))
-    }
+    scheduleFlush()
   }
   let addUserBlock = (~taskId, ~messageId, ~block, ~agentId) => {
     flushAssistant()
-    let current =
-      userBuffer.contents
-      ->Dict.get(taskId)
-      ->Option.flatMap(messages =>
-        messages->Dict.get(messageId)->Option.map(entry => (messages, entry))
-      )
+    let messages = taskEntries(userBuffer, taskId)
+    let current = messages->Dict.get(messageId)
     switch current {
-    | Some((messages, entry)) =>
+    | Some(entry) =>
       messages->Dict.set(messageId, {...entry, blocks: entry.blocks->Array.concat([block])})
-    | None => {
-        flushUsers()
-        taskEntries(userBuffer, taskId)->Dict.set(messageId, {blocks: [block], agentId})
-      }
+    | None => messages->Dict.set(messageId, {blocks: [block], agentId})
     }
+    scheduleFlush()
   }
 
   let reset = () => {

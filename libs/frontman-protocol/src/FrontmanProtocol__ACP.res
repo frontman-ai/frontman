@@ -488,6 +488,15 @@ type sessionState =
 
 let sessionStateSchema = S.union([S.literal(Running), S.literal(Idle), S.literal(RequiresAction)])
 
+type stateUpdateMetadata = {
+  @as("dev.frontman/messageId")
+  messageId: option<string>,
+}
+
+let stateUpdateMetadataSchema = S.object(s => {
+  messageId: s.field("dev.frontman/messageId", S.option(nonEmptyStringSchema)),
+})
+
 type promptResult = unit
 
 let promptResultSchema = S.object(_s => ())
@@ -566,7 +575,11 @@ type sessionUpdate =
   | Plan({entries: array<planEntry>})
   | ConfigOptionUpdate({configOptions: array<sessionConfigOption>})
   | CurrentModeUpdate({currentModeId: sessionModeId})
-  | StateUpdate({state: sessionState, stopReason: option<stopReason>})
+  | StateUpdate({
+      state: sessionState,
+      stopReason: option<stopReason>,
+      _meta: option<stateUpdateMetadata>,
+    })
   | Error({
       _meta: option<JSON.t>,
       message: string,
@@ -626,6 +639,7 @@ let commonSessionUpdateSchema = S.union([
     StateUpdate({
       state: s.field("state", sessionStateSchema),
       stopReason: s.field("stopReason", S.option(stopReasonSchema)),
+      _meta: s.field("_meta", S.option(stateUpdateMetadataSchema)),
     })
   }),
   S.object(s => {

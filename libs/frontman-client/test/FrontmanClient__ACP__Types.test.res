@@ -237,7 +237,11 @@ module Fixtures = {
     )
   }
 
-  let makeStateUpdate = (~state: string, ~stopReason: option<string>=?): JSON.t => {
+  let makeStateUpdate = (
+    ~state: string,
+    ~stopReason: option<string>=?,
+    ~messageId: option<string>=?,
+  ): JSON.t => {
     let fields = Dict.fromArray([
       ("sessionUpdate", JSON.Encode.string("state_update")),
       ("state", JSON.Encode.string(state)),
@@ -245,6 +249,12 @@ module Fixtures = {
 
     switch stopReason {
     | Some(reason) => fields->Dict.set("stopReason", JSON.Encode.string(reason))
+    | None => ()
+    }
+
+    switch messageId {
+    | Some(messageId) =>
+      fields->Dict.set("_meta", object([("dev.frontman/messageId", JSON.Encode.string(messageId))]))
     | None => ()
     }
 
@@ -305,19 +315,40 @@ describe("sessionUpdate schema parsing", () => {
     [
       (
         Fixtures.makeStateUpdate(~state="running"),
-        Types.StateUpdate({state: Types.Running, stopReason: None}),
+        Types.StateUpdate({state: Types.Running, stopReason: None, _meta: None}),
       ),
       (
         Fixtures.makeStateUpdate(~state="idle", ~stopReason="end_turn"),
-        Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn)}),
+        Types.StateUpdate({state: Types.Idle, stopReason: Some(Types.EndTurn), _meta: None}),
       ),
       (
         Fixtures.makeStateUpdate(~state="requires_action"),
-        Types.StateUpdate({state: Types.RequiresAction, stopReason: None}),
+        Types.StateUpdate({state: Types.RequiresAction, stopReason: None, _meta: None}),
+      ),
+      (
+        Fixtures.makeStateUpdate(~state="running", ~messageId="message-123"),
+        Types.StateUpdate({
+          state: Types.Running,
+          stopReason: None,
+          _meta: Some({messageId: Some("message-123")}),
+        }),
       ),
     ]->Array.forEach(
       ((json, expected)) =>
         t->expect(json->S.parseOrThrow(~to=Types.sessionUpdateSchema))->Expect.toEqual(expected),
+    )
+  })
+
+  test("generic state_update accepts optional extension metadata", t => {
+    [
+      Fixtures.makeStateUpdate(~state="running"),
+      Fixtures.makeStateUpdate(~state="running", ~messageId="message-123"),
+      JSON.parseOrThrow(`{"sessionUpdate":"state_update","state":"running","_meta":{"other.vendor/value":true}}`),
+    ]->Array.forEach(
+      json => {
+        t->expect(json->parsesWith(Types.sessionUpdateSchema))->Expect.toBe(true)
+        t->expect(json->parsesWith(Types.genericSessionUpdateSchema))->Expect.toBe(true)
+      },
     )
   })
 

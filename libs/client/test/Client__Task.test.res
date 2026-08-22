@@ -53,7 +53,7 @@ describe("Task - Protocol Message Identity", () => {
   let _startAgent = () => {
     let task = TestHelpers.makeLoadedTask()
     let task1 = TestHelpers.acceptUserMessage(task)
-    TaskReducer.next(task1, ExecutionStateRunning)->Pair.first
+    TaskReducer.next(task1, ExecutionStateRunning(None))->Pair.first
   }
 
   test("TextDeltaReceived appends to streaming message", t => {
@@ -96,11 +96,12 @@ describe("Task - Protocol Message Identity", () => {
     )->Pair.first
     let task = TaskReducer.next(
       task,
-      StageUserMessage({
+      SubmitUserMessage({
         id: "user-2",
         content: [Client__Task__Types.UserContentPart.Text({text: "Next prompt"})],
         annotations: [],
         agentId: "executor-id",
+        model: None,
       }),
     )->Pair.first
     let task = TaskReducer.next(
@@ -145,7 +146,7 @@ describe("Task - Tool Call Lifecycle", () => {
   let _startAgent = () => {
     let task = TestHelpers.makeLoadedTask()
     let task1 = TestHelpers.acceptUserMessage(task)
-    TaskReducer.next(task1, ExecutionStateRunning)->Pair.first
+    TaskReducer.next(task1, ExecutionStateRunning(None))->Pair.first
   }
 
   test("tool call progresses: ToolCallReceived -> ToolInputReceived -> ToolResultReceived", t => {
@@ -245,6 +246,74 @@ describe("Task - Load State Machine", () => {
 
     t->expect(Task.isUnloaded(failedTask))->Expect.toBe(true)
   })
+
+  test("loading task waits for its session and retains a failed submission", t => {
+    let task = TestHelpers.makeLoadingTask()
+    let task = TaskReducer.next(
+      task,
+      SubmitUserMessage({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.text("Hello")],
+        annotations: [],
+        agentId: "executor-id",
+        model: None,
+      }),
+    )->Pair.first
+    let (task, effects) = TaskReducer.next(
+      task,
+      SubmissionPrepared({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.text("Hello")],
+      }),
+    )
+    switch (effects, TaskReducer.Selectors.queuedSubmissions(task)) {
+    | ([EnsureTaskSession], [{status: WaitingForSession, _}]) => ()
+    | _ => t->expect("loading submission waiting for session")->Expect.toBe("missing")
+    }
+    let task = TaskReducer.next(task, LoadError({error: "Network error"}))->Pair.first
+
+    t->expect(Task.isLoaded(task))->Expect.toBe(true)
+    switch (Task.getSubmissions(task), TaskReducer.Selectors.queuedSubmissions(task)) {
+    | ([{id: "user-1", status: Failed("Network error"), _}], []) => ()
+    | _ => t->expect("retained failed loading submission")->Expect.toBe("missing")
+    }
+    switch TestHelpers.getMessages(task) {
+    | [Message.User({id: "user-1"}), Message.Error(error)] =>
+      t->expect(Message.ErrorMessage.error(error))->Expect.toBe("Network error")
+    | _ => t->expect("attempted message and load error")->Expect.toBe("missing")
+    }
+  })
+
+  test("session failure atomically fails waiting submissions once", t => {
+    let submit = (task, id) => {
+      task
+      ->TaskReducer.next(
+        SubmitUserMessage({
+          id,
+          content: [Client__Task__Types.UserContentPart.text(id)],
+          annotations: [],
+          agentId: "executor-id",
+          model: None,
+        }),
+      )
+      ->Pair.first
+      ->TaskReducer.next(
+        SubmissionPrepared({id, content: [Client__Task__Types.UserContentPart.text(id)]}),
+      )
+      ->Pair.first
+    }
+    let task = TestHelpers.makeLoadedTask()->submit("user-1")->submit("user-2")
+    let failed = TaskReducer.next(task, TaskSessionFailed({error: "No ACP connection"}))->Pair.first
+    let repeated =
+      TaskReducer.next(failed, TaskSessionFailed({error: "No ACP connection"}))->Pair.first
+    switch (Task.getSubmissions(repeated), TestHelpers.getMessages(repeated)) {
+    | (
+        [{status: Failed(_), _}, {status: Failed(_), _}],
+        [Message.User(_), Message.Error(_), Message.User(_), Message.Error(_)],
+      ) => ()
+    | _ => t->expect("two failed submissions with one error each")->Expect.toBe("missing")
+    }
+  })
 })
 
 describe("Task - Session Rehydration (Loading history → LoadComplete)", () => {
@@ -291,16 +360,17 @@ describe("Task - Agent Running State", () => {
     let task = TestHelpers.makeLoadedTask()
     let (task2, _) = TaskReducer.next(
       task,
-      AddUserMessage({
+      SubmitUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
+        model: None,
       }),
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(false))
 
-    let (task3, _) = TaskReducer.next(task2, ExecutionStateRunning)
+    let (task3, _) = TaskReducer.next(task2, ExecutionStateRunning(None))
     t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(true))
 
     let (task4, _) = TaskReducer.next(task3, ExecutionStateIdle)
@@ -325,66 +395,112 @@ describe("Task - Agent Running State", () => {
     }
   })
 
-  test("server acknowledgement moves only its staged message into transcript", t => {
+  test("acknowledgement and execution start advance only their exact submissions", t => {
     let task = TestHelpers.makeLoadedTask()
-    let stage = (task, id: string, text: string) =>
+    let submit = (task, id: string, text: string) =>
       TaskReducer.next(
         task,
-        StageUserMessage({
+        SubmitUserMessage({
           id,
           content: [Client__Task__Types.UserContentPart.text(text)],
           annotations: [],
           agentId: "executor-id",
+          model: None,
         }),
       )->Pair.first
-    let task = task->stage("queued-1", "One")->stage("queued-2", "Two")
-    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="One")
+    let task = task->submit("queued-1", "Local one")->submit("queued-2", "Local two")
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Canonical one")
 
-    switch TestHelpers.getMessages(task) {
-    | [Message.User({id: "queued-1", _})] => ()
-    | _ => t->expect("accepted message in transcript")->Expect.toBe("missing")
+    switch (TestHelpers.getMessages(task), TaskReducer.Selectors.queuedSubmissions(task)) {
+    | (
+        [
+          Message.User({
+            id: "queued-1",
+            content: [Client__Task__Types.UserContentPart.Text({text: "Canonical one"})],
+            _,
+          }),
+        ],
+        [{id: "queued-1", status: Accepted, _}, {id: "queued-2", status: Preparing, _}],
+      ) => ()
+    | _ => t->expect("canonical accepted submission and pending successor")->Expect.toBe("missing")
     }
-    switch TaskReducer.Selectors.queuedUserMessages(task) {
-    | Some([Message.User({id: "queued-2", _})]) => ()
-    | _ => t->expect("other message remains queued")->Expect.toBe("missing")
+
+    Expect.toThrow(t->expect(() => TaskReducer.next(task, ExecutionStateRunning(Some("missing")))))
+    Expect.toThrow(t->expect(() => TaskReducer.next(task, ExecutionStateRunning(Some("queued-2")))))
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-2", ~text="Canonical two")
+    let task = TaskReducer.next(task, ExecutionStateRunning(Some("queued-1")))->Pair.first
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Canonical one")
+
+    switch (Task.getSubmissions(task), TaskReducer.Selectors.queuedSubmissions(task)) {
+    | (
+        [{id: "queued-1", status: Running, _}, {id: "queued-2", status: Accepted, _}],
+        [{id: "queued-2", status: Accepted, _}],
+      ) => ()
+    | _ => t->expect("later accepted submission remains queued")->Expect.toBe("missing")
     }
   })
 
-  test("server acknowledgement replaces staged content", t => {
+  test("late send failure cannot fail an accepted submission", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task, _) = TaskReducer.next(
+    let task = TaskReducer.next(
       task,
-      StageUserMessage({
+      SubmitUserMessage({
         id: "queued-1",
-        content: [Client__Task__Types.UserContentPart.Text({text: "Optimistic"})],
+        content: [Client__Task__Types.UserContentPart.text("Accepted")],
         annotations: [],
         agentId: "executor-id",
+        model: None,
       }),
-    )
+    )->Pair.first
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Accepted")
+    let task =
+      TaskReducer.next(
+        task,
+        UserMessageSendFailed({id: "queued-1", error: "Late timeout"}),
+      )->Pair.first
+
+    switch TaskReducer.Selectors.queuedSubmissions(task) {
+    | [{id: "queued-1", status: Accepted, _}] => ()
+    | _ => t->expect("accepted submission remains accepted")->Expect.toBe("missing")
+    }
+    t->expect(TestHelpers.getMessages(task)->Array.length)->Expect.toBe(1)
+  })
+
+  test("acceptance after send failure removes the stale local error", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let task = TaskReducer.next(
+      task,
+      SubmitUserMessage({
+        id: "queued-1",
+        content: [Client__Task__Types.UserContentPart.text("Accepted")],
+        annotations: [],
+        agentId: "executor-id",
+        model: None,
+      }),
+    )->Pair.first
+    let task =
+      TaskReducer.next(
+        task,
+        UserMessageSendFailed({id: "queued-1", error: "Connection failed"}),
+      )->Pair.first
     let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Canonical")
 
-    switch TestHelpers.getMessages(task) {
-    | [
-        Message.User({
-          id: "queued-1",
-          content: [Client__Task__Types.UserContentPart.Text({text: "Canonical"})],
-          _,
-        }),
-      ] => ()
-    | _ => t->expect("canonical transcript message")->Expect.toBe("missing")
+    switch (Task.getSubmissions(task), TestHelpers.getMessages(task)) {
+    | ([{id: "queued-1", status: Accepted, _}], [Message.User({id: "queued-1", _})]) => ()
+    | _ => t->expect("accepted submission without stale local error")->Expect.toBe("missing")
     }
-    t->expect(TaskReducer.Selectors.queuedUserMessages(task))->Expect.toEqual(Some([]))
   })
 
   test("failed staged message leaves queue and shows an error", t => {
     let task = TestHelpers.makeLoadedTask()
     let (task, _) = TaskReducer.next(
       task,
-      StageUserMessage({
+      SubmitUserMessage({
         id: "queued-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Will fail"})],
         annotations: [],
         agentId: "executor-id",
+        model: None,
       }),
     )
     let (task, _) = TaskReducer.next(
@@ -392,11 +508,44 @@ describe("Task - Agent Running State", () => {
       UserMessageSendFailed({id: "queued-1", error: "Connection failed"}),
     )
 
-    t->expect(TaskReducer.Selectors.queuedUserMessages(task))->Expect.toEqual(Some([]))
+    switch (Task.getSubmissions(task), TaskReducer.Selectors.queuedSubmissions(task)) {
+    | ([{id: "queued-1", status: Failed("Connection failed"), _}], []) => ()
+    | _ => t->expect("failed submission retained outside queue")->Expect.toBe("missing")
+    }
     switch TestHelpers.getMessages(task) {
     | [Message.User({id: "queued-1", _}), Message.Error(error)] =>
       t->expect(Message.ErrorMessage.error(error))->Expect.toBe("Connection failed")
     | _ => t->expect("local send error")->Expect.toBe("missing")
+    }
+    t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
+  })
+
+  test("later preparation cannot overtake an earlier submission", t => {
+    let submit = (task, id) =>
+      TaskReducer.next(
+        task,
+        SubmitUserMessage({
+          id,
+          content: [Client__Task__Types.UserContentPart.text(id)],
+          annotations: [],
+          agentId: "executor-id",
+          model: None,
+        }),
+      )->Pair.first
+    let prepare = (task, id) =>
+      TaskReducer.next(
+        task,
+        SubmissionPrepared({id, content: [Client__Task__Types.UserContentPart.text(id)]}),
+      )->Pair.first
+    let task = TestHelpers.makeLoadedTask()->submit("user-1")->submit("user-2")
+    let task = task->prepare("user-2")
+    let (_, blockedEffects) = TaskReducer.next(task, TaskSessionReady)
+    t->expect(blockedEffects)->Expect.toEqual([])
+
+    let task = task->prepare("user-1")
+    switch TaskReducer.next(task, TaskSessionReady)->Pair.second {
+    | [SendMessage({id: "user-1"}), SendMessage({id: "user-2"})] => ()
+    | _ => t->expect("send effects in submission order")->Expect.toBe("missing")
     }
   })
 
@@ -511,7 +660,7 @@ describe("Task - Error Handling", () => {
 
   test("AgentError sets isAgentRunning to false", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task2, _) = TaskReducer.next(task, ExecutionStateRunning)
+    let (task2, _) = TaskReducer.next(task, ExecutionStateRunning(None))
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
 
     let (task3, _) = TaskReducer.next(
@@ -528,7 +677,7 @@ describe("Task - Error Handling", () => {
   test("AgentError completes any streaming message", t => {
     let task = TestHelpers.makeLoadedTask()
     let task0 = TestHelpers.acceptUserMessage(task)
-    let (runningTask, _) = TaskReducer.next(task0, ExecutionStateRunning)
+    let (runningTask, _) = TaskReducer.next(task0, ExecutionStateRunning(None))
     let (task2, _) = TaskReducer.next(
       runningTask,
       TextDeltaReceived({
@@ -607,7 +756,7 @@ describe("Task - Error Handling", () => {
     t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(None)
   })
 
-  test("AddUserMessage clears turnError", t => {
+  test("SubmitUserMessage clears turnError", t => {
     let task = TestHelpers.makeLoadedTask()
     let (task2, _) = TaskReducer.next(
       task,
@@ -629,11 +778,12 @@ describe("Task - Error Handling", () => {
 
     let (task3, _) = TaskReducer.next(
       task2,
-      AddUserMessage({
+      SubmitUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "New message"})],
         annotations: [],
         agentId: "executor-id",
+        model: None,
       }),
     )
     t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
@@ -644,7 +794,7 @@ describe("Task - CancelTurn", () => {
   let _startAgentWithStreaming = () => {
     let task = TestHelpers.makeLoadedTask()
     let task1 = TestHelpers.acceptUserMessage(task)
-    let (runningTask, _) = TaskReducer.next(task1, ExecutionStateRunning)
+    let (runningTask, _) = TaskReducer.next(task1, ExecutionStateRunning(None))
     let (task3, _) = TaskReducer.next(
       runningTask,
       TextDeltaReceived({
@@ -705,7 +855,7 @@ describe("Task - CancelTurn", () => {
   test("CancelTurn marks in-progress tool calls as cancelled", t => {
     let task = TestHelpers.makeLoadedTask()
     let task1 = TestHelpers.acceptUserMessage(task)
-    let (runningTask, _) = TaskReducer.next(task1, ExecutionStateRunning)
+    let (runningTask, _) = TaskReducer.next(task1, ExecutionStateRunning(None))
 
     let toolCall: Message.toolCall = {
       id: "tool-1",
@@ -748,18 +898,18 @@ describe("Task - CancelTurn", () => {
       }),
     )
     let task2 = TestHelpers.acceptUserMessage(task1, ~text="retry")
-    let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning)
+    let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning(None))
     let (cancelled, _) = TaskReducer.next(runningTask, CancelTurn)
     t->expect(TaskReducer.Selectors.turnError(cancelled))->Expect.toEqual(None)
   })
 
-  test("after CancelTurn, new AddUserMessage creates fresh assistant message", t => {
+  test("after CancelTurn, new submission preserves completed assistant message", t => {
     let task = _startAgentWithStreaming()
     let (cancelled, _) = TaskReducer.next(task, CancelTurn)
 
     let task2 = TestHelpers.acceptUserMessage(cancelled, ~id="user-2", ~text="New question")
 
-    let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning)
+    let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning(None))
     let (task4, _) = TaskReducer.next(
       runningTask,
       TextDeltaReceived({
@@ -882,7 +1032,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     task3
   }
 
-  test("AddUserMessage with annotations clears task-level annotations", t => {
+  test("SubmitUserMessage with annotations clears task-level annotations", t => {
     let task = _taskWithAnnotations()
 
     t
@@ -891,11 +1041,12 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
 
     let (task2, _) = TaskReducer.next(
       task,
-      AddUserMessage({
+      SubmitUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
+        model: None,
       }),
     )
 
@@ -904,25 +1055,26 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     ->Expect.toBe(0)
   })
 
-  test("AddUserMessage resets annotationMode to Off", t => {
+  test("SubmitUserMessage resets annotationMode to Off", t => {
     let task = _taskWithAnnotations()
 
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task))->Expect.toEqual(Some(true))
 
     let (task2, _) = TaskReducer.next(
       task,
-      AddUserMessage({
+      SubmitUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
+        model: None,
       }),
     )
 
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(false))
   })
 
-  test("AddUserMessage clears activePopupAnnotationId", t => {
+  test("SubmitUserMessage clears activePopupAnnotationId", t => {
     let task = _taskWithAnnotations()
 
     t
@@ -931,11 +1083,12 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
 
     let (task2, _) = TaskReducer.next(
       task,
-      AddUserMessage({
+      SubmitUserMessage({
         id: "user-1",
         content: [],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
+        model: None,
       }),
     )
 
@@ -974,15 +1127,24 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
   test("SendMessage effect carries annotations", t => {
     let task = TestHelpers.makeLoadedTask()
 
-    let (_task2, effects) = TaskReducer.next(
+    let (task, _) = TaskReducer.next(
       task,
-      AddUserMessage({
+      SubmitUserMessage({
         id: "user-1",
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix"})],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
+        model: None,
       }),
     )
+    let (task, _) = TaskReducer.next(
+      task,
+      SubmissionPrepared({
+        id: "user-1",
+        content: [Client__Task__Types.UserContentPart.Text({text: "Fix"})],
+      }),
+    )
+    let (_task2, effects) = TaskReducer.next(task, TaskSessionReady)
 
     switch effects->Array.get(0) {
     | Some(SendMessage({annotations, agentId})) => {

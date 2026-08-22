@@ -156,28 +156,14 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
     end
   end
 
-  describe "AgentClientProtocol.build_state_update_notification/3" do
-    test "validates running state against acp/sessionUpdateNotification schema" do
-      payload = AgentClientProtocol.build_state_update_notification("session-123", "running")
-
-      ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
-
-      assert %{
-               "params" => %{
-                 "update" => %{
-                   "sessionUpdate" => "state_update",
-                   "state" => "running"
-                 }
-               }
-             } = payload
-    end
-
-    test "validates idle state with stop reason" do
+  describe "AgentClientProtocol.build_state_update_notification/4" do
+    test "validates optional execution metadata against acp/sessionUpdateNotification schema" do
       payload =
         AgentClientProtocol.build_state_update_notification(
           "session-123",
-          "idle",
-          AgentClientProtocol.stop_reason_end_turn()
+          "running",
+          nil,
+          "message-123"
         )
 
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
@@ -186,8 +172,8 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
                "params" => %{
                  "update" => %{
                    "sessionUpdate" => "state_update",
-                   "state" => "idle",
-                   "stopReason" => "end_turn"
+                   "state" => "running",
+                   "_meta" => %{"dev.frontman/messageId" => "message-123"}
                  }
                }
              } = payload

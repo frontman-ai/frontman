@@ -190,8 +190,11 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_turn_started(turn, turn_started_id, turn_number, socket) do
     task_id = socket.assigns.task_id
-    notification = ACP.build_state_update_notification(task_id, "running")
-    push(socket, @acp_message, notification)
+
+    Enum.each(turn.user_message_ids, fn message_id ->
+      notification = ACP.build_state_update_notification(task_id, "running", nil, message_id)
+      push(socket, @acp_message, notification)
+    end)
 
     context = %{
       agent_id: turn.agent_id,

@@ -9,13 +9,19 @@ let taskToPageContextBlocks = Client__Task__Types.taskToPageContextBlocks
 let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsToContentBlocks
 
 type sendPromptFn = (
+  ~taskId: string,
   string,
   ~additionalBlocks: array<ContentBlock.t>,
   ~onComplete: result<ACPTypes.promptResult, string> => unit,
   ~_meta: option<JSON.t>,
 ) => unit
 
-type loadTaskFn = (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit
+type ensureTaskSessionFn = (
+  string,
+  ~create: bool,
+  ~needsHistory: bool,
+  ~onComplete: result<string, string> => unit,
+) => unit
 
 type deleteSessionFn = (string, ~onComplete: result<unit, string> => unit) => unit
 
@@ -29,7 +35,7 @@ type acpSession =
       sendPrompt: sendPromptFn,
       cancelPrompt: cancelPromptFn,
       retryTurn: retryTurnFn,
-      loadTask: loadTaskFn,
+      ensureTaskSession: ensureTaskSessionFn,
       deleteSession: deleteSessionFn,
       apiBaseUrl: string,
     })

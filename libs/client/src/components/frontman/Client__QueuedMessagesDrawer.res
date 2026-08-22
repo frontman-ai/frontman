@@ -1,5 +1,6 @@
 module UserContentPart = Client__State__Types.UserContentPart
 module Message = Client__Message
+module Task = Client__Task__Types.Task
 module Icons = Client__ToolIcons
 
 let previewForContent = (
@@ -60,41 +61,44 @@ let previewForContent = (
 
 module QueuedRow = {
   @react.component
-  let make = (~message: Message.t, ~index: int) =>
-    switch message {
-    | Message.User({content, annotations}) => {
-        let preview = previewForContent(~content, ~annotations)
-        <div className="flex items-start gap-2 rounded-md bg-zinc-950/35 px-2 py-1.5">
-          <span className="mt-0.5 shrink-0 text-[10px] tabular-nums text-zinc-500">
-            {React.string(`#${(index + 1)->Int.toString}`)}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-[12px] leading-5 text-zinc-300">
-            {React.string(preview)}
-          </span>
-          {switch annotations->Array.length > 0 {
-          | true =>
-            <span
-              className="shrink-0 rounded bg-[#8051CD]/20 px-1.5 py-0.5 text-[10px] text-[#BFA6EA]"
-            >
-              {React.string(`${annotations->Array.length->Int.toString} mark`)}
-            </span>
-          | false => React.null
-          }}
-        </div>
-      }
-    | _ => failwith("[QueuedMessagesDrawer] queued message must be user-authored")
+  let make = (~submission: Task.submission, ~index: int) => {
+    let {displayContent: content, annotations, status} = submission
+    let preview = previewForContent(~content, ~annotations)
+    let status = switch status {
+    | Preparing => "Preparing"
+    | WaitingForSession => "Waiting"
+    | Sending => "Sending"
+    | Accepted => "Queued"
+    | Running | Failed(_) => failwith("[QueuedMessagesDrawer] hidden submission status")
     }
+    <div className="flex items-start gap-2 rounded-md bg-zinc-950/35 px-2 py-1.5">
+      <span className="mt-0.5 shrink-0 text-[10px] tabular-nums text-zinc-500">
+        {React.string(`#${(index + 1)->Int.toString}`)}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-[12px] leading-5 text-zinc-300">
+        {React.string(preview)}
+      </span>
+      <span className="shrink-0 text-[10px] text-zinc-500"> {React.string(status)} </span>
+      {switch annotations->Array.length > 0 {
+      | true =>
+        <span className="shrink-0 rounded bg-[#8051CD]/20 px-1.5 py-0.5 text-[10px] text-[#BFA6EA]">
+          {React.string(`${annotations->Array.length->Int.toString} mark`)}
+        </span>
+      | false => React.null
+      }}
+    </div>
+  }
 }
 
 @react.component
-let make = (~messages: array<Message.t>) => {
-  let count = messages->Array.length
+let make = (~submissions: array<Task.submission>) => {
+  let count = submissions->Array.length
   let (isExpanded, setIsExpanded) = React.useState(() => false)
 
   switch count {
   | 0 => React.null
   | _ => {
-      let latest = messages->Array.get(count - 1)
+      let latest = submissions->Array.get(count - 1)
       <div
         className="mx-3 mb-3 shrink-0 overflow-hidden rounded-lg border border-[#8051CD]/25 bg-[#201532]/80 shadow-sm"
       >
@@ -116,11 +120,11 @@ let make = (~messages: array<Message.t>) => {
                 {React.string(`Queued (${count->Int.toString})`)}
               </div>
               {switch latest {
-              | Some(Message.User({content, annotations})) =>
+              | Some({displayContent: content, annotations}) =>
                 <div className="truncate text-[11px] text-zinc-500">
                   {React.string(previewForContent(~content, ~annotations))}
                 </div>
-              | _ => failwith("[QueuedMessagesDrawer] latest queued message must be user-authored")
+              | None => failwith("[QueuedMessagesDrawer] latest queued submission is missing")
               }}
             </div>
           </div>
@@ -130,9 +134,9 @@ let make = (~messages: array<Message.t>) => {
         | false => React.null
         | true =>
           <div className="max-h-36 space-y-1 overflow-y-auto border-t border-white/5 p-2">
-            {messages
-            ->Array.mapWithIndex((message, index) => {
-              <QueuedRow key={`queued-${index->Int.toString}`} message index />
+            {submissions
+            ->Array.mapWithIndex((submission, index) => {
+              <QueuedRow key={submission.id} submission index />
             })
             ->React.array}
           </div>

@@ -97,9 +97,15 @@ type contextValue = {
   authRedirectUrl: option<string>,
   beginAuthenticationRetry: unit => unit,
   beginLogout: unit => unit,
-  createSession: (~sessionId: string, ~onComplete: result<string, string> => unit) => unit,
+  ensureTaskSession: (
+    string,
+    ~create: bool,
+    ~needsHistory: bool,
+    ~onComplete: result<string, string> => unit,
+  ) => unit,
   clearSession: unit => unit,
   sendPrompt: (
+    ~taskId: string,
     string,
     ~additionalBlocks: array<ContentBlock.t>,
     ~onComplete: result<Types.promptResult, string> => unit,
@@ -107,7 +113,6 @@ type contextValue = {
   ) => unit,
   cancelPrompt: unit => unit,
   retryTurn: string => unit,
-  loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
 
@@ -118,12 +123,11 @@ let defaultContextValue: contextValue = {
   authRedirectUrl: None,
   beginAuthenticationRetry: () => (),
   beginLogout: () => (),
-  createSession: (~sessionId as _, ~onComplete as _) => (),
+  ensureTaskSession: (_, ~create as _, ~needsHistory as _, ~onComplete as _) => (),
   clearSession: () => (),
-  sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+  sendPrompt: (~taskId as _, _, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   cancelPrompt: () => (),
   retryTurn: _ => (),
-  loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
 }
 
@@ -215,6 +219,11 @@ module Provider = {
           switch state.acp {
           | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
           | ACPDisconnected | ACPConnecting | ACPLoggingOut | ACPAuthRequired(_) | ACPError(_) => ()
+          }
+          switch state.session {
+          | SessionCreating({waiters}) =>
+            waiters->Array.forEach(waiter => waiter(Error(Reducer.sessionActivationCancelled)))
+          | NoSession | SessionActive(_) | SessionError(_) => ()
           }
           dispatch(Dispose)
         },
@@ -314,10 +323,14 @@ module Provider = {
       | Plan({entries}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.planReceived(~taskId, ~entries)
-      | StateUpdate({state, stopReason: _}) =>
+      | StateUpdate({state, stopReason: _, _meta}) =>
         Client__TextDeltaBuffer.flush()
         switch state {
-        | Running => Client__State.Actions.executionStateRunning(~taskId)
+        | Running =>
+          Client__State.Actions.executionStateRunning(
+            ~taskId,
+            ~messageId=_meta->Option.flatMap(({messageId}) => messageId),
+          )
         | Idle => Client__State.Actions.executionStateIdle(~taskId)
         | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
         }
@@ -348,11 +361,12 @@ module Provider = {
       }
     })
 
-    let createSession = React.useCallback1(
-      (~sessionId, ~onComplete: result<string, string> => unit) => {
+    let ensureTaskSession = React.useCallback1(
+      (taskId: string, ~create, ~needsHistory, ~onComplete) => {
         dispatch(
-          CreateSession({
-            sessionId,
+          EnsureTaskSession({
+            taskId,
+            mode: create ? Create : LoadExisting({needsHistory: needsHistory}),
             onUpdate: handleSessionUpdate,
             onTitleUpdated: handleTitleUpdated,
             onMcpMessage: logMCPMessage,
@@ -365,9 +379,12 @@ module Provider = {
 
     let clearSession = React.useCallback1(() => dispatch(ClearSession), [dispatch])
 
-    let sendPrompt = React.useCallback1((text: string, ~additionalBlocks, ~onComplete, ~_meta) => {
-      dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta}))
-    }, [dispatch])
+    let sendPrompt = React.useCallback1(
+      (~taskId, text: string, ~additionalBlocks, ~onComplete, ~_meta) => {
+        dispatch(SendPrompt({taskId, text, additionalBlocks, onComplete, _meta}))
+      },
+      [dispatch],
+    )
 
     let cancelPrompt = React.useCallback1(() => {
       dispatch(CancelPrompt)
@@ -375,19 +392,6 @@ module Provider = {
 
     let retryTurn = React.useCallback1((retriedErrorId: string) => {
       dispatch(RetryTurn({retriedErrorId: retriedErrorId}))
-    }, [dispatch])
-
-    let loadTask = React.useCallback1((taskId: string, ~needsHistory, ~onComplete) => {
-      dispatch(
-        LoadTask({
-          taskId,
-          needsHistory,
-          onUpdate: handleSessionUpdate,
-          onTitleUpdated: handleTitleUpdated,
-          onMcpMessage: logMCPMessage,
-          onComplete,
-        }),
-      )
     }, [dispatch])
 
     let deleteSession = React.useCallback1((taskId: string, ~onComplete) => {
@@ -407,12 +411,11 @@ module Provider = {
       authRedirectUrl,
       beginAuthenticationRetry,
       beginLogout,
-      createSession,
+      ensureTaskSession,
       clearSession,
       sendPrompt,
       cancelPrompt,
       retryTurn,
-      loadTask,
       deleteSession,
     }
 

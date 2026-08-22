@@ -24,6 +24,24 @@ module Task = {
     error: string,
   }
 
+  type submissionStatus =
+    | Preparing
+    | WaitingForSession
+    | Sending
+    | Accepted
+    | Running
+    | Failed(string)
+
+  type submission = {
+    id: string,
+    displayContent: array<UserContentPart.t>,
+    preparedContent: option<array<UserContentPart.t>>,
+    annotations: array<Message.MessageAnnotation.t>,
+    agentId: string,
+    model: option<string>,
+    status: submissionStatus,
+  }
+
   type previewFrame = {
     url: string,
     contentDocument: option<WebAPI.DomTypes.document>,
@@ -39,8 +57,15 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
+        submissions: array<submission>,
       })
-    | Unloaded({id: string, title: string, createdAt: float, updatedAt: float})
+    | Unloaded({
+        id: string,
+        title: string,
+        createdAt: float,
+        updatedAt: float,
+        submissions: array<submission>,
+      })
     | Loading({
         id: string,
         title: string,
@@ -52,6 +77,7 @@ module Task = {
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
         isAgentRunning: bool,
+        submissions: array<submission>,
       })
     | Loaded({
         id: string,
@@ -60,7 +86,7 @@ module Task = {
         createdAt: float,
         updatedAt: float,
         messages: Client__MessageStore.t,
-        queuedUserMessages: array<Message.t>,
+        submissions: array<submission>,
         previewFrame: previewFrame,
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
@@ -118,6 +144,22 @@ module Task = {
     switch task {
     | New(_) | Unloaded(_) => []
     | Loading({messages}) | Loaded({messages}) => Client__MessageStore.toArray(messages)
+    }
+
+  let getSubmissions = (task: t): array<submission> =>
+    switch task {
+    | New({submissions})
+    | Unloaded({submissions})
+    | Loading({submissions})
+    | Loaded({submissions}) => submissions
+    }
+
+  let updateSubmissions = (task: t, fn: array<submission> => array<submission>): t =>
+    switch task {
+    | New(data) => New({...data, submissions: fn(data.submissions)})
+    | Unloaded(data) => Unloaded({...data, submissions: fn(data.submissions)})
+    | Loading(data) => Loading({...data, submissions: fn(data.submissions)})
+    | Loaded(data) => Loaded({...data, submissions: fn(data.submissions)})
     }
 
   let getPreviewFrame = (task: t, ~defaultUrl: string): previewFrame =>
@@ -222,6 +264,7 @@ module Task = {
       annotationMode: Annotation.Off,
       annotations: [],
       activePopupAnnotationId: None,
+      submissions: [],
     })
   }
 
@@ -231,12 +274,20 @@ module Task = {
       title: normalizeTitle(title),
       createdAt,
       updatedAt,
+      submissions: [],
     })
   }
 
   let newToLoaded = (task: t, ~id: string, ~title: string): t => {
     switch task {
-    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) =>
+    | New({
+        clientId,
+        previewFrame,
+        annotationMode,
+        annotations,
+        activePopupAnnotationId,
+        submissions,
+      }) =>
       let timestamp = Date.now()
       Loaded({
         id,
@@ -245,7 +296,7 @@ module Task = {
         createdAt: timestamp,
         updatedAt: timestamp,
         messages: Client__MessageStore.make(),
-        queuedUserMessages: [],
+        submissions,
         previewFrame,
         annotationMode,
         annotations,
@@ -266,7 +317,6 @@ module Task = {
 
   type loadedData = {
     messages: array<Message.t>,
-    queuedUserMessages: array<Message.t>,
     annotationMode: Annotation.annotationMode,
     annotations: array<Annotation.t>,
     activePopupAnnotationId: option<string>,
@@ -297,7 +347,7 @@ module Task = {
         createdAt,
         updatedAt,
         messages,
-        queuedUserMessages,
+        submissions,
         previewFrame,
         annotationMode,
         annotations,
@@ -313,7 +363,6 @@ module Task = {
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
-          queuedUserMessages,
           annotationMode,
           annotations,
           activePopupAnnotationId,
@@ -331,7 +380,7 @@ module Task = {
           createdAt,
           updatedAt,
           messages: Client__MessageStore.fromArray(updated.messages),
-          queuedUserMessages: updated.queuedUserMessages,
+          submissions,
           previewFrame,
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
@@ -357,10 +406,10 @@ module Task = {
         annotations,
         activePopupAnnotationId,
         isAgentRunning,
+        submissions,
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
-          queuedUserMessages: [],
           annotationMode,
           annotations,
           activePopupAnnotationId,
@@ -382,12 +431,19 @@ module Task = {
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
           isAgentRunning: updated.isAgentRunning,
+          submissions,
         })
       }
-    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) => {
+    | New({
+        clientId,
+        previewFrame,
+        annotationMode,
+        annotations,
+        activePopupAnnotationId,
+        submissions,
+      }) => {
         let data = {
           messages: [],
-          queuedUserMessages: [],
           annotationMode,
           annotations,
           activePopupAnnotationId,
@@ -404,6 +460,7 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
+          submissions,
         })
       }
     | Unloaded(_) => task

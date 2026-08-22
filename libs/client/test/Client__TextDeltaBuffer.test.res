@@ -27,6 +27,8 @@ let addUserBlock = (buffer: Buffer.t, ~block, ~messageId) =>
   buffer.addUserBlock(~taskId="task-1", ~messageId, ~block, ~agentId="executor-id")
 
 describe("TextDeltaBuffer", () => {
+  afterEach(() => Vi.useRealTimers()->ignore)
+
   test("discardTask removes only failed task buffers", t => {
     let flushed = ref([])
     let buffer = makeBuffer(
@@ -50,7 +52,8 @@ describe("TextDeltaBuffer", () => {
     t->expect(flushed.contents)->Expect.toEqual(["healthy-task", "replacement-task"])
   })
 
-  test("groups user blocks by message before flushing", t => {
+  test("flushes grouped user blocks on the next animation frame", t => {
+    Vi.useFakeTimers()->ignore
     let flushed = ref(None)
     let first = ContentBlock.TextContent({text: "one", _meta: None, annotations: None})
     let second = ContentBlock.TextContent({text: "two", _meta: None, annotations: None})
@@ -61,8 +64,10 @@ describe("TextDeltaBuffer", () => {
 
     addUserBlock(buffer, ~messageId="user-1", ~block=first)
     addUserBlock(buffer, ~messageId="user-1", ~block=second)
-    buffer.flush()
 
+    t->expect(flushed.contents)->Expect.toBe(None)
+    t->expect(Vi.getTimerCount())->Expect.toBe(1)
+    Vi.advanceTimersToNextTimer()->ignore
     t
     ->expect(flushed.contents)
     ->Expect.toEqual(Some(("task-1", "user-1", [first, second], "executor-id")))

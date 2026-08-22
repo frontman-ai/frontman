@@ -45,6 +45,24 @@ module Lens = {
     updateMessages(task, store => MessageStore.insert(store, message))
   }
 
+  let removeMessage = (task: Task.t, id: string): Task.t => {
+    updateMessages(task, store =>
+      store
+      ->MessageStore.toArray
+      ->Array.filter(message => Message.getId(message) != id)
+      ->MessageStore.fromArray
+    )
+  }
+
+  let updateSubmission = (
+    task: Task.t,
+    id: string,
+    fn: Task.submission => Task.submission,
+  ): Task.t =>
+    Task.updateSubmissions(task, submissions =>
+      submissions->Array.map(submission => submission.id == id ? fn(submission) : submission)
+    )
+
   let getStreamingMessage = (task: Task.t): option<Message.assistantMessage> => {
     let messages = Task.getMessages(task)
     let streaming = messages->Array.filterMap(msg => {
@@ -136,11 +154,13 @@ module Selectors = {
     }
   }
 
-  let queuedUserMessages = (task: Task.t): option<array<Message.t>> =>
-    switch task {
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
-    | Task.Loaded({queuedUserMessages}) => Some(queuedUserMessages)
-    }
+  let queuedSubmissions = (task: Task.t): array<Task.submission> =>
+    Task.getSubmissions(task)->Array.filter(submission =>
+      switch submission.status {
+      | Preparing | WaitingForSession | Sending | Accepted => true
+      | Running | Failed(_) => false
+      }
+    )
 
   let isStreaming = (task: Task.t): option<bool> => {
     messages(task)->Option.map(msgs =>
@@ -263,6 +283,7 @@ type annotationElement = {
   tagName: string,
 }
 
+type sessionFailure = {error: string}
 type action =
   | TextDeltaReceived({messageId: string, text: string, agentId: string})
   | ToolInputReceived({id: string, input: JSON.t})
@@ -274,18 +295,16 @@ type action =
     })
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
-  | StageUserMessage({
+  | SubmitUserMessage({
       id: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      model: option<string>,
     })
-  | AddUserMessage({
-      id: string,
-      content: array<UserContentPart.t>,
-      annotations: array<Message.MessageAnnotation.t>,
-      agentId: string,
-    })
+  | SubmissionPrepared({id: string, content: array<UserContentPart.t>})
+  | TaskSessionReady
+  | TaskSessionFailed(sessionFailure)
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
   | ToggleAnnotation({element: WebAPI.DomTypes.element, tagName: string})
@@ -316,7 +335,7 @@ type action =
   | SetOrientation({orientation: Client__DeviceMode.orientation})
   | ToggleDeviceMode
   | PlanReceived({entries: array<ACPTypes.planEntry>})
-  | ExecutionStateRunning
+  | ExecutionStateRunning(option<string>)
   | ExecutionStateIdle
   | ExecutionStateRequiresAction
   | CancelTurn
@@ -355,12 +374,15 @@ type effect =
       document: option<WebAPI.DomTypes.document>,
       contentWindow: option<WebAPI.DomTypes.window>,
     })
+  | PrepareSubmission({id: string, content: array<UserContentPart.t>})
+  | EnsureTaskSession
   | SendMessage({
       id: string,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      model: option<string>,
     })
   | CancelPrompt
   | RetryTurnEffect({retriedErrorId: string})
@@ -369,12 +391,14 @@ type effect =
   | SyncBrowserUrl(string)
 
 type delegated =
+  | NeedEnsureTaskSession
   | NeedSendMessage({
       id: string,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      model: option<string>,
     })
   | NeedCancelPrompt
   | NeedRetryTurn({retriedErrorId: string})
@@ -382,8 +406,10 @@ type delegated =
 
 let actionToString = (action: action): string =>
   switch action {
-  | StageUserMessage(_) => "StageUserMessage"
-  | AddUserMessage(_) => "AddUserMessage"
+  | SubmitUserMessage(_) => "SubmitUserMessage"
+  | SubmissionPrepared(_) => "SubmissionPrepared"
+  | TaskSessionReady => "TaskSessionReady"
+  | TaskSessionFailed(_) => "TaskSessionFailed"
   | TextDeltaReceived(_) => "TextDeltaReceived"
   | ToolCallReceived(_) => "ToolCallReceived"
   | ToolInputReceived(_) => "ToolInputReceived"
@@ -405,7 +431,7 @@ let actionToString = (action: action): string =>
   | SetOrientation(_) => "SetOrientation"
   | ToggleDeviceMode => "ToggleDeviceMode"
   | PlanReceived(_) => "PlanReceived"
-  | ExecutionStateRunning => "ExecutionStateRunning"
+  | ExecutionStateRunning(_) => "ExecutionStateRunning"
   | ExecutionStateIdle => "ExecutionStateIdle"
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
   | CancelTurn => "CancelTurn"
@@ -427,6 +453,52 @@ let actionToString = (action: action): string =>
   | QuestionAllSkipped => "QuestionAllSkipped"
   | QuestionCancelled => "QuestionCancelled"
   }
+
+let appendSubmission = (task: Task.t, ~id, ~content, ~annotations, ~agentId, ~model): Task.t => {
+  switch Task.getSubmissions(task)->Array.some(submission => submission.id == id) {
+  | true => failwith(`[TaskReducer] Duplicate submission ${id}`)
+  | false =>
+    Task.updateSubmissions(task, submissions =>
+      Array.concat(
+        submissions,
+        [
+          {
+            id,
+            displayContent: content,
+            preparedContent: None,
+            annotations,
+            agentId,
+            model,
+            status: Preparing,
+          },
+        ],
+      )
+    )
+  }
+}
+
+let failSubmission = (task: Task.t, submission: Task.submission, error: string): Task.t => {
+  let attempted = Message.User({
+    id: submission.id,
+    content: submission.displayContent,
+    annotations: submission.annotations,
+    agentId: submission.agentId,
+  })
+  let task = switch Task.getMessages(task)->Array.some(message =>
+    Message.getId(message) == submission.id
+  ) {
+  | true => task
+  | false => task->Lens.insertMessage(attempted)
+  }
+  let failed: Task.submissionStatus = Failed(error)
+  task
+  ->Lens.insertMessage(
+    Message.Error(
+      Message.ErrorMessage.make(~id=`${submission.id}-send-failed`, ~error, ~category=#unknown),
+    ),
+  )
+  ->Lens.updateSubmission(submission.id, submission => {...submission, status: failed})
+}
 
 let normalizeUrl = (url: string): string => {
   switch url->String.endsWith("/") && String.length(url) > 1 {
@@ -540,8 +612,94 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
   | _ => (task, [])
   }
 
-let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
+let rec next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   switch (task, action) {
+  | (_, SubmitUserMessage({id, content, annotations, agentId, model})) => {
+      let submitted = appendSubmission(task, ~id, ~content, ~annotations, ~agentId, ~model)
+      let submitted = switch submitted {
+      | Task.Loaded(data) =>
+        Task.Loaded({
+          ...data,
+          turnError: None,
+          retryStatus: None,
+          annotations: [],
+          annotationMode: Annotation.Off,
+          activePopupAnnotationId: None,
+        })
+      | _ => submitted
+      }
+      (submitted, [PrepareSubmission({id, content})])
+    }
+
+  | (_, SubmissionPrepared({id, content})) =>
+    switch Task.getSubmissions(task)->Array.find(submission => submission.id == id) {
+    | Some({status: Preparing}) => (
+        task->Lens.updateSubmission(id, submission => {
+          ...submission,
+          preparedContent: Some(content),
+          status: WaitingForSession,
+        }),
+        [EnsureTaskSession],
+      )
+    | Some(_) => (task, [])
+    | None => failwith(`[TaskReducer] Prepared unknown submission ${id}`)
+    }
+
+  | (_, TaskSessionReady) => {
+      let (_, waiting) = Task.getSubmissions(task)->Array.reduce((false, []), (
+        (blocked, waiting),
+        submission,
+      ) =>
+        switch (blocked, submission.status) {
+        | (true, _) | (false, Preparing) => (true, waiting)
+        | (false, WaitingForSession) => (false, Array.concat(waiting, [submission]))
+        | (false, Sending | Accepted | Running | Failed(_)) => (false, waiting)
+        }
+      )
+      let updated =
+        waiting->Array.reduce(task, (task, submission) =>
+          task->Lens.updateSubmission(submission.id, submission => {...submission, status: Sending})
+        )
+      let updated = switch updated {
+      | Task.Loaded(data) => {
+          let imageAttachments = data.imageAttachments->Dict.copy
+          waiting->Array.forEach(submission =>
+            submission.preparedContent
+            ->Option.getOrThrow
+            ->extractAttachmentsFromUserContent
+            ->Array.forEach(attachment =>
+              imageAttachments->Dict.set(
+                `attachment://${attachment.id}/${attachment.filename}`,
+                attachment,
+              )
+            )
+          )
+          Task.Loaded({...data, imageAttachments})
+        }
+      | _ => updated
+      }
+      let effects = waiting->Array.map(submission => {
+        let content = submission.preparedContent->Option.getOrThrow
+        SendMessage({
+          id: submission.id,
+          text: extractTextFromUserContent(content),
+          attachments: extractAttachmentsFromUserContent(content),
+          annotations: submission.annotations,
+          agentId: submission.agentId,
+          model: submission.model,
+        })
+      })
+      (updated, effects)
+    }
+
+  | (Task.Loading(_) | Task.Loaded(_), TaskSessionFailed({error})) => {
+      let failed =
+        Task.getSubmissions(task)->Array.reduce(task, (task, submission) =>
+          submission.status == WaitingForSession ? failSubmission(task, submission, error) : task
+        )
+      (failed, [])
+    }
+
   | (Task.Unloaded(_), SetPreviewUrl(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
     let currentUrl = Task.getPreviewFrame(task, ~defaultUrl="").url
@@ -815,92 +973,50 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loading(_), UserMessageReceived({id, content, annotations, agentId})) => {
+  | (
+      Task.Loading(_) | Task.Loaded(_),
+      UserMessageReceived({id, content, annotations, agentId}),
+    ) => {
       let canonical = Message.User({id, content, annotations, agentId})
-      switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
+      let withCanonical = switch Task.getMessages(task)->Array.find(message =>
+        Message.getId(message) == id
+      ) {
       | Some(Message.User({agentId: existingAgentId})) => {
           requireSameAgent(
             ~existingAgentId,
             ~agentId,
             ~message=`[TaskReducer] Agent changed within message ${id}`,
           )
-          (Lens.updateMessage(task, id, _ => canonical), [])
+          Lens.updateMessage(task, id, _ => canonical)
         }
       | Some(_) => failwith(`[TaskReducer] Message ${id} changed roles`)
-      | None => (task->Lens.completeStreamingMessage->Lens.insertMessage(canonical), [])
+      | None => task->Lens.completeStreamingMessage->Lens.insertMessage(canonical)
       }
-    }
-
-  | (Task.Loaded(data), UserMessageReceived({id, content, annotations, agentId})) => {
-      let canonical = Message.User({id, content, annotations, agentId})
-      switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
-      | index if index >= 0 =>
-        switch data.queuedUserMessages->Array.getUnsafe(index) {
-        | Message.User({agentId: existingAgentId}) => {
-            requireSameAgent(
-              ~existingAgentId,
-              ~agentId,
-              ~message=`[TaskReducer] Agent changed within message ${id}`,
-            )
-            (
-              Task.Loaded({
-                ...data,
-                messages: MessageStore.insert(data.messages, canonical),
-                queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
-                  Message.getId(message) != id
-                ),
-              }),
-              [],
-            )
+      let matching = Task.getSubmissions(task)->Array.find(submission => submission.id == id)
+      switch matching {
+      | Some(submission) => {
+          requireSameAgent(
+            ~existingAgentId=submission.agentId,
+            ~agentId,
+            ~message=`[TaskReducer] Agent changed within message ${id}`,
+          )
+          let withCanonical = switch submission.status {
+          | Failed(_) => withCanonical->Lens.removeMessage(`${id}-send-failed`)
+          | Preparing | WaitingForSession | Sending | Accepted | Running => withCanonical
           }
-        | _ => failwith(`[TaskReducer] Message ${id} changed roles`)
+          (
+            withCanonical->Lens.updateSubmission(id, submission => {
+              ...submission,
+              status: switch submission.status {
+              | Running => Running
+              | _ => Accepted
+              },
+            }),
+            [],
+          )
         }
-      | _ =>
-        switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
-        | Some(Message.User({agentId: existingAgentId})) => {
-            requireSameAgent(
-              ~existingAgentId,
-              ~agentId,
-              ~message=`[TaskReducer] Agent changed within message ${id}`,
-            )
-            (Lens.updateMessage(task, id, _ => canonical), [])
-          }
-        | Some(_) => failwith(`[TaskReducer] Message ${id} changed roles`)
-        | None => (task->Lens.completeStreamingMessage->Lens.insertMessage(canonical), [])
-        }
+      | None => (withCanonical, [])
       }
-    }
-
-  | (Task.Loaded(data), StageUserMessage({id, content, annotations, agentId})) => (
-      Task.Loaded({
-        ...data,
-        queuedUserMessages: Array.concat(
-          data.queuedUserMessages,
-          [Message.User({id, content, annotations, agentId})],
-        ),
-      }),
-      [],
-    )
-
-  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) => {
-      let text = extractTextFromUserContent(content)
-      let attachments = extractAttachmentsFromUserContent(content)
-      let imageAttachments = data.imageAttachments->Dict.copy
-      attachments->Array.forEach(att =>
-        imageAttachments->Dict.set(`attachment://${att.id}/${att.filename}`, att)
-      )
-      (
-        Task.Loaded({
-          ...data,
-          turnError: None,
-          retryStatus: None,
-          imageAttachments,
-          annotations: [],
-          annotationMode: Annotation.Off,
-          activePopupAnnotationId: None,
-        }),
-        [SendMessage({id, text, attachments, annotations, agentId})],
-      )
     }
 
   | (Task.Loaded(data), PlanReceived({entries})) => (
@@ -908,7 +1024,20 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loaded(data), ExecutionStateRunning) => {
+  | (Task.Loading(_) | Task.Loaded(_), ExecutionStateRunning(Some(id))) => {
+      let submission: Task.submission =
+        Task.getSubmissions(task)->Array.find(submission => submission.id == id)->Option.getOrThrow
+      switch submission.status {
+      | Accepted =>
+        next(
+          task->Lens.updateSubmission(id, submission => {...submission, status: Running}),
+          ExecutionStateRunning(None),
+        )
+      | _ => failwith(`[TaskReducer] Submission ${id} started before acceptance`)
+      }
+    }
+
+  | (Task.Loaded(data), ExecutionStateRunning(None)) => {
       let task = Task.Loaded({
         ...data,
         isAgentRunning: true,
@@ -918,6 +1047,11 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       })
       (task, [])
     }
+
+  | (Task.Loading(data), ExecutionStateRunning(None)) => (
+      Task.Loading({...data, isAgentRunning: true}),
+      [],
+    )
 
   | (Task.Loaded(_data), ExecutionStateIdle) =>
     let completed = task->Lens.completeStreamingMessage
@@ -936,11 +1070,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   | (Task.Loaded(data), ExecutionStateRequiresAction) => (
       Task.Loaded({...data, isAgentRunning: false, retryStatus: None}),
-      [],
-    )
-
-  | (Task.Loading(data), ExecutionStateRunning) => (
-      Task.Loading({...data, isAgentRunning: true}),
       [],
     )
 
@@ -988,22 +1117,21 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loaded(data), UserMessageSendFailed({id, error})) =>
-    let errorMsg = Message.Error(
-      Message.ErrorMessage.make(~id=`${id}-send-failed`, ~error, ~category=#unknown),
-    )
-    switch data.queuedUserMessages->Array.find(message => Message.getId(message) == id) {
-    | Some(message) => (
-        Task.Loaded({
-          ...data,
-          messages: data.messages->MessageStore.insert(message)->MessageStore.insert(errorMsg),
-          queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
-            Message.getId(message) != id
-          ),
-        }),
-        [],
-      )
-    | None => (task->Lens.insertMessage(errorMsg), [])
+  | (Task.Loading(_) | Task.Loaded(_), UserMessageSendFailed({id, error})) =>
+    switch Task.getSubmissions(task)->Array.find(submission => submission.id == id) {
+    | Some({status: Accepted | Running}) => (task, [])
+    | Some({status: Failed(_)}) => (task, [])
+    | Some(submission) => {
+        let failed = failSubmission(task, submission, error)
+        let effects = switch Task.getSubmissions(failed)->Array.some(submission =>
+          submission.status == WaitingForSession
+        ) {
+        | true => [EnsureTaskSession]
+        | false => []
+        }
+        (failed, effects)
+      }
+    | None => failwith(`[TaskReducer] Send failed for unknown submission ${id}`)
     }
 
   | (Task.Loading(_), AgentError({id, error, category})) =>
@@ -1043,7 +1171,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [RetryTurnEffect({retriedErrorId: retriedErrorId})],
     )
 
-  | (Task.Unloaded({id, title, createdAt, updatedAt}), LoadStarted({previewUrl})) => (
+  | (Task.Unloaded({id, title, createdAt, updatedAt, submissions}), LoadStarted({previewUrl})) => (
       Task.Loading({
         id,
         title,
@@ -1061,6 +1189,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotations: [],
         activePopupAnnotationId: None,
         isAgentRunning: false,
+        submissions,
       }),
       [],
     )
@@ -1078,6 +1207,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotations,
         activePopupAnnotationId,
         isAgentRunning,
+        submissions,
       }) => (
         Task.Loaded({
           id,
@@ -1086,7 +1216,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           createdAt,
           updatedAt,
           messages,
-          queuedUserMessages: [],
+          submissions,
           previewFrame,
           annotationMode,
           annotations,
@@ -1110,9 +1240,21 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       failwith("[TaskReducer] LoadComplete: unexpected task state after completeStreamingMessage")
     }
 
-  | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) => {
+  | (Task.Loading({id, title, createdAt, updatedAt, submissions}), LoadError({error})) => {
       Log.error(~ctx={"error": error}, "Task load failed")
-      (Task.Unloaded({id, title, createdAt, updatedAt}), [])
+      switch submissions->Array.length {
+      | 0 => (Task.Unloaded({id, title, createdAt, updatedAt, submissions}), [])
+      | _ => {
+          let loaded = next(task, LoadComplete)->Pair.first
+          let failed =
+            submissions->Array.reduce(loaded, (task, submission) =>
+              submission.status == WaitingForSession
+                ? failSubmission(task, submission, error)
+                : task
+            )
+          (failed, [])
+        }
+      }
     }
 
   | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
@@ -1229,14 +1371,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   | (
       Task.New(_) | Task.Unloaded(_),
-      StageUserMessage(_)
-      | AddUserMessage(_)
-      | PlanReceived(_)
-      | ExecutionStateRunning
+      PlanReceived(_)
+      | ExecutionStateRunning(_)
       | ExecutionStateIdle
       | ExecutionStateRequiresAction
       | CancelTurn
       | UserMessageSendFailed(_)
+      | TaskSessionFailed(_)
       | ClearTurnError
       | RetryingUpdate(_)
       | RetryTurn(_)
@@ -1436,8 +1577,45 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) =>
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({id, text, attachments, annotations, agentId}) =>
-    delegate(NeedSendMessage({id, text, attachments, annotations, agentId}))
+  | PrepareSubmission({id, content}) =>
+    content
+    ->Array.map(part =>
+      switch part {
+      | UserContentPart.Image({id, image, mediaType, name}) =>
+        Client__ImageLimits.constrainDataUrl(
+          image,
+          Client__ImageLimits.conservative,
+        )->Promise.then(constrained =>
+          Promise.resolve(
+            UserContentPart.Image({
+              id,
+              image: constrained,
+              mediaType: Some(
+                constrained->String.startsWith("data:image/jpeg")
+                  ? "image/jpeg"
+                  : mediaType->Option.getOrThrow,
+              ),
+              name,
+            }),
+          )
+        )
+      | other => Promise.resolve(other)
+      }
+    )
+    ->Promise.all
+    ->Promise.then(content => {
+      dispatch(SubmissionPrepared({id, content}))
+      Promise.resolve()
+    })
+    ->Promise.catch(error => {
+      Log.error(~error=JsExn.fromException(error), "Submission preparation failed")
+      dispatch(UserMessageSendFailed({id, error: "Image preparation failed"}))
+      Promise.resolve()
+    })
+    ->ignore
+  | EnsureTaskSession => delegate(NeedEnsureTaskSession)
+  | SendMessage({id, text, attachments, annotations, agentId, model}) =>
+    delegate(NeedSendMessage({id, text, attachments, annotations, agentId, model}))
   | CancelPrompt => delegate(NeedCancelPrompt)
   | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)

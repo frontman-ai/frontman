@@ -30,6 +30,7 @@ defmodule AgentClientProtocol do
   @agent_id_metadata_key "#{@extension_namespace}/agentId"
   @agent_error_id_metadata_key "#{@extension_namespace}/agentErrorId"
   @timestamp_metadata_key "#{@extension_namespace}/timestamp"
+  @message_id_metadata_key "dev.frontman/messageId"
 
   @event_acp_message "acp:message"
   @event_config_options_updated "config_options_updated"
@@ -316,7 +317,14 @@ defmodule AgentClientProtocol do
   @doc """
   Builds a state_update session/update notification.
   """
-  def build_state_update_notification(session_id, state, stop_reason \\ nil) do
+  @spec build_state_update_notification(
+          String.t(),
+          String.t(),
+          String.t() | nil,
+          String.t() | nil
+        ) ::
+          map()
+  def build_state_update_notification(session_id, state, stop_reason \\ nil, message_id \\ nil) do
     update = %{
       "sessionUpdate" => "state_update",
       "state" => state
@@ -326,6 +334,12 @@ defmodule AgentClientProtocol do
       case stop_reason do
         nil -> update
         stop_reason -> Map.put(update, "stopReason", stop_reason)
+      end
+
+    update =
+      case message_id do
+        nil -> update
+        message_id -> Map.put(update, "_meta", %{@message_id_metadata_key => message_id})
       end
 
     session_update_notification(session_id, update)

@@ -21,7 +21,8 @@ let effectKinds = effects =>
     | Reducer.LoadTaskEffect(_) => #loadTask
     | Reducer.DeleteSessionEffect(_) => #deleteSession
     | Reducer.NotifyDeleteSessionRejected(_) => #deleteRejected
-    | Reducer.NotifyCreateSessionRejected(_) => #createRejected
+    | Reducer.NotifySessionWaiters(_) => #notifySessionWaiters
+    | Reducer.NotifyPromptRejected(_) => #notifyPromptRejected
     | Reducer.CleanupSessionEffect(_) => #cleanupSession
     }
   )
@@ -51,13 +52,21 @@ let initPayload = (): Reducer.initPayload => {
   mcpServer: mock({"tools": []}),
 }
 let initialize = state => Reducer.reduce(state, Initialize(initPayload()))
-let loadTask = taskId => Reducer.LoadTask({
+let loadTask = taskId => Reducer.EnsureTaskSession({
   taskId,
-  needsHistory: true,
+  mode: LoadExisting({needsHistory: true}),
   onUpdate: (_, _) => (),
   onTitleUpdated: (_, _) => (),
   onMcpMessage: (_, _) => (),
   onComplete: _ => (),
+})
+let ensureTask = (taskId, onComplete) => Reducer.EnsureTaskSession({
+  taskId,
+  mode: Create,
+  onUpdate: (_, _) => (),
+  onTitleUpdated: (_, _) => (),
+  onMcpMessage: (_, _) => (),
+  onComplete,
 })
 describe("Connection Reducer", () => {
   describe("login URL", () => {
@@ -328,28 +337,53 @@ describe("Connection Reducer", () => {
 
   describe("Session Creation", () => {
     test(
-      "SessionCreateSuccess transitions to SessionActive",
+      "same-task session requests coalesce and settle every waiter once",
       t => {
-        let mockSession = Obj.magic({"sessionId": "sess-1", "channel": null})
-        let state = {...Reducer.initialState, session: SessionCreating("sess-1")}
-        let (nextState, effects) = Reducer.reduce(state, SessionCreateSuccess(mockSession))
-
-        switch nextState.session {
-        | Reducer.SessionActive(session) => t->expect(session)->Expect.toBe(mockSession)
-        | _ => t->expect("active session")->Expect.toBe("missing")
+        let results = ref([])
+        let record = result => results.contents->Array.push(result)
+        let state = {
+          ...Reducer.initialState,
+          acp: ACPConnected(mock({"id": "connection"})),
+          relay: RelayConnected,
+          mcpServer: Some(mock({"id": "mcp-server"})),
         }
+        let (creating, firstEffects) = Reducer.reduce(state, ensureTask("sess-1", record))
+        let (coalesced, secondEffects) = Reducer.reduce(creating, ensureTask("sess-1", record))
+
+        t->expect(effectKinds(firstEffects))->Expect.toEqual([#createSession])
+        t->expect(secondEffects)->Expect.toEqual([])
+        switch coalesced.session {
+        | SessionCreating({waiters}) => t->expect(waiters->Array.length)->Expect.toBe(2)
+        | _ => t->expect("creating session")->Expect.toBe("missing")
+        }
+
+        let session = Obj.magic({"sessionId": "sess-1", "channel": null})
+        let (active, effects) = Reducer.reduce(coalesced, SessionCreateSuccess(session))
+        effects->Array.forEach(effect => Reducer.handleEffect(effect, coalesced, _ => ()))
         t
-        ->expect(Reducer.Selectors.getConnectionStatus(nextState))
+        ->expect(Reducer.Selectors.getConnectionStatus(active))
         ->Expect.toEqual(Reducer.Selectors.SessionActive("sess-1"))
-        t->expect(effectKinds(effects))->Expect.toEqual([#logInfo])
+        let (_, activeEffects) = Reducer.reduce(active, ensureTask("sess-1", record))
+        activeEffects->Array.forEach(effect => Reducer.handleEffect(effect, active, _ => ()))
+        t
+        ->expect(results.contents)
+        ->Expect.toEqual([Ok("sess-1"), Ok("sess-1"), Ok("sess-1")])
       },
     )
 
     test(
       "matching parse failures transition active and creating sessions to SessionError",
       t => {
+        let results = ref([])
+        let record = result => results.contents->Array.push(result)
         let mockSession = Obj.magic({"sessionId": "sess-1", "channel": null})
-        [Reducer.SessionActive(mockSession), Reducer.SessionCreating("sess-1")]->Array.forEach(
+        [
+          Reducer.SessionActive(mockSession),
+          Reducer.SessionCreating({
+            taskId: "sess-1",
+            waiters: [record, record],
+          }),
+        ]->Array.forEach(
           session => {
             let (failed, effects) = Reducer.reduce(
               {...Reducer.initialState, session},
@@ -357,9 +391,33 @@ describe("Connection Reducer", () => {
             )
 
             t->expect(failed.session)->Expect.toEqual(SessionError("invalid attribution"))
-            t->expect(effectKinds(effects))->Expect.toEqual([#logError])
+            effects->Array.forEach(effect => Reducer.handleEffect(effect, failed, _ => ()))
           },
         )
+        t
+        ->expect(results.contents)
+        ->Expect.toEqual([Error("invalid attribution"), Error("invalid attribution")])
+      },
+    )
+
+    test(
+      "clearing session rejects creation waiters exactly once",
+      t => {
+        let results = ref([])
+        let session = Reducer.SessionCreating({
+          taskId: "sess-1",
+          waiters: [result => results.contents->Array.push(result)],
+        })
+        let state = {...Reducer.initialState, session}
+        let (cleared, effects) = Reducer.reduce(state, ClearSession)
+        let (_, staleEffects) = Reducer.reduce(
+          cleared,
+          SessionCreateError({sessionId: "sess-1", error: "late"}),
+        )
+        Array.concat(effects, staleEffects)->Array.forEach(
+          effect => Reducer.handleEffect(effect, cleared, _ => ()),
+        )
+        t->expect(results.contents)->Expect.toEqual([Error("Task session activation cancelled")])
       },
     )
 
@@ -387,6 +445,7 @@ describe("Connection Reducer", () => {
         let initial = {
           ...Reducer.initialState,
           acp: ACPConnected(mock({"id": "connection"})),
+          relay: RelayConnected,
           mcpServer: Some(mock({"id": "mcp-server"})),
         }
         let (loadingFirst, _) = Reducer.reduce(initial, loadTask("sess-1"))
@@ -398,7 +457,8 @@ describe("Connection Reducer", () => {
         )
 
         switch afterStaleSuccess.session {
-        | Reducer.SessionCreating("sess-2") => ()
+        | Reducer.SessionCreating({taskId: "sess-2", waiters}) =>
+          t->expect(waiters->Array.length)->Expect.toBe(1)
         | _ => t->expect("latest load pending")->Expect.toBe("wrong state")
         }
         switch effects {
@@ -415,12 +475,16 @@ describe("Connection Reducer", () => {
         let state = {
           ...Reducer.initialState,
           acp: ACPConnected(mock({"id": "connection"})),
+          relay: RelayConnected,
           mcpServer: Some(mock({"id": "mcp-server"})),
           session: SessionActive(oldSession),
         }
         let (nextState, effects) = Reducer.reduce(state, loadTask("sess-2"))
 
-        t->expect(nextState.session)->Expect.toEqual(SessionCreating("sess-2"))
+        switch nextState.session {
+        | SessionCreating({taskId: "sess-2"}) => ()
+        | _ => t->expect("sess-2 creating")->Expect.toBe("missing")
+        }
         switch effects {
         | [Reducer.CleanupSessionEffect({session: cleaned}), Reducer.LoadTaskEffect({request})] =>
           t->expect(cleaned)->Expect.toBe(oldSession)
@@ -433,6 +497,32 @@ describe("Connection Reducer", () => {
 
   describe("Prompt Sending", () => {
     test(
+      "rejects a prompt targeted at another task session",
+      t => {
+        let result = ref(None)
+        let session = Obj.magic({"sessionId": "task-1"})
+        let state = {...Reducer.initialState, session: SessionActive(session)}
+        let (_, effects) = Reducer.reduce(
+          state,
+          SendPrompt({
+            taskId: "task-2",
+            text: "wrong task",
+            additionalBlocks: [],
+            onComplete: value => result := Some(value),
+            _meta: None,
+          }),
+        )
+
+        t->expect(effectKinds(effects))->Expect.toEqual([#notifyPromptRejected])
+        effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+        switch result.contents {
+        | Some(Error(_)) => ()
+        | _ => t->expect("task-targeted rejection")->Expect.toBe("missing")
+        }
+      },
+    )
+
+    test(
       "allows another prompt while previous prompt is still in flight",
       t => {
         let mockSession = Obj.magic({"sessionId": "task-1"})
@@ -442,6 +532,7 @@ describe("Connection Reducer", () => {
         let (nextPromptState, firstEffects) = Reducer.reduce(
           activeState,
           SendPrompt({
+            taskId: "task-1",
             text: "first",
             additionalBlocks: emptyBlocks,
             onComplete: _ => (),
@@ -452,6 +543,7 @@ describe("Connection Reducer", () => {
         let (_, secondEffects) = Reducer.reduce(
           nextPromptState,
           SendPrompt({
+            taskId: "task-1",
             text: "second",
             additionalBlocks: emptyBlocks,
             onComplete: _ => (),
@@ -475,7 +567,7 @@ describe("Connection Reducer", () => {
 
   describe("Connection Lifecycle - Session Creation Trigger", () => {
     test(
-      "CreateSession starts when transports and MCP server are ready with no session",
+      "EnsureTaskSession creates when transports and MCP server are ready",
       t => {
         let mockConn = Obj.magic({"socket": null})
         let mockServer = Obj.magic({"tools": []})
@@ -491,8 +583,9 @@ describe("Connection Reducer", () => {
 
         let (nextState, effects) = Reducer.reduce(
           state,
-          CreateSession({
-            sessionId: "sess-1",
+          EnsureTaskSession({
+            taskId: "sess-1",
+            mode: Create,
             onUpdate: (_, _) => (),
             onTitleUpdated: (_, _) => (),
             onMcpMessage: (_, _) => (),
@@ -500,7 +593,10 @@ describe("Connection Reducer", () => {
           }),
         )
 
-        t->expect(nextState.session)->Expect.toEqual(Reducer.SessionCreating("sess-1"))
+        switch nextState.session {
+        | Reducer.SessionCreating({taskId: "sess-1"}) => ()
+        | _ => t->expect("sess-1 creating")->Expect.toBe("missing")
+        }
         switch effects {
         | [Reducer.CreateSessionEffect({connection, mcpServer, request})] =>
           t->expect(connection)->Expect.toBe(mockConn)
@@ -512,25 +608,26 @@ describe("Connection Reducer", () => {
     )
 
     test(
-      "rejected CreateSession emits completion notification",
+      "rejected session ensure emits completion notification",
       t => {
         let completion = ref(None)
-        let request: Reducer.createSessionRequest = {
-          sessionId: "sess-2",
+        let request: Reducer.ensureTaskSessionRequest = {
+          taskId: "sess-2",
+          mode: Create,
           onUpdate: (_, _) => (),
           onTitleUpdated: (_, _) => (),
           onMcpMessage: (_, _) => (),
           onComplete: result => completion := Some(result),
         }
-        let state = {...Reducer.initialState, session: SessionCreating("sess-1")}
-        let (_, effects) = Reducer.reduce(state, CreateSession(request))
+        let state = Reducer.initialState
+        let (_, effects) = Reducer.reduce(state, EnsureTaskSession(request))
 
-        t->expect(effectKinds(effects))->Expect.toEqual([#createRejected, #logError])
+        t->expect(effectKinds(effects))->Expect.toEqual([#notifySessionWaiters])
         switch effects {
-        | [notification, _] => Reducer.handleEffect(notification, state, _ => ())
+        | [notification] => Reducer.handleEffect(notification, state, _ => ())
         | _ => ()
         }
-        t->expect(completion.contents)->Expect.toEqual(Some(Error("Session is not ready")))
+        t->expect(completion.contents)->Expect.toEqual(Some(Error("Not connected")))
       },
     )
   })

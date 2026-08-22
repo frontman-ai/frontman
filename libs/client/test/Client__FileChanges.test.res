@@ -353,7 +353,7 @@ describe("conversation file changes", () => {
         ~id="task-1",
         ~title="Diff test",
       )
-    let (running, _) = TaskReducer.next(task, ExecutionStateRunning)
+    let (running, _) = TaskReducer.next(task, ExecutionStateRunning(None))
     let change = envelope(~oldText=Some("old"), ~currentText=Some("new"))
     let call: Message.toolCall = {
       id: "tool-1",

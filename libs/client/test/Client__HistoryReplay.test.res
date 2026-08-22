@@ -110,7 +110,7 @@ let replay = actions => {
 
 describe("ACP message identity", () => {
   test("replay execution state survives LoadComplete", t => {
-    let running = makeLoadingTask()->apply(ExecutionStateRunning)->apply(LoadComplete)
+    let running = makeLoadingTask()->apply(ExecutionStateRunning(None))->apply(LoadComplete)
     t->expect(TaskReducer.Selectors.isAgentRunning(running))->Expect.toEqual(Some(true))
 
     let paused = makeLoadingTask()->apply(ExecutionStateRequiresAction)->apply(LoadComplete)

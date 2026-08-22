@@ -5,6 +5,7 @@ module Types = Client__State__Types
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 let _dummySendPrompt: Types.sendPromptFn = (
+  ~taskId as _,
   _,
   ~additionalBlocks as _,
   ~onComplete as _,
@@ -12,7 +13,12 @@ let _dummySendPrompt: Types.sendPromptFn = (
 ) => ()
 let _dummyCancelPrompt: Types.cancelPromptFn = () => ()
 let _dummyRetryTurn: Types.retryTurnFn = _ => ()
-let _dummyLoadTask: Types.loadTaskFn = (_, ~needsHistory as _, ~onComplete as _) => ()
+let _dummyEnsureTaskSession: Types.ensureTaskSessionFn = (
+  _,
+  ~create as _,
+  ~needsHistory as _,
+  ~onComplete as _,
+) => ()
 let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 
 let _apiBaseUrl = "http://localhost:4000"
@@ -25,7 +31,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
       sendPrompt: _dummySendPrompt,
       cancelPrompt: _dummyCancelPrompt,
       retryTurn: _dummyRetryTurn,
-      loadTask: _dummyLoadTask,
+      ensureTaskSession: _dummyEnsureTaskSession,
       deleteSession: _dummyDeleteSession,
       apiBaseUrl: _apiBaseUrl,
     }),

@@ -25,19 +25,14 @@ type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 
 type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
-  | StageUserMessage({
+  | SubmitUserMessage({
       id: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      model: option<string>,
     })
-  | AddUserMessage({
-      id: string,
-      sessionId: string,
-      content: array<UserContentPart.t>,
-      annotations: array<Message.MessageAnnotation.t>,
-      agentId: string,
-    })
+  | TaskSessionResult({taskId: string, result: result<string, string>})
   | CancelTurn
   | ExecutePendingPlan({id: string})
   | SwitchTask({taskId: string})
@@ -48,7 +43,7 @@ type action =
       sendPrompt: Client__State__Types.sendPromptFn,
       cancelPrompt: Client__State__Types.cancelPromptFn,
       retryTurn: Client__State__Types.retryTurnFn,
-      loadTask: Client__State__Types.loadTaskFn,
+      ensureTaskSession: Client__State__Types.ensureTaskSessionFn,
       deleteSession: Client__State__Types.deleteSessionFn,
       apiBaseUrl: string,
     })
@@ -313,8 +308,8 @@ module Selectors = {
   let completedFileChanges = (state: state): Client__FileChanges.snapshot =>
     TaskReducer.Selectors.completedFileChanges(currentTask(state))
 
-  let queuedUserMessages = (state: state): array<Message.t> =>
-    TaskReducer.Selectors.queuedUserMessages(currentTask(state))->Option.getOr([])
+  let queuedSubmissions = (state: state): array<Task.submission> =>
+    TaskReducer.Selectors.queuedSubmissions(currentTask(state))
 
   let turnError = (state: state): option<Task.turnErrorInfo> => {
     TaskReducer.Selectors.turnError(currentTask(state))
@@ -442,8 +437,9 @@ module Selectors = {
       findAgent(plannerAgentName),
       findAgent(executorAgentName),
       TaskReducer.Selectors.completedIdleTurn(currentTask(state)),
+      TaskReducer.Selectors.queuedSubmissions(currentTask(state))->Array.length == 0,
     ) {
-    | (AcpSessionActive(_), Some(planner), Some(executor), Some({taskId, agentId}))
+    | (AcpSessionActive(_), Some(planner), Some(executor), Some({taskId, agentId}), true)
       if agentId == planner.id =>
       Some({taskId, executorAgentId: executor.id})
     | _ => None
@@ -497,6 +493,7 @@ let sendMessageToAPIImpl = (
   ~annotations: array<Client__Message.MessageAnnotation.t>,
   ~taskId,
   ~agentId,
+  ~model,
 ) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
@@ -514,14 +511,13 @@ let sendMessageToAPIImpl = (
     let runtimeConfig = Client__RuntimeConfig.read()
     let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
     let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
-    state.selectedModelValue->Option.forEach(modelValue =>
-      metadata->Dict.set("model", JSON.Encode.string(modelValue))
-    )
+    model->Option.forEach(modelValue => metadata->Dict.set("model", JSON.Encode.string(modelValue)))
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
     metadata->Dict.set("dev.frontman/messageId", JSON.Encode.string(id))
     let _meta = Some(JSON.Encode.object(metadata))
 
     sendPrompt(
+      ~taskId,
       message,
       ~additionalBlocks,
       ~onComplete=result =>
@@ -659,7 +655,31 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
+        | NeedEnsureTaskSession => {
+            let taskId = switch target {
+            | ForTask(id) => id
+            | CurrentTask => Selectors.currentTaskClientId(state)
+            }
+            switch (targetIsCurrent(state, target), state.acpSession) {
+            | (false, _) => ()
+            | (true, AcpSessionActive({ensureTaskSession})) => {
+                let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+                let create = switch task {
+                | Task.Loaded({clientId: Some(_)}) => true
+                | _ => false
+                }
+                ensureTaskSession(
+                  taskId,
+                  ~create,
+                  ~needsHistory=Task.isLoading(task),
+                  ~onComplete=result => dispatch(TaskSessionResult({taskId, result})),
+                )
+              }
+            | (true, NoAcpSession) =>
+              dispatch(TaskSessionResult({taskId, result: Error("No ACP connection")}))
+            }
+          }
+        | NeedSendMessage({id, text, attachments, annotations, agentId, model}) =>
           let taskId = switch target {
           | ForTask(id) => id
           | CurrentTask =>
@@ -678,6 +698,7 @@ let handleEffect = (effect, state: state, dispatch) => {
             ~annotations,
             ~taskId,
             ~agentId,
+            ~model,
           )
         | NeedCancelPrompt =>
           switch state.acpSession {
@@ -961,18 +982,20 @@ let handleEffect = (effect, state: state, dispatch) => {
 
   | LoadTaskEffect({taskId}) =>
     switch state.acpSession {
-    | AcpSessionActive({loadTask}) =>
+    | AcpSessionActive({ensureTaskSession}) =>
       let taskIdToLoad = taskId
       let needsHistory = switch state.tasks->Dict.get(taskId) {
       | Some(task) => !Task.isLoaded(task)
       | None => true
       }
-      loadTask(taskId, ~needsHistory, ~onComplete=result => {
+      ensureTaskSession(taskId, ~create=false, ~needsHistory, ~onComplete=result => {
         switch result {
-        | Ok() =>
-          if needsHistory {
-            Client__TextDeltaBuffer.flush()
-            dispatch(TaskAction({target: ForTask(taskIdToLoad), action: LoadComplete}))
+        | Ok(_) => {
+            if needsHistory {
+              Client__TextDeltaBuffer.flush()
+              dispatch(TaskAction({target: ForTask(taskIdToLoad), action: LoadComplete}))
+            }
+            dispatch(TaskAction({target: ForTask(taskIdToLoad), action: TaskSessionReady}))
           }
         | Error(err) =>
           dispatch(TaskAction({target: ForTask(taskIdToLoad), action: LoadError({error: err})}))
@@ -1031,65 +1054,32 @@ let next = (state: state, action) => {
   switch action {
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
-  | StageUserMessage({id, content, annotations, agentId}) => {
+  | SubmitUserMessage({id, content, annotations, agentId, model}) => {
       let textContent = TaskReducer.extractTextFromUserContent(content)
-      switch state.currentTask {
+      let (state, taskId) = switch state.currentTask {
       | Task.New(newTask) => {
           let taskId = Task.getClientId(newTask)
           let loadedTask = Task.newToLoaded(newTask, ~id=taskId, ~title=textContent)
-          let updatedTasks = state.tasks->Dict.copy
-          updatedTasks->Dict.set(taskId, loadedTask)
-          {
-            ...state,
-            tasks: updatedTasks,
-            currentTask: Task.Selected(taskId),
-          }->Lens.delegateToTask(
-            ForTask(taskId),
-            TaskReducer.StageUserMessage({id, content, annotations, agentId}),
-          )
+          let tasks = state.tasks->Dict.copy
+          tasks->Dict.set(taskId, loadedTask)
+          ({...state, tasks, currentTask: Task.Selected(taskId)}, taskId)
         }
-      | Task.Selected(taskId) =>
-        state->Lens.delegateToTask(
-          ForTask(taskId),
-          TaskReducer.StageUserMessage({id, content, annotations, agentId}),
-        )
+      | Task.Selected(taskId) => (state, taskId)
       }
+      state->Lens.delegateToTask(
+        ForTask(taskId),
+        TaskReducer.SubmitUserMessage({id, content, annotations, agentId, model}),
+      )
     }
 
-  | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
-      let (targetState, pendingPlanHandoff) = switch state.currentTask {
-      | Task.New(newTask) =>
-        switch state.tasks->Dict.has(sessionId) {
-        | true => (state, None)
-        | false =>
-          let loadedTask = Task.newToLoaded(
-            newTask,
-            ~id=sessionId,
-            ~title=TaskReducer.extractTextFromUserContent(content),
-          )
-          let updatedTasks = state.tasks->Dict.copy
-          updatedTasks->Dict.set(sessionId, loadedTask)
-          ({...state, tasks: updatedTasks, currentTask: Task.Selected(sessionId)}, None)
-        }
-      | Task.Selected(taskId) => (
-          state,
-          switch taskId == sessionId {
-          | true => Selectors.pendingPlanHandoff(state)
-          | false => None
-          },
-        )
-      }
-      let (updatedState, sendEffects) =
-        targetState->Lens.delegateToTask(
-          ForTask(sessionId),
-          TaskReducer.AddUserMessage({id, content, annotations, agentId}),
-        )
-      switch pendingPlanHandoff {
-      | Some(_) =>
-        let (runningState, runningEffects) =
-          updatedState->Lens.delegateToTask(ForTask(sessionId), TaskReducer.ExecutionStateRunning)
-        runningState->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
-      | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
+  | TaskSessionResult({taskId, result}) =>
+    switch Selectors.currentTaskId(state) == Some(taskId) {
+    | false => state->StateReducer.update
+    | true =>
+      switch result {
+      | Ok(_) => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.TaskSessionReady)
+      | Error(error) =>
+        state->Lens.delegateToTask(ForTask(taskId), TaskReducer.TaskSessionFailed({error: error}))
       }
     }
 
@@ -1103,30 +1093,20 @@ let next = (state: state, action) => {
     switch Selectors.pendingPlanHandoff(state) {
     | Some({taskId, executorAgentId}) =>
       let content = [UserContentPart.Text({text: executePlanPrompt})]
-      let (stagedState, _) = state->Lens.delegateToTask(
+      let (submitted, effects) = state->Lens.delegateToTask(
         ForTask(taskId),
-        TaskReducer.StageUserMessage({
+        TaskReducer.SubmitUserMessage({
           id,
           content,
           annotations: [],
           agentId: executorAgentId,
+          model: state.selectedModelValue,
         }),
       )
-      let (messageState, sendEffects) = stagedState->Lens.delegateToTask(
-        ForTask(taskId),
-        TaskReducer.AddUserMessage({
-          id,
-          content,
-          annotations: [],
-          agentId: executorAgentId,
-        }),
-      )
-      let (runningState, runningEffects) =
-        messageState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
       {
-        ...runningState,
+        ...submitted,
         selectedAgentId: Some(executorAgentId),
-      }->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
+      }->StateReducer.update(~sideEffects=effects)
     | _ => state->StateReducer.update
     }
 
@@ -1199,14 +1179,21 @@ let next = (state: state, action) => {
     | None => state->StateReducer.update
     }
 
-  | SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}) =>
+  | SetAcpSession({
+      sendPrompt,
+      cancelPrompt,
+      retryTurn,
+      ensureTaskSession,
+      deleteSession,
+      apiBaseUrl,
+    }) =>
     {
       ...state,
       acpSession: AcpSessionActive({
         sendPrompt,
         cancelPrompt,
         retryTurn,
-        loadTask,
+        ensureTaskSession,
         deleteSession,
         apiBaseUrl,
       }),

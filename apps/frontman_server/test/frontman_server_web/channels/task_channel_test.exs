@@ -49,7 +49,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
        %{type: :tool_call, name: name, arguments: %{}, metadata: %{id: id, index: 0}}}
 
   defp activate_turn(socket, turn_started_id) do
-    turn = %{turn_started([]) | id: turn_started_id}
+    turn = %{turn_started([Ecto.UUID.generate()]) | id: turn_started_id}
     send(socket.channel_pid, interaction_event(turn, 1))
     assert_state_update_running(socket.assigns.task_id)
   end
@@ -110,8 +110,34 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{"sessionUpdate" => "state_update", "state" => "running"}
         }
       },
-      1_000
+      2_000
     )
+  end
+
+  defp next_acp_update(task_id) do
+    assert_receive %Phoenix.Socket.Message{
+                     event: "acp:message",
+                     payload: %{"params" => %{"sessionId" => ^task_id, "update" => update}}
+                   },
+                   2_000
+
+    update
+  end
+
+  defp assert_execution_started(task_id, message_id) do
+    assert %{
+             "sessionUpdate" => "state_update",
+             "state" => "running",
+             "_meta" => %{"dev.frontman/messageId" => ^message_id}
+           } = next_acp_update(task_id)
+  end
+
+  defp prompt_metadata(message_id) do
+    %{
+      "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
+      "agent" => "test-frontman",
+      "dev.frontman/messageId" => message_id
+    }
   end
 
   defp assert_state_update_running_then_idle(task_id) do
@@ -240,38 +266,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert response["error"]["message"] =~ "Method not found"
     end
 
-    test "echoes a valid client message id", %{socket: socket, task_id: task_id} do
-      message_id = Ecto.UUID.generate()
-
-      ref =
-        push(
-          socket,
-          "acp:message",
-          build_prompt_request(
-            _meta: %{
-              "model" => %{
-                "provider" => "openrouter",
-                "value" => "google/gemini-3.1-pro-preview"
-              },
-              "agent" => "test-frontman",
-              "dev.frontman/messageId" => message_id
-            }
-          )
-        )
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "user_message_chunk",
-            "messageId" => ^message_id
-          }
-        }
-      })
-
-      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
-    end
-
     test "rejects an invalid client message id", %{socket: socket, scope: scope, task_id: task_id} do
       ref =
         push(
@@ -304,6 +298,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       user: user
     } do
       complete_mcp_handshake(socket)
+      message_id = Ecto.UUID.generate()
 
       ref =
         push(
@@ -313,23 +308,19 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             _meta: %{
               "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"},
               "agent" => "test-frontman",
-              "traits" => ["react", "typescript"]
+              "traits" => ["react", "typescript"],
+              "dev.frontman/messageId" => message_id
             }
           )
         )
 
       :sys.get_state(socket.channel_pid)
 
-      assert_push("acp:message", %{
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "user_message_chunk",
-            "messageId" => _message_id,
-            "content" => %{"type" => "text", "text" => "Hello"}
-          }
-        }
-      })
+      assert %{
+               "sessionUpdate" => "user_message_chunk",
+               "messageId" => ^message_id,
+               "content" => %{"type" => "text", "text" => "Hello"}
+             } = next_acp_update(task_id)
 
       assert_reply(ref, :ok, %{"acp:message" => response})
       assert response["result"] == %{}
@@ -343,7 +334,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       )
 
-      assert_state_update_running(task_id)
+      assert_execution_started(task_id, message_id)
 
       assert_push("acp:message", %{
         "params" => %{
@@ -532,35 +523,42 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       ])
 
       complete_mcp_handshake(socket)
+      first_message_id = Ecto.UUID.generate()
+      second_message_id = Ecto.UUID.generate()
 
-      first_ref = push(socket, "acp:message", build_prompt_request(id: 11, text: "first"))
+      first_ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(id: 11, text: "first", _meta: prompt_metadata(first_message_id))
+        )
 
-      assert_push("acp:message", %{
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "user_message_chunk"}
-        }
-      })
+      assert %{"sessionUpdate" => "user_message_chunk", "messageId" => ^first_message_id} =
+               next_acp_update(task_id)
 
       assert_reply(first_ref, :ok, %{"acp:message" => %{"id" => 11, "result" => %{}}})
-      assert_state_update_running(task_id)
 
-      second_ref = push(socket, "acp:message", build_prompt_request(id: 12, text: "second"))
+      assert_execution_started(task_id, first_message_id)
 
-      assert_push("acp:message", %{
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{
-            "sessionUpdate" => "user_message_chunk",
-            "content" => %{"type" => "text", "text" => "second"}
-          }
-        }
-      })
+      second_ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(id: 12, text: "second", _meta: prompt_metadata(second_message_id))
+        )
+
+      assert %{
+               "sessionUpdate" => "user_message_chunk",
+               "messageId" => ^second_message_id,
+               "content" => %{"type" => "text", "text" => "second"}
+             } = next_acp_update(task_id)
 
       assert_reply(second_ref, :ok, %{"acp:message" => %{"id" => 12, "result" => %{}}})
 
+      assert %{"sessionUpdate" => "agent_message_chunk"} = next_acp_update(task_id)
+      assert %{"sessionUpdate" => "state_update", "state" => "idle"} = next_acp_update(task_id)
+      assert_execution_started(task_id, second_message_id)
       assert_state_update_idle(task_id)
-      assert_state_update_running_then_idle(task_id)
     end
   end
 
@@ -1716,6 +1714,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                )
              )
 
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" =>
+            %{
+              "sessionUpdate" => "state_update",
+              "state" => "running"
+            } = running_update
+        }
+      })
+
+      assert running_update == %{"sessionUpdate" => "state_update", "state" => "running"}
       assert_state_update_idle(task_id)
     end
 
