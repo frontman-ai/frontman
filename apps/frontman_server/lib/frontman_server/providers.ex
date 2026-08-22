@@ -127,10 +127,16 @@ defmodule FrontmanServer.Providers do
     end
   end
 
+  # ReqLLM's OpenAI provider requires a non-empty :api_key to build a request,
+  # even for keyless local servers (llama.cpp, Ollama, vLLM, LM Studio), which
+  # ignore the Authorization header. Send a placeholder when the user has none.
+  @placeholder_api_key "sk-no-key-required"
+
   defp maybe_put_api_key(opts, api_key) when is_binary(api_key) and api_key != "",
     do: Keyword.put(opts, :api_key, api_key)
 
-  defp maybe_put_api_key(opts, _api_key), do: opts
+  defp maybe_put_api_key(opts, _api_key),
+    do: Keyword.put(opts, :api_key, @placeholder_api_key)
 
   defp resolve_catalog_model(model) do
     with {:ok, {group, model_id}} <- model_parts(model),
