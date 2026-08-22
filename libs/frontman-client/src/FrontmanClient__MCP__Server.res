@@ -248,6 +248,13 @@ let toInterface = (server: t): Types.serverInterface<t> => {
   server,
   buildDiscoverResult,
   buildToolsListResult,
-  executeTool: (server, ~name, ~arguments, ~taskId, ~callId, ~onProgress) =>
-    executeTool(server, ~name, ~arguments?, ~taskId, ~callId, ~onProgress?),
+  executeTool: (server, toolCall, ~onProgress) =>
+    executeTool(
+      server,
+      ~name=Types.AuthorizedToolCall.name(toolCall),
+      ~arguments=?Types.AuthorizedToolCall.arguments(toolCall),
+      ~taskId=Types.AuthorizedToolCall.taskId(toolCall),
+      ~callId=Types.AuthorizedToolCall.callId(toolCall),
+      ~onProgress?,
+    ),
 }

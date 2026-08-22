@@ -20,6 +20,15 @@ defmodule ModelContextProtocolTest do
            } = MCP.request_params()
   end
 
+  test "preserves opaque tools/list cursors alongside request metadata" do
+    assert %{
+             "cursor" => "",
+             "_meta" => %{
+               "io.modelcontextprotocol/protocolVersion" => "2026-07-28"
+             }
+           } = MCP.request_params(%{"cursor" => ""})
+  end
+
   test "builds tools/call with execution context only in metadata" do
     request =
       MCP.build_tool_execution(%MCP.ToolCallParams{

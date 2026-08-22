@@ -10,19 +10,26 @@ type info = {
 type extension = {version: @s.matches(S.literal(1)) int}
 
 @schema
-type extensions = {
+type frontmanExtensions = {
   @as("ai.frontman/execution-context") executionContext: extension,
 }
 
 @schema
-type clientCapabilities = {extensions: extensions}
+type clientCapabilities = {extensions: option<Dict.t<JSON.t>>}
+
+@schema
+type executionContext = {
+  taskId: @s.matches(S.string->S.min(1)) string,
+  callId: @s.matches(S.string->S.min(1)) string,
+}
 
 @schema
 type requestMeta = {
   @as("io.modelcontextprotocol/protocolVersion")
-  protocolVersion: @s.matches(S.literal("2026-07-28")) string,
+  protocolVersion: string,
   @as("io.modelcontextprotocol/clientCapabilities") clientCapabilities: clientCapabilities,
-  @as("io.modelcontextprotocol/clientInfo") clientInfo: info,
+  @as("io.modelcontextprotocol/clientInfo") clientInfo: option<info>,
+  @as("ai.frontman/execution-context") executionContext: option<executionContext>,
 }
 
 @schema
@@ -34,7 +41,7 @@ type toolsCapability = {listChanged: bool}
 @schema
 type serverCapabilities = {
   tools: toolsCapability,
-  extensions: extensions,
+  extensions: frontmanExtensions,
 }
 
 @schema
@@ -53,26 +60,150 @@ type discoverResult = {
 }
 
 @schema
-type toolsListParams = {_meta: requestMeta}
-
-@schema
-type executionContext = {taskId: string, callId: string}
-
-@schema
-type toolCallMeta = {
-  @as("io.modelcontextprotocol/protocolVersion")
-  protocolVersion: @s.matches(S.literal("2026-07-28")) string,
-  @as("io.modelcontextprotocol/clientCapabilities") clientCapabilities: clientCapabilities,
-  @as("io.modelcontextprotocol/clientInfo") clientInfo: info,
-  @as("ai.frontman/execution-context") executionContext: executionContext,
-}
+type toolsListParams = {_meta: requestMeta, cursor: option<string>}
 
 @schema
 type toolCallParams = {
-  _meta: toolCallMeta,
+  _meta: requestMeta,
   name: string,
   arguments: option<Dict.t<JSON.t>>,
 }
+
+type metadataError = UnsupportedProtocolVersion({requested: string, supported: array<string>})
+
+module SupportedRequestMeta: {
+  type t
+  let validate: requestMeta => result<t, metadataError>
+  let clientCapabilities: t => clientCapabilities
+  let executionContext: t => option<executionContext>
+} = {
+  type t = requestMeta
+
+  let validate = meta =>
+    switch meta.protocolVersion == protocolVersion {
+    | true => Ok(meta)
+    | false =>
+      Error(
+        UnsupportedProtocolVersion({
+          requested: meta.protocolVersion,
+          supported: [protocolVersion],
+        }),
+      )
+    }
+
+  let clientCapabilities = meta => meta.clientCapabilities
+  let executionContext = meta => meta.executionContext
+}
+
+type toolCallValidationError =
+  | ToolCallMetadata(metadataError)
+  | MissingExecutionContextCapability
+  | MissingExecutionContext
+
+module ValidToolCall: {
+  type t
+  let validate: toolCallParams => result<t, toolCallValidationError>
+  let name: t => string
+  let arguments: t => option<Dict.t<JSON.t>>
+  let taskId: t => string
+  let callId: t => string
+} = {
+  type t = {
+    name: string,
+    arguments: option<Dict.t<JSON.t>>,
+    taskId: string,
+    callId: string,
+  }
+
+  let hasExecutionContextCapability = (capabilities: clientCapabilities) =>
+    switch capabilities.extensions->Option.flatMap(extensions =>
+      extensions->Dict.get("ai.frontman/execution-context")
+    ) {
+    | Some(settings) =>
+      try {
+        settings->S.parseOrThrow(~to=extensionSchema)->ignore
+        true
+      } catch {
+      | _ => false
+      }
+    | None => false
+    }
+
+  let validate = ({_meta, name, arguments}: toolCallParams) =>
+    switch SupportedRequestMeta.validate(_meta) {
+    | Error(error) => Error(ToolCallMetadata(error))
+    | Ok(meta) =>
+      switch hasExecutionContextCapability(SupportedRequestMeta.clientCapabilities(meta)) {
+      | false => Error(MissingExecutionContextCapability)
+      | true =>
+        switch SupportedRequestMeta.executionContext(meta) {
+        | Some({taskId, callId}) => Ok({name, arguments, taskId, callId})
+        | None => Error(MissingExecutionContext)
+        }
+      }
+    }
+
+  let name = toolCall => toolCall.name
+  let arguments = toolCall => toolCall.arguments
+  let taskId = toolCall => toolCall.taskId
+  let callId = toolCall => toolCall.callId
+}
+
+module AuthorizedToolCall: {
+  type t
+  let authorize: (ValidToolCall.t, ~sessionId: string) => result<t, unit>
+  let name: t => string
+  let arguments: t => option<Dict.t<JSON.t>>
+  let taskId: t => string
+  let callId: t => string
+} = {
+  type t = {
+    name: string,
+    arguments: option<Dict.t<JSON.t>>,
+    taskId: string,
+    callId: string,
+  }
+
+  let authorize = (toolCall, ~sessionId) =>
+    switch ValidToolCall.taskId(toolCall) == sessionId {
+    | true =>
+      Ok({
+        name: ValidToolCall.name(toolCall),
+        arguments: ValidToolCall.arguments(toolCall),
+        taskId: sessionId,
+        callId: ValidToolCall.callId(toolCall),
+      })
+    | false => Error()
+    }
+
+  let name = toolCall => toolCall.name
+  let arguments = toolCall => toolCall.arguments
+  let taskId = toolCall => toolCall.taskId
+  let callId = toolCall => toolCall.callId
+}
+
+@schema
+type unsupportedProtocolVersionData = {supported: array<string>, requested: string}
+
+@schema
+type requiredClientCapabilities = {extensions: frontmanExtensions}
+
+@schema
+type missingRequiredClientCapabilityData = {requiredCapabilities: requiredClientCapabilities}
+
+let unsupportedProtocolVersionDataToJson = (~requested, ~supported) =>
+  {requested, supported}->S.decodeOrThrow(
+    ~from=unsupportedProtocolVersionDataSchema,
+    ~to=S.json->S.noValidation(true),
+  )
+
+let missingExecutionContextCapabilityDataToJson = () =>
+  {
+    requiredCapabilities: {extensions: {executionContext: {version: 1}}},
+  }->S.decodeOrThrow(
+    ~from=missingRequiredClientCapabilityDataSchema,
+    ~to=S.json->S.noValidation(true),
+  )
 
 @schema
 type toolError = {
@@ -171,8 +302,10 @@ type executeToolResult =
 
 module ErrorCode = {
   let invalidParams = -32602
-  let serverError = -32000
+  let serverError = -32603
   let methodNotFound = -32601
+  let missingRequiredClientCapability = -32021
+  let unsupportedProtocolVersion = -32022
 }
 
 type serverInterface<'server> = {
@@ -181,10 +314,7 @@ type serverInterface<'server> = {
   buildToolsListResult: 'server => toolsListResult,
   executeTool: (
     'server,
-    ~name: string,
-    ~arguments: option<Dict.t<JSON.t>>,
-    ~taskId: string,
-    ~callId: string,
+    AuthorizedToolCall.t,
     ~onProgress: option<string => unit>,
   ) => promise<executeToolResult>,
 }
@@ -195,10 +325,7 @@ module type Server = {
   let buildToolsListResult: t => toolsListResult
   let executeTool: (
     t,
-    ~name: string,
-    ~arguments: option<Dict.t<JSON.t>>=?,
-    ~taskId: string,
-    ~callId: string,
+    AuthorizedToolCall.t,
     ~onProgress: option<string => unit>=?,
   ) => promise<executeToolResult>
 }

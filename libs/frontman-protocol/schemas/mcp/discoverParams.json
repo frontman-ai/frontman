@@ -5,36 +5,16 @@
       "type": "object",
       "properties": {
         "io.modelcontextprotocol/protocolVersion": {
-          "type": "string",
-          "const": "2026-07-28"
+          "type": "string"
         },
         "io.modelcontextprotocol/clientCapabilities": {
           "type": "object",
           "properties": {
             "extensions": {
               "type": "object",
-              "properties": {
-                "ai.frontman/execution-context": {
-                  "type": "object",
-                  "properties": {
-                    "version": {
-                      "type": "number",
-                      "const": 1
-                    }
-                  },
-                  "required": [
-                    "version"
-                  ]
-                }
-              },
-              "required": [
-                "ai.frontman/execution-context"
-              ]
+              "additionalProperties": true
             }
-          },
-          "required": [
-            "extensions"
-          ]
+          }
         },
         "io.modelcontextprotocol/clientInfo": {
           "type": "object",
@@ -50,12 +30,28 @@
             "name",
             "version"
           ]
+        },
+        "ai.frontman/execution-context": {
+          "type": "object",
+          "properties": {
+            "taskId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "callId": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "taskId",
+            "callId"
+          ]
         }
       },
       "required": [
         "io.modelcontextprotocol/protocolVersion",
-        "io.modelcontextprotocol/clientCapabilities",
-        "io.modelcontextprotocol/clientInfo"
+        "io.modelcontextprotocol/clientCapabilities"
       ]
     }
   },

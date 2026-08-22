@@ -35,16 +35,22 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     MCPInitializer.start("test_task", %FrontmanServer.Accounts.Scope{}, :nextjs)
   end
 
-  defp tools_result(tools) do
-    %{
-      "resultType" => "complete",
-      "tools" => tools,
-      "ttlMs" => 0,
-      "cacheScope" => "private",
-      "_meta" => %{
-        "io.modelcontextprotocol/serverInfo" => %{"name" => "browser", "version" => "1.0.0"}
-      }
-    }
+  defp tools_result(tools, overrides \\ %{}) do
+    Map.merge(
+      %{
+        "resultType" => "complete",
+        "tools" => tools,
+        "ttlMs" => 0,
+        "cacheScope" => "private",
+        "_meta" => %{
+          "io.modelcontextprotocol/serverInfo" => %{
+            "name" => "browser",
+            "version" => "1.0.0"
+          }
+        }
+      },
+      overrides
+    )
   end
 
   defp tools_state(request_id) do
@@ -59,7 +65,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       mcp_capabilities: %{},
       mcp_server_info: %{},
       load_project_context: true,
-      tools: nil
+      tools: [],
+      tools_page_count: 0,
+      tools_count: 0,
+      tools_wire_bytes: 0,
+      tools_cursors: MapSet.new()
     }
   end
 
@@ -128,6 +138,22 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
              )
   end
 
+  test "fails initialization for malformed present server info" do
+    {state, _actions} = discovery_state()
+
+    result =
+      discovery_result(%{
+        "_meta" => %{
+          "io.modelcontextprotocol/serverInfo" => %{"name" => "browser"}
+        }
+      })
+
+    assert {%{status: :failed}, [{:initialization_failed, message}]} =
+             MCPInitializer.handle_response(state, state.discovery_request_id, result)
+
+    assert message =~ "incompatible MCP discovery"
+  end
+
   test "fails initialization for incompatible protocol or extension versions" do
     incompatible_results = [
       %{discovery_result() | "ttlMs" => -1},
@@ -150,6 +176,28 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
       assert message =~ "incompatible MCP discovery"
     end)
+  end
+
+  test "accepts optional discovery fields and unrelated extension settings" do
+    {state, _actions} = discovery_state()
+
+    result =
+      discovery_result(%{
+        "capabilities" => %{
+          "tools" => %{},
+          "extensions" => %{
+            "ai.frontman/execution-context" => %{"version" => 1},
+            "io.modelcontextprotocol/ui" => %{"mimeTypes" => ["text/html"]}
+          }
+        },
+        "cacheScope" => "public",
+        "_meta" => %{}
+      })
+
+    assert {%{status: :loading_tools, mcp_server_info: nil}, [{:push_mcp, request}]} =
+             MCPInitializer.handle_response(state, state.discovery_request_id, result)
+
+    assert request["method"] == "tools/list"
   end
 
   describe "handle_response/3 for tools/list" do
@@ -198,6 +246,112 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
         assert {%{status: :failed}, [{:initialization_failed, "Invalid MCP tools/list response"}]} =
                  MCPInitializer.handle_response(state, 1, result)
       end)
+    end
+
+    test "accepts optional tool fields and accumulates every page" do
+      first_page =
+        tools_result(
+          [
+            %{
+              "name" => "first",
+              "inputSchema" => %{"type" => "object"}
+            }
+          ],
+          %{
+            "nextCursor" => "",
+            "cacheScope" => "public",
+            "_meta" => %{}
+          }
+        )
+
+      state = tools_state(1)
+
+      assert {%{status: :loading_tools} = state, [{:push_mcp, request}]} =
+               MCPInitializer.handle_response(state, 1, first_page)
+
+      assert request["method"] == "tools/list"
+      assert request["params"]["cursor"] == ""
+
+      second_page =
+        tools_result(
+          [
+            %{
+              "name" => "second",
+              "description" => "Second tool",
+              "inputSchema" => %{"type" => "object"}
+            }
+          ],
+          %{"cacheScope" => "public", "_meta" => %{}}
+        )
+
+      assert {%{status: :loading_project_rules, tools: tools}, [{:push_mcp, _request}]} =
+               MCPInitializer.handle_response(state, state.tools_request_id, second_page)
+
+      assert Enum.map(tools, & &1.name) == ["first", "second"]
+      assert Enum.map(tools, & &1.description) == ["", "Second tool"]
+    end
+
+    test "fails initialization when the cumulative catalog exceeds the tool limit" do
+      state = %{tools_state(1) | tools_count: 10_000}
+
+      result =
+        tools_result([
+          %{
+            "name" => "one-too-many",
+            "inputSchema" => %{"type" => "object"}
+          }
+        ])
+
+      assert {%{status: :failed}, [{:initialization_failed, message}]} =
+               MCPInitializer.handle_response(state, 1, result)
+
+      assert message =~ "safety limits"
+    end
+
+    test "fails initialization when the cumulative catalog exceeds the byte limit" do
+      state = %{tools_state(1) | tools_wire_bytes: 10_000_000}
+
+      result =
+        tools_result([
+          %{
+            "name" => "too-large",
+            "inputSchema" => %{"type" => "object"}
+          }
+        ])
+
+      assert {%{status: :failed}, [{:initialization_failed, message}]} =
+               MCPInitializer.handle_response(state, 1, result)
+
+      assert message =~ "safety limits"
+    end
+
+    test "fails initialization when a later tools page returns an error" do
+      state = %{tools_state(2) | tools_page_count: 1, tools: [%{name: "first"}]}
+
+      assert {%{status: :failed}, [{:initialization_failed, message}]} =
+               MCPInitializer.handle_error(state, 2, %{"code" => -32_603, "message" => "failed"})
+
+      assert message =~ "pagination failed"
+    end
+
+    test "fails initialization when the server repeats a pagination cursor" do
+      state = %{tools_state(2) | tools_page_count: 1, tools_cursors: MapSet.new([""])}
+      result = tools_result([], %{"nextCursor" => ""})
+
+      assert {%{status: :failed}, [{:initialization_failed, message}]} =
+               MCPInitializer.handle_response(state, 2, result)
+
+      assert message =~ "repeated cursor"
+    end
+
+    test "fails initialization rather than requesting a page past the page limit" do
+      state = %{tools_state(2) | tools_page_count: 99}
+      result = tools_result([], %{"nextCursor" => "page-101"})
+
+      assert {%{status: :failed}, [{:initialization_failed, message}]} =
+               MCPInitializer.handle_response(state, 2, result)
+
+      assert message =~ "exceeded 100 pages"
     end
   end
 

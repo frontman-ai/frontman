@@ -76,12 +76,25 @@ let sendError = (
   id: JsonRpc.Id.t,
   code: int,
   message: string,
+  ~data: option<JSON.t>=?,
 ): unit => {
-  let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
+  let error = JsonRpc.RpcError.make(~code, ~message, ~data)
   let payload = JsonRpc.Response.makeErrorPayloadWithId(~id, ~error)
   notifyObserver(handler, Send, payload)
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
+
+let sendMetadataError = (handler, id, error: Types.metadataError) =>
+  switch error {
+  | UnsupportedProtocolVersion({requested, supported}) =>
+    sendError(
+      handler,
+      id,
+      Types.ErrorCode.unsupportedProtocolVersion,
+      "Unsupported protocol version",
+      ~data=Types.unsupportedProtocolVersionDataToJson(~requested, ~supported),
+    )
+  }
 
 let handleDiscover = (
   handler: mcpHandler<'server>,
@@ -101,18 +114,22 @@ let handleDiscover = (
 
   switch parsed {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
-  | Ok(_) =>
-    try {
-      let {serverInterface} = handler
-      let result = serverInterface.buildDiscoverResult(serverInterface.server)
-      let resultJson = serializeResult(result, Types.discoverResultSchema)
-      sendResponse(handler, id, resultJson)
-    } catch {
-    | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Log.error(~error=exn->JsExn.fromException, `Discovery failed: ${msg}`)
-      sendError(handler, id, Types.ErrorCode.serverError, `Discovery failed: ${msg}`)
+  | Ok({_meta}) =>
+    switch Types.SupportedRequestMeta.validate(_meta) {
+    | Error(error) => sendMetadataError(handler, id, error)
+    | Ok(_) =>
+      try {
+        let {serverInterface} = handler
+        let result = serverInterface.buildDiscoverResult(serverInterface.server)
+        let resultJson = serializeResult(result, Types.discoverResultSchema)
+        sendResponse(handler, id, resultJson)
+      } catch {
+      | exn =>
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        Log.error(~error=exn->JsExn.fromException, `Discovery failed: ${msg}`)
+        sendError(handler, id, Types.ErrorCode.serverError, `Discovery failed: ${msg}`)
+      }
     }
   }
 }
@@ -135,22 +152,26 @@ let handleToolsList = (
 
   switch parsed {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
-  | Ok(_) =>
-    try {
-      let {serverInterface} = handler
-      let result = serverInterface.buildToolsListResult(serverInterface.server)
-      let resultJson = serializeResult(
-        result,
-        Types.toolsListResultSchema,
-        ~validateWith=Types.toolsListResultWireSchema,
-      )
-      sendResponse(handler, id, resultJson)
-    } catch {
-    | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Log.error(~error=exn->JsExn.fromException, `Tools list failed: ${msg}`)
-      sendError(handler, id, Types.ErrorCode.serverError, `Tools list failed: ${msg}`)
+  | Ok({_meta}) =>
+    switch Types.SupportedRequestMeta.validate(_meta) {
+    | Error(error) => sendMetadataError(handler, id, error)
+    | Ok(_) =>
+      try {
+        let {serverInterface} = handler
+        let result = serverInterface.buildToolsListResult(serverInterface.server)
+        let resultJson = serializeResult(
+          result,
+          Types.toolsListResultSchema,
+          ~validateWith=Types.toolsListResultWireSchema,
+        )
+        sendResponse(handler, id, resultJson)
+      } catch {
+      | exn =>
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        Log.error(~error=exn->JsExn.fromException, `Tools list failed: ${msg}`)
+        sendError(handler, id, Types.ErrorCode.serverError, `Tools list failed: ${msg}`)
+      }
     }
   }
 }
@@ -171,33 +192,52 @@ let handleToolsCall = async (
 
     switch paramsResult {
     | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
-    | Ok({_meta: {executionContext: {taskId, callId}}, name, arguments}) =>
-      switch taskId == handler.sessionId {
-      | false =>
-        sendError(handler, id, Types.ErrorCode.invalidParams, "Tool taskId does not match session")
-      | true =>
-        try {
-          let {serverInterface} = handler
-          let result = await serverInterface.executeTool(
-            serverInterface.server,
-            ~name,
-            ~arguments,
-            ~taskId=handler.sessionId,
-            ~callId,
-            ~onProgress=None,
+    | Ok(params) =>
+      switch Types.ValidToolCall.validate(params) {
+      | Error(ToolCallMetadata(error)) => sendMetadataError(handler, id, error)
+      | Error(MissingExecutionContextCapability) =>
+        sendError(
+          handler,
+          id,
+          Types.ErrorCode.missingRequiredClientCapability,
+          "Missing required client capability",
+          ~data=Types.missingExecutionContextCapabilityDataToJson(),
+        )
+      | Error(MissingExecutionContext) =>
+        sendError(handler, id, Types.ErrorCode.invalidParams, "Missing execution context")
+      | Ok(toolCall) =>
+        switch Types.AuthorizedToolCall.authorize(toolCall, ~sessionId=handler.sessionId) {
+        | Error() =>
+          sendError(
+            handler,
+            id,
+            Types.ErrorCode.invalidParams,
+            "Tool taskId does not match session",
           )
-          switch result {
-          | Completed(callToolResult) =>
-            let resultJson = serializeResult(callToolResult, Types.callToolResultSchema)
-            sendResponse(handler, id, resultJson)
-          | Suspended => ()
+        | Ok(authorizedToolCall) =>
+          try {
+            let {serverInterface} = handler
+            let result = await serverInterface.executeTool(
+              serverInterface.server,
+              authorizedToolCall,
+              ~onProgress=None,
+            )
+            switch result {
+            | Completed(callToolResult) =>
+              let resultJson = serializeResult(callToolResult, Types.callToolResultSchema)
+              sendResponse(handler, id, resultJson)
+            | Suspended => ()
+            }
+          } catch {
+          | exn =>
+            let msg =
+              exn
+              ->JsExn.fromException
+              ->Option.flatMap(JsExn.message)
+              ->Option.getOr("Unknown error")
+            Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
+            sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
           }
-        } catch {
-        | exn =>
-          let msg =
-            exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-          Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
-          sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
         }
       }
     }

@@ -86,8 +86,9 @@ defmodule ModelContextProtocol do
   @doc """
   Returns params for MCP discovery and list requests.
   """
-  @spec request_params() :: map()
-  def request_params, do: %{"_meta" => request_meta()}
+  @spec request_params(map()) :: map()
+  def request_params(params \\ %{}) when is_map(params),
+    do: Map.put(params, "_meta", request_meta())
 
   @doc """
   Extracts text content from MCP content array.

@@ -31,6 +31,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   alias ModelContextProtocol, as: MCP
 
   @execution_context_extension "ai.frontman/execution-context"
+  @max_tools_pages 100
+  @max_tools 10_000
+  @max_tools_wire_bytes 10_000_000
 
   @doc """
   Creates the initial state and returns the MCP discovery request to send.
@@ -50,7 +53,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       mcp_capabilities: nil,
       mcp_server_info: nil,
       load_project_context: Frameworks.load_project_context?(framework),
-      tools: nil
+      tools: [],
+      tools_page_count: 0,
+      tools_count: 0,
+      tools_wire_bytes: 0,
+      tools_cursors: MapSet.new()
     }
 
     Logger.info("MCPInitializer: Discovering MCP server for task #{task_id}")
@@ -89,6 +96,10 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       request_id == state.discovery_request_id ->
         Logger.error("MCPInitializer: MCP discovery failed", error_code: error_code(error))
         fail_initialization(state, error["message"])
+
+      request_id == state.tools_request_id and state.tools_page_count > 0 ->
+        Logger.error("MCPInitializer: Paginated tools list failed", error_code: error_code(error))
+        fail_initialization(state, "MCP tools/list pagination failed")
 
       request_id == state.tools_request_id ->
         Logger.warning("MCPInitializer: Tools list failed", error_code: error_code(error))
@@ -134,32 +145,27 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  defp validate_discovery_response(%{
-         "resultType" => "complete",
-         "supportedVersions" => supported_versions,
-         "capabilities" =>
-           %{
-             "tools" => %{"listChanged" => list_changed},
-             "extensions" => extensions
-           } = capabilities,
-         "ttlMs" => ttl_ms,
-         "cacheScope" => "private",
-         "_meta" => %{
-           "io.modelcontextprotocol/serverInfo" =>
-             %{"name" => name, "version" => version} = server_info
-         }
-       }) do
+  defp validate_discovery_response(
+         %{
+           "resultType" => "complete",
+           "supportedVersions" => supported_versions,
+           "capabilities" => %{"tools" => tools_capability} = capabilities,
+           "ttlMs" => ttl_ms,
+           "cacheScope" => cache_scope
+         } = result
+       ) do
+    extensions = Map.get(capabilities, "extensions", %{})
+
     with true <- is_list(supported_versions),
          true <- Enum.all?(supported_versions, &is_binary/1),
-         true <- is_boolean(list_changed),
+         true <- valid_tools_capability?(tools_capability),
          true <- is_map(extensions),
-         true <- valid_extensions?(extensions),
          true <- is_integer(ttl_ms),
          true <- ttl_ms >= 0,
-         true <- is_binary(name),
-         true <- is_binary(version),
+         true <- cache_scope in ["public", "private"],
          true <- MCP.protocol_version() in supported_versions,
-         %{"version" => 1} <- Map.get(extensions, @execution_context_extension) do
+         %{"version" => 1} <- Map.get(extensions, @execution_context_extension),
+         {:ok, server_info} <- validate_server_info(result) do
       {:ok, capabilities, server_info}
     else
       _ -> {:error, "Invalid or incompatible MCP discovery response"}
@@ -169,46 +175,79 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   defp validate_discovery_response(_result),
     do: {:error, "Invalid or incompatible MCP discovery response"}
 
-  defp valid_extensions?(extensions) do
-    Enum.all?(extensions, fn
-      {name, %{"version" => version}} -> [is_binary(name), is_integer(version)] |> Enum.all?()
-      _ -> false
-    end)
+  defp valid_tools_capability?(tools_capability) when is_map(tools_capability),
+    do: valid_optional_tool_field?(tools_capability, "listChanged", &is_boolean/1)
+
+  defp valid_tools_capability?(_tools_capability), do: false
+
+  defp validate_server_info(%{"_meta" => meta}) when is_map(meta) do
+    case Map.fetch(meta, "io.modelcontextprotocol/serverInfo") do
+      {:ok, %{"name" => name, "version" => version} = info}
+      when is_binary(name) and is_binary(version) ->
+        {:ok, info}
+
+      {:ok, _invalid_info} ->
+        {:error, :invalid_server_info}
+
+      :error ->
+        {:ok, nil}
+    end
   end
+
+  defp validate_server_info(result) when not is_map_key(result, "_meta"), do: {:ok, nil}
+  defp validate_server_info(_result), do: {:error, :invalid_server_info}
 
   defp handle_tools_response(result, state) do
     case validate_tools_response(result) do
-      {:ok, raw_tools} ->
-        tools = MCPTools.from_maps(raw_tools)
+      {:ok, raw_tools, next_page} ->
+        page_count = state.tools_page_count + 1
+        tools_count = state.tools_count + length(raw_tools)
+        page_wire_bytes = raw_tools |> Jason.encode_to_iodata!() |> IO.iodata_length()
+        tools_wire_bytes = state.tools_wire_bytes + page_wire_bytes
 
-        Logger.info("MCPInitializer: Received #{length(tools)} tools from MCP server")
+        with true <- tools_count <= @max_tools,
+             true <- tools_wire_bytes <= @max_tools_wire_bytes do
+          tools = Enum.reverse(MCPTools.from_maps(raw_tools), state.tools)
 
-        state = %{state | tools: tools, tools_request_id: nil}
-        maybe_request_project_context(state)
+          Logger.info("MCPInitializer: Received #{length(raw_tools)} tools from MCP server")
+
+          state = %{
+            state
+            | tools: tools,
+              tools_request_id: nil,
+              tools_page_count: page_count,
+              tools_count: tools_count,
+              tools_wire_bytes: tools_wire_bytes
+          }
+
+          continue_tools_list(state, next_page)
+        else
+          false -> fail_initialization(state, "MCP tools/list catalog exceeded safety limits")
+        end
 
       {:error, message} ->
         fail_initialization(state, message)
     end
   end
 
-  defp validate_tools_response(%{
-         "resultType" => "complete",
-         "tools" => tools,
-         "ttlMs" => ttl_ms,
-         "cacheScope" => "private",
-         "_meta" => %{
-           "io.modelcontextprotocol/serverInfo" => %{"name" => name, "version" => version}
-         }
-       }) do
+  defp validate_tools_response(
+         %{
+           "resultType" => "complete",
+           "tools" => tools,
+           "ttlMs" => ttl_ms,
+           "cacheScope" => cache_scope
+         } = result
+       ) do
     with true <- is_list(tools),
          true <- is_integer(ttl_ms),
          true <- ttl_ms >= 0,
-         true <- is_binary(name),
-         true <- is_binary(version),
-         true <- Enum.all?(tools, &valid_tool?/1) do
-      {:ok, tools}
+         true <- cache_scope in ["public", "private"],
+         true <- Enum.all?(tools, &valid_tool?/1),
+         {:ok, next_page} <- validate_next_page(result),
+         {:ok, _server_info} <- validate_server_info(result) do
+      {:ok, tools, next_page}
     else
-      false -> {:error, "Invalid MCP tools/list response"}
+      _ -> {:error, "Invalid MCP tools/list response"}
     end
   end
 
@@ -217,15 +256,15 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   defp valid_tool?(
          %{
            "name" => name,
-           "description" => description,
            "inputSchema" => input_schema
          } = tool
        ) do
     [
       is_binary(name),
       name != "",
-      is_binary(description),
       is_map(input_schema),
+      input_schema["type"] == "object",
+      valid_optional_tool_field?(tool, "description", &is_binary/1),
       valid_optional_tool_field?(tool, "outputSchema", &is_map/1),
       valid_optional_tool_field?(tool, "visibleToAgent", &is_boolean/1),
       valid_optional_tool_field?(tool, "executionMode", &is_binary/1),
@@ -242,6 +281,40 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       :error -> true
     end
   end
+
+  defp validate_next_page(%{"nextCursor" => cursor}) when is_binary(cursor),
+    do: {:ok, {:next, cursor}}
+
+  defp validate_next_page(result) when not is_map_key(result, "nextCursor"), do: {:ok, :done}
+  defp validate_next_page(_result), do: {:error, :invalid_cursor}
+
+  defp continue_tools_list(state, :done),
+    do: state |> Map.update!(:tools, &Enum.reverse/1) |> maybe_request_project_context()
+
+  defp continue_tools_list(%{tools_page_count: page_count} = state, {:next, cursor})
+       when page_count < @max_tools_pages do
+    case MapSet.member?(state.tools_cursors, cursor) do
+      true ->
+        fail_initialization(state, "MCP tools/list returned a repeated cursor")
+
+      false ->
+        request_id = System.unique_integer([:positive])
+
+        request =
+          JsonRpc.request(request_id, "tools/list", MCP.request_params(%{"cursor" => cursor}))
+
+        state = %{
+          state
+          | tools_request_id: request_id,
+            tools_cursors: MapSet.put(state.tools_cursors, cursor)
+        }
+
+        {state, [{:push_mcp, request}]}
+    end
+  end
+
+  defp continue_tools_list(state, {:next, _cursor}),
+    do: fail_initialization(state, "MCP tools/list exceeded #{@max_tools_pages} pages")
 
   defp fail_initialization(state, message) do
     {%{state | status: :failed}, [{:initialization_failed, message}]}
