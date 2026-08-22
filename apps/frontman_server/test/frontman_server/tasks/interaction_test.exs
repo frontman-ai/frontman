@@ -246,7 +246,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           ]
       }
 
-      [swarm_msg] = Interaction.to_swarm_messages([msg])
+      [swarm_msg] = Interaction.to_swarm_messages(msg)
 
       assert %SwarmAi.Message.User{content: content} = swarm_msg
 
@@ -261,15 +261,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "converts assistant tool calls to Swarm tool calls" do
-      interactions = [
+      interaction =
         agent_resp("I'll read it", %{
           "tool_calls" => [db_tool_call("toolu_012", "read_file", ~s({"path":"README.md"}))],
           "response_id" => "resp_123",
           "phase" => "tool_call"
         })
-      ]
 
-      [swarm_msg] = Interaction.to_swarm_messages(interactions)
+      [swarm_msg] = Interaction.to_swarm_messages(interaction)
 
       assert %SwarmAi.Message.Assistant{
                content: [%SwarmAi.Message.ContentPart{type: :text, text: "I'll read it"}],
@@ -285,15 +284,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "converts tool-call-only assistant responses without text content" do
-      interactions = [
+      interaction =
         agent_resp(nil, %{
           "tool_calls" => [db_tool_call("toolu_012", "read_file", ~s({"path":"README.md"}))],
           "response_id" => "resp_123",
           "phase" => "tool_call"
         })
-      ]
 
-      [swarm_msg] = Interaction.to_swarm_messages(interactions)
+      [swarm_msg] = Interaction.to_swarm_messages(interaction)
 
       assert %SwarmAi.Message.Assistant{
                content: [],
@@ -305,7 +303,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
   describe "to_swarm_messages/1 conversation coverage" do
     test "skips ToolCall structs (they live in agent response metadata)" do
-      messages = Interaction.to_swarm_messages([tool_call("call_123", "calculator")])
+      messages = Interaction.to_swarm_messages(tool_call("call_123", "calculator"))
       assert messages == []
     end
 
@@ -320,7 +318,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         agent_resp("The answer is 4")
       ]
 
-      messages = Interaction.to_swarm_messages(interactions)
+      messages = Enum.flat_map(interactions, &Interaction.to_swarm_messages/1)
       assert length(messages) == 4
       assert Enum.map(messages, &SwarmAi.Message.role/1) == [:user, :assistant, :tool, :assistant]
     end
@@ -369,7 +367,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           }
       }
 
-      assert [message] = Interaction.to_swarm_messages([msg])
+      assert [message] = Interaction.to_swarm_messages(msg)
       text = extract_text(message)
 
       assert text =~
@@ -408,7 +406,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "does not add annotation section when annotations is empty" do
-      messages = Interaction.to_swarm_messages([user_msg("Just a regular message")])
+      messages = Interaction.to_swarm_messages(user_msg("Just a regular message"))
       text = extract_text(hd(messages))
 
       assert text =~ "Just a regular message"
@@ -432,7 +430,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           }
         end)
 
-      [llm_msg] = Interaction.to_swarm_messages([msg])
+      [llm_msg] = Interaction.to_swarm_messages(msg)
       text = extract_text(llm_msg)
       assert text =~ "attachment://att_hero/hero.png"
       refute text =~ "write_file with image_ref"
@@ -441,16 +439,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
   describe "to_swarm_messages/1 with DB-loaded metadata (string keys)" do
     test "converts multiple tool_calls from DB" do
-      interactions = [
+      interaction =
         agent_resp("Let me search", %{
           "tool_calls" => [
             db_tool_call("toolu_001", "read_file", ~s({"path": "file1.txt"})),
             db_tool_call("toolu_002", "glob", ~s({"pattern": "*.tsx"}))
           ]
         })
-      ]
 
-      [msg] = Interaction.to_swarm_messages(interactions)
+      [msg] = Interaction.to_swarm_messages(interaction)
 
       assert length(msg.tool_calls) == 2
       assert Enum.all?(msg.tool_calls, &match?(%SwarmAi.ToolCall{}, &1))
@@ -461,7 +458,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "handles empty or nil tool_calls from DB gracefully" do
       for tool_calls <- [[], nil] do
         [msg] =
-          Interaction.to_swarm_messages([agent_resp("Just text", %{"tool_calls" => tool_calls})])
+          Interaction.to_swarm_messages(agent_resp("Just text", %{"tool_calls" => tool_calls}))
 
         assert SwarmAi.Message.role(msg) == :assistant
         assert [%{type: :text, text: "Just text"}] = msg.content
@@ -470,7 +467,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "preserves response metadata and reasoning_details from DB metadata" do
-      interactions = [
+      interaction =
         agent_resp("Thinking...", %{
           "tool_calls" => [db_tool_call("call_123", "test_tool")],
           "response_id" => "resp_abc123",
@@ -487,9 +484,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           ],
           "reasoning_details" => [%{"type" => "reasoning.encrypted", "data" => "encrypted_data"}]
         })
-      ]
 
-      [msg] = Interaction.to_swarm_messages(interactions)
+      [msg] = Interaction.to_swarm_messages(interaction)
 
       assert msg.metadata == %{
                response_id: "resp_abc123",
@@ -526,7 +522,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         agent_resp("The file contains a README header.")
       ]
 
-      messages = Interaction.to_swarm_messages(interactions)
+      messages = Enum.flat_map(interactions, &Interaction.to_swarm_messages/1)
 
       assert length(messages) == 4
 
@@ -545,13 +541,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "handles flat format tool_calls with string keys" do
-      interactions = [
+      interaction =
         agent_resp("Checking weather", %{
           "tool_calls" => [flat_tool_call("call_flat_1", "get_weather", ~s({"city": "NYC"}))]
         })
-      ]
 
-      [msg] = Interaction.to_swarm_messages(interactions)
+      [msg] = Interaction.to_swarm_messages(interaction)
 
       assert [tc] = msg.tool_calls
       assert %SwarmAi.ToolCall{} = tc

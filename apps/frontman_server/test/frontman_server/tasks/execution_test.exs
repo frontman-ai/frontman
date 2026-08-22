@@ -554,7 +554,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert [%Interaction.Annotation{bounding_box: %Interaction.BoundingBox{}}] =
                persisted_message.annotations
 
-      [swarm_message] = Interaction.to_swarm_messages([persisted_message])
+      [swarm_message] = Interaction.to_swarm_messages(persisted_message)
       text = extract_content_text(swarm_message.content)
 
       assert text =~ "[Current Page Context]"

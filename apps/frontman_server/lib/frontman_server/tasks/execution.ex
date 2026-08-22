@@ -191,7 +191,6 @@ defmodule FrontmanServer.Tasks.Execution do
        ) do
     user_messages_by_row_id
     |> Map.fetch!(user_message_id)
-    |> List.wrap()
     |> Interaction.to_swarm_messages()
   end
 
@@ -219,7 +218,6 @@ defmodule FrontmanServer.Tasks.Execution do
   defp row_to_messages(row) do
     row
     |> Map.fetch!(:data)
-    |> List.wrap()
     |> Interaction.to_swarm_messages()
   end
 

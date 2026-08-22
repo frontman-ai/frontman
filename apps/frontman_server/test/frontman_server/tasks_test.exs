@@ -681,7 +681,7 @@ defmodule FrontmanServer.TasksTest do
              ] = db_type_turns(task_id)
 
       {:ok, task} = Tasks.get_task(scope, task_id)
-      messages = Tasks.Interaction.to_swarm_messages(Tasks.interactions(task))
+      messages = Enum.flat_map(Tasks.interactions(task), &Tasks.Interaction.to_swarm_messages/1)
 
       assert length(messages) == 4,
              "expected 4 Swarm messages, got #{length(messages)}: #{inspect(Enum.map(messages, &SwarmAi.Message.role/1))}"
@@ -1310,7 +1310,7 @@ defmodule FrontmanServer.TasksTest do
 
       {:ok, task} = Tasks.get_task(scope, task_id)
 
-      messages = Interaction.to_swarm_messages(Tasks.interactions(task))
+      messages = Enum.flat_map(Tasks.interactions(task), &Interaction.to_swarm_messages/1)
 
       assert length(messages) == 1
       assert SwarmAi.Message.role(hd(messages)) == :user

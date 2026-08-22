@@ -1064,31 +1064,23 @@ defmodule FrontmanServer.Tasks.Interaction do
   end
 
   @doc """
-  Converts interactions to Swarm message format.
+  Converts an interaction to Swarm message format.
 
   This is the boundary translation from Tasks domain (Interactions)
   to Agents domain (Swarm messages). Conversation messages include
   UserMessage, AgentResponse, and ToolResult.
   ToolCall interactions are excluded as they're embedded in AgentResponse metadata.
-
-  Interactions are expected to be ordered by the persisted sequence column,
-  which guarantees correct conversation structure (assistant messages before their
-  tool results) regardless of database insertion timing.
   """
-  def to_swarm_messages(interactions) when is_list(interactions) do
-    Enum.flat_map(interactions, &to_swarm_message/1)
-  end
-
-  defp to_swarm_message(%UserMessage{} = msg) do
+  def to_swarm_messages(%UserMessage{} = msg) do
     prompt_text = user_prompt_text(msg)
     content_parts = build_user_content_parts(prompt_text, msg)
 
     [build_swarm_user_message(content_parts)]
   end
 
-  defp to_swarm_message(
-         %AgentResponse{content: nil, metadata: %{"tool_calls" => [_ | _]} = meta} = msg
-       ) do
+  def to_swarm_messages(
+        %AgentResponse{content: nil, metadata: %{"tool_calls" => [_ | _]} = meta} = msg
+      ) do
     [
       %SwarmMessage.Assistant{
         content: [],
@@ -1099,8 +1091,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     ]
   end
 
-  defp to_swarm_message(%AgentResponse{content: content, metadata: metadata} = msg)
-       when is_binary(content) do
+  def to_swarm_messages(%AgentResponse{content: content, metadata: metadata} = msg)
+      when is_binary(content) do
     meta = metadata || %{}
 
     [
@@ -1113,7 +1105,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     ]
   end
 
-  defp to_swarm_message(%ToolResult{result: %{"content" => [_ | _] = content}} = result) do
+  def to_swarm_messages(%ToolResult{result: %{"content" => [_ | _] = content}} = result) do
     [
       %SwarmMessage.Tool{
         content: Enum.map(content, &tool_result_content_part/1),
@@ -1123,14 +1115,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     ]
   end
 
-  defp to_swarm_message(%ToolCall{}), do: []
-  defp to_swarm_message(%TurnStarted{}), do: []
-  defp to_swarm_message(%AgentCompleted{}), do: []
-  defp to_swarm_message(%AgentError{}), do: []
-  defp to_swarm_message(%AgentPaused{}), do: []
-  defp to_swarm_message(%AgentRetry{}), do: []
-  defp to_swarm_message(%DiscoveredProjectRule{}), do: []
-  defp to_swarm_message(%DiscoveredProjectStructure{}), do: []
+  def to_swarm_messages(%ToolCall{}), do: []
+  def to_swarm_messages(%TurnStarted{}), do: []
+  def to_swarm_messages(%AgentCompleted{}), do: []
+  def to_swarm_messages(%AgentError{}), do: []
+  def to_swarm_messages(%AgentPaused{}), do: []
+  def to_swarm_messages(%AgentRetry{}), do: []
+  def to_swarm_messages(%DiscoveredProjectRule{}), do: []
+  def to_swarm_messages(%DiscoveredProjectStructure{}), do: []
 
   def user_prompt_text(%UserMessage{} = msg) do
     msg.messages
