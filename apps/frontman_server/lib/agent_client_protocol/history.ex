@@ -38,21 +38,46 @@ defmodule AgentClientProtocol.History do
         },
         session_id
       ) do
-    case response.content do
-      content when content in [nil, ""] ->
-        []
+    content_notifications =
+      case response.content do
+        content when content in [nil, ""] ->
+          []
 
-      content when is_binary(content) ->
-        [
-          ACP.build_agent_message_chunk_notification(
-            session_id,
-            content,
-            response.timestamp,
-            ACP.agent_message_id(turn_row.id, ordinal),
-            agent_id
-          )
-        ]
-    end
+        content when is_binary(content) ->
+          [
+            ACP.build_agent_message_chunk_notification(
+              session_id,
+              content,
+              response.timestamp,
+              ACP.agent_message_id(turn_row.id, ordinal),
+              agent_id
+            )
+          ]
+      end
+
+    tool_call_notifications =
+      response.metadata
+      |> Map.get("tool_calls", [])
+      |> Enum.map(fn %{"id" => id, "name" => name, "arguments" => raw_arguments} ->
+        {:ok, %{arguments: arguments}} =
+          Interaction.ToolCall.attrs(%SwarmAi.ToolCall{
+            id: id,
+            name: name,
+            arguments: raw_arguments
+          })
+
+        ACP.tool_call_create(
+          session_id,
+          id,
+          name,
+          "other",
+          response.timestamp,
+          ACP.tool_call_status_pending(),
+          arguments
+        )
+      end)
+
+    content_notifications ++ tool_call_notifications
   end
 
   def encode_row(

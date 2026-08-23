@@ -62,6 +62,43 @@ defmodule AgentClientProtocol.HistoryTest do
     assert error["_meta"]["frontman.dev/agentErrorId"] == "error-id"
   end
 
+  test "replays tool calls embedded in an empty agent response before their results" do
+    rows = [
+      row("turn-row", :turn_started, 1, turn("turn-id", [])),
+      row("response", :agent_response, 1, %Interaction.AgentResponse{
+        id: Ecto.UUID.generate(),
+        content: nil,
+        metadata: %{
+          "tool_calls" => [
+            %{
+              "id" => "call",
+              "name" => "todo_write",
+              "arguments" => ~s({"todos":[]})
+            }
+          ]
+        },
+        timestamp: @timestamp
+      }),
+      row("tool-result", :tool_result, 1, %Interaction.ToolResult{
+        tool_call_id: "call",
+        tool_name: "todo_write",
+        result: %{"content" => [], "structuredContent" => %{"todos" => []}},
+        is_error: false,
+        timestamp: @timestamp
+      })
+    ]
+
+    assert {:ok, replay} = build(rows)
+    updates = Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
+
+    assert [tool_create, tool_result] = updates
+    assert tool_create["sessionUpdate"] == "tool_call"
+    assert tool_create["toolCallId"] == "call"
+    assert tool_create["rawInput"] == %{"todos" => []}
+    assert tool_result["sessionUpdate"] == "tool_call_update"
+    assert tool_result["toolCallId"] == "call"
+  end
+
   test "crashes when history references an agent outside the global catalog" do
     rows = [
       row("turn-row", :turn_started, 1, %{
