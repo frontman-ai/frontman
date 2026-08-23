@@ -359,7 +359,7 @@ defmodule FrontmanServerWeb.CustomLlmEndpointsControllerTest do
     test "acceptance #8: config files contain no LLM provider env-var credential paths" do
       config_dir = Path.expand("../../../config", __DIR__)
       files = Path.wildcard(Path.join(config_dir, "*.exs"))
-      assert length(files) > 0
+      assert files != []
 
       for file <- files do
         contents = File.read!(file)

@@ -84,8 +84,6 @@ let emptyCustomEndpointDraft: Types.customEndpoint = {
   models: [],
 }
 
-// Accepts http/https URLs (raw IP or localhost included); rejects anything
-// without a scheme + host so a bad address is caught before save.
 let isValidProviderUrl = (url: string): bool =>
   switch url->String.trim {
   | "" => false
@@ -145,7 +143,6 @@ module CustomEndpointCard = {
                 onDraftSaved->Option.forEach(callback => callback())
               }
             | Error(message) =>
-              // Ecto's unique_constraint surfaces as "has already been taken".
               if message->String.includes("has already been taken") {
                 setNameError(_ => Some("Provider name already used"))
               } else {
@@ -157,7 +154,6 @@ module CustomEndpointCard = {
       }
     }
 
-    // Inline edits on persisted cards keep the stored key (apiKey: None).
     let saveIfChangedOnBlur = () =>
       if !isDraft {
         let trimmedName = String.trim(name)

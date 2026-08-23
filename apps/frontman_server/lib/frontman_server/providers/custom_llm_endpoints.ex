@@ -14,8 +14,6 @@ defmodule FrontmanServer.Providers.CustomLlmEndpoints do
 
   use Boundary, deps: [FrontmanServer, FrontmanServer.Accounts, FrontmanServer.Providers]
 
-  import Ecto.Query
-
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Accounts.{Scope, User}
@@ -120,7 +118,7 @@ defmodule FrontmanServer.Providers.CustomLlmEndpoints do
       %CustomLlmEndpoint{} ->
         CustomLlmModel
         |> CustomLlmModel.for_endpoint(endpoint_id)
-        |> where(model_id: ^model_id)
+        |> CustomLlmModel.with_model_id(model_id)
         |> Repo.delete_all()
         |> case do
           {1, _} -> :ok
@@ -163,6 +161,6 @@ defmodule FrontmanServer.Providers.CustomLlmEndpoints do
   defp preload_models(other), do: other
 
   defp ordered_models do
-    from(m in CustomLlmModel, order_by: [asc: m.position, asc: m.model_id])
+    CustomLlmModel.ordered()
   end
 end

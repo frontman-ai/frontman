@@ -285,6 +285,7 @@ module Actions = {
   let deleteCustomEndpoint = (~id, ~onComplete) =>
     Client__State__Store.dispatch(DeleteCustomEndpoint({id, onComplete}))
 
+  @live
   let addCustomEndpointModel = (~endpointId, ~modelId, ~displayName=?, ~position=?, ~onComplete) =>
     Client__State__Store.dispatch(
       AddCustomEndpointModel({endpointId, modelId, displayName, position, onComplete}),
