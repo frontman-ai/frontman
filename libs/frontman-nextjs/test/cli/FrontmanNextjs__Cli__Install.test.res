@@ -912,3 +912,34 @@ describe("Dry Run Mode", _t => {
     await cleanupTempFixture(tempDir)
   })
 })
+
+describe("Dependency Installation Failure", _t => {
+  testAsync("stops before writing integration files", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    let failingExec = async (_command, _options) =>
+      Error({
+        code: None,
+        stdout: "",
+        stderr: "network failure",
+        message: "network failure",
+      })
+
+    let result = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: false,
+    }, ~exec=failingExec)
+
+    switch result {
+    | Install.Failure(message) =>
+      t->expect(message->String.includes("network failure"))->Expect.toBe(true)
+    | Install.Success => t->expect("success")->Expect.toBe("dependency failure")
+    | Install.PartialSuccess(_) => t->expect("partial success")->Expect.toBe("dependency failure")
+    }
+
+    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
+    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
+    await cleanupTempFixture(tempDir)
+  })
+})
