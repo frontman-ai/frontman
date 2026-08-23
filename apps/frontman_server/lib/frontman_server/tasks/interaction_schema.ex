@@ -136,10 +136,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   end
 
   defp put_sequence(changeset) do
-    case get_field(changeset, :sequence) do
-      nil -> put_change(changeset, :sequence, generate_sequence())
-      _sequence -> changeset
-    end
+    put_change(changeset, :sequence, generate_sequence())
   end
 
   defp generate_sequence do
