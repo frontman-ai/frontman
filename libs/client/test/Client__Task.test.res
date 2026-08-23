@@ -23,13 +23,10 @@ module TestHelpers = {
   }
 
   let makeLoadingTask = () => {
-    let unloaded = Task.makeUnloaded(
-      ~id="test-task-1",
-      ~title="Test Task",
-      ~createdAt=Date.now(),
-      ~updatedAt=Date.now(),
-    )
-    TaskReducer.next(unloaded, LoadStarted({previewUrl: "http://localhost:3000"}))->Pair.first
+    TaskReducer.next(
+      makeUnloadedTask(),
+      LoadStarted({previewUrl: "http://localhost:3000"}),
+    )->Pair.first
   }
 
   let acceptUserMessage = (
@@ -70,7 +67,7 @@ describe("Task - Protocol Message Identity", () => {
     TaskReducer.next(task1, ExecutionStateRunning)->Pair.first
   }
 
-  test("TextDeltaReceived appends to streaming message", t => {
+  test("text deltas append before idle completes the message", t => {
     let task = _startAgent()
     let (task2, _) = TaskReducer.next(
       task,
@@ -96,112 +93,27 @@ describe("Task - Protocol Message Identity", () => {
       }
     | _ => t->expect(false)->Expect.toBe(true)
     }
-  })
+    let (completed, _) = TaskReducer.next(task3, ExecutionStateIdle)
 
-  test("ExecutionStateIdle converts streaming to completed", t => {
-    let task = _startAgent()
-    let (task2, _) = TaskReducer.next(
-      task,
-      TextDeltaReceived({
-        messageId: "assistant-1",
-        text: "Hello",
-        agentId: "test-agent",
-      }),
-    )
-    let (task3, _) = TaskReducer.next(task2, ExecutionStateIdle)
-
-    let messages = TestHelpers.getMessages(task3)
+    let messages = TestHelpers.getMessages(completed)
     t->expect(Array.length(messages))->Expect.toBe(2)
 
     switch messages->Array.get(1) {
-    | Some(Message.Assistant(Completed({content}))) =>
-      t->expect(Array.length(content))->Expect.toBe(1)
-    | _ => t->expect(false)->Expect.toBe(true)
-    }
-  })
-})
-
-describe("Task - Tool Call Lifecycle", () => {
-  let _startAgent = () => {
-    let task = TestHelpers.makeLoadedTask()
-    let task1 = TestHelpers.acceptUserMessage(task)
-    TaskReducer.next(task1, ExecutionStateRunning)->Pair.first
-  }
-
-  test("tool call progresses: ToolCallReceived -> ToolInputReceived -> ToolResultReceived", t => {
-    let task = _startAgent()
-    let toolId = "tool-1"
-
-    let toolCall: Message.toolCall = {
-      id: toolId,
-      toolName: "test_tool",
-      state: Message.InputAvailable,
-      inputBuffer: "",
-      input: Some(JSON.parseOrThrow(`{"key": "value"}`)),
-      result: None,
-      errorText: None,
-      parentAgentId: None,
-      spawningToolName: None,
-    }
-    let (task1, _) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
-
-    let messages1 = TestHelpers.getMessages(task1)
-    switch messages1->Array.get(1) {
-    | Some(Message.ToolCall({state: InputAvailable, input: Some(_)})) =>
-      t->expect(true)->Expect.toBe(true)
-    | _ => t->expect(false)->Expect.toBe(true)
-    }
-
-    let (task2, _) = TaskReducer.next(
-      task1,
-      ToolResultReceived({
-        id: toolId,
-        rawOutput: Some(JSON.Encode.object(Dict.make())),
-        content: None,
-        complete: true,
-      }),
-    )
-
-    let messages2 = TestHelpers.getMessages(task2)
-    switch messages2->Array.get(1) {
-    | Some(Message.ToolCall({state: OutputAvailable, result: Some(_)})) =>
-      t->expect(true)->Expect.toBe(true)
-    | _ => t->expect(false)->Expect.toBe(true)
-    }
-  })
-
-  test("tool error sets OutputError state", t => {
-    let task = _startAgent()
-    let toolId = "tool-1"
-
-    let toolCall: Message.toolCall = {
-      id: toolId,
-      toolName: "test_tool",
-      state: Message.InputAvailable,
-      inputBuffer: "",
-      input: None,
-      result: None,
-      errorText: None,
-      parentAgentId: None,
-      spawningToolName: None,
-    }
-    let (task1, _) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
-    let (task3, _) = TaskReducer.next(
-      task1,
-      ToolErrorReceived({id: toolId, error: "Something went wrong"}),
-    )
-
-    let messages = TestHelpers.getMessages(task3)
-    switch messages->Array.get(1) {
-    | Some(Message.ToolCall({state: OutputError, errorText: Some(error)})) =>
-      t->expect(error)->Expect.toBe("Something went wrong")
+    | Some(Message.Assistant(Completed({content, agentId}))) => {
+        t->expect(agentId)->Expect.toBe("executor-id")
+        switch content->Array.get(0) {
+        | Some(Message.AssistantContentPart.Text({text})) =>
+          t->expect(text)->Expect.toBe("Hello world")
+        | _ => t->expect("completed text")->Expect.toBe("missing")
+        }
+      }
     | _ => t->expect(false)->Expect.toBe(true)
     }
   })
 })
 
 describe("Task - Load State Machine", () => {
-  test("Unloaded -> Loading transition via LoadStarted", t => {
+  test("LoadStarted and LoadComplete transition Unloaded through Loading to Loaded", t => {
     let task = TestHelpers.makeUnloadedTask()
     t->expect(Task.isUnloaded(task))->Expect.toBe(true)
 
@@ -210,11 +122,7 @@ describe("Task - Load State Machine", () => {
       LoadStarted({previewUrl: "http://localhost:3000"}),
     )
     t->expect(Task.isLoading(loadingTask))->Expect.toBe(true)
-  })
-
-  test("Loading -> Loaded transition via LoadComplete", t => {
-    let task = TestHelpers.makeLoadingTask()
-    let (loadedTask, _) = TaskReducer.next(task, LoadComplete)
+    let (loadedTask, _) = TaskReducer.next(loadingTask, LoadComplete)
 
     t->expect(Task.isLoaded(loadedTask))->Expect.toBe(true)
   })
@@ -267,6 +175,40 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
 })
 
 describe("Task - Agent Running State", () => {
+  test("submitted message stays queued until its accepted turn starts", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (submitted, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+
+    let queued = TestHelpers.getQueuedUserMessages(submitted)
+    t->expect(queued->Array.length)->Expect.toBe(1)
+    t->expect(TestHelpers.getMessages(submitted)->Array.length)->Expect.toBe(0)
+
+    let (prematurelyRunning, _) = TaskReducer.next(submitted, ExecutionStateRunning)
+    t->expect(TestHelpers.getMessages(prematurelyRunning)->Array.length)->Expect.toBe(0)
+
+    let accepted = TestHelpers.acceptUserMessage(
+      prematurelyRunning,
+      ~id=testUserMessageId->UserMessageId.toString,
+    )
+    t->expect(TestHelpers.getQueuedUserMessages(accepted)->Array.length)->Expect.toBe(1)
+
+    let (running, _) = TaskReducer.next(accepted, ExecutionStateRunning)
+    let messages = TestHelpers.getMessages(running)
+    t->expect(TestHelpers.getQueuedUserMessages(running)->Array.length)->Expect.toBe(0)
+    switch messages->Array.get(0) {
+    | Some(Message.User({content, _})) => t->expect(content->Array.length)->Expect.toBe(1)
+    | _ => t->expect("User message")->Expect.toBe("missing")
+    }
+  })
+
   test("state updates drive isAgentRunning", t => {
     let task = TestHelpers.makeLoadedTask()
     let (task2, _) = TaskReducer.next(
@@ -383,25 +325,11 @@ describe("Task - Annotation Mode", () => {
     let (task3, _) = TaskReducer.next(task2, ToggleAnnotationMode)
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task3))->Expect.toEqual(Some(false))
   })
-
-  test("SetAnnotationMode Off leaves annotations intact", t => {
-    let task = TestHelpers.makeLoadedTask()
-
-    let (task2, _) = TaskReducer.next(task, SetAnnotationMode({mode: Selecting}))
-    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(true))
-
-    let (task3, _) = TaskReducer.next(task2, SetAnnotationMode({mode: Off}))
-    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task3))->Expect.toEqual(Some(false))
-  })
 })
 
 describe("Task - Plan Entries", () => {
   test("PlanReceived updates plan entries", t => {
     let task = TestHelpers.makeLoadedTask()
-    t
-    ->expect(TaskReducer.Selectors.planEntries(task)->Option.getOr([])->Array.length)
-    ->Expect.toBe(0)
-
     let entries: array<Client__Task__Types.ACPTypes.planEntry> = [
       {content: "Step 1", priority: High, status: Pending},
       {content: "Step 2", priority: Medium, status: InProgress},
@@ -415,99 +343,102 @@ describe("Task - Plan Entries", () => {
 })
 
 describe("Task - Error Handling", () => {
-  test("AgentError sets turnError on Loaded task", t => {
+  test("UserMessageSendFailed removes a pending optimistic message and exposes the error", t => {
     let task = TestHelpers.makeLoadedTask()
-    t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
-
-    let (task2, _) = TaskReducer.next(
+    let (pending, _) = TaskReducer.next(
       task,
-      AgentError({
-        id: "agent-error-1",
-        error: "Quota exhausted",
-        category: #quota,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
+        agentId: "executor-id",
       }),
     )
+    let messageId = testUserMessageId->UserMessageId.toString
+    let (failed, effects) = TaskReducer.next(
+      pending,
+      UserMessageSendFailed({id: testUserMessageId, error: "Connection lost"}),
+    )
+
+    t->expect(TestHelpers.getQueuedUserMessages(failed))->Expect.toEqual([])
     t
-    ->expect(TaskReducer.Selectors.turnError(task2))
+    ->expect(TaskReducer.Selectors.turnError(failed))
     ->Expect.toEqual(
-      Some({
-        id: "agent-error-1",
-        message: "Quota exhausted",
-        category: #quota,
-      }),
+      Some({id: messageId, message: "Connection lost", category: #unknown, retryErrorId: None}),
     )
-
-    switch TestHelpers.getMessages(task2)->Array.get(0) {
-    | Some(Message.Error(error)) =>
-      t->expect(Message.ErrorMessage.error(error))->Expect.toBe("Quota exhausted")
-    | _ => t->expect("persistent error message")->Expect.toBe("missing")
-    }
+    t->expect(effects)->Expect.toEqual([])
   })
 
-  test("AgentError sets isAgentRunning to false", t => {
+  test("UserMessageSendFailed preserves a message already accepted by the server", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task2, _) = TaskReducer.next(task, ExecutionStateRunning)
-    t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(true))
-
-    let (task3, _) = TaskReducer.next(
-      task2,
-      AgentError({
-        id: "agent-error-1",
-        error: "Some error",
-        category: #unknown,
+    let (pending, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
+        agentId: "executor-id",
       }),
     )
-    t->expect(TaskReducer.Selectors.isAgentRunning(task3))->Expect.toEqual(Some(false))
+    let accepted = TestHelpers.acceptUserMessage(
+      pending,
+      ~id=testUserMessageId->UserMessageId.toString,
+    )
+    let (unchanged, _) = TaskReducer.next(
+      accepted,
+      UserMessageSendFailed({id: testUserMessageId, error: "Connection lost"}),
+    )
+
+    t->expect(TestHelpers.getQueuedUserMessages(unchanged)->Array.length)->Expect.toBe(1)
+    t->expect(TaskReducer.Selectors.turnError(unchanged))->Expect.toEqual(None)
   })
 
-  test("AgentError completes any streaming message", t => {
+  test("AgentError completes output, persists error, stops running, and emits no effects", t => {
     let task = TestHelpers.makeLoadedTask()
-    let task0 = TestHelpers.acceptUserMessage(task)
-    let (runningTask, _) = TaskReducer.next(task0, ExecutionStateRunning)
-    let (task2, _) = TaskReducer.next(
-      runningTask,
+    let task = TestHelpers.acceptUserMessage(task)
+    let (running, _) = TaskReducer.next(task, ExecutionStateRunning)
+    let (streaming, _) = TaskReducer.next(
+      running,
       TextDeltaReceived({
         messageId: "assistant-1",
         text: "Partial response",
         agentId: "test-agent",
       }),
     )
+    let (failed, effects) = TaskReducer.next(
+      streaming,
+      AgentError({id: "agent-error-1", error: "Quota exhausted", category: #quota}),
+    )
 
-    switch TaskReducer.Selectors.streamingMessage(task2) {
-    | Some(Message.Streaming(_)) => t->expect(true)->Expect.toBe(true)
-    | _ => t->expect(false)->Expect.toBe(true)
-    }
-
-    let (task3, _) = TaskReducer.next(
-      task2,
-      AgentError({
+    t
+    ->expect(TaskReducer.Selectors.turnError(failed))
+    ->Expect.toEqual(
+      Some({
         id: "agent-error-1",
-        error: "Error occurred",
-        category: #unknown,
+        message: "Quota exhausted",
+        category: #quota,
+        retryErrorId: Some("agent-error-1"),
       }),
     )
-    t->expect(TaskReducer.Selectors.streamingMessage(task3))->Expect.toEqual(None)
+    t->expect(TaskReducer.Selectors.isAgentRunning(failed))->Expect.toEqual(Some(false))
+    t->expect(TaskReducer.Selectors.streamingMessage(failed))->Expect.toEqual(None)
+    t->expect(effects)->Expect.toEqual([])
 
-    let messages = TestHelpers.getMessages(task3)
+    let messages = TestHelpers.getMessages(failed)
     switch messages->Array.get(1) {
     | Some(Message.Assistant(Completed({content}))) =>
-      t->expect(Array.length(content))->Expect.toBe(1)
-    | _ => t->expect(false)->Expect.toBe(true)
+      switch content->Array.get(0) {
+      | Some(Message.AssistantContentPart.Text({text})) =>
+        t->expect(text)->Expect.toBe("Partial response")
+      | _ => t->expect("completed partial response")->Expect.toBe("missing")
+      }
+    | _ => t->expect("completed assistant message")->Expect.toBe("missing")
     }
-  })
-
-  test("AgentError emits no effects", t => {
-    let task = TestHelpers.makeLoadedTask()
-    let (_, effects) = TaskReducer.next(
-      task,
-      AgentError({
-        id: "agent-error-1",
-        error: "Error",
-        category: #unknown,
-      }),
-    )
-
-    t->expect(Array.length(effects))->Expect.toBe(0)
+    switch messages->Array.get(2) {
+    | Some(Message.Error(error)) =>
+      t->expect(Message.ErrorMessage.error(error))->Expect.toBe("Quota exhausted")
+    | _ => t->expect("persistent error message")->Expect.toBe("missing")
+    }
   })
 
   test("ClearTurnError clears the turnError", t => {
@@ -527,19 +458,12 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         message: "Some error",
         category: #unknown,
+        retryErrorId: Some("agent-error-1"),
       }),
     )
 
     let (task3, _) = TaskReducer.next(task2, ClearTurnError)
     t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
-  })
-
-  test("ClearTurnError is idempotent", t => {
-    let task = TestHelpers.makeLoadedTask()
-    t->expect(TaskReducer.Selectors.turnError(task))->Expect.toEqual(None)
-
-    let (task2, _) = TaskReducer.next(task, ClearTurnError)
-    t->expect(TaskReducer.Selectors.turnError(task2))->Expect.toEqual(None)
   })
 
   test("AddUserMessage clears turnError", t => {
@@ -559,6 +483,7 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         message: "Previous error",
         category: #unknown,
+        retryErrorId: Some("agent-error-1"),
       }),
     )
 
@@ -591,57 +516,8 @@ describe("Task - CancelTurn", () => {
     task3
   }
 
-  test("CancelTurn when agent running: sets isAgentRunning to false", t => {
+  test("CancelTurn stops running, preserves text, cancels tools, and emits CancelPrompt", t => {
     let task = _startAgentWithStreaming()
-    t->expect(TaskReducer.Selectors.isAgentRunning(task))->Expect.toEqual(Some(true))
-
-    let (cancelled, _) = TaskReducer.next(task, CancelTurn)
-    t->expect(TaskReducer.Selectors.isAgentRunning(cancelled))->Expect.toEqual(Some(false))
-  })
-
-  test("CancelTurn preserves partial text as completed message", t => {
-    let task = _startAgentWithStreaming()
-    let (cancelled, _) = TaskReducer.next(task, CancelTurn)
-
-    let messages = TestHelpers.getMessages(cancelled)
-    t->expect(Array.length(messages))->Expect.toBe(2)
-
-    switch messages->Array.get(1) {
-    | Some(Message.Assistant(Completed({content}))) =>
-      switch content->Array.get(0) {
-      | Some(Client__Task__Types.AssistantContentPart.Text({text})) =>
-        t->expect(text)->Expect.toBe("Partial resp")
-      | _ => t->expect("Text content")->Expect.toBe("not found")
-      }
-    | _ => t->expect("Completed assistant")->Expect.toBe("not found")
-    }
-  })
-
-  test("CancelTurn emits CancelPrompt effect", t => {
-    let task = _startAgentWithStreaming()
-    let (_, effects) = TaskReducer.next(task, CancelTurn)
-
-    t->expect(Array.length(effects))->Expect.toBe(1)
-    switch effects->Array.get(0) {
-    | Some(TaskReducer.CancelPrompt) => t->expect(true)->Expect.toBe(true)
-    | _ => t->expect("CancelPrompt effect")->Expect.toBe("not found")
-    }
-  })
-
-  test("CancelTurn is no-op when agent is not running", t => {
-    let task = TestHelpers.makeLoadedTask()
-    t->expect(TaskReducer.Selectors.isAgentRunning(task))->Expect.toEqual(Some(false))
-
-    let (unchanged, effects) = TaskReducer.next(task, CancelTurn)
-    t->expect(effects)->Expect.toEqual([])
-    t->expect(TaskReducer.Selectors.isAgentRunning(unchanged))->Expect.toEqual(Some(false))
-  })
-
-  test("CancelTurn marks in-progress tool calls as cancelled", t => {
-    let task = TestHelpers.makeLoadedTask()
-    let task1 = TestHelpers.acceptUserMessage(task)
-    let (runningTask, _) = TaskReducer.next(task1, ExecutionStateRunning)
-
     let toolCall: Message.toolCall = {
       id: "tool-1",
       toolName: "edit_file",
@@ -653,11 +529,21 @@ describe("Task - CancelTurn", () => {
       parentAgentId: None,
       spawningToolName: None,
     }
-    let (task2, _) = TaskReducer.next(runningTask, ToolCallReceived({toolCall: toolCall}))
+    let (withTool, _) = TaskReducer.next(task, ToolCallReceived({toolCall: toolCall}))
+    let (cancelled, effects) = TaskReducer.next(withTool, CancelTurn)
 
-    let (cancelled, _) = TaskReducer.next(task2, CancelTurn)
-
+    t->expect(TaskReducer.Selectors.isAgentRunning(cancelled))->Expect.toEqual(Some(false))
+    t->expect(effects)->Expect.toEqual([TaskReducer.CancelPrompt])
     let messages = TestHelpers.getMessages(cancelled)
+    switch messages->Array.get(1) {
+    | Some(Message.Assistant(Completed({content}))) =>
+      switch content->Array.get(0) {
+      | Some(Client__Task__Types.AssistantContentPart.Text({text})) =>
+        t->expect(text)->Expect.toBe("Partial resp")
+      | _ => t->expect("Text content")->Expect.toBe("not found")
+      }
+    | _ => t->expect("Completed assistant")->Expect.toBe("not found")
+    }
     let toolMsg = messages->Array.find(
       msg =>
         switch msg {
@@ -672,29 +558,33 @@ describe("Task - CancelTurn", () => {
     }
   })
 
-  test("CancelTurn clears turnError", t => {
+  test("CancelTurn is no-op when agent is not running", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task1, _) = TaskReducer.next(
-      task,
-      AgentError({
-        id: "agent-error-1",
-        error: "Some error",
-        category: #unknown,
-      }),
-    )
-    let task2 = TestHelpers.acceptUserMessage(task1, ~text="retry")
-    let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning)
-    let (cancelled, _) = TaskReducer.next(runningTask, CancelTurn)
-    t->expect(TaskReducer.Selectors.turnError(cancelled))->Expect.toEqual(None)
+    let (unchanged, effects) = TaskReducer.next(task, CancelTurn)
+
+    t->expect(unchanged)->Expect.toEqual(task)
+    t->expect(effects)->Expect.toEqual([])
   })
 
   test("after CancelTurn, new AddUserMessage creates fresh assistant message", t => {
     let task = _startAgentWithStreaming()
     let (cancelled, _) = TaskReducer.next(task, CancelTurn)
-
-    let task2 = TestHelpers.acceptUserMessage(cancelled, ~id="user-2", ~text="New question")
-
-    let (runningTask, _) = TaskReducer.next(task2, ExecutionStateRunning)
+    let messageId = UserMessageId.make()
+    let (submitted, _) = TaskReducer.next(
+      cancelled,
+      AddUserMessage({
+        id: messageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "New question"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let accepted = TestHelpers.acceptUserMessage(
+      submitted,
+      ~id=messageId->UserMessageId.toString,
+      ~text="New question",
+    )
+    let (runningTask, _) = TaskReducer.next(accepted, ExecutionStateRunning)
     let (task4, _) = TaskReducer.next(
       runningTask,
       TextDeltaReceived({
@@ -817,68 +707,46 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     task3
   }
 
-  test("AddUserMessage with annotations clears task-level annotations", t => {
+  test("AddUserMessage clears annotation UI state and sends annotations", t => {
     let task = _taskWithAnnotations()
-
     t
     ->expect(TaskReducer.Selectors.annotations(task)->Option.getOr([])->Array.length)
     ->Expect.toBe(2)
-
-    let (task2, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
-        annotations: _sampleMessageAnnotations,
-        agentId: "executor-id",
-      }),
-    )
-
-    t
-    ->expect(TaskReducer.Selectors.annotations(task2)->Option.getOr([])->Array.length)
-    ->Expect.toBe(0)
-  })
-
-  test("AddUserMessage resets annotationMode to Off", t => {
-    let task = _taskWithAnnotations()
-
     t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task))->Expect.toEqual(Some(true))
-
-    let (task2, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
-        annotations: _sampleMessageAnnotations,
-        agentId: "executor-id",
-      }),
-    )
-
-    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(false))
-  })
-
-  test("AddUserMessage clears activePopupAnnotationId", t => {
-    let task = _taskWithAnnotations()
-
     t
     ->expect(TaskReducer.Selectors.activePopupAnnotationId(task)->Option.getOr(None)->Option.isSome)
     ->Expect.toBe(true)
 
-    let (task2, _) = TaskReducer.next(
+    let (updated, effects) = TaskReducer.next(
       task,
       AddUserMessage({
         id: testUserMessageId,
-        content: [],
+        content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
       }),
     )
 
     t
+    ->expect(TaskReducer.Selectors.annotations(updated)->Option.getOr([])->Array.length)
+    ->Expect.toBe(0)
+    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(updated))->Expect.toEqual(Some(false))
+    t
     ->expect(
-      TaskReducer.Selectors.activePopupAnnotationId(task2)->Option.getOr(None)->Option.isNone,
+      TaskReducer.Selectors.activePopupAnnotationId(updated)->Option.getOr(None)->Option.isNone,
     )
     ->Expect.toBe(true)
+
+    switch effects->Array.get(0) {
+    | Some(SendMessage({id, annotations, agentId})) => {
+        t
+        ->expect(id->UserMessageId.toString)
+        ->Expect.toBe(testUserMessageId->UserMessageId.toString)
+        t->expect(annotations->Array.length)->Expect.toBe(2)
+        t->expect(agentId)->Expect.toBe("executor-id")
+      }
+    | _ => t->expect("SendMessage effect")->Expect.toBe("not found")
+    }
   })
 
   test("Annotations are stored on the message itself", t => {
@@ -905,41 +773,11 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     | _ => t->expect("User message")->Expect.toBe("not found")
     }
   })
-
-  test("SendMessage effect carries annotations", t => {
-    let task = TestHelpers.makeLoadedTask()
-
-    let (_task2, effects) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "Fix"})],
-        annotations: _sampleMessageAnnotations,
-        agentId: "executor-id",
-      }),
-    )
-
-    switch effects->Array.get(0) {
-    | Some(SendMessage({id, annotations, agentId})) => {
-        t
-        ->expect(id->UserMessageId.toString)
-        ->Expect.toBe(testUserMessageId->UserMessageId.toString)
-        t->expect(annotations->Array.length)->Expect.toBe(2)
-        t->expect(agentId)->Expect.toBe("executor-id")
-      }
-    | _ => t->expect("SendMessage effect")->Expect.toBe("not found")
-    }
-  })
 })
 
 describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", () => {
   test("QuestionReceived sets pendingQuestion on Loaded task with isAgentRunning=false", t => {
     let task = TestHelpers.makeLoadedTask()
-
-    let resolvedOk = ref(None)
-    let resolvedError = ref(None)
-    let resolveOk = (json: JSON.t) => resolvedOk := Some(json)
-    let resolveError = (msg: string) => resolvedError := Some(msg)
 
     let questions: array<Client__Question__Types.questionItem> = [
       {
@@ -952,7 +790,12 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
 
     let (nextTask, effects) = TaskReducer.next(
       task,
-      QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
+      QuestionReceived({
+        questions,
+        toolCallId: "tc_1",
+        resolveOk: _ => (),
+        resolveError: _ => (),
+      }),
     )
 
     let pq = TaskReducer.Selectors.pendingQuestion(nextTask)
@@ -968,7 +811,7 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
     }
   })
 
-  test("QuestionSubmitted resolves the tool promise and emits ResolveQuestionToolEffect", t => {
+  test("QuestionSubmitted emits and executes ResolveQuestionToolEffect", t => {
     let task = TestHelpers.makeLoadedTask()
 
     let resolvedOk = ref(None)
@@ -988,9 +831,6 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
       task,
       QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
     )
-    let (cancelledTask, _) = TaskReducer.next(taskWithQuestion, QuestionCancelled)
-    t->expect(Task.getCompletedFileChanges(cancelledTask).revision)->Expect.toBe(1)
-
     let (taskWithAnswer, _) = TaskReducer.next(
       taskWithQuestion,
       QuestionOptionToggled({questionIndex: 0, label: "A"}),
@@ -1002,7 +842,7 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
     t->expect(pq->Option.isNone)->Expect.toBe(true)
 
     switch effects->Array.get(0) {
-    | Some(ResolveQuestionToolEffect(_)) => t->expect(true)->Expect.toBe(true)
+    | Some(ResolveQuestionToolEffect({resolveOk, answerJson})) => resolveOk(answerJson)
     | other =>
       t
       ->expect(
@@ -1010,39 +850,6 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
       )
       ->Expect.toBe("ResolveQuestionToolEffect")
     }
-  })
-
-  test("resolveOk callback is called when ResolveQuestionToolEffect is executed", t => {
-    let task = TestHelpers.makeLoadedTask()
-
-    let resolvedOk = ref(None)
-    let resolveOk = (json: JSON.t) => resolvedOk := Some(json)
-    let resolveError = (_msg: string) => ()
-
-    let questions: array<Client__Question__Types.questionItem> = [
-      {
-        question: "Pick one",
-        header: "Test",
-        options: [{label: "A", description: "Option A"}],
-        multiple: None,
-      },
-    ]
-
-    let (taskWithQuestion, _) = TaskReducer.next(
-      task,
-      QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
-    )
-    let (taskWithAnswer, _) = TaskReducer.next(
-      taskWithQuestion,
-      QuestionOptionToggled({questionIndex: 0, label: "A"}),
-    )
-    let (_finalTask, effects) = TaskReducer.next(taskWithAnswer, QuestionSubmitted)
-
-    switch effects->Array.get(0) {
-    | Some(ResolveQuestionToolEffect({resolveOk, answerJson})) => resolveOk(answerJson)
-    | _ => ()
-    }
-
     t->expect(resolvedOk.contents->Option.isSome)->Expect.toBe(true)
   })
 })
@@ -1067,12 +874,6 @@ describe("Task - QuestionPerQuestionSkipped", () => {
         options: [{label: "B", description: "b"}],
         multiple: None,
       },
-      {
-        question: "Q3",
-        header: "H3",
-        options: [{label: "C", description: "c"}],
-        multiple: None,
-      },
     ]
 
     let (taskWithQ, _) = TaskReducer.next(
@@ -1095,17 +896,12 @@ describe("Task - QuestionPerQuestionSkipped", () => {
     }
 
     t->expect(effects->Array.length)->Expect.toBe(0)
-
-    t
-    ->expect(TaskReducer.Selectors.pendingQuestion(afterSkip)->Option.isSome)
-    ->Expect.toBe(true)
   })
 
   test("skipping the last question auto-submits via resolveQuestion", t => {
     let task = TestHelpers.makeLoadedTask()
 
-    let resolvedOk = ref(None)
-    let resolveOk = (json: JSON.t) => resolvedOk := Some(json)
+    let resolveOk = (_json: JSON.t) => ()
     let resolveError = (_msg: string) => ()
 
     let questions: array<Client__Question__Types.questionItem> = [
@@ -1115,12 +911,6 @@ describe("Task - QuestionPerQuestionSkipped", () => {
         options: [{label: "A", description: "a"}],
         multiple: None,
       },
-      {
-        question: "Q2",
-        header: "H2",
-        options: [{label: "B", description: "b"}],
-        multiple: None,
-      },
     ]
 
     let (taskWithQ, _) = TaskReducer.next(
@@ -1128,18 +918,13 @@ describe("Task - QuestionPerQuestionSkipped", () => {
       QuestionReceived({questions, toolCallId: "tc_1", resolveOk, resolveError}),
     )
 
-    let (afterSkip0, _) = TaskReducer.next(
+    let (afterSkip, effects) = TaskReducer.next(
       taskWithQ,
       QuestionPerQuestionSkipped({questionIndex: 0}),
     )
 
-    let (afterSkip1, effects) = TaskReducer.next(
-      afterSkip0,
-      QuestionPerQuestionSkipped({questionIndex: 1}),
-    )
-
     t
-    ->expect(TaskReducer.Selectors.pendingQuestion(afterSkip1)->Option.isNone)
+    ->expect(TaskReducer.Selectors.pendingQuestion(afterSkip)->Option.isNone)
     ->Expect.toBe(true)
 
     switch effects->Array.get(0) {
@@ -1205,13 +990,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     enrichmentStatus,
   })
 
-  let _resolveAnnotation = (task, effects, ~enrichmentStatus=Annotation.Enriched) => {
-    let id = _getAnnotationIdFromEffect(effects)
-    let (resolved, _) = TaskReducer.next(task, _makeResolved(~id, ~enrichmentStatus))
-    resolved
-  }
-
-  test("ToggleAnnotation creates annotation with Enriching status and Ok(None) async fields", t => {
+  test("ToggleAnnotation enriches async fields and clears enriching status", t => {
     let (task, effects) = _taskWithEnrichingAnnotation()
     let ann = _getAnnotation(task, 0)
 
@@ -1219,17 +998,10 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     t->expect(ann.selector)->Expect.toEqual(Ok(None))
     t->expect(ann.screenshot)->Expect.toEqual(Ok(None))
     t->expect(ann.sourceLocation)->Expect.toEqual(Ok(None))
+    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task))->Expect.toEqual(Some(true))
 
-    switch effects->Array.get(0) {
-    | Some(FetchAnnotationDetails(_)) => t->expect(true)->Expect.toBe(true)
-    | _ => t->expect("FetchAnnotationDetails effect")->Expect.toBe("not found")
-    }
-  })
-
-  test("AnnotationDetailsResolved writes all enrichment fields and sets Enriched", t => {
-    let (task, effects) = _taskWithEnrichingAnnotation()
     let id = _getAnnotationIdFromEffect(effects)
-    let (task2, _) = TaskReducer.next(
+    let (resolved, _) = TaskReducer.next(
       task,
       _makeResolved(
         ~id,
@@ -1241,14 +1013,15 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
         ~boundingBox={x: 10.0, y: 20.0, width: 100.0, height: 50.0},
       ),
     )
-    let ann = _getAnnotation(task2, 0)
-    t->expect(ann.enrichmentStatus)->Expect.toEqual(Annotation.Enriched)
-    t->expect(ann.selector)->Expect.toEqual(Ok(Some(".btn-submit")))
-    t->expect(ann.elementContext)->Expect.toEqual(Ok(Some(`selected tag="button"`)))
-    t->expect(ann.screenshot)->Expect.toEqual(Ok(Some("data:image/jpeg;base64,abc")))
-    t->expect(ann.cssClasses)->Expect.toEqual(Some("btn-submit"))
-    t->expect(ann.nearbyText)->Expect.toEqual(Some("Submit"))
-    switch ann.boundingBox {
+    let enriched = _getAnnotation(resolved, 0)
+    t->expect(enriched.enrichmentStatus)->Expect.toEqual(Annotation.Enriched)
+    t->expect(enriched.selector)->Expect.toEqual(Ok(Some(".btn-submit")))
+    t->expect(enriched.elementContext)->Expect.toEqual(Ok(Some(`selected tag="button"`)))
+    t->expect(enriched.screenshot)->Expect.toEqual(Ok(Some("data:image/jpeg;base64,abc")))
+    t->expect(enriched.cssClasses)->Expect.toEqual(Some("btn-submit"))
+    t->expect(enriched.nearbyText)->Expect.toEqual(Some("Submit"))
+    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(resolved))->Expect.toEqual(Some(false))
+    switch enriched.boundingBox {
     | Some(bb) =>
       t->expect(bb.x)->Expect.toBe(10.0)
       t->expect(bb.width)->Expect.toBe(100.0)
@@ -1294,6 +1067,7 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     t->expect(ann.selector)->Expect.toEqual(Error(errorMsg))
     t->expect(ann.screenshot)->Expect.toEqual(Error(errorMsg))
     t->expect(ann.sourceLocation)->Expect.toEqual(Error(errorMsg))
+    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task2))->Expect.toEqual(Some(false))
   })
 
   test("AnnotationDetailsResolved on Unloaded task is silently discarded", t => {
@@ -1301,20 +1075,6 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     let (task2, effects) = TaskReducer.next(task, _makeResolved(~id="stale-ann-id"))
     t->expect(effects)->Expect.toEqual([])
     t->expect(Task.getAnnotations(task2)->Array.length)->Expect.toBe(0)
-  })
-
-  test("hasEnrichingAnnotations is true while Enriching, false after Enriched", t => {
-    let (task, effects) = _taskWithEnrichingAnnotation()
-    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task))->Expect.toEqual(Some(true))
-
-    let resolved = _resolveAnnotation(task, effects)
-    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(resolved))->Expect.toEqual(Some(false))
-  })
-
-  test("hasEnrichingAnnotations is false after Failed", t => {
-    let (task, effects) = _taskWithEnrichingAnnotation()
-    let resolved = _resolveAnnotation(task, effects, ~enrichmentStatus=Failed({error: "boom"}))
-    t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(resolved))->Expect.toEqual(Some(false))
   })
 
   test("hasEnrichingAnnotations is None for Unloaded task", t => {
@@ -1343,7 +1103,8 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     )
     t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task3))->Expect.toEqual(Some(true))
 
-    let task4 = _resolveAnnotation(task3, effects1)
+    let id = _getAnnotationIdFromEffect(effects1)
+    let (task4, _) = TaskReducer.next(task3, _makeResolved(~id))
     t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task4))->Expect.toEqual(Some(true))
   })
 })

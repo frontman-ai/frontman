@@ -106,7 +106,7 @@ module TestHelpers = {
   let acceptUserMessage = (
     state,
     ~taskId,
-    ~id="user-accepted-1",
+    ~id,
     ~content=[UserContentPart.text("Hello")],
     ~annotations=[],
   ) => {
@@ -313,7 +313,7 @@ describe("Client State Reducer", () => {
     let state = TestHelpers.acceptUserMessage(
       state,
       ~taskId,
-      ~id="user-1",
+      ~id=testUserMessageId->UserMessageId.toString,
       ~content=[UserContentPart.text("Hi")],
     )
 
@@ -1156,6 +1156,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let nextState = TestHelpers.acceptUserMessage(
       state,
       ~taskId,
+      ~id=testUserMessageId->UserMessageId.toString,
       ~content=[UserContentPart.text("Fix this")],
       ~annotations=_sampleAnnotations,
     )
@@ -1193,6 +1194,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let nextState = TestHelpers.acceptUserMessage(
       state,
       ~taskId,
+      ~id=testUserMessageId->UserMessageId.toString,
       ~content=[],
       ~annotations=_sampleAnnotations,
     )
@@ -1222,9 +1224,14 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
-    let nextState = TestHelpers.acceptUserMessage(state, ~taskId)
+    let nextState = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~id=testUserMessageId->UserMessageId.toString,
+    )
 
     let messages = Reducer.Selectors.queuedUserMessages(nextState)
+    t->expect(messages->Array.length)->Expect.toBe(1)
     switch messages->Array.get(0)->Option.getOrThrow {
     | Reducer.Message.User({annotations, _}) => t->expect(annotations->Array.length)->Expect.toBe(0)
     | _ => JsExn.throw("Expected User message")
@@ -1302,6 +1309,59 @@ describe("Client State Reducer - Annotations on Messages", () => {
     t
     ->expect(metadata->Dict.get("model")->Option.flatMap(JSON.Decode.string))
     ->Expect.toEqual(Some("anthropic:claude-opus-4-6"))
+  })
+
+  test("SendMessage dispatches task cleanup when sendPrompt fails", t => {
+    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
+    let messageId = UserMessageId.make()
+    let completion = ref(None)
+    let dispatched = ref([])
+    let state = {
+      ...Reducer.defaultState,
+      acpSession: AcpSessionActive({
+        sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
+          completion := Some(onComplete),
+        cancelPrompt: () => (),
+        retryTurn: _ => (),
+        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+        deleteSession: (_, ~onComplete as _) => (),
+        apiBaseUrl: "http://localhost:4000",
+      }),
+    }
+    let (state, effects) = Reducer.next(
+      state,
+      Reducer.AddUserMessage({
+        id: messageId,
+        sessionId: "session-1",
+        content: [UserContentPart.text("Fix this")],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+
+    effects->Array.forEach(
+      effect =>
+        Reducer.handleEffect(
+          effect,
+          state,
+          action => dispatched := Array.concat(dispatched.contents, [action]),
+        ),
+    )
+    let onComplete = completion.contents->Option.getOrThrow
+    onComplete(Error("Connection lost"))
+
+    switch dispatched.contents {
+    | [
+        Reducer.TaskAction({
+          target: ForTask("session-1"),
+          action: UserMessageSendFailed({id, error}),
+        }),
+      ] => {
+        t->expect(id)->Expect.toEqual(messageId)
+        t->expect(error)->Expect.toBe("Connection lost")
+      }
+    | _ => JsExn.throw("Expected targeted UserMessageSendFailed action")
+    }
   })
 
   describe("API key provider actions", () => {

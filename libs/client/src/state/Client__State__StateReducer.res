@@ -485,7 +485,7 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 
 let sendMessageToAPIImpl = (
   state: state,
-  _dispatch,
+  dispatch,
   ~messageId,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
@@ -519,8 +519,31 @@ let sendMessageToAPIImpl = (
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
     let _meta = Some(JSON.Encode.object(metadata))
 
-    sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
-  | NoAcpSession => Log.error("Cannot send message: no active ACP session")
+    sendPrompt(
+      message,
+      ~additionalBlocks,
+      ~onComplete=result =>
+        switch result {
+        | Ok(_) => ()
+        | Error(error) =>
+          dispatch(
+            TaskAction({
+              target: ForTask(taskId),
+              action: UserMessageSendFailed({id: messageId, error}),
+            }),
+          )
+        },
+      ~_meta,
+    )
+  | NoAcpSession =>
+    let error = "Cannot send message: no active ACP session"
+    Log.error(error)
+    dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: UserMessageSendFailed({id: messageId, error}),
+      }),
+    )
   }
 }
 

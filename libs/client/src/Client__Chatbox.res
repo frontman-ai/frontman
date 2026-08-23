@@ -391,14 +391,13 @@ let make = (~onConfigureProvider: unit => unit) => {
 
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({id, message, category}), Some(taskId))
+        | (None, Some({id, message, category, retryErrorId}), Some(taskId))
           if shouldRenderTurnError(messages, id) =>
-          <ErrorBanner
-            error=message
-            category
-            onConfigureProvider
-            onRetry={() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=id)}
-          />
+          let onRetry =
+            retryErrorId->Option.map(retriedErrorId =>
+              () => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId)
+            )
+          <ErrorBanner error=message category onConfigureProvider onRetry=?onRetry />
         | _ => React.null
         }}
 
