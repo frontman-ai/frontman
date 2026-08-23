@@ -67,7 +67,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   def changeset(%__MODULE__{} = interaction, attrs) when is_map(attrs) do
     interaction
     |> cast(attrs, [:id, :type, :turn_number])
-    |> put_sequence()
+    |> put_change(:sequence, generate_sequence())
     |> cast_polymorphic_embed(:data, required: true, with: polymorphic_changesets())
     |> validate_create()
   end
@@ -133,10 +133,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       name: @tool_result_unique_constraint,
       message: "duplicate tool result for this tool_call_id"
     )
-  end
-
-  defp put_sequence(changeset) do
-    put_change(changeset, :sequence, generate_sequence())
   end
 
   defp generate_sequence do
