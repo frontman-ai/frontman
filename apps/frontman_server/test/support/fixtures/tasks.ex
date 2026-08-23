@@ -23,6 +23,11 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
 
   @default_test_model "openrouter:openai/gpt-5.5"
 
+  def interaction_changeset(task_id, attrs) do
+    %InteractionSchema{task_id: task_id}
+    |> InteractionSchema.changeset(attrs)
+  end
+
   @doc """
   Create a task and return its schema.
 
@@ -83,22 +88,28 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   def user_message_fixture(scope, task_id, content_blocks, model \\ @default_test_model) do
     task = task_schema!(scope, task_id)
     {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model, "test-frontman")
+    message_id = Ecto.UUID.generate()
 
     with {:ok, row} <-
-           InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+           interaction_changeset(task.id, %{
+             id: message_id,
+             type: :user_message,
+             data: Map.put(attrs, :id, message_id),
+             turn_number: nil
+           })
            |> Repo.insert(),
          {:ok, _turn_started} <-
-           InteractionSchema.create_changeset(
-             task.id,
-             :turn_started,
-             %{
+           interaction_changeset(task.id, %{
+             id: Ecto.UUID.generate(),
+             type: :turn_started,
+             data: %{
                id: Ecto.UUID.generate(),
                timestamp: Interaction.now(),
                agent_id: "test-frontman",
                user_message_ids: [row.id]
              },
-             next_turn_number(task_id)
-           )
+             turn_number: next_turn_number(task_id)
+           })
            |> Repo.insert() do
       {:ok, row.data}
     end

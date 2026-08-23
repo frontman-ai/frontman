@@ -290,7 +290,8 @@ defmodule AgentClientProtocol do
   @doc """
   Builds a canonical accepted user_message_chunk session/update notification.
 
-  Used when a user message is persisted as accepted session history. `message_id` is server-owned.
+  Used when a user message is persisted as accepted session history. `message_id` is the
+  client-generated UUID accepted as the interaction row ID.
   """
   def build_user_message_chunk_notification(session_id, message_id, content, agent_id, timestamp)
       when is_binary(agent_id) and agent_id != "" do

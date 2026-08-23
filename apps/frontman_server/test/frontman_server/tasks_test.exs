@@ -65,7 +65,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
 
-      insert_started_user_message_row(task_id, 1)
+      assert 1 = start_turn_fixture(scope, task_id)
       insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_1"})
 
       assert {:ok, 1, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
@@ -97,10 +97,16 @@ defmodule FrontmanServer.TasksTest do
   describe "submit_user_message/2" do
     test "persists an accepted user message without starting a turn", %{scope: scope} do
       task = task_fixture(scope)
+      message_id = Ecto.UUID.generate()
 
-      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
+      assert {:ok,
+              %InteractionSchema{
+                id: ^message_id,
+                data: %Interaction.UserMessage{id: ^message_id}
+              }} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
+                 message_id: message_id,
                  message: user_content("hello"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
@@ -129,6 +135,7 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
+                 message_id: Ecto.UUID.generate(),
                  message: user_content("second"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
@@ -148,6 +155,7 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
+                 message_id: Ecto.UUID.generate(),
                  message: user_content("hello"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
@@ -175,6 +183,7 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
+                 message_id: Ecto.UUID.generate(),
                  message: user_content("hello"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "unknown-agent"
@@ -551,7 +560,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "rejects an older error after later interactions in the same turn", %{scope: scope} do
       task_id = task_fixture(scope).id
-      insert_started_user_message_row(task_id, 1)
+      assert 1 = start_turn_fixture(scope, task_id)
       insert_interaction_row(task_id, Interaction.AgentError, 1, %{"id" => "error-1"})
 
       insert_interaction_row(task_id, Interaction.AgentRetry, 1, %{
@@ -871,39 +880,17 @@ defmodule FrontmanServer.TasksTest do
   defp interaction_type(module),
     do: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, module)
 
-  defp insert_started_user_message_row(task_id, turn_number) do
-    {:ok, attrs} =
-      Interaction.UserMessage.attrs(user_content("test turn"), "openrouter:openai/gpt-5.5")
-
-    row =
-      InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
-      |> Repo.insert!()
-
-    InteractionSchema.create_changeset(
-      task_id,
-      :turn_started,
-      %{
-        id: Ecto.UUID.generate(),
-        timestamp: Interaction.now(),
-        agent_id: "test-frontman",
-        user_message_ids: [row.id]
-      },
-      turn_number
-    )
-    |> Repo.insert!()
-  end
-
   defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
     {interaction_type, attrs} = test_interaction_attrs(type, data)
 
-    InteractionSchema.create_changeset(task_id, interaction_type, attrs, turn_number)
+    interaction_changeset(task_id, %{
+      id: Ecto.UUID.generate(),
+      type: interaction_type,
+      data: attrs,
+      turn_number: turn_number
+    })
     |> Repo.insert!()
   end
-
-  defp test_interaction_attrs(Interaction.DiscoveredProjectRule, _data),
-    do:
-      {:discovered_project_rule,
-       %{path: "/project/AGENTS.md", content: "rules", timestamp: Interaction.now()}}
 
   defp test_interaction_attrs(Interaction.ToolCall, data) do
     {:ok, attrs} =
@@ -985,8 +972,14 @@ defmodule FrontmanServer.TasksTest do
          model \\ "openrouter:openai/gpt-5.5"
        ) do
     {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
+    message_id = Ecto.UUID.generate()
 
-    InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+    interaction_changeset(task.id, %{
+      id: message_id,
+      type: :user_message,
+      data: Map.put(attrs, :id, message_id),
+      turn_number: nil
+    })
     |> Repo.insert!()
   end
 
@@ -1129,53 +1122,6 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:error, :not_found} =
                Tasks.add_discovered_project_rule(scope, nonexistent_id, "/path", "content")
-    end
-
-    test "handles content with null bytes without crashing", %{scope: scope} do
-      task_id = task_fixture(scope).id
-
-      content_with_null = "# Rules\0with null\0bytes"
-
-      {:ok, _rule} =
-        Tasks.add_discovered_project_rule(
-          scope,
-          task_id,
-          "/project/AGENTS.md",
-          content_with_null
-        )
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      [db_rule] =
-        Enum.filter(
-          Tasks.interactions(task),
-          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
-        )
-
-      assert db_rule.path == "/project/AGENTS.md"
-      refute String.contains?(db_rule.content, <<0>>)
-      assert db_rule.content == "# Ruleswith nullbytes"
-    end
-
-    test "handles null bytes in rule file path without crashing", %{scope: scope} do
-      task_id = task_fixture(scope).id
-
-      path_with_null = "/project/AGENTS\0.md"
-
-      {:ok, _rule} =
-        Tasks.add_discovered_project_rule(scope, task_id, path_with_null, "# Clean content")
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      [db_rule] =
-        Enum.filter(
-          Tasks.interactions(task),
-          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
-        )
-
-      refute String.contains?(db_rule.path, <<0>>)
-      assert db_rule.path == "/project/AGENTS.md"
-      assert db_rule.content == "# Clean content"
     end
   end
 

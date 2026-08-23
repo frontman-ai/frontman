@@ -329,7 +329,7 @@ type action =
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
   | AddUserMessage({
-      id: string,
+      id: Message.UserMessageId.t,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
@@ -403,6 +403,7 @@ type effect =
       contentWindow: option<WebAPI.DomTypes.window>,
     })
   | SendMessage({
+      id: Message.UserMessageId.t,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
@@ -416,6 +417,7 @@ type effect =
 
 type delegated =
   | NeedSendMessage({
+      id: Message.UserMessageId.t,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
@@ -898,7 +900,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loaded(data), AddUserMessage({id: _, content, annotations, agentId})) =>
+  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
 
@@ -918,7 +920,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
       }),
-      [SendMessage({text, attachments, annotations, agentId})],
+      [SendMessage({id, text, attachments, annotations, agentId})],
     )
 
   | (Task.Loaded(data), PlanReceived({entries})) => (
@@ -1432,8 +1434,8 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) =>
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({text, attachments, annotations, agentId}) =>
-    delegate(NeedSendMessage({text, attachments, annotations, agentId}))
+  | SendMessage({id, text, attachments, annotations, agentId}) =>
+    delegate(NeedSendMessage({id, text, attachments, annotations, agentId}))
   | CancelPrompt => delegate(NeedCancelPrompt)
   | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)

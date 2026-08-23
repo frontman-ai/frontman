@@ -5,6 +5,16 @@ type fileAttachmentData = {
   filename: string,
 }
 
+module UserMessageId: {
+  type t
+  let make: unit => t
+  let toString: t => string
+} = {
+  type t = string
+  let make = () => WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
+  let toString = id => id
+}
+
 type resolvedImageData = {
   base64: string,
   mediaType: string,

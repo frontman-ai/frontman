@@ -227,7 +227,11 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
     case Tasks.submit_user_message(
            scope,
-           Map.merge(execution_request, %{task_id: task_id, message: prompt_content(content)})
+           Map.merge(execution_request, %{
+             task_id: task_id,
+             message_id: Ecto.UUID.generate(),
+             message: prompt_content(content)
+           })
          ) do
       {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution_request) do
