@@ -370,6 +370,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
+  | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError
@@ -457,6 +458,7 @@ let actionToString = (action: action): string =>
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
   | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
+  | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
   | ClearTurnError => "ClearTurnError"
@@ -945,6 +947,32 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [SendMessage({id, text, attachments, annotations, agentId})],
     )
 
+  | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
+      let messageId = Message.UserMessageId.toString(id)
+      switch data.pendingUserMessageIds->Array.includes(messageId) {
+      | true =>
+        let queuedUserMessages =
+          data.queuedUserMessages->Array.filter(message => Message.getId(message) != messageId)
+        let pendingUserMessageIds =
+          data.pendingUserMessageIds->Array.filter(pendingId => pendingId != messageId)
+        (
+          Task.Loaded({
+            ...data,
+            queuedUserMessages,
+            pendingUserMessageIds,
+            turnError: Some({
+              id: messageId,
+              message: error,
+              category: #unknown,
+              retryErrorId: None,
+            }),
+          }),
+          [],
+        )
+      | false => (task, [])
+      }
+    }
+
   | (Task.Loaded(data), PlanReceived({entries})) => (
       Task.Loaded({...data, planEntries: entries}),
       [],
@@ -1040,7 +1068,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | Task.Loaded(data) => (
         Task.Loaded({
           ...data,
-          turnError: Some({id, message: error, category}),
+          turnError: Some({id, message: error, category, retryErrorId: Some(id)}),
           isAgentRunning: false,
           retryStatus: None,
         })->Lens.refreshCompletedFileChanges,
@@ -1253,6 +1281,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Unloaded(_),
       AddUserMessage(_)
+      | UserMessageSendFailed(_)
       | PlanReceived(_)
       | ExecutionStateRunning
       | ExecutionStateIdle

@@ -343,6 +343,56 @@ describe("Task - Plan Entries", () => {
 })
 
 describe("Task - Error Handling", () => {
+  test("UserMessageSendFailed removes a pending optimistic message and exposes the error", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (pending, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let messageId = testUserMessageId->UserMessageId.toString
+    let (failed, effects) = TaskReducer.next(
+      pending,
+      UserMessageSendFailed({id: testUserMessageId, error: "Connection lost"}),
+    )
+
+    t->expect(TestHelpers.getQueuedUserMessages(failed))->Expect.toEqual([])
+    t
+    ->expect(TaskReducer.Selectors.turnError(failed))
+    ->Expect.toEqual(
+      Some({id: messageId, message: "Connection lost", category: #unknown, retryErrorId: None}),
+    )
+    t->expect(effects)->Expect.toEqual([])
+  })
+
+  test("UserMessageSendFailed preserves a message already accepted by the server", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (pending, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let accepted = TestHelpers.acceptUserMessage(
+      pending,
+      ~id=testUserMessageId->UserMessageId.toString,
+    )
+    let (unchanged, _) = TaskReducer.next(
+      accepted,
+      UserMessageSendFailed({id: testUserMessageId, error: "Connection lost"}),
+    )
+
+    t->expect(TestHelpers.getQueuedUserMessages(unchanged)->Array.length)->Expect.toBe(1)
+    t->expect(TaskReducer.Selectors.turnError(unchanged))->Expect.toEqual(None)
+  })
+
   test("AgentError completes output, persists error, stops running, and emits no effects", t => {
     let task = TestHelpers.makeLoadedTask()
     let task = TestHelpers.acceptUserMessage(task)
@@ -367,6 +417,7 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         message: "Quota exhausted",
         category: #quota,
+        retryErrorId: Some("agent-error-1"),
       }),
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(failed))->Expect.toEqual(Some(false))
@@ -407,6 +458,7 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         message: "Some error",
         category: #unknown,
+        retryErrorId: Some("agent-error-1"),
       }),
     )
 
@@ -431,6 +483,7 @@ describe("Task - Error Handling", () => {
         id: "agent-error-1",
         message: "Previous error",
         category: #unknown,
+        retryErrorId: Some("agent-error-1"),
       }),
     )
 

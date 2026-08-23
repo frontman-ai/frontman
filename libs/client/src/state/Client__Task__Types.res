@@ -15,6 +15,7 @@ module Task = {
     id: string,
     message: string,
     category: Client__ErrorCategory.t,
+    retryErrorId: option<string>,
   }
 
   type retryStatus = {
