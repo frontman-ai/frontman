@@ -146,7 +146,7 @@ let run = async (options: installOptions): installResult => {
       ) {
       | Error(msg) =>
         Console.error(`  ${Style.warn}  ${msg}`)
-        ()
+        Failure(msg)
       | Ok() => ()
       }
       Console.log("")
