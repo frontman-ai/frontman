@@ -6,8 +6,8 @@ defmodule FrontmanServerWeb.CustomLlmEndpointsController do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.CustomLlmEndpoints
   alias FrontmanServer.Providers.CustomLlmEndpoint
+  alias FrontmanServer.Providers.CustomLlmEndpoints
 
   def index(conn, _params) do
     scope = conn.assigns.current_scope

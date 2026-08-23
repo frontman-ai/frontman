@@ -43,4 +43,12 @@ defmodule FrontmanServer.Providers.CustomLlmModel do
   def for_endpoint(query \\ __MODULE__, endpoint_id) do
     from(m in query, where: m.endpoint_id == ^endpoint_id)
   end
+
+  def with_model_id(query \\ __MODULE__, model_id) do
+    from(m in query, where: m.model_id == ^model_id)
+  end
+
+  def ordered(query \\ __MODULE__) do
+    from(m in query, order_by: [asc: m.position, asc: m.model_id])
+  end
 end

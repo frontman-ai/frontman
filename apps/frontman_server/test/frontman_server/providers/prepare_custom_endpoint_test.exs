@@ -78,7 +78,6 @@ defmodule FrontmanServer.Providers.PrepareCustomEndpointTest do
 
       assert %LLMDB.Model{provider: :openai, id: "gpt-custom"} = model
       assert model.base_url == "http://localhost:8000/v1"
-      # keyless endpoints get a placeholder key (see below)
       assert llm_opts == [api_key: "sk-no-key-required"]
     end
 
@@ -95,9 +94,6 @@ defmodule FrontmanServer.Providers.PrepareCustomEndpointTest do
     end
 
     test "sends a placeholder api_key when the endpoint has no key", %{scope: scope} do
-      # ReqLLM's OpenAI provider refuses to build a request without a non-empty
-      # :api_key, even for keyless local servers (llama.cpp, Ollama, vLLM) that
-      # ignore the Authorization header. We supply a placeholder in that case.
       endpoint = endpoint_fixture(scope)
       add_model(scope, endpoint.id, "gpt-custom", nil)
 

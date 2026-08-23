@@ -48,8 +48,6 @@ defmodule FrontmanServer.Providers.CustomLlmEndpoint do
     |> unique_constraint([:user_id, :name])
   end
 
-  # Requires a parseable URL with an http/https scheme and a host. Raw IPs and
-  # localhost are allowed; anything without a scheme + host is rejected.
   defp validate_base_url(changeset) do
     validate_change(changeset, :base_url, fn :base_url, value ->
       case URI.new(value) do

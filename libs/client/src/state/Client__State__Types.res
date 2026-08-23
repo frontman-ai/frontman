@@ -117,6 +117,7 @@ type customEndpointModel = {
   modelId: string,
   @as("display_name")
   displayName: option<string>,
+  @live
   position: option<int>,
 }
 
