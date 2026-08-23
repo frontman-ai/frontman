@@ -152,6 +152,23 @@ let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): i
       Console.error(`  ${Style.warn}  ${msg}`)
       Failure(msg)
     | Ok() =>
+      let dependencyValidation = switch options.skipDeps {
+      | true => Ok()
+      | false =>
+        switch Detect.resolveFrom(projectDir, "@frontman-ai/nextjs/package.json") {
+        | Error(msg) => Error(msg)
+        | Ok(_) =>
+          switch Detect.resolveFrom(projectDir, "@opentelemetry/sdk-node/package.json") {
+          | Error(msg) => Error(msg)
+          | Ok(_) => Ok()
+          }
+        }
+      }
+      switch dependencyValidation {
+      | Error(msg) =>
+        Console.error(`  ${Style.warn}  ${msg}`)
+        Failure(msg)
+      | Ok() =>
       Console.log("")
 
     let pendingEdits = collectPendingAutoEdits(~info, ~isNext16Plus)
@@ -212,16 +229,28 @@ let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): i
           PartialSuccess({manualStepsRequired: manualSteps})
         | false =>
           switch options.dryRun {
-          | true => ()
+          | true => Success
           | false =>
-            let devCommand = Detect.getDevCommand(info.packageManager)
-            Console.log("")
-            Console.log(`  ${Style.divider}`)
-            Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~server=host))
+            switch await Files.validateIntegration(
+              ~projectDir,
+              ~hasSrcDir=info.hasSrcDir,
+              ~isNext16Plus,
+              ~host,
+            ) {
+            | Error(msg) =>
+              Console.error(`  ${Style.warn}  ${msg}`)
+              Failure(msg)
+            | Ok() =>
+              let devCommand = Detect.getDevCommand(info.packageManager)
+              Console.log("")
+              Console.log(`  ${Style.divider}`)
+              Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~server=host))
+              Success
+            }
           }
-          Success
         }
       }
+    }
     }
     }
   }
