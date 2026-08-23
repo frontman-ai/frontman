@@ -256,8 +256,10 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     push(socket, @acp_message, notification)
 
-    if Tools.todo_mutation?(tool_result.tool_name) and not tool_result.is_error do
-      push_current_todo_plan(socket)
+    case {Tools.todo_mutation?(tool_result.tool_name), tool_result.is_error} do
+      {true, false} -> push_current_todo_plan(socket)
+      {true, true} -> :ok
+      {false, _is_error} -> :ok
     end
 
     {:noreply, socket}
@@ -577,7 +579,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           )
         )
 
-        push_current_todo_plan(socket)
+        push_current_todo_plan(socket, Tasks.list_todos(task))
 
         socket =
           socket
@@ -1012,6 +1014,10 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp push_current_todo_plan(socket) do
     {:ok, todos} = Tasks.list_todos(socket.assigns.scope, socket.assigns.task_id)
+    push_current_todo_plan(socket, todos)
+  end
+
+  defp push_current_todo_plan(socket, todos) when is_list(todos) do
     entries = Enum.map(todos, &to_plan_entry/1)
     push(socket, @acp_message, ACP.plan_update(socket.assigns.task_id, entries))
   end

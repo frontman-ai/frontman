@@ -54,6 +54,16 @@ defmodule FrontmanServer.Tasks.Todos do
               created_at: nil,
               updated_at: nil
 
+    @type t :: %__MODULE__{
+            id: Ecto.UUID.t(),
+            content: String.t(),
+            active_form: String.t(),
+            status: :pending | :in_progress | :completed,
+            priority: :high | :medium | :low,
+            created_at: DateTime.t(),
+            updated_at: DateTime.t()
+          }
+
     def schema do
       @schema
     end
