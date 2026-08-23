@@ -152,13 +152,13 @@ let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): i
       Console.error(`  ${Style.warn}  ${msg}`)
       Failure(msg)
     | Ok() =>
-      let dependencyValidation = switch options.skipDeps {
-      | true => Ok()
-      | false =>
-        switch Detect.resolveFrom(projectDir, "@frontman-ai/nextjs/package.json") {
+      let dependencyValidation = switch (options.skipDeps, options.dryRun) {
+      | (true, _) | (_, true) => Ok()
+      | (false, false) =>
+        switch Detect.resolveFrom(projectDir, "@frontman-ai/nextjs") {
         | Error(msg) => Error(msg)
         | Ok(_) =>
-          switch Detect.resolveFrom(projectDir, "@opentelemetry/sdk-node/package.json") {
+          switch Detect.resolveFrom(projectDir, "@opentelemetry/sdk-node") {
           | Error(msg) => Error(msg)
           | Ok(_) => Ok()
           }
