@@ -264,6 +264,49 @@ let handleInstrumentation = async (
   }
 }
 
+let validateIntegration = async (
+  ~projectDir: string,
+  ~hasSrcDir: bool,
+  ~isNext16Plus: bool,
+  ~host: string,
+): result<unit, string> => {
+  let entrypoint = switch (hasSrcDir, isNext16Plus) {
+  | (true, true) => Path.join([projectDir, "src", "proxy.ts"])
+  | (false, true) => Path.join([projectDir, "proxy.ts"])
+  | (true, false) => Path.join([projectDir, "src", "middleware.ts"])
+  | (false, false) => Path.join([projectDir, "middleware.ts"])
+  }
+  let instrumentation = switch hasSrcDir {
+  | true => Path.join([projectDir, "src", "instrumentation.ts"])
+  | false => Path.join([projectDir, "instrumentation.ts"])
+  }
+
+  let validateFile = async (~path: string, ~required: array<string>, ~name: string) => {
+    switch await readFile(path) {
+    | None => Error(`Health check failed: ${name} was not written`)
+    | Some(content) =>
+      switch required->Array.every(token => content->String.includes(token)) {
+      | true => Ok()
+      | false => Error(`Health check failed: ${name} is not a valid Frontman integration`)
+      }
+    }
+  }
+
+  let entrypointTokens = switch isNext16Plus {
+  | true => ["@frontman-ai/nextjs", "function proxy", `host: '${host}'`]
+  | false => ["@frontman-ai/nextjs", "createMiddleware", `host: '${host}'`]
+  }
+  switch await validateFile(~path=entrypoint, ~required=entrypointTokens, ~name="entrypoint") {
+  | Error(msg) => Error(msg)
+  | Ok() =>
+    validateFile(
+      ~path=instrumentation,
+      ~required=["@frontman-ai/nextjs/Instrumentation", "NodeSDK"],
+      ~name="instrumentation",
+    )
+  }
+}
+
 let formatResult = (result: fileResult): string => {
   switch result {
   | Created(fileName) => Templates.SuccessMessages.fileCreated(fileName)
