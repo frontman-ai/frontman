@@ -267,6 +267,110 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
 })
 
 describe("Task - Agent Running State", () => {
+  test("submitted user message is queued before server acceptance", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (submitted, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+
+    let queued = TestHelpers.getQueuedUserMessages(submitted)
+    t->expect(queued->Array.length)->Expect.toBe(1)
+    t->expect(TestHelpers.getMessages(submitted)->Array.length)->Expect.toBe(0)
+  })
+
+  test("server acceptance replaces optimistic message without duplication", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (submitted, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let (accepted, _) = TaskReducer.next(
+      submitted,
+      UserMessageReceived({
+        id: testUserMessageId->UserMessageId.toString,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+
+    let queued = TestHelpers.getQueuedUserMessages(accepted)
+    t->expect(queued->Array.length)->Expect.toBe(1)
+    switch queued->Array.get(0) {
+    | Some(Message.User({content, _})) => t->expect(content->Array.length)->Expect.toBe(1)
+    | _ => t->expect("User message")->Expect.toBe("missing")
+    }
+  })
+
+  test("server acceptance preserves optimistic submission order", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let firstId = UserMessageId.make()
+    let secondId = UserMessageId.make()
+    let (firstSubmitted, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: firstId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "First"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let (bothSubmitted, _) = TaskReducer.next(
+      firstSubmitted,
+      AddUserMessage({
+        id: secondId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Second"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let (secondAccepted, _) = TaskReducer.next(
+      bothSubmitted,
+      UserMessageReceived({
+        id: secondId->UserMessageId.toString,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Second"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+
+    let queued = TestHelpers.getQueuedUserMessages(secondAccepted)
+    switch (queued->Array.get(0), queued->Array.get(1)) {
+    | (Some(Message.User({id: queuedFirstId, _})), Some(Message.User({id: queuedSecondId, _}))) =>
+      t->expect(queuedFirstId)->Expect.toBe(firstId->UserMessageId.toString)
+      t->expect(queuedSecondId)->Expect.toBe(secondId->UserMessageId.toString)
+    | _ => t->expect("Queued messages in submission order")->Expect.toBe("missing")
+    }
+  })
+
+  test("running does not move unaccepted message into transcript", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (submitted, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let (running, _) = TaskReducer.next(submitted, ExecutionStateRunning)
+
+    t->expect(TestHelpers.getMessages(running)->Array.length)->Expect.toBe(0)
+    t->expect(TestHelpers.getQueuedUserMessages(running)->Array.length)->Expect.toBe(1)
+  })
+
   test("state updates drive isAgentRunning", t => {
     let task = TestHelpers.makeLoadedTask()
     let (task2, _) = TaskReducer.next(
