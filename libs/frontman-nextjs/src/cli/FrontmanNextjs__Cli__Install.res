@@ -137,22 +137,22 @@ let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): i
     Console.log(`  ${Style.bullet} ${Style.bold("Detected:")} Next.js ${version}`)
     Console.log("")
 
-    switch options.skipDeps {
-    | true => ()
-    | false =>
-      switch await installDependencies(
+    let dependencyResult = switch options.skipDeps {
+    | true => Ok()
+    | false => await installDependencies(
         ~projectDir,
         ~packageManager=info.packageManager,
         ~dryRun=options.dryRun,
         ~exec,
-      ) {
-      | Error(msg) =>
-        Console.error(`  ${Style.warn}  ${msg}`)
-        Failure(msg)
-      | Ok() => ()
-      }
-      Console.log("")
+      )
     }
+
+    switch dependencyResult {
+    | Error(msg) =>
+      Console.error(`  ${Style.warn}  ${msg}`)
+      Failure(msg)
+    | Ok() =>
+      Console.log("")
 
     let pendingEdits = collectPendingAutoEdits(~info, ~isNext16Plus)
     let shouldAutoEdit = switch (pendingEdits->Array.length > 0, options.dryRun) {
@@ -222,6 +222,7 @@ let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): i
           Success
         }
       }
+    }
     }
   }
 }
