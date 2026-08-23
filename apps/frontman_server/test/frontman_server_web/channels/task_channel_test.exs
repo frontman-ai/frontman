@@ -437,7 +437,58 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       duplicate_ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
       assert_reply(duplicate_ref, :ok, %{"acp:message" => duplicate_response})
       assert duplicate_response["error"]["code"] == JsonRpc.error_invalid_params()
-      assert duplicate_response["error"]["message"] == "Message ID already exists"
+      assert duplicate_response["error"]["message"] == "Message ID has already been taken"
+    end
+
+    for {name, message_id, expected_message} <- [
+          {"missing", :missing, "Message ID can't be blank"},
+          {"nil", nil, "Message ID can't be blank"},
+          {"empty", "", "Message ID can't be blank"},
+          {"malformed", "not-a-uuid", "Message ID is invalid"},
+          {"non-string", 123, "Message ID is invalid"}
+        ] do
+      test "rejects #{name} message ID without side effects", %{
+        socket: socket,
+        scope: scope,
+        task_id: task_id
+      } do
+        meta = %{
+          "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
+          "agent" => "test-frontman"
+        }
+
+        meta =
+          case unquote(Macro.escape(message_id)) do
+            :missing -> meta
+            message_id -> Map.put(meta, "frontman.dev/messageId", message_id)
+          end
+
+        ref =
+          push(
+            socket,
+            "acp:message",
+            build_acp_request("session/prompt", 43, %{
+              "prompt" => [%{"type" => "text", "text" => "Hello"}],
+              "_meta" => meta
+            })
+          )
+
+        assert_reply(ref, :ok, %{"acp:message" => response})
+        assert response["error"]["code"] == JsonRpc.error_invalid_params()
+        assert response["error"]["message"] == unquote(expected_message)
+
+        assert {:ok, task} = Tasks.get_task(scope, task_id)
+        assert Tasks.interactions(task) == []
+        assert all_enqueued(worker: GenerateTitle) == []
+
+        refute_push(
+          "acp:message",
+          %{"params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}},
+          100
+        )
+
+        refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
+      end
     end
 
     test "returns invalid params for malformed text content block", %{socket: socket} do
@@ -1060,6 +1111,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, %Tasks.InteractionSchema{data: %Interaction.UserMessage{}}} =
         Tasks.submit_user_message(scope, %{
           task_id: task.id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("queued elsewhere"),
           model: "openrouter:google/gemini-3.1-pro-preview",
           agent_id: "test-frontman"

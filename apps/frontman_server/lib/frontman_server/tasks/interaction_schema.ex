@@ -39,7 +39,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @type_values Keyword.keys(@types)
   @task_scoped_types [:discovered_project_rule, :discovered_project_structure]
 
-  @primary_key {:id, :binary_id, autogenerate: true}
+  @primary_key {:id, Ecto.UUID, autogenerate: false}
   @foreign_key_type :binary_id
   @accepted_message_types [:user_message]
   @tiebreaker_range 1_000_000
@@ -67,7 +67,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(%__MODULE__{} = interaction, attrs) when is_map(attrs) do
     interaction
-    |> cast(attrs, [:id])
+    |> cast(attrs, [:id, :type, :turn_number])
     |> put_sequence()
     |> cast_polymorphic_embed(:data, required: true, with: polymorphic_changesets())
     |> validate_create()
@@ -102,10 +102,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     end)
   end
 
-  def duplicate_id?(%Ecto.Changeset{errors: errors}) do
-    match?({_, [constraint: :unique, constraint_name: "interactions_pkey"]}, errors[:id])
-  end
-
   def unresolved_tool_calls(query \\ __MODULE__) do
     from(i in query,
       left_join: r in __MODULE__,
@@ -130,7 +126,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   defp validate_create(changeset) do
     changeset
-    |> validate_required([:task_id, :type, :data, :sequence])
+    |> validate_required([:id, :task_id, :type, :data, :sequence])
     |> validate_turn_number()
     |> foreign_key_constraint(:task_id)
     |> unique_constraint(:id, name: :interactions_pkey)

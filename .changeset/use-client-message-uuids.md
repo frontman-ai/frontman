@@ -2,4 +2,4 @@
 "@frontman-ai/client": minor
 ---
 
-Generate canonical user message UUIDs in the client and preserve them through queued execution, live updates, history replay, and database persistence.
+Require `_meta["frontman.dev/messageId"]` on `session/prompt` requests and use it as the canonical persisted user-message UUID for live updates and history replay. Missing, malformed, and duplicate IDs now return invalid params; older clients that omit this metadata are incompatible.

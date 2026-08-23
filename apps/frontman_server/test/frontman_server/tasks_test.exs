@@ -1,5 +1,6 @@
 defmodule FrontmanServer.TasksTest do
   use FrontmanServer.DataCase, async: false
+  use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
@@ -18,6 +19,7 @@ defmodule FrontmanServer.TasksTest do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
+  alias FrontmanServer.Workers.GenerateTitle
   alias ModelContextProtocol, as: MCP
 
   setup do
@@ -97,10 +99,16 @@ defmodule FrontmanServer.TasksTest do
   describe "submit_user_message/2" do
     test "persists an accepted user message without starting a turn", %{scope: scope} do
       task = task_fixture(scope)
+      message_id = Ecto.UUID.generate()
 
-      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
+      assert {:ok,
+              %InteractionSchema{
+                id: ^message_id,
+                data: %Interaction.UserMessage{id: ^message_id}
+              }} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
+                 message_id: message_id,
                  message: user_content("hello"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
@@ -129,6 +137,7 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
+                 message_id: Ecto.UUID.generate(),
                  message: user_content("second"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
@@ -139,6 +148,48 @@ defmodule FrontmanServer.TasksTest do
                |> db_rows()
                |> Enum.map(& &1.type)
     end
+
+    for {name, message_id, expected_error} <- [
+          {"nil", nil, "can't be blank"},
+          {"empty", "", "can't be blank"},
+          {"malformed", "not-a-uuid", "is invalid"},
+          {"nonbinary", 123, "is invalid"}
+        ] do
+      test "returns #{name} message ids as changeset errors", %{scope: scope} do
+        task = task_fixture(scope)
+
+        assert {:error, %Ecto.Changeset{} = changeset} =
+                 Tasks.submit_user_message(scope, %{
+                   task_id: task.id,
+                   message_id: unquote(message_id),
+                   message: user_content("hello"),
+                   model: "openrouter:openai/gpt-5.5",
+                   agent_id: "test-frontman"
+                 })
+
+        assert %{id: [unquote(expected_error)]} = errors_on(changeset)
+        assert db_rows(task.id) == []
+        assert all_enqueued(worker: GenerateTitle) == []
+      end
+    end
+
+    test "returns duplicate message ids as primary-key changeset errors", %{scope: scope} do
+      task = task_fixture(scope)
+      message_id = Ecto.UUID.generate()
+
+      params = %{
+        task_id: task.id,
+        message_id: message_id,
+        message: user_content("hello"),
+        model: "openrouter:openai/gpt-5.5",
+        agent_id: "test-frontman"
+      }
+
+      assert {:ok, %InteractionSchema{id: ^message_id}} = Tasks.submit_user_message(scope, params)
+      assert {:error, %Ecto.Changeset{} = changeset} = Tasks.submit_user_message(scope, params)
+      assert %{id: ["has already been taken"]} = errors_on(changeset)
+      assert [%InteractionSchema{id: ^message_id}] = db_rows(task.id)
+    end
   end
 
   describe "run_next_turn/3 agent identity" do
@@ -148,6 +199,7 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
+                 message_id: Ecto.UUID.generate(),
                  message: user_content("hello"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
@@ -175,6 +227,7 @@ defmodule FrontmanServer.TasksTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
+                 message_id: Ecto.UUID.generate(),
                  message: user_content("hello"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "unknown-agent"
@@ -875,28 +928,40 @@ defmodule FrontmanServer.TasksTest do
     {:ok, attrs} =
       Interaction.UserMessage.attrs(user_content("test turn"), "openrouter:openai/gpt-5.5")
 
+    message_id = Ecto.UUID.generate()
+
     row =
-      interaction_changeset(task_id, :user_message, attrs, nil)
+      interaction_changeset(task_id, %{
+        id: message_id,
+        type: :user_message,
+        data: Map.put(attrs, :id, message_id),
+        turn_number: nil
+      })
       |> Repo.insert!()
 
-    interaction_changeset(
-      task_id,
-      :turn_started,
-      %{
+    interaction_changeset(task_id, %{
+      id: Ecto.UUID.generate(),
+      type: :turn_started,
+      data: %{
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: "test-frontman",
         user_message_ids: [row.id]
       },
-      turn_number
-    )
+      turn_number: turn_number
+    })
     |> Repo.insert!()
   end
 
   defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
     {interaction_type, attrs} = test_interaction_attrs(type, data)
 
-    interaction_changeset(task_id, interaction_type, attrs, turn_number)
+    interaction_changeset(task_id, %{
+      id: Ecto.UUID.generate(),
+      type: interaction_type,
+      data: attrs,
+      turn_number: turn_number
+    })
     |> Repo.insert!()
   end
 
@@ -985,8 +1050,14 @@ defmodule FrontmanServer.TasksTest do
          model \\ "openrouter:openai/gpt-5.5"
        ) do
     {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
+    message_id = Ecto.UUID.generate()
 
-    interaction_changeset(task.id, :user_message, attrs, nil)
+    interaction_changeset(task.id, %{
+      id: message_id,
+      type: :user_message,
+      data: Map.put(attrs, :id, message_id),
+      turn_number: nil
+    })
     |> Repo.insert!()
   end
 

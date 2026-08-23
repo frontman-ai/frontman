@@ -216,15 +216,24 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp record_interaction(%TaskSchema{} = task_schema, type, data, turn_number) do
-    with {:ok, row} <- record_interaction_row(task_schema, type, data, turn_number) do
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      type: type,
+      data: data,
+      turn_number: turn_number
+    }
+
+    with {:ok, row} <- record_interaction_row(task_schema, attrs) do
       {:ok, row.data}
     end
   end
 
-  defp record_interaction_row(%TaskSchema{} = task, type, data, turn_number, attrs \\ %{}) do
+  defp record_interaction_row(%TaskSchema{} = task, attrs) do
     Repo.transact(fn ->
       with {:ok, schema} <-
-             interaction_changeset(task, type, data, turn_number, attrs)
+             task
+             |> Ecto.build_assoc(:interaction_rows)
+             |> InteractionSchema.changeset(attrs)
              |> Repo.insert(),
            {1, _} <-
              TaskSchema
@@ -245,21 +254,9 @@ defmodule FrontmanServer.Tasks do
 
         {:ok, interaction_schema}
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        case InteractionSchema.duplicate_id?(changeset) do
-          true -> {:error, :duplicate_interaction_id}
-          false -> {:error, changeset}
-        end
-
       {:error, reason} ->
         {:error, reason}
     end
-  end
-
-  defp interaction_changeset(%TaskSchema{} = task, type, data, turn_number, attrs \\ %{}) do
-    task
-    |> Ecto.build_assoc(:interaction_rows, type: type, turn_number: turn_number)
-    |> InteractionSchema.changeset(Map.put(attrs, :data, data))
   end
 
   defp topic(task_id), do: "task:#{task_id}"
@@ -450,10 +447,11 @@ defmodule FrontmanServer.Tasks do
         %Scope{} = scope,
         %{
           task_id: task_id,
+          message_id: message_id,
           message: [_ | _] = content_blocks,
           model: model,
           agent_id: agent_id
-        } = params
+        }
       )
       when is_binary(task_id) and is_binary(model) and model != "" and is_binary(agent_id) and
              agent_id != "" do
@@ -461,14 +459,15 @@ defmodule FrontmanServer.Tasks do
            Interaction.UserMessage.attrs(content_blocks, model, agent_id),
          {:ok, task_schema} <- get_task_by_id(scope, task_id),
          first_message? <- accepted_user_message_count(task_id) == 0,
-         message_id <- Map.get_lazy(params, :message_id, &Ecto.UUID.generate/0),
          {:ok, accepted_row} <-
            record_interaction_row(
              task_schema,
-             :user_message,
-             user_message_attrs,
-             nil,
-             %{id: message_id}
+             %{
+               id: message_id,
+               type: :user_message,
+               data: Map.put(user_message_attrs, :id, message_id),
+               turn_number: nil
+             }
            ) do
       if first_message? do
         GenerateTitle.new(%{
@@ -481,9 +480,6 @@ defmodule FrontmanServer.Tasks do
       end
 
       {:ok, accepted_row}
-    else
-      {:error, :duplicate_interaction_id} -> {:error, :duplicate_message_id}
-      error -> error
     end
   end
 
@@ -591,8 +587,17 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp insert_turn_started(%TaskSchema{} = task_schema, turn_started_attrs, turn_number) do
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      type: :turn_started,
+      data: turn_started_attrs,
+      turn_number: turn_number
+    }
+
     with {:ok, schema} <-
-           interaction_changeset(task_schema, :turn_started, turn_started_attrs, turn_number)
+           task_schema
+           |> Ecto.build_assoc(:interaction_rows)
+           |> InteractionSchema.changeset(attrs)
            |> Repo.insert(),
          {1, _} <-
            TaskSchema

@@ -187,7 +187,12 @@ defmodule FrontmanServerWeb.ChannelCase do
       build_prompt_request(_meta: %{"model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}})
   """
   def build_prompt_request(opts \\ []) do
-    message_id = Keyword.get_lazy(opts, :message_id, &Ecto.UUID.generate/0)
+    message_id =
+      case Keyword.fetch(opts, :message_id) do
+        {:ok, message_id} -> message_id
+        :error -> Ecto.UUID.generate()
+      end
+
     text = Keyword.get(opts, :text, "Hello")
 
     meta =

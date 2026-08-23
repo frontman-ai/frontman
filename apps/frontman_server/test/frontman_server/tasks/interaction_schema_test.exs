@@ -81,29 +81,72 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
     test "requires an agent id", %{task: task} do
       attrs = valid_turn_started_attrs()
 
-      assert changeset(task, :turn_started, attrs, 1).valid?
+      assert changeset(task, interaction_attrs(:turn_started, attrs, 1)).valid?
 
-      changeset = changeset(task, :turn_started, Map.delete(attrs, :agent_id), 1)
+      changeset =
+        changeset(task, interaction_attrs(:turn_started, Map.delete(attrs, :agent_id), 1))
 
       refute changeset.valid?
     end
   end
 
   describe "changeset/2" do
-    test "casts an explicit row id", %{task: task} do
+    test "uses Ecto.UUID as the row id type" do
+      assert InteractionSchema.__schema__(:type, :id) == Ecto.UUID
+    end
+
+    test "requires an explicit row id", %{task: task} do
+      data = user_msg("queued") |> Map.from_struct()
+
+      changeset =
+        task
+        |> Ecto.build_assoc(:interaction_rows)
+        |> InteractionSchema.changeset(%{type: :user_message, data: data, turn_number: nil})
+
+      refute changeset.valid?
+      assert %{id: ["can't be blank"]} = errors_on(changeset)
+    end
+
+    test "accepts a valid explicit row id", %{task: task} do
       id = Ecto.UUID.generate()
       data = user_msg("queued") |> Map.from_struct()
-      changeset = changeset(task, :user_message, data, nil, %{id: id})
+      changeset = changeset(task, %{id: id, type: :user_message, data: data, turn_number: nil})
 
+      assert changeset.valid?
       assert Ecto.Changeset.get_change(changeset, :id) == id
+    end
+
+    test "rejects a malformed row id", %{task: task} do
+      data = user_msg("queued") |> Map.from_struct()
+
+      changeset =
+        changeset(task, %{
+          id: "not-a-uuid",
+          type: :user_message,
+          data: data,
+          turn_number: nil
+        })
+
+      refute changeset.valid?
+      assert %{id: ["is invalid"]} = errors_on(changeset)
     end
 
     test "rejects a nonbinary row id", %{task: task} do
       data = user_msg("queued") |> Map.from_struct()
-      changeset = changeset(task, :user_message, data, nil, %{id: 123})
+      changeset = changeset(task, %{id: 123, type: :user_message, data: data, turn_number: nil})
 
       refute changeset.valid?
       assert %{id: ["is invalid"]} = errors_on(changeset)
+    end
+
+    test "returns duplicate row ids as primary-key changeset errors", %{task: task} do
+      id = Ecto.UUID.generate()
+      data = user_msg("queued") |> Map.from_struct()
+      attrs = %{id: id, type: :user_message, data: data, turn_number: nil}
+
+      assert {:ok, %InteractionSchema{id: ^id}} = task |> changeset(attrs) |> Repo.insert()
+      assert {:error, duplicate_changeset} = task |> changeset(attrs) |> Repo.insert()
+      assert %{id: ["has already been taken"]} = errors_on(duplicate_changeset)
     end
   end
 
@@ -123,18 +166,18 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
   end
 
   defp interaction_changeset(task, interaction, turn_number) do
-    changeset(
-      task,
-      PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, interaction),
-      Map.from_struct(interaction),
-      turn_number
-    )
+    type = PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, interaction)
+    changeset(task, interaction_attrs(type, Map.from_struct(interaction), turn_number))
   end
 
-  defp changeset(task, type, data, turn_number, attrs \\ %{}) do
+  defp changeset(task, attrs) do
     task
-    |> Ecto.build_assoc(:interaction_rows, type: type, turn_number: turn_number)
-    |> InteractionSchema.changeset(Map.merge(attrs, %{data: data}))
+    |> Ecto.build_assoc(:interaction_rows)
+    |> InteractionSchema.changeset(attrs)
+  end
+
+  defp interaction_attrs(type, data, turn_number) do
+    %{id: Ecto.UUID.generate(), type: type, data: data, turn_number: turn_number}
   end
 
   defp agent_retry(retried_error_id) do

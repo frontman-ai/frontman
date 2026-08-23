@@ -634,8 +634,9 @@ defmodule FrontmanServerWeb.TaskChannel do
           Logger.info("User message accepted for task #{task_id}")
           {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
         else
-          {:error, :duplicate_message_id} ->
-            reply_invalid_params(socket, id, "Message ID already exists")
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {message, _metadata} = Keyword.fetch!(changeset.errors, :id)
+            reply_invalid_params(socket, id, "Message ID #{message}")
 
           {:error, :missing_agent} ->
             reply_invalid_params(socket, id, "Agent is required")
