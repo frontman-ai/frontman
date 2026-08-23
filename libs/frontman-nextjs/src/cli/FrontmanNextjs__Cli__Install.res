@@ -144,7 +144,10 @@ let run = async (options: installOptions): installResult => {
         ~packageManager=info.packageManager,
         ~dryRun=options.dryRun,
       ) {
-      | Error(msg) =>\n        Console.error(`  ${Style.warn}  ${msg}`)\n        Failure(msg)\n      | Ok() => ()
+      | Error(msg) =>
+        Console.error(`  ${Style.warn}  ${msg}`)
+        ()
+      | Ok() => ()
       }
       Console.log("")
     }
