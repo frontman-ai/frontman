@@ -99,6 +99,60 @@ defmodule AgentClientProtocol.HistoryTest do
     assert tool_result["toolCallId"] == "call"
   end
 
+  test "replays provider-shaped embedded tool calls" do
+    [tool_create] =
+      replay_embedded_tool_calls([
+        %{
+          "id" => "call",
+          "function" => %{
+            "name" => "todo_write",
+            "arguments" => ~s({"todos":[]})
+          }
+        }
+      ])
+
+    assert tool_create["toolCallId"] == "call"
+    assert tool_create["title"] == "todo_write"
+    assert tool_create["rawInput"] == %{"todos" => []}
+  end
+
+  test "replays embedded tool calls with decoded arguments" do
+    [tool_create] =
+      replay_embedded_tool_calls([
+        %{"id" => "call", "name" => "todo_write", "arguments" => %{"todos" => []}}
+      ])
+
+    assert tool_create["rawInput"] == %{"todos" => []}
+  end
+
+  test "treats nil embedded tool calls as empty" do
+    assert replay_embedded_tool_calls(nil) == []
+  end
+
+  test "replays failed tool calls with malformed arguments without raw input" do
+    tool_result = %Interaction.ToolResult{
+      tool_call_id: "call",
+      tool_name: "todo_write",
+      result: %{
+        "content" => [%{"type" => "text", "text" => "Failed to parse arguments for tool"}],
+        "structuredContent" => %{}
+      },
+      is_error: true,
+      timestamp: @timestamp
+    }
+
+    assert [tool_create, tool_update] =
+             replay_embedded_tool_calls(
+               [%{"id" => "call", "name" => "todo_write", "arguments" => "{invalid"}],
+               tool_result
+             )
+
+    assert tool_create["sessionUpdate"] == "tool_call"
+    refute Map.has_key?(tool_create, "rawInput")
+    assert tool_update["sessionUpdate"] == "tool_call_update"
+    assert tool_update["status"] == "failed"
+  end
+
   test "crashes when history references an agent outside the global catalog" do
     rows = [
       row("turn-row", :turn_started, 1, %{
@@ -152,6 +206,27 @@ defmodule AgentClientProtocol.HistoryTest do
 
   defp response(content) do
     %Interaction.AgentResponse{id: Ecto.UUID.generate(), content: content, timestamp: @timestamp}
+  end
+
+  defp replay_embedded_tool_calls(tool_calls, tool_result \\ nil) do
+    rows = [
+      row("turn-row", :turn_started, 1, turn("turn-id", [])),
+      row("response", :agent_response, 1, %Interaction.AgentResponse{
+        id: Ecto.UUID.generate(),
+        content: nil,
+        metadata: %{"tool_calls" => tool_calls},
+        timestamp: @timestamp
+      })
+    ]
+
+    rows =
+      case tool_result do
+        nil -> rows
+        tool_result -> rows ++ [row("tool-result", :tool_result, 1, tool_result)]
+      end
+
+    {:ok, replay} = build(rows)
+    Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
   end
 
   defp agent do

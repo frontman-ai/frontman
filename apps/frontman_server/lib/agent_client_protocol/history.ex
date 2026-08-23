@@ -57,19 +57,19 @@ defmodule AgentClientProtocol.History do
 
     tool_call_notifications =
       response.metadata
-      |> Map.get("tool_calls", [])
-      |> Enum.map(fn %{"id" => id, "name" => name, "arguments" => raw_arguments} ->
-        {:ok, %{arguments: arguments}} =
-          Interaction.ToolCall.attrs(%SwarmAi.ToolCall{
-            id: id,
-            name: name,
-            arguments: raw_arguments
-          })
+      |> Map.get("tool_calls")
+      |> Interaction.to_swarm_tool_calls()
+      |> Enum.map(fn tool_call ->
+        arguments =
+          case Interaction.ToolCall.attrs(tool_call) do
+            {:ok, %{arguments: arguments}} -> arguments
+            {:error, {:invalid_tool_arguments, _message}} -> nil
+          end
 
         ACP.tool_call_create(
           session_id,
-          id,
-          name,
+          tool_call.id,
+          tool_call.name,
           "other",
           response.timestamp,
           ACP.tool_call_status_pending(),
