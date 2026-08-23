@@ -64,7 +64,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   def types, do: @types
   def task_scoped_types, do: @task_scoped_types
 
-  @spec changeset(%__MODULE__{}, map()) :: Ecto.Changeset.t()
   def changeset(%__MODULE__{} = interaction, attrs) when is_map(attrs) do
     interaction
     |> cast(attrs, [:id, :type, :turn_number])
