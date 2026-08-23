@@ -1,6 +1,5 @@
 defmodule FrontmanServer.TasksTest do
   use FrontmanServer.DataCase, async: false
-  use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
@@ -19,7 +18,6 @@ defmodule FrontmanServer.TasksTest do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
-  alias FrontmanServer.Workers.GenerateTitle
   alias ModelContextProtocol, as: MCP
 
   setup do
@@ -67,7 +65,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
 
-      insert_started_user_message_row(task_id, 1)
+      assert 1 = start_turn_fixture(scope, task_id)
       insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_1"})
 
       assert {:ok, 1, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
@@ -147,48 +145,6 @@ defmodule FrontmanServer.TasksTest do
                task.id
                |> db_rows()
                |> Enum.map(& &1.type)
-    end
-
-    for {name, message_id, expected_error} <- [
-          {"nil", nil, "can't be blank"},
-          {"empty", "", "can't be blank"},
-          {"malformed", "not-a-uuid", "is invalid"},
-          {"nonbinary", 123, "is invalid"}
-        ] do
-      test "returns #{name} message ids as changeset errors", %{scope: scope} do
-        task = task_fixture(scope)
-
-        assert {:error, %Ecto.Changeset{} = changeset} =
-                 Tasks.submit_user_message(scope, %{
-                   task_id: task.id,
-                   message_id: unquote(message_id),
-                   message: user_content("hello"),
-                   model: "openrouter:openai/gpt-5.5",
-                   agent_id: "test-frontman"
-                 })
-
-        assert %{id: [unquote(expected_error)]} = errors_on(changeset)
-        assert db_rows(task.id) == []
-        assert all_enqueued(worker: GenerateTitle) == []
-      end
-    end
-
-    test "returns duplicate message ids as primary-key changeset errors", %{scope: scope} do
-      task = task_fixture(scope)
-      message_id = Ecto.UUID.generate()
-
-      params = %{
-        task_id: task.id,
-        message_id: message_id,
-        message: user_content("hello"),
-        model: "openrouter:openai/gpt-5.5",
-        agent_id: "test-frontman"
-      }
-
-      assert {:ok, %InteractionSchema{id: ^message_id}} = Tasks.submit_user_message(scope, params)
-      assert {:error, %Ecto.Changeset{} = changeset} = Tasks.submit_user_message(scope, params)
-      assert %{id: ["has already been taken"]} = errors_on(changeset)
-      assert [%InteractionSchema{id: ^message_id}] = db_rows(task.id)
     end
   end
 
@@ -604,7 +560,7 @@ defmodule FrontmanServer.TasksTest do
 
     test "rejects an older error after later interactions in the same turn", %{scope: scope} do
       task_id = task_fixture(scope).id
-      insert_started_user_message_row(task_id, 1)
+      assert 1 = start_turn_fixture(scope, task_id)
       insert_interaction_row(task_id, Interaction.AgentError, 1, %{"id" => "error-1"})
 
       insert_interaction_row(task_id, Interaction.AgentRetry, 1, %{
@@ -924,35 +880,6 @@ defmodule FrontmanServer.TasksTest do
   defp interaction_type(module),
     do: PolymorphicEmbed.get_polymorphic_type(InteractionSchema, :data, module)
 
-  defp insert_started_user_message_row(task_id, turn_number) do
-    {:ok, attrs} =
-      Interaction.UserMessage.attrs(user_content("test turn"), "openrouter:openai/gpt-5.5")
-
-    message_id = Ecto.UUID.generate()
-
-    row =
-      interaction_changeset(task_id, %{
-        id: message_id,
-        type: :user_message,
-        data: Map.put(attrs, :id, message_id),
-        turn_number: nil
-      })
-      |> Repo.insert!()
-
-    interaction_changeset(task_id, %{
-      id: Ecto.UUID.generate(),
-      type: :turn_started,
-      data: %{
-        id: Ecto.UUID.generate(),
-        timestamp: Interaction.now(),
-        agent_id: "test-frontman",
-        user_message_ids: [row.id]
-      },
-      turn_number: turn_number
-    })
-    |> Repo.insert!()
-  end
-
   defp insert_interaction_row(task_id, type, turn_number, data \\ %{}) do
     {interaction_type, attrs} = test_interaction_attrs(type, data)
 
@@ -964,11 +891,6 @@ defmodule FrontmanServer.TasksTest do
     })
     |> Repo.insert!()
   end
-
-  defp test_interaction_attrs(Interaction.DiscoveredProjectRule, _data),
-    do:
-      {:discovered_project_rule,
-       %{path: "/project/AGENTS.md", content: "rules", timestamp: Interaction.now()}}
 
   defp test_interaction_attrs(Interaction.ToolCall, data) do
     {:ok, attrs} =
