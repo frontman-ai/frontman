@@ -243,30 +243,21 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_interaction(%Tasks.Interaction.ToolResult{} = tool_result, _turn_number, socket) do
     task_id = socket.assigns.task_id
-    scope = socket.assigns.scope
 
-    if Tools.todo_mutation?(tool_result.tool_name) do
-      case Tasks.list_todos(scope, task_id) do
-        {:ok, todos} ->
-          entries = Enum.map(todos, &to_plan_entry/1)
-          plan_notification = ACP.plan_update(task_id, entries)
-          push(socket, @acp_message, plan_notification)
+    notification =
+      ACP.tool_call_update(
+        task_id,
+        tool_result.tool_call_id,
+        ACP.tool_call_status(tool_result.is_error),
+        ACP.Content.from_tool_result(tool_result.result),
+        nil,
+        tool_result.result["structuredContent"]
+      )
 
-        {:error, _reason} ->
-          :ok
-      end
-    else
-      notification =
-        ACP.tool_call_update(
-          task_id,
-          tool_result.tool_call_id,
-          ACP.tool_call_status(tool_result.is_error),
-          ACP.Content.from_tool_result(tool_result.result),
-          nil,
-          tool_result.result["structuredContent"]
-        )
+    push(socket, @acp_message, notification)
 
-      push(socket, @acp_message, notification)
+    if Tools.todo_mutation?(tool_result.tool_name) and not tool_result.is_error do
+      push_current_todo_plan(socket)
     end
 
     {:noreply, socket}
@@ -585,6 +576,8 @@ defmodule FrontmanServerWeb.TaskChannel do
             )
           )
         )
+
+        push_current_todo_plan(socket)
 
         socket =
           socket
@@ -1015,5 +1008,11 @@ defmodule FrontmanServerWeb.TaskChannel do
       "priority" => Atom.to_string(todo.priority),
       "status" => Atom.to_string(todo.status)
     }
+  end
+
+  defp push_current_todo_plan(socket) do
+    {:ok, todos} = Tasks.list_todos(socket.assigns.scope, socket.assigns.task_id)
+    entries = Enum.map(todos, &to_plan_entry/1)
+    push(socket, @acp_message, ACP.plan_update(socket.assigns.task_id, entries))
   end
 end

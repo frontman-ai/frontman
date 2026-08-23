@@ -849,6 +849,66 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "todo tool updates" do
+    test "pushes tool completion and current plan for a successful todo write", %{
+      scope: scope
+    } do
+      {socket, task_id} = join_task_channel(scope)
+      turn_number = start_turn_fixture(scope, task_id)
+
+      tool_call = tool_call("todo-call", "todo_write", %{"todos" => []})
+      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+      collect_all_pushes()
+
+      todo = %{
+        "id" => Ecto.UUID.generate(),
+        "content" => "Fix todo rendering",
+        "active_form" => "Fixing todo rendering",
+        "status" => "in_progress",
+        "priority" => "high",
+        "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+        "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      assert {:ok, _interaction, _executor_status} =
+               Tasks.resolve_tool_request(
+                 scope,
+                 task_id,
+                 %{id: "todo-call", name: "todo_write"},
+                 %{"content" => [], "structuredContent" => %{"todos" => [todo]}},
+                 turn_number: turn_number
+               )
+
+      :sys.get_state(socket.channel_pid)
+
+      updates =
+        collect_all_pushes()
+        |> Enum.filter(fn {event, _payload} -> event == "acp:message" end)
+        |> Enum.map(fn {_event, payload} -> get_in(payload, ["params", "update"]) end)
+
+      assert [tool_update, plan_update] = updates
+
+      assert tool_update == %{
+               "sessionUpdate" => "tool_call_update",
+               "toolCallId" => "todo-call",
+               "status" => "completed",
+               "rawOutput" => %{"todos" => [todo]},
+               "content" => []
+             }
+
+      assert plan_update == %{
+               "sessionUpdate" => "plan",
+               "entries" => [
+                 %{
+                   "content" => "Fix todo rendering",
+                   "status" => "in_progress",
+                   "priority" => "high"
+                 }
+               ]
+             }
+    end
+  end
+
   describe "MCP initialization" do
     test "sends MCP initialize request on join", %{scope: scope} do
       {_socket, _task_id} = join_task_channel(scope)
@@ -1090,8 +1150,99 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                %{
                  "id" => 90,
                  "result" => %{"configOptions" => _config_options}
+               },
+               %{
+                 "method" => "session/update",
+                 "params" => %{"update" => %{"sessionUpdate" => "plan", "entries" => []}}
                }
              ] = messages
+    end
+
+    test "restores current todo plan after the load result", %{scope: scope} do
+      task = task_fixture(scope)
+      turn_number = start_turn_fixture(scope, task.id)
+
+      todo_call = tool_call("todo-replay", "todo_write", %{"todos" => []})
+      {:ok, _interaction} = persist_tool_call_fixture(scope, task.id, turn_number, todo_call)
+
+      todo = %{
+        "id" => Ecto.UUID.generate(),
+        "content" => "Restore todo plan",
+        "active_form" => "Restoring todo plan",
+        "status" => "pending",
+        "priority" => "medium",
+        "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+        "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      assert {:ok, _interaction, _executor_status} =
+               Tasks.resolve_tool_request(
+                 scope,
+                 task.id,
+                 %{id: "todo-replay", name: "todo_write"},
+                 %{"content" => [], "structuredContent" => %{"todos" => [todo]}},
+                 turn_number: turn_number
+               )
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task.id}", %{})
+
+      collect_all_pushes()
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/load", 92, %{"sessionId" => task.id})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      relevant_messages =
+        collect_all_pushes()
+        |> Enum.filter(fn
+          {"acp:message", %{"id" => 92}} ->
+            true
+
+          {"acp:message", payload} ->
+            get_in(payload, ["params", "update", "sessionUpdate"]) in [
+              "tool_call_update",
+              "plan"
+            ]
+
+          _other ->
+            false
+        end)
+        |> Enum.map(&elem(&1, 1))
+
+      assert [
+               %{
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "tool_call_update",
+                     "toolCallId" => "todo-replay",
+                     "status" => "completed",
+                     "rawOutput" => %{"todos" => [^todo]}
+                   }
+                 }
+               },
+               %{"id" => 92, "result" => %{"configOptions" => _config_options}},
+               %{
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "plan",
+                     "entries" => [
+                       %{
+                         "content" => "Restore todo plan",
+                         "status" => "pending",
+                         "priority" => "medium"
+                       }
+                     ]
+                   }
+                 }
+               }
+             ] = relevant_messages
     end
 
     test "drains accepted work created outside the channel prompt flow", %{scope: scope} do

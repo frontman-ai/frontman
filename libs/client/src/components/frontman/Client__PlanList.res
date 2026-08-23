@@ -21,6 +21,10 @@ let statusToInProgress = (status: ACPTypes.planEntryStatus): bool => {
   }
 }
 
+let shouldRender = (entries: array<ACPTypes.planEntry>): bool => {
+  entries->Array.some(entry => entry.status != Completed)
+}
+
 module PlanItem = {
   @react.component
   let make = (~entry: ACPTypes.planEntry, ~index: int) => {
@@ -69,9 +73,9 @@ module PlanItem = {
 let make = (~entries: array<ACPTypes.planEntry>) => {
   let (isExpanded, setIsExpanded) = React.useState(() => true)
 
-  if Array.length(entries) == 0 {
-    React.null
-  } else {
+  switch shouldRender(entries) {
+  | false => React.null
+  | true =>
     let completedCount = entries->Array.filter(e => e.status == Completed)->Array.length
     let totalCount = Array.length(entries)
 
