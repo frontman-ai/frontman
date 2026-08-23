@@ -26,6 +26,7 @@ let installDependencies = async (
   ~projectDir: string,
   ~packageManager: Detect.packageManager,
   ~dryRun: bool,
+  ~exec=ChildProcess.execWithOptions,
 ): result<unit, string> => {
   let pm = Detect.getPackageManagerCommand(packageManager)
   let args = Detect.getInstallArgs(packageManager)
@@ -40,7 +41,7 @@ let installDependencies = async (
   | false =>
     Console.log(`  ${Style.purple("Installing dependencies with " ++ pm ++ "...")}`)
 
-    switch await ChildProcess.execWithOptions(cmd, {cwd: projectDir}) {
+    switch await exec(cmd, {cwd: projectDir}) {
     | Ok(_) =>
       Console.log(`  ${Style.check} Dependencies installed`)
       Ok()
@@ -110,7 +111,7 @@ let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): 
   pending
 }
 
-let run = async (options: installOptions): installResult => {
+let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): installResult => {
   let projectDir = options.prefix->Option.getOr(Process.cwd())
   let host = options.server
 
@@ -143,6 +144,7 @@ let run = async (options: installOptions): installResult => {
         ~projectDir,
         ~packageManager=info.packageManager,
         ~dryRun=options.dryRun,
+        ~exec,
       ) {
       | Error(msg) =>
         Console.error(`  ${Style.warn}  ${msg}`)
