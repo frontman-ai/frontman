@@ -158,10 +158,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     %SwarmAi.ToolCall{id: id, name: "question", arguments: args}
   end
 
-  defp tool_call_metadata(%SwarmAi.ToolCall{} = tool_call) do
-    %{"id" => tool_call.id, "name" => tool_call.name, "arguments" => tool_call.arguments}
-  end
-
   defp redispatched_question_header?(
          {"mcp:message",
           %{
@@ -1251,11 +1247,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       turn_number = latest_turn_number(task_id)
 
-      Tasks.agent_replied(scope, task_id, turn_number, "", %{
-        "tool_calls" => [tool_call_metadata(tool_call)]
-      })
-
-      Tasks.request_client_tool(scope, task_id, turn_number, tool_call)
+      {:ok, _tool_call} =
+        persist_response_tool_call_fixture(scope, task_id, turn_number, "", tool_call)
 
       {:ok, task_id: task_id, scope: scope, tool_call_id: tool_call_id}
     end
@@ -1331,11 +1324,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       second_tool_call = question_tool_call(second_tool_call_id, "Second", "B")
       turn_number = latest_turn_number(task_id)
 
-      Tasks.agent_replied(scope, task_id, turn_number, "", %{
-        "tool_calls" => [tool_call_metadata(second_tool_call)]
-      })
+      {:ok, _tool_call} =
+        persist_response_tool_call_fixture(scope, task_id, turn_number, "", second_tool_call)
 
-      Tasks.request_client_tool(scope, task_id, turn_number, second_tool_call)
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
       expect_resumed_model()
 
@@ -1437,11 +1428,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       user_message_fixture(scope, task_id, user_content("first turn"))
       first_turn_number = latest_turn_number(task_id)
 
-      Tasks.agent_replied(scope, task_id, first_turn_number, "", %{
-        "tool_calls" => [tool_call_metadata(first_tc)]
-      })
-
-      Tasks.request_client_tool(scope, task_id, first_turn_number, first_tc)
+      {:ok, _tool_call} =
+        persist_response_tool_call_fixture(scope, task_id, first_turn_number, "", first_tc)
 
       Tasks.resolve_tool_request(
         scope,
@@ -1456,11 +1444,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       user_message_fixture(scope, task_id, user_content("second turn"))
       second_turn_number = latest_turn_number(task_id)
 
-      Tasks.agent_replied(scope, task_id, second_turn_number, "", %{
-        "tool_calls" => [tool_call_metadata(second_tc)]
-      })
-
-      Tasks.request_client_tool(scope, task_id, second_turn_number, second_tc)
+      {:ok, _tool_call} =
+        persist_response_tool_call_fixture(scope, task_id, second_turn_number, "", second_tc)
 
       {:ok, _reply, socket} =
         UserSocket

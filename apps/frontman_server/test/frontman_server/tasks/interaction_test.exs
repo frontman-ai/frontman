@@ -323,6 +323,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       messages = Interaction.to_swarm_messages(interactions)
       assert length(messages) == 4
       assert Enum.map(messages, &SwarmAi.Message.role/1) == [:user, :assistant, :tool, :assistant]
+      assert [%SwarmAi.ToolCall{arguments: "{}"}] = Enum.at(messages, 1).tool_calls
     end
 
     test "formats complete page and annotation context exactly" do
