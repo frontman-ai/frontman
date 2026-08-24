@@ -17775,18 +17775,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sury@npm:11.0.0-alpha.10":
-  version: 11.0.0-alpha.10
-  resolution: "sury@npm:11.0.0-alpha.10"
-  peerDependencies:
-    rescript: 12.x
-  peerDependenciesMeta:
-    rescript:
-      optional: true
-  checksum: 10c0/50af88d8c801b35fbaa8f4faac14d16e5e48a57a71d3bc69a84475a2b85c3d8278dc1021202b6cfd49280918bcc67461fa2e1afbd93aad8b36ce4e36a63cff28
-  languageName: node
-  linkType: hard
-
 "sury@npm:11.0.0-alpha.11":
   version: 11.0.0-alpha.11
   resolution: "sury@npm:11.0.0-alpha.11"
