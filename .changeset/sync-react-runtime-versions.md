@@ -1,4 +1,5 @@
 ---
+"@frontman-ai/nextjs": patch
 "@frontman-ai/react-statestore": patch
 ---
 
