@@ -13,20 +13,12 @@ module ToolPathHints = FrontmanCore__ToolPathHints
 let name = Tool.ToolNames.readFile
 let access = Tool.Read
 let visibleToAgent = true
-
-// Focused-slice guardrails: a single read_file must never return an entire large
-// file. Cap both the number of lines and the byte size per read so agent context
-// stays bounded; the agent pages via offset/limit + grep for targeted reads.
-let defaultLimit = 500
-let maxLimit = 1000
-let maxBytes = 65536
-let clampInt = (v: int, lo: int, hi: int): int => v < lo ? lo : v > hi ? hi : v
 let description = `Reads a file from the filesystem.
 
 Parameters:
 - path (required): Path to file - either relative to source root or absolute (must be under source root)
 - offset (optional): Line number to start from (0-indexed, default: 0). Pass null or 0 to start from beginning.
-- limit (optional): Maximum lines to read (default: 500). Pass null or 500 for default.
+- limit (optional): Maximum lines to read (default: 500, capped at 1000). Pass null or 500 for default.
 
 Returns file content with metadata about total lines and whether more content exists.
 The _context field provides path resolution details for debugging.
@@ -98,39 +90,15 @@ let readResolvedFile = async (
     let lines = content->String.split("\n")
     let totalLines = lines->Array.length
 
-    let windowLines = lines->Array.slice(~start=offset, ~end=offset + limit)
-    // Byte cap: shrink the window so one read never exceeds maxBytes (files with very long
-    // lines). effectiveLimit = lines actually returned, so offset/limit paging stays exact
-    // and edit_file's read-tracking matches what the agent actually saw.
-    let kept = ref(0)
-    let usedBytes = ref(0)
-    let windowCount = windowLines->Array.length
-    let keepGoing = ref(true)
-    while keepGoing.contents && kept.contents < windowCount {
-      let lineLen = String.length(windowLines->Array.get(kept.contents)->Option.getOr("")) + 1
-      if kept.contents > 0 && usedBytes.contents + lineLen > maxBytes {
-        keepGoing := false
-      } else {
-        usedBytes := usedBytes.contents + lineLen
-        kept := kept.contents + 1
-      }
-    }
-    let effectiveLimit = kept.contents
-    let selectedLines = windowLines->Array.slice(~start=0, ~end=effectiveLimit)
-    let joined = selectedLines->Array.join("\n")
-    // Hard byte ceiling: the loop above always keeps at least the first line (so a read
-    // never comes back empty), which means a SINGLE line longer than maxBytes would still
-    // blow past the cap. Truncate the returned content so read_file can never overflow the
-    // model context window; hasMore then signals the agent to grep / re-read at an offset.
-    let byteCapped = String.length(joined) > maxBytes
-    let selectedContent = byteCapped ? joined->String.substring(~start=0, ~end=maxBytes) : joined
-    let hasMore = byteCapped || offset + effectiveLimit < totalLines
+    let selectedLines = lines->Array.slice(~start=offset, ~end=offset + limit)
+    let selectedContent = selectedLines->Array.join("\n")
+    let hasMore = offset + limit < totalLines
 
     // Track that this file was read (for edit_file safety)
     FrontmanCore__FileTracker.recordRead(
       resolved.resolvedPath,
       ~offset,
-      ~limit=effectiveLimit,
+      ~limit,
       ~totalLines,
       ~mtimeMs=Fs.mtimeMs(stats),
       ~size=Fs.size(stats),
@@ -257,8 +225,8 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
   output,
   string,
 > => {
-  let offset = clampInt(input.offset->Option.getOr(0), 0, 1000000000)
-  let limit = clampInt(input.limit->Option.getOr(defaultLimit), 1, maxLimit)
+  let offset = input.offset->Option.getOr(0)
+  let limit = min(input.limit->Option.getOr(500), 1000)
 
   switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
   | Error(err) => Error(PathContext.formatError(err))
