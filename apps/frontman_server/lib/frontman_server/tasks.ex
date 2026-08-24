@@ -1001,20 +1001,23 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Lists all todos for a task.
+  Lists all todos from an already-loaded task.
 
   Todos are managed through tool calls, not direct API calls.
   This function is for reading the current todos only.
   """
+  @spec list_todos(TaskSchema.t()) :: [Todos.Todo.t()]
+  def list_todos(%TaskSchema{interaction_rows: rows}) when is_list(rows) do
+    rows
+    |> Todos.list_todos()
+    |> Map.values()
+    |> Enum.sort_by(& &1.created_at, DateTime)
+  end
+
+  @doc "Lists all todos for a task."
   def list_todos(scope, task_id) do
     with {:ok, task} <- get_task(scope, task_id) do
-      todos =
-        task.interaction_rows
-        |> Todos.list_todos()
-        |> Map.values()
-        |> Enum.sort_by(& &1.created_at, DateTime)
-
-      {:ok, todos}
+      {:ok, list_todos(task)}
     end
   end
 end
