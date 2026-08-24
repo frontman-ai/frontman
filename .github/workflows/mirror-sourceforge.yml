@@ -36,5 +36,5 @@ jobs:
           cd repo.git
           git remote add sourceforge "ssh://${SOURCEFORGE_USERNAME}@git.code.sf.net/p/${SOURCEFORGE_REPOSITORY}/code"
           git push --prune sourceforge \
-            refs/heads/main:refs/heads/main \
-            'refs/tags/*:refs/tags/*'
+            +refs/heads/main:refs/heads/main \
+            '+refs/tags/*:refs/tags/*'
