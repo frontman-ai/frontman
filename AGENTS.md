@@ -25,7 +25,6 @@ cd .worktrees/feature/my-feature
 - `make wt-start BRANCH=...` - Resume paused worktree
 - `make wt-sh BRANCH=...` - Shell into container
 - `make wt-rm BRANCH=...` - Full cleanup (pod + volumes + worktree)
-- `make wt-gc` - Garbage-collect worktrees whose branches are merged into main
 - `make wt-urls BRANCH=...` - Show service URLs
 - `make wt-logs BRANCH=...` - Tail container logs
 
