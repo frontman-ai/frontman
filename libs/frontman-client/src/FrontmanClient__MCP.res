@@ -214,6 +214,7 @@ let handleToolsCall = async (
               )
             sendResponse(handler, id, resultJson)
           | Suspended => ()
+          | ProtocolError({code, message}) => sendError(handler, id, code, message)
           }
         } catch {
         | exn =>

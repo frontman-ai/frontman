@@ -28,14 +28,18 @@
       },
       "type": "array"
     },
+    "nextCursor": {
+      "type": "string"
+    },
     "ttlMs": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 2147483647
+      "type": "number",
+      "minimum": 0
     },
     "cacheScope": {
-      "type": "string",
-      "const": "private"
+      "enum": [
+        "public",
+        "private"
+      ]
     },
     "_meta": {
       "type": "object",
@@ -55,17 +59,13 @@
             "version"
           ]
         }
-      },
-      "required": [
-        "io.modelcontextprotocol/serverInfo"
-      ]
+      }
     }
   },
   "required": [
     "resultType",
     "tools",
     "ttlMs",
-    "cacheScope",
-    "_meta"
+    "cacheScope"
   ]
 }

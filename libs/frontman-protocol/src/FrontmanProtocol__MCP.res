@@ -1,5 +1,13 @@
 let protocolVersion = "2026-07-28"
 
+@scope("Number") @val
+external isFinite: float => bool = "isFinite"
+
+let ttlMsSchema =
+  S.float
+  ->S.floatMin(0.0)
+  ->S.refine(isFinite, ~error="Expected a finite cache TTL")
+
 @schema
 type info = {
   name: string,
@@ -54,10 +62,39 @@ type discoverResult = {
   resultType: @s.matches(S.literal("complete")) string,
   supportedVersions: array<@s.matches(S.literal("2026-07-28")) string>,
   capabilities: serverCapabilities,
-  ttlMs: @s.matches(S.int->S.min(0)) int,
+  ttlMs: @s.matches(ttlMsSchema) float,
   cacheScope: @s.matches(S.literal("private")) string,
   _meta: resultMeta,
 }
+
+let toolsCapabilityWireSchema = S.object(s => {
+  s.field("listChanged", S.option(S.bool))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let serverCapabilitiesWireSchema = S.object(s => {
+  s.field("tools", S.option(toolsCapabilityWireSchema))->ignore
+  s.field("extensions", S.option(S.dict(S.json)))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let resultMetaWireSchema = S.object(s => {
+  s.field("io.modelcontextprotocol/serverInfo", S.option(infoSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let cacheScopeWireSchema = S.union([S.literal("public"), S.literal("private")])
+
+let discoverResultWireSchema = S.object(s => {
+  s.field("resultType", S.literal("complete"))->ignore
+  s.field("supportedVersions", S.array(S.string))->ignore
+  s.field("capabilities", serverCapabilitiesWireSchema)->ignore
+  s.field("instructions", S.option(S.string))->ignore
+  s.field("ttlMs", ttlMsSchema)->ignore
+  s.field("cacheScope", cacheScopeWireSchema)->ignore
+  s.field("_meta", S.option(resultMetaWireSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
 
 @schema
 type toolsListParams = {_meta: requestMeta}
@@ -232,22 +269,25 @@ let toolJsonSchema = S.object(s => {
 type toolsListResult = {
   resultType: @s.matches(S.literal("complete")) string,
   tools: array<JSON.t>,
-  ttlMs: @s.matches(S.int->S.min(0)) int,
+  ttlMs: @s.matches(ttlMsSchema) float,
   cacheScope: @s.matches(S.literal("private")) string,
   _meta: resultMeta,
 }
 
-let toolsListResultWireSchema: S.t<toolsListResult> = S.object(s => {
-  resultType: s.field("resultType", S.literal("complete")),
-  tools: s.field("tools", S.array(toolJsonSchema)),
-  ttlMs: s.field("ttlMs", S.int->S.min(0)),
-  cacheScope: s.field("cacheScope", S.literal("private")),
-  _meta: s.field("_meta", resultMetaSchema),
+let toolsListResultWireSchema = S.object(s => {
+  s.field("resultType", S.literal("complete"))->ignore
+  s.field("tools", S.array(toolJsonSchema))->ignore
+  s.field("nextCursor", S.option(S.string))->ignore
+  s.field("ttlMs", ttlMsSchema)->ignore
+  s.field("cacheScope", cacheScopeWireSchema)->ignore
+  s.field("_meta", S.option(resultMetaWireSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
 })
 
 type executeToolResult =
   | Completed(CallToolResult.t)
   | Suspended
+  | ProtocolError({code: int, message: string})
 
 module ErrorCode = {
   let invalidParams = -32602

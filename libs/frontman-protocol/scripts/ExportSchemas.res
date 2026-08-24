@@ -72,7 +72,7 @@ let entries: array<schemaEntry> = [
     schema: ContentBlock.embeddedResourceSchema->toUnknownSchema,
   },
   {dir: "mcp", name: "discoverParams", schema: MCP.discoverParamsSchema->toUnknownSchema},
-  {dir: "mcp", name: "discoverResult", schema: MCP.discoverResultSchema->toUnknownSchema},
+  {dir: "mcp", name: "discoverResult", schema: MCP.discoverResultWireSchema->toUnknownSchema},
   {dir: "mcp", name: "callToolResult", schema: MCP.CallToolResult.jsonSchema->toUnknownSchema},
   {dir: "mcp", name: "toolCallParams", schema: MCP.toolCallParamsSchema->toUnknownSchema},
   {dir: "mcp", name: "toolsListParams", schema: MCP.toolsListParamsSchema->toUnknownSchema},

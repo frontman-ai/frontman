@@ -162,6 +162,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
             "io.modelcontextprotocol/ui" => %{"mimeTypes" => ["text/html"]}
           }
         },
+        "ttlMs" => 0.5,
         "cacheScope" => "public",
         "_meta" => %{}
       })
@@ -230,6 +231,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
             }
           ],
           %{
+            "ttlMs" => 1.5,
             "cacheScope" => "public",
             "_meta" => %{}
           }

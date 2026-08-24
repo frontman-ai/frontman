@@ -7,8 +7,7 @@
     },
     "supportedVersions": {
       "items": {
-        "type": "string",
-        "const": "2026-07-28"
+        "type": "string"
       },
       "type": "array"
     },
@@ -21,45 +20,26 @@
             "listChanged": {
               "type": "boolean"
             }
-          },
-          "required": [
-            "listChanged"
-          ]
+          }
         },
         "extensions": {
           "type": "object",
-          "properties": {
-            "ai.frontman/execution-context": {
-              "type": "object",
-              "properties": {
-                "version": {
-                  "type": "number",
-                  "const": 1
-                }
-              },
-              "required": [
-                "version"
-              ]
-            }
-          },
-          "required": [
-            "ai.frontman/execution-context"
-          ]
+          "additionalProperties": true
         }
-      },
-      "required": [
-        "tools",
-        "extensions"
-      ]
+      }
+    },
+    "instructions": {
+      "type": "string"
     },
     "ttlMs": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 2147483647
+      "type": "number",
+      "minimum": 0
     },
     "cacheScope": {
-      "type": "string",
-      "const": "private"
+      "enum": [
+        "public",
+        "private"
+      ]
     },
     "_meta": {
       "type": "object",
@@ -79,10 +59,7 @@
             "version"
           ]
         }
-      },
-      "required": [
-        "io.modelcontextprotocol/serverInfo"
-      ]
+      }
     }
   },
   "required": [
@@ -90,7 +67,6 @@
     "supportedVersions",
     "capabilities",
     "ttlMs",
-    "cacheScope",
-    "_meta"
+    "cacheScope"
   ]
 }

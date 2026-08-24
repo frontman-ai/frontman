@@ -29,6 +29,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   alias FrontmanServer.Tools.MCP, as: MCPTools
   alias JsonRpc
   alias ModelContextProtocol, as: MCP
+  alias ModelContextProtocol.Schema, as: MCPSchema
 
   @execution_context_extension "ai.frontman/execution-context"
 
@@ -134,54 +135,23 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  defp validate_discovery_response(
+  defp validate_discovery_response(result) do
+    with :ok <- MCPSchema.validate_discover_result(result),
          %{
-           "resultType" => "complete",
            "supportedVersions" => supported_versions,
-           "ttlMs" => ttl_ms,
-           "cacheScope" => cache_scope,
            "capabilities" =>
              %{
-               "tools" => tools_capability,
+               "tools" => _tools_capability,
                "extensions" => %{@execution_context_extension => %{"version" => 1}}
              } = capabilities
-         } = result
-       ) do
-    with true <- is_list(supported_versions),
-         true <- Enum.all?(supported_versions, &is_binary/1),
+         } <- result,
          true <- MCP.protocol_version() in supported_versions,
-         true <- is_map(tools_capability),
-         true <- valid_optional_tool_field?(tools_capability, "listChanged", &is_boolean/1),
-         true <- is_integer(ttl_ms) and ttl_ms >= 0,
-         true <- cache_scope in ["public", "private"],
-         {:ok, server_info} <- server_info(result) do
+         server_info <- get_in(result, ["_meta", "io.modelcontextprotocol/serverInfo"]) do
       {:ok, capabilities, server_info}
     else
       _ -> {:error, "Invalid or incompatible MCP discovery response"}
     end
   end
-
-  defp validate_discovery_response(_result),
-    do: {:error, "Invalid or incompatible MCP discovery response"}
-
-  defp server_info(%{
-         "_meta" => %{
-           "io.modelcontextprotocol/serverInfo" => %{"name" => name, "version" => version} = info
-         }
-       })
-       when is_binary(name) and is_binary(version),
-       do: {:ok, info}
-
-  defp server_info(%{"_meta" => meta})
-       when is_map(meta) and
-              not is_map_key(
-                meta,
-                "io.modelcontextprotocol/serverInfo"
-              ),
-       do: {:ok, nil}
-
-  defp server_info(result) when not is_map_key(result, "_meta"), do: {:ok, nil}
-  defp server_info(_result), do: {:error, :invalid_server_info}
 
   defp handle_tools_response(result, state) do
     case validate_tools_response(result) do
@@ -195,34 +165,19 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  defp validate_tools_response(
-         %{
-           "resultType" => "complete",
-           "tools" => tools,
-           "ttlMs" => ttl_ms,
-           "cacheScope" => cache_scope
-         } = result
-       ) do
-    with true <- is_list(tools),
-         true <- is_integer(ttl_ms) and ttl_ms >= 0,
-         true <- cache_scope in ["public", "private"],
-         true <- Enum.all?(tools, &valid_tool?/1),
-         {:ok, _server_info} <- server_info(result) do
+  defp validate_tools_response(result) do
+    with :ok <- MCPSchema.validate_tools_list_result(result),
+         %{"tools" => tools} <- result,
+         true <- Enum.all?(tools, &valid_frontman_tool?/1) do
       {:ok, tools}
     else
       _ -> {:error, "Invalid MCP tools/list response"}
     end
   end
 
-  defp validate_tools_response(_result), do: {:error, "Invalid MCP tools/list response"}
-
-  defp valid_tool?(%{"name" => name, "inputSchema" => input_schema} = tool) do
+  defp valid_frontman_tool?(%{"inputSchema" => input_schema} = tool) do
     [
-      is_binary(name),
-      name != "",
-      is_map(input_schema),
       input_schema["type"] == "object",
-      valid_optional_tool_field?(tool, "description", &is_binary/1),
       valid_optional_tool_field?(tool, "outputSchema", &is_map/1),
       valid_optional_tool_field?(tool, "visibleToAgent", &is_boolean/1),
       valid_optional_tool_field?(tool, "executionMode", &is_binary/1),
@@ -231,7 +186,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     |> Enum.all?()
   end
 
-  defp valid_tool?(_tool), do: false
+  defp valid_frontman_tool?(_tool), do: false
 
   defp valid_optional_tool_field?(tool, field, predicate) do
     case Map.fetch(tool, field) do

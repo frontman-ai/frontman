@@ -2,6 +2,8 @@ open Vitest
 
 module MCP = FrontmanClient__MCP
 module Types = FrontmanClient__MCP__Types
+module MCPServer = FrontmanClient__MCP__Server
+module Relay = FrontmanClient__Relay
 
 module MockChannel = {
   type pushCall = {payload: JSON.t}
@@ -41,7 +43,7 @@ let makeInterface = (
           tools: {listChanged: false},
           extensions: {executionContext: {version: 1}},
         },
-        ttlMs: 0,
+        ttlMs: 0.0,
         cacheScope: "private",
         _meta: {serverInfo: serverInfo},
       }
@@ -52,7 +54,7 @@ let makeInterface = (
     | _ => {
         resultType: "complete",
         tools: [],
-        ttlMs: 0,
+        ttlMs: 0.0,
         cacheScope: "private",
         _meta: {serverInfo: serverInfo},
       }
@@ -243,6 +245,28 @@ describe("MCP 2026-07-28", () => {
       requestWithId(~id=`"call-1"`, ~method="tools/call", ~params=toolParams),
     )
     t->expect(response(calls)->Dict.get("id"))->Expect.toEqual(Some(JSON.Encode.string("call-1")))
+  })
+
+  testAsync("returns invalid params for an unknown tool", async t => {
+    let server = MCPServer.make(~relay=Relay.make(~baseUrl="http://relay.invalid"))
+    let (channel, calls) = MockChannel.make()
+
+    await MCP.handleMessage(
+      {
+        MCP.serverInterface: MCPServer.toInterface(server),
+        channel,
+        sessionId: "task-1",
+        onMessage: None,
+      },
+      request(
+        ~id=21,
+        ~method="tools/call",
+        ~params=toolParams->String.replace(`"name":"question"`, `"name":"missing_tool"`),
+      ),
+    )
+
+    t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
+    t->expect(response(calls)->Dict.get("result")->Option.isNone)->Expect.toBe(true)
   })
 
   test("accepts array structuredContent", _ => {

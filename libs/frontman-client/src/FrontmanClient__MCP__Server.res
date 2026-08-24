@@ -173,7 +173,8 @@ let executeTool = async (
   | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId)
   | None =>
     switch server.relay->Relay.hasTool(name) {
-    | false => Completed(toolError(`Tool not found: ${name}`))
+    | false =>
+      ProtocolError({code: Types.ErrorCode.invalidParams, message: `Unknown tool: ${name}`})
     | true =>
       let resolvedArgs = switch name {
       | name if name == ToolNames.writeFile =>
@@ -220,7 +221,7 @@ let buildDiscoverResult = (server: t): Types.discoverResult => {
       tools: {listChanged: false},
       extensions: {executionContext: {version: 1}},
     },
-    ttlMs: 0,
+    ttlMs: 0.0,
     cacheScope: "private",
     _meta: {serverInfo: server.serverInfo},
   }
@@ -230,7 +231,7 @@ let buildToolsListResult = (server: t): Types.toolsListResult => {
   {
     resultType: "complete",
     tools: getToolsJson(server),
-    ttlMs: 0,
+    ttlMs: 0.0,
     cacheScope: "private",
     _meta: {serverInfo: server.serverInfo},
   }
