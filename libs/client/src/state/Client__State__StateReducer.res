@@ -90,6 +90,7 @@ type action =
   | CheckForUpdate({installedVersion: string, npmPackage: string})
   | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
   | DismissUpdateBanner
+  | HighlightAnnotation({selector: string})
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
@@ -241,6 +242,7 @@ let defaultState: state = {
   updateInfo: None,
   updateCheckStatus: UpdateNotChecked,
   updateBannerDismissed: false,
+  highlightedAnnotationSelector: None,
 }
 
 module Selectors = {
@@ -418,6 +420,10 @@ module Selectors = {
 
   let updateBannerDismissed = (state: state): bool => {
     state.updateBannerDismissed
+  }
+
+  let highlightedAnnotationSelector = (state: state): option<string> => {
+    state.highlightedAnnotationSelector
   }
 
   let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {
@@ -1116,6 +1122,7 @@ let next = (state: state, action) => {
       {
         ...updatedState,
         currentTask: Task.Selected(taskId),
+        highlightedAnnotationSelector: None,
       }->StateReducer.update(
         ~sideEffects=Array.concat([LoadTaskEffect({taskId: taskId})], taskEffects),
       )
@@ -1155,6 +1162,7 @@ let next = (state: state, action) => {
     {
       ...state,
       currentTask: Task.New(Task.makeNew(~previewUrl)),
+      highlightedAnnotationSelector: None,
     }->StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
@@ -1557,5 +1565,12 @@ let next = (state: state, action) => {
     {...state, updateInfo: Some(updateInfo)}->StateReducer.update
 
   | DismissUpdateBanner => {...state, updateBannerDismissed: true}->StateReducer.update
+
+  | HighlightAnnotation({selector}) =>
+    let highlighted = switch state.highlightedAnnotationSelector {
+    | Some(current) if current == selector => None
+    | _ => Some(selector)
+    }
+    {...state, highlightedAnnotationSelector: highlighted}->StateReducer.update
   }
 }

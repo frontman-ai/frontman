@@ -177,4 +177,5 @@ type state = {
   updateInfo: option<updateInfo>,
   updateCheckStatus: updateCheckStatus,
   updateBannerDismissed: bool,
+  highlightedAnnotationSelector: option<string>,
 }

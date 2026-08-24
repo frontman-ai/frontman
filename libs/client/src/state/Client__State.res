@@ -102,6 +102,9 @@ module Actions = {
       TaskAction({target: CurrentTask, action: UpdateAnnotationComment({id, comment})}),
     )
 
+  let highlightAnnotation = (~selector) =>
+    Client__State__Store.dispatch(HighlightAnnotation({selector: selector}))
+
   let closeAnnotationPopup = () =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: None})}),

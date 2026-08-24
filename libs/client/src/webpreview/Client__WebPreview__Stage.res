@@ -79,6 +79,13 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     Client__State.Selectors.activePopupAnnotationId,
   )
 
+  let highlightedSelector = Client__State.useSelector(
+    Client__State.Selectors.highlightedAnnotationSelector,
+  )
+  let (highlightedElement, setHighlightedElement) = React.useState((): option<
+    WebAPI.DomTypes.element,
+  > => None)
+
   let scrollTimestamp = Client__Hooks.Scroll.useIFrameDocument(~document, ~withCapture=true, ())
   let mutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
   let clickedElement = Client__Hooks.MouseClick.useIFrameDocument(
@@ -90,6 +97,27 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     (),
   )
   let hoveredElement = Client__Hooks.MouseMove.useIFrameDocument(~document, ~withCapture=true, ())
+
+  let lastScrolledSelector = React.useRef(None)
+
+  React.useEffect(() => {
+    switch (document, highlightedSelector) {
+    | (Some(doc), Some(selector)) =>
+      let (element, _count) = Client__Tool__SelectorResolver.resolveBySelector(~doc, ~selector)
+      setHighlightedElement(_ => element)
+      switch (element, lastScrolledSelector.current) {
+      | (Some(_), Some(previous)) if previous == selector => ()
+      | (Some(element), _) =>
+        lastScrolledSelector.current = Some(selector)
+        element->WebAPI.Element.scrollIntoViewWithOptions({behavior: Smooth, block: Center})
+      | (None, _) => lastScrolledSelector.current = None
+      }
+    | _ =>
+      lastScrolledSelector.current = None
+      setHighlightedElement(_ => None)
+    }
+    None
+  }, (document, highlightedSelector, mutationTimestamp))
 
   React.useEffect(() => {
     switch (document, webPreviewIsSelecting) {
@@ -371,6 +399,14 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   | Idle => React.null
   }
 
+  let highlightOverlay = switch highlightedElement {
+  | Some(_) =>
+    <Client__WebPreview__HoveredElement
+      key="highlight" element={highlightedElement} scrollTimestamp={scrollTimestamp}
+    />
+  | None => React.null
+  }
+
   let annotationMarkersOverlay =
     <Client__WebPreview__AnnotationMarkers
       annotations={annotations}
@@ -411,6 +447,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       selectionModeIndicator
       hoverOverlay
       dragOverlay
+      highlightOverlay
       annotationMarkersOverlay
       annotationPopupOverlay
     </div>
@@ -436,6 +473,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         selectionModeIndicator
         hoverOverlay
         dragOverlay
+        highlightOverlay
         annotationMarkersOverlay
         annotationPopupOverlay
       </div>
