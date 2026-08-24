@@ -26,6 +26,10 @@ let installDependencies = async (
   ~projectDir: string,
   ~packageManager: Detect.packageManager,
   ~dryRun: bool,
+  ~exec: (
+    string,
+    ChildProcess.execOptions,
+  ) => Promise.t<result<ChildProcess.execResult, ChildProcess.execError>>,
 ): result<unit, string> => {
   let pm = Detect.getPackageManagerCommand(packageManager)
   let args = Detect.getInstallArgs(packageManager)
@@ -40,10 +44,18 @@ let installDependencies = async (
   | false =>
     Console.log(`  ${Style.purple("Installing dependencies with " ++ pm ++ "...")}`)
 
-    switch await ChildProcess.execWithOptions(cmd, {cwd: projectDir}) {
+    switch await exec(cmd, {cwd: projectDir}) {
     | Ok(_) =>
-      Console.log(`  ${Style.check} Dependencies installed`)
-      Ok()
+      switch Detect.resolveFrom(projectDir, "@frontman-ai/nextjs/Instrumentation") {
+      | Error(msg) => Error(msg)
+      | Ok(_) =>
+        switch Detect.resolveFrom(projectDir, "@opentelemetry/sdk-node") {
+        | Error(msg) => Error(msg)
+        | Ok(_) =>
+          Console.log(`  ${Style.check} Dependencies installed`)
+          Ok()
+        }
+      }
     | Error(err) =>
       let stderr = switch err.stderr == "" {
       | true => "Unknown error"
@@ -110,7 +122,7 @@ let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): 
   pending
 }
 
-let run = async (options: installOptions): installResult => {
+let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): installResult => {
   let projectDir = options.prefix->Option.getOr(Process.cwd())
   let host = options.server
 
@@ -136,88 +148,91 @@ let run = async (options: installOptions): installResult => {
     Console.log(`  ${Style.bullet} ${Style.bold("Detected:")} Next.js ${version}`)
     Console.log("")
 
-    switch options.skipDeps {
-    | true => ()
+    let dependencyResult = switch options.skipDeps {
+    | true => Ok()
     | false =>
-      switch await installDependencies(
+      await installDependencies(
         ~projectDir,
         ~packageManager=info.packageManager,
         ~dryRun=options.dryRun,
-      ) {
-      | Error(msg) =>
-        Console.error(`  ${Style.warn}  ${msg}`)
-        ()
-      | Ok() => ()
-      }
-      Console.log("")
-    }
-
-    let pendingEdits = collectPendingAutoEdits(~info, ~isNext16Plus)
-    let shouldAutoEdit = switch (pendingEdits->Array.length > 0, options.dryRun) {
-    | (true, false) =>
-      let fileNames = pendingEdits->Array.map(p => p.fileName)
-      await AutoEdit.promptUserForAutoEdit(~fileNames)
-    | _ => false
-    }
-
-    let manualSteps = []
-
-    let middlewareResult = switch isNext16Plus {
-    | true =>
-      await Files.handleProxy(
-        ~projectDir,
-        ~hasSrcDir=info.hasSrcDir,
-        ~host,
-        ~existingFile=info.proxy,
-        ~dryRun=options.dryRun,
-        ~autoEdit=shouldAutoEdit,
-      )
-    | false =>
-      await Files.handleMiddleware(
-        ~projectDir,
-        ~hasSrcDir=info.hasSrcDir,
-        ~host,
-        ~existingFile=info.middleware,
-        ~dryRun=options.dryRun,
-        ~autoEdit=shouldAutoEdit,
+        ~exec,
       )
     }
 
-    switch processFileResult(middlewareResult, manualSteps) {
-    | Error(msg) => Failure(msg)
+    switch dependencyResult {
+    | Error(msg) =>
+      Console.error(`  ${Style.warn}  ${msg}`)
+      Failure(msg)
     | Ok() =>
-      let instrumentationResult = await Files.handleInstrumentation(
-        ~projectDir,
-        ~host,
-        ~hasSrcDir=info.hasSrcDir,
-        ~existingFile=info.instrumentation,
-        ~dryRun=options.dryRun,
-        ~autoEdit=shouldAutoEdit,
-      )
+      Console.log("")
 
-      switch processFileResult(instrumentationResult, manualSteps) {
+      let pendingEdits = collectPendingAutoEdits(~info, ~isNext16Plus)
+      let shouldAutoEdit = switch (pendingEdits->Array.length > 0, options.dryRun) {
+      | (true, false) =>
+        let fileNames = pendingEdits->Array.map(p => p.fileName)
+        await AutoEdit.promptUserForAutoEdit(~fileNames)
+      | _ => false
+      }
+
+      let manualSteps = []
+
+      let middlewareResult = switch isNext16Plus {
+      | true =>
+        await Files.handleProxy(
+          ~projectDir,
+          ~hasSrcDir=info.hasSrcDir,
+          ~host,
+          ~existingFile=info.proxy,
+          ~dryRun=options.dryRun,
+          ~autoEdit=shouldAutoEdit,
+        )
+      | false =>
+        await Files.handleMiddleware(
+          ~projectDir,
+          ~hasSrcDir=info.hasSrcDir,
+          ~host,
+          ~existingFile=info.middleware,
+          ~dryRun=options.dryRun,
+          ~autoEdit=shouldAutoEdit,
+        )
+      }
+
+      switch processFileResult(middlewareResult, manualSteps) {
       | Error(msg) => Failure(msg)
       | Ok() =>
-        switch manualSteps->Array.length > 0 {
-        | true =>
-          Console.log("")
-          Console.log(`  ${Style.divider}`)
-          Console.log("")
-          Console.log(`  ${Style.yellowBold("Manual steps required:")}`)
-          Console.log("")
-          manualSteps->Array.forEach(step => Console.log(step))
-          Console.log("")
-          PartialSuccess({manualStepsRequired: manualSteps})
-        | false =>
-          switch options.dryRun {
-          | true => ()
-          | false =>
-            let devCommand = Detect.getDevCommand(info.packageManager)
+        let instrumentationResult = await Files.handleInstrumentation(
+          ~projectDir,
+          ~host,
+          ~hasSrcDir=info.hasSrcDir,
+          ~existingFile=info.instrumentation,
+          ~dryRun=options.dryRun,
+          ~autoEdit=shouldAutoEdit,
+        )
+
+        switch processFileResult(instrumentationResult, manualSteps) {
+        | Error(msg) => Failure(msg)
+        | Ok() =>
+          switch manualSteps->Array.length > 0 {
+          | true =>
             Console.log("")
             Console.log(`  ${Style.divider}`)
-            Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~server=host))
+            Console.log("")
+            Console.log(`  ${Style.yellowBold("Manual steps required:")}`)
+            Console.log("")
+            manualSteps->Array.forEach(step => Console.log(step))
+            Console.log("")
+            PartialSuccess({manualStepsRequired: manualSteps})
+          | false =>
+            switch options.dryRun {
+            | true => Success
+            | false =>
+              let devCommand = Detect.getDevCommand(info.packageManager)
+              Console.log("")
+              Console.log(`  ${Style.divider}`)
+              Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~server=host))
+              Success
+            }
           }
-          Success
         }
       }
     }

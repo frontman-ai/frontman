@@ -912,3 +912,66 @@ describe("Dry Run Mode", _t => {
     await cleanupTempFixture(tempDir)
   })
 })
+
+describe("Dependency Installation Failure", _t => {
+  testAsync("fails when the imported Frontman entrypoint cannot be resolved", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    let frontmanDir = Path.join([tempDir, "node_modules", "@frontman-ai", "nextjs"])
+    let _ = await Fs.Promises.mkdir(frontmanDir, {recursive: true})
+    await Fs.Promises.writeFile(Path.join([frontmanDir, "package.json"]), `{"main":"index.js"}`)
+    await Fs.Promises.writeFile(Path.join([frontmanDir, "index.js"]), "")
+    let successfulExec = async (_command, _options): result<
+      ChildProcess.execResult,
+      ChildProcess.execError,
+    > => Ok({stdout: "", stderr: ""})
+
+    let result = await Install.installDependencies(
+      ~projectDir=tempDir,
+      ~packageManager=Detect.Npm,
+      ~dryRun=false,
+      ~exec=successfulExec,
+    )
+
+    switch result {
+    | Error(message) =>
+      t->expect(message->String.includes("@frontman-ai/nextjs/Instrumentation"))->Expect.toBe(true)
+    | Ok() => t->expect("success")->Expect.toBe("dependency resolution failure")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("stops before writing integration files", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    let failingExec = async (_command, _options): result<
+      ChildProcess.execResult,
+      ChildProcess.execError,
+    > => Error({
+      code: None,
+      stdout: "",
+      stderr: "network failure",
+      message: "network failure",
+    })
+
+    let result = await Install.run(
+      {
+        server: "test.frontman.dev",
+        prefix: Some(tempDir),
+        dryRun: false,
+        skipDeps: false,
+      },
+      ~exec=failingExec,
+    )
+
+    switch result {
+    | Install.Failure(message) =>
+      t->expect(message->String.includes("network failure"))->Expect.toBe(true)
+    | Install.Success => t->expect("success")->Expect.toBe("dependency failure")
+    | Install.PartialSuccess(_) => t->expect("partial success")->Expect.toBe("dependency failure")
+    }
+
+    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
+    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
+    await cleanupTempFixture(tempDir)
+  })
+})
