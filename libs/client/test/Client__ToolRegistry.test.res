@@ -79,4 +79,26 @@ describe("ToolRegistry", _t => {
     ->expect(JSON.stringify(json))
     ->Expect.toBe(`{"content":[{"type":"image","data":"image-data","mimeType":"image/jpeg"}]}`)
   })
+
+  test("explains generated image decode failures", t => {
+    let message = Client__Tool__TakeScreenshot.captureErrorMessage(
+      "The source image cannot be decoded.",
+    )
+    let alternateMessage = Client__Tool__TakeScreenshot.captureErrorMessage(
+      "Invalid encoded image data",
+    )
+
+    t->expect(message->String.includes("generated page image"))->Expect.toBe(true)
+    t
+    ->expect(message->String.includes("capture a smaller element with the selector option"))
+    ->Expect.toBe(true)
+    t->expect(alternateMessage)->Expect.toBe(message)
+  })
+
+  test("keeps unrelated screenshot errors unchanged", t => {
+    let message = "Canvas dimensions must be positive"
+    t
+    ->expect(Client__Tool__TakeScreenshot.captureErrorMessage(message))
+    ->Expect.toBe(message)
+  })
 })

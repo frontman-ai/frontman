@@ -53,7 +53,7 @@
 		"@types/babel__core": "^7",
 		"@types/react": "^19.2.15",
 		"@types/react-dom": "^19.2.3",
-		"@zumer/snapdom": "^2.12.9",
+		"@zumer/snapdom": "^2.24.7",
 		"babel-plugin-react-compiler": "^1.0.0",
 		"dom-accessibility-api": "^0.7.1",
 		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
