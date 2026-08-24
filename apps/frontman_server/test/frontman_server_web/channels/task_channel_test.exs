@@ -158,10 +158,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     %SwarmAi.ToolCall{id: id, name: "question", arguments: args}
   end
 
-  defp tool_call_metadata(%SwarmAi.ToolCall{} = tool_call) do
-    %{"id" => tool_call.id, "name" => tool_call.name, "arguments" => tool_call.arguments}
-  end
-
   defp redispatched_question_header?(
          {"mcp:message",
           %{
@@ -248,12 +244,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       user: user
     } do
       complete_mcp_handshake(socket)
+      message_id = Ecto.UUID.generate()
 
       ref =
         push(
           socket,
           "acp:message",
           build_prompt_request(
+            message_id: message_id,
             _meta: %{
               "model" => %{"provider" => "openrouter", "value" => "openai/gpt-5.5"},
               "agent" => "test-frontman",
@@ -269,7 +267,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "sessionId" => ^task_id,
           "update" => %{
             "sessionUpdate" => "user_message_chunk",
-            "messageId" => _message_id,
+            "messageId" => ^message_id,
             "content" => %{"type" => "text", "text" => "Hello"}
           }
         }
@@ -307,6 +305,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_state_update_idle(task_id)
 
       assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert Enum.any?(task.interaction_rows, &(&1.type == :user_message and &1.id == message_id))
       turn_row = Enum.find(task.interaction_rows, &(&1.type == :turn_started))
       response = Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentResponse{}, &1))
       assert response_message_id == "#{turn_row.id}:0"
@@ -314,6 +313,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "live user chunks equal replayed persisted chunks", %{socket: socket, task_id: task_id} do
+      message_id = Ecto.UUID.generate()
+
       selector_annotation =
         Helpers.annotation_block("selector-ann", "button", nil, nil, nil, index: 0)
         |> put_in(
@@ -344,7 +345,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "prompt" => content_blocks,
             "_meta" => %{
               "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-              "agent" => "test-frontman"
+              "agent" => "test-frontman",
+              "frontman.dev/messageId" => message_id
             }
           })
         )
@@ -362,6 +364,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       replayed_chunks = collect_all_pushes() |> user_message_updates()
 
       assert length(live_chunks) == length(content_blocks)
+      assert Enum.all?(live_chunks, &(&1["messageId"] == message_id))
       assert replayed_chunks == live_chunks
     end
 
@@ -374,12 +377,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         push(
           socket,
           "acp:message",
-          build_acp_request("session/prompt", 45, %{
-            "prompt" => [%{"type" => "text", "text" => "Hello"}],
-            "_meta" => %{
+          build_prompt_request(
+            id: 45,
+            _meta: %{
               "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}
             }
-          })
+          )
         )
 
       assert_push("acp:message", %{
@@ -422,6 +425,69 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert Tasks.interactions(task) == []
     end
 
+    test "rejects duplicate message UUIDs", %{socket: socket} do
+      message_id = Ecto.UUID.generate()
+      first_ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
+      assert_push("acp:message", %{"params" => %{"update" => %{"messageId" => ^message_id}}})
+      assert_reply(first_ref, :ok, %{"acp:message" => %{"result" => %{}}})
+
+      duplicate_ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
+      assert_reply(duplicate_ref, :ok, %{"acp:message" => duplicate_response})
+      assert duplicate_response["error"]["code"] == JsonRpc.error_invalid_params()
+      assert duplicate_response["error"]["message"] == "Message ID has already been taken"
+    end
+
+    for {name, message_id, expected_message} <- [
+          {"missing", :missing, "Message ID can't be blank"},
+          {"nil", nil, "Message ID can't be blank"},
+          {"empty", "", "Message ID can't be blank"},
+          {"malformed", "not-a-uuid", "Message ID is invalid"},
+          {"non-string", 123, "Message ID is invalid"}
+        ] do
+      test "rejects #{name} message ID without side effects", %{
+        socket: socket,
+        scope: scope,
+        task_id: task_id
+      } do
+        meta = %{
+          "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
+          "agent" => "test-frontman"
+        }
+
+        meta =
+          case unquote(Macro.escape(message_id)) do
+            :missing -> meta
+            message_id -> Map.put(meta, "frontman.dev/messageId", message_id)
+          end
+
+        ref =
+          push(
+            socket,
+            "acp:message",
+            build_acp_request("session/prompt", 43, %{
+              "prompt" => [%{"type" => "text", "text" => "Hello"}],
+              "_meta" => meta
+            })
+          )
+
+        assert_reply(ref, :ok, %{"acp:message" => response})
+        assert response["error"]["code"] == JsonRpc.error_invalid_params()
+        assert response["error"]["message"] == unquote(expected_message)
+
+        assert {:ok, task} = Tasks.get_task(scope, task_id)
+        assert Tasks.interactions(task) == []
+        assert all_enqueued(worker: GenerateTitle) == []
+
+        refute_push(
+          "acp:message",
+          %{"params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}},
+          100
+        )
+
+        refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
+      end
+    end
+
     test "returns invalid params for malformed text content block", %{socket: socket} do
       complete_mcp_handshake(socket)
 
@@ -433,7 +499,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
             "prompt" => [%{"type" => "text", "text" => ""}],
             "_meta" => %{
               "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-              "agent" => "test-frontman"
+              "agent" => "test-frontman",
+              "frontman.dev/messageId" => Ecto.UUID.generate()
             }
           })
         )
@@ -476,26 +543,39 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       ])
 
       complete_mcp_handshake(socket)
+      first_message_id = Ecto.UUID.generate()
+      second_message_id = Ecto.UUID.generate()
 
-      first_ref = push(socket, "acp:message", build_prompt_request(id: 11, text: "first"))
+      first_ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(id: 11, message_id: first_message_id, text: "first")
+        )
 
       assert_push("acp:message", %{
         "params" => %{
           "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "user_message_chunk"}
+          "update" => %{"sessionUpdate" => "user_message_chunk", "messageId" => ^first_message_id}
         }
       })
 
       assert_reply(first_ref, :ok, %{"acp:message" => %{"id" => 11, "result" => %{}}})
       assert_state_update_running(task_id)
 
-      second_ref = push(socket, "acp:message", build_prompt_request(id: 12, text: "second"))
+      second_ref =
+        push(
+          socket,
+          "acp:message",
+          build_prompt_request(id: 12, message_id: second_message_id, text: "second")
+        )
 
       assert_push("acp:message", %{
         "params" => %{
           "sessionId" => ^task_id,
           "update" => %{
             "sessionUpdate" => "user_message_chunk",
+            "messageId" => ^second_message_id,
             "content" => %{"type" => "text", "text" => "second"}
           }
         }
@@ -505,6 +585,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_state_update_idle(task_id)
       assert_state_update_running_then_idle(task_id)
+
+      assert {:ok, task} = Tasks.get_task(socket.assigns.scope, task_id)
+
+      assert [^first_message_id, ^second_message_id] =
+               task.interaction_rows
+               |> Enum.filter(&(&1.type == :turn_started))
+               |> Enum.flat_map(& &1.data.user_message_ids)
     end
   end
 
@@ -769,6 +856,66 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "todo tool updates" do
+    test "pushes tool completion and current plan for a successful todo write", %{
+      scope: scope
+    } do
+      {socket, task_id} = join_task_channel(scope)
+      turn_number = start_turn_fixture(scope, task_id)
+
+      tool_call = tool_call("todo-call", "todo_write", %{"todos" => []})
+      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+      collect_all_pushes()
+
+      todo = %{
+        "id" => Ecto.UUID.generate(),
+        "content" => "Fix todo rendering",
+        "active_form" => "Fixing todo rendering",
+        "status" => "in_progress",
+        "priority" => "high",
+        "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+        "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      assert {:ok, _interaction, _executor_status} =
+               Tasks.resolve_tool_request(
+                 scope,
+                 task_id,
+                 %{id: "todo-call", name: "todo_write"},
+                 %{"content" => [], "structuredContent" => %{"todos" => [todo]}},
+                 turn_number: turn_number
+               )
+
+      :sys.get_state(socket.channel_pid)
+
+      updates =
+        collect_all_pushes()
+        |> Enum.filter(fn {event, _payload} -> event == "acp:message" end)
+        |> Enum.map(fn {_event, payload} -> get_in(payload, ["params", "update"]) end)
+
+      assert [tool_update, plan_update] = updates
+
+      assert tool_update == %{
+               "sessionUpdate" => "tool_call_update",
+               "toolCallId" => "todo-call",
+               "status" => "completed",
+               "rawOutput" => %{"todos" => [todo]},
+               "content" => []
+             }
+
+      assert plan_update == %{
+               "sessionUpdate" => "plan",
+               "entries" => [
+                 %{
+                   "content" => "Fix todo rendering",
+                   "status" => "in_progress",
+                   "priority" => "high"
+                 }
+               ]
+             }
+    end
+  end
+
   describe "MCP initialization" do
     test "sends MCP discovery request on join", %{scope: scope} do
       {_socket, _task_id} = join_task_channel(scope)
@@ -997,8 +1144,99 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                %{
                  "id" => 90,
                  "result" => %{"configOptions" => _config_options}
+               },
+               %{
+                 "method" => "session/update",
+                 "params" => %{"update" => %{"sessionUpdate" => "plan", "entries" => []}}
                }
              ] = messages
+    end
+
+    test "restores current todo plan after the load result", %{scope: scope} do
+      task = task_fixture(scope)
+      turn_number = start_turn_fixture(scope, task.id)
+
+      todo_call = tool_call("todo-replay", "todo_write", %{"todos" => []})
+      {:ok, _interaction} = persist_tool_call_fixture(scope, task.id, turn_number, todo_call)
+
+      todo = %{
+        "id" => Ecto.UUID.generate(),
+        "content" => "Restore todo plan",
+        "active_form" => "Restoring todo plan",
+        "status" => "pending",
+        "priority" => "medium",
+        "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+        "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      assert {:ok, _interaction, _executor_status} =
+               Tasks.resolve_tool_request(
+                 scope,
+                 task.id,
+                 %{id: "todo-replay", name: "todo_write"},
+                 %{"content" => [], "structuredContent" => %{"todos" => [todo]}},
+                 turn_number: turn_number
+               )
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task.id}", %{})
+
+      collect_all_pushes()
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/load", 92, %{"sessionId" => task.id})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      relevant_messages =
+        collect_all_pushes()
+        |> Enum.filter(fn
+          {"acp:message", %{"id" => 92}} ->
+            true
+
+          {"acp:message", payload} ->
+            get_in(payload, ["params", "update", "sessionUpdate"]) in [
+              "tool_call_update",
+              "plan"
+            ]
+
+          _other ->
+            false
+        end)
+        |> Enum.map(&elem(&1, 1))
+
+      assert [
+               %{
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "tool_call_update",
+                     "toolCallId" => "todo-replay",
+                     "status" => "completed",
+                     "rawOutput" => %{"todos" => [^todo]}
+                   }
+                 }
+               },
+               %{"id" => 92, "result" => %{"configOptions" => _config_options}},
+               %{
+                 "params" => %{
+                   "update" => %{
+                     "sessionUpdate" => "plan",
+                     "entries" => [
+                       %{
+                         "content" => "Restore todo plan",
+                         "status" => "pending",
+                         "priority" => "medium"
+                       }
+                     ]
+                   }
+                 }
+               }
+             ] = relevant_messages
     end
 
     test "drains accepted work created outside the channel prompt flow", %{scope: scope} do
@@ -1014,6 +1252,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, %Tasks.InteractionSchema{data: %Interaction.UserMessage{}}} =
         Tasks.submit_user_message(scope, %{
           task_id: task.id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("queued elsewhere"),
           model: "openrouter:google/gemini-3.1-pro-preview",
           agent_id: "test-frontman"
@@ -1153,11 +1392,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       turn_number = latest_turn_number(task_id)
 
-      Tasks.agent_replied(scope, task_id, turn_number, "", %{
-        "tool_calls" => [tool_call_metadata(tool_call)]
-      })
-
-      Tasks.request_client_tool(scope, task_id, turn_number, tool_call)
+      {:ok, _tool_call} =
+        persist_response_tool_call_fixture(scope, task_id, turn_number, "", tool_call)
 
       {:ok, task_id: task_id, scope: scope, tool_call_id: tool_call_id}
     end
@@ -1241,11 +1477,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       second_tool_call = question_tool_call(second_tool_call_id, "Second", "B")
       turn_number = latest_turn_number(task_id)
 
-      Tasks.agent_replied(scope, task_id, turn_number, "", %{
-        "tool_calls" => [tool_call_metadata(second_tool_call)]
-      })
+      {:ok, _tool_call} =
+        persist_response_tool_call_fixture(scope, task_id, turn_number, "", second_tool_call)
 
-      Tasks.request_client_tool(scope, task_id, turn_number, second_tool_call)
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
       expect_resumed_model()
 
@@ -1360,11 +1594,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       user_message_fixture(scope, task_id, user_content("first turn"))
       first_turn_number = latest_turn_number(task_id)
 
-      Tasks.agent_replied(scope, task_id, first_turn_number, "", %{
-        "tool_calls" => [tool_call_metadata(first_tc)]
-      })
-
-      Tasks.request_client_tool(scope, task_id, first_turn_number, first_tc)
+      {:ok, _tool_call} =
+        persist_response_tool_call_fixture(scope, task_id, first_turn_number, "", first_tc)
 
       Tasks.resolve_tool_request(
         scope,
@@ -1379,11 +1610,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       user_message_fixture(scope, task_id, user_content("second turn"))
       second_turn_number = latest_turn_number(task_id)
 
-      Tasks.agent_replied(scope, task_id, second_turn_number, "", %{
-        "tool_calls" => [tool_call_metadata(second_tc)]
-      })
-
-      Tasks.request_client_tool(scope, task_id, second_turn_number, second_tc)
+      {:ok, _tool_call} =
+        persist_response_tool_call_fixture(scope, task_id, second_turn_number, "", second_tc)
 
       {:ok, _reply, socket} =
         UserSocket

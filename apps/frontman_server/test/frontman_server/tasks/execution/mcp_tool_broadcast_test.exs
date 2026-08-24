@@ -87,7 +87,11 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   defp submit_user_message_and_run(scope, task_id, execution_request, message) do
     case Tasks.submit_user_message(
            scope,
-           Map.merge(execution_request, %{task_id: task_id, message: message})
+           Map.merge(execution_request, %{
+             task_id: task_id,
+             message_id: Ecto.UUID.generate(),
+             message: message
+           })
          ) do
       {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution_request) do

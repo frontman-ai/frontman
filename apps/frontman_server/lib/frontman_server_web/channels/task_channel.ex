@@ -243,30 +243,23 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_interaction(%Tasks.Interaction.ToolResult{} = tool_result, _turn_number, socket) do
     task_id = socket.assigns.task_id
-    scope = socket.assigns.scope
 
-    if Tools.todo_mutation?(tool_result.tool_name) do
-      case Tasks.list_todos(scope, task_id) do
-        {:ok, todos} ->
-          entries = Enum.map(todos, &to_plan_entry/1)
-          plan_notification = ACP.plan_update(task_id, entries)
-          push(socket, @acp_message, plan_notification)
+    notification =
+      ACP.tool_call_update(
+        task_id,
+        tool_result.tool_call_id,
+        ACP.tool_call_status(tool_result.is_error),
+        ACP.Content.from_tool_result(tool_result.result),
+        nil,
+        tool_result.result["structuredContent"]
+      )
 
-        {:error, _reason} ->
-          :ok
-      end
-    else
-      notification =
-        ACP.tool_call_update(
-          task_id,
-          tool_result.tool_call_id,
-          ACP.tool_call_status(tool_result.is_error),
-          ACP.Content.from_tool_result(tool_result.result),
-          nil,
-          tool_result.result["structuredContent"]
-        )
+    push(socket, @acp_message, notification)
 
-      push(socket, @acp_message, notification)
+    case {Tools.todo_mutation?(tool_result.tool_name), tool_result.is_error} do
+      {true, false} -> push_current_todo_plan(socket)
+      {true, true} -> :ok
+      {false, _is_error} -> :ok
     end
 
     {:noreply, socket}
@@ -586,6 +579,8 @@ defmodule FrontmanServerWeb.TaskChannel do
           )
         )
 
+        push_current_todo_plan(socket, Tasks.list_todos(task))
+
         socket =
           socket
           |> assign(:session_loaded, true)
@@ -621,6 +616,7 @@ defmodule FrontmanServerWeb.TaskChannel do
                  scope,
                  %{
                    task_id: task_id,
+                   message_id: meta["frontman.dev/messageId"],
                    message: content_blocks,
                    model: model,
                    agent_id: agent_id
@@ -633,15 +629,19 @@ defmodule FrontmanServerWeb.TaskChannel do
           Logger.info("User message accepted for task #{task_id}")
           {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
         else
+          {:error, %Ecto.Changeset{} = changeset} ->
+            {message, _metadata} = Keyword.fetch!(changeset.errors, :id)
+            reply_invalid_params(socket, id, "Message ID #{message}")
+
           {:error, :missing_agent} ->
-            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Agent is required")
+            reply_invalid_params(socket, id, "Agent is required")
 
           {:error, :unknown_agent} ->
-            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Unknown agent")
+            reply_invalid_params(socket, id, "Unknown agent")
 
           {:error, {:invalid_content_block, message}} ->
             Logger.error("Failed to add user message: #{message}")
-            reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
+            reply_invalid_params(socket, id, message)
 
           {:error, reason} ->
             Logger.error("Failed to add user message: #{inspect(reason)}")
@@ -649,7 +649,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         end
 
       :error ->
-        reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Model is required")
+        reply_invalid_params(socket, id, "Model is required")
     end
   end
 
@@ -662,6 +662,9 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp reply_acp_error(socket, id, code, message) do
     {:reply, {:ok, %{@acp_message => JsonRpc.error_response(id, code, message)}}, socket}
   end
+
+  defp reply_invalid_params(socket, id, message),
+    do: reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
 
   defp push_acp_error(socket, id, code, message) do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
@@ -1008,5 +1011,15 @@ defmodule FrontmanServerWeb.TaskChannel do
       "priority" => Atom.to_string(todo.priority),
       "status" => Atom.to_string(todo.status)
     }
+  end
+
+  defp push_current_todo_plan(socket) do
+    {:ok, todos} = Tasks.list_todos(socket.assigns.scope, socket.assigns.task_id)
+    push_current_todo_plan(socket, todos)
+  end
+
+  defp push_current_todo_plan(socket, todos) when is_list(todos) do
+    entries = Enum.map(todos, &to_plan_entry/1)
+    push(socket, @acp_message, ACP.plan_update(socket.assigns.task_id, entries))
   end
 end

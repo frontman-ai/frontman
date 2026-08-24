@@ -68,11 +68,11 @@
 		"@frontman-ai/frontman-core": "*",
 		"@frontman-ai/frontman-protocol": "*",
 		"@rescript/runtime": "catalog:",
-		"@rescript/webapi": "*",
+		"@rescript/webapi": "catalog:",
 		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
-		"sury": "11.0.0-alpha.10",
+		"sury": "catalog:",
 		"tsup": "^8.0.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"

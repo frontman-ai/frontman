@@ -26,14 +26,14 @@ type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   | AddUserMessage({
-      id: string,
+      id: Message.UserMessageId.t,
       sessionId: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
     })
   | CancelTurn
-  | ExecutePendingPlan({id: string})
+  | ExecutePendingPlan({id: Message.UserMessageId.t})
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask
@@ -485,7 +485,8 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 
 let sendMessageToAPIImpl = (
   state: state,
-  _dispatch,
+  dispatch,
+  ~messageId,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
@@ -511,11 +512,38 @@ let sendMessageToAPIImpl = (
     state.selectedModelValue->Option.forEach(modelValue =>
       metadata->Dict.set("model", JSON.Encode.string(modelValue))
     )
+    metadata->Dict.set(
+      "frontman.dev/messageId",
+      JSON.Encode.string(Message.UserMessageId.toString(messageId)),
+    )
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
     let _meta = Some(JSON.Encode.object(metadata))
 
-    sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
-  | NoAcpSession => Log.error("Cannot send message: no active ACP session")
+    sendPrompt(
+      message,
+      ~additionalBlocks,
+      ~onComplete=result =>
+        switch result {
+        | Ok(_) => ()
+        | Error(error) =>
+          dispatch(
+            TaskAction({
+              target: ForTask(taskId),
+              action: UserMessageSendFailed({id: messageId, error}),
+            }),
+          )
+        },
+      ~_meta,
+    )
+  | NoAcpSession =>
+    let error = "Cannot send message: no active ACP session"
+    Log.error(error)
+    dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: UserMessageSendFailed({id: messageId, error}),
+      }),
+    )
   }
 }
 
@@ -634,7 +662,7 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({text, attachments, annotations, agentId}) =>
+        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
           let taskId = switch target {
           | ForTask(id) => id
           | CurrentTask =>
@@ -647,6 +675,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           sendMessageToAPIImpl(
             state,
             dispatch,
+            ~messageId=id,
             ~message=text,
             ~attachments,
             ~annotations,

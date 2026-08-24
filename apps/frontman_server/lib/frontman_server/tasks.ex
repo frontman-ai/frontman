@@ -215,20 +215,29 @@ defmodule FrontmanServer.Tasks do
     end)
   end
 
-  defp record_interaction(%TaskSchema{} = task_schema, type, attrs, turn_number) do
-    with {:ok, row} <- record_interaction_row(task_schema, type, attrs, turn_number) do
+  defp record_interaction(%TaskSchema{} = task_schema, type, data, turn_number) do
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      type: type,
+      data: data,
+      turn_number: turn_number
+    }
+
+    with {:ok, row} <- record_interaction_row(task_schema, attrs) do
       {:ok, row.data}
     end
   end
 
-  defp record_interaction_row(%TaskSchema{} = task_schema, type, attrs, turn_number) do
+  defp record_interaction_row(%TaskSchema{} = task, attrs) do
     Repo.transact(fn ->
       with {:ok, schema} <-
-             InteractionSchema.create_changeset(task_schema.id, type, attrs, turn_number)
+             task
+             |> Ecto.build_assoc(:interaction_rows)
+             |> InteractionSchema.changeset(attrs)
              |> Repo.insert(),
            {1, _} <-
              TaskSchema
-             |> TaskSchema.by_id(task_schema.id)
+             |> TaskSchema.by_id(task.id)
              |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)]) do
         {:ok, schema}
       else
@@ -239,7 +248,7 @@ defmodule FrontmanServer.Tasks do
     |> case do
       {:ok, %InteractionSchema{} = interaction_schema} ->
         broadcast_task(
-          task_schema.id,
+          task.id,
           {:interaction, interaction_schema}
         )
 
@@ -438,6 +447,7 @@ defmodule FrontmanServer.Tasks do
         %Scope{} = scope,
         %{
           task_id: task_id,
+          message_id: message_id,
           message: [_ | _] = content_blocks,
           model: model,
           agent_id: agent_id
@@ -450,7 +460,15 @@ defmodule FrontmanServer.Tasks do
          {:ok, task_schema} <- get_task_by_id(scope, task_id),
          first_message? <- accepted_user_message_count(task_id) == 0,
          {:ok, accepted_row} <-
-           record_interaction_row(task_schema, :user_message, user_message_attrs, nil) do
+           record_interaction_row(
+             task_schema,
+             %{
+               id: message_id,
+               type: :user_message,
+               data: Map.put(user_message_attrs, :id, message_id),
+               turn_number: nil
+             }
+           ) do
       if first_message? do
         GenerateTitle.new(%{
           user_id: scope.user.id,
@@ -569,13 +587,17 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp insert_turn_started(%TaskSchema{} = task_schema, turn_started_attrs, turn_number) do
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      type: :turn_started,
+      data: turn_started_attrs,
+      turn_number: turn_number
+    }
+
     with {:ok, schema} <-
-           InteractionSchema.create_changeset(
-             task_schema.id,
-             :turn_started,
-             turn_started_attrs,
-             turn_number
-           )
+           task_schema
+           |> Ecto.build_assoc(:interaction_rows)
+           |> InteractionSchema.changeset(attrs)
            |> Repo.insert(),
          {1, _} <-
            TaskSchema
@@ -979,20 +1001,23 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Lists all todos for a task.
+  Lists all todos from an already-loaded task.
 
   Todos are managed through tool calls, not direct API calls.
   This function is for reading the current todos only.
   """
+  @spec list_todos(TaskSchema.t()) :: [Todos.Todo.t()]
+  def list_todos(%TaskSchema{interaction_rows: rows}) when is_list(rows) do
+    rows
+    |> Todos.list_todos()
+    |> Map.values()
+    |> Enum.sort_by(& &1.created_at, DateTime)
+  end
+
+  @doc "Lists all todos for a task."
   def list_todos(scope, task_id) do
     with {:ok, task} <- get_task(scope, task_id) do
-      todos =
-        task.interaction_rows
-        |> Todos.list_todos()
-        |> Map.values()
-        |> Enum.sort_by(& &1.created_at, DateTime)
-
-      {:ok, todos}
+      {:ok, list_todos(task)}
     end
   end
 end

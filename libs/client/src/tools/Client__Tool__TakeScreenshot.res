@@ -17,6 +17,18 @@ type input = {
   fullPage: option<bool>,
 }
 
+let decodeError = message => {
+  let normalized = message->String.toLowerCase
+  normalized->String.includes("source image cannot be decoded") ||
+    normalized->String.includes("invalid encoded image data")
+}
+
+let captureErrorMessage = (message: string) =>
+  switch decodeError(message) {
+  | true => `Screenshot could not be rendered because the browser could not decode the generated page image. The page may contain malformed HTML, unsupported SVG content, or exceed browser image limits. Try again after the page finishes loading or capture a smaller element with the selector option.`
+  | false => message
+  }
+
 let _cropCanvasToViewport = (
   sourceCanvas: WebAPI.DomTypes.htmlCanvasElement,
   ~scrollX: float,
@@ -151,7 +163,9 @@ let execute = async (
               imageResultFromDataUrl(jpgImage.src)
             }
           } catch {
-          | exn => Tool.MCP.CallToolResult.makeError(Client__Tool__PreviewContext.exnMessage(exn))
+          | exn =>
+            let message = Client__Tool__PreviewContext.exnMessage(exn)
+            Tool.MCP.CallToolResult.makeError(captureErrorMessage(message))
           }
         }
       }

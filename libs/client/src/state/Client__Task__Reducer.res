@@ -77,7 +77,8 @@ module Lens = {
         }
       let firstAgentId = data.queuedUserMessages->Array.getUnsafe(0)->messageAgentId
       let prefixLength = switch data.queuedUserMessages->Array.findIndex(message =>
-        message->messageAgentId != firstAgentId
+        data.pendingUserMessageIds->Array.includes(Message.getId(message)) ||
+          message->messageAgentId != firstAgentId
       ) {
       | -1 => data.queuedUserMessages->Array.length
       | index => index
@@ -329,7 +330,7 @@ type action =
   | ToolErrorReceived({id: string, error: string})
   | ToolCallReceived({toolCall: Message.toolCall})
   | AddUserMessage({
-      id: string,
+      id: Message.UserMessageId.t,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
@@ -369,6 +370,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
+  | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | ClearTurnError
@@ -403,6 +405,7 @@ type effect =
       contentWindow: option<WebAPI.DomTypes.window>,
     })
   | SendMessage({
+      id: Message.UserMessageId.t,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
@@ -416,6 +419,7 @@ type effect =
 
 type delegated =
   | NeedSendMessage({
+      id: Message.UserMessageId.t,
       text: string,
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
@@ -454,6 +458,7 @@ let actionToString = (action: action): string =>
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
   | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
+  | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
   | ClearTurnError => "ClearTurnError"
@@ -869,38 +874,57 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
 
   | (Task.Loaded(data), UserMessageReceived({id, content, annotations, agentId})) =>
+    let wasPending = data.pendingUserMessageIds->Array.includes(id)
+    let pendingUserMessageIds =
+      data.pendingUserMessageIds->Array.filter(pendingId => pendingId != id)
     switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
     | index if index >= 0 =>
       let queuedUserMessages = data.queuedUserMessages->Array.copy
-      let updated = mergeUserMessage(
-        queuedUserMessages->Array.getUnsafe(index),
-        ~id,
-        ~content,
-        ~annotations,
-        ~agentId,
-      )
+      let existing = queuedUserMessages->Array.getUnsafe(index)
+      let updated = switch wasPending {
+      | true =>
+        switch existing {
+        | Message.User({agentId: existingAgentId, _}) =>
+          requireSameAgent(
+            ~existingAgentId,
+            ~agentId,
+            ~message=`[TaskReducer] Agent changed within message ${id}`,
+          )
+          Message.User({id, content, annotations, agentId})
+        | _ => failwith(`[TaskReducer] Message ${id} changed roles`)
+        }
+      | false => mergeUserMessage(existing, ~id, ~content, ~annotations, ~agentId)
+      }
       queuedUserMessages->Array.setUnsafe(index, updated)
-      (Task.Loaded({...data, queuedUserMessages}), [])
+      (Task.Loaded({...data, queuedUserMessages, pendingUserMessageIds}), [])
     | _ =>
       switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
       | Some(message) =>
         let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
-        (Lens.updateMessage(task, id, _ => updated), [])
+        (Lens.updateMessage(Task.Loaded({...data, pendingUserMessageIds}), id, _ => updated), [])
       | None =>
         let userMessage = Message.User({id, content, annotations, agentId})
         (
           Task.Loaded({
             ...data,
             queuedUserMessages: Array.concat(data.queuedUserMessages, [userMessage]),
+            pendingUserMessageIds,
           }),
           [],
         )
       }
     }
 
-  | (Task.Loaded(data), AddUserMessage({id: _, content, annotations, agentId})) =>
+  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
+    let messageId = Message.UserMessageId.toString(id)
+    let pendingMessage = Message.User({
+      id: messageId,
+      content,
+      annotations,
+      agentId,
+    })
 
     let updatedImageAttachments = data.imageAttachments->Dict.copy
     attachments->Array.forEach(att => {
@@ -914,12 +938,40 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         turnError: None,
         retryStatus: None,
         imageAttachments: updatedImageAttachments,
+        queuedUserMessages: Array.concat(data.queuedUserMessages, [pendingMessage]),
+        pendingUserMessageIds: Array.concat(data.pendingUserMessageIds, [messageId]),
         annotations: [],
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
       }),
-      [SendMessage({text, attachments, annotations, agentId})],
+      [SendMessage({id, text, attachments, annotations, agentId})],
     )
+
+  | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
+      let messageId = Message.UserMessageId.toString(id)
+      switch data.pendingUserMessageIds->Array.includes(messageId) {
+      | true =>
+        let queuedUserMessages =
+          data.queuedUserMessages->Array.filter(message => Message.getId(message) != messageId)
+        let pendingUserMessageIds =
+          data.pendingUserMessageIds->Array.filter(pendingId => pendingId != messageId)
+        (
+          Task.Loaded({
+            ...data,
+            queuedUserMessages,
+            pendingUserMessageIds,
+            turnError: Some({
+              id: messageId,
+              message: error,
+              category: #unknown,
+              retryErrorId: None,
+            }),
+          }),
+          [],
+        )
+      | false => (task, [])
+      }
+    }
 
   | (Task.Loaded(data), PlanReceived({entries})) => (
       Task.Loaded({...data, planEntries: entries}),
@@ -1016,7 +1068,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     | Task.Loaded(data) => (
         Task.Loaded({
           ...data,
-          turnError: Some({id, message: error, category}),
+          turnError: Some({id, message: error, category, retryErrorId: Some(id)}),
           isAgentRunning: false,
           retryStatus: None,
         })->Lens.refreshCompletedFileChanges,
@@ -1093,6 +1145,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
+          pendingUserMessageIds: [],
           turnError: None,
           retryStatus: None,
           imageAttachments: Dict.make(),
@@ -1228,6 +1281,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Unloaded(_),
       AddUserMessage(_)
+      | UserMessageSendFailed(_)
       | PlanReceived(_)
       | ExecutionStateRunning
       | ExecutionStateIdle
@@ -1432,8 +1486,8 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) =>
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({text, attachments, annotations, agentId}) =>
-    delegate(NeedSendMessage({text, attachments, annotations, agentId}))
+  | SendMessage({id, text, attachments, annotations, agentId}) =>
+    delegate(NeedSendMessage({id, text, attachments, annotations, agentId}))
   | CancelPrompt => delegate(NeedCancelPrompt)
   | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)

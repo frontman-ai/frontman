@@ -111,7 +111,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     case Tasks.submit_user_message(
            scope,
-           Map.merge(execution, %{task_id: task_id, message: content})
+           Map.merge(execution, %{
+             task_id: task_id,
+             message_id: Ecto.UUID.generate(),
+             message: content
+           })
          ) do
       {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution) do
@@ -236,6 +240,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("Hello"),
           model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
@@ -257,6 +262,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman one"),
           model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
@@ -265,6 +271,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman two"),
           model: "openrouter:anthropic/claude-sonnet-4-6",
           agent_id: "test-frontman"
@@ -273,6 +280,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("planner"),
           model: "openrouter:google/gemini-3-flash-preview",
           agent_id: "test-planner"
@@ -302,6 +310,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman one"),
           model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
@@ -310,6 +319,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("planner"),
           model: "openrouter:google/gemini-3-flash-preview",
           agent_id: "test-planner"
@@ -318,6 +328,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman two"),
           model: "openrouter:anthropic/claude-sonnet-4-6",
           agent_id: "test-frontman"
@@ -326,6 +337,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman three"),
           model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
@@ -357,7 +369,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, attrs} =
         Interaction.UserMessage.attrs(user_content("historical"), "openrouter:openai/gpt-5.5")
 
-      InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
+      message_id = Ecto.UUID.generate()
+
+      interaction_changeset(task_id, %{
+        id: message_id,
+        type: :user_message,
+        data: Map.put(attrs, :id, message_id),
+        turn_number: nil
+      })
       |> Repo.insert!()
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
@@ -379,6 +398,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task_id,
+                 message_id: Ecto.UUID.generate(),
                  message: user_content("Queued follow-up"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
@@ -1382,23 +1402,29 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   defp insert_accepted_user_message!(task, text) do
     {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), "openrouter:openai/gpt-5.5")
+    message_id = Ecto.UUID.generate()
 
-    InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+    interaction_changeset(task.id, %{
+      id: message_id,
+      type: :user_message,
+      data: Map.put(attrs, :id, message_id),
+      turn_number: nil
+    })
     |> Repo.insert!()
   end
 
   defp insert_turn_started_for_messages!(task_id, turn_number, agent_id \\ "test-frontman") do
-    InteractionSchema.create_changeset(
-      task_id,
-      :turn_started,
-      %{
+    interaction_changeset(task_id, %{
+      id: Ecto.UUID.generate(),
+      type: :turn_started,
+      data: %{
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: agent_id,
         user_message_ids: accepted_user_message_ids(task_id)
       },
-      turn_number
-    )
+      turn_number: turn_number
+    })
     |> Repo.insert!()
   end
 
