@@ -59,7 +59,7 @@
 		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
 		"lucide-react": "^1.26.0",
 		"react": "^19.2.7",
-		"react-dom": "^19.2.7",
+		"react-dom": "^19.2.8",
 		"rescript": "catalog:",
 		"rescript-base-ui": "^1.2.5",
 		"rescript-vitest": "catalog:",
@@ -89,6 +89,6 @@
 	},
 	"peerDependencies": {
 		"react": "^19.2.7",
-		"react-dom": "^19.2.7"
+		"react-dom": "^19.2.8"
 	}
 }
