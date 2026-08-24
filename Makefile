@@ -87,7 +87,7 @@ HELP_ssl-setup := Setup local SSL certificates using mkcert
 HELP_tunnel := Start SSH tunnel to DevPod server (fallback if dnsmasq not configured)
 
 HELP_WT_TITLE := Worktrees
-HELP_WT_TARGETS := work wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-gc wt-urls wt-logs
+HELP_WT_TARGETS := work wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-urls wt-logs
 HELP_work := Set up worktree from GitHub issue or PR (REF=<number|url>)
 HELP_wt := Dashboard — shows all worktrees, pod status, URLs, and actions
 HELP_wt-new := Create containerized worktree (BRANCH=...)
@@ -96,7 +96,6 @@ HELP_wt-stop := Pause worktree pod, preserve volumes (BRANCH=...)
 HELP_wt-start := Resume a paused worktree pod (BRANCH=...)
 HELP_wt-sh := Shell into dev container (BRANCH=...)
 HELP_wt-rm := Full cleanup: pod + volumes + worktree (BRANCH=...)
-HELP_wt-gc := Remove worktrees whose branches are merged into main
 HELP_wt-urls := Show service URLs for a worktree (BRANCH=...)
 HELP_wt-logs := Tail dev container logs (BRANCH=...)
 
@@ -323,7 +322,7 @@ DEV_IMAGE := frontman-dev:latest
 
 export MD5CMD := $(shell if command -v md5sum >/dev/null 2>&1; then echo 'md5sum | cut -c1-4'; else echo 'md5 | cut -c1-4'; fi)
 
-.PHONY: wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-gc wt-urls wt-logs work
+.PHONY: wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-urls wt-logs work
 
 work:
 	@if [ -z "$(REF)" ]; then \
@@ -367,9 +366,6 @@ wt-sh:
 wt-rm:
 	$(call resolve_branch,wt-rm)
 	@BRANCH="$(BRANCH)" bash ./bin/wt-pod-remove
-
-wt-gc:
-	@bash ./bin/wt-gc
 
 wt-urls:
 	$(call resolve_branch,wt-urls)
