@@ -914,12 +914,12 @@ describe("Dry Run Mode", _t => {
 })
 
 describe("Dependency Installation Failure", _t => {
-  testAsync("fails when an installed dependency cannot be resolved", async t => {
+  testAsync("fails when the imported Frontman entrypoint cannot be resolved", async t => {
     let tempDir = await createTempFixture("nextjs15-clean")
-    let packageDir = Path.join([tempDir, "node_modules", "@frontman-ai", "nextjs"])
-    let _ = await Fs.Promises.mkdir(packageDir, {recursive: true})
-    await Fs.Promises.writeFile(Path.join([packageDir, "package.json"]), `{"main":"index.js"}`)
-    await Fs.Promises.writeFile(Path.join([packageDir, "index.js"]), "")
+    let frontmanDir = Path.join([tempDir, "node_modules", "@frontman-ai", "nextjs"])
+    let _ = await Fs.Promises.mkdir(frontmanDir, {recursive: true})
+    await Fs.Promises.writeFile(Path.join([frontmanDir, "package.json"]), `{"main":"index.js"}`)
+    await Fs.Promises.writeFile(Path.join([frontmanDir, "index.js"]), "")
     let successfulExec = async (_command, _options): result<
       ChildProcess.execResult,
       ChildProcess.execError,
@@ -934,7 +934,7 @@ describe("Dependency Installation Failure", _t => {
 
     switch result {
     | Error(message) =>
-      t->expect(message->String.includes("@opentelemetry/sdk-node"))->Expect.toBe(true)
+      t->expect(message->String.includes("@frontman-ai/nextjs/Instrumentation"))->Expect.toBe(true)
     | Ok() => t->expect("success")->Expect.toBe("dependency resolution failure")
     }
 

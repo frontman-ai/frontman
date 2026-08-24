@@ -46,7 +46,7 @@ let installDependencies = async (
 
     switch await exec(cmd, {cwd: projectDir}) {
     | Ok(_) =>
-      switch Detect.resolveFrom(projectDir, "@frontman-ai/nextjs") {
+      switch Detect.resolveFrom(projectDir, "@frontman-ai/nextjs/Instrumentation") {
       | Error(msg) => Error(msg)
       | Ok(_) =>
         switch Detect.resolveFrom(projectDir, "@opentelemetry/sdk-node") {
