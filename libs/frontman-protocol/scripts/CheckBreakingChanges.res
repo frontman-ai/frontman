@@ -30,6 +30,7 @@ external fileURLToPath: string => string = "fileURLToPath"
 let schemasDir = Path.join([Path.dirname(fileURLToPath(importMetaUrl)), "..", "schemas"])
 
 let schemasRelative = "libs/frontman-protocol/schemas"
+let protocolPackage = "\"@frontman-ai/frontman-protocol\": major"
 
 @val @scope("process")
 external exit: int => unit = "exit"
@@ -122,14 +123,32 @@ let main = async () => {
     }
   }
 
-  if removed->Array.length > 0 {
+  let protocolMajorDeclared = switch removed->Array.length > 0 {
+  | true =>
+    switch await exec("git diff origin/main -- .changeset/") {
+    | Ok({stdout}) => stdout->String.split("\n")->Array.some(line => line == `+${protocolPackage}`)
+    | Error({stderr}) =>
+      Console.error(`Failed to inspect changesets: ${stderr}`)
+      exit(1)
+      false
+    }
+  | false => false
+  }
+
+  if removed->Array.length > 0 && !protocolMajorDeclared {
     Console.error(
       `\nBREAKING: ${removed
         ->Array.length
         ->Int.toString} schema(s) removed. This will break clients on older SDK versions.`,
     )
-    Console.error("If this is intentional, a reviewer must approve the PR.")
+    Console.error(
+      "Declare a major @frontman-ai/frontman-protocol changeset if this is intentional.",
+    )
     exit(1)
+  }
+
+  if removed->Array.length > 0 {
+    Console.log("Breaking schema removals accepted by major protocol changeset.")
   }
 
   if modified->Array.length > 0 {
