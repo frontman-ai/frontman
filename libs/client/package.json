@@ -48,7 +48,7 @@
 		"@medv/finder": "^4.0.2",
 		"@rescript/react": "^0.15.0",
 		"@rescript/runtime": "catalog:",
-		"@rescript/webapi": "*",
+		"@rescript/webapi": "catalog:",
 		"@tailwindcss/vite": "^4.3.2",
 		"@types/babel__core": "^7",
 		"@types/react": "^19.2.15",
