@@ -37,7 +37,7 @@
 	"devDependencies": {
 		"@babel/core": "^8.0.1",
 		"@base-ui/react": "^1.4.1",
-		"@biomejs/biome": "^2.5.3",
+		"@biomejs/biome": "^2.5.5",
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
 		"@frontman-ai/astro-browser": "workspace:*",
 		"@frontman-ai/frontman-client": "workspace:*",
