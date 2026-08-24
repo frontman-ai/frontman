@@ -60,7 +60,7 @@ type discoverResult = {
 }
 
 @schema
-type toolsListParams = {_meta: requestMeta, cursor: option<string>}
+type toolsListParams = {_meta: requestMeta}
 
 @schema
 type toolCallParams = {

@@ -31,9 +31,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   alias ModelContextProtocol, as: MCP
 
   @execution_context_extension "ai.frontman/execution-context"
-  @max_tools_pages 100
-  @max_tools 10_000
-  @max_tools_wire_bytes 10_000_000
 
   @doc """
   Creates the initial state and returns the MCP discovery request to send.
@@ -53,10 +50,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       mcp_capabilities: nil,
       mcp_server_info: nil,
       load_project_context: Frameworks.load_project_context?(framework),
-      tools: [],
-      tools_page_count: 0,
-      tools_wire_bytes: 0,
-      tools_cursors: MapSet.new()
+      tools: []
     }
 
     Logger.info("MCPInitializer: Discovering MCP server for task #{task_id}")
@@ -68,20 +62,20 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   Handle a successful MCP response. Returns updated state and actions.
   """
   def handle_response(state, request_id, result) do
-    cond do
-      request_id == state.discovery_request_id ->
+    case state do
+      %{status: :discovering_mcp, discovery_request_id: ^request_id} ->
         handle_discovery_response(result, state)
 
-      request_id == state.tools_request_id ->
+      %{status: :loading_tools, tools_request_id: ^request_id} ->
         handle_tools_response(result, state)
 
-      request_id == state.project_rules_request_id ->
+      %{status: :loading_project_rules, project_rules_request_id: ^request_id} ->
         handle_project_rules_response(result, state)
 
-      request_id == state.project_structure_request_id ->
+      %{status: :loading_project_structure, project_structure_request_id: ^request_id} ->
         handle_project_structure_response(result, state)
 
-      true ->
+      _state ->
         Logger.warning("MCPInitializer: Received response for unknown request_id #{request_id}")
         {state, []}
     end
@@ -91,29 +85,26 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   Handle an MCP error response. Returns updated state and actions.
   """
   def handle_error(state, request_id, error) do
-    cond do
-      request_id == state.discovery_request_id ->
+    case state do
+      %{status: :discovering_mcp, discovery_request_id: ^request_id} ->
         Logger.error("MCPInitializer: MCP discovery failed", error_code: error_code(error))
         fail_initialization(state, error["message"])
 
-      request_id == state.tools_request_id and state.tools_page_count > 0 ->
-        fail_initialization(state, "MCP tools/list pagination failed")
-
-      request_id == state.tools_request_id ->
+      %{status: :loading_tools, tools_request_id: ^request_id} ->
         Logger.warning("MCPInitializer: Tools list failed", error_code: error_code(error))
         state = %{state | tools: [], tools_request_id: nil}
         maybe_request_project_context(state)
 
-      request_id == state.project_rules_request_id ->
+      %{status: :loading_project_rules, project_rules_request_id: ^request_id} ->
         Logger.warning("MCPInitializer: Project rules failed", error_code: error_code(error))
         state = %{state | project_rules_request_id: nil}
         request_project_structure(state)
 
-      request_id == state.project_structure_request_id ->
+      %{status: :loading_project_structure, project_structure_request_id: ^request_id} ->
         Logger.warning("MCPInitializer: Project structure failed", error_code: error_code(error))
         complete_initialization(state)
 
-      true ->
+      _state ->
         Logger.warning("MCPInitializer: Received error for unknown request_id #{request_id}")
         {state, []}
     end
@@ -194,24 +185,10 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
   defp handle_tools_response(result, state) do
     case validate_tools_response(result) do
-      {:ok, raw_tools, next_cursor} ->
+      {:ok, raw_tools} ->
         Logger.info("MCPInitializer: Received #{length(raw_tools)} tools from MCP server")
-        tools = state.tools ++ MCPTools.from_maps(raw_tools)
-        tools_wire_bytes = state.tools_wire_bytes + byte_size(Jason.encode!(raw_tools))
-
-        if length(tools) <= @max_tools and tools_wire_bytes <= @max_tools_wire_bytes do
-          state = %{
-            state
-            | tools: tools,
-              tools_request_id: nil,
-              tools_page_count: state.tools_page_count + 1,
-              tools_wire_bytes: tools_wire_bytes
-          }
-
-          continue_tools_list(state, next_cursor)
-        else
-          fail_initialization(state, "MCP tools/list exceeded catalog limits")
-        end
+        state = %{state | tools: MCPTools.from_maps(raw_tools), tools_request_id: nil}
+        maybe_request_project_context(state)
 
       {:error, message} ->
         fail_initialization(state, message)
@@ -230,10 +207,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
          true <- is_integer(ttl_ms) and ttl_ms >= 0,
          true <- cache_scope in ["public", "private"],
          true <- Enum.all?(tools, &valid_tool?/1),
-         next_cursor when is_nil(next_cursor) or is_binary(next_cursor) <-
-           Map.get(result, "nextCursor"),
          {:ok, _server_info} <- server_info(result) do
-      {:ok, tools, next_cursor}
+      {:ok, tools}
     else
       _ -> {:error, "Invalid MCP tools/list response"}
     end
@@ -265,35 +240,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  defp continue_tools_list(state, nil), do: maybe_request_project_context(state)
-
-  defp continue_tools_list(%{tools_page_count: page_count} = state, cursor)
-       when page_count < @max_tools_pages do
-    case MapSet.member?(state.tools_cursors, cursor) do
-      true ->
-        fail_initialization(state, "MCP tools/list returned a repeated cursor")
-
-      false ->
-        request_id = System.unique_integer([:positive])
-
-        request =
-          JsonRpc.request(request_id, "tools/list", MCP.request_params(%{"cursor" => cursor}))
-
-        state = %{
-          state
-          | tools_request_id: request_id,
-            tools_cursors: MapSet.put(state.tools_cursors, cursor)
-        }
-
-        {state, [{:push_mcp, request}]}
-    end
-  end
-
-  defp continue_tools_list(state, _cursor),
-    do: fail_initialization(state, "MCP tools/list exceeded #{@max_tools_pages} pages")
-
   defp fail_initialization(state, message) do
-    {%{state | status: :failed}, [{:initialization_failed, message}]}
+    state = state |> clear_request_ids() |> Map.put(:status, :failed)
+    {state, [{:initialization_failed, message}]}
   end
 
   defp maybe_request_project_context(%{load_project_context: true} = state),
@@ -430,12 +379,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   defp format_workspace_section(_other), do: ""
 
   defp complete_initialization(state) do
-    state = %{
-      state
-      | status: :ready,
-        project_rules_request_id: nil,
-        project_structure_request_id: nil
-    }
+    state = state |> clear_request_ids() |> Map.put(:status, :ready)
 
     tools = if is_list(state.tools), do: state.tools, else: []
 
@@ -452,6 +396,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       })
 
     {state, [{:push_acp, notification}, {:initialization_complete, initialization_data}]}
+  end
+
+  defp clear_request_ids(state) do
+    %{
+      state
+      | discovery_request_id: nil,
+        tools_request_id: nil,
+        project_rules_request_id: nil,
+        project_structure_request_id: nil
+    }
   end
 
   defp report_tool_error(_state, init_step, tool_name, _result) do

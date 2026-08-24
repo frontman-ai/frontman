@@ -51,12 +51,6 @@ let parse = (json: JSON.t): result<mcpMessage, string> => {
   json->Decoders.parseSchema(schema)
 }
 
-let serializeResult = (result, schema, ~validateWith=schema) => {
-  let json = result->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
-  json->S.parseOrThrow(~to=validateWith)->ignore
-  json
-}
-
 let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
   let payload = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
@@ -113,7 +107,11 @@ let handleDiscover = (
       try {
         let {serverInterface} = handler
         let result = serverInterface.buildDiscoverResult(serverInterface.server)
-        let resultJson = serializeResult(result, Types.discoverResultSchema)
+        let resultJson =
+          result->S.decodeOrThrow(
+            ~from=Types.discoverResultSchema,
+            ~to=S.json->S.noValidation(true),
+          )
         sendResponse(handler, id, resultJson)
       } catch {
       | exn =>
@@ -151,11 +149,11 @@ let handleToolsList = (
       try {
         let {serverInterface} = handler
         let result = serverInterface.buildToolsListResult(serverInterface.server)
-        let resultJson = serializeResult(
-          result,
-          Types.toolsListResultSchema,
-          ~validateWith=Types.toolsListResultWireSchema,
-        )
+        let resultJson =
+          result->S.decodeOrThrow(
+            ~from=Types.toolsListResultSchema,
+            ~to=S.json->S.noValidation(true),
+          )
         sendResponse(handler, id, resultJson)
       } catch {
       | exn =>
@@ -209,7 +207,11 @@ let handleToolsCall = async (
           )
           switch result {
           | Completed(callToolResult) =>
-            let resultJson = serializeResult(callToolResult, Types.callToolResultSchema)
+            let resultJson =
+              callToolResult->S.decodeOrThrow(
+                ~from=Types.callToolResultSchema,
+                ~to=S.json->S.noValidation(true),
+              )
             sendResponse(handler, id, resultJson)
           | Suspended => ()
           }

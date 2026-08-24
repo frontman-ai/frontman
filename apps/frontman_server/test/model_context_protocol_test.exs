@@ -16,12 +16,6 @@ defmodule ModelContextProtocolTest do
              %{"name" => "frontman-server", "version" => "1.0.0"}
   end
 
-  test "preserves opaque tools/list cursors alongside request metadata" do
-    params = MCP.request_params(%{"cursor" => ""})
-    assert params["cursor"] == ""
-    assert params["_meta"]["io.modelcontextprotocol/protocolVersion"] == "2026-07-28"
-  end
-
   test "builds tools/call with execution context only in metadata" do
     previous_level = Logger.level()
     Logger.configure(level: :info)

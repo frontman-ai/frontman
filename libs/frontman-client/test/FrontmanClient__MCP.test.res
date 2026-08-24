@@ -24,7 +24,7 @@ module MockChannel = {
 
 let serverInfo: Types.info = {name: "test-browser", version: "1.0.0"}
 
-type failure = Discover | List | Tool | InvalidDiscoverVersion | InvalidDiscoverShape | InvalidList
+type failure = Discover | List | Tool
 
 let makeInterface = (
   ~context: ref<option<(string, string)>>,
@@ -34,10 +34,7 @@ let makeInterface = (
   buildDiscoverResult: _ =>
     switch failure {
     | Some(Discover) => JsError.throwWithMessage("discovery exploded")
-    | Some(InvalidDiscoverVersion) =>
-      %raw(`({resultType: "complete", supportedVersions: ["2026-07-28"], capabilities: {tools: {listChanged: false}, extensions: {"ai.frontman/execution-context": {version: 2}}}, ttlMs: 0, cacheScope: "private", _meta: {"io.modelcontextprotocol/serverInfo": {name: "browser", version: "1"}}})`)
-    | Some(InvalidDiscoverShape) => %raw(`({resultType: "partial"})`)
-    | Some(List) | Some(Tool) | Some(InvalidList) | None => {
+    | Some(List) | Some(Tool) | None => {
         resultType: "complete",
         supportedVersions: [Types.protocolVersion],
         capabilities: {
@@ -52,8 +49,6 @@ let makeInterface = (
   buildToolsListResult: _ =>
     switch failure {
     | Some(List) => JsError.throwWithMessage("list exploded")
-    | Some(InvalidList) =>
-      %raw(`({resultType: "complete", tools: [{name: "", description: "bad", inputSchema: {}, custom: [1]}], ttlMs: 0, cacheScope: "private", _meta: {"io.modelcontextprotocol/serverInfo": {name: "browser", version: "1"}}})`)
     | _ => {
         resultType: "complete",
         tools: [],
@@ -223,7 +218,7 @@ describe("MCP 2026-07-28", () => {
     t->expect(errorCode(incompatibleCapability))->Expect.toEqual(Some(-32021))
   })
 
-  testAsync("returns serverError for handler failures and invalid results", async t => {
+  testAsync("returns serverError for handler failures", async t => {
     let invoke = async (failure, method, params) => {
       let (channel, calls) = MockChannel.make()
       await MCP.handleMessage(
@@ -237,11 +232,8 @@ describe("MCP 2026-07-28", () => {
       invoke(Discover, "server/discover", metadata),
       invoke(List, "tools/list", metadata),
       invoke(Tool, "tools/call", toolParams),
-      invoke(InvalidDiscoverVersion, "server/discover", metadata),
-      invoke(InvalidDiscoverShape, "server/discover", metadata),
-      invoke(InvalidList, "tools/list", metadata),
     ])
-    t->expect(codes)->Expect.toEqual(Array.make(~length=6, Some(-32603)))
+    t->expect(codes)->Expect.toEqual(Array.make(~length=3, Some(-32603)))
   })
 
   testAsync("echoes string JSON-RPC ids", async t => {

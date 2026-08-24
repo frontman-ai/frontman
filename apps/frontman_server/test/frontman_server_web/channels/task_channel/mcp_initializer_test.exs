@@ -205,10 +205,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       assert navigate_tool.timeout_ms == 600_000
     end
 
-    test "fails initialization for malformed tools or cursors" do
+    test "fails initialization for malformed tools" do
       invalid_results = [
         tools_result([%{"name" => "missing tool fields"}]),
-        tools_result([], %{"nextCursor" => 42}),
         %{tools_result([]) | "ttlMs" => -1}
       ]
 
@@ -220,17 +219,17 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       end)
     end
 
-    test "accepts optional tool fields and accumulates every page" do
-      first_page =
+    test "accepts optional tool fields in a one-page catalog" do
+      result =
         tools_result(
           [
             %{
-              "name" => "first",
+              "name" => "question",
+              "description" => "Ask a question",
               "inputSchema" => %{"type" => "object"}
             }
           ],
           %{
-            "nextCursor" => "",
             "cacheScope" => "public",
             "_meta" => %{}
           }
@@ -238,47 +237,40 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
       state = tools_state(1)
 
-      assert {%{status: :loading_tools} = state, [{:push_mcp, request}]} =
-               MCPInitializer.handle_response(state, 1, first_page)
-
-      assert request["method"] == "tools/list"
-      assert request["params"]["cursor"] == ""
-
-      second_page =
-        tools_result(
-          [
-            %{
-              "name" => "second",
-              "description" => "Second tool",
-              "inputSchema" => %{"type" => "object"}
-            }
-          ],
-          %{"cacheScope" => "public", "_meta" => %{}}
-        )
-
       assert {%{status: :loading_project_rules, tools: tools}, [{:push_mcp, _request}]} =
-               MCPInitializer.handle_response(state, state.tools_request_id, second_page)
+               MCPInitializer.handle_response(state, 1, result)
 
-      assert Enum.map(tools, & &1.name) == ["first", "second"]
-      assert Enum.map(tools, & &1.description) == ["", "Second tool"]
+      assert Enum.map(tools, & &1.name) == ["question"]
+      assert Enum.map(tools, & &1.description) == ["Ask a question"]
     end
 
-    test "bounds pagination and rejects incomplete catalogs" do
-      later_page = %{tools_state(2) | tools_page_count: 1}
+    test "ignores stale responses after terminal failure" do
+      state = tools_state(1)
 
-      assert {%{status: :failed}, [{:initialization_failed, "MCP tools/list pagination failed"}]} =
-               MCPInitializer.handle_error(later_page, 2, %{"message" => "failed"})
+      {failed_state, [{:initialization_failed, _message}]} =
+        MCPInitializer.handle_response(state, 1, tools_result([%{"name" => "invalid"}]))
 
-      bounded_catalogs = [
-        {%{later_page | tools_cursors: MapSet.new([""])}, %{"nextCursor" => ""}},
-        {%{tools_state(2) | tools_page_count: 99}, %{"nextCursor" => "more"}},
-        {%{tools_state(2) | tools_wire_bytes: 10_000_000}, %{}}
-      ]
+      assert failed_state.status == :failed
+      assert failed_state.discovery_request_id == nil
+      assert failed_state.tools_request_id == nil
+      assert failed_state.project_rules_request_id == nil
+      assert failed_state.project_structure_request_id == nil
 
-      Enum.each(bounded_catalogs, fn {state, overrides} ->
-        assert {%{status: :failed}, [{:initialization_failed, _message}]} =
-                 MCPInitializer.handle_response(state, 2, tools_result([], overrides))
-      end)
+      assert {^failed_state, []} =
+               MCPInitializer.handle_response(failed_state, 1, tools_result([]))
+
+      assert {^failed_state, []} =
+               MCPInitializer.handle_error(failed_state, 1, %{"message" => "late error"})
+    end
+
+    test "ignores duplicate responses after initialization completes" do
+      state = %{tools_state(1) | load_project_context: false}
+
+      {ready_state, [{:push_acp, _notification}, {:initialization_complete, _data}]} =
+        MCPInitializer.handle_response(state, 1, tools_result([]))
+
+      assert ready_state.status == :ready
+      assert {^ready_state, []} = MCPInitializer.handle_response(ready_state, 1, tools_result([]))
     end
   end
 

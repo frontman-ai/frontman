@@ -7,7 +7,6 @@ defmodule FrontmanServer.Protocols.McpContractTest do
   test "discovery and tools/list params satisfy the shared contract" do
     ProtocolSchema.validate!(MCP.request_params(), "mcp/discoverParams")
     ProtocolSchema.validate!(MCP.request_params(), "mcp/toolsListParams")
-    ProtocolSchema.validate!(MCP.request_params(%{"cursor" => "opaque"}), "mcp/toolsListParams")
   end
 
   test "tools/call params satisfy the shared contract" do
