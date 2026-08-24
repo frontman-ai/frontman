@@ -39,13 +39,13 @@
 		"chrome-launcher": "^1.1.2",
 		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
 		"lighthouse": "^13.4.0",
-		"sury": "11.0.0-alpha.11"
+		"sury": "catalog:"
 	},
 	"optionalDependencies": {
 		"@vscode/ripgrep": "^1.18.0"
 	},
 	"devDependencies": {
-		"@rescript/webapi": "*",
+		"@rescript/webapi": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",
