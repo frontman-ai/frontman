@@ -26,7 +26,10 @@ let installDependencies = async (
   ~projectDir: string,
   ~packageManager: Detect.packageManager,
   ~dryRun: bool,
-  ~exec=ChildProcess.execWithOptions,
+  ~exec: (
+    string,
+    ChildProcess.execOptions,
+  ) => Promise.t<result<ChildProcess.execResult, ChildProcess.execError>>,
 ): result<unit, string> => {
   let pm = Detect.getPackageManagerCommand(packageManager)
   let args = Detect.getInstallArgs(packageManager)
