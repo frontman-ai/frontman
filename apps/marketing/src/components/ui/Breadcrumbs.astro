@@ -1,23 +1,13 @@
 ---
-// Breadcrumbs
-// ------------
-// Description: Breadcrumbs consist of a list of links that help a user visualize a page's location within the hierarchical structure of a website, and allow navigation up to any of its "ancestors".
-// Properties:
-// - Classes: additional classes
 
-// Reference: https://wind-ui.com/components/breadcrumbs/
 
-// Components
-// - UI
 import { Icon } from 'astro-icon/components'
 
-// URL Parsing and breadcrumb generation
 const url = new URL(Astro.request.url)
 const pathname = url.pathname
 const segments = pathname.split('/').filter(Boolean)
 const breadcrumbs = ['Home', ...segments]
 
-// Props
 type Props = {
 	classes?: string
 }

@@ -1,6 +1,6 @@
-module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
-let parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
+let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
   array<Client__Message.UserContentPart.t>,
   array<Client__Message.MessageAnnotation.t>,
 ) => {

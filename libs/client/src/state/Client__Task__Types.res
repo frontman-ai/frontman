@@ -1,48 +1,39 @@
-// Task domain types - extracted from Client__State__Types for modularity
-
 module Log = FrontmanLogs.Logs.Make({
   let component = #TaskReducer
 })
 
-// Re-export Message types for backward compatibility
 module UserContentPart = Client__Message.UserContentPart
 module AssistantContentPart = Client__Message.AssistantContentPart
 module Message = Client__Message
 
 module Annotation = Client__Annotation__Types
-// Re-export ACP types for convenience
 module ACPTypes = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 module Task = {
-  // ============================================================================
-  // Types
-  // ============================================================================
-
   type turnErrorInfo = {
     id: string,
     message: string,
     category: Client__ErrorCategory.t,
+    retryErrorId: option<string>,
   }
 
   type retryStatus = {
     attempt: int,
     maxAttempts: int,
-    retryAt: float, // JS timestamp in ms, derived from ISO8601
+    retryAt: float,
     error: string,
   }
 
   type previewFrame = {
     url: string,
-    contentDocument: option<WebAPI.DOMAPI.document>,
-    contentWindow: option<WebAPI.DOMAPI.window>,
+    contentDocument: option<WebAPI.DomTypes.document>,
+    contentWindow: option<WebAPI.DomTypes.window>,
     deviceMode: Client__DeviceMode.deviceMode,
     orientation: Client__DeviceMode.orientation,
   }
 
-  // Task lifecycle states (unified - includes New)
   type t =
-    // New: local-only, ephemeral (no server session yet)
-    // clientId is a stable identifier used for React keys to prevent iframe remounts
     | New({
         clientId: string,
         previewFrame: previewFrame,
@@ -50,9 +41,7 @@ module Task = {
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
       })
-    // Unloaded: persisted but only metadata loaded
     | Unloaded({id: string, title: string, createdAt: float, updatedAt: float})
-    // Loading: fetching full data from server
     | Loading({
         id: string,
         title: string,
@@ -63,11 +52,8 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
-        agentCatalog: option<array<ACPTypes.agentCatalogEntry>>,
         isAgentRunning: bool,
       })
-    // Loaded: fully interactive
-    // clientId is preserved from New state during promotion to maintain iframe identity
     | Loaded({
         id: string,
         clientId: option<string>,
@@ -79,27 +65,21 @@ module Task = {
         annotationMode: Annotation.annotationMode,
         annotations: array<Annotation.t>,
         activePopupAnnotationId: option<string>,
-        agentCatalog: option<array<ACPTypes.agentCatalogEntry>>,
         isAgentRunning: bool,
+        lastTurnCancelled: bool,
         planEntries: array<ACPTypes.planEntry>,
         queuedUserMessages: array<Message.t>,
+        pendingUserMessageIds: array<string>,
         turnError: option<turnErrorInfo>,
         retryStatus: option<retryStatus>,
-        // User-attached images keyed by URI (e.g., "attachment://att_abc123/image.png")
-        // Accumulated across messages so the agent can save them to disk via write_file
         imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
-        // Pending interactive question (from the question tool) awaiting user input
         pendingQuestion: option<Client__Question__Types.pendingQuestion>,
+        completedFileChanges: Client__FileChanges.snapshot,
       })
 
-  // What user is currently viewing
   type currentTask =
-    | New(t) // Inline New task (not in dict)
-    | Selected(string) // ID reference to task in dict
-
-  // ============================================================================
-  // Helpers
-  // ============================================================================
+    | New(t)
+    | Selected(string)
 
   let normalizeTitle = (title: string): string => {
     switch String.trim(title) {
@@ -111,18 +91,12 @@ module Task = {
     }
   }
 
-  // Getters for common fields
-  // Note: New tasks don't have id/title/timestamps - these return option
   let getId = (task: t): option<string> =>
     switch task {
     | New(_) => None
     | Unloaded({id}) | Loading({id}) | Loaded({id}) => Some(id)
     }
 
-  // Get the stable client-side identifier for React keys (prevents iframe remounts)
-  // For New tasks: returns the clientId
-  // For Loaded tasks promoted from New: returns clientId if present, otherwise id
-  // For other tasks: returns the server id
   let getClientId = (task: t): string =>
     switch task {
     | New({clientId}) => clientId
@@ -146,12 +120,6 @@ module Task = {
     switch task {
     | New(_) | Unloaded(_) => []
     | Loading({messages}) | Loaded({messages}) => Client__MessageStore.toArray(messages)
-    }
-
-  let getAgentCatalog = (task: t): option<array<ACPTypes.agentCatalogEntry>> =>
-    switch task {
-    | Loading({agentCatalog}) | Loaded({agentCatalog}) => agentCatalog
-    | New(_) | Unloaded(_) => None
     }
 
   let getPreviewFrame = (task: t, ~defaultUrl: string): previewFrame =>
@@ -195,10 +163,14 @@ module Task = {
     | New(_) | Unloaded(_) | Loading(_) => Dict.make()
     }
 
-  // Derived: is any selection mode active?
+  let getCompletedFileChanges = (task: t): Client__FileChanges.snapshot =>
+    switch task {
+    | Loaded({completedFileChanges}) => completedFileChanges
+    | New(_) | Unloaded(_) | Loading(_) => Client__FileChanges.empty
+    }
+
   let getWebPreviewIsSelecting = (task: t): bool => getAnnotationMode(task) != Annotation.Off
 
-  // State predicates
   let isNew = (task: t): bool =>
     switch task {
     | New(_) => true
@@ -231,7 +203,6 @@ module Task = {
     | Loaded(_) => "Loaded"
     }
 
-  // Setters for persisted tasks (New tasks don't have these fields)
   let setTitle = (task: t, title: string): t =>
     switch task {
     | New(_) => failwith("[Task.setTitle] Cannot set title on New task")
@@ -240,15 +211,9 @@ module Task = {
     | Loaded(data) => Loaded({...data, title: normalizeTitle(title)})
     }
 
-  // ============================================================================
-  // Constructors
-  // ============================================================================
-
-  // Create a new ephemeral task (for "new chat" state)
-  // Generates a stable clientId for React keying to prevent iframe remounts during promotion
   let makeNew = (~previewUrl: string): t => {
     New({
-      clientId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+      clientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
       previewFrame: {
         url: previewUrl,
         contentDocument: None,
@@ -262,7 +227,6 @@ module Task = {
     })
   }
 
-  // Create an Unloaded task (for hydrating from SessionsLoadSuccess)
   let makeUnloaded = (~id: string, ~title: string, ~createdAt: float, ~updatedAt: float): t => {
     Unloaded({
       id,
@@ -272,9 +236,6 @@ module Task = {
     })
   }
 
-  // Atomic transition: New → Loaded (promotion when first message is sent)
-  // Message insertion is handled separately by the task reducer's AddUserMessage
-  // Preserves clientId for stable React keying (prevents iframe remount)
   let newToLoaded = (task: t, ~id: string, ~title: string): t => {
     switch task {
     | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) =>
@@ -290,14 +251,16 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        agentCatalog: None,
         isAgentRunning: false,
+        lastTurnCancelled: false,
         planEntries: [],
         queuedUserMessages: [],
+        pendingUserMessageIds: [],
         turnError: None,
         retryStatus: None,
         imageAttachments: Dict.make(),
         pendingQuestion: None,
+        completedFileChanges: Client__FileChanges.empty,
       })
     | Unloaded(_) | Loading(_) | Loaded(_) =>
       failwith("[Task.newToLoaded] Can only transition from New state")
@@ -310,8 +273,10 @@ module Task = {
     annotations: array<Annotation.t>,
     activePopupAnnotationId: option<string>,
     isAgentRunning: bool,
+    lastTurnCancelled: bool,
     planEntries: array<ACPTypes.planEntry>,
     queuedUserMessages: array<Message.t>,
+    pendingUserMessageIds: array<string>,
     turnError: option<turnErrorInfo>,
     pendingQuestion: option<Client__Question__Types.pendingQuestion>,
   }
@@ -340,14 +305,16 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        agentCatalog,
         isAgentRunning,
+        lastTurnCancelled,
         planEntries,
         queuedUserMessages,
+        pendingUserMessageIds,
         turnError,
         retryStatus,
         imageAttachments,
         pendingQuestion,
+        completedFileChanges,
       }) => {
         let data = {
           messages: Client__MessageStore.toArray(messages),
@@ -355,8 +322,10 @@ module Task = {
           annotations,
           activePopupAnnotationId,
           isAgentRunning,
+          lastTurnCancelled,
           planEntries,
           queuedUserMessages,
+          pendingUserMessageIds,
           turnError,
           pendingQuestion,
         }
@@ -372,14 +341,16 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
-          agentCatalog,
           isAgentRunning: updated.isAgentRunning,
+          lastTurnCancelled: updated.lastTurnCancelled,
           planEntries: updated.planEntries,
           queuedUserMessages: updated.queuedUserMessages,
+          pendingUserMessageIds: updated.pendingUserMessageIds,
           turnError: updated.turnError,
           retryStatus,
           imageAttachments,
           pendingQuestion: updated.pendingQuestion,
+          completedFileChanges,
         })
       }
     | Loading({
@@ -392,7 +363,6 @@ module Task = {
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        agentCatalog,
         isAgentRunning,
       }) => {
         let data = {
@@ -401,8 +371,10 @@ module Task = {
           annotations,
           activePopupAnnotationId,
           isAgentRunning,
+          lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
+          pendingUserMessageIds: [],
           turnError: None,
           pendingQuestion: None,
         }
@@ -417,7 +389,6 @@ module Task = {
           annotationMode: updated.annotationMode,
           annotations: updated.annotations,
           activePopupAnnotationId: updated.activePopupAnnotationId,
-          agentCatalog,
           isAgentRunning: updated.isAgentRunning,
         })
       }
@@ -428,8 +399,10 @@ module Task = {
           annotations,
           activePopupAnnotationId,
           isAgentRunning: false,
+          lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
+          pendingUserMessageIds: [],
           turnError: None,
           pendingQuestion: None,
         }
@@ -447,37 +420,21 @@ module Task = {
   }
 }
 
-// ============================================================================
-// ContentBlock builders for embedded context (ACP embeddedContext)
-// ============================================================================
-
-// Helper to strip file:// URI prefix and convert to filesystem path
-// Handles both Unix (file:///path) and Windows (file:///C:/path) URIs
 let stripFileUriPrefix = (path: string): string => {
   if path->String.startsWith("file:///") {
-    // Check if it's a Windows path (file:///C:/...)
-    let afterPrefix = path->String.slice(~start=8, ~end=path->String.length) // Skip "file:///"
+    let afterPrefix = path->String.slice(~start=8, ~end=path->String.length)
 
-    // Windows paths have a drive letter followed by colon (e.g., "C:/...")
     if afterPrefix->String.length >= 2 && afterPrefix->String.charAt(1) == ":" {
-      // Windows path - return without the file:/// prefix (keeps drive letter)
       afterPrefix
     } else {
-      // Unix path - return with leading slash
       "/" ++ afterPrefix
     }
   } else if path->String.startsWith("file://") {
-    // Malformed URI with only two slashes - strip and add leading slash
     "/" ++ path->String.slice(~start=7, ~end=path->String.length)
   } else {
-    // Not a file:// URI, return as-is
     path
   }
 }
-
-// ============================================================================
-// Sury schema types for annotation _meta JSON serialization
-// ============================================================================
 
 type boundingBoxMeta = {
   x: float,
@@ -493,9 +450,6 @@ let boundingBoxMetaSchema: S.t<boundingBoxMeta> = S.object(s => {
   height: s.field("height", S.float),
 })
 
-// Recursive parent location chain — serialized manually to JSON because
-// Sury S.recursive has a bug with S.dict(S.json) in reverseConvertToJson.
-// The type is used for construction; parentLocationToJson handles serialization.
 type rec parentLocationMeta = {
   file: string,
   line: int,
@@ -525,8 +479,6 @@ let rec parentLocationToJson = (loc: parentLocationMeta): JSON.t => {
   JSON.Encode.object(obj)
 }
 
-// The main annotation _meta type. The `parent` field is pre-serialized to JSON.t
-// because the recursive parentLocationMeta cannot use S.recursive with S.dict(S.json).
 type annotationMeta = {
   annotation: bool,
   @live
@@ -534,6 +486,7 @@ type annotationMeta = {
   annotationId: string,
   tagName: string,
   selector: option<string>,
+  elementContext: option<string>,
   comment: option<string>,
   file: option<string>,
   line: option<int>,
@@ -541,6 +494,8 @@ type annotationMeta = {
   componentName: option<string>,
   componentProps: option<Dict.t<JSON.t>>,
   parent: option<JSON.t>,
+  @live
+  sourceLocationError: option<string>,
   cssClasses: option<string>,
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
@@ -553,6 +508,7 @@ let annotationMetaSchema: S.t<annotationMeta> = S.object(s => {
   annotationId: s.field("annotation_id", S.string),
   tagName: s.field("tag_name", S.string),
   selector: s.field("selector", S.option(S.string)),
+  elementContext: s.field("element_context", S.option(S.string)),
   comment: s.field("comment", S.option(S.string)),
   file: s.field("file", S.option(S.string)),
   line: s.field("line", S.option(S.int)),
@@ -560,6 +516,7 @@ let annotationMetaSchema: S.t<annotationMeta> = S.object(s => {
   componentName: s.field("component_name", S.option(S.string)),
   componentProps: s.field("component_props", S.option(S.dict(S.json))),
   parent: s.field("parent", S.option(S.json)),
+  sourceLocationError: s.field("source_location_error", S.option(S.string)),
   cssClasses: s.field("css_classes", S.option(S.string)),
   nearbyText: s.field("nearby_text", S.option(S.string)),
   elementorContext: s.field("elementor", S.option(Client__ElementorDetection.schema)),
@@ -615,8 +572,10 @@ type annotationBlockData = {
   tagName: string,
   comment: option<string>,
   selector: option<string>,
+  elementContext: option<string>,
   screenshot: option<string>,
   sourceLocation: option<parentLocationMeta>,
+  sourceLocationError: option<string>,
   cssClasses: option<string>,
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
@@ -634,7 +593,6 @@ let rec sourceLocationFromMessageAnnotation = (
   parent: loc.parent->Option.map(sourceLocationFromMessageAnnotation),
 }
 
-// Build _meta JSON for an annotation from its data + source location fields
 let makeAnnotationMeta = (annotation: annotationBlockData, ~index: int): JSON.t => {
   let (
     file,
@@ -661,6 +619,7 @@ let makeAnnotationMeta = (annotation: annotationBlockData, ~index: int): JSON.t 
     annotationId: annotation.id,
     tagName: annotation.tagName,
     selector: annotation.selector,
+    elementContext: annotation.elementContext,
     comment: annotation.comment,
     file,
     line,
@@ -668,6 +627,7 @@ let makeAnnotationMeta = (annotation: annotationBlockData, ~index: int): JSON.t 
     componentName,
     componentProps,
     parent,
+    sourceLocationError: annotation.sourceLocationError,
     cssClasses: annotation.cssClasses,
     nearbyText: nearbyTextWithElementorHint(
       ~nearbyText=annotation.nearbyText,
@@ -706,27 +666,20 @@ let annotationResourceUriAndText = (annotation: annotationBlockData): (string, s
     }
   }
 
-let annotationTextResourceBlock = (
-  annotation: annotationBlockData,
-  ~index,
-): ACPTypes.contentBlock => {
+let annotationTextResourceBlock = (annotation: annotationBlockData, ~index): ContentBlock.t => {
   let (uri, text) = annotationResourceUriAndText(annotation)
   let _meta = makeAnnotationMeta(annotation, ~index)
 
-  ACPTypes.EmbeddedResource({
-    resource: ACPTypes.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
+  ContentBlock.EmbeddedResource({
+    resource: ContentBlock.TextResourceContents({uri, mimeType: Some("text/plain"), text}),
     _meta: Some(_meta),
     annotations: None,
   })
 }
 
-// Helper to extract media type and base64 data from a data URL
-// Returns (mimeType, base64Data)
 let parseDataUrl = (dataUrl: string): (string, string) => {
-  // Format: data:<mediaType>;base64,<data>
   switch dataUrl->String.split(";base64,") {
   | [prefix, base64] =>
-    // Extract media type from "data:<mediaType>" prefix
     let mimeType = switch prefix->String.split("data:") {
     | [_, mediaType] => mediaType
     | _ => panic(`parseDataUrl: unexpected data URL prefix format: ${prefix}`)
@@ -743,7 +696,7 @@ let parseDataUrl = (dataUrl: string): (string, string) => {
 }
 
 let annotationScreenshotBlock = (annotation: annotationBlockData, ~index: int): option<
-  ACPTypes.contentBlock,
+  ContentBlock.t,
 > =>
   annotation.screenshot->Option.map(screenshotDataUrl => {
     let (mimeType, base64Data) = parseDataUrl(screenshotDataUrl)
@@ -754,8 +707,8 @@ let annotationScreenshotBlock = (annotation: annotationBlockData, ~index: int): 
       annotationId: annotation.id,
     }->S.decodeOrThrow(~from=screenshotMetaSchema, ~to=S.json->S.noValidation(true))
 
-    ACPTypes.EmbeddedResource({
-      resource: ACPTypes.BlobResourceContents({
+    ContentBlock.EmbeddedResource({
+      resource: ContentBlock.BlobResourceContents({
         uri: `annotation://${annotation.id}/screenshot`,
         mimeType: Some(mimeType),
         blob: base64Data,
@@ -766,7 +719,7 @@ let annotationScreenshotBlock = (annotation: annotationBlockData, ~index: int): 
   })
 
 let annotationContentBlocks = (annotation: annotationBlockData, ~index: int): array<
-  ACPTypes.contentBlock,
+  ContentBlock.t,
 > => {
   [
     Some(annotationTextResourceBlock(annotation, ~index)),
@@ -786,36 +739,32 @@ let messageAnnotationBoundingBoxMeta = (
 let messageAnnotationToBlockData = (
   annotation: Message.MessageAnnotation.t,
 ): annotationBlockData => {
-  id: annotation.id,
-  tagName: annotation.tagName,
-  comment: annotation.comment,
-  selector: annotation.selector->Result.getOr(None),
-  screenshot: annotation.screenshot->Result.getOr(None),
-  sourceLocation: annotation.sourceLocation
-  ->Result.getOr(None)
-  ->Option.map(sourceLocationFromMessageAnnotation),
-  cssClasses: annotation.cssClasses,
-  nearbyText: annotation.nearbyText,
-  elementorContext: annotation.elementorContext,
-  boundingBox: annotation.boundingBox->Option.map(messageAnnotationBoundingBoxMeta),
+  let (sourceLocation, sourceLocationError) = switch annotation.sourceLocation {
+  | Ok(sourceLocation) => (sourceLocation->Option.map(sourceLocationFromMessageAnnotation), None)
+  | Error(error) => (None, Some(error))
+  }
+
+  {
+    id: annotation.id,
+    tagName: annotation.tagName,
+    comment: annotation.comment,
+    selector: annotation.selector->Result.getOr(None),
+    elementContext: annotation.elementContext->Result.getOr(None),
+    screenshot: annotation.screenshot->Result.getOr(None),
+    sourceLocation,
+    sourceLocationError,
+    cssClasses: annotation.cssClasses,
+    nearbyText: annotation.nearbyText,
+    elementorContext: annotation.elementorContext,
+    boundingBox: annotation.boundingBox->Option.map(messageAnnotationBoundingBoxMeta),
+  }
 }
 
-// Build content blocks for a single annotation
-let annotationToContentBlocks = (annotation: Annotation.t, ~index: int): array<
-  ACPTypes.contentBlock,
-> => {
-  let blockData = annotation->Message.MessageAnnotation.fromAnnotation->messageAnnotationToBlockData
-
-  annotationContentBlocks(blockData, ~index)
-}
-
-// Helper: read document.title from a document reference
-let getDocumentTitle: WebAPI.DOMAPI.document => string = %raw(`
+let getDocumentTitle: WebAPI.DomTypes.document => string = %raw(`
   function(doc) { return doc.title || ""; }
 `)
 
-// Helper: read color scheme preference from a window reference
-let getColorScheme: WebAPI.DOMAPI.window => string = %raw(`
+let getColorScheme: WebAPI.DomTypes.window => string = %raw(`
   function(win) {
     try {
       return win.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -825,14 +774,9 @@ let getColorScheme: WebAPI.DOMAPI.window => string = %raw(`
   }
 `)
 
-// Build a Resource ContentBlock from current page context
-// Contains page URL, viewport dimensions, DPR, title, color scheme, and scroll position
-let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.contentBlock => {
+let currentPageToContentBlock = (previewFrame: Task.previewFrame): ContentBlock.t => {
   let url = previewFrame.url
 
-  // Read viewport and display info from iframe's contentWindow
-  // Wrapped in try/catch because the iframe may be cross-origin in
-  // containerized worktrees (different subdomains), causing SecurityError.
   let (viewportWidth, viewportHeight, dpr, scrollY) = switch previewFrame.contentWindow {
   | Some(win) =>
     try {
@@ -853,7 +797,6 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
   | None => (None, None, None, None)
   }
 
-  // Read page title from iframe's contentDocument
   let title = switch previewFrame.contentDocument {
   | Some(doc) =>
     try {
@@ -873,7 +816,6 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
   | None => None
   }
 
-  // Read color scheme preference from iframe's contentWindow
   let colorScheme = switch previewFrame.contentWindow {
   | Some(win) =>
     let scheme = getColorScheme(win)
@@ -884,7 +826,6 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
   | None => None
   }
 
-  // Build _meta JSON with current_page marker and all fields
   let obj = Dict.make()
   obj->Dict.set("current_page", JSON.Encode.bool(true))
   obj->Dict.set("url", JSON.Encode.string(url))
@@ -914,7 +855,6 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
   | None => ()
   }
 
-  // Add device emulation context if active
   if Client__DeviceMode.isActive(previewFrame.deviceMode) {
     let emulationObj = Dict.make()
     emulationObj->Dict.set("active", JSON.Encode.bool(true))
@@ -945,7 +885,6 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
 
   let _meta = JSON.Encode.object(obj)
 
-  // Build summary text for the resource
   let summaryParts = [Some(`URL: ${url}`)]
   let summaryParts = switch (viewportWidth, viewportHeight) {
   | (Some(w), Some(h)) =>
@@ -970,8 +909,8 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
 
   let summaryText = summaryParts->Array.filterMap(x => x)->Array.join(", ")
 
-  ACPTypes.EmbeddedResource({
-    resource: ACPTypes.TextResourceContents({
+  ContentBlock.EmbeddedResource({
+    resource: ContentBlock.TextResourceContents({
       uri: `page://${url}`,
       mimeType: Some("text/plain"),
       text: `Current page: ${summaryText}`,
@@ -981,12 +920,7 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ACPTypes.cont
   })
 }
 
-// ============================================================================
-// Page-context-only content blocks (annotations now live on messages)
-// ============================================================================
-
-// Build page context blocks from Task (no annotations — those come from the message)
-let taskToPageContextBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
+let taskToPageContextBlocks = (task: Task.t): array<ContentBlock.t> => {
   switch task {
   | Task.Unloaded(_) => []
   | Task.New({previewFrame})
@@ -995,12 +929,6 @@ let taskToPageContextBlocks = (task: Task.t): array<ACPTypes.contentBlock> => {
   }
 }
 
-// ============================================================================
-// MessageAnnotation -> ContentBlock conversion
-// ============================================================================
-
-// Inverse of makeAnnotationMeta: reconstruct a MessageAnnotation.t from an annotationMeta
-// Used during history replay to rebuild user messages from stored content blocks
 let annotationMetaToMessageAnnotation = (
   meta: annotationMeta,
   ~screenshot: option<string>,
@@ -1031,8 +959,11 @@ let annotationMetaToMessageAnnotation = (
     }
   }
 
-  let sourceLocation = switch (meta.file, meta.line, meta.column) {
-  | (Some(file), Some(line), Some(column)) =>
+  let sourceLocation = switch (meta.sourceLocationError, meta.file, meta.line, meta.column) {
+  | (Some(_), Some(_), Some(_), Some(_)) =>
+    panic("Annotation metadata contains both a source location and a source location error")
+  | (Some(error), _, _, _) => Error(error)
+  | (None, Some(file), Some(line), Some(column)) =>
     Ok(
       Some({
         Message.MessageAnnotation.file,
@@ -1044,13 +975,14 @@ let annotationMetaToMessageAnnotation = (
         parent: meta.parent->Option.flatMap(parseParentLocation),
       }),
     )
-  | _ => Ok(None)
+  | (None, _, _, _) => Ok(None)
   }
 
   {
     id: meta.annotationId,
     tagName: meta.tagName,
     selector: Ok(meta.selector),
+    elementContext: Ok(meta.elementContext),
     cssClasses: meta.cssClasses,
     comment: meta.comment,
     screenshot: Ok(screenshot),
@@ -1066,19 +998,15 @@ let annotationMetaToMessageAnnotation = (
   }
 }
 
-// Build content blocks for a single MessageAnnotation
-// Returns 1-2 blocks: resource block with annotation _meta, optional screenshot blob
-// Unwraps result<option<T>, string> to option<T> — errors are treated as absent for serialization
 let messageAnnotationToContentBlocks = (
   annotation: Message.MessageAnnotation.t,
   ~index: int,
-): array<ACPTypes.contentBlock> => {
+): array<ContentBlock.t> => {
   annotationContentBlocks(messageAnnotationToBlockData(annotation), ~index)
 }
 
-// Build content blocks from an array of MessageAnnotations
 let messageAnnotationsToContentBlocks = (annotations: array<Message.MessageAnnotation.t>): array<
-  ACPTypes.contentBlock,
+  ContentBlock.t,
 > => {
   annotations->Array.flatMapWithIndex((annotation, index) =>
     messageAnnotationToContentBlocks(annotation, ~index)

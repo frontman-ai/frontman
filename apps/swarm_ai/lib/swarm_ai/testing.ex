@@ -162,7 +162,6 @@ defmodule SwarmAi.Testing do
 
   defimpl SwarmAi.LLM, for: SwarmAi.Testing.StreamErrorLLM do
     def stream(%{error_message: message}, _messages, _opts) do
-      # Return a lazy stream that raises when consumed.
       error_stream =
         Stream.resource(
           fn -> :init end,
@@ -196,7 +195,6 @@ defmodule SwarmAi.Testing do
               {[StreamChunk.text("chunk-#{count}")], count + 1}
 
             _count ->
-              # Hang forever to simulate a stalled provider.
               Process.sleep(:infinity)
               {:halt, nil}
           end,

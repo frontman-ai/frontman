@@ -291,7 +291,7 @@ Each agent run tracks:
 - **Steps** — each LLM call-and-response is one step
 - **Status** — ready, running, waiting_for_tools, completed, failed, paused, max_steps
 - **Tool calls** — per-step, with results filled in as they complete
-- **Metadata** — task ID, API key info, user context (flows through all events)
+- **Metadata** — task ID and user context (flows through all events)
 
 ### Lifecycle Management
 
@@ -347,7 +347,7 @@ Three npm packages inject Frontman into your dev server. Each follows the same p
 
 | Integration | How it hooks in | Special features |
 |------------|----------------|-----------------|
-| **Astro** (`@frontman-ai/astro`) | Astro integration hook + Vite middleware | Dev toolbar app, `data-astro-source-file` capture, component props injection as HTML comments |
+| **Astro** (`@frontman-ai/astro`) | Astro integration hook + Vite middleware | Dev toolbar app, Astro 5/6 `data-astro-source-*` capture, Astro 7 `data-frontman-source-*` injection, Markdown source mapping, component props injection as HTML comments |
 | **Next.js** (`@frontman-ai/nextjs`) | OpenTelemetry instrumentation + client injection | Log capture integration (circular buffer) |
 | **Vite** (`@frontman-ai/vite`) | Vite middleware plugin | Adapts Web API to Vite's Node.js request/response |
 
@@ -386,7 +386,7 @@ The browser acts as a bridge — it receives the MCP tool call, forwards it to y
 
 ### Local Development
 
-Each developer feature branch can get its own **worktree** — an isolated copy of the repo with its own database, dev servers, and Claude Code context:
+Each developer feature branch can get its own **worktree** - an isolated copy of the repo with its own database and dev servers:
 
 - **Process management**: mprocs (7 concurrent processes)
 - **Containers**: Podman pods (PostgreSQL + dev container per worktree)

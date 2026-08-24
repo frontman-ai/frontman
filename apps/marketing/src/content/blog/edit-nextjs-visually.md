@@ -3,11 +3,13 @@ title: 'Edit Next.js Components in Your Browser'
 pubDate: 2026-04-14T05:00:00Z
 description: 'Frontman connects to your running Next.js app and lets you click any element to edit the source. No file hunting, no class name guessing — just click and describe.'
 author: 'Danni Friedland'
+articleSection: 'Tutorial'
 image: '/blog/edit-nextjs-visually-cover.png'
+imageAlt: 'Next.js component selected for visual editing in the browser'
 tags: ['nextjs', 'tutorial', 'developer-tools']
 faq:
   - question: 'Do I need to eject from Next.js or change my build setup?'
-    answer: 'No. Frontman runs as middleware in your existing Next.js dev server. You add a middleware.ts file, run your usual dev server, and open the browser. Nothing is ejected. Nothing is replaced. Your production build is unaffected.'
+    answer: 'No. Frontman runs inside your existing Next.js dev server through middleware on Next.js 13-15 or proxy on Next.js 16+. You run your usual dev server and open the browser. Nothing is ejected. Nothing is replaced. Your production build is unaffected.'
   - question: 'Does this work with the App Router?'
     answer: 'Yes. Frontman supports both the App Router and the Pages Router. It understands Server Components and Client Components and handles them appropriately — server-only components are edited in source, client components get live hot-reload verification.'
   - question: 'What happens when I click a shared component — does it change every instance?'
@@ -41,7 +43,7 @@ Describe what you want. Frontman edits the source file directly, and Next.js hot
 npx @frontman-ai/nextjs install
 ```
 
-This adds the package and creates a `middleware.ts` file in your project root automatically.
+This adds the package and creates the right Next.js entrypoint automatically: `middleware.ts` for Next.js 13-15 or `proxy.ts` for Next.js 16+. If your app uses `src/app` or `src/pages`, the file is created under `src/`.
 
 **2. Run your dev server as usual:**
 
@@ -51,7 +53,7 @@ npm run dev
 
 Open your browser. The Frontman sidebar appears. Click anything.
 
-There is no step 3. Your production build is unaffected. Frontman is dev-only middleware.
+There is no step 3. Your production build is unaffected. Frontman is dev-only middleware/proxy wiring.
 
 ## The Workflow
 
@@ -120,4 +122,4 @@ Generated code from tools like v0 or Bolt creates a parallel codebase you have t
 
 If you have a Next.js project running locally, setup takes under two minutes. Follow the [Next.js integration guide](/docs/integrations/nextjs/) for the full walkthrough, or read about [how Frontman connects to your framework](/blog/frontman-launch/).
 
-[Try Frontman](https://frontman.sh) — open-source core for local development, with hosted plans coming soon.
+[Try Frontman](https://frontman.sh) — self-host in one command or use hosted Frontman Pro now. The browser client and JavaScript integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.

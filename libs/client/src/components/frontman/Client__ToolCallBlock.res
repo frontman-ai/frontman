@@ -1,20 +1,15 @@
 /**
  * ToolCallBlock - Main tool call display component
  *
- * Displays tool calls with human-readable names in purple-themed style:
- *   Get Routes
- *   target_path (as purple link)
- *
  * Supports compact mode for grouped display and expand/collapse for details.
  */
 module Message = Client__State__Types.Message
 module ToolLabels = Client__ToolLabels
 module ToolNames = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool.ToolNames
+module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-// Normalize tool name for comparison
 let cleanToolName = (toolName: string): string => String.toLowerCase(toolName)
 
-// Tools that show a target inline (path, URL, etc.) instead of expandable body
 let isInlineTool = (toolName: string): bool => {
   let name = cleanToolName(toolName)
   switch name {
@@ -23,20 +18,40 @@ let isInlineTool = (toolName: string): bool => {
   }
 }
 
-// Screenshot tool detection and image extraction
-let isScreenshotTool = (toolName: string): bool => {
-  cleanToolName(toolName) == ToolNames.takeScreenshot
-}
+let renderContent = (item, setPreviewSrc) =>
+  switch item {
+  | ACP.Content({content: TextContent({text})}) =>
+    <pre className="whitespace-pre-wrap break-words"> {React.string(text)} </pre>
+  | Content({content: ImageContent({data, mimeType})}) => {
+      let src = `data:${mimeType};base64,${data}`
+      <button
+        type_="button"
+        ariaLabel="View image output"
+        onClick={event => {
+          ReactEvent.Mouse.stopPropagation(event)
+          setPreviewSrc(_ => Some(src))
+        }}
+        className="block cursor-zoom-in"
+      >
+        <img src alt="Tool output" className="max-h-32 rounded border border-[#8051CD]/30" />
+      </button>
+    }
+  | Content({content: AudioContent({data, mimeType})}) =>
+    <audio controls=true src={`data:${mimeType};base64,${data}`} className="max-w-full" />
+  | Content({content: ResourceLink({name, uri})}) =>
+    <div className="font-mono text-zinc-400"> {React.string(`${name}: ${uri}`)} </div>
+  | Content({content: EmbeddedResource({resource: TextResourceContents({uri, text})})}) =>
+    <pre> {React.string(`${uri}\n${text}`)} </pre>
+  | Content({
+      content: EmbeddedResource({resource: BlobResourceContents({uri, mimeType, blob})}),
+    }) => {
+      let src = `data:${mimeType->Option.getOr("application/octet-stream")};base64,${blob}`
+      <a href=src download=uri> {React.string(`Download ${uri}`)} </a>
+    }
+  | Diff({path}) => <div className="font-mono text-zinc-400"> {React.string(`Diff: ${path}`)} </div>
+  | Terminal({terminalId}) => <div> {React.string(`Terminal ${terminalId}`)} </div>
+  }
 
-let getScreenshotSrc = (result: option<JSON.t>): option<string> => {
-  result
-  ->Option.flatMap(JSON.Decode.object)
-  ->Option.flatMap(dict => dict->Dict.get("screenshot"))
-  ->Option.flatMap(JSON.Decode.string)
-  ->Option.flatMap(s => s != "" ? Some(s) : None)
-}
-
-// Extract target path/URL, defaulting to "./" for list/file operations
 let getTarget = (toolName: string, input: option<JSON.t>): option<string> => {
   switch ToolLabels.extractTargetFromInput(input) {
   | Some(".") => Some("./")
@@ -52,12 +67,11 @@ let make = (
   ~state: Message.toolCallState,
   ~input: option<JSON.t>,
   ~inputBuffer: string,
-  ~result: option<JSON.t>,
+  ~result: option<Message.toolResult>,
   ~errorText: option<string>,
   ~defaultExpanded: bool=false,
   ~compact: bool=false,
 ) => {
-  // Question tools get their own compact summary card
   switch cleanToolName(toolName) == ToolNames.question {
   | true => <Client__QuestionToolBlock state input result errorText />
   | false =>
@@ -66,7 +80,6 @@ let make = (
     let wasManuallyToggled = React.useRef(false)
     let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
 
-    // Sync with defaultExpanded prop unless manually toggled
     React.useEffect(() => {
       if !wasManuallyToggled.current {
         setIsExpanded(_ => defaultExpanded)
@@ -78,7 +91,6 @@ let make = (
     let isInProgress = state == InputStreaming || state == InputAvailable
     let hasError = Option.isSome(errorText)
 
-    // Expandable tools show body when there's content
     let hasBody =
       !isLink &&
       ((state == InputStreaming && inputBuffer != "") ||
@@ -86,7 +98,6 @@ let make = (
       Option.isSome(result) ||
       Option.isSome(errorText))
 
-    // Toggle expansion handler
     let handleToggle = _ => {
       if hasBody {
         setIsExpanded(prev => !prev)
@@ -94,22 +105,19 @@ let make = (
       }
     }
 
-    // Container classes - purple themed with rounded corners
     let containerClasses =
       [
         "group overflow-hidden",
         "animate-in fade-in duration-100",
-        compact ? "rounded-lg" : "rounded-xl",
+        compact ? "rounded-lg" : "my-1.5 rounded-xl",
         compact ? "bg-[#8051CD]/15" : "bg-[#8051CD]/20",
         compact ? "border border-[#8051CD]/30" : "border border-[#8051CD]/40",
-        // compact ? "my-1" : "my-2",
         compact ? "px-3 py-2" : "px-4 py-3",
         hasBody ? "cursor-pointer" : "",
       ]
       ->Array.filter(s => s != "")
       ->Array.join(" ")
 
-    // Body transition classes
     let bodyClasses =
       [
         "overflow-hidden frontman-collapse-transition",
@@ -117,16 +125,13 @@ let make = (
       ]->Array.join(" ")
 
     <div className={containerClasses}>
-      // Header - clickable to toggle expansion
       <div onClick={handleToggle}>
-        // Human-readable tool name (e.g., "Get Routes", "Write File")
         <div className={`font-mono ${compact ? "text-[12px]" : "text-[13px]"}`}>
           <span className={isInProgress ? "shimmer-text text-zinc-200" : "text-zinc-200"}>
             {React.string(ToolLabels.toTitleCase(toolName))}
           </span>
         </div>
 
-        // Target path as purple link, or shimmer placeholder while streaming
         {switch (target, state, input) {
         | (_, InputStreaming, None) if isLink => {
             let placeholder = "Waiting for file path..."
@@ -150,7 +155,6 @@ let make = (
         | _ => React.null
         }}
 
-        // Error message if present (inline)
         {switch errorText {
         | Some(err) =>
           <div
@@ -163,7 +167,6 @@ let make = (
         }}
       </div>
 
-      // Expandable body for non-file tools
       {hasBody
         ? <div className={bodyClasses}>
             <div
@@ -194,34 +197,17 @@ let make = (
                 </div>
               | _ => React.null
               }}
-              // Screenshot preview button when screenshot data is available
-              {switch (isScreenshotTool(toolName), getScreenshotSrc(result)) {
-              | (true, Some(src)) =>
-                <div className="mb-2">
-                  <button
-                    type_="button"
-                    onClick={e => {
-                      ReactEvent.Mouse.stopPropagation(e)
-                      setPreviewSrc(_ => Some(src))
-                    }}
-                    className="text-[11px] font-mono text-[#8051CD] hover:text-[#9d7be0] underline cursor-pointer"
-                  >
-                    {React.string("View Screenshot")}
-                  </button>
-                </div>
-              | _ => React.null
-              }}
-              {switch (result, errorText) {
-              | (Some(json), _) =>
-                <div>
+              {switch result {
+              | Some({content}) if content->Array.length > 0 =>
+                <div className="font-mono text-[11px] text-zinc-400">
                   <div className="text-[11px] text-zinc-500 mb-1"> {React.string("Output:")} </div>
-                  <pre
-                    className="font-mono text-[11px] whitespace-pre-wrap break-words text-zinc-400"
-                  >
-                    {React.string(JSON.stringify(json, ~space=2))}
-                  </pre>
+                  {content
+                  ->Array.mapWithIndex((item, index) =>
+                    <div key={index->Int.toString}> {renderContent(item, setPreviewSrc)} </div>
+                  )
+                  ->React.array}
                 </div>
-              | (None, Some(_)) => React.null // Error already shown inline in header
+              | None if Option.isSome(errorText) => React.null
               | _ if state == InputAvailable =>
                 <div className="text-sm text-zinc-400 italic py-1">
                   {React.string("Executing...")}
@@ -232,12 +218,11 @@ let make = (
           </div>
         : React.null}
 
-      // Screenshot lightbox preview
       {switch previewSrc {
       | Some(src) => <Client__ImagePreview src onClose={() => setPreviewSrc(_ => None)} />
       | None => React.null
       }}
     </div>
-  } // end | false => (non-question tools)
+  }
 }
 let make = React.memo(make)

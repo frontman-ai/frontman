@@ -1,44 +1,14 @@
-// Welcome modal shown to first-time unauthenticated users
-// Auto-redirects to the login page after a countdown
-
 module Dialog = Client__UI__Dialog
 module Button = Client__UI__Button
 
-let redirectDelaySec = 4
-
 @react.component
-let make = (~loginUrl: string) => {
-  let (countdown, setCountdown) = React.useState(() => redirectDelaySec)
+let make = (~loginUrl: string, ~onSignIn: unit => unit) => {
+  let (waiting, setWaiting) = React.useState(() => false)
 
-  // Mark FTUE welcome as shown on mount
-  React.useEffect0(() => {
-    Client__FtueState.setWelcomeShown()
-    None
-  })
-
-  // Countdown timer → redirect
-  React.useEffect0(() => {
-    let intervalId = ref(None)
-
-    let id = WebAPI.Global.setInterval2(~handler=() => {
-      setCountdown(
-        prev => {
-          let next = prev - 1
-          switch next <= 0 {
-          | true =>
-            intervalId.contents->Option.forEach(WebAPI.Global.clearInterval)
-            Client__HostNavigation.assign(~url=loginUrl)
-          | false => ()
-          }
-          next
-        },
-      )
-    }, ~timeout=1000)
-
-    intervalId := Some(id)
-
-    Some(() => WebAPI.Global.clearInterval(id))
-  })
+  let handleSignIn = _ => {
+    setWaiting(_ => true)
+    onSignIn()
+  }
 
   <Dialog open_={true} onOpenChange={(_, _) => ()}>
     <Dialog.Content className="text-center" showCloseButton={false}>
@@ -48,38 +18,32 @@ let make = (~loginUrl: string) => {
         </div>
         <Dialog.Title> {React.string("Welcome to Frontman!")} </Dialog.Title>
         <Dialog.Description>
-          {React.string(
-            "Your AI-powered coding assistant is ready. Let's get you signed in so you can start building.",
-          )}
+          {React.string("Sign in to Frontman to start setting up your coding assistant.")}
         </Dialog.Description>
       </Dialog.Header>
       <div className="space-y-4">
-        <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all duration-1000 ease-linear"
-            style={{
-              width: `${Int.toString(
-                  Float.toInt(
-                    Int.toFloat(redirectDelaySec - countdown) /.
-                    Int.toFloat(redirectDelaySec) *. 100.0,
-                  ),
-                )}%`,
-            }}
-          />
-        </div>
         <p className="text-xs text-muted-foreground">
           {React.string(
-            `Redirecting to sign in in ${Int.toString(
-                Int.fromFloat(Math.max(Int.toFloat(countdown), 0.0)),
-              )}s...`,
+            switch waiting {
+            | true => "Waiting for sign-in to complete..."
+            | false => "Sign in in a new tab. Frontman will connect automatically."
+            },
           )}
         </p>
-        <Button
-          variant=Button.Variant.Secondary
-          onClick={_ => Client__HostNavigation.assign(~url=loginUrl)}
+        <a
+          href={loginUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={Button.buttonVariants(~variant=Button.Variant.Secondary)}
+          onClick=handleSignIn
         >
-          {React.string("Sign in now")}
-        </Button>
+          {React.string(
+            switch waiting {
+            | true => "Open sign-in again"
+            | false => "Sign in"
+            },
+          )}
+        </a>
       </div>
     </Dialog.Content>
   </Dialog>

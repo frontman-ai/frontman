@@ -1,13 +1,24 @@
 .DEFAULT_GOAL := help
 .PHONY: help build test test-watch test-coverage lint format clean publish
 
-help: ## Display this help message
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help build publish test test-watch test-coverage lint format clean
+HELP_help := Display this help message
+HELP_build := Build ReScript + bundle
+HELP_publish := Build and publish to npm (pass OTP=<code> for 2FA)
+HELP_test := Run tests
+HELP_test-watch := Run tests in watch mode
+HELP_test-coverage := Run tests with coverage
+HELP_lint := Check formatting
+HELP_format := Format code
+HELP_clean := Clean build artifacts
 
-build: ## Build ReScript + bundle
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+build:
 	yarn build
 
-publish: build ## Build and publish to npm (pass OTP=<code> for 2FA)
+publish: build
 	@PKG=$$(node -e "const p=require('./package.json'); console.log(p.name+'@'+p.version)"); \
 	if npm view "$$PKG" version >/dev/null 2>&1; then \
 		echo "Skipping $$PKG — already published"; \
@@ -15,20 +26,20 @@ publish: build ## Build and publish to npm (pass OTP=<code> for 2FA)
 	fi; \
 	npm publish $(if $(OTP),--otp=$(OTP))
 
-test: build ## Run tests
+test: build
 	yarn vitest run
 
-test-watch: ## Run tests in watch mode
+test-watch:
 	yarn vitest
 
-test-coverage: build ## Run tests with coverage
+test-coverage: build
 	yarn vitest run --coverage
 
-lint: ## Check formatting
+lint:
 	yarn rescript format --check src test
 
-format: ## Format code
+format:
 	yarn rescript format src test
 
-clean: ## Clean build artifacts
+clean:
 	yarn rescript clean

@@ -6,11 +6,11 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "@rescript/runtime": "12.3.0"
+    "@rescript/runtime": "catalog:"
   },
   "devDependencies": {
     "@frontman-ai/frontman-protocol": "workspace:*",
-    "@rescript/webapi": "*",
+    "@rescript/webapi": "catalog:",
     "rescript": "catalog:",
     "rescript-vitest": "catalog:",
     "sury": "catalog:",

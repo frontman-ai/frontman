@@ -6,8 +6,6 @@ module Impl = (
   include Node.Impl({type t = T.t})
 
   external asElement: T.t => DomTypes.element = "%identity"
-  external asHTMLElement: T.t => DomTypes.htmlElement = "%identity"
-  external asRescriptElement: T.t => 'a = "%identity"
 
   @get
   external parentElement: T.t => Null.t<DomTypes.element> = "parentElement"

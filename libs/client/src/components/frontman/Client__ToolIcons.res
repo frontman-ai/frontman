@@ -1,14 +1,9 @@
 /**
  * ToolIcons - SVG icon components for the UI
- * 
+ *
  * Icons are 14x14 by default and use currentColor for theming.
  */
-let // Default size
-defaultSize = 14
-
-// ============================================================================
-// Icon Components
-// ============================================================================
+let defaultSize = 14
 
 module FileIcon = {
   @react.component
@@ -117,7 +112,6 @@ module ChevronDownIcon = {
   }
 }
 
-// Send arrow icon for submit button
 module SendArrowIcon = {
   @react.component
   let make = (~size: int=20, ~className: string="") => {

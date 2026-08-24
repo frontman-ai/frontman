@@ -54,6 +54,8 @@ npm run dev
 
 Then open your browser to `http://localhost:3000/frontman` to access the Frontman UI.
 
+With the default hosted setup, Frontman redirects you to `api.frontman.sh` to sign in with GitHub or Google, then returns you to the local `/frontman` URL. Before your first prompt, connect a supported AI provider with OAuth or add an API key. If you configured another Frontman server, sign in on that server instead.
+
 ## Manual Setup
 
 ### Next.js 15 (middleware.ts)

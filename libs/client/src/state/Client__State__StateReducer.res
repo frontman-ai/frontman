@@ -5,9 +5,9 @@ module Sentry = FrontmanAiFrontmanClient.FrontmanClient__Sentry
 
 let name = "Client::StateReducer"
 
-// ============================================================================
-// Type Re-exports from Client__State__Types
-// ============================================================================
+let plannerAgentName = "planner"
+let executorAgentName = "executor"
+let executePlanPrompt = "Execute the plan above."
 
 module UserContentPart = Client__State__Types.UserContentPart
 module Message = Client__State__Types.Message
@@ -15,34 +15,29 @@ module Task = Client__State__Types.Task
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 type state = Client__State__Types.state
 
-// ============================================================================
-// Actions and Effects
-// ============================================================================
-
 module TaskReducer = Client__Task__Reducer
 
 type taskTarget = CurrentTask | ForTask(string)
 
 type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 
+type pendingPlanHandoff = {taskId: string, executorAgentId: string}
+
 type action =
-  // Task-scoped actions (routed to task sub-reducer)
   | TaskAction({target: taskTarget, action: TaskReducer.action})
-  // User actions
   | AddUserMessage({
-      id: string,
+      id: Message.UserMessageId.t,
       sessionId: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
+      agentId: string,
     })
-  // Cancel current turn
   | CancelTurn
-  // Task management actions
+  | ExecutePendingPlan({id: Message.UserMessageId.t})
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
-  | ClearCurrentTask // Used when clicking "+" to start a new task - clears selection so next message creates new task
+  | ClearCurrentTask
   | UpdateTaskTitle({taskId: string, title: string})
-  // ACP session actions
   | SetAcpSession({
       sendPrompt: Client__State__Types.sendPromptFn,
       cancelPrompt: Client__State__Types.cancelPromptFn,
@@ -52,7 +47,7 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
-  // API key settings actions
+  | FetchUserProfile({apiBaseUrl: string})
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
   | SaveApiKey({provider: apiKeyProvider, key: string})
@@ -60,12 +55,12 @@ type action =
   | ApiKeySaved({provider: apiKeyProvider})
   | ApiKeySaveError({provider: apiKeyProvider, error: string})
   | ResetApiKeySaveStatus({provider: apiKeyProvider})
-  // ACP session config option actions (unified model/mode/config selection)
   | ConfigOptionsReceived({
       configOptions: array<Client__State__Types.ACPConfig.sessionConfigOption>,
     })
   | SetSelectedModelValue({value: Client__State__Types.ACPConfig.sessionConfigValueId})
-  // Anthropic OAuth actions
+  | AgentAttributionConfigured({agentCatalog: array<ACP.agentCatalogEntry>, defaultAgentId: string})
+  | SetSelectedAgentId(string)
   | FetchAnthropicOAuthStatus
   | AnthropicOAuthStatusReceived({connected: bool, expiresAt: option<string>})
   | InitiateAnthropicOAuth
@@ -77,7 +72,6 @@ type action =
   | AnthropicOAuthDisconnected
   | ResetAnthropicOAuthError
   | CancelAnthropicOAuth
-  // OpenAI OAuth actions (device auth flow)
   | FetchOpenAIOAuthStatus
   | OpenAIOAuthStatusReceived({connected: bool, expiresAt: option<string>})
   | InitiateOpenAIOAuth
@@ -87,15 +81,12 @@ type action =
   | DisconnectOpenAIOAuth
   | OpenAIOAuthDisconnected
   | ResetOpenAIOAuthError
-  // User profile actions
   | UserProfileReceived({userProfile: Client__State__Types.userProfile})
-  // Session loading actions
   | SessionsLoadStarted
   | SessionsLoadSuccess({
       sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
     })
   | SessionsLoadError({error: string})
-  // Update banner actions
   | CheckForUpdate({installedVersion: string, npmPackage: string})
   | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
   | DismissUpdateBanner
@@ -104,27 +95,17 @@ type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
-  // Anthropic OAuth effects
   | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
   | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
   | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl: string, code: string, verifier: string})
   | DisconnectAnthropicOAuthEffect({apiBaseUrl: string})
-  // OpenAI OAuth effects (device auth flow)
   | FetchOpenAIOAuthStatusEffect({apiBaseUrl: string})
   | InitiateOpenAIDeviceAuthEffect({apiBaseUrl: string})
   | DisconnectOpenAIOAuthEffect({apiBaseUrl: string})
   | PollOpenAIDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
-  // User profile effect
   | FetchUserProfileEffect({apiBaseUrl: string})
-  // Task loading effect
   | LoadTaskEffect({taskId: string})
-  // Update check effect
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
-  | IdentifyUserInAnalyticsEffect(Client__State__Types.userProfile)
-
-// ============================================================================
-// Lens helpers for state updates
-// ============================================================================
 
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
@@ -135,25 +116,28 @@ module Lens = {
     {...state, tasks}
   }
 
-  // Delegate an action to the TaskReducer
-  // - New(task): operate on task inline, write back to currentTask
-  // - Selected(id): look up in dict, operate, write back to dict
-  // Wraps task effects as TaskEffect with the appropriate target
-  let delegateToTask = (state: state, target: Task.currentTask, taskAction: TaskReducer.action) => {
-    switch target {
-    | Task.New(task) =>
-      let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-      let wrappedEffects =
-        taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
-      {...state, currentTask: Task.New(updated)}->StateReducer.update(~sideEffects=wrappedEffects)
-    | Task.Selected(id) =>
-      let task = state.tasks->Dict.get(id)->Option.getOrThrow
-      let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-      let wrappedEffects =
-        taskEffects->Array.map(eff => TaskEffect({target: ForTask(id), effect: eff}))
-      let tasks = state.tasks->Dict.copy
-      tasks->Dict.set(id, updated)
-      {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
+  let delegateToNewTask = (state: state, task: Task.t, taskAction: TaskReducer.action) => {
+    let (updated, taskEffects) = TaskReducer.next(task, taskAction)
+    let wrappedEffects =
+      taskEffects->Array.map(eff => TaskEffect({target: CurrentTask, effect: eff}))
+    {...state, currentTask: Task.New(updated)}->StateReducer.update(~sideEffects=wrappedEffects)
+  }
+
+  let delegateToTaskId = (state: state, taskId: string, taskAction: TaskReducer.action) => {
+    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+    let (updated, taskEffects) = TaskReducer.next(task, taskAction)
+    let wrappedEffects =
+      taskEffects->Array.map(eff => TaskEffect({target: ForTask(taskId), effect: eff}))
+    let tasks = state.tasks->Dict.copy
+    tasks->Dict.set(taskId, updated)
+    {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
+  }
+
+  let delegateToTask = (state: state, target: taskTarget, taskAction: TaskReducer.action) => {
+    switch (target, state.currentTask) {
+    | (CurrentTask, Task.New(task)) => delegateToNewTask(state, task, taskAction)
+    | (CurrentTask, Task.Selected(taskId)) | (ForTask(taskId), _) =>
+      delegateToTaskId(state, taskId, taskAction)
     }
   }
 }
@@ -167,21 +151,23 @@ let migrateOpenAIModelValue = value =>
   | false => value
   }
 
-// Load selected model value from localStorage (a sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
 let loadSelectedModelValueFromStorage = (): option<string> => {
   try {
-    FrontmanBindings.LocalStorage.getItem(selectedModelStorageKey)
-    ->Nullable.toOption
+    WebAPI.Window.current
+    ->WebAPI.Window.localStorage
+    ->WebAPI.Storage.getItem(selectedModelStorageKey)
+    ->Null.toOption
     ->Option.map(migrateOpenAIModelValue)
   } catch {
   | _ => None
   }
 }
 
-// Save selected model value to localStorage
 let saveSelectedModelValueToStorage = (value: string): unit => {
   try {
-    FrontmanBindings.LocalStorage.setItem(selectedModelStorageKey, value)
+    WebAPI.Window.current
+    ->WebAPI.Window.localStorage
+    ->WebAPI.Storage.setItem(~key=selectedModelStorageKey, ~value)
   } catch {
   | exn => Log.error(~error=JsExn.fromException(exn), "saveSelectedModelValueToStorage failed")
   }
@@ -191,16 +177,11 @@ let apiKeyProviderId = provider =>
   switch provider {
   | OpenRouter => "openrouter"
   | Anthropic => "anthropic"
-  | Fireworks => "fireworks"
+  | Fireworks => "fireworks_ai"
   | Nvidia => "nvidia"
   }
 
 let apiKeyProviders: array<apiKeyProvider> = [OpenRouter, Anthropic, Fireworks, Nvidia]
-
-let apiKeyRuntimeKey = provider => `${apiKeyProviderId(provider)}KeyValue`
-
-let hasRuntimeApiKey = (runtimeConfig, provider) =>
-  Client__RuntimeConfig.toEnvApiKeyDict(runtimeConfig)->Dict.has(apiKeyRuntimeKey(provider))
 
 let updateApiKeySettings = (state: state, provider, update) =>
   switch provider {
@@ -219,22 +200,18 @@ let setApiKeySaveStatus = (state, provider, saveStatus) =>
 let markApiKeySaved = (state, provider) =>
   updateApiKeySettings(state, provider, _settings => {source: UserOverride, saveStatus: Saved})
 
-let setAllApiKeySources = (state, source) =>
-  apiKeyProviders->Array.reduce(state, (state, provider) =>
-    state->setApiKeySource(provider, source)
-  )
-
-let hasApiKeySource = (source: Client__State__Types.apiKeySource) =>
-  switch source {
-  | UserOverride | FromEnv => true
-  | Loading | Client__State__Types.None => false
-  }
+let setAllApiKeySources = (state: state, source) => {
+  ...state,
+  openrouterKeySettings: {...state.openrouterKeySettings, source},
+  anthropicKeySettings: {...state.anthropicKeySettings, source},
+  fireworksKeySettings: {...state.fireworksKeySettings, source},
+  nvidiaKeySettings: {...state.nvidiaKeySettings, source},
+}
 
 let defaultState: state = {
   tasks: Dict.make(),
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   acpSession: NoAcpSession,
-  sessionInitialized: false,
   userProfile: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
@@ -256,6 +233,8 @@ let defaultState: state = {
   openaiOAuthStatus: Client__State__Types.OpenAINotConnected,
   configOptions: None,
   selectedModelValue: loadSelectedModelValueFromStorage(),
+  agentCatalog: None,
+  selectedAgentId: None,
   pendingProviderAutoSelect: None,
   sessionsLoadState: Client__State__Types.SessionsNotLoaded,
   updateInfo: None,
@@ -266,7 +245,6 @@ let defaultState: state = {
 module Selectors = {
   let getMessageId = Message.getId
 
-  // Get the current task - always returns a Task.t (never None)
   let currentTask = (state: state): Task.t => {
     switch state.currentTask {
     | Task.New(task) => task
@@ -277,7 +255,6 @@ module Selectors = {
     }
   }
 
-  // Get current task ID (None for New tasks)
   let currentTaskId = (state: state): option<string> => {
     switch state.currentTask {
     | Task.New(_) => None
@@ -285,12 +262,10 @@ module Selectors = {
     }
   }
 
-  // Get the stable client-side identifier for React keys (prevents iframe remounts)
   let currentTaskClientId = (state: state): string => {
     Task.getClientId(currentTask(state))
   }
 
-  // State predicates
   let isNewTask = (state: state): bool => Task.isNew(currentTask(state))
 
   let messages = (state: state): array<Message.t> => {
@@ -329,6 +304,9 @@ module Selectors = {
     TaskReducer.Selectors.planEntries(currentTask(state))->Option.getOr([])
   }
 
+  let completedFileChanges = (state: state): Client__FileChanges.snapshot =>
+    TaskReducer.Selectors.completedFileChanges(currentTask(state))
+
   let queuedUserMessages = (state: state): array<Message.t> => {
     TaskReducer.Selectors.queuedUserMessages(currentTask(state))->Option.getOr([])
   }
@@ -341,9 +319,6 @@ module Selectors = {
     TaskReducer.Selectors.retryStatus(currentTask(state))
   }
 
-  // Resolve an image attachment URI from a specific task's accumulated attachments.
-  // Used by the MCP server before forwarding attachment-aware tools to relay.
-  // Takes taskId (not currentTask) because the agent's task may differ from the viewed tab.
   let resolveImageRef = (state: state, ~taskId: string, ~uri: string): option<
     Message.resolvedImageData,
   > => {
@@ -365,7 +340,6 @@ module Selectors = {
     TaskReducer.Selectors.orientation(currentTask(state))
   }
 
-  // Task collection selectors
   let getTaskSortTime = (task: Task.t): float => Task.getUpdatedAt(task)->Option.getOr(0.0)
 
   let tasks = (state: state): array<Task.t> => {
@@ -378,7 +352,6 @@ module Selectors = {
     })
   }
 
-  // Global state selectors
   let acpSession = (state: state): Client__State__Types.acpSession => {
     state.acpSession
   }
@@ -390,26 +363,18 @@ module Selectors = {
     }
   }
 
-  let sessionInitialized = (state: state): bool => {
-    state.sessionInitialized
-  }
-
-  // Get user profile
   let userProfile = (state: state): option<Client__State__Types.userProfile> => {
     state.userProfile
   }
 
-  // Get OpenRouter API key settings
   let openrouterKeySettings = (state: state): Client__State__Types.apiKeySettings => {
     state.openrouterKeySettings
   }
 
-  // Get Anthropic API key settings
   let anthropicKeySettings = (state: state): Client__State__Types.apiKeySettings => {
     state.anthropicKeySettings
   }
 
-  // Get Fireworks API key settings
   let fireworksKeySettings = (state: state): Client__State__Types.apiKeySettings => {
     state.fireworksKeySettings
   }
@@ -418,33 +383,30 @@ module Selectors = {
     state.nvidiaKeySettings
   }
 
-  // Get ACP session config options
   let configOptions = (state: state): option<
     array<Client__State__Types.ACPConfig.sessionConfigOption>,
   > => {
     state.configOptions
   }
 
-  let agentCatalog = state => currentTask(state)->Task.getAgentCatalog
+  let agentCatalog = (state: state) => state.agentCatalog
 
-  // Get selected model value (sessionConfigValueId string, e.g. "anthropic:claude-sonnet-4-5")
+  let selectedAgentId = (state: state) => state.selectedAgentId
+
   let selectedModelValue = (state: state): option<
     Client__State__Types.ACPConfig.sessionConfigValueId,
   > => {
     state.selectedModelValue
   }
 
-  // Get Anthropic OAuth status
   let anthropicOAuthStatus = (state: state): Client__State__Types.anthropicOAuthStatus => {
     state.anthropicOAuthStatus
   }
 
-  // Get OpenAI OAuth status
   let openaiOAuthStatus = (state: state): Client__State__Types.openaiOAuthStatus => {
     state.openaiOAuthStatus
   }
 
-  // Get update info for the banner
   let updateInfo = (state: state): option<Client__State__Types.updateInfo> => {
     state.updateInfo
   }
@@ -457,7 +419,6 @@ module Selectors = {
     state.updateBannerDismissed
   }
 
-  // Pending question for the current task (shown in the drawer)
   let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {
     switch state.currentTask {
     | Task.Selected(id) =>
@@ -466,33 +427,40 @@ module Selectors = {
     }
   }
 
-  let hasAnyProviderConfigured = (state: state): bool => {
-    switch state.anthropicOAuthStatus {
-    | Connected(_) => true
-    | _ =>
-      switch state.openaiOAuthStatus {
-      | OpenAIConnected(_) => true
-      | _ =>
-        hasApiKeySource(state.openrouterKeySettings.source) ||
-        hasApiKeySource(state.nvidiaKeySettings.source) ||
-        hasApiKeySource(state.fireworksKeySettings.source) ||
-        hasApiKeySource(state.anthropicKeySettings.source)
+  let pendingPlanHandoff = (state: state): option<pendingPlanHandoff> => {
+    let findAgent = name =>
+      state.agentCatalog->Option.flatMap(catalog =>
+        catalog->Array.find(agent => agent.name == name)
+      )
+    switch (
+      state.acpSession,
+      findAgent(plannerAgentName),
+      findAgent(executorAgentName),
+      TaskReducer.Selectors.completedIdleTurn(currentTask(state)),
+    ) {
+    | (AcpSessionActive(_), Some(planner), Some(executor), Some({taskId, agentId}))
+      if agentId == planner.id =>
+      Some({taskId, executorAgentId: executor.id})
+    | _ => None
+    }
+  }
+
+  let providerSetupRequired = (state: state): bool => {
+    switch (state.acpSession, state.configOptions) {
+    | (AcpSessionActive(_), Some(configOptions)) =>
+      switch configOptions->ACP.findConfigOptionByCategory(ACP.Model) {
+      | Some(modelConfig) => ACP.sessionConfigOptionFirstOption(modelConfig)->Option.isNone
+      | None => false
       }
+    | _ => false
     }
   }
 }
 
-// ============================================================================
-// Effect handler helpers (extracted for reuse)
-// ============================================================================
-
-// Build ACP content blocks for image/file attachments
-// Strips the data:mime;base64, prefix and creates resource blocks with BlobResourceContents
 let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttachmentData>): array<
-  Client__State__Types.ACPTypes.contentBlock,
+  Client__State__Types.ContentBlock.t,
 > => {
   attachments->Array.map(att => {
-    // Strip "data:mime;base64," prefix to get raw base64
     let base64Data = switch att.dataUrl->String.indexOf(";base64,") {
     | -1 => att.dataUrl
     | idx => att.dataUrl->String.slice(~start=idx + 8, ~end=String.length(att.dataUrl))
@@ -503,8 +471,8 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
     metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
     let meta = JSON.Encode.object(metaObj)
 
-    Client__State__Types.ACPTypes.EmbeddedResource({
-      resource: Client__State__Types.ACPTypes.BlobResourceContents({
+    Client__State__Types.ContentBlock.EmbeddedResource({
+      resource: Client__State__Types.ContentBlock.BlobResourceContents({
         uri: `attachment://${att.id}/${att.filename}`,
         mimeType: Some(att.mediaType),
         blob: base64Data,
@@ -517,77 +485,92 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 
 let sendMessageToAPIImpl = (
   state: state,
-  _dispatch,
+  dispatch,
+  ~messageId,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
   ~taskId,
+  ~agentId,
 ) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
-    // Page context from task (always included)
     let pageContextBlocks =
       state.tasks
       ->Dict.get(taskId)
       ->Option.mapOr([], Client__State__Types.taskToPageContextBlocks)
 
-    // Annotation content blocks from the message (not task state)
     let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
 
-    // Build attachment content blocks
     let attachmentBlocks = buildAttachmentContentBlocks(attachments)
     let additionalBlocks =
       Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
 
     let runtimeConfig = Client__RuntimeConfig.read()
     let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
+    let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
+    state.selectedModelValue->Option.forEach(modelValue =>
+      metadata->Dict.set("model", JSON.Encode.string(modelValue))
+    )
+    metadata->Dict.set(
+      "frontman.dev/messageId",
+      JSON.Encode.string(Message.UserMessageId.toString(messageId)),
+    )
+    metadata->Dict.set("agent", JSON.Encode.string(agentId))
+    let _meta = Some(JSON.Encode.object(metadata))
 
-    // Add selected model to _meta if present (as "provider:value" string)
-    let _meta = switch state.selectedModelValue {
-    | Some(modelValue) =>
-      switch baseMeta->JSON.Decode.object {
-      | Some(dict) =>
-        let newDict = dict->Dict.copy
-        newDict->Dict.set("model", JSON.Encode.string(modelValue))
-        Some(JSON.Encode.object(newDict))
-      | None => Some(baseMeta)
-      }
-    | None => Some(baseMeta)
-    }
-
-    sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
-  | NoAcpSession => Log.error("Cannot send message: no active ACP session")
+    sendPrompt(
+      message,
+      ~additionalBlocks,
+      ~onComplete=result =>
+        switch result {
+        | Ok(_) => ()
+        | Error(error) =>
+          dispatch(
+            TaskAction({
+              target: ForTask(taskId),
+              action: UserMessageSendFailed({id: messageId, error}),
+            }),
+          )
+        },
+      ~_meta,
+    )
+  | NoAcpSession =>
+    let error = "Cannot send message: no active ACP session"
+    Log.error(error)
+    dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: UserMessageSendFailed({id: messageId, error}),
+      }),
+    )
   }
 }
+
+let targetIsCurrent = (state: state, target: taskTarget): bool =>
+  switch target {
+  | CurrentTask => true
+  | ForTask(taskId) => Selectors.currentTaskId(state) == Some(taskId)
+  }
 
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/me`
 
     try {
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
         let userProfile =
           json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userProfileSchema)
         dispatch(UserProfileReceived({userProfile: userProfile}))
+        Client__Heap.heap.identify(userProfile.id)
       }
     } catch {
     | exn => Log.error(~error=JsExn.fromException(exn), "FetchUserProfile failed")
     }
   }
   fetch()->ignore
-}
-
-let deriveApiKeySource = (~hasUserKey, ~hasEnvKey): Client__State__Types.apiKeySource => {
-  switch hasUserKey {
-  | true => UserOverride
-  | false =>
-    switch hasEnvKey {
-    | true => FromEnv
-    | false => Client__State__Types.None
-    }
-  }
 }
 
 let encodeUserApiKeySaveRequest = (~provider, ~key) => {
@@ -608,18 +591,18 @@ let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
     let url = `${apiBaseUrl}/api/user/api-keys`
 
     try {
-      let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
         let apiKeysResponse =
           json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userApiKeysResponseSchema)
-        let runtimeConfig = Client__RuntimeConfig.read()
-
         apiKeyProviders->Array.forEach(provider => {
           let providerId = apiKeyProviderId(provider)
           let hasUserKey = apiKeysResponse.providers->Array.includes(providerId)
-          let hasEnvKey = hasRuntimeApiKey(runtimeConfig, provider)
-          let source = deriveApiKeySource(~hasUserKey, ~hasEnvKey)
+          let source = switch hasUserKey {
+          | true => Client__State__Types.UserOverride
+          | false => Client__State__Types.None
+          }
 
           dispatch(ApiKeySettingsReceived({provider, source}))
         })
@@ -637,7 +620,7 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
     let url = `${apiBaseUrl}/api/user/api-keys`
 
     try {
-      let response = await WebAPI.Global.fetch(
+      let response = await WebAPI.Fetch.fetch(
         url,
         ~init={
           credentials: Include,
@@ -673,16 +656,13 @@ let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
-      // Resolve taskId for dispatching task actions back
       let taskDispatch = (taskAction: TaskReducer.action) => {
         dispatch(TaskAction({target, action: taskAction}))
       }
 
-      // Handle delegation from task effects
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({text, attachments, annotations}) =>
-          // Resolve the taskId from target
+        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
           let taskId = switch target {
           | ForTask(id) => id
           | CurrentTask =>
@@ -692,7 +672,16 @@ let handleEffect = (effect, state: state, dispatch) => {
               failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
             }
           }
-          sendMessageToAPIImpl(state, dispatch, ~message=text, ~attachments, ~annotations, ~taskId)
+          sendMessageToAPIImpl(
+            state,
+            dispatch,
+            ~messageId=id,
+            ~message=text,
+            ~attachments,
+            ~annotations,
+            ~taskId,
+            ~agentId,
+          )
         | NeedCancelPrompt =>
           switch state.acpSession {
           | AcpSessionActive({cancelPrompt}) => cancelPrompt()
@@ -702,6 +691,11 @@ let handleEffect = (effect, state: state, dispatch) => {
           switch state.acpSession {
           | AcpSessionActive({retryTurn}) => retryTurn(retriedErrorId)
           | NoAcpSession => Log.error("Cannot retry turn: no active ACP session")
+          }
+        | NeedSyncBrowserUrl(url) =>
+          switch targetIsCurrent(state, target) {
+          | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
+          | false => ()
           }
         }
       }
@@ -716,18 +710,11 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/status`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let connected =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool))
-            ->Option.getOr(false)
-          let expiresAt =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
+          let {connected, expiresAt} =
+            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.oauthStatusResponseSchema)
           dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
@@ -741,24 +728,15 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/authorize-url`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let authorizeUrl =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj =>
-              obj->Dict.get("authorize_url")->Option.flatMap(JSON.Decode.string)
+          let {authorizeUrl, verifier} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthAuthorizeUrlResponseSchema,
             )
-          let verifier =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("verifier")->Option.flatMap(JSON.Decode.string))
-          switch (authorizeUrl, verifier) {
-          | (Some(authorizeUrl), Some(verifier)) =>
-            dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
-          | _ => dispatch(AnthropicOAuthError({error: "Invalid response from server"}))
-          }
+          dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
         } else {
           dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
         }
@@ -779,7 +757,7 @@ let handleEffect = (effect, state: state, dispatch) => {
             ("verifier", JSON.Encode.string(verifier)),
           ]),
         )
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "POST",
@@ -790,21 +768,19 @@ let handleEffect = (effect, state: state, dispatch) => {
         )
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let expiresAt =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
-          switch expiresAt {
-          | Some(expiresAt) => dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
-          | None => dispatch(AnthropicOAuthError({error: "Invalid response from server"}))
-          }
+          let {expiresAt} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthExchangeResponseSchema,
+            )
+          dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
         } else {
           let json = await response->WebAPI.Response.json
-          let error =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("error")->Option.flatMap(JSON.Decode.string))
-            ->Option.getOr("Failed to exchange code")
+          let {error} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.anthropicOAuthErrorResponseSchema,
+            )
           dispatch(AnthropicOAuthError({error: error}))
         }
       } catch {
@@ -818,7 +794,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/disconnect`
 
       try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "DELETE",
@@ -841,18 +817,11 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/openai/status`
 
       try {
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let connected =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("connected")->Option.flatMap(JSON.Decode.bool))
-            ->Option.getOr(false)
-          let expiresAt =
-            json
-            ->JSON.Decode.object
-            ->Option.flatMap(obj => obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string))
+          let {connected, expiresAt} =
+            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.oauthStatusResponseSchema)
           dispatch(OpenAIOAuthStatusReceived({connected, expiresAt}))
         }
       } catch {
@@ -869,7 +838,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/openai/initiate`
 
       try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "POST",
@@ -879,23 +848,12 @@ let handleEffect = (effect, state: state, dispatch) => {
         )
         if response.ok {
           let json = await response->WebAPI.Response.json
-          let obj = json->JSON.Decode.object
-          let deviceAuthId =
-            obj->Option.flatMap(o =>
-              o->Dict.get("device_auth_id")->Option.flatMap(JSON.Decode.string)
+          let {deviceAuthId, userCode, verificationUrl} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.openAIDeviceAuthResponseSchema,
             )
-          let userCode =
-            obj->Option.flatMap(o => o->Dict.get("user_code")->Option.flatMap(JSON.Decode.string))
-          let verificationUrl =
-            obj->Option.flatMap(o =>
-              o->Dict.get("verification_url")->Option.flatMap(JSON.Decode.string)
-            )
-          switch (deviceAuthId, userCode, verificationUrl) {
-          | (Some(deviceAuthId), Some(userCode), Some(verificationUrl)) =>
-            dispatch(OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
-          | _ =>
-            dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Invalid response from server"}))
-          }
+          dispatch(OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
         } else {
           dispatch(
             OpenAIOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
@@ -909,9 +867,6 @@ let handleEffect = (effect, state: state, dispatch) => {
     fetch()->ignore
 
   | PollOpenAIDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode}) =>
-    // Poll our server every 5 seconds for up to 15 minutes (180 attempts)
-    // Server is stateless — we send device_auth_id + user_code on each poll
-    // Each dispatch carries deviceAuthId so the reducer can reject stale results
     let poll = async () => {
       let maxAttempts = 180
       let intervalMs = 5000
@@ -932,7 +887,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         } else {
           try {
             let url = `${apiBaseUrl}/api/oauth/openai/poll`
-            let response = await WebAPI.Global.fetch(
+            let response = await WebAPI.Fetch.fetch(
               url,
               ~init={
                 method: "POST",
@@ -943,23 +898,16 @@ let handleEffect = (effect, state: state, dispatch) => {
             )
             if response.ok {
               let json = await response->WebAPI.Response.json
-              let status =
-                json
-                ->JSON.Decode.object
-                ->Option.flatMap(obj => obj->Dict.get("status")->Option.flatMap(JSON.Decode.string))
-                ->Option.getOr("")
+              let {status, expiresAt} =
+                json->S.decodeOrThrow(
+                  ~from=S.json,
+                  ~to=Client__State__Types.openAIDeviceAuthPollResponseSchema,
+                )
               switch status {
-              | "connected" =>
-                let expiresAt =
-                  json
-                  ->JSON.Decode.object
-                  ->Option.flatMap(obj =>
-                    obj->Dict.get("expires_at")->Option.flatMap(JSON.Decode.string)
-                  )
-                  ->Option.getOr("")
+              | Client__State__Types.DeviceAuthConnected =>
+                let expiresAt = expiresAt->Option.getOrThrow
                 dispatch(OpenAIOAuthConnected({deviceAuthId, expiresAt}))
-              | _ =>
-                // "pending" — wait and try again
+              | Client__State__Types.DeviceAuthPending =>
                 await Promise.make((resolve, _) => {
                   let _ = setTimeout(() => resolve(), intervalMs)
                 })
@@ -996,7 +944,7 @@ let handleEffect = (effect, state: state, dispatch) => {
       let url = `${apiBaseUrl}/api/oauth/openai/disconnect`
 
       try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           url,
           ~init={
             method: "DELETE",
@@ -1018,7 +966,6 @@ let handleEffect = (effect, state: state, dispatch) => {
     switch state.acpSession {
     | AcpSessionActive({loadTask}) =>
       let taskIdToLoad = taskId
-      // Check if task needs history loading or just channel activation
       let needsHistory = switch state.tasks->Dict.get(taskId) {
       | Some(task) => !Task.isLoaded(task)
       | None => true
@@ -1026,9 +973,6 @@ let handleEffect = (effect, state: state, dispatch) => {
       loadTask(taskId, ~needsHistory, ~onComplete=result => {
         switch result {
         | Ok() =>
-          // Only dispatch LoadComplete if we actually loaded history
-          // (task was in Loading state). If task was already Loaded,
-          // we just re-activated the channel - no state transition needed.
           if needsHistory {
             Client__TextDeltaBuffer.flush()
             dispatch(TaskAction({target: ForTask(taskIdToLoad), action: LoadComplete}))
@@ -1042,17 +986,11 @@ let handleEffect = (effect, state: state, dispatch) => {
         TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}),
       )
     }
-  | IdentifyUserInAnalyticsEffect(userProfile) =>
-    Client__Heap.identify(userProfile.id)
-    Client__Heap.addUserProperties({
-      "Email": userProfile.email,
-      "Name": userProfile.name->Option.getOr(""),
-    })
   | CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage}) =>
     let fetch = async () => {
       try {
         let url = `${apiBaseUrl}/api/integrations/latest-versions`
-        let response = await WebAPI.Global.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
         switch response.ok {
         | false =>
           Sentry.captureConnectionError(
@@ -1068,8 +1006,6 @@ let handleEffect = (effect, state: state, dispatch) => {
             )
           switch versions->Dict.get(npmPackage)->Option.flatMap(v => v) {
           | Some(latest) =>
-            // Only show banner when installed is strictly behind latest
-            // (pre-release < release per semver). Unparseable → no banner.
             switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latest)) {
             | (Some(installed), Some(latestV)) if Client__Semver.isBehind(installed, latestV) =>
               dispatch(
@@ -1096,24 +1032,13 @@ let handleEffect = (effect, state: state, dispatch) => {
 
 let next = (state: state, action) => {
   switch action {
-  // ============================================================================
-  // Task-scoped action routing
-  // ============================================================================
-  | TaskAction({target, action: taskAction}) =>
-    switch target {
-    | CurrentTask => state->Lens.delegateToTask(state.currentTask, taskAction)
-    | ForTask(taskId) => state->Lens.delegateToTask(Task.Selected(taskId), taskAction)
-    }
+  | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
-  // ============================================================================
-  // AddUserMessage - cross-cutting (creates tasks, manages dict)
-  // ============================================================================
-  | AddUserMessage({id, sessionId, content, annotations}) => {
+  | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
       let textContent = TaskReducer.extractTextFromUserContent(content)
 
       switch state.currentTask {
       | Task.New(newTask) =>
-        // New -> Loaded: promote to persisted task, then delegate message creation
         let loadedTask = Task.newToLoaded(newTask, ~id=sessionId, ~title=textContent)
         let updatedTasks = state.tasks->Dict.copy
         updatedTasks->Dict.set(sessionId, loadedTask)
@@ -1122,40 +1047,60 @@ let next = (state: state, action) => {
           tasks: updatedTasks,
           currentTask: Task.Selected(sessionId),
         }
-        // Delegate AddUserMessage to the (now Loaded) task reducer
         promotedState->Lens.delegateToTask(
-          Task.Selected(sessionId),
-          TaskReducer.AddUserMessage({id, content, annotations}),
+          ForTask(sessionId),
+          TaskReducer.AddUserMessage({id, content, annotations, agentId}),
         )
       | Task.Selected(taskId) =>
-        state->Lens.delegateToTask(
-          Task.Selected(taskId),
-          TaskReducer.AddUserMessage({id, content, annotations}),
-        )
+        let pendingPlanHandoff = Selectors.pendingPlanHandoff(state)
+        let (updatedState, sendEffects) =
+          state->Lens.delegateToTask(
+            ForTask(taskId),
+            TaskReducer.AddUserMessage({id, content, annotations, agentId}),
+          )
+        switch pendingPlanHandoff {
+        | Some(_) =>
+          let (runningState, runningEffects) =
+            updatedState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
+          runningState->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
+        | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
+        }
       }
     }
 
-  // ============================================================================
-  // Cancel current turn - delegates to task reducer and sends cancel notification
-  // ============================================================================
   | CancelTurn =>
     switch state.currentTask {
-    | Task.Selected(taskId) =>
-      state->Lens.delegateToTask(Task.Selected(taskId), TaskReducer.CancelTurn)
-    | Task.New(_) =>
-      // No task to cancel
-      state->StateReducer.update
+    | Task.Selected(taskId) => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.CancelTurn)
+    | Task.New(_) => state->StateReducer.update
     }
 
-  // ============================================================================
-  // Task management actions
-  // ============================================================================
+  | ExecutePendingPlan({id}) =>
+    switch Selectors.pendingPlanHandoff(state) {
+    | Some({taskId, executorAgentId}) =>
+      let (messageState, sendEffects) = state->Lens.delegateToTask(
+        ForTask(taskId),
+        TaskReducer.AddUserMessage({
+          id,
+          content: [UserContentPart.Text({text: executePlanPrompt})],
+          annotations: [],
+          agentId: executorAgentId,
+        }),
+      )
+      let (runningState, runningEffects) =
+        messageState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
+      {
+        ...runningState,
+        selectedAgentId: Some(executorAgentId),
+      }->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
+    | _ => state->StateReducer.update
+    }
+
   | SwitchTask({taskId}) => {
       let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
       let needsLoad = Task.isUnloaded(task)
       let (updatedState, taskEffects) = if needsLoad {
         state->Lens.delegateToTask(
-          Task.Selected(taskId),
+          ForTask(taskId),
           TaskReducer.LoadStarted({previewUrl: getInitialUrl()}),
         )
       } else {
@@ -1169,12 +1114,10 @@ let next = (state: state, action) => {
       )
     }
 
-  // Delete task
   | DeleteTask({taskId}) => {
       let updatedTasks = state.tasks->Dict.copy
       updatedTasks->Dict.delete(taskId)
 
-      // If deleting current task, switch to most recent or New
       let newCurrentTask = switch state.currentTask {
       | Task.Selected(currentId) if currentId == taskId =>
         let mostRecent =
@@ -1193,7 +1136,6 @@ let next = (state: state, action) => {
       | other => other
       }
 
-      // Persist deletion to server (fire and forget - optimistic UI)
       switch state.acpSession {
       | AcpSessionActive({deleteSession}) => deleteSession(taskId, ~onComplete=_ => ())
       | NoAcpSession => ()
@@ -1219,19 +1161,10 @@ let next = (state: state, action) => {
       state
       ->Lens.updateTask(taskId, task => Task.setTitle(task, title))
       ->StateReducer.update
-    | None =>
-      // Task was deleted before the async title update arrived — ignore silently
-      state->StateReducer.update
+    | None => state->StateReducer.update
     }
 
-  // ============================================================================
-  // ACP session actions
-  // ============================================================================
-
   | SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}) =>
-    // Just set up session callbacks - task creation happens in AddUserMessage
-    // when user sends their first message (lazy session creation)
-    // apiBaseUrl is co-located in AcpSessionActive to make illegal state unrepresentable
     {
       ...state,
       acpSession: AcpSessionActive({
@@ -1242,23 +1175,9 @@ let next = (state: state, action) => {
         deleteSession,
         apiBaseUrl,
       }),
-      sessionInitialized: true,
-    }
-    ->setAllApiKeySources(Client__State__Types.Loading)
-    ->StateReducer.update(
-      ~sideEffects=[
-        FetchApiKeySettingsEffect({apiBaseUrl: apiBaseUrl}),
-        FetchUserProfileEffect({apiBaseUrl: apiBaseUrl}),
-        FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
-        FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl}),
-      ],
-    )
+    }->StateReducer.update
 
   | ClearAcpSession =>
-    // Clear pending questions across all tasks — the connection is gone,
-    // so we can't resolve tool promises via the channel. The resolver
-    // callbacks are now stale. When the user reconnects and loads the task,
-    // the server-side executor's safety-net timeout (24h) will eventually expire.
     let updatedTasks = state.tasks->Dict.copy
     updatedTasks->Dict.forEachWithKey((task, taskId) => {
       switch TaskReducer.Selectors.pendingQuestion(task) {
@@ -1277,16 +1196,12 @@ let next = (state: state, action) => {
       acpSession: NoAcpSession,
     }->StateReducer.update
 
-  // ============================================================================
-  // Global state actions
-  // ============================================================================
+  | FetchUserProfile({apiBaseUrl}) =>
+    state->StateReducer.update(~sideEffects=[FetchUserProfileEffect({apiBaseUrl: apiBaseUrl})])
 
   | UserProfileReceived({userProfile: {id, email, name}}) =>
     let userProfile: Client__State__Types.userProfile = {id, email, name}
-    {...state, userProfile: Some(userProfile)}->StateReducer.update(
-      ~sideEffects=[IdentifyUserInAnalyticsEffect(userProfile)],
-    )
-  // API key settings actions
+    {...state, userProfile: Some(userProfile)}->StateReducer.update
   | FetchApiKeySettings =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
@@ -1302,8 +1217,6 @@ let next = (state: state, action) => {
   | SaveApiKey({provider, key}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      // Set pendingProviderAutoSelect eagerly so it's ready before
-      // the server's config_options_updated push arrives (race fix).
       {
         ...state,
         pendingProviderAutoSelect: Some(apiKeyProviderId(provider)),
@@ -1315,10 +1228,7 @@ let next = (state: state, action) => {
   | ApiKeySaveStarted({provider}) =>
     state->setApiKeySaveStatus(provider, Saving)->StateReducer.update
 
-  | ApiKeySaved({provider}) =>
-    // Config options will be pushed by the server via config_option_update notification.
-    // pendingProviderAutoSelect was already set in SaveApiKey.
-    state->markApiKeySaved(provider)->StateReducer.update
+  | ApiKeySaved({provider}) => state->markApiKeySaved(provider)->StateReducer.update
 
   | ApiKeySaveError({provider, error}) =>
     let state = state->setApiKeySaveStatus(provider, SaveError(error))
@@ -1327,36 +1237,24 @@ let next = (state: state, action) => {
   | ResetApiKeySaveStatus({provider}) =>
     state->setApiKeySaveStatus(provider, Idle)->StateReducer.update
 
-  // ACP session config option actions
   | ConfigOptionsReceived({configOptions}) =>
     let modelConfigOption =
       ACP.findConfigOptionByCategory(configOptions, ACP.Model)->Option.getOrThrow(
         ~message="ConfigOptionsReceived missing model config option",
       )
 
-    let firstModelValue = switch modelConfigOption {
-    | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
-      groups
-      ->Array.get(0)
-      ->Option.flatMap(g => g.options->Array.get(0))
-      ->Option.map(opt => opt.value)
-    | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) =>
-      failwith("Model config option must use grouped options")
-    }
+    let firstModelValue =
+      modelConfigOption->ACP.sessionConfigOptionFirstOption->Option.map(option => option.value)
 
-    // When a provider was just connected, auto-select its first model.
-    // Otherwise keep the current selection or choose the first listed model.
     let (selectedModelValue, didAutoSelect) = switch state.pendingProviderAutoSelect {
     | Some(providerId) =>
-      // Find the first model value from the newly connected provider's group
       let providerModelValue = switch modelConfigOption {
       | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
         groups
         ->Array.find(g => g.group == providerId)
         ->Option.flatMap(g => g.options->Array.get(0))
         ->Option.map(opt => opt.value)
-      | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) =>
-        failwith("Model config option must use grouped options")
+      | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) => None
       }
       switch providerModelValue {
       | Some(value) => (Some(value), true)
@@ -1368,7 +1266,6 @@ let next = (state: state, action) => {
       | None => (firstModelValue, firstModelValue->Option.isSome)
       }
     }
-    // Persist whenever we picked a new model
     switch (didAutoSelect, selectedModelValue) {
     | (true, Some(value)) => saveSelectedModelValueToStorage(value)
     | _ => ()
@@ -1384,7 +1281,18 @@ let next = (state: state, action) => {
     saveSelectedModelValueToStorage(value)
     {...state, selectedModelValue: Some(value)}->StateReducer.update
 
-  // Anthropic OAuth actions
+  | AgentAttributionConfigured({agentCatalog, defaultAgentId}) =>
+    Client__Agent.findOrThrow(Some(agentCatalog), defaultAgentId)->ignore
+    let selectedAgentId = switch state.selectedAgentId {
+    | Some(agentId) if agentCatalog->Array.some(agent => agent.id == agentId) => Some(agentId)
+    | _ => Some(defaultAgentId)
+    }
+    {...state, agentCatalog: Some(agentCatalog), selectedAgentId}->StateReducer.update
+
+  | SetSelectedAgentId(agentId) =>
+    Client__Agent.findOrThrow(state.agentCatalog, agentId)->ignore
+    {...state, selectedAgentId: Some(agentId)}->StateReducer.update
+
   | FetchAnthropicOAuthStatus =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
@@ -1398,16 +1306,12 @@ let next = (state: state, action) => {
     }
 
   | AnthropicOAuthStatusReceived({connected, expiresAt}) =>
-    let status = if connected {
-      switch expiresAt {
-      | Some(expiresAtStr) =>
-        // Parse ISO8601 date string to timestamp
-        let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
-        Client__State__Types.Connected({expiresAt: expiresAtMs})
-      | None => Client__State__Types.Connected({expiresAt: 0.0})
-      }
-    } else {
-      Client__State__Types.NotConnected
+    let status = switch (connected, expiresAt) {
+    | (true, Some(expiresAtStr)) =>
+      let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
+      Client__State__Types.Connected({expiresAt: expiresAtMs})
+    | (true, None) => failwith("Connected Anthropic OAuth status missing expires_at")
+    | (false, _) => Client__State__Types.NotConnected
     }
     {...state, anthropicOAuthStatus: status}->StateReducer.update
 
@@ -1429,7 +1333,6 @@ let next = (state: state, action) => {
   | ExchangeAnthropicOAuthCode({code, verifier}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      // Set pendingProviderAutoSelect eagerly (race fix — see SaveApiKey).
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.Exchanging,
@@ -1442,8 +1345,6 @@ let next = (state: state, action) => {
 
   | AnthropicOAuthConnected({expiresAt}) =>
     let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
-    // Config options will be pushed by the server via config_option_update notification.
-    // pendingProviderAutoSelect was already set in ExchangeAnthropicOAuthCode.
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.Connected({expiresAt: expiresAtMs}),
@@ -1466,14 +1367,12 @@ let next = (state: state, action) => {
     }
 
   | AnthropicOAuthDisconnected =>
-    // Config options will be pushed by the server via config_option_update notification.
     {
       ...state,
       anthropicOAuthStatus: Client__State__Types.NotConnected,
     }->StateReducer.update
 
   | ResetAnthropicOAuthError =>
-    // Reset error state back to NotConnected
     switch state.anthropicOAuthStatus {
     | Client__State__Types.Error(_) =>
       {
@@ -1489,7 +1388,6 @@ let next = (state: state, action) => {
       anthropicOAuthStatus: Client__State__Types.NotConnected,
     }->StateReducer.update
 
-  // OpenAI OAuth actions
   | FetchOpenAIOAuthStatus =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
@@ -1501,23 +1399,18 @@ let next = (state: state, action) => {
     }
 
   | OpenAIOAuthStatusReceived({connected, expiresAt}) =>
-    let status = if connected {
-      switch expiresAt {
-      | Some(expiresAtStr) =>
-        let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
-        Client__State__Types.OpenAIConnected({expiresAt: expiresAtMs})
-      | None => Client__State__Types.OpenAIConnected({expiresAt: 0.0})
-      }
-    } else {
-      Client__State__Types.OpenAINotConnected
+    let status = switch (connected, expiresAt) {
+    | (true, Some(expiresAtStr)) =>
+      let expiresAtMs = Date.fromString(expiresAtStr)->Date.getTime
+      Client__State__Types.OpenAIConnected({expiresAt: expiresAtMs})
+    | (true, None) => failwith("Connected OpenAI OAuth status missing expires_at")
+    | (false, _) => Client__State__Types.OpenAINotConnected
     }
-    // Config options will be pushed by the server via config_option_update notification.
     {...state, openaiOAuthStatus: status}->StateReducer.update
 
   | InitiateOpenAIOAuth =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
-      // Set pendingProviderAutoSelect eagerly (race fix — see SaveApiKey).
       {
         ...state,
         openaiOAuthStatus: Client__State__Types.OpenAIWaitingForCode,
@@ -1529,7 +1422,6 @@ let next = (state: state, action) => {
     }
 
   | OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}) =>
-    // Show the code to the user and start polling our server
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       {
@@ -1554,14 +1446,10 @@ let next = (state: state, action) => {
     }
 
   | OpenAIOAuthConnected({deviceAuthId, expiresAt}) =>
-    // Only accept if the current state is showing the same deviceAuthId
-    // (ignores stale results from old polling loops after retry)
     switch state.openaiOAuthStatus {
     | Client__State__Types.OpenAIShowingCode({deviceAuthId: currentId})
       if currentId == deviceAuthId =>
       let expiresAtMs = Date.fromString(expiresAt)->Date.getTime
-      // Config options will be pushed by the server via config_option_update notification.
-      // pendingProviderAutoSelect was already set in InitiateOpenAIOAuth.
       {
         ...state,
         openaiOAuthStatus: Client__State__Types.OpenAIConnected({expiresAt: expiresAtMs}),
@@ -1570,14 +1458,11 @@ let next = (state: state, action) => {
     }
 
   | OpenAIOAuthError({deviceAuthId, error}) =>
-    // If deviceAuthId is provided (from poll loop), only accept if current
-    // state is showing the same deviceAuthId — rejects stale poll results.
-    // If no deviceAuthId (from status/initiate/disconnect), apply unconditionally.
     let isStale = switch deviceAuthId {
     | Some(id) =>
       switch state.openaiOAuthStatus {
       | Client__State__Types.OpenAIShowingCode({deviceAuthId: currentId}) => currentId != id
-      | _ => true // state already moved past ShowingCode
+      | _ => true
       }
     | None => false
     }
@@ -1601,7 +1486,6 @@ let next = (state: state, action) => {
     }
 
   | OpenAIOAuthDisconnected =>
-    // Config options will be pushed by the server via config_option_update notification.
     {
       ...state,
       openaiOAuthStatus: Client__State__Types.OpenAINotConnected,
@@ -1617,10 +1501,6 @@ let next = (state: state, action) => {
     | _ => state->StateReducer.update
     }
 
-  // ============================================================================
-  // Session loading actions
-  // ============================================================================
-
   | SessionsLoadStarted =>
     {
       ...state,
@@ -1628,14 +1508,11 @@ let next = (state: state, action) => {
     }->StateReducer.update
 
   | SessionsLoadSuccess({sessions}) =>
-    // Add persisted sessions to tasks dict (only if not already present)
     let previewUrl = getInitialUrl()
     let updatedTasks = state.tasks->Dict.copy
 
     sessions->Array.forEach(session => {
-      // Skip if task already exists
       if !(updatedTasks->Dict.has(session.sessionId)) {
-        // Parse ISO timestamps to float
         let createdAt = Date.fromString(session.createdAt)->Date.getTime
         let updatedAt = Date.fromString(session.updatedAt)->Date.getTime
 
@@ -1661,10 +1538,6 @@ let next = (state: state, action) => {
       ...state,
       sessionsLoadState: Client__State__Types.SessionsLoadError(error),
     }->StateReducer.update
-
-  // ============================================================================
-  // Update banner actions
-  // ============================================================================
 
   | CheckForUpdate({installedVersion, npmPackage}) =>
     switch (state.updateCheckStatus, state.acpSession) {

@@ -1,6 +1,3 @@
-// Footer Navigation
-// ------------
-// Description: The footer navigation data for the website.
 import { legalInfo } from '../data/legalInfo'
 
 export interface Logo {
@@ -86,7 +83,7 @@ export const footerNavigationData: FooterData = {
 					subCategoryLink: '/changelog/'
 				},
 				{
-					subCategory: 'FAQ',
+					subCategory: 'Frequently Asked Questions',
 					subCategoryLink: '/faq/'
 				},
 				{
@@ -159,6 +156,10 @@ export const footerNavigationData: FooterData = {
 				{
 					subCategory: 'AI Releases',
 					subCategoryLink: '/open-source-ai-releases/'
+				},
+				{
+					subCategory: 'Blog Topics',
+					subCategoryLink: '/blog/tags/'
 				}
 			]
 		},
@@ -184,7 +185,7 @@ export const footerNavigationData: FooterData = {
 					external: true
 				},
 				{
-					subCategory: 'Licenses (Apache 2.0 client / AGPL-3.0 server)',
+					subCategory: 'Licenses (Apache-2.0 browser/JS / GPL-2.0-or-later WordPress / AGPL-3.0-only server + AI Supplementary Terms)',
 					subCategoryLink: 'https://github.com/frontman-ai/frontman/blob/main/LICENSE',
 					external: true
 				}
@@ -216,7 +217,7 @@ export const footerNavigationData: FooterData = {
 			{ label: 'Editorial', href: '/editorial-policy/' },
 			{ label: 'Terms', href: '/terms/' },
 			{ label: 'Privacy', href: '/privacy/' },
-			{ label: 'DPA', href: '/dpa/' },
+			{ label: 'Data Processing Agreement', href: '/dpa/' },
 			{ label: 'Subprocessors', href: '/subprocessors/' },
 			{ label: 'TOMs', href: '/toms/' },
 			{ label: 'Impressum', href: '/impressum/' }

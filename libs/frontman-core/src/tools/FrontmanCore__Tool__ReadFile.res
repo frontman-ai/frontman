@@ -1,5 +1,3 @@
-// Read file tool - reads file content with optional offset/limit
-
 module Fs = FrontmanBindings.Fs
 module Path = FrontmanBindings.Path
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -12,7 +10,6 @@ module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.readFile
 let access = Tool.Read
-let visibleToAgent = true
 let description = `Reads a file from the filesystem.
 
 Parameters:
@@ -57,6 +54,8 @@ type output = {
   _context?: pathContext,
 }
 
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
+
 let sortStrings = (items: array<string>): array<string> => {
   items->Array.toSorted((a, b) => {
     switch String.compare(a, b) {
@@ -94,7 +93,6 @@ let readResolvedFile = async (
     let selectedContent = selectedLines->Array.join("\n")
     let hasMore = offset + limit < totalLines
 
-    // Track that this file was read (for edit_file safety)
     FrontmanCore__FileTracker.recordRead(
       resolved.resolvedPath,
       ~offset,
@@ -240,7 +238,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch await executeOutput(ctx, input) {
-  | Ok(output) => Tool.jsonResult(output, outputSchema)
+  | Ok(output) => Tool.structuredResult(output, outputSchema)
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

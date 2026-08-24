@@ -1,0 +1,3 @@
+<?php
+$url = "https://frontman.sh/path#fragment";
+$marker = "<!-- string --> // string /* string */";

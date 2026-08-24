@@ -1,9 +1,7 @@
 {
 	"name": "@frontman-ai/frontman-core",
-	"publishConfig": {
-		"access": "public"
-	},
-	"version": "1.0.1",
+	"private": true,
+	"version": "1.0.4",
 	"description": "Core server-side tools for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -32,22 +30,22 @@
 		"src"
 	],
 	"scripts": {
-		"build": "rescript build",
-		"prepublishOnly": "yarn build"
+		"build": "rescript build"
 	},
 	"dependencies": {
-		"@frontman-ai/frontman-protocol": "1.0.1",
+		"@frontman-ai/frontman-protocol": "2.0.0",
 		"@frontman/bindings": "0.3.1",
-		"@rescript/runtime": "12.3.0",
+		"@rescript/runtime": "catalog:",
 		"chrome-launcher": "^1.1.2",
+		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
 		"lighthouse": "^13.4.0",
-		"sury": "11.0.0-alpha.8"
+		"sury": "catalog:"
 	},
 	"optionalDependencies": {
 		"@vscode/ripgrep": "^1.18.0"
 	},
 	"devDependencies": {
-		"@rescript/webapi": "*",
+		"@rescript/webapi": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",

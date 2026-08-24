@@ -2,113 +2,112 @@
 title: 'How PMs Can Edit a Website Without Developers'
 seoTitle: 'Edit a Website Without a Developer'
 pubDate: 2026-04-17T05:00:00Z
-description: 'Edit website copy, spacing, CTAs, and UI polish without filing a developer ticket. Frontman turns browser feedback into reviewable code changes.'
+description: 'A governance model for safe self-service website editing: define scope, separate authorship from approval, require review, and keep engineering accountable for what ships.'
 author: 'Danni Friedland'
+articleSection: 'Tutorial'
 image: '/blog/edit-website-without-developer-cover.png'
+imageAlt: 'Product manager editing a website directly in the browser'
 tags: ['product-management', 'design-ops', 'cross-functional']
-updatedDate: 2026-06-17T00:00:00Z
+updatedDate: 2026-07-30T00:00:00Z
 faq:
   - question: 'Do I need to set up a development environment to use Frontman?'
-    answer: "No. Your engineering team installs Frontman once during initial setup. After that, you open the browser and start working. No terminal, no IDE, no local server setup required on your end. You work in the browser the same way you already review builds."
+    answer: 'An engineer must first install and configure the appropriate Frontman integration. After that, an authorized teammate can work from the Frontman browser workspace connected to the development app rather than navigating the codebase in an IDE.'
   - question: 'What kinds of changes can a PM make without a developer?'
-    answer: 'Spacing, typography, colors, copy, button labels, CTAs, responsive layout adjustments, and component prop changes. Essentially: anything where the acceptance criterion is "it looks right" rather than "the logic is correct." Logic changes, API integrations, and data flow are still engineering work.'
+    answer: 'A team can permit narrowly scoped copy and visual proposals, such as labels, spacing, typography, approved design-token use, and existing component props. Business logic, authentication, data access, permissions, billing, dependencies, and infrastructure should remain engineer-owned.'
   - question: 'Will I accidentally break something?'
-    answer: 'The same safeguards that protect the codebase from engineering mistakes protect it from yours. Every change Frontman makes is a pull request. Your engineering team reviews the diff before anything merges. CI runs. Nothing ships without approval. You initiate the change; engineering controls what goes out.'
-  - question: "How is this different from a CMS?"
-    answer: "A CMS lets you edit content in a content management layer: blog posts, product copy, structured data. Frontman edits the actual UI components in your codebase. That includes spacing, layout, design system values, and component structure. Text is just one part of what you can change. It's the difference between editing what a component says and editing what a component looks like."
+    answer: 'No tool can guarantee that an edit is safe. Reduce risk by working on a branch, reviewing the source diff and browser result, running required CI checks, and requiring an engineer or code owner to approve before merge.'
+  - question: 'How is this different from a CMS?'
+    answer: 'A CMS usually changes content stored in a content model. Frontman can propose edits to existing source files through a development integration. That broader reach requires code review, tests, access controls, and clear scope boundaries.'
 ---
 
-You caught a copy error on the pricing page at 4pm on a Tuesday. You know exactly what it should say. You could fix it yourself in about 30 seconds if someone handed you the right file.
+Editing a website without waiting for a developer should not mean editing production without engineering controls. It should mean **self-service authorship with governed approval**.
 
-Instead, you open Jira. You write a ticket. You label it "copy fix," assign it to the frontend team, set the priority, and attach a screenshot with an annotation. The ticket sits in the backlog until someone picks it up, usually 3 to 8 days later, depending on sprint priorities and who's on vacation. For a 30-second fix.
+A product manager often knows the intended copy, campaign requirement, or visible acceptance criterion. An engineer knows the codebase impact and owns technical approval. A safe process preserves both forms of expertise instead of making engineering transcribe every small request.
 
-This isn't a process problem you can fix with better ceremony. It's an access problem. PMs can see what needs to change. They just can't make the change.
+**Quick answer:** let product managers propose narrow content and visual changes from a development environment. Keep the work on a branch, require a focused diff and visual evidence, run normal CI, and require engineering approval before merge.
 
-**Quick answer:** PMs can edit a website without a developer when the change is visual, content-level, or UI polish, and the output still goes through code review. Frontman gives non-developers a browser workflow for those changes while engineering keeps control of what ships.
+## Start With Policy, Not a Tool
 
-Frontman solves the access problem directly.
+Before granting self-service access, agree on four things:
 
-## How It Works
+1. Which changes a product manager may propose.
+2. Which areas are always engineer-owned.
+3. Which evidence must accompany a change.
+4. Who can approve and merge it.
 
-Frontman runs alongside your engineering team's development server. When they build the app locally or in a staging environment, Frontman is running too, and you can open it in your browser.
+Tool access without these decisions only moves ambiguity closer to the codebase.
 
-You see the live application. Click any element on the page and Frontman shows you which component it is, where it's defined, the current visual properties (spacing, color, font, content), and whether it's shared across the app or scoped to this page.
+## Define a Narrow Editing Boundary
 
-Describe what you want to change. Frontman edits the source file and hot-reloads the page. You see the result immediately. If it looks right, open a pull request for engineering to review.
+Good self-service candidates are changes whose intent is visible and whose technical scope can stay small:
 
-No file names. No code. No terminal. No IDE. Just the browser you already use to review builds.
+- Button labels, headings, helper text, alt text, and empty-state copy
+- Spacing, alignment, typography, and responsive visual polish
+- Approved colors, tokens, utilities, and existing component variants
+- Content or presentation props already supported by a component
 
-## What You Can Change
+Keep these changes with engineers:
 
-Copy is the obvious starting point: button labels, CTAs, headlines, body text, navigation labels, alt text on images, error messages, empty states. Most of the words users read are fair game.
+- Authentication, authorization, billing, and security controls
+- Data fetching, mutations, caching, and application state
+- Routing behavior, analytics logic, and feature-flag semantics
+- Dependencies, build configuration, migrations, and infrastructure
+- Shared-component changes with uncertain downstream effects
 
-Layout and spacing work the same way. Padding inside components, gap between elements, responsive behavior at specific screen sizes. If something looks cramped on mobile, you click it, say "fix this on mobile," and Frontman handles the adjustment.
+This is a governance boundary, not a claim that visual code is always harmless. A one-line token change in a shared component can affect many pages. Scope and review still matter.
 
-Typography, background colors, border styles, component-level color changes: all accessible through the same click-and-describe workflow.
+## Separate Author, Approver, and Deployer
 
-What doesn't work: changes involving business logic, data fetching, API integrations, or application state. Those are engineering tasks. Frontman handles the visual layer, where "correct" means "it looks right in the browser."
+Self-service works when authorship does not imply authority to ship.
 
-## The Ticket You Will Stop Filing
+| Responsibility                                    | Recommended owner                      |
+| ------------------------------------------------- | -------------------------------------- |
+| State user-visible intent and acceptance criteria | Product manager                        |
+| Produce focused source edit                       | Product manager with an editing tool   |
+| Check design-system fit                           | Designer or design-system owner        |
+| Review source diff and technical impact           | Engineer or code owner                 |
+| Run automated checks                              | CI                                     |
+| Approve merge and deployment                      | Existing repository and release owners |
 
-The most common PM tickets in any frontend team's backlog:
+Do not give a self-service author a weaker review lane. Existing branch protection, required checks, code ownership, and deployment permissions should continue to apply.
 
-- "CTA copy should say X not Y"
-- "Increase padding on mobile"
-- "Button color should match the updated brand palette"
-- "Pricing page heading font is wrong"
-- "The hero section text is hard to read on tablet"
-- "Fix the spacing in the footer"
+## Turn the Boundary Into a Self-Service Policy
 
-Every one of these is a change the PM who filed the ticket could make directly if they had access. Every one of these takes a developer 10 minutes to fix and takes 3-5 days to reach them.
+This article defines who may author which changes. Use [How Teams Review UI Changes From Non-Engineers](/blog/review-ui-changes-from-non-engineers/) as the canonical approval workflow for every eligible proposal rather than creating a PM-specific review lane.
 
-Frontman collapses that timeline. The PM makes the change, opens the PR, and engineering reviews a diff instead of translating a ticket. The whole loop goes from a week to under an hour.
-
-## The Code Review Step
-
-This is the part that matters for trust.
-
-Every change you make through Frontman produces a standard pull request. Your engineering team sees exactly what changed, a diff against the existing code, line by line. They can comment, request changes, or approve. Nothing ships without that approval.
-
-It's the same workflow as always: open a PR and get it reviewed before merging. The only difference is that you're opening the PR instead of a developer. Engineering still controls what goes out.
-
-Your design system stays intact because you're editing the real components, not adding overrides. Your CI runs on your changes the same as any other PR. The codebase doesn't know you're not an engineer.
-
-## A Real Workflow Example
-
-Your marketing site is running a campaign. The hero section has a CTA button that says "Start Free Trial." Legal has asked that it say "Start Trial" before paid checkout launches.
-
-**Before Frontman:**
+Require the PM to state what users should see and where. Avoid broad prompts such as "improve this page."
 
 ```text
-Day 1: PM notices the copy, drafts ticket, assigns to frontend
-Day 2: Ticket lands in sprint planning
-Day 5: Developer picks it up, finds the component, makes the change
-Day 5: PM reviews staging, approves
-Day 6: Merged and deployed
-Total: 5 days, ~20 minutes of engineering time spread across context switches
+On the pricing page, change the primary CTA label from
+"Start Free Trial" to "Start Trial" at desktop and mobile widths.
+Do not change click behavior, routing, analytics, or other CTAs.
 ```
 
-**With Frontman:**
+This is an illustrative example, not a report of a customer request or production change.
 
-```text
-11:00am: PM opens staging environment in browser
-11:01am: PM clicks the CTA button in Frontman
-11:01am: PM types "Change this to 'Start Trial'"
-11:01am: Frontman edits the component, hot-reload confirms
-11:02am: PM opens PR
-11:30am: Engineer reviews the one-line diff, approves
-11:35am: Merged and deployed
-Total: 35 minutes, 5 minutes of engineering attention
-```
+Frontman connects its browser workspace to a running development app through a framework integration. An authorized PM can select the visible element, provide this requirement, and inspect the hot-reloaded result. Filesystem operations execute through the local integration; relevant task context passes through the Frontman server to the selected model provider. See the [security model](/blog/security/) for system boundaries.
 
-Same outcome. Same review process. Completely different calendar cost.
+Policy enforcement remains simple: if the proposed diff crosses the allowlist, stop self-service authorship and return the change to engineering ownership. Hot reload can help the PM refine intent, but it does not expand allowed scope or approve the result.
 
-## Getting Started
+## Measure the Process Without Inventing Savings
 
-Frontman is set up once by your engineering team. It takes about 10 minutes to integrate with Next.js, Vite, or Astro. Follow the [integration guide](/docs/integrations/nextjs/) for your framework.
+Do not assume every small edit becomes faster. Track evidence:
 
-After setup, you get access to the staging environment in your browser and start clicking. No new tools to learn. No development environment to configure. The browser you already use to review builds is the tool.
+- Time from proposed change to reviewed pull request
+- Review rounds per change
+- Percentage of diffs rejected for scope expansion
+- CI failure rate
+- Reverts or regressions after merge
+- Engineering review effort versus implementation effort
 
-Read about [how the code review workflow protects your codebase](/blog/security/), see [how designers and PMs use Frontman alongside engineers](/blog/team-collaboration/), or compare the full [AI frontend editing feature set](/features/).
+These measures reveal whether self-service reduces handoffs or merely moves work into review. Avoid promising fixed days or minutes without data from your own team.
 
-[Try Frontman](https://frontman.sh) — open-source core for local development, with hosted plans coming soon.
+## Roll Out in Stages
+
+Start with a small allowlist: one site area, named authors, copy-only changes, and mandatory engineering approval. Review the first set of changes together. Expand to styling or component props only after diffs remain focused and reviewers trust the process.
+
+The goal is not to remove developers from website work. It is to reserve engineering implementation time for changes that need engineering judgment while keeping engineering control over what ships.
+
+For ownership of shared tokens and components, read [Design System Collaboration Without Tickets](/blog/team-collaboration/). Apply the canonical [review workflow for UI changes from non-engineers](/blog/review-ui-changes-from-non-engineers/) to accepted self-service proposals.
+
+[Try Frontman](https://frontman.sh) in a governed development workflow, or start with the [installation guide](/docs/installation/).

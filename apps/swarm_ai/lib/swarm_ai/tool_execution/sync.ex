@@ -18,10 +18,8 @@ defmodule SwarmAi.ToolExecution.Sync do
     field(:timeout_ms, pos_integer())
     field(:on_timeout_policy, :error | :pause_agent)
 
-    # apply(mod, fun, args ++ [tool_call]) :: ToolResult.t()
     field(:run, {module(), atom(), list()})
 
-    # apply(mod, fun, args ++ [tool_call, :triggered | :cancelled]) :: term()
     field(:on_timeout, {module(), atom(), list()})
   end
 end

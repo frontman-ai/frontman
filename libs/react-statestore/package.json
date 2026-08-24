@@ -1,7 +1,7 @@
 {
 	"name": "@frontman-ai/react-statestore",
 	"license": "Apache-2.0",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"type": "module",
 	"description": "ReScript state management for React. Pure reducers with managed side effects and concurrent-safe selectors.",
 	"author": "Frontman AI",
@@ -38,19 +38,19 @@
 	},
 	"dependencies": {
 		"@rescript/react": "^0.15.0",
-		"@rescript/runtime": "12.3.0",
+		"@rescript/runtime": "catalog:",
 		"use-sync-external-store": "^1.6.0"
 	},
 	"peerDependencies": {
-		"react": "^19.2.7",
-		"react-dom": "^19.2.7"
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8"
 	},
 	"devDependencies": {
 		"@testing-library/dom": "^10.4.1",
 		"@testing-library/react": "^16.3.2",
 		"jsdom": "^29.1.1",
-		"react": "^19.2.7",
-		"react-dom": "^19.2.7",
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",

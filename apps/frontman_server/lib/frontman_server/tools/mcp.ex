@@ -13,14 +13,12 @@ defmodule FrontmanServer.Tools.MCP do
   defstruct name: nil,
             description: nil,
             input_schema: nil,
+            output_schema: nil,
             access: :read_write,
             visible_to_agent: true,
             timeout_ms: nil,
             on_timeout: nil
 
-  # The MCP spec has no timeout fields in tools/list — timeout policy is a
-  # client-side concern (frontman server is the MCP client here). These
-  # defaults are applied to all tools discovered from external MCP servers.
   @default_timeout_ms 600_000
   @default_on_timeout :error
 
@@ -31,6 +29,7 @@ defmodule FrontmanServer.Tools.MCP do
       name: tool["name"],
       description: tool["description"] || "",
       input_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
+      output_schema: tool["outputSchema"],
       access: parse_access(tool["access"]),
       visible_to_agent: Map.get(tool, "visibleToAgent", true),
       timeout_ms: timeout_ms,
@@ -38,9 +37,6 @@ defmodule FrontmanServer.Tools.MCP do
     }
   end
 
-  # Interactive tools pause the agent and wait for user input; they need a
-  # shorter timeout (2 min) so the agent isn't blocked indefinitely if the
-  # user never responds. All other tools use the default long timeout.
   defp timeout_policy("interactive"), do: {120_000, :pause_agent}
   defp timeout_policy(_), do: {@default_timeout_ms, @default_on_timeout}
 

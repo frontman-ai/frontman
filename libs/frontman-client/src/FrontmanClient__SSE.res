@@ -1,6 +1,3 @@
-// SSE (Server-Sent Events) Parser
-// Parses SSE stream from fetch response, returns first result event or error.
-
 module WebStreams = FrontmanBindings.WebStreams
 
 type eventType = [#progress | #result | #error | #unknown]
@@ -19,7 +16,6 @@ let parseEventType = (s: string): eventType => {
   }
 }
 
-// SSE spec: multiple data: lines concatenate with newlines
 let parseEventBlock = (block: string): option<sseEvent> => {
   let lines = block->String.split("\n")
 
@@ -42,7 +38,6 @@ let parseEventBlock = (block: string): option<sseEvent> => {
   }
 }
 
-// Process a single SSE event, returns Some(result) if terminal (result/error)
 let processEvent = (event: sseEvent, ~onProgress: option<string => unit>): option<
   result<JSON.t, string>,
 > => {
@@ -64,12 +59,10 @@ let processEvent = (event: sseEvent, ~onProgress: option<string => unit>): optio
   }
 }
 
-// Extract error message from exception
 let exnMessage = (exn: exn): string => {
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("unknown")
 }
 
-// Process complete blocks, return first terminal result or None
 let processBlocks = (blocks: array<string>, ~onProgress: option<string => unit>): option<
   result<JSON.t, string>,
 > => {
@@ -85,11 +78,10 @@ let processBlocks = (blocks: array<string>, ~onProgress: option<string => unit>)
   })
 }
 
-// Read SSE stream, return first result or error
-let readStream = async (
-  response: WebAPI.FetchAPI.response,
-  ~onProgress: option<string => unit>=?,
-): result<JSON.t, string> => {
+let readStream = async (response: WebAPI.Response.t, ~onProgress: option<string => unit>=?): result<
+  JSON.t,
+  string,
+> => {
   switch response.body->Null.toOption {
   | None => Error("No response body")
   | Some(body) =>

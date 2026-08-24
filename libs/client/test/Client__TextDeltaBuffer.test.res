@@ -1,7 +1,7 @@
 open Vitest
 
 module Buffer = Client__TextDeltaBuffer
-module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 type flushEntry = {
   taskId: string,
@@ -52,8 +52,8 @@ describe("TextDeltaBuffer", () => {
 
   test("groups user blocks by message before flushing", t => {
     let flushed = ref(None)
-    let first = ACP.TextContent({text: "one", _meta: None, annotations: None})
-    let second = ACP.TextContent({text: "two", _meta: None, annotations: None})
+    let first = ContentBlock.TextContent({text: "one", _meta: None, annotations: None})
+    let second = ContentBlock.TextContent({text: "two", _meta: None, annotations: None})
     let buffer = makeBuffer(
       ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) =>
         flushed := Some((taskId, messageId, blocks, agentId)),
@@ -86,14 +86,11 @@ describe("TextDeltaBuffer", () => {
       ~agentId="planner-id",
     )
 
-    // Before flush: nothing dispatched (pending in rAF)
     t->expect(flushed.contents->Array.length)->Expect.toBe(0)
 
-    // Flush synchronously dispatches everything
     buffer.flush()
     t->expect(flushed.contents->Array.length)->Expect.toBe(3)
 
-    // task-1 text was concatenated without merging its interleaved message IDs
     let task1Entry =
       flushed.contents->Array.find(e => e.taskId === "task-1" && e.messageId === "message-1")
     t->expect(task1Entry->Option.map(e => e.text))->Expect.toBe(Some("Hello world"))
@@ -102,7 +99,6 @@ describe("TextDeltaBuffer", () => {
       flushed.contents->Array.find(e => e.taskId === "task-1" && e.messageId === "message-2")
     t->expect(task1SecondMessage->Option.map(e => e.text))->Expect.toBe(Some("Plan"))
 
-    // task-2 is separate
     let task2Entry = flushed.contents->Array.find(e => e.taskId === "task-2")
     t->expect(task2Entry->Option.map(e => e.text))->Expect.toBe(Some("Other"))
 

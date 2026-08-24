@@ -32,7 +32,6 @@ defmodule FrontmanServer.Workers.SyncResendContact do
     if enabled?() do
       case Accounts.get_user(user_id) do
         nil ->
-          # User was deleted between enqueue and execution — nothing to do.
           :discard
 
         %User{} = user ->
@@ -74,13 +73,10 @@ defmodule FrontmanServer.Workers.SyncResendContact do
     end
   end
 
-  # Extra Req options — overridden in tests to inject Req.Test as the adapter.
   defp req_options do
     Application.get_env(:frontman_server, :sync_resend_contact_req_options, [])
   end
 
-  # Extract the first word of the full name as first_name, falling back to the
-  # full string if there's no space (or nil if name is nil).
   defp first_name(nil), do: nil
 
   defp first_name(name) do

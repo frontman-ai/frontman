@@ -1,13 +1,9 @@
-// Vite plugin for integrating Frontman middleware
-// Adapts Web API Request/Response to Vite's Node.js IncomingMessage/ServerResponse
-
 module Config = FrontmanVite__Config
 module Middleware = FrontmanVite__Middleware
 module Core = FrontmanAiFrontmanCore
 open FrontmanVite__Bindings
 
-// Helper: convert WebAPI Headers to a Dict<string>
-let headersToDict: WebAPI.FetchAPI.headers => Dict.t<string> = %raw(`
+let headersToDict: WebAPI.FetchTypes.headers => Dict.t<string> = %raw(`
   function headersToDict(headers) {
     const dict = {};
     headers.forEach(function(value, key) {
@@ -17,8 +13,6 @@ let headersToDict: WebAPI.FetchAPI.headers => Dict.t<string> = %raw(`
   }
 `)
 
-// Helper: collect body chunks from IncomingMessage using for-await
-// Since we can't use for-await in ReScript, we manually iterate
 let collectBody: incomingMessage => promise<nodeBuffer> = %raw(`
   async function collectBody(req) {
     const chunks = [];
@@ -29,11 +23,7 @@ let collectBody: incomingMessage => promise<nodeBuffer> = %raw(`
   }
 `)
 
-// Helper: pipe a ReadableStream to ServerResponse
-let pipeStreamToResponse: (
-  WebAPI.FileAPI.readableStream<'a>,
-  serverResponse,
-) => promise<unit> = %raw(`
+let pipeStreamToResponse: (WebAPI.ReadableStream.t<'a>, serverResponse) => promise<unit> = %raw(`
   async function pipeStreamToResponse(stream, res) {
     const reader = stream.getReader();
     try {
@@ -48,20 +38,13 @@ let pipeStreamToResponse: (
   }
 `)
 
-// Adapt a Web API middleware to Vite's Node.js middleware
-// The middleware is: Request => Promise<Option<Response>>
-// basePath is used to short-circuit non-frontman requests before consuming the body
 let adaptMiddlewareToVite = (
   ~basePath: string,
-  middleware: WebAPI.FetchAPI.request => promise<option<WebAPI.FetchAPI.response>>,
+  middleware: WebAPI.Request.t => promise<option<WebAPI.Response.t>>,
 ): ((incomingMessage, serverResponse, unit => unit) => promise<unit>) => {
   async (req, res, next) => {
-    // Short-circuit: only process requests under the frontman basePath.
-    // This avoids draining the IncomingMessage body stream for non-frontman
-    // routes, which would break downstream handlers that need to read it.
     let reqUrl = req.url->Null.toOption->Option.getOr("/")
     let pathname = reqUrl->String.toLowerCase
-    // Strip query string for prefix matching (req.url includes ?query)
     let pathOnly = switch pathname->String.indexOf("?") {
     | -1 => pathname
     | idx => pathname->String.slice(~start=0, ~end=idx)
@@ -74,14 +57,11 @@ let adaptMiddlewareToVite = (
     switch isFrontmanRoute {
     | false => next()
     | true =>
-      // Collect request body (safe — this is a frontman route)
       let bodyBuffer = await collectBody(req)
 
-      // Build URL from host header + request URL
       let host = req.headers->Dict.get("host")->Option.getOr("localhost")
       let url = `http://${host}${reqUrl}`
 
-      // Create Web API Request from Node.js IncomingMessage
       let method = req.method->Null.toOption->Option.getOr("GET")
       let headers = WebAPI.HeadersInit.fromDict(req.headers)
       let hasBody = bufferLength(bodyBuffer) > 0
@@ -93,20 +73,16 @@ let adaptMiddlewareToVite = (
 
       let webRequest = WebAPI.Request.fromURL(url, ~init={method, headers, ?body})
 
-      // Call middleware
       let responseOption = await middleware(webRequest)
 
       switch responseOption {
       | None => next()
       | Some(webResponse) =>
-        // Set status code
         setStatusCode(res, webResponse.status)
 
-        // Copy headers from Web API Response to Node.js ServerResponse
         let headerDict = headersToDict(webResponse.headers)
         writeHead(res, webResponse.status, headerDict)
 
-        // Pipe the body stream if present
         switch webResponse.body->Null.toOption {
         | Some(stream) => await pipeStreamToResponse(stream, res)
         | None => ()
@@ -118,7 +94,6 @@ let adaptMiddlewareToVite = (
   }
 }
 
-// JS-friendly options type for the plugin (mirrors Config.jsConfigInput)
 type pluginOptions = {
   isDev?: bool,
   basePath?: string,
@@ -130,12 +105,6 @@ type pluginOptions = {
   host?: string,
 }
 
-// Create the Vite plugin(s).
-// Returns an array of Vite plugins — Vite flattens nested arrays in the
-// plugins config, so `plugins: [frontmanPlugin()]` works seamlessly.
-// The array includes:
-//   1. The main Frontman middleware plugin
-//   2. The Vue SFC source annotation plugin (dev-only, no-ops for non-Vue projects)
 @@live
 let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
   let opts = options->Option.getOr({})
@@ -143,11 +112,8 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
   let middlewarePlugin = {
     name: "frontman",
     configureServer: server => {
-      // Initialize core LogCapture to intercept console/stdout for the
-      // get_logs tool and post-edit error checking in edit_file
       FrontmanAiFrontmanCore.FrontmanCore__LogCapture.initialize()
 
-      // Create config from options - pass through optional fields directly
       let isDev = opts.isDev
       let basePath = opts.basePath
       let clientUrl = opts.clientUrl

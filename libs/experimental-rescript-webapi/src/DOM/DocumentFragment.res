@@ -13,6 +13,9 @@ module Impl = (
 
   external asDocumentFragment: T.t => DomTypes.documentFragment = "%identity"
 
+  @get
+  external children: T.t => DomTypes.htmlCollection<DomTypes.element> = "children"
+
   /**
 Inserts nodes after the last child of node, while replacing strings in nodes with equivalent Text nodes.
 

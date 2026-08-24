@@ -3,7 +3,7 @@
 
 ## Worktree Workflow
 
-This repo uses git worktrees for parallel feature development with isolated Claude contexts.
+This repo uses git worktrees for parallel feature development with isolated agent sessions.
 
 **Create worktree:**
 ```bash
@@ -13,7 +13,7 @@ cd .worktrees/feature/my-feature
 
 **Benefits:**
 - Work on multiple features without branch switching
-- Isolated Claude Code context per feature (separate history)
+- Isolated agent session per feature
 - Parallel dev servers on different ports
 - Self-contained dependencies per worktree
 
@@ -25,7 +25,6 @@ cd .worktrees/feature/my-feature
 - `make wt-start BRANCH=...` - Resume paused worktree
 - `make wt-sh BRANCH=...` - Shell into container
 - `make wt-rm BRANCH=...` - Full cleanup (pod + volumes + worktree)
-- `make wt-gc` - Garbage-collect worktrees whose branches are merged into main
 - `make wt-urls BRANCH=...` - Show service URLs
 - `make wt-logs BRANCH=...` - Tail container logs
 
@@ -36,14 +35,13 @@ cd .worktrees/feature/my-feature
 - `make worktree-clean` - Clean stale worktrees
 
 **Secrets:**
-- Dev secrets (WORKOS keys, API keys) are stored as `op://` references in `apps/frontman_server/envs/.dev.secrets.env` and resolved at runtime via 1Password CLI (`op run`)
+- Development platform and authentication secrets (currently WorkOS credentials) are stored as `op://` references in `apps/frontman_server/envs/.dev.secrets.env` and resolved at runtime via 1Password CLI (`op run`)
 - The server Makefile wraps `mix phx.server` with `op run --env-file=envs/.dev.secrets.env` so secrets are injected as env vars
 - Requires 1Password CLI (`op`) to be installed and authenticated
 - If the server fails on startup with WORKOS errors, ensure `op` is signed in (`op signin`)
 
 **Structure:**
 - `.worktrees/<branch-name>/` - Worktree directory
-- `.worktrees/<branch-name>/.claude/` - Isolated Claude context (history, plans, todos)
 
 ## Containerized Worktrees
 

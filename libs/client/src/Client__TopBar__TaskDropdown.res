@@ -1,6 +1,7 @@
 module Icons = Client__UI__Icons
 module AlertDialog = Client__UI__AlertDialog
 module Button = Client__UI__Button
+module ButtonGroup = Client__UI__ButtonGroup
 module DropdownMenu = Client__UI__DropdownMenu
 module Tooltip = Client__UI__Tooltip
 
@@ -166,7 +167,7 @@ let make = (~onNewTask: unit => unit) => {
   }
 
   <>
-    <div className="flex items-center gap-0.5">
+    <ButtonGroup ariaLabel="Task controls">
       <DropdownMenu open_={menuOpen} onOpenChange={(open_, _) => setMenuOpen(_ => open_)}>
         <DropdownMenu.Trigger
           render={<Button
@@ -197,24 +198,22 @@ let make = (~onNewTask: unit => unit) => {
           {renderTaskGroups()}
         </DropdownMenu.Content>
       </DropdownMenu>
-
-      // "+ New" button
       <Tooltip>
         <Tooltip.Trigger
           render={<Button
             variant=Button.Variant.Ghost
             size=Button.Size.IconXs
+            ariaLabel="New task"
             onClick={_ => onNewTask()}
-            className="rounded text-zinc-500 hover:text-zinc-200 hover:bg-white/5 cursor-pointer"
+            className="text-zinc-500 hover:text-zinc-200 hover:bg-white/5 cursor-pointer"
           />}
         >
           <Icons.PlusIcon />
         </Tooltip.Trigger>
         <Tooltip.Content sideOffset=4.> {React.string("New task")} </Tooltip.Content>
       </Tooltip>
-    </div>
+    </ButtonGroup>
 
-    // Delete confirmation dialog (outside the dropdown to avoid stacking context issues)
     <AlertDialog
       open_={deleteDialogOpen} onOpenChange={(open_, _) => setDeleteDialogOpen(_ => open_)}
     >

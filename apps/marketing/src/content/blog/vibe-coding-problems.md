@@ -1,112 +1,155 @@
 ---
-title: 'Why Vibe Coding Breaks Production Apps'
-seoTitle: 'Why Vibe Coding Tools Break Production Apps'
+title: 'Vibe Coding and the Risk of Verification Debt'
+seoTitle: 'Vibe Coding and Verification Debt in Production'
 pubDate: 2026-04-15T05:00:00Z
-description: 'Why vibe coding tools often fail in production: verification debt, inconsistent architecture, missing edge cases, and how to use AI code safely.'
+description: 'Assess verification-debt risk in AI-assisted code: identify deferred evidence, match checks to consequences, and measure delivery beyond generation speed.'
 author: 'Danni Friedland'
+articleSection: 'Problem Diagnosis'
 image: '/blog/vibe-coding-problems-cover.png'
+imageAlt: 'Vibe coding and verification debt cover'
 tags: ['ai', 'developer-tools', 'code-quality']
-updatedDate: 2026-06-17T00:00:00Z
+updatedDate: 2026-07-30T00:00:00Z
 faq:
   - question: 'What is vibe coding?'
-    answer: "Vibe coding is the practice of generating code with an AI tool and shipping it without fully understanding what it does, relying on the fact that it looks right or passes tests. The term captures the feeling: you're going on vibes rather than engineering judgment."
+    answer: 'In this article, vibe coding means accepting AI-generated software based mainly on plausible output or a successful demo while deferring evidence about requirements, correctness, security, maintainability, and operations. AI assistance itself is not the problem; unverified acceptance is.'
   - question: "Isn't fast iteration better than slow, careful iteration?"
-    answer: "Fast iteration on code you understand is better. Fast iteration on code you don't understand creates verification debt: the cost of all the checks you skipped. That debt compounds. The first three months feel like superpowers. Month six, you're debugging production fires caused by edge cases the AI didn't anticipate and you didn't catch."
-  - question: "How is Frontman different from vibe coding tools?"
-    answer: "Vibe coding tools generate new code and give it to you to ship. Frontman edits your existing code, the code you already understand and maintain. There is no generated codebase to become responsible for. Every change Frontman makes is a diff against code your team wrote and reviewed. You can read it, understand it, and own it."
+    answer: 'Fast iteration is useful when validation cost remains visible. If generated changes are faster to create but slower to understand, review, test, secure, or operate, implementation speed can hide verification debt rather than reduce total delivery time.'
+  - question: 'How is Frontman different from vibe coding tools?'
+    answer: 'Frontman focuses on edits to an existing development project using browser and source context. That can make visual intent and resulting diffs easier to inspect, but it does not make generated code correct. Teams still need review, tests, security checks, and deployment controls appropriate to change risk.'
 ---
 
-Somewhere between late 2024 and now, "vibe coding" became shorthand for a real engineering practice: prompt an AI, ship what it generates, worry about understanding it later. The productivity gains are real. So are the consequences.
+AI can reduce cost of producing code. It does not automatically reduce cost of proving that code belongs in production.
 
-AI coding tools are genuinely useful. The problem is a specific failure mode, one that's invisible during the honeymoon period and expensive when it surfaces.
+That gap is **verification debt**: required evidence deferred when a change is accepted because it looks plausible, passes a narrow check, or produces a convincing demo. Debt may be harmless for a disposable prototype. It becomes dangerous when code has users, data, permissions, dependencies, or an on-call owner.
 
-**Quick answer:** vibe coding breaks production apps when AI-generated code ships before the team understands, tests, and owns it. The issue is not speed by itself. The issue is verification debt: every assumption, edge case, and architecture decision you skipped while the demo looked good.
+**Quick answer:** vibe coding creates production risk when generation outruns verification. Manage that risk by tracking which claims about a change have evidence, assigning checks by consequence, and counting review, rework, incidents, and operational load as part of delivery cost.
 
-## What Verification Debt Is
+## Evidence Supports Caution, Not a Universal Failure Story
 
-When you ship code you don't understand, you create verification debt: the accumulated cost of all the checks you skipped.
+There is no credible basis for a fixed "month one to month six" collapse narrative. Outcomes depend on model, task, developer experience, repository context, and quality bar.
 
-Every line of code you own comes with an implicit question: "Do I understand what this does, under what conditions it fails, and what other things it touches?" When you write code yourself, you answer that question as you write. When you generate code and ship it, you defer it indefinitely.
+Current evidence is mixed and should be read narrowly:
 
-Verification debt looks like:
-- A function that works for the happy path but breaks on empty arrays in production
-- A component that renders correctly in development but causes hydration errors at scale
-- A database query that hits an unindexed column and runs fine until you have 50k rows
-- Auth middleware that handles the documented flow but misses a redirect edge case the AI didn't know about
+- [Stack Overflow's 2025 Developer Survey](https://survey.stackoverflow.co/2025/ai) reported broad AI-tool use alongside more respondents distrusting output accuracy than trusting it. It also found "almost right" answers and time spent debugging generated code among common reported frustrations. This is self-reported survey evidence, not an incident rate.
+- A peer-reviewed CCS 2023 user study, [Do Users Write More Insecure Code with AI Assistants?](https://doi.org/10.1145/3576915.3623157), found participants using a Codex-based assistant produced less secure solutions in studied security tasks and were more likely to believe their code was secure. Results concern that model, study design, and task set; they do not establish that every modern assistant makes every developer less secure.
+- METR's early-2025 randomized study found experienced open-source developers took longer on its sampled tasks with then-current AI tools. METR's [February 2026 update](https://metr.org/blog/2026-02-24-uplift-update/) says those older results no longer represent current tools and that its newer estimates are unreliable because of selection and measurement effects. Useful lesson: productivity claims need current, task-specific measurement.
+- [NIST Secure Software Development Framework 1.1](https://doi.org/10.6028/NIST.SP.800-218) recommends integrating secure development practices into each software development lifecycle. It does not create a separate lower standard for AI-generated code.
 
-None of these are the AI's fault. They're the predictable result of shipping code before you understand it.
+These sources support verification discipline. They do not support fabricated production incidents, universal timelines, or claims that AI-generated code is inherently defective.
 
-## The Anatomy of a Vibe-Coded Codebase
+## Verification Debt as a Ledger
 
-Three months of fast iteration on a greenfield project with an AI coding tool produces a specific kind of codebase. It's not bad code, exactly. It's *unfamiliar* code, generated to match the prompt, not to be understood by the person shipping it.
+For each change, separate implementation from claims that must be true.
 
-The inconsistency is the first thing you notice. The AI generates each feature independently, so the auth flow uses one pattern for error handling, the data layer uses another, and the components use a third. Nothing is wrong. Nothing is coherent. Refactoring later means understanding each piece from scratch.
+| Claim                           | Evidence before merge                              | Debt if skipped    |
+| ------------------------------- | -------------------------------------------------- | ------------------ |
+| Requirement is correct          | Acceptance criteria and owner sign-off             | Product debt       |
+| Behavior is correct             | Tests and manual scenario checks                   | Functional debt    |
+| Change fits architecture        | Diff review by code owner                          | Comprehension debt |
+| Inputs and permissions are safe | Threat-focused review and security tests           | Security debt      |
+| Dependencies are acceptable     | Lockfile review, provenance, and scanning          | Supply-chain debt  |
+| Change can run reliably         | Logs, metrics, failure handling, and rollback plan | Operational debt   |
+| Team can maintain it            | Clear ownership and explainable design             | Ownership debt     |
 
-Then there are the implicit assumptions. Generated code makes assumptions about its context: what shape the incoming data is, what state the application is in when the code runs. When those assumptions break, you have to reverse-engineer what the code was expecting before you can understand why it failed.
+Debt is not number of generated lines. A large generated test fixture may create little risk. A one-line authorization change may demand extensive evidence.
 
-AI-generated tests have the same problem. They test the happy path, because that's what was in the prompt. The edge cases, the ones that actually cause production incidents, require knowing what might go wrong. You can't prompt for a test you haven't thought of.
+## How Debt Accumulates
 
-And when something does break, you can't trace it. In a codebase you wrote, you follow the logic from input to output. In a vibe-coded codebase, each file is a black box. You know what it does (you prompted for it). You don't know *how* it does it.
+### Unstated requirements
 
-## The Months 1–6 Arc
+Prompt describes desired happy path but omits tenancy, accessibility, localization, retries, or retention rules. Generated output can satisfy prompt while violating system requirement never provided.
 
-Here's the honest trajectory:
+### Plausibility substitutes for comprehension
 
-Month 1 is incredible. Features that would take weeks land in days. Demos look polished. Investors are impressed.
+Fluent code is easy to skim. Reviewer recognizes familiar patterns and misses incorrect assumption. Risk rises when no one can explain data flow, failure behavior, and blast radius without asking model again.
 
-Month 2 brings some weird bugs. They get fixed by prompting the AI again. You don't fully understand the fix, but it seems to work.
+### Tests mirror implementation
 
-Month 3 brings a production incident. The root cause is in a piece of generated code that was shipping fine until an edge case hit at scale. Debugging it takes longer than it should because no one fully understands the file.
+If same prompt or model generates implementation and tests, both can share same missing assumption. Passing tests show consistency with tested examples, not completeness of requirement.
 
-By month 4, you've hired an engineer to "clean up the codebase." They spend the first two weeks just reading code. They say things like "I don't understand why this is done this way," and neither do you.
+### Local success hides system effects
 
-Month 5: new features are slower because every change carries the risk of breaking something in the generated codebase that nobody fully understands.
+Component renders in one viewport while changing shared styles elsewhere. Query works on sample dataset but lacks production index. Retry handles timeout but duplicates non-idempotent write. These are illustrative failure modes, not claims about specific Frontman users or incidents.
 
-Month 6: you're doing the rewrite you swore you'd never do.
+### Ownership stays implicit
 
-This is not hypothetical. It's the pattern.
+Generated change merges, but no person becomes accountable for future behavior. When alert fires, team first reconstructs intent and design before diagnosing fault.
 
-## Why AI-Generated Code Is Specifically Risky
+## Match Verification to Risk
 
-Static analysis catches some of what you'd catch by reading. Tests catch some of what you'd catch by thinking through edge cases. Neither catches the class of bug that comes from not understanding the code well enough to know what to test or analyze.
+Use risk tiers rather than one rule for all AI output.
 
-AI-generated code has specific failure modes worth understanding.
+### Tier 1: Reversible presentation changes
 
-It optimizes for the prompt, not the system. A function generated to "fetch user data and handle errors" will handle the errors the AI considers typical. It will miss the error you'd catch if you thought carefully about all the ways this particular integration fails in your particular environment.
+Examples: copy, spacing, approved token, static layout.
 
-It doesn't know your operational context. The AI doesn't know your database has a 30-second query timeout. It doesn't know your CDN strips certain headers. It doesn't know your mobile users have spotty connections. Generated code doesn't account for things that aren't in the prompt.
+Evidence:
 
-The hardest problem: generated code is fluent without necessarily being correct. It reads like code written by a competent senior engineer. Code written by someone who doesn't know what they're doing usually *looks* like it was written by someone who doesn't know what they're doing. Generated code that is subtly wrong looks like code that's probably fine.
+- Focused diff review
+- Relevant viewport and accessibility check
+- Existing CI
+- Clear rollback
 
-## The Discipline Hasn't Changed
+### Tier 2: Application behavior
 
-Understanding what you ship is the standard. It's what makes code review worthwhile. It's why "don't commit code you don't understand" exists as a rule. It's why test-driven development has traction. AI didn't create the standard; it made violating it much easier.
+Examples: state transitions, forms, caching, API integration.
 
-Tools that let you work on your *existing* codebase, where every edit is a diff against code you already understand, don't create this problem. When Frontman edits a padding value in your `PricingCard` component, you can read the diff. You know what changed. You know why. You own it the same way you owned it before.
+Evidence:
 
-That's the difference between AI that augments your judgment and AI that replaces it.
+- Explicit edge cases and failure paths
+- Unit and integration tests independent of generated implementation
+- Architecture-owner review
+- Logs or metrics for new failure modes
 
-## What to Actually Do
+### Tier 3: High-impact boundaries
 
-Use AI coding tools, but make the output earn its way into the codebase:
+Examples: authentication, authorization, billing, personal data, migrations, infrastructure.
 
-- Review the diff before shipping, not after a bug report.
-- Add the edge-case tests you would have written by hand.
-- Keep generated code inside your existing architecture instead of letting every feature invent a new pattern.
-- Prefer targeted edits in code you already maintain over wholesale generated codebases you have to reverse-engineer later.
+Evidence:
 
-If you're building something new, treat AI output as a first draft. Review it before shipping. If you can't explain the diff to a colleague, it's not ready.
+- Threat model or abuse-case review
+- Security and domain-owner approval
+- Migration and rollback rehearsal where relevant
+- Staged rollout and operational monitoring
+- Independent validation beyond model that generated change
 
-Write your own tests. Use the AI to scaffold them, but add the edge cases yourself. You know your system's failure modes better than the AI does.
+This approach follows ordinary software risk management. AI changes production economics of authorship, not accountability.
 
-And maintain a coherent architecture. AI tools generate whatever pattern is consistent with the context you give them. Prompt consistently, enforce a clear structure, and the generated code stays coherent.
+## A Verification-Debt Review
 
-If you're inheriting a vibe-coded codebase, start with behavior rather than code. Write integration tests that document what the system does before you touch anything. That gives you a safety net.
+Ask these questions before merge:
 
-Then refactor to understand, not to improve. The goal isn't better code; it's code you can reason about. Isolate each component, read it, rewrite anything you don't understand in your own style.
+1. What user or system requirement does change satisfy?
+2. Which assumptions came from prompt, repository, or model guess?
+3. Can reviewer explain changed behavior without relying on generated summary?
+4. Which happy paths, edge cases, abuse cases, and rollback paths were tested?
+5. Did tests come from independent requirement or merely mirror implementation?
+6. What shared components, data, permissions, or dependencies can change affect?
+7. What evidence will reveal failure after deployment?
+8. Who owns correction if assumption proves false?
 
-And be honest about what you're dealing with. A codebase you don't understand is a liability. Put it on the roadmap as technical debt with a real cost, not "cleanup we'll get to someday."
+Any unanswered question is visible debt. Team can decide to accept it, but decision should be explicit.
 
-The velocity gains from AI coding tools are real. So is the verification debt. Staying honest about both is how you capture one without getting buried in the other.
+## Measure Net Delivery, Not Generation Speed
 
-Read more: [The Runtime Context Gap](/blog/runtime-context-gap/) on why AI tools that can see your running application catch the bugs that file-only agents miss, or compare the broader category in our [frontend coding agent guide](/blog/best-frontend-coding-agent/).
+Useful measures include:
+
+- Lead time through review and CI, not time until first generated patch
+- Review rounds and rejected diff size
+- Escaped defects and reverts by change risk
+- Time spent understanding or rewriting generated code
+- Security findings and dependency exceptions
+- Operational alerts attributable to recent changes
+- Percentage of changes with named owner and rollback path
+
+Compare AI-assisted and non-assisted work within similar task classes. Model capability, tooling, and team practice change quickly, so publish date and context with any result.
+
+## How Frontman Fits
+
+Frontman can narrow some visual verification gaps by connecting selected rendered elements, screenshots, DOM context, source locations when available, source edits, and hot-reload feedback. Result remains ordinary code in project working tree.
+
+That helps answer "did this edit target visible element and produce intended visual result?" It does not answer every question about security, accessibility, shared-component impact, business logic, or production operation. A reviewable diff is evidence, not approval.
+
+Use AI for speed where it helps. Keep evidence bar tied to consequences. Verification debt becomes dangerous not when it exists, but when team mistakes unverified output for completed work.
+
+For browser-context limits, read [The Runtime Context Gap](/blog/runtime-context-gap/). For review controls around UI edits, read [How Teams Review UI Changes From Non-Engineers](/blog/review-ui-changes-from-non-engineers/).

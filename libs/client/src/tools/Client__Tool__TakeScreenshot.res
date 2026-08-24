@@ -1,13 +1,11 @@
-// Client tool that takes a screenshot of the web preview using Snapdom
-// Captures the document body from the previewFrame
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.takeScreenshot
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
-let description = "Take a screenshot of the current web preview page. By default captures only the visible viewport. Set fullPage to true to capture the entire scrollable page. Returns a base64-encoded JPEG image data URL."
+let description = "Take a screenshot of the current web preview page. By default captures only the visible viewport. Set fullPage to true to capture the entire scrollable page."
+let outputJsonSchema = None
 
 @schema
 type input = {
@@ -19,26 +17,20 @@ type input = {
   fullPage: option<bool>,
 }
 
-@schema
-type output = {
-  @s.describe("Base64-encoded JPEG image data URL (data:image/jpeg;base64,...)") @live
-  screenshot: option<string>,
-  @s.describe("Error message if the screenshot could not be taken") @live
-  error: option<string>,
+let decodeError = message => {
+  let normalized = message->String.toLowerCase
+  normalized->String.includes("source image cannot be decoded") ||
+    normalized->String.includes("invalid encoded image data")
 }
 
-// Image limits and scale computation are shared via Client__ImageLimits
-// to ensure all image capture paths use the same constraints.
+let captureErrorMessage = (message: string) =>
+  switch decodeError(message) {
+  | true => `Screenshot could not be rendered because the browser could not decode the generated page image. The page may contain malformed HTML, unsupported SVG content, or exceed browser image limits. Try again after the page finishes loading or capture a smaller element with the selector option.`
+  | false => message
+  }
 
-// Crop a canvas to viewport dimensions at the current scroll position.
-// Returns a JPEG data URL of just the visible viewport area.
-//
-// All coordinates are in CSS pixels. The `scale` param accounts for
-// snapdom's scale factor (from _computeScale) which may shrink the canvas
-// relative to CSS dimensions to stay within provider pixel limits.
-// snapdom's toCanvas defaults to dpr=1, so canvas pixels = CSS pixels × scale.
 let _cropCanvasToViewport = (
-  sourceCanvas: WebAPI.DOMAPI.htmlCanvasElement,
+  sourceCanvas: WebAPI.DomTypes.htmlCanvasElement,
   ~scrollX: float,
   ~scrollY: float,
   ~viewportW: int,
@@ -50,13 +42,11 @@ let _cropCanvasToViewport = (
 
   let qualityJson = JSON.Encode.float(quality)
 
-  // Convert CSS-pixel coordinates to canvas-pixel coordinates
   let sx = Math.round(scrollX *. scale)
   let sy = Math.round(scrollY *. scale)
   let sw = Math.round(viewportW->Int.toFloat *. scale)
   let sh = Math.round(viewportH->Int.toFloat *. scale)
 
-  // Clamp to source canvas bounds
   let sx = Math.max(sx, 0.0)
   let sy = Math.max(sy, 0.0)
   let sw = Math.min(sw, sourceCanvas.width->Int.toFloat -. sx)
@@ -65,11 +55,10 @@ let _cropCanvasToViewport = (
   if sw <= 0.0 || sh <= 0.0 {
     sourceCanvas->HTMLCanvasElement.toDataURL(~type_="image/jpeg", ~quality=qualityJson)
   } else {
-    // Create cropped canvas
-    let crop = Global.document->Document.createCanvasElement
+    let crop = Window.current->Window.document->Document.createCanvasElement
     crop.width = sw->Float.toInt
     crop.height = sh->Float.toInt
-    let ctx = crop->HTMLCanvasElement.getContext_2D
+    let ctx = crop->HTMLCanvasElement.getContext2D
 
     ctx->CanvasRenderingContext2D.drawImageWithCanvasSubRectangle(
       ~image=sourceCanvas,
@@ -111,11 +100,10 @@ let execute = async (
 ): Tool.MCP.CallToolResult.t => {
   let fullPage = input.fullPage->Option.getOr(false)
 
-  await Client__Tool__ElementResolver.withPreviewDoc(
+  await Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=async () =>
       Tool.MCP.CallToolResult.makeError("Preview frame document not available"),
     async ({doc, win}) => {
-      // Get the element to screenshot
       let elementResult = switch input.selector {
       | Some(selector) =>
         doc
@@ -131,7 +119,6 @@ let execute = async (
         ))
       }
 
-      // For viewport-only capture (no selector, not fullPage), gather scroll + dimensions
       let viewportCrop = switch (fullPage, input.selector) {
       | (false, None) =>
         Some((
@@ -153,22 +140,14 @@ let execute = async (
           )
         } else {
           try {
-            let state = StateStore.getState(Client__State__Store.store)
-            let provider =
-              state.selectedModelValue
-              ->Option.flatMap(
-                FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId,
-              )
-              ->Option.map(FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.provider)
-            let limits = Client__ImageLimits.forProvider(provider)
+            let limits = Client__ImageLimits.conservative
             let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
 
             let captureResult = await FrontmanBindings.Bindings__Snapdom.snapdom(element)
 
             switch viewportCrop {
             | Some((viewportW, viewportH, scrollX, scrollY)) =>
-              // Viewport mode: render full page to canvas, then crop to visible area
-              let canvas = await captureResult.toCanvas({scale: scale})
+              let canvas = await captureResult.toCanvas({scale, dpr: 1.0})
               let dataUrl = _cropCanvasToViewport(
                 canvas,
                 ~scrollX,
@@ -180,12 +159,13 @@ let execute = async (
               )
               imageResultFromDataUrl(dataUrl)
             | None =>
-              // Full page / selector mode: export directly as JPEG
               let jpgImage = await captureResult.toJpg({scale, quality: limits.quality})
               imageResultFromDataUrl(jpgImage.src)
             }
           } catch {
-          | exn => Tool.MCP.CallToolResult.makeError(Client__Tool__ElementResolver.exnMessage(exn))
+          | exn =>
+            let message = Client__Tool__PreviewContext.exnMessage(exn)
+            Tool.MCP.CallToolResult.makeError(captureErrorMessage(message))
           }
         }
       }

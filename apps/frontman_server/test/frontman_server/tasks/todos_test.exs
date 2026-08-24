@@ -53,8 +53,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(write_result),
-        false,
+        %{"content" => [], "structuredContent" => write_result},
         turn_number: turn_number
       )
 
@@ -100,8 +99,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(first_result),
-        false,
+        %{"content" => [], "structuredContent" => first_result},
         turn_number: turn_number
       )
 
@@ -109,8 +107,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
-        MCP.tool_result_structured(second_result),
-        false,
+        %{"content" => [], "structuredContent" => second_result},
         turn_number: turn_number
       )
 
@@ -146,18 +143,15 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(good_result),
-        false,
+        %{"content" => [], "structuredContent" => good_result},
         turn_number: turn_number
       )
 
-      # Error result should be ignored
       Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
         MCP.tool_result_error("Invalid todo at index 0"),
-        true,
         turn_number: turn_number
       )
 
@@ -176,8 +170,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        MCP.tool_result_structured(%{"todos" => []}),
-        false,
+        %{"content" => [], "structuredContent" => %{"todos" => []}},
         turn_number: turn_number
       )
 
@@ -190,13 +183,11 @@ defmodule FrontmanServer.Tasks.TodosTest do
       scope: scope,
       turn_number: turn_number
     } do
-      # Simulate legacy interactions
       Tasks.resolve_tool_request(
         scope,
         task_id,
         %{id: "c1", name: "todo_add"},
         %{"id" => "fake", "content" => "Old todo"},
-        false,
         turn_number: turn_number
       )
 
@@ -205,13 +196,42 @@ defmodule FrontmanServer.Tasks.TodosTest do
         task_id,
         %{id: "c2", name: "todo_update"},
         %{"id" => "fake", "status" => "completed"},
-        false,
         turn_number: turn_number
       )
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       todos = Todos.list_todos(task.interaction_rows)
       assert todos == %{}
+    end
+  end
+
+  describe "Tasks.list_todos/1" do
+    test "projects todos from an already-loaded task", %{
+      task_id: task_id,
+      scope: scope,
+      turn_number: turn_number
+    } do
+      todo = %{
+        "id" => Ecto.UUID.generate(),
+        "content" => "Reuse loaded history",
+        "active_form" => "Reusing loaded history",
+        "status" => "pending",
+        "priority" => "high",
+        "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+        "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      Tasks.resolve_tool_request(
+        scope,
+        task_id,
+        %{id: "loaded-task", name: "todo_write"},
+        %{"content" => [], "structuredContent" => %{"todos" => [todo]}},
+        turn_number: turn_number
+      )
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert [%{content: "Reuse loaded history", priority: :high}] = Tasks.list_todos(task)
     end
   end
 

@@ -48,7 +48,7 @@ Print this message (fill in the branch name):
 Worktree is ready. To start working, open your agent from the worktree directory:
 
   cd .worktrees/<branch-name>
-  # then start your agent (claude, opencode, etc.)
+  # then start opencode
 
 Start the dev servers in another terminal:
 

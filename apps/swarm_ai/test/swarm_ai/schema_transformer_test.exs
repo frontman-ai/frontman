@@ -11,11 +11,16 @@ defmodule SwarmAi.SchemaTransformerTest do
 
     test "returns :openai_strict for OpenRouter OpenAI models" do
       assert SchemaTransformer.provider_for_model("openrouter:openai/gpt-4") == :openai_strict
-      assert SchemaTransformer.provider_for_model("openrouter:openai/gpt-4o") == :openai_strict
+
+      assert SchemaTransformer.provider_for_model(%{provider: :openrouter, id: "openai/gpt-5.5"}) ==
+               :openai_strict
     end
 
     test "returns :openai_strict for Azure models" do
       assert SchemaTransformer.provider_for_model("openrouter:azure/gpt-4") == :openai_strict
+
+      assert SchemaTransformer.provider_for_model(%{provider: :openrouter, id: "azure/gpt-4"}) ==
+               :openai_strict
     end
 
     test "returns :flexible for Anthropic" do
@@ -154,10 +159,8 @@ defmodule SwarmAi.SchemaTransformerTest do
 
       result = SchemaTransformer.transform(schema, :openai_strict)
 
-      # Required field unchanged
       assert result["properties"]["required_field"] == %{"type" => "string"}
 
-      # Optional field is now nullable
       assert result["properties"]["optional_field"] == %{
                "anyOf" => [%{"type" => "string"}, %{"type" => "null"}]
              }
@@ -178,7 +181,6 @@ defmodule SwarmAi.SchemaTransformerTest do
 
       result = SchemaTransformer.transform(schema, :openai_strict)
 
-      # Status should be nullable with original constraints preserved
       assert result["properties"]["status"] == %{
                "anyOf" => [
                  %{
@@ -204,7 +206,6 @@ defmodule SwarmAi.SchemaTransformerTest do
 
       result = SchemaTransformer.transform(schema, :openai_strict)
 
-      # Should not add another null type
       assert result["properties"]["nullable_field"] == %{
                "anyOf" => [%{"type" => "string"}, %{"type" => "null"}]
              }
@@ -222,7 +223,6 @@ defmodule SwarmAi.SchemaTransformerTest do
 
       result = SchemaTransformer.transform(schema, :openai_strict)
 
-      # Both fields should be nullable
       assert match?(%{"anyOf" => _}, result["properties"]["field1"])
       assert match?(%{"anyOf" => _}, result["properties"]["field2"])
     end
@@ -237,9 +237,7 @@ defmodule SwarmAi.SchemaTransformerTest do
 
       result = SchemaTransformer.transform(schema, :openai_strict)
 
-      # Field should be nullable
       assert match?(%{"anyOf" => _}, result["properties"]["field1"])
-      # Required array should be added
       assert result["required"] == ["field1"]
     end
 
@@ -261,11 +259,8 @@ defmodule SwarmAi.SchemaTransformerTest do
 
       result = SchemaTransformer.transform(schema, :openai_strict)
 
-      # Nested object should also have additionalProperties: false
       assert result["properties"]["user"]["additionalProperties"] == false
-      # Nested email (optional) should be nullable
       assert match?(%{"anyOf" => _}, result["properties"]["user"]["properties"]["email"])
-      # Nested name (required) should not be nullable
       assert result["properties"]["user"]["properties"]["name"] == %{"type" => "string"}
     end
 
@@ -290,7 +285,6 @@ defmodule SwarmAi.SchemaTransformerTest do
 
       result = SchemaTransformer.transform(schema, :openai_strict)
 
-      # Array items object should be transformed
       items_schema = result["properties"]["items"]["items"]
       assert items_schema["additionalProperties"] == false
       assert items_schema["properties"]["id"] == %{"type" => "string"}
@@ -330,17 +324,13 @@ defmodule SwarmAi.SchemaTransformerTest do
 
       result = SchemaTransformer.transform(schema, :openai_strict)
 
-      # Content and active_form should NOT be nullable (required)
       refute match?(%{"anyOf" => _}, result["properties"]["content"])
       refute match?(%{"anyOf" => _}, result["properties"]["active_form"])
 
-      # Status should be nullable (optional)
       assert match?(%{"anyOf" => _}, result["properties"]["status"])
 
-      # All should be in required array
       assert Enum.sort(result["required"]) == ["active_form", "content", "status"]
 
-      # additionalProperties should be false
       assert result["additionalProperties"] == false
     end
   end

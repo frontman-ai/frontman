@@ -16,7 +16,6 @@ defmodule ModelContextProtocol do
   - Builds MCP requests (initialize, tools/call)
   - Extracts data from MCP-specific response formats
   - Handles MCP content arrays and error flags
-  - Parses structured tool results
 
   Use with JsonRpc for complete message handling.
   """
@@ -58,13 +57,6 @@ defmodule ModelContextProtocol do
   @spec tool_result_json(map()) :: map()
   def tool_result_json(value) when is_map(value) do
     tool_result_text(Jason.encode!(value))
-  end
-
-  @spec tool_result_structured(map()) :: map()
-  def tool_result_structured(value) when is_map(value) do
-    value
-    |> tool_result_json()
-    |> Map.put("structuredContent", value)
   end
 
   @spec tool_result_image(String.t(), String.t()) :: map()
@@ -115,24 +107,13 @@ defmodule ModelContextProtocol do
   def error?(_), do: false
 
   @doc """
-  Parses tool result text as JSON if possible, falls back to string.
-  Preserves structured data like screenshots.
-  """
-  def parse_tool_result(text_result) when is_binary(text_result) do
-    case Jason.decode(text_result) do
-      {:ok, parsed} when is_map(parsed) -> parsed
-      _ -> text_result
-    end
-  end
-
-  @doc """
   Builds an MCP tool execution request.
 
   Uses an integer JSON-RPC request id for protocol correlation. The durable
   tool call id remains in params.callId for agent/tool-result correlation.
   """
   def build_tool_execution(%ToolCallParams{} = params) do
-    Logger.info("MCP tool call: #{params.tool_name} arguments=#{inspect(params.arguments)}")
+    Logger.info("MCP tool call: #{params.tool_name}")
 
     JsonRpc.request(params.request_id, "tools/call", %{
       "name" => params.tool_name,

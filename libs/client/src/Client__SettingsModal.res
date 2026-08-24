@@ -23,7 +23,6 @@ let renderBadge = (~label, ~tone) =>
 let apiKeyPlaceholder = (source, emptyText) =>
   switch source {
   | Types.UserOverride => "Key saved - enter new key to replace"
-  | Types.FromEnv => "Using environment key - enter key to override"
   | Types.Loading => "Checking key status..."
   | Types.None => emptyText
   }
@@ -56,7 +55,6 @@ let saveButtonLabel = saveStatus =>
 let renderSourceBadge = (source: Types.apiKeySource) =>
   switch source {
   | Types.UserOverride => renderBadge(~label="User key", ~tone=Blue)
-  | Types.FromEnv => renderBadge(~label="From environment", ~tone=Emerald)
   | Types.Loading => renderBadge(~label="Checking...", ~tone=Amber)
   | Types.None => renderBadge(~label="Not configured", ~tone=Zinc)
   }
@@ -135,6 +133,7 @@ module APIKeyCard = {
 
 @react.component
 let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
+  let {connectionState, beginLogout, _} = Client__FrontmanProvider.useFrontman()
   let runtimeConfig = RuntimeConfig.read()
   let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
   let (activeTab, setActiveTab) = React.useState(() => "general")
@@ -267,25 +266,26 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                             </div>
                           </div>
                         </div>
-                        {switch acpSession {
-                        | Types.AcpSessionActive({apiBaseUrl}) =>
-                          <Button
-                            variant=Button.Variant.Outline
-                            size=Button.Size.Sm
-                            onClick={_ => {
-                              // Navigate to server-side logout with return_to so user is redirected
-                              // back here after re-authenticating
-                              let encodeURIComponent: string => string = %raw(`encodeURIComponent`)
-                              let currentUrl = Client__HostNavigation.currentUrl()
-                              let returnTo = encodeURIComponent(currentUrl)
-                              Client__HostNavigation.assign(
-                                ~url=`${apiBaseUrl}/users/log-out?return_to=${returnTo}`,
-                              )
-                            }}
+                        {switch (connectionState, acpSession) {
+                        | (LoggingOut, _) =>
+                          <Button variant=Button.Variant.Outline size=Button.Size.Sm disabled=true>
+                            <Client__UI__Spinner />
+                            {React.string("Signing out...")}
+                          </Button>
+                        | (_, Types.AcpSessionActive({apiBaseUrl})) =>
+                          <a
+                            className={Button.buttonVariants(
+                              ~variant=Button.Variant.Outline,
+                              ~size=Button.Size.Sm,
+                            )}
+                            href={`${apiBaseUrl}/users/log-out?return_to=%2Fusers%2Fpopup-complete`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={_ => beginLogout()}
                           >
                             {React.string("Sign out")}
-                          </Button>
-                        | _ => React.null
+                          </a>
+                        | (_, Types.NoAcpSession) => React.null
                         }}
                       </div>
                     </div>

@@ -2,9 +2,6 @@ open Vitest
 
 module SmartSerialize = Client__Tool__SmartSerialize
 
-// ── Helpers ──────────────────────────────────────────────────────────
-
-// Create a fake DOM element (duck-typed to match the nodeType + tagName check)
 let makeElement: (
   string,
   ~id: string=?,
@@ -23,7 +20,6 @@ let makeElement: (
   }
 `)
 
-// Create a fake NodeList (duck-typed: has .item function and .length)
 let makeNodeList: array<'a> => 'a = %raw(`
   function(items) {
     var nl = {
@@ -35,7 +31,6 @@ let makeNodeList: array<'a> => 'a = %raw(`
   }
 `)
 
-// Create a circular reference object
 let makeCircular: unit => 'a = %raw(`
   function() {
     var obj = { name: 'root' };
@@ -44,7 +39,6 @@ let makeCircular: unit => 'a = %raw(`
   }
 `)
 
-// Create a deeply nested object to a given depth
 let makeDeeplyNested: int => 'a = %raw(`
   function(depth) {
     var obj = { value: 'leaf' };
@@ -55,7 +49,6 @@ let makeDeeplyNested: int => 'a = %raw(`
   }
 `)
 
-// Create an object with many keys
 let makeWideObject: int => 'a = %raw(`
   function(count) {
     var obj = {};
@@ -65,8 +58,6 @@ let makeWideObject: int => 'a = %raw(`
     return obj;
   }
 `)
-
-// ── Primitives ───────────────────────────────────────────────────────
 
 describe("SmartSerialize - primitives", () => {
   test("serializes numbers", t => {
@@ -95,8 +86,6 @@ describe("SmartSerialize - primitives", () => {
   })
 })
 
-// ── Objects and arrays ───────────────────────────────────────────────
-
 describe("SmartSerialize - objects and arrays", () => {
   test("serializes plain objects", t => {
     let result = SmartSerialize.serialize({"a": 1, "b": 2}, 10000)
@@ -114,10 +103,6 @@ describe("SmartSerialize - objects and arrays", () => {
   })
 })
 
-// ── Functions ────────────────────────────────────────────────────────
-
-// %raw blocks can't reference ReScript module bindings, so we create
-// JS function values and pass them to the ReScript-level serialize call.
 let makeNamedFn: unit => 'a = %raw(`function() { function myFunc() {} return myFunc; }`)
 let makeAnonFn: unit => 'a = %raw(`function() { return function() {}; }`)
 
@@ -132,8 +117,6 @@ describe("SmartSerialize - functions", () => {
     t->expect(result)->Expect.toBe(`"[Function: anonymous]"`)
   })
 })
-
-// ── DOM elements ─────────────────────────────────────────────────────
 
 describe("SmartSerialize - DOM elements", () => {
   test("serializes element with tag and id", t => {
@@ -169,8 +152,6 @@ describe("SmartSerialize - DOM elements", () => {
   })
 })
 
-// ── NodeList ─────────────────────────────────────────────────────────
-
 describe("SmartSerialize - NodeList", () => {
   test("serializes NodeList as array", t => {
     let nl = makeNodeList([
@@ -183,8 +164,6 @@ describe("SmartSerialize - NodeList", () => {
     t->expect(Array.length(arr))->Expect.toBe(2)
   })
 })
-
-// ── Map and Set ──────────────────────────────────────────────────────
 
 let makeMap: unit => 'a = %raw(`function() { var m = new Map(); m.set('a', 1); m.set('b', 2); return m; }`)
 let makeSet: unit => 'a = %raw(`function() { var s = new Set(); s.add('x'); s.add('y'); s.add('z'); return s; }`)
@@ -213,8 +192,6 @@ describe("SmartSerialize - Map and Set", () => {
   })
 })
 
-// ── Circular references ──────────────────────────────────────────────
-
 describe("SmartSerialize - circular references", () => {
   test("replaces circular refs with [Circular]", t => {
     let obj = makeCircular()
@@ -222,8 +199,6 @@ describe("SmartSerialize - circular references", () => {
     t->expect(String.includes(result, "[Circular]"))->Expect.toBe(true)
   })
 })
-
-// ── Depth and breadth limits ─────────────────────────────────────────
 
 describe("SmartSerialize - depth and breadth limits", () => {
   test("caps depth at 5 levels with [Object] placeholder", t => {
@@ -240,14 +215,11 @@ describe("SmartSerialize - depth and breadth limits", () => {
   })
 })
 
-// ── Output truncation ────────────────────────────────────────────────
-
 describe("SmartSerialize - output truncation", () => {
   test("truncates output exceeding maxBytes", t => {
     let obj = makeWideObject(100)
     let result = SmartSerialize.serialize(obj, 200)
     t->expect(String.includes(result, "...[truncated]"))->Expect.toBe(true)
-    // 200 bytes + the truncation marker
     t->expect(String.length(result) <= 200 + String.length("...[truncated]"))->Expect.toBe(true)
   })
 })

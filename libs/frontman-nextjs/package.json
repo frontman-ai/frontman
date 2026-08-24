@@ -1,12 +1,19 @@
 {
 	"name": "@frontman-ai/nextjs",
-	"version": "1.0.1",
+	"version": "1.0.5",
 	"description": "Next.js integration for Frontman - AI-powered development tools and observability",
 	"type": "module",
 	"main": "./dist/index.js",
+	"types": "./types/index.d.ts",
 	"exports": {
-		".": "./dist/index.js",
-		"./Instrumentation": "./dist/instrumentation.js"
+		".": {
+			"types": "./types/index.d.ts",
+			"default": "./dist/index.js"
+		},
+		"./Instrumentation": {
+			"types": "./types/instrumentation.d.ts",
+			"default": "./dist/instrumentation.js"
+		}
 	},
 	"bin": {
 		"frontman-nextjs": "dist/cli.js",
@@ -40,6 +47,7 @@
 	},
 	"files": [
 		"dist",
+		"types",
 		"README.md"
 	],
 	"scripts": {
@@ -48,9 +56,14 @@
 		"build": "yarn build:rescript && yarn build:bundle"
 	},
 	"dependencies": {
-		"@sentry/nextjs": "^10.57.0",
+		"@sentry/nextjs": "^10.66.0",
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^13.4.0"
+		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
+		"lighthouse": "^13.4.0",
+		"source-map": "^0.7.6"
+	},
+	"optionalDependencies": {
+		"@vscode/ripgrep": "^1.18.0"
 	},
 	"peerDependencies": {
 		"@opentelemetry/api": "^1.9.0",
@@ -77,15 +90,14 @@
 	"devDependencies": {
 		"@frontman-ai/frontman-core": "*",
 		"@frontman-ai/frontman-protocol": "*",
-		"@rescript/runtime": "12.3.0",
-		"@rescript/webapi": "*",
-		"dom-element-to-component-source": "0.5.0",
-		"next": "^16.2.9",
-		"react": "^19.2.7",
-		"react-dom": "^19.2.7",
+		"@rescript/runtime": "catalog:",
+		"@rescript/webapi": "catalog:",
+		"next": "^16.2.10",
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
-		"sury": "11.0.0-alpha.8",
+		"sury": "catalog:",
 		"tsup": "^8.0.0",
 		"vite": "catalog:",
 		"vitest": "catalog:"

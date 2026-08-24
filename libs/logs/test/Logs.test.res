@@ -2,11 +2,8 @@ open Vitest
 
 describe("Logs_level", _t => {
   test("shouldLog respects threshold", t => {
-    // Error (0) >= Error (0) = true
     t->expect(Logs_level.shouldLog(Logs_level.Error, Logs_level.Error))->Expect.toBeTruthy
-    // Info (2) >= Debug (3) = false
     t->expect(Logs_level.shouldLog(Logs_level.Info, Logs_level.Debug))->Expect.toBeFalsy
-    // Debug (3) >= Error (0) = true
     t->expect(Logs_level.shouldLog(Logs_level.Debug, Logs_level.Error))->Expect.toBeTruthy
   })
 
@@ -74,9 +71,7 @@ describe("Logs Make functor", _t => {
 
 describe("Logs global context", _t => {
   test("starts empty", t => {
-    // Reset context by creating fresh state
     let ctx = Logs.getGlobalContext()
-    // Global context is an object — just check it's an object
     t->expect(typeof(ctx))->Expect.toEqual(#object)
   })
 
@@ -126,7 +121,6 @@ describe("Logs console handler", _t => {
     Logs.addHandler(Logs.Console.handler)
     Logs.setLogLevel(Logs_level.Debug)
 
-    // Smoke test — just verify these don't throw
     Logs.error(~component=#Global, "test error")
     Logs.warning(~component=#Global, "test warning")
     Logs.info(~component=#Global, "test info")

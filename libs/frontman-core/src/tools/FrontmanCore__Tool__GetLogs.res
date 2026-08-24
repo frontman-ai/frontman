@@ -2,9 +2,11 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module LogCapture = FrontmanCore__LogCapture
 module CircularBuffer = FrontmanCore__CircularBuffer
 
+@@live
 let name = "get_logs"
+@@live
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
-let visibleToAgent = true
+@@live
 let description = `Retrieves dev server logs from rotating 1024-entry buffer.
 
 Captures:
@@ -43,6 +45,10 @@ type output = {
   hasMore: bool,
 }
 
+@@live
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
+
+@@live
 let execute = async (
   _ctx: Tool.serverExecutionContext,
   input: input,
@@ -71,7 +77,7 @@ let execute = async (
 
     let bufferSize = LogCapture.getInstance().buffer.contents->CircularBuffer.length
 
-    Tool.jsonResult({logs, totalMatched, bufferSize, hasMore}, outputSchema)
+    Tool.structuredResult({logs, totalMatched, bufferSize, hasMore}, outputSchema)
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")

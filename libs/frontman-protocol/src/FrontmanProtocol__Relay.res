@@ -1,21 +1,17 @@
-// Relay Protocol Types for framework tool relay communication
-
 module MCP = FrontmanProtocol__MCP
 
-// Relay protocol version for runtime version negotiation
 let protocolVersion = "1.0"
 
-// Tool definition from dev server (JSON format, matches MCP)
 @schema
 type remoteTool = {
   name: string,
   description: string,
   access: option<FrontmanProtocol__Tool.access>,
   inputSchema: JSON.t,
+  outputSchema: option<JSON.t>,
   visibleToAgent: bool,
 }
 
-// Tools list response from dev server
 @schema
 type toolsResponse = {
   tools: array<remoteTool>,
@@ -23,13 +19,11 @@ type toolsResponse = {
   protocolVersion: string,
 }
 
-// Tool call request to dev server
 @schema
 type toolCallRequest = {
   name: string,
   arguments: option<Dict.t<JSON.t>>,
 }
 
-// Result/Error events reuse MCP types
 type resultEvent = MCP.CallToolResult.t
 type errorEvent = MCP.CallToolResult.t

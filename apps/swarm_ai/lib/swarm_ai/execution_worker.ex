@@ -124,7 +124,6 @@ defmodule SwarmAi.ExecutionWorker do
         loop.dispatch_event.(event)
 
       _other ->
-        # Draining unrelated messages
         watcher_loop(monitor_ref, worker_pid, loop)
     end
   end

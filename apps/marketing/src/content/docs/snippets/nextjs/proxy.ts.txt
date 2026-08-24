@@ -12,6 +12,5 @@ export async function proxy(req: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  runtime: 'nodejs',
   matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/'],
 };

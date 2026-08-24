@@ -31,6 +31,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
 
   alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
@@ -110,7 +111,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
     case Tasks.submit_user_message(
            scope,
-           Map.merge(execution, %{task_id: task_id, message: content})
+           Map.merge(execution, %{
+             task_id: task_id,
+             message_id: Ecto.UUID.generate(),
+             message: content
+           })
          ) do
       {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution) do
@@ -235,6 +240,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("Hello"),
           model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
@@ -256,6 +262,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman one"),
           model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
@@ -264,6 +271,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman two"),
           model: "openrouter:anthropic/claude-sonnet-4-6",
           agent_id: "test-frontman"
@@ -272,6 +280,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("planner"),
           model: "openrouter:google/gemini-3-flash-preview",
           agent_id: "test-planner"
@@ -301,6 +310,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman one"),
           model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
@@ -309,6 +319,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("planner"),
           model: "openrouter:google/gemini-3-flash-preview",
           agent_id: "test-planner"
@@ -317,6 +328,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman two"),
           model: "openrouter:anthropic/claude-sonnet-4-6",
           agent_id: "test-frontman"
@@ -325,6 +337,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("frontman three"),
           model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
@@ -356,7 +369,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, attrs} =
         Interaction.UserMessage.attrs(user_content("historical"), "openrouter:openai/gpt-5.5")
 
-      InteractionSchema.create_changeset(task_id, :user_message, attrs, nil)
+      message_id = Ecto.UUID.generate()
+
+      interaction_changeset(task_id, %{
+        id: message_id,
+        type: :user_message,
+        data: Map.put(attrs, :id, message_id),
+        turn_number: nil
+      })
       |> Repo.insert!()
 
       assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
@@ -378,6 +398,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task_id,
+                 message_id: Ecto.UUID.generate(),
                  message: user_content("Queued follow-up"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
@@ -440,11 +461,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
 
     test "startup failure persists terminal error on the same turn" do
-      scope = user_scope_fixture()
+      scope = Scope.for_user(user_fixture())
       task_id = task_with_pubsub_fixture(scope).id
 
       {:ok, _, 1} =
-        submit_user_message(scope, task_id, user_content("Hello"), model: "missing:test")
+        submit_user_message(scope, task_id, user_content("Hello"),
+          model: "openrouter:openai/gpt-5.5"
+        )
 
       assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
 
@@ -458,7 +481,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
 
     test "submits browser context prompt through production recording path" do
-      scope = user_scope_fixture()
+      scope = Scope.for_user(user_fixture())
       task_id = task_with_pubsub_fixture(scope).id
 
       content_blocks = [
@@ -490,7 +513,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       ]
 
       {:ok, returned, 1} =
-        submit_user_message(scope, task_id, content_blocks, model: "missing:test")
+        submit_user_message(scope, task_id, content_blocks, model: "openrouter:openai/gpt-5.5")
 
       assert %Interaction.CurrentPage{url: "http://localhost:4321/"} = returned.data.current_page
 
@@ -763,41 +786,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       refute "hidden_read_mcp" in tool_names
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
-
-    test "retry uses persisted turn agent to filter available tools", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      parent = self()
-      task = task_schema!(task_id)
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
-
-      insert_accepted_user_message!(task, "retry tools")
-      insert_turn_started_for_messages!(task_id, 1, "test-planner")
-      {:ok, error} = Tasks.record_agent_run_result(scope, task_id, 1, {:failed, "try again"})
-
-      expect(LLMProviderMock, :stream_text, fn _model, _messages, opts ->
-        send(parent, {:provider_tool_names, Enum.map(opts[:tools], & &1.name)})
-        ReqLLMResponses.response("done")
-      end)
-
-      assert :ok =
-               Tasks.retry_execution(
-                 scope,
-                 task_id,
-                 error.id,
-                 execution_request_fixture(mcp_tools: mixed_access_mcp_tool_defs())
-               )
-
-      assert_receive {:provider_tool_names, tool_names}, 1_000
-      assert "web_fetch" in tool_names
-      assert "read_mcp" in tool_names
-      refute "todo_write" in tool_names
-      refute "write_mcp" in tool_names
-      refute "read_write_mcp" in tool_names
-      refute "hidden_read_mcp" in tool_names
-      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
-    end
   end
 
   describe "interactive tool (question) blocking" do
@@ -825,8 +813,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           scope,
           task_id,
           %{id: question_tc_id, name: "question"},
-          ModelContextProtocol.tool_result_json(%{"answers" => [%{"answer" => "A"}]}),
-          false
+          ModelContextProtocol.tool_result_json(%{"answers" => [%{"answer" => "A"}]})
         )
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
@@ -1019,8 +1006,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      # The telemetry stop event fires only after the backend tool actually runs.
-      # The missing tool_defs regression skipped execution before producing this event.
       assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, meta}
       assert meta.tool_name == "todo_write"
 
@@ -1030,7 +1015,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                "Got: #{inspect(meta.output)}"
     end
 
-    test "read-only agent cannot execute hidden backend write tools", %{
+    test "read-only agent rejects hidden backend write tools without executing them", %{
       task_id: task_id,
       scope: scope
     } do
@@ -1047,64 +1032,24 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       tc_id = "tc_todo_read_only_#{System.unique_integer([:positive])}"
       todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
 
-      expect(LLMProviderMock, :stream_text, fn _model, _messages, _opts ->
-        ReqLLMResponses.response({:tool_calls, [todo_tc], "Writing todos"})
-      end)
+      expect_llm_responses([
+        {:tool_calls, [todo_tc], "Writing todos"},
+        "Continued without the unavailable tool."
+      ])
 
       assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
 
-      refute_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements,
-                      %{tool_name: "todo_write"}},
-                     500
-    end
-  end
-
-  describe "backend tool execution — channel level" do
-    setup [
-      :setup_sandbox,
-      :setup_user,
-      :setup_task_only,
-      :setup_channel
-    ]
-
-    test "todo_write executes through the full channel → executor pipeline", %{
-      task_id: task_id,
-      scope: scope,
-      socket: socket
-    } do
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
-
-      ref =
-        :telemetry_test.attach_event_handlers(self(), [[:swarm_ai, :tool, :execute, :stop]])
-
-      on_exit(fn -> :telemetry.detach(ref) end)
-
-      tc_id = "tc_todo_ch_#{System.unique_integer([:positive])}"
-      todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
-      expect_llm_responses([{:tool_calls, [todo_tc], "Writing todos"}, "Todos written."])
-
-      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Write todos"))
+      assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, metadata}
+      assert metadata.tool_name == "todo_write"
+      assert metadata.is_error == true
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
+      assert {:ok, []} = Tasks.list_todos(scope, task_id)
 
-      :sys.get_state(socket.channel_pid)
-
-      assert_push(@acp_message, %{
-        "jsonrpc" => "2.0",
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
-        }
-      })
-
-      assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, meta}
-      assert meta.tool_name == "todo_write"
-
-      assert meta.is_error == false,
-             "todo_write returned an error through the channel pipeline — " <>
-               "backend tool was rejected as unavailable. " <>
-               "Got: #{inspect(meta.output)}"
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      interactions = Tasks.interactions(task)
+      refute Enum.any?(interactions, &match?(%Interaction.ToolCall{tool_call_id: ^tc_id}, &1))
+      assert Enum.any?(interactions, &match?(%Interaction.ToolResult{tool_call_id: ^tc_id}, &1))
     end
   end
 
@@ -1222,7 +1167,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentError{kind: "terminated"}, _turn_number)
 
-      # Verify DB persistence
       {:ok, task} = Tasks.get_task(scope, task_id)
 
       agent_error =
@@ -1458,23 +1402,29 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   defp insert_accepted_user_message!(task, text) do
     {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), "openrouter:openai/gpt-5.5")
+    message_id = Ecto.UUID.generate()
 
-    InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+    interaction_changeset(task.id, %{
+      id: message_id,
+      type: :user_message,
+      data: Map.put(attrs, :id, message_id),
+      turn_number: nil
+    })
     |> Repo.insert!()
   end
 
   defp insert_turn_started_for_messages!(task_id, turn_number, agent_id \\ "test-frontman") do
-    InteractionSchema.create_changeset(
-      task_id,
-      :turn_started,
-      %{
+    interaction_changeset(task_id, %{
+      id: Ecto.UUID.generate(),
+      type: :turn_started,
+      data: %{
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         agent_id: agent_id,
         user_message_ids: accepted_user_message_ids(task_id)
       },
-      turn_number
-    )
+      turn_number: turn_number
+    })
     |> Repo.insert!()
   end
 

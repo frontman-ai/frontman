@@ -63,10 +63,6 @@ defmodule FrontmanServer.InteractionCase do
       UserMessage
     }
 
-    # -------------------------------------------------------------------
-    # Content block builders (raw maps matching ACP wire format)
-    # -------------------------------------------------------------------
-
     @doc "Build a text content block map."
     def text_block(text), do: %{"type" => "text", "text" => text}
 
@@ -76,6 +72,7 @@ defmodule FrontmanServer.InteractionCase do
     Accepted keys in `extra`:
       * `:index`          — annotation_index (defaults to 0)
       * `:component_name` — React/component name
+      * `:element_context` — bounded parent/selected/children DOM context
       * `:css_classes`    — CSS class string
       * `:nearby_text`    — visible text near the element
       * `:comment`        — user comment
@@ -100,6 +97,7 @@ defmodule FrontmanServer.InteractionCase do
         (extra[:metadata] || %{})
         |> Map.merge(base_meta)
         |> maybe_put("component_name", extra[:component_name])
+        |> maybe_put("element_context", extra[:element_context])
         |> maybe_put("component_props", extra[:component_props])
         |> maybe_put("css_classes", extra[:css_classes])
         |> maybe_put("nearby_text", extra[:nearby_text])
@@ -150,10 +148,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    # -------------------------------------------------------------------
-    # DB wire-format tool call maps
-    # -------------------------------------------------------------------
-
     @doc "Build a tool_call map in DB wire format (string keys, OpenAI shape)."
     def db_tool_call(id, name, args \\ "{}") do
       %{
@@ -167,10 +161,6 @@ defmodule FrontmanServer.InteractionCase do
     def flat_tool_call(id, name, args) do
       %{"id" => id, "name" => name, "arguments" => args}
     end
-
-    # -------------------------------------------------------------------
-    # Interaction struct builders
-    # -------------------------------------------------------------------
 
     @doc "Build a `%UserMessage{}` struct."
     def user_msg(messages, annotations \\ []) do
@@ -251,10 +241,6 @@ defmodule FrontmanServer.InteractionCase do
       }
     end
 
-    # -------------------------------------------------------------------
-    # SwarmAi struct builders
-    # -------------------------------------------------------------------
-
     @doc "Build a `%SwarmAi.ToolCall{}` struct with an auto-generated id."
     def swarm_tool_call(name, args \\ "{}") do
       %SwarmAi.ToolCall{
@@ -285,10 +271,6 @@ defmodule FrontmanServer.InteractionCase do
         turn_number: turn_number
       })
     end
-
-    # -------------------------------------------------------------------
-    # Assertion / extraction helpers
-    # -------------------------------------------------------------------
 
     defmacro assert_receive_interaction(data_pattern, turn_pattern, timeout \\ 5_000) do
       quote do
@@ -321,10 +303,6 @@ defmodule FrontmanServer.InteractionCase do
         _ -> ""
       end)
     end
-
-    # -------------------------------------------------------------------
-    # Internal helpers
-    # -------------------------------------------------------------------
 
     defp maybe_put(map, _key, nil), do: map
     defp maybe_put(map, key, val), do: Map.put(map, key, val)

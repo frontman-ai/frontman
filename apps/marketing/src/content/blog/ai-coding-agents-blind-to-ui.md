@@ -1,146 +1,134 @@
 ---
 title: 'Why AI Coding Agents Need UI Context'
 pubDate: 2026-02-18T05:00:00Z
-description: "Designers and PMs know exactly what needs to change in the UI. They just can\u2019t change it without engineering. Framework-aware AI fixes that."
-author: 'Danni Friedland'
+description: 'A practical checklist for testing whether an AI coding tool has enough browser, layout, state, and source context for reliable UI work.'
 image: '/blog/ai-coding-agents-blind-to-ui-cover.png'
 tags: ['design-systems', 'design-ops', 'cross-functional']
-updatedDate: 2026-03-20T00:00:00Z
+updatedDate: 2026-07-30T00:00:00Z
 faq:
-  - question: "Can designers make code changes without knowing how to code?"
+  - question: 'Can designers make code changes without knowing how to code?'
     answer: >-
-      Yes. Frontman connects to your running application and lets you click any
-      element in the browser to select it. You describe the change you want in
-      plain language — "make this spacing tighter," "swap this to our secondary
-      color" — and Frontman traces the element back to the source code, makes
-      the edit, and verifies it via hot-reload. No file names, no code syntax,
-      no terminal commands.
-  - question: "Will this break our design system?"
+      Some browser-first tools let a user select rendered elements and request
+      changes without navigating source files. That lowers the entry barrier,
+      but it does not remove the need for code review, automated checks, or an
+      engineer when a change affects behavior, data flow, or architecture.
+  - question: 'Will a UI-aware agent preserve our design system?'
     answer: >-
-      Frontman is aware of your component tree and design tokens. It edits the
-      actual component source, not a one-off override, so changes stay within
-      your system's structure. Every change produces a standard code diff that
-      goes through your team's normal review process before merging.
-  - question: "How is this different from Figma-to-code tools?"
+      Runtime context alone does not guarantee design-system compliance. Check
+      whether the tool can identify shared components and tokens, show the exact
+      diff, and let reviewers assess the change's blast radius before merging.
+  - question: 'How is this different from Figma-to-code tools?'
     answer: >-
-      Figma-to-code tools generate new code from designs. Frontman edits your
-      existing codebase — the real components your users see in production. It
-      works with whatever you already have: your framework, your design tokens,
-      your component library. Nothing is regenerated or overwritten.
-  - question: "Does engineering still review the changes?"
+      Figma-to-code workflows generally translate a design artifact into code.
+      UI-aware coding tools operate against an already-running application and
+      modify its existing source. Teams may use both for different stages of work.
+  - question: 'Do coding agents have browser access now?'
     answer: >-
-      Absolutely. Every change Frontman makes is a normal code diff — a pull
-      request that your engineering team reviews, approves, and merges through
-      your existing workflow. Designers and PMs get to initiate changes;
-      engineering keeps full control of what ships.
+      Many do. Cursor documents browser tools, Claude Code integrates with Chrome,
+      and Chrome DevTools MCP can expose a live browser to compatible agents.
+      The useful question is not whether a browser can open, but which runtime
+      evidence the agent receives and whether it maps that evidence to source.
+author: 'Danni Friedland'
+articleSection: 'Problem Diagnosis'
+imageAlt: 'AI coding agent connecting live UI context to frontend source code'
 ---
 
-You spot a spacing issue on the pricing page. The cards feel too cramped — the padding inside each feature block needs to breathe. You know exactly what's wrong. You've known for two weeks.
+“Can this coding agent see the UI?” is now the wrong test.
 
-You open a Jira ticket. You annotate a screenshot in Figma. You tag the frontend team. The ticket lands in the next sprint planning. A developer picks it up eight days later, asks a clarifying question in the ticket comments, you answer, they ship it the following Wednesday. Fifteen days for a change you could point to with your finger.
+Several general-purpose agents can open or control a browser. [Claude Code's Chrome integration](https://code.claude.com/docs/en/chrome) documents DOM inspection, console and network evidence, screenshots, and interaction. [Cursor documents browser tools](https://cursor.com/docs/agent/tools/browser), and [Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) can give compatible agents browser automation and debugging tools.
 
-This is not a process problem. This is an access problem.
+Browser access is useful, but it is not one capability. Reliable UI work depends on a chain of context: reproducing the right state, identifying the intended element, reading resolved layout, connecting that element to maintainable source, and checking the result. Use this checklist to evaluate that chain.
 
-> **TL;DR:** Designers and PMs can see what's wrong in the UI but can't fix it without filing a ticket and waiting for engineering. Frontman bridges that gap — you click any element in your running application, describe the change in plain language, and the AI traces it back to the source code, edits it, and verifies the result via hot-reload. The change goes through code review like any other PR. Your design system stays intact. Engineering keeps control. Shipping gets faster.
+## 1. Can It Reproduce the Relevant State?
 
-## The Bottleneck No One Talks About
+A page URL is rarely a complete bug report. UI output can depend on viewport size, authentication, feature flags, loaded data, interaction state, theme, and scroll position.
 
-Your team has a mature design system. Tokens for spacing, color, and typography. A component library your engineers built and maintain. Figma files that mirror what's in production. The system works.
+Test the tool with a state-specific request:
 
-What doesn't work is the last mile. The gap between "I can see this needs to change" and "this change is live." That gap is not a design problem or an engineering problem — it's a handoff problem. And it costs your team weeks of calendar time on changes that take minutes to describe.
+- Open the mobile navigation at a named viewport.
+- Reach an authenticated empty state without replacing it with mock markup.
+- Trigger a validation error or hover/focus state.
+- Report which state it inspected before editing code.
 
-Every visual change — a spacing tweak, a color adjustment, a copy update, a component variant swap — follows the same path: designer or PM notices it, files a ticket, engineer context-switches into it days later, asks clarifying questions because the ticket lost nuance, ships it, designer reviews, requests a small adjustment, engineer context-switches again.
+Passing means the agent can demonstrate that it reached the same state you meant. A screenshot of the default route is not evidence that it reproduced the issue.
 
-Multiply that by every team touching the product. Multiply it by every sprint. That is your design velocity.
+## 2. Can It Identify the Intended Element?
 
-## Why AI Coding Agents Don't Solve This
+Visual selection and DOM selection solve different problems. Coordinates identify a region of pixels. A DOM node adds attributes, text, ancestry, and accessibility structure. Framework provenance can add the component and source location that produced that node.
 
-You might think AI coding agents like Cursor, Claude Code, or Copilot could help. They can't — at least not for this.
+Ask the tool to show its evidence before editing:
 
-These agents operate on source files and terminal output. They read code, but they never open a browser — [the runtime context gap](/blog/runtime-context-gap/) in action. They never see the rendered page. The information they need for visual changes — which element is which on screen, what the computed spacing actually is, how components map back to source files — exists only in the running browser.
+- Which DOM node is selected?
+- Which component owns it?
+- Which source file and location are candidates?
+- Is the source component shared elsewhere?
 
-For an engineer who already knows the codebase, this means some guesswork and a few rounds of correction. Annoying but workable.
+Do not assume browser automation includes component-to-source mapping. For example, [React Developer Tools](https://react.dev/learn/react-developer-tools) exposes a component inspector because framework component data is a distinct layer from ordinary browser DOM access.
 
-For a designer or PM, it's a wall. You would need to know the file name, the component structure, the class naming convention, and the build system — just to describe to the agent what you're looking at. That is exactly the knowledge gap the ticket was supposed to bridge.
+## 3. Can It Read Resolved Styles and Geometry?
 
-## What Framework-Aware AI Changes
+Source code records inputs to layout, not always the rendered result. CSS cascade, inheritance, custom properties, fonts, breakpoints, container queries, and parent geometry contribute to what appears on screen.
 
-Frontman takes a different approach - what we call [browser-aware AI](/blog/what-are-browser-aware-ai-coding-tools/). It is one example of a [frontend agent](/blog/frontend-agent/) built around rendered UI context instead of source files alone. Instead of reading files and guessing what the UI looks like, it hooks into your framework - Next.js, Astro, Vite - and connects to the running browser. It has access to:
+A useful evaluation asks the agent to distinguish:
 
-- **The live UI** — the actual rendered page, not a code approximation
-- **Your component tree** — which component renders which element, mapped back to source files
-- **Computed styles** — real resolved values, not token names or class strings
-- **Hot-reload** — instant visual verification that the change looks right
+- authored declaration from computed value;
+- element width from available parent width;
+- margin or `gap` from apparent visual spacing;
+- a local style from a shared token or component variant;
+- current viewport behavior from behavior at other breakpoints.
 
-You click an element. You say what you want. Frontman traces that element through the component tree to its source, makes the edit, and confirms the result rendered correctly.
+Require concrete evidence, such as computed values or bounding rectangles, rather than “this class probably causes it.” Browser APIs can provide that evidence; whether a tool collects and uses it is an implementation choice.
 
-**You don't need to know the file name. You don't need to know the code. You point and describe.**
+## 4. Can It Trace Runtime Evidence Back to Maintainable Source?
 
-## What This Looks Like in Practice
+Finding a matching string is not the same as finding the correct edit point. A rendered value might come from a utility class, CSS variable, component prop, theme token, generated stylesheet, or parent layout.
 
-Here is the current flow for a spacing change in your design system:
+Use a deliberately ambiguous test. Select one instance of a reused card or button, then ask:
 
-```text
-Designer: *notices card padding is too tight on pricing page*
-Designer: *opens Jira, writes ticket, annotates Figma screenshot*
-Engineer: *picks up ticket 8 days later*
-Engineer: "Did you mean the inner padding or the card wrapper?"
-Designer: *replies next day with clarification*
-Engineer: *ships the change*
-Designer: *reviews* "Close, but can we also bump the gap between cards?"
-Engineer: *context-switches back, ships a follow-up*
-Total: ~15 days
-```
+- Is this change local or global?
+- Which source definition controls it?
+- What other instances could change?
+- Why is the proposed edit preferable to an inline override?
 
-Here is the same change with Frontman:
+Strong tools expose uncertainty when more than one source path is plausible. A confident but unsupported file choice should fail the evaluation.
 
-```text
-Designer: *clicks the card content area in the browser*
-Designer: "Make the padding inside these cards more spacious"
-Frontman: *reads current spacing from the live element*
-          *traces it to PricingCard component source*
-          *edits the component, hot-reload fires*
-Designer: *sees the change instantly* "That's it."
-Designer: *opens PR for engineering review*
-Total: ~5 minutes + review time
-```
+## 5. Does Verification Match the Acceptance Criterion?
 
-Same outcome. Same code review process. Same design system integrity. Fifteen fewer days on the calendar.
+Hot reload is feedback, not proof. [Vite's HMR documentation](https://vite.dev/guide/api-hmr) shows that updates may be accepted, invalidated, or escalated to a full reload. The tool still needs to inspect the resulting state.
 
-## Your Design System Stays Safe
+For a visual change, ask it to verify:
 
-This is usually the first concern: "If non-engineers can edit code, won't they break our component library?"
+- the target state still reproduces;
+- the intended computed value or geometry changed;
+- nearby breakpoints and shared instances did not regress;
+- console errors, tests, and type checks remain clean where applicable;
+- the final diff matches the requested scope.
 
-Three things protect your system:
+Visual inspection and automated checks complement each other. Neither substitutes for the other.
 
-**Frontman edits components, not overrides.** It traces clicked elements back through the component tree to the actual source component. It edits the real thing — not a one-off style override that breaks the next time someone updates the system.
+## 6. Are Permissions and Review Boundaries Clear?
 
-**Every change is a standard code diff.** Frontman produces a pull request. Your engineering team reviews it, comments, requests changes, or approves it — exactly like any other PR. No code ships without engineering sign-off.
+Browser-connected agents may see authenticated pages, form contents, network data, and console output. Chrome DevTools MCP explicitly warns that connected clients can inspect and modify browser data; Anthropic documents site permissions and approval behavior for Claude in Chrome.
 
-**The AI sees your component boundaries.** Frontman understands which element belongs to which component. It won't edit a shared Button component when you meant to change the spacing in the specific card layout that contains it. It respects the architecture your engineers built.
+Before adoption, establish:
 
-## Common Concerns
+- which origins and browser profiles the tool may access;
+- whether credentials or production data enter model context;
+- which files and commands it may modify or run;
+- whether every edit produces a reviewable diff;
+- who approves changes to shared components and tokens.
 
-**"Our codebase is too complex for non-engineers to touch."**
-That's the point — they don't touch the codebase. They interact with the running UI. Frontman handles the translation from "this element on screen" to "this line in this file." The complexity stays where it belongs: in the tools, not in the workflow.
+## A Simple Evaluation Scorecard
 
-**"Figma is our source of truth. Changes should flow from design to code."**
-Frontman doesn't replace Figma. For net-new design work — new pages, new components, major redesigns — Figma stays the starting point. Frontman handles the long tail: the spacing tweaks, token adjustments, responsive fixes, and copy changes that pile up in your backlog because they're too small to justify a full design-to-handoff cycle but too important to ignore.
+| Dimension          | Fail                           | Partial                      | Strong                                            |
+| ------------------ | ------------------------------ | ---------------------------- | ------------------------------------------------- |
+| State reproduction | Opens a URL                    | Reaches state with prompting | Records and rechecks exact state                  |
+| Target identity    | Screenshot or coordinates only | DOM node identified          | DOM, component, and source provenance             |
+| Style evidence     | Infers from source             | Reads some browser values    | Connects computed values and geometry to source   |
+| Edit scope         | Makes plausible edit           | Shows diff                   | Explains local/shared blast radius                |
+| Verification       | Reports completion             | Refreshes or screenshots     | Rechecks state, runtime evidence, and code checks |
+| Governance         | Broad implicit access          | Some prompts                 | Explicit permissions and review gates             |
 
-**"What about changes that need to propagate across the system?"**
-When Frontman edits a shared component, the change propagates everywhere that component is used — same as when an engineer edits it. Your team can review the blast radius in the PR diff before merging. For design token changes, the same principle applies: the AI edits the token definition, and the system handles propagation.
+Score tools against your actual work, not a canned demo. A terminal agent with browser tooling may be ideal for an engineer debugging a network failure. A browser-first [frontend agent](/blog/frontend-agent/) may fit a designer selecting rendered elements. The distinction is workflow and evidence quality, not whether one product has a browser icon.
 
-**"We tried low-code/no-code tools before. They generated unmaintainable code."**
-Frontman does not generate code. It edits your existing code — the same files, the same components, the same conventions your engineers already maintain. The output is a clean diff that follows your codebase's patterns because it's modifying code that already follows them.
-
-## The Bigger Picture
-
-This is not about saving time on one padding change. It is about who gets to participate in shipping product.
-
-Today, your [design system is a shared language](/blog/team-collaboration/) — but only engineers can write in it. Designers and PMs can describe changes. They can annotate screenshots. They can file tickets. But the act of making a change requires engineering time, and engineering time is the scarcest resource at every growing company.
-
-When anyone who can see a problem can also fix it — with full code review, within your existing system, respecting your component architecture — the bottleneck shifts. Engineering reviews diffs instead of translating tickets. Designers iterate at the speed of their own judgment. PMs ship copy and layout tweaks the same day they notice them.
-
-The wall between "people who can describe a change" and "people who can make a change" disappears. Not because you lowered the bar — because you gave everyone the same tool your codebase already understands.
-
-[Try Frontman](https://frontman.sh) — works with your existing project and design system. Read about [how Frontman keeps your code safe](/blog/security/) or see [how it compares to Cursor and Claude Code](/blog/frontman-vs-cursor-vs-claude-code/).
+For the architecture behind these layers, read [the runtime context gap](/blog/runtime-context-gap/). For a workflow comparison, see [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). Frontman's approach starts with direct element selection and framework context; [try Frontman](https://frontman.sh) or review [how Frontman keeps code safe](/blog/security/).

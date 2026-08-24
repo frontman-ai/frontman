@@ -1,13 +1,6 @@
-// Comprehensive tests for the EditFile Matcher module
-// Tests all 9 strategies individually + the applyEdit orchestrator
-
 open Vitest
 
 module Matcher = FrontmanCore__Tool__EditFile__Matcher
-
-// ============================================
-// Levenshtein Distance
-// ============================================
 
 describe("levenshtein", _t => {
   test("identical strings have distance 0", t => {
@@ -40,10 +33,6 @@ describe("levenshtein", _t => {
   })
 })
 
-// ============================================
-// Strategy 1: Exact Match
-// ============================================
-
 describe("exactMatch", _t => {
   test("finds exact substring", t => {
     let result = Matcher.exactMatch("hello world", "world")
@@ -63,17 +52,12 @@ describe("exactMatch", _t => {
   })
 })
 
-// ============================================
-// Strategy 2: Line-Trimmed Match
-// ============================================
-
 describe("lineTrimMatch", _t => {
   test("matches when indentation differs", t => {
     let content = "  function hello() {\n    return 42;\n  }"
     let find = "function hello() {\n  return 42;\n}"
     let result = Matcher.lineTrimMatch(content, find)
     t->expect(result->Array.length)->Expect.toBe(1)
-    // Should return the original indented content
     t->expect(result[0]->Option.getOrThrow)->Expect.toBe(content)
   })
 
@@ -99,10 +83,6 @@ describe("lineTrimMatch", _t => {
     t->expect(result[0]->Option.getOrThrow)->Expect.toBe("  target_line;\n  next_line;")
   })
 })
-
-// ============================================
-// Strategy 3: Block Anchor Match
-// ============================================
 
 describe("anchoredBlockMatch", _t => {
   test("matches with first/last line anchors and similar middle", t => {
@@ -131,14 +111,9 @@ describe("anchoredBlockMatch", _t => {
     let find = "start:\n  beta;\nend:"
     let result = Matcher.anchoredBlockMatch(content, find)
     t->expect(result->Array.length)->Expect.toBe(1)
-    // Should pick the block with "beta" since it matches better
     t->expect(result[0]->Option.getOrThrow->String.includes("beta"))->Expect.toBe(true)
   })
 })
-
-// ============================================
-// Strategy 4: Whitespace Normalized Match
-// ============================================
 
 describe("normalizedWhitespaceMatch", _t => {
   test("matches with different whitespace", t => {
@@ -163,17 +138,12 @@ describe("normalizedWhitespaceMatch", _t => {
   })
 })
 
-// ============================================
-// Strategy 5: Flexible Indentation Match
-// ============================================
-
 describe("flexibleIndentMatch", _t => {
   test("matches when base indentation differs", t => {
     let content = "    function hello() {\n      return 42;\n    }"
     let find = "function hello() {\n  return 42;\n}"
     let result = Matcher.flexibleIndentMatch(content, find)
     t->expect(result->Array.length)->Expect.toBe(1)
-    // Returns the original (indented) content
     t->expect(result[0]->Option.getOrThrow)->Expect.toBe(content)
   })
 
@@ -191,10 +161,6 @@ describe("flexibleIndentMatch", _t => {
     t->expect(result->Array.length)->Expect.toBe(1)
   })
 })
-
-// ============================================
-// Strategy 6: Escape Normalized Match
-// ============================================
 
 describe("escapeNormalizedMatch", _t => {
   test("matches escaped newlines against literal", t => {
@@ -226,10 +192,6 @@ describe("escapeNormalizedMatch", _t => {
   })
 })
 
-// ============================================
-// Strategy 7: Trimmed Boundary Match
-// ============================================
-
 describe("trimmedBoundaryMatch", _t => {
   test("matches when search has leading/trailing whitespace", t => {
     let content = "hello world"
@@ -260,16 +222,11 @@ describe("trimmedBoundaryMatch", _t => {
   })
 })
 
-// ============================================
-// Strategy 8: Context Anchor Match
-// ============================================
-
 describe("contextAnchorMatch", _t => {
   test("matches with 50% middle line agreement", t => {
     let content = "function foo() {\n  const a = 1;\n  const b = 2;\n  const c = 3;\n  return a;\n}"
     let find = "function foo() {\n  const a = 1;\n  const b = 99;\n  const c = 3;\n  return a;\n}"
     let result = Matcher.contextAnchorMatch(content, find)
-    // 3 middle lines, 2 match exactly (a=1, c=3), 1 differs (b) => 67% >= 50%
     t->expect(result->Array.length)->Expect.toBe(1)
   })
 
@@ -277,7 +234,6 @@ describe("contextAnchorMatch", _t => {
     let content = "start\n  line1\n  line2\n  line3\n  line4\nend"
     let find = "start\n  changed1\n  changed2\n  changed3\n  line4\nend"
     let result = Matcher.contextAnchorMatch(content, find)
-    // 4 middle lines, only 1 matches (line4) => 25% < 50%
     t->expect(result)->Expect.toEqual([])
   })
 
@@ -288,10 +244,6 @@ describe("contextAnchorMatch", _t => {
     t->expect(result)->Expect.toEqual([])
   })
 })
-
-// ============================================
-// Strategy 9: Multi-Occurrence Match
-// ============================================
 
 describe("multiOccurrenceMatch", _t => {
   test("finds all occurrences", t => {
@@ -315,10 +267,6 @@ describe("multiOccurrenceMatch", _t => {
     t->expect(result->Array.length)->Expect.toBe(1)
   })
 })
-
-// ============================================
-// Orchestrator: applyEdit
-// ============================================
 
 describe("applyEdit", _t => {
   test("exact match replacement", t => {
@@ -356,7 +304,6 @@ describe("applyEdit", _t => {
     switch result {
     | Applied(newContent) =>
       t->expect(newContent->String.includes("99"))->Expect.toBe(true)
-      // Should preserve original indentation
       t->expect(newContent->String.includes("  function"))->Expect.toBe(false)
     | _ => failwith("Expected Applied result")
     }
@@ -397,7 +344,6 @@ describe("applyEdit", _t => {
     }
   })
 
-  // Real-world LLM scenarios
   test("LLM adds extra indentation to React component", t => {
     let content = `export default function App() {
   return (
@@ -476,7 +422,6 @@ describe("applyEdit", _t => {
     )
     switch result {
     | Applied(newContent) =>
-      // $$ must remain as $$ — not be collapsed to $ by JS replacement patterns
       t->expect(newContent)->Expect.toBe("const x = $$restProps; const y = $$restProps;")
     | _ => failwith("Expected Applied result")
     }

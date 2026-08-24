@@ -1,6 +1,3 @@
-// ACP Client - handles Agent Client Protocol communication
-// Uses pure state reducer pattern
-
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
@@ -14,8 +11,6 @@ type acpState =
   | Connecting
   | Initialized(Types.initializeResult)
 
-type agentAttributionVersion = V1
-
 type pendingRequest = {
   resolve: JSON.t => unit,
   reject: string => unit,
@@ -24,7 +19,7 @@ type pendingRequest = {
 type state = {
   currentId: int,
   acpState: acpState,
-  agentAttributionVersion: option<agentAttributionVersion>,
+  agentAttributionConfiguration: option<Types.agentAttributionConfigurationMetadata>,
   pendingRequests: Dict.t<pendingRequest>,
 }
 
@@ -43,30 +38,42 @@ type action =
 let initialState: state = {
   currentId: 0,
   acpState: Disconnected,
-  agentAttributionVersion: None,
+  agentAttributionConfiguration: None,
   pendingRequests: Dict.make(),
 }
 
-let negotiateAgentAttributionVersion = (result: Types.initializeResult) => {
+let parseAgentAttributionConfiguration = (result: Types.initializeResult) => {
   switch result.agentCapabilities->Option.flatMap(capabilities => capabilities._meta) {
-  | None => None
+  | None => Ok(None)
   | Some(metadata) =>
     switch metadata->Decoders.parseSchema(Types.capabilityMetadataSchema) {
-    | Error(_) => None
+    | Error(error) => Error(error)
     | Ok(metadata) =>
       let advertisedVersion =
         metadata.frontmanDev
         ->Option.flatMap(frontman => frontman.agentAttribution)
         ->Option.map(attribution => attribution.version)
-      switch (result.protocolVersion, advertisedVersion) {
-      | (1, Some(1)) => Some(V1)
-      | _ => None
+      switch advertisedVersion {
+      | Some(1) => {
+          let configuration =
+            result.agentCapabilities
+            ->Option.flatMap(capabilities => capabilities._meta)
+            ->Option.flatMap(JSON.Decode.object)
+            ->Option.flatMap(metadata => metadata->Dict.get("frontman.dev"))
+          switch configuration {
+          | None => Error("Initialize response missing frontman.dev configuration")
+          | Some(configuration) =>
+            configuration
+            ->Decoders.parseSchema(Types.agentAttributionConfigurationMetadataSchema)
+            ->Result.map(configuration => Some(configuration))
+          }
+        }
+      | _ => Ok(None)
       }
     }
   }
 }
 
-// Pure reducer function
 let reduce = (state: state, action: action): state => {
   switch action {
   | RequestSent(id, pending) =>
@@ -84,13 +91,14 @@ let reduce = (state: state, action: action): state => {
   | ACPStateChanged(Initialized(result) as acpState) => {
       ...state,
       acpState,
-      agentAttributionVersion: negotiateAgentAttributionVersion(result),
+      agentAttributionConfiguration: result
+      ->parseAgentAttributionConfiguration
+      ->Result.getOrThrow,
     }
-  | ACPStateChanged(acpState) => {...state, acpState, agentAttributionVersion: None}
+  | ACPStateChanged(acpState) => {...state, acpState, agentAttributionConfiguration: None}
   }
 }
 
-// Handle incoming JSON-RPC response - returns new state
 let handleResponse = (state: state, payload: JSON.t): state => {
   try {
     let response = payload->JsonRpc.Response.fromJsonExn
@@ -120,7 +128,6 @@ let handleResponse = (state: state, payload: JSON.t): state => {
   }
 }
 
-// Build initialize params JSON
 let advertiseAgentAttribution = metadata => {
   let merged =
     metadata->Option.mapOr(Dict.make(), metadata =>
@@ -159,22 +166,20 @@ let ensureSupportedProtocolVersion = ({protocolVersion} as result: Types.initial
   }
 }
 
-// Parse initialize result and enforce ACP base-version agreement before extension negotiation.
 let parseInitializeResult = json =>
   json
   ->Decoders.parseSchema(Types.initializeResultSchema)
   ->Result.flatMap(ensureSupportedProtocolVersion)
+  ->Result.flatMap(result =>
+    result->parseAgentAttributionConfiguration->Result.map(_configuration => result)
+  )
 
-// Parse session/new result
 let parseSessionNewResult = json => json->Decoders.parseSchema(Types.sessionNewResultSchema)
 
-// Parse session/load result
 let parseSessionLoadResult = json => json->Decoders.parseSchema(Types.sessionLoadResultSchema)
 
-// Parse session/prompt result
 let parsePromptResult = json => json->Decoders.parseSchema(Types.promptResultSchema)
 
-// Parse session/update notification under the negotiated extension contract.
 let sessionUpdateName = json =>
   json
   ->JSON.Decode.object
@@ -200,8 +205,8 @@ let knownSessionUpdate = name =>
   }
 
 let parseSessionUpdateNotification = (state, json) => {
-  let schema = switch (state.agentAttributionVersion, sessionUpdateName(json)) {
-  | (Some(V1), Some(name)) if knownSessionUpdate(name) => Types.sessionUpdateNotificationSchema
+  let schema = switch (state.agentAttributionConfiguration, sessionUpdateName(json)) {
+  | (Some(_), Some(name)) if knownSessionUpdate(name) => Types.sessionUpdateNotificationSchema
   | (None, Some(name)) if knownSessionUpdate(name) => Types.genericSessionUpdateNotificationSchema
   | (_, Some(_unknown)) => Types.unknownSessionUpdateNotificationSchema
   | (_, None) => Types.genericSessionUpdateNotificationSchema
@@ -209,7 +214,6 @@ let parseSessionUpdateNotification = (state, json) => {
   json->Decoders.parseSchema(schema)
 }
 
-// Check if initialized
 let isInitialized = (state: state): bool => {
   switch state.acpState {
   | Initialized(_) => true
@@ -217,27 +221,7 @@ let isInitialized = (state: state): bool => {
   }
 }
 
-// Get connection state
 let getACPState = (state: state): acpState => state.acpState
-
-let validateSessionMetadata = (state: state, metadata: option<JSON.t>, method) => {
-  switch state.agentAttributionVersion {
-  | None => Ok(None)
-  | Some(V1) =>
-    switch metadata {
-    | None => Error(`${method} missing frontman.dev/agents metadata`)
-    | Some(metadata) =>
-      metadata
-      ->Decoders.parseSchema(Types.sessionMetadataSchema)
-      ->Result.flatMap(metadata =>
-        switch metadata.agents {
-        | Some(catalog) => Ok(Some(catalog))
-        | None => Error(`${method} missing frontman.dev/agents metadata`)
-        }
-      )
-    }
-  }
-}
 
 type messageRole = Assistant | User
 
@@ -247,23 +231,21 @@ type messageIdentity = {
   timestamp: string,
 }
 
-let makeSessionUpdateValidator = (
-  state: state,
-  ~sessionId: string,
-  catalog: option<array<Types.agentCatalogEntry>>,
-) => {
+let makeSessionUpdateValidator = (state: state, ~sessionId: string) => {
   let identities: Dict.t<messageIdentity> = Dict.make()
   let agentIds =
-    catalog->Option.map(catalog => catalog->Array.map(agent => agent.id)->Set.fromArray)
+    state.agentAttributionConfiguration->Option.map(configuration =>
+      configuration.agents->Array.map(agent => agent.id)->Set.fromArray
+    )
 
   (notificationSessionId, update) => {
     switch notificationSessionId == sessionId {
     | false => Error(`Session update ${notificationSessionId} received on ${sessionId}`)
     | true =>
-      let identity = switch (state.agentAttributionVersion, update) {
-      | (Some(V1), Types.AgentMessageChunk({messageId, _meta: {agentId, timestamp}})) =>
+      let identity = switch (state.agentAttributionConfiguration, update) {
+      | (Some(_), Types.AgentMessageChunk({messageId, _meta: {agentId, timestamp}})) =>
         Some((messageId, {role: Assistant, agentId, timestamp}))
-      | (Some(V1), Types.UserMessageChunk({messageId, _meta: {agentId, timestamp}})) =>
+      | (Some(_), Types.UserMessageChunk({messageId, _meta: {agentId, timestamp}})) =>
         Some((messageId, {role: User, agentId, timestamp}))
       | _ => None
       }
@@ -272,7 +254,7 @@ let makeSessionUpdateValidator = (
       | Some((_, {agentId}))
         if !(
           agentIds
-          ->Option.getOrThrow(~message="Validated v1 session metadata is required")
+          ->Option.getOrThrow(~message="Validated v1 connection configuration is required")
           ->Set.has(agentId)
         ) =>
         Error(`Session update references unknown agent: ${agentId}`)

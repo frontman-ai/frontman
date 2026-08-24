@@ -13,7 +13,6 @@ module Log = FrontmanLogs.Logs.Make({
 
 module Message = Client__State__Types.Message
 
-// Import Frontman UI components
 module UserMessage = Client__UserMessage
 module AssistantMessage = Client__AssistantMessage
 module ToolCallBlock = Client__ToolCallBlock
@@ -28,7 +27,6 @@ module ScrollContainer = Client__ScrollContainer
 module PromptInput = Client__PromptInput
 module ErrorBanner = Client__ErrorBanner
 
-// Display item for grouped rendering
 type displayItem =
   | UserMsg({
       id: string,
@@ -55,17 +53,14 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   let result: array<displayItem> = []
   let pendingToolCalls: ref<array<Message.toolCall>> = ref([])
 
-  // Flush pending tool calls by grouping them
   let flushToolCalls = () => {
     let pending = pendingToolCalls.contents
     if Array.length(pending) > 0 {
-      // Use the grouping utility - it handles what to group vs not
       let grouped = ToolGroupUtils.groupToolCalls(pending, ~minGroupSize=1)
 
       grouped->Array.forEach(item => {
         switch item {
         | ToolGroupTypes.SingleTool(tc) =>
-          // Check if it's a TODO tool - render with special component
           switch TodoUtils.isTodoTool(tc.toolName) {
           | true => result->Array.push(TodoToolCall(tc))
           | false => result->Array.push(SingleToolCall(tc))
@@ -93,21 +88,28 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
     }
   })
 
-  // Flush any remaining tool calls
   flushToolCalls()
 
   result
 }
+
+let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): bool =>
+  !(
+    messages->Array.some(message =>
+      switch message {
+      | Message.Error(error) => Message.ErrorMessage.id(error) == turnErrorId
+      | _ => false
+      }
+    )
+  )
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
-  let isStreaming = Client__State.useSelector(Client__State.Selectors.isStreaming)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
-  let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
@@ -115,6 +117,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
   let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
   let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
+  let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
@@ -132,43 +135,45 @@ let make = (~onConfigureProvider: unit => unit) => {
 
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
     ~messages,
-    ~isStreaming,
     ~isAgentRunning,
     ~hasActiveACPSession,
-    ~sessionInitialized,
   )
 
   let hasPendingQuestion =
     Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
   let hasAnnotations = Array.length(annotations) > 0
 
+  let sendUserMessage = (
+    ~content: array<Client__State.UserContentPart.t>,
+    ~annotations: array<Client__Message.MessageAnnotation.t>,
+    ~agentId: string,
+  ) => {
+    let sendMessage = (sessionId: string) => {
+      Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations, ~agentId)
+    }
+    switch session {
+    | Some(sess) => sendMessage(sess.sessionId)
+    | None =>
+      createSession(~onComplete=result => {
+        switch result {
+        | Ok(sessionId) => sendMessage(sessionId)
+        | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
+        }
+      })
+    }
+  }
+
+  let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
+
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
-    // Snapshot live annotations into serializable MessageAnnotation records
+    let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
     let messageAnnotations =
       annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
 
     let sendWithContent = content => {
-      // Allow send if there's content OR annotations (annotations are first-class message content)
       switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => ()
-      | true =>
-        let sendMessage = (sessionId: string) => {
-          Client__State.Actions.addUserMessage(
-            ~sessionId,
-            ~content,
-            ~annotations=messageAnnotations,
-          )
-        }
-        switch session {
-        | Some(sess) => sendMessage(sess.sessionId)
-        | None =>
-          createSession(~onComplete=result => {
-            switch result {
-            | Ok(sessionId) => sendMessage(sessionId)
-            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
-            }
-          })
-        }
+      | true => sendUserMessage(~content, ~annotations=messageAnnotations, ~agentId)
       }
     }
 
@@ -217,11 +222,6 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   }
 
-  // Group messages for display, with referential stability for tool groups.
-  // MessageStore.update does a shallow Array.copy, so unchanged toolCall records
-  // keep the same reference. We cache previous groups by ID and reuse them when
-  // all constituent tool calls are reference-equal — this lets React skip
-  // re-rendering groups that haven't actually changed during streaming.
   let groupCacheRef: React.ref<Dict.t<ToolGroupTypes.toolGroup>> = React.useRef(Dict.make())
   let displayItems = React.useMemo1(() => {
     let items = groupMessages(messages)
@@ -252,8 +252,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   }, [messages])
   let totalItems = Array.length(displayItems)
 
-  // Find the index of the last ToolGroup in displayItems
-  // This is used to determine which group should show "Exploring..." state
   let lastToolGroupIndex = displayItems->Array.reduceWithIndex(-1, (acc, item, idx) => {
     switch item {
     | ToolGroup(_) => idx
@@ -261,21 +259,18 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   })
 
-  // Render a single display item
   let renderDisplayItem = (item: displayItem, itemIndex: int) => {
     let isLastItem = itemIndex == totalItems - 1
     let isLastToolGroup = itemIndex == lastToolGroupIndex
 
     switch item {
     | UserMsg({id, content, annotations, agentId}) =>
-      // Use stable message ID for key
       let messageId = `user-${id}`
       <UserMessage
         key={messageId} content annotations messageId agent={agentForId(agentId)} isNew={isLastItem}
       />
 
     | AssistantMsg(Streaming({id, textBuffer, agentId, _})) =>
-      // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
         <AssistantMessage
@@ -287,7 +282,6 @@ let make = (~onConfigureProvider: unit => unit) => {
       </div>
 
     | AssistantMsg(Completed({id, content, agentId, _})) =>
-      // Use stable message ID for key
       let messageId = `assistant-${id}`
       <div key={messageId} className="frontman-content-auto">
         {content
@@ -305,7 +299,6 @@ let make = (~onConfigureProvider: unit => unit) => {
             />
 
           | Client__State__Types.AssistantContentPart.ToolCall({toolCallId: _, toolName, input}) =>
-            // Embedded tool calls in completed messages (legacy format)
             <ToolCallBlock
               key={partKey}
               toolName
@@ -322,7 +315,6 @@ let make = (~onConfigureProvider: unit => unit) => {
       </div>
 
     | SingleToolCall(tc) =>
-      // Use stable tool call ID for key
       let messageId = `tool-${tc.id}`
       <div key={messageId} className="frontman-content-auto">
         <ToolCallBlock
@@ -337,18 +329,22 @@ let make = (~onConfigureProvider: unit => unit) => {
       </div>
 
     | ToolGroup(group) =>
-      // group.id is now stable (based on first tool call's ID)
-      // Pass both isLastToolGroup and isLastItem - group is "open" only if both are true
-      // This ensures groups close when items (like assistant messages) appear after them
       <div key={group.id} className="frontman-content-auto">
         <ToolGroupBlock group isLastToolGroup isLastItem isAgentRunning />
       </div>
 
     | TodoToolCall(tc) =>
-      // Use stable tool call ID for key
       let messageId = `todo-${tc.id}`
-      let todos = TodoUtils.extractTodos(~input=tc.input, ~result=tc.result)
       let isLoading = tc.state == InputStreaming || tc.state == InputAvailable
+      let todos = switch tc.state {
+      | OutputAvailable =>
+        tc.result
+        ->Option.flatMap(result => result.rawOutput)
+        ->Option.getOrThrow(~message="Completed todo tool is missing rawOutput")
+        ->TodoUtils.extractResult
+      | InputStreaming | InputAvailable | OutputError =>
+        tc.input->Option.mapOr([], TodoUtils.extractInput)
+      }
 
       <div key={messageId} className="frontman-content-auto">
         <TodoListBlock todos isLoading messageId />
@@ -375,7 +371,7 @@ let make = (~onConfigureProvider: unit => unit) => {
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
-        {switch sessionInitialized {
+        {switch hasActiveACPSession {
         | true => React.null
         | false =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
@@ -383,25 +379,28 @@ let make = (~onConfigureProvider: unit => unit) => {
           </div>
         }}
 
-        // Render grouped messages
         {displayItems
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
 
-        // Error banner (shows when there's a turn error, or retry banner during countdown)
+        {switch pendingPlanHandoff {
+        | Some(_) =>
+          <Client__ExecutePlanBanner onExecute={Client__State.Actions.executePendingPlan} />
+        | None => React.null
+        }}
+
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({id, message, category}), Some(taskId)) =>
-          <ErrorBanner
-            error=message
-            category
-            onConfigureProvider
-            onRetry={() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=id)}
-          />
+        | (None, Some({id, message, category, retryErrorId}), Some(taskId))
+          if shouldRenderTurnError(messages, id) =>
+          let onRetry =
+            retryErrorId->Option.map(retriedErrorId =>
+              () => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId)
+            )
+          <ErrorBanner error=message category onConfigureProvider onRetry=?onRetry />
         | _ => React.null
         }}
 
-        // Thinking indicator (shows after last message when waiting for response)
         <ThinkingIndicator
           show={thinkingState.showThinking}
           context=?{thinkingState.thinkingContext}
@@ -423,6 +422,9 @@ let make = (~onConfigureProvider: unit => unit) => {
           isModelsConfigLoading
           selectedModelValue
           onModelChange={value => Client__State.Actions.setSelectedModelValue(~value)}
+          agentCatalog
+          selectedAgentId
+          onAgentChange={agentId => Client__State.Actions.setSelectedAgentId(~agentId)}
           onConfigureProvider
           isAgentRunning
           hasActiveACPSession

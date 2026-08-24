@@ -2,6 +2,11 @@ name: Refresh E2E OpenAI token
 
 on:
   workflow_dispatch:
+    inputs:
+      refresh_threshold_seconds:
+        description: "Refresh when token expires within this many seconds"
+        required: true
+        default: "259200"
   schedule:
     - cron: "17 9 * * *"
 
@@ -21,21 +26,18 @@ jobs:
     env:
       MIX_ENV: e2e
       CLOAK_KEY: "HE9hCRnQXEREL1X+1+cU4wPdVGqJMhwR05edbBBq1RY="
-      # Backing repo secrets still use the legacy ChatGPT names; expose the new
-      # OpenAI env names to the token refresh script until secrets are migrated.
       E2E_OPENAI_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
       E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
       E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
       E2E_OPENAI_TOKEN_MODE: refresh_if_needed
-      # Refresh when the access token is within 3 days of expiry.
-      E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: "259200"
+      E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: ${{ github.event.inputs.refresh_threshold_seconds || '259200' }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
+        uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14
         with:
           install: true
           cache: true
@@ -52,7 +54,6 @@ jobs:
       - name: Update repo secrets
         if: steps.token.outputs.rotated == 'true'
         env:
-          # PAT or GitHub App token with permission to manage repo Actions secrets.
           GH_TOKEN: ${{ secrets.E2E_SECRET_ROTATION_GH_TOKEN }}
           REPO: ${{ github.repository }}
           ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
@@ -64,9 +65,11 @@ jobs:
             exit 1
           fi
 
-          gh secret set E2E_CHATGPT_ACCESS_TOKEN --repo "$REPO" --body "$ACCESS_TOKEN"
-          gh secret set E2E_CHATGPT_REFRESH_TOKEN --repo "$REPO" --body "$REFRESH_TOKEN"
-          gh secret set E2E_CHATGPT_ACCOUNT_ID --repo "$REPO" --body "$ACCOUNT_ID"
+          for APP in actions dependabot; do
+            gh secret set E2E_CHATGPT_ACCESS_TOKEN --app "$APP" --repo "$REPO" --body "$ACCESS_TOKEN"
+            gh secret set E2E_CHATGPT_REFRESH_TOKEN --app "$APP" --repo "$REPO" --body "$REFRESH_TOKEN"
+            gh secret set E2E_CHATGPT_ACCOUNT_ID --app "$APP" --repo "$REPO" --body "$ACCOUNT_ID"
+          done
 
       - name: Summarize result
         run: |

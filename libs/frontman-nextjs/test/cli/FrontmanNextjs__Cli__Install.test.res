@@ -13,11 +13,9 @@ module Files = FrontmanNextjs__Cli__Files
 module Install = FrontmanNextjs__Cli__Install
 module Templates = FrontmanNextjs__Cli__Templates
 
-// Helper to get fixture path
 let fixturesPath = Path.join([Process.cwd(), "test", "cli", "fixtures"])
 let fixture = name => Path.join([fixturesPath, name])
 
-// Derive Next.js version from fixture name (e.g. "nextjs15-clean" -> "15.0.0")
 let nextVersionForFixture = (fixtureName: string): option<string> => {
   if fixtureName->String.startsWith("nextjs15") {
     Some("15.0.0")
@@ -28,7 +26,6 @@ let nextVersionForFixture = (fixtureName: string): option<string> => {
   }
 }
 
-// Create mock node_modules/next/package.json in a directory
 let setupMockNextVersion = async (dir: string, version: string) => {
   let nextDir = Path.join([dir, "node_modules", "next"])
   let _ = await Fs.Promises.mkdir(nextDir, {recursive: true})
@@ -36,7 +33,6 @@ let setupMockNextVersion = async (dir: string, version: string) => {
   await Fs.Promises.writeFile(Path.join([nextDir, "package.json"]), content)
 }
 
-// Set up all fixture directories with mock node_modules
 let fixtureNames = [
   "nextjs15-clean",
   "nextjs15-with-frontman",
@@ -45,6 +41,7 @@ let fixtureNames = [
   "nextjs15-with-src",
   "nextjs15-devdep",
   "nextjs16-clean",
+  "nextjs16-with-src",
   "nextjs16-with-frontman",
   "nextjs16-with-proxy",
 ]
@@ -58,28 +55,23 @@ let setupFixtures = async () => {
     | None => ()
     }
 
-    // Create src/ directory for the with-src fixture
     if name->String.includes("with-src") {
-      let srcDir = Path.join([dir, "src"])
-      let _ = await Fs.Promises.mkdir(srcDir, {recursive: true})
+      let srcAppDir = Path.join([dir, "src", "app"])
+      let _ = await Fs.Promises.mkdir(srcAppDir, {recursive: true})
     }
   })
   ->Promise.all
 }
 
-// Helper to create a temp copy of a fixture for testing
 let createTempFixture = async (fixtureName: string): string => {
   let timestamp = Date.now()->Float.toString
   let tempDir = Path.join([Os.tmpdir(), `frontman-test-${timestamp}`])
 
-  // Create temp directory
   let _ = await Fs.Promises.mkdir(tempDir, {recursive: true})
 
-  // Copy fixture to temp (including node_modules set up by setupFixtures)
   let fixtureDir = fixture(fixtureName)
   let _ = await ChildProcess.exec(`cp -r ${fixtureDir}/* ${tempDir}/`)
 
-  // Also copy node_modules which cp with glob might miss
   let nodeModulesExists = try {
     await Fs.Promises.access(Path.join([fixtureDir, "node_modules"]))
     true
@@ -93,12 +85,10 @@ let createTempFixture = async (fixtureName: string): string => {
   tempDir
 }
 
-// Helper to clean up temp fixture
 let cleanupTempFixture = async (tempDir: string) => {
   let _ = await ChildProcess.exec(`rm -rf ${tempDir}`)
 }
 
-// Helper to read file content from temp dir
 let readTempFile = async (tempDir: string, fileName: string): option<string> => {
   let filePath = Path.join([tempDir, fileName])
   try {
@@ -109,7 +99,6 @@ let readTempFile = async (tempDir: string, fileName: string): option<string> => 
   }
 }
 
-// Helper to check if file exists in temp dir
 let tempFileExists = async (tempDir: string, fileName: string): bool => {
   let filePath = Path.join([tempDir, fileName])
   try {
@@ -120,7 +109,6 @@ let tempFileExists = async (tempDir: string, fileName: string): bool => {
   }
 }
 
-// Set up mock node_modules in all fixtures before tests run
 beforeAllAsync(async () => {
   await setupFixtures()
 })
@@ -189,8 +177,6 @@ describe("Project Detection", _t => {
     testAsync(
       "fails with specific error when next is declared but not installed",
       async t => {
-        // Use an isolated temp dir so createRequire can't walk up and find next
-        // in the monorepo's node_modules
         let timestamp = Date.now()->Float.toString
         let isolatedDir = Path.join([Os.tmpdir(), `frontman-not-installed-${timestamp}`])
         let _ = await Fs.Promises.mkdir(isolatedDir, {recursive: true})
@@ -200,9 +186,7 @@ describe("Project Detection", _t => {
         let result = await Detect.detect(isolatedDir)
 
         switch result {
-        | Error(msg) =>
-          // Should mention it could not resolve next/package.json
-          t->expect(msg->String.includes("Could not resolve"))->Expect.toBe(true)
+        | Error(msg) => t->expect(msg->String.includes("Could not resolve"))->Expect.toBe(true)
         | Ok(_) => t->expect("should")->Expect.toBe("fail when next is not installed")
         }
 
@@ -216,7 +200,6 @@ describe("Project Detection", _t => {
       "resolves a module that exists",
       async t => {
         let dir = fixture("nextjs15-clean")
-        // After setupFixtures, node_modules/next/package.json exists
         switch Detect.resolveFrom(dir, "next/package.json") {
         | Ok(path) => t->expect(path->String.includes("next"))->Expect.toBe(true)
         | Error(msg) => t->expect(msg)->Expect.toBe("should resolve successfully")
@@ -230,7 +213,6 @@ describe("Project Detection", _t => {
         let dir = fixture("not-nextjs")
         switch Detect.resolveFrom(dir, "nonexistent-package-xyz/package.json") {
         | Error(msg) =>
-          // Should contain the module name and a meaningful error
           t->expect(msg->String.includes("nonexistent-package-xyz"))->Expect.toBe(true)
           t->expect(msg->String.length > 0)->Expect.toBe(true)
         | Ok(_) => t->expect("should")->Expect.toBe("fail for missing module")
@@ -311,8 +293,6 @@ describe("Project Detection", _t => {
     testAsync(
       "returns Error when next is declared but not installed",
       async t => {
-        // Use an isolated temp dir so createRequire can't walk up and find next
-        // in the monorepo's node_modules
         let timestamp = Date.now()->Float.toString
         let isolatedDir = Path.join([Os.tmpdir(), `frontman-detect-version-${timestamp}`])
         let _ = await Fs.Promises.mkdir(isolatedDir, {recursive: true})
@@ -418,7 +398,7 @@ describe("Project Detection", _t => {
     )
 
     testAsync(
-      "detects src/ directory",
+      "detects src/app router directory",
       async t => {
         let dir = fixture("nextjs15-with-src")
         let result = await Detect.detect(dir)
@@ -429,10 +409,27 @@ describe("Project Detection", _t => {
         }
       },
     )
+
+    testAsync(
+      "ignores src/ directory without app or pages router",
+      async t => {
+        let tempDir = await createTempFixture("nextjs15-clean")
+        let srcDir = Path.join([tempDir, "src"])
+        let _ = await Fs.Promises.mkdir(srcDir, {recursive: true})
+
+        let result = await Detect.detect(tempDir)
+
+        switch result {
+        | Ok(info) => t->expect(info.hasSrcDir)->Expect.toBe(false)
+        | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
+        }
+
+        await cleanupTempFixture(tempDir)
+      },
+    )
   })
 
   describe("Package Manager Detection", _t => {
-    // We use npm by default for fixtures without lock files
     testAsync(
       "defaults to npm when no lock file present",
       async t => {
@@ -512,7 +509,6 @@ describe("Next.js 16 Clean Install", _t => {
       skipDeps: true,
     })
 
-    // Should have proxy.ts
     let proxyContent = await readTempFile(tempDir, "proxy.ts")
     switch proxyContent {
     | Some(c) =>
@@ -524,7 +520,6 @@ describe("Next.js 16 Clean Install", _t => {
     | None => t->expect("proxy.ts")->Expect.toBe("should exist")
     }
 
-    // Should NOT have middleware.ts (only proxy for Next.js 16+)
     let middlewareExists = await tempFileExists(tempDir, "middleware.ts")
     t->expect(middlewareExists)->Expect.toBe(false)
 
@@ -536,7 +531,6 @@ describe("Host Update (Frontman Already Installed)", _t => {
   testAsync("updates host in middleware.ts", async t => {
     let tempDir = await createTempFixture("nextjs15-with-frontman")
 
-    // Verify the old host exists
     let beforeContent = await readTempFile(tempDir, "middleware.ts")
     switch beforeContent {
     | Some(c) => t->expect(c->String.includes("old-server.company.com"))->Expect.toBe(true)
@@ -554,7 +548,6 @@ describe("Host Update (Frontman Already Installed)", _t => {
     switch afterContent {
     | Some(c) =>
       t->expect(c->String.includes("new-server.frontman.dev"))->Expect.toBe(true)
-      // Old host should be replaced
       t->expect(c->String.includes("old-server.company.com"))->Expect.toBe(false)
     | None => t->expect("middleware.ts")->Expect.toBe("should exist after")
     }
@@ -597,7 +590,6 @@ describe("Existing Files Without Frontman", _t => {
 
     switch result {
     | Install.PartialSuccess({manualStepsRequired}) =>
-      // Should have manual steps for middleware
       let hasMiddlewareStep =
         manualStepsRequired->Array.some(s => s->String.includes("middleware.ts"))
       t->expect(hasMiddlewareStep)->Expect.toBe(true)
@@ -678,6 +670,44 @@ describe("Existing Files Without Frontman", _t => {
 })
 
 describe("src/ Directory Support", _t => {
+  testAsync("places middleware.ts in src/ for Next.js 15 when src/ is present", async t => {
+    let tempDir = await createTempFixture("nextjs15-with-src")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let srcMiddlewareExists = await tempFileExists(tempDir, "src/middleware.ts")
+    t->expect(srcMiddlewareExists)->Expect.toBe(true)
+
+    let rootMiddlewareExists = await tempFileExists(tempDir, "middleware.ts")
+    t->expect(rootMiddlewareExists)->Expect.toBe(false)
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("places proxy.ts in src/ for Next.js 16 when src/ is present", async t => {
+    let tempDir = await createTempFixture("nextjs16-with-src")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let srcProxyExists = await tempFileExists(tempDir, "src/proxy.ts")
+    t->expect(srcProxyExists)->Expect.toBe(true)
+
+    let rootProxyExists = await tempFileExists(tempDir, "proxy.ts")
+    t->expect(rootProxyExists)->Expect.toBe(false)
+
+    await cleanupTempFixture(tempDir)
+  })
+
   testAsync("places instrumentation.ts in src/ when present", async t => {
     let tempDir = await createTempFixture("nextjs15-with-src")
 
@@ -688,11 +718,9 @@ describe("src/ Directory Support", _t => {
       skipDeps: true,
     })
 
-    // Should have instrumentation.ts in src/
     let srcInstrumentationExists = await tempFileExists(tempDir, "src/instrumentation.ts")
     t->expect(srcInstrumentationExists)->Expect.toBe(true)
 
-    // Should NOT have instrumentation.ts in root
     let rootInstrumentationExists = await tempFileExists(tempDir, "instrumentation.ts")
     t->expect(rootInstrumentationExists)->Expect.toBe(false)
 
@@ -822,6 +850,34 @@ describe("Batched Auto-Edit Collection", _t => {
     t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("src/instrumentation.ts")
   })
 
+  test("collectPendingAutoEdits uses src/ path for middleware when hasSrcDir", t => {
+    let info: Detect.projectInfo = {
+      nextVersion: {major: 15, minor: 0, raw: "15.0.0"},
+      middleware: Detect.NeedsManualEdit,
+      proxy: Detect.NotFound,
+      instrumentation: Detect.NotFound,
+      hasSrcDir: true,
+      packageManager: Detect.Npm,
+    }
+    let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=false)
+    t->expect(pending->Array.length)->Expect.toBe(1)
+    t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("src/middleware.ts")
+  })
+
+  test("collectPendingAutoEdits uses src/ path for proxy when hasSrcDir", t => {
+    let info: Detect.projectInfo = {
+      nextVersion: {major: 16, minor: 0, raw: "16.0.0"},
+      middleware: Detect.NotFound,
+      proxy: Detect.NeedsManualEdit,
+      instrumentation: Detect.NotFound,
+      hasSrcDir: true,
+      packageManager: Detect.Npm,
+    }
+    let pending = Install.collectPendingAutoEdits(~info, ~isNext16Plus=true)
+    t->expect(pending->Array.length)->Expect.toBe(1)
+    t->expect((pending->Array.getUnsafe(0)).fileName)->Expect.toBe("src/proxy.ts")
+  })
+
   test("collectPendingAutoEdits returns empty when no files need editing", t => {
     let info: Detect.projectInfo = {
       nextVersion: {major: 15, minor: 0, raw: "15.0.0"},
@@ -847,14 +903,75 @@ describe("Dry Run Mode", _t => {
       skipDeps: true,
     })
 
-    // Should NOT have created middleware.ts
     let middlewareExists = await tempFileExists(tempDir, "middleware.ts")
     t->expect(middlewareExists)->Expect.toBe(false)
 
-    // Should NOT have created instrumentation.ts
     let instrumentationExists = await tempFileExists(tempDir, "instrumentation.ts")
     t->expect(instrumentationExists)->Expect.toBe(false)
 
+    await cleanupTempFixture(tempDir)
+  })
+})
+
+describe("Dependency Installation Failure", _t => {
+  testAsync("fails when the imported Frontman entrypoint cannot be resolved", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    let frontmanDir = Path.join([tempDir, "node_modules", "@frontman-ai", "nextjs"])
+    let _ = await Fs.Promises.mkdir(frontmanDir, {recursive: true})
+    await Fs.Promises.writeFile(Path.join([frontmanDir, "package.json"]), `{"main":"index.js"}`)
+    await Fs.Promises.writeFile(Path.join([frontmanDir, "index.js"]), "")
+    let successfulExec = async (_command, _options): result<
+      ChildProcess.execResult,
+      ChildProcess.execError,
+    > => Ok({stdout: "", stderr: ""})
+
+    let result = await Install.installDependencies(
+      ~projectDir=tempDir,
+      ~packageManager=Detect.Npm,
+      ~dryRun=false,
+      ~exec=successfulExec,
+    )
+
+    switch result {
+    | Error(message) =>
+      t->expect(message->String.includes("@frontman-ai/nextjs/Instrumentation"))->Expect.toBe(true)
+    | Ok() => t->expect("success")->Expect.toBe("dependency resolution failure")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("stops before writing integration files", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    let failingExec = async (_command, _options): result<
+      ChildProcess.execResult,
+      ChildProcess.execError,
+    > => Error({
+      code: None,
+      stdout: "",
+      stderr: "network failure",
+      message: "network failure",
+    })
+
+    let result = await Install.run(
+      {
+        server: "test.frontman.dev",
+        prefix: Some(tempDir),
+        dryRun: false,
+        skipDeps: false,
+      },
+      ~exec=failingExec,
+    )
+
+    switch result {
+    | Install.Failure(message) =>
+      t->expect(message->String.includes("network failure"))->Expect.toBe(true)
+    | Install.Success => t->expect("success")->Expect.toBe("dependency failure")
+    | Install.PartialSuccess(_) => t->expect("partial success")->Expect.toBe("dependency failure")
+    }
+
+    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
+    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
     await cleanupTempFixture(tempDir)
   })
 })

@@ -1,5 +1,3 @@
-// Load agent instructions tool - discovers and loads Agents.md or CLAUDE.md files
-
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -7,7 +5,6 @@ module SafePath = FrontmanCore__SafePath
 
 let name = Tool.ToolNames.loadAgentInstructions
 let access = Tool.Read
-let visibleToAgent = false
 let description = `Discovers and loads agent instruction files (Agents.md or CLAUDE.md) following Claude Code's discovery algorithm.
 
 Parameters:
@@ -33,11 +30,11 @@ type instructionFile = {
 @schema
 type output = array<instructionFile>
 
-// File variants to check at each directory level
+let (visibleToAgent, outputJsonSchema) = (false, None)
+
 let agentsVariants = ["Agents.md", ".claude/Agents.md", "Agents.local.md"]
 let claudeVariants = ["CLAUDE.md", ".claude/CLAUDE.md", "CLAUDE.local.md"]
 
-// Find a file case-insensitively in a directory (directory path is case-sensitive, only filename is case-insensitive)
 let findFileCaseInsensitive = async (dir: string, targetFileName: string): option<string> => {
   try {
     let files = await Fs.Promises.readdir(dir)
@@ -54,13 +51,10 @@ let findFileCaseInsensitive = async (dir: string, targetFileName: string): optio
   }
 }
 
-// Load a single file if it exists (case-insensitive filename matching)
 let loadIfExists = async (path: string): option<instructionFile> => {
-  // Directory path must be exact, only the filename is case-insensitive
   let dir = Path.dirname(path)
   let fileName = Path.basename(path)
 
-  // Try to find the file case-insensitively in the directory
   let actualPath = await findFileCaseInsensitive(dir, fileName)
 
   switch actualPath {
@@ -75,7 +69,6 @@ let loadIfExists = async (path: string): option<instructionFile> => {
   }
 }
 
-// Load all existing files from a list of variants in a directory
 let loadVariants = async (dir: string, variants: array<string>): array<instructionFile> => {
   let results = []
   for i in 0 to Array.length(variants) - 1 {
@@ -89,24 +82,16 @@ let loadVariants = async (dir: string, variants: array<string>): array<instructi
   results
 }
 
-// Find all instruction files at a directory (Agents.md priority over CLAUDE.md)
 let findAtDirectory = async (dir: string): array<instructionFile> => {
-  // First try Agents variants
   let agentsFiles = await loadVariants(dir, agentsVariants)
 
   if Array.length(agentsFiles) > 0 {
-    // Found Agents files - skip CLAUDE variants
     agentsFiles
   } else {
-    // No Agents files - try CLAUDE variants
     await loadVariants(dir, claudeVariants)
   }
 }
 
-// Recursively walk up directories until root
-// Uses Path.dirname(current) == current to detect root — works cross-platform:
-// - Unix: path.dirname("/") === "/"
-// - Windows: path.dirname("C:\\") === "C:\\"
 let rec walkUpDirectories = async (current: string, acc: array<instructionFile>): array<
   instructionFile,
 > => {
@@ -121,19 +106,15 @@ let rec walkUpDirectories = async (current: string, acc: array<instructionFile>)
 }
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
-  // Validate startPath is under sourceRoot (prevents starting from arbitrary locations)
   let inputPath = input.startPath->Option.getOr(".")
 
   switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath) {
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   | Ok(safePath) =>
     try {
-      // Start from the validated path and walk up to find instruction files
-      // Note: walkUpDirectories intentionally goes above sourceRoot - that's by design
-      // for finding CLAUDE.md files in parent directories
       let startPath = SafePath.toString(safePath)
       let results = await walkUpDirectories(startPath, [])
-      Tool.jsonResult(results, outputSchema)
+      Tool.unstructuredResult(results, outputSchema)
     } catch {
     | exn =>
       let msg =

@@ -11,15 +11,12 @@ defmodule FrontmanServerWeb.IntegrationsController do
 
   require Logger
 
-  # Simple in-memory cache: {versions_map, fetched_at_unix}
   @cache_ttl_ms :timer.minutes(30)
 
   def latest_versions(conn, _params) do
     versions = get_cached_versions()
     json(conn, %{versions: versions})
   end
-
-  # -- private --
 
   defp get_cached_versions do
     case :persistent_term.get({__MODULE__, :cache}, nil) do
@@ -36,7 +33,6 @@ defmodule FrontmanServerWeb.IntegrationsController do
   end
 
   defp fetch_and_cache do
-    # Double-check: another request may have refreshed the cache while we waited
     case :persistent_term.get({__MODULE__, :cache}, nil) do
       {versions, fetched_at} when is_map(versions) ->
         if System.monotonic_time(:millisecond) - fetched_at < @cache_ttl_ms do
@@ -62,9 +58,6 @@ defmodule FrontmanServerWeb.IntegrationsController do
         {:exit, _reason}, acc -> acc
       end)
 
-    # Only cache when at least one package resolved successfully.
-    # On total failure (all nil / empty map), skip caching so the next
-    # request retries immediately instead of serving stale nils for 30 min.
     has_valid_version = Enum.any?(versions, fn {_pkg, v} -> v != nil end)
 
     if has_valid_version do

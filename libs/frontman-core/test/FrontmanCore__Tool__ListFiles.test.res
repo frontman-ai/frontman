@@ -1,5 +1,3 @@
-// Integration tests for the ListFiles tool with .gitignore support
-
 open Vitest
 
 module ListFiles = FrontmanCore__Tool__ListFiles
@@ -14,12 +12,10 @@ let execute = (ctx, input) =>
   FrontmanCore__ToolTestHelpers.execute(ListFiles.execute, ctx, input, ListFiles.outputSchema)
 
 describe("ListFiles Tool - execute (integration)", _t => {
-  // Initialize git repo before tests
   beforeAllAsync(async () => {
     let _ = await ChildProcess.execWithOptions("git init", {cwd: fixtureDir})
   })
 
-  // Clean up .git after tests
   afterAllAsync(async () => {
     let _ = await ChildProcess.exec(`rm -rf ${Path.join([fixtureDir, ".git"])}`)
   })
@@ -36,7 +32,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
     | Ok(entries) => {
         t->expect(Array.length(entries) > 0)->Expect.toBe(true)
 
-        // Should include regular files
         let hasIndex = entries->Array.some(e => e.name === "index.ts")
         let hasConfig = entries->Array.some(e => e.name === "config.json")
         let hasReadme = entries->Array.some(e => e.name === "readme.md")
@@ -59,7 +54,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(entries) => {
-        // Should NOT include gitignored entries
         let hasNodeModules = entries->Array.some(e => e.name === "node_modules")
         let hasDist = entries->Array.some(e => e.name === "dist")
         let hasSecretsEnv = entries->Array.some(e => e.name === "secrets.env")
@@ -106,7 +100,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
         let hasAppTs = entries->Array.some(e => e.name === "app.ts")
         t->expect(hasAppTs)->Expect.toBe(true)
 
-        // Verify path includes subdirectory
         let appEntry = entries->Array.find(e => e.name === "app.ts")
         switch appEntry {
         | Some(entry) => t->expect(entry.path)->Expect.toBe("src/app.ts")
@@ -127,7 +120,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(entries) => {
-        // Check a file entry
         let fileEntry = entries->Array.find(e => e.name === "index.ts")
         switch fileEntry {
         | Some(entry) => {
@@ -137,7 +129,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
         | None => failwith("index.ts not found")
         }
 
-        // Check a directory entry
         let dirEntry = entries->Array.find(e => e.name === "src")
         switch dirEntry {
         | Some(entry) => {
@@ -157,15 +148,12 @@ describe("ListFiles Tool - execute (integration)", _t => {
       sourceRoot: fixtureDir,
     }
 
-    // Pass a file path instead of a directory — should list the parent directory
     let result = await execute(ctx, {path: "index.ts"})
 
     switch result {
     | Ok(entries) => {
-        // Should list the root directory (parent of index.ts)
         t->expect(Array.length(entries) > 0)->Expect.toBe(true)
 
-        // Should find files that are in the root directory
         let hasConfig = entries->Array.some(e => e.name === "config.json")
         t->expect(hasConfig)->Expect.toBe(true)
       }
@@ -203,12 +191,10 @@ describe("ListFiles Tool - execute (integration)", _t => {
 })
 
 describe("ListFiles Tool - getIgnoredEntries", _t => {
-  // Initialize git repo before tests
   beforeAllAsync(async () => {
     let _ = await ChildProcess.execWithOptions("git init", {cwd: fixtureDir})
   })
 
-  // Clean up .git after tests
   afterAllAsync(async () => {
     let _ = await ChildProcess.exec(`rm -rf ${Path.join([fixtureDir, ".git"])}`)
   })

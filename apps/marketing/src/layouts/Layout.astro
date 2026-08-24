@@ -1,21 +1,14 @@
 ---
-// Imports
-// Components
 import NavigationBar from '../components/ui/NavigationBar.astro'
 import Main from '../components/ui/Main.astro'
 import Footer from '../components/ui/Footer.astro'
-// import Modal from '../components/blocks/modal/SignUp.astro'
 import Header from '../components/blocks/head/Header.astro'
-// Scripts
 import Scriprs from '../components/scripts/LocalScripts.astro'
-// Styles
 import '../styles/global.css'
 import '../cookiebanner/styles.css'
-// Fonts
 import '@fontsource-variable/inter'
 import '@fontsource-variable/outfit'
 
-// Props
 type Props = {
 	title?: string
 	description?: string
@@ -36,7 +29,6 @@ type Props = {
 		url: string
 	}[]
 }
-// Page Metadata
 const {
 	title,
 	description,
@@ -54,7 +46,10 @@ const {
 
 <!doctype html>
 <html lang="en" class="relative">
-	<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} canonical={canonical} noindex={noindex} article={article} breadcrumbs={breadcrumbs} />
+	<head>
+		<meta charset="UTF-8" />
+		<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} canonical={canonical} noindex={noindex} article={article} breadcrumbs={breadcrumbs} />
+	</head>
 	<body class:list={[{ [`${classes}`]: classes }]}>
 		<a href="#main-content" class="skip-link">Skip to main content</a>
 		<NavigationBar />
@@ -62,8 +57,6 @@ const {
 			<slot />
 		</Main>
 		<Footer />
-		<!-- <Modal /> -->
-		<!-- <Toast /> -->
 		<Scriprs />
 	</body>
 </html>

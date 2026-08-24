@@ -1,119 +1,116 @@
 ---
-// Imports
 const { frontmatter, body } = Astro.props
 
-//Layout Components
 import Layout from './Layout.astro'
+import { getAuthor } from '../content/authors'
+import { getWebPageId } from '../utils/structuredData.mjs'
+import { countArticleWords } from '../utils/wordCount.mjs'
 
-// Section Components
 import BlogPostHero from '../components/blocks/blog/BlogPostHero.astro'
 
-// Content
-// - SEO
 const SEO = {
 	title: `${frontmatter.seoTitle ?? frontmatter.title} | Frontman`,
 	description: `${frontmatter.description}`
 }
 
-// Dates
-const pubDateISO = frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate
-const updatedDateISO = frontmatter.updatedDate instanceof Date ? frontmatter.updatedDate.toISOString() : frontmatter.updatedDate
-const authorUrl = frontmatter.authorUrl ?? '/about/'
-const absoluteAuthorUrl = new URL(authorUrl, Astro.site).href
+const pubDateISO =
+	frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate
+const updatedDateISO =
+	frontmatter.updatedDate instanceof Date
+		? frontmatter.updatedDate.toISOString()
+		: frontmatter.updatedDate
+const author = getAuthor(frontmatter.author)
+const absoluteAuthorUrl = new URL(author.url, Astro.site).href
 
-// Word count from markdown body (strip markdown syntax, count words)
-const wordCount = body
-	? body.replace(/```[\s\S]*?```/g, '').replace(/[#*_\[\]()>|`~-]/g, '').split(/\s+/).filter(Boolean).length
-	: undefined
+const wordCount = body ? countArticleWords(body) : undefined
 
-// BlogPosting JSON-LD
 const blogPostJsonLd = {
-	"@context": "https://schema.org",
-	"@type": "BlogPosting",
-	"headline": frontmatter.title,
-	"description": frontmatter.description,
-	"datePublished": pubDateISO,
-	...(updatedDateISO ? { "dateModified": updatedDateISO } : { "dateModified": pubDateISO }),
-	"author": {
-		"@type": "Person",
-		...(frontmatter.authorUrl ? { "@id": `${absoluteAuthorUrl}#person` } : {}),
-		"name": frontmatter.author,
-		...(frontmatter.authorRole ? { "jobTitle": frontmatter.authorRole } : {}),
-		"url": absoluteAuthorUrl
+	'@context': 'https://schema.org',
+	'@type': 'BlogPosting',
+	headline: frontmatter.title,
+	description: frontmatter.description,
+	datePublished: pubDateISO,
+	...(updatedDateISO ? { dateModified: updatedDateISO } : { dateModified: pubDateISO }),
+	author: {
+		'@type': 'Person',
+		'@id': `${absoluteAuthorUrl}#person`,
+		name: frontmatter.author,
+		jobTitle: author.role,
+		url: absoluteAuthorUrl
 	},
-	...(frontmatter.image ? { "image": `https://frontman.sh${frontmatter.image}` } : {}),
-	...(wordCount ? { "wordCount": wordCount } : {}),
-	...(frontmatter.tags?.length ? { "keywords": frontmatter.tags.join(', ') } : {}),
-	...(frontmatter.tags?.[0] ? { "articleSection": frontmatter.tags[0] } : {}),
-	"publisher": {
-		"@type": "Organization",
-		"name": "Frontman",
-		"logo": {
-			"@type": "ImageObject",
-			"url": "https://frontman.sh/logo.svg"
+	...(frontmatter.image ? { image: `https://frontman.sh${frontmatter.image}` } : {}),
+	...(wordCount ? { wordCount: wordCount } : {}),
+	...(frontmatter.tags?.length ? { keywords: frontmatter.tags.join(', ') } : {}),
+	articleSection: frontmatter.articleSection,
+	publisher: {
+		'@type': 'Organization',
+		name: 'Frontman',
+		logo: {
+			'@type': 'ImageObject',
+			url: 'https://frontman.sh/logo.svg'
 		}
 	},
-	"speakable": {
-		"@type": "SpeakableSpecification",
-		"cssSelector": [".post-header__title", ".post-body h2", ".post-body p:first-of-type"]
+	speakable: {
+		'@type': 'SpeakableSpecification',
+		cssSelector: ['.post-header__title', '.post-body h2', '.post-body p:first-of-type']
 	},
-	"mainEntityOfPage": {
-		"@type": "WebPage",
-		"@id": Astro.url.href
+	mainEntityOfPage: {
+		'@type': 'WebPage',
+		'@id': getWebPageId(Astro.url.href)
 	}
 }
 
-// FAQPage JSON-LD (optional, driven by frontmatter.faq)
 const faqJsonLd = frontmatter.faq?.length
 	? {
-			"@context": "https://schema.org",
-			"@type": "FAQPage",
-			"mainEntity": frontmatter.faq.map((item: { question: string; answer: string }) => ({
-				"@type": "Question",
-				"name": item.question,
-				"acceptedAnswer": {
-					"@type": "Answer",
-					"text": item.answer
+			'@context': 'https://schema.org',
+			'@type': 'FAQPage',
+			mainEntity: frontmatter.faq.map((item: { question: string; answer: string }) => ({
+				'@type': 'Question',
+				name: item.question,
+				acceptedAnswer: {
+					'@type': 'Answer',
+					text: item.answer
 				}
 			}))
 		}
 	: null
 
-// ItemList JSON-LD (optional, driven by frontmatter.comparisonItems)
 const itemListJsonLd = frontmatter.comparisonItems?.length
 	? {
-			"@context": "https://schema.org",
-			"@type": "ItemList",
-			"name": `${frontmatter.title} compared tools`,
-			"itemListElement": frontmatter.comparisonItems.map(
+			'@context': 'https://schema.org',
+			'@type': 'ItemList',
+			name: `${frontmatter.title} compared tools`,
+			itemListElement: frontmatter.comparisonItems.map(
 				(item: { name: string; url: string; description?: string }, index: number) => ({
-					"@type": "ListItem",
-					"position": index + 1,
-					"item": {
-						"@type": "Thing",
-						"name": item.name,
-						"url": item.url,
-						...(item.description ? { "description": item.description } : {})
+					'@type': 'ListItem',
+					position: index + 1,
+					item: {
+						'@type': 'Thing',
+						name: item.name,
+						url: item.url,
+						...(item.description ? { description: item.description } : {})
 					}
 				})
 			)
 		}
 	: null
 
-// VideoObject JSON-LD (optional, driven by frontmatter.video)
 const videoJsonLd = frontmatter.video
 	? {
-			"@context": "https://schema.org",
-			"@type": "VideoObject",
-			"name": frontmatter.video.name,
-			"description": frontmatter.video.description,
-			"thumbnailUrl": frontmatter.video.thumbnailUrl
+			'@context': 'https://schema.org',
+			'@type': 'VideoObject',
+			name: frontmatter.video.name,
+			description: frontmatter.video.description,
+			thumbnailUrl: frontmatter.video.thumbnailUrl
 				? `https://frontman.sh${frontmatter.video.thumbnailUrl}`
 				: `https://img.youtube.com/vi/${frontmatter.video.youtubeId}/maxresdefault.jpg`,
-			"uploadDate": frontmatter.video.uploadDate
-				?? (frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate),
-			"contentUrl": `https://www.youtube.com/watch?v=${frontmatter.video.youtubeId}`,
-			"embedUrl": `https://www.youtube-nocookie.com/embed/${frontmatter.video.youtubeId}`
+			uploadDate:
+				frontmatter.video.uploadDate ??
+				(frontmatter.pubDate instanceof Date
+					? frontmatter.pubDate.toISOString()
+					: frontmatter.pubDate),
+			contentUrl: `https://www.youtube.com/watch?v=${frontmatter.video.youtubeId}`,
+			embedUrl: `https://www.youtube-nocookie.com/embed/${frontmatter.video.youtubeId}`
 		}
 	: null
 ---
@@ -132,15 +129,27 @@ const videoJsonLd = frontmatter.video
 	}}
 >
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(blogPostJsonLd)} />
-	{faqJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
-	{itemListJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(itemListJsonLd)} />}
-	{videoJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(videoJsonLd)} />}
+	{
+		faqJsonLd && (
+			<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+		)
+	}
+	{
+		itemListJsonLd && (
+			<script is:inline type="application/ld+json" set:html={JSON.stringify(itemListJsonLd)} />
+		)
+	}
+	{
+		videoJsonLd && (
+			<script is:inline type="application/ld+json" set:html={JSON.stringify(videoJsonLd)} />
+		)
+	}
 	<BlogPostHero
 		tags={frontmatter.tags}
 		title={frontmatter.title}
 		author={frontmatter.author}
-		authorRole={frontmatter.authorRole}
-		authorUrl={authorUrl}
+		authorRole={author.role}
+		authorUrl={author.url}
 		pubDate={frontmatter.pubDate}
 		updatedDate={frontmatter.updatedDate}
 	/>
@@ -149,26 +158,28 @@ const videoJsonLd = frontmatter.video
 		<slot />
 	</div>
 
-	{frontmatter.faq?.length && (
-		<section class="post-faq">
-			<div class="post-faq__container">
-				<h2 class="post-faq__title">FAQ</h2>
-				<div class="post-faq__list">
-					{frontmatter.faq.map((item: { question: string; answer: string }) => (
-						<details class="post-faq__item group">
-							<summary class="post-faq__question">
-								<span>{item.question}</span>
-								<span class="post-faq__icon">+</span>
-							</summary>
-							<div class="post-faq__answer">
-								<p>{item.answer}</p>
-							</div>
-						</details>
-					))}
+	{
+		frontmatter.faq?.length && (
+			<section class="post-faq">
+				<div class="post-faq__container">
+					<h2 class="post-faq__title">FAQ</h2>
+					<div class="post-faq__list">
+						{frontmatter.faq.map((item: { question: string; answer: string }) => (
+							<details class="post-faq__item group">
+								<summary class="post-faq__question">
+									<span>{item.question}</span>
+									<span class="post-faq__icon">+</span>
+								</summary>
+								<div class="post-faq__answer">
+									<p>{item.answer}</p>
+								</div>
+							</details>
+						))}
+					</div>
 				</div>
-			</div>
-		</section>
-	)}
+			</section>
+		)
+	}
 </Layout>
 
 <style>
@@ -293,7 +304,7 @@ const videoJsonLd = frontmatter.video
 		gap: 12px;
 	}
 	.post-body :global(.metric-comparison__agent::before) {
-		content: "";
+		content: '';
 		position: absolute;
 		inset: 0 auto 0 0;
 		z-index: -1;
@@ -358,9 +369,15 @@ const videoJsonLd = frontmatter.video
 		list-style: none;
 		transition: color 0.2s;
 	}
-	.post-faq__question::-webkit-details-marker { display: none; }
-	.post-faq__question:hover { color: #fff; }
-	.post-faq__question span:first-child { padding-right: 24px; }
+	.post-faq__question::-webkit-details-marker {
+		display: none;
+	}
+	.post-faq__question:hover {
+		color: #fff;
+	}
+	.post-faq__question span:first-child {
+		padding-right: 24px;
+	}
 	.post-faq__icon {
 		flex-shrink: 0;
 		width: 28px;
@@ -406,61 +423,89 @@ const videoJsonLd = frontmatter.video
 		.post-body :global(.metric-comparison__agent-value) {
 			font-size: 17px;
 		}
-		.post-faq { padding: 40px 20px; }
-		.post-faq__title { font-size: 24px; }
+		.post-faq {
+			padding: 40px 20px;
+		}
+		.post-faq__title {
+			font-size: 24px;
+		}
 	}
 </style>
 
 <script>
 	function initScrollableTables() {
 		document.querySelectorAll<HTMLTableElement>('.post-body table').forEach((table) => {
-			if (table.parentElement?.classList.contains('table-scroll')) return;
+			if (table.parentElement?.classList.contains('table-scroll')) return
 
-			const wrapper = document.createElement('div');
-			wrapper.className = 'table-scroll';
-			wrapper.setAttribute('role', 'region');
-			wrapper.setAttribute('aria-label', 'Scrollable table');
-			wrapper.setAttribute('tabindex', '0');
-			table.before(wrapper);
-			wrapper.appendChild(table);
-		});
+			const wrapper = document.createElement('div')
+			wrapper.className = 'table-scroll'
+			wrapper.setAttribute('role', 'region')
+			wrapper.setAttribute('aria-label', 'Scrollable table')
+			wrapper.setAttribute('tabindex', '0')
+			table.before(wrapper)
+			wrapper.appendChild(table)
+		})
 	}
 
 	function initMetricComparisons() {
 		document.querySelectorAll<HTMLUListElement>('.post-body ul').forEach((list) => {
-			const items = Array.from(list.querySelectorAll<HTMLLIElement>(':scope > li'));
-			const isMetricSummaryList = items.length > 0 && items.every((item) => {
-				const text = item.textContent ?? '';
-				return /^\s*\d+%/.test(text) && /\b(fewer|lower)\b/i.test(text);
-			});
-			if (!isMetricSummaryList || list.dataset.metricComparisonRendered === 'true') return;
+			const items = Array.from(list.querySelectorAll<HTMLLIElement>(':scope > li'))
+			const isMetricSummaryList =
+				items.length > 0 &&
+				items.every((item) => {
+					const text = item.textContent ?? ''
+					return /^\s*\d+%/.test(text) && /\b(fewer|lower)\b/i.test(text)
+				})
+			if (!isMetricSummaryList || list.dataset.metricComparisonRendered === 'true') return
 
 			const table = list.previousElementSibling?.matches('table')
-				? list.previousElementSibling as HTMLTableElement
-				: list.parentElement?.querySelector<HTMLTableElement>('table');
-			if (!table) return;
+				? (list.previousElementSibling as HTMLTableElement)
+				: list.parentElement?.querySelector<HTMLTableElement>('table')
+			if (!table) return
 
-			const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>('tbody tr')).map((row) => {
-				const cells = Array.from(row.querySelectorAll<HTMLTableCellElement>('td')).map((cell) => cell.textContent?.trim() ?? '');
-				return {
-					agent: cells[0],
-					requests: Number(cells[1]?.replace(/,/g, '')),
-					totalTokens: Number(cells[5]?.replace(/,/g, '')),
-					cost: Number(cells[8]?.replace(/[$,]/g, '')),
-					costLabel: cells[8],
-				};
-			}).filter((row) => row.agent && Number.isFinite(row.requests) && Number.isFinite(row.totalTokens) && Number.isFinite(row.cost));
-			if (rows.length === 0) return;
+			const rows = Array.from(table.querySelectorAll<HTMLTableRowElement>('tbody tr'))
+				.map((row) => {
+					const cells = Array.from(row.querySelectorAll<HTMLTableCellElement>('td')).map(
+						(cell) => cell.textContent?.trim() ?? ''
+					)
+					return {
+						agent: cells[0],
+						requests: Number(cells[1]?.replace(/,/g, '')),
+						totalTokens: Number(cells[5]?.replace(/,/g, '')),
+						cost: Number(cells[8]?.replace(/[$,]/g, '')),
+						costLabel: cells[8]
+					}
+				})
+				.filter(
+					(row) =>
+						row.agent &&
+						Number.isFinite(row.requests) &&
+						Number.isFinite(row.totalTokens) &&
+						Number.isFinite(row.cost)
+				)
+			if (rows.length === 0) return
 
 			const categories = [
-				{ title: 'Number of requests', key: 'requests', format: (value: number) => value.toLocaleString() },
-				{ title: 'Total tokens', key: 'totalTokens', format: (value: number) => value.toLocaleString() },
-				{ title: 'Cost', key: 'cost', format: (_value: number, row: typeof rows[number]) => row.costLabel },
-			] as const;
+				{
+					title: 'Number of requests',
+					key: 'requests',
+					format: (value: number) => value.toLocaleString()
+				},
+				{
+					title: 'Total tokens',
+					key: 'totalTokens',
+					format: (value: number) => value.toLocaleString()
+				},
+				{
+					title: 'Cost',
+					key: 'cost',
+					format: (_value: number, row: (typeof rows)[number]) => row.costLabel
+				}
+			] as const
 
-			const card = document.createElement('section');
-			card.className = 'metric-comparison';
-			card.setAttribute('aria-label', 'Agent efficiency comparison');
+			const card = document.createElement('section')
+			card.className = 'metric-comparison'
+			card.setAttribute('aria-label', 'Agent efficiency comparison')
 			card.innerHTML = `
 				<div class="metric-comparison__header">
 					<div>
@@ -470,76 +515,76 @@ const videoJsonLd = frontmatter.video
 					<span class="metric-comparison__winner-key">Winner highlighted</span>
 				</div>
 				<div class="metric-comparison__grid"></div>
-			`;
+			`
 
-			const grid = card.querySelector<HTMLDivElement>('.metric-comparison__grid');
-			if (!grid) return;
+			const grid = card.querySelector<HTMLDivElement>('.metric-comparison__grid')
+			if (!grid) return
 
 			categories.forEach((category) => {
-				const values = rows.map((row) => row[category.key]);
-				const minValue = Math.min(...values);
-				const maxValue = Math.max(...values);
-				const section = document.createElement('section');
-				section.className = 'metric-comparison__category';
-				section.innerHTML = `<h4 class="metric-comparison__category-title">${category.title}</h4>`;
+				const values = rows.map((row) => row[category.key])
+				const minValue = Math.min(...values)
+				const maxValue = Math.max(...values)
+				const section = document.createElement('section')
+				section.className = 'metric-comparison__category'
+				section.innerHTML = `<h4 class="metric-comparison__category-title">${category.title}</h4>`
 
-				const agents = document.createElement('div');
-				agents.className = 'metric-comparison__agents';
+				const agents = document.createElement('div')
+				agents.className = 'metric-comparison__agents'
 				rows.forEach((row) => {
-					const value = row[category.key];
-					const barWidth = maxValue > 0 ? Math.max(8, (value / maxValue) * 100) : 0;
-					const isWinner = value === minValue;
-					const agent = document.createElement('div');
-					agent.className = `metric-comparison__agent${isWinner ? ' metric-comparison__agent--winner' : ''}`;
-					agent.style.setProperty('--bar-width', `${barWidth}%`);
+					const value = row[category.key]
+					const barWidth = maxValue > 0 ? Math.max(8, (value / maxValue) * 100) : 0
+					const isWinner = value === minValue
+					const agent = document.createElement('div')
+					agent.className = `metric-comparison__agent${isWinner ? ' metric-comparison__agent--winner' : ''}`
+					agent.style.setProperty('--bar-width', `${barWidth}%`)
 					agent.innerHTML = `
 						<span class="metric-comparison__agent-name">${row.agent}</span>
 						<span class="metric-comparison__agent-value">${category.format(value, row)}</span>
-					`;
-					agents.appendChild(agent);
-				});
+					`
+					agents.appendChild(agent)
+				})
 
-				section.appendChild(agents);
-				grid.appendChild(section);
-			});
+				section.appendChild(agents)
+				grid.appendChild(section)
+			})
 
-			list.dataset.metricComparisonRendered = 'true';
-			list.replaceWith(card);
-		});
+			list.dataset.metricComparisonRendered = 'true'
+			list.replaceWith(card)
+		})
 	}
 
 	function initCodeCopyButtons() {
 		document.querySelectorAll<HTMLPreElement>('pre.astro-code').forEach((pre) => {
-			if (pre.querySelector('.code-copy-btn')) return;
+			if (pre.querySelector('.code-copy-btn')) return
 
-			const btn = document.createElement('button');
-			btn.className = 'code-copy-btn';
-			btn.setAttribute('aria-label', 'Copy code');
-			btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+			const btn = document.createElement('button')
+			btn.className = 'code-copy-btn'
+			btn.setAttribute('aria-label', 'Copy code')
+			btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`
 
 			btn.addEventListener('click', async () => {
-				const code = pre.querySelector('code');
-				if (!code) return;
-				await navigator.clipboard.writeText(code.textContent || '');
-				btn.classList.add('copied');
-				btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+				const code = pre.querySelector('code')
+				if (!code) return
+				await navigator.clipboard.writeText(code.textContent || '')
+				btn.classList.add('copied')
+				btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`
 				setTimeout(() => {
-					btn.classList.remove('copied');
-					btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
-				}, 2000);
-			});
+					btn.classList.remove('copied')
+					btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`
+				}, 2000)
+			})
 
-			pre.style.position = 'relative';
-			pre.appendChild(btn);
-		});
+			pre.style.position = 'relative'
+			pre.appendChild(btn)
+		})
 	}
 
-	initScrollableTables();
-	initMetricComparisons();
-	initCodeCopyButtons();
+	initScrollableTables()
+	initMetricComparisons()
+	initCodeCopyButtons()
 	document.addEventListener('astro:after-swap', () => {
-		initScrollableTables();
-		initMetricComparisons();
-		initCodeCopyButtons();
-	});
+		initScrollableTables()
+		initMetricComparisons()
+		initCodeCopyButtons()
+	})
 </script>

@@ -179,7 +179,6 @@ class Frontman_Tools {
 
 			throw new \RuntimeException(
 				sprintf(
-					/* translators: %s: tool name */
 					esc_html__( 'Unknown tool: %s', 'frontman-agentic-ai-editor' ),
 					esc_html( $tool_name ),
 				)
@@ -210,7 +209,7 @@ class Frontman_Tools {
 		$text = is_string( $data ) ? $data : wp_json_encode( $data );
 		return [
 			'content' => [ [ 'type' => 'text', 'text' => $text ] ],
-			'_meta'   => self::meta(),
+			'isError' => false,
 		];
 	}
 
@@ -221,17 +220,7 @@ class Frontman_Tools {
 		return [
 			'content' => [ [ 'type' => 'text', 'text' => $message ] ],
 			'isError' => true,
-			'_meta'   => self::meta(),
 		];
-	}
-
-	/**
-	 * Build the _meta object for callToolResult.
-	 *
-	 * Uses stdClass for envApiKey so json_encode produces {} not [].
-	 */
-	private static function meta(): array {
-		return [ 'envApiKey' => new \stdClass() ];
 	}
 
 	/**
@@ -260,12 +249,20 @@ class Frontman_Tools {
 				);
 
 			case 'integer':
+				if ( $preserve_input_strings && ! is_int( $value ) ) {
+					return $value;
+				}
+
 				return (int) $value;
 
 			case 'number':
 				return (float) $value;
 
 			case 'boolean':
+				if ( $preserve_input_strings && 'confirm' === $field_name && ! is_bool( $value ) ) {
+					return $value;
+				}
+
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':

@@ -1,19 +1,6 @@
-# Script for populating the database. You can run it as:
-#
-#     mix run priv/repo/seeds.exs
-#
-# Inside the script, you can read and write to any of your
-# repositories directly:
-#
-#     FrontmanServer.Repo.insert!(%FrontmanServer.SomeSchema{})
-#
-# We recommend using the bang functions (`insert!`, `update!`
-# and so on) as they will fail if something goes wrong.
-
 alias FrontmanServer.Accounts
 alias FrontmanServer.Repo
 
-# Create dev user (or find existing)
 dev_email = "dev@frontman.local"
 
 user =
@@ -26,7 +13,6 @@ user =
           password: "devpassword123!"
         })
 
-      # Auto-confirm the user
       user
       |> Accounts.User.confirm_changeset()
       |> Repo.update!()

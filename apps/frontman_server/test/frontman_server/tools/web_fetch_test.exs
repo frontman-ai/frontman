@@ -33,7 +33,7 @@ defmodule FrontmanServer.Tools.WebFetchTest do
   defp execute_text(url, context, opts \\ %{}) do
     result = execute(url, context, opts)
     refute MCP.error?(result)
-    result |> MCP.extract_content_text() |> MCP.parse_tool_result()
+    result |> MCP.extract_content_text() |> Jason.decode!()
   end
 
   defp execute_error(url, context, opts \\ %{}) do

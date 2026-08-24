@@ -12,7 +12,6 @@ module CircularBuffer = FrontmanCore__CircularBuffer
 
 let isBrowser = (): bool => %raw(`typeof window !== 'undefined'`)
 
-// Custom globalThis properties for Frontman
 let getPatchedFlag = (): option<bool> => %raw(`globalThis.__FRONTMAN_CORE_CONSOLE_PATCHED__`)
 let setPatchedFlag = (_value: bool): unit =>
   %raw(`globalThis.__FRONTMAN_CORE_CONSOLE_PATCHED__ = _value`)
@@ -36,6 +35,7 @@ type logEntry = {
   timestamp: string,
   level: logLevel,
   message: string,
+  @live
   attributes: option<JSON.t>,
   @live
   resource: option<JSON.t>,
@@ -181,7 +181,6 @@ let handleConsoleDebug = (state: state, args: array<'a>): unit => {
   addLog(state, detectLevel(state, message), message, ~consoleMethod=Debug)
 }
 
-// Variadic interceptConsole implemented in raw JavaScript to handle variadic arguments
 let interceptConsole: state => unit = %raw(`(function(state) {
   const originalLog = console.log.bind(console);
   const originalWarn = console.warn.bind(console);
@@ -250,7 +249,6 @@ let interceptStdout = (_state: state): unit => {
   })(_state)`)
 }
 
-// Temporary inline bindings until workspace linking is fixed
 type processError = {
   message: option<string>,
   stack: option<string>,

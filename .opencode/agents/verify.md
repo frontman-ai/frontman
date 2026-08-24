@@ -1,6 +1,6 @@
 ---
 mode: subagent
-model: anthropic/claude-haiku-4-5-20251001
+model: openai/gpt-5.6-sol
 hidden: true
 steps: 1
 temperature: 0

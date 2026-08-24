@@ -1,11 +1,8 @@
-// ErrorBanner - Displays LLM/agent errors.
-// Always shows a retry button. Permanent errors show category-specific guidance.
-
 @react.component
 let make = (
   ~error: string,
   ~category: Client__ErrorCategory.t,
-  ~onRetry: unit => unit,
+  ~onRetry: option<unit => unit>=?,
   ~onConfigureProvider: option<unit => unit>=?,
 ) => {
   let guidance = switch category {
@@ -24,12 +21,16 @@ let make = (
     | None => React.null
     }}
     <div className="flex flex-wrap items-center gap-2 mt-2">
-      <button
-        onClick={_ => onRetry()}
-        className="text-xs text-red-300 border border-red-700/60 hover:border-red-500 hover:text-red-200 px-3 py-1 rounded transition-colors"
-      >
-        {React.string("Retry")}
-      </button>
+      {switch onRetry {
+      | Some(onRetry) =>
+        <button
+          onClick={_ => onRetry()}
+          className="text-xs text-red-300 border border-red-700/60 hover:border-red-500 hover:text-red-200 px-3 py-1 rounded transition-colors"
+        >
+          {React.string("Retry")}
+        </button>
+      | None => React.null
+      }}
       {switch (category, onConfigureProvider) {
       | (#auth, Some(onConfigureProvider))
       | (#billing, Some(onConfigureProvider))
@@ -46,7 +47,7 @@ let make = (
         href="https://frontman.sh/docs"
         target="_blank"
         rel="noopener noreferrer"
-        className="text-xs text-red-400/40 hover:text-red-300 px-3 py-1 transition-colors"
+        className="text-xs text-red-300 underline underline-offset-2 decoration-red-500/50 hover:text-red-200 hover:decoration-red-400 px-3 py-1 transition-colors"
       >
         {React.string("Get help")}
       </a>

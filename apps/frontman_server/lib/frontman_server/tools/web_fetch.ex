@@ -104,8 +104,6 @@ defmodule FrontmanServer.Tools.WebFetch do
     end
   end
 
-  # -- HTTP fetching ----------------------------------------------------------
-
   @user_agents [@chrome_ua, @honest_ua]
 
   defp fetch(url, user_agents \\ @user_agents, redirects \\ 0)
@@ -238,11 +236,7 @@ defmodule FrontmanServer.Tools.WebFetch do
     end
   end
 
-  # -- Content-type guard ------------------------------------------------------
-
   @text_prefixes ["text/", "application/json", "application/xml", "application/javascript"]
-
-  # -- Content conversion -----------------------------------------------------
 
   defp content_result(url, content_type, body, offset, limit) do
     ct = String.downcase(content_type)
@@ -276,8 +270,6 @@ defmodule FrontmanServer.Tools.WebFetch do
         )
     end
   end
-
-  # -- URL validation ---------------------------------------------------------
 
   defp validate_url(%{"url" => url})
        when is_binary(url) and byte_size(url) > 0 do
@@ -333,8 +325,6 @@ defmodule FrontmanServer.Tools.WebFetch do
      "Requests to private/internal addresses are not allowed. For current app pages or local development URLs, use the available browser or framework-specific page inspection tools instead."}
   end
 
-  # -- IP resolution and private range checks ---------------------------------
-
   defp check_ip_or_resolve(host_charlist) do
     case :inet.parse_address(host_charlist) do
       {:ok, ip} ->
@@ -378,7 +368,6 @@ defmodule FrontmanServer.Tools.WebFetch do
     end
   end
 
-  # IPv4 private/reserved ranges.
   defp private_ip?({0, _, _, _}), do: true
   defp private_ip?({10, _, _, _}), do: true
   defp private_ip?({127, _, _, _}), do: true
@@ -386,29 +375,23 @@ defmodule FrontmanServer.Tools.WebFetch do
   defp private_ip?({172, b, _, _}) when b >= 16 and b <= 31, do: true
   defp private_ip?({192, 168, _, _}), do: true
 
-  # IPv4-mapped IPv6 (::ffff:a.b.c.d) — delegate to IPv4 checks.
   defp private_ip?({0, 0, 0, 0, 0, 0xFFFF, hi, lo}) do
     import Bitwise
     private_ip?({hi >>> 8, hi &&& 0xFF, lo >>> 8, lo &&& 0xFF})
   end
 
-  # IPv6 loopback and private.
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
   defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
 
-  # fc00::/7 covers 0xFC00–0xFDFF.
   defp private_ip?({s, _, _, _, _, _, _, _})
        when s >= 0xFC00 and s <= 0xFDFF,
        do: true
 
-  # fe80::/10 covers 0xFE80–0xFEBF.
   defp private_ip?({s, _, _, _, _, _, _, _})
        when s >= 0xFE80 and s <= 0xFEBF,
        do: true
 
   defp private_ip?(_), do: false
-
-  # -- Utilities --------------------------------------------------------------
 
   defp clamp(val, min, :infinity) when is_integer(val) do
     max(val, min)
@@ -420,7 +403,6 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   defp clamp(_, min, _), do: min
 
-  # Overridden in tests to inject Req.Test as the adapter.
   defp req_options do
     Application.get_env(:frontman_server, :web_fetch_req_options, [])
   end

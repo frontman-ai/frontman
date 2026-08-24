@@ -111,7 +111,11 @@ defmodule FrontmanServer.Tools.TodoWrite do
 
     case validate_and_build_todos(raw_todos) do
       {:ok, todos} ->
-        MCP.tool_result_structured(%{"todos" => Enum.map(todos, &serialize_todo/1)})
+        structured_content = %{"todos" => Enum.map(todos, &serialize_todo/1)}
+
+        structured_content
+        |> MCP.tool_result_json()
+        |> Map.put("structuredContent", structured_content)
 
       {:error, reason} ->
         MCP.tool_result_error(reason)

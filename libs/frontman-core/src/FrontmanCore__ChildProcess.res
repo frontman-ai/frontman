@@ -1,24 +1,13 @@
-// High-level child_process wrappers built on top of FrontmanBindings.ChildProcess
-//
-// Public API:
-//   exec(command)              — run a shell command, returns result<execResult, execError>
-//   execWithOptions(cmd, opts) — same, with cwd/env/maxBuffer options
-//   spawnResult(cmd, args)     — run with args array (no shell), returns result<execResult, execError>
-
 module B = FrontmanBindings.ChildProcess
 
-// Bring record field names into scope so record literals resolve correctly
 open B
 
-// Re-export types so consumers don't need to reach into bindings
 type execOptions = B.execOptions
 type execResult = B.execResult
 type execError = B.execError
 
-// Default maxBuffer: 50MB
 let defaultMaxBuffer = 50 * 1024 * 1024
 
-// Wrap exec in a Promise that resolves with result — never rejects.
 let execPromise = (command: string, options: B.execOptions): Promise.t<
   result<B.execResult, B.execError>,
 > => {
@@ -43,12 +32,6 @@ let execPromise = (command: string, options: B.execOptions): Promise.t<
   })
 }
 
-// Promise-based spawn that captures stdout/stderr without a shell.
-// Unlike exec (which passes a command string through /bin/sh), spawn sends
-// the args array directly to the OS, so spaces in arguments are never
-// re-interpreted as token separators.
-//
-// Resolves with result<execResult, execError> — never rejects.
 let spawnPromise = (command: string, args: array<string>, options: B.execOptions): Promise.t<
   result<B.execResult, B.execError>,
 > => {
@@ -58,24 +41,14 @@ let spawnPromise = (command: string, args: array<string>, options: B.execOptions
     let cwd = options.cwd
     let env = options.env
 
-    // Node's spawn() throws synchronously when cwd is invalid (ENOTDIR,
-    // ENOENT).  Wrapping the entire body in try/catch ensures the error
-    // flows through the result type instead of escaping as an unhandled
-    // promise rejection that bypasses fallback chains.
     try {
       let proc = B.spawn(command, args, {?cwd, ?env})
 
-      // Accumulate raw Buffer chunks to avoid corrupting multi-byte UTF-8
-      // characters that span chunk boundaries. Decode to string only once
-      // via Buffer.concat in the close/resolve handlers.
       let stdoutChunks: ref<array<B.buffer>> = ref([])
       let stderrChunks: ref<array<B.buffer>> = ref([])
       let stdoutLen = ref(0)
       let stderrLen = ref(0)
 
-      // Guard against multiple resolve calls — after maxBuffer or error,
-      // data handlers may still fire before the process dies. Without this
-      // guard the refs keep growing past the limit.
       let resolved = ref(false)
 
       let decodeStdout = () => B.concatBuffers(stdoutChunks.contents)->B.bufferToStr
@@ -190,14 +163,10 @@ let spawnPromise = (command: string, args: array<string>, options: B.execOptions
   })
 }
 
-// --- Public API ---
-
-// Execute a shell command and return result or error
 let exec = async (command: string): result<B.execResult, B.execError> => {
   await execPromise(command, {maxBuffer: defaultMaxBuffer})
 }
 
-// Execute a shell command with explicit options
 let execWithOptions = async (command: string, options: B.execOptions): result<
   B.execResult,
   B.execError,
@@ -209,9 +178,6 @@ let execWithOptions = async (command: string, options: B.execOptions): result<
   await execPromise(command, optionsWithDefaults)
 }
 
-// Spawn a process with an args array (no shell) and return result or error.
-// This is the preferred way to run subprocesses when you have structured arguments,
-// since it avoids shell parsing issues with spaces and special characters.
 let spawnResult = async (command: string, args: array<string>, ~cwd: option<string>=?): result<
   B.execResult,
   B.execError,

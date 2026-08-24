@@ -1,5 +1,41 @@
 # @frontman-ai/astro
 
+## 2.0.2
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
+- [#1430](https://github.com/frontman-ai/frontman/pull/1430) [`2646d4c`](https://github.com/frontman-ai/frontman/commit/2646d4cb4c9aaae0973d597b6f0df81b33fce75c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Load packaged ripgrep binaries at runtime so grep and file search work from bundled integrations.
+
+## 2.0.1
+
+### Patch Changes
+
+- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
+
+- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
+
+- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
+
+## 2.0.0
+
+### Major Changes
+
+- [#1292](https://github.com/frontman-ai/frontman/pull/1292) [`6097f0b`](https://github.com/frontman-ai/frontman/commit/6097f0be83ab3ff3a79f06306fd63fae21534481) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Astro 7 support while preserving Astro 5 and 6 compatibility. Raise the minimum Node.js version to 22.19, support Sätteri and unified Markdown processors, restore source annotations under Astro's Rust compiler, harden component prop capture, honor Astro's trailing-slash policy, and keep preview URLs synchronized during client-side navigation.
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
+## 1.0.3
+
+### Patch Changes
+
+- [#1252](https://github.com/frontman-ai/frontman/pull/1252) [`5ff6278`](https://github.com/frontman-ai/frontman/commit/5ff6278294b1aba5bfd422eeaccdd69cff81ad49) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Lighthouse to 13.4.0 across framework integrations.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
 ## 1.0.2
 
 ### Patch Changes

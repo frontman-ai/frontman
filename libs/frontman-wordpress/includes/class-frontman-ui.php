@@ -54,14 +54,13 @@ class Frontman_UI {
 			__( 'Frontman', 'frontman-agentic-ai-editor' ),
 			'manage_options',
 			'frontman',
-			'__return_null', // Callback unused — we redirect below.
+			'__return_null',
 			$menu_icon_url,
 			81,
 		);
 
-		// Redirect the wp-admin menu click to /frontman.
 		add_action( 'load-toplevel_page_frontman', function (): void {
-			wp_safe_redirect( home_url( '/frontman' ) );
+			wp_safe_redirect( self::url( '/frontman' ) );
 			exit;
 		} );
 	}
@@ -95,8 +94,6 @@ class Frontman_UI {
 		$base_js_url = 'https://app.frontman.sh/frontman.es.js';
 		$client_css  = 'https://app.frontman.sh/frontman.css';
 
-		// The client reads host + clientName from import.meta.url query params.
-		// This is how all Frontman adapters pass the Frontman server host to the client bundle.
 		$client_url = add_query_arg(
 			[
 				'host'       => $host,
@@ -105,19 +102,13 @@ class Frontman_UI {
 			$base_js_url
 		);
 
-		// Runtime config — same shape as FrontmanCore__UIShell produces
-		// for Frontman browser clients. The page script reads this into window.__frontmanRuntime.
-		// basePath is used by Client__BrowserUrl.syncBrowserUrl() to keep the
-		// browser URL in sync as the user navigates within the preview iframe.
 		$runtime = [
-			'framework' => 'wordpress',
-			'basePath'  => 'frontman',
-			'wpNonce'   => Frontman_Auth::create_nonce(),
+			'framework'    => 'wordpress',
+			'basePath'     => 'frontman',
+			'relayBaseUrl' => self::url( '' ),
+			'wpNonce'      => Frontman_Auth::create_nonce(),
 		];
 
-		// Build the entrypoint URL for the web preview iframe.
-		// When suffix routing is used (e.g. /about/frontman), this points the
-		// preview at /about. The client reads this from the DOM via getInitialUrl().
 		$entrypoint_url = null;
 		if ( $preview_path !== null && $preview_path !== '/' ) {
 			$entrypoint_url = home_url( $preview_path );
@@ -143,6 +134,7 @@ class Frontman_UI {
 		hidden
 		data-framework="<?php echo esc_attr( $runtime['framework'] ); ?>"
 		data-base-path="<?php echo esc_attr( $runtime['basePath'] ); ?>"
+		data-relay-base-url="<?php echo esc_attr( $runtime['relayBaseUrl'] ); ?>"
 		data-wp-nonce="<?php echo esc_attr( $runtime['wpNonce'] ); ?>"
 	></div>
 	<?php if ( $entrypoint_url ) : ?>
@@ -168,6 +160,15 @@ class Frontman_UI {
 </body>
 </html>
 		<?php
+	}
+
+	/**
+	 * Return a Frontman URL for the active permalink mode.
+	 */
+	public static function url( string $path ): string {
+		$permalink_structure = get_option( 'permalink_structure' );
+		$front_controller = '' === $permalink_structure || 0 === strpos( $permalink_structure, '/index.php' ) ? '/index.php' : '';
+		return home_url( $front_controller . $path );
 	}
 
 	/**

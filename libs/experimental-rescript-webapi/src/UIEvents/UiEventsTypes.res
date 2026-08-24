@@ -121,17 +121,9 @@ The possible values are "none", "copy", "copyLink", "copyMove", "link", "linkMov
   files: DomTypes.fileList,
 }
 
-/**
-Events that provide access to clipboard data.
-[See ClipboardEvent on MDN](https://developer.mozilla.org/docs/Web/API/ClipboardEvent)
-*/
 @editor.completeFrom(ClipboardEvent)
 type clipboardEvent = private {
   ...EventTypes.event,
-  /**
-    The data affected by the user-initiated clipboard operation.
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/ClipboardEvent/clipboardData)
-    */
   clipboardData: Null.t<dataTransfer>,
 }
 
@@ -297,17 +289,9 @@ type mouseEvent = private {
   movementY: float,
 }
 
-/**
-Events that occur while dragging and dropping elements or files.
-[See DragEvent on MDN](https://developer.mozilla.org/docs/Web/API/DragEvent)
-*/
 @editor.completeFrom(DragEvent)
 type dragEvent = private {
   ...mouseEvent,
-  /**
-    The data transferred during a drag-and-drop interaction.
-    [Read more on MDN](https://developer.mozilla.org/docs/Web/API/DragEvent/dataTransfer)
-    */
   dataTransfer: Null.t<dataTransfer>,
 }
 

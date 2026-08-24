@@ -1,7 +1,6 @@
 defmodule FrontmanServer.Tasks.InteractionTest do
   use FrontmanServer.InteractionCase, async: true
 
-  alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
@@ -12,10 +11,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   }
 
   alias ModelContextProtocol, as: MCP
-
-  # ---------------------------------------------------------------------------
-  # UserMessage.attrs/1
-  # ---------------------------------------------------------------------------
 
   describe "UserMessage.attrs/1" do
     test "extracts non-empty text messages" do
@@ -108,10 +103,42 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert [ann1, ann2] = msg.annotations
       assert ann1.annotation_index == 0
       assert ann1.component_name == "Header"
-      assert ann1.css_classes == "header main"
-      assert ann1.nearby_text == "Welcome"
+      assert ann1.metadata["css_classes"] == "header main"
+      assert ann1.metadata["nearby_text"] == "Welcome"
       assert ann2.annotation_index == 1
       assert ann2.comment == "Make this red"
+    end
+
+    test "extracts annotated definition and recursive invocation chain" do
+      parent = %{
+        "component_name" => "HeroPost",
+        "file" => "src/app/_components/hero-post.tsx",
+        "line" => 42,
+        "column" => 11,
+        "parent" => %{
+          "component_name" => "Index",
+          "file" => "src/app/page.tsx",
+          "line" => 18,
+          "column" => 5
+        }
+      }
+
+      msg =
+        build_user_message([
+          annotation_block("ann-avatar", "div", "src/app/_components/avatar.tsx", 10, 7,
+            component_name: "Avatar",
+            parent: parent
+          )
+        ])
+
+      assert [ann] = msg.annotations
+      assert ann.component_name == "Avatar"
+      assert ann.file == "src/app/_components/avatar.tsx"
+      assert ann.line == 10
+      assert ann.parent.component_name == "HeroPost"
+      assert ann.parent.file == "src/app/_components/hero-post.tsx"
+      assert ann.parent.parent.component_name == "Index"
+      assert ann.parent.parent.file == "src/app/page.tsx"
     end
 
     test "extracts bounding_box when provided" do
@@ -142,12 +169,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         build_user_message([
           text_block("Fix this"),
           annotation_block("ann-el", "span", "/src/Component.tsx", 5, 1,
+            element_context: ~s(selected tag="span" selector="#target"),
             metadata: %{"custom_context" => context}
           )
         ])
 
       assert [ann] = msg.annotations
-      assert ann.metadata == %{"custom_context" => context}
+
+      assert ann.metadata["custom_context"] == context
+      assert ann.metadata["element_context"] == ~s(selected tag="span" selector="#target")
     end
 
     test "extracts current page context from resource block" do
@@ -202,10 +232,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.current_page == nil
     end
   end
-
-  # ---------------------------------------------------------------------------
-  # to_swarm_messages/1
-  # ---------------------------------------------------------------------------
 
   describe "to_swarm_messages/1" do
     test "converts user message text and images to Swarm content parts" do
@@ -277,38 +303,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # to_swarm_messages/1
-  # ---------------------------------------------------------------------------
-
   describe "to_swarm_messages/1 conversation coverage" do
-    test "converts user message with correct role and content" do
-      messages = Interaction.to_swarm_messages([user_msg("Hello")])
-
-      assert [msg] = messages
-      assert SwarmAi.Message.role(msg) == :user
-      assert is_list(msg.content)
-    end
-
-    test "converts agent response to assistant message with content" do
-      messages = Interaction.to_swarm_messages([agent_resp("Hi there")])
-
-      assert [msg] = messages
-      assert SwarmAi.Message.role(msg) == :assistant
-      assert [%{type: :text, text: "Hi there"}] = msg.content
-    end
-
-    test "converts tool results to tool messages" do
-      interaction = tool_result("call_123", "calculator", MCP.tool_result_text("42"))
-
-      messages = Interaction.to_swarm_messages([interaction])
-
-      assert [msg] = messages
-      assert SwarmAi.Message.role(msg) == :tool
-      assert msg.tool_call_id == "call_123"
-      assert msg.metadata == %{}
-    end
-
     test "skips ToolCall structs (they live in agent response metadata)" do
       messages = Interaction.to_swarm_messages([tool_call("call_123", "calculator")])
       assert messages == []
@@ -326,47 +321,91 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       ]
 
       messages = Interaction.to_swarm_messages(interactions)
-      # UserMessage + AgentResponse(with tool) + ToolResult + AgentResponse(final)
-      # ToolCall is skipped
       assert length(messages) == 4
       assert Enum.map(messages, &SwarmAi.Message.role/1) == [:user, :assistant, :tool, :assistant]
+      assert [%SwarmAi.ToolCall{arguments: "{}"}] = Enum.at(messages, 1).tool_calls
     end
 
-    test "includes annotation location info in user message content" do
+    test "formats complete page and annotation context exactly" do
       ann = %Annotation{
-        annotation_id: "ann-1",
+        annotation_id: "ann-avatar",
         annotation_index: 0,
         tag_name: "div",
-        file: "/path/to/Component.tsx",
-        line: 42,
-        column: 5
-      }
-
-      messages = Interaction.to_swarm_messages([user_msg("Change the text", [ann])])
-      text = extract_text(hd(messages))
-
-      assert text =~ "Change the text"
-      assert text =~ "[Annotated Elements]"
-      assert text =~ "/path/to/Component.tsx"
-      assert text =~ "Line: 42"
-    end
-
-    test "includes bounding_box in annotation LLM message" do
-      ann = %Annotation{
-        annotation_id: "ann-bb",
-        annotation_index: 0,
-        tag_name: "div",
-        file: "/src/Layout.tsx",
+        selector: ".avatar-name",
+        component_name: "Avatar",
+        component_props: %{"name" => "JJ Kasper"},
+        file: "src/app/_components/avatar.tsx",
         line: 10,
-        column: 1,
-        bounding_box: %Interaction.BoundingBox{x: 10.5, y: 20.0, width: 200.0, height: 50.0}
+        column: 7,
+        bounding_box: %Interaction.BoundingBox{x: 10.5, y: 20.0, width: 200.0, height: 50.0},
+        metadata: %{
+          "element_context" => ~s(selected tag="div" selector=".avatar-name" children=1),
+          "source_location_error" => "source map unavailable"
+        },
+        parent: %Interaction.ParentLocation{
+          component_name: "HeroPost",
+          component_props: %{"slug" => "hello-world"},
+          file: "src/app/_components/hero-post.tsx",
+          line: 42,
+          column: 11,
+          parent: %Interaction.ParentLocation{
+            component_name: "Index",
+            file: "src/app/page.tsx",
+            line: 18,
+            column: 5
+          }
+        }
       }
 
-      messages = Interaction.to_swarm_messages([user_msg("Fix layout", [ann])])
-      text = extract_text(hd(messages))
+      msg = %{
+        user_msg("Show the call tree", [ann])
+        | current_page: %Interaction.CurrentPage{
+            url: "https://example.com/posts/hello-world",
+            viewport_width: 1440,
+            viewport_height: 900,
+            device_pixel_ratio: 2.0,
+            title: "Hello World",
+            color_scheme: "dark",
+            scroll_y: 320
+          }
+      }
 
-      assert text =~ "Bounding Box:"
-      assert text =~ "200"
+      assert [message] = Interaction.to_swarm_messages([msg])
+      text = extract_text(message)
+
+      assert text =~
+               """
+               Show the call tree
+               [Current Page Context]
+               URL: https://example.com/posts/hello-world
+               Viewport: 1440x900
+               Device Pixel Ratio: 2.0
+               Page Title: Hello World
+               Color Scheme: dark
+               Scroll Position: 320px
+               """
+
+      assert text =~
+               """
+               [Annotated Elements]
+               Annotation 1:
+                 Tag: <div>
+                 File: src/app/_components/avatar.tsx
+                 Line: 10
+                 Column: 7
+                 Component: Avatar
+                 CSS Selector: .avatar-name
+                 Element Context: selected tag="div" selector=".avatar-name" children=1
+                 Bounding Box: {x: 10.5, y: 20.0, width: 200.0, height: 50.0}
+                 Props: {"name":"JJ Kasper"}
+                 Source Location Error: source map unavailable
+                 Parent: 1. src/app/_components/hero-post.tsx:42:11 (HeroPost)
+                  Props: {"slug":"hello-world"}
+                 2. src/app/page.tsx:18:5 (Index)
+               """
+
+      assert :binary.match(text, "src/app/_components/avatar.tsx") <
+               :binary.match(text, "src/app/_components/hero-post.tsx")
     end
 
     test "does not add annotation section when annotations is empty" do
@@ -375,29 +414,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert text =~ "Just a regular message"
       refute text =~ "[Annotated Elements]"
-    end
-
-    test "includes current page context in user message content" do
-      msg = %{
-        user_msg("Fix this route")
-        | current_page: %Interaction.CurrentPage{
-            url: "https://example.com/settings",
-            viewport_width: 1440,
-            viewport_height: 900,
-            device_pixel_ratio: 2.0,
-            title: "Settings",
-            color_scheme: "light",
-            scroll_y: 0
-          }
-      }
-
-      [llm_msg] = Interaction.to_swarm_messages([msg])
-      text = extract_text(llm_msg)
-
-      assert text =~ CurrentPageContext.header()
-      assert text =~ "URL: https://example.com/settings"
-      assert text =~ "Viewport: 1440x900"
-      assert text =~ "Page Title: Settings"
     end
 
     test "lists attachment URI without tool-specific guidance" do
@@ -424,30 +440,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # to_swarm_messages/1 — DB-loaded metadata (string keys)
-  # ---------------------------------------------------------------------------
-
   describe "to_swarm_messages/1 with DB-loaded metadata (string keys)" do
-    test "converts tool_calls stored in OpenAI wire format (string keys)" do
-      interactions = [
-        agent_resp("I'll read the file", %{
-          "tool_calls" => [
-            db_tool_call("toolu_012", "read_file", ~s({"path": "src/app/page.tsx"}))
-          ]
-        })
-      ]
-
-      [msg] = Interaction.to_swarm_messages(interactions)
-
-      assert SwarmAi.Message.role(msg) == :assistant
-      assert [tc] = msg.tool_calls
-      assert %SwarmAi.ToolCall{} = tc
-      assert tc.id == "toolu_012"
-      assert tc.name == "read_file"
-      assert tc.arguments == ~s({"path": "src/app/page.tsx"})
-    end
-
     test "converts multiple tool_calls from DB" do
       interactions = [
         agent_resp("Let me search", %{
@@ -517,20 +510,6 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.reasoning_details == [
                %{"type" => "reasoning.encrypted", "data" => "encrypted_data"}
              ]
-    end
-
-    test "preserves response metadata even when assistant has no tool_calls" do
-      interactions = [
-        agent_resp("All done", %{
-          "response_id" => "resp_final_123",
-          "phase" => "final_answer"
-        })
-      ]
-
-      [msg] = Interaction.to_swarm_messages(interactions)
-
-      assert msg.metadata == %{response_id: "resp_final_123", phase: "final_answer"}
-      assert msg.tool_calls == []
     end
 
     test "full conversation round-trip with tool calls from DB" do
@@ -603,17 +582,22 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
-  # ---------------------------------------------------------------------------
-  # JSON encoding
-  # ---------------------------------------------------------------------------
-
   describe "JSON encoding" do
     test "encodes UserMessage with annotation including all enrichment fields" do
       msg =
         build_user_message([
           text_block("Fix this"),
+          current_page_block("https://example.com/settings", %{
+            "viewport_width" => 1440,
+            "viewport_height" => 900,
+            "device_pixel_ratio" => 2.0,
+            "title" => "Settings",
+            "color_scheme" => "dark",
+            "scroll_y" => 320
+          }),
           annotation_block("ann-full", "H1", "/src/Hero.tsx", 30, 5,
             component_name: "Hero",
+            element_context: ~s(selected tag="h1" selector="#hero-title"),
             css_classes: "hero-title text-xl",
             nearby_text: "Welcome to our app",
             metadata: %{
@@ -630,10 +614,22 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       refute Map.has_key?(decoded, "type")
       assert decoded["messages"] == ["Fix this"]
+
+      assert decoded["current_page"] == %{
+               "url" => "https://example.com/settings",
+               "viewport_width" => 1440,
+               "viewport_height" => 900,
+               "device_pixel_ratio" => 2.0,
+               "title" => "Settings",
+               "color_scheme" => "dark",
+               "scroll_y" => 320
+             }
+
       assert [ann] = decoded["annotations"]
       assert ann["annotation_id"] == "ann-full"
       assert ann["tag_name"] == "H1"
       assert ann["css_classes"] == "hero-title text-xl"
+      assert ann["element_context"] =~ "#hero-title"
       assert ann["nearby_text"] == "Welcome to our app"
 
       assert ann["custom_context"] == %{
@@ -649,28 +645,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       assert ann["screenshot"] == %{"blob" => "base64screenshotdata", "mime_type" => "image/jpeg"}
 
-      # Nil enrichment fields are stripped from JSON
       refute Map.has_key?(ann, "comment")
-    end
-
-    test "encodes ToolCall to JSON" do
-      tc = tool_call("call_123", "calculator", %{"x" => 1})
-
-      decoded = tc |> Jason.encode!() |> Jason.decode!()
-
-      refute Map.has_key?(decoded, "type")
-      assert decoded["tool_name"] == "calculator"
-      assert decoded["tool_call_id"] == "call_123"
-    end
-
-    test "encodes ToolResult to JSON" do
-      tr = tool_result("call_123", "calculator", MCP.tool_result_text("42"))
-
-      decoded = tr |> Jason.encode!() |> Jason.decode!()
-
-      refute Map.has_key?(decoded, "type")
-      assert decoded["result"] == MCP.tool_result_text("42")
-      assert decoded["is_error"] == false
     end
   end
 

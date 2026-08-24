@@ -6,8 +6,8 @@ The marketing site for [frontman.sh](https://frontman.sh), built with Astro and 
 
 | Layer      | Technology                          |
 | ---------- | ----------------------------------- |
-| Framework  | Astro 5                             |
-| Styling    | Tailwind CSS 3.4                    |
+| Framework  | Astro 7                             |
+| Styling    | Tailwind CSS 4.3                    |
 | TypeScript | Strict mode                         |
 | Fonts      | Inter Variable, Outfit Variable     |
 | Deployment | Vercel (primary), Cloudflare Pages  |
@@ -18,6 +18,7 @@ The marketing site for [frontman.sh](https://frontman.sh), built with Astro and 
 
 ```bash
 make install   # install dependencies
+make test      # run marketing tests
 make dev       # start dev server at localhost:4321
 make build     # type-check and build for production
 make deploy    # build and deploy (requires 1Password CLI)

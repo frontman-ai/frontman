@@ -1,8 +1,6 @@
-// Export Sury schemas to JSON Schema files for contract testing and breaking-change detection.
-// Run: node scripts/ExportSchemas.res.mjs
-
 module ACP = FrontmanProtocol__ACP
 module MCP = FrontmanProtocol__MCP
+module ContentBlock = FrontmanProtocol__ContentBlock
 module Relay = FrontmanProtocol__Relay
 module JsonRpc = FrontmanProtocol__JsonRpc
 
@@ -12,11 +10,9 @@ type schemaEntry = {
   schema: S.t<unknown>,
 }
 
-// Cast any Sury schema to S.t<unknown> for uniform handling
 external toUnknownSchema: S.t<'a> => S.t<unknown> = "%identity"
 external jsonSchemaAsJson: JSONSchema.t => JSON.t = "%identity"
 
-// Resolve __dirname from import.meta.url (ESM equivalent)
 @val @scope(("import", "meta"))
 external importMetaUrl: string = "url"
 
@@ -30,11 +26,9 @@ let schemasDir = FrontmanBindings.Path.join([
 ])
 
 let entries: array<schemaEntry> = [
-  // Relay
   {dir: "relay", name: "toolsResponse", schema: Relay.toolsResponseSchema->toUnknownSchema},
   {dir: "relay", name: "toolCallRequest", schema: Relay.toolCallRequestSchema->toUnknownSchema},
   {dir: "relay", name: "remoteTool", schema: Relay.remoteToolSchema->toUnknownSchema},
-  // ACP
   {dir: "acp", name: "initializeParams", schema: ACP.initializeParamsSchema->toUnknownSchema},
   {dir: "acp", name: "initializeResult", schema: ACP.initializeResultSchema->toUnknownSchema},
   {
@@ -43,7 +37,11 @@ let entries: array<schemaEntry> = [
     schema: ACP.capabilityMetadataSchema->toUnknownSchema,
   },
   {dir: "acp", name: "agentCatalogEntry", schema: ACP.agentCatalogEntrySchema->toUnknownSchema},
-  {dir: "acp", name: "sessionMetadata", schema: ACP.sessionMetadataSchema->toUnknownSchema},
+  {
+    dir: "acp",
+    name: "agentAttributionConfigurationMetadata",
+    schema: ACP.agentAttributionConfigurationMetadataSchema->toUnknownSchema,
+  },
   {dir: "acp", name: "messageMetadata", schema: ACP.messageMetadataSchema->toUnknownSchema},
   {dir: "acp", name: "sessionUpdate", schema: ACP.sessionUpdateSchema->toUnknownSchema},
   {
@@ -51,7 +49,7 @@ let entries: array<schemaEntry> = [
     name: "sessionUpdateNotification",
     schema: ACP.sessionUpdateNotificationSchema->toUnknownSchema,
   },
-  {dir: "acp", name: "contentBlock", schema: ACP.contentBlockSchema->toUnknownSchema},
+  {dir: "acp", name: "contentBlock", schema: ContentBlock.schema->toUnknownSchema},
   {dir: "acp", name: "promptResult", schema: ACP.promptResultSchema->toUnknownSchema},
   {dir: "acp", name: "sessionSummary", schema: ACP.sessionSummarySchema->toUnknownSchema},
   {dir: "acp", name: "listSessionsResult", schema: ACP.listSessionsResultSchema->toUnknownSchema},
@@ -68,18 +66,19 @@ let entries: array<schemaEntry> = [
     name: "toolCallContentItem",
     schema: ACP.toolCallContentItemSchema->toUnknownSchema,
   },
-  {dir: "acp", name: "embeddedResource", schema: ACP.embeddedResourceSchema->toUnknownSchema},
-  // MCP
+  {
+    dir: "acp",
+    name: "embeddedResource",
+    schema: ContentBlock.embeddedResourceSchema->toUnknownSchema,
+  },
   {dir: "mcp", name: "initializeParams", schema: MCP.initializeParamsSchema->toUnknownSchema},
   {dir: "mcp", name: "initializeResult", schema: MCP.initializeResultSchema->toUnknownSchema},
-  {dir: "mcp", name: "callToolResult", schema: MCP.callToolResultSchema->toUnknownSchema},
+  {dir: "mcp", name: "callToolResult", schema: MCP.CallToolResult.jsonSchema->toUnknownSchema},
   {dir: "mcp", name: "toolCallParams", schema: MCP.toolCallParamsSchema->toUnknownSchema},
   {dir: "mcp", name: "capabilities", schema: MCP.capabilitiesSchema->toUnknownSchema},
   {dir: "mcp", name: "info", schema: MCP.infoSchema->toUnknownSchema},
-  {dir: "mcp", name: "toolResultContent", schema: MCP.toolResultContentSchema->toUnknownSchema},
   {dir: "mcp", name: "toolError", schema: MCP.toolErrorSchema->toUnknownSchema},
   {dir: "mcp", name: "toolsListResult", schema: MCP.toolsListResultSchema->toUnknownSchema},
-  // JsonRpc
   {dir: "jsonrpc", name: "request", schema: JsonRpc.Request.schema->toUnknownSchema},
   {dir: "jsonrpc", name: "response", schema: JsonRpc.Response.schema->toUnknownSchema},
   {dir: "jsonrpc", name: "notification", schema: JsonRpc.Notification.schema->toUnknownSchema},

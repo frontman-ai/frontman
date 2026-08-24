@@ -2,25 +2,22 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #WebPreviewStage
 })
 
-// Typed externals for event casting and missing DOM APIs
-external asKeyboardEvent: WebAPI.EventAPI.event => WebAPI.UIEventsAPI.keyboardEvent = "%identity"
-external asMouseEvent: WebAPI.EventAPI.event => WebAPI.UIEventsAPI.mouseEvent = "%identity"
+external asKeyboardEvent: WebAPI.EventTypes.event => WebAPI.UiEventsTypes.keyboardEvent =
+  "%identity"
+external asMouseEvent: WebAPI.EventTypes.event => WebAPI.UiEventsTypes.mouseEvent = "%identity"
 external elementFromPoint: (
-  WebAPI.DOMAPI.document,
+  WebAPI.DomTypes.document,
   ~x: int,
   ~y: int,
-) => Nullable.t<WebAPI.DOMAPI.element> = "elementFromPoint"
+) => Nullable.t<WebAPI.DomTypes.element> = "elementFromPoint"
 
-// Find meaningful elements within a drag rectangle
-// Returns elements whose bounding rect overlaps the selection rect
 let _findElementsInRect: (
-  WebAPI.DOMAPI.document,
-  float, // x
-  float, // y
-  float, // width
+  WebAPI.DomTypes.document,
   float,
-) => // height
-array<WebAPI.DOMAPI.element> = %raw(`
+  float,
+  float,
+  float,
+) => array<WebAPI.DomTypes.element> = %raw(`
   function(doc, rx, ry, rw, rh) {
     var meaningfulTags = new Set([
       "A","ABBR","ADDRESS","ARTICLE","ASIDE","AUDIO","B","BLOCKQUOTE",
@@ -41,18 +38,14 @@ array<WebAPI.DOMAPI.element> = %raw(`
     for (var i = 0; i < all.length; i++) {
       var el = all[i];
       if (!meaningfulTags.has(el.tagName)) continue;
-      // Skip invisible elements
       var style = doc.defaultView.getComputedStyle(el);
       if (style.display === "none" || style.visibility === "hidden" || style.opacity === "0") continue;
       var rect = el.getBoundingClientRect();
       if (rect.width === 0 || rect.height === 0) continue;
-      // Check overlap
       if (rect.left < selRight && rect.right > rx && rect.top < selBottom && rect.bottom > ry) {
         results.push(el);
       }
     }
-    // Remove elements that are ancestors of other matched elements
-    // (prefer more specific/leaf elements)
     var filtered = results.filter(function(el) {
       return !results.some(function(other) {
         return other !== el && el.contains(other);
@@ -62,7 +55,6 @@ array<WebAPI.DOMAPI.element> = %raw(`
   }
 `)
 
-// Drag state for rectangle selection
 type dragState =
   | Idle
   | Dragging({startX: float, startY: float, currentX: float, currentY: float})
@@ -78,9 +70,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let lastProcessedClickId = React.useRef(-1)
   let wasSelecting = React.useRef(false)
   let (dragState, setDragState) = React.useState(() => Idle)
-  // Track whether a drag gesture occurred so the click handler can skip it
   let wasDragging = React.useRef(false)
-  // Stash elements to dispatch after setDragState updater completes (React purity)
   let pendingDragDispatch: React.ref<
     option<array<Client__Task__Reducer.annotationElement>>,
   > = React.useRef(None)
@@ -101,7 +91,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   )
   let hoveredElement = Client__Hooks.MouseMove.useIFrameDocument(~document, ~withCapture=true, ())
 
-  // Escape key exits selection mode (listen on both iframe doc and parent window)
   React.useEffect(() => {
     switch (document, webPreviewIsSelecting) {
     | (Some(doc), true) => {
@@ -113,7 +102,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           }
         }
         let iframeTarget = doc->WebAPI.Document.asEventTarget
-        let windowTarget = WebAPI.Global.window->WebAPI.Window.asEventTarget
+        let windowTarget = WebAPI.Window.current->WebAPI.Window.asEventTarget
         iframeTarget->WebAPI.EventTarget.addEventListener(Keydown, handleKeyDown)
         windowTarget->WebAPI.EventTarget.addEventListener(Keydown, handleKeyDown)
         Some(
@@ -127,13 +116,11 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     }
   }, (document, webPreviewIsSelecting))
 
-  // Drag selection event listeners (available in Selecting mode with modifier key)
   React.useEffect(() => {
     switch (document, webPreviewIsSelecting) {
     | (Some(doc), true) => {
         let onMouseDown = ev => {
           let mouseEv = ev->asMouseEvent
-          // Start drag only with meta+shift (cmd+shift on Mac)
           switch (mouseEv.metaKey, mouseEv.shiftKey) {
           | (true, true) =>
             WebAPI.Event.preventDefault(ev)
@@ -174,7 +161,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
 
                 switch w > 10.0 && h > 10.0 {
                 | true =>
-                  // Drag selection: find all meaningful elements in rectangle
                   wasDragging.current = true
                   let foundElements = _findElementsInRect(doc, x, y, w, h)
 
@@ -191,12 +177,10 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                       },
                     )
 
-                    // Stash for dispatch after updater returns (React purity)
                     pendingDragDispatch.current = Some(elements)
                   | false => ()
                   }
                 | false =>
-                  // Cmd+Shift+Click (no drag): add single element directly
                   wasDragging.current = true
                   let elementAtPoint =
                     doc->elementFromPoint(~x=startX->Float.toInt, ~y=startY->Float.toInt)
@@ -209,7 +193,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
                         tagName: el.tagName,
                       }
 
-                      // Stash for dispatch after updater returns (React purity)
                       pendingDragDispatch.current = Some([entry])
                     },
                   )
@@ -220,7 +203,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
             }
           })
 
-          // Dispatch outside the setState updater to respect React purity
           switch pendingDragDispatch.current {
           | Some(elements) =>
             pendingDragDispatch.current = None
@@ -275,25 +257,18 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     }
   }, (document, webPreviewIsSelecting))
 
-  // Split effect: Handle mode transitions separately from click handling
-  // This prevents unnecessary effect runs when only clickedElement changes
   React.useEffect(() => {
     switch (webPreviewIsSelecting, wasSelecting.current) {
     | (true, false) =>
-      // Entering selection mode — mark current click as already processed
-      // so we don't re-handle a stale click from before selection mode
       let currentId = clickedElement->Option.mapOr(-1, click => click.clickId)
       lastProcessedClickId.current = currentId
       wasSelecting.current = true
-    | (false, true) =>
-      // Exiting selection mode
-      wasSelecting.current = false
+    | (false, true) => wasSelecting.current = false
     | _ => ()
     }
     None
   }, [webPreviewIsSelecting])
 
-  // Separate effect for handling clicks in selection mode
   React.useEffect(() => {
     switch webPreviewIsSelecting {
     | true =>
@@ -302,17 +277,12 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         | true =>
           lastProcessedClickId.current = clickId
 
-          // Skip click if it was part of a drag gesture
           switch wasDragging.current {
           | true => wasDragging.current = false
           | false =>
             switch target {
-            | Some(eventTarget) => {
-                let element = WebAPI.EventTarget.asElement(eventTarget)
-                // Compute position from element bounding rect
-                // Dispatch toggle — reducer handles add/remove and popup state atomically
-                Client__State.Actions.toggleAnnotation(~element, ~tagName=element.tagName)
-              }
+            | Some(element) =>
+              Client__State.Actions.toggleAnnotation(~element, ~tagName=element.tagName)
             | None => Log.error("Element clicked: unknown")
             }
           }
@@ -324,9 +294,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     None
   }, (clickedElement, webPreviewIsSelecting))
 
-  // Set crosshair cursor on all iframe elements during selection mode.
-  // Uses an injected <style> tag with `* { cursor: crosshair !important; }` so that
-  // interactive elements (buttons, links, inputs) can't override the crosshair cursor.
   React.useEffect(() => {
     switch webPreviewIsSelecting {
     | true =>
@@ -365,7 +332,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     )
   }, [webPreviewIsSelecting])
 
-  // Selection overlay container
   let selectionModeIndicator = switch webPreviewIsSelecting {
   | true =>
     <div
@@ -378,7 +344,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   | false => React.null
   }
 
-  // Hover highlight (only when in selection mode, but not during drag)
   let hoverOverlay = switch (webPreviewIsSelecting, dragState) {
   | (true, Idle) =>
     <Client__WebPreview__HoveredElement
@@ -387,7 +352,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   | _ => React.null
   }
 
-  // Drag selection rectangle
   let dragOverlay = switch dragState {
   | Dragging({startX, startY, currentX, currentY}) => {
       let x = Math.min(startX, currentX)
@@ -407,7 +371,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   | Idle => React.null
   }
 
-  // Annotation markers for all confirmed annotations
   let annotationMarkersOverlay =
     <Client__WebPreview__AnnotationMarkers
       annotations={annotations}
@@ -415,13 +378,11 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       mutationTimestamp={mutationTimestamp}
       onRemove={id => Client__State.Actions.removeAnnotation(~id)}
       onNavigate={(id, element) => {
-        // Replace the annotation with one for the navigated element
         Client__State.Actions.removeAnnotation(~id)
         Client__State.Actions.addAnnotation(~element, ~tagName=element.tagName)
       }}
     />
 
-  // Non-blocking comment popup for the active annotation
   let annotationPopupOverlay = {
     let activeAnnotation = switch activePopupAnnotationId {
     | Some(id) => annotations->Array.find(a => a.id == id)
@@ -460,11 +421,9 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     | true => `scale(${Float.toFixed(scale, ~digits=4)})`
     | false => "none"
     }
-    // Outer: fills the container, uses flex centering to match the iframe's position
     <div
       className="pointer-events-none absolute top-0 left-0 w-full h-full isolate flex items-start justify-center"
     >
-      // Inner: matches the iframe wrapper's exact dimensions, transform, and offset
       <div
         className="shrink-0 mt-2 relative overflow-hidden"
         style={

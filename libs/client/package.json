@@ -1,9 +1,7 @@
 {
 	"name": "@frontman-ai/client",
-	"publishConfig": {
-		"access": "public"
-	},
-	"version": "1.0.1",
+	"private": true,
+	"version": "1.0.5",
 	"description": "React UI component library for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -37,9 +35,10 @@
 		"dist"
 	],
 	"devDependencies": {
-		"@babel/core": "^7.29.7",
+		"@babel/core": "^8.0.1",
 		"@base-ui/react": "^1.4.1",
-		"@biomejs/biome": "^2.5.0",
+		"@biomejs/biome": "^2.5.5",
+		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
 		"@frontman-ai/astro-browser": "workspace:*",
 		"@frontman-ai/frontman-client": "workspace:*",
 		"@frontman-ai/frontman-protocol": "workspace:*",
@@ -48,23 +47,23 @@
 		"@frontman/logs": "workspace:*",
 		"@medv/finder": "^4.0.2",
 		"@rescript/react": "^0.15.0",
-		"@rescript/runtime": "12.3.0",
-		"@rescript/webapi": "*",
+		"@rescript/runtime": "catalog:",
+		"@rescript/webapi": "catalog:",
 		"@tailwindcss/vite": "^4.3.2",
 		"@types/babel__core": "^7",
 		"@types/react": "^19.2.15",
 		"@types/react-dom": "^19.2.3",
-		"@zumer/snapdom": "^2.12.2",
+		"@zumer/snapdom": "^2.24.7",
 		"babel-plugin-react-compiler": "^1.0.0",
 		"dom-accessibility-api": "^0.7.1",
-		"dom-element-to-component-source": "^0.5.0",
-		"lucide-react": "^1.18.0",
-		"react": "^19.2.7",
-		"react-dom": "^19.2.7",
+		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
+		"lucide-react": "^1.26.0",
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8",
 		"rescript": "catalog:",
 		"rescript-base-ui": "^1.2.5",
 		"rescript-vitest": "catalog:",
-		"shadcn": "^4.7.0",
+		"shadcn": "^4.13.1",
 		"streamdown": "^2.5.0",
 		"sury": "catalog:",
 		"sury-ppx": "catalog:",
@@ -76,18 +75,20 @@
 	},
 	"dependencies": {
 		"@floating-ui/dom": "^1.8.0",
-		"@tiptap/core": "^3.27.3",
-		"@tiptap/extension-document": "^3.27.3",
-		"@tiptap/extension-paragraph": "^3.27.3",
-		"@tiptap/extension-placeholder": "^3.27.3",
-		"@tiptap/extension-text": "^3.27.3",
-		"@tiptap/extensions": "^3.27.3",
-		"@tiptap/pm": "^3.27.3",
-		"@tiptap/react": "^3.27.3",
-		"canvas-confetti": "^1.9.4"
+		"@pierre/diffs": "^1.3.5",
+		"@tiptap/core": "3.30.1",
+		"@tiptap/extension-document": "3.30.1",
+		"@tiptap/extension-paragraph": "3.30.1",
+		"@tiptap/extension-placeholder": "3.30.1",
+		"@tiptap/extension-text": "3.30.1",
+		"@tiptap/extensions": "3.30.1",
+		"@tiptap/pm": "3.30.1",
+		"@tiptap/react": "3.30.1",
+		"border-beam": "^1.3.0",
+		"diff": "^9.0.0"
 	},
 	"peerDependencies": {
-		"react": "^19.2.7",
-		"react-dom": "^19.2.7"
+		"react": "^19.2.8",
+		"react-dom": "^19.2.8"
 	}
 }

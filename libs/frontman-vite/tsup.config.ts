@@ -48,7 +48,6 @@ const internalDeps = [
 ];
 
 export default defineConfig([
-  // Main entry point
   {
     entry: { 'index': './src/FrontmanVite.res.mjs' },
     format: ['esm'],
@@ -56,20 +55,19 @@ export default defineConfig([
     clean: true,
     dts: true,
     noExternal: [...internalDeps, /vite-plugin-vue-source/],
-    external: ['vite', 'lighthouse', 'chrome-launcher', ...nodeBuiltins],
+    external: ['vite', 'lighthouse', 'chrome-launcher', 'source-map', ...nodeBuiltins],
     platform: 'node',
     target: 'node18',
     treeshake: true,
     define: { '__PACKAGE_VERSION__': JSON.stringify(pkg.version) },
   },
-  // CLI entry point
   {
     entry: { 'cli': './src/cli/cli.mjs' },
     format: ['esm'],
     outDir: 'dist',
     clean: false,
     noExternal: internalDeps,
-    external: ['vite', 'lighthouse', 'chrome-launcher', ...nodeBuiltins],
+    external: ['vite', 'lighthouse', 'chrome-launcher', 'source-map', ...nodeBuiltins],
     platform: 'node',
     target: 'node18',
     treeshake: true,

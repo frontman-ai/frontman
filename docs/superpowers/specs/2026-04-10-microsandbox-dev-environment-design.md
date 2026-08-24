@@ -118,11 +118,11 @@ The existing `frontman-dev` Dockerfile is extended to include PostgreSQL. Image 
 | `infra-up` | `infra-up` | Verify msb installed + image built |
 | `infra-down` | `infra-down` | Remove all frontman sandboxes |
 
-**Removed targets:** `wt-dev`, `wt-urls`, `wt-gc`, `wt-logs` — dev server lifecycle moves inside the sandbox; agents don't need a dashboard or URL routing.
+**Removed targets:** `wt-dev`, `wt-urls`, `wt-logs` — dev server lifecycle moves inside the sandbox; agents don't need a dashboard or URL routing.
 
 ## Backwards Compatibility
 
-`bin/pod-exec` is kept as a shim calling `tsx bin/sandbox exec` for any scripts referencing it, but marked deprecated in CLAUDE.md.
+`bin/pod-exec` is kept as a shim calling `tsx bin/sandbox exec` for any scripts referencing it, but marked deprecated in `AGENTS.md`.
 
 ## Files Changed
 
@@ -135,11 +135,10 @@ The existing `frontman-dev` Dockerfile is extended to include PostgreSQL. Image 
 | `bin/wt-pod-remove` | Deleted |
 | `bin/wt-resolve` | Deleted |
 | `bin/wt-dashboard` | Deleted |
-| `bin/wt-gc` | Deleted |
 | `infra/local/` | Deleted — Caddy/dnsmasq infra |
 | `.devcontainer/Dockerfile` | Updated — add Postgres |
 | `Makefile` | Updated — sb-* targets, simplified infra-* |
-| `CLAUDE.md` | Updated — document sb-* workflow, remove worktree section |
+| `AGENTS.md` | Updated — document sb-* workflow, remove worktree section |
 
 ## Secrets
 

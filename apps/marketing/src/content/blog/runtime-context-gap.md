@@ -1,83 +1,132 @@
 ---
 title: 'Runtime Context Gap in AI Coding Tools'
 pubDate: 2026-02-20T05:00:00Z
-description: 'AI coding tools read your source files but never see the running application. Here is what that means technically — on both the client and server side — and which tools are building the bridge.'
+description: 'A technical taxonomy of static, process, browser, framework, and verification context, with examples of how coding agents can collect each layer.'
 author: 'Danni Friedland'
+articleSection: 'Technical Explainer'
 image: '/blog/runtime-context-gap-cover.png'
+imageAlt: 'Runtime Context Gap in AI Coding Tools cover'
 tags: ['ai', 'developer-tools']
-updatedDate: 2026-03-10T00:00:00Z
+updatedDate: 2026-07-30T00:00:00Z
 ---
 
-Current AI coding tools operate on source files. They read your code, predict what the application does, and generate edits. This works well for pure logic — functions with clear inputs and outputs, refactoring, type-level changes.
+The runtime context gap is not “AI cannot see a browser.” Modern coding agents can receive browser data through built-in integrations, automation libraries, or MCP servers. The more precise definition is:
 
-It falls apart when the source code isn't the whole story. And for any application with a runtime — a web app running in a browser, a server handling requests, a framework with middleware and compiled output — the source code is never the whole story.
+> A runtime context gap exists when evidence needed to decide or verify a code change is produced only while the system runs, but that evidence is absent from the agent's working context.
 
-This isn't just a frontend problem. The browser has computed styles and a rendered DOM that don't exist in your source files. But the server side has its own runtime context that source code alone can't capture: which routes are registered, what the compiled module graph looks like, what's in the server logs, what middleware is active and in what order.
+This definition is task-specific. Source text may be sufficient to rename a function. It is insufficient to prove which CSS rule wins at a particular viewport or which middleware handled a request.
 
-The question is whether connecting AI tools to this runtime state — both client and server — is a meaningful improvement or just a debugger hook with extra steps. Having worked on this problem, the honest answer is: it's a debugger hook with extra steps, _and_ it's a meaningful improvement. Those aren't contradictory.
+## A Five-Layer Context Taxonomy
 
-### The Gap Is Real (But Let's Be Precise)
+| Layer                | Typical evidence                                              | Question it answers                    |
+| -------------------- | ------------------------------------------------------------- | -------------------------------------- |
+| Static project       | source, config, types, dependency graph                       | What could the program do?             |
+| Process runtime      | logs, environment, loaded modules, routes, requests           | What did this running process do?      |
+| Browser document     | DOM, accessibility tree, computed styles, geometry, network   | What did this page render and request? |
+| Framework provenance | component tree, props, hydration boundaries, source locations | Which framework construct produced it? |
+| Verification         | tests, traces, screenshots, before/after runtime values       | Did the change satisfy the criterion?  |
 
-When an AI coding tool edits your project, it's working from source text. Here's what it doesn't have:
+Tools differ less by whether they are “runtime-aware” than by which layers they collect, how fresh that evidence is, and whether they correlate layers reliably.
 
-**Client-side runtime (the browser):**
+## Layer 1: Static Project Context
 
-- **Computed styles.** The final CSS applied to an element is the product of specificity, cascade order, media queries, CSS variables, container queries, and inheritance. The AI sees class names. The browser computes actual values.
-- **The rendered DOM.** Your JSX is not your DOM. Conditional rendering, portals, fragments, and framework transformations mean the actual tree looks different from what the source suggests.
-- **Layout geometry.** Is there 16px or 24px between the sidebar and content area? The AI can read `gap-4` in a Tailwind class but can't see that a parent's padding also contributes to the visual spacing.
+Static context includes source files, build configuration, type information, lockfiles, and relationships an agent can infer without running the application. This is the strongest layer for API changes, refactors, and repository-wide consistency checks.
 
-**Server-side runtime (the dev server):**
+Static context can show that a component contains `padding: var(--space-4)`. It cannot establish the final value of that custom property in a particular document state, whether another rule overrides the declaration, or the element's resulting geometry.
 
-- **Compiled module graph.** Frameworks like Next.js, Vite, and Astro transform your source before serving it. The AI sees source files; the dev server sees the compiled, bundled, tree-shaken output.
-- **Registered routes and middleware.** File-based routing means the route table is a runtime artifact. Middleware ordering, redirect chains, and rewrite rules exist in the server's state, not in any single source file.
-- **Server logs and errors.** A component that renders fine might be throwing warnings server-side. The AI editing your code doesn't see `stdout`.
-- **Framework-specific context.** Astro island hydration directives, Next.js server/client component boundaries, Vite's HMR module graph - these are framework runtime concepts that source code only partially describes - which is why [browser-aware AI coding tools](/blog/what-are-browser-aware-ai-coding-tools/) take a different approach.
+The gap begins only when one of those facts matters to the task.
 
-### An Uncomfortable Question
+## Layer 2: Process Runtime Context
 
-If your code is so decoupled from its runtime behavior that neither you nor an AI can predict what it does, you might have an architecture problem that no tool will fix. Deeply nested utility classes, conditional rendering spread across five files, CSS overrides cascading through three abstraction layers — an AI with runtime access can patch around this, but it can't solve it.
+Process context is evidence from a running development server, application server, worker, or test process:
 
-This doesn't invalidate the tooling argument. Even well-structured codebases have the source-to-runtime gap. But runtime-aware AI is most valuable when your code is already reasonable, and least valuable when it's used to paper over a mess you should be simplifying.
+- emitted logs and stack traces;
+- environment-dependent configuration;
+- observed requests and responses;
+- loaded or transformed modules;
+- route and middleware behavior;
+- hot-update events and build errors.
 
-### What "Runtime-Aware" Actually Means
+Example: source inspection may show several possible request handlers. A request trace or server log identifies which handler ran with the current host, flags, and middleware order. That is observed behavior, not a prediction from files.
 
-Strip away the marketing and the architecture is straightforward: you give an AI agent access to runtime information from both the browser _and_ the dev server, then let it correlate that information back to source files.
+Development servers also maintain runtime state. [Vite's HMR API](https://vite.dev/guide/api-hmr) documents update boundaries, invalidation, and client/server HMR events. Reading a source import graph is related to, but not identical with, observing how the active dev server handles an update.
 
-Modern web frameworks already bridge client and server — Next.js, Astro, and Vite all have dev servers that know about your component tree, module graph, and build output. A tool that hooks into the framework middleware gets both sides for free — this is the approach behind [Frontman](/blog/frontman-launch/).
+## Layer 3: Browser Document Context
 
-```text
-┌──────────────────────────┐    ┌──────────────────────────┐
-│ Client Runtime (Browser) │    │ Server Runtime (Dev Svr)  │
-│                          │    │                           │
-│  DOM tree                │    │  Route table              │
-│  Computed styles         │    │  Compiled module graph    │
-│  Component tree          │    │  Server logs / errors     │
-│  Console output          │    │  Middleware state          │
-│  Client state            │    │  HMR module map           │
-└────────────┬─────────────┘    └─────────────┬─────────────┘
-             │                                │
-             └──────────┬─────────────────────┘
-                        ▼
-                 Runtime Bridge (MCP tools)
-                        │
-                        ▼
-              AI Agent + Source file mapping
-```
+Browser context includes data exposed by the live page and browser tooling:
 
-The critical piece is the **source mapping** — connecting "this DOM element at runtime" back to "this component in this file at this line." Different tools achieve this at different depths: framework middleware (deepest, framework-specific), browser proxy (client-only), or MCP server (varies).
+- rendered DOM and accessibility structure;
+- computed CSS and matched rules;
+- element bounding boxes and viewport state;
+- console messages and exceptions;
+- network requests, responses, and timing;
+- focus, selection, scroll, and interaction state.
 
-### The Tools Building This
+These are distinct evidence types. A screenshot can prove visible output but loses DOM identity. A DOM snapshot gives structure but may omit interaction history. Computed styles show resolved values but not necessarily the maintainable source edit.
 
-A few projects are working on this — letting you [click any element in your running application](/blog/tutorial-nextjs-runtime-context/) and describe changes in plain language — each with different tradeoffs. [Frontman](https://frontman.sh) hooks into the framework as middleware for the deepest integration. [Stagewise](https://stagewise.io) uses a browser proxy approach with more polish. [Tidewave](https://tidewave.ai) goes deep on backend runtime for Phoenix/Rails/Django. Chrome DevTools MCP exposes browser state to any agent; our [Puppeteer MCP alternatives](/blog/puppeteer-mcp-alternatives-claude-code/) guide explains that browser-only path for Claude Code. For a category definition, read our [frontend agent explainer](/blog/frontend-agent/). For detailed comparisons, see our [roundup of browser-aware AI tools](/blog/browser-aware-ai-tools-2026/) or the [best AI coding agent for frontend](/blog/best-frontend-coding-agent/) guide.
+[Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) documents browser automation, DOM snapshots, console and network inspection, screenshots, emulation, and performance traces. [Claude Code's Chrome integration](https://code.claude.com/docs/en/chrome) documents a similar class of browser tasks. These integrations close parts of the browser gap; they do not automatically close every other layer.
 
-### The Maintenance Trap
+## Layer 4: Framework Provenance
 
-Runtime-aware AI makes it very easy to iterate on changes. Click, describe, hot reload, done. This is genuinely useful for prototyping, design tweaks, and CSS fixes where you can see the result is correct.
+The browser owns DOM nodes. A framework owns higher-level concepts such as components, props, state, server/client boundaries, or hydration units. Mapping between them is framework-specific.
 
-But "it looks right" is not the same as "I understand what changed." If an AI rewrites your Tailwind classes, restructures your JSX, or adds inline styles to fix a layout — and you ship it without understanding the diff — you've created maintenance debt — and compromised your [design system integrity](/blog/ai-coding-agents-blind-to-ui/).
+[React Developer Tools](https://react.dev/learn/react-developer-tools), for example, provides Components and Profiler panels to inspect React components, props, state, and performance. That capability exists because a component tree is not equivalent to an HTML DOM tree.
 
-The rule should be the same as it's always been: **don't commit code you don't understand.** Whether a blind AI wrote it, a seeing AI wrote it, or you wrote it while sleep-deprived — if you can't explain the diff to a colleague, it shouldn't be merged.
+For coding agents, useful provenance can include:
 
-Runtime-aware tools are better inputs to AI, not substitutes for engineering judgment. They reduce the guess-and-check cycle, which is real waste. They don't reduce the need to understand your own codebase.
+- component display name and ownership chain;
+- source file and line associated with a rendered element;
+- props or state relevant to the selected output;
+- whether a component or token is shared;
+- framework diagnostics from the development server.
 
-[Frontman](https://frontman.sh) is open source on [GitHub](https://github.com/frontman-ai/frontman). The runtime context gap is real regardless of which tool you use to address it.
+This is where framework integrations can add information that generic browser control does not document. Depth varies by framework, build mode, and tool; “has DOM access” should not be used as a proxy for source provenance.
+
+## Layer 5: Verification Context
+
+Collection before an edit helps choose a change. Collection after an edit determines whether it worked.
+
+Verification should match the acceptance criterion:
+
+- For layout: compare computed values, geometry, and relevant viewports.
+- For behavior: replay the user flow and inspect resulting state.
+- For network bugs: compare requests, responses, and console/server errors.
+- For performance: collect a trace under controlled conditions.
+- For code health: run tests, type checks, lint, and inspect the diff.
+
+“The file changed” is not runtime verification. “The page refreshed” is not proof that the target state is correct. Conversely, “the screenshot looks right” does not prove shared components, tests, or accessibility remain correct.
+
+## Three Integration Patterns
+
+### Browser Automation
+
+An agent drives a browser through an extension or automation protocol. This is portable and effective for navigation, user flows, screenshots, DOM inspection, and browser diagnostics. It may require the agent to discover the target and correlate browser evidence with source.
+
+### DevTools or MCP Bridge
+
+A server exposes selected browser or process capabilities as structured tools. MCP standardizes how an agent invokes those tools, not the depth or accuracy of the underlying evidence. A browser MCP server and a framework MCP server can expose very different context.
+
+### Framework Integration
+
+A plugin or middleware layer gathers framework-specific metadata and may connect runtime entities to source. This can improve provenance but costs implementation effort, framework coverage, and compatibility maintenance.
+
+Frontman combines browser tools with local framework integrations; see the [Frontman repository](https://github.com/frontman-ai/frontman) for the implementation and license boundaries. Other tools choose different combinations. [Browser-aware AI tools](/blog/browser-aware-ai-tools-2026/) compares products, while the [UI-context checklist](/blog/ai-coding-agents-blind-to-ui/) explains how to evaluate their evidence.
+
+## Failure Modes to Test
+
+Runtime access can still produce wrong conclusions:
+
+- **Stale state:** evidence was captured before the relevant interaction or update.
+- **Wrong target:** the agent inspected a visually similar node or component instance.
+- **Missing provenance:** it found a DOM value but guessed the controlling source.
+- **Unrepresentative environment:** development flags, data, fonts, or viewport differ from the failing case.
+- **Shallow verification:** one state improved while another regressed.
+- **Excessive access:** browser or process data entered agent context without appropriate controls.
+
+Runtime-aware systems should make evidence and uncertainty visible, not merely add more opaque context.
+
+## The Architectural Takeaway
+
+No single context layer is the truth for every task. Source describes intent and possible behavior. Runtime instruments provide observations. Framework metadata provides provenance. Tests and review decide whether a proposed change is acceptable.
+
+Better coding-agent architecture connects those layers without pretending observation replaces engineering judgment. For workflow selection across browser, IDE, and terminal tools, read [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). For hands-on setup, see the [Next.js runtime context tutorial](/blog/tutorial-nextjs-runtime-context/).

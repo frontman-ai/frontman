@@ -1,15 +1,5 @@
-// ACP (Agent Client Protocol) Types
-// Based on ACP schema-v1.19.0 at commit a213df5240048f96d2b23f644984bb20c188a234.
-// Source: libs/frontman-protocol/schemas/acp/upstream/README.md
-
-// Protocol version is an integer (uint16 in spec)
 type protocolVersion = int
 let currentProtocolVersion = 1
-
-// ---------------------------------------------------------------------------
-// Frontman agent attribution extension metadata
-// Contract: docs/acp-agent-attribution.md
-// ---------------------------------------------------------------------------
 
 let nonEmptyStringSchema = S.string->S.min(1, ~message="Must not be empty")
 
@@ -74,19 +64,29 @@ let catalogIdsUnique = agents => {
 
 let agentCatalogSchema =
   S.array(agentCatalogEntrySchema)
+  ->S.refine(agents => agents->Array.length > 0, ~error="Agent catalog must not be empty")
   ->S.refine(catalogIdsUnique, ~error="Agent catalog IDs must be unique")
   ->S.extendJSONSchema({
     uniqueItems: true,
+    minItems: 1,
     description: "Frontman runtime validation also requires unique id fields",
   })
 
-type sessionMetadata = {
-  agents: option<array<agentCatalogEntry>>,
+type agentAttributionConfigurationMetadata = {
+  agentAttribution: agentAttributionCapability,
+  agents: array<agentCatalogEntry>,
+  defaultAgentId: string,
 }
 
-let sessionMetadataSchema = S.object(s => {
-  agents: s.field("frontman.dev/agents", S.option(agentCatalogSchema)),
-})
+let agentAttributionConfigurationMetadataSchema = S.object(s => {
+  agentAttribution: s.field("agentAttribution", agentAttributionCapabilitySchema),
+  agents: s.field("agents", agentCatalogSchema),
+  defaultAgentId: s.field("defaultAgentId", nonEmptyStringSchema),
+})->S.refine(
+  configuration =>
+    configuration.agents->Array.some(agent => agent.id == configuration.defaultAgentId),
+  ~error="Default agent ID must exist in agent catalog",
+)
 
 let rfc3339TimestampSchema =
   S.string
@@ -124,18 +124,15 @@ let messageMetadataSchema = S.object(s => {
   timestamp: s.field("frontman.dev/timestamp", rfc3339TimestampSchema),
 })
 
-// Implementation info (used for clientInfo and agentInfo)
 @schema
 type implementation = {
   name: string,
   version: string,
   title: option<string>,
-  // ACP spec extensibility: optional metadata for passing extra info (e.g., env key detection)
   @as("_meta")
   _meta: option<JSON.t>,
 }
 
-// File system capabilities
 @schema
 type fileSystemCapability = {
   @as("readTextFile")
@@ -144,14 +141,12 @@ type fileSystemCapability = {
   writeTextFile: option<bool>,
 }
 
-// Elicitation capability (what form types the client supports)
 @schema
 type elicitationCapability = {
   form: option<JSON.t>,
   url: option<JSON.t>,
 }
 
-// Client capabilities
 @schema
 type clientCapabilities = {
   fs: option<fileSystemCapability>,
@@ -161,7 +156,6 @@ type clientCapabilities = {
   _meta: option<JSON.t>,
 }
 
-// Prompt capabilities (what content types agent supports)
 @schema
 type promptCapabilities = {
   image: option<bool>,
@@ -170,7 +164,6 @@ type promptCapabilities = {
   embeddedContext: option<bool>,
 }
 
-// MCP transport capabilities (extended with websocket for our architecture)
 @schema
 type mcpCapabilities = {
   http: option<bool>,
@@ -178,7 +171,6 @@ type mcpCapabilities = {
   websocket: option<bool>,
 }
 
-// Agent capabilities
 @schema
 type agentCapabilities = {
   @as("loadSession")
@@ -191,7 +183,6 @@ type agentCapabilities = {
   _meta: option<JSON.t>,
 }
 
-// Auth method
 @schema
 type authMethod = {
   id: string,
@@ -199,7 +190,6 @@ type authMethod = {
   description: option<string>,
 }
 
-// Initialize request params
 @schema
 type initializeParams = {
   @as("protocolVersion")
@@ -216,7 +206,6 @@ let initializeParamsToJson = (params: initializeParams): JSON.t => {
   json
 }
 
-// Initialize response result
 @schema
 type initializeResult = {
   @as("protocolVersion")
@@ -229,7 +218,6 @@ type initializeResult = {
   authMethods: option<array<authMethod>>,
 }
 
-// session/load request params
 @schema
 type sessionLoadParams = {
   @as("sessionId")
@@ -241,14 +229,8 @@ type sessionLoadParams = {
   _meta: option<JSON.t>,
 }
 
-// ---------------------------------------------------------------------------
-// Session Modes (ACP spec)
-// ---------------------------------------------------------------------------
-
-// Unique identifier for a session mode
 type sessionModeId = string
 
-// A mode the agent can operate in
 type sessionMode = {
   id: sessionModeId,
   name: string,
@@ -263,7 +245,6 @@ let sessionModeSchema = S.object(s => {
   _meta: s.field("_meta", S.option(S.json)),
 })
 
-// The set of modes and the one currently active
 type sessionModeState = {
   currentModeId: sessionModeId,
   availableModes: array<sessionMode>,
@@ -276,17 +257,10 @@ let sessionModeStateSchema = S.object(s => {
   _meta: s.field("_meta", S.option(S.json)),
 })
 
-// ---------------------------------------------------------------------------
-// Session Config Options (ACP spec)
-// ---------------------------------------------------------------------------
-
-// Unique identifier for a config option value
 type sessionConfigValueId = string
 
-// Unique identifier for a config option group
 type sessionConfigGroupId = string
 
-// A possible value for a session config option
 type sessionConfigSelectOption = {
   value: sessionConfigValueId,
   name: string,
@@ -301,7 +275,6 @@ let sessionConfigSelectOptionSchema = S.object(s => {
   _meta: s.field("_meta", S.option(S.json)),
 })
 
-// A group of option values
 type sessionConfigSelectGroup = {
   group: sessionConfigGroupId,
   name: string,
@@ -316,13 +289,11 @@ let sessionConfigSelectGroupSchema = S.object(s => {
   _meta: s.field("_meta", S.option(S.json)),
 })
 
-// Options for a select config: either a flat list or a grouped list
 type sessionConfigSelectOptions =
   | Ungrouped(array<sessionConfigSelectOption>)
   | Grouped(array<sessionConfigSelectGroup>)
 
 let sessionConfigSelectOptionsSchema = S.union([
-  // Try grouped first (items have a "group" field that distinguishes them)
   S.array(sessionConfigSelectGroupSchema)->S.transform(s => {
     parser: v => Grouped(v),
     serializer: v =>
@@ -341,9 +312,6 @@ let sessionConfigSelectOptionsSchema = S.union([
   }),
 ])
 
-// Semantic category for a config option (UX hint).
-// Per ACP spec: "Clients MUST handle missing or unknown categories gracefully."
-// Category names beginning with `_` are free for custom use.
 type sessionConfigOptionCategory =
   | @as("mode") Mode
   | @as("model") Model
@@ -366,8 +334,6 @@ let sessionConfigOptionCategorySchema = S.union([
   }),
 ])
 
-// A session config option — discriminated union on "type".
-// Currently only the "select" variant exists in the ACP spec.
 type sessionConfigOption =
   | SelectConfigOption({
       id: string,
@@ -377,6 +343,14 @@ type sessionConfigOption =
       options: sessionConfigSelectOptions,
       _meta: option<JSON.t>,
     })
+
+let sessionConfigOptionFirstOption = (configOption: sessionConfigOption) => {
+  switch configOption {
+  | SelectConfigOption({options: Grouped(groups)}) =>
+    groups->Array.findMap(group => group.options->Array.get(0))
+  | SelectConfigOption({options: Ungrouped(options)}) => options->Array.get(0)
+  }
+}
 
 let sessionConfigOptionSchema = S.union([
   S.object(s => {
@@ -392,10 +366,6 @@ let sessionConfigOptionSchema = S.union([
   }),
 ])
 
-// ---------------------------------------------------------------------------
-// session/load response result (ACP LoadSessionResponse)
-// ---------------------------------------------------------------------------
-
 type sessionLoadResult = {
   modes: option<sessionModeState>,
   configOptions: option<array<sessionConfigOption>>,
@@ -408,11 +378,6 @@ let sessionLoadResultSchema = S.object(s => {
   _meta: s.field("_meta", S.option(S.json)),
 })
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-// Find a config option by its semantic category (e.g. Model, Mode, ThoughtLevel).
 let findConfigOptionByCategory = (
   configOptions: array<sessionConfigOption>,
   category: sessionConfigOptionCategory,
@@ -423,10 +388,6 @@ let findConfigOptionByCategory = (
     | _ => false
     }
   )
-
-// ---------------------------------------------------------------------------
-// session/new response result (ACP NewSessionResponse)
-// ---------------------------------------------------------------------------
 
 type sessionNewResult = {
   sessionId: string,
@@ -442,14 +403,12 @@ let sessionNewResultSchema = S.object(s => {
   _meta: s.field("_meta", S.option(S.json)),
 })
 
-// delete_session request params (non-ACP channel event)
 @schema
 type deleteSessionParams = {
   @as("sessionId")
   sessionId: string,
 }
 
-// Title update notification from server
 @schema
 type titleUpdated = {
   @as("sessionId")
@@ -457,162 +416,43 @@ type titleUpdated = {
   title: string,
 }
 
-// Payload for the config_options_updated channel event (non-ACP, tasks channel)
 type configOptionsUpdated = {configOptions: array<sessionConfigOption>}
 
 let configOptionsUpdatedSchema = S.object(s => {
   configOptions: s.field("configOptions", S.array(sessionConfigOptionSchema)),
 })
 
-// Annotations for embedded resources
-@schema
-type annotations = {
-  @as("_meta")
-  _meta: option<JSON.t>,
-}
+type toolCallContentItem =
+  | Content({content: FrontmanProtocol__ContentBlock.t, _meta: option<JSON.t>})
+  | Diff({path: string, oldText: option<string>, newText: string, _meta: option<JSON.t>})
+  | Terminal({terminalId: string, _meta: option<JSON.t>})
 
-// Text resource contents (for EmbeddedResourceResource)
-@schema
-type textResourceContents = {
-  uri: string,
-  @as("mimeType")
-  mimeType: option<string>,
-  text: string,
-}
-
-// Blob resource contents (for EmbeddedResourceResource)
-@schema
-type blobResourceContents = {
-  uri: string,
-  @as("mimeType")
-  mimeType: option<string>,
-  blob: string,
-}
-
-type embeddedResourceResource =
-  | TextResourceContents(textResourceContents)
-  | BlobResourceContents(blobResourceContents)
-
-let embeddedResourceResourceSchema = S.union([
+let toolCallContentItemSchema = S.union([
   S.object(s => {
-    TextResourceContents({
-      uri: s.field("uri", S.string),
-      mimeType: s.field("mimeType", S.option(S.string)),
-      text: s.field("text", S.string),
+    s.tag("type", "content")
+    Content({
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
+      _meta: s.field("_meta", S.option(S.json)),
     })
   }),
   S.object(s => {
-    BlobResourceContents({
-      uri: s.field("uri", S.string),
-      mimeType: s.field("mimeType", S.option(S.string)),
-      blob: s.field("blob", S.string),
+    s.tag("type", "diff")
+    Diff({
+      path: s.field("path", S.string),
+      oldText: s.field("oldText", S.nullableAsOption(S.string)),
+      newText: s.field("newText", S.string),
+      _meta: s.field("_meta", S.option(S.json)),
+    })
+  }),
+  S.object(s => {
+    s.tag("type", "terminal")
+    Terminal({
+      terminalId: s.field("terminalId", S.string),
+      _meta: s.field("_meta", S.option(S.json)),
     })
   }),
 ])
 
-// Sury needs a transform boundary to reverse nested union fields correctly.
-let embeddedResourceContentSchema = embeddedResourceResourceSchema->S.transform(_ => {
-  parser: resource => resource,
-  serializer: resource => resource,
-})
-
-// Embedded resource for ContentBlock::Resource (per ACP spec)
-@schema
-type embeddedResource = {
-  @as("_meta")
-  _meta: option<JSON.t>,
-  annotations: option<annotations>,
-  resource: embeddedResourceResource,
-}
-
-// Content block for prompts and responses
-// Discriminated union on "type" field per ACP spec:
-// - TextContent (type="text"): text string
-// - ImageContent (type="image"): base64 data + mimeType
-// - AudioContent (type="audio"): base64 data + mimeType
-// - ResourceLink (type="resource_link"): name + uri
-// - EmbeddedResource (type="resource"): embedded resource
-type contentBlock =
-  | TextContent({text: string, _meta: option<JSON.t>, annotations: option<annotations>})
-  | ImageContent({
-      data: string,
-      mimeType: string,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
-  | AudioContent({
-      data: string,
-      mimeType: string,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
-  | ResourceLink({
-      name: string,
-      uri: string,
-      _meta: option<JSON.t>,
-      annotations: option<annotations>,
-    })
-  | EmbeddedResource(embeddedResource)
-
-let contentBlockSchema = S.union([
-  S.object(s => {
-    s.tag("type", "text")
-    TextContent({
-      text: s.field("text", S.string),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-  S.object(s => {
-    s.tag("type", "image")
-    ImageContent({
-      data: s.field("data", S.string),
-      mimeType: s.field("mimeType", S.string),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-  S.object(s => {
-    s.tag("type", "audio")
-    AudioContent({
-      data: s.field("data", S.string),
-      mimeType: s.field("mimeType", S.string),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-  S.object(s => {
-    s.tag("type", "resource_link")
-    ResourceLink({
-      name: s.field("name", S.string),
-      uri: s.field("uri", S.string),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-  S.object(s => {
-    s.tag("type", "resource")
-    EmbeddedResource({
-      resource: s.field("resource", embeddedResourceContentSchema),
-      _meta: s.field("_meta", S.option(S.json)),
-      annotations: s.field("annotations", S.option(annotationsSchema)),
-    })
-  }),
-])
-
-// Tool call content item (for tool_call_update)
-type toolCallContentItem = {
-  @as("type")
-  type_: string,
-  content: option<contentBlock>,
-}
-
-let toolCallContentItemSchema = S.object(s => {
-  type_: s.field("type", S.string),
-  content: s.field("content", S.option(contentBlockSchema)),
-})
-
-// Tool call status
 type toolCallStatus =
   | @as("pending") Pending
   | @as("in_progress") InProgress
@@ -626,7 +466,6 @@ let toolCallStatusSchema = S.union([
   S.literal(Failed),
 ])
 
-// Stop reason (per ACP spec)
 type stopReason =
   | @as("end_turn") EndTurn
   | @as("max_tokens") MaxTokens
@@ -649,12 +488,10 @@ type sessionState =
 
 let sessionStateSchema = S.union([S.literal(Running), S.literal(Idle), S.literal(RequiresAction)])
 
-// session/prompt acceptance result
 type promptResult = unit
 
 let promptResultSchema = S.object(_s => ())
 
-// Plan entry priority (per ACP spec)
 type planEntryPriority =
   | @as("high") High
   | @as("medium") Medium
@@ -662,7 +499,6 @@ type planEntryPriority =
 
 let planEntryPrioritySchema = S.union([S.literal(High), S.literal(Medium), S.literal(Low)])
 
-// Plan entry status (per ACP spec)
 type planEntryStatus =
   | @as("pending") Pending
   | @as("in_progress") InProgress
@@ -674,7 +510,6 @@ let planEntryStatusSchema = S.union([
   S.literal(Completed),
 ])
 
-// Plan entry structure per ACP spec
 type planEntry = {
   content: string,
   priority: planEntryPriority,
@@ -687,18 +522,25 @@ let planEntrySchema = S.object(s => {
   status: s.field("status", planEntryStatusSchema),
 })
 
-// Session update variants - discriminated by sessionUpdate field
 type sessionUpdate =
-  | AgentMessageChunk({messageId: string, content: contentBlock, _meta: messageMetadata})
-  | UserMessageChunk({messageId: string, content: contentBlock, _meta: messageMetadata})
+  | AgentMessageChunk({
+      messageId: string,
+      content: FrontmanProtocol__ContentBlock.t,
+      _meta: messageMetadata,
+    })
+  | UserMessageChunk({
+      messageId: string,
+      content: FrontmanProtocol__ContentBlock.t,
+      _meta: messageMetadata,
+    })
   | GenericAgentMessageChunk({
       messageId: option<string>,
-      content: contentBlock,
+      content: FrontmanProtocol__ContentBlock.t,
       _meta: option<JSON.t>,
     })
   | GenericUserMessageChunk({
       messageId: option<string>,
-      content: contentBlock,
+      content: FrontmanProtocol__ContentBlock.t,
       _meta: option<JSON.t>,
     })
   | Unknown({sessionUpdate: string})
@@ -707,14 +549,19 @@ type sessionUpdate =
       title: string,
       kind: option<string>,
       status: option<toolCallStatus>,
+      content: option<array<toolCallContentItem>>,
+      rawInput: option<JSON.t>,
+      rawOutput: option<JSON.t>,
       timestamp: string,
-      parentAgentId: option<string>, // If present, this is a sub-agent tool call
+      parentAgentId: option<string>,
       spawningToolName: option<string>,
-    }) // Tool name that spawned the sub-agent
+    })
   | ToolCallUpdate({
       toolCallId: string,
       status: option<toolCallStatus>,
       content: option<array<toolCallContentItem>>,
+      rawInput: option<JSON.t>,
+      rawOutput: option<JSON.t>,
     })
   | Plan({entries: array<planEntry>})
   | ConfigOptionUpdate({configOptions: array<sessionConfigOption>})
@@ -738,6 +585,9 @@ let commonSessionUpdateSchema = S.union([
       title: s.field("title", S.string),
       kind: s.field("kind", S.option(S.string)),
       status: s.field("status", S.option(toolCallStatusSchema)),
+      content: s.field("content", S.option(S.array(toolCallContentItemSchema))),
+      rawInput: s.field("rawInput", S.option(S.json)),
+      rawOutput: s.field("rawOutput", S.option(S.json)),
       timestamp: s.field("timestamp", S.string),
       parentAgentId: s.field("parentAgentId", S.option(S.string)),
       spawningToolName: s.field("spawningToolName", S.option(S.string)),
@@ -749,6 +599,8 @@ let commonSessionUpdateSchema = S.union([
       toolCallId: s.field("toolCallId", S.string),
       status: s.field("status", S.option(toolCallStatusSchema)),
       content: s.field("content", S.option(S.array(toolCallContentItemSchema))),
+      rawInput: s.field("rawInput", S.option(S.json)),
+      rawOutput: s.field("rawOutput", S.option(S.json)),
     })
   }),
   S.object(s => {
@@ -795,7 +647,7 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "agent_message_chunk")
     AgentMessageChunk({
       messageId: s.field("messageId", nonEmptyStringSchema),
-      content: s.field("content", contentBlockSchema),
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", messageMetadataSchema),
     })
   }),
@@ -803,7 +655,7 @@ let sessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "user_message_chunk")
     UserMessageChunk({
       messageId: s.field("messageId", nonEmptyStringSchema),
-      content: s.field("content", contentBlockSchema),
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", messageMetadataSchema),
     })
   }),
@@ -815,7 +667,7 @@ let genericSessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "agent_message_chunk")
     GenericAgentMessageChunk({
       messageId: s.field("messageId", S.option(nonEmptyStringSchema)),
-      content: s.field("content", contentBlockSchema),
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", S.option(S.json)),
     })
   }),
@@ -823,7 +675,7 @@ let genericSessionUpdateSchema = S.union([
     s.tag("sessionUpdate", "user_message_chunk")
     GenericUserMessageChunk({
       messageId: s.field("messageId", S.option(nonEmptyStringSchema)),
-      content: s.field("content", contentBlockSchema),
+      content: s.field("content", FrontmanProtocol__ContentBlock.schema),
       _meta: s.field("_meta", S.option(S.json)),
     })
   }),
@@ -839,7 +691,6 @@ type sessionUpdateParams = {
   update: sessionUpdate,
 }
 
-// Full session/update notification envelope
 type sessionUpdateNotification = {
   jsonrpc: string,
   method: string,
@@ -867,7 +718,6 @@ let unknownSessionUpdateNotificationSchema = makeSessionUpdateNotificationSchema
   unknownSessionUpdateSchema,
 )
 
-// Session summary for list_sessions response
 type sessionSummary = {
   sessionId: string,
   title: string,
@@ -888,35 +738,25 @@ let listSessionsResultSchema = S.object(s => {
   sessions: s.field("sessions", S.array(sessionSummarySchema)),
 })
 
-// ---------------------------------------------------------------------------
-// Elicitation (session/elicitation)
-// ---------------------------------------------------------------------------
-
-// Elicitation mode — "form" for inline forms, "url" for out-of-band browser flows
 type elicitationMode =
   | @as("form") Form
   | @as("url") Url
 
 let elicitationModeSchema = S.union([S.literal(Form), S.literal(Url)])
 
-// session/elicitation request params (server -> client)
 @schema
 type elicitationRequestParams = {
   @as("sessionId")
   sessionId: string,
   mode: elicitationMode,
   message: string,
-  // For form mode: JSON Schema describing the fields to render
   @as("requestedSchema")
   requestedSchema: option<JSON.t>,
-  // For URL mode: the URL the client should open
   url: option<string>,
-  // For URL mode: correlates with notifications/elicitation/complete
   @as("elicitationId")
   elicitationId: option<string>,
 }
 
-// User's action on the elicitation form
 type elicitationAction =
   | @as("accept") Accept
   | @as("decline") Decline
@@ -924,14 +764,12 @@ type elicitationAction =
 
 let elicitationActionSchema = S.union([S.literal(Accept), S.literal(Decline), S.literal(Cancel)])
 
-// session/elicitation response result (client -> server)
 @schema
 type elicitationResponseResult = {
   action: elicitationAction,
   content: option<JSON.t>,
 }
 
-// notifications/elicitation/complete params
 @schema
 type elicitationCompleteParams = {
   @as("elicitationId")

@@ -18,7 +18,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
 
@@ -26,10 +26,8 @@ jobs:
         id: verify
         run: |
           COMMIT_MSG=$(git log -1 --format='%s')
-          # Squash / rebase merge: "chore: release v0.4.0" or "chore: release v0.4.0 (#123)"
           if echo "$COMMIT_MSG" | grep -qE '^chore: release v[0-9]'; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
-          # Merge commit: "Merge pull request #123 from <org>/release/v0.4.0"
           elif echo "$COMMIT_MSG" | grep -qE '^Merge pull request.*release/v[0-9]'; then
             echo "is_release=true" >> "$GITHUB_OUTPUT"
           else
@@ -41,7 +39,6 @@ jobs:
         if: steps.verify.outputs.is_release == 'true'
         id: extract
         run: |
-          # Match both "## [0.4.0]" (Keep a Changelog) and "## 0.4.0" (changesets) formats
           VERSION=$(sed -n 's/^## \[\{0,1\}\([0-9][0-9.]*\).*/\1/p' CHANGELOG.md | head -1)
           if [ -z "$VERSION" ]; then
             echo "::error::Could not extract version from CHANGELOG.md"
@@ -50,7 +47,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 
-          # Extract changelog section between the first and second ## headings
           awk '/^## [0-9[]/{if(found) exit; found=1; next} found' CHANGELOG.md > /tmp/release-notes.md
           echo "Extracted release notes for v${VERSION}"
 

@@ -13,7 +13,6 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       conn = get(conn, ~p"/users/log-in")
       response = html_response(conn, 200)
       assert response =~ "Sign in to Frontman"
-      # OAuth-only login now - shows GitHub and Google options
       assert response =~ "Login with GitHub"
       assert response =~ "Login with Google"
     end
@@ -52,8 +51,6 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
     end
 
     test "redirects to home when already logged in", %{conn: conn, user: user} do
-      # The login route has redirect_if_user_is_authenticated plug,
-      # so authenticated users are redirected away from the login page
       conn =
         conn
         |> log_in_user(user)
@@ -92,6 +89,15 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
 
       assert Phoenix.Flash.get(conn.assigns.flash, :error) ==
                "Magic link is invalid or it has expired."
+    end
+  end
+
+  describe "GET /users/popup-complete" do
+    test "is public and loads its close script", %{conn: conn} do
+      response = conn |> get(~p"/users/popup-complete") |> html_response(200)
+      assert response =~ "/assets/js/popup-complete.js"
+      refute response =~ "data-close-window"
+      assert response =~ "You may close this tab"
     end
   end
 
@@ -141,6 +147,19 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert Phoenix.Flash.get(conn.assigns.flash, :info) =~ "Welcome back!"
     end
 
+    test "stores return_to from the login page", %{conn: conn, user: user} do
+      user = set_password(user)
+
+      conn =
+        conn
+        |> get(~p"/users/log-in?return_to=/users/popup-complete")
+        |> post(~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      assert redirected_to(conn) == ~p"/users/popup-complete"
+    end
+
     test "emits error message with invalid credentials", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log-in?mode=password", %{
@@ -168,12 +187,14 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       {token, _hashed_token} = generate_user_magic_link_token(user)
 
       conn =
-        post(conn, ~p"/users/log-in", %{
+        conn
+        |> init_test_session(user_return_to: "/users/popup-complete")
+        |> post(~p"/users/log-in", %{
           "user" => %{"token" => token}
         })
 
       assert get_session(conn, :user_token)
-      assert redirected_to(conn) == ~p"/"
+      assert redirected_to(conn) == ~p"/users/popup-complete"
     end
 
     test "confirms unconfirmed user", %{conn: conn, unconfirmed_user: user} do
@@ -227,14 +248,22 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert redirected_to(conn) ==
                "/users/log-in?return_to=http%3A%2F%2Flocalhost%3A3000%2Ffrontman"
     end
+
+    test "redirects popup logout to its public completion page", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> delete(~p"/users/log-out", %{"return_to" => "/users/popup-complete"})
+
+      assert redirected_to(conn) == ~p"/users/popup-complete"
+      refute get_session(conn, :user_token)
+    end
   end
 
   describe "GET /users/log-out" do
     test "renders a confirmation page instead of directly logging out", %{conn: conn, user: user} do
       conn = conn |> log_in_user(user) |> get(~p"/users/log-out")
-      # GET should render the interstitial page, NOT destroy the session
       assert html_response(conn, 200) =~ "Signing out"
-      # Session should still be intact — only DELETE destroys it
       assert get_session(conn, :user_token)
     end
 

@@ -252,8 +252,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :component_name, :string
       field :component_props, :map
       embeds_one :parent, ParentLocation
-      field :css_classes, :string
-      field :nearby_text, :string
       field :metadata, :map, default: %{}
       embeds_one :bounding_box, BoundingBox
       embeds_one :screenshot, Screenshot
@@ -272,8 +270,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         :column,
         :component_name,
         :component_props,
-        :css_classes,
-        :nearby_text,
         :metadata
       ])
       |> cast_embed(:parent, with: &ParentLocation.changeset/2)
@@ -291,11 +287,9 @@ defmodule FrontmanServer.Tasks.Interaction do
       comment
       component_name
       component_props
-      css_classes
       file
       line
       metadata
-      nearby_text
       parent
       screenshot
       selector
@@ -315,8 +309,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         component_name: data["component_name"],
         component_props: data["component_props"],
         parent: data["parent"],
-        css_classes: data["css_classes"],
-        nearby_text: data["nearby_text"],
         metadata: metadata_from_map(data),
         bounding_box: data["bounding_box"],
         screenshot: data["screenshot"]
@@ -401,7 +393,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    # Extract text messages from content blocks
     defp extract_messages(content_blocks) do
       content_blocks
       |> Enum.reduce_while({:ok, []}, fn
@@ -423,9 +414,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    # Extract annotations from content blocks.
-    # Annotations are resource blocks with _meta.annotation: true.
-    # Screenshots are paired by annotation_id via _meta.annotation_screenshot: true.
     defp extract_annotations(content_blocks) do
       screenshot_map = extract_screenshot_map(content_blocks)
 
@@ -445,7 +433,6 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp annotation_block?(_), do: false
 
-    # Collect screenshot blobs indexed by annotation_id
     defp extract_screenshot_map(content_blocks) do
       content_blocks
       |> Enum.filter(&annotation_screenshot_block?/1)
@@ -498,7 +485,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end)
     end
 
-    # Extract Figma image blob from content blocks
     defp extract_figma_image_blob(content_blocks) do
       Enum.find_value(content_blocks, fn
         %{
@@ -861,13 +847,15 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def attrs(%SwarmAi.ToolCall{} = tc) do
+      tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+
       case SwarmAi.ToolCall.parse_arguments(tc) do
         {:ok, arguments} ->
           {:ok,
            %{
              tool_call_id: tc.id,
              tool_name: tc.name,
-             arguments: SwarmAi.SchemaTransformer.strip_nulls(arguments)
+             arguments: arguments
            }}
 
         {:error, message} ->
@@ -882,6 +870,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     """
 
     use Ecto.Schema
+    import Ecto.Changeset
 
     embedded_schema do
       field :tool_call_id, :string
@@ -892,23 +881,51 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = tool_result, attrs) do
-      Interaction.cast_timestamped(tool_result, attrs, [
+      tool_result
+      |> Interaction.cast_timestamped(attrs, [
         :id,
         :tool_call_id,
         :tool_name,
         :result,
-        :is_error,
         :timestamp
       ])
+      |> scrub_result_metadata()
+      |> derive_is_error()
+      |> validate_required([:tool_call_id, :tool_name, :result, :is_error])
     end
 
-    def attrs(tool_call_data, result, is_error \\ false) do
+    @spec attrs(map(), term()) :: map()
+    def attrs(tool_call_data, result) do
       %{
         tool_call_id: tool_call_data.id,
         tool_name: tool_call_data.name,
-        result: result,
-        is_error: is_error
+        result: result
       }
+    end
+
+    defp scrub_result_metadata(changeset) do
+      case get_change(changeset, :result) do
+        %{} = result ->
+          put_change(changeset, :result, scrub_result_metadata_value(result))
+
+        _missing_or_invalid ->
+          changeset
+      end
+    end
+
+    defp scrub_result_metadata_value(result) do
+      result
+      |> Map.take(["content", "structuredContent", "isError"])
+      |> Map.put_new("isError", false)
+      |> Map.put("_meta", %{})
+    end
+
+    defp derive_is_error(changeset) do
+      case get_field(changeset, :result) do
+        %{"isError" => true} -> put_change(changeset, :is_error, true)
+        %{} -> put_change(changeset, :is_error, false)
+        _missing_or_invalid -> changeset
+      end
     end
   end
 
@@ -979,6 +996,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       messages: value.messages,
       timestamp: timestamp_json(value.timestamp),
       annotations: Enum.map(value.annotations, &annotation_json_map/1),
+      current_page: value.current_page,
       selected_figma_node: selected_figma_node_json_map(value.selected_figma_node),
       images: Enum.map(value.images, &user_image_json_map/1)
     }
@@ -1003,8 +1021,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       component_name: ann.component_name,
       component_props: ann.component_props,
       parent: ann.parent,
-      css_classes: ann.css_classes,
-      nearby_text: ann.nearby_text,
       bounding_box: ann.bounding_box,
       screenshot: ann.screenshot
     }
@@ -1078,7 +1094,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       %SwarmMessage.Assistant{
         content: [],
-        tool_calls: swarm_tool_calls(meta["tool_calls"]),
+        tool_calls: to_swarm_tool_calls(meta["tool_calls"]),
         metadata: swarm_metadata(msg),
         reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
       }
@@ -1092,7 +1108,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       %SwarmMessage.Assistant{
         content: [SwarmContentPart.text(content)],
-        tool_calls: swarm_tool_calls(meta["tool_calls"]),
+        tool_calls: to_swarm_tool_calls(meta["tool_calls"]),
         metadata: swarm_metadata(msg),
         reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
       }
@@ -1231,10 +1247,10 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_string_field(ann.component_name, "Component"),
       annotation_string_field(ann.comment, "Comment"),
       annotation_string_field(ann.selector, "CSS Selector"),
-      annotation_string_field(ann.css_classes, "CSS Classes"),
-      annotation_string_field(ann.nearby_text, "Nearby Text"),
+      annotation_metadata_field(ann.metadata, "element_context", "Element Context"),
       annotation_bbox_field(ann.bounding_box),
       annotation_props_field(ann.component_props),
+      annotation_metadata_field(ann.metadata, "source_location_error", "Source Location Error"),
       annotation_parent_field(ann.parent)
     ]
     |> Enum.join()
@@ -1252,6 +1268,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     do: "\n  Props: #{Jason.encode!(props, pretty: false)}"
 
   defp annotation_props_field(_), do: ""
+
+  defp annotation_metadata_field(metadata, key, label) when is_map(metadata),
+    do: annotation_string_field(metadata[key], label)
+
+  defp annotation_metadata_field(_, _, _), do: ""
 
   defp annotation_parent_field(nil), do: ""
   defp annotation_parent_field(parent), do: "\n  Parent: #{format_parent_chain(parent, 1)}"
@@ -1308,10 +1329,10 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_attachment_context(text, _), do: text
 
-  defp swarm_tool_calls(nil), do: []
-  defp swarm_tool_calls([]), do: []
+  @doc "Converts persisted tool-call records into Swarm tool calls."
+  def to_swarm_tool_calls(nil), do: []
 
-  defp swarm_tool_calls(tool_calls) when is_list(tool_calls) do
+  def to_swarm_tool_calls(tool_calls) when is_list(tool_calls) do
     Enum.map(tool_calls, &swarm_tool_call/1)
   end
 

@@ -35,4 +35,6 @@ jobs:
           git clone --mirror "https://github.com/${{ github.repository }}.git" repo.git
           cd repo.git
           git remote add sourceforge "ssh://${SOURCEFORGE_USERNAME}@git.code.sf.net/p/${SOURCEFORGE_REPOSITORY}/code"
-          git push --mirror sourceforge
+          git push --prune sourceforge \
+            +refs/heads/main:refs/heads/main \
+            '+refs/tags/*:refs/tags/*'

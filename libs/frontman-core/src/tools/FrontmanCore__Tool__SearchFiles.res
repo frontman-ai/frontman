@@ -1,5 +1,3 @@
-// SearchFiles tool - fast file name search using ripgrep with git ls-files fallback
-
 module Path = FrontmanBindings.Path
 module ChildProcess = FrontmanCore__ChildProcess
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -10,7 +8,6 @@ module FilenamePattern = FrontmanCore__FilenamePattern
 
 let name = Tool.ToolNames.searchFiles
 let access = Tool.Read
-let visibleToAgent = true
 let description = `Searches **file names** across the project. Returns file paths whose name matches a pattern.
 
 Use search_files to locate files by name — "find the Button component", "where are the test files". This does NOT search file contents; use grep for that. Use list_tree for a structural overview of the project.
@@ -47,6 +44,8 @@ type output = {
   truncated: bool,
 }
 
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
+
 type backendError = {
   backend: string,
   command: string,
@@ -57,30 +56,15 @@ type backendError = {
   targetPath: string,
 }
 
-// Get ripgrep path from @vscode/ripgrep package
-let getRipgrepPath = (): option<string> => {
-  try {
-    let vsCodeRipgrep = %raw(`require('@vscode/ripgrep')`)
-    Some(vsCodeRipgrep["rgPath"])
-  } catch {
-  | _ => None
-  }
-}
-
-// Build ripgrep arguments for file search
 let buildRipgrepArgs = (~searchPath: string): array<string> => {
   let args = []
 
-  // List files only (not content)
   args->Array.push("--files")
 
-  // Hidden files included
   args->Array.push("--hidden")
 
-  // Don't respect gitignore
   args->Array.push("--no-ignore")
 
-  // Search path
   args->Array.push(searchPath)
 
   args
@@ -89,8 +73,6 @@ let buildRipgrepArgs = (~searchPath: string): array<string> => {
 let matchesPattern = (fileName: string, ~patternLower: string): bool =>
   FilenamePattern.matchesPattern(~pattern=patternLower, ~text=fileName)
 
-// Filter file paths by pattern and paginate results.
-// Shared by both the ripgrep and git ls-files code paths.
 let filterAndPaginate = (lines: array<string>, ~pattern: string, ~maxResults: int): output => {
   let patternLower = pattern->String.toLowerCase
 
@@ -164,7 +146,6 @@ fallback:
 ${formatBackendError(secondError)}`
 }
 
-// Execute ripgrep for file search using spawn (no shell)
 let executeRipgrep = async (
   ~rgPath: string,
   ~pattern: string,
@@ -180,9 +161,7 @@ let executeRipgrep = async (
       let lines = stdout->String.trim->String.split("\n")->Array.filter(line => line !== "")
       Ok(filterAndPaginate(lines, ~pattern, ~maxResults))
     }
-  | Error({code: Some(1), _}) =>
-    // Exit code 1 means no matches found
-    Ok({files: [], totalResults: 0, truncated: false})
+  | Error({code: Some(1), _}) => Ok({files: [], totalResults: 0, truncated: false})
   | Error({code, stderr, message, _}) =>
     Error(
       makeBackendError(
@@ -198,9 +177,6 @@ let executeRipgrep = async (
   }
 }
 
-// Execute git ls-files using spawn (no shell) and filter results in-process.
-// The old approach piped through `grep -i` via a shell string, which broke on
-// patterns containing spaces or special characters.
 let executeGitLsFiles = async (~pattern: string, ~searchPath: string, ~maxResults: int): result<
   output,
   backendError,
@@ -212,9 +188,7 @@ let executeGitLsFiles = async (~pattern: string, ~searchPath: string, ~maxResult
       let lines = stdout->String.trim->String.split("\n")->Array.filter(line => line !== "")
       Ok(filterAndPaginate(lines, ~pattern, ~maxResults))
     }
-  | Error({code: Some(1), _}) =>
-    // Exit code 1 means no matches found
-    Ok({files: [], totalResults: 0, truncated: false})
+  | Error({code: Some(1), _}) => Ok({files: [], totalResults: 0, truncated: false})
   | Error({code, stderr, message, _}) =>
     Error(
       makeBackendError(
@@ -234,8 +208,6 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
   output,
   string,
 > => {
-  // resolveSearchDir ensures we always get a directory, even if the agent
-  // passes a file path (e.g. "src/Button.tsx" → "src/").
   let requestedSearchPath = await PathContext.resolveSearchDir(
     ~sourceRoot=ctx.sourceRoot,
     ~inputPath=input.path,
@@ -251,8 +223,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
   let maxResults = input.maxResults->Option.getOr(20)
 
-  // Try ripgrep first, fall back to git ls-files
-  let result = switch getRipgrepPath() {
+  let result = switch await FrontmanBindings.Ripgrep.getRipgrepPath() {
   | Some(rgPath) =>
     let ripgrepResult = await executeRipgrep(
       ~rgPath,
@@ -264,7 +235,6 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
     switch ripgrepResult {
     | Ok(output) => Ok(output)
     | Error(ripgrepError) =>
-      // Fallback to git ls-files
       switch await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults) {
       | Ok(output) => Ok(output)
       | Error(gitError) =>
@@ -272,7 +242,6 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
       }
     }
   | None =>
-    // No ripgrep, use git ls-files
     switch await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults) {
     | Ok(output) => Ok(output)
     | Error(gitError) => Error(formatBackendError(gitError))
@@ -295,7 +264,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch await executeOutput(ctx, input) {
-  | Ok(output) => Tool.jsonResult(output, outputSchema)
+  | Ok(output) => Tool.structuredResult(output, outputSchema)
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

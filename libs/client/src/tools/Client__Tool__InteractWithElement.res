@@ -1,7 +1,3 @@
-// Client tool that interacts with elements in the web preview.
-// Supports click, hover, and focus actions.
-// Elements can be targeted by CSS selector, role+name, or text content.
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.interactWithElement
@@ -65,8 +61,9 @@ type output = {
   error: option<string>,
 }
 
-// Dispatch hover events (mouseenter + mouseover) on an element
-let dispatchHoverEvents = (el: WebAPI.DOMAPI.element): unit => {
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
+let dispatchHoverEvents = (el: WebAPI.DomTypes.element): unit => {
   let enterEvt = WebAPI.MouseEvent.make(
     ~type_="mouseenter",
     ~eventInitDict={bubbles: false, cancelable: false},
@@ -75,22 +72,18 @@ let dispatchHoverEvents = (el: WebAPI.DOMAPI.element): unit => {
     ~type_="mouseover",
     ~eventInitDict={bubbles: true, cancelable: true},
   )
-  let target = (el :> WebAPI.EventAPI.eventTarget)
+  let target = (el :> WebAPI.EventTypes.eventTarget)
   target->WebAPI.EventTarget.dispatchEvent(enterEvt->WebAPI.MouseEvent.asEvent)->ignore
   target->WebAPI.EventTarget.dispatchEvent(overEvt->WebAPI.MouseEvent.asEvent)->ignore
 }
 
-// Click an element (using HTMLElement.click() for proper event dispatch).
-// Cast to htmlElement since click() lives on HTMLElement, not Element.
-let clickElement = (el: WebAPI.DOMAPI.element): unit => {
-  let htmlEl: WebAPI.DOMAPI.htmlElement = el->Obj.magic
+let clickElement = (el: WebAPI.DomTypes.element): unit => {
+  let htmlEl: WebAPI.DomTypes.htmlElement = el->Obj.magic
   htmlEl->WebAPI.HTMLElement.click
 }
 
-// Focus an element.
-// Cast to htmlElement since focus() lives on HTMLElement, not Element.
-let focusElement = (el: WebAPI.DOMAPI.element): unit => {
-  let htmlEl: WebAPI.DOMAPI.htmlElement = el->Obj.magic
+let focusElement = (el: WebAPI.DomTypes.element): unit => {
+  let htmlEl: WebAPI.DomTypes.htmlElement = el->Obj.magic
   htmlEl->WebAPI.HTMLElement.focus
 }
 
@@ -101,24 +94,26 @@ let actionToString = (action: [#click | #hover | #focus]): string =>
   | #focus => "focused"
   }
 
-let performAction = (el: WebAPI.DOMAPI.element, action: [#click | #hover | #focus]): unit =>
+let performAction = (el: WebAPI.DomTypes.element, action: [#click | #hover | #focus]): unit =>
   switch action {
   | #click => clickElement(el)
   | #hover => dispatchHoverEvents(el)
   | #focus => focusElement(el)
   }
 
-// Result of element resolution: either an error string, or a resolved element + match count.
 type resolution =
   | Error(string)
-  | Resolved({element: option<WebAPI.DOMAPI.element>, matchCount: int})
+  | Resolved({element: option<WebAPI.DomTypes.element>, matchCount: int})
 
-// Resolve the target element using the first applicable strategy:
-// 1. CSS selector / XPath  2. role + name  3. text content
-let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): resolution =>
+let resolveTarget = (
+  ~doc: WebAPI.DomTypes.document,
+  ~contentWindow: WebAPI.DomTypes.window,
+  ~input: input,
+  ~index: int,
+): resolution =>
   switch input.selector {
   | Some(selector) =>
-    let (element, matchCount) = Client__Tool__ElementResolver.resolveBySelector(
+    let (element, matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
       ~doc,
       ~selector,
       ~index,
@@ -127,8 +122,9 @@ let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): 
   | None =>
     switch (input.role, input.name) {
     | (Some(role), Some(name)) =>
-      let (element, matchCount) = Client__Tool__ElementResolver.resolveByRoleAndName(
+      let (element, matchCount) = Client__Tool__ElementQuery.resolveByRoleAndName(
         ~document=doc,
+        ~contentWindow,
         ~role,
         ~name,
         ~index,
@@ -138,13 +134,13 @@ let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): 
       Error("Both 'role' and 'name' are required when using role-based targeting")
     | (None, None) =>
       switch input.text {
+      | Some(text) if text->String.trim === "" => Error("Text targeting cannot be empty")
       | Some(text) =>
-        let (element, matchCount) = Client__Tool__ElementResolver.resolveByText(
-          ~document=doc,
-          ~text,
-          ~index,
+        let matches = Client__Tool__ElementQuery.findMatchingElements(
+          ~root=doc.body->WebAPI.HTMLElement.asElement,
+          ~query=text,
         )
-        Resolved({element, matchCount})
+        Resolved({element: matches->Array.get(index), matchCount: matches->Array.length})
       | None =>
         Error(
           "No targeting strategy provided. Use 'selector', 'role'+'name', or 'text' to identify the element.",
@@ -154,7 +150,7 @@ let resolveTarget = (~doc: WebAPI.DOMAPI.document, ~input: input, ~index: int): 
   }
 
 let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: false,
       interactedElement: None,
@@ -173,11 +169,11 @@ let execute = async (
   let action = input.action->Option.getOr(#click)
   let index = Math.Int.max(0, input.index->Option.getOr(0))
 
-  Client__Tool__ElementResolver.withPreviewDoc(
+  Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=() => errorResult("Preview frame document not available"),
-    ({doc, win: _}) => {
+    ({doc, win}) => {
       try {
-        switch resolveTarget(~doc, ~input, ~index) {
+        switch resolveTarget(~doc, ~contentWindow=win, ~input, ~index) {
         | Error(msg) => errorResult(msg)
         | Resolved({element: None, matchCount: 0}) =>
           errorResult("No element found matching the given criteria", ~matchCount=0)
@@ -190,10 +186,16 @@ let execute = async (
           )
         | Resolved({element: Some(el), matchCount}) =>
           performAction(el, action)
-          Tool.jsonResult(
+          let role = Client__Tool__ElementQuery.effectiveRole(el)
+          Tool.structuredResult(
             {
               success: true,
-              interactedElement: Some(Client__Tool__ElementResolver.describeElement(el)),
+              interactedElement: Some(
+                switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el) {
+                | "" => role
+                | name => `${role} '${name}'`
+                },
+              ),
               action: Some(actionToString(action)),
               matchCount: Some(matchCount),
               error: None,
@@ -202,7 +204,7 @@ let execute = async (
           )
         }
       } catch {
-      | exn => errorResult(Client__Tool__ElementResolver.exnMessage(exn))
+      | exn => errorResult(Client__Tool__PreviewContext.exnMessage(exn))
       }
     },
   )

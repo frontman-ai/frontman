@@ -27,19 +27,16 @@ defmodule AgentClientProtocol do
   @extension_namespace "frontman.dev"
   @invalid_agent_attribution_capability {:error,
                                          "Invalid Frontman agent attribution capability metadata"}
-  @agent_catalog_metadata_key "#{@extension_namespace}/agents"
   @agent_id_metadata_key "#{@extension_namespace}/agentId"
   @agent_error_id_metadata_key "#{@extension_namespace}/agentErrorId"
   @timestamp_metadata_key "#{@extension_namespace}/timestamp"
 
-  # Channel event names — the single source of truth for Phoenix channel events.
   @event_acp_message "acp:message"
   @event_config_options_updated "config_options_updated"
   @event_title_updated "title_updated"
   @event_list_sessions "list_sessions"
   @event_delete_session "delete_session"
 
-  # ACP method names — the single source of truth for JSON-RPC method strings.
   @method_initialize "initialize"
   @method_session_new "session/new"
   @method_session_load "session/load"
@@ -47,7 +44,6 @@ defmodule AgentClientProtocol do
   @method_session_cancel "session/cancel"
   @method_session_update "session/update"
 
-  # Tool call status constants — the single source of truth for ACP wire values.
   @tool_call_status_pending "pending"
   @tool_call_status_in_progress "in_progress"
   @tool_call_status_completed "completed"
@@ -60,21 +56,18 @@ defmodule AgentClientProtocol do
     @tool_call_status_failed
   ]
 
-  # Plan entry priority constants
   @plan_priority_high "high"
   @plan_priority_medium "medium"
   @plan_priority_low "low"
 
   @plan_priorities [@plan_priority_high, @plan_priority_medium, @plan_priority_low]
 
-  # Plan entry status constants
   @plan_status_pending "pending"
   @plan_status_in_progress "in_progress"
   @plan_status_completed "completed"
 
   @plan_statuses [@plan_status_pending, @plan_status_in_progress, @plan_status_completed]
 
-  # Stop reason constants — the single source of truth for ACP wire values.
   @stop_reason_end_turn "end_turn"
   @stop_reason_max_tokens "max_tokens"
   @stop_reason_max_turn_requests "max_turn_requests"
@@ -96,14 +89,12 @@ defmodule AgentClientProtocol do
 
   def protocol_version, do: @protocol_version
 
-  # Channel event accessors
   def event_acp_message, do: @event_acp_message
   def event_config_options_updated, do: @event_config_options_updated
   def event_title_updated, do: @event_title_updated
   def event_list_sessions, do: @event_list_sessions
   def event_delete_session, do: @event_delete_session
 
-  # Method name accessors
   def method_initialize, do: @method_initialize
   def method_session_new, do: @method_session_new
   def method_session_load, do: @method_session_load
@@ -119,14 +110,17 @@ defmodule AgentClientProtocol do
     }
   end
 
-  def agent_capabilities do
+  def agent_capabilities(agents, default_agent_id)
+      when is_list(agents) and is_binary(default_agent_id) do
     %{
       "loadSession" => true,
       "mcpCapabilities" => %{"http" => false, "sse" => false, "websocket" => true},
       "promptCapabilities" => %{"image" => true, "audio" => false, "embeddedContext" => true},
       "_meta" => %{
         @extension_namespace => %{
-          "agentAttribution" => %{"version" => @agent_attribution_version}
+          "agentAttribution" => %{"version" => @agent_attribution_version},
+          "agents" => build_agent_catalog(agents),
+          "defaultAgentId" => default_agent_id
         }
       }
     }
@@ -154,10 +148,11 @@ defmodule AgentClientProtocol do
   @doc """
   Builds the initialize response result.
   """
-  def build_initialize_result do
+  def build_initialize_result(agents, default_agent_id)
+      when is_list(agents) and is_binary(default_agent_id) do
     %{
       "protocolVersion" => @protocol_version,
-      "agentCapabilities" => agent_capabilities(),
+      "agentCapabilities" => agent_capabilities(agents, default_agent_id),
       "agentInfo" => agent_info(),
       "authMethods" => []
     }
@@ -207,23 +202,18 @@ defmodule AgentClientProtocol do
   end
 
   @doc """
-  Builds session/new result payload with config options and agent catalog.
+  Builds session/new result payload with config options.
   """
-  def build_session_new_result(session_id, config_options, catalog)
-      when is_list(config_options) and is_list(catalog) do
-    %{
-      "sessionId" => session_id,
-      "_meta" => %{@agent_catalog_metadata_key => catalog}
-    }
+  def build_session_new_result(session_id, config_options) when is_list(config_options) do
+    %{"sessionId" => session_id}
     |> put_config_options(config_options)
   end
 
   @doc """
   Builds session/load result payload with optional config options.
   """
-  def build_session_load_result(config_options, catalog)
-      when is_list(config_options) and is_list(catalog) do
-    %{"_meta" => %{@agent_catalog_metadata_key => catalog}}
+  def build_session_load_result(config_options) when is_list(config_options) do
+    %{}
     |> put_config_options(config_options)
   end
 
@@ -300,7 +290,8 @@ defmodule AgentClientProtocol do
   @doc """
   Builds a canonical accepted user_message_chunk session/update notification.
 
-  Used when a user message is persisted as accepted session history. `message_id` is server-owned.
+  Used when a user message is persisted as accepted session history. `message_id` is the
+  client-generated UUID accepted as the interaction row ID.
   """
   def build_user_message_chunk_notification(session_id, message_id, content, agent_id, timestamp)
       when is_binary(agent_id) and agent_id != "" do
@@ -394,7 +385,9 @@ defmodule AgentClientProtocol do
         title,
         kind,
         timestamp,
-        status \\ @tool_call_status_pending
+        status \\ @tool_call_status_pending,
+        raw_input \\ nil,
+        raw_output \\ nil
       )
       when status in @tool_call_statuses do
     update = %{
@@ -406,16 +399,26 @@ defmodule AgentClientProtocol do
       "timestamp" => DateTime.to_iso8601(timestamp)
     }
 
+    update = if is_nil(raw_input), do: update, else: Map.put(update, "rawInput", raw_input)
+    update = if is_nil(raw_output), do: update, else: Map.put(update, "rawOutput", raw_output)
+
     session_update_notification(session_id, update)
   end
 
   @doc """
   Updates an existing tool call (sessionUpdate: "tool_call_update").
 
-  Content should be an array of ACP content blocks if provided.
+  Content, raw input, and raw output are included when provided.
   Per ACP spec: "All fields except toolCallId are optional in updates"
   """
-  def tool_call_update(session_id, tool_call_id, status, content \\ nil)
+  def tool_call_update(
+        session_id,
+        tool_call_id,
+        status,
+        content \\ nil,
+        raw_input \\ nil,
+        raw_output \\ nil
+      )
       when status in @tool_call_statuses do
     update = %{
       "sessionUpdate" => "tool_call_update",
@@ -424,6 +427,8 @@ defmodule AgentClientProtocol do
     }
 
     update = if content, do: Map.put(update, "content", content), else: update
+    update = if is_nil(raw_input), do: update, else: Map.put(update, "rawInput", raw_input)
+    update = if is_nil(raw_output), do: update, else: Map.put(update, "rawOutput", raw_output)
 
     session_update_notification(session_id, update)
   end
@@ -475,10 +480,6 @@ defmodule AgentClientProtocol do
        when is_binary(content) and priority in @plan_priorities and status in @plan_statuses do
     :ok
   end
-
-  # ---------------------------------------------------------------------------
-  # Elicitation (session/elicitation)
-  # ---------------------------------------------------------------------------
 
   @doc """
   Builds a form-mode `session/elicitation` JSON-RPC request.
@@ -647,7 +648,6 @@ defmodule AgentClientProtocol do
             _ -> []
           end
 
-        # Append custom answer if provided
         answer_values =
           case custom_answer do
             val when is_binary(val) and val != "" -> answer_values ++ [val]

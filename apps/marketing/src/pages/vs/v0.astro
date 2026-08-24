@@ -1,11 +1,11 @@
 ---
-// /vs/v0 — Frontman vs v0 Comparison Page
-// Key angle: v0 generates new UI in a sandbox, Frontman edits your real codebase in the browser.
 
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   Alternative,
   ComparisonFeature,
+  ComparisonReview,
   CompetitorInfo,
   FAQ,
   SEOInfo,
@@ -14,7 +14,13 @@ import type {
 const seo: SEOInfo = {
   title: 'Frontman vs v0: Existing Code vs Generated UI',
   description:
-    'v0 generates new UI in a sandbox. Frontman edits your real codebase in the browser — free, open-source, BYOK. Feature matrix, pricing, and architecture compared.',
+    'v0 is an AI agent for building full-stack apps and agents from prompts. Frontman edits an existing running app through a distributed, source-available, BYOK architecture.',
+}
+
+const review: ComparisonReview = {
+  ...createComparisonReview([
+    { label: 'v0 documentation', url: 'https://v0.dev/docs' },
+  ]),
 }
 
 const competitor: CompetitorInfo = {
@@ -23,7 +29,7 @@ const competitor: CompetitorInfo = {
   url: 'https://v0.dev',
   category: 'DesignApplication',
   description:
-    'AI-powered UI generation tool by Vercel for creating new apps/components from prompts, often in a sandboxed workflow.',
+    'Vercel AI agent for building real code, full-stack apps, agents, and high-fidelity interfaces from prompts and mockups.',
   pricing: {
     cost: '$0–$100/mo',
     model: 'Credit-based, proprietary',
@@ -38,55 +44,54 @@ const competitor: CompetitorInfo = {
 }
 
 const features: ComparisonFeature[] = [
-  { name: 'Edits your real codebase', frontman: 'yes', competitor: 'no', frontmanNote: 'Edits actual source files in your project', competitorNote: 'Generates code in a sandboxed environment' },
-  { name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'partial', frontmanNote: 'Browser-side MCP server inspects your running app', competitorNote: 'Sees its own sandbox preview, not your app' },
-  { name: 'Click-to-select elements', frontman: 'yes', competitor: 'yes', frontmanNote: 'In your running app', competitorNote: 'In the sandbox preview (Design Mode)' },
-  { name: 'Works with existing projects', frontman: 'yes', competitor: 'partial', frontmanNote: 'Designed for existing codebases', competitorNote: 'Can import repos via GitHub sync, but primary workflow is new generation' },
-  { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'yes', frontmanNote: 'Instant via your framework\'s HMR', competitorNote: 'Instant in sandbox preview' },
-  { name: 'Generate UI from scratch', frontman: 'no', competitor: 'yes', competitorNote: 'Core workflow: prompt to full UI' },
+  { name: 'Edits real code', frontman: 'yes', competitor: 'yes', frontmanNote: 'Edits actual source files in your project', competitorNote: 'AI agent writes code and can open pull requests' },
+  { name: 'Sees live DOM & styles', frontman: 'yes', competitor: 'partial', frontmanNote: 'Browser-side MCP server inspects your running app', competitorNote: 'Real-time preview for its project workspace' },
+  { name: 'Click-to-select elements', frontman: 'yes', competitor: 'yes', frontmanNote: 'In your running app', competitorNote: 'In its real-time preview' },
+  { name: 'Works with existing projects', frontman: 'yes', competitor: 'yes', frontmanNote: 'Designed around an existing running app', competitorNote: 'Can work on real code and open pull requests' },
+  { name: 'Live feedback loop', frontman: 'yes', competitor: 'yes', frontmanNote: 'Instant via your framework\'s HMR', competitorNote: 'Real-time preview with diagnostics' },
+  { name: 'Generate full-stack apps and agents', frontman: 'no', competitor: 'yes', competitorNote: 'End-to-end prompt-driven creation' },
   { name: 'Deploy to production', frontman: 'no', competitor: 'yes', competitorNote: 'One-click deploy to Vercel' },
-  { name: 'Figma import', frontman: 'no', competitor: 'yes', competitorNote: 'Import Figma designs and convert to code' },
+  { name: 'Generate high-fidelity UI from mockups', frontman: 'no', competitor: 'yes' },
   { name: 'Framework-aware middleware', frontman: 'yes', competitor: 'no', frontmanNote: 'Hooks into Next.js, Astro, Vite runtime', competitorNote: 'Generates framework code but doesn\'t integrate into your dev server' },
-  { name: 'Server-side context', frontman: 'yes', competitor: 'no', frontmanNote: 'Routes, server logs, query timing', competitorNote: 'Client-side sandbox only' },
-  { name: 'Component tree access', frontman: 'yes', competitor: 'no', frontmanNote: 'React fiber, Vue reactivity, Svelte tree', competitorNote: 'Generates components, doesn\'t inspect your existing tree' },
-  { name: 'Computed CSS inspection', frontman: 'yes', competitor: 'no', frontmanNote: 'Runtime values from your real app', competitorNote: 'CSS in generated output only' },
+  { name: 'Backend integration', frontman: 'yes', competitor: 'yes', frontmanNote: 'Existing routes, server logs, and app data', competitorNote: 'Connects APIs and databases' },
+  { name: 'Diagnostics and error fixing', frontman: 'yes', competitor: 'yes', frontmanNote: 'Uses running-app browser and framework context', competitorNote: 'Built into the creation and preview workflow' },
   { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'yes', frontmanNote: 'No IDE needed — works in your browser', competitorNote: 'No IDE needed — works in v0.dev' },
-  { name: 'Open source', frontman: 'yes', competitor: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', competitorNote: 'Proprietary SaaS' },
-  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'no', frontmanNote: 'Any LLM provider', competitorNote: 'Uses Vercel\'s own models (v0 Mini, Pro, Max)' },
-  { name: 'Self-hostable', frontman: 'yes', competitor: 'no', frontmanNote: 'Everything runs locally', competitorNote: 'Cloud service only' },
-  { name: 'Works offline (with local LLM)', frontman: 'yes', competitor: 'no', frontmanNote: 'BYOK includes local models via OpenRouter', competitorNote: 'Requires internet' },
+  { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: frontmanLicenseShort, competitorNote: 'Proprietary SaaS' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'no', frontmanNote: 'Any LLM provider', competitorNote: 'BYOK not documented in reviewed official sources' },
+  { name: 'Self-hostable', frontman: 'yes', competitor: 'no', frontmanNote: 'Server runs on your infrastructure; local integration owns filesystem access', competitorNote: 'Cloud service only' },
+  { name: 'Works offline (with local LLM)', frontman: 'yes', competitor: 'no', frontmanNote: 'Requires a local model and all required services to run locally', competitorNote: 'Requires internet' },
 ]
 
 const faqs: FAQ[] = [
   {
-    question: 'Is Frontman an open-source alternative to v0?',
+    question: 'Is Frontman a source-available alternative to v0?',
     answer:
-      'They solve different problems. v0 (v0.dev) is a generative UI tool — you describe what you want, it builds new UI in a sandbox, and you deploy it. Frontman (frontman.sh) is an AI coding agent for editing existing codebases — you click elements in your running app, describe changes, and it edits the actual source files. Frontman is open-source (Apache 2.0 client, AGPL-3.0 server) and free with BYOK. If you\'re starting from scratch, v0 is faster. If you\'re editing an existing app, Frontman is the right tool.',
+      'They emphasize different workflows. v0 (v0.dev) is an AI agent for building real code, full-stack apps, and agents through an end-to-end prompt-driven workflow with preview and deployment. Frontman (frontman.sh) is an AI coding agent for editing existing codebases — you click elements in your running app, describe changes, and it edits the actual source files. Frontman is source-available, with an Apache-2.0 browser client and JavaScript integrations, a GPL-2.0-or-later WordPress plugin, and an AGPL-3.0-only server plus AI Supplementary Terms, and is free with BYOK. If you\'re starting from scratch, v0 is faster. If you\'re editing an existing app, Frontman is the right tool.',
   },
   {
     question: 'Can Frontman generate UI from scratch like v0?',
     answer:
-      'No. Frontman is designed for editing existing codebases, not generating new projects from prompts. Its strength is visual editing: click an element in your running app, describe what you want changed, and the AI edits the source code with full browser context. If you need to generate a landing page or component from a text description, v0 is the better tool. If you need to modify your existing Next.js app\'s UI with AI that can see the rendered result, Frontman is the better tool.',
+      'No. Frontman is designed for editing existing codebases, not generating new projects from prompts. Its strength is visual editing: click an element in your running app, describe what you want changed, and the AI edits the source code with full browser context. If you need to generate a full-stack app, agent, or high-fidelity UI from a prompt or mockup, v0 is the better tool. If you need to modify your existing Next.js app\'s UI with AI that can see the rendered result, Frontman is the better tool.',
   },
   {
     question: 'Can I use v0 and Frontman together?',
     answer:
-      'Yes, and this is a natural workflow. Use v0 to generate initial UI components or prototypes, then bring them into your real project. Once the code is in your codebase, use Frontman to iterate on it visually — clicking elements, adjusting styles, fixing responsive issues — with the AI seeing how your real app renders, not a sandbox preview.',
+      'Yes, and this is a natural workflow. Use v0 to build an app, agent, initial UI, or prototype and connect its backend. Then use Frontman on the running project to iterate visually — clicking elements, adjusting styles, and fixing responsive issues with browser and framework runtime context.',
   },
   {
     question: 'What does Frontman see that v0 does not?',
     answer:
-      'Frontman integrates with your framework (Next.js, Astro, Vite) as middleware and runs a browser-side MCP server. It sees your real app\'s live DOM, computed CSS, component tree with props and state, server-side routes and logs, and actual viewport behavior. v0 works in a sandboxed environment — it sees its own generated preview but has no access to your existing codebase\'s runtime, component tree, or server-side context.',
+      'Frontman integrates with your framework (Next.js, Astro, Vite) as middleware and runs browser-side tools. It sees your existing running app\'s live DOM, computed CSS, component tree with props and state, server-side routes and logs, and actual viewport behavior. v0 has a real-time preview and diagnostics for its project workflow; Frontman\'s distinction is starting from your running app and connecting browser observations to local framework runtime context.',
   },
 	{
 		question: 'How does Frontman pricing compare to v0?',
 		answer:
-			'v0\'s free tier gives you $5 of credits per month with a 7-message daily limit. Premium is $20/month, Team is $30/user/month. Frontman remains free to self-host under its open-source licenses, while hosted Frontman plans are moving to paid subscriptions. You bring your own API keys and pay your LLM provider directly.',
+			'v0\'s free tier gives you $5 of credits per month with a 7-message daily limit. Premium is $20/month, Team is $30/user/month. Frontman remains free to self-host under its source-available licensing terms. Hosted Frontman Pro is available now. You bring your own API keys and pay your LLM provider directly.',
 	},
   {
     question: 'Which tool is better for designers?',
     answer:
-      'It depends on the workflow. v0 is better for generating new UI from descriptions or Figma imports — designers can describe what they want and get working code. Frontman is better for iterating on existing UI — designers can click elements in the running app and describe visual changes without opening an IDE. v0 creates; Frontman refines.',
+      'It depends on the workflow. v0 is better for generating high-fidelity UI from descriptions or mockups — designers can describe what they want and get working code. Frontman is better for iterating on existing UI — designers can click elements in the running app and describe visual changes without opening an IDE. v0 covers prompt-driven creation through deployment; Frontman centers browser-led editing of an existing app.',
   },
 ]
 
@@ -94,14 +99,15 @@ const alternatives: Alternative[] = [
   { name: 'Frontman', slug: '', oneLiner: 'Visual editing in your real app with runtime context and source-level diffs.' },
   { name: 'Bolt.new', slug: 'bolt', oneLiner: 'Prompt-to-app generation in a sandbox for rapid prototyping and greenfield starts.' },
   { name: 'Lovable', slug: 'lovable', oneLiner: 'Generative app builder for non-coders with hosted infrastructure.' },
-  { name: 'Onlook', slug: 'onlook', oneLiner: 'Figma-like visual editor that outputs code in a sandbox workflow.' },
-  { name: 'Stagewise', slug: 'stagewise', oneLiner: 'Browser overlay to feed context into IDE agents.' },
+  { name: 'Onlook', slug: 'onlook', oneLiner: 'Visual design and code canvas for teams working directly in React codebases.' },
+  { name: 'Stagewise', slug: 'stagewise', oneLiner: 'Open-source agentic desktop IDE with direct workspace edits and a full browser engine.' },
 ]
 ---
 
 <ComparisonLayout
   seo={seo}
   competitor={competitor}
+  review={review}
   heroTitle="Frontman vs v0"
   heroSubtitle="Edit Your Real App vs Generate New UI"
   features={features}
@@ -110,47 +116,47 @@ const alternatives: Alternative[] = [
 >
   <Fragment slot="hero-summary">
     <p>
-      <a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://v0.dev" class="text-link" rel="nofollow">v0</a> both use AI to help with frontend development, but they do opposite things. v0 generates new UI from text prompts in a sandboxed environment. Frontman edits your existing codebase by interacting with your running app in the browser.
+      <a href="https://frontman.sh" class="text-link">Frontman</a> and <a href="https://v0.dev" class="text-link" rel="nofollow">v0</a> both use AI to work on real code, but they emphasize different workflows. v0 is an end-to-end agent for prompt-driven creation, prototyping, backend connection, and deployment. Frontman edits your existing codebase by interacting with your running app in the browser.
     </p>
     <p>
-      <strong>Frontman</strong> is an open-source AI coding agent that hooks into your dev server as framework middleware (Next.js, Astro, Vite). It sees the live DOM, component tree, computed CSS, and server-side context. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload. Free and unlimited — you bring your own API keys.
+      <strong>Frontman</strong> is a source-available AI coding agent with a distributed architecture. Browser tools inspect the live DOM and computed CSS, the local framework integration (Next.js, Astro, Vite) provides component and filesystem context, and the server orchestrates the agent loop and persists task history. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload. Free and unlimited — you bring your own API keys.
     </p>
     <p>
-      <strong>v0</strong> is Vercel's AI-powered UI generation tool. You describe what you want — or import a Figma design — and v0 generates a working app with React, Next.js, Tailwind, and shadcn/ui. It includes a visual Design Mode for clicking and editing generated output, GitHub sync, and one-click Vercel deploy. Credit-based pricing starting at $0/month (7 messages/day).
+      <strong>v0</strong> is Vercel's AI agent for real code, full-stack apps, and agents. It can create high-fidelity UI from mockups, connect backends, work with APIs, databases, and components, show a real-time preview, diagnose and fix errors, open pull requests, and deploy with one click. Credit-based pricing starting at $0/month (7 messages/day).
     </p>
     <p class="summary-emphasis">
-      The core difference: v0 creates new things. Frontman changes existing things. Use v0 to prototype, use Frontman to iterate on your real app.
+      The core difference: v0 centers an end-to-end prompt-driven path from creation and prototyping through deployment. Frontman centers editing an existing running app through browser and framework runtime context.
     </p>
   </Fragment>
 
   <Fragment slot="competitor-strengths">
-    <p>v0 is the most popular generative UI tool right now, and the fastest way to go from an idea to a working frontend.</p>
-    <p><strong>Prompt-to-UI is fast.</strong> Describe what you want in plain English ("a dashboard with a sidebar, dark mode, and a chart showing monthly revenue") and v0 generates a complete, working React app. For prototyping and starting new projects, nothing is faster.</p>
-    <p><strong>Design Mode adds visual editing.</strong> v0's Design Mode lets you click elements in the generated preview and make visual changes. This is genuine click-to-edit functionality within the v0 sandbox. Frontman offers similar click-to-edit but for your actual running app, not a sandbox.</p>
-    <p>Import Figma designs and v0 generates working code that matches them. This helps designers hand off to developers on new projects. Frontman doesn't have Figma import.</p>
-    <p><strong>One-click deploy.</strong> Generated apps deploy to Vercel instantly. From idea to production URL in minutes. Frontman is a development tool, not a deployment platform.</p>
-    <p>v0 can sync with your GitHub repository, allowing generated code to flow into your existing project. This partially addresses the "sandbox vs real codebase" gap.</p>
-    <p><strong>Custom models.</strong> v0 runs its own model variants (v0 Mini, Pro, Max) optimized for UI generation. These are purpose-built for frontend code and outperform general-purpose models at that specific task.</p>
+    <p>v0 covers a broad path from an idea or mockup to real code, a working full-stack app or agent, and deployment.</p>
+    <p><strong>Prompt-to-app creation.</strong> Describe what you want in plain English and v0 can build the interface, connect a backend, and work with APIs, databases, and components.</p>
+    <p><strong>High-fidelity UI from mockups.</strong> v0 can turn visual references into working interfaces and provides a real-time preview for continued iteration.</p>
+    <p><strong>Diagnostics and error fixing.</strong> The agent can diagnose errors and apply fixes as part of the same build-and-preview workflow.</p>
+    <p><strong>One-click deploy.</strong> v0 can deploy a generated app with one click. Frontman is a development tool, not a deployment platform.</p>
+    <p><strong>Pull requests.</strong> v0 can open pull requests, giving teams a code-review path from agent work into a repository.</p>
   </Fragment>
 
   <Fragment slot="frontman-differentiators">
-    <p>v0 generates new UI from prompts. Frontman edits UI that already exists in your codebase. <strong>One creates. The other modifies.</strong></p>
-    <p><strong>Your real codebase, not a sandbox.</strong> When you use Frontman, you're editing the actual source files in your project. The AI sees the component tree, the CSS as the browser computed it, routing, and server state. Changes show up via hot module replacement in your actual dev server. With v0, you're working in a sandboxed environment that generates fresh code — which then needs to be integrated into your real project.</p>
+    <p>v0 can create and modify real code through a broad prompt-driven workspace. Frontman specializes in an existing app that is already running in your browser and framework dev server.</p>
+    <p><strong>Start from the running app.</strong> When you use Frontman, you're editing the actual source files in your project. The AI sees the component tree, the CSS as the browser computed it, routing, and server state. Changes show up via hot module replacement in your actual dev server. v0 instead centers an end-to-end project workflow from prompts and mockups through backend connections, preview, and deployment.</p>
     <p><strong>Framework middleware integration.</strong> Frontman installs as a plugin into your dev server — <code>@frontman-ai/nextjs</code>, <code>@frontman-ai/astro</code>, or <code>@frontman-ai/vite</code>. This gives it access to your component tree at the framework level (React fiber nodes, Vue reactivity, Svelte components), computed CSS from your actual stylesheets, server-side routes and logs, and source map resolution to find the exact file and line for any rendered element.</p>
-    <p>v0's sandbox doesn't know about your design system, your existing component library, your server endpoints, or your real responsive behavior at different viewports. Frontman sees all of this because it's running inside your actual app. When you ask "make this card match the other cards on the page," Frontman can inspect the other cards' actual styles.</p>
-	<p><strong>Open source and BYOK.</strong> v0 is a proprietary SaaS with credit-based pricing. Frontman's client libraries are Apache 2.0 and the server is AGPL-3.0. Self-hosting remains available, and you bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API including local models.</p>
-    <p><strong>Works with any component library.</strong> v0 is optimized for shadcn/ui and Tailwind. Frontman is component-library agnostic — it sees whatever your app actually renders, whether that's MUI, Chakra, Radix, custom components, or plain CSS. The browser doesn't care what library generated the DOM.</p>
+    <p><strong>Browser and framework runtime context.</strong> Frontman's browser tools and local framework integration inspect your actual app's design system output, components, server endpoints, and responsive behavior. When you ask "make this card match the other cards on the page," Frontman can inspect the other cards' rendered styles in that running app.</p>
+	<p><strong>Source-available and BYOK.</strong> v0 is a proprietary SaaS with credit-based pricing. Frontman's browser client and JavaScript framework integrations are Apache-2.0, its WordPress plugin is GPL-2.0-or-later, and the server is AGPL-3.0-only with AI Supplementary Terms. Self-hosting remains available, and you bring your own API keys — Claude, ChatGPT, OpenRouter, or any OpenAI-compatible API including local models.</p>
+    <p><strong>Works with the components already rendered.</strong> Frontman is component-library agnostic — it sees whatever your app actually renders, whether that's MUI, Chakra, Radix, custom components, or plain CSS. v0 also supports components, but Frontman's distinction is observing them inside your existing running application.</p>
   </Fragment>
 
   <Fragment slot="who-should-use-competitor">
-    <p>v0 is the better choice when you're creating something new from scratch:</p>
+    <p>v0 is the better choice when you want an end-to-end prompt-driven build workflow:</p>
     <ul>
       <li><strong>Rapid prototyping</strong> — turning ideas or requirements into working UI as fast as possible</li>
       <li><strong>Starting new projects</strong> — generating a complete app scaffold from a description</li>
-      <li><strong>Figma-to-code workflows</strong> — converting designs into working React components</li>
+      <li><strong>Mockup-to-code workflows</strong> — converting visual references into high-fidelity working UI</li>
       <li><strong>Non-developers building apps</strong> — product managers, designers, and founders who need working code without writing it</li>
       <li><strong>Quick deploys</strong> — need a working URL to share with stakeholders immediately</li>
-      <li><strong>shadcn/ui and Tailwind projects</strong> — v0 is optimized for this stack</li>
+      <li><strong>Full-stack apps and agents</strong> — connect backends, APIs, databases, and components in one workflow</li>
+      <li><strong>Repository workflows</strong> — let the agent diagnose errors, fix code, and open pull requests</li>
     </ul>
   </Fragment>
 
@@ -161,10 +167,10 @@ const alternatives: Alternative[] = [
       <li><strong>Frontend developers on established projects</strong> — your app already exists and you need to edit it with AI that understands the context</li>
       <li><strong>Teams where designers make UI changes</strong> — click elements in the running app, describe changes, review code diffs</li>
       <li><strong>Any component library or CSS approach</strong> — MUI, Chakra, Tailwind, CSS Modules, styled-components — Frontman sees what renders, not what you typed</li>
-		<li><strong>Open source and vendor-independent</strong> — BYOK and self-hostable for teams that want control</li>
+		<li><strong>Source-available and vendor-independent</strong> — BYOK and self-hostable for teams that want control</li>
       <li><strong>Server-side context matters</strong> — routes, server logs, and server-side state alongside visual editing</li>
     </ul>
-    <p>A natural workflow: use v0 to generate initial UI, bring it into your project, then use Frontman to iterate and refine visually with full browser context.</p>
+    <p>A natural workflow: use v0 to build an app or initial UI, then use Frontman when that code is running in your project to iterate and refine visually with full browser context.</p>
   </Fragment>
 
   <Fragment slot="post-faq">

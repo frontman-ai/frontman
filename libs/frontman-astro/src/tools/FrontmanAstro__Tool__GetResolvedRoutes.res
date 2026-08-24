@@ -1,22 +1,8 @@
-// Get client pages tool (v5) — backed by Astro's astro:routes:resolved hook.
-//
-// Unlike the v4 GetPages tool which scans the filesystem, this tool reads
-// routes directly from Astro's router. This catches routes that don't exist
-// as files in src/pages/: content collections, config redirects, API endpoints,
-// integration-injected routes, and internal fallbacks.
-//
-// Uses a factory pattern: make(~getRoutes) => module(ServerTool).
-// The ServerTool interface only passes (serverExecutionContext, input) to
-// execute, so there's no way to thread the routes ref through the standard
-// interface. The factory closes over getRoutes at construction time, allowing
-// execute to read it without global state or protocol changes.
-
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module Bindings = FrontmanBindings.Astro
 
 let name = "get_client_pages"
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
-let visibleToAgent = true
 
 let description = `Lists all routes resolved by Astro's router.
 
@@ -54,7 +40,6 @@ type routeEntry = {
 @schema
 type output = array<routeEntry>
 
-// Poly variants are strings at runtime
 external routeTypeToString: Bindings.routeType => string = "%identity"
 external routeOriginToString: Bindings.routeOrigin => string = "%identity"
 
@@ -75,14 +60,12 @@ let make = (
     {
       let name = name
       let access = access
-      let visibleToAgent = visibleToAgent
+      let (visibleToAgent, outputJsonSchema) = (true, None)
       let description = description
       type input = input
-      type output = output
       let inputSchema = inputSchema
-      let outputSchema = outputSchema
       let execute = async (_ctx, _input) =>
-        Tool.jsonResult(getRoutes()->Array.map(toRouteEntry), outputSchema)
+        Tool.unstructuredResult(getRoutes()->Array.map(toRouteEntry), outputSchema)
     }
   )
 }

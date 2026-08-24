@@ -16,12 +16,10 @@ defmodule FrontmanServer.Image do
   Used by both the Agents and Tasks contexts.
   """
 
-  # Max dimension for Anthropic image inputs (pixels per side).
-  # Anthropic hard-rejects > 8000px; we use 7680 for margin.
-  # Other providers (OpenAI, OpenRouter, Google) auto-resize.
   @max_dimension 7680
 
-  # ── Public API ──────────────────────────────────────────────────────
+  @spec max_dimension() :: pos_integer()
+  def max_dimension, do: @max_dimension
 
   @doc """
   Checks whether a binary image exceeds a dimension limit on either axis.
@@ -64,30 +62,24 @@ defmodule FrontmanServer.Image do
   Returns `{:ok, width, height}` or `:unknown` for unrecognised formats.
   """
 
-  # JPEG: scan for SOFn marker which contains dimensions
   def parse_dimensions(<<0xFF, 0xD8, rest::binary>>), do: jpeg_scan_for_sof(rest)
 
-  # PNG: IHDR chunk at fixed offset contains width/height as 4-byte big-endian ints
   def parse_dimensions(
         <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, _length::32, "IHDR", width::32,
           height::32, _::binary>>
       ),
       do: {:ok, width, height}
 
-  # GIF87a / GIF89a: width and height as 16-bit little-endian at bytes 6-9
   def parse_dimensions(<<"GIF8", version, "a", width::16-little, height::16-little, _::binary>>)
       when version == ?7 or version == ?9,
       do: {:ok, width, height}
 
-  # WebP VP8X (extended — alpha, animation, ICC, etc.): canvas dims as 24-bit LE + 1
   def parse_dimensions(
         <<"RIFF", _file_size::32-little, "WEBP", "VP8X", _chunk_size::32-little,
           _flags::32-little, width_minus1::24-little, height_minus1::24-little, _::binary>>
       ),
       do: {:ok, width_minus1 + 1, height_minus1 + 1}
 
-  # WebP VP8L (lossless): 0x2F signature byte, then width-1 and height-1 packed
-  # into a 32-bit LE bitfield (14 bits each, starting from bit 0)
   def parse_dimensions(
         <<"RIFF", _file_size::32-little, "WEBP", "VP8L", _chunk_size::32-little, 0x2F,
           bitfield::32-little, _::binary>>
@@ -97,8 +89,6 @@ defmodule FrontmanServer.Image do
     {:ok, width, height}
   end
 
-  # WebP VP8 (lossy): 3-byte frame tag + sync code 0x9D012A, then 16-bit LE dims
-  # (lower 14 bits are the actual dimension, upper 2 bits are scale factor)
   def parse_dimensions(
         <<"RIFF", _file_size::32-little, "WEBP", "VP8 ", _chunk_size::32-little,
           _frame_tag::binary-size(3), 0x9D, 0x01, 0x2A, width_raw::16-little,
@@ -111,11 +101,6 @@ defmodule FrontmanServer.Image do
 
   def parse_dimensions(_), do: :unknown
 
-  # ── Private ─────────────────────────────────────────────────────────
-
-  # Scan JPEG markers looking for any SOFn (Start of Frame) marker.
-  # SOFn markers are 0xFFC0-0xFFCF except 0xFFC4 (DHT), 0xFFC8 (JPG extension),
-  # and 0xFFCC (DAC — Define Arithmetic Conditioning).
   defp jpeg_scan_for_sof(<<>>), do: :unknown
 
   defp jpeg_scan_for_sof(

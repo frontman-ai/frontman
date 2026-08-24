@@ -13,7 +13,7 @@ Primary roles:
 - **Tutorial:** Promise one outcome, list prerequisites, walk through exact steps, show the resulting diff, and explain what happened.
 - **Comparison or buyer guide:** Give the recommendation first, compare tools by workflow, disclose bias, and state when to choose or skip each option.
 - **Technical explainer:** Define a concept precisely, cite primary sources, explain mechanics, and distinguish what it does from what it does not do.
-- **Operational audit:** Organize each issue as what breaks, how to fix it, and how to roll back. End with a usable checklist.
+- **Operational audit:** Organize each issue as what breaks and how to fix it. Add warnings, backups, staging, and rollback guidance when the fix mutates production state, data, infrastructure, or irreversible configuration. End with a usable checklist.
 
 Related posts should form an intent path instead of duplicating content:
 
@@ -26,6 +26,8 @@ Problem diagnosis
 -> conversion page
 ```
 
+Preserve this six-stage intent path. Any separate eight-step production workflow is a proposed operationalization of how the team might research, draft, review, and publish content; it is not the editorial model. The eight-step list under **Tutorial** below describes article anatomy, not a mandatory production process.
+
 ## Frontmatter
 
 Every post requires:
@@ -36,7 +38,13 @@ title: 'Readable Human Title'
 description: 'Direct summary of the answer and scope.'
 pubDate: 2026-07-15T00:00:00Z
 image: '/blog/post-slug-cover.png'
+imageWidth: 1200
+imageHeight: 450
+imageAlt: 'Specific description of this post cover'
 author: 'Danni Friedland'
+authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
+articleSection: 'Technical Explainer'
 tags: ['primary-topic', 'secondary-topic']
 ---
 ```
@@ -46,10 +54,6 @@ Use optional fields when applicable:
 ```yaml
 seoTitle: 'Exact Search Query or Keyword Title'
 updatedDate: 2026-07-15T00:00:00Z
-authorRole: 'Co-founder, Frontman'
-imageWidth: 1200
-imageHeight: 450
-imageAlt: 'Specific description of this post cover'
 faq:
   - question: 'Exact user question?'
     answer: 'Self-contained direct answer.'
@@ -67,8 +71,11 @@ Field behavior:
 - `seoTitle`, when present, becomes document and social title. Layout appends `| Frontman`.
 - `description` becomes meta description, Open Graph description, Twitter description, RSS description, and schema description. Metadata rendering truncates it to 160 characters.
 - `updatedDate` appears visibly, populates article metadata, and controls sitemap freshness.
-- `tags` become tag links, article tags, schema keywords, and first-tag `articleSection`.
-- `faq`, `comparisonItems`, `softwareApplication`, and `video` activate corresponding structured data.
+- `author`, `authorRole`, and `authorUrl` are required and must identify one canonical human author. Use `Danni Friedland`, `Co-founder, Frontman`, and `/authors/danni-friedland/`, or `Itay Adler`, `Co-founder, Frontman`, and `/authors/itay-adler/`. These canonical URLs power visible bylines and `Person` author schema; do not invent alternate author URLs.
+- `articleSection` is required and must be exactly one of: `Problem Diagnosis`, `Product Announcement`, `Tutorial`, `Comparison or Buyer Guide`, `Technical Explainer`, or `Operational Audit`.
+- `tags` are separate lowercase slug facets for topics, products, frameworks, and audiences. Their order does not define `articleSection`.
+- `imageAlt`, `imageWidth`, and `imageHeight` are required. Current cover assets are `1200x450`, so metadata must declare `1200` by `450`.
+- `faq` emits `FAQPage` alongside `BlogPosting`; `comparisonItems` emits `ItemList` alongside `BlogPosting`; `video` emits `VideoObject`.
 
 ## Post Structure
 
@@ -122,6 +129,8 @@ Preferred section types:
 - When not to use this
 - How to choose
 - What happened under the hood
+
+Warnings, backups, staging steps, and rollback instructions are required only when a procedure mutates production state, data, infrastructure, or irreversible configuration. Do not add boilerplate production warnings to read-only analysis, local examples, or reversible editorial tasks.
 
 Support claims with at least one concrete artifact:
 
@@ -209,7 +218,7 @@ When Frontman appears, disclose that we built it. State where competitors are st
 
 ### Technical Explainer
 
-Examples: `what-is-webmcp.md`, `runtime-context-gap.md`, `ai-code-review-hallucination.md`
+Examples: `what-is-webmcp.md`, `runtime-context-gap.md`
 
 1. Open with failure scenario or contrarian claim.
 2. Define term precisely.
@@ -255,6 +264,8 @@ Do not repeat a sibling post's full explanation. Summarize in one sentence and l
 
 ### Demonstrate Freshness
 
+Source-check dates are required for volatile or time-sensitive material, not universally for static prose. All `/vs/` pages are also required to provide `review.checkedAt` and at least one source through `ComparisonLayout`, which renders the visible product-facts check date.
+
 For volatile comparisons and release coverage:
 
 - Add `updatedDate` when facts change.
@@ -267,7 +278,13 @@ For volatile comparisons and release coverage:
 
 Add FAQ frontmatter only when post answers real recurring queries. Answers must stand alone without requiring surrounding article context.
 
-Use `comparisonItems` for actual ranked or compared entities. Use `softwareApplication` when post defines or profiles software. Use `video` when page contains corresponding video content.
+Use `comparisonItems` for actual ranked or compared entities; blog layout then adds `ItemList` alongside its baseline `BlogPosting`. Use `video` when page contains corresponding video content.
+
+The `/vs/` layout emits `FAQPage` and `WebPage`; `WebPage.dateModified` comes from required `review.checkedAt`. Its architecture diagram is optional and renders only when enabled or supplied through its slot. Its alternatives section is also optional and renders only when enabled with at least one alternative.
+
+### Shared Documentation Snippets
+
+`CodeFromFile` deduplicates docs-owned snippets across documentation pages by reading files under `src/content/docs/snippets`. It does not prove those snippets remain synchronized with executable implementation code, package installers, README examples, or test fixtures. Verify those surfaces separately when a claim depends on them.
 
 ### Images
 
@@ -279,6 +296,8 @@ imageHeight: 450
 ```
 
 Always provide post-specific `imageAlt`. Do not rely on generic Frontman fallback.
+
+Cover images are metadata and listing assets; they are not automatically evidence inside article body. Evidence-led claims should use claim-specific screenshots, diagrams, code, or other inspectable artifacts, with a source or caption where useful.
 
 ## Writing Style
 
@@ -353,6 +372,10 @@ Frame Frontman through architectural thesis rather than feature list:
 
 Explain problem first. Introduce Frontman after reader understands why runtime context matters. Product mention should connect directly to article's subject, not appear as unrelated sales paragraph.
 
+### Editorial Policy
+
+Editorial work remains independent from product and vendor interests. A named human author is accountable for claims, citations, recommendations, disclosures, and corrections. Material corrections must be visible when they change a conclusion, recommendation, or interpretation of evidence. Do not remove accurate criticism, disclosed limitations, or unfavorable comparisons under vendor pressure; revise them only when stronger evidence shows they are wrong or materially incomplete. See the [Editorial and Corrections Policy](/editorial-policy/).
+
 ## Known Inconsistencies to Avoid
 
 ### Skipped Heading Levels
@@ -382,10 +405,12 @@ updatedDate: 2026-07-15T00:00:00Z
 description: 'Direct answer and concrete scope, written for search snippets.'
 author: 'Danni Friedland'
 authorRole: 'Co-founder, Frontman'
+authorUrl: '/authors/danni-friedland/'
 image: '/blog/post-slug-cover.png'
 imageWidth: 1200
 imageHeight: 450
 imageAlt: 'Specific description of this post cover'
+articleSection: 'Technical Explainer'
 tags: ['primary-topic', 'secondary-topic']
 faq:
   - question: 'Exact user question?'

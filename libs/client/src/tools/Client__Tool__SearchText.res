@@ -1,7 +1,3 @@
-// Client tool that searches for visible text on the current page.
-// Like Ctrl+F — finds leaf elements containing the query string
-// and returns matches with surrounding context and CSS selectors.
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.searchText
@@ -64,11 +60,13 @@ type output = {
   error: option<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 let defaultMaxResults = 25
 let defaultContextChars = 80
 
 let errorResult = (~error: string): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: false,
       matches: None,
@@ -80,7 +78,7 @@ let errorResult = (~error: string): Tool.MCP.CallToolResult.t =>
   )
 
 let successResult = (~matches, ~totalCount, ~truncated): Tool.MCP.CallToolResult.t =>
-  Tool.jsonResult(
+  Tool.structuredResult(
     {
       success: true,
       matches: Some(matches),
@@ -91,8 +89,6 @@ let successResult = (~matches, ~totalCount, ~truncated): Tool.MCP.CallToolResult
     outputSchema,
   )
 
-// Build a context snippet around the first occurrence of `query` in `text`.
-// Wraps the matched portion in >> << markers.
 let buildContextSnippet = (~text: string, ~query: string, ~contextChars: int): string => {
   let lowerText = text->String.toLowerCase
   let lowerQuery = query->String.toLowerCase
@@ -131,17 +127,17 @@ let execute = async (
   switch input.query->String.trim {
   | "" => errorResult(~error="Query string cannot be empty")
   | _ =>
-    Client__Tool__ElementResolver.withPreviewDoc(
+    Client__Tool__PreviewContext.withPreview(
       ~onUnavailable=() => errorResult(~error="Preview frame not available"),
       ({doc, win: _}) => {
         try {
-          switch Client__Tool__ElementResolver.resolveRootOrBody(~doc, ~selector=input.selector) {
+          switch Client__Tool__SelectorResolver.resolveRootOrBody(~doc, ~selector=input.selector) {
           | Error(msg) => errorResult(~error=msg)
           | Ok(root) =>
             let maxResults = input.maxResults->Option.getOr(defaultMaxResults)
             let contextChars = input.contextChars->Option.getOr(defaultContextChars)
 
-            let allMatches = Client__Tool__ElementResolver.findMatchingElements(
+            let allMatches = Client__Tool__ElementQuery.findMatchingElements(
               ~root,
               ~query=input.query,
             )
@@ -154,23 +150,33 @@ let execute = async (
               ->Array.mapWithIndex((el, idx) => {
                 index: idx,
                 text: buildContextSnippet(
-                  ~text=Client__Tool__ElementResolver.getVisibleText(el),
+                  ~text=Client__Tool__ElementQuery.getVisibleText(el),
                   ~query=input.query,
                   ~contextChars,
                 ),
-                selector: Client__Tool__ElementResolver.generateSelector(
-                  ~element=el,
-                  ~document=Some(doc),
-                ),
+                selector: switch Client__ElementInspector.findSelector(~element=el, ~document=doc) {
+                | Ok(selector) => Some(selector)
+                | Error(_) => None
+                },
                 tag: el.tagName->String.toLowerCase,
-                role: Client__Tool__ElementResolver.getOptionalRole(el),
-                accessibleName: Client__Tool__ElementResolver.getOptionalAccessibleName(el),
+                role: switch FrontmanBindings.Bindings__DomAccessibilityApi.getRole(
+                  el,
+                )->Null.toOption {
+                | Some("") | None => None
+                | role => role
+                },
+                accessibleName: switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(
+                  el,
+                ) {
+                | "" => None
+                | name => Some(name)
+                },
               })
 
             successResult(~matches, ~totalCount, ~truncated)
           }
         } catch {
-        | exn => errorResult(~error=Client__Tool__ElementResolver.exnMessage(exn))
+        | exn => errorResult(~error=Client__Tool__PreviewContext.exnMessage(exn))
         }
       },
     )

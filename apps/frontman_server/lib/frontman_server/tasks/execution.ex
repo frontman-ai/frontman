@@ -169,7 +169,6 @@ defmodule FrontmanServer.Tasks.Execution do
     end
   end
 
-  # --- Private ---
   defp prompt_messages(rows, turn_number)
        when is_list(rows) and is_integer(turn_number) and turn_number > 0 do
     user_messages_by_row_id = user_messages_by_row_id(rows)
@@ -220,7 +219,6 @@ defmodule FrontmanServer.Tasks.Execution do
     row
     |> Map.fetch!(:data)
     |> List.wrap()
-    # FIXME(Danni) - why not get rid of swarm messages? lets it just work with reqllm messages
     |> Interaction.to_swarm_messages()
   end
 

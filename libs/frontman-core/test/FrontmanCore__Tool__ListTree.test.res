@@ -1,5 +1,3 @@
-// Integration tests for the ListTree tool — tree rendering and monorepo detection
-
 open Vitest
 
 module ListTree = FrontmanCore__Tool__ListTree
@@ -8,7 +6,6 @@ module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module ChildProcess = FrontmanCore__ChildProcess
 
-// Helper to create temp test directories
 let tmpPrefix = "/tmp/listtree-test-"
 
 let makeTmpDir = async () => {
@@ -51,15 +48,12 @@ describe("ListTree Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(output) => {
-        // Tree should start with "."
         t->expect(output.tree->String.startsWith("."))->Expect.toBe(true)
 
-        // Should contain key entries
         t->expect(output.tree->String.includes("src/"))->Expect.toBe(true)
         t->expect(output.tree->String.includes("package.json"))->Expect.toBe(true)
         t->expect(output.tree->String.includes("tsconfig.json"))->Expect.toBe(true)
 
-        // Should not be a monorepo
         t->expect(output.monorepoType)->Expect.toBe(None)
         t->expect(Array.length(output.workspaces))->Expect.toBe(0)
       }
@@ -88,10 +82,8 @@ describe("ListTree Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(output) => {
-        // Should detect as npm-workspaces
         t->expect(output.monorepoType)->Expect.toBe(Some("npm-workspaces"))
 
-        // Should find all 3 workspaces
         t->expect(Array.length(output.workspaces))->Expect.toBe(3)
 
         let wsNames = output.workspaces->Array.map(w => w.name)
@@ -99,7 +91,6 @@ describe("ListTree Tool - execute (integration)", _t => {
         t->expect(wsNames->Array.includes("@myapp/api"))->Expect.toBe(true)
         t->expect(wsNames->Array.includes("@myapp/shared"))->Expect.toBe(true)
 
-        // Tree should contain workspace annotations
         t->expect(output.tree->String.includes("[workspace:"))->Expect.toBe(true)
       }
     | Error(msg) => failwith(`ListTree failed: ${msg}`)
@@ -132,23 +123,19 @@ describe("ListTree Tool - execute (integration)", _t => {
     await writeFile(dir, "a/b/shallow.ts", "")
     await initGitRepo(dir)
 
-    // Depth 1 — should only show top-level
     let result1 = await ListTree.executeOutput(makeCtx(dir), {depth: ?Some(1)})
     switch result1 {
     | Ok(output) => {
         t->expect(output.tree->String.includes("a/"))->Expect.toBe(true)
-        // "b/" should NOT appear at depth 1
         t->expect(output.tree->String.includes("b/"))->Expect.toBe(false)
       }
     | Error(msg) => failwith(`ListTree depth=1 failed: ${msg}`)
     }
 
-    // Depth 3 — should show a/b/c/ but not d/
     let result3 = await ListTree.executeOutput(makeCtx(dir), {depth: ?Some(3)})
     switch result3 {
     | Ok(output) => {
         t->expect(output.tree->String.includes("c/"))->Expect.toBe(true)
-        // "d/" is at depth 4, should not appear
         t->expect(output.tree->String.includes("d/"))->Expect.toBe(false)
       }
     | Error(msg) => failwith(`ListTree depth=3 failed: ${msg}`)
@@ -163,8 +150,6 @@ describe("ListTree Tool - execute (integration)", _t => {
     await writeFile(dir, "node_modules/foo/index.js", "")
     await writeFile(dir, ".git/config", "")
     await writeFile(dir, "dist/bundle.js", "")
-    // Note: git ls-files won't include node_modules/.git/dist if gitignored,
-    // but the trie filter also excludes them. Init git without adding node_modules.
     let _ = await ChildProcess.execWithOptions("git init", {cwd: dir})
     let _ = await ChildProcess.execWithOptions("git add src/index.ts", {cwd: dir})
 
@@ -194,10 +179,8 @@ describe("ListTree Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(output) => {
-        // Should show subtree rooted at apps/web
         t->expect(output.tree->String.includes("src/"))->Expect.toBe(true)
         t->expect(output.tree->String.includes("index.ts"))->Expect.toBe(true)
-        // Should NOT contain entries from outside apps/web
         t->expect(output.tree->String.includes("api"))->Expect.toBe(false)
         t->expect(output.tree->String.includes("packages"))->Expect.toBe(false)
       }
@@ -214,13 +197,10 @@ describe("ListTree Tool - execute (integration)", _t => {
     await writeFile(dir, "package.json", "{}")
     await initGitRepo(dir)
 
-    // Pass a file path — ListTree should use its parent directory
     let result = await ListTree.executeOutput(makeCtx(dir), {path: ?Some("src/index.ts")})
 
     switch result {
     | Ok(output) => {
-        // Should show the tree of "src/" (parent of index.ts), not crash with ENOTDIR.
-        // The tree includes files tracked by git in the src/ subtree.
         t->expect(output.tree->String.length > 0)->Expect.toBe(true)
         t->expect(output.tree->String.includes("index.ts"))->Expect.toBe(true)
       }
@@ -242,7 +222,6 @@ describe("ListTree Tool - execute (integration)", _t => {
     switch result {
     | Ok(output) => {
         let lines = output.tree->String.split("\n")
-        // "alpha/" (directory) should appear before any file
         let alphaIdx = lines->Array.findIndex(l => l->String.includes("alpha/"))
         let zebraIdx = lines->Array.findIndex(l => l->String.includes("zebra.ts"))
         let betaIdx = lines->Array.findIndex(l => l->String.includes("beta.ts"))
@@ -267,7 +246,6 @@ describe("ListTree Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(output) => {
-        // pnpm-workspace.yaml presence should make it pnpm-workspaces
         t->expect(output.monorepoType)->Expect.toBe(Some("pnpm-workspaces"))
         t->expect(Array.length(output.workspaces))->Expect.toBe(1)
 

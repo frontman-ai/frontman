@@ -1,5 +1,3 @@
-// Low-level bindings to Phoenix Channel class
-
 type t = FrontmanClient__Phoenix__Socket.channel
 
 type channelEvent = [
@@ -8,12 +6,9 @@ type channelEvent = [
   | #agent_completed
   | #agent_error
   | #send_message
-  | // ACP events
-  #"acp:message"
-  | // MCP events (all MCP JSON-RPC goes through mcp:message)
-  #"mcp:message"
-  | // Session management (non-ACP)
-  #list_sessions
+  | #"acp:message"
+  | #"mcp:message"
+  | #list_sessions
   | #delete_session
   | #title_updated
   | #config_options_updated

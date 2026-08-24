@@ -11,20 +11,8 @@ defmodule AgentClientProtocol.Content do
   alias FrontmanServer.Tasks.Interaction
 
   def from_tool_result(%{"content" => content}) when is_list(content) do
-    Enum.map(content, fn
-      %{"type" => "text", "text" => text} when is_binary(text) ->
-        tool_content(text)
-
-      part ->
-        part |> Jason.encode!() |> tool_content()
-    end)
+    Enum.map(content, &tool_content/1)
   end
-
-  def from_tool_result(result) when is_map(result),
-    do: [result |> Jason.encode!() |> tool_content()]
-
-  def from_tool_result(result) when is_binary(result), do: [tool_content(result)]
-  def from_tool_result(result), do: [result |> inspect() |> tool_content()]
 
   def from_user_message(%Interaction.UserMessage{} = message) do
     Enum.map(message.messages, &%{"type" => "text", "text" => &1}) ++
@@ -144,9 +132,28 @@ defmodule AgentClientProtocol.Content do
     %{"type" => "resource", "_meta" => metadata, "resource" => content}
   end
 
-  defp tool_content(text) do
-    %{"type" => "content", "content" => %{"type" => "text", "text" => text}}
-  end
+  defp tool_content(%{"type" => "text", "text" => text} = content) when is_binary(text),
+    do: %{"type" => "content", "content" => content}
+
+  defp tool_content(%{"type" => type, "data" => data, "mimeType" => mime_type} = content)
+       when type in ["image", "audio"] and is_binary(data) and is_binary(mime_type),
+       do: %{"type" => "content", "content" => content}
+
+  defp tool_content(%{"type" => "resource_link", "name" => name, "uri" => uri} = content)
+       when is_binary(name) and is_binary(uri),
+       do: %{"type" => "content", "content" => content}
+
+  defp tool_content(
+         %{"type" => "resource", "resource" => %{"uri" => uri, "text" => text}} = content
+       )
+       when is_binary(uri) and is_binary(text),
+       do: %{"type" => "content", "content" => content}
+
+  defp tool_content(
+         %{"type" => "resource", "resource" => %{"uri" => uri, "blob" => blob}} = content
+       )
+       when is_binary(uri) and is_binary(blob),
+       do: %{"type" => "content", "content" => content}
 
   defp reject_nils(map), do: Map.reject(map, fn {_key, value} -> is_nil(value) end)
 end

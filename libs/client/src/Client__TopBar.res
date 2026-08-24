@@ -3,9 +3,6 @@ module Button = Client__UI__Button
 module Tooltip = Client__UI__Tooltip
 module FrontmanLogo = Client__FrontmanLogo
 
-@send external locationAssign: ('a, string) => unit = "assign"
-@send external blur: Dom.element => unit = "blur"
-
 let renderToolbarButton = (~label, ~onClick, ~children, ~className="") =>
   <Tooltip>
     <Tooltip.Trigger
@@ -19,21 +16,24 @@ let renderToolbarButton = (~label, ~onClick, ~children, ~className="") =>
 @react.component
 let make = (
   ~chatboxWidth: int,
+  ~chatOpen: bool=true,
+  ~workspaceView: Client__WorkspacePanel.view,
+  ~onWorkspaceViewChange: Client__WorkspacePanel.view => unit,
+  ~onToggleChat: unit => unit=() => (),
   ~onSettingsClick: unit => unit,
-  ~showProviderNudgeBubble: bool=false,
-  ~showProviderNudgeBadge: bool=false,
-  ~onProviderNudgeDismiss: unit => unit=() => (),
-  ~onProviderNudgeCta: unit => unit=() => (),
 ) => {
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
   let deviceMode = Client__State.useSelector(Client__State.Selectors.deviceMode)
+  let completedFileChanges = Client__State.useSelector(Client__State.Selectors.completedFileChanges)
+  let supportsChanges =
+    Client__RuntimeConfig.read().framework->Client__RuntimeConfig.supportsFileChanges
+  let fileChangeCount = Array.length(completedFileChanges.files)
 
   let {clearSession} = Client__FrontmanProvider.useFrontman()
 
-  // URL editing local state (moved here from Client__WebPreview)
   let (editableUrl, setEditableUrl) = React.useState(() => previewUrl)
   let (isEditingUrl, setIsEditingUrl) = React.useState(() => false)
 
@@ -60,18 +60,13 @@ let make = (
         | false => ()
         | true =>
           previewFrame.contentWindow->Option.forEach(contentWindow => {
-            contentWindow->WebAPI.Window.location->locationAssign(resolvedUrl)
+            contentWindow->WebAPI.Window.location->WebAPI.Location.assign(resolvedUrl)
           })
-          Client__State.Actions.setPreviewUrl(~url=resolvedUrl)
-          Client__State.Actions.clearAnnotations()
-          Client__BrowserUrl.syncBrowserUrl(~previewUrl=resolvedUrl)
+          Client__State.Actions.setCurrentPreviewUrl(~url=resolvedUrl)
         }
       }
-      let target: Dom.element = ReactEvent.Keyboard.target(e)->Obj.magic
-      target->blur
-    | "Escape" =>
-      let target: Dom.element = ReactEvent.Keyboard.target(e)->Obj.magic
-      target->blur
+      ReactEvent.Keyboard.currentTarget(e)["blur"]()
+    | "Escape" => ReactEvent.Keyboard.currentTarget(e)["blur"]()
     | _ => ()
     }
   }
@@ -93,96 +88,100 @@ let make = (
   }
 
   let handleNewTask = () => {
-    if !isNewTask {
+    onWorkspaceViewChange(Client__WorkspacePanel.Preview)
+    switch isNewTask {
+    | false =>
       clearSession()
       Client__State.Actions.clearCurrentTask()
+    | true => ()
     }
+    Client__PromptEditor.focus()
   }
 
   let deviceModeActive = Client__DeviceMode.isActive(deviceMode)
 
   <Tooltip.Provider>
     <div className="h-8 flex items-center shrink-0 bg-[#130d20] border-b border-[#1e1538]">
-      // LEFT ZONE — width tracks the resizable chat panel
       <div
-        style={{width: `${Int.toString(chatboxWidth >= 240 ? chatboxWidth : 240)}px`}}
+        style={{
+          width: chatOpen ? `${Int.toString(chatboxWidth >= 240 ? chatboxWidth : 240)}px` : "auto",
+        }}
         className="flex items-center h-full shrink-0 px-1 gap-1 overflow-hidden"
       >
-        <div className="flex items-center justify-center w-7 h-7 shrink-0">
-          <FrontmanLogo size=18 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
-        </div>
-        <Client__TopBar__TaskDropdown onNewTask={handleNewTask} />
+        {switch chatOpen {
+        | true =>
+          <>
+            <div className="flex items-center justify-center w-7 h-7 shrink-0">
+              <FrontmanLogo size=18 className={isAgentRunning ? "frontman-logo-pulse" : ""} />
+            </div>
+            <div className="flex flex-1 min-w-0 items-center gap-0.5 overflow-hidden">
+              <Client__TopBar__TaskDropdown onNewTask={handleNewTask} />
+            </div>
+          </>
+        | false => React.null
+        }}
+        <Client__ChatToggle chatOpen onToggle=onToggleChat isAgentRunning />
       </div>
-      // Vertical divider — visually continues the panel border below
       <div className="w-px h-full bg-[#1e1538] shrink-0" />
-      // RIGHT ZONE — takes remaining space
       <div className="flex items-center h-full flex-1 min-w-0 px-1 gap-1">
-        {renderToolbarButton(
-          ~label="Reload",
-          ~onClick=_ => handleReload(),
-          ~children=<Icons.ReloadIcon />,
-        )}
-        {renderToolbarButton(
-          ~label="Open in new window",
-          ~onClick=_ =>
-            WebAPI.Window.open_(
-              WebAPI.Global.window,
-              ~url=previewUrl,
-              ~target="_blank",
-              ~features="noopener,noreferrer",
-            )->ignore,
-          ~children=<Icons.OpenInNewWindowIcon />,
-        )}
-        // URL bar
-        <input
-          type_="text"
-          value={displayedUrl}
-          onChange={handleUrlChange}
-          onKeyDown={handleUrlKeyDown}
-          onFocus={handleUrlFocus}
-          onBlur={handleUrlBlur}
-          className="flex-1 min-w-0 h-6 px-2 text-xs bg-white/5 border border-white/10 rounded text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50"
+        <Client__WorkspaceTabs
+          view=workspaceView fileChangeCount supportsChanges onViewChange=onWorkspaceViewChange
         />
-        {renderToolbarButton(
-          ~label=deviceModeActive ? "Exit device mode" : "Toggle device mode",
-          ~onClick=_ => Client__State.Actions.toggleDeviceMode(),
-          ~className=deviceModeActive ? "bg-blue-500/15 text-blue-400" : "",
-          ~children=<Icons.MobileIcon />,
-        )}
+        <Client__TopBar__WorkspaceControls
+          view=workspaceView
+          fileChangeCount
+          isAgentRunning
+          previewControls={<>
+            {renderToolbarButton(
+              ~label="Reload",
+              ~onClick=_ => handleReload(),
+              ~children=<Icons.ReloadIcon />,
+            )}
+            {renderToolbarButton(
+              ~label="Open in new window",
+              ~onClick=_ =>
+                WebAPI.Window.open_(
+                  WebAPI.Window.current,
+                  ~url=previewUrl,
+                  ~target="_blank",
+                  ~features="noopener,noreferrer",
+                )->ignore,
+              ~children=<Icons.OpenInNewWindowIcon />,
+            )}
+            <input
+              type_="text"
+              value={displayedUrl}
+              onChange={handleUrlChange}
+              onKeyDown={handleUrlKeyDown}
+              onFocus={handleUrlFocus}
+              onBlur={handleUrlBlur}
+              className="flex-1 min-w-0 h-6 px-2 text-xs bg-white/5 border border-white/10 rounded text-zinc-300 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50"
+            />
+            {renderToolbarButton(
+              ~label=deviceModeActive ? "Exit device mode" : "Toggle device mode",
+              ~onClick=_ => Client__State.Actions.toggleDeviceMode(),
+              ~className=deviceModeActive ? "bg-blue-500/15 text-blue-400" : "",
+              ~children=<Icons.MobileIcon />,
+            )}
+          </>}
+        />
         {renderToolbarButton(
           ~label="Help",
           ~onClick=_ =>
             WebAPI.Window.open_(
-              WebAPI.Global.window,
+              WebAPI.Window.current,
               ~url="https://frontman.sh/docs",
               ~target="_blank",
               ~features="noopener,noreferrer",
             )->ignore,
           ~children=<Icons.QuestionMarkCircledIcon />,
         )}
-        // Settings gear with optional provider nudge
         <div className="relative">
           {renderToolbarButton(
             ~label="Settings",
             ~onClick=_ => onSettingsClick(),
-            ~children=<>
-              <Icons.GearIcon />
-              {switch showProviderNudgeBadge {
-              | true =>
-                <span
-                  className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-violet-500 ring-2 ring-zinc-900"
-                />
-              | false => React.null
-              }}
-            </>,
+            ~children=<Icons.GearIcon />,
           )}
-          {switch showProviderNudgeBubble {
-          | true =>
-            <Client__ProviderNudgeBubble
-              onOpenSettings=onProviderNudgeCta onDismiss=onProviderNudgeDismiss
-            />
-          | false => React.null
-          }}
         </div>
       </div>
     </div>

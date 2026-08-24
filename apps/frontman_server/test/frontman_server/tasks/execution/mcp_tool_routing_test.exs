@@ -21,16 +21,13 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
     setup %{scope: scope} do
       task_id = task_fixture(scope, framework: "nextjs").id
 
-      # Join TaskChannel to intercept MCP requests
       {:ok, _reply, socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      # Drain MCP initialization request
       assert_push("mcp:message", %{"method" => "initialize"})
 
-      # Subscribe to PubSub to see what interactions are published
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
       {:ok, socket: socket, task_id: task_id, scope: scope}
@@ -85,7 +82,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       execution_request =
         execution_request_fixture(
           mcp_tools: [mcp_tool_def],
-          model: "openrouter:anthropic/claude-sonnet-4-20250514",
+          model: "openrouter:anthropic/claude-sonnet-4.6",
           project_traits: []
         )
 
@@ -97,7 +94,6 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
           user_content("Implement the component")
         )
 
-      # Verify MCP request is pushed to channel
       assert_push(
         "mcp:message",
         %{
@@ -108,7 +104,6 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         5_000
       )
 
-      # Respond to the MCP request so agent can continue
       mcp_response = %{
         "content" => [
           %{"type" => "text", "text" => ~s({"screenshot": "base64data"})}
@@ -124,7 +119,11 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
   defp submit_user_message_and_run(scope, task_id, execution_request, message) do
     case Tasks.submit_user_message(
            scope,
-           Map.merge(execution_request, %{task_id: task_id, message: message})
+           Map.merge(execution_request, %{
+             task_id: task_id,
+             message_id: Ecto.UUID.generate(),
+             message: message
+           })
          ) do
       {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution_request) do

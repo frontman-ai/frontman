@@ -7,13 +7,11 @@ defmodule FrontmanServer.Protocols.AcpUpstreamComplianceTest do
   @timestamp ~U[2026-07-15 10:00:00.000000Z]
 
   test "Frontman and generic ACP envelopes validate against pinned upstream v1 schema" do
-    catalog = AgentClientProtocol.build_agent_catalog([agent()])
-
     fixtures = [
       initialize_request(%{"frontman.dev" => %{"agentAttribution" => %{"version" => 1}}}),
-      response(2, AgentClientProtocol.build_initialize_result()),
-      response(3, AgentClientProtocol.build_session_new_result("session-1", [], catalog)),
-      response(4, AgentClientProtocol.build_session_load_result([], catalog)),
+      response(2, AgentClientProtocol.build_initialize_result([agent()], "executor-id")),
+      response(3, AgentClientProtocol.build_session_new_result("session-1", [])),
+      response(4, AgentClientProtocol.build_session_load_result([])),
       AgentClientProtocol.build_user_message_chunk_notification(
         "session-1",
         "user-1",

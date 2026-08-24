@@ -2,8 +2,10 @@
 title: 'Frontman WordPress Plugin Is Live'
 pubDate: 2026-05-14T05:00:00Z
 description: 'The Frontman WordPress plugin is now live in the WordPress Plugin Directory. Install it from wp-admin and edit your site with an AI agent.'
-author: 'Itay A'
+author: 'Itay Adler'
 image: '/blog/frontman-wordpress-plugin-released-cover.png'
+imageAlt: 'Frontman WordPress plugin release announcement'
+articleSection: 'Product Announcement'
 tags: ['announcement', 'wordpress']
 ---
 

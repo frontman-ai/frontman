@@ -1,21 +1,17 @@
-// Re-export types
 type state = Client__State__Types.state
 
-// Hook for selecting state
 let useSelector = selection => StateStore.useSelector(Client__State__Store.store, selection)
 
 module Selectors = Client__State__StateReducer.Selectors
 module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
-// Action creators
 module Actions = {
-  let addUserMessage = (~sessionId, ~content, ~annotations=[]) => {
-    let id = `user-${Date.now()->Float.toString}`
-    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations}))
+  let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
+    let id = Client__Message.UserMessageId.make()
+    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
   }
 
-  // ForTask(taskId) actions - streaming/tool events from ACP
   let textDeltaReceived = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) =>
     Client__State__Store.dispatch(
       TaskAction({
@@ -24,7 +20,6 @@ module Actions = {
       }),
     )
 
-  // TOOLS
   let toolCallReceived = (~taskId, ~toolCall) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: ToolCallReceived({toolCall: toolCall})}),
@@ -35,9 +30,12 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ToolInputReceived({id, input})}),
     )
 
-  let toolResultReceived = (~taskId, ~id, ~result) =>
+  let toolResultReceived = (~taskId, ~id, ~rawOutput, ~content, ~complete) =>
     Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: ToolResultReceived({id, result})}),
+      TaskAction({
+        target: ForTask(taskId),
+        action: ToolResultReceived({id, rawOutput, content, complete}),
+      }),
     )
 
   let toolErrorReceived = (~taskId, ~id, ~error) =>
@@ -45,8 +43,12 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ToolErrorReceived({id, error})}),
     )
 
-  // CurrentTask actions - UI interactions
-  let setPreviewUrl = (~url) =>
+  let setCurrentPreviewUrl = (~url) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
+    )
+
+  let observePreviewUrl = (~url) =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
     )
@@ -56,7 +58,6 @@ module Actions = {
       TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}),
     )
 
-  // Device mode action creators
   let setDeviceMode = (~deviceMode) =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: SetDeviceMode({deviceMode: deviceMode})}),
@@ -70,7 +71,6 @@ module Actions = {
   let toggleDeviceMode = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleDeviceMode}))
 
-  // Toggle between Off and Selecting mode
   let toggleWebPreviewSelection = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotationMode}))
 
@@ -79,7 +79,6 @@ module Actions = {
       TaskAction({target: CurrentTask, action: ToggleAnnotation({element, tagName})}),
     )
 
-  // Unconditionally adds an annotation (no toggle semantics — used for tree navigation)
   let addAnnotation = (~element, ~tagName) =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: AddAnnotation({element, tagName})}),
@@ -108,10 +107,6 @@ module Actions = {
       TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: None})}),
     )
 
-  // Task management action creators
-  // Note: Tasks are created implicitly when user sends first message (lazy session creation)
-  // Use clearCurrentTask() to prepare for a new task
-
   let switchTask = (~taskId) => Client__State__Store.dispatch(SwitchTask({taskId: taskId}))
 
   let deleteTask = (~taskId) => Client__State__Store.dispatch(DeleteTask({taskId: taskId}))
@@ -121,10 +116,13 @@ module Actions = {
   let updateTaskTitle = (~taskId, ~title) =>
     Client__State__Store.dispatch(UpdateTaskTitle({taskId, title}))
 
-  // Cancel the current turn (discard partial response, kill server agent)
   let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
 
-  // ACP session action creators
+  let executePendingPlan = () => {
+    let id = Client__Message.UserMessageId.make()
+    Client__State__Store.dispatch(ExecutePendingPlan({id: id}))
+  }
+
   let setAcpSession = (
     ~sendPrompt,
     ~cancelPrompt,
@@ -139,6 +137,9 @@ module Actions = {
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
 
+  let fetchUserProfile = (~apiBaseUrl: string) =>
+    Client__State__Store.dispatch(FetchUserProfile({apiBaseUrl: apiBaseUrl}))
+
   let executionStateRunning = (~taskId: string) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
@@ -152,7 +153,6 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ExecutionStateRequiresAction}),
     )
 
-  // Error action creators (ForTask)
   let agentErrorReceived = (
     ~taskId: string,
     ~id: string,
@@ -179,13 +179,11 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: RetryTurn({retriedErrorId: retriedErrorId})}),
     )
 
-  // Plan action creators (ForTask)
   let planReceived = (~taskId: string, ~entries) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: PlanReceived({entries: entries})}),
     )
 
-  // API key settings action creators
   let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)
 
   let saveOpenRouterKey = (~key) =>
@@ -194,14 +192,12 @@ module Actions = {
   let resetOpenRouterKeySaveStatus = () =>
     Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: OpenRouter}))
 
-  // Anthropic API key settings action creators
   let saveAnthropicKey = (~key) =>
     Client__State__Store.dispatch(SaveApiKey({provider: Anthropic, key}))
 
   let resetAnthropicKeySaveStatus = () =>
     Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Anthropic}))
 
-  // Fireworks API key settings action creators
   let saveFireworksKey = (~key) =>
     Client__State__Store.dispatch(SaveApiKey({provider: Fireworks, key}))
 
@@ -213,14 +209,18 @@ module Actions = {
   let resetNvidiaKeySaveStatus = () =>
     Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Nvidia}))
 
-  // ACP session config option action creators
   let configOptionsReceived = (~configOptions) =>
     Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
 
   let setSelectedModelValue = (~value) =>
     Client__State__Store.dispatch(SetSelectedModelValue({value: value}))
 
-  // Anthropic OAuth action creators
+  let agentAttributionConfigured = (~agentCatalog, ~defaultAgentId) =>
+    Client__State__Store.dispatch(AgentAttributionConfigured({agentCatalog, defaultAgentId}))
+
+  let setSelectedAgentId = (~agentId: string) =>
+    Client__State__Store.dispatch(SetSelectedAgentId(agentId))
+
   let fetchAnthropicOAuthStatus = () => Client__State__Store.dispatch(FetchAnthropicOAuthStatus)
 
   let initiateAnthropicOAuth = () => Client__State__Store.dispatch(InitiateAnthropicOAuth)
@@ -234,7 +234,6 @@ module Actions = {
 
   let cancelAnthropicOAuth = () => Client__State__Store.dispatch(CancelAnthropicOAuth)
 
-  // OpenAI OAuth action creators
   let fetchOpenAIOAuthStatus = () => Client__State__Store.dispatch(FetchOpenAIOAuthStatus)
 
   let initiateOpenAIOAuth = () => Client__State__Store.dispatch(InitiateOpenAIOAuth)
@@ -243,7 +242,6 @@ module Actions = {
 
   let resetOpenAIOAuthError = () => Client__State__Store.dispatch(ResetOpenAIOAuthError)
 
-  // Hydration action creators (ForTask)
   let userMessageReceived = (
     ~taskId: string,
     ~id: string,
@@ -266,13 +264,11 @@ module Actions = {
   let sessionsLoadError = (~error: string) =>
     Client__State__Store.dispatch(SessionsLoadError({error: error}))
 
-  // Update banner action creators
   let checkForUpdate = (~installedVersion, ~npmPackage) =>
     Client__State__Store.dispatch(CheckForUpdate({installedVersion, npmPackage}))
 
   let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
 
-  // Question tool action creators — dispatched as TaskAction to the task sub-reducer
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
     Client__State__Store.dispatch(
       TaskAction({

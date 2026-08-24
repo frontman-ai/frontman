@@ -15,25 +15,25 @@ function process(html, filePath, projectRoot) {
 }
 
 describe('rehypeContentFile', () => {
-  test('prepends content file comment with relative path', () => {
+  test('prepends inert content file marker with relative path', () => {
     const result = process(
       '<p>Hello</p>',
       '/home/user/project/src/content/docs/guide.md',
       '/home/user/project'
     );
-    expect(result).toContain('<!-- __frontman_content_file__:src/content/docs/guide.md -->');
+    expect(result).toContain('<template data-frontman-content-file="src/content/docs/guide.md"></template>');
     expect(result).toContain('<p>Hello</p>');
   });
 
-  test('comment appears before content', () => {
+  test('marker appears before content', () => {
     const result = process(
       '<h1>Title</h1><p>Body</p>',
       '/home/user/project/src/docs/page.md',
       '/home/user/project'
     );
-    const commentIdx = result.indexOf('__frontman_content_file__');
+    const markerIdx = result.indexOf('data-frontman-content-file');
     const h1Idx = result.indexOf('<h1>');
-    expect(commentIdx).toBeLessThan(h1Idx);
+    expect(markerIdx).toBeLessThan(h1Idx);
   });
 
   test('no-op when file.path is undefined', () => {
@@ -44,7 +44,7 @@ describe('rehypeContentFile', () => {
 
     const vfile = processor.processSync('<p>Hello</p>');
     const result = String(vfile);
-    expect(result).not.toContain('__frontman_content_file__');
+    expect(result).not.toContain('data-frontman-content-file');
     expect(result).toContain('<p>Hello</p>');
   });
 
@@ -54,7 +54,7 @@ describe('rehypeContentFile', () => {
       '/home/user/project/src/content/docs/page.md',
       '/home/user/project/'
     );
-    expect(result).toContain('<!-- __frontman_content_file__:src/content/docs/page.md -->');
+    expect(result).toContain('<template data-frontman-content-file="src/content/docs/page.md"></template>');
   });
 
   test('handles URL object as projectRoot (Astro config.root)', () => {
@@ -63,6 +63,16 @@ describe('rehypeContentFile', () => {
       '/home/user/project/src/content/docs/page.md',
       new URL('file:///home/user/project/')
     );
-    expect(result).toContain('<!-- __frontman_content_file__:src/content/docs/page.md -->');
+    expect(result).toContain('<template data-frontman-content-file="src/content/docs/page.md"></template>');
+  });
+
+  test('does not confuse project root prefixes', () => {
+    const result = process(
+      '<p>Hi</p>',
+      '/home/user/project-copy/src/page.md',
+      '/home/user/project'
+    );
+
+    expect(result).toContain('data-frontman-content-file="../project-copy/src/page.md"');
   });
 });

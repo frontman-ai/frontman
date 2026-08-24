@@ -13,7 +13,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_WooCommerce {
 	private const REST_NAMESPACE = '/wc/v3';
@@ -662,5 +661,3 @@ class Frontman_Tool_WooCommerce {
 		return [ 'type' => 'boolean', 'description' => $description ];
 	}
 }
-
-// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

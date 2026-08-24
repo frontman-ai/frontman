@@ -1,6 +1,3 @@
-// Navigation Bar
-// ------------
-// Description: The navigation bar data for the website.
 export interface Logo {
 	src: string
 	alt: string
@@ -46,6 +43,7 @@ export const navigationBarData: NavData = {
 			link: '/vs/',
 			submenu: [
 				{ name: 'All comparisons', link: '/vs/' },
+				{ name: 'vs OpenClaw', link: '/vs/openclaw/' },
 				{ name: 'vs Cursor', link: '/vs/cursor/' },
 				{ name: 'vs Copilot', link: '/vs/copilot/' },
 				{ name: 'vs Stagewise', link: '/vs/stagewise/' },

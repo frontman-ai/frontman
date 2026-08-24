@@ -7,10 +7,6 @@
       <p class="text-sm text-base-content/50">You will be redirected shortly.</p>
     </div>
 
-    <%!-- CSRF-protected form that auto-submits via app.js (data-auto-submit).
-         Without JS the user sees a manual "Sign out" button as fallback.
-         This prevents forced-logout via <img src="/users/log-out"> since the GET
-         only renders HTML — session destruction requires the DELETE + CSRF token. --%>
     <.form
       for={%{}}
       action={~p"/users/log-out"}

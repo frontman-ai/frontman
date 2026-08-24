@@ -63,8 +63,6 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Workers.GenerateTitle
   require Logger
 
-  # --- Authorization Helpers ---
-
   defp get_task_by_id(scope, task_id) do
     case task_id
          |> TaskSchema.by_id_for_user(Accounts.scope_user_id(scope))
@@ -80,8 +78,6 @@ defmodule FrontmanServer.Tasks do
     |> TaskSchema.locked_for_update()
     |> Repo.one()
   end
-
-  # --- Task Management ---
 
   @doc """
   Lists all tasks for a user (lightweight, no interactions loaded).
@@ -164,8 +160,6 @@ defmodule FrontmanServer.Tasks do
     |> Repo.all()
   end
 
-  # --- Project Discovery ---
-
   @doc """
   Adds a discovered project rule to the task.
 
@@ -221,22 +215,29 @@ defmodule FrontmanServer.Tasks do
     end)
   end
 
-  # --- Interaction Persistence Helpers ---
+  defp record_interaction(%TaskSchema{} = task_schema, type, data, turn_number) do
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      type: type,
+      data: data,
+      turn_number: turn_number
+    }
 
-  defp record_interaction(%TaskSchema{} = task_schema, type, attrs, turn_number) do
-    with {:ok, row} <- record_interaction_row(task_schema, type, attrs, turn_number) do
+    with {:ok, row} <- record_interaction_row(task_schema, attrs) do
       {:ok, row.data}
     end
   end
 
-  defp record_interaction_row(%TaskSchema{} = task_schema, type, attrs, turn_number) do
+  defp record_interaction_row(%TaskSchema{} = task, attrs) do
     Repo.transact(fn ->
       with {:ok, schema} <-
-             InteractionSchema.create_changeset(task_schema.id, type, attrs, turn_number)
+             task
+             |> Ecto.build_assoc(:interaction_rows)
+             |> InteractionSchema.changeset(attrs)
              |> Repo.insert(),
            {1, _} <-
              TaskSchema
-             |> TaskSchema.by_id(task_schema.id)
+             |> TaskSchema.by_id(task.id)
              |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)]) do
         {:ok, schema}
       else
@@ -247,7 +248,7 @@ defmodule FrontmanServer.Tasks do
     |> case do
       {:ok, %InteractionSchema{} = interaction_schema} ->
         broadcast_task(
-          task_schema.id,
+          task.id,
           {:interaction, interaction_schema}
         )
 
@@ -279,8 +280,6 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  # Scope may be nil for recovered processes after a monitor restart.
-  # In that case we can only broadcast, not persist.
   defp persist_swarm_event(nil, _task_id, _turn_number, _event), do: :ok
 
   defp persist_swarm_event(
@@ -357,7 +356,6 @@ defmodule FrontmanServer.Tasks do
         task_id,
         %{id: tool_call.tool_call_id, name: tool_call.tool_name},
         ModelContextProtocol.tool_result_error("Interrupted by restart"),
-        true,
         turn_number: turn_number
       )
     end)
@@ -384,7 +382,6 @@ defmodule FrontmanServer.Tasks do
       task_id,
       %{id: tool_call_id, name: tool_name},
       ModelContextProtocol.tool_result_error(reason),
-      true,
       turn_number: turn_number
     )
 
@@ -441,8 +438,6 @@ defmodule FrontmanServer.Tasks do
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{tool_name: "question"}), do: true
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{}), do: false
 
-  # --- Conversation Lifecycle ---
-
   @doc """
   Accepts a user prompt into session history.
 
@@ -452,6 +447,7 @@ defmodule FrontmanServer.Tasks do
         %Scope{} = scope,
         %{
           task_id: task_id,
+          message_id: message_id,
           message: [_ | _] = content_blocks,
           model: model,
           agent_id: agent_id
@@ -464,7 +460,15 @@ defmodule FrontmanServer.Tasks do
          {:ok, task_schema} <- get_task_by_id(scope, task_id),
          first_message? <- accepted_user_message_count(task_id) == 0,
          {:ok, accepted_row} <-
-           record_interaction_row(task_schema, :user_message, user_message_attrs, nil) do
+           record_interaction_row(
+             task_schema,
+             %{
+               id: message_id,
+               type: :user_message,
+               data: Map.put(user_message_attrs, :id, message_id),
+               turn_number: nil
+             }
+           ) do
       if first_message? do
         GenerateTitle.new(%{
           user_id: scope.user.id,
@@ -583,13 +587,17 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp insert_turn_started(%TaskSchema{} = task_schema, turn_started_attrs, turn_number) do
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      type: :turn_started,
+      data: turn_started_attrs,
+      turn_number: turn_number
+    }
+
     with {:ok, schema} <-
-           InteractionSchema.create_changeset(
-             task_schema.id,
-             :turn_started,
-             turn_started_attrs,
-             turn_number
-           )
+           task_schema
+           |> Ecto.build_assoc(:interaction_rows)
+           |> InteractionSchema.changeset(attrs)
            |> Repo.insert(),
          {1, _} <-
            TaskSchema
@@ -664,8 +672,6 @@ defmodule FrontmanServer.Tasks do
      }}
   end
 
-  # --- Tool Requests ---
-
   @doc "Records a client-handled tool request in the given turn."
   def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
       when is_integer(turn_number) and turn_number > 0 do
@@ -683,28 +689,56 @@ defmodule FrontmanServer.Tasks do
   unique partial index on the interactions table.
 
   Returns `{:ok, interaction, :notified}` when a live executor received the result,
-  `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
+  and `{:ok, interaction, :no_executor}` when no executor was waiting (e.g., server restart).
   """
   def resolve_tool_request(
         scope,
         task_id,
         %{id: tool_call_id, name: _} = tool_call_data,
         result,
-        is_error \\ false,
         opts \\ []
       )
-      when is_boolean(is_error) and is_list(opts) do
-    Logger.debug(fn -> "resolve_tool_result(#{inspect(result)})" end)
+      when is_list(opts) do
+    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+      turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
+      attrs = Interaction.ToolResult.attrs(tool_call_data, result)
 
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
-         turn_number = tool_result_turn_number(task_id, tool_call_id, opts),
-         attrs = Interaction.ToolResult.attrs(tool_call_data, result, is_error),
-         {:ok, interaction} <-
-           record_interaction(schema, :tool_result, attrs, turn_number) do
-      executor_status = Execution.notify_tool_result(interaction)
-
-      {:ok, interaction, executor_status}
+      schema
+      |> record_interaction(:tool_result, attrs, turn_number)
+      |> resolve_recorded_tool_result(task_id, turn_number, tool_call_id)
     end
+  end
+
+  defp resolve_recorded_tool_result({:ok, interaction}, _task_id, _turn_number, _tool_call_id) do
+    notify_recorded_tool_result(interaction)
+  end
+
+  defp resolve_recorded_tool_result(
+         {:error, %Ecto.Changeset{} = changeset},
+         task_id,
+         turn_number,
+         tool_call_id
+       ) do
+    case InteractionSchema.duplicate_tool_result?(changeset) do
+      true ->
+        interaction =
+          InteractionSchema
+          |> InteractionSchema.for_task(task_id)
+          |> InteractionSchema.for_turn(turn_number)
+          |> InteractionSchema.of_type(:tool_result)
+          |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
+          |> Repo.one!()
+          |> Map.fetch!(:data)
+
+        notify_recorded_tool_result(interaction)
+
+      false ->
+        {:error, changeset}
+    end
+  end
+
+  defp notify_recorded_tool_result(interaction) do
+    {:ok, interaction, Execution.notify_tool_result(interaction)}
   end
 
   defp tool_result_turn_number(task_id, tool_call_id, opts) do
@@ -753,8 +787,6 @@ defmodule FrontmanServer.Tasks do
       end
     end
   end
-
-  # --- Execution Management ---
 
   @doc "Records a retry request and starts execution."
   def retry_execution(scope, task_id, retried_error_id, execution) do
@@ -968,23 +1000,24 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  # --- Todos ---
-
   @doc """
-  Lists all todos for a task.
+  Lists all todos from an already-loaded task.
 
   Todos are managed through tool calls, not direct API calls.
   This function is for reading the current todos only.
   """
+  @spec list_todos(TaskSchema.t()) :: [Todos.Todo.t()]
+  def list_todos(%TaskSchema{interaction_rows: rows}) when is_list(rows) do
+    rows
+    |> Todos.list_todos()
+    |> Map.values()
+    |> Enum.sort_by(& &1.created_at, DateTime)
+  end
+
+  @doc "Lists all todos for a task."
   def list_todos(scope, task_id) do
     with {:ok, task} <- get_task(scope, task_id) do
-      todos =
-        task.interaction_rows
-        |> Todos.list_todos()
-        |> Map.values()
-        |> Enum.sort_by(& &1.created_at, DateTime)
-
-      {:ok, todos}
+      {:ok, list_todos(task)}
     end
   end
 end

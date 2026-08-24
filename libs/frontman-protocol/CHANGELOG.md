@@ -1,5 +1,42 @@
 # @frontman-ai/frontman-protocol
 
+## 2.0.0
+
+### Major Changes
+
+- [#1318](https://github.com/frontman-ai/frontman/pull/1318) [`45139a1`](https://github.com/frontman-ai/frontman/commit/45139a10873190798ada2af674f49ba4f837836f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Advertise output schemas only for browser tools that return structured content.
+
+- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
+
+- [#1311](https://github.com/frontman-ai/frontman/pull/1311) [`3589e66`](https://github.com/frontman-ai/frontman/commit/3589e666cd9726fd559f6a6113d1d036436861e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unsupported provider-key injection from framework runtime HTML, client settings, ACP metadata, and MCP tool-result metadata. Tool-result persistence now strips result metadata, while account-saved BYOK and provider OAuth remain unchanged.
+
+  Make MCP tool-result `_meta` optional and generic, align WordPress results with that contract, and stop exposing the unused absolute source root to browser runtime configuration.
+
+- [#1314](https://github.com/frontman-ai/frontman/pull/1314) [`59604b7`](https://github.com/frontman-ai/frontman/commit/59604b75efebd4a11d93c9496b152ab26ab4ba83) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Share typed text, image, audio, link, and resource content across MCP and ACP.
+
+- [#1317](https://github.com/frontman-ai/frontman/pull/1317) [`5c25668`](https://github.com/frontman-ai/frontman/commit/5c25668ddf5f708b81ea19ab2dd7eb811c1f4b5a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve and generically render typed multipart MCP tool content through ACP.
+
+- [#1315](https://github.com/frontman-ai/frontman/pull/1315) [`41f323a`](https://github.com/frontman-ai/frontman/commit/41f323ae561dc0d6192aeb4bb56356efd24896d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured tool arguments through ACP `rawInput`.
+
+- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
+
+### Patch Changes
+
+- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
+
+## 1.0.2
+
+### Patch Changes
+
+- [#1262](https://github.com/frontman-ai/frontman/pull/1262) [`f081562`](https://github.com/frontman-ai/frontman/commit/f081562d24f17c09b2ae8bfe20467980e224ce81) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add prompt-level Executor and Planner selection, negotiated connection agent catalogs, stable
+  message IDs, explicit agent colors, and migration of persisted session history.
+
+- [#1192](https://github.com/frontman-ai/frontman/pull/1192) [`c7848c6`](https://github.com/frontman-ai/frontman/commit/c7848c6cd137afdb8df9298789dded95675ac5e1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Carry stable agent error IDs through retry error updates.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Saved tasks now restore their interaction history more reliably, including prompts, tool activity, and agent responses.
+
 ## 1.0.1
 
 ### Patch Changes

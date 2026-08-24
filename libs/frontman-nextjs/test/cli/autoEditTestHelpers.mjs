@@ -1,6 +1,3 @@
-// Verification helpers for auto-edit LLM integration tests
-// These live in a separate .mjs file because the regex patterns
-// contain } characters that conflict with ReScript's %raw() parser.
 
 /**
  * Verify that a proper import statement exists (not just a substring match).
@@ -9,11 +6,9 @@
  */
 export function hasProperImport(content, modulePath) {
   const escaped = modulePath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  // Check static import
   const staticRe = new RegExp(
     "import\\s*\\{[^}]+\\}\\s*from\\s*['\"]" + escaped + "['\"]"
   );
-  // Check dynamic import: await import('modulePath') or import('modulePath')
   const dynamicRe = new RegExp(
     "import\\s*\\(\\s*['\"]" + escaped + "['\"]\\s*\\)"
   );

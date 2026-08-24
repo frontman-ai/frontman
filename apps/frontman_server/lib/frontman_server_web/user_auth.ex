@@ -17,8 +17,6 @@ defmodule FrontmanServerWeb.UserAuth do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
 
-  # Make the remember me cookie valid for 14 days. This should match
-  # the session validity setting in UserToken.
   @max_cookie_age_in_days 14
   @remember_me_cookie "_frontman_server_web_user_remember_me"
   @remember_me_options [
@@ -27,13 +25,6 @@ defmodule FrontmanServerWeb.UserAuth do
     same_site: "Lax"
   ]
 
-  # How old the session token should be before a new one is issued. When a request is made
-  # with a session token older than this value, then a new session token will be created
-  # and the session and remember-me cookies (if set) will be updated with the new token.
-  # Lowering this value will result in more tokens being created by active users. Increasing
-  # it will result in less time before a session token expires for a user to get issued a new
-  # token. This can be set to a value greater than `@max_cookie_age_in_days` to disable
-  # the reissuing of tokens completely.
   @session_reissue_age_in_days 7
 
   @doc """
@@ -65,10 +56,6 @@ defmodule FrontmanServerWeb.UserAuth do
     end
   end
 
-  # Validates that an absolute URL belongs to an allowed domain to prevent open redirects.
-  # Allows: frontman.sh, *.frontman.sh, *.com, *.com.au, *.net, *.org,
-  # category-creation.com, *.category-creation.com, frontman.local (any port),
-  # localhost (any port).
   defp safe_return_url?(url) do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
@@ -115,6 +102,7 @@ defmodule FrontmanServerWeb.UserAuth do
 
     redirect_url =
       case return_to do
+        "/users/popup-complete" -> ~p"/users/popup-complete"
         nil -> ~p"/users/log-in"
         url -> ~p"/users/log-in?#{%{"return_to" => url}}"
       end
@@ -254,7 +242,6 @@ defmodule FrontmanServerWeb.UserAuth do
     end
   end
 
-  # Reissue the session token if it is older than the configured reissue age.
   defp maybe_reissue_user_session_token(conn, user, token_inserted_at) do
     token_age = DateTime.diff(DateTime.utc_now(:second), token_inserted_at, :day)
 
@@ -265,14 +252,6 @@ defmodule FrontmanServerWeb.UserAuth do
     end
   end
 
-  # This function is the one responsible for creating session tokens
-  # and storing them safely in the session and cookies. It may be called
-  # either when logging in, during sudo mode, or to renew a session which
-  # will soon expire.
-  #
-  # When the session is created, rather than extended, the renew_session
-  # function will clear the session to avoid fixation attacks. See the
-  # renew_session function to customize this behaviour.
   defp create_or_extend_session(conn, user, params) do
     token = Accounts.generate_user_session_token(user)
     remember_me = get_session(conn, :user_remember_me)
@@ -283,28 +262,10 @@ defmodule FrontmanServerWeb.UserAuth do
     |> maybe_write_remember_me_cookie(token, params, remember_me)
   end
 
-  # Do not renew session if the user is already logged in
-  # to prevent CSRF errors or data being lost in tabs that are still open
   defp renew_session(conn, user) when conn.assigns.current_scope.user.id == user.id do
     conn
   end
 
-  # This function renews the session ID and erases the whole
-  # session to avoid fixation attacks. If there is any data
-  # in the session you may want to preserve after log in/log out,
-  # you must explicitly fetch the session data before clearing
-  # and then immediately set it after clearing, for example:
-  #
-  #     defp renew_session(conn, _user) do
-  #       delete_csrf_token()
-  #       preferred_locale = get_session(conn, :preferred_locale)
-  #
-  #       conn
-  #       |> configure_session(renew: true)
-  #       |> clear_session()
-  #       |> put_session(:preferred_locale, preferred_locale)
-  #     end
-  #
   defp renew_session(conn, _user) do
     delete_csrf_token()
 

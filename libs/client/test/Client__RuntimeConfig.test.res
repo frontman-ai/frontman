@@ -8,12 +8,31 @@ afterEach(() => {
 })
 
 describe("Client__RuntimeConfig", _t => {
+  test("file changes are supported by project-backed frameworks", t => {
+    t
+    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Nextjs))
+    ->Expect.toBe(true)
+    t
+    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Vite))
+    ->Expect.toBe(true)
+    t
+    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Astro))
+    ->Expect.toBe(true)
+  })
+
+  test("file changes are unsupported by WordPress", t => {
+    t
+    ->expect(Client__RuntimeConfig.supportsFileChanges(Client__RuntimeConfig.Wordpress))
+    ->Expect.toBe(false)
+  })
+
   test("read works without wpNonce for non-WordPress integrations", t => {
     _setRuntime(
       JSON.Encode.object(
         Dict.fromArray([
           ("framework", JSON.Encode.string("nextjs")),
           ("basePath", JSON.Encode.string("frontman")),
+          ("projectRoot", JSON.Encode.string("/test/project")),
         ]),
       ),
     )
@@ -22,7 +41,9 @@ describe("Client__RuntimeConfig", _t => {
 
     t->expect(config.framework)->Expect.toBe(Client__RuntimeConfig.Nextjs)
     t->expect(config.basePath)->Expect.toBe("frontman")
+    t->expect(config.relayBaseUrl)->Expect.toBe(None)
     t->expect(config.wpNonce)->Expect.toBe(None)
+    t->expect(config.projectRoot)->Expect.toBe(Some("/test/project"))
     t->expect(config.traits)->Expect.toBe(None)
   })
 
@@ -31,7 +52,6 @@ describe("Client__RuntimeConfig", _t => {
       JSON.Encode.object(
         Dict.fromArray([
           ("framework", JSON.Encode.string("nextjs")),
-          ("basePath", JSON.Encode.string("frontman")),
           (
             "traits",
             [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
@@ -50,7 +70,6 @@ describe("Client__RuntimeConfig", _t => {
       JSON.Encode.object(
         Dict.fromArray([
           ("framework", JSON.Encode.string("nextjs")),
-          ("basePath", JSON.Encode.string("frontman")),
           (
             "traits",
             [JSON.Encode.string("react"), JSON.Encode.string("typescript")]->JSON.Encode.array,
@@ -66,6 +85,7 @@ describe("Client__RuntimeConfig", _t => {
         Dict.fromArray([
           ("framework", JSON.Encode.string("wordpress")),
           ("basePath", JSON.Encode.string("frontman")),
+          ("relayBaseUrl", JSON.Encode.string("https://example.com/index.php")),
           ("wpNonce", JSON.Encode.string("nonce-123")),
         ]),
       ),
@@ -74,69 +94,29 @@ describe("Client__RuntimeConfig", _t => {
     let config = Client__RuntimeConfig.read()
 
     t->expect(config.framework)->Expect.toBe(Client__RuntimeConfig.Wordpress)
+    t->expect(config.relayBaseUrl)->Expect.toBe(Some("https://example.com/index.php"))
     t->expect(config.wpNonce)->Expect.toBe(Some("nonce-123"))
-  })
-
-  test("read treats empty provider keys as missing", t => {
-    _setRuntime(
-      JSON.Encode.object(
-        Dict.fromArray([
-          ("framework", JSON.Encode.string("nextjs")),
-          ("basePath", JSON.Encode.string("frontman")),
-          ("fireworksKeyValue", JSON.Encode.string("")),
-        ]),
-      ),
-    )
-
-    let config = Client__RuntimeConfig.read()
-
-    t->expect(config.fireworksKeyValue)->Expect.toBe(None)
-    t->expect(Client__RuntimeConfig.hasAnyProviderKey(config))->Expect.toBe(false)
   })
 
   test("toMeta does not leak wpNonce into ACP metadata", t => {
     let meta = Client__RuntimeConfig.toMeta({
       framework: Client__RuntimeConfig.Wordpress,
       basePath: "frontman",
+      relayBaseUrl: Some("https://example.com/index.php"),
       wpNonce: Some("nonce-123"),
-      openrouterKeyValue: None,
-      anthropicKeyValue: None,
-      fireworksKeyValue: None,
-      nvidiaKeyValue: None,
       projectRoot: None,
-      sourceRoot: None,
       traits: None,
     })
 
     t
     ->expect(meta)
     ->Expect.toEqual(
-      JSON.Encode.object(
-        Dict.fromArray([
-          ("framework", JSON.Encode.string("wordpress")),
-          ("basePath", JSON.Encode.string("frontman")),
-        ]),
-      ),
+      JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("wordpress"))])),
     )
   })
 
-  test("toMeta forwards provider keys when present", t => {
-    let meta = Client__RuntimeConfig.toMeta({
-      framework: Client__RuntimeConfig.Nextjs,
-      basePath: "frontman",
-      wpNonce: None,
-      openrouterKeyValue: None,
-      anthropicKeyValue: None,
-      fireworksKeyValue: Some("fw-test-123"),
-      nvidiaKeyValue: Some("nvapi-test-123"),
-      projectRoot: None,
-      sourceRoot: None,
-      traits: None,
-    })
-
-    t
-    ->expect(meta)
-    ->Expect.toEqual(
+  test("toMeta excludes provider keys", t => {
+    _setRuntime(
       JSON.Encode.object(
         Dict.fromArray([
           ("framework", JSON.Encode.string("nextjs")),
@@ -145,6 +125,14 @@ describe("Client__RuntimeConfig", _t => {
           ("nvidiaKeyValue", JSON.Encode.string("nvapi-test-123")),
         ]),
       ),
+    )
+
+    let meta = Client__RuntimeConfig.read()->Client__RuntimeConfig.toMeta
+
+    t
+    ->expect(meta)
+    ->Expect.toEqual(
+      JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("nextjs"))])),
     )
   })
 })

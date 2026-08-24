@@ -9,22 +9,18 @@ describe("FrontmanNextjs Sentry", () => {
   let testkit = ref(None)
   let transport = ref(None)
 
-  // Set up testkit once - Sentry SDK only allows one init per process
   beforeAll(() => {
     let (tk, t) = SentryTestkit.setup()
     testkit := Some(tk)
     transport := Some(t)
   })
 
-  // Reset state before each test
   beforeEach(() => {
-    // Clear testkit reports
     switch testkit.contents {
     | Some(tk) => tk.reset()
     | None => ()
     }
 
-    // Reset initialized flag and reinitialize with testkit transport
     Sentry.initialized.contents = false
     switch transport.contents {
     | Some(t) => Sentry.initialize(~transport=t)
@@ -36,10 +32,8 @@ describe("FrontmanNextjs Sentry", () => {
     test(
       "initializes only once",
       t => {
-        // Already initialized in beforeEach
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
 
-        // Try to initialize again - should be idempotent
         Sentry.initialize()
         Sentry.initialize()
 
@@ -259,7 +253,7 @@ describe("FrontmanNextjs Sentry", () => {
               switch report.breadcrumbs {
               | Some(breadcrumbs) =>
                 t->expect(breadcrumbs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
-              | None => () // Breadcrumbs may not always be present
+              | None => ()
               }
             | None => ()
             }
@@ -275,7 +269,6 @@ describe("FrontmanNextjs Sentry", () => {
         let data = Dict.fromArray([("spanName", JSON.Encode.string("http.request"))])
         Sentry.addBreadcrumb(~category="trace", ~message="Span started", ~data)
 
-        // Should not throw
         t->expect(true)->Expect.toBe(true)
       },
     )

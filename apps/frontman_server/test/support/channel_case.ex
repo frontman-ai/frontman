@@ -25,14 +25,11 @@ defmodule FrontmanServerWeb.ChannelCase do
 
   using do
     quote do
-      # Import conveniences for testing with channels
       import Phoenix.ChannelTest
       import FrontmanServerWeb.ChannelCase
 
-      # The default endpoint for testing
       @endpoint FrontmanServerWeb.Endpoint
 
-      # ACP channel event constant for test assertions
       @acp_message AgentClientProtocol.event_acp_message()
     end
   end
@@ -46,9 +43,10 @@ defmodule FrontmanServerWeb.ChannelCase do
   defmacro complete_mcp_handshake(socket, opts \\ []) do
     quote do
       socket = unquote(socket)
-      tools = unquote(opts) |> Keyword.get(:tools, [])
+      opts = unquote(opts)
+      tools = Keyword.get(opts, :tools, [])
 
-      load_project_context = unquote(opts) |> Keyword.get(:load_project_context, true)
+      load_project_context = Keyword.get(opts, :load_project_context, true)
 
       :sys.get_state(socket.channel_pid)
       assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
@@ -175,11 +173,10 @@ defmodule FrontmanServerWeb.ChannelCase do
   @doc """
   Builds a JSON-RPC `session/prompt` request for channel tests.
 
-  Convenience wrapper around `build_acp_request/3`.
-
   ## Options
 
     * `:id` - JSON-RPC request id (default: `1`)
+    * `:message_id` - client-generated user message UUID (default: generated UUID)
     * `:text` - prompt text (default: `"Hello"`)
     * `:_meta` - _meta map with selected model and agent
 
@@ -187,21 +184,28 @@ defmodule FrontmanServerWeb.ChannelCase do
 
       build_prompt_request()
       build_prompt_request(id: 42, text: "Next question")
-      build_prompt_request(_meta: %{"model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"}})
+      build_prompt_request(_meta: %{"model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"}})
   """
   def build_prompt_request(opts \\ []) do
-    id = Keyword.get(opts, :id, 1)
+    message_id =
+      case Keyword.fetch(opts, :message_id) do
+        {:ok, message_id} -> message_id
+        :error -> Ecto.UUID.generate()
+      end
+
     text = Keyword.get(opts, :text, "Hello")
 
     meta =
-      Keyword.get(opts, :_meta, %{
-        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3-flash-preview"},
+      opts
+      |> Keyword.get(:_meta, %{
+        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
         "agent" => "test-frontman"
       })
+      |> Map.put("frontman.dev/messageId", message_id)
 
     params = %{"prompt" => [%{"type" => "text", "text" => text}], "_meta" => meta}
 
-    build_acp_request("session/prompt", id, params)
+    build_acp_request("session/prompt", Keyword.get(opts, :id, 1), params)
   end
 
   @doc """
@@ -234,7 +238,6 @@ defmodule FrontmanServerWeb.ChannelCase do
     pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: shared)
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
-    # Create a test user for scope
     {:ok, user} =
       Accounts.register_user(%{
         email: "channel_test_#{System.unique_integer([:positive])}@test.local",

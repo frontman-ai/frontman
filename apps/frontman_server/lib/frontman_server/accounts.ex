@@ -31,8 +31,6 @@ defmodule FrontmanServer.Accounts do
     |> Map.fetch!(:id)
   end
 
-  ## Database getters
-
   @doc """
   Gets a user by email.
 
@@ -89,8 +87,6 @@ defmodule FrontmanServer.Accounts do
   Sends the welcome email for a user.
   """
   def deliver_welcome_email(%User{} = user), do: UserNotifier.deliver_welcome(user)
-
-  ## User registration
 
   @doc """
   Registers a user.
@@ -194,8 +190,6 @@ defmodule FrontmanServer.Accounts do
     |> update_user_and_delete_all_tokens()
   end
 
-  ## Session
-
   @doc """
   Generates a session token.
   """
@@ -249,7 +243,6 @@ defmodule FrontmanServer.Accounts do
     {:ok, query} = UserToken.verify_magic_link_token_query(token)
 
     case Repo.one(query) do
-      # Prevent session fixation attacks by disallowing magic links for unconfirmed users with password
       {%User{confirmed_at: nil, hashed_password: hash}, _token} when not is_nil(hash) ->
         raise """
         magic link log in is not allowed for unconfirmed users with a password set!
@@ -311,8 +304,6 @@ defmodule FrontmanServer.Accounts do
     :ok
   end
 
-  ## Token helper
-
   defp update_user_and_delete_all_tokens(changeset) do
     Repo.transact(fn ->
       with {:ok, user} <- Repo.update(changeset) do
@@ -327,8 +318,6 @@ defmodule FrontmanServer.Accounts do
       end
     end)
   end
-
-  ## OAuth
 
   defdelegate get_oauth_authorization_url(provider, redirect_uri, state \\ nil),
     to: WorkOS,

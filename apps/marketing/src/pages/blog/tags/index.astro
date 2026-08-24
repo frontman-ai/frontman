@@ -1,18 +1,11 @@
 ---
-// Blog Tags Page
-// ------------
-// Description: The blog tags page.
 
-// Components
-// - Layout
 import Layout from '../../../layouts/Layout.astro'
-// - UI
 import Hero from '../../../components/blocks/hero/PageHeader.astro'
 import Section from '../../../components/ui/Section.astro'
 import Row from '../../../components/ui/Row.astro'
 import Col from '../../../components/ui/Col.astro'
 
-// Data
 import { getCollection } from 'astro:content'
 const allPosts = await getCollection('blog')
 

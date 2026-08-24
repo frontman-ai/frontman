@@ -12,7 +12,6 @@ import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
 
-// Accept self-signed mkcert certificates for HTTPS health checks
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -35,7 +34,6 @@ function resolveBin(startDir: string, name: string): string {
   throw new Error(`Cannot find binary '${name}' starting from ${startDir}`);
 }
 
-// Keep in sync with strict boolean parsing in apps/frontman_server/config/runtime.exs.
 const TRUTHY_ENV_VALUES = new Set(["1", "true", "yes", "on"]);
 const FALSY_ENV_VALUES = new Set(["0", "false", "no", "off"]);
 
@@ -84,7 +82,6 @@ async function waitForServer(
         return;
       }
     } catch {
-      // not ready yet
     }
     await new Promise((r) => setTimeout(r, 500));
   }
@@ -94,12 +91,10 @@ async function waitForServer(
 export async function setup() {
   console.log("[e2e] Global setup starting…");
 
-  // ── 1. Database setup ──────────────────────────────────────────────────────
   console.log("  [e2e] Creating and migrating e2e database…");
   execSync("mix ecto.create --quiet", { cwd: SERVER_DIR, env: E2E_ENV, stdio: "pipe" });
   execSync("mix ecto.migrate --quiet", { cwd: SERVER_DIR, env: E2E_ENV, stdio: "pipe" });
 
-  // ── 2. Seed test user + ChatGPT token ──────────────────────────────────────
   console.log("  [e2e] Seeding test user…");
   execSync("mix run priv/repo/e2e_seeds.exs", {
     cwd: SERVER_DIR,
@@ -107,7 +102,6 @@ export async function setup() {
     stdio: "inherit",
   });
 
-  // ── 3. Start Phoenix server ────────────────────────────────────────────────
   console.log("  [e2e] Starting Phoenix server on port", PHOENIX_PORT, "…");
   phoenixProc = spawn("mix", ["phx.server"], {
     cwd: SERVER_DIR,
@@ -122,13 +116,11 @@ export async function setup() {
   });
   phoenixProc.stderr?.on("data", (d: Buffer) => {
     const msg = d.toString();
-    // Surface errors but suppress normal Elixir compile chatter
     if (msg.includes("error") || msg.includes("Error")) {
       process.stderr.write(`  [phoenix] ${msg}`);
     }
   });
 
-  // ── 4. Start client Vite dev server ────────────────────────────────────────
   console.log("  [e2e] Starting client Vite dev server on port", CLIENT_PORT, "…");
   const viteBin = resolveBin(CLIENT_DIR, "vite");
   clientProc = spawn(process.execPath, [viteBin, "--port", String(CLIENT_PORT), "--strictPort"], {
@@ -143,7 +135,6 @@ export async function setup() {
     }
   });
 
-  // ── 5. Wait for readiness ──────────────────────────────────────────────────
   await Promise.all([
     waitForServer(`https://localhost:${PHOENIX_PORT}/users/log-in`, "Phoenix"),
     waitForServer(`http://localhost:${CLIENT_PORT}/src/Main.res.mjs`, "Client Vite"),

@@ -84,6 +84,11 @@ defmodule SwarmAi.SchemaTransformer do
     :openai_strict
   end
 
+  def provider_for_model(%{provider: :openrouter, id: id})
+      when is_binary(id) do
+    if openai_model?(id), do: :openai_strict, else: :flexible
+  end
+
   def provider_for_model(%{provider: _}) do
     :flexible
   end
@@ -94,7 +99,6 @@ defmodule SwarmAi.SchemaTransformer do
       String.starts_with?(model, "openai:")
   end
 
-  # Transform object schema for OpenAI strict mode
   defp transform_for_openai_strict(%{"type" => "object", "properties" => properties} = schema) do
     original_required = MapSet.new(Map.get(schema, "required", []))
 
@@ -103,10 +107,8 @@ defmodule SwarmAi.SchemaTransformer do
         transformed = transform_nested(prop_schema)
 
         if MapSet.member?(original_required, name) do
-          # Required property - keep as-is (but recursively transform nested objects)
           {name, transformed}
         else
-          # Optional property - make nullable so model can provide null
           {name, make_nullable(transformed)}
         end
       end)
@@ -117,12 +119,9 @@ defmodule SwarmAi.SchemaTransformer do
     |> Map.put("additionalProperties", false)
   end
 
-  # Pass through non-object schemas unchanged
   defp transform_for_openai_strict(schema), do: schema
 
-  # Wrap a property schema in anyOf with null to make it nullable
   defp make_nullable(%{"anyOf" => _} = schema) do
-    # Already has anyOf - check if null is already included
     if has_null_type?(schema) do
       schema
     else
@@ -134,7 +133,6 @@ defmodule SwarmAi.SchemaTransformer do
     %{"anyOf" => [schema, %{"type" => "null"}]}
   end
 
-  # Check if anyOf already includes a null type
   defp has_null_type?(%{"anyOf" => types}) do
     Enum.any?(types, fn
       %{"type" => "null"} -> true
@@ -142,16 +140,13 @@ defmodule SwarmAi.SchemaTransformer do
     end)
   end
 
-  # Recursively transform nested object schemas
   defp transform_nested(%{"type" => "object"} = schema) do
     transform_for_openai_strict(schema)
   end
 
-  # Transform array items if they contain objects
   defp transform_nested(%{"type" => "array", "items" => items} = schema) do
     Map.put(schema, "items", transform_nested(items))
   end
 
-  # Pass through primitive types unchanged
   defp transform_nested(schema), do: schema
 end

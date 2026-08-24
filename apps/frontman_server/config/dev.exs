@@ -1,13 +1,9 @@
 import Config
 
-# Mark environment for runtime checks
 config :frontman_server,
   env: :dev,
   llm_wire_tap_enabled: true
 
-# Configure your database
-# For DevPod: post-create.sh updates hostname to the Docker gateway IP
-# For local dev: uses localhost
 config :frontman_server, FrontmanServer.Repo,
   username: "postgres",
   password: "postgres",
@@ -17,15 +13,7 @@ config :frontman_server, FrontmanServer.Repo,
   show_sensitive_data_on_connection_error: true,
   pool_size: 10
 
-# For development, we disable any cache and enable
-# debugging and code reloading.
-#
-# The watchers configuration can be used to run external
-# watchers to your application. For example, we can use it
-# to bundle .js and .css sources.
 config :frontman_server, FrontmanServerWeb.Endpoint,
-  # Binding to 0.0.0.0 allows access from containers/proxies
-  # URL host can be overridden via PHX_HOST env var for remote development
   url: [
     host: System.get_env("PHX_HOST") || "frontman.local",
     port: String.to_integer(System.get_env("PHX_URL_PORT") || "4000"),
@@ -48,7 +36,6 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
     tailwind: {Tailwind, :install_and_run, [:frontman_server, ~w(--watch)]}
   ]
 
-# Watch static and templates for browser reloading.
 config :frontman_server, FrontmanServerWeb.Endpoint,
   live_reload: [
     web_console_logger: true,
@@ -59,33 +46,23 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
     ]
   ]
 
-# Enable dev routes for dashboard and mailbox
 config :frontman_server, dev_routes: true
 
-# Set a higher stacktrace during development. Avoid configuring such
-# in production as building large stacktraces may be expensive.
 config :phoenix, :stacktrace_depth, 20
 
-# Initialize plugs at runtime for faster development compilation
 config :phoenix, :plug_init_mode, :runtime
 
 config :logger, level: :info
 
 config :phoenix_live_view,
-  # Include debug annotations and locations in rendered markup.
-  # Changing this configuration will require mix clean and a full recompile.
   debug_heex_annotations: true,
   debug_attributes: true,
-  # Enable helpful, but potentially expensive runtime checks
   enable_expensive_runtime_checks: true
 
 config :req_llm,
   telemetry: [payloads: :raw],
   debug: true
 
-# Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 
-# Placeholder Resend API key for dev — workers will call real Resend and get a 401,
-# which Oban handles as a retryable error. Harmless in dev.
 config :frontman_server, FrontmanServer.Mailer, api_key: "re_dev_placeholder"

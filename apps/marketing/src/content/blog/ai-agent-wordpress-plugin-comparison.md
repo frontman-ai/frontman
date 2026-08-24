@@ -3,10 +3,7 @@ title: 'AI Agent Plugins for WordPress Compared'
 seoTitle: 'AI Agent Plugins for WordPress: Frontman vs AI Engine'
 pubDate: 2026-06-17T05:00:00Z
 description: 'A practical comparison of Frontman, AI Engine, MCP plugins, Elementor AI, Jetpack AI, and WordPress AI builders.'
-author: 'Itay A'
-authorRole: 'Founder, Frontman'
 image: '/blog/ai-agent-wordpress-plugin-comparison-cover.png'
-imageAlt: 'Comparison board showing WordPress AI agent plugin categories and live preview workflow signals.'
 tags: ['wordpress', 'comparison', 'ai']
 comparisonItems:
   - name: 'Frontman - Agentic AI Editor'
@@ -35,6 +32,9 @@ faq:
     answer: 'Use an AI builder when you are generating a new site or layout from scratch. Use an AI agent plugin when you already have a WordPress site and need to edit posts, pages, menus, templates, Elementor content, settings, or WooCommerce data without rebuilding the site.'
   - question: 'Is it safe to let an AI agent edit WordPress?'
     answer: 'Treat it like any tool that can change production content. Start on staging, keep backups, review changes, and prefer tools that respect WordPress permissions and show you what changed before you trust the result.'
+author: 'Itay Adler'
+articleSection: 'Comparison or Buyer Guide'
+imageAlt: 'Comparison board showing WordPress AI agent plugin categories and live preview workflow signals.'
 ---
 
 You search for an AI agent plugin for WordPress because the admin screen has stopped being the workflow.
@@ -64,6 +64,8 @@ The winner depends on the job. Annoying, but true.
 If you want a chatbot, use the chatbot plugin. If you want embeddings and knowledge search, use the framework. If you want Claude Desktop or ChatGPT to talk to WordPress tools, evaluate MCP plugins. If you want to edit the site you are looking at, use the tool built around the page.
 
 That last sentence is where [Frontman for WordPress](/wordpress/) lives.
+
+Before installing anything, [watch one complete existing-site edit](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) or [try the workflow in a disposable WordPress Playground](https://playground.wordpress.net/?networking=yes&blueprint-url=https%3A%2F%2Ffrontman.sh%2Fwordpress-playground%2Fblueprint.json). The Playground loads a seeded page and the plugin automatically; Frontman sign-in and your own supported AI provider are still required.
 
 ### Why Frontman's WordPress plugin is different
 

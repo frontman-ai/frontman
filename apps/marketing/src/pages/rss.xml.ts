@@ -16,7 +16,7 @@ export async function GET(context: APIContext) {
 	const response = await rss({
 		title: 'Frontman Blog',
 		description:
-			'The open-source AI agent that lives in your browser, sees your live DOM, and edits your frontend. Updates, tutorials, and insights.',
+			'The source-available AI website editor with browser-aware tools for editing existing sites. Updates, tutorials, and insights.',
 		site: context.site,
 		items: sortedPosts.map((post) => ({
 			title: post.data.title,

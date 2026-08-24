@@ -8,22 +8,20 @@ defmodule AgentClientProtocol.ContentTest do
   @timestamp ~U[2026-07-15 10:00:00.000000Z]
 
   describe "from_tool_result/1" do
-    test "formats binary as text" do
-      assert Content.from_tool_result("Hello") == [
-               %{
-                 "type" => "content",
-                 "content" => %{"type" => "text", "text" => "Hello"}
-               }
+    test "preserves typed multipart content in order" do
+      text = %{"type" => "text", "text" => "Hello"}
+      image = %{"type" => "image", "data" => "base64", "mimeType" => "image/png"}
+
+      assert Content.from_tool_result(%{"content" => [text, image]}) == [
+               %{"type" => "content", "content" => text},
+               %{"type" => "content", "content" => image}
              ]
     end
 
-    test "formats other types using inspect" do
-      assert Content.from_tool_result({:ok, 123}) == [
-               %{
-                 "type" => "content",
-                 "content" => %{"type" => "text", "text" => "{:ok, 123}"}
-               }
-             ]
+    test "rejects malformed known content" do
+      assert_raise FunctionClauseError, fn ->
+        Content.from_tool_result(%{"content" => [%{"type" => "image", "data" => "base64"}]})
+      end
     end
   end
 

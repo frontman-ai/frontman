@@ -1,19 +1,19 @@
-# Frontman Monorepo Makefile
-#
-# Usage: make [target]
-# Run 'make' or 'make help' to see available commands
+
+
+
+
 
 .DEFAULT_GOAL := help
 
-# Colors for output
+
 CYAN := \033[36m
 GREEN := \033[32m
 YELLOW := \033[33m
 RESET := \033[0m
 
-# Remote development config
-# DEVPOD_SERVER is resolved from .env via `op run` (1Password CLI)
-# Usage: op run --env-file=.env -- make <target>
+
+
+
 DEVPOD_USER ?= root
 
 define require_devpod_server
@@ -23,8 +23,8 @@ define require_devpod_server
 	fi
 endef
 
-# Guard: require BRANCH variable
-# Usage: $(call require_branch,target-name)
+
+
 define require_branch
 	@if [ -z "$(BRANCH)" ]; then \
 		printf "$(YELLOW)Error: BRANCH is required. Usage: make $(1) BRANCH=feature-name$(RESET)\n"; \
@@ -32,9 +32,9 @@ define require_branch
 	fi
 endef
 
-# Resolve BRANCH: use provided value or auto-detect from current git branch.
-# Sets BRANCH via $(eval) so downstream shell blocks see the correct value.
-# Usage: $(call resolve_branch,target-name)
+
+
+
 define resolve_branch
 	$(eval _BRANCH_WAS := $(BRANCH))
 	$(eval BRANCH := $(if $(BRANCH),$(BRANCH),$(shell git branch --show-current)))
@@ -47,8 +47,8 @@ define resolve_branch
 	fi
 endef
 
-# Run an e2e test file (or all tests if no file given)
-# Usage: $(call run_e2e,test-file-or-empty)
+
+
 define run_e2e
 	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
 	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run $(1)
@@ -56,70 +56,132 @@ endef
 
 .PHONY: help
 
-# Print help section: $(1)=section label, $(2)=marker prefix (e.g. DEV → DEV_START/DEV_END)
-define print_section
-	@echo ""
-	@printf "$(CYAN)$(1):$(RESET)\n"
-	@awk 'BEGIN {FS = ":.*##"} /^## $(2)_START$$/{found=1; next} /^## $(2)_END$$/{found=0} found && /^[a-zA-Z0-9_-]+:.*##/ { printf "  $(GREEN)%-25s$(RESET) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
-endef
+HELP_SECTIONS := DEVELOPMENT BUILD SSL WT INFRA REL E2E UTIL
 
-help: ## Display available commands
+HELP_DEVELOPMENT_TITLE := Development
+HELP_DEVELOPMENT_TARGETS := dev dev-client dev-server dev-nextjs dev-nextjs-prebuilt dev-marketing
+HELP_dev := Start all core services (client + server + nextjs)
+HELP_dev-client := Start development server for client app
+HELP_dev-server := Start development server for server app
+HELP_dev-nextjs := Start development server for Next.js test site
+HELP_dev-nextjs-prebuilt := Start Next.js test site with prebuilt integration
+HELP_dev-marketing := Start development server for marketing site
+
+HELP_BUILD_TITLE := Build & Quality
+HELP_BUILD_TARGETS := install hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments clean
+HELP_install := Install dependencies
+HELP_hooks-install := Install git pre-commit hooks via Lefthook
+HELP_setup-elixir-tools := Install Hex/Rebar for the active mise Elixir
+HELP_verify-toolchain-pins := Verify Docker Elixir image matches mise.toml
+HELP_build := Build ReScript project
+HELP_rescript-watch := Watch and rebuild ReScript on changes
+HELP_rescript-build := Build ReScript project (one-shot)
+HELP_rescript-format := Format ReScript source
+HELP_reanalyze := Run ReScript dead code analysis
+HELP_check-source-comments := Test scanner and check repository source comments
+HELP_clean := Clean ReScript build artifacts
+
+HELP_SSL_TITLE := SSL & Networking
+HELP_SSL_TARGETS := ssl-setup tunnel
+HELP_ssl-setup := Setup local SSL certificates using mkcert
+HELP_tunnel := Start SSH tunnel to DevPod server (fallback if dnsmasq not configured)
+
+HELP_WT_TITLE := Worktrees
+HELP_WT_TARGETS := work wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-urls wt-logs
+HELP_work := Set up worktree from GitHub issue or PR (REF=<number|url>)
+HELP_wt := Dashboard — shows all worktrees, pod status, URLs, and actions
+HELP_wt-new := Create containerized worktree (BRANCH=...)
+HELP_wt-dev := Start dev servers in container (BRANCH=...)
+HELP_wt-stop := Pause worktree pod, preserve volumes (BRANCH=...)
+HELP_wt-start := Resume a paused worktree pod (BRANCH=...)
+HELP_wt-sh := Shell into dev container (BRANCH=...)
+HELP_wt-rm := Full cleanup: pod + volumes + worktree (BRANCH=...)
+HELP_wt-urls := Show service URLs for a worktree (BRANCH=...)
+HELP_wt-logs := Tail dev container logs (BRANCH=...)
+
+HELP_INFRA_TITLE := Infrastructure
+HELP_INFRA_TARGETS := infra-up infra-down infra-build
+HELP_infra-up := One-time setup: dev image, Caddy, dnsmasq
+HELP_infra-down := Tear down all pods, volumes, and Caddy
+HELP_infra-build := Rebuild the frontman-dev container image
+
+HELP_REL_TITLE := Release
+HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn test-wordpress-core-tools test-wordpress-runtime
+HELP_publish := Publish all npm packages (pass OTP=<code> for 2FA)
+HELP_publish-astro := Publish @frontman-ai/astro to npm (pass OTP=<code> for 2FA)
+HELP_publish-vite := Publish @frontman-ai/vite to npm (pass OTP=<code> for 2FA)
+HELP_publish-nextjs := Publish @frontman-ai/nextjs to npm (pass OTP=<code> for 2FA)
+HELP_publish-react-statestore := Publish @frontman-ai/react-statestore to npm (pass OTP=<code> for 2FA)
+HELP_publish-swarm-ai := Publish swarm_ai to Hex (dry run by default, HEX_PUBLISH=1 for real)
+HELP_release := Create a release PR from pending changesets
+HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
+HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
+HELP_test-wordpress-core-tools := Run PHP tests for WordPress tool implementations
+HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
+
+HELP_E2E_TITLE := E2E Tests
+HELP_E2E_TARGETS := e2e e2e-nextjs e2e-astro e2e-vite e2e-vue-vite
+HELP_e2e := Run all e2e tests (loads secrets from test/e2e/.env)
+HELP_e2e-nextjs := Run Next.js e2e test
+HELP_e2e-astro := Run Astro e2e test
+HELP_e2e-vite := Run Vite e2e test
+HELP_e2e-vue-vite := Run Vue + Vite e2e test
+
+HELP_UTIL_TITLE := Utilities
+HELP_UTIL_TARGETS := kill-all-processes pull-webapi test-webapi debug-task push
+HELP_kill-all-processes := Kill all running make dev processes
+HELP_pull-webapi := Pull latest experimental-rescript-webapi subtree
+HELP_test-webapi := Run vendored WebAPI runtime tests
+HELP_debug-task := Debug task interactions (ARGS="list" or ARGS="show ...")
+HELP_push := Git push current branch
+
+help:
 	@printf "$(CYAN)Frontman Monorepo$(RESET)\n"
-	$(call print_section,Development,DEV)
-	$(call print_section,Build & Quality,BUILD)
-	$(call print_section,SSL & Networking,SSL)
-	$(call print_section,Worktrees,WT)
-	$(call print_section,Infrastructure,INFRA)
-	$(call print_section,Release,REL)
-	$(call print_section,E2E Tests,E2E)
-	$(call print_section,Utilities,UTIL)
+	@$(foreach section,$(HELP_SECTIONS),printf "\n$(CYAN)$(HELP_$(section)_TITLE):$(RESET)\n"; $(foreach target,$(HELP_$(section)_TARGETS),printf "  $(GREEN)%-25s$(RESET)  %s\n" "$(target)" '$(HELP_$(target))';))
 	@echo ""
 
-# ============================================================================
-# Development
-# ============================================================================
-## DEV_START
+
+
+
 .PHONY: dev dev-client dev-server dev-nextjs dev-nextjs-prebuilt dev-marketing
 
-dev: ## Start all core services (client + server + nextjs)
+dev:
 	@printf "$(YELLOW)Starting all services via mprocs...$(RESET)\n"
 	mprocs --config mprocs.yml
 
-dev-client: ## Start development server for client app
+dev-client:
 	@printf "$(YELLOW)Starting client dev server...$(RESET)\n"
 	cd libs/client && $(MAKE) dev
 
-dev-server: ## Start development server for server app
+dev-server:
 	@printf "$(YELLOW)Starting server dev server...$(RESET)\n"
 	cd apps/frontman_server && $(MAKE) dev
 
-dev-nextjs: ## Start development server for Next.js test site
+dev-nextjs:
 	@printf "$(YELLOW)Starting Next.js dev server...$(RESET)\n"
 	cd test/sites/blog-starter && $(MAKE) dev
 
-dev-nextjs-prebuilt: ## Start Next.js test site with prebuilt integration
+dev-nextjs-prebuilt:
 	@printf "$(YELLOW)Starting Next.js dev server...$(RESET)\n"
 	cd test/sites/blog-starter && $(MAKE) dev-prebuilt
 
-dev-marketing: ## Start development server for marketing site
+dev-marketing:
 	@printf "$(YELLOW)Waiting for server on localhost:4000...$(RESET)\n"
 	@bash -c 'while ! (: > /dev/tcp/localhost/4000) 2>/dev/null; do sleep 1; done'
 	@printf "$(YELLOW)Starting marketing dev server...$(RESET)\n"
 	cd apps/marketing && $(MAKE) dev
-## DEV_END
 
-# ============================================================================
-# Build & Quality
-# ============================================================================
-## BUILD_START
-.PHONY: install build rescript-watch rescript-build reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins
 
-install: ## Install dependencies
+
+
+.PHONY: install build rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments
+
+install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
 	yarn install
 	@$(MAKE) hooks-install
 
-hooks-install: ## Install git pre-commit hooks via Lefthook
+hooks-install:
 	@printf "$(YELLOW)Installing git hooks...$(RESET)\n"
 	@if command -v lefthook &> /dev/null; then \
 		lefthook install; \
@@ -128,7 +190,7 @@ hooks-install: ## Install git pre-commit hooks via Lefthook
 		printf "$(YELLOW)lefthook not found — run 'mise install' first.$(RESET)\n"; \
 	fi
 
-setup-elixir-tools: ## Install Hex/Rebar for the active mise Elixir
+setup-elixir-tools:
 	@printf "$(YELLOW)Installing Hex/Rebar for mise Elixir...$(RESET)\n"
 	@if ! mise exec -- mix hex.info >/dev/null 2>&1; then \
 		mise exec -- mix archive.install github hexpm/hex branch latest --force; \
@@ -140,7 +202,7 @@ setup-elixir-tools: ## Install Hex/Rebar for the active mise Elixir
 	rm -f "$$tmp"
 	@printf "$(GREEN)Hex/Rebar ready.$(RESET)\n"
 
-verify-toolchain-pins: ## Verify Docker Elixir image matches mise.toml
+verify-toolchain-pins:
 	@elixir_tool=$$(awk -F'"' '/^elixir *=/ {print $$2}' mise.toml); \
 	erlang_tool=$$(awk -F'"' '/^erlang *=/ {print $$2}' mise.toml); \
 	docker_image=$$(awk '/^FROM hexpm\/elixir:/ {print $$2; exit}' apps/frontman_server/Dockerfile); \
@@ -155,63 +217,66 @@ verify-toolchain-pins: ## Verify Docker Elixir image matches mise.toml
 		*) printf "$(YELLOW)Toolchain pin mismatch: expected Docker image prefix '$$expected', got '$$docker_image'.$(RESET)\n"; exit 1 ;; \
 	esac
 
-build: ## Build ReScript project
+build:
 	@printf "$(YELLOW)Building ReScript project...$(RESET)\n"
 	yarn rescript
 
-rescript-watch: ## Watch and rebuild ReScript on changes
+rescript-watch:
 	@printf "$(YELLOW)Starting ReScript watch mode...$(RESET)\n"
 	yarn rescript watch
 
-rescript-build: ## Build ReScript project (one-shot)
+rescript-build:
 	@printf "$(YELLOW)Starting ReScript build...$(RESET)\n"
 	yarn rescript build
 
-reanalyze: ## Run ReScript dead code analysis
+rescript-format:
+	git ls-files -z -- '*.res' '*.resi' ':(exclude)libs/experimental-rescript-webapi/**' | xargs -0 -r sh -c 'for file do if [ -f "$$file" ]; then printf "%s\0" "$$file"; fi; done' sh | xargs -0 -r yarn rescript format
+
+reanalyze:
 	@printf "$(YELLOW)Running ReScript dead code analysis...$(RESET)\n"
 	yarn rescript-tools reanalyze
 
-clean: ## Clean ReScript build artifacts
+check-source-comments:
+	node --test test/no-comments/no-comments.test.mjs
+	node scripts/no-comments.mjs --check
+
+clean:
 	@printf "$(YELLOW)Cleaning build artifacts...$(RESET)\n"
 	yarn rescript clean
 
-## BUILD_END
 
-# ============================================================================
-# E2E Tests
-# ============================================================================
-## E2E_START
+
+
+
 .PHONY: e2e e2e-nextjs e2e-astro e2e-vite e2e-vue-vite
 
-e2e: ## Run all e2e tests (loads secrets from test/e2e/.env)
+e2e:
 	@printf "$(YELLOW)Running all e2e tests...$(RESET)\n"
 	$(call run_e2e)
 
-e2e-nextjs: ## Run Next.js e2e test
+e2e-nextjs:
 	@printf "$(YELLOW)Running Next.js e2e test...$(RESET)\n"
 	$(call run_e2e,tests/nextjs.test.ts)
 
-e2e-astro: ## Run Astro e2e test
+e2e-astro:
 	@printf "$(YELLOW)Running Astro e2e test...$(RESET)\n"
 	$(call run_e2e,tests/astro.test.ts)
 
-e2e-vite: ## Run Vite e2e test
+e2e-vite:
 	@printf "$(YELLOW)Running Vite e2e test...$(RESET)\n"
 	$(call run_e2e,tests/vite.test.ts)
 
-e2e-vue-vite: ## Run Vue + Vite e2e test
+e2e-vue-vite:
 	@printf "$(YELLOW)Running Vue + Vite e2e test...$(RESET)\n"
 	$(call run_e2e,tests/vue-vite.test.ts)
 
-## E2E_END
 
-# ============================================================================
-# SSL & Networking
-# ============================================================================
-## SSL_START
+
+
+
 .PHONY: ssl-setup tunnel
 
-ssl-setup: ## Setup local SSL certificates using mkcert
+ssl-setup:
 	@printf "$(YELLOW)Setting up SSL certificates...$(RESET)\n"
 	@mkdir -p .certs
 	mkcert -install
@@ -220,7 +285,7 @@ ssl-setup: ## Setup local SSL certificates using mkcert
 	mv .certs/frontman.local+3-key.pem .certs/frontman.local-key.pem
 	sudo sh -c 'grep -q frontman.local /etc/hosts || echo "127.0.0.1 frontman.local" >> /etc/hosts'
 
-tunnel: ## Start SSH tunnel to DevPod server (fallback if dnsmasq not configured)
+tunnel:
 	$(call require_devpod_server,tunnel)
 	@printf "$(YELLOW)Starting SSH tunnel to $(DEVPOD_USER)@$(DEVPOD_SERVER)$(RESET)\n"
 	@echo "  Local :8080 → Remote :80 (HTTP)"
@@ -230,84 +295,79 @@ tunnel: ## Start SSH tunnel to DevPod server (fallback if dnsmasq not configured
 	@echo "Press Ctrl+C to stop the tunnel"
 	ssh -L 8080:localhost:80 -L 8443:localhost:443 $(DEVPOD_USER)@$(DEVPOD_SERVER) -N
 
-## SSL_END
 
-# ============================================================================
-# Worktrees
-# ============================================================================
-#
-# Primary commands (use these):
-#   make wt                    Dashboard — status, URLs, actions at a glance
-#   make wt-new   BRANCH=...   Create containerized worktree
-#   make wt-dev   BRANCH=...   Start dev servers (mprocs TUI)
-#   make wt-stop  BRANCH=...   Pause (preserves data)
-#   make wt-start BRANCH=...   Resume paused worktree
-#   make wt-sh    BRANCH=...   Shell into container
-#   make wt-rm    BRANCH=...   Full cleanup (pod + volumes + worktree)
-#   make wt-gc                 Remove worktrees for branches merged into main
-#   make wt-urls  BRANCH=...   Show service URLs
-#   make wt-logs  BRANCH=...   Tail container logs
-#
-# All BRANCH= args auto-detect from current git branch when omitted.
-#
 
-# Shared variables for containerized worktrees
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 CADDY_CONTAINER := frontman-caddy
 DEV_IMAGE := frontman-dev:latest
 
-# Env vars passed to bin/ scripts so they can compute hashes portably
+
 export MD5CMD := $(shell if command -v md5sum >/dev/null 2>&1; then echo 'md5sum | cut -c1-4'; else echo 'md5 | cut -c1-4'; fi)
 
-## WT_START
-.PHONY: wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-gc wt-urls wt-logs work
+.PHONY: wt wt-new wt-dev wt-stop wt-start wt-sh wt-rm wt-urls wt-logs work
 
-work: ## Set up worktree from GitHub issue or PR (REF=<number|url>)
+work:
 	@if [ -z "$(REF)" ]; then \
 		printf "$(YELLOW)Usage: make work REF=<issue-number|issue-url|pr-url>$(RESET)\n"; \
 		exit 1; \
 	fi
 	@REF="$(REF)" DEV_IMAGE=$(DEV_IMAGE) bash ./bin/work
 
-wt: ## Dashboard — shows all worktrees, pod status, URLs, and actions
+wt:
 	@bash ./bin/wt-dashboard
 
-wt-new: ## Create containerized worktree (BRANCH=...)
+wt-new:
 	$(call resolve_branch,wt-new)
 	@BRANCH="$(BRANCH)" WORKTREE_BASE_BRANCH="$(WORKTREE_BASE_BRANCH)" DEV_IMAGE=$(DEV_IMAGE) \
 		bash ./bin/wt-pod-create
 
-wt-dev: ## Start dev servers in container (BRANCH=...)
+wt-dev:
 	$(call resolve_branch,wt-dev)
 	@BRANCH="$(BRANCH)" CADDY_CONTAINER=$(CADDY_CONTAINER) \
 		bash ./bin/wt-pod-dev
 
-wt-stop: ## Pause worktree pod, preserve volumes (BRANCH=...)
+wt-stop:
 	$(call resolve_branch,wt-stop)
 	@POD=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve pod) || exit 1; \
 	podman pod stop "$$POD"; \
 	bash ./infra/local/caddy-regen.sh; \
 	printf "$(GREEN)Stopped. Resume with: make wt-start BRANCH=$(BRANCH)$(RESET)\n"
 
-wt-start: ## Resume a paused worktree pod (BRANCH=...)
+wt-start:
 	$(call resolve_branch,wt-start)
 	@POD=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve pod) || exit 1; \
 	podman pod start "$$POD"; \
 	bash ./infra/local/caddy-regen.sh; \
 	printf "$(GREEN)Started. Run: make wt-dev BRANCH=$(BRANCH)$(RESET)\n"
 
-wt-sh: ## Shell into dev container (BRANCH=...)
+wt-sh:
 	$(call resolve_branch,wt-sh)
 	@CONTAINER=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve container) || exit 1; \
 	podman exec -it -w /workspaces/frontman "$$CONTAINER" bash
 
-wt-rm: ## Full cleanup: pod + volumes + worktree (BRANCH=...)
+wt-rm:
 	$(call resolve_branch,wt-rm)
 	@BRANCH="$(BRANCH)" bash ./bin/wt-pod-remove
 
-wt-gc: ## Remove worktrees whose branches are merged into main
-	@bash ./bin/wt-gc
-
-wt-urls: ## Show service URLs for a worktree (BRANCH=...)
+wt-urls:
 	$(call resolve_branch,wt-urls)
 	@HASH=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve hash); \
 	echo ""; \
@@ -319,20 +379,18 @@ wt-urls: ## Show service URLs for a worktree (BRANCH=...)
 	printf "  $(GREEN)Marketing$(RESET)   https://$$HASH.marketing.frontman.local\n"; \
 	echo ""
 
-wt-logs: ## Tail dev container logs (BRANCH=...)
+wt-logs:
 	$(call resolve_branch,wt-logs)
 	@CONTAINER=$$(BRANCH="$(BRANCH)" bash ./bin/wt-resolve container) || exit 1; \
 	podman logs -f "$$CONTAINER"
 
-## WT_END
 
-# ============================================================================
-# Infrastructure
-# ============================================================================
-## INFRA_START
+
+
+
 .PHONY: infra-up infra-down infra-build
 
-infra-up: ## One-time setup: dev image, Caddy, dnsmasq
+infra-up:
 	@printf "$(CYAN)Setting up containerized worktree infrastructure...$(RESET)\n"
 	@echo ""
 	@printf "$(YELLOW)Building dev image: $(DEV_IMAGE)$(RESET)\n"
@@ -362,7 +420,7 @@ infra-up: ## One-time setup: dev image, Caddy, dnsmasq
 	@echo ""
 	@printf "$(GREEN)Infrastructure ready!$(RESET)\n"
 
-infra-down: ## Tear down all pods, volumes, and Caddy
+infra-down:
 	@printf "$(YELLOW)Tearing down infrastructure...$(RESET)\n"
 	@PODS=$$(podman pod ls --format '{{.Name}}' 2>/dev/null | grep '^worktree-' || true); \
 	if [ -n "$$PODS" ]; then \
@@ -375,19 +433,18 @@ infra-down: ## Tear down all pods, volumes, and Caddy
 	@printf "$(GREEN)Infrastructure torn down$(RESET)\n"
 	@echo "Note: git worktrees and dnsmasq config are preserved"
 
-infra-build: ## Rebuild the frontman-dev container image
+infra-build:
 	@podman build -t $(DEV_IMAGE) -f .devcontainer/Dockerfile .devcontainer/
 
-## INFRA_END
 
-# ============================================================================
-# Worktree Internals (not shown in help — use wt-* commands above)
-# ============================================================================
+
+
+
 .PHONY: worktree-create worktree-list worktree-remove worktree-clean \
         worktree-register worktree-registry
 
-# Plain worktree management (without containers)
-# Auto-detects whether to create a new branch or check out an existing one.
+
+
 worktree-create:
 	$(call require_branch,worktree-create)
 	@WORKTREE_NAME=$$(echo "$(BRANCH)" | sed 's|^origin/||'); \
@@ -404,8 +461,6 @@ worktree-create:
 			git worktree add ".worktrees/$$WORKTREE_NAME" -b "$$WORKTREE_NAME"; \
 		fi; \
 	fi; \
-	mkdir -p ".worktrees/$$WORKTREE_NAME/.claude/projects" ".worktrees/$$WORKTREE_NAME/.claude/plans" ".worktrees/$$WORKTREE_NAME/.claude/todos"; \
-	touch ".worktrees/$$WORKTREE_NAME/.claude/history.jsonl"; \
 	printf "$(GREEN)Worktree created at: .worktrees/$$WORKTREE_NAME$(RESET)\n"
 
 worktree-list:
@@ -436,30 +491,29 @@ worktree-registry:
 	$(call require_devpod_server,worktree-registry)
 	@ssh $(DEVPOD_USER)@$(DEVPOD_SERVER) "cat /etc/caddy/worktrees/registry.json 2>/dev/null | jq . || echo 'No worktrees registered'"
 
-# ============================================================================
-# Release
-# ============================================================================
-## REL_START
+
+
+
 .PHONY: publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn test-wordpress-core-tools
 
-publish: publish-astro publish-vite publish-nextjs publish-react-statestore ## Publish all npm packages (pass OTP=<code> for 2FA)
+publish: publish-astro publish-vite publish-nextjs publish-react-statestore
 
-publish-astro: ## Publish @frontman-ai/astro to npm (pass OTP=<code> for 2FA)
+publish-astro:
 	cd libs/frontman-astro && $(MAKE) publish OTP=$(OTP)
 
-publish-vite: ## Publish @frontman-ai/vite to npm (pass OTP=<code> for 2FA)
+publish-vite:
 	cd libs/frontman-vite && $(MAKE) publish OTP=$(OTP)
 
-publish-nextjs: ## Publish @frontman-ai/nextjs to npm (pass OTP=<code> for 2FA)
+publish-nextjs:
 	cd libs/frontman-nextjs && $(MAKE) publish OTP=$(OTP)
 
-publish-react-statestore: ## Publish @frontman-ai/react-statestore to npm (pass OTP=<code> for 2FA)
+publish-react-statestore:
 	cd libs/react-statestore && $(MAKE) publish OTP=$(OTP)
 
-publish-swarm-ai: ## Publish swarm_ai to Hex (dry run by default, HEX_PUBLISH=1 for real)
+publish-swarm-ai:
 	cd apps/swarm_ai && $(MAKE) hex-publish HEX_PUBLISH=$(HEX_PUBLISH)
 
-release: ## Create a release PR from pending changesets
+release:
 	@printf "$(CYAN)Checking release prerequisites...$(RESET)\n"
 	@git fetch origin main --quiet
 	@LOCAL=$$(git rev-parse HEAD); \
@@ -483,38 +537,43 @@ release: ## Create a release PR from pending changesets
 	@printf "$(GREEN)Release workflow triggered.$(RESET)\n"
 	@echo "Watch for the PR at: https://github.com/frontman-ai/frontman/pulls"
 
-package-wordpress-plugin: ## Build WordPress ZIP and WordPress.org bundle
+package-wordpress-plugin:
 	@VERSION=$(VERSION) bash ./scripts/package-wordpress-plugin.sh
 
-publish-wordpress-plugin-svn: package-wordpress-plugin ## Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
+publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
-test-wordpress-core-tools: ## Run PHP tests for WordPress tool implementations
-	@php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
-	@php libs/frontman-wordpress/tests/ElementorToolsTest.php
-	@php libs/frontman-wordpress/tests/MediaToolsTest.php
-	@php libs/frontman-wordpress/tests/WooCommerceToolsTest.php
-	@php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
-	@php libs/frontman-wordpress/tests/RouterTest.php
+test-wordpress-core-tools:
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ElementorToolsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MediaToolsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/WooCommerceToolsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MutationSnapshotsTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PluginDependenciesTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/RouterTest.php
 
-## REL_END
+test-wordpress-runtime:
+	@bash scripts/test-wordpress-plugin-runtime.sh
 
-# ============================================================================
-# Utilities
-# ============================================================================
-## UTIL_START
-.PHONY: kill-all-processes pull-webapi debug-task push
 
-kill-all-processes: ## Kill all running make dev processes
+
+
+
+WEBAPI_COMMIT := 5e2d4d5db8257fea0fb3cc2dde5c4699d263a62f
+
+.PHONY: kill-all-processes pull-webapi test-webapi debug-task push
+
+kill-all-processes:
 	@ps aux | grep "[m]ake dev" | awk '{print $$2}' | xargs -r kill 2>/dev/null || true
 
-pull-webapi: ## Pull latest experimental-rescript-webapi subtree
-	git subtree pull --prefix libs/experimental-rescript-webapi https://github.com/rescript-lang/experimental-rescript-webapi.git main --squash
+pull-webapi:
+	git subtree pull --prefix libs/experimental-rescript-webapi https://github.com/rescript-lang/experimental-rescript-webapi.git $(WEBAPI_COMMIT) --squash
 
-debug-task: ## Debug task interactions (ARGS="list" or ARGS="show ...")
+test-webapi:
+	yarn workspace @rescript/webapi test
+
+debug-task:
 	cd apps/frontman_server && $(MAKE) debug-task ARGS="$(ARGS)"
 
-push: ## Git push current branch
+push:
 	@git push
-
-## UTIL_END

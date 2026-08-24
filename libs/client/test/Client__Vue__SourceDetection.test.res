@@ -1,18 +1,11 @@
 open Vitest
 
-// Access the module under test. These helpers are pure functions that
-// don't require a real DOM — we can test them with fixture data.
 module Vue = Client__Vue__SourceDetection
 
-// ── Test fixtures ─────────────────────────────────────────────────────
-
-// Create a test DOM element with a given tagName.
-// parentElement: null mimics a root element (real DOM always returns null or Element).
-let makeTestElement: string => WebAPI.DOMAPI.element = %raw(`
+let makeTestElement: string => WebAPI.DomTypes.element = %raw(`
   function(tag) { return { tagName: tag, parentElement: null } }
 `)
 
-// Create a test Vue component instance
 let makeTestInstance: (
   ~file: string=?,
   ~name: string=?,
@@ -33,8 +26,6 @@ let makeTestInstance: (
     }
   }
 `)
-
-// ── VueComponent.getName ──────────────────────────────────────────────
 
 describe("VueComponent.getName", () => {
   test("prefers __name (script setup) over name", t => {
@@ -59,8 +50,6 @@ describe("VueComponent.getName", () => {
     ->Expect.toEqual(Some("Counter.vue"))
   })
 })
-
-// ── serializeProps ─────────────────────────────────────────────────────
 
 describe("serializeProps", () => {
   test("returns None for null input", t => {
@@ -111,13 +100,11 @@ describe("serializeProps", () => {
   })
 
   test("truncates large arrays to placeholder", t => {
-    // Create an array whose JSON.stringify output exceeds 1000 chars
     let bigArr = Array.make(~length=200, JSON.String("long-padding-string-value"))
     let props = Dict.fromArray([("data", JSON.Array(bigArr))])
     let result = Vue.serializeProps(Nullable.make(props))
     let clean = result->Option.getOrThrow
     let serialized = clean->Dict.get("data")->Option.getOrThrow
-    // Should be a placeholder string like "[Array(200)]"
     t->expect(serialized)->Expect.toEqual(JSON.String("[Array(200)]"))
   })
 
@@ -130,9 +117,7 @@ describe("serializeProps", () => {
   })
 
   test("truncates large objects to placeholder", t => {
-    // Create an object whose JSON.stringify output exceeds 500 chars
     let entries = Array.make(~length=50, ("k", JSON.String("a-long-padding-value-here")))
-    // Give unique keys so they all appear in the stringified output
     let uniqueEntries = entries->Array.mapWithIndex(
       (entry, i) => {
         let (_, v) = entry
@@ -162,8 +147,6 @@ describe("serializeProps", () => {
     t->expect(result)->Expect.toBeNone
   })
 })
-
-// ── makeSourceLocation ─────────────────────────────────────────────────
 
 describe("makeSourceLocation", () => {
   test("returns None when __file is missing", t => {
@@ -219,8 +202,6 @@ describe("makeSourceLocation", () => {
     t->expect(parent.file)->Expect.toBe("/src/Layout.vue")
   })
 })
-
-// ── getElementSourceLocation integration ───────────────────────────────
 
 describe("getElementSourceLocation", () => {
   test("returns None for a plain DOM element without Vue instance", t => {

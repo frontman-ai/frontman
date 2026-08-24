@@ -9,7 +9,6 @@ module UserContentPart = Client__State__Types.UserContentPart
 module MessageAnnotation = Client__Message.MessageAnnotation
 module AgentChip = Client__AgentChip
 
-// Circled number characters for annotation badges (1-20)
 let _circledNumbers = [
   "\u{2460}",
   "\u{2461}",
@@ -49,7 +48,6 @@ let make = (
     : "frontman-content-auto"
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
 
-  // Separate image parts from text parts for layout
   let imageParts = content->Array.filterMap(part =>
     switch part {
     | UserContentPart.Image({image, mediaType, name: _, id: _}) => Some((image, mediaType))
@@ -78,7 +76,6 @@ let make = (
       <div className="absolute -top-2.5 left-1 z-10">
         <AgentChip agent className="" borderColor="rgb(124 58 237 / 0.8)" />
       </div>
-      // Annotation chips (above images/text)
       {hasAnnotations
         ? <div className="flex flex-wrap gap-1.5 mb-2 min-w-0 w-full">
             {annotations
@@ -116,7 +113,6 @@ let make = (
           </div>
         : React.null}
 
-      // Image thumbnails row (above text)
       {Array.length(imageParts) > 0
         ? <div className="flex flex-wrap gap-2 mb-2">
             {imageParts
@@ -151,7 +147,6 @@ let make = (
           </div>
         : React.null}
 
-      // File chips
       {Array.length(fileParts) > 0
         ? <div className="flex flex-wrap gap-1.5 mb-2">
             {fileParts
@@ -169,7 +164,6 @@ let make = (
           </div>
         : React.null}
 
-      // Text content
       {textParts
       ->Array.mapWithIndex((text, i) => {
         <div
@@ -181,7 +175,6 @@ let make = (
       ->React.array}
     </div>
 
-    // Lightbox preview
     {switch previewSrc {
     | Some(src) => <Client__ImagePreview src onClose={() => setPreviewSrc(_ => None)} />
     | None => React.null

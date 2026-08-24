@@ -7,13 +7,19 @@ import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
 
 ## Overview
 
-`@frontman-ai/nextjs` integrates the Frontman AI agent into your Next.js dev server via the Next.js middleware system. It intercepts requests to `/frontman/*`, giving the AI access to your source files, dev server logs, route manifest, and optionally OpenTelemetry spans covering HTTP requests and route render timing.
+`@frontman-ai/nextjs` integrates the Frontman AI agent into your Next.js dev server through Next.js middleware on Next.js 13-15 or proxy on Next.js 16+. It intercepts requests to `/frontman/*`, giving the AI access to your source files, dev server logs, route manifest, and optionally OpenTelemetry spans covering HTTP requests and route render timing.
 
-**Frontman is a development-only tool.** The middleware and instrumentation have no effect in production. Your deployment bundle is identical whether Frontman is installed or not.
+**Frontman is intended for development workflows.** Installer-generated middleware or proxy code has no automatic development-only guard, so it can compile into and run with a production deployment while its matcher includes Frontman routes. Add an environment guard or remove the integration when Frontman must be absent, then verify the built artifact and deployed `/frontman` route instead of assuming the production build removes it.
 
 ## Quick Start
 
-Run `npx @frontman-ai/nextjs install` from your project directory, start `next dev`, then open `http://localhost:3000/frontman`. For Next.js 16, the installer writes `proxy.ts`; for Next.js 13-15, it writes `middleware.ts` with a matcher scoped to Frontman routes.
+Run `npx @frontman-ai/nextjs install` from your project directory, start `next dev`, then open `http://localhost:3000/frontman`. For Next.js 16, the installer writes `proxy.ts`; for Next.js 13-15, it writes `middleware.ts` with a matcher scoped to Frontman routes. If your app uses `src/app` or `src/pages`, the installer writes the entrypoint under `src/`.
+
+:::note[Sign-in and AI provider required]
+The default setup connects to Frontman's hosted server at `api.frontman.sh`. When you first open `/frontman`, your browser redirects there so you can sign in to Frontman with a GitHub or Google account, then attempts to return to your project. Standard `localhost` and `127.0.0.1` URLs return automatically; if you use another local hostname and remain on the hosted page, reopen `/frontman` after signing in. Before your first prompt, connect a supported AI provider with OAuth or add an API key. Frontman does not include a built-in model credential; see [API Keys & Providers](/docs/api-keys/).
+
+If you configure `host` or `FRONTMAN_HOST`, sign-in happens on that Frontman server instead. Self-hosted production servers still require GitHub or Google OAuth through WorkOS; see [Self-Hosting](/docs/reference/self-hosting/).
+:::
 
 ## Requirements
 
@@ -28,7 +34,7 @@ Run the Frontman CLI installer from your project directory:
 npx @frontman-ai/nextjs install
 ```
 
-The CLI detects your Next.js version and writes the appropriate middleware file. To install manually without the CLI:
+The CLI detects your Next.js version and writes the appropriate middleware/proxy file. To install manually without the CLI:
 
 ```sh
 npm install --save-dev @frontman-ai/nextjs
@@ -40,7 +46,7 @@ The integration API differs depending on your Next.js version.
 
 ### Next.js 13–15 (`middleware.ts`)
 
-Create or update `middleware.ts` in your project root (or `src/middleware.ts`):
+Create or update `middleware.ts` next to your `app/` or `pages/` directory. In a `src/` project, use `src/middleware.ts`:
 
 <CodeFromFile snippet="nextjs/middleware.ts.txt" />
 
@@ -48,7 +54,7 @@ The `matcher` is required. Without it, Next.js runs the middleware on every requ
 
 ### Next.js 16+ (`proxy.ts`)
 
-Next.js 16 introduced a dedicated proxy mechanism. Create `proxy.ts` in your project root:
+Next.js 16 introduced a dedicated proxy mechanism. Create `proxy.ts` next to your `app/` or `pages/` directory. In a `src/` project, use `src/proxy.ts`:
 
 <CodeFromFile snippet="nextjs/proxy.ts.txt" />
 
@@ -60,7 +66,7 @@ All options are optional.
 |--------|------|---------|-------------|
 | `projectRoot` | `string` | `process.env.PROJECT_ROOT` \| `process.cwd()` | Absolute path to your project root. Scopes all file operations performed by the AI. |
 | `sourceRoot` | `string` | Same as `projectRoot` | Root for file path resolution. Set to the monorepo root when the Next.js app is a workspace package. |
-| `basePath` | `string` | `"frontman"` | URL prefix for Frontman routes. Must match the `matcher` pattern in `middleware.ts`. |
+| `basePath` | `string` | `"frontman"` | URL prefix for Frontman routes. Must match the `matcher` pattern in `middleware.ts` or `proxy.ts`. |
 | `host` | `string` | `process.env.FRONTMAN_HOST` \| `"api.frontman.sh"` | Frontman server host for WebSocket client connections. Accepts bare hostnames, full URLs, or local addresses. |
 | `serverName` | `string` | `"frontman-nextjs"` | Identifier included in every tool response. |
 | `serverVersion` | `string` | Package version | Version string included in tool responses. |
@@ -110,7 +116,7 @@ Both routers can coexist in the same project; Frontman reports routes from both.
 
 A circular buffer of 1024 entries captures:
 
-- All `console.*` output across all Next.js contexts (startup, page render, API routes, middleware)
+- All `console.*` output across all Next.js contexts (startup, page render, API routes, middleware/proxy)
 - Build output from Webpack or Turbopack (compilation messages, module errors, HMR updates)
 - Uncaught exceptions and unhandled Promise rejections with stack traces
 
@@ -189,7 +195,7 @@ Frontman works with both routing systems simultaneously.
 - Route patterns follow the `pages/` filesystem conventions, including `[param]` and `[[...slug]]` dynamic segments.
 - API routes under `pages/api/` are reported separately from page routes.
 
-**Turbopack vs Webpack:** Both bundlers are supported. Frontman hooks at the middleware level, not the bundler level, so HMR works identically with either.
+**Turbopack vs Webpack:** Both bundlers are supported. Frontman hooks at the Next.js request-entrypoint level, not the bundler level, so HMR works identically with either.
 
 ## Environment Variables
 
@@ -206,7 +212,7 @@ If the problem is not specific to Next.js middleware/proxy setup (for example We
 
 **`/frontman` returns 404**
 
-Verify the `matcher` in your `middleware.ts` `config` export includes `/frontman` and `/frontman/:path*`. Without the matcher, Next.js does not route those requests through middleware at all.
+Verify the `matcher` in your `middleware.ts` or `proxy.ts` `config` export includes `/frontman` and `/frontman/:path*`. Without the matcher, Next.js does not route those requests through Frontman at all.
 
 **Middleware runs on every request**
 

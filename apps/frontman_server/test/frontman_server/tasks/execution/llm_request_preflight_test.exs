@@ -1,6 +1,8 @@
 defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
   use ExUnit.Case, async: false
 
+  import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
+
   alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
   alias SwarmAi.Message
@@ -52,7 +54,12 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
         }
       ]
 
-      [result] = LLMRequestPreflight.run(messages, max_image_dimension: 7680)
+      model = %LLMDB.Model{
+        provider: :anthropic,
+        id: "claude-sonnet-4-6"
+      }
+
+      [result] = LLMRequestPreflight.run(messages, model: model)
 
       [_text, image_placeholder] = result.content
       assert image_placeholder.type == :text
@@ -61,6 +68,15 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert image_placeholder.text =~ "7680px provider limit"
 
       assert [] = Sentry.Test.pop_sentry_reports()
+    end
+
+    @tag :capture_log
+    test "limits OpenRouter Anthropic requests with more than 20 images" do
+      model = %LLMDB.Model{provider: :openrouter, id: "anthropic/claude-sonnet-5"}
+      [result] = LLMRequestPreflight.run(many_image_messages(3000), model: model)
+
+      [_text, image_placeholder | _urls] = result.content
+      assert image_placeholder.text =~ "2000px provider limit"
     end
 
     test "keeps changed page context" do
@@ -274,11 +290,13 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
         }
       ]
 
-      [result] =
-        LLMRequestPreflight.run(messages,
-          images_supported: false,
-          max_image_dimension: 7680
-        )
+      model = %LLMDB.Model{
+        provider: :nvidia,
+        id: "deepseek-ai/deepseek-v4-flash",
+        modalities: %{input: [:text], output: [:text]}
+      }
+
+      [result] = LLMRequestPreflight.run(messages, model: model)
 
       [_text, image_placeholder] = result.content
       assert image_placeholder.type == :text
@@ -287,8 +305,20 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
     end
   end
 
-  defp png_fixture(width, height) do
-    <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
-      <<0::32>> <> "IHDR" <> <<width::32, height::32>> <> <<0::8>>
+  defp image_messages(width) do
+    [
+      %Message.User{
+        content: [
+          ContentPart.text("look"),
+          ContentPart.image(png_fixture(width, 1080), "image/png")
+        ]
+      }
+    ]
+  end
+
+  defp many_image_messages(width) do
+    [message] = image_messages(width)
+    urls = Enum.map(1..20, fn i -> ContentPart.image_url("https://example.com/#{i}.png") end)
+    [%{message | content: message.content ++ urls}]
   end
 end

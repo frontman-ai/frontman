@@ -6,8 +6,26 @@ module Task = Client__State__Types.Task
 module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
+module UserMessageId = Client__Message.UserMessageId
+let testUserMessageId = UserMessageId.make()
+let secondTestUserMessageId = UserMessageId.make()
+
+let setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
+let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
+
+afterEach(() => clearRuntime())
 
 module TestHelpers = {
+  let activeAcpSession: Client__State__Types.acpSession = AcpSessionActive({
+    sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+    cancelPrompt: () => (),
+    retryTurn: _ => (),
+    loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+    deleteSession: (_, ~onComplete as _) => (),
+    apiBaseUrl: "http://localhost:4000",
+  })
+
   let makeLoadedTask = (
     ~id,
     ~title,
@@ -53,15 +71,42 @@ module TestHelpers = {
   let getTaskCount = (state: Client__State__Types.state) =>
     state.tasks->Dict.valuesToArray->Array.length
 
-  // Helper to get current task ID
   let getCurrentTaskId = (state: Client__State__Types.state): option<string> => {
     Reducer.Selectors.currentTaskId(state)
+  }
+
+  let modelConfigOptions = (~models: array<string>) => {
+    [
+      ACP.SelectConfigOption({
+        id: "model",
+        name: "Model",
+        description: None,
+        category: Some(ACP.Model),
+        options: ACP.Grouped([
+          {
+            group: "future_provider",
+            name: "Future Provider",
+            options: models->Array.map(value => {
+              let option: ACP.sessionConfigSelectOption = {
+                value,
+                name: value,
+                description: None,
+                _meta: None,
+              }
+              option
+            }),
+            _meta: None,
+          },
+        ]),
+        _meta: None,
+      }),
+    ]
   }
 
   let acceptUserMessage = (
     state,
     ~taskId,
-    ~id="user-accepted-1",
+    ~id,
     ~content=[UserContentPart.text("Hello")],
     ~annotations=[],
   ) => {
@@ -75,19 +120,168 @@ module TestHelpers = {
   }
 }
 
+let planner: ACP.agentCatalogEntry = {
+  id: "planner-id",
+  name: "planner",
+  displayName: "Planner",
+  description: "Plans work",
+  color: "#F59E0B",
+}
+
+let executor: ACP.agentCatalogEntry = {
+  id: "executor-id",
+  name: "executor",
+  displayName: "Executor",
+  description: "Executes work",
+  color: "#985DF7",
+}
+
+let plannerPlan = Reducer.Message.Assistant(
+  Completed({
+    id: "assistant-plan",
+    content: [AssistantContentPart.text("1. Do X")],
+    agentId: planner.id,
+  }),
+)
+
+let withPlanHandoffContext = (state: Client__State__Types.state): Client__State__Types.state => {
+  ...state,
+  acpSession: TestHelpers.activeAcpSession,
+  agentCatalog: Some([planner, executor]),
+}
+
+describe("Client State Reducer - Plan Handoff", () => {
+  test("execute atomically consumes the handoff and sends through the executor", t => {
+    let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
+    let action = Reducer.ExecutePendingPlan({id: testUserMessageId})
+    let (executing, effects) = Reducer.next(state, action)
+
+    t->expect(executing.selectedAgentId)->Expect.toEqual(Some(executor.id))
+    t->expect(Reducer.Selectors.isAgentRunning(executing))->Expect.toBe(true)
+
+    switch effects->Array.get(0) {
+    | Some(Reducer.TaskEffect({
+        target: ForTask("test-task-1"),
+        effect: SendMessage({text, agentId, _}),
+      })) => {
+        t->expect(text)->Expect.toBe(Reducer.executePlanPrompt)
+        t->expect(agentId)->Expect.toBe(executor.id)
+      }
+    | _ => JsExn.throw("Expected executor SendMessage effect")
+    }
+
+    let (_, duplicateEffects) = Reducer.next(executing, action)
+    t->expect(duplicateEffects)->Expect.toEqual([])
+  })
+
+  test("planner follow-up consumes the handoff before the server reports running", t => {
+    let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
+    let (submitting, _) = Reducer.next(
+      state,
+      AddUserMessage({
+        id: testUserMessageId,
+        sessionId: "test-task-1",
+        content: [UserContentPart.text("Revise step one")],
+        annotations: [],
+        agentId: planner.id,
+      }),
+    )
+
+    let (_, executeEffects) = Reducer.next(submitting, ExecutePendingPlan({id: testUserMessageId}))
+    t->expect(executeEffects)->Expect.toEqual([])
+  })
+
+  test("cancelled partial planner output never becomes a pending handoff", t => {
+    let partialPlan = Reducer.Message.Assistant(
+      Streaming({id: "assistant-plan", textBuffer: "1. Part", agentId: planner.id}),
+    )
+    let running =
+      TestHelpers.makeStateWithTask(
+        ~messages=[partialPlan],
+        ~isAgentRunning=true,
+      )->withPlanHandoffContext
+    let (cancelled, _) = Reducer.next(running, CancelTurn)
+
+    t->expect(Reducer.Selectors.pendingPlanHandoff(cancelled))->Expect.toEqual(None)
+
+    let (serverIdle, _) = Reducer.next(
+      cancelled,
+      TaskAction({target: ForTask("test-task-1"), action: ExecutionStateIdle}),
+    )
+    t->expect(Reducer.Selectors.pendingPlanHandoff(serverIdle))->Expect.toEqual(None)
+  })
+
+  test("pendingPlanHandoff is unavailable while task history is loading", t => {
+    let unloaded = Task.makeUnloaded(
+      ~id="test-task-1",
+      ~title="Plan",
+      ~createdAt=1000.0,
+      ~updatedAt=1000.0,
+    )
+    let (loading, _) = TaskReducer.next(
+      unloaded,
+      LoadStarted({previewUrl: "http://localhost:3000"}),
+    )
+    let (loading, _) = TaskReducer.next(
+      loading,
+      TextDeltaReceived({
+        messageId: "assistant-plan",
+        text: "1. Do X",
+        agentId: planner.id,
+      }),
+    )
+    let (loading, _) = TaskReducer.next(loading, ExecutionStateIdle)
+    let tasks = Dict.make()
+    tasks->Dict.set("test-task-1", loading)
+    let state =
+      TestHelpers.makeStateWithTasks(
+        ~tasks,
+        ~currentTask=Task.Selected("test-task-1"),
+      )->withPlanHandoffContext
+
+    t->expect(Reducer.Selectors.pendingPlanHandoff(state))->Expect.toEqual(None)
+  })
+})
+
 describe("Client State Reducer", () => {
+  test("agent configuration selects advertised default and preserves valid selection", t => {
+    let (state, _) = Reducer.next(
+      Reducer.defaultState,
+      AgentAttributionConfigured({agentCatalog: [executor, planner], defaultAgentId: "planner-id"}),
+    )
+
+    t->expect(state.selectedAgentId)->Expect.toEqual(Some("planner-id"))
+    let (state, _) = Reducer.next(state, SetSelectedAgentId("executor-id"))
+    let (state, _) = Reducer.next(
+      state,
+      AgentAttributionConfigured({agentCatalog: [planner, executor], defaultAgentId: "planner-id"}),
+    )
+    t->expect(state.selectedAgentId)->Expect.toEqual(Some("executor-id"))
+  })
+
+  test("agent configuration replaces stale selection with advertised default", t => {
+    let state = {...Reducer.defaultState, selectedAgentId: Some("removed-id")}
+    let (state, _) = Reducer.next(
+      state,
+      AgentAttributionConfigured({agentCatalog: [planner], defaultAgentId: "planner-id"}),
+    )
+
+    t->expect(state.agentCatalog)->Expect.toEqual(Some([planner]))
+    t->expect(state.selectedAgentId)->Expect.toEqual(Some("planner-id"))
+  })
+
   test("AddUserMessage creates task and sends without optimistic message", t => {
     let state = Reducer.defaultState
     let action = Reducer.AddUserMessage({
-      id: "user-1",
+      id: testUserMessageId,
       sessionId: "session-1",
       content: [UserContentPart.text("Hello")],
       annotations: [],
+      agentId: "executor-id",
     })
 
     let (nextState, effects) = Reducer.next(state, action)
 
-    // Should create a task
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
     t->expect(TestHelpers.getCurrentTaskId(nextState)->Option.isSome)->Expect.toBe(true)
 
@@ -95,7 +289,8 @@ describe("Client State Reducer", () => {
     t->expect(messages->Array.length)->Expect.toBe(0)
 
     switch effects->Array.get(0) {
-    | Some(Reducer.TaskEffect({effect: SendMessage(_)})) => ()
+    | Some(Reducer.TaskEffect({effect: SendMessage({agentId})})) =>
+      t->expect(agentId)->Expect.toBe("executor-id")
     | _ => JsExn.throw("Expected SendMessage effect")
     }
   })
@@ -106,10 +301,11 @@ describe("Client State Reducer", () => {
     let (state, _) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session-1",
         content: [UserContentPart.text("Hi")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -117,7 +313,7 @@ describe("Client State Reducer", () => {
     let state = TestHelpers.acceptUserMessage(
       state,
       ~taskId,
-      ~id="user-1",
+      ~id=testUserMessageId->UserMessageId.toString,
       ~content=[UserContentPart.text("Hi")],
     )
 
@@ -147,7 +343,7 @@ describe("Client State Reducer", () => {
     let msg1 = messages->Array.get(1)->Option.getOrThrow
 
     switch (msg0, msg1) {
-    | (User(_), Assistant(_)) => () // Correct order
+    | (User(_), Assistant(_)) => ()
     | _ => JsExn.throw("Expected User message first, then Assistant message")
     }
   })
@@ -339,19 +535,56 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let result = JSON.parseOrThrow("{\"content\": \"file contents\"}")
-    let action = Reducer.TaskAction({
+    let rawOutput = JSON.Encode.object(Dict.make())
+    let rawOutputAction = Reducer.TaskAction({
       target: ForTask(taskId),
-      action: ToolResultReceived({id: "call-1", result}),
+      action: ToolResultReceived({
+        id: "call-1",
+        rawOutput: Some(rawOutput),
+        content: None,
+        complete: false,
+      }),
     })
-    let (nextState, _) = Reducer.next(state, action)
+    let (partialState, _) = Reducer.next(state, rawOutputAction)
+    switch TestHelpers.getMessage(partialState, 0)->Option.getOrThrow {
+    | Reducer.Message.ToolCall({state, result: Some(result), _}) => {
+        t->expect(state)->Expect.toBe(Reducer.Message.InputAvailable)
+        t->expect(result.rawOutput)->Expect.toEqual(Some(rawOutput))
+      }
+    | _ => JsExn.throw("Expected partial ToolCall result")
+    }
+    let content: ACP.toolCallContentItem = Content({
+      content: ContentBlock.TextContent({text: "done", _meta: None, annotations: None}),
+      _meta: None,
+    })
+    let contentAction = Reducer.TaskAction({
+      target: ForTask(taskId),
+      action: ToolResultReceived({
+        id: "call-1",
+        rawOutput: None,
+        content: Some([content]),
+        complete: false,
+      }),
+    })
+    let (contentState, _) = Reducer.next(partialState, contentAction)
+    let completedAction = Reducer.TaskAction({
+      target: ForTask(taskId),
+      action: ToolResultReceived({
+        id: "call-1",
+        rawOutput: None,
+        content: None,
+        complete: true,
+      }),
+    })
+    let (nextState, _) = Reducer.next(contentState, completedAction)
 
     let message = TestHelpers.getMessage(nextState, 0)->Option.getOrThrow
 
     switch message {
-    | Reducer.Message.ToolCall({state, result, _}) => {
+    | Reducer.Message.ToolCall({state, result: Some(result), _}) => {
         t->expect(state)->Expect.toBe(Reducer.Message.OutputAvailable)
-        t->expect(result->Option.isSome)->Expect.toBe(true)
+        t->expect(result.rawOutput)->Expect.toEqual(Some(rawOutput))
+        t->expect(result.content->Array.length)->Expect.toBe(1)
       }
     | _ => JsExn.throw("Expected ToolCall message")
     }
@@ -396,8 +629,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     }
   })
 
-  test("ToolCallReceived with complete input creates tool with InputAvailable", t => {
-    // Create a task with an assistant message first (tools belong to tasks)
+  test("ToolInputReceived makes streaming input available", t => {
     let state = TestHelpers.makeStateWithTask(
       ~isAgentRunning=true,
       ~messages=[
@@ -422,21 +654,11 @@ describe("Client State Reducer - Tool Lifecycle", () => {
       ],
     )
 
-    let toolCall: Reducer.Message.toolCall = {
-      id: "call-1",
-      toolName: "read_file",
-      inputBuffer: "",
-      input: Some(JSON.parseOrThrow("{\"path\": \"test.res\"}")),
-      result: None,
-      errorText: None,
-      state: Reducer.Message.InputAvailable,
-      parentAgentId: None,
-      spawningToolName: None,
-    }
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let expectedInput = JSON.parseOrThrow(`{"path":"test.res","range":{"start":12}}`)
     let action = Reducer.TaskAction({
       target: ForTask(taskId),
-      action: ToolCallReceived({toolCall: toolCall}),
+      action: ToolInputReceived({id: "call-1", input: expectedInput}),
     })
     let (nextState, _) = Reducer.next(state, action)
 
@@ -446,7 +668,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
     switch messages->Array.get(1) {
     | Some(Reducer.Message.ToolCall({state, input, _})) => {
         t->expect(state)->Expect.toBe(Reducer.Message.InputAvailable)
-        t->expect(input->Option.isSome)->Expect.toBe(true)
+        t->expect(input)->Expect.toEqual(Some(expectedInput))
       }
     | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
     }
@@ -460,10 +682,11 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let (state1, _effects1) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -472,10 +695,11 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let (state2, _effects2) = Reducer.next(
       state1,
       AddUserMessage({
-        id: "user-2",
+        id: secondTestUserMessageId,
         sessionId: "sessionId",
         content: [UserContentPart.text("Second message")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -492,10 +716,11 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let (state1, effects1) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "sessionId",
         content: [UserContentPart.text("First message")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
@@ -582,6 +807,25 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 
+  test("SetPreviewUrl synchronizes the selected task browser URL", t => {
+    let state = TestHelpers.makeStateWithTask()
+    let previewUrl = "http://localhost:3000/products/42"
+    let (nextState, effects) = Reducer.next(
+      state,
+      TaskAction({target: CurrentTask, action: SetPreviewUrl({url: previewUrl})}),
+    )
+
+    t->expect(Reducer.Selectors.previewUrl(nextState))->Expect.toBe(previewUrl)
+    switch effects->Array.get(0) {
+    | Some(Reducer.TaskEffect({
+        target: ForTask("test-task-1"),
+        effect: SyncBrowserUrl(syncedUrl),
+      })) =>
+      t->expect(syncedUrl)->Expect.toBe(previewUrl)
+    | _ => JsExn.throw("Expected browser URL synchronization effect")
+    }
+  })
+
   test("DeleteTask switches to New when deleting only task", t => {
     let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
@@ -598,7 +842,6 @@ describe("Client State Reducer - Task Management Actions", () => {
     let (nextState, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
 
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
-    // Should switch to New task
     switch nextState.currentTask {
     | Task.New(_) => t->expect(true)->Expect.toBe(true)
     | Task.Selected(_) => t->expect(false)->Expect.toBe(true)
@@ -606,7 +849,6 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 
   test("AddUserMessage after deleting last task creates new task", t => {
-    // Start with a single task
     let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
@@ -627,7 +869,6 @@ describe("Client State Reducer - Task Management Actions", () => {
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
-    // Delete the only task
     let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
     t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
     switch stateAfterDelete.currentTask {
@@ -635,28 +876,24 @@ describe("Client State Reducer - Task Management Actions", () => {
     | _ => JsExn.throw("Expected New task after deleting last task")
     }
 
-    // Now send a new user message — should create a fresh task without crashing
     let (stateAfterMsg, effects) = Reducer.next(
       stateAfterDelete,
       AddUserMessage({
-        id: "user-2",
+        id: secondTestUserMessageId,
         sessionId: "session-new",
         content: [UserContentPart.text("Hello after delete")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
-    // A new task should exist
     t->expect(TestHelpers.getTaskCount(stateAfterMsg))->Expect.toBe(1)
     let newTaskId = TestHelpers.getCurrentTaskId(stateAfterMsg)->Option.getOrThrow
-    // Must be a different task than the deleted one
     t->expect(newTaskId)->Expect.not->Expect.toBe("task-1")
 
-    // The new task waits for server accepted-message update before showing message.
     let messages = Reducer.Selectors.messages(stateAfterMsg)
     t->expect(messages->Array.length)->Expect.toBe(0)
 
-    // Effect should target the new task
     switch effects->Array.get(0) {
     | Some(Reducer.TaskEffect({target: ForTask(effectTaskId), effect: SendMessage(_)})) =>
       t->expect(effectTaskId)->Expect.toBe(newTaskId)
@@ -676,29 +913,28 @@ describe("Client State Reducer - Task Management Actions", () => {
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
-    // Add message to task 1
     let (state1, effects1) = Reducer.next(
       state,
       AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session",
         content: [UserContentPart.Text({text: "Message in task 1"})],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
     let (_state2, effects2) = Reducer.next(
       state1,
       AddUserMessage({
-        id: "user-2",
+        id: secondTestUserMessageId,
         sessionId: "session",
         content: [UserContentPart.Text({text: "Second message"})],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
 
-    // Both AddUserMessages go through the Selected path (state starts with Selected("task-1")),
-    // so they produce TaskEffect wrapping SendMessage from the task reducer
     switch (effects1->Array.get(0), effects2->Array.get(0)) {
     | (
         Some(Reducer.TaskEffect({target: ForTask(taskId1), effect: SendMessage(_)})),
@@ -739,17 +975,13 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     let (nextState, _effects) = Reducer.next(state, SessionsLoadSuccess({sessions: sessions}))
 
-    // Verify state transitioned to Loaded
     t->expect(nextState.sessionsLoadState)->Expect.toEqual(Client__State__Types.SessionsLoaded)
 
-    // Verify tasks were added
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(2)
 
-    // Verify task IDs match session IDs
     t->expect(nextState.tasks->Dict.has("session-1"))->Expect.toBe(true)
     t->expect(nextState.tasks->Dict.has("session-2"))->Expect.toBe(true)
 
-    // Verify task titles are set correctly
     let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
     t->expect(Task.getTitle(task1))->Expect.toEqual(Some("First Session"))
 
@@ -758,7 +990,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
   })
 
   test("SessionsLoadSuccess does not overwrite existing tasks", t => {
-    // Create state with an existing task
     let existingTask = TestHelpers.makeLoadedTask(
       ~id="session-1",
       ~title="Existing Task",
@@ -779,7 +1010,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
-    // Load sessions including one with the same ID as existing task
     let sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary> = [
       {
         sessionId: "session-1",
@@ -797,10 +1027,8 @@ describe("Client State Reducer - Session Loading Actions", () => {
 
     let (nextState, _effects) = Reducer.next(state, SessionsLoadSuccess({sessions: sessions}))
 
-    // Should have 2 tasks total
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(2)
 
-    // Existing task should retain its original title and messages
     let task1 = nextState.tasks->Dict.get("session-1")->Option.getOrThrow
     t->expect(Task.getTitle(task1))->Expect.toEqual(Some("Existing Task"))
     let task1Messages = Task.getMessages(task1)
@@ -808,7 +1036,6 @@ describe("Client State Reducer - Session Loading Actions", () => {
     ->expect(task1Messages->Array.some(msg => Reducer.Message.getId(msg) == "user-1"))
     ->Expect.toBe(true)
 
-    // New task should be added
     let task2 = nextState.tasks->Dict.get("session-2")->Option.getOrThrow
     t->expect(Task.getTitle(task2))->Expect.toEqual(Some("New Session"))
   })
@@ -852,20 +1079,16 @@ describe("Client State Reducer - UpdateTaskTitle safety", () => {
   })
 
   test("UpdateTaskTitle on deleted task does not throw", t => {
-    // Start with a task
     let state = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
 
-    // Delete the task
     let (stateAfterDelete, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
     t->expect(TestHelpers.getTaskCount(stateAfterDelete))->Expect.toBe(0)
 
-    // Now send an UpdateTaskTitle for the deleted task — should NOT throw
     let (nextState, _) = Reducer.next(
       stateAfterDelete,
       UpdateTaskTitle({taskId: "task-1", title: "Ghost Title"}),
     )
 
-    // State should be unchanged (no task added back)
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
     t->expect(nextState.tasks->Dict.get("task-1")->Option.isNone)->Expect.toBe(true)
   })
@@ -873,22 +1096,16 @@ describe("Client State Reducer - UpdateTaskTitle safety", () => {
   test("UpdateTaskTitle on non-existent task is a no-op", t => {
     let state = TestHelpers.makeStateWithTask(~taskId="task-1", ~messages=[])
 
-    // Update title for a task that doesn't exist
     let (nextState, _) = Reducer.next(
       state,
       UpdateTaskTitle({taskId: "non-existent-task", title: "Should Not Crash"}),
     )
 
-    // Original task should be unaffected
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
     let task = nextState.tasks->Dict.get("task-1")->Option.getOrThrow
     t->expect(Task.getTitle(task))->Expect.toEqual(Some("Test Task"))
   })
 })
-
-// ============================================================================
-// Annotation-to-Message Tests (Issue #466)
-// ============================================================================
 
 module MessageAnnotation = Client__Message.MessageAnnotation
 
@@ -897,6 +1114,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     {
       id: "ann-1",
       selector: Ok(Some(".btn-submit")),
+      elementContext: Ok(None),
       tagName: "button",
       cssClasses: Some("btn-submit primary"),
       comment: Some("This button is broken"),
@@ -909,6 +1127,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     {
       id: "ann-2",
       selector: Ok(Some("div.header")),
+      elementContext: Ok(None),
       tagName: "div",
       cssClasses: Some("header"),
       comment: None,
@@ -925,10 +1144,11 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session-1",
         content: [UserContentPart.text("Fix this")],
         annotations: _sampleAnnotations,
+        agentId: "executor-id",
       }),
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
@@ -936,6 +1156,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let nextState = TestHelpers.acceptUserMessage(
       state,
       ~taskId,
+      ~id=testUserMessageId->UserMessageId.toString,
       ~content=[UserContentPart.text("Fix this")],
       ~annotations=_sampleAnnotations,
     )
@@ -961,10 +1182,11 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session-1",
         content: [],
         annotations: _sampleAnnotations,
+        agentId: "executor-id",
       }),
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
@@ -972,6 +1194,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let nextState = TestHelpers.acceptUserMessage(
       state,
       ~taskId,
+      ~id=testUserMessageId->UserMessageId.toString,
       ~content=[],
       ~annotations=_sampleAnnotations,
     )
@@ -992,17 +1215,23 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
-        id: "user-1",
+        id: testUserMessageId,
         sessionId: "session-1",
         content: [UserContentPart.text("Hello")],
         annotations: [],
+        agentId: "executor-id",
       }),
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
-    let nextState = TestHelpers.acceptUserMessage(state, ~taskId)
+    let nextState = TestHelpers.acceptUserMessage(
+      state,
+      ~taskId,
+      ~id=testUserMessageId->UserMessageId.toString,
+    )
 
     let messages = Reducer.Selectors.queuedUserMessages(nextState)
+    t->expect(messages->Array.length)->Expect.toBe(1)
     switch messages->Array.get(0)->Option.getOrThrow {
     | Reducer.Message.User({annotations, _}) => t->expect(annotations->Array.length)->Expect.toBe(0)
     | _ => JsExn.throw("Expected User message")
@@ -1012,15 +1241,15 @@ describe("Client State Reducer - Annotations on Messages", () => {
   test("SendMessage effect carries annotations from AddUserMessage", t => {
     let state = Reducer.defaultState
     let action = Reducer.AddUserMessage({
-      id: "user-1",
+      id: testUserMessageId,
       sessionId: "session-1",
       content: [UserContentPart.text("Fix this")],
       annotations: _sampleAnnotations,
+      agentId: "executor-id",
     })
 
     let (_nextState, effects) = Reducer.next(state, action)
 
-    // Find the TaskEffect wrapping SendMessage
     let sendEffect = effects->Array.find(
       eff =>
         switch eff {
@@ -1037,27 +1266,126 @@ describe("Client State Reducer - Annotations on Messages", () => {
     }
   })
 
+  test("SendMessage metadata carries message ID, submission agent, and selected model", t => {
+    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
+    let messageId = UserMessageId.make()
+    let sentMetadata = ref(None)
+    let state = {
+      ...Reducer.defaultState,
+      selectedModelValue: Some("anthropic:claude-opus-4-6"),
+      acpSession: AcpSessionActive({
+        sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta) => sentMetadata := _meta,
+        cancelPrompt: () => (),
+        retryTurn: _ => (),
+        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+        deleteSession: (_, ~onComplete as _) => (),
+        apiBaseUrl: "http://localhost:4000",
+      }),
+    }
+    let (state, effects) = Reducer.next(
+      state,
+      Reducer.AddUserMessage({
+        id: messageId,
+        sessionId: "session-1",
+        content: [UserContentPart.text("Fix this")],
+        annotations: [],
+        agentId: "planner-id",
+      }),
+    )
+
+    effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+    let metadata =
+      sentMetadata.contents
+      ->Option.getOrThrow
+      ->JSON.Decode.object
+      ->Option.getOrThrow
+
+    t
+    ->expect(metadata->Dict.get("frontman.dev/messageId")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some(messageId->UserMessageId.toString))
+    t
+    ->expect(metadata->Dict.get("agent")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some("planner-id"))
+    t
+    ->expect(metadata->Dict.get("model")->Option.flatMap(JSON.Decode.string))
+    ->Expect.toEqual(Some("anthropic:claude-opus-4-6"))
+  })
+
+  test("SendMessage dispatches task cleanup when sendPrompt fails", t => {
+    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
+    let messageId = UserMessageId.make()
+    let completion = ref(None)
+    let dispatched = ref([])
+    let state = {
+      ...Reducer.defaultState,
+      acpSession: AcpSessionActive({
+        sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
+          completion := Some(onComplete),
+        cancelPrompt: () => (),
+        retryTurn: _ => (),
+        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+        deleteSession: (_, ~onComplete as _) => (),
+        apiBaseUrl: "http://localhost:4000",
+      }),
+    }
+    let (state, effects) = Reducer.next(
+      state,
+      Reducer.AddUserMessage({
+        id: messageId,
+        sessionId: "session-1",
+        content: [UserContentPart.text("Fix this")],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+
+    effects->Array.forEach(
+      effect =>
+        Reducer.handleEffect(
+          effect,
+          state,
+          action => dispatched := Array.concat(dispatched.contents, [action]),
+        ),
+    )
+    let onComplete = completion.contents->Option.getOrThrow
+    onComplete(Error("Connection lost"))
+
+    switch dispatched.contents {
+    | [
+        Reducer.TaskAction({
+          target: ForTask("session-1"),
+          action: UserMessageSendFailed({id, error}),
+        }),
+      ] => {
+        t->expect(id)->Expect.toEqual(messageId)
+        t->expect(error)->Expect.toBe("Connection lost")
+      }
+    | _ => JsExn.throw("Expected targeted UserMessageSendFailed action")
+    }
+  })
+
   describe("API key provider actions", () => {
     let _makeStateWithSession = () => {
       {
         ...Reducer.defaultState,
-        acpSession: AcpSessionActive({
-          sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-          cancelPrompt: () => (),
-          retryTurn: _ => (),
-          loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-          deleteSession: (_, ~onComplete as _) => (),
-          apiBaseUrl: "http://localhost:4000",
-        }),
-        sessionInitialized: true,
+        acpSession: TestHelpers.activeAcpSession,
         selectedModelValue: None,
       }
     }
 
+    let _setAcpSessionAction = (): Reducer.action => SetAcpSession({
+      sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+      cancelPrompt: () => (),
+      retryTurn: _ => (),
+      loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+      deleteSession: (_, ~onComplete as _) => (),
+      apiBaseUrl: "http://localhost:4000",
+    })
+
     let _providerCases: array<(Reducer.apiKeyProvider, string)> = [
       (OpenRouter, "openrouter"),
       (Anthropic, "anthropic"),
-      (Fireworks, "fireworks"),
+      (Fireworks, "fireworks_ai"),
       (Nvidia, "nvidia"),
     ]
 
@@ -1181,13 +1509,79 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t => {
         let (nextState, _effects) = Reducer.next(
           Reducer.defaultState,
-          ApiKeySettingsReceived({provider: Anthropic, source: FromEnv}),
+          ApiKeySettingsReceived({provider: Anthropic, source: UserOverride}),
         )
 
         t->expect(nextState.openrouterKeySettings.source)->Expect.toEqual(Client__State__Types.None)
-        t->expect(nextState.anthropicKeySettings.source)->Expect.toEqual(FromEnv)
+        t->expect(nextState.anthropicKeySettings.source)->Expect.toEqual(UserOverride)
         t->expect(nextState.fireworksKeySettings.source)->Expect.toEqual(Client__State__Types.None)
         t->expect(nextState.nvidiaKeySettings.source)->Expect.toEqual(Client__State__Types.None)
+      },
+    )
+
+    test(
+      "provider setup follows ACP model availability",
+      t => {
+        let sessionState = _makeStateWithSession()
+        let emptyState = {
+          ...sessionState,
+          configOptions: Some(TestHelpers.modelConfigOptions(~models=[])),
+        }
+        let futureProviderState = {
+          ...sessionState,
+          configOptions: Some(TestHelpers.modelConfigOptions(~models=["future_provider:model"])),
+        }
+
+        t->expect(Reducer.Selectors.providerSetupRequired(Reducer.defaultState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSetupRequired(sessionState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.providerSetupRequired(emptyState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.providerSetupRequired(futureProviderState))->Expect.toBe(false)
+      },
+    )
+
+    test(
+      "updating an initialized ACP session preserves OAuth progress",
+      t => {
+        let authorizing: Client__State__Types.anthropicOAuthStatus = Authorizing({
+          authorizeUrl: "https://example.com",
+          verifier: "verifier",
+        })
+        let showingCode: Client__State__Types.openaiOAuthStatus = OpenAIShowingCode({
+          deviceAuthId: "device-auth-id",
+          userCode: "ABCD-EFGH",
+          verificationUrl: "https://example.com/device",
+        })
+        let state = {
+          ..._makeStateWithSession(),
+          anthropicOAuthStatus: authorizing,
+          openaiOAuthStatus: showingCode,
+        }
+        let (nextState, effects) = Reducer.next(state, _setAcpSessionAction())
+
+        t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(authorizing)
+        t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(showingCode)
+        t->expect(effects->Array.length)->Expect.toBe(0)
+      },
+    )
+
+    test(
+      "initializing a new ACP session does not fetch provider settings",
+      t => {
+        let (nextState, effects) = Reducer.next(Reducer.defaultState, _setAcpSessionAction())
+
+        t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(NotConnected)
+        t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(OpenAINotConnected)
+        t->expect(effects->Array.length)->Expect.toBe(0)
+      },
+    )
+
+    test(
+      "clearing the ACP session invalidates loaded provider settings",
+      t => {
+        let state = _makeStateWithSession()
+        let (nextState, _effects) = Reducer.next(state, ClearAcpSession)
+
+        t->expect(Reducer.Selectors.hasActiveACPSession(nextState))->Expect.toBe(false)
       },
     )
   })

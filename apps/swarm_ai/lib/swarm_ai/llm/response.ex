@@ -203,7 +203,7 @@ defmodule SwarmAi.LLM.Response do
       MapSet.member?(malformed_indexes, index) ->
         raw = Map.fetch!(fragments_by_index, index)
 
-        Logger.warning("Tool call #{name} (#{id}) has invalid JSON arguments: #{inspect(raw)}")
+        Logger.warning("Tool call #{name} (#{id}) has invalid JSON arguments")
 
         raw
 

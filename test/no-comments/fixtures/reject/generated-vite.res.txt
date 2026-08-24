@@ -1,0 +1,2 @@
+let importLine = `import {frontmanPlugin} from "@frontman-ai/vite"; // generated config comment`
+let prose = `// prose outside generated bindings`

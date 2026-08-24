@@ -1,22 +1,34 @@
 defmodule FrontmanServer.Protocols.AcpContractTest do
   use ExUnit.Case, async: true
 
+  alias FrontmanServer.Agents.Agent
   alias FrontmanServer.ProtocolSchema
 
   describe "AgentClientProtocol.build_initialize_result/0" do
     test "validates against acp/initializeResult schema" do
-      payload = AgentClientProtocol.build_initialize_result()
+      payload = AgentClientProtocol.build_initialize_result(agents(), "planner-id")
       ProtocolSchema.validate!(payload, "acp/initializeResult")
     end
 
     test "advertises Frontman agent attribution v1 under capability metadata" do
+      result = AgentClientProtocol.build_initialize_result(agents(), "planner-id")
+
       assert %{
                "agentCapabilities" => %{
                  "_meta" => %{
-                   "frontman.dev" => %{"agentAttribution" => %{"version" => 1}}
+                   "frontman.dev" => %{
+                     "agentAttribution" => %{"version" => 1},
+                     "agents" => [%{"id" => "executor-id"}, %{"id" => "planner-id"}],
+                     "defaultAgentId" => "planner-id"
+                   }
                  }
                }
-             } = AgentClientProtocol.build_initialize_result()
+             } = result
+
+      ProtocolSchema.validate!(
+        get_in(result, ["agentCapabilities", "_meta", "frontman.dev"]),
+        "acp/agentAttributionConfigurationMetadata"
+      )
     end
   end
 
@@ -84,18 +96,20 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
   end
 
   describe "AgentClientProtocol.tool_call_update/4" do
-    test "without content validates against acp/sessionUpdateNotification schema" do
-      payload =
-        AgentClientProtocol.tool_call_update("session-123", "tc-1", "completed")
+    test "with raw input validates against acp/sessionUpdateNotification schema" do
+      raw_input = %{"path" => "file.res"}
 
+      payload =
+        AgentClientProtocol.tool_call_update("session-123", "tc-1", "pending", nil, raw_input)
+
+      assert get_in(payload, ["params", "update", "rawInput"]) == raw_input
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
 
     test "with content validates against acp/sessionUpdateNotification schema" do
       content = [%{"type" => "content", "content" => %{"type" => "text", "text" => "result"}}]
 
-      payload =
-        AgentClientProtocol.tool_call_update("session-123", "tc-1", "completed", content)
+      payload = AgentClientProtocol.tool_call_update("session-123", "tc-1", "completed", content)
 
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end
@@ -185,5 +199,26 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
       payload = AgentClientProtocol.agent_info()
       ProtocolSchema.validate!(payload, "acp/implementation")
     end
+  end
+
+  defp agents do
+    [
+      %Agent{
+        id: "executor-id",
+        name: "executor",
+        display_name: "Executor",
+        description: "Executes work",
+        color: "#985DF7",
+        system: "Execute"
+      },
+      %Agent{
+        id: "planner-id",
+        name: "planner",
+        display_name: "Planner",
+        description: "Plans work",
+        color: "#F59E0B",
+        system: "Plan"
+      }
+    ]
   end
 end

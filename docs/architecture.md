@@ -14,7 +14,7 @@ Frontman is a browser-based AI agent that executes LLM-driven tool calls against
 apps/
   frontman_server/      Elixir/Phoenix backend
   swarm_ai/             Agentic loop runtime (Hex package)
-  marketing/            Astro 5.17 static site
+  marketing/            Astro 7.1 static site
   chrome-extension/     Chrome extension
 
 libs/
@@ -336,7 +336,7 @@ Session update types: `UserMessageChunk`, `AssistantMessageStart`, `ToolCallStar
 
 Three published npm packages inject Frontman into dev servers:
 
-- **@frontman-ai/astro** (`libs/frontman-astro`) — Astro integration hook + Vite middleware, dev toolbar app, serves Frontman UI at `/<basePath>/`, captures `data-astro-source-file` annotations, component props injection as HTML comments
+- **@frontman-ai/astro** (`libs/frontman-astro`) — Astro integration hook + Vite middleware, dev toolbar app, serves Frontman UI at `/<basePath>/`, captures Astro 5/6 `data-astro-source-*` annotations, injects Astro 7 `data-frontman-source-*` annotations, maps Sätteri and unified Markdown output to source files, and injects component props as HTML comments
 - **@frontman-ai/nextjs** (`libs/frontman-nextjs`) — Middleware (Next.js 15) or proxy (Next.js 16+), serves Frontman UI at `/frontman`, OpenTelemetry instrumentation (tracks HTTP requests, route rendering, API execution), LogCapture (auto-patches console.log, process.stdout.write, error handlers — circular buffer of 1024 entries via `globalThis`)
 - **@frontman-ai/vite** (`libs/frontman-vite`) — Vite middleware plugin, auto-detects framework from vite.config (React, Vue, Svelte), adapts Web API to Vite's Node.js request/response
 
@@ -346,9 +346,11 @@ All three packages inject the Frontman client UI into dev servers, establish Web
 
 ## Marketing Site
 
-Astro 5.17 at `apps/marketing/`. 94 components. Deployed to Cloudflare Pages.
+Astro 7.1 at `apps/marketing/`. 94 components. Deployed to Cloudflare Pages.
 
-Content: 16 blog posts, 10 competitor comparison pages (`/vs/`), 3 integration guides (`/integrations/`), glossary, lighthouse audits. Blog cover images generated server-side via `satori` + `sharp`.
+Content: 40 blog posts, 10 competitor comparison pages (`/vs/`), four detailed framework guides at `/docs/integrations/astro/`, `/docs/integrations/nextjs/`, `/docs/integrations/vite/`, and `/docs/integrations/wordpress/`, plus glossary and lighthouse audits. `/integrations/` is the integration hub. Blog cover images are generated server-side via `satori` + `sharp`.
+
+Documentation pages reuse docs-owned snippets through `CodeFromFile`, which reads only from `apps/marketing/src/content/docs/snippets/`. This deduplicates examples across docs pages but does not verify synchronization with executable integrations, installers, README files, or fixtures.
 
 Uses `@frontman-ai/astro` integration for live product demo in dev mode.
 
@@ -374,9 +376,8 @@ Each feature branch gets:
 - Podman pod with PostgreSQL 16 container + dev container
 - Deterministic port range derived from 4-char branch name hash
 - Caddy routing: `{hash}.{service}.frontman.local → localhost:{port}`
-- Isolated `.claude/` directory for separate Claude Code context
 
-Management: `make wt` (dashboard), `make wt-new`, `make wt-dev`, `make wt-stop`, `make wt-start`, `make wt-sh`, `make wt-rm`, `make wt-gc`.
+Management: `make wt` (dashboard), `make wt-new`, `make wt-dev`, `make wt-stop`, `make wt-start`, `make wt-sh`, `make wt-rm`.
 
 ### CI/CD
 

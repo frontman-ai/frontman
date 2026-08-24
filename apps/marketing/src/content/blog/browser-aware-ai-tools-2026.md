@@ -2,10 +2,12 @@
 title: 'Browser-Aware AI Coding Tools Compared'
 pubDate: 2026-02-23T06:00:00Z
 description: "Frontman, Stagewise, Tidewave, Chrome DevTools MCP, and Onlook: how each one connects to your running app, what they can and can't see, and who each is for."
-author: 'Danni Friedland'
 image: '/blog/browser-aware-ai-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools']
 updatedDate: 2026-03-10T00:00:00Z
+author: 'Danni Friedland'
+articleSection: 'Comparison or Buyer Guide'
+imageAlt: 'Comparison of browser-aware AI coding tools and their runtime context'
 ---
 
 There's a new category of AI coding tools emerging: ones that connect to your running application instead of just reading source files. The pitch is the same across all of them — give the AI runtime context so it stops guessing about what your app actually looks like and does.
@@ -20,11 +22,11 @@ Runtime-aware tools try to close this gap — what we call [the runtime context 
 
 ### Frontman
 
-**Website:** [frontman.sh](https://frontman.sh) | **License:** Apache 2.0 / AGPL-3.0 | **Stars:** ~131
+**Website:** [frontman.sh](https://frontman.sh) | **License:** Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms | **Stars:** ~131
 
 Framework middleware for Next.js, Astro, and Vite. Installs _inside_ the framework's dev server, so it has native access to both client-side context (DOM, component tree, computed styles) and server-side context (routes, compiled module graph, server logs). Both exposed via MCP.
 
-**Strengths:** Deepest framework integration. BYOK — connect Claude, OpenAI, or OpenRouter directly. Open source with permissive client library licensing and self-hosting available.
+**Strengths:** Deepest framework integration. BYOK — connect Claude, OpenAI, or OpenRouter directly. Source-available with an Apache-2.0 browser client and JavaScript framework integrations, a GPL-2.0-or-later WordPress plugin, plus self-hosting available.
 
 **Weaknesses:** Early stage. Rough edges, incomplete documentation, small community. Limited to supported frameworks. Source mapping breaks on deeply abstracted component libraries.
 
@@ -86,7 +88,7 @@ Google's MCP server exposes DevTools state to AI agents. Your agent can query th
 
 **Want the most polished UX and don't mind paying:** Stagewise. The YC backing shows.
 
-**Want deep framework integration + local control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-browser-aware-ai-coding-tools/). Open-source core, BYOK for local development, and hosted plans coming soon. The tradeoff is that it's early-stage with rougher edges.
+**Want deep framework integration + local control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-browser-aware-ai-coding-tools/). Source-available and BYOK for local development. Hosted Frontman Pro is available now. The tradeoff is that it's early-stage with rougher edges.
 
 **Want to add browser context to your existing agent:** Chrome DevTools MCP. Bare-bones but framework-agnostic and free.
 

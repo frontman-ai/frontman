@@ -1,6 +1,3 @@
-// Frontman Sentry integration for Next.js library
-// Reports errors to Frontman's own Sentry project
-
 module Bindings = FrontmanBindings.Sentry__Nextjs
 module SentryConfig = FrontmanBindings.Sentry__Config
 module SentryFilter = FrontmanBindings.Sentry__Filter
@@ -8,7 +5,6 @@ module SentryFilter = FrontmanBindings.Sentry__Filter
 let initialized = ref(false)
 
 let initialize = (~transport: option<Bindings.transport>=?) => {
-  // Skip Sentry in Frontman internal dev; custom transport (tests) always initializes
   if !initialized.contents && (Option.isSome(transport) || !SentryConfig.isInternalDev()) {
     let scope: Bindings.scopeContext = {
       tags: Dict.fromArray([("frontman.library", "frontman-nextjs")]),

@@ -1,22 +1,10 @@
-// ACP message chunk buffering.
-//
-// Instead of dispatching a state update for every streaming chunk from the server,
-// accumulate assistant text deltas and flush once per animation frame (~60fps).
-// This prevents dozens of full state rebuilds per second during fast streaming.
-// User blocks remain grouped until the next protocol update boundary so paired
-// resources such as annotation screenshots are parsed together.
-//
-// Separated into its own module so both FrontmanProvider (producer) and
-// StateReducer can flush streamed text before finalizing task state.
-// without circular dependencies.
-
 type entry = {
   text: string,
   agentId: string,
 }
 
 type userEntry = {
-  blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
+  blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t>,
   agentId: string,
 }
 
@@ -25,7 +13,7 @@ type t = {
   addUserBlock: (
     ~taskId: string,
     ~messageId: string,
-    ~block: FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock,
+    ~block: FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t,
     ~agentId: string,
   ) => unit,
   flush: unit => unit,
@@ -48,7 +36,7 @@ let make = (
   ~onUserFlush: (
     ~taskId: string,
     ~messageId: string,
-    ~blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.contentBlock>,
+    ~blocks: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t>,
     ~agentId: string,
   ) => unit,
 ): t => {
@@ -57,7 +45,9 @@ let make = (
   let rafId: ref<option<int>> = ref(None)
 
   let cancelFlush = () => {
-    rafId.contents->Option.forEach(WebAPI.Global.cancelAnimationFrame)
+    rafId.contents->Option.forEach(id =>
+      WebAPI.Window.cancelAnimationFrame(WebAPI.Window.current, id)
+    )
     rafId := None
   }
 
@@ -106,8 +96,9 @@ let make = (
     }
     messages->Dict.set(messageId, updatedEntry)
     switch rafId.contents {
-    | Some(_) => () // Already scheduled
-    | None => rafId := Some(WebAPI.Global.requestAnimationFrame(_ => flush()))
+    | Some(_) => ()
+    | None =>
+      rafId := Some(WebAPI.Window.requestAnimationFrame(WebAPI.Window.current, _ => flush()))
     }
   }
   let addUserBlock = (~taskId, ~messageId, ~block, ~agentId) => {
@@ -137,8 +128,6 @@ let make = (
   {add, addUserBlock, flush, discardTask, reset}
 }
 
-// Active instance — set by FrontmanProvider, read by StateReducer.
-// This is the only module-level state; all buffer state lives in closures.
 let active: ref<option<t>> = ref(None)
 
 let flush = () => active.contents->Option.forEach(instance => instance.flush())

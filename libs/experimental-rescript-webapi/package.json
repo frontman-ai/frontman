@@ -1,6 +1,6 @@
 {
   "name": "@rescript/webapi",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Experimental successor to [rescript-webapi](https://github.com/TheSpyder/rescript-webapi)",
   "keywords": [
     "dom",
@@ -38,23 +38,13 @@
   "scripts": {
     "test": "node tests/index.js",
     "build": "rescript",
-    "format": "rescript format && oxfmt ./tests/index.js ./package.json ./docs && prettier --write ./docs/pages",
-    "format:check": "rescript format --check && oxfmt ./tests/index.js ./package.json ./docs --check && prettier --check ./docs/pages",
-    "docs": "astro dev",
-    "prebuild:docs": "node docs/llm.js",
-    "build:docs": "astro build"
+    "format": "rescript format",
+    "format:check": "rescript format --check"
   },
   "devDependencies": {
-    "@astrojs/starlight": "0.40.0",
-    "astro": "^6.4.8",
-    "micromark": "^4.0.1",
-    "oxfmt": "^0.57.0",
-    "prettier": "^3.8.3",
-    "prettier-plugin-astro": "^0.14.1",
-    "rescript": "catalog:",
-    "sharp": "^0.35.3"
+    "rescript": "catalog:"
   },
   "peerDependencies": {
-    "rescript": ">=12"
+    "rescript": ">=12.0.0 <13"
   }
 }

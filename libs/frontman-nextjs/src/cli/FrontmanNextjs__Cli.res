@@ -1,11 +1,7 @@
-// CLI entry point for frontman-nextjs
-// Usage: npx @frontman-ai/nextjs install --server <host>
-
 module Process = FrontmanBindings.Process
 module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
 module Install = FrontmanNextjs__Cli__Install
 
-// Parse command line arguments (simple implementation without external deps)
 type parsedArgs = {
   command: option<string>,
   server: option<string>,
@@ -28,7 +24,7 @@ Options:
   --server <host>   Frontman server host (default: api.frontman.sh)
   --prefix <path>   Target directory (default: current directory)
   --dry-run         Preview changes without writing files
-  --skip-deps       Skip dependency installation
+  --skip-deps       Skip dependency installation and validation
   --help            Show this help message
 
 Examples:
@@ -37,9 +33,7 @@ Examples:
   npx @frontman-ai/nextjs install --dry-run
 `
 
-// Simple argument parser
 let parseArgs = (argv: array<string>): parsedArgs => {
-  // Skip node and script path (argv[0] and argv[1])
   let args = argv->Array.slice(~start=2, ~end=Array.length(argv))
 
   let rec parse = (~remaining: array<string>, ~result: parsedArgs): parsedArgs => {
@@ -79,7 +73,6 @@ let parseArgs = (argv: array<string>): parsedArgs => {
   )
 }
 
-// Main entry point
 let main = async () => {
   let args = parseArgs(Process.argv)
 
@@ -102,7 +95,7 @@ let main = async () => {
 
     switch result {
     | Install.Success => Process.exit(0)
-    | Install.PartialSuccess(_) => Process.exit(0) // Still success, just with manual steps
+    | Install.PartialSuccess(_) => Process.exit(0)
     | Install.Failure(_) => Process.exit(1)
     }
 
@@ -117,5 +110,4 @@ let main = async () => {
   }
 }
 
-// Run main
 main()->ignore

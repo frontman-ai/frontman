@@ -11,3 +11,6 @@ Retrieves a select object or an object from an options collection.
 */
 @send
 external namedItem: (DomTypes.htmlCollection<'t>, string) => 't = "namedItem"
+
+@scope("Array") @val
+external toArray: DomTypes.htmlCollection<'t> => array<'t> = "from"

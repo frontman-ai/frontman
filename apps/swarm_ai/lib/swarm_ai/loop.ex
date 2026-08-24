@@ -53,7 +53,6 @@ defmodule SwarmAi.Loop do
     field(:task_id, String.t(), enforce: true)
     field(:turn_number, pos_integer(), enforce: true)
 
-    # Complete initial LLM request messages for this loop, including system.
     field(:messages, [Message.t()], enforce: true)
     field(:llm, LLM.t(), enforce: true)
 
@@ -151,8 +150,6 @@ defmodule SwarmAi.Loop do
   """
   def current_step(%__MODULE__{steps: []}), do: nil
   def current_step(%__MODULE__{steps: steps}), do: List.last(steps)
-
-  # --- Public API for Execution ---
 
   @doc """
   Starts execution and returns initial effects.

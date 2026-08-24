@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend
   alias ModelContextProtocol, as: MCP
   alias SwarmAi.Message.ContentPart
@@ -26,14 +27,18 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         mcp_tool_defs: mcp_tool_defs,
         execution_mode: execution_mode
       }) do
-    exec_opts =
-      build_exec_opts(%{
-        backend_tool_modules: backend_tool_modules,
-        mcp_tool_defs: mcp_tool_defs
-      })
-
     executions =
-      Enum.map(tool_calls, &build_execution(&1, scope, task_id, turn_number, exec_opts))
+      Enum.map(
+        tool_calls,
+        &build_execution(
+          &1,
+          scope,
+          task_id,
+          turn_number,
+          backend_tool_modules,
+          mcp_tool_defs
+        )
+      )
 
     case execution_mode do
       :serial -> SwarmAi.ParallelExecutor.run_serial(executions, task_supervisor)
@@ -41,9 +46,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     end
   end
 
-  defp build_execution(tool_call, scope, task_id, turn_number, exec_opts) do
-    case Map.fetch(exec_opts.backend_module_map, tool_call.name) do
-      {:ok, module} ->
+  defp build_execution(tool_call, scope, task_id, turn_number, backend_modules, mcp_tools) do
+    case Enum.find(backend_modules, &(&1.name() == tool_call.name)) do
+      nil ->
+        build_external_execution(tool_call, scope, task_id, turn_number, mcp_tools)
+
+      module when is_atom(module) ->
         %ToolExecution.Sync{
           tool_call: tool_call,
           timeout_ms: module.timeout_ms(),
@@ -52,10 +60,20 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
           on_timeout:
             {__MODULE__, :handle_timeout, [scope, task_id, turn_number, module.on_timeout()]}
         }
+    end
+  end
 
-      :error ->
-        {:ok, tool_def} = find_mcp_tool_def(tool_call.name, exec_opts)
+  defp build_external_execution(tool_call, scope, task_id, turn_number, mcp_tools) do
+    mcp_tool = Enum.find(mcp_tools, &(&1.name == tool_call.name))
 
+    case {Tools.find_tool(tool_call.name), mcp_tool} do
+      {{:ok, _filtered_backend_module}, _mcp_tool} ->
+        build_unavailable_execution(tool_call, scope, task_id, turn_number)
+
+      {:not_found, nil} ->
+        build_unavailable_execution(tool_call, scope, task_id, turn_number)
+
+      {:not_found, tool_def} ->
         %ToolExecution.Await{
           tool_call: tool_call,
           timeout_ms: tool_def.timeout_ms,
@@ -67,30 +85,47 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     end
   end
 
-  # --- PE Callbacks (public for MFA dispatch) ---
+  defp build_unavailable_execution(tool_call, scope, task_id, turn_number) do
+    %ToolExecution.Sync{
+      tool_call: tool_call,
+      timeout_ms: 5_000,
+      on_timeout_policy: :error,
+      run: {__MODULE__, :reject_unavailable_tool, [scope, task_id, turn_number]},
+      on_timeout: {__MODULE__, :handle_timeout, [scope, task_id, turn_number, :error]}
+    }
+  end
 
   @doc false
   def run_backend_tool(%Scope{} = scope, module, task_id, turn_number, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
     SentryContext.set_task_scope_context(scope, task_id)
 
-    %{"content" => content} =
-      result =
+    result =
       execute_backend_tool(scope, module, tool_call, task_id, turn_number)
 
-    is_error = MCP.error?(result)
+    to_swarm_tool_result(tool_call, result)
+  end
 
-    SwarmAi.ToolResult.make(
-      tool_call.id,
-      Enum.map(content, fn
-        %{"type" => "text", "text" => text} ->
-          ContentPart.text(text)
+  @doc false
+  def reject_unavailable_tool(%Scope{} = scope, task_id, turn_number, tool_call)
+      when is_integer(turn_number) and turn_number > 0 do
+    SentryContext.set_task_scope_context(scope, task_id)
 
-        %{"type" => "image", "data" => data, "mimeType" => mime_type} ->
-          ContentPart.image(Base.decode64!(data), mime_type)
-      end),
-      is_error
+    Logger.warning(
+      "Model requested unavailable tool #{inspect(tool_call.name)} (#{inspect(tool_call.id)})",
+      task_id: task_id
     )
+
+    result =
+      persist_error_tool_result(
+        scope,
+        task_id,
+        turn_number,
+        tool_call,
+        "Tool #{tool_call.name} is unavailable to the current agent"
+      )
+
+    to_swarm_tool_result(tool_call, result)
   end
 
   @doc false
@@ -100,8 +135,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
-    # Register BEFORE publishing to prevent a race where the client responds
-    # before PE is listening. self() here = PE's pid.
     register_mcp_tool(tool_call)
     publish_mcp_tool_call(scope, task_id, turn_number, tool_call)
     :ok
@@ -129,8 +162,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   def handle_timeout(%Scope{} = scope, task_id, turn_number, :error, tool_call, :cancelled)
       when is_integer(turn_number) and turn_number > 0 do
-    # Sibling tool triggered :pause_agent, so cancel_remaining cancelled this one.
-    # No Sentry report — this is expected cascade behaviour, not a timeout.
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
     Logger.info("ToolExecutor: #{cancel_msg}")
 
@@ -140,40 +171,31 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   def handle_timeout(_scope, _task_id, turn_number, :pause_agent, _tool_call, :triggered)
       when is_integer(turn_number) and turn_number > 0 do
-    # Tasks persists the ToolResult for the triggered tool via the
-    # {:paused, {:timeout, ...}} event. Nothing to do here.
     :ok
   end
 
   def handle_timeout(%Scope{} = scope, task_id, turn_number, :pause_agent, tool_call, :cancelled)
       when is_integer(turn_number) and turn_number > 0 do
-    # Sibling cancelled by cancel_remaining -- no Swarm event is emitted for this tool,
-    # so we must persist here to satisfy the ToolCall→ToolResult DB invariant.
     cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
 
     persist_error_tool_result(scope, task_id, turn_number, tool_call, cancel_msg)
     :ok
   end
 
-  # --- Internal ---
+  defp to_swarm_tool_result(tool_call, %{"content" => content} = result) do
+    is_error = MCP.error?(result)
 
-  defp find_mcp_tool_def(tool_name, exec_opts) do
-    found = Enum.find(exec_opts.mcp_tool_defs, &(&1.name == tool_name))
+    SwarmAi.ToolResult.make(
+      tool_call.id,
+      Enum.map(content, fn
+        %{"type" => "text", "text" => text} ->
+          ContentPart.text(text)
 
-    if found do
-      {:ok, found}
-    else
-      {:error, :not_found}
-    end
-  end
-
-  defp build_exec_opts(opts) do
-    backend_tool_modules = Map.fetch!(opts, :backend_tool_modules)
-
-    %{
-      backend_module_map: Map.new(backend_tool_modules, &{&1.name(), &1}),
-      mcp_tool_defs: Map.fetch!(opts, :mcp_tool_defs)
-    }
+        %{"type" => "image", "data" => data, "mimeType" => mime_type} ->
+          ContentPart.image(Base.decode64!(data), mime_type)
+      end),
+      is_error
+    )
   end
 
   defp register_mcp_tool(tool_call) do
@@ -187,6 +209,17 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       {:ok, _interaction} ->
         :ok
 
+      {:error, {:invalid_tool_arguments, _message}} ->
+        Logger.error("Tool argument parse failure", tool_parse_metadata(tool_call, task_id))
+
+        persist_error_tool_result(
+          scope,
+          task_id,
+          turn_number,
+          tool_call,
+          "Failed to parse arguments for tool"
+        )
+
       {:error, reason} ->
         Logger.error(
           "ToolExecutor: Failed to publish MCP tool call #{tool_call.id}: #{inspect(reason)}"
@@ -196,28 +229,18 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     end
   end
 
-  # --- Backend Tool Execution ---
-
   defp execute_backend_tool(scope, module, tool_call, task_id, turn_number) do
     Logger.debug("ToolExecutor: Executing backend tool #{tool_call.name}")
     {:ok, task} = Tasks.get_task(scope, task_id)
+    tool_call = SwarmAi.ToolCall.strip_null_arguments(tool_call)
 
     context = %Backend.Context{
       task: task
     }
 
     case SwarmAi.ToolCall.parse_arguments(tool_call) do
-      {:error, message} ->
-        metadata = [
-          error_type: "tool_parse_error",
-          tool_name: tool_call.name,
-          tool_call_id: tool_call.id,
-          task_id: task_id,
-          raw_arguments: String.slice(tool_call.arguments, 0, 500),
-          decode_error: message
-        ]
-
-        Logger.error("Tool argument parse failure", metadata)
+      {:error, _message} ->
+        Logger.error("Tool argument parse failure", tool_parse_metadata(tool_call, task_id))
 
         persist_error_tool_result(
           scope,
@@ -231,13 +254,22 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         do_run_backend_tool(
           scope,
           module,
-          SwarmAi.SchemaTransformer.strip_nulls(args),
+          args,
           context,
           tool_call,
           task_id,
           turn_number
         )
     end
+  end
+
+  defp tool_parse_metadata(tool_call, task_id) do
+    [
+      error_type: "tool_parse_error",
+      tool_name: tool_call.name,
+      tool_call_id: tool_call.id,
+      task_id: task_id
+    ]
   end
 
   defp do_run_backend_tool(scope, module, args, context, tool_call, task_id, turn_number) do
@@ -259,21 +291,23 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
          turn_number
        )
        when is_list(content) do
-    is_error = MCP.error?(result)
+    case result["isError"] do
+      true ->
+        metadata = [
+          error_type: "tool_soft_error",
+          tool_name: tool_call.name,
+          tool_call_id: tool_call.id,
+          task_id: task_id
+        ]
 
-    if is_error do
-      metadata = [
-        error_type: "tool_soft_error",
-        tool_name: tool_call.name,
-        tool_call_id: tool_call.id,
-        task_id: task_id,
-        reason: MCP.extract_content_text(result)
-      ]
+        Logger.error("Tool execution failed", metadata)
 
-      Logger.error("Tool execution failed", metadata)
+      _not_error ->
+        :ok
     end
 
     persist_tool_result(scope, task_id, turn_number, tool_call, result)
+    result
   end
 
   defp handle_backend_outcome(
@@ -309,9 +343,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp persist_tool_result(scope, task_id, turn_number, tool_call, result) do
     {:ok, _interaction, _executor_status} =
-      Tasks.resolve_tool_request(scope, task_id, tool_call, result, MCP.error?(result),
-        turn_number: turn_number
-      )
+      Tasks.resolve_tool_request(scope, task_id, tool_call, result, turn_number: turn_number)
 
     result
   end

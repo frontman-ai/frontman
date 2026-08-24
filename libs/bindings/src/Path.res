@@ -1,4 +1,3 @@
-// Path module bindings using node: prefix
 @module("node:path") @variadic
 external join: array<string> => string = "join"
 
