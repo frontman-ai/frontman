@@ -85,7 +85,7 @@
 		"@tiptap/pm": "3.30.1",
 		"@tiptap/react": "3.30.1",
 		"border-beam": "^1.3.0",
-		"diff": "^8.0.2"
+		"diff": "^9.0.0"
 	},
 	"peerDependencies": {
 		"react": "^19.2.7",
