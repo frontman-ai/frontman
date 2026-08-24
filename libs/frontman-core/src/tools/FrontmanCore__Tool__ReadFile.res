@@ -15,7 +15,7 @@ let description = `Reads a file from the filesystem.
 Parameters:
 - path (required): Path to file - either relative to source root or absolute (must be under source root)
 - offset (optional): Line number to start from (0-indexed, default: 0). Pass null or 0 to start from beginning.
-- limit (optional): Maximum lines to read (default: 500). Pass null or 500 for default.
+- limit (optional): Maximum lines to read (default: 500, capped at 1000). Pass null or 500 for default.
 
 Returns file content with metadata about total lines and whether more content exists.
 The _context field provides path resolution details for debugging.
@@ -224,7 +224,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
   string,
 > => {
   let offset = input.offset->Option.getOr(0)
-  let limit = input.limit->Option.getOr(500)
+  let limit = min(input.limit->Option.getOr(500), 1000)
 
   switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
   | Error(err) => Error(PathContext.formatError(err))
