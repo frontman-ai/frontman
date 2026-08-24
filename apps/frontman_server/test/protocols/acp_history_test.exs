@@ -1,74 +1,139 @@
 defmodule AgentClientProtocol.HistoryTest do
   use ExUnit.Case, async: true
 
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [
+      agent_error: 1,
+      agent_paused: 2,
+      agent_resp: 1,
+      agent_resp: 2,
+      interaction_row: 2,
+      tool_call: 3,
+      tool_result: 3,
+      tool_result: 4,
+      turn_started: 1,
+      user_msg: 1
+    ]
+
   alias AgentClientProtocol.History
   alias FrontmanServer.Agents.Agent
   alias FrontmanServer.Tasks.History, as: TaskHistory
-  alias FrontmanServer.Tasks.Interaction
-  alias FrontmanServer.Tasks.InteractionSchema
 
   @session_id "test-session-123"
   @timestamp ~U[2026-07-14 12:00:00.000000Z]
 
-  test "replays canonical row IDs, complete blocks, tools, errors, and response ordinals" do
+  test "replays canonical row IDs, complete blocks, and response ordinals" do
     rows = [
-      row("user-row", :user_message, nil, %Interaction.UserMessage{
-        id: "embedded-id",
-        agent_id: "executor-id",
-        messages: ["First", "Second"],
-        images: [],
-        timestamp: @timestamp
+      row("user-row", nil, %{
+        user_msg(["First", "Second"])
+        | id: "embedded-id",
+          agent_id: "executor-id",
+          timestamp: @timestamp
       }),
-      row("turn-row", :turn_started, 1, turn("turn-id", ["user-row"])),
-      row("empty-response", :agent_response, 1, response(nil)),
-      row("response", :agent_response, 1, response("Answer")),
-      row("tool", :tool_call, 1, %Interaction.ToolCall{
-        id: "tool",
-        tool_call_id: "call",
-        tool_name: "read_file",
-        arguments: %{"path" => "file"},
-        timestamp: @timestamp
-      }),
-      row("tool-result", :tool_result, 1, %Interaction.ToolResult{
-        tool_call_id: "call",
-        tool_name: "read_file",
-        result: %{
-          "content" => [%{"type" => "text", "text" => "{\"path\":\"file\"}"}],
-          "structuredContent" => %{"path" => "file"}
-        },
-        is_error: false,
-        timestamp: @timestamp
-      }),
-      row("error", :agent_error, 1, %Interaction.AgentError{
-        id: "error-id",
-        error: "Failed",
-        category: "unknown",
-        timestamp: @timestamp
-      })
+      row("turn-row", 1, turn("turn-id", ["user-row"])),
+      row("empty-response", 1, agent_resp(nil)),
+      row("response", 1, agent_resp("Answer"))
     ]
 
-    assert {:ok, replay} = build(rows)
-    updates = Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
-
-    assert [first, second, answer, tool_create, tool_result, error] = updates
+    assert [first, second, answer] = updates(rows)
     assert first["messageId"] == "user-row"
     assert second["messageId"] == "user-row"
     assert answer["messageId"] == "turn-row:1"
     assert answer["_meta"]["frontman.dev/agentId"] == "executor-id"
-    assert tool_create["rawInput"] == %{"path" => "file"}
-    refute Map.has_key?(tool_create, "content")
-    assert tool_result["rawOutput"] == %{"path" => "file"}
-    assert [%{"content" => %{"text" => "{\"path\":\"file\"}"}}] = tool_result["content"]
-    assert error["_meta"]["frontman.dev/agentErrorId"] == "error-id"
+  end
+
+  test "replays one tool call when response metadata also has a standalone call" do
+    rows = [
+      row("turn-row", 1, turn("turn-id", [])),
+      row(
+        "response",
+        1,
+        agent_resp(nil, %{
+          "tool_calls" => [
+            %{
+              "id" => "call",
+              "name" => "todo_write",
+              "arguments" => ~s({"source":"embedded"})
+            }
+          ]
+        })
+      ),
+      row("tool", 1, tool_call("call", "todo_write", %{"todos" => []})),
+      row(
+        "tool-result",
+        1,
+        tool_result(
+          "call",
+          "todo_write",
+          %{"content" => [], "structuredContent" => %{"todos" => []}}
+        )
+      )
+    ]
+
+    assert [tool_create, tool_result] = updates(rows)
+    assert tool_create["sessionUpdate"] == "tool_call"
+    assert tool_create["toolCallId"] == "call"
+    assert tool_create["rawInput"] == %{"todos" => []}
+    assert tool_result["sessionUpdate"] == "tool_call_update"
+    assert tool_result["toolCallId"] == "call"
+  end
+
+  test "replays embedded-only calls without malformed raw input" do
+    rows = [
+      row("turn-row", 1, turn("turn-id", [])),
+      row(
+        "response",
+        1,
+        agent_resp(nil, %{
+          "tool_calls" => [
+            %{"id" => "valid-call", "name" => "todo_write", "arguments" => ~s({"todos":[]})},
+            %{"id" => "call", "name" => "todo_write", "arguments" => "{invalid"}
+          ]
+        })
+      ),
+      row(
+        "tool-result",
+        1,
+        tool_result(
+          "call",
+          "todo_write",
+          %{
+            "content" => [%{"type" => "text", "text" => "Failed to parse arguments for tool"}],
+            "structuredContent" => %{}
+          },
+          is_error: true
+        )
+      )
+    ]
+
+    assert [valid_create, tool_create, tool_update] = updates(rows)
+
+    assert valid_create["rawInput"] == %{"todos" => []}
+    assert tool_create["sessionUpdate"] == "tool_call"
+    refute Map.has_key?(tool_create, "rawInput")
+    assert tool_update["sessionUpdate"] == "tool_call_update"
+    assert tool_update["status"] == "failed"
+  end
+
+  test "replays agent errors" do
+    error = %{agent_error("Failed") | id: "error-id", timestamp: @timestamp}
+
+    assert [update] =
+             updates([
+               row("turn-row", 1, turn("turn-id", [])),
+               row("error", 1, error)
+             ])
+
+    assert update["_meta"]["frontman.dev/agentErrorId"] == "error-id"
   end
 
   test "crashes when history references an agent outside the global catalog" do
     rows = [
-      row("turn-row", :turn_started, 1, %{
+      row("turn-row", 1, %{
         turn("archived-turn", [])
         | agent_id: "archived-id"
       }),
-      row("response", :agent_response, 1, response("Old answer"))
+      row("response", 1, agent_resp("Old answer"))
     ]
 
     assert_raise KeyError, fn -> build(rows) end
@@ -76,8 +141,8 @@ defmodule AgentClientProtocol.HistoryTest do
 
   test "crashes when persisted turn has no agent ID" do
     rows = [
-      row("turn-row", :turn_started, 1, %{turn("turn-id", []) | agent_id: nil}),
-      row("response", :agent_response, 1, response("Answer"))
+      row("turn-row", 1, %{turn("turn-id", []) | agent_id: nil}),
+      row("response", 1, agent_resp("Answer"))
     ]
 
     assert_raise FunctionClauseError, fn -> build(rows) end
@@ -85,8 +150,8 @@ defmodule AgentClientProtocol.HistoryTest do
 
   test "replays paused terminal state as requires_action" do
     rows = [
-      row("turn-row", :turn_started, 1, turn("turn-id", [])),
-      row("paused", :agent_paused, 1, %Interaction.AgentPaused{timestamp: @timestamp})
+      row("turn-row", 1, turn("turn-id", [])),
+      row("paused", 1, agent_paused("question", 120_000))
     ]
 
     assert {:ok, replay} = build(rows)
@@ -95,9 +160,8 @@ defmodule AgentClientProtocol.HistoryTest do
     assert update == %{"sessionUpdate" => "state_update", "state" => "requires_action"}
   end
 
-  defp row(id, type, turn_number, data) do
-    %InteractionSchema{id: id, type: type, turn_number: turn_number, data: data}
-  end
+  defp row(id, turn_number, interaction),
+    do: %{interaction_row(interaction, turn_number) | id: id}
 
   defp build(rows) do
     with {:ok, history} <- TaskHistory.new(rows),
@@ -105,16 +169,12 @@ defmodule AgentClientProtocol.HistoryTest do
   end
 
   defp turn(id, user_message_ids) do
-    %Interaction.TurnStarted{
-      id: id,
-      agent_id: "executor-id",
-      user_message_ids: user_message_ids,
-      timestamp: @timestamp
-    }
+    %{turn_started(user_message_ids) | id: id, agent_id: "executor-id", timestamp: @timestamp}
   end
 
-  defp response(content) do
-    %Interaction.AgentResponse{id: Ecto.UUID.generate(), content: content, timestamp: @timestamp}
+  defp updates(rows) do
+    {:ok, replay} = build(rows)
+    Enum.map(replay.notifications, &get_in(&1, ["params", "update"]))
   end
 
   defp agent do

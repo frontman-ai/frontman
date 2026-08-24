@@ -82,6 +82,18 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     Tasks.request_client_tool(scope, task_id, turn_number, swarm_tool_call)
   end
 
+  @doc "Persist an agent response and its matching client-handled tool call."
+  def persist_response_tool_call_fixture(scope, task_id, turn_number, content, tool_call) do
+    metadata = %{
+      "tool_calls" => [
+        %{"id" => tool_call.id, "name" => tool_call.name, "arguments" => tool_call.arguments}
+      ]
+    }
+
+    {:ok, _response} = Tasks.agent_replied(scope, task_id, turn_number, content, metadata)
+    Tasks.request_client_tool(scope, task_id, turn_number, tool_call)
+  end
+
   @doc """
   Persist a user message for tests without invoking the production execution API.
   """

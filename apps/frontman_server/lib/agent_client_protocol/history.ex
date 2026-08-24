@@ -25,40 +25,86 @@ defmodule AgentClientProtocol.History do
       when is_binary(session_id) and is_list(active_agents) do
     {rows, agent_ids} = TaskHistory.attributed_rows!(history)
     Agents.resolve_catalog!(active_agents, agent_ids)
-    notifications = Enum.flat_map(rows, &encode_row(&1, session_id))
+
+    standalone_tool_call_ids =
+      for %{
+            row: %InteractionSchema{
+              turn_number: turn_number,
+              data: %Interaction.ToolCall{tool_call_id: id}
+            }
+          } <- rows,
+          into: MapSet.new(),
+          do: {turn_number, id}
+
+    notifications =
+      Enum.flat_map(rows, &encode_row(&1, session_id, standalone_tool_call_ids))
+
     {:ok, %{notifications: notifications}}
   end
 
-  def encode_row(
-        %{
-          row: %InteractionSchema{data: %Interaction.AgentResponse{} = response},
-          turn_row: turn_row,
-          agent_id: agent_id,
-          response_ordinal: ordinal
-        },
-        session_id
-      ) do
-    case response.content do
-      content when content in [nil, ""] ->
-        []
+  def encode_row(context, session_id), do: encode_row(context, session_id, MapSet.new())
 
-      content when is_binary(content) ->
-        [
-          ACP.build_agent_message_chunk_notification(
-            session_id,
-            content,
-            response.timestamp,
-            ACP.agent_message_id(turn_row.id, ordinal),
-            agent_id
-          )
-        ]
-    end
+  defp encode_row(
+         %{
+           row: %InteractionSchema{
+             turn_number: turn_number,
+             data: %Interaction.AgentResponse{} = response
+           },
+           turn_row: turn_row,
+           agent_id: agent_id,
+           response_ordinal: ordinal
+         },
+         session_id,
+         standalone_tool_call_ids
+       ) do
+    content_notifications =
+      case response.content do
+        content when content in [nil, ""] ->
+          []
+
+        content when is_binary(content) ->
+          [
+            ACP.build_agent_message_chunk_notification(
+              session_id,
+              content,
+              response.timestamp,
+              ACP.agent_message_id(turn_row.id, ordinal),
+              agent_id
+            )
+          ]
+      end
+
+    tool_call_notifications =
+      response.metadata
+      |> Map.get("tool_calls")
+      |> Interaction.to_swarm_tool_calls()
+      |> Enum.reject(&MapSet.member?(standalone_tool_call_ids, {turn_number, &1.id}))
+      |> Enum.map(fn tool_call ->
+        arguments =
+          case Interaction.ToolCall.attrs(tool_call) do
+            {:ok, %{arguments: arguments}} -> arguments
+            {:error, {:invalid_tool_arguments, _message}} -> nil
+          end
+
+        ACP.tool_call_create(
+          session_id,
+          tool_call.id,
+          tool_call.name,
+          "other",
+          response.timestamp,
+          ACP.tool_call_status_pending(),
+          arguments
+        )
+      end)
+
+    content_notifications ++ tool_call_notifications
   end
 
-  def encode_row(
-        %{row: %InteractionSchema{data: data, type: type} = row} = context,
-        session_id
-      ) do
+  defp encode_row(
+         %{row: %InteractionSchema{data: data, type: type} = row} = context,
+         session_id,
+         _standalone_tool_call_ids
+       ) do
     case data do
       %Interaction.UserMessage{} = message ->
         message

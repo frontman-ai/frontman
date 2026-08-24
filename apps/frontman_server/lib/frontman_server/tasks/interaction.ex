@@ -1094,7 +1094,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       %SwarmMessage.Assistant{
         content: [],
-        tool_calls: swarm_tool_calls(meta["tool_calls"]),
+        tool_calls: to_swarm_tool_calls(meta["tool_calls"]),
         metadata: swarm_metadata(msg),
         reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
       }
@@ -1108,7 +1108,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       %SwarmMessage.Assistant{
         content: [SwarmContentPart.text(content)],
-        tool_calls: swarm_tool_calls(meta["tool_calls"]),
+        tool_calls: to_swarm_tool_calls(meta["tool_calls"]),
         metadata: swarm_metadata(msg),
         reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
       }
@@ -1329,10 +1329,10 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_attachment_context(text, _), do: text
 
-  defp swarm_tool_calls(nil), do: []
-  defp swarm_tool_calls([]), do: []
+  @doc "Converts persisted tool-call records into Swarm tool calls."
+  def to_swarm_tool_calls(nil), do: []
 
-  defp swarm_tool_calls(tool_calls) when is_list(tool_calls) do
+  def to_swarm_tool_calls(tool_calls) when is_list(tool_calls) do
     Enum.map(tool_calls, &swarm_tool_call/1)
   end
 
