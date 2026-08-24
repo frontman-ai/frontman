@@ -914,22 +914,54 @@ describe("Dry Run Mode", _t => {
 })
 
 describe("Dependency Installation Failure", _t => {
+  testAsync("fails when an installed dependency cannot be resolved", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    let packageDir = Path.join([tempDir, "node_modules", "@frontman-ai", "nextjs"])
+    let _ = await Fs.Promises.mkdir(packageDir, {recursive: true})
+    await Fs.Promises.writeFile(Path.join([packageDir, "package.json"]), `{"main":"index.js"}`)
+    await Fs.Promises.writeFile(Path.join([packageDir, "index.js"]), "")
+    let successfulExec = async (_command, _options): result<
+      ChildProcess.execResult,
+      ChildProcess.execError,
+    > => Ok({stdout: "", stderr: ""})
+
+    let result = await Install.installDependencies(
+      ~projectDir=tempDir,
+      ~packageManager=Detect.Npm,
+      ~dryRun=false,
+      ~exec=successfulExec,
+    )
+
+    switch result {
+    | Error(message) =>
+      t->expect(message->String.includes("@opentelemetry/sdk-node"))->Expect.toBe(true)
+    | Ok() => t->expect("success")->Expect.toBe("dependency resolution failure")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+
   testAsync("stops before writing integration files", async t => {
     let tempDir = await createTempFixture("nextjs15-clean")
-    let failingExec = async (_command, _options) =>
-      Error({
-        code: None,
-        stdout: "",
-        stderr: "network failure",
-        message: "network failure",
-      })
+    let failingExec = async (_command, _options): result<
+      ChildProcess.execResult,
+      ChildProcess.execError,
+    > => Error({
+      code: None,
+      stdout: "",
+      stderr: "network failure",
+      message: "network failure",
+    })
 
-    let result = await Install.run({
-      server: "test.frontman.dev",
-      prefix: Some(tempDir),
-      dryRun: false,
-      skipDeps: false,
-    }, ~exec=failingExec)
+    let result = await Install.run(
+      {
+        server: "test.frontman.dev",
+        prefix: Some(tempDir),
+        dryRun: false,
+        skipDeps: false,
+      },
+      ~exec=failingExec,
+    )
 
     switch result {
     | Install.Failure(message) =>

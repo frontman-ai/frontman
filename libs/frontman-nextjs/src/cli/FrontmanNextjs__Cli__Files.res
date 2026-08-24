@@ -264,39 +264,6 @@ let handleInstrumentation = async (
   }
 }
 
-let validateIntegration = async (
-  ~projectDir: string,
-  ~hasSrcDir: bool,
-  ~isNext16Plus: bool,
-  ~host: string,
-): result<unit, string> => {
-  let entrypoint = switch (hasSrcDir, isNext16Plus) {
-  | (true, true) => Path.join([projectDir, "src", "proxy.ts"])
-  | (false, true) => Path.join([projectDir, "proxy.ts"])
-  | (true, false) => Path.join([projectDir, "src", "middleware.ts"])
-  | (false, false) => Path.join([projectDir, "middleware.ts"])
-  }
-  let instrumentation = switch hasSrcDir {
-  | true => Path.join([projectDir, "src", "instrumentation.ts"])
-  | false => Path.join([projectDir, "instrumentation.ts"])
-  }
-
-  switch await Detect.analyzeFile(entrypoint) {
-  | Detect.NotFound => Error("Health check failed: entrypoint was not written")
-  | Detect.NeedsManualEdit => Error("Health check failed: entrypoint is not a Frontman integration")
-  | Detect.HasFrontman({host: entrypointHost}) =>
-    switch entrypointHost == host {
-    | true =>
-      switch await Detect.analyzeFile(instrumentation) {
-      | Detect.HasFrontman(_) => Ok()
-      | Detect.NotFound => Error("Health check failed: instrumentation was not written")
-      | Detect.NeedsManualEdit => Error("Health check failed: instrumentation is not a Frontman integration")
-      }
-    | false => Error(`Health check failed: entrypoint host is ${entrypointHost}`)
-    }
-  }
-}
-
 let formatResult = (result: fileResult): string => {
   switch result {
   | Created(fileName) => Templates.SuccessMessages.fileCreated(fileName)
