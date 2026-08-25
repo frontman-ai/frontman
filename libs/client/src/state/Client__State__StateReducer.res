@@ -587,7 +587,7 @@ let canShowFirstTaskFeedback = (state: state, task) =>
   TaskReducer.Selectors.completedIdleTurn(task)->Option.isSome &&
   TaskReducer.Selectors.queuedUserMessages(task)->Option.getOrThrow->Array.length == 0
 
-let resolveFeedbackHistory = state =>
+let resolveFeedbackHistory = (state: state) =>
   switch state.firstTaskFeedbackDialogState {
   | AwaitingHistory
     if state.sessionsLoadState == Client__State__Types.SessionsLoaded &&
