@@ -422,17 +422,13 @@ module Selectors = {
     state.updateBannerDismissed
   }
 
-  let highlightedAnnotation = (
-    state: state,
-  ): option<Client__State__Types.highlightedAnnotation> => {
+  let highlightedAnnotation = (state: state): option<
+    Client__State__Types.highlightedAnnotation,
+  > => {
     switch state.highlightedAnnotation {
     | Some(highlighted) if highlighted.taskId == currentTaskClientId(state) => Some(highlighted)
     | Some(_) | None => None
     }
-  }
-
-  let highlightedAnnotationSelector = (state: state): option<string> => {
-    highlightedAnnotation(state)->Option.map(highlighted => highlighted.selector)
   }
 
   let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {

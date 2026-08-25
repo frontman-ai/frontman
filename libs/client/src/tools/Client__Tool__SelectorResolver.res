@@ -102,13 +102,9 @@ let resolveBySelector = (~doc: WebAPI.DomTypes.document, ~selector: string, ~ind
   option<WebAPI.DomTypes.element>,
   int,
 ) => {
-  let elements = try {
-    switch classifySelector(selector) {
-    | CssSelector(css) => resolveCssSelector(~doc, ~selector=css)
-    | XPathExpression(xpath) => resolveXPath(~doc, ~xpath)
-    }
-  } catch {
-  | JsExn(_) => []
+  let elements = switch classifySelector(selector) {
+  | CssSelector(css) => resolveCssSelector(~doc, ~selector=css)
+  | XPathExpression(xpath) => resolveXPath(~doc, ~xpath)
   }
   (elements->Array.get(index), elements->Array.length)
 }

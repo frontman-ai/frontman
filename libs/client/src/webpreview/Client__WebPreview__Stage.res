@@ -79,8 +79,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     Client__State.Selectors.activePopupAnnotationId,
   )
 
-  let highlightedSelector = Client__State.useSelector(
-    Client__State.Selectors.highlightedAnnotationSelector,
+  let highlightedAnnotation = Client__State.useSelector(
+    Client__State.Selectors.highlightedAnnotation,
   )
   let (highlightedElement, setHighlightedElement) = React.useState((): option<
     WebAPI.DomTypes.element,
@@ -99,31 +99,27 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   )
   let hoveredElement = Client__Hooks.MouseMove.useIFrameDocument(~document, ~withCapture=true, ())
 
-  let lastScrolledSelector = React.useRef(None)
+  let lastScrolledHighlight = React.useRef(None)
 
   React.useEffect(() => {
-    switch (document, highlightedSelector) {
-    | (Some(doc), Some(selector)) =>
+    switch (document, highlightedAnnotation) {
+    | (Some(doc), Some({annotationId, selector})) =>
       let (element, _count) = Client__Tool__SelectorResolver.resolveBySelector(~doc, ~selector)
       setHighlightedElement(_ => element)
-    | (None, _) | (_, None) => setHighlightedElement(_ => None)
-    }
-    None
-  }, (document, highlightedSelector, mutationTimestamp))
-
-  React.useEffect(() => {
-    switch (highlightedSelector, highlightedElement) {
-    | (Some(selector), Some(element)) =>
-      switch lastScrolledSelector.current {
-      | Some(previous) if previous == selector => ()
-      | Some(_) | None =>
-        lastScrolledSelector.current = Some(selector)
+      switch (element, lastScrolledHighlight.current) {
+      | (Some(element), Some((previousId, previousElement)))
+        if annotationId == previousId && element === previousElement => ()
+      | (Some(element), _) =>
+        lastScrolledHighlight.current = Some((annotationId, element))
         element->WebAPI.Element.scrollIntoViewWithOptions({behavior: Smooth, block: Center})
+      | (None, _) => lastScrolledHighlight.current = None
       }
-    | (None, _) | (_, None) => lastScrolledSelector.current = None
+    | (None, _) | (_, None) =>
+      lastScrolledHighlight.current = None
+      setHighlightedElement(_ => None)
     }
     None
-  }, (highlightedSelector, highlightedElement))
+  }, (document, highlightedAnnotation, mutationTimestamp))
 
   React.useEffect(() => {
     switch (document, webPreviewIsSelecting) {
