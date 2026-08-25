@@ -1126,7 +1126,10 @@ let next = (state: state, action) => {
   | TaskExecutionStopped({taskId, stopReason}) => {
       let (state, effects) = state->Lens.delegateToTask(ForTask(taskId), ExecutionStateIdle)
       let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-      let feedbackState = switch (state.firstTaskFeedbackDialogState, stopReason) {
+      let feedbackState: Client__State__Types.firstTaskFeedbackDialogState = switch (
+        state.firstTaskFeedbackDialogState,
+        stopReason,
+      ) {
       | (Waiting, Some(EndTurn)) =>
         switch (canShowFirstTaskFeedback(state, task), Selectors.pendingPlanHandoff(state)) {
         | (true, None) =>
