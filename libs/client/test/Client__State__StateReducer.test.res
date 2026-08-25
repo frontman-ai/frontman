@@ -463,32 +463,25 @@ describe("Client State Reducer - First Task Feedback Dialog", () => {
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
     state->reduce(TaskExecutionStopped({taskId, stopReason}))
   }
-
   let completeSuccessfulTurn = state => stopTurn(state, Some(ACP.EndTurn))
+  let loadHistory = state => state->reduce(SessionsLoadSuccess({sessions: []}))
+  let expectOpen = (t, state, expected) =>
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(state))->Expect.toBe(expected)
 
   test("opens only after the first task's first successful turn", t => {
-    let refusedState = firstTurnState()->stopTurn(Some(ACP.Refusal))
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(refusedState))->Expect.toBe(false)
-
-    t
-    ->expect(
-      Reducer.Selectors.showFirstTaskFeedbackDialog(firstTurnState()->completeSuccessfulTurn),
-    )
-    ->Expect.toBe(true)
+    expectOpen(t, firstTurnState()->stopTurn(Some(ACP.Refusal)), false)
+    expectOpen(t, firstTurnState()->completeSuccessfulTurn, true)
   })
 
   test("waits for session history and only celebrates a new user", t => {
     let pendingState =
       firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(pendingState))->Expect.toBe(false)
-
-    let newUserState = pendingState->reduce(SessionsLoadSuccess({sessions: []}))
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(newUserState))->Expect.toBe(true)
+    expectOpen(t, pendingState, false)
+    expectOpen(t, pendingState->loadHistory, true)
 
     let returningUserState = {...pendingState, tasks: pendingState.tasks->Dict.copy}
     returningUserState.tasks->Dict.set("previous-task", Task.makeNew(~previewUrl=""))
-    let returningUserState = returningUserState->reduce(SessionsLoadSuccess({sessions: []}))
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(returningUserState))->Expect.toBe(false)
+    expectOpen(t, returningUserState->loadHistory, false)
 
     let failedState = pendingState->reduce(SessionsLoadError({error: "unavailable"}))
     t->expect(failedState.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
@@ -508,13 +501,7 @@ describe("Client State Reducer - First Task Feedback Dialog", () => {
         agentId: "test-agent",
       }),
     )
-    t
-    ->expect(
-      Reducer.Selectors.showFirstTaskFeedbackDialog(
-        Reducer.next(queuedState, SessionsLoadSuccess({sessions: []}))->Pair.first,
-      ),
-    )
-    ->Expect.toBe(false)
+    expectOpen(t, queuedState->loadHistory, false)
   })
 
   test("waits for planner execution before celebrating", t => {
@@ -542,9 +529,7 @@ describe("Client State Reducer - First Task Feedback Dialog", () => {
         }),
       }),
     )
-    t
-    ->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(executingState->completeSuccessfulTurn))
-    ->Expect.toBe(true)
+    expectOpen(t, executingState->completeSuccessfulTurn, true)
   })
 })
 

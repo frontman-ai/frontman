@@ -16,6 +16,7 @@ module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 type state = Client__State__Types.state
 
 module TaskReducer = Client__Task__Reducer
+module FirstTaskFeedbackShare = Client__State__FirstTaskFeedbackShare
 
 type taskTarget = CurrentTask | ForTask(string)
 
@@ -428,16 +429,14 @@ module Selectors = {
     state.updateBannerDismissed
   }
 
-  let showFirstTaskFeedbackDialog = (state: state): bool => {
+  let showFirstTaskFeedbackDialog = (state: state) =>
     switch state.firstTaskFeedbackDialogState {
     | Visible | LinkCopied => true
     | Waiting | AwaitingHistory | Dismissed => false
     }
-  }
 
-  let firstTaskFeedbackLinkCopied = (state: state): bool => {
+  let firstTaskFeedbackLinkCopied = (state: state) =>
     state.firstTaskFeedbackDialogState == LinkCopied
-  }
 
   let highlightedAnnotation = (state: state): option<
     Client__State__Types.highlightedAnnotation,
@@ -599,43 +598,6 @@ let resolveFeedbackHistory = (state: state) =>
   | AwaitingHistory => {...state, firstTaskFeedbackDialogState: Dismissed}
   | Waiting | Visible | LinkCopied | Dismissed => state
   }
-
-type shareData = {"title": string, "text": string, "url": string}
-
-@get
-external navigatorShareMethod: WebAPI.DomTypes.navigator => Nullable.t<shareData => promise<unit>> =
-  "share"
-
-@send
-external shareWithNavigator: (WebAPI.DomTypes.navigator, shareData) => promise<unit> = "share"
-
-let shareFrontmanImpl = async dispatch => {
-  let navigator = WebAPI.Window.current->WebAPI.Window.navigator
-  let data: shareData = {
-    "title": "Frontman",
-    "text": "I just completed my first task with Frontman, an AI website editor for WordPress, Next.js, Astro, and Vite. Check it out:",
-    "url": "https://frontman.sh",
-  }
-
-  switch navigator->navigatorShareMethod->Nullable.toOption {
-  | Some(_) =>
-    try {
-      await navigator->shareWithNavigator(data)
-      dispatch(DismissFirstTaskFeedbackDialog)
-    } catch {
-    | exn =>
-      switch exn->JsExn.fromException->Option.map(FrontmanBindings.JsException.name) {
-      | Some("AbortError") => ()
-      | _ => throw(exn)
-      }
-    }
-  | None =>
-    await navigator
-    ->WebAPI.Navigator.clipboard
-    ->WebAPI.Clipboard.writeText(`${data["text"]} ${data["url"]}`)
-    dispatch(ShareFrontmanLinkCopied)
-  }
-}
 
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
@@ -1117,7 +1079,11 @@ let handleEffect = (effect, state: state, dispatch) => {
       }
     }
     fetch()->ignore
-  | ShareFrontmanEffect => shareFrontmanImpl(dispatch)->ignore
+  | ShareFrontmanEffect =>
+    FirstTaskFeedbackShare.run(
+      ~onShared=() => dispatch(DismissFirstTaskFeedbackDialog),
+      ~onCopied=() => dispatch(ShareFrontmanLinkCopied),
+    )
   }
 }
 

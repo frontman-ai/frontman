@@ -2,33 +2,21 @@ module Button = Client__UI__Button
 module Dialog = Client__UI__Dialog
 module Icons = Client__UI__Icons
 
-type ratingLink = {url: string, label: string}
-
-let ratingLink = (framework: Client__RuntimeConfig.frameworkId): ratingLink =>
-  switch framework {
-  | Nextjs | Vite | Astro => {
-      url: "https://github.com/frontman-ai/frontman",
-      label: "Star us on GitHub",
-    }
-  | Wordpress => {
-      url: "https://wordpress.org/plugins/frontman-agentic-ai-editor/",
-      label: "Leave a review",
-    }
-  }
-
 @react.component
 let make = () => {
   let open_ = Client__State.useSelector(Client__State.Selectors.showFirstTaskFeedbackDialog)
   let linkCopied = Client__State.useSelector(Client__State.Selectors.firstTaskFeedbackLinkCopied)
-  let dismiss = Client__State.Actions.dismissFirstTaskFeedbackDialog
-  let ratingLink = ratingLink(Client__RuntimeConfig.read().framework)
+  let (ratingUrl, ratingLabel) = switch Client__RuntimeConfig.read().framework {
+  | Nextjs | Vite | Astro => ("https://github.com/frontman-ai/frontman", "Star us on GitHub")
+  | Wordpress => ("https://wordpress.org/plugins/frontman-agentic-ai-editor/", "Leave a review")
+  }
 
   <Dialog
     open_
     onOpenChange={(isOpen, _) =>
       switch isOpen {
       | true => ()
-      | false => dismiss()
+      | false => Client__State.Actions.dismissFirstTaskFeedbackDialog()
       }}
   >
     <Dialog.Content className="sm:max-w-md">
@@ -60,13 +48,13 @@ let make = () => {
           }}
         </Button>
         <a
-          href={ratingLink.url}
+          href=ratingUrl
           target="_blank"
           rel="noopener noreferrer"
           className={Button.buttonVariants()}
-          onClick={_ => dismiss()}
+          onClick={_ => Client__State.Actions.dismissFirstTaskFeedbackDialog()}
         >
-          {React.string(ratingLink.label)}
+          {React.string(ratingLabel)}
         </a>
       </Dialog.Footer>
     </Dialog.Content>
