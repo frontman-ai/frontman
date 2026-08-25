@@ -71,7 +71,7 @@ module PlanItem = {
 
 @react.component
 let make = (~entries: array<ACPTypes.planEntry>) => {
-  let (isExpanded, setIsExpanded) = React.useState(() => true)
+  let (isExpanded, setIsExpanded) = React.useState(() => false)
 
   switch shouldRender(entries) {
   | false => React.null
@@ -94,7 +94,9 @@ let make = (~entries: array<ACPTypes.planEntry>) => {
                 : "-rotate-90"}`}
           />
           <span className="text-xs font-medium text-zinc-300">
-            {React.string(`Plan (${completedCount->Int.toString}/${totalCount->Int.toString})`)}
+            {React.string(
+              `Agent is working (${completedCount->Int.toString}/${totalCount->Int.toString})`,
+            )}
           </span>
         </div>
         <div className="flex items-center gap-2">
