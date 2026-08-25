@@ -105,19 +105,24 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     | (Some(doc), Some(selector)) =>
       let (element, _count) = Client__Tool__SelectorResolver.resolveBySelector(~doc, ~selector)
       setHighlightedElement(_ => element)
-      switch (element, lastScrolledSelector.current) {
-      | (Some(_), Some(previous)) if previous == selector => ()
-      | (Some(element), _) =>
-        lastScrolledSelector.current = Some(selector)
-        element->WebAPI.Element.scrollIntoViewWithOptions({behavior: Smooth, block: Center})
-      | (None, _) => lastScrolledSelector.current = None
-      }
-    | _ =>
-      lastScrolledSelector.current = None
-      setHighlightedElement(_ => None)
+    | (None, _) | (_, None) => setHighlightedElement(_ => None)
     }
     None
   }, (document, highlightedSelector, mutationTimestamp))
+
+  React.useEffect(() => {
+    switch (highlightedSelector, highlightedElement) {
+    | (Some(selector), Some(element)) =>
+      switch lastScrolledSelector.current {
+      | Some(previous) if previous == selector => ()
+      | Some(_) | None =>
+        lastScrolledSelector.current = Some(selector)
+        element->WebAPI.Element.scrollIntoViewWithOptions({behavior: Smooth, block: Center})
+      }
+    | (None, _) | (_, None) => lastScrolledSelector.current = None
+    }
+    None
+  }, (highlightedSelector, highlightedElement))
 
   React.useEffect(() => {
     switch (document, webPreviewIsSelecting) {
