@@ -379,6 +379,12 @@ let make = (~onConfigureProvider: unit => unit) => {
           </div>
         }}
 
+        {switch (hasActiveACPSession, totalItems) {
+        | (true, 0) =>
+          <Client__GetStartedTasks onSelect={text => handleSubmit(~text, ~inputItems=[])} />
+        | _ => React.null
+        }}
+
         {displayItems
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
