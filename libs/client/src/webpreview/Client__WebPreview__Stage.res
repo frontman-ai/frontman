@@ -79,8 +79,16 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     Client__State.Selectors.activePopupAnnotationId,
   )
 
+  let highlightedAnnotation = Client__State.useSelector(
+    Client__State.Selectors.highlightedAnnotation,
+  )
+  let (highlightedElement, setHighlightedElement) = React.useState((): option<
+    WebAPI.DomTypes.element,
+  > => None)
+
   let scrollTimestamp = Client__Hooks.Scroll.useIFrameDocument(~document, ~withCapture=true, ())
-  let mutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
+  let domMutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
+  let mutationTimestamp = React.useMemo2(() => Date.now(), (domMutationTimestamp, viewportStyle))
   let clickedElement = Client__Hooks.MouseClick.useIFrameDocument(
     ~document,
     ~withCapture=webPreviewIsSelecting,
@@ -90,6 +98,28 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     (),
   )
   let hoveredElement = Client__Hooks.MouseMove.useIFrameDocument(~document, ~withCapture=true, ())
+
+  let lastScrolledHighlight = React.useRef(None)
+
+  React.useEffect(() => {
+    switch (document, highlightedAnnotation) {
+    | (Some(doc), Some({annotationId, selector})) =>
+      let (element, _count) = Client__Tool__SelectorResolver.resolveBySelector(~doc, ~selector)
+      setHighlightedElement(_ => element)
+      switch (element, lastScrolledHighlight.current) {
+      | (Some(element), Some((previousId, previousElement)))
+        if annotationId == previousId && element === previousElement => ()
+      | (Some(element), _) =>
+        lastScrolledHighlight.current = Some((annotationId, element))
+        element->WebAPI.Element.scrollIntoViewWithOptions({behavior: Smooth, block: Center})
+      | (None, _) => lastScrolledHighlight.current = None
+      }
+    | (None, _) | (_, None) =>
+      lastScrolledHighlight.current = None
+      setHighlightedElement(_ => None)
+    }
+    None
+  }, (document, highlightedAnnotation, mutationTimestamp))
 
   React.useEffect(() => {
     switch (document, webPreviewIsSelecting) {
@@ -347,7 +377,10 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let hoverOverlay = switch (webPreviewIsSelecting, dragState) {
   | (true, Idle) =>
     <Client__WebPreview__HoveredElement
-      key="hover" element={hoveredElement} scrollTimestamp={scrollTimestamp}
+      key="hover"
+      element={hoveredElement}
+      scrollTimestamp={scrollTimestamp}
+      mutationTimestamp={mutationTimestamp}
     />
   | _ => React.null
   }
@@ -369,6 +402,17 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       />
     }
   | Idle => React.null
+  }
+
+  let highlightOverlay = switch highlightedElement {
+  | Some(_) =>
+    <Client__WebPreview__HoveredElement
+      key="highlight"
+      element={highlightedElement}
+      scrollTimestamp={scrollTimestamp}
+      mutationTimestamp={mutationTimestamp}
+    />
+  | None => React.null
   }
 
   let annotationMarkersOverlay =
@@ -411,6 +455,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       selectionModeIndicator
       hoverOverlay
       dragOverlay
+      highlightOverlay
       annotationMarkersOverlay
       annotationPopupOverlay
     </div>
@@ -436,6 +481,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         selectionModeIndicator
         hoverOverlay
         dragOverlay
+        highlightOverlay
         annotationMarkersOverlay
         annotationPopupOverlay
       </div>

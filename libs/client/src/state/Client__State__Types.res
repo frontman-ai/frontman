@@ -157,6 +157,12 @@ type updateCheckStatus =
   | UpdateNotChecked
   | UpdateChecked
 
+type highlightedAnnotation = {
+  taskId: string,
+  annotationId: string,
+  selector: string,
+}
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
@@ -177,4 +183,5 @@ type state = {
   updateInfo: option<updateInfo>,
   updateCheckStatus: updateCheckStatus,
   updateBannerDismissed: bool,
+  highlightedAnnotation: option<highlightedAnnotation>,
 }

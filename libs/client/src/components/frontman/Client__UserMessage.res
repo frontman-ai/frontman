@@ -47,6 +47,9 @@ let make = (
     ? "frontman-content-auto animate-in fade-in duration-100"
     : "frontman-content-auto"
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
+  let highlightedAnnotation = Client__State.useSelector(
+    Client__State.Selectors.highlightedAnnotation,
+  )
 
   let imageParts = content->Array.filterMap(part =>
     switch part {
@@ -89,17 +92,50 @@ let make = (
                   : `<${annotation.tagName}>`
               | None => `<${annotation.tagName}>`
               }
+              let selector = switch annotation.selector {
+              | Ok(Some(selector)) => Some(selector)
+              | Ok(None) | Error(_) => None
+              }
+              let isHighlighted = switch highlightedAnnotation {
+              | Some(highlighted) => highlighted.annotationId == annotation.id
+              | None => false
+              }
+              let baseChipClass = "flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0 w-full text-xs font-mono text-left disabled:cursor-default"
+              let chipClass = switch (selector, isHighlighted) {
+              | (Some(_), true) =>
+                `${baseChipClass} bg-violet-400/80 text-white cursor-pointer ring-1 ring-white/70 transition-colors`
+              | (Some(_), false) =>
+                `${baseChipClass} bg-violet-500/60 text-violet-100 cursor-pointer hover:bg-violet-400/70 transition-colors`
+              | (None, _) => `${baseChipClass} bg-violet-500/60 text-violet-100`
+              }
+              let chipTitle = switch selector {
+              | Some(_) => "Click to highlight in preview"
+              | None => "No selector captured for this element"
+              }
+
               <div
                 key={`${messageId}-ann-${Int.toString(i)}`}
                 className="flex flex-col gap-0.5 min-w-0 w-full"
               >
-                <div
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0 w-full
-                             bg-violet-500/60 text-violet-100 text-xs font-mono"
+                <button
+                  type_="button"
+                  className=chipClass
+                  title=chipTitle
+                  disabled={selector->Option.isNone}
+                  ariaPressed={isHighlighted ? #"true" : #"false"}
+                  onClick={_ =>
+                    switch selector {
+                    | Some(selector) =>
+                      Client__State.Actions.highlightAnnotation(
+                        ~annotationId=annotation.id,
+                        ~selector,
+                      )
+                    | None => ()
+                    }}
                 >
                   <span className="text-violet-200 shrink-0"> {React.string(badge)} </span>
                   <span className="truncate min-w-0 flex-1"> {React.string(label)} </span>
-                </div>
+                </button>
                 {switch annotation.comment {
                 | Some(comment) =>
                   <div className="text-[11px] text-violet-200/80 italic pl-1 w-full truncate">
