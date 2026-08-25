@@ -17,12 +17,14 @@ let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRunt
 afterEach(() => clearRuntime())
 
 module TestHelpers = {
-  let activeAcpSession: Client__State__Types.acpSession = AcpSessionActive({
+  let activeAcpSession = (
+    ~deleteSession=(_, ~onComplete as _) => (),
+  ): Client__State__Types.acpSession => AcpSessionActive({
     sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
     cancelPrompt: () => (),
     retryTurn: _ => (),
     loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-    deleteSession: (_, ~onComplete as _) => (),
+    deleteSession,
     apiBaseUrl: "http://localhost:4000",
   })
 
@@ -146,7 +148,7 @@ let plannerPlan = Reducer.Message.Assistant(
 
 let withPlanHandoffContext = (state: Client__State__Types.state): Client__State__Types.state => {
   ...state,
-  acpSession: TestHelpers.activeAcpSession,
+  acpSession: TestHelpers.activeAcpSession(),
   agentCatalog: Some([planner, executor]),
 }
 
@@ -826,26 +828,22 @@ describe("Client State Reducer - Task Management Actions", () => {
     }
   })
 
-  test("DeleteTask switches to New when deleting only task", t => {
-    let task1 = TestHelpers.makeLoadedTask(
-      ~id="task-1",
-      ~title="Task 1",
-      ~previewUrl="http://localhost:3000",
-      ~createdAt=1000.0,
-    )
-
-    let tasks = Dict.make()
-    tasks->Dict.set("task-1", task1)
-
-    let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
-
-    let (nextState, _) = Reducer.next(state, DeleteTask({taskId: "task-1"}))
-
-    t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(0)
-    switch nextState.currentTask {
-    | Task.New(_) => t->expect(true)->Expect.toBe(true)
-    | Task.Selected(_) => t->expect(false)->Expect.toBe(true)
+  test("DeleteTask removes the task and its session", t => {
+    let deletedTaskId = ref(None)
+    let state = {
+      ...TestHelpers.makeStateWithTask(~taskId="task-1"),
+      acpSession: TestHelpers.activeAcpSession(
+        ~deleteSession=(taskId, ~onComplete as _) => deletedTaskId := Some(taskId),
+      ),
     }
+    let store = StateStore.make(module(Reducer), state)
+
+    store->StateStore.dispatch(DeleteTask({taskId: "task-1"}))
+    let state = store->StateStore.getState
+
+    t->expect(TestHelpers.getTaskCount(state))->Expect.toBe(0)
+    t->expect(Reducer.Selectors.currentTaskId(state))->Expect.toEqual(None)
+    t->expect(deletedTaskId.contents)->Expect.toEqual(Some("task-1"))
   })
 
   test("AddUserMessage after deleting last task creates new task", t => {
@@ -1368,7 +1366,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let _makeStateWithSession = () => {
       {
         ...Reducer.defaultState,
-        acpSession: TestHelpers.activeAcpSession,
+        acpSession: TestHelpers.activeAcpSession(),
         selectedModelValue: None,
       }
     }
