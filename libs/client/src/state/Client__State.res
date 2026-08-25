@@ -148,8 +148,8 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
     )
 
-  let executionStateIdle = (~taskId: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}))
+  let executionStateIdle = (~taskId: string, ~stopReason) =>
+    Client__State__Store.dispatch(TaskExecutionStopped({taskId, stopReason}))
 
   let executionStateRequiresAction = (~taskId: string) =>
     Client__State__Store.dispatch(

@@ -54,7 +54,10 @@ let make = () => {
           disabled={linkCopied}
           onClick={_ => Client__State.Actions.shareFrontman()}
         >
-          {React.string(linkCopied ? "Link copied" : "Share Frontman")}
+          {switch linkCopied {
+          | true => React.string("Link copied")
+          | false => React.string("Share Frontman")
+          }}
         </Button>
         <a
           href={ratingLink.url}

@@ -25,6 +25,7 @@ type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 
 type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
+  | TaskExecutionStopped({taskId: string, stopReason: option<ACP.stopReason>})
   | AddUserMessage({
       id: Message.UserMessageId.t,
       sessionId: string,
@@ -430,7 +431,7 @@ module Selectors = {
   let showFirstTaskFeedbackDialog = (state: state): bool => {
     switch state.firstTaskFeedbackDialogState {
     | Visible | LinkCopied => true
-    | Waiting | Dismissed => false
+    | Waiting | AwaitingHistory | Dismissed => false
     }
   }
 
@@ -581,6 +582,24 @@ let targetIsCurrent = (state: state, target: taskTarget): bool =>
   | ForTask(taskId) => Selectors.currentTaskId(state) == Some(taskId)
   }
 
+let canShowFirstTaskFeedback = (state, task) =>
+  state.tasks->Dict.valuesToArray->Array.length == 1 &&
+  TaskReducer.Selectors.completedIdleTurn(task)->Option.isSome &&
+  TaskReducer.Selectors.queuedUserMessages(task)->Option.getOrThrow->Array.length == 0
+
+let resolveFeedbackHistory = state =>
+  switch state.firstTaskFeedbackDialogState {
+  | AwaitingHistory
+    if state.sessionsLoadState == Client__State__Types.SessionsLoaded &&
+    Selectors.pendingPlanHandoff(state)->Option.isNone &&
+    canShowFirstTaskFeedback(state, Selectors.currentTask(state)) => {
+      ...state,
+      firstTaskFeedbackDialogState: Visible,
+    }
+  | AwaitingHistory => {...state, firstTaskFeedbackDialogState: Dismissed}
+  | Waiting | Visible | LinkCopied | Dismissed => state
+  }
+
 type shareData = {title: string, text: string, url: string}
 
 @get
@@ -590,35 +609,32 @@ external navigatorShareMethod: WebAPI.DomTypes.navigator => Nullable.t<shareData
 @send
 external shareWithNavigator: (WebAPI.DomTypes.navigator, shareData) => promise<unit> = "share"
 
-let shareFrontmanImpl = dispatch => {
-  let share = async () => {
-    let navigator = WebAPI.Window.current->WebAPI.Window.navigator
-    let url = "https://frontman.sh"
-    let text = "I just completed my first task with Frontman, an AI website editor for WordPress, Next.js, Astro, and Vite. Check it out:"
-    let data = {
-      title: "Frontman",
-      text,
-      url,
-    }
-
-    switch navigator->navigatorShareMethod->Nullable.toOption {
-    | Some(_) =>
-      try {
-        await navigator->shareWithNavigator(data)
-        dispatch(DismissFirstTaskFeedbackDialog)
-      } catch {
-      | exn =>
-        switch exn->JsExn.fromException->Option.map(FrontmanBindings.JsException.name) {
-        | Some("AbortError") => ()
-        | _ => throw(exn)
-        }
-      }
-    | None =>
-      await navigator->WebAPI.Navigator.clipboard->WebAPI.Clipboard.writeText(`${text} ${url}`)
-      dispatch(ShareFrontmanLinkCopied)
-    }
+let shareFrontmanImpl = async dispatch => {
+  let navigator = WebAPI.Window.current->WebAPI.Window.navigator
+  let data = {
+    title: "Frontman",
+    text: "I just completed my first task with Frontman, an AI website editor for WordPress, Next.js, Astro, and Vite. Check it out:",
+    url: "https://frontman.sh",
   }
-  share()->ignore
+
+  switch navigator->navigatorShareMethod->Nullable.toOption {
+  | Some(_) =>
+    try {
+      await navigator->shareWithNavigator(data)
+      dispatch(DismissFirstTaskFeedbackDialog)
+    } catch {
+    | exn =>
+      switch exn->JsExn.fromException->Option.map(FrontmanBindings.JsException.name) {
+      | Some("AbortError") => ()
+      | _ => throw(exn)
+      }
+    }
+  | None =>
+    await navigator
+    ->WebAPI.Navigator.clipboard
+    ->WebAPI.Clipboard.writeText(`${data.text} ${data.url}`)
+    dispatch(ShareFrontmanLinkCopied)
+  }
 }
 
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
@@ -1101,37 +1117,33 @@ let handleEffect = (effect, state: state, dispatch) => {
       }
     }
     fetch()->ignore
-  | ShareFrontmanEffect => shareFrontmanImpl(dispatch)
+  | ShareFrontmanEffect => shareFrontmanImpl(dispatch)->ignore
   }
 }
 
 let next = (state: state, action) => {
   switch action {
-  | TaskAction({target, action: ExecutionStateIdle}) => {
-      let (updatedState, taskEffects) = state->Lens.delegateToTask(target, ExecutionStateIdle)
-      let completedTask = switch target {
-      | CurrentTask => Selectors.currentTask(updatedState)
-      | ForTask(taskId) => updatedState.tasks->Dict.get(taskId)->Option.getOrThrow
-      }
-      let userMessageCount = Task.getMessages(completedTask)->Array.reduce(0, (count, message) =>
-        switch message {
-        | Message.User(_) => count + 1
-        | Message.Assistant(_) | Message.ToolCall(_) | Message.Error(_) => count
+  | TaskExecutionStopped({taskId, stopReason}) => {
+      let (state, effects) = state->Lens.delegateToTask(ForTask(taskId), ExecutionStateIdle)
+      let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+      let feedbackState = switch (state.firstTaskFeedbackDialogState, stopReason) {
+      | (Waiting, Some(EndTurn)) =>
+        switch (canShowFirstTaskFeedback(state, task), Selectors.pendingPlanHandoff(state)) {
+        | (true, None) =>
+          switch state.sessionsLoadState {
+          | Client__State__Types.SessionsLoaded => Visible
+          | Client__State__Types.SessionsNotLoaded | Client__State__Types.SessionsLoading =>
+            AwaitingHistory
+          | Client__State__Types.SessionsLoadError(_) => Dismissed
+          }
+        | (false, _) => Dismissed
+        | (true, Some(_)) => Waiting
         }
+      | _ => state.firstTaskFeedbackDialogState
+      }
+      {...state, firstTaskFeedbackDialogState: feedbackState}->StateReducer.update(
+        ~sideEffects=effects,
       )
-      let shouldShowFeedback =
-        state.firstTaskFeedbackDialogState == Waiting &&
-        updatedState.tasks->Dict.valuesToArray->Array.length == 1 &&
-        userMessageCount == 1 &&
-        TaskReducer.Selectors.completedIdleTurn(completedTask)->Option.isSome
-      let updatedState = switch shouldShowFeedback {
-      | true => {
-          ...updatedState,
-          firstTaskFeedbackDialogState: Visible,
-        }
-      | false => updatedState
-      }
-      updatedState->StateReducer.update(~sideEffects=taskEffects)
     }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
@@ -1630,13 +1642,17 @@ let next = (state: state, action) => {
       ...state,
       tasks: updatedTasks,
       sessionsLoadState: Client__State__Types.SessionsLoaded,
-    }->StateReducer.update
+    }
+    ->resolveFeedbackHistory
+    ->StateReducer.update
 
   | SessionsLoadError({error}) =>
     {
       ...state,
       sessionsLoadState: Client__State__Types.SessionsLoadError(error),
-    }->StateReducer.update
+    }
+    ->resolveFeedbackHistory
+    ->StateReducer.update
 
   | CheckForUpdate({installedVersion, npmPackage}) =>
     switch (state.updateCheckStatus, state.acpSession) {
@@ -1661,13 +1677,13 @@ let next = (state: state, action) => {
   | ShareFrontman =>
     switch state.firstTaskFeedbackDialogState {
     | Visible => state->StateReducer.update(~sideEffects=[ShareFrontmanEffect])
-    | Waiting | LinkCopied | Dismissed => state->StateReducer.update
+    | Waiting | AwaitingHistory | LinkCopied | Dismissed => state->StateReducer.update
     }
 
   | ShareFrontmanLinkCopied =>
     switch state.firstTaskFeedbackDialogState {
     | Visible => {...state, firstTaskFeedbackDialogState: LinkCopied}->StateReducer.update
-    | Waiting | LinkCopied | Dismissed => state->StateReducer.update
+    | Waiting | AwaitingHistory | LinkCopied | Dismissed => state->StateReducer.update
     }
 
   | HighlightAnnotation({annotationId, selector}) =>

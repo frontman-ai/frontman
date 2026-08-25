@@ -1,6 +1,7 @@
 open Vitest
 
 module Reducer = Client__State__StateReducer
+module StateTypes = Client__State__Types
 module TaskReducer = Client__Task__Reducer
 module Task = Client__State__Types.Task
 module UserContentPart = Client__State__Types.UserContentPart
@@ -441,131 +442,109 @@ describe("Client State Reducer", () => {
 })
 
 describe("Client State Reducer - First Task Feedback Dialog", () => {
-  let firstTurnState = () =>
-    TestHelpers.makeStateWithTask(
+  let firstTurnState = (~agentId="test-agent", ~sessionsLoadState=StateTypes.SessionsLoaded) => {
+    ...TestHelpers.makeStateWithTask(
       ~isAgentRunning=true,
       ~messages=[
         Reducer.Message.User({
           id: "user-1",
           content: [UserContentPart.text("Build something")],
           annotations: [],
-          agentId: "test-agent",
+          agentId,
         }),
-        Reducer.Message.Assistant(
-          Streaming({id: "assistant-1", textBuffer: "Done", agentId: "test-agent"}),
-        ),
+        Reducer.Message.Assistant(Streaming({id: "assistant-1", textBuffer: "Done", agentId})),
       ],
-    )
+    ),
+    sessionsLoadState,
+  }
 
-  test("opens after the first task's first successful turn completes", t => {
-    let state = firstTurnState()
+  let reduce = (state, action) => Reducer.next(state, action)->Pair.first
+  let stopTurn = (state, stopReason) => {
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
-    )
+    state->reduce(TaskExecutionStopped({taskId, stopReason}))
+  }
 
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(true)
-  })
+  let completeSuccessfulTurn = state => stopTurn(state, Some(ACP.EndTurn))
 
-  test("dismissal remains terminal after later completion and a stale share result", t => {
-    let state = firstTurnState()
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (state, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
-    )
-    let (state, _) = Reducer.next(state, DismissFirstTaskFeedbackDialog)
-    t->expect(state.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
+  test("opens only after the first task's first successful turn", t => {
+    let refusedState = firstTurnState()->stopTurn(Some(ACP.Refusal))
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(refusedState))->Expect.toBe(false)
 
-    let (state, _) = Reducer.next(state, ShareFrontmanLinkCopied)
-    t->expect(state.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
-
-    let (state, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
-    )
-    let (state, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
-    )
-    t->expect(state.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
-  })
-
-  test("requests sharing without closing the dialog", t => {
-    let state = {...Reducer.defaultState, firstTaskFeedbackDialogState: Visible}
-    let (nextState, effects) = Reducer.next(state, ShareFrontman)
-
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(true)
-    switch effects {
-    | [ShareFrontmanEffect] => ()
-    | _ => JsExn.throw("Expected ShareFrontmanEffect")
-    }
-  })
-
-  test("keeps the dialog open and shows confirmation after copying", t => {
-    let state = {...Reducer.defaultState, firstTaskFeedbackDialogState: Visible}
-    let (copiedState, _) = Reducer.next(state, ShareFrontmanLinkCopied)
-
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(copiedState))->Expect.toBe(true)
     t
-    ->expect(Reducer.Selectors.firstTaskFeedbackLinkCopied(copiedState))
+    ->expect(
+      Reducer.Selectors.showFirstTaskFeedbackDialog(firstTurnState()->completeSuccessfulTurn),
+    )
     ->Expect.toBe(true)
   })
 
-  test("does not open when more than one task exists", t => {
-    let state = firstTurnState()
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let secondTask = TestHelpers.makeLoadedTask(
-      ~id="task-2",
-      ~title="Second task",
-      ~previewUrl="http://localhost:3000",
-      ~createdAt=2000.0,
-    )
-    state.tasks->Dict.set("task-2", secondTask)
-    let (nextState, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
-    )
+  test("waits for session history and only celebrates a new user", t => {
+    let pendingState =
+      firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(pendingState))->Expect.toBe(false)
 
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(false)
+    let newUserState = pendingState->reduce(SessionsLoadSuccess({sessions: []}))
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(newUserState))->Expect.toBe(true)
+
+    let returningUserState = {...pendingState, tasks: pendingState.tasks->Dict.copy}
+    returningUserState.tasks->Dict.set("previous-task", Task.makeNew(~previewUrl=""))
+    let returningUserState = returningUserState->reduce(SessionsLoadSuccess({sessions: []}))
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(returningUserState))->Expect.toBe(false)
+
+    let failedState = pendingState->reduce(SessionsLoadError({error: "unavailable"}))
+    t->expect(failedState.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
   })
 
-  test("does not open after a later message in the first task", t => {
-    let state = TestHelpers.makeStateWithTask(
-      ~isAgentRunning=true,
-      ~messages=[
-        Reducer.Message.User({
-          id: "user-1",
-          content: [UserContentPart.text("First message")],
-          annotations: [],
-          agentId: "test-agent",
-        }),
-        Reducer.Message.Assistant(
-          Completed({
-            id: "assistant-1",
-            content: [AssistantContentPart.text("First response")],
-            agentId: "test-agent",
-          }),
-        ),
-        Reducer.Message.User({
-          id: "user-2",
-          content: [UserContentPart.text("Second message")],
-          annotations: [],
-          agentId: "test-agent",
-        }),
-        Reducer.Message.Assistant(
-          Streaming({id: "assistant-2", textBuffer: "Done", agentId: "test-agent"}),
-        ),
-      ],
+  test("rechecks queued prompts when session history arrives", t => {
+    let queuedState =
+      firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
+    let taskId = TestHelpers.getCurrentTaskId(queuedState)->Option.getOrThrow
+    let (queuedState, _) = Reducer.next(
+      queuedState,
+      AddUserMessage({
+        id: secondTestUserMessageId,
+        sessionId: taskId,
+        content: [UserContentPart.text("Second message")],
+        annotations: [],
+        agentId: "test-agent",
+      }),
     )
-    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    let (nextState, _) = Reducer.next(
-      state,
-      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
+    t
+    ->expect(
+      Reducer.Selectors.showFirstTaskFeedbackDialog(
+        Reducer.next(queuedState, SessionsLoadSuccess({sessions: []}))->Pair.first,
+      ),
     )
+    ->Expect.toBe(false)
+  })
 
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(false)
+  test("waits for planner execution before celebrating", t => {
+    let plannedState =
+      firstTurnState(~agentId=planner.id)->withPlanHandoffContext->completeSuccessfulTurn
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(plannedState))->Expect.toBe(false)
+
+    let taskId = TestHelpers.getCurrentTaskId(plannedState)->Option.getOrThrow
+    let executingState = plannedState->reduce(ExecutePendingPlan({id: secondTestUserMessageId}))
+    let executingState = TestHelpers.acceptUserMessage(
+      executingState,
+      ~taskId,
+      ~id=secondTestUserMessageId->UserMessageId.toString,
+      ~content=[UserContentPart.text(Reducer.executePlanPrompt)],
+    )
+    let executingState =
+      executingState->reduce(TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}))
+    let executingState = executingState->reduce(
+      TaskAction({
+        target: ForTask(taskId),
+        action: TextDeltaReceived({
+          messageId: "assistant-executor",
+          text: "Done",
+          agentId: executor.id,
+        }),
+      }),
+    )
+    t
+    ->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(executingState->completeSuccessfulTurn))
+    ->Expect.toBe(true)
   })
 })
 
