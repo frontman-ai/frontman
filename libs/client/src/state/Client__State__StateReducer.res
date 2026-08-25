@@ -600,7 +600,7 @@ let resolveFeedbackHistory = (state: state) =>
   | Waiting | Visible | LinkCopied | Dismissed => state
   }
 
-type shareData = {title: string, text: string, url: string}
+type shareData = {"title": string, "text": string, "url": string}
 
 @get
 external navigatorShareMethod: WebAPI.DomTypes.navigator => Nullable.t<shareData => promise<unit>> =
@@ -611,10 +611,10 @@ external shareWithNavigator: (WebAPI.DomTypes.navigator, shareData) => promise<u
 
 let shareFrontmanImpl = async dispatch => {
   let navigator = WebAPI.Window.current->WebAPI.Window.navigator
-  let data = {
-    title: "Frontman",
-    text: "I just completed my first task with Frontman, an AI website editor for WordPress, Next.js, Astro, and Vite. Check it out:",
-    url: "https://frontman.sh",
+  let data: shareData = {
+    "title": "Frontman",
+    "text": "I just completed my first task with Frontman, an AI website editor for WordPress, Next.js, Astro, and Vite. Check it out:",
+    "url": "https://frontman.sh",
   }
 
   switch navigator->navigatorShareMethod->Nullable.toOption {
@@ -632,7 +632,7 @@ let shareFrontmanImpl = async dispatch => {
   | None =>
     await navigator
     ->WebAPI.Navigator.clipboard
-    ->WebAPI.Clipboard.writeText(`${data.text} ${data.url}`)
+    ->WebAPI.Clipboard.writeText(`${data["text"]} ${data["url"]}`)
     dispatch(ShareFrontmanLinkCopied)
   }
 }
