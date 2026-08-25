@@ -87,7 +87,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   > => None)
 
   let scrollTimestamp = Client__Hooks.Scroll.useIFrameDocument(~document, ~withCapture=true, ())
-  let mutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
+  let domMutationTimestamp = Client__Hooks.DOMmutations.useIFrameDocument(~document, ())
+  let mutationTimestamp = React.useMemo2(() => Date.now(), (domMutationTimestamp, viewportStyle))
   let clickedElement = Client__Hooks.MouseClick.useIFrameDocument(
     ~document,
     ~withCapture=webPreviewIsSelecting,
@@ -380,7 +381,10 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let hoverOverlay = switch (webPreviewIsSelecting, dragState) {
   | (true, Idle) =>
     <Client__WebPreview__HoveredElement
-      key="hover" element={hoveredElement} scrollTimestamp={scrollTimestamp}
+      key="hover"
+      element={hoveredElement}
+      scrollTimestamp={scrollTimestamp}
+      mutationTimestamp={mutationTimestamp}
     />
   | _ => React.null
   }
@@ -407,7 +411,10 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let highlightOverlay = switch highlightedElement {
   | Some(_) =>
     <Client__WebPreview__HoveredElement
-      key="highlight" element={highlightedElement} scrollTimestamp={scrollTimestamp}
+      key="highlight"
+      element={highlightedElement}
+      scrollTimestamp={scrollTimestamp}
+      mutationTimestamp={mutationTimestamp}
     />
   | None => React.null
   }
