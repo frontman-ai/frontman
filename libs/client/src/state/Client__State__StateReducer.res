@@ -16,7 +16,7 @@ module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 type state = Client__State__Types.state
 
 module TaskReducer = Client__Task__Reducer
-module FirstTaskFeedbackShare = Client__State__FirstTaskFeedbackShare
+module FirstTaskFeedbackShare = Client__FirstTaskFeedbackShare
 
 type taskTarget = CurrentTask | ForTask(string)
 
