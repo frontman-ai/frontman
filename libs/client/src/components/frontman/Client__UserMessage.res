@@ -100,7 +100,7 @@ let make = (
               | Some(highlighted) => highlighted.annotationId == annotation.id
               | None => false
               }
-              let baseChipClass = "flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0 w-full text-xs font-mono"
+              let baseChipClass = "flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0 w-full text-xs font-mono text-left disabled:cursor-default"
               let chipClass = switch (selector, isHighlighted) {
               | (Some(_), true) =>
                 `${baseChipClass} bg-violet-400/80 text-white cursor-pointer ring-1 ring-white/70 transition-colors`
@@ -117,9 +117,12 @@ let make = (
                 key={`${messageId}-ann-${Int.toString(i)}`}
                 className="flex flex-col gap-0.5 min-w-0 w-full"
               >
-                <div
+                <button
+                  type_="button"
                   className=chipClass
                   title=chipTitle
+                  disabled={selector->Option.isNone}
+                  ariaPressed={isHighlighted ? #"true" : #"false"}
                   onClick={_ =>
                     switch selector {
                     | Some(selector) =>
@@ -132,7 +135,7 @@ let make = (
                 >
                   <span className="text-violet-200 shrink-0"> {React.string(badge)} </span>
                   <span className="truncate min-w-0 flex-1"> {React.string(label)} </span>
-                </div>
+                </button>
                 {switch annotation.comment {
                 | Some(comment) =>
                   <div className="text-[11px] text-violet-200/80 italic pl-1 w-full truncate">
