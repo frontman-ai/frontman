@@ -105,6 +105,7 @@ type effect =
   | PollOpenAIDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
   | FetchUserProfileEffect({apiBaseUrl: string})
   | LoadTaskEffect({taskId: string})
+  | DeleteSessionEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
 
 module Lens = {
@@ -962,6 +963,12 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     disconnect()->ignore
 
+  | DeleteSessionEffect({taskId}) =>
+    switch state.acpSession {
+    | AcpSessionActive({deleteSession}) => deleteSession(taskId, ~onComplete=_ => ())
+    | NoAcpSession => ()
+    }
+
   | LoadTaskEffect({taskId}) =>
     switch state.acpSession {
     | AcpSessionActive({loadTask}) =>
@@ -1136,16 +1143,11 @@ let next = (state: state, action) => {
       | other => other
       }
 
-      switch state.acpSession {
-      | AcpSessionActive({deleteSession}) => deleteSession(taskId, ~onComplete=_ => ())
-      | NoAcpSession => ()
-      }
-
       {
         ...state,
         tasks: updatedTasks,
         currentTask: newCurrentTask,
-      }->StateReducer.update
+      }->StateReducer.update(~sideEffects=[DeleteSessionEffect({taskId: taskId})])
     }
 
   | ClearCurrentTask =>
