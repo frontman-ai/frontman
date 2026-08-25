@@ -582,7 +582,7 @@ let targetIsCurrent = (state: state, target: taskTarget): bool =>
   | ForTask(taskId) => Selectors.currentTaskId(state) == Some(taskId)
   }
 
-let canShowFirstTaskFeedback = (state, task) =>
+let canShowFirstTaskFeedback = (state: state, task) =>
   state.tasks->Dict.valuesToArray->Array.length == 1 &&
   TaskReducer.Selectors.completedIdleTurn(task)->Option.isSome &&
   TaskReducer.Selectors.queuedUserMessages(task)->Option.getOrThrow->Array.length == 0
