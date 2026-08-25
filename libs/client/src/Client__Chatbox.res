@@ -103,6 +103,13 @@ let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): b
     )
   )
 
+let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSelect, text) => {
+  switch providerSetupRequired {
+  | true => onConfigureProvider()
+  | false => onSelect(text)
+  }
+}
+
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
@@ -119,6 +126,9 @@ let make = (~onConfigureProvider: unit => unit) => {
   let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
+  let providerSetupRequired = Client__State.useSelector(
+    Client__State.Selectors.providerSetupRequired,
+  )
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -377,6 +387,20 @@ let make = (~onConfigureProvider: unit => unit) => {
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
             <span className="shimmer-text"> {React.string("Loading project context...")} </span>
           </div>
+        }}
+
+        {switch (hasActiveACPSession, totalItems) {
+        | (true, 0) =>
+          <Client__GetStartedTasks
+            onSelect={text =>
+              selectGetStartedTask(
+                ~providerSetupRequired,
+                ~onConfigureProvider,
+                ~onSelect=text => handleSubmit(~text, ~inputItems=[]),
+                text,
+              )}
+          />
+        | _ => React.null
         }}
 
         {displayItems
