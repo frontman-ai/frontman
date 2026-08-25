@@ -90,6 +90,9 @@ type action =
   | CheckForUpdate({installedVersion: string, npmPackage: string})
   | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
   | DismissUpdateBanner
+  | DismissFirstTaskFeedbackDialog
+  | ShareFrontman
+  | ShareFrontmanLinkCopied
   | HighlightAnnotation({annotationId: string, selector: string})
 
 type effect =
@@ -108,6 +111,7 @@ type effect =
   | LoadTaskEffect({taskId: string})
   | DeleteSessionEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
+  | ShareFrontmanEffect
 
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
@@ -242,6 +246,7 @@ let defaultState: state = {
   updateInfo: None,
   updateCheckStatus: UpdateNotChecked,
   updateBannerDismissed: false,
+  firstTaskFeedbackDialogState: Waiting,
   highlightedAnnotation: None,
 }
 
@@ -422,6 +427,17 @@ module Selectors = {
     state.updateBannerDismissed
   }
 
+  let showFirstTaskFeedbackDialog = (state: state): bool => {
+    switch state.firstTaskFeedbackDialogState {
+    | Visible | LinkCopied => true
+    | Waiting | Dismissed => false
+    }
+  }
+
+  let firstTaskFeedbackLinkCopied = (state: state): bool => {
+    state.firstTaskFeedbackDialogState == LinkCopied
+  }
+
   let highlightedAnnotation = (state: state): option<
     Client__State__Types.highlightedAnnotation,
   > => {
@@ -564,6 +580,46 @@ let targetIsCurrent = (state: state, target: taskTarget): bool =>
   | CurrentTask => true
   | ForTask(taskId) => Selectors.currentTaskId(state) == Some(taskId)
   }
+
+type shareData = {title: string, text: string, url: string}
+
+@get
+external navigatorShareMethod: WebAPI.DomTypes.navigator => Nullable.t<shareData => promise<unit>> =
+  "share"
+
+@send
+external shareWithNavigator: (WebAPI.DomTypes.navigator, shareData) => promise<unit> = "share"
+
+let shareFrontmanImpl = dispatch => {
+  let share = async () => {
+    let navigator = WebAPI.Window.current->WebAPI.Window.navigator
+    let url = "https://frontman.sh"
+    let text = "I just completed my first task with Frontman, an AI website editor for WordPress, Next.js, Astro, and Vite. Check it out:"
+    let data = {
+      title: "Frontman",
+      text,
+      url,
+    }
+
+    switch navigator->navigatorShareMethod->Nullable.toOption {
+    | Some(_) =>
+      try {
+        await navigator->shareWithNavigator(data)
+        dispatch(DismissFirstTaskFeedbackDialog)
+      } catch {
+      | exn =>
+        switch exn->JsExn.fromException->Option.map(FrontmanBindings.JsException.name) {
+        | Some("AbortError") => ()
+        | _ => throw(exn)
+        }
+      }
+    | None =>
+      await navigator->WebAPI.Navigator.clipboard->WebAPI.Clipboard.writeText(`${text} ${url}`)
+      dispatch(ShareFrontmanLinkCopied)
+    }
+  }
+  share()->ignore
+}
 
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
@@ -1045,11 +1101,38 @@ let handleEffect = (effect, state: state, dispatch) => {
       }
     }
     fetch()->ignore
+  | ShareFrontmanEffect => shareFrontmanImpl(dispatch)
   }
 }
 
 let next = (state: state, action) => {
   switch action {
+  | TaskAction({target, action: ExecutionStateIdle}) => {
+      let (updatedState, taskEffects) = state->Lens.delegateToTask(target, ExecutionStateIdle)
+      let completedTask = switch target {
+      | CurrentTask => Selectors.currentTask(updatedState)
+      | ForTask(taskId) => updatedState.tasks->Dict.get(taskId)->Option.getOrThrow
+      }
+      let userMessageCount = Task.getMessages(completedTask)->Array.reduce(0, (count, message) =>
+        switch message {
+        | Message.User(_) => count + 1
+        | Message.Assistant(_) | Message.ToolCall(_) | Message.Error(_) => count
+        }
+      )
+      let shouldShowFeedback =
+        state.firstTaskFeedbackDialogState == Waiting &&
+        updatedState.tasks->Dict.valuesToArray->Array.length == 1 &&
+        userMessageCount == 1 &&
+        TaskReducer.Selectors.completedIdleTurn(completedTask)->Option.isSome
+      let updatedState = switch shouldShowFeedback {
+      | true => {
+          ...updatedState,
+          firstTaskFeedbackDialogState: Visible,
+        }
+      | false => updatedState
+      }
+      updatedState->StateReducer.update(~sideEffects=taskEffects)
+    }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
   | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
@@ -1571,6 +1654,21 @@ let next = (state: state, action) => {
     {...state, updateInfo: Some(updateInfo)}->StateReducer.update
 
   | DismissUpdateBanner => {...state, updateBannerDismissed: true}->StateReducer.update
+
+  | DismissFirstTaskFeedbackDialog =>
+    {...state, firstTaskFeedbackDialogState: Dismissed}->StateReducer.update
+
+  | ShareFrontman =>
+    switch state.firstTaskFeedbackDialogState {
+    | Visible => state->StateReducer.update(~sideEffects=[ShareFrontmanEffect])
+    | Waiting | LinkCopied | Dismissed => state->StateReducer.update
+    }
+
+  | ShareFrontmanLinkCopied =>
+    switch state.firstTaskFeedbackDialogState {
+    | Visible => {...state, firstTaskFeedbackDialogState: LinkCopied}->StateReducer.update
+    | Waiting | LinkCopied | Dismissed => state->StateReducer.update
+    }
 
   | HighlightAnnotation({annotationId, selector}) =>
     let taskId = Selectors.currentTaskClientId(state)

@@ -440,6 +440,155 @@ describe("Client State Reducer", () => {
   })
 })
 
+describe("Client State Reducer - First Task Feedback Dialog", () => {
+  let firstTurnState = () =>
+    TestHelpers.makeStateWithTask(
+      ~isAgentRunning=true,
+      ~messages=[
+        Reducer.Message.User({
+          id: "user-1",
+          content: [UserContentPart.text("Build something")],
+          annotations: [],
+          agentId: "test-agent",
+        }),
+        Reducer.Message.Assistant(
+          Streaming({id: "assistant-1", textBuffer: "Done", agentId: "test-agent"}),
+        ),
+      ],
+    )
+
+  test("opens after the first task's first successful turn completes", t => {
+    let state = firstTurnState()
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (nextState, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
+    )
+
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(true)
+  })
+
+  test("dismisses and does not reopen in the same client session", t => {
+    let state = firstTurnState()
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
+    )
+    let (state, _) = Reducer.next(state, DismissFirstTaskFeedbackDialog)
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
+    )
+    let (state, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
+    )
+
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(state))->Expect.toBe(false)
+  })
+
+  test("delegates friend sharing to an effect", t => {
+    let state = {...Reducer.defaultState, firstTaskFeedbackDialogState: Visible}
+    let (nextState, effects) = Reducer.next(state, ShareFrontman)
+
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(true)
+    switch effects {
+    | [ShareFrontmanEffect] => ()
+    | _ => JsExn.throw("Expected ShareFrontmanEffect")
+    }
+  })
+
+  test("shows copied confirmation after clipboard fallback", t => {
+    let state = {...Reducer.defaultState, firstTaskFeedbackDialogState: Visible}
+    let (nextState, _) = Reducer.next(state, ShareFrontmanLinkCopied)
+
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(true)
+    t->expect(Reducer.Selectors.firstTaskFeedbackLinkCopied(nextState))->Expect.toBe(true)
+  })
+
+  test("does not reopen when clipboard completes after dismissal", t => {
+    let state = {...Reducer.defaultState, firstTaskFeedbackDialogState: Dismissed}
+    let (nextState, _) = Reducer.next(state, ShareFrontmanLinkCopied)
+
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(false)
+  })
+
+  test("does not open when more than one task exists", t => {
+    let firstTask = TestHelpers.makeLoadedTask(
+      ~id="task-1",
+      ~title="First task",
+      ~previewUrl="http://localhost:3000",
+      ~createdAt=1000.0,
+      ~isAgentRunning=true,
+      ~messages=[
+        Reducer.Message.User({
+          id: "user-1",
+          content: [UserContentPart.text("Build something")],
+          annotations: [],
+          agentId: "test-agent",
+        }),
+        Reducer.Message.Assistant(
+          Streaming({id: "assistant-1", textBuffer: "Done", agentId: "test-agent"}),
+        ),
+      ],
+    )
+    let secondTask = TestHelpers.makeLoadedTask(
+      ~id="task-2",
+      ~title="Second task",
+      ~previewUrl="http://localhost:3000",
+      ~createdAt=2000.0,
+    )
+    let tasks = Dict.make()
+    tasks->Dict.set("task-1", firstTask)
+    tasks->Dict.set("task-2", secondTask)
+    let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
+    let (nextState, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask("task-1"), action: ExecutionStateIdle}),
+    )
+
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(false)
+  })
+
+  test("does not open after a later message in the first task", t => {
+    let state = TestHelpers.makeStateWithTask(
+      ~isAgentRunning=true,
+      ~messages=[
+        Reducer.Message.User({
+          id: "user-1",
+          content: [UserContentPart.text("First message")],
+          annotations: [],
+          agentId: "test-agent",
+        }),
+        Reducer.Message.Assistant(
+          Completed({
+            id: "assistant-1",
+            content: [AssistantContentPart.text("First response")],
+            agentId: "test-agent",
+          }),
+        ),
+        Reducer.Message.User({
+          id: "user-2",
+          content: [UserContentPart.text("Second message")],
+          annotations: [],
+          agentId: "test-agent",
+        }),
+        Reducer.Message.Assistant(
+          Streaming({id: "assistant-2", textBuffer: "Done", agentId: "test-agent"}),
+        ),
+      ],
+    )
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (nextState, _) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
+    )
+
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(nextState))->Expect.toBe(false)
+  })
+})
+
 describe("Client State Reducer - Idle Content Conversion", () => {
   test("handles empty textBuffer correctly", t => {
     let state = TestHelpers.makeStateWithTask(

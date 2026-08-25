@@ -103,9 +103,7 @@ module Actions = {
     )
 
   let highlightAnnotation = (~annotationId, ~selector) =>
-    Client__State__Store.dispatch(
-      HighlightAnnotation({annotationId: annotationId, selector: selector}),
-    )
+    Client__State__Store.dispatch(HighlightAnnotation({annotationId, selector}))
 
   let closeAnnotationPopup = () =>
     Client__State__Store.dispatch(
@@ -273,6 +271,11 @@ module Actions = {
     Client__State__Store.dispatch(CheckForUpdate({installedVersion, npmPackage}))
 
   let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
+
+  let dismissFirstTaskFeedbackDialog = () =>
+    Client__State__Store.dispatch(DismissFirstTaskFeedbackDialog)
+
+  let shareFrontman = () => Client__State__Store.dispatch(ShareFrontman)
 
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
     Client__State__Store.dispatch(
