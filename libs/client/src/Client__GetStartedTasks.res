@@ -11,24 +11,32 @@ let tasks = [
 
 @react.component
 let make = (~onSelect: string => unit) => {
-  <div className="min-h-[50vh] flex flex-col items-center justify-center px-6 gap-3">
-    <div className="text-[11px] text-zinc-500 self-start max-w-[320px] w-full px-0.5">
-      {React.string("Get started")}
-    </div>
-    <div className="flex flex-col gap-2 w-full max-w-[320px]">
+  <section
+    ariaLabelledby="get-started-heading"
+    className="min-h-[50vh] flex flex-col items-center justify-center px-4 sm:px-6 gap-4"
+  >
+    <h2
+      id="get-started-heading"
+      className="text-lg leading-snug font-semibold text-zinc-100 self-start max-w-[360px] w-full"
+    >
+      {React.string("What would you like to accomplish today?")}
+    </h2>
+    <div className="flex flex-col gap-2 w-full max-w-[360px]">
       {tasks
       ->Array.map(task =>
         <button
+          type_="button"
           key={task}
           onClick={_ => onSelect(task)}
-          className="text-left text-[12px] leading-snug text-zinc-300 px-3 py-2.5 rounded-lg
+          className="text-left text-[13px] leading-snug text-zinc-300 px-3 py-3 rounded-lg
                      border border-white/10 bg-white/[0.03] hover:bg-white/[0.07]
-                     hover:border-white/20 transition-colors"
+                     hover:border-white/20 focus-visible:outline-none focus-visible:ring-2
+                     focus-visible:ring-white/30 transition-colors"
         >
           {React.string(task)}
         </button>
       )
       ->React.array}
     </div>
-  </div>
+  </section>
 }
