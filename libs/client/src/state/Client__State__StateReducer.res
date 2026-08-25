@@ -90,7 +90,7 @@ type action =
   | CheckForUpdate({installedVersion: string, npmPackage: string})
   | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
   | DismissUpdateBanner
-  | HighlightAnnotation({selector: string})
+  | HighlightAnnotation({annotationId: string, selector: string})
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
@@ -242,7 +242,7 @@ let defaultState: state = {
   updateInfo: None,
   updateCheckStatus: UpdateNotChecked,
   updateBannerDismissed: false,
-  highlightedAnnotationSelector: None,
+  highlightedAnnotation: None,
 }
 
 module Selectors = {
@@ -422,8 +422,17 @@ module Selectors = {
     state.updateBannerDismissed
   }
 
+  let highlightedAnnotation = (
+    state: state,
+  ): option<Client__State__Types.highlightedAnnotation> => {
+    switch state.highlightedAnnotation {
+    | Some(highlighted) if highlighted.taskId == currentTaskClientId(state) => Some(highlighted)
+    | Some(_) | None => None
+    }
+  }
+
   let highlightedAnnotationSelector = (state: state): option<string> => {
-    state.highlightedAnnotationSelector
+    highlightedAnnotation(state)->Option.map(highlighted => highlighted.selector)
   }
 
   let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {
@@ -1122,7 +1131,7 @@ let next = (state: state, action) => {
       {
         ...updatedState,
         currentTask: Task.Selected(taskId),
-        highlightedAnnotationSelector: None,
+        highlightedAnnotation: None,
       }->StateReducer.update(
         ~sideEffects=Array.concat([LoadTaskEffect({taskId: taskId})], taskEffects),
       )
@@ -1154,6 +1163,7 @@ let next = (state: state, action) => {
         ...state,
         tasks: updatedTasks,
         currentTask: newCurrentTask,
+        highlightedAnnotation: None,
       }->StateReducer.update(~sideEffects=[DeleteSessionEffect({taskId: taskId})])
     }
 
@@ -1162,7 +1172,7 @@ let next = (state: state, action) => {
     {
       ...state,
       currentTask: Task.New(Task.makeNew(~previewUrl)),
-      highlightedAnnotationSelector: None,
+      highlightedAnnotation: None,
     }->StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
@@ -1566,11 +1576,12 @@ let next = (state: state, action) => {
 
   | DismissUpdateBanner => {...state, updateBannerDismissed: true}->StateReducer.update
 
-  | HighlightAnnotation({selector}) =>
-    let highlighted = switch state.highlightedAnnotationSelector {
-    | Some(current) if current == selector => None
-    | _ => Some(selector)
+  | HighlightAnnotation({annotationId, selector}) =>
+    let taskId = Selectors.currentTaskClientId(state)
+    let highlighted = switch state.highlightedAnnotation {
+    | Some(current) if current.taskId == taskId && current.annotationId == annotationId => None
+    | Some(_) | None => Some({Client__State__Types.taskId, annotationId, selector})
     }
-    {...state, highlightedAnnotationSelector: highlighted}->StateReducer.update
+    {...state, highlightedAnnotation: highlighted}->StateReducer.update
   }
 }

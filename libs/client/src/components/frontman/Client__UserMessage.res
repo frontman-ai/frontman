@@ -47,8 +47,8 @@ let make = (
     ? "frontman-content-auto animate-in fade-in duration-100"
     : "frontman-content-auto"
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
-  let highlightedSelector = Client__State.useSelector(
-    Client__State.Selectors.highlightedAnnotationSelector,
+  let highlightedAnnotation = Client__State.useSelector(
+    Client__State.Selectors.highlightedAnnotation,
   )
 
   let imageParts = content->Array.filterMap(part =>
@@ -96,9 +96,9 @@ let make = (
               | Ok(Some(selector)) => Some(selector)
               | Ok(None) | Error(_) => None
               }
-              let isHighlighted = switch (selector, highlightedSelector) {
-              | (Some(selector), Some(highlighted)) => selector == highlighted
-              | _ => false
+              let isHighlighted = switch highlightedAnnotation {
+              | Some(highlighted) => highlighted.annotationId == annotation.id
+              | None => false
               }
               let baseChipClass = "flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0 w-full text-xs font-mono"
               let chipClass = switch (selector, isHighlighted) {
@@ -122,7 +122,11 @@ let make = (
                   title=chipTitle
                   onClick={_ =>
                     switch selector {
-                    | Some(selector) => Client__State.Actions.highlightAnnotation(~selector)
+                    | Some(selector) =>
+                      Client__State.Actions.highlightAnnotation(
+                        ~annotationId=annotation.id,
+                        ~selector,
+                      )
                     | None => ()
                     }}
                 >

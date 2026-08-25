@@ -48,7 +48,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     updateInfo: None,
     updateCheckStatus: UpdateNotChecked,
     updateBannerDismissed: false,
-    highlightedAnnotationSelector: None,
+    highlightedAnnotation: None,
   }
 }
 

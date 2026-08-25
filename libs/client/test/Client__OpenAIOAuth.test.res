@@ -36,7 +36,7 @@ let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
     updateInfo: None,
     updateCheckStatus: UpdateNotChecked,
     updateBannerDismissed: false,
-    highlightedAnnotationSelector: None,
+    highlightedAnnotation: None,
   }
 }
 
