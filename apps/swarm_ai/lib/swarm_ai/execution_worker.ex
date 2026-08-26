@@ -38,12 +38,14 @@ defmodule SwarmAi.ExecutionWorker do
     registry = SwarmAi.registry_name(runtime)
     task_supervisor = SwarmAi.task_supervisor_name(runtime)
 
-    try do
-      final_loop = SwarmAi.Executor.run(loop, task_supervisor)
-      final_loop.dispatch_event.(final_loop.status)
-    after
-      unregister(registry, loop)
-    end
+    final_loop =
+      try do
+        SwarmAi.Executor.run(loop, task_supervisor)
+      after
+        unregister(registry, loop)
+      end
+
+    final_loop.dispatch_event.(final_loop.status)
 
     {:stop, :normal, state}
   end

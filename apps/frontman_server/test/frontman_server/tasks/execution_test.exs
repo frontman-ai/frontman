@@ -646,14 +646,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       insert_accepted_user_message!(task, "queued for next turn")
 
-      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
-        send(parent, {:provider_messages, messages})
+      expect(LLMProviderMock, :stream_text, fn model, messages, _opts ->
+        send(parent, {:provider_request, model, messages})
         ReqLLMResponses.response("done")
       end)
 
-      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+      execution = execution_request_fixture(model: "missing:test")
+      assert :ok = Tasks.resume_execution(scope, task_id, execution)
 
-      assert_receive {:provider_messages, messages}, 1_000
+      assert_receive {:provider_request, %LLMDB.Model{id: "openai/gpt-5.5"}, messages}, 1_000
       assert [user_text] = provider_user_texts(messages)
       assert user_text =~ "included"
       refute user_text =~ "queued for next turn"

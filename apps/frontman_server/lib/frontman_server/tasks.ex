@@ -860,15 +860,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp ensure_execution_model(_history, _turn_number, %{model: model} = execution)
-       when is_binary(model) and model != "" do
-    {:ok, execution}
-  end
-
   defp ensure_execution_model(history, turn_number, execution) do
-    case History.turn_model(history, turn_number) do
-      {:ok, model} -> {:ok, Map.put(execution, :model, model)}
-      {:error, reason} -> {:error, reason}
+    with {:ok, model} <- History.turn_model(history, turn_number) do
+      {:ok, Map.put(execution, :model, model)}
     end
   end
 
