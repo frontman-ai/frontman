@@ -135,13 +135,13 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  def handle_info({:run_next_turn, execution}, socket) do
-    case Tasks.run_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
+  def handle_info({:execute_next_turn, execution}, socket) do
+    case Tasks.execute_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
       result when result in [:ok, :already_running, :no_accepted_messages] ->
         :ok
 
       {:error, reason} ->
-        Logger.error("Failed to run next turn: #{inspect(reason)}")
+        Logger.error("Failed to execute next turn: #{inspect(reason)}")
     end
 
     {:noreply, socket}
@@ -364,7 +364,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp open_tool_call(socket, tool_call_id) do
     with {:ok, _turn_number, tool_calls} when is_list(tool_calls) <-
-           Tasks.get_active_run_unresolved_tool_calls(
+           Tasks.get_active_turn_unresolved_tool_calls(
              socket.assigns.scope,
              socket.assigns.task_id
            ),
@@ -423,18 +423,16 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp resume_after_tool_result(:notified, socket, _scope, _task_id), do: socket
 
   defp resume_after_tool_result(:no_executor, socket, scope, task_id) do
-    case Tasks.get_active_run_unresolved_tool_calls(scope, task_id) do
+    case Tasks.get_active_turn_unresolved_tool_calls(scope, task_id) do
       {:ok, _turn_number, []} ->
-        Logger.info(
-          "Active agent run has no unresolved tool calls for #{task_id}, resuming agent"
-        )
+        Logger.info("Active turn has no unresolved tool calls for #{task_id}, resuming execution")
 
         resume_agent(socket, scope, task_id)
 
       {:ok, _turn_number, [_ | _]} ->
         socket
 
-      {:ok, :no_active_run} ->
+      {:ok, :no_active_turn} ->
         socket
     end
   end
@@ -879,7 +877,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp wake_runner(socket, meta) do
     case socket.assigns[:mcp_status] do
       status when status in [:ready, :failed] ->
-        send(self(), {:run_next_turn, execution_context(socket, meta)})
+        send(self(), {:execute_next_turn, execution_context(socket, meta)})
 
       _pending ->
         :ok
@@ -948,11 +946,11 @@ defmodule FrontmanServerWeb.TaskChannel do
          %{assigns: %{session_loaded: true, mcp_status: status}} = socket
        )
        when status in [:ready, :failed] do
-    case Tasks.get_active_run_unresolved_tool_calls(socket.assigns.scope, socket.assigns.task_id) do
+    case Tasks.get_active_turn_unresolved_tool_calls(socket.assigns.scope, socket.assigns.task_id) do
       {:ok, turn_number, tool_calls} when is_list(tool_calls) ->
         Enum.reduce(tool_calls, socket, &redispatch_unresolved_tool_call(&2, &1, turn_number))
 
-      {:ok, :no_active_run} ->
+      {:ok, :no_active_turn} ->
         socket
     end
   end

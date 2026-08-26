@@ -28,7 +28,7 @@ defmodule FrontmanServer.Tasks.Execution do
   alias SwarmAi.Message.Tool
 
   @doc """
-  Runs an agent execution for a task.
+  Starts an agent execution asynchronously for a task.
 
   Resolves provider auth, builds the root agent from the task,
   and submits the agent to SwarmAi.
@@ -42,7 +42,7 @@ defmodule FrontmanServer.Tasks.Execution do
   - `{:error, {:start_failed, reason}}` - Execution worker failed to start
   - `{:error, :no_api_key}` - No API key available
   """
-  def run(
+  def start(
         %Scope{} = scope,
         %TaskSchema{} = task,
         turn_number,

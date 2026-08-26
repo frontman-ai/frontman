@@ -6,14 +6,10 @@
 
 defmodule FrontmanServer.Tasks.Todos do
   @moduledoc """
-  Atomic todo projection module.
+  Projects the current todo list from the most recent `todo_write` result.
 
-  Rebuilds current todos from the last `todo_write` ToolResult interaction.
-  No incremental mutations — the LLM sends the complete list every time,
-  eliminating hallucinated IDs and todo drift between turns.
-
-  This is a subcontext under Tasks — it accepts interactions as parameters
-  and never calls back to the parent Tasks context.
+  The LLM sends the complete list each time. This prevents ID and state drift
+  between turns.
   """
 
   alias FrontmanServer.Tasks.Interaction

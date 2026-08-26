@@ -8,7 +8,7 @@ defmodule AgentClientProtocol do
   @moduledoc """
   ACP (Agent Client Protocol) translation layer.
 
-  Translates between domain events and ACP wire format (JSON-RPC 2.0).
+  Translates between task timeline records and ACP wire format (JSON-RPC 2.0).
   This is the boundary where domain concepts (Tasks) become transport
   concepts (Sessions).
 
