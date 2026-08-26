@@ -77,7 +77,6 @@ let entries: array<schemaEntry> = [
   {dir: "mcp", name: "toolCallParams", schema: MCP.toolCallParamsSchema->toUnknownSchema},
   {dir: "mcp", name: "toolsListParams", schema: MCP.toolsListParamsSchema->toUnknownSchema},
   {dir: "mcp", name: "info", schema: MCP.infoSchema->toUnknownSchema},
-  {dir: "mcp", name: "toolError", schema: MCP.toolErrorSchema->toUnknownSchema},
   {dir: "mcp", name: "toolsListResult", schema: MCP.toolsListResultWireSchema->toUnknownSchema},
   {dir: "jsonrpc", name: "request", schema: JsonRpc.Request.schema->toUnknownSchema},
   {dir: "jsonrpc", name: "response", schema: JsonRpc.Response.schema->toUnknownSchema},

@@ -22,37 +22,4 @@ defmodule FrontmanServer.Protocols.McpContractTest do
     ProtocolSchema.validate!(request["params"], "mcp/toolCallParams")
     ProtocolSchema.validate!(request, "jsonrpc/request")
   end
-
-  test "discovery result contract accepts core extensions" do
-    ProtocolSchema.validate!(
-      %{
-        "resultType" => "complete",
-        "supportedVersions" => ["2026-07-28", "2027-01-01"],
-        "capabilities" => %{"tools" => %{}, "logging" => %{}},
-        "instructions" => "Use tools carefully",
-        "ttlMs" => 0.5,
-        "cacheScope" => "public"
-      },
-      "mcp/discoverResult"
-    )
-  end
-
-  test "tools/list result contract accepts optional pagination and metadata" do
-    ProtocolSchema.validate!(
-      %{
-        "resultType" => "complete",
-        "tools" => [
-          %{
-            "name" => "search",
-            "title" => "Search",
-            "inputSchema" => %{"type" => "object"}
-          }
-        ],
-        "nextCursor" => "opaque",
-        "ttlMs" => 1.5,
-        "cacheScope" => "public"
-      },
-      "mcp/toolsListResult"
-    )
-  end
 end

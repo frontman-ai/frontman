@@ -21,17 +21,19 @@ defmodule FrontmanServer.Tools.MCP do
 
   @default_timeout_ms 600_000
   @default_on_timeout :error
+  @tool_metadata_extension "ai.frontman/tool-metadata"
 
   def from_map(tool) when is_map(tool) do
-    {timeout_ms, on_timeout} = timeout_policy(tool["executionMode"])
+    metadata = get_in(tool, ["_meta", @tool_metadata_extension]) || %{}
+    {timeout_ms, on_timeout} = timeout_policy(metadata["executionMode"])
 
     %__MODULE__{
       name: tool["name"],
       description: tool["description"] || "",
       input_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
       output_schema: tool["outputSchema"],
-      access: parse_access(tool["access"]),
-      visible_to_agent: Map.get(tool, "visibleToAgent", true),
+      access: parse_access(metadata["access"]),
+      visible_to_agent: Map.get(metadata, "visibleToAgent", true),
       timeout_ms: timeout_ms,
       on_timeout: on_timeout
     }

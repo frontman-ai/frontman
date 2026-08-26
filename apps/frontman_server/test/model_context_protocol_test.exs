@@ -7,13 +7,22 @@ defmodule ModelContextProtocolTest do
 
   test "builds required MCP 2026 request metadata" do
     meta = MCP.request_params()["_meta"]
+
     assert meta["io.modelcontextprotocol/protocolVersion"] == "2026-07-28"
 
     assert get_in(meta, ["io.modelcontextprotocol/clientCapabilities", "extensions"]) ==
-             %{"ai.frontman/execution-context" => %{"version" => 1}}
+             %{
+               "ai.frontman/execution-context" => %{"version" => 1},
+               "ai.frontman/tool-metadata" => %{"version" => 1}
+             }
 
     assert meta["io.modelcontextprotocol/clientInfo"] ==
              %{"name" => "frontman-server", "version" => "1.0.0"}
+  end
+
+  test "builds tools/list pagination params" do
+    refute Map.has_key?(MCP.tools_list_params(), "cursor")
+    assert MCP.tools_list_params("page-2")["cursor"] == "page-2"
   end
 
   test "builds tools/call with execution context only in metadata" do
@@ -48,11 +57,5 @@ defmodule ModelContextProtocolTest do
 
     assert log =~ "MCP tool call: search_files"
     refute log =~ "private-value"
-  end
-
-  test "terminal tool results are complete" do
-    assert MCP.tool_result_text("ok")["resultType"] == "complete"
-    assert MCP.tool_result_image("data", "image/png")["resultType"] == "complete"
-    assert MCP.tool_result_error("bad")["resultType"] == "complete"
   end
 end

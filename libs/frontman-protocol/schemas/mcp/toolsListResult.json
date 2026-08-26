@@ -18,7 +18,45 @@
           },
           "inputSchema": {
             "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "object"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "outputSchema": {
+            "type": "object",
             "additionalProperties": true
+          },
+          "_meta": {
+            "type": "object",
+            "properties": {
+              "ai.frontman/tool-metadata": {
+                "type": "object",
+                "properties": {
+                  "visibleToAgent": {
+                    "type": "boolean"
+                  },
+                  "executionMode": {
+                    "enum": [
+                      "Synchronous",
+                      "Interactive"
+                    ]
+                  },
+                  "access": {
+                    "enum": [
+                      "read",
+                      "write",
+                      "read-write"
+                    ]
+                  }
+                }
+              }
+            }
           }
         },
         "required": [
@@ -32,8 +70,9 @@
       "type": "string"
     },
     "ttlMs": {
-      "type": "number",
-      "minimum": 0
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 2147483647
     },
     "cacheScope": {
       "enum": [

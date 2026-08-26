@@ -35,21 +35,20 @@ let notificationSchema = S.object(s => {
   Notification({method, params})
 })
 
-let hasIdField = (json: JSON.t): bool => {
-  switch json->JSON.Decode.object {
-  | Some(obj) => obj->Dict.get("id")->Option.isSome
-  | None => false
-  }
-}
+let hasIdField = json =>
+  json
+  ->JSON.Decode.object
+  ->Option.flatMap(object => object->Dict.get("id"))
+  ->Option.isSome
 
-let parse = (json: JSON.t): result<mcpMessage, string> => {
-  let schema = if hasIdField(json) {
-    requestSchema
-  } else {
-    notificationSchema
+let parse = json =>
+  json->Decoders.parseSchema(hasIdField(json) ? requestSchema : notificationSchema)
+
+let parseParams = (params, schema, missingMessage) =>
+  switch params {
+  | Some(params) => params->Decoders.parseSchema(schema)
+  | None => Error(missingMessage)
   }
-  json->Decoders.parseSchema(schema)
-}
 
 let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
   let payload = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
@@ -66,6 +65,13 @@ let sendError = (
 ): unit => {
   let error = JsonRpc.RpcError.make(~code, ~message, ~data)
   let payload = JsonRpc.Response.makeErrorPayloadWithId(~id, ~error)
+  handler.onMessage->Option.forEach(cb => cb(Send, payload))
+  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+}
+
+let sendErrorWithoutId = (handler: mcpHandler<'server>, code: int, message: string): unit => {
+  let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
+  let payload = JsonRpc.Response.makeErrorPayloadWithoutId(~error)
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
@@ -87,16 +93,7 @@ let handleDiscover = (
   id: JsonRpc.Id.t,
   params: option<JSON.t>,
 ): unit => {
-  let parsed = switch params {
-  | Some(params) =>
-    try {
-      Ok(params->S.parseOrThrow(~to=Types.discoverParamsSchema))
-    } catch {
-    | exn =>
-      Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid params"))
-    }
-  | None => Error("Missing params for server/discover")
-  }
+  let parsed = parseParams(params, Types.discoverParamsSchema, "Missing params for server/discover")
 
   switch parsed {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
@@ -129,20 +126,13 @@ let handleToolsList = (
   id: JsonRpc.Id.t,
   params: option<JSON.t>,
 ): unit => {
-  let parsed = switch params {
-  | Some(params) =>
-    try {
-      Ok(params->S.parseOrThrow(~to=Types.toolsListParamsSchema))
-    } catch {
-    | exn =>
-      Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid params"))
-    }
-  | None => Error("Missing params for tools/list")
-  }
+  let parsed = parseParams(params, Types.toolsListParamsSchema, "Missing params for tools/list")
 
   switch parsed {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
-  | Ok({_meta}) =>
+  | Ok({_meta, cursor: Some(_)}) =>
+    sendError(handler, id, Types.ErrorCode.invalidParams, "Invalid or expired cursor")
+  | Ok({_meta, cursor: None}) =>
     switch Types.validateRequestMeta(_meta) {
     | Error(error) => sendMetadataError(handler, id, error)
     | Ok(_) =>
@@ -171,61 +161,50 @@ let handleToolsCall = async (
   id: JsonRpc.Id.t,
   params: option<JSON.t>,
 ): unit => {
-  switch params {
-  | Some(paramsJson) =>
-    let paramsResult = try {
-      Ok(paramsJson->S.parseOrThrow(~to=Types.toolCallParamsSchema))
-    } catch {
-    | exn =>
-      Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid params"))
-    }
-
-    switch paramsResult {
-    | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
-    | Ok(params) =>
-      switch Types.AuthorizedToolCall.authorize(params, ~sessionId=handler.sessionId) {
-      | Error(ToolCallMetadata(error)) => sendMetadataError(handler, id, error)
-      | Error(MissingExecutionContextCapability) =>
-        sendError(
-          handler,
-          id,
-          Types.ErrorCode.missingRequiredClientCapability,
-          "Missing required client capability",
-          ~data=Types.missingExecutionContextCapabilityDataToJson(),
+  switch parseParams(params, Types.toolCallParamsSchema, "Missing params for tools/call") {
+  | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+  | Ok(params) =>
+    switch Types.AuthorizedToolCall.authorize(params, ~sessionId=handler.sessionId) {
+    | Error(ToolCallMetadata(error)) => sendMetadataError(handler, id, error)
+    | Error(MissingExecutionContextCapability) =>
+      sendError(
+        handler,
+        id,
+        Types.ErrorCode.missingRequiredClientCapability,
+        "Missing required client capability",
+        ~data=Types.missingExecutionContextCapabilityDataToJson(),
+      )
+    | Error(MissingExecutionContext) =>
+      sendError(handler, id, Types.ErrorCode.invalidParams, "Missing execution context")
+    | Error(WrongTask) =>
+      sendError(handler, id, Types.ErrorCode.invalidParams, "Tool taskId does not match session")
+    | Ok(authorizedToolCall) =>
+      try {
+        let {serverInterface} = handler
+        let result = await serverInterface.executeTool(
+          serverInterface.server,
+          authorizedToolCall,
+          ~onProgress=None,
         )
-      | Error(MissingExecutionContext) =>
-        sendError(handler, id, Types.ErrorCode.invalidParams, "Missing execution context")
-      | Error(WrongTask) =>
-        sendError(handler, id, Types.ErrorCode.invalidParams, "Tool taskId does not match session")
-      | Ok(authorizedToolCall) =>
-        try {
-          let {serverInterface} = handler
-          let result = await serverInterface.executeTool(
-            serverInterface.server,
-            authorizedToolCall,
-            ~onProgress=None,
-          )
-          switch result {
-          | Completed(callToolResult) =>
-            let resultJson =
-              callToolResult->S.decodeOrThrow(
-                ~from=Types.callToolResultSchema,
-                ~to=S.json->S.noValidation(true),
-              )
-            sendResponse(handler, id, resultJson)
-          | Suspended => ()
-          | ProtocolError({code, message}) => sendError(handler, id, code, message)
-          }
-        } catch {
-        | exn =>
-          let msg =
-            exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-          Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
-          sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
+        switch result {
+        | Completed(callToolResult) =>
+          let resultJson =
+            callToolResult->S.decodeOrThrow(
+              ~from=Types.callToolResultSchema,
+              ~to=S.json->S.noValidation(true),
+            )
+          sendResponse(handler, id, resultJson)
+        | Suspended => ()
+        | ProtocolError({code, message}) => sendError(handler, id, code, message)
         }
+      } catch {
+      | exn =>
+        let msg =
+          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+        Log.error(~error=exn->JsExn.fromException, `Tool execution failed: ${msg}`)
+        sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
       }
     }
-  | None => sendError(handler, id, Types.ErrorCode.invalidParams, "Missing params for tools/call")
   }
 }
 
@@ -242,7 +221,9 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
       | _ => sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
       }
     | Ok(Notification(_)) => ()
-    | Error(msg) => Log.error(`Failed to parse MCP message: ${msg}`)
+    | Error(msg) =>
+      Log.error(`Failed to parse MCP message: ${msg}`)
+      sendErrorWithoutId(handler, Types.ErrorCode.invalidRequest, "Invalid Request")
     }
   } catch {
   | exn =>

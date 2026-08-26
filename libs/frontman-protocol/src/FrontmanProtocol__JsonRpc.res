@@ -107,6 +107,7 @@ module Response: {
   let makeSuccessPayloadWithId: (~id: Id.t, ~result: JSON.t) => JSON.t
   let makeError: (~id: int, ~error: RpcError.t) => t
   let makeErrorPayloadWithId: (~id: Id.t, ~error: RpcError.t) => JSON.t
+  let makeErrorPayloadWithoutId: (~error: RpcError.t) => JSON.t
   let id: t => int
   let result: t => option<JSON.t>
   let error: t => option<RpcError.t>
@@ -151,6 +152,15 @@ module Response: {
       Dict.fromArray([
         ("jsonrpc", JSON.Encode.string(version)),
         ("id", Id.toJson(id)),
+        ("error", error->S.decodeOrThrow(~from=RpcError.schema, ~to=S.json->S.noValidation(true))),
+      ]),
+    )
+
+  let makeErrorPayloadWithoutId = (~error: RpcError.t) =>
+    JSON.Encode.object(
+      Dict.fromArray([
+        ("jsonrpc", JSON.Encode.string(version)),
+        ("id", JSON.Encode.null),
         ("error", error->S.decodeOrThrow(~from=RpcError.schema, ~to=S.json->S.noValidation(true))),
       ]),
     )

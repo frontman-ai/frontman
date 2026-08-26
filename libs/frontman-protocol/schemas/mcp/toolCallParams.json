@@ -12,7 +12,10 @@
           "properties": {
             "extensions": {
               "type": "object",
-              "additionalProperties": true
+              "additionalProperties": {
+                "type": "object",
+                "properties": {}
+              }
             }
           }
         },

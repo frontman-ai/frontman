@@ -7,18 +7,10 @@
 defmodule ModelContextProtocol.Schema do
   @moduledoc false
 
-  @discover_result_path Path.expand(
-                          "../../../../libs/frontman-protocol/schemas/mcp/discoverResult.json",
-                          __DIR__
-                        )
-  @tools_list_result_path Path.expand(
-                            "../../../../libs/frontman-protocol/schemas/mcp/toolsListResult.json",
-                            __DIR__
-                          )
-  @call_tool_result_path Path.expand(
-                           "../../../../libs/frontman-protocol/schemas/mcp/callToolResult.json",
-                           __DIR__
-                         )
+  @schema_dir Path.expand("../../../../libs/frontman-protocol/schemas/mcp", __DIR__)
+  @discover_result_path Path.join(@schema_dir, "discoverResult.json")
+  @tools_list_result_path Path.join(@schema_dir, "toolsListResult.json")
+  @call_tool_result_path Path.join(@schema_dir, "callToolResult.json")
 
   @external_resource @discover_result_path
   @external_resource @tools_list_result_path

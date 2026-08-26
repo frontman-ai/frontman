@@ -5,23 +5,7 @@
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
 defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
-  @moduledoc """
-  Pure functional state machine for MCP initialization.
-
-  Manages browser-side MCP setup:
-  1. Discover MCP server capabilities
-  2. Load tool definitions
-  3. Optionally load project rules and structure for code projects
-  4. Signal completion
-
-  State is stored in socket assigns by TaskChannel. Functions return
-  `{new_state, actions}` tuples where actions are instructions for the
-  channel to execute synchronously (push messages, update assigns, etc).
-
-  This design eliminates async process hops — every MCP response is
-  processed within the channel's own `handle_in` callback, making the
-  initialization flow deterministic and race-free.
-  """
+  @moduledoc false
   require Logger
 
   alias FrontmanServer.Frameworks
@@ -32,13 +16,13 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   alias ModelContextProtocol.Schema, as: MCPSchema
 
   @execution_context_extension "ai.frontman/execution-context"
+  @tool_metadata_extension "ai.frontman/tool-metadata"
 
-  @doc """
-  Creates the initial state and returns the MCP discovery request to send.
-  """
   def start(task_id, scope, framework) do
     request_id = System.unique_integer([:positive])
-    request = JsonRpc.request(request_id, "server/discover", MCP.request_params())
+
+    request =
+      JsonRpc.request(request_id, "server/discover", MCP.request_params())
 
     state = %{
       status: :discovering_mcp,
@@ -48,8 +32,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       tools_request_id: nil,
       project_rules_request_id: nil,
       project_structure_request_id: nil,
-      mcp_capabilities: nil,
-      mcp_server_info: nil,
+      seen_tool_cursors: MapSet.new(),
       load_project_context: Frameworks.load_project_context?(framework),
       tools: []
     }
@@ -59,9 +42,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     {state, [{:push_mcp, request}]}
   end
 
-  @doc """
-  Handle a successful MCP response. Returns updated state and actions.
-  """
   def handle_response(state, request_id, result) do
     case state do
       %{status: :discovering_mcp, discovery_request_id: ^request_id} ->
@@ -82,9 +62,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  @doc """
-  Handle an MCP error response. Returns updated state and actions.
-  """
   def handle_error(state, request_id, error) do
     case state do
       %{status: :discovering_mcp, discovery_request_id: ^request_id} ->
@@ -92,9 +69,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         fail_initialization(state, error["message"])
 
       %{status: :loading_tools, tools_request_id: ^request_id} ->
-        Logger.warning("MCPInitializer: Tools list failed", error_code: error_code(error))
-        state = %{state | tools: [], tools_request_id: nil}
-        maybe_request_project_context(state)
+        Logger.error("MCPInitializer: Tools list failed", error_code: error_code(error))
+        fail_initialization(state, error["message"])
 
       %{status: :loading_project_rules, project_rules_request_id: ^request_id} ->
         Logger.warning("MCPInitializer: Project rules failed", error_code: error_code(error))
@@ -113,18 +89,19 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
   defp handle_discovery_response(result, state) do
     case validate_discovery_response(result) do
-      {:ok, capabilities, server_info} ->
+      :ok ->
         Logger.info("MCPInitializer: MCP server discovered for task #{state.task_id}")
 
-        state = %{
-          state
-          | mcp_capabilities: capabilities,
-            mcp_server_info: server_info,
-            discovery_request_id: nil
-        }
+        state = %{state | discovery_request_id: nil}
 
         request_id = System.unique_integer([:positive])
-        request = JsonRpc.request(request_id, "tools/list", MCP.request_params())
+
+        request =
+          JsonRpc.request(
+            request_id,
+            "tools/list",
+            MCP.tools_list_params()
+          )
 
         state = %{state | status: :loading_tools, tools_request_id: request_id}
 
@@ -139,15 +116,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     with :ok <- MCPSchema.validate_discover_result(result),
          %{
            "supportedVersions" => supported_versions,
-           "capabilities" =>
-             %{
-               "tools" => _tools_capability,
-               "extensions" => %{@execution_context_extension => %{"version" => 1}}
-             } = capabilities
+           "capabilities" => %{
+             "tools" => _tools_capability,
+             "extensions" => %{
+               @execution_context_extension => %{"version" => 1},
+               @tool_metadata_extension => %{"version" => 1}
+             }
+           }
          } <- result,
-         true <- MCP.protocol_version() in supported_versions,
-         server_info <- get_in(result, ["_meta", "io.modelcontextprotocol/serverInfo"]) do
-      {:ok, capabilities, server_info}
+         true <- MCP.protocol_version() in supported_versions do
+      :ok
     else
       _ -> {:error, "Invalid or incompatible MCP discovery response"}
     end
@@ -155,10 +133,19 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
   defp handle_tools_response(result, state) do
     case validate_tools_response(result) do
-      {:ok, raw_tools} ->
+      {:ok, raw_tools, cursor} ->
         Logger.info("MCPInitializer: Received #{length(raw_tools)} tools from MCP server")
-        state = %{state | tools: MCPTools.from_maps(raw_tools), tools_request_id: nil}
-        maybe_request_project_context(state)
+
+        state = %{
+          state
+          | tools: state.tools ++ MCPTools.from_maps(raw_tools),
+            tools_request_id: nil
+        }
+
+        case cursor do
+          nil -> maybe_request_project_context(state)
+          cursor -> request_next_tools_page(state, cursor)
+        end
 
       {:error, message} ->
         fail_initialization(state, message)
@@ -167,31 +154,29 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
   defp validate_tools_response(result) do
     with :ok <- MCPSchema.validate_tools_list_result(result),
-         %{"tools" => tools} <- result,
-         true <- Enum.all?(tools, &valid_frontman_tool?/1) do
-      {:ok, tools}
+         %{"tools" => tools} <- result do
+      {:ok, tools, Map.get(result, "nextCursor")}
     else
       _ -> {:error, "Invalid MCP tools/list response"}
     end
   end
 
-  defp valid_frontman_tool?(%{"inputSchema" => input_schema} = tool) do
-    [
-      input_schema["type"] == "object",
-      valid_optional_tool_field?(tool, "outputSchema", &is_map/1),
-      valid_optional_tool_field?(tool, "visibleToAgent", &is_boolean/1),
-      valid_optional_tool_field?(tool, "executionMode", &(&1 in ["Synchronous", "Interactive"])),
-      valid_optional_tool_field?(tool, "access", &(&1 in ["read", "write", "read-write"]))
-    ]
-    |> Enum.all?()
-  end
+  defp request_next_tools_page(state, cursor) do
+    case MapSet.member?(state.seen_tool_cursors, cursor) do
+      true ->
+        fail_initialization(state, "MCP tools/list returned a repeated cursor")
 
-  defp valid_frontman_tool?(_tool), do: false
+      false ->
+        request_id = System.unique_integer([:positive])
+        request = JsonRpc.request(request_id, "tools/list", MCP.tools_list_params(cursor))
 
-  defp valid_optional_tool_field?(tool, field, predicate) do
-    case Map.fetch(tool, field) do
-      {:ok, value} -> predicate.(value)
-      :error -> true
+        state = %{
+          state
+          | tools_request_id: request_id,
+            seen_tool_cursors: MapSet.put(state.seen_tool_cursors, cursor)
+        }
+
+        {state, [{:push_mcp, request}]}
     end
   end
 
@@ -340,21 +325,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   defp complete_initialization(state) do
     state = state |> clear_request_ids() |> Map.put(:status, :ready)
 
-    tools = if is_list(state.tools), do: state.tools, else: []
-
-    initialization_data = %{
-      mcp_capabilities: state.mcp_capabilities,
-      mcp_server_info: state.mcp_server_info,
-      tools: tools
-    }
-
-    notification =
-      JsonRpc.notification("mcp_initialization_complete", %{
-        "count" => length(initialization_data.tools),
-        "taskId" => state.task_id
-      })
-
-    {state, [{:push_acp, notification}, {:initialization_complete, initialization_data}]}
+    {state, [{:initialization_complete, %{tools: state.tools}}]}
   end
 
   defp clear_request_ids(state) do

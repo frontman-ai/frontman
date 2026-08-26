@@ -26,6 +26,19 @@ module MockChannel = {
 
 let serverInfo: Types.info = {name: "test-browser", version: "1.0.0"}
 
+module ThrowingTool = {
+  let name = "throwing_tool"
+  let description = "Throws during execution"
+  let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
+  type input = Dict.t<JSON.t>
+  let inputSchema = S.dict(S.json)
+  let outputJsonSchema = None
+  let visibleToAgent = true
+  let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
+  let execute = async (_input, ~taskId as _, ~toolCallId as _) =>
+    JsError.throwWithMessage("tool exploded")
+}
+
 type failure = Discover | List | Tool
 
 let makeInterface = (
@@ -41,9 +54,9 @@ let makeInterface = (
         supportedVersions: [Types.protocolVersion],
         capabilities: {
           tools: {listChanged: false},
-          extensions: {executionContext: {version: 1}},
+          extensions: {executionContext: {version: 1}, toolMetadata: {version: 1}},
         },
-        ttlMs: 0.0,
+        ttlMs: 0,
         cacheScope: "private",
         _meta: {serverInfo: serverInfo},
       }
@@ -54,7 +67,7 @@ let makeInterface = (
     | _ => {
         resultType: "complete",
         tools: [],
-        ttlMs: 0.0,
+        ttlMs: 0,
         cacheScope: "private",
         _meta: {serverInfo: serverInfo},
       }
@@ -112,6 +125,30 @@ let handler = (channel, context, ~sessionId="task-1", ~failure=?) => {
 }
 
 describe("MCP 2026-07-28", () => {
+  test("namespaces Frontman tool metadata under _meta", t => {
+    let server =
+      MCPServer.make(
+        ~relay=Relay.make(~baseUrl="http://relay.invalid"),
+      )->MCPServer.registerToolModule(module(ThrowingTool))
+    let tool =
+      MCPServer.buildToolsListResult(server).tools
+      ->Array.get(0)
+      ->Option.getOrThrow
+      ->JSON.Decode.object
+      ->Option.getOrThrow
+    let metadata =
+      tool
+      ->Dict.get("_meta")
+      ->Option.flatMap(JSON.Decode.object)
+      ->Option.flatMap(metadata => metadata->Dict.get("ai.frontman/tool-metadata"))
+      ->Option.flatMap(JSON.Decode.object)
+
+    t->expect(metadata->Option.isSome)->Expect.toBe(true)
+    t->expect(tool->Dict.get("access")->Option.isNone)->Expect.toBe(true)
+    t->expect(tool->Dict.get("visibleToAgent")->Option.isNone)->Expect.toBe(true)
+    t->expect(tool->Dict.get("executionMode")->Option.isNone)->Expect.toBe(true)
+  })
+
   testAsync("handles discovery, listing, and tool execution", async t => {
     let context = ref(None)
     let call = async (id, method, params) => {
@@ -267,6 +304,46 @@ describe("MCP 2026-07-28", () => {
 
     t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
     t->expect(response(calls)->Dict.get("result")->Option.isNone)->Expect.toBe(true)
+  })
+
+  testAsync("returns thrown tool failures as tool errors", async t => {
+    let server =
+      MCPServer.make(
+        ~relay=Relay.make(~baseUrl="http://relay.invalid"),
+      )->MCPServer.registerToolModule(module(ThrowingTool))
+    let (channel, calls) = MockChannel.make()
+
+    await MCP.handleMessage(
+      {
+        MCP.serverInterface: MCPServer.toInterface(server),
+        channel,
+        sessionId: "task-1",
+        onMessage: None,
+      },
+      request(
+        ~id=22,
+        ~method="tools/call",
+        ~params=toolParams->String.replace(`"name":"question"`, `"name":"throwing_tool"`),
+      ),
+    )
+
+    let result = response(calls)->Dict.get("result")->Option.flatMap(JSON.Decode.object)
+    t
+    ->expect(result->Option.flatMap(result => result->Dict.get("isError")))
+    ->Expect.toEqual(Some(JSON.Encode.bool(true)))
+    t->expect(response(calls)->Dict.get("error")->Option.isNone)->Expect.toBe(true)
+  })
+
+  testAsync("returns invalid request with a null id for malformed request ids", async t => {
+    let (channel, calls) = MockChannel.make()
+    let payload = JSON.parseOrThrow(
+      `{"jsonrpc":"2.0","id":{},"method":"server/discover","params":{${metadata}}}`,
+    )
+
+    await MCP.handleMessage(handler(channel, ref(None)), payload)
+
+    t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidRequest))
+    t->expect(response(calls)->Dict.get("id"))->Expect.toEqual(Some(JSON.Encode.null))
   })
 
   test("accepts array structuredContent", _ => {

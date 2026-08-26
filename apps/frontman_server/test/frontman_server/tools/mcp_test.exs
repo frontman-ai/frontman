@@ -19,6 +19,8 @@ defmodule FrontmanServer.Tools.MCPTest do
       assert tool.description == "Navigate to a URL"
       assert tool.access == :read_write
       assert tool.output_schema == output_schema
+      assert tool.timeout_ms == 600_000
+      assert tool.on_timeout == :error
     end
 
     test "parses access from wire format" do
@@ -33,32 +35,11 @@ defmodule FrontmanServer.Tools.MCPTest do
             "name" => "test_tool",
             "description" => "Test tool",
             "inputSchema" => %{},
-            "access" => wire
+            "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => wire}}
           })
 
         assert tool.access == expected
       end
-    end
-
-    test "applies server-side timeout defaults" do
-      tool =
-        MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate to a URL",
-          "inputSchema" => %{}
-        })
-
-      assert tool.timeout_ms == 600_000
-      assert tool.on_timeout == :error
-    end
-
-    test "does not require or read timeoutMs / onTimeout from wire" do
-      assert %MCP{} =
-               MCP.from_map(%{
-                 "name" => "take_screenshot",
-                 "description" => "Screenshot",
-                 "inputSchema" => %{}
-               })
     end
 
     test "applies pause_agent policy for executionMode: Interactive" do
@@ -67,62 +48,24 @@ defmodule FrontmanServer.Tools.MCPTest do
           "name" => "question",
           "description" => "Ask user a question",
           "inputSchema" => %{},
-          "executionMode" => "Interactive"
+          "_meta" => %{
+            "ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}
+          }
         })
 
       assert tool.timeout_ms == 120_000
       assert tool.on_timeout == :pause_agent
     end
-
-    test "keeps default timeout policy for executionMode: Synchronous" do
-      tool =
-        MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate to a URL",
-          "inputSchema" => %{},
-          "executionMode" => "Synchronous"
-        })
-
-      assert tool.timeout_ms == 600_000
-      assert tool.on_timeout == :error
-    end
-
-    test "keeps default timeout policy when executionMode is absent" do
-      tool =
-        MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate to a URL",
-          "inputSchema" => %{}
-        })
-
-      assert tool.timeout_ms == 600_000
-      assert tool.on_timeout == :error
-    end
   end
 
   describe "to_swarm_tools/1" do
-    test "passes default timeout policy through to swarm tool" do
-      mcp_tool =
-        MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate to a URL",
-          "inputSchema" => %{},
-          "visibleToAgent" => true
-        })
-
-      [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
-
-      assert swarm_tool.timeout_ms == 600_000
-      assert swarm_tool.on_timeout == :error
-    end
-
     test "passes access through to swarm tool" do
       mcp_tool =
         MCP.from_map(%{
           "name" => "read_file",
           "description" => "Read file",
           "inputSchema" => %{},
-          "access" => "read"
+          "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => "read"}}
         })
 
       [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
@@ -136,7 +79,9 @@ defmodule FrontmanServer.Tools.MCPTest do
           "name" => "question",
           "description" => "Ask user",
           "inputSchema" => %{},
-          "executionMode" => "Interactive"
+          "_meta" => %{
+            "ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}
+          }
         })
 
       [swarm_tool] = MCP.to_swarm_tools([mcp_tool])

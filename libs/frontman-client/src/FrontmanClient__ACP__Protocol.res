@@ -169,7 +169,6 @@ let handleIncomingMessage = (
       })
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
-  | Some("mcp_initialization_complete") => ()
   | Some(method) => Log.warning(`Received unhandled ACP notification: ${method}`)
   | None => state := Client.handleResponse(state.contents, payload)
   }

@@ -1,12 +1,16 @@
 let protocolVersion = "2026-07-28"
 
-@scope("Number") @val
-external isFinite: float => bool = "isFinite"
+let ttlMsSchema = S.int->S.min(0)
 
-let ttlMsSchema =
-  S.float
-  ->S.floatMin(0.0)
-  ->S.refine(isFinite, ~error="Expected a finite cache TTL")
+let jsonObjectShapeSchema = S.object(s => s.flatten(S.dict(S.json))->JSON.Encode.object)
+let extensionsSchema =
+  S.dict(S.json)
+  ->S.refine(extensions =>
+    extensions
+    ->Dict.valuesToArray
+    ->Array.every(value => value->JSON.Decode.object->Option.isSome)
+  , ~error="Expected extension settings to be objects")
+  ->S.extendJSONSchema(S.dict(jsonObjectShapeSchema)->S.toJSONSchema)
 
 @schema
 type info = {
@@ -20,10 +24,18 @@ type extension = {version: @s.matches(S.literal(1)) int}
 @schema
 type frontmanExtensions = {
   @as("ai.frontman/execution-context") executionContext: extension,
+  @as("ai.frontman/tool-metadata") toolMetadata: extension,
 }
 
 @schema
-type clientCapabilities = {extensions: option<Dict.t<JSON.t>>}
+type requiredFrontmanExtensions = {
+  @as("ai.frontman/execution-context") executionContext: extension,
+}
+
+@schema
+type clientCapabilities = {
+  extensions: option<@s.matches(extensionsSchema) Dict.t<JSON.t>>,
+}
 
 @schema
 type executionContext = {
@@ -35,9 +47,12 @@ type executionContext = {
 type requestMeta = {
   @as("io.modelcontextprotocol/protocolVersion")
   protocolVersion: string,
-  @as("io.modelcontextprotocol/clientCapabilities") clientCapabilities: clientCapabilities,
-  @as("io.modelcontextprotocol/clientInfo") clientInfo: option<info>,
-  @as("ai.frontman/execution-context") executionContext: option<executionContext>,
+  @as("io.modelcontextprotocol/clientCapabilities")
+  clientCapabilities: clientCapabilities,
+  @as("io.modelcontextprotocol/clientInfo")
+  clientInfo: option<info>,
+  @as("ai.frontman/execution-context")
+  executionContext: option<executionContext>,
 }
 
 @schema
@@ -62,7 +77,7 @@ type discoverResult = {
   resultType: @s.matches(S.literal("complete")) string,
   supportedVersions: array<@s.matches(S.literal("2026-07-28")) string>,
   capabilities: serverCapabilities,
-  ttlMs: @s.matches(ttlMsSchema) float,
+  ttlMs: @s.matches(ttlMsSchema) int,
   cacheScope: @s.matches(S.literal("private")) string,
   _meta: resultMeta,
 }
@@ -74,7 +89,7 @@ let toolsCapabilityWireSchema = S.object(s => {
 
 let serverCapabilitiesWireSchema = S.object(s => {
   s.field("tools", S.option(toolsCapabilityWireSchema))->ignore
-  s.field("extensions", S.option(S.dict(S.json)))->ignore
+  s.field("extensions", S.option(extensionsSchema))->ignore
   s.flatten(S.dict(S.json))->JSON.Encode.object
 })
 
@@ -97,7 +112,7 @@ let discoverResultWireSchema = S.object(s => {
 })
 
 @schema
-type toolsListParams = {_meta: requestMeta}
+type toolsListParams = {_meta: requestMeta, cursor: option<string>}
 
 @schema
 type toolCallParams = {
@@ -172,7 +187,7 @@ module AuthorizedToolCall: {
 type unsupportedProtocolVersionData = {supported: array<string>, requested: string}
 
 @schema
-type requiredClientCapabilities = {extensions: frontmanExtensions}
+type requiredClientCapabilities = {extensions: requiredFrontmanExtensions}
 
 @schema
 type missingRequiredClientCapabilityData = {requiredCapabilities: requiredClientCapabilities}
@@ -190,12 +205,6 @@ let missingExecutionContextCapabilityDataToJson = () =>
     ~from=missingRequiredClientCapabilityDataSchema,
     ~to=S.json->S.noValidation(true),
   )
-
-@schema
-type toolError = {
-  code: int,
-  message: string,
-}
 
 module CallToolResult: {
   type t
@@ -258,10 +267,35 @@ module CallToolResult: {
 
 let callToolResultSchema = CallToolResult.schema
 
+let toolMetadataSchema = S.object(s => {
+  s.field("visibleToAgent", S.option(S.bool))->ignore
+  s.field(
+    "executionMode",
+    S.option(S.union([S.literal("Synchronous"), S.literal("Interactive")])),
+  )->ignore
+  s.field(
+    "access",
+    S.option(S.union([S.literal("read"), S.literal("write"), S.literal("read-write")])),
+  )->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let toolMetaSchema = S.object(s => {
+  s.field("ai.frontman/tool-metadata", S.option(toolMetadataSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let toolInputSchema = S.object(s => {
+  s.field("type", S.literal("object"))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
 let toolJsonSchema = S.object(s => {
   s.field("name", S.string->S.min(1))->ignore
   s.field("description", S.option(S.string))->ignore
-  s.field("inputSchema", S.dict(S.json))->ignore
+  s.field("inputSchema", toolInputSchema)->ignore
+  s.field("outputSchema", S.option(S.dict(S.json)))->ignore
+  s.field("_meta", S.option(toolMetaSchema))->ignore
   s.flatten(S.dict(S.json))->JSON.Encode.object
 })
 
@@ -269,7 +303,7 @@ let toolJsonSchema = S.object(s => {
 type toolsListResult = {
   resultType: @s.matches(S.literal("complete")) string,
   tools: array<JSON.t>,
-  ttlMs: @s.matches(ttlMsSchema) float,
+  ttlMs: @s.matches(ttlMsSchema) int,
   cacheScope: @s.matches(S.literal("private")) string,
   _meta: resultMeta,
 }
@@ -290,6 +324,7 @@ type executeToolResult =
   | ProtocolError({code: int, message: string})
 
 module ErrorCode = {
+  let invalidRequest = -32600
   let invalidParams = -32602
   let serverError = -32603
   let methodNotFound = -32601

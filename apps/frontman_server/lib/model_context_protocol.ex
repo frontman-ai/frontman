@@ -26,6 +26,7 @@ defmodule ModelContextProtocol do
 
   @protocol_version "2026-07-28"
   @execution_context_extension "ai.frontman/execution-context"
+  @tool_metadata_extension "ai.frontman/tool-metadata"
   @client_name "frontman-server"
   @client_version "1.0.0"
 
@@ -84,10 +85,17 @@ defmodule ModelContextProtocol do
   end
 
   @doc """
-  Returns params for MCP discovery and list requests.
+  Returns params for MCP discovery requests.
   """
   @spec request_params() :: map()
   def request_params, do: %{"_meta" => request_meta()}
+
+  @spec tools_list_params(String.t() | nil) :: map()
+  def tools_list_params(cursor \\ nil)
+  def tools_list_params(nil), do: request_params()
+
+  def tools_list_params(cursor) when is_binary(cursor),
+    do: Map.put(request_params(), "cursor", cursor)
 
   @doc """
   Extracts text content from MCP content array.
@@ -134,7 +142,10 @@ defmodule ModelContextProtocol do
     %{
       "io.modelcontextprotocol/protocolVersion" => @protocol_version,
       "io.modelcontextprotocol/clientCapabilities" => %{
-        "extensions" => %{@execution_context_extension => %{"version" => 1}}
+        "extensions" => %{
+          @execution_context_extension => %{"version" => 1},
+          @tool_metadata_extension => %{"version" => 1}
+        }
       },
       "io.modelcontextprotocol/clientInfo" => client_info()
     }

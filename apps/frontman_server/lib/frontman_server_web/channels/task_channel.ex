@@ -132,7 +132,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @impl true
   def handle_info({:start_mcp_init, actions}, socket) do
-    socket = execute_init_actions(actions, socket)
+    socket = apply_init_actions(actions, socket)
     {:noreply, socket}
   end
 
@@ -325,7 +325,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     if mcp_initialization_request?(init_state, id) do
       {new_state, actions} = MCPInitializer.handle_response(init_state, id, result)
       socket = assign(socket, :mcp_init_state, new_state)
-      {:noreply, execute_init_actions(actions, socket)}
+      {:noreply, apply_init_actions(actions, socket)}
     else
       handle_tool_call_response_by_id(id, result, socket)
     end
@@ -461,7 +461,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     if mcp_initialization_request?(init_state, id) do
       {new_state, actions} = MCPInitializer.handle_error(init_state, id, error)
       socket = assign(socket, :mcp_init_state, new_state)
-      {:noreply, execute_init_actions(actions, socket)}
+      {:noreply, apply_init_actions(actions, socket)}
     else
       handle_tool_call_error_by_id(id, error, socket)
     end
@@ -907,10 +907,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     }
   end
 
-  defp execute_init_actions(actions, socket) do
-    apply_init_actions(actions, socket)
-  end
-
   defp apply_init_actions([], socket), do: socket
 
   defp apply_init_actions([action | rest], socket) do
@@ -923,30 +919,22 @@ defmodule FrontmanServerWeb.TaskChannel do
     socket
   end
 
-  defp apply_init_action(socket, {:push_acp, msg}) do
-    push(socket, @acp_message, msg)
-    socket
-  end
-
   defp apply_init_action(socket, {:initialization_complete, data}) do
     task_id = socket.assigns.task_id
     Logger.info("MCP initialization complete for task #{task_id}")
 
     socket
     |> assign(:mcp_status, :ready)
-    |> assign(:mcp_capabilities, data.mcp_capabilities)
-    |> assign(:mcp_server_info, data.mcp_server_info)
     |> assign(:mcp_tools, data.tools)
     |> redispatch_unresolved_tool_calls()
     |> tap(&wake_runner(&1, nil))
   end
 
-  defp apply_init_action(socket, {:initialization_failed, error}) do
+  defp apply_init_action(socket, {:initialization_failed, _error}) do
     Logger.error("MCP initialization failed")
 
     socket
     |> assign(:mcp_status, :failed)
-    |> assign(:mcp_error, error)
     |> redispatch_unresolved_tool_calls()
     |> tap(&wake_runner(&1, nil))
   end
