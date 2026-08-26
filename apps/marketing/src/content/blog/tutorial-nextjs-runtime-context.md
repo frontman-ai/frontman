@@ -16,7 +16,7 @@ The example uses a CSS Module, an officially supported Next.js styling method. S
 
 ## Prerequisites
 
-- A Next.js 15 or 16 project using the App Router
+- A Next.js 15.5 or later project using the App Router
 - Frontman installed with `npx @frontman-ai/nextjs install`
 - Your development server running
 - An AI provider connected in Frontman

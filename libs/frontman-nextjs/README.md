@@ -16,7 +16,7 @@ npx @frontman-ai/nextjs install --server frontman.company.com
 ```
 
 The installer will:
-- Detect your Next.js version (15 or 16+)
+- Detect your Next.js version (15.5+ or 16+)
 - Create the appropriate middleware/proxy file
 - Set up OpenTelemetry instrumentation
 - Configure everything to connect to your Frontman server
@@ -58,7 +58,7 @@ With the default hosted setup, Frontman redirects you to `api.frontman.sh` to si
 
 ## Manual Setup
 
-### Next.js 15 (middleware.ts)
+### Next.js 15.5+ (middleware.ts)
 
 Create `middleware.ts` in your project root:
 
@@ -132,7 +132,7 @@ export async function register() {
 
 If you already have `middleware.ts`, `proxy.ts`, or `instrumentation.ts` files, the installer will show you manual integration steps. Here's how to add Frontman to existing files:
 
-### Existing middleware.ts (Next.js 15)
+### Existing middleware.ts (Next.js 15.5+)
 
 ```typescript
 import { createMiddleware } from '@frontman-ai/nextjs';
@@ -286,7 +286,7 @@ The middleware itself doesn't connect to the Frontman server - it only passes th
 
 | Version | Middleware File | Status |
 |---------|----------------|--------|
-| Next.js 15.x | `middleware.ts` | Fully supported |
+| Next.js 15.5+ | `middleware.ts` | Fully supported |
 | Next.js 16.x | `proxy.ts` | Fully supported |
 
 Both versions have built-in OpenTelemetry support with no additional configuration required.
