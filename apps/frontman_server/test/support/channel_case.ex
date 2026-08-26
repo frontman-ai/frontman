@@ -132,7 +132,7 @@ defmodule FrontmanServerWeb.ChannelCase do
             "mcp:message",
             JsonRpc.success_response(project_structure_request_id, %{
               "resultType" => "complete",
-              "content" => []
+              "content" => [%{"type" => "text", "text" => Jason.encode!(%{"tree" => "."})}]
             })
           )
 

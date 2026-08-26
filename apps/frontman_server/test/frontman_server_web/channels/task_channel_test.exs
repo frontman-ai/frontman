@@ -1091,6 +1091,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
       {:ok, task} = Tasks.get_task(scope, task_id)
+      assert Enum.any?(task.interaction_rows, &(&1.type == :discovered_project_rule))
+      assert Enum.any?(task.interaction_rows, &(&1.type == :discovered_project_structure))
 
       assert %Interaction.ToolResult{
                is_error: true,
@@ -1740,7 +1742,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"name" => "load_agent_instructions"}
       })
 
-      push(socket, "mcp:message", JsonRpc.success_response(rules_id, %{"content" => []}))
+      push(socket, "mcp:message", JsonRpc.success_response(rules_id, MCP.tool_result_text("")))
       :sys.get_state(socket.channel_pid)
 
       assert_push("mcp:message", %{
@@ -1749,7 +1751,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"name" => "list_tree"}
       })
 
-      push(socket, "mcp:message", JsonRpc.success_response(tree_id, %{"content" => []}))
+      push(socket, "mcp:message", JsonRpc.success_response(tree_id, MCP.tool_result_text("")))
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{"method" => "mcp_initialization_complete"})

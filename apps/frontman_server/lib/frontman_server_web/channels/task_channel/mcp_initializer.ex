@@ -180,7 +180,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       input_schema["type"] == "object",
       valid_optional_tool_field?(tool, "outputSchema", &is_map/1),
       valid_optional_tool_field?(tool, "visibleToAgent", &is_boolean/1),
-      valid_optional_tool_field?(tool, "executionMode", &is_binary/1),
+      valid_optional_tool_field?(tool, "executionMode", &(&1 in ["Synchronous", "Interactive"])),
       valid_optional_tool_field?(tool, "access", &(&1 in ["read", "write", "read-write"]))
     ]
     |> Enum.all?()

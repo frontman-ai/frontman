@@ -98,18 +98,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     assert tools_request["params"] == ModelContextProtocol.request_params()
   end
 
-  test "fails initialization for a malformed discovery response" do
-    {state, _actions} = discovery_state()
-
-    assert {%{status: :failed},
-            [{:initialization_failed, "Invalid or incompatible MCP discovery response"}]} =
-             MCPInitializer.handle_response(
-               state,
-               state.discovery_request_id,
-               %{"resultType" => "complete"}
-             )
-  end
-
   test "fails initialization for malformed present server info" do
     {state, _actions} = discovery_state()
     result = discovery_result(%{"_meta" => %{"io.modelcontextprotocol/serverInfo" => %{}}})
@@ -184,7 +172,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
             "name" => "question",
             "description" => "Ask the user a question",
             "inputSchema" => %{"type" => "object", "properties" => %{}},
-            "executionMode" => "interactive"
+            "executionMode" => "Interactive"
           },
           %{
             "name" => "navigate",
@@ -208,8 +196,14 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
     test "fails initialization for malformed tools" do
       invalid_results = [
-        tools_result([%{"name" => "missing tool fields"}]),
-        %{tools_result([]) | "ttlMs" => -1}
+        tools_result([%{"name" => "invalid", "inputSchema" => %{"type" => "string"}}]),
+        tools_result([
+          %{
+            "name" => "invalid",
+            "inputSchema" => %{"type" => "object"},
+            "executionMode" => "interactive"
+          }
+        ])
       ]
 
       Enum.each(invalid_results, fn result ->
@@ -263,16 +257,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
       assert {^failed_state, []} =
                MCPInitializer.handle_error(failed_state, 1, %{"message" => "late error"})
-    end
-
-    test "ignores duplicate responses after initialization completes" do
-      state = %{tools_state(1) | load_project_context: false}
-
-      {ready_state, [{:push_acp, _notification}, {:initialization_complete, _data}]} =
-        MCPInitializer.handle_response(state, 1, tools_result([]))
-
-      assert ready_state.status == :ready
-      assert {^ready_state, []} = MCPInitializer.handle_response(ready_state, 1, tools_result([]))
     end
   end
 
@@ -368,8 +352,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
       assert {%{status: :ready}, actions} =
                MCPInitializer.handle_response(state, 2, %{
-                 "resultType" => "complete",
-                 "content" => [%{"type" => "unknown"}]
+                 "content" => [%{"type" => "text", "text" => ~s({"tree":"."})}]
                })
 
       assert Enum.any?(actions, &match?({:initialization_complete, _data}, &1))

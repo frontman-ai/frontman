@@ -61,26 +61,26 @@ defmodule FrontmanServer.Tools.MCPTest do
                })
     end
 
-    test "applies pause_agent policy for executionMode: interactive" do
+    test "applies pause_agent policy for executionMode: Interactive" do
       tool =
         MCP.from_map(%{
           "name" => "question",
           "description" => "Ask user a question",
           "inputSchema" => %{},
-          "executionMode" => "interactive"
+          "executionMode" => "Interactive"
         })
 
       assert tool.timeout_ms == 120_000
       assert tool.on_timeout == :pause_agent
     end
 
-    test "keeps default timeout policy for executionMode: synchronous" do
+    test "keeps default timeout policy for executionMode: Synchronous" do
       tool =
         MCP.from_map(%{
           "name" => "navigate",
           "description" => "Navigate to a URL",
           "inputSchema" => %{},
-          "executionMode" => "synchronous"
+          "executionMode" => "Synchronous"
         })
 
       assert tool.timeout_ms == 600_000
@@ -136,7 +136,7 @@ defmodule FrontmanServer.Tools.MCPTest do
           "name" => "question",
           "description" => "Ask user",
           "inputSchema" => %{},
-          "executionMode" => "interactive"
+          "executionMode" => "Interactive"
         })
 
       [swarm_tool] = MCP.to_swarm_tools([mcp_tool])

@@ -37,7 +37,7 @@ defmodule FrontmanServer.Tools.MCP do
     }
   end
 
-  defp timeout_policy("interactive"), do: {120_000, :pause_agent}
+  defp timeout_policy("Interactive"), do: {120_000, :pause_agent}
   defp timeout_policy(_), do: {@default_timeout_ms, @default_on_timeout}
 
   defp parse_access("read"), do: :read
