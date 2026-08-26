@@ -163,6 +163,14 @@ type highlightedAnnotation = {
   selector: string,
 }
 
+type firstTaskFeedbackDialogState =
+  | Waiting
+  | AwaitingHistory
+  | Visible
+  | LinkCopied
+  | ShareFailed
+  | Dismissed
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
@@ -183,5 +191,6 @@ type state = {
   updateInfo: option<updateInfo>,
   updateCheckStatus: updateCheckStatus,
   updateBannerDismissed: bool,
+  firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
   highlightedAnnotation: option<highlightedAnnotation>,
 }

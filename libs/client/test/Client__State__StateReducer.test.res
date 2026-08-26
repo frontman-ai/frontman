@@ -1,6 +1,7 @@
 open Vitest
 
 module Reducer = Client__State__StateReducer
+module StateTypes = Client__State__Types
 module TaskReducer = Client__Task__Reducer
 module Task = Client__State__Types.Task
 module UserContentPart = Client__State__Types.UserContentPart
@@ -437,6 +438,111 @@ describe("Client State Reducer", () => {
       }
     | _ => t->expect("Got ToolCall message")->Expect.toBe("Expected ToolCall message")
     }
+  })
+})
+
+describe("Client State Reducer - First Task Feedback Dialog", () => {
+  let firstTurnState = (~agentId="test-agent", ~sessionsLoadState=StateTypes.SessionsLoaded) => {
+    ...TestHelpers.makeStateWithTask(
+      ~isAgentRunning=true,
+      ~messages=[
+        Reducer.Message.User({
+          id: "user-1",
+          content: [UserContentPart.text("Build something")],
+          annotations: [],
+          agentId,
+        }),
+        Reducer.Message.Assistant(Streaming({id: "assistant-1", textBuffer: "Done", agentId})),
+      ],
+    ),
+    sessionsLoadState,
+  }
+
+  let reduce = (state, action) => Reducer.next(state, action)->Pair.first
+  let stopTurn = (state, stopReason) => {
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    state->reduce(TaskExecutionStopped({taskId, stopReason}))
+  }
+  let completeSuccessfulTurn = state => stopTurn(state, Some(ACP.EndTurn))
+  let loadHistory = state => state->reduce(SessionsLoadSuccess({sessions: []}))
+  let expectOpen = (t, state, expected) =>
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(state))->Expect.toBe(expected)
+
+  test("opens only after the first task's first successful turn", t => {
+    expectOpen(t, firstTurnState()->stopTurn(Some(ACP.Refusal)), false)
+    expectOpen(t, firstTurnState()->completeSuccessfulTurn, true)
+  })
+
+  test("waits for session history and only celebrates a new user", t => {
+    let pendingState =
+      firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
+    expectOpen(t, pendingState, false)
+    expectOpen(t, pendingState->loadHistory, true)
+
+    let returningUserState = {...pendingState, tasks: pendingState.tasks->Dict.copy}
+    returningUserState.tasks->Dict.set("previous-task", Task.makeNew(~previewUrl=""))
+    expectOpen(t, returningUserState->loadHistory, false)
+
+    let failedState = pendingState->reduce(SessionsLoadError({error: "unavailable"}))
+    t->expect(failedState.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
+  })
+
+  test("rechecks queued prompts when session history arrives", t => {
+    let queuedState =
+      firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
+    let taskId = TestHelpers.getCurrentTaskId(queuedState)->Option.getOrThrow
+    let (queuedState, _) = Reducer.next(
+      queuedState,
+      AddUserMessage({
+        id: secondTestUserMessageId,
+        sessionId: taskId,
+        content: [UserContentPart.text("Second message")],
+        annotations: [],
+        agentId: "test-agent",
+      }),
+    )
+    expectOpen(t, queuedState->loadHistory, false)
+  })
+
+  test("waits for planner execution before celebrating", t => {
+    let plannedState =
+      firstTurnState(~agentId=planner.id)->withPlanHandoffContext->completeSuccessfulTurn
+    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(plannedState))->Expect.toBe(false)
+
+    let taskId = TestHelpers.getCurrentTaskId(plannedState)->Option.getOrThrow
+    let executingState = plannedState->reduce(ExecutePendingPlan({id: secondTestUserMessageId}))
+    let executingState = TestHelpers.acceptUserMessage(
+      executingState,
+      ~taskId,
+      ~id=secondTestUserMessageId->UserMessageId.toString,
+      ~content=[UserContentPart.text(Reducer.executePlanPrompt)],
+    )
+    let executingState =
+      executingState->reduce(TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}))
+    let executingState = executingState->reduce(
+      TaskAction({
+        target: ForTask(taskId),
+        action: TextDeltaReceived({
+          messageId: "assistant-executor",
+          text: "Done",
+          agentId: executor.id,
+        }),
+      }),
+    )
+    expectOpen(t, executingState->completeSuccessfulTurn, true)
+  })
+
+  test("keeps failed sharing visible and retryable", t => {
+    let visibleState = firstTurnState()->completeSuccessfulTurn
+    let failedState = visibleState->reduce(ShareFrontmanFailed)
+    let (_, retryEffects) = Reducer.next(failedState, ShareFrontman)
+
+    expectOpen(t, failedState, true)
+    t->expect(Reducer.Selectors.firstTaskFeedbackShareFailed(failedState))->Expect.toBe(true)
+    t->expect(retryEffects)->Expect.toEqual([ShareFrontmanEffect])
+
+    let copiedState = failedState->reduce(ShareFrontmanLinkCopied)
+    t->expect(copiedState.firstTaskFeedbackDialogState)->Expect.toEqual(LinkCopied)
   })
 })
 

@@ -48,6 +48,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     updateInfo: None,
     updateCheckStatus: UpdateNotChecked,
     updateBannerDismissed: false,
+    firstTaskFeedbackDialogState: Waiting,
     highlightedAnnotation: None,
   }
 }
