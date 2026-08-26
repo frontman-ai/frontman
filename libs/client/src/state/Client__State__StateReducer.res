@@ -95,6 +95,7 @@ type action =
   | DismissFirstTaskFeedbackDialog
   | ShareFrontman
   | ShareFrontmanLinkCopied
+  | ShareFrontmanFailed
   | HighlightAnnotation({annotationId: string, selector: string})
 
 type effect =
@@ -431,12 +432,15 @@ module Selectors = {
 
   let showFirstTaskFeedbackDialog = (state: state) =>
     switch state.firstTaskFeedbackDialogState {
-    | Visible | LinkCopied => true
+    | Visible | LinkCopied | ShareFailed => true
     | Waiting | AwaitingHistory | Dismissed => false
     }
 
   let firstTaskFeedbackLinkCopied = (state: state) =>
     state.firstTaskFeedbackDialogState == LinkCopied
+
+  let firstTaskFeedbackShareFailed = (state: state) =>
+    state.firstTaskFeedbackDialogState == ShareFailed
 
   let highlightedAnnotation = (state: state): option<
     Client__State__Types.highlightedAnnotation,
@@ -596,7 +600,7 @@ let resolveFeedbackHistory = (state: state) =>
       firstTaskFeedbackDialogState: Visible,
     }
   | AwaitingHistory => {...state, firstTaskFeedbackDialogState: Dismissed}
-  | Waiting | Visible | LinkCopied | Dismissed => state
+  | Waiting | Visible | LinkCopied | ShareFailed | Dismissed => state
   }
 
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
@@ -1083,6 +1087,7 @@ let handleEffect = (effect, state: state, dispatch) => {
     FirstTaskFeedbackShare.run(
       ~onShared=() => dispatch(DismissFirstTaskFeedbackDialog),
       ~onCopied=() => dispatch(ShareFrontmanLinkCopied),
+      ~onFailed=() => dispatch(ShareFrontmanFailed),
     )
   }
 }
@@ -1645,13 +1650,21 @@ let next = (state: state, action) => {
 
   | ShareFrontman =>
     switch state.firstTaskFeedbackDialogState {
-    | Visible => state->StateReducer.update(~sideEffects=[ShareFrontmanEffect])
+    | Visible | ShareFailed => state->StateReducer.update(~sideEffects=[ShareFrontmanEffect])
     | Waiting | AwaitingHistory | LinkCopied | Dismissed => state->StateReducer.update
     }
 
   | ShareFrontmanLinkCopied =>
     switch state.firstTaskFeedbackDialogState {
-    | Visible => {...state, firstTaskFeedbackDialogState: LinkCopied}->StateReducer.update
+    | Visible | ShareFailed =>
+      {...state, firstTaskFeedbackDialogState: LinkCopied}->StateReducer.update
+    | Waiting | AwaitingHistory | LinkCopied | Dismissed => state->StateReducer.update
+    }
+
+  | ShareFrontmanFailed =>
+    switch state.firstTaskFeedbackDialogState {
+    | Visible | ShareFailed =>
+      {...state, firstTaskFeedbackDialogState: ShareFailed}->StateReducer.update
     | Waiting | AwaitingHistory | LinkCopied | Dismissed => state->StateReducer.update
     }
 

@@ -531,6 +531,19 @@ describe("Client State Reducer - First Task Feedback Dialog", () => {
     )
     expectOpen(t, executingState->completeSuccessfulTurn, true)
   })
+
+  test("keeps failed sharing visible and retryable", t => {
+    let visibleState = firstTurnState()->completeSuccessfulTurn
+    let failedState = visibleState->reduce(ShareFrontmanFailed)
+    let (_, retryEffects) = Reducer.next(failedState, ShareFrontman)
+
+    expectOpen(t, failedState, true)
+    t->expect(Reducer.Selectors.firstTaskFeedbackShareFailed(failedState))->Expect.toBe(true)
+    t->expect(retryEffects)->Expect.toEqual([ShareFrontmanEffect])
+
+    let copiedState = failedState->reduce(ShareFrontmanLinkCopied)
+    t->expect(copiedState.firstTaskFeedbackDialogState)->Expect.toEqual(LinkCopied)
+  })
 })
 
 describe("Client State Reducer - Idle Content Conversion", () => {

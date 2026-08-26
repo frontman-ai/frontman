@@ -6,6 +6,7 @@ module Icons = Client__UI__Icons
 let make = () => {
   let open_ = Client__State.useSelector(Client__State.Selectors.showFirstTaskFeedbackDialog)
   let linkCopied = Client__State.useSelector(Client__State.Selectors.firstTaskFeedbackLinkCopied)
+  let shareFailed = Client__State.useSelector(Client__State.Selectors.firstTaskFeedbackShareFailed)
   let (ratingUrl, ratingLabel) = switch Client__RuntimeConfig.read().framework {
   | Nextjs | Vite | Astro => ("https://github.com/frontman-ai/frontman", "Star us on GitHub")
   | Wordpress => ("https://wordpress.org/plugins/frontman-agentic-ai-editor/", "Leave a review")
@@ -42,9 +43,10 @@ let make = () => {
           disabled={linkCopied}
           onClick={_ => Client__State.Actions.shareFrontman()}
         >
-          {switch linkCopied {
-          | true => React.string("Link copied")
-          | false => React.string("Share Frontman")
+          {switch (linkCopied, shareFailed) {
+          | (true, _) => React.string("Link copied")
+          | (false, true) => React.string("Share failed. Try again")
+          | (false, false) => React.string("Share Frontman")
           }}
         </Button>
         <a
