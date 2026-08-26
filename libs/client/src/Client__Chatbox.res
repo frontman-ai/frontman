@@ -176,9 +176,16 @@ let make = (~onConfigureProvider: unit => unit) => {
     ~content: array<Client__State.UserContentPart.t>,
     ~annotations: array<Client__Message.MessageAnnotation.t>,
     ~agentId: string,
+    ~replacesMessageId: option<string>,
   ) => {
     let sendMessage = (sessionId: string) => {
-      Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations, ~agentId)
+      Client__State.Actions.addUserMessage(
+        ~sessionId,
+        ~content,
+        ~annotations,
+        ~agentId,
+        ~replacesMessageId?,
+      )
     }
     switch session {
     | Some(sess) => sendMessage(sess.sessionId)
@@ -194,15 +201,29 @@ let make = (~onConfigureProvider: unit => unit) => {
 
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
 
-  /* Editing a sent message loads its text back into the composer; sending it
-   appends a new message. History is never rewritten. */
-  let (composerDraft, setComposerDraft) = React.useState(() => (0, ""))
-  let (draftSignal, draftText) = composerDraft
-  let editUserMessage = content =>
-    setComposerDraft(((signal, _)) => (
+  /* Editing a sent message loads its text back into the composer and remembers
+   which message it came from, so sending rewinds the conversation to that point
+   instead of appending. */
+  let (composerDraft, setComposerDraft) = React.useState(() => (0, "", None))
+  let (draftSignal, draftText, editedMessageId) = composerDraft
+  let editUserMessage = (~messageId, ~content) =>
+    setComposerDraft(((signal, _, _)) => (
       signal + 1,
       Client__Task__Reducer.extractTextFromUserContent(content),
+      Some(messageId),
     ))
+
+  /* A pending edit belongs to the task it came from, so switching tasks drops
+   it — otherwise the send would target a message the new task has never seen. */
+  React.useEffect1(() => {
+    setComposerDraft(draft =>
+      switch draft {
+      | (_, _, None) => draft
+      | (signal, _, Some(_)) => (signal, "", None)
+      }
+    )
+    None
+  }, [currentTaskId])
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
@@ -212,7 +233,14 @@ let make = (~onConfigureProvider: unit => unit) => {
     let sendWithContent = content => {
       switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => ()
-      | true => sendUserMessage(~content, ~annotations=messageAnnotations, ~agentId)
+      | true =>
+        sendUserMessage(
+          ~content,
+          ~annotations=messageAnnotations,
+          ~agentId,
+          ~replacesMessageId=editedMessageId,
+        )
+        setComposerDraft(((signal, _, _)) => (signal, "", None))
       }
     }
 
@@ -314,8 +342,8 @@ let make = (~onConfigureProvider: unit => unit) => {
         messageId
         agent={agentForId(agentId)}
         isNew={isLastItem}
-        onEdit=?{switch itemIndex == lastUserMsgIndex {
-        | true => Some(() => editUserMessage(content))
+        onEdit=?{switch itemIndex == lastUserMsgIndex && !isAgentRunning {
+        | true => Some(() => editUserMessage(~messageId=id, ~content))
         | false => None
         }}
       />

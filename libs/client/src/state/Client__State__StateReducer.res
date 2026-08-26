@@ -33,6 +33,7 @@ type action =
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      replacesMessageId: option<string>,
     })
   | ExecuteAnnotation({
       id: Message.UserMessageId.t,
@@ -599,6 +600,7 @@ let sendMessageToAPIImpl = (
   ~annotations: array<Client__Message.MessageAnnotation.t>,
   ~taskId,
   ~agentId,
+  ~replacesMessageId: option<string>,
 ) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
@@ -624,6 +626,11 @@ let sendMessageToAPIImpl = (
       JSON.Encode.string(Message.UserMessageId.toString(messageId)),
     )
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
+    /* Tells the server to drop the edited message and everything it produced
+     before recording this one. */
+    replacesMessageId->Option.forEach(replacedId =>
+      metadata->Dict.set("frontman.dev/replacesMessageId", JSON.Encode.string(replacedId))
+    )
     let _meta = Some(JSON.Encode.object(metadata))
 
     sendPrompt(
@@ -675,7 +682,15 @@ let firstTaskFeedbackTransitionEffects = (
   | _ => []
   }
 
-let addUserMessageToState = (state: state, ~id, ~sessionId, ~content, ~annotations, ~agentId) =>
+let addUserMessageToState = (
+  state: state,
+  ~id,
+  ~sessionId,
+  ~content,
+  ~annotations,
+  ~agentId,
+  ~replacesMessageId,
+) =>
   switch state.selectedModelValue {
   | None => state->StateReducer.update
   | Some(_) => {
@@ -693,14 +708,14 @@ let addUserMessageToState = (state: state, ~id, ~sessionId, ~content, ~annotatio
         }
         promotedState->Lens.delegateToTask(
           ForTask(sessionId),
-          TaskReducer.AddUserMessage({id, content, annotations, agentId}),
+          TaskReducer.AddUserMessage({id, content, annotations, agentId, replacesMessageId}),
         )
       | Task.Selected(taskId) =>
         let pendingPlanHandoff = Selectors.pendingPlanHandoff(state)
         let (updatedState, sendEffects) =
           state->Lens.delegateToTask(
             ForTask(taskId),
-            TaskReducer.AddUserMessage({id, content, annotations, agentId}),
+            TaskReducer.AddUserMessage({id, content, annotations, agentId, replacesMessageId}),
           )
         switch pendingPlanHandoff {
         | Some(_) =>
@@ -1084,7 +1099,7 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
+        | NeedSendMessage({id, text, attachments, annotations, agentId, replacesMessageId}) =>
           let taskId = switch target {
           | ForTask(id) => id
           | CurrentTask =>
@@ -1103,6 +1118,7 @@ let handleEffect = (effect, state: state, dispatch) => {
             ~annotations,
             ~taskId,
             ~agentId,
+            ~replacesMessageId,
           )
         | NeedCancelPrompt =>
           switch state.acpSession {
@@ -1648,10 +1664,19 @@ let next = (state: state, action) => {
       ~content,
       ~annotations=[messageAnnotation],
       ~agentId,
+      ~replacesMessageId=None,
     )
 
-  | AddUserMessage({id, sessionId, content, annotations, agentId}) =>
-    addUserMessageToState(state, ~id, ~sessionId, ~content, ~annotations, ~agentId)
+  | AddUserMessage({id, sessionId, content, annotations, agentId, replacesMessageId}) =>
+    addUserMessageToState(
+      state,
+      ~id,
+      ~sessionId,
+      ~content,
+      ~annotations,
+      ~agentId,
+      ~replacesMessageId,
+    )
 
   | CancelTurn =>
     switch state.currentTask {
@@ -1669,6 +1694,7 @@ let next = (state: state, action) => {
           content: [UserContentPart.Text({text: executePlanPrompt})],
           annotations: [],
           agentId: executorAgentId,
+          replacesMessageId: None,
         }),
       )
       let (runningState, runningEffects) =

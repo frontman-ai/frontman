@@ -463,6 +463,7 @@ describe("Client State Reducer - Plan Handoff", () => {
         content: [UserContentPart.text("Revise step one")],
         annotations: [],
         agentId: planner.id,
+        replacesMessageId: None,
       }),
     )
 
@@ -557,6 +558,7 @@ describe("Client State Reducer", () => {
       content: [UserContentPart.text("Hello")],
       annotations: [],
       agentId: "executor-id",
+      replacesMessageId: None,
     })
 
     let (nextState, effects) = Reducer.next(state, action)
@@ -585,6 +587,7 @@ describe("Client State Reducer", () => {
         content: [UserContentPart.text("Hi")],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -1089,6 +1092,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
         content: [UserContentPart.text("First message")],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -1102,6 +1106,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
         content: [UserContentPart.text("Second message")],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -1123,6 +1128,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
         content: [UserContentPart.text("First message")],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -1282,6 +1288,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         content: [UserContentPart.text("Hello after delete")],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -1319,6 +1326,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         content: [UserContentPart.Text({text: "Message in task 1"})],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -1330,6 +1338,7 @@ describe("Client State Reducer - Task Management Actions", () => {
         content: [UserContentPart.Text({text: "Second message"})],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -1547,6 +1556,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         content: [UserContentPart.text("Fix this")],
         annotations: _sampleAnnotations,
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
@@ -1585,6 +1595,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         content: [],
         annotations: _sampleAnnotations,
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
@@ -1618,6 +1629,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         content: [UserContentPart.text("Hello")],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
@@ -1644,6 +1656,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       content: [UserContentPart.text("Fix this")],
       annotations: _sampleAnnotations,
       agentId: "executor-id",
+      replacesMessageId: None,
     })
 
     let (_nextState, effects) = Reducer.next(state, action)
@@ -1710,6 +1723,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         content: [UserContentPart.text("Fix this")],
         annotations: [],
         agentId: "planner-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -1758,6 +1772,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         content: [UserContentPart.text("Fix this")],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 

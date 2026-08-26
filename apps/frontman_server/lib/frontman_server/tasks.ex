@@ -125,6 +125,53 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
+  Drops a user message and every interaction recorded after it.
+
+  Called when the user edits an already-sent message. The edit is submitted as a
+  fresh interaction, so the original and everything it produced must go —
+  otherwise the agent would answer both the old prompt and the new one. Refused
+  while a turn is running, because the runner would write into rows we are about
+  to delete.
+
+  Requires authorization - scope.user.id must match task.user_id.
+  """
+  @spec truncate_from_message(Scope.t(), String.t(), String.t()) ::
+          {:ok, non_neg_integer()} | {:error, atom()}
+  def truncate_from_message(%Scope{} = scope, task_id, message_id)
+      when is_binary(task_id) and is_binary(message_id) do
+    Repo.transact(fn ->
+      with {:ok, _task_schema} <- get_task_by_id(scope, task_id),
+           {:ok, history} <- History.new(load_interaction_rows(task_id)),
+           :idle <- run_state(history),
+           {:ok, sequence} <- user_message_sequence(history, message_id) do
+        {deleted_count, _returned} =
+          task_id
+          |> InteractionSchema.for_task()
+          |> InteractionSchema.from_sequence(sequence)
+          |> Repo.delete_all()
+
+        {:ok, deleted_count}
+      else
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
+  defp run_state(%History{} = history) do
+    case History.active_run_turn_number(history) do
+      nil -> :idle
+      turn_number when is_integer(turn_number) -> {:error, :turn_running}
+    end
+  end
+
+  defp user_message_sequence(%History{rows: rows}, message_id) do
+    case Enum.find(rows, &match?(%InteractionSchema{id: ^message_id, type: :user_message}, &1)) do
+      %InteractionSchema{sequence: sequence} -> {:ok, sequence}
+      nil -> {:error, :message_not_found}
+    end
+  end
+
+  @doc """
   Creates a new task and stores it.
 
   The task_id must be provided by the client.

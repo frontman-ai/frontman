@@ -11,6 +11,7 @@ module T: {
   let update: (t, string, Message.t => Message.t) => t
   let insert: (t, Message.t) => t
   let map: (t, Message.t => Message.t) => t
+  let truncateFrom: (t, string) => t
 } = {
   type t = {
     list: array<Message.t>,
@@ -56,6 +57,13 @@ module T: {
     let newList = store.list->Array.map(fn)
     fromArray(newList)
   }
+
+  let truncateFrom = (store, id) => {
+    switch store.byId->Dict.get(id) {
+    | Some(idx) => fromArray(store.list->Array.slice(~start=0, ~end=idx))
+    | None => failwith(`[MessageStore.truncateFrom] Unknown message: ${id}`)
+    }
+  }
 }
 
 type t = T.t
@@ -65,3 +73,4 @@ let toArray = T.toArray
 let update = T.update
 let insert = T.insert
 let map = T.map
+let truncateFrom = T.truncateFrom

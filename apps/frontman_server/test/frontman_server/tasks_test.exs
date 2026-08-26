@@ -148,6 +148,41 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "truncate_from_message/3" do
+    test "drops the edited message and everything it produced", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, _first} = user_message_fixture(scope, task_id, user_content("first"))
+      complete_turn(scope, task_id, "first answer")
+
+      {:ok, second} = user_message_fixture(scope, task_id, user_content("second"))
+      complete_turn(scope, task_id, "second answer")
+
+      assert {:ok, 4} = Tasks.truncate_from_message(scope, task_id, second.id)
+
+      assert [:user_message, :turn_started, :agent_response, :agent_completed] =
+               task_id |> db_rows() |> Enum.map(& &1.type)
+    end
+
+    test "refuses while a turn is running", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, message} = user_message_fixture(scope, task_id, user_content("first"))
+
+      assert {:error, :turn_running} = Tasks.truncate_from_message(scope, task_id, message.id)
+      assert length(db_rows(task_id)) == 2
+    end
+
+    test "rejects a message that is not part of the task", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, _message} = user_message_fixture(scope, task_id, user_content("first"))
+      complete_turn(scope, task_id, "answer")
+
+      assert {:error, :message_not_found} =
+               Tasks.truncate_from_message(scope, task_id, Ecto.UUID.generate())
+
+      assert length(db_rows(task_id)) == 4
+    end
+  end
+
   describe "execute_next_turn/3 agent identity" do
     test "persists configured agent identity", %{scope: scope} do
       task = task_fixture(scope)
@@ -1335,6 +1370,13 @@ defmodule FrontmanServer.TasksTest do
       assert length(messages) == 1
       assert SwarmAi.Message.role(hd(messages)) == :user
     end
+  end
+
+  defp complete_turn(scope, task_id, response) do
+    turn_number = latest_turn_number(task_id)
+    {:ok, _response} = Tasks.agent_replied(scope, task_id, turn_number, response)
+    {:ok, _completed} = Tasks.record_agent_run_result(scope, task_id, turn_number, :completed)
+    turn_number
   end
 
   defp resolve_tool(scope, task_id, tool_call_data, result, turn_number) do

@@ -650,6 +650,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
+             :ok <- rewind_edited_message(scope, task_id, meta["frontman.dev/replacesMessageId"]),
              {:ok, row} <-
                Tasks.submit_user_message(
                  scope,
@@ -675,6 +676,12 @@ defmodule FrontmanServerWeb.TaskChannel do
           {:error, :missing_agent} ->
             reply_invalid_params(socket, id, "Agent is required")
 
+          {:error, :message_not_found} ->
+            reply_invalid_params(socket, id, "Edited message is not part of this task")
+
+          {:error, :turn_running} ->
+            reply_invalid_params(socket, id, "Cannot edit a message while a turn is running")
+
           {:error, :unknown_agent} ->
             reply_invalid_params(socket, id, "Unknown agent")
 
@@ -689,6 +696,24 @@ defmodule FrontmanServerWeb.TaskChannel do
 
       :error ->
         reply_invalid_params(socket, id, "Model is required")
+    end
+  end
+
+  # An edit replaces the original message rather than following it, so the
+  # original and everything it produced is dropped before the edit is recorded.
+  defp rewind_edited_message(_scope, _task_id, nil), do: :ok
+
+  defp rewind_edited_message(scope, task_id, message_id) when is_binary(message_id) do
+    case Tasks.truncate_from_message(scope, task_id, message_id) do
+      {:ok, deleted_count} ->
+        Logger.info("Rewound task #{task_id} to message #{message_id}", %{
+          deleted_count: deleted_count
+        })
+
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
