@@ -17,7 +17,7 @@ let make = (~onSelect: string => unit) => {
   >
     <h2
       id="get-started-heading"
-      className="text-lg leading-snug font-semibold text-zinc-100 self-start max-w-[360px] w-full"
+      className="text-lg leading-snug font-semibold text-zinc-100 max-w-[360px] w-full"
     >
       {React.string("What would you like to accomplish today?")}
     </h2>
