@@ -7,13 +7,13 @@ import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
 
 ## Overview
 
-`@frontman-ai/nextjs` integrates the Frontman AI agent into your Next.js dev server through Next.js middleware on Next.js 13-15 or proxy on Next.js 16+. It intercepts requests to `/frontman/*`, giving the AI access to your source files, dev server logs, route manifest, and optionally OpenTelemetry spans covering HTTP requests and route render timing.
+`@frontman-ai/nextjs` integrates the Frontman AI agent into your Next.js dev server through Next.js middleware on Next.js 15 or proxy on Next.js 16+. It intercepts requests to `/frontman/*`, giving the AI access to your source files, dev server logs, route manifest, and optionally OpenTelemetry spans covering HTTP requests and route render timing.
 
 **Frontman is intended for development workflows.** Installer-generated middleware or proxy code has no automatic development-only guard, so it can compile into and run with a production deployment while its matcher includes Frontman routes. Add an environment guard or remove the integration when Frontman must be absent, then verify the built artifact and deployed `/frontman` route instead of assuming the production build removes it.
 
 ## Quick Start
 
-Run `npx @frontman-ai/nextjs install` from your project directory, start `next dev`, then open `http://localhost:3000/frontman`. For Next.js 16, the installer writes `proxy.ts`; for Next.js 13-15, it writes `middleware.ts` with a matcher scoped to Frontman routes. If your app uses `src/app` or `src/pages`, the installer writes the entrypoint under `src/`.
+Run `npx @frontman-ai/nextjs install` from your project directory, start `next dev`, then open `http://localhost:3000/frontman`. For Next.js 16, the installer writes `proxy.ts`; for Next.js 15, it writes `middleware.ts` with a matcher scoped to Frontman routes. If your app uses `src/app` or `src/pages`, the installer writes the entrypoint under `src/`.
 
 :::note[Sign-in and AI provider required]
 The default setup connects to Frontman's hosted server at `api.frontman.sh`. When you first open `/frontman`, your browser redirects there so you can sign in to Frontman with a GitHub or Google account, then attempts to return to your project. Standard `localhost` and `127.0.0.1` URLs return automatically; if you use another local hostname and remain on the hosted page, reopen `/frontman` after signing in. Before your first prompt, connect a supported AI provider with OAuth or add an API key. Frontman does not include a built-in model credential; see [API Keys & Providers](/docs/api-keys/).
@@ -24,7 +24,7 @@ If you configure `host` or `FRONTMAN_HOST`, sign-in happens on that Frontman ser
 ## Requirements
 
 - Node.js 18 or later
-- Next.js 13.2 or later (`^13.2.0 || ^14.0 || ^15.0 || ^16.0`)
+- Next.js 15 or 16 (`^15.0 || ^16.0`)
 
 ## Install Frontman in Next.js
 
@@ -44,7 +44,7 @@ npm install --save-dev @frontman-ai/nextjs
 
 The integration API differs depending on your Next.js version.
 
-### Next.js 13–15 (`middleware.ts`)
+### Next.js 15 (`middleware.ts`)
 
 Create or update `middleware.ts` next to your `app/` or `pages/` directory. In a `src/` project, use `src/middleware.ts`:
 
@@ -100,7 +100,7 @@ Start your dev server (`next dev` or `npm run dev`) and open `http://localhost:3
 3. **SSE** (`GET /frontman/tools`) opens a server-sent event stream for streaming tool responses.
 4. All other requests to `/frontman/` serve the Frontman UI, injecting the client JS and CSS.
 
-When the request does not match a Frontman path, `frontman(req)` returns `undefined` (Next.js 13–15) or a pass-through `NextResponse.next()` (Next.js 16+).
+When the request does not match a Frontman path, `frontman(req)` returns `undefined` (Next.js 15) or a pass-through `NextResponse.next()` (Next.js 16+).
 
 ### Route discovery
 

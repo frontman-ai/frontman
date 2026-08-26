@@ -18,7 +18,7 @@ If you want the end-to-end execution model behind that split, read [How the Agen
 
 | Platform        | Package / integration     | Status    | Minimum versions                       | What Frontman can access                                                                 |
 | --------------- | ------------------------- | --------- | -------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Next.js         | `@frontman-ai/nextjs`     | Supported | Next.js 13.2+, Node.js 18+             | Files, route manifest, dev logs, optional OpenTelemetry spans                            |
+| Next.js         | `@frontman-ai/nextjs`     | Supported | Next.js 15-16, Node.js 18+             | Files, route manifest, dev logs, optional OpenTelemetry spans                            |
 | Astro           | `@frontman-ai/astro`      | Supported | Astro 5.x, 6.x, or 7.x; Node.js 22.19+ | Files, resolved routes, dev logs, Astro and Frontman source annotations                  |
 | Vite-based apps | `@frontman-ai/vite`       | Supported | Vite 5.0+, Node.js 18+                 | Files, dev logs, framework-aware client context                                          |
 | WordPress       | Frontman WordPress plugin | Beta      | WordPress 6.0+, PHP 7.4+               | Site content, Elementor, templates, widgets, menus, and settings through WordPress tools |
@@ -43,7 +43,7 @@ For the full request/tool flow, see [Architecture Overview](/docs/reference/arch
 
 **Supported versions**
 
-- Next.js 13.2 or later
+- Next.js 15 or 16
 - Node.js 18 or later
 
 **What the integration provides**
