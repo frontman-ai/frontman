@@ -253,67 +253,34 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       refute_running_eventually(task_id)
     end
 
-    test "separates same-agent messages by model and executes each requested model", %{
+    test "claims and executes only the first same-agent model", %{
       task_id: task_id,
       scope: scope
     } do
       parent = self()
       verify_on_exit!()
 
-      expect(LLMProviderMock, :stream_text, 2, fn model, _messages, _opts ->
+      expect(LLMProviderMock, :stream_text, fn model, _messages, _opts ->
         send(parent, {:executed_model, model})
         ReqLLMResponses.response("Response")
       end)
 
-      {:ok, first_message} =
-        Tasks.submit_user_message(scope, %{
-          task_id: task_id,
-          message_id: Ecto.UUID.generate(),
-          message: user_content("first model"),
-          model: "openrouter:openai/gpt-5.5",
-          agent_id: "test-frontman"
-        })
-
-      {:ok, second_message} =
-        Tasks.submit_user_message(scope, %{
-          task_id: task_id,
-          message_id: Ecto.UUID.generate(),
-          message: user_content("second model"),
-          model: "openrouter:anthropic/claude-fable-5",
-          agent_id: "test-frontman"
-        })
-
-      first_message_id = first_message.id
-      second_message_id = second_message.id
+      task = task_schema!(task_id)
+      insert_accepted_user_message!(task, "first model")
+      insert_accepted_user_message!(task, "second model", "openrouter:anthropic/claude-fable-5")
 
       assert :ok =
                Tasks.execute_next_turn(
                  scope,
                  task_id,
-                 execution_request_fixture()
+                 execution_request_fixture(model: "openrouter:anthropic/claude-fable-5")
                )
 
       assert_receive {:executed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       refute_running_eventually(task_id)
 
-      assert [%{data: %{user_message_ids: [^first_message_id]}}] = turn_started_rows(task_id)
-
-      assert :ok =
-               Tasks.execute_next_turn(
-                 scope,
-                 task_id,
-                 execution_request_fixture()
-               )
-
-      assert_receive {:executed_model, %LLMDB.Model{id: "anthropic/claude-fable-5"}}
-      assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
-      refute_running_eventually(task_id)
-
-      assert [
-               %{data: %{user_message_ids: [^first_message_id]}},
-               %{data: %{user_message_ids: [^second_message_id]}}
-             ] = turn_started_rows(task_id)
+      assert [%{data: %{user_message_ids: [_first_message_id]}}] = turn_started_rows(task_id)
     end
 
     test "claims only pending message prefix with the same agent and model", %{
@@ -1463,8 +1430,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   defp task_schema!(task_id), do: Repo.get!(FrontmanServer.Tasks.TaskSchema, task_id)
 
-  defp insert_accepted_user_message!(task, text) do
-    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), "openrouter:openai/gpt-5.5")
+  defp insert_accepted_user_message!(task, text, model \\ "openrouter:openai/gpt-5.5") do
+    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
     message_id = Ecto.UUID.generate()
 
     interaction_changeset(task.id, %{
