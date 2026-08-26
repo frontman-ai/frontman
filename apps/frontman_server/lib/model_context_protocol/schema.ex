@@ -24,10 +24,40 @@ defmodule ModelContextProtocol.Schema do
   def validate_tools_list_result(result), do: validate(result, @tools_list_result)
   def validate_call_tool_result(result), do: validate(result, @call_tool_result)
 
+  def validate_call_tool_result(result, output_schema) when is_map(output_schema) do
+    with :ok <- validate_call_tool_result(result) do
+      validate_structured_content(result, output_schema)
+    end
+  end
+
+  def validate_call_tool_result(result, nil), do: validate_call_tool_result(result)
+
   defp validate(data, schema) do
     case JSV.validate(data, schema) do
       {:ok, _validated_data} -> :ok
       {:error, _error} -> :error
+    end
+  end
+
+  defp validate_structured_content(result, output_schema) do
+    case {Map.get(result, "isError"), Map.fetch(result, "structuredContent")} do
+      {true, :error} ->
+        :ok
+
+      {_is_error, {:ok, structured_content}} ->
+        validate_output_schema(structured_content, output_schema)
+
+      {_is_error, :error} ->
+        :error
+    end
+  end
+
+  defp validate_output_schema(structured_content, output_schema) do
+    with {:ok, schema} <- JSV.build(output_schema, atoms: false, warnings: :silent),
+         {:ok, _validated_data} <- JSV.validate(structured_content, schema, cast: false) do
+      :ok
+    else
+      _error -> :error
     end
   end
 end

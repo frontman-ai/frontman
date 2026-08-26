@@ -43,6 +43,16 @@ describe("MCP wire contracts", () => {
     t->expect(JSON.Encode.int(1)->S.parseOrThrow(~to=MCP.ttlMsSchema))->Expect.toBe(1)
     t->expect(() => JSON.Encode.float(0.5)->S.parseOrThrow(~to=MCP.ttlMsSchema))->Expect.toThrow
     t->expect(() => JSON.Encode.int(-1)->S.parseOrThrow(~to=MCP.ttlMsSchema))->Expect.toThrow
+
+    let longLived = `{
+      "resultType":"complete",
+      "supportedVersions":["2026-07-28"],
+      "capabilities":{},
+      "ttlMs":2592000000,
+      "cacheScope":"public"
+    }`
+
+    t->expect(parses(MCP.discoverResultWireSchema, longLived))->Expect.toBe(true)
   })
 
   test("requires extension settings to be objects", t => {

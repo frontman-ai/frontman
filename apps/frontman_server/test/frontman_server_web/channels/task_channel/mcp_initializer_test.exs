@@ -11,7 +11,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     :ok
   end
 
-  defp discovery_result(overrides \\ %{}), do: ChannelCase.mcp_discovery_result(overrides)
+  defp discovery_result(overrides), do: ChannelCase.mcp_discovery_result(overrides)
 
   defp state(overrides) do
     scope = %FrontmanServer.Accounts.Scope{user: %FrontmanServer.Accounts.User{id: 1}}
@@ -52,7 +52,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     assert discovery["params"]["_meta"]["io.modelcontextprotocol/protocolVersion"] ==
              "2026-07-28"
 
-    result = discovery_result()
+    result = discovery_result(%{"ttlMs" => 2_592_000_000})
 
     {_new_state, [{:push_mcp, tools_request}]} =
       MCPInitializer.handle_response(state, state.discovery_request_id, result)
@@ -123,6 +123,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
                MCPInitializer.handle_response(new_state, request["id"], repeated_page)
 
       assert message =~ "repeated cursor"
+    end
+
+    test "crashes with context when tools pagination exceeds its bound" do
+      seen_tool_cursors = 1..99 |> Enum.map(&"page-#{&1}") |> MapSet.new()
+      state = %{tools_state(1) | seen_tool_cursors: seen_tool_cursors}
+      page = tools_result([], %{"nextCursor" => "page-100"})
+
+      assert_raise RuntimeError, ~r/MCP tools\/list exceeded 100 pages/, fn ->
+        MCPInitializer.handle_response(state, 1, page)
+      end
     end
 
     test "ignores stale responses after terminal failure" do

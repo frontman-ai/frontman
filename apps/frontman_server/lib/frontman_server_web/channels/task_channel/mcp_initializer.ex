@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
 
   @execution_context_extension "ai.frontman/execution-context"
   @tool_metadata_extension "ai.frontman/tool-metadata"
+  @tools_page_limit 100
 
   def start(task_id, scope, framework) do
     request_id = System.unique_integer([:positive])
@@ -162,11 +163,14 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   defp request_next_tools_page(state, cursor) do
-    case MapSet.member?(state.seen_tool_cursors, cursor) do
-      true ->
+    case {MapSet.member?(state.seen_tool_cursors, cursor), MapSet.size(state.seen_tool_cursors)} do
+      {true, _page_count} ->
         fail_initialization(state, "MCP tools/list returned a repeated cursor")
 
-      false ->
+      {false, page_count} when page_count >= @tools_page_limit - 1 ->
+        raise "MCP tools/list exceeded #{@tools_page_limit} pages for task #{state.task_id}"
+
+      {false, _page_count} ->
         request_id = System.unique_integer([:positive])
         request = JsonRpc.request(request_id, "tools/list", MCP.tools_list_params(cursor))
 

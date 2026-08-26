@@ -52,11 +52,21 @@ describe("ToolRegistry", _t => {
     t->expect(wordpressNames->Array.includes("get_astro_audit"))->Expect.toBe(false)
   })
   test("serializes browser tool access levels", t => {
-    let access = name => toolByName(Client__RuntimeConfig.Nextjs, name)->Dict.get("access")
+    let metadata = name =>
+      toolByName(Client__RuntimeConfig.Nextjs, name)
+      ->Dict.get("_meta")
+      ->Option.flatMap(JSON.Decode.object)
+      ->Option.flatMap(meta => meta->Dict.get("ai.frontman/tool-metadata"))
+      ->Option.flatMap(JSON.Decode.object)
+      ->Option.getOrThrow
+    let access = name => metadata(name)->Dict.get("access")
 
     t->expect(access("take_screenshot"))->Expect.toEqual(Some(JSON.Encode.string("read")))
     t->expect(access("execute_js"))->Expect.toEqual(Some(JSON.Encode.string("read-write")))
     t->expect(access("set_device_mode"))->Expect.toEqual(Some(JSON.Encode.string("write")))
+    t
+    ->expect(metadata("take_screenshot")->Dict.get("executionMode"))
+    ->Expect.toEqual(Some(JSON.Encode.string("Synchronous")))
   })
   test("advertises only structured browser output schemas", t => {
     toolDefinitions(Client__RuntimeConfig.Astro)->Array.forEach(

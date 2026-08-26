@@ -42,6 +42,34 @@ type change = {
   kind: changeKind,
 }
 
+let changesetDeclaresProtocolMajor = async () => {
+  let files = switch await exec(
+    "git diff --name-only --diff-filter=AM origin/main -- .changeset/",
+  ) {
+  | Ok({stdout}) => stdout->String.trim->String.split("\n")->Array.filter(path => path != "")
+  | Error({stderr}) =>
+    Console.error(`Failed to inspect changesets: ${stderr}`)
+    exit(1)
+    []
+  }
+  let declared = ref(false)
+
+  for i in 0 to files->Array.length - 1 {
+    let content = await Fs.Promises.readFile(files->Array.getUnsafe(i))
+    let frontmatter = content->String.split("---")->Array.get(1)->Option.getOr("")
+
+    if (
+      frontmatter
+      ->String.split("\n")
+      ->Array.some(line => line->String.trim == protocolPackage)
+    ) {
+      declared := true
+    }
+  }
+
+  declared.contents
+}
+
 let main = async () => {
   let diffResult = await exec(`git diff --name-status origin/main -- ${schemasRelative}/`)
 
@@ -124,14 +152,7 @@ let main = async () => {
   }
 
   let protocolMajorDeclared = switch removed->Array.length > 0 {
-  | true =>
-    switch await exec("git diff origin/main -- .changeset/") {
-    | Ok({stdout}) => stdout->String.split("\n")->Array.some(line => line == `+${protocolPackage}`)
-    | Error({stderr}) =>
-      Console.error(`Failed to inspect changesets: ${stderr}`)
-      exit(1)
-      false
-    }
+  | true => await changesetDeclaresProtocolMajor()
   | false => false
   }
 

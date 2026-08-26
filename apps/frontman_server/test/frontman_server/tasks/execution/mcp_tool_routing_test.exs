@@ -105,6 +105,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       )
 
       mcp_response = %{
+        "resultType" => "complete",
         "content" => [
           %{"type" => "text", "text" => ~s({"screenshot": "base64data"})}
         ]
@@ -113,6 +114,19 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_response))
 
       assert_receive_interaction(%Tasks.Interaction.AgentCompleted{}, _turn_number, 10_000)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      tool_result =
+        Enum.find(Tasks.interactions(task), fn
+          %Interaction.ToolResult{tool_call_id: tool_call_id} ->
+            tool_call_id == mcp_tool_call.id
+
+          _interaction ->
+            false
+        end)
+
+      assert %Interaction.ToolResult{is_error: false} = tool_result
     end
   end
 

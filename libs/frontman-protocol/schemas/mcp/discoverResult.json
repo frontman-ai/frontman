@@ -35,9 +35,9 @@
       "type": "string"
     },
     "ttlMs": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 2147483647
+      "type": "number",
+      "multipleOf": 1,
+      "minimum": 0
     },
     "cacheScope": {
       "enum": [

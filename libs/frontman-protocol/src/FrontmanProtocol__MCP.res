@@ -2,6 +2,17 @@ let protocolVersion = "2026-07-28"
 
 let ttlMsSchema = S.int->S.min(0)
 
+@scope("Number") @val
+external numberIsInteger: float => bool = "isInteger"
+
+let ttlMsWireSchema =
+  S.float
+  ->S.refine(
+    value => value >= 0. && numberIsInteger(value),
+    ~error="Expected a nonnegative integer",
+  )
+  ->S.extendJSONSchema({minimum: 0., multipleOf: 1.})
+
 let jsonObjectShapeSchema = S.object(s => s.flatten(S.dict(S.json))->JSON.Encode.object)
 let extensionsSchema =
   S.dict(S.json)
@@ -105,7 +116,7 @@ let discoverResultWireSchema = S.object(s => {
   s.field("supportedVersions", S.array(S.string))->ignore
   s.field("capabilities", serverCapabilitiesWireSchema)->ignore
   s.field("instructions", S.option(S.string))->ignore
-  s.field("ttlMs", ttlMsSchema)->ignore
+  s.field("ttlMs", ttlMsWireSchema)->ignore
   s.field("cacheScope", cacheScopeWireSchema)->ignore
   s.field("_meta", S.option(resultMetaWireSchema))->ignore
   s.flatten(S.dict(S.json))->JSON.Encode.object
@@ -312,7 +323,7 @@ let toolsListResultWireSchema = S.object(s => {
   s.field("resultType", S.literal("complete"))->ignore
   s.field("tools", S.array(toolJsonSchema))->ignore
   s.field("nextCursor", S.option(S.string))->ignore
-  s.field("ttlMs", ttlMsSchema)->ignore
+  s.field("ttlMs", ttlMsWireSchema)->ignore
   s.field("cacheScope", cacheScopeWireSchema)->ignore
   s.field("_meta", S.option(resultMetaWireSchema))->ignore
   s.flatten(S.dict(S.json))->JSON.Encode.object

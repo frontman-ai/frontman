@@ -383,8 +383,14 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_tool_call_response(tool_call, result, socket) do
+    output_schema =
+      case Enum.find(socket.assigns.mcp_tools, &(&1.name == tool_call.tool_name)) do
+        %{output_schema: output_schema} -> output_schema
+        nil -> nil
+      end
+
     result =
-      case MCPSchema.validate_call_tool_result(result) do
+      case MCPSchema.validate_call_tool_result(result, output_schema) do
         :ok -> result
         :error -> MCP.tool_result_error("Invalid MCP tools/call result")
       end
