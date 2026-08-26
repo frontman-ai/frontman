@@ -227,11 +227,13 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   defp handle_project_rules_response(result, state) do
-    if MCP.error?(result) do
-      report_tool_error(state, "project_rules", "load_agent_instructions", result)
-    else
-      parse_project_rules(result, state)
-    end
+    process_project_context_result(
+      result,
+      state,
+      "project_rules",
+      "load_agent_instructions",
+      &parse_project_rules/2
+    )
 
     state = %{state | project_rules_request_id: nil}
     request_project_structure(state)
@@ -282,11 +284,13 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   defp handle_project_structure_response(result, state) do
-    if MCP.error?(result) do
-      report_tool_error(state, "project_structure", "list_tree", result)
-    else
-      parse_project_structure(result, state)
-    end
+    process_project_context_result(
+      result,
+      state,
+      "project_structure",
+      "list_tree",
+      &parse_project_structure/2
+    )
 
     complete_initialization(state)
   end
@@ -363,7 +367,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     }
   end
 
-  defp report_tool_error(_state, init_step, tool_name, _result) do
+  defp process_project_context_result(result, state, init_step, tool_name, parser) do
+    with :ok <- MCPSchema.validate_call_tool_result(result),
+         false <- MCP.error?(result) do
+      parser.(result, state)
+    else
+      _error -> report_tool_error(init_step, tool_name)
+    end
+  end
+
+  defp report_tool_error(init_step, tool_name) do
     Logger.warning("MCPInitializer: Tool error loading #{init_step} with #{tool_name}")
   end
 

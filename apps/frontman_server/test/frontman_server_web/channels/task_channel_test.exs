@@ -1068,6 +1068,39 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
+    test "stores malformed tool results as errors", %{
+      socket: socket,
+      task_id: task_id,
+      scope: scope
+    } do
+      tool_call = tool_call("call_invalid_result", "testTool")
+      turn_number = start_turn_fixture(scope, task_id)
+      register_tool_receiver(tool_call.tool_call_id)
+
+      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
+
+      assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(mcp_request_id, %{
+          "content" => [%{"type" => "text", "text" => "legacy result"}]
+        })
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert %Interaction.ToolResult{
+               is_error: true,
+               result: %{"content" => [%{"text" => "Invalid MCP tools/call result"}]}
+             } =
+               Enum.find(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+
+      assert Process.alive?(socket.channel_pid)
+    end
+
     test "ignores MCP responses with string IDs instead of crashing", %{socket: socket} do
       log =
         capture_log(fn ->

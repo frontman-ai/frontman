@@ -28,6 +28,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
   alias ModelContextProtocol, as: MCP
+  alias ModelContextProtocol.Schema, as: MCPSchema
 
   @acp_message ACP.event_acp_message()
   @acp_title_updated ACP.event_title_updated()
@@ -382,6 +383,12 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_tool_call_response(tool_call, result, socket) do
+    result =
+      case MCPSchema.validate_call_tool_result(result) do
+        :ok -> result
+        :error -> MCP.tool_result_error("Invalid MCP tools/call result")
+      end
+
     {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end
 

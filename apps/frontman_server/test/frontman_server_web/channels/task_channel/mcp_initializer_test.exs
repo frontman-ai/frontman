@@ -282,6 +282,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       state = rules_state(request_id)
 
       result = %{
+        "resultType" => "complete",
         "content" => [%{"text" => "private-project-rules-marker", "type" => "text"}],
         "isError" => true
       }
@@ -309,6 +310,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       state = structure_state(request_id)
 
       result = %{
+        "resultType" => "complete",
         "content" => [%{"text" => "private-project-structure-marker", "type" => "text"}],
         "isError" => true
       }
@@ -338,12 +340,39 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       state = rules_state(request_id)
 
       result = %{
+        "resultType" => "complete",
         "content" => [%{"text" => ~s({"key": "value"}), "type" => "text"}]
       }
 
       {new_state, _actions} = MCPInitializer.handle_response(state, request_id, result)
 
       assert new_state.status == :loading_project_structure
+    end
+  end
+
+  describe "handle_response/3 with malformed tool results" do
+    test "project rules continue to project structure" do
+      state = rules_state(1)
+
+      assert {%{status: :loading_project_structure}, [{:push_mcp, request}]} =
+               MCPInitializer.handle_response(state, 1, %{
+                 "resultType" => "complete",
+                 "content" => "invalid"
+               })
+
+      assert request["params"]["name"] == "list_tree"
+    end
+
+    test "project structure completes initialization" do
+      state = structure_state(2)
+
+      assert {%{status: :ready}, actions} =
+               MCPInitializer.handle_response(state, 2, %{
+                 "resultType" => "complete",
+                 "content" => [%{"type" => "unknown"}]
+               })
+
+      assert Enum.any?(actions, &match?({:initialization_complete, _data}, &1))
     end
   end
 end
