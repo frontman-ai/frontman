@@ -80,6 +80,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.turn_number == ^turn_number)
   end
 
+  def from_sequence(query \\ __MODULE__, sequence) when is_integer(sequence) do
+    from(i in query, where: i.sequence >= ^sequence)
+  end
+
   def ordered(query \\ __MODULE__) do
     from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id])
   end

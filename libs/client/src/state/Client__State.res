@@ -7,9 +7,11 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
-  let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
+  let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId, ~replacesMessageId=?) => {
     let id = Client__Message.UserMessageId.make()
-    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
+    Client__State__Store.dispatch(
+      AddUserMessage({id, sessionId, content, annotations, agentId, replacesMessageId}),
+    )
   }
 
   let textDeltaReceived = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) =>
@@ -103,9 +105,7 @@ module Actions = {
     )
 
   let highlightAnnotation = (~annotationId, ~selector) =>
-    Client__State__Store.dispatch(
-      HighlightAnnotation({annotationId: annotationId, selector: selector}),
-    )
+    Client__State__Store.dispatch(HighlightAnnotation({annotationId, selector}))
 
   let closeAnnotationPopup = () =>
     Client__State__Store.dispatch(

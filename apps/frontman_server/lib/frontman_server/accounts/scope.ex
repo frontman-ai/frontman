@@ -28,6 +28,8 @@ defmodule FrontmanServer.Accounts.Scope do
   defstruct user: nil,
             organization: nil
 
+  @type t :: %__MODULE__{user: User.t() | nil, organization: Organization.t() | nil}
+
   @doc """
   Creates a scope for the given user.
 
