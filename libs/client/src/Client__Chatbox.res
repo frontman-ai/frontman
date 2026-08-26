@@ -93,6 +93,15 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   result
 }
 
+/* Index of the last user message: only that one gets the edit affordance. */
+let lastUserMsgIndex = (items: array<displayItem>): int =>
+  items->Array.reduceWithIndex(-1, (acc, item, idx) =>
+    switch item {
+    | UserMsg(_) => idx
+    | _ => acc
+    }
+  )
+
 let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): bool =>
   !(
     messages->Array.some(message =>
@@ -184,6 +193,16 @@ let make = (~onConfigureProvider: unit => unit) => {
   }
 
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
+
+  /* Editing a sent message loads its text back into the composer; sending it
+   appends a new message. History is never rewritten. */
+  let (composerDraft, setComposerDraft) = React.useState(() => (0, ""))
+  let (draftSignal, draftText) = composerDraft
+  let editUserMessage = content =>
+    setComposerDraft(((signal, _)) => (
+      signal + 1,
+      Client__Task__Reducer.extractTextFromUserContent(content),
+    ))
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
@@ -279,6 +298,8 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   })
 
+  let lastUserMsgIndex = lastUserMsgIndex(displayItems)
+
   let renderDisplayItem = (item: displayItem, itemIndex: int) => {
     let isLastItem = itemIndex == totalItems - 1
     let isLastToolGroup = itemIndex == lastToolGroupIndex
@@ -287,7 +308,16 @@ let make = (~onConfigureProvider: unit => unit) => {
     | UserMsg({id, content, annotations, agentId}) =>
       let messageId = `user-${id}`
       <UserMessage
-        key={messageId} content annotations messageId agent={agentForId(agentId)} isNew={isLastItem}
+        key={messageId}
+        content
+        annotations
+        messageId
+        agent={agentForId(agentId)}
+        isNew={isLastItem}
+        onEdit=?{switch itemIndex == lastUserMsgIndex {
+        | true => Some(() => editUserMessage(content))
+        | false => None
+        }}
       />
 
     | AssistantMsg(Streaming({id, textBuffer, agentId, _})) =>
@@ -464,6 +494,8 @@ let make = (~onConfigureProvider: unit => unit) => {
           isSelecting={webPreviewIsSelecting}
           hasAnnotations
           isEnrichingAnnotations={hasEnrichingAnnotations}
+          setTextSignal=draftSignal
+          textToSet=draftText
         />
       }}
     </div>
