@@ -35,11 +35,15 @@ let notificationSchema = S.object(s => {
   Notification({method, params})
 })
 
-let hasIdField = json =>
+let idFieldSchema = S.object(s => s.field("id", S.json))
+let idValue = json => json->Decoders.parseSchema(idFieldSchema)->Result.mapOr(None, id => Some(id))
+let hasIdField = json => json->idValue->Option.isSome
+let readableId = json =>
   json
-  ->JSON.Decode.object
-  ->Option.flatMap(object => object->Dict.get("id"))
-  ->Option.isSome
+  ->idValue
+  ->Option.flatMap(id =>
+    id->Decoders.parseSchema(JsonRpc.Id.schema)->Result.mapOr(None, id => Some(id))
+  )
 
 let parse = json =>
   json->Decoders.parseSchema(hasIdField(json) ? requestSchema : notificationSchema)
@@ -88,6 +92,16 @@ let sendMetadataError = (handler, id, error: Types.metadataError) =>
     )
   }
 
+let sendBuiltResponse = (handler, id, operation, build) =>
+  try {
+    sendResponse(handler, id, build())
+  } catch {
+  | exn =>
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    Log.error(~error=exn->JsExn.fromException, `${operation} failed: ${msg}`)
+    sendError(handler, id, Types.ErrorCode.serverError, `${operation} failed: ${msg}`)
+  }
+
 let handleDiscover = (
   handler: mcpHandler<'server>,
   id: JsonRpc.Id.t,
@@ -97,27 +111,14 @@ let handleDiscover = (
 
   switch parsed {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
-  | Ok({_meta}) =>
-    switch Types.validateRequestMeta(_meta) {
-    | Error(error) => sendMetadataError(handler, id, error)
-    | Ok(_) =>
-      try {
-        let {serverInterface} = handler
-        let result = serverInterface.buildDiscoverResult(serverInterface.server)
-        let resultJson =
-          result->S.decodeOrThrow(
-            ~from=Types.discoverResultSchema,
-            ~to=S.json->S.noValidation(true),
-          )
-        sendResponse(handler, id, resultJson)
-      } catch {
-      | exn =>
-        let msg =
-          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        Log.error(~error=exn->JsExn.fromException, `Discovery failed: ${msg}`)
-        sendError(handler, id, Types.ErrorCode.serverError, `Discovery failed: ${msg}`)
-      }
-    }
+  | Ok(_) =>
+    sendBuiltResponse(handler, id, "Discovery", () => {
+      let {serverInterface} = handler
+      serverInterface.buildDiscoverResult(serverInterface.server)->S.decodeOrThrow(
+        ~from=Types.discoverResultSchema,
+        ~to=S.json->S.noValidation(true),
+      )
+    })
   }
 }
 
@@ -130,29 +131,15 @@ let handleToolsList = (
 
   switch parsed {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
-  | Ok({_meta, cursor: Some(_)}) =>
+  | Ok({cursor: Some(_)}) =>
     sendError(handler, id, Types.ErrorCode.invalidParams, "Invalid or expired cursor")
-  | Ok({_meta, cursor: None}) =>
-    switch Types.validateRequestMeta(_meta) {
-    | Error(error) => sendMetadataError(handler, id, error)
-    | Ok(_) =>
-      try {
-        let {serverInterface} = handler
-        let result = serverInterface.buildToolsListResult(serverInterface.server)
-        let resultJson =
-          result->S.decodeOrThrow(
-            ~from=Types.toolsListResultSchema,
-            ~to=S.json->S.noValidation(true),
-          )
-        sendResponse(handler, id, resultJson)
-      } catch {
-      | exn =>
-        let msg =
-          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        Log.error(~error=exn->JsExn.fromException, `Tools list failed: ${msg}`)
-        sendError(handler, id, Types.ErrorCode.serverError, `Tools list failed: ${msg}`)
-      }
-    }
+  | Ok({cursor: None}) =>
+    sendBuiltResponse(handler, id, "Tools list", () => {
+      let {serverInterface} = handler
+      serverInterface.buildToolsListResult(serverInterface.server)
+      ->S.decodeOrThrow(~from=Types.toolsListResultSchema, ~to=S.json->S.noValidation(true))
+      ->S.parseOrThrow(~to=Types.toolsListResultWireSchema)
+    })
   }
 }
 
@@ -214,16 +201,29 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
 
     switch parse(payload) {
     | Ok(Request({id, method, params})) =>
-      switch method {
-      | "server/discover" => handleDiscover(handler, id, params)
-      | "tools/list" => handleToolsList(handler, id, params)
-      | "tools/call" => await handleToolsCall(handler, id, params)
-      | _ => sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
+      switch parseParams(params, Types.discoverParamsSchema, "Missing request params") {
+      | Error(msg) =>
+        sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+      | Ok({_meta}) =>
+        switch Types.validateRequestMeta(_meta) {
+        | Error(error) => sendMetadataError(handler, id, error)
+        | Ok(_) =>
+          switch method {
+          | "server/discover" => handleDiscover(handler, id, params)
+          | "tools/list" => handleToolsList(handler, id, params)
+          | "tools/call" => await handleToolsCall(handler, id, params)
+          | _ =>
+            sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
+          }
+        }
       }
     | Ok(Notification(_)) => ()
     | Error(msg) =>
       Log.error(`Failed to parse MCP message: ${msg}`)
-      sendErrorWithoutId(handler, Types.ErrorCode.invalidRequest, "Invalid Request")
+      switch readableId(payload) {
+      | Some(id) => sendError(handler, id, Types.ErrorCode.invalidRequest, "Invalid Request")
+      | None => sendErrorWithoutId(handler, Types.ErrorCode.invalidRequest, "Invalid Request")
+      }
     }
   } catch {
   | exn =>

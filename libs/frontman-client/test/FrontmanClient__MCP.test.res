@@ -61,17 +61,16 @@ let makeInterface = (
         _meta: {serverInfo: serverInfo},
       }
     },
-  buildToolsListResult: _ =>
-    switch failure {
-    | Some(List) => JsError.throwWithMessage("list exploded")
-    | _ => {
-        resultType: "complete",
-        tools: [],
-        ttlMs: 0,
-        cacheScope: "private",
-        _meta: {serverInfo: serverInfo},
-      }
+  buildToolsListResult: _ => {
+    resultType: "complete",
+    tools: switch failure {
+    | Some(List) => [JSON.Encode.null]
+    | _ => []
     },
+    ttlMs: 0,
+    cacheScope: "private",
+    _meta: {serverInfo: serverInfo},
+  },
   executeTool: async (_, toolCall, ~onProgress as _) => {
     switch failure == Some(Tool) {
     | true => JsError.throwWithMessage("tool exploded")
@@ -226,35 +225,34 @@ describe("MCP 2026-07-28", () => {
     }
     let wrongProtocol = metadata->String.replace("2026-07-28", "2025-11-25")
 
-    let unsupported = await invoke(12, "server/discover", wrongProtocol)
+    let unsupported = await Promise.all([
+      invoke(12, "server/discover", wrongProtocol),
+      invoke(19, "tools/list", `${wrongProtocol},"cursor":"expired"`),
+      invoke(20, "unknown/method", wrongProtocol),
+    ])
     t
-    ->expect(errorCode(unsupported))
-    ->Expect.toEqual(Some(-32022))
+    ->expect(unsupported->Array.map(errorCode))
+    ->Expect.toEqual(Array.make(~length=3, Some(-32022)))
     t
-    ->expect(errorData(unsupported))
+    ->expect(errorData(unsupported->Array.get(0)->Option.getOrThrow))
     ->Expect.toEqual(
       Some(JSON.parseOrThrow(`{"supported":["2026-07-28"],"requested":"2025-11-25"}`)),
     )
 
-    let missingCapability = await invoke(13, "tools/call", coreToolParams)
-    t->expect(errorCode(missingCapability))->Expect.toEqual(Some(-32021))
+    let capabilities = await Promise.all([
+      invoke(13, "tools/call", coreToolParams),
+      invoke(21, "tools/call", toolParams->String.replace(`"version":1`, `"version":2`)),
+    ])
     t
-    ->expect(errorData(missingCapability))
+    ->expect(capabilities->Array.map(errorCode))
+    ->Expect.toEqual(Array.make(~length=2, Some(-32021)))
+    t
+    ->expect(errorData(capabilities->Array.get(0)->Option.getOrThrow))
     ->Expect.toEqual(
       Some(
         JSON.parseOrThrow(`{"requiredCapabilities":{"extensions":{"ai.frontman/execution-context":{"version":1}}}}`),
       ),
     )
-
-    let incompatibleCapability = await invoke(
-      20,
-      "tools/call",
-      toolParams->String.replace(
-        `"ai.frontman/execution-context":{"version":1}`,
-        `"ai.frontman/execution-context":{"version":2}`,
-      ),
-    )
-    t->expect(errorCode(incompatibleCapability))->Expect.toEqual(Some(-32021))
   })
 
   testAsync("returns serverError for handler failures", async t => {
@@ -334,16 +332,17 @@ describe("MCP 2026-07-28", () => {
     t->expect(response(calls)->Dict.get("error")->Option.isNone)->Expect.toBe(true)
   })
 
-  testAsync("returns invalid request with a null id for malformed request ids", async t => {
-    let (channel, calls) = MockChannel.make()
-    let payload = JSON.parseOrThrow(
-      `{"jsonrpc":"2.0","id":{},"method":"server/discover","params":{${metadata}}}`,
-    )
-
-    await MCP.handleMessage(handler(channel, ref(None)), payload)
-
-    t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidRequest))
-    t->expect(response(calls)->Dict.get("id"))->Expect.toEqual(Some(JSON.Encode.null))
+  testAsync("preserves readable ids on invalid requests", async t => {
+    let invoke = async payload => {
+      let (channel, calls) = MockChannel.make()
+      await MCP.handleMessage(handler(channel, ref(None)), JSON.parseOrThrow(payload))
+      response(calls)->S.parseOrThrow(~to=S.object(s => s.field("id", S.json)))
+    }
+    let ids = await Promise.all([
+      invoke(`{"jsonrpc":"2.0","id":23,"method":{},"params":{${metadata}}}`),
+      invoke(`{"jsonrpc":"2.0","id":{},"method":"server/discover","params":{${metadata}}}`),
+    ])
+    t->expect(ids)->Expect.toEqual([JSON.Encode.int(23), JSON.Encode.null])
   })
 
   test("accepts array structuredContent", _ => {
