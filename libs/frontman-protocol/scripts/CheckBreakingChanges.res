@@ -52,22 +52,19 @@ let changesetDeclaresProtocolMajor = async () => {
     exit(1)
     []
   }
-  let declared = ref(false)
+  let declarations = await files
+  ->Array.map(async file => {
+    let content = await Fs.Promises.readFile(file)
+    content
+    ->String.split("---")
+    ->Array.get(1)
+    ->Option.getOr("")
+    ->String.split("\n")
+    ->Array.some(line => line->String.trim == protocolPackage)
+  })
+  ->Promise.all
 
-  for i in 0 to files->Array.length - 1 {
-    let content = await Fs.Promises.readFile(files->Array.getUnsafe(i))
-    let frontmatter = content->String.split("---")->Array.get(1)->Option.getOr("")
-
-    if (
-      frontmatter
-      ->String.split("\n")
-      ->Array.some(line => line->String.trim == protocolPackage)
-    ) {
-      declared := true
-    }
-  }
-
-  declared.contents
+  declarations->Array.some(value => value)
 }
 
 let main = async () => {

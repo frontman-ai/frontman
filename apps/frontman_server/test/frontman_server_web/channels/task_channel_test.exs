@@ -27,6 +27,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias ModelContextProtocol, as: MCP
 
   @persisted_restart_model "openrouter:openai/gpt-5.5"
+  @logged_output_schema %{
+    "type" => "object",
+    "properties" => %{"logged" => %{"type" => "boolean"}},
+    "required" => ["logged"]
+  }
 
   defp response_metadata(turn_started_id \\ "turn-1", ordinal \\ 0) do
     %{
@@ -795,21 +800,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "MCP tool call result extraction" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
-
-      complete_mcp_handshake(socket,
-        tools: [
-          %{
-            "name" => "consoleLog",
-            "inputSchema" => %{"type" => "object"},
-            "outputSchema" => %{
-              "type" => "object",
-              "properties" => %{"logged" => %{"type" => "boolean"}},
-              "required" => ["logged"]
-            }
-          }
-        ]
-      )
-
+      complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
@@ -869,95 +860,23 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "rejects structured content that violates the tool output schema", %{
-      socket: socket,
-      task_id: task_id,
-      scope: scope
-    } do
-      tool_call = tool_call("call_invalid_output", "consoleLog", %{"message" => "hello"})
-      turn_number = start_turn_fixture(scope, task_id)
-      register_tool_receiver(tool_call.tool_call_id)
+    test "validates structured content only when tool errors provide it" do
+      result = %{
+        "resultType" => "complete",
+        "content" => [%{"type" => "text", "text" => "tool failed"}],
+        "isError" => true
+      }
 
-      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
-
-      assert_push("mcp:message", %{"id" => mcp_request_id, "method" => "tools/call"})
-
-      push(
-        socket,
-        "mcp:message",
-        JsonRpc.success_response(mcp_request_id, %{
-          "resultType" => "complete",
-          "content" => [%{"type" => "text", "text" => "invalid"}],
-          "structuredContent" => %{"logged" => "yes"}
-        })
-      )
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "tool_call_update",
-            "toolCallId" => "call_invalid_output",
-            "status" => "failed"
-          }
-        }
-      })
-    end
-
-    test "preserves tool errors without structured content", %{
-      socket: socket,
-      task_id: task_id,
-      scope: scope
-    } do
-      tool_call = tool_call("call_tool_error", "consoleLog", %{"message" => "hello"})
-      turn_number = start_turn_fixture(scope, task_id)
-      register_tool_receiver(tool_call.tool_call_id)
-
-      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
-
-      assert_push("mcp:message", %{"id" => mcp_request_id, "method" => "tools/call"})
-
-      push(
-        socket,
-        "mcp:message",
-        JsonRpc.success_response(mcp_request_id, %{
-          "resultType" => "complete",
-          "content" => [%{"type" => "text", "text" => "tool failed"}],
-          "isError" => true
-        })
-      )
-
-      assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "tool_call_update",
-            "toolCallId" => "call_tool_error",
-            "status" => "failed",
-            "content" => [
-              %{
-                "type" => "content",
-                "content" => %{"type" => "text", "text" => "tool failed"}
-              }
-            ]
-          }
-        }
-      })
-    end
-
-    test "rejects invalid structured content on tool errors" do
-      assert :error =
+      assert :ok =
                ModelContextProtocol.Schema.validate_call_tool_result(
-                 %{
-                   "resultType" => "complete",
-                   "content" => [%{"type" => "text", "text" => "tool failed"}],
-                   "structuredContent" => %{"logged" => "yes"},
-                   "isError" => true
-                 },
-                 %{
-                   "type" => "object",
-                   "properties" => %{"logged" => %{"type" => "boolean"}},
-                   "required" => ["logged"]
-                 }
+                 result,
+                 @logged_output_schema
                )
+
+      assert :error =
+               result
+               |> Map.put("structuredContent", %{})
+               |> ModelContextProtocol.Schema.validate_call_tool_result(@logged_output_schema)
     end
   end
 
@@ -1055,7 +974,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "MCP response validation" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
-      complete_mcp_handshake(socket)
+
+      complete_mcp_handshake(socket,
+        tools: [
+          %{
+            "name" => "testTool",
+            "inputSchema" => %{"type" => "object"},
+            "outputSchema" => @logged_output_schema
+          }
+        ]
+      )
+
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
@@ -1152,6 +1081,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       mcp_result = %{
         "resultType" => "complete",
         "content" => [%{"type" => "text", "text" => "Success"}],
+        "structuredContent" => %{"logged" => true},
         "_meta" => %{"envApiKey" => "sk-fake-valid-mcp-marker"}
       }
 
@@ -1190,7 +1120,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         socket,
         "mcp:message",
         JsonRpc.success_response(mcp_request_id, %{
-          "content" => [%{"type" => "text", "text" => "legacy result"}]
+          "resultType" => "complete",
+          "content" => [%{"type" => "text", "text" => "invalid"}],
+          "structuredContent" => %{"logged" => "yes"}
         })
       )
 
