@@ -483,6 +483,15 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  def submit_user_message(%Scope{}, %{agent_id: agent_id})
+      when is_binary(agent_id) and agent_id != "" do
+    {:error, :missing_model}
+  end
+
+  def submit_user_message(%Scope{}, %{model: _model}) do
+    {:error, :missing_agent}
+  end
+
   @doc """
   Removes a queued (not yet claimed by a turn) user message.
 
@@ -496,22 +505,17 @@ defmodule FrontmanServer.Tasks do
            {:ok, history} <- History.new(load_interaction_rows(task_id)),
            %InteractionSchema{} = row <-
              Enum.find(History.pending_accepted_messages(history), &(&1.id == message_id)),
-           {:ok, _deleted} <- Repo.delete(row) do
-        :ok
+           {:ok, deleted} <- Repo.delete(row) do
+        {:ok, deleted}
       else
         nil -> {:error, :not_queued}
         {:error, reason} -> {:error, reason}
       end
     end)
-  end
-
-  def submit_user_message(%Scope{}, %{agent_id: agent_id})
-      when is_binary(agent_id) and agent_id != "" do
-    {:error, :missing_model}
-  end
-
-  def submit_user_message(%Scope{}, %{model: _model}) do
-    {:error, :missing_agent}
+    |> case do
+      {:ok, _deleted} -> :ok
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp accepted_user_message_count(task_id) do
