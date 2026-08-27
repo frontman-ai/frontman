@@ -1,5 +1,18 @@
 # @frontman-ai/frontman-core
 
+## 1.1.0
+
+### Minor Changes
+
+- [#1479](https://github.com/frontman-ai/frontman/pull/1479) [`434bbf1`](https://github.com/frontman-ai/frontman/commit/434bbf1b3c0aa10eeffd33848a603e4fa952cefb) Thanks [@uinstinct](https://github.com/uinstinct)! - Add a Changes view that shows file edits made during a conversation as diffs. File-editing tools now emit file change events over a new file change protocol message, and the client renders them with `@pierre/diffs`.
+
+### Patch Changes
+
+- [#1280](https://github.com/frontman-ai/frontman/pull/1280) [`7ba266e`](https://github.com/frontman-ai/frontman/commit/7ba266e997996c549c132022aebba7371cca69c3) Thanks [@ntheanh201](https://github.com/ntheanh201)! - Cap `read_file` requests at 1,000 lines.
+
+- Updated dependencies [[`434bbf1`](https://github.com/frontman-ai/frontman/commit/434bbf1b3c0aa10eeffd33848a603e4fa952cefb), [`df5cd88`](https://github.com/frontman-ai/frontman/commit/df5cd88060cefeaebb95e1e3d6b2edc4b432117f), [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3)]:
+  - @frontman-ai/frontman-protocol@3.0.0
+
 ## 1.0.4
 
 ### Patch Changes

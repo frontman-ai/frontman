@@ -1,7 +1,7 @@
 {
 	"name": "@frontman-ai/client",
 	"private": true,
-	"version": "1.0.5",
+	"version": "1.1.0",
 	"description": "React UI component library for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
