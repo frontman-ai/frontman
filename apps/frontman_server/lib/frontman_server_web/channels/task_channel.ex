@@ -38,35 +38,31 @@ defmodule FrontmanServerWeb.TaskChannel do
   def join("task:" <> task_id, _params, socket) do
     scope = socket.assigns.scope
 
-    case Tasks.get_task(scope, task_id) do
-      {:ok, task} ->
-        {:ok, history} = TaskHistory.new(task.interaction_rows)
+    with {:ok, task} <- Tasks.get_task(scope, task_id),
+         {:ok, _owner} <-
+           Registry.register(FrontmanServer.ProcessRegistry, {:task_channel, task_id}, nil) do
+      {:ok, history} = TaskHistory.new(task.interaction_rows)
 
-        SentryContext.set_task_scope_context(scope, task_id)
+      SentryContext.set_task_scope_context(scope, task_id)
+      {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
 
-        Logger.info("Client joining: #{task_id}, socket_id: #{inspect(self())}")
+      socket =
+        socket
+        |> assign(:task_id, task_id)
+        |> assign(:framework, task.framework)
+        |> assign(:mcp_init_state, init_state)
+        |> assign(:mcp_tools, [])
+        |> assign(:mcp_status, :pending)
+        |> assign(:session_loaded, false)
+        |> assign(:active_turn, TaskHistory.active_turn_context(history))
+        |> assign(:pending_mcp_tool_requests, %{})
 
-        {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
+      send(self(), {:start_mcp_init, init_actions})
 
-        socket =
-          socket
-          |> assign(:task_id, task_id)
-          |> assign(:framework, task.framework)
-          |> assign(:mcp_init_state, init_state)
-          |> assign(:mcp_tools, [])
-          |> assign(:mcp_status, :pending)
-          |> assign(:session_loaded, false)
-          |> assign(:active_turn, TaskHistory.active_turn_context(history))
-          |> assign(:latest_turn_number, TaskHistory.latest_turn_number(history))
-          |> assign(:pending_mcp_tool_requests, %{})
-
-        send(self(), {:start_mcp_init, init_actions})
-
-        {:ok, %{task_id: task_id}, socket}
-
-      {:error, :not_found} ->
-        Logger.info("Client tried to join non-existent task: #{task_id}")
-        {:error, %{reason: "task_not_found"}}
+      {:ok, %{task_id: task_id}, socket}
+    else
+      {:error, :not_found} -> {:error, %{reason: "task_not_found"}}
+      {:error, {:already_registered, _owner}} -> {:error, %{reason: "task_already_joined"}}
     end
   end
 
@@ -190,7 +186,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_turn_started(turn, turn_started_id, turn_number, socket) do
     task_id = socket.assigns.task_id
-    latest_turn_number = max(turn_number, socket.assigns.latest_turn_number)
     notification = ACP.build_state_update_notification(task_id, "running")
     push(socket, @acp_message, notification)
 
@@ -200,7 +195,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       turn_started_id: turn_started_id
     }
 
-    {:noreply, assign(socket, active_turn: context, latest_turn_number: latest_turn_number)}
+    {:noreply, assign(socket, :active_turn, context)}
   end
 
   defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
@@ -265,14 +260,6 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     {:noreply, socket}
   end
-
-  defp handle_interaction(
-         _interaction,
-         turn_number,
-         %{assigns: %{latest_turn_number: latest_turn_number}} = socket
-       )
-       when is_integer(turn_number) and turn_number < latest_turn_number,
-       do: {:noreply, socket}
 
   defp handle_interaction(%Tasks.Interaction.AgentCompleted{}, turn_number, socket),
     do: finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, turn_number)
@@ -880,15 +867,11 @@ defmodule FrontmanServerWeb.TaskChannel do
     push(socket, @acp_message, notification)
   end
 
-  defp wake_runner(socket, meta) do
-    case socket.assigns[:mcp_status] do
-      status when status in [:ready, :failed] ->
-        send(self(), {:execute_next_turn, execution_context(socket, meta)})
+  defp wake_runner(%{assigns: %{mcp_status: status, active_turn: nil}} = socket, meta)
+       when status in [:ready, :failed],
+       do: send(self(), {:execute_next_turn, execution_context(socket, meta)})
 
-      _pending ->
-        :ok
-    end
-  end
+  defp wake_runner(_socket, _meta), do: :ok
 
   defp execution_context(socket, meta) do
     model =

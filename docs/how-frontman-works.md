@@ -164,7 +164,7 @@ Application
 ├── DNSCluster              Distributed node discovery
 ├── PubSub                  Phoenix broadcasts
 ├── SwarmAi                 Agent execution engine
-├── ToolCallRegistry        Routes tool results to waiting executors
+├── ProcessRegistry         Owns task channels and routes tool results
 ├── Oban                    Background jobs (emails, title generation)
 └── Endpoint                HTTP + WebSocket server
 ```
@@ -318,7 +318,7 @@ Executed in supervised tasks. Currently includes todo list management tools. The
 ### MCP tools (browser-side)
 
 Sent to the client over WebSocket. The executor:
-1. Registers itself in the ToolCallRegistry (so the result can find its way back)
+1. Registers itself in the ProcessRegistry (so the result can find its way back)
 2. Persists the tool call to the database
 3. Sends the tool call to the client via the MCP channel
 4. **Blocks** waiting for the result (60-second timeout for regular tools, 24-hour timeout for interactive tools like Question)
