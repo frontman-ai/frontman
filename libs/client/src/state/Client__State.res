@@ -277,22 +277,21 @@ module Actions = {
 
   let shareFrontman = () => Client__State__Store.dispatch(ShareFrontman)
 
-  let fetchCustomEndpoints = () => Client__State__Store.dispatch(FetchCustomEndpoints)
+  let fetchCustomProviders = () => Client__State__Store.dispatch(FetchCustomProviders)
 
-  let saveCustomEndpoint = (~id=?, ~name, ~baseUrl, ~apiKey=?, ~onComplete) =>
-    Client__State__Store.dispatch(SaveCustomEndpoint({id, name, baseUrl, apiKey, onComplete}))
+  let saveCustomProvider = (~id=?, ~name, ~baseUrl, ~apiKey=?, ~onComplete) =>
+    Client__State__Store.dispatch(SaveCustomProvider({id, name, baseUrl, apiKey, onComplete}))
 
-  let deleteCustomEndpoint = (~id, ~onComplete) =>
-    Client__State__Store.dispatch(DeleteCustomEndpoint({id, onComplete}))
+  let deleteCustomProvider = (~id, ~onComplete) =>
+    Client__State__Store.dispatch(DeleteCustomProvider({id, onComplete}))
 
-  @live
-  let addCustomEndpointModel = (~endpointId, ~modelId, ~displayName=?, ~position=?, ~onComplete) =>
+  let addCustomProviderModel = (~providerId, ~modelId, ~onComplete) =>
+    Client__State__Store.dispatch(AddCustomProviderModel({providerId, modelId, onComplete}))
+
+  let removeCustomProviderModel = (~providerId, ~providerModelId, ~onComplete) =>
     Client__State__Store.dispatch(
-      AddCustomEndpointModel({endpointId, modelId, displayName, position, onComplete}),
+      RemoveCustomProviderModel({providerId, providerModelId, onComplete}),
     )
-
-  let removeCustomEndpointModel = (~endpointId, ~modelId, ~onComplete) =>
-    Client__State__Store.dispatch(RemoveCustomEndpointModel({endpointId, modelId, onComplete}))
 
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
     Client__State__Store.dispatch(

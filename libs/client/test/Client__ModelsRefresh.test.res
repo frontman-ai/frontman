@@ -50,7 +50,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     updateBannerDismissed: false,
     firstTaskFeedbackDialogState: Waiting,
     highlightedAnnotation: None,
-    customEndpoints: None,
+    customProviders: None,
   }
 }
 
@@ -264,16 +264,40 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
-  test("keeps the current selection even when refreshed config omits it", t => {
+  test("replaces a selected model removed by refreshed config", t => {
     let existingModel = "openrouter:google/gemini-3-flash-preview"
     let state = _makeState(~selectedModelValue=Some(existingModel))
+    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
+    storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=existingModel)
 
     let (nextState, _effects) = Reducer.next(
       state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithAnthropic}),
+      ConfigOptionsReceived({configOptions: SampleConfig.configWithOpenRouterOnly}),
     )
 
-    t->expect(nextState.selectedModelValue)->Expect.toEqual(Some(existingModel))
+    let replacement = "openrouter:openai/gpt-5.6-terra"
+    t->expect(nextState.selectedModelValue)->Expect.toEqual(Some(replacement))
+    t
+    ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)
+    ->Expect.toEqual(Some(replacement))
+    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
+  })
+
+  test("clears a selection whose provider was removed", t => {
+    let existingModel = "custom:provider-id:model-id"
+    let state = _makeState(~selectedModelValue=Some(existingModel))
+    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
+    storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=existingModel)
+
+    let (nextState, _effects) = Reducer.next(
+      state,
+      ConfigOptionsReceived({configOptions: SampleConfig.configWithNoModels}),
+    )
+
+    t->expect(nextState.selectedModelValue)->Expect.toEqual(None)
+    t
+    ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)
+    ->Expect.toEqual(None)
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 
@@ -290,7 +314,7 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
     ->Expect.toEqual(Some("anthropic:claude-sonnet-5"))
   })
 
-  test("clears pendingProviderAutoSelect even when provider and current model are missing", t => {
+  test("falls back to the first model when pending provider and current model are missing", t => {
     let existingModel = "openai_codex:gpt-5.1-codex-max"
     let state = _makeState(
       ~pendingProviderAutoSelect=Some("openai_codex"),
@@ -302,7 +326,9 @@ describe("ConfigOptionsReceived auto-selects model from newly connected provider
       ConfigOptionsReceived({configOptions: SampleConfig.configWithOpenRouterOnly}),
     )
 
-    t->expect(nextState.selectedModelValue)->Expect.toEqual(Some(existingModel))
+    t
+    ->expect(nextState.selectedModelValue)
+    ->Expect.toEqual(Some("openrouter:openai/gpt-5.6-terra"))
     t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 

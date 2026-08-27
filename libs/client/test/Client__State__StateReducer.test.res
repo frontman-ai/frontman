@@ -123,6 +123,80 @@ module TestHelpers = {
   }
 }
 
+describe("Client State Reducer - Custom Providers", () => {
+  let provider = (~name, ~models=[]): StateTypes.customProvider => {
+    id: "provider-1",
+    name,
+    baseUrl: "https://api.example.com/v1",
+    hasApiKey: false,
+    models,
+  }
+
+  test("save preserves an omitted key and removes an explicit empty key", t => {
+    let encode = apiKey =>
+      Reducer.encodeCustomProviderSaveRequest(
+        ~name="Provider",
+        ~baseUrl="https://api.example.com/v1",
+        ~apiKey,
+      )
+
+    t
+    ->expect(encode(None))
+    ->Expect.toEqual(`{"name":"Provider","base_url":"https://api.example.com/v1"}`)
+    t
+    ->expect(encode(Some("")))
+    ->Expect.toEqual(`{"name":"Provider","base_url":"https://api.example.com/v1","api_key":""}`)
+  })
+
+  test("upsert replaces the complete provider", t => {
+    let selectedModel = "custom:provider-1:removed-model"
+    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
+    storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=selectedModel)
+    let state = {
+      ...Reducer.defaultState,
+      customProviders: Some([provider(~name="Old")]),
+      selectedModelValue: Some(selectedModel),
+    }
+    let updated = provider(~name="New", ~models=[{id: "model-1", modelId: "vision-model"}])
+
+    let (nextState, effects) = Reducer.next(
+      state,
+      Reducer.CustomProviderUpserted({provider: updated}),
+    )
+
+    t->expect(nextState.customProviders)->Expect.toEqual(Some([updated]))
+    t->expect(nextState.selectedModelValue)->Expect.toEqual(None)
+    t
+    ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)
+    ->Expect.toEqual(None)
+    t->expect(effects)->Expect.toEqual([])
+  })
+
+  test("delete removes only the matching provider", t => {
+    let kept = {...provider(~name="Kept"), id: "provider-2"}
+    let selectedModel = "custom:provider-1:model"
+    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
+    storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=selectedModel)
+    let state = {
+      ...Reducer.defaultState,
+      customProviders: Some([provider(~name="Deleted"), kept]),
+      selectedModelValue: Some(selectedModel),
+    }
+
+    let (nextState, effects) = Reducer.next(
+      state,
+      Reducer.CustomProviderDeleted({id: "provider-1"}),
+    )
+
+    t->expect(nextState.customProviders)->Expect.toEqual(Some([kept]))
+    t->expect(nextState.selectedModelValue)->Expect.toEqual(None)
+    t
+    ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)
+    ->Expect.toEqual(None)
+    t->expect(effects)->Expect.toEqual([])
+  })
+})
+
 let planner: ACP.agentCatalogEntry = {
   id: "planner-id",
   name: "planner",

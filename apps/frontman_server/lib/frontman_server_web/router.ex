@@ -113,15 +113,15 @@ defmodule FrontmanServerWeb.Router do
     delete("/oauth/openai/disconnect", OpenAIOAuthController, :disconnect)
     get("/oauth/openai/status", OpenAIOAuthController, :status)
 
-    get("/user/custom-endpoints", CustomLlmEndpointsController, :index)
-    post("/user/custom-endpoints", CustomLlmEndpointsController, :create)
-    patch("/user/custom-endpoints/:id", CustomLlmEndpointsController, :update)
-    delete("/user/custom-endpoints/:id", CustomLlmEndpointsController, :delete)
-    post("/user/custom-endpoints/:id/models", CustomLlmEndpointsController, :add_model)
+    get("/user/custom-providers", CustomProvidersController, :index)
+    post("/user/custom-providers", CustomProvidersController, :create)
+    patch("/user/custom-providers/:provider_id", CustomProvidersController, :update)
+    delete("/user/custom-providers/:provider_id", CustomProvidersController, :delete)
+    post("/user/custom-providers/:provider_id/models", CustomProvidersController, :add_model)
 
     delete(
-      "/user/custom-endpoints/:id/models/:model_id",
-      CustomLlmEndpointsController,
+      "/user/custom-providers/:provider_id/models/:provider_model_id",
+      CustomProvidersController,
       :remove_model
     )
   end

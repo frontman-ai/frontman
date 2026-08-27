@@ -4,9 +4,9 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServer.Providers.CustomLlmEndpoint do
+defmodule FrontmanServer.Providers.CustomProvider do
   @moduledoc """
-  A user-defined OpenAI-compatible LLM endpoint.
+  A user-defined OpenAI-compatible LLM provider.
   The optional API key is encrypted at rest using FrontmanServer.Vault.
   """
 
@@ -15,18 +15,19 @@ defmodule FrontmanServer.Providers.CustomLlmEndpoint do
   import Ecto.Query
 
   alias FrontmanServer.Accounts.User
+  alias FrontmanServer.PublicURL
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
-  schema "custom_llm_endpoints" do
+  schema "custom_providers" do
     field(:name, :string)
     field(:base_url, :string)
     field(:api_key, FrontmanServer.Encrypted.Binary)
 
     belongs_to(:user, User)
 
-    has_many(:models, FrontmanServer.Providers.CustomLlmModel,
-      foreign_key: :endpoint_id,
+    has_many(:models, FrontmanServer.Providers.CustomProviderModel,
+      foreign_key: :custom_provider_id,
       on_delete: :delete_all
     )
 
@@ -34,31 +35,23 @@ defmodule FrontmanServer.Providers.CustomLlmEndpoint do
   end
 
   @doc """
-  Changeset for creating or updating an endpoint.
+  Changeset for creating or updating a provider.
   Does not accept user_id - it must be set explicitly via the struct to prevent
   unauthorized user_id injection from untrusted input.
   """
-  def changeset(endpoint, attrs) do
-    endpoint
+  def changeset(provider, attrs) do
+    provider
     |> cast(attrs, [:name, :base_url, :api_key])
     |> validate_required([:name, :base_url])
     |> validate_length(:name, min: 1, max: 64)
     |> validate_length(:base_url, min: 1, max: 512)
-    |> validate_base_url()
-    |> unique_constraint([:user_id, :name])
-  end
-
-  defp validate_base_url(changeset) do
-    validate_change(changeset, :base_url, fn :base_url, value ->
-      case URI.new(value) do
-        {:ok, %URI{scheme: scheme, host: host}}
-        when scheme in ["http", "https"] and is_binary(host) and host != "" ->
-          []
-
-        _ ->
-          [base_url: "must be a valid http(s) URL"]
+    |> validate_change(:base_url, fn :base_url, url ->
+      case PublicURL.validate(url) do
+        :ok -> []
+        {:error, message} -> [base_url: message]
       end
     end)
+    |> unique_constraint([:user_id, :name])
   end
 
   @doc """
@@ -66,9 +59,5 @@ defmodule FrontmanServer.Providers.CustomLlmEndpoint do
   """
   def for_user(query \\ __MODULE__, user_id) do
     from(e in query, where: e.user_id == ^user_id)
-  end
-
-  def for_user_and_name(query \\ __MODULE__, user_id, name) do
-    from(e in query, where: e.user_id == ^user_id and e.name == ^name)
   end
 end
