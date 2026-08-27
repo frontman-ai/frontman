@@ -27,7 +27,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 
   ## Options
 
-  - `:model` - Required ReqLLM model spec from `Providers.prepare_llm_args/3`
+  - `:model` - Required ReqLLM model spec from `Providers.resolve_model_access/3`
   - `:tools` - List of SwarmAi.Tool structs
   - `:llm_opts` - Options for ReqLLM, including resolved provider auth
   """

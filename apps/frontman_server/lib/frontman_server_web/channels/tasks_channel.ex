@@ -187,7 +187,7 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp current_config_options(socket) do
     socket.assigns.scope
-    |> Providers.model_config_data()
+    |> Providers.available_models()
     |> ACP.build_model_config_options()
   end
 

@@ -59,7 +59,7 @@ defmodule FrontmanServer.Tasks.Execution do
              is_list(interaction_rows) and is_list(mcp_tools) do
     max_tokens = Application.fetch_env!(:frontman_server, :llm_max_tokens)
 
-    case Providers.prepare_llm_args(scope, requested_model, max_tokens: max_tokens) do
+    case Providers.resolve_model_access(scope, requested_model, max_tokens: max_tokens) do
       {:ok, {model_spec, llm_opts}} ->
         backend_tool_modules = Tools.backend_tool_modules(tool_policy)
         mcp_tools = Tools.mcp_tools(mcp_tools, tool_policy)

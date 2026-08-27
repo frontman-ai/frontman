@@ -43,7 +43,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
         {:stream_raise, "LLM API error: image exceeds the maximum allowed size"}
       ])
 
-      {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+      :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
       {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Take a screenshot"))
 
@@ -59,7 +59,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
     } do
       expect_llm_responses([{:error, :llm_api_failure}])
 
-      {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+      :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
       {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Hello"))
 

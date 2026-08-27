@@ -22,7 +22,7 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       scope = Scope.for_user(user)
 
       {:ok, {%LLMDB.Model{provider: :openrouter}, llm_opts}} =
-        Providers.prepare_llm_args(scope, "openrouter:anthropic/claude-fable-5")
+        Providers.resolve_model_access(scope, "openrouter:anthropic/claude-fable-5")
 
       assert llm_opts[:api_key] == "sk-test-123"
     end
@@ -38,13 +38,13 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
 
       scope = Scope.for_user(user)
 
-      assert %{groups: groups} = Providers.model_config_data(scope)
+      assert %{groups: groups} = Providers.available_models(scope)
 
       assert %{id: "fireworks_ai", options: [%{value: "fireworks_ai:" <> _} | _]} =
                Enum.find(groups, &(&1.id == "fireworks_ai"))
 
       {:ok, {%LLMDB.Model{provider: :fireworks_ai}, llm_opts}} =
-        Providers.prepare_llm_args(scope, @fireworks_model)
+        Providers.resolve_model_access(scope, @fireworks_model)
 
       assert llm_opts[:api_key] == "sk-fireworks-test-123"
     end
@@ -52,7 +52,7 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
     test "stores Fireworks keys without affecting other users", %{conn: conn, user: user} do
       other_user = AccountsFixtures.user_fixture()
       other_scope = Scope.for_user(other_user)
-      {:ok, _} = Providers.upsert_api_key(other_scope, "fireworks_ai", "sk-fireworks-other-user")
+      :ok = Providers.upsert_api_key(other_scope, "fireworks_ai", "sk-fireworks-other-user")
 
       conn =
         post(conn, ~p"/api/user/api-keys", %{
@@ -65,12 +65,12 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert response["status"] == "ok"
 
       {:ok, {%LLMDB.Model{provider: :fireworks_ai}, llm_opts}} =
-        Providers.prepare_llm_args(Scope.for_user(user), @fireworks_model)
+        Providers.resolve_model_access(Scope.for_user(user), @fireworks_model)
 
       assert llm_opts[:api_key] == "sk-fireworks-current-user"
 
       {:ok, {%LLMDB.Model{provider: :fireworks_ai}, other_llm_opts}} =
-        Providers.prepare_llm_args(other_scope, @fireworks_model)
+        Providers.resolve_model_access(other_scope, @fireworks_model)
 
       assert other_llm_opts[:api_key] == "sk-fireworks-other-user"
     end
@@ -95,7 +95,7 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
     end
 
     test "returns saved key providers", %{conn: conn, user: user} do
-      {:ok, _} =
+      :ok =
         Providers.upsert_api_key(Scope.for_user(user), "fireworks_ai", "sk-fireworks-user-key")
 
       conn = get(conn, ~p"/api/user/api-keys")
@@ -107,7 +107,7 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
     test "returns saved key providers for the logged-in user only", %{conn: conn} do
       other_user = AccountsFixtures.user_fixture()
       other_scope = Scope.for_user(other_user)
-      {:ok, _} = Providers.upsert_api_key(other_scope, "fireworks_ai", "sk-fireworks-other-user")
+      :ok = Providers.upsert_api_key(other_scope, "fireworks_ai", "sk-fireworks-other-user")
 
       conn = get(conn, ~p"/api/user/api-keys")
       response = json_response(conn, 200)

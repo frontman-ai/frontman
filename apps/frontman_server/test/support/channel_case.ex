@@ -246,7 +246,7 @@ defmodule FrontmanServerWeb.ChannelCase do
       })
 
     scope = Scope.for_user(user)
-    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+    :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
     {:ok, scope: scope, user: user}
   end

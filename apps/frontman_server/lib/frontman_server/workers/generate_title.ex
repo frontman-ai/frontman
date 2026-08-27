@@ -46,7 +46,8 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     scope = Scope.for_user(user)
     model = Map.get(args, "model")
 
-    with {:ok, {model_spec, llm_opts}} <- Providers.prepare_llm_args(scope, model, max_tokens: 30),
+    with {:ok, {model_spec, llm_opts}} <-
+           Providers.resolve_model_access(scope, model, max_tokens: 30),
          {:ok, raw_title} <- call_llm(model_spec, llm_opts, user_prompt_text),
          title = String.trim(raw_title),
          false <- title == "",

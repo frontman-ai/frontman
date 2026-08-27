@@ -155,7 +155,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   defp setup_user(_context) do
     scope = user_scope_fixture()
-    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+    :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
     {:ok, scope: scope}
   end
 
