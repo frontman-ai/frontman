@@ -4,10 +4,11 @@ module SentryFilter = FrontmanBindings.Sentry__Filter
 
 let initialized = ref(false)
 
-let initialize = (~transport: option<Bindings.transport>=?) => {
-  if !initialized.contents && (Option.isSome(transport) || !SentryConfig.isInternalDev()) {
+let initialize = (~dsn: string, ~transport: option<Bindings.transport>=?) => {
+  switch !initialized.contents && (Option.isSome(transport) || !SentryConfig.isInternalDev()) {
+  | true =>
     Bindings.init({
-      dsn: SentryConfig.dsn,
+      dsn,
       environment: %raw(`typeof window !== 'undefined' && window.location?.hostname === 'localhost' ? 'development' : 'production'`),
       sampleRate: 1.0,
       ?transport,
@@ -17,6 +18,7 @@ let initialize = (~transport: option<Bindings.transport>=?) => {
       beforeSend: SentryFilter.beforeSend,
     })
     initialized.contents = true
+  | false => ()
   }
 }
 

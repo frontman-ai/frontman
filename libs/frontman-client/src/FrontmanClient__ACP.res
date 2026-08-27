@@ -168,7 +168,6 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
   connection,
   connectError,
 > => {
-  Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
 
   let tokenResult = switch await fetchSocketToken(config.tokenUrl) {

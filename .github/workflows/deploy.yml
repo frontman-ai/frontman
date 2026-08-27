@@ -77,6 +77,7 @@ jobs:
     environment: production
     env:
       PROD_SERVER: ${{ secrets.PROD_SERVER }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -113,6 +114,21 @@ jobs:
             "deploy@${PROD_SERVER}:/opt/frontman/build-and-deploy.sh"
           ssh -i ~/.ssh/deploy_key "deploy@${PROD_SERVER}" \
             'chmod +x /opt/frontman/build-and-deploy.sh'
+
+      - name: Update Sentry DSN in production environments
+        run: |
+          SENTRY_DSN_B64=$(printf '%s' "$SENTRY_DSN" | base64 | tr -d '\n')
+          ssh -i ~/.ssh/deploy_key "deploy@${PROD_SERVER}" \
+            "SENTRY_DSN_B64=${SENTRY_DSN_B64} bash -s" <<'EOF'
+          sentry_dsn=$(printf '%s' "$SENTRY_DSN_B64" | base64 -d)
+          for slot in blue green; do
+            env_file="/opt/frontman/${slot}/env"
+            grep -v '^SENTRY_DSN=' "$env_file" > "${env_file}.tmp"
+            printf 'SENTRY_DSN=%s\n' "$sentry_dsn" >> "${env_file}.tmp"
+            chmod --reference="$env_file" "${env_file}.tmp"
+            mv "${env_file}.tmp" "$env_file"
+          done
+          EOF
 
       - name: Build and deploy on server
         run: |

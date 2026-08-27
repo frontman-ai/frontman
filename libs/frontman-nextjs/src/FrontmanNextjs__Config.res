@@ -76,30 +76,14 @@ let make = (
 
   let sourceRoot = sourceRoot->Option.getOr(projectRoot)
 
-  let clientUrl = clientUrl->Option.getOr({
-    let baseUrl =
-      Bindings.Process.env
-      ->Dict.get("FRONTMAN_CLIENT_URL")
-      ->Option.getOr(
-        switch isDev {
-        | true => Hosts.devClientJs
-        | false => Hosts.clientJs
-        },
-      )
-    let url = WebAPI.URL.make(~url=baseUrl)
-    url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="nextjs")
-    url.searchParams->WebAPI.URLSearchParams.set(~name="host", ~value=host)
-    url.href
-  })
-
-  let parsedUrl = WebAPI.URL.make(~url=clientUrl)
-  switch parsedUrl.searchParams->WebAPI.URLSearchParams.has(~name="host") {
-  | true => ()
-  | false =>
-    JsError.throwWithMessage(
-      `[frontman-nextjs] clientUrl must include a "host" query parameter. Got: ${clientUrl}`,
-    )
-  }
+  let clientUrl = Hosts.clientUrl(
+    ~baseUrl=clientUrl,
+    ~clientName="nextjs",
+    ~host,
+    ~isDev,
+    ~sentryDsn=Bindings.Process.envString("SENTRY_DSN"),
+    ~preserveExisting=false,
+  )
 
   {
     isDev,

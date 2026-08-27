@@ -7,7 +7,7 @@ let setup = (): (
   FrontmanNextjs__OpenTelemetry__Bindings.Trace.spanProcessor,
 ) => {
   LogCapture.initialize()
-  Sentry.initialize()
+  FrontmanBindings.Process.envString("SENTRY_DSN")->Option.forEach(dsn => Sentry.initialize(~dsn))
 
   (FrontmanNextjs__LogRecordProcessor.make(), FrontmanNextjs__SpanProcessor.make())
 }

@@ -5,6 +5,8 @@ external exit: int => unit = "exit"
 
 @val @scope("process") external env: Dict.t<string> = "env"
 
+let envString = name => env->Dict.get(name)->Option.filter(value => value->String.trim != "")
+
 @val @scope("process")
 external cwd: unit => string = "cwd"
 

@@ -6,6 +6,7 @@ module SentryFilter = FrontmanBindings.Sentry__Filter
 module SentryTestkit = FrontmanBindings.Bindings__Test__SentryTestkit
 
 describe("FrontmanNextjs Sentry", () => {
+  let dsn = "https://public@example.invalid/1"
   let testkit = ref(None)
   let transport = ref(None)
 
@@ -23,7 +24,7 @@ describe("FrontmanNextjs Sentry", () => {
 
     Sentry.initialized.contents = false
     switch transport.contents {
-    | Some(t) => Sentry.initialize(~transport=t)
+    | Some(t) => Sentry.initialize(~dsn, ~transport=t)
     | None => ()
     }
   })
@@ -34,8 +35,7 @@ describe("FrontmanNextjs Sentry", () => {
       t => {
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
 
-        Sentry.initialize()
-        Sentry.initialize()
+        Sentry.initialize(~dsn)
 
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
       },

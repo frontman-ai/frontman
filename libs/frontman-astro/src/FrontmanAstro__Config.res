@@ -68,28 +68,14 @@ let makeFromObject = (rawConfig: jsConfigInput): t => {
   let serverName = config.serverName->Option.getOr("frontman-astro")
   let serverVersion = config.serverVersion->Option.getOr(packageVersion)
 
-  let clientUrl = {
-    let baseUrl = config.clientUrl->Option.getOr(
-      Bindings.Process.env
-      ->Dict.get("FRONTMAN_CLIENT_URL")
-      ->Option.getOr(
-        switch isDev {
-        | true => Hosts.devClientJs
-        | false => Hosts.clientJs
-        },
-      ),
-    )
-    let url = WebAPI.URL.make(~url=baseUrl)
-    switch url.searchParams->WebAPI.URLSearchParams.has(~name="clientName") {
-    | true => ()
-    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="clientName", ~value="astro")
-    }
-    switch url.searchParams->WebAPI.URLSearchParams.has(~name="host") {
-    | true => ()
-    | false => url.searchParams->WebAPI.URLSearchParams.set(~name="host", ~value=host)
-    }
-    url.href
-  }
+  let clientUrl = Hosts.clientUrl(
+    ~baseUrl=config.clientUrl,
+    ~clientName="astro",
+    ~host,
+    ~isDev,
+    ~sentryDsn=Bindings.Process.envString("SENTRY_DSN"),
+    ~preserveExisting=true,
+  )
 
   {
     isDev,

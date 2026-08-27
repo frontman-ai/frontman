@@ -8,7 +8,7 @@ type scopeContext = Types.scopeContext
 type transport = Types.transport
 
 type initOptions = {
-  dsn: string,
+  dsn?: string,
   environment?: string,
   release?: string,
   sampleRate?: float,

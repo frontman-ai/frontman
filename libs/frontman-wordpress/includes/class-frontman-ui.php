@@ -101,6 +101,10 @@ class Frontman_UI {
 			],
 			$base_js_url
 		);
+		$sentry_dsn = trim( (string) getenv( 'SENTRY_DSN' ) );
+		if ( '' !== $sentry_dsn ) {
+			$client_url = add_query_arg( 'sentryDsn', $sentry_dsn, $client_url );
+		}
 
 		$runtime = [
 			'framework'    => 'wordpress',
