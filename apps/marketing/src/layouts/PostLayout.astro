@@ -22,7 +22,7 @@ const updatedDateISO =
 const author = getAuthor(frontmatter.author)
 const absoluteAuthorUrl = new URL(author.url, Astro.site).href
 
-const wordCount = body ? countArticleWords(body) : undefined
+const wordCount = body ? countArticleWords(body, frontmatter.faq) : undefined
 
 const blogPostJsonLd = {
 	'@context': 'https://schema.org',

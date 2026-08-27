@@ -20,7 +20,7 @@ install:
 	yarn install
 
 test:
-	yarn run -T vitest run src/integrations/*.test.mjs src/content/*.test.mjs
+	yarn run -T vitest run src/integrations/*.test.mjs src/content/*.test.mjs src/utils/*.test.mjs
 
 dev:
 	yarn dev --port $(PORT)

@@ -127,6 +127,8 @@ Confirmation is selective, not a transaction boundary. Core WordPress delete too
 
 Rollback is also selective. [Elementor page-data and element mutations](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-wordpress/tools/class-tool-elementor.php) save private snapshots, retain at most 20 per post, and expose list/restore tools. Other WordPress tools often return before/after values and WordPress may provide trash or revisions, but Frontman exposes no general rollback transaction for posts, blocks, menus, widgets, templates, options, media, cache clears, or WooCommerce mutations. Permanent deletes and external effects such as refunds can require recovery outside Frontman. Use staging for broad changes, take application-and-database backups, verify restore procedures, and review each live mutation before approval.
 
+The [WordPress maintenance checklist](/blog/wordpress-maintenance-checklist/) assigns recurring backup, update, access-review, verification, and escalation controls to named owners.
+
 ## Human and delivery controls
 
 For JavaScript integrations, Frontman can write files; it does not make those changes safe to merge. Minimum controls should include:
