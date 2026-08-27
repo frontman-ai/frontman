@@ -28,6 +28,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
   alias ModelContextProtocol, as: MCP
+  alias ModelContextProtocol.Schema, as: MCPSchema
 
   @acp_message ACP.event_acp_message()
   @acp_title_updated ACP.event_title_updated()
@@ -127,7 +128,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   @impl true
   def handle_info({:start_mcp_init, actions}, socket) do
-    socket = execute_init_actions(actions, socket)
+    socket = apply_init_actions(actions, socket)
     {:noreply, socket}
   end
 
@@ -317,7 +318,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     if mcp_initialization_request?(init_state, id) do
       {new_state, actions} = MCPInitializer.handle_response(init_state, id, result)
       socket = assign(socket, :mcp_init_state, new_state)
-      {:noreply, execute_init_actions(actions, socket)}
+      {:noreply, apply_init_actions(actions, socket)}
     else
       handle_tool_call_response_by_id(id, result, socket)
     end
@@ -375,6 +376,22 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_tool_call_response(tool_call, result, socket) do
+    tools = socket.assigns.mcp_tools
+
+    %{output_schema: output_schema} =
+      Enum.find(tools, %{output_schema: nil}, &(&1.name == tool_call.tool_name))
+
+    with :ok <- MCPSchema.validate_call_tool_result(result, output_schema),
+         nil <- Enum.find(result["content"], &(&1["type"] not in ["text", "image"])) do
+      :ok
+    else
+      :error ->
+        raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
+
+      %{"type" => type} ->
+        raise "Unsupported MCP tools/call content type #{inspect(type)} for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
+    end
+
     {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end
 
@@ -406,10 +423,8 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         resume_after_tool_result(executor_status, socket, scope, task_id)
 
-      {:error, _reason} ->
-        Logger.warning("Failed to store tool result")
-
-        socket
+      {:error, reason} ->
+        raise "Failed to store MCP tools/call result for task #{task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}: #{inspect(reason)}"
     end
   end
 
@@ -445,7 +460,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     if mcp_initialization_request?(init_state, id) do
       {new_state, actions} = MCPInitializer.handle_error(init_state, id, error)
       socket = assign(socket, :mcp_init_state, new_state)
-      {:noreply, execute_init_actions(actions, socket)}
+      {:noreply, apply_init_actions(actions, socket)}
     else
       handle_tool_call_error_by_id(id, error, socket)
     end
@@ -453,7 +468,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp mcp_initialization_request?(%{} = init_state, id) when is_integer(id) do
     id in [
-      init_state.mcp_init_request_id,
+      init_state.discovery_request_id,
       init_state.tools_request_id,
       init_state.project_rules_request_id,
       init_state.project_structure_request_id
@@ -887,10 +902,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     }
   end
 
-  defp execute_init_actions(actions, socket) do
-    apply_init_actions(actions, socket)
-  end
-
   defp apply_init_actions([], socket), do: socket
 
   defp apply_init_actions([action | rest], socket) do
@@ -903,30 +914,22 @@ defmodule FrontmanServerWeb.TaskChannel do
     socket
   end
 
-  defp apply_init_action(socket, {:push_acp, msg}) do
-    push(socket, @acp_message, msg)
-    socket
-  end
-
   defp apply_init_action(socket, {:initialization_complete, data}) do
     task_id = socket.assigns.task_id
     Logger.info("MCP initialization complete for task #{task_id}")
 
     socket
     |> assign(:mcp_status, :ready)
-    |> assign(:mcp_capabilities, data.mcp_capabilities)
-    |> assign(:mcp_server_info, data.mcp_server_info)
     |> assign(:mcp_tools, data.tools)
     |> redispatch_unresolved_tool_calls()
     |> tap(&wake_runner(&1, nil))
   end
 
   defp apply_init_action(socket, {:initialization_failed, error}) do
-    Logger.error("MCP initialization failed")
+    Logger.error("MCP initialization failed", reason: error)
 
     socket
     |> assign(:mcp_status, :failed)
-    |> assign(:mcp_error, error)
     |> redispatch_unresolved_tool_calls()
     |> tap(&wake_runner(&1, nil))
   end
@@ -972,6 +975,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         request_id: request_id,
         tool_name: tool_call.tool_name,
         arguments: tool_call.arguments,
+        task_id: task_id,
         call_id: tool_call.tool_call_id
       })
 

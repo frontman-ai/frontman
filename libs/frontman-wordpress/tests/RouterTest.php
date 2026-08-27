@@ -133,6 +133,7 @@ class Frontman_Router_Test_Runner {
 	private function test_tool_results_use_canonical_shape(): void {
 		$this->assert_same(
 			[
+				'resultType' => 'complete',
 				'content' => [ [ 'type' => 'text', 'text' => '{"ok":true}' ] ],
 				'isError' => false,
 			],
@@ -141,6 +142,7 @@ class Frontman_Router_Test_Runner {
 		);
 		$this->assert_same(
 			[
+				'resultType' => 'complete',
 				'content' => [ [ 'type' => 'text', 'text' => 'Failed' ] ],
 				'isError' => true,
 			],

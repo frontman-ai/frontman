@@ -35,24 +35,27 @@ let notificationSchema = S.object(s => {
   Notification({method, params})
 })
 
-let hasIdField = (json: JSON.t): bool => {
-  switch json->JSON.Decode.object {
-  | Some(obj) => obj->Dict.get("id")->Option.isSome
-  | None => false
-  }
-}
+let idFieldSchema = S.object(s => s.field("id", S.json))
+let idValue = json => json->Decoders.parseSchema(idFieldSchema)->Result.mapOr(None, id => Some(id))
+let hasIdField = json => json->idValue->Option.isSome
+let readableId = json =>
+  json
+  ->idValue
+  ->Option.flatMap(id =>
+    id->Decoders.parseSchema(JsonRpc.Id.schema)->Result.mapOr(None, id => Some(id))
+  )
 
-let parse = (json: JSON.t): result<mcpMessage, string> => {
-  let schema = if hasIdField(json) {
-    requestSchema
-  } else {
-    notificationSchema
+let parse = json =>
+  json->Decoders.parseSchema(hasIdField(json) ? requestSchema : notificationSchema)
+
+let parseParams = (params, schema, missingMessage) =>
+  switch params {
+  | Some(params) => params->Decoders.parseSchema(schema)
+  | None => Error(missingMessage)
   }
-  json->Decoders.parseSchema(schema)
-}
 
 let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
-  let payload = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
+  let payload = JsonRpc.Response.makeSuccess(~id, ~result)->JsonRpc.Response.toJson
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
@@ -62,44 +65,81 @@ let sendError = (
   id: JsonRpc.Id.t,
   code: int,
   message: string,
+  ~data: option<JSON.t>=?,
 ): unit => {
-  let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
-  let payload = JsonRpc.Response.makeErrorPayloadWithId(~id, ~error)
+  let error = JsonRpc.RpcError.make(~code, ~message, ~data)
+  let payload = JsonRpc.Response.makeError(~id, ~error)->JsonRpc.Response.toJson
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
-let handleInitialize = (
-  handler: mcpHandler<'server>,
-  id: JsonRpc.Id.t,
-  _params: option<JSON.t>,
-): unit => {
+let sendErrorWithoutId = (handler: mcpHandler<'server>, code: int, message: string): unit => {
+  let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
+  let payload = JsonRpc.Response.makeErrorWithoutId(~error)->JsonRpc.Response.toJson
+  handler.onMessage->Option.forEach(cb => cb(Send, payload))
+  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+}
+
+let sendMetadataError = (handler, id, error: Types.metadataError) =>
+  switch error {
+  | UnsupportedProtocolVersion(requested) =>
+    sendError(
+      handler,
+      id,
+      Types.ErrorCode.unsupportedProtocolVersion,
+      "Unsupported protocol version",
+      ~data=Types.unsupportedProtocolVersionDataToJson(requested),
+    )
+  }
+
+let sendBuiltResponse = (handler, id, operation, build) =>
   try {
-    let {serverInterface} = handler
-    let result = serverInterface.buildInitializeResult(serverInterface.server)
-    let resultJson =
-      result->S.decodeOrThrow(~from=Types.initializeResultSchema, ~to=S.json->S.noValidation(true))
-    sendResponse(handler, id, resultJson)
+    sendResponse(handler, id, build())
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Log.error(~error=exn->JsExn.fromException, `Initialize failed: ${msg}`)
-    sendError(handler, id, Types.ErrorCode.serverError, `Initialize failed: ${msg}`)
+    Log.error(~error=exn->JsExn.fromException, `${operation} failed: ${msg}`)
+    sendError(handler, id, Types.ErrorCode.serverError, `${operation} failed: ${msg}`)
+  }
+
+let handleDiscover = (
+  handler: mcpHandler<'server>,
+  id: JsonRpc.Id.t,
+  params: option<JSON.t>,
+): unit => {
+  let parsed = parseParams(params, Types.discoverParamsSchema, "Missing params for server/discover")
+
+  switch parsed {
+  | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+  | Ok(_) =>
+    sendBuiltResponse(handler, id, "Discovery", () => {
+      let {serverInterface} = handler
+      serverInterface.buildDiscoverResult(serverInterface.server)->S.decodeOrThrow(
+        ~from=Types.discoverResultSchema,
+        ~to=S.json->S.noValidation(true),
+      )
+    })
   }
 }
 
-let handleToolsList = (handler: mcpHandler<'server>, id: JsonRpc.Id.t): unit => {
-  try {
-    let {serverInterface} = handler
-    let result = serverInterface.buildToolsListResult(serverInterface.server)
-    let resultJson =
-      result->S.decodeOrThrow(~from=Types.toolsListResultSchema, ~to=S.json->S.noValidation(true))
-    sendResponse(handler, id, resultJson)
-  } catch {
-  | exn =>
-    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Log.error(~error=exn->JsExn.fromException, `Tools list failed: ${msg}`)
-    sendError(handler, id, Types.ErrorCode.serverError, `Tools list failed: ${msg}`)
+let handleToolsList = (
+  handler: mcpHandler<'server>,
+  id: JsonRpc.Id.t,
+  params: option<JSON.t>,
+): unit => {
+  switch parseParams(params, Types.toolsListParamsSchema, "Missing params for tools/list") {
+  | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+  | Ok({cursor: Some(_)}) =>
+    sendError(handler, id, Types.ErrorCode.invalidParams, "Invalid or expired cursor")
+  | Ok({cursor: None}) =>
+    sendBuiltResponse(handler, id, "Tools list", () => {
+      let {serverInterface} = handler
+      let result = serverInterface.buildToolsListResult(serverInterface.server)
+      let json =
+        result->S.decodeOrThrow(~from=Types.toolsListResultSchema, ~to=S.json->S.noValidation(true))
+      json->S.parseOrThrow(~to=Types.toolsListResultWireSchema)->ignore
+      json
+    })
   }
 }
 
@@ -108,26 +148,29 @@ let handleToolsCall = async (
   id: JsonRpc.Id.t,
   params: option<JSON.t>,
 ): unit => {
-  switch params {
-  | Some(paramsJson) =>
-    let paramsResult = try {
-      Ok(paramsJson->S.parseOrThrow(~to=Types.toolCallParamsSchema))
-    } catch {
-    | exn =>
-      Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid params"))
-    }
-
-    switch paramsResult {
-    | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
-    | Ok({callId, name, arguments}) =>
+  switch parseParams(params, Types.toolCallParamsSchema, "Missing params for tools/call") {
+  | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+  | Ok(params) =>
+    switch Types.AuthorizedToolCall.authorize(params, ~sessionId=handler.sessionId) {
+    | Error(ToolCallMetadata(error)) => sendMetadataError(handler, id, error)
+    | Error(MissingExecutionContextCapability) =>
+      sendError(
+        handler,
+        id,
+        Types.ErrorCode.missingRequiredClientCapability,
+        "Missing required client capability",
+        ~data=Types.missingExecutionContextCapabilityDataToJson(),
+      )
+    | Error(MissingExecutionContext) =>
+      sendError(handler, id, Types.ErrorCode.invalidParams, "Missing execution context")
+    | Error(WrongTask) =>
+      sendError(handler, id, Types.ErrorCode.invalidParams, "Tool taskId does not match session")
+    | Ok(authorizedToolCall) =>
       try {
         let {serverInterface} = handler
         let result = await serverInterface.executeTool(
           serverInterface.server,
-          ~name,
-          ~arguments,
-          ~taskId=handler.sessionId,
-          ~callId,
+          authorizedToolCall,
           ~onProgress=None,
         )
         switch result {
@@ -139,6 +182,7 @@ let handleToolsCall = async (
             )
           sendResponse(handler, id, resultJson)
         | Suspended => ()
+        | ProtocolError({code, message}) => sendError(handler, id, code, message)
         }
       } catch {
       | exn =>
@@ -148,7 +192,6 @@ let handleToolsCall = async (
         sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
       }
     }
-  | None => sendError(handler, id, Types.ErrorCode.invalidParams, "Missing params for tools/call")
   }
 }
 
@@ -158,15 +201,29 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
 
     switch parse(payload) {
     | Ok(Request({id, method, params})) =>
-      switch method {
-      | "initialize" => handleInitialize(handler, id, params)
-      | "tools/list" => handleToolsList(handler, id)
-      | "tools/call" => await handleToolsCall(handler, id, params)
-      | _ => sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
+      switch parseParams(params, Types.discoverParamsSchema, "Missing request params") {
+      | Error(msg) =>
+        sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+      | Ok({_meta}) =>
+        switch Types.validateRequestMeta(_meta) {
+        | Error(error) => sendMetadataError(handler, id, error)
+        | Ok(_) =>
+          switch method {
+          | "server/discover" => handleDiscover(handler, id, params)
+          | "tools/list" => handleToolsList(handler, id, params)
+          | "tools/call" => await handleToolsCall(handler, id, params)
+          | _ =>
+            sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
+          }
+        }
       }
-    | Ok(Notification({method: "notifications/initialized"})) => ()
     | Ok(Notification(_)) => ()
-    | Error(msg) => Log.error(`Failed to parse MCP message: ${msg}`)
+    | Error(msg) =>
+      Log.error(`Failed to parse MCP message: ${msg}`)
+      switch readableId(payload) {
+      | Some(id) => sendError(handler, id, Types.ErrorCode.invalidRequest, "Invalid Request")
+      | None => sendErrorWithoutId(handler, Types.ErrorCode.invalidRequest, "Invalid Request")
+      }
     }
   } catch {
   | exn =>

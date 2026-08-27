@@ -60,17 +60,9 @@
         "io.modelcontextprotocol/protocolVersion",
         "io.modelcontextprotocol/clientCapabilities"
       ]
-    },
-    "name": {
-      "type": "string"
-    },
-    "arguments": {
-      "type": "object",
-      "additionalProperties": true
     }
   },
   "required": [
-    "_meta",
-    "name"
+    "_meta"
   ]
 }

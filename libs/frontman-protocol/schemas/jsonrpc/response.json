@@ -1,36 +1,80 @@
 {
-  "type": "object",
-  "properties": {
-    "jsonrpc": {
-      "type": "string"
-    },
-    "id": {
-      "type": "integer",
-      "minimum": -2147483648,
-      "maximum": 2147483647
-    },
-    "result": {},
-    "error": {
+  "anyOf": [
+    {
       "type": "object",
       "properties": {
-        "code": {
-          "type": "integer",
-          "minimum": -2147483648,
-          "maximum": 2147483647
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
         },
-        "message": {
-          "type": "string"
+        "id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -2147483648,
+              "maximum": 2147483647
+            },
+            {
+              "type": "string"
+            }
+          ]
         },
-        "data": {}
+        "result": {},
+        "error": {
+          "not": {}
+        }
       },
       "required": [
-        "code",
-        "message"
+        "jsonrpc",
+        "id",
+        "result"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": -2147483648,
+              "maximum": 2147483647
+            },
+            {
+              "type": "string"
+            }
+          ]
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "integer",
+              "minimum": -2147483648,
+              "maximum": 2147483647
+            },
+            "message": {
+              "type": "string"
+            },
+            "data": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ]
+        },
+        "result": {
+          "not": {}
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "error"
       ]
     }
-  },
-  "required": [
-    "jsonrpc",
-    "id"
   ]
 }

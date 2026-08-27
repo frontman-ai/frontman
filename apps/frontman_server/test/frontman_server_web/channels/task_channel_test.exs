@@ -27,6 +27,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias ModelContextProtocol, as: MCP
 
   @persisted_restart_model "openrouter:openai/gpt-5.5"
+  @logged_output_schema %{
+    "type" => "object",
+    "properties" => %{"logged" => %{"type" => "boolean"}},
+    "required" => ["logged"]
+  }
 
   defp response_metadata(turn_started_id \\ "turn-1", ordinal \\ 0) do
     %{
@@ -143,6 +148,28 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     })
   end
 
+  defp assert_tool_result_crash(context, content, reason) do
+    %{socket: socket, task_id: task_id, scope: scope} = context
+    result = %{"resultType" => "complete", "content" => content}
+    result = Map.put(result, "structuredContent", %{"logged" => true})
+    tool_call = tool_call("call_invalid_result", "testTool")
+    register_tool_receiver(tool_call.tool_call_id)
+
+    persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
+
+    assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
+    channel_pid = socket.channel_pid
+    Process.flag(:trap_exit, true)
+    push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+    assert_receive {:EXIT, ^channel_pid, {%RuntimeError{message: message}, _stacktrace}}
+
+    assert message =~
+             "#{reason} for task #{task_id}, tool testTool, call #{tool_call.tool_call_id}"
+
+    {:ok, task} = Tasks.get_task(scope, task_id)
+    refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+  end
+
   defp question_tool_call(id, header, label) do
     args =
       Jason.encode!(%{
@@ -174,6 +201,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     result =
       Map.merge(
         %{
+          "resultType" => "complete",
           "content" => [
             %{
               "type" => "text",
@@ -818,12 +846,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_push("mcp:message", %{
         "method" => "tools/call",
         "id" => mcp_request_id,
-        "params" => %{"name" => "consoleLog", "callId" => "call_123"}
+        "params" => %{
+          "name" => "consoleLog",
+          "_meta" => %{
+            "ai.frontman/execution-context" => %{"callId" => "call_123"}
+          }
+        }
       })
 
       assert is_integer(mcp_request_id)
 
       mcp_tool_result = %{
+        "resultType" => "complete",
         "content" => [%{"type" => "text", "text" => "Logged: hello"}],
         "structuredContent" => %{"logged" => true}
       }
@@ -850,6 +884,25 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           }
         }
       })
+    end
+
+    test "validates structured content only when tool errors provide it" do
+      result = %{
+        "resultType" => "complete",
+        "content" => [%{"type" => "text", "text" => "tool failed"}],
+        "isError" => true
+      }
+
+      assert :ok =
+               ModelContextProtocol.Schema.validate_call_tool_result(
+                 result,
+                 @logged_output_schema
+               )
+
+      assert :error =
+               result
+               |> Map.put("structuredContent", %{})
+               |> ModelContextProtocol.Schema.validate_call_tool_result(@logged_output_schema)
     end
   end
 
@@ -914,7 +967,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "MCP initialization" do
-    test "sends MCP initialize request on join", %{scope: scope} do
+    test "sends MCP discovery request on join", %{scope: scope} do
       {_socket, _task_id} = join_task_channel(scope)
 
       expected_version = ModelContextProtocol.protocol_version()
@@ -922,31 +975,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_push("mcp:message", %{
         "jsonrpc" => "2.0",
         "id" => _id,
-        "method" => "initialize",
+        "method" => "server/discover",
         "params" => %{
-          "protocolVersion" => ^expected_version,
-          "clientInfo" => %{"name" => "frontman-server"}
+          "_meta" => %{
+            "io.modelcontextprotocol/protocolVersion" => ^expected_version,
+            "io.modelcontextprotocol/clientInfo" => %{"name" => "frontman-server"}
+          }
         }
-      })
-    end
-
-    test "completes handshake and sends initialized notification", %{scope: scope} do
-      {socket, _task_id} = join_task_channel(scope)
-
-      assert_push("mcp:message", %{"id" => request_id})
-
-      init_result = %{
-        "protocolVersion" => ModelContextProtocol.protocol_version(),
-        "capabilities" => %{"tools" => %{}},
-        "serverInfo" => %{"name" => "browser-mcp", "version" => "1.0.0"}
-      }
-
-      push(socket, "mcp:message", JsonRpc.success_response(request_id, init_result))
-      :sys.get_state(socket.channel_pid)
-
-      assert_push("mcp:message", %{
-        "jsonrpc" => "2.0",
-        "method" => "notifications/initialized"
       })
     end
 
@@ -965,7 +1000,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   describe "MCP response validation" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
-      complete_mcp_handshake(socket)
+
+      complete_mcp_handshake(socket,
+        tools: [
+          %{
+            "name" => "testTool",
+            "inputSchema" => %{"type" => "object"},
+            "outputSchema" => @logged_output_schema
+          }
+        ]
+      )
+
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
@@ -1050,13 +1095,19 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_push("mcp:message", %{
         "method" => "tools/call",
         "id" => mcp_request_id,
-        "params" => %{"callId" => ^tool_call_id}
+        "params" => %{
+          "_meta" => %{
+            "ai.frontman/execution-context" => %{"callId" => ^tool_call_id}
+          }
+        }
       })
 
       assert is_integer(mcp_request_id)
 
       mcp_result = %{
-        "content" => [%{"type" => "text", "text" => "Success"}],
+        "resultType" => "complete",
+        "content" => [],
+        "structuredContent" => %{"logged" => true},
         "_meta" => %{"envApiKey" => "sk-fake-valid-mcp-marker"}
       }
 
@@ -1068,6 +1119,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       refute log =~ "sk-fake-valid-mcp-marker"
       refute log =~ "envApiKey"
+      assert_receive {:tool_result, ^tool_call_id, [], false}
 
       assert_push("acp:message", %{
         "method" => "session/update",
@@ -1076,6 +1128,26 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{"status" => "completed"}
         }
       })
+    end
+
+    test "crashes loudly for unsupported MCP tool result content", context do
+      assert_tool_result_crash(
+        context,
+        [%{"type" => "audio", "data" => "YXVkaW8=", "mimeType" => "audio/wav"}],
+        ~s(Unsupported MCP tools/call content type "audio")
+      )
+    end
+
+    test "crashes loudly for malformed MCP tool results", context do
+      assert_tool_result_crash(context, "invalid", "Invalid MCP tools/call result")
+    end
+
+    test "rejects invalid image data before persistence", context do
+      assert_tool_result_crash(
+        context,
+        [%{"type" => "image", "data" => "invalid", "mimeType" => "image/png"}],
+        "Failed to store MCP tools/call result"
+      )
     end
 
     test "ignores MCP responses with string IDs instead of crashing", %{socket: socket} do
@@ -1431,7 +1503,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       messages = collect_all_pushes()
 
-      assert {"mcp:message", %{"id" => mcp_request_id, "params" => %{"callId" => ^tool_call_id}}} =
+      assert {"mcp:message",
+              %{
+                "id" => mcp_request_id,
+                "params" => %{
+                  "_meta" => %{
+                    "ai.frontman/execution-context" => %{"callId" => ^tool_call_id}
+                  }
+                }
+              }} =
                Enum.find(messages, fn
                  {"mcp:message", %{"method" => "tools/call", "params" => %{"name" => "question"}}} ->
                    true
@@ -1500,7 +1580,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
            %{
              "id" => request_id,
              "method" => "tools/call",
-             "params" => %{"callId" => call_id, "name" => "question"}
+             "params" => %{
+               "name" => "question",
+               "_meta" => %{
+                 "ai.frontman/execution-context" => %{"callId" => call_id}
+               }
+             }
            }},
           acc ->
             Map.put(acc, call_id, request_id)
@@ -1552,7 +1637,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       messages = collect_all_pushes()
 
-      assert {"mcp:message", %{"id" => mcp_request_id, "params" => %{"callId" => ^tool_call_id}}} =
+      assert {"mcp:message",
+              %{
+                "id" => mcp_request_id,
+                "params" => %{
+                  "_meta" => %{
+                    "ai.frontman/execution-context" => %{"callId" => ^tool_call_id}
+                  }
+                }
+              }} =
                Enum.find(messages, fn
                  {"mcp:message", %{"method" => "tools/call", "params" => %{"name" => "question"}}} ->
                    true
@@ -1629,7 +1722,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> subscribe_and_join("task:#{task_id}", %{})
 
       :sys.get_state(socket.channel_pid)
-      assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
+
+      assert_push("mcp:message", %{
+        "id" => discovery_request_id,
+        "method" => "server/discover"
+      })
 
       push(
         socket,
@@ -1644,17 +1741,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "mcp:message",
-        JsonRpc.success_response(init_request_id, %{
-          "protocolVersion" => ModelContextProtocol.protocol_version(),
-          "capabilities" => %{"tools" => %{}},
-          "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
-        })
+        JsonRpc.success_response(discovery_request_id, mcp_discovery_result())
       )
 
       :sys.get_state(socket.channel_pid)
-      assert_push("mcp:message", %{"method" => "notifications/initialized"})
       assert_push("mcp:message", %{"id" => tools_id, "method" => "tools/list"})
-      push(socket, "mcp:message", JsonRpc.success_response(tools_id, %{"tools" => []}))
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(tools_id, mcp_tools_result([]))
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("mcp:message", %{
@@ -1663,7 +1761,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"name" => "load_agent_instructions"}
       })
 
-      push(socket, "mcp:message", JsonRpc.success_response(rules_id, %{"content" => []}))
+      push(socket, "mcp:message", JsonRpc.success_response(rules_id, MCP.tool_result_text("")))
       :sys.get_state(socket.channel_pid)
 
       assert_push("mcp:message", %{
@@ -1672,10 +1770,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"name" => "list_tree"}
       })
 
-      push(socket, "mcp:message", JsonRpc.success_response(tree_id, %{"content" => []}))
+      push(socket, "mcp:message", JsonRpc.success_response(tree_id, MCP.tool_result_text("")))
       :sys.get_state(socket.channel_pid)
-
-      assert_push("acp:message", %{"method" => "mcp_initialization_complete"})
 
       assert_push(
         "mcp:message",

@@ -890,6 +890,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       ])
       |> scrub_result_metadata()
       |> derive_is_error()
+      |> validate_change(:result, &validate_result/2)
       |> validate_required([:tool_call_id, :tool_name, :result, :is_error])
     end
 
@@ -926,6 +927,18 @@ defmodule FrontmanServer.Tasks.Interaction do
         _missing_or_invalid -> changeset
       end
     end
+
+    defp validate_result(:result, %{"content" => content}) when is_list(content) do
+      case Enum.find(content, fn
+             %{"type" => "image", "data" => data} -> Base.decode64(data) == :error
+             _content -> false
+           end) do
+        nil -> []
+        _invalid_image -> [result: "contains invalid base64 image data"]
+      end
+    end
+
+    defp validate_result(:result, _result), do: []
   end
 
   defmodule DiscoveredProjectRule do
@@ -1114,7 +1127,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     ]
   end
 
-  defp to_swarm_message(%ToolResult{result: %{"content" => [_ | _] = content}} = result) do
+  defp to_swarm_message(%ToolResult{result: %{"content" => content}} = result)
+       when is_list(content) do
     [
       %SwarmMessage.Tool{
         content: Enum.map(content, &tool_result_content_part/1),

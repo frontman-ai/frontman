@@ -61,16 +61,11 @@
         "io.modelcontextprotocol/clientCapabilities"
       ]
     },
-    "name": {
+    "cursor": {
       "type": "string"
-    },
-    "arguments": {
-      "type": "object",
-      "additionalProperties": true
     }
   },
   "required": [
-    "_meta",
-    "name"
+    "_meta"
   ]
 }

@@ -16,7 +16,7 @@ type remoteTool = {
 type toolsResponse = {
   tools: array<remoteTool>,
   serverInfo: MCP.info,
-  protocolVersion: string,
+  protocolVersion: @s.matches(S.literal("1.0")) string,
 }
 
 @schema
@@ -26,4 +26,3 @@ type toolCallRequest = {
 }
 
 type resultEvent = MCP.CallToolResult.t
-type errorEvent = MCP.CallToolResult.t

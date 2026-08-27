@@ -55,13 +55,18 @@ let executionModeSchema = S.union([
 
 let serializeTool = (m: module(Tool.Tool)): JSON.t => {
   module T = unpack(m)
+  let frontmanMetadata = dict{
+    "access": T.access->S.decodeOrThrow(~from=ToolTypes.accessSchema, ~to=S.json),
+    "visibleToAgent": JSON.Encode.bool(T.visibleToAgent),
+    "executionMode": T.executionMode->S.decodeOrThrow(~from=executionModeSchema, ~to=S.json),
+  }
   let definition = dict{
     "name": JSON.Encode.string(T.name),
     "description": JSON.Encode.string(T.description),
-    "access": T.access->S.decodeOrThrow(~from=ToolTypes.accessSchema, ~to=S.json),
     "inputSchema": T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
-    "visibleToAgent": JSON.Encode.bool(T.visibleToAgent),
-    "executionMode": T.executionMode->S.decodeOrThrow(~from=executionModeSchema, ~to=S.json),
+    "_meta": JSON.Encode.object(
+      dict{"ai.frontman/tool-metadata": JSON.Encode.object(frontmanMetadata)},
+    ),
   }
   T.outputJsonSchema->Option.forEach(schema =>
     definition->Dict.set("outputSchema", jsonSchemaAsJson(schema))
@@ -111,9 +116,24 @@ let executeLocalTool = async (
     Completed(Types.CallToolResult.makeError(`Invalid input: ${msg}`))
   | Ok(input) =>
     Log.debug(~ctx={"tool": T.name}, "Calling execute")
-    let result = await T.execute(input, ~taskId, ~toolCallId)
-    Log.debug(~ctx={"tool": T.name}, "Execute returned")
-    Completed(result)
+    try {
+      let result = await T.execute(input, ~taskId, ~toolCallId)
+      Log.debug(~ctx={"tool": T.name}, "Execute returned")
+      Completed(result)
+    } catch {
+    | exn =>
+      let message =
+        exn
+        ->JsExn.fromException
+        ->Option.flatMap(JsExn.message)
+        ->Option.getOr("Tool execution failed")
+      Log.error(
+        ~error=exn->JsExn.fromException,
+        ~ctx={"tool": T.name, "taskId": taskId, "toolCallId": toolCallId},
+        "Tool execution failed",
+      )
+      Completed(Types.CallToolResult.makeError(message))
+    }
   }
 }
 
@@ -173,7 +193,8 @@ let executeTool = async (
   | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId)
   | None =>
     switch server.relay->Relay.hasTool(name) {
-    | false => Completed(toolError(`Tool not found: ${name}`))
+    | false =>
+      ProtocolError({code: Types.ErrorCode.invalidParams, message: `Unknown tool: ${name}`})
     | true =>
       let resolvedArgs = switch name {
       | name if name == ToolNames.writeFile =>
@@ -212,26 +233,41 @@ let executeTool = async (
   }
 }
 
-let buildInitializeResult = (server: t): Types.initializeResult => {
+let buildDiscoverResult = (server: t): Types.discoverResult => {
   {
-    protocolVersion: Types.protocolVersion,
+    resultType: "complete",
+    supportedVersions: [Types.protocolVersion],
     capabilities: {
-      tools: Some(Dict.make()),
-      resources: None,
-      prompts: None,
+      tools: {listChanged: false},
+      extensions: {executionContext: {version: 1}, toolMetadata: {version: 1}},
     },
-    serverInfo: server.serverInfo,
+    ttlMs: 0,
+    cacheScope: "private",
+    _meta: {serverInfo: server.serverInfo},
   }
 }
 
 let buildToolsListResult = (server: t): Types.toolsListResult => {
-  {tools: getToolsJson(server)}
+  {
+    resultType: "complete",
+    tools: getToolsJson(server),
+    ttlMs: 0,
+    cacheScope: "private",
+    _meta: {serverInfo: server.serverInfo},
+  }
 }
 
 let toInterface = (server: t): Types.serverInterface<t> => {
   server,
-  buildInitializeResult,
+  buildDiscoverResult,
   buildToolsListResult,
-  executeTool: (server, ~name, ~arguments, ~taskId, ~callId, ~onProgress) =>
-    executeTool(server, ~name, ~arguments?, ~taskId, ~callId, ~onProgress?),
+  executeTool: (server, toolCall, ~onProgress) =>
+    executeTool(
+      server,
+      ~name=Types.AuthorizedToolCall.name(toolCall),
+      ~arguments=?Types.AuthorizedToolCall.arguments(toolCall),
+      ~taskId=Types.AuthorizedToolCall.taskId(toolCall),
+      ~callId=Types.AuthorizedToolCall.callId(toolCall),
+      ~onProgress?,
+    ),
 }

@@ -141,15 +141,11 @@ defmodule FrontmanServer.Tasks.Execution do
   """
   def notify_tool_result(%Interaction.ToolResult{
         tool_call_id: tool_call_id,
-        result: %{"content" => [_ | _] = content},
+        result: %{"content" => content},
         is_error: is_error
-      }) do
-    if Enum.all?(content, &is_map/1) do
-      notify_tool_result(tool_call_id, content, is_error)
-    else
-      :no_executor
-    end
-  end
+      })
+      when is_list(content),
+      do: notify_tool_result(tool_call_id, content, is_error)
 
   def notify_tool_result(%Interaction.ToolResult{}), do: :no_executor
 

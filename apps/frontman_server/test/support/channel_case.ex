@@ -34,6 +34,41 @@ defmodule FrontmanServerWeb.ChannelCase do
     end
   end
 
+  def mcp_discovery_result(overrides \\ %{}) do
+    Map.merge(
+      %{
+        "resultType" => "complete",
+        "supportedVersions" => [ModelContextProtocol.protocol_version()],
+        "capabilities" => %{
+          "tools" => %{"listChanged" => false},
+          "extensions" => %{
+            "ai.frontman/execution-context" => %{"version" => 1},
+            "ai.frontman/tool-metadata" => %{"version" => 1}
+          }
+        },
+        "ttlMs" => 0,
+        "cacheScope" => "private",
+        "_meta" => %{
+          "io.modelcontextprotocol/serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
+        }
+      },
+      overrides
+    )
+  end
+
+  def mcp_tools_result(tools, overrides \\ %{}) do
+    Map.merge(
+      %{
+        "resultType" => "complete",
+        "tools" => tools,
+        "ttlMs" => 0,
+        "cacheScope" => "private",
+        "_meta" => mcp_discovery_result()["_meta"]
+      },
+      overrides
+    )
+  end
+
   @doc """
   Completes the MCP handshake and optional project-context loading.
 
@@ -49,24 +84,27 @@ defmodule FrontmanServerWeb.ChannelCase do
       load_project_context = Keyword.get(opts, :load_project_context, true)
 
       :sys.get_state(socket.channel_pid)
-      assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
+      assert_push("mcp:message", %{"id" => discovery_request_id, "method" => "server/discover"})
 
-      init_result = %{
-        "protocolVersion" => ModelContextProtocol.protocol_version(),
-        "capabilities" => %{"tools" => %{}},
-        "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
-      }
+      discovery_result = FrontmanServerWeb.ChannelCase.mcp_discovery_result()
 
-      push(socket, "mcp:message", JsonRpc.success_response(init_request_id, init_result))
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(discovery_request_id, discovery_result)
+      )
+
       :sys.get_state(socket.channel_pid)
 
-      assert_push("mcp:message", %{"method" => "notifications/initialized"})
       assert_push("mcp:message", %{"id" => tools_request_id, "method" => "tools/list"})
 
       push(
         socket,
         "mcp:message",
-        JsonRpc.success_response(tools_request_id, %{"tools" => tools})
+        JsonRpc.success_response(
+          tools_request_id,
+          FrontmanServerWeb.ChannelCase.mcp_tools_result(tools)
+        )
       )
 
       :sys.get_state(socket.channel_pid)
@@ -83,6 +121,7 @@ defmodule FrontmanServerWeb.ChannelCase do
             socket,
             "mcp:message",
             JsonRpc.success_response(project_rules_request_id, %{
+              "resultType" => "complete",
               "content" => [
                 %{
                   "type" => "text",
@@ -106,7 +145,10 @@ defmodule FrontmanServerWeb.ChannelCase do
           push(
             socket,
             "mcp:message",
-            JsonRpc.success_response(project_structure_request_id, %{"content" => []})
+            JsonRpc.success_response(project_structure_request_id, %{
+              "resultType" => "complete",
+              "content" => [%{"type" => "text", "text" => Jason.encode!(%{"tree" => "."})}]
+            })
           )
 
           :sys.get_state(socket.channel_pid)
@@ -114,10 +156,6 @@ defmodule FrontmanServerWeb.ChannelCase do
         false ->
           :ok
       end
-
-      assert_push(@acp_message, %{
-        "method" => "mcp_initialization_complete"
-      })
     end
   end
 

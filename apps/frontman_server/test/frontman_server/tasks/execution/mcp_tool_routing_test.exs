@@ -26,7 +26,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      assert_push("mcp:message", %{"method" => "initialize"})
+      assert_push("mcp:message", %{"method" => "server/discover"})
 
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
@@ -105,6 +105,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       )
 
       mcp_response = %{
+        "resultType" => "complete",
         "content" => [
           %{"type" => "text", "text" => ~s({"screenshot": "base64data"})}
         ]
@@ -113,6 +114,11 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, mcp_response))
 
       assert_receive_interaction(%Tasks.Interaction.AgentCompleted{}, _turn_number, 10_000)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert %Interaction.ToolResult{is_error: false} =
+               Enum.find(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
     end
   end
 

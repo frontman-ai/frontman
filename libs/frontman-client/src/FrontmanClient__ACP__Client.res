@@ -102,7 +102,7 @@ let reduce = (state: state, action: action): state => {
 let handleResponse = (state: state, payload: JSON.t): state => {
   try {
     let response = payload->JsonRpc.Response.fromJsonExn
-    let id = response->JsonRpc.Response.id
+    let id = response->JsonRpc.Response.id->Option.flatMap(JsonRpc.Id.toInt)->Option.getOrThrow
     let idStr = Int.toString(id)
 
     switch state.pendingRequests->Dict.get(idStr) {
