@@ -25,7 +25,7 @@ defmodule FrontmanServer.Tasks.HistoryTest do
     assert History.user_row(history, "accepted").id == "accepted"
     assert [%InteractionSchema{id: "pending"}] = History.pending_accepted_messages(history)
     assert {:ok, "model-a"} = History.turn_model(history, 1)
-    assert 1 = History.active_run_turn_number(history)
+    assert 1 = History.active_turn_number(history)
 
     assert %{
              turn_started_id: "row-turn-id",
@@ -58,14 +58,14 @@ defmodule FrontmanServer.Tasks.HistoryTest do
              History.new([turn_row("turn-one", 1, ["missing"])])
   end
 
-  test "rejects run rows after their turn terminated" do
+  test "rejects rows after their turn terminated" do
     rows = [
       turn_row("turn", 1, []),
       %InteractionSchema{type: :agent_paused, turn_number: 1, data: %Interaction.AgentPaused{}},
       response_row(1)
     ]
 
-    assert {:error, {:inactive_run, :agent_response, 1, nil}} = History.new(rows)
+    assert {:error, {:inactive_turn, :agent_response, 1, nil}} = History.new(rows)
   end
 
   defp user_row(id, model) do

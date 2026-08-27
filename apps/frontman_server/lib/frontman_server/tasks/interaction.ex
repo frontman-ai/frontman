@@ -6,11 +6,10 @@
 
 defmodule FrontmanServer.Tasks.Interaction do
   @moduledoc """
-  Domain interaction types for the LLM agent system.
+  Persisted timeline record types for a task.
 
-  Interactions represent domain events that occur during a task's lifecycle.
-  These are stored as the source of truth, while streaming tokens are ephemeral
-  transport mechanisms for real-time UX.
+  The timeline stores user messages, execution state, agent responses, tool
+  activity, and project context. Streaming chunks are ephemeral.
   """
 
   @interaction_modules [
@@ -751,7 +750,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents an agent execution ending with an error (failed, crashed, or cancelled).
 
-    Persisted so that reconnecting clients see the terminal interaction for every agent run,
+    Persisted so that reconnecting clients see the terminal interaction for every execution,
     even when the channel process was dead when the error occurred.
     """
 

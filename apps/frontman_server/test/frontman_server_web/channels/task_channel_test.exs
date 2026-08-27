@@ -63,7 +63,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     turn_number = latest_turn_number(task_id)
 
     {:ok, error_interaction} =
-      Tasks.record_agent_run_result(
+      Tasks.record_execution_outcome(
         scope,
         task_id,
         turn_number,
@@ -1514,7 +1514,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
 
       assert {:ok, ^turn_number, [_remaining_call]} =
-               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
 
       refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
@@ -1590,7 +1590,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
 
       Tasks.agent_replied(scope, task_id, first_turn_number, "First done")
-      Tasks.record_agent_run_result(scope, task_id, first_turn_number, :completed)
+      Tasks.record_execution_outcome(scope, task_id, first_turn_number, :completed)
 
       user_message_fixture(scope, task_id, user_content("second turn"))
       second_turn_number = latest_turn_number(task_id)
@@ -1860,7 +1860,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, error_interaction} =
-        Tasks.record_agent_run_result(scope, task_id, turn_number, {:failed, "Rate limited"})
+        Tasks.record_execution_outcome(scope, task_id, turn_number, {:failed, "Rate limited"})
 
       retried_error_id = error_interaction.id
 
@@ -1899,7 +1899,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, _error_interaction} =
-        Tasks.record_agent_run_result(scope, task_id, turn_number, {:failed, "Rate limited"})
+        Tasks.record_execution_outcome(scope, task_id, turn_number, {:failed, "Rate limited"})
 
       retried_error_id = "error-#{task_id}-2026-06-26T17:13:06.931002Z"
 

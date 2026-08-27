@@ -126,7 +126,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
            })
          ) do
       {:ok, interaction} ->
-        case Tasks.run_next_turn(scope, task_id, execution_request) do
+        case Tasks.execute_next_turn(scope, task_id, execution_request) do
           :ok ->
             {:ok, interaction, FrontmanServer.Test.Fixtures.Tasks.latest_turn_number(task_id)}
 

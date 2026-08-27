@@ -118,7 +118,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
            })
          ) do
       {:ok, interaction} ->
-        case Tasks.run_next_turn(scope, task_id, execution) do
+        case Tasks.execute_next_turn(scope, task_id, execution) do
           result when result in [:ok, :already_running] ->
             {:ok, interaction, latest_turn_number_or_nil(task_id)}
 
@@ -246,14 +246,44 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           agent_id: "test-frontman"
         })
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
 
       assert_receive_interaction(%Interaction.TurnStarted{agent_id: "test-frontman"}, 1)
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       refute_running_eventually(task_id)
     end
 
-    test "claims only same-agent pending message prefix", %{
+    test "claims and executes only the first same-agent model", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      verify_on_exit!()
+
+      expect(LLMProviderMock, :stream_text, fn model, _messages, _opts ->
+        send(parent, {:executed_model, model})
+        ReqLLMResponses.response("Response")
+      end)
+
+      task = task_schema!(task_id)
+      insert_accepted_user_message!(task, "first model")
+      insert_accepted_user_message!(task, "second model", "openrouter:anthropic/claude-fable-5")
+
+      assert :ok =
+               Tasks.execute_next_turn(
+                 scope,
+                 task_id,
+                 execution_request_fixture(model: "openrouter:anthropic/claude-fable-5")
+               )
+
+      assert_receive {:executed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      refute_running_eventually(task_id)
+
+      assert [%{data: %{user_message_ids: [_first_message_id]}}] = turn_started_rows(task_id)
+    end
+
+    test "claims only pending message prefix with the same agent and model", %{
       task_id: task_id,
       scope: scope
     } do
@@ -273,7 +303,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           task_id: task_id,
           message_id: Ecto.UUID.generate(),
           message: user_content("frontman two"),
-          model: "openrouter:anthropic/claude-sonnet-4-6",
+          model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
         })
 
@@ -282,11 +312,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           task_id: task_id,
           message_id: Ecto.UUID.generate(),
           message: user_content("planner"),
-          model: "openrouter:google/gemini-3-flash-preview",
+          model: "openrouter:anthropic/claude-fable-5",
           agent_id: "test-planner"
         })
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
 
       assert [first_turn] = turn_started_rows(task_id)
       assert first_turn.data.agent_id == "test-frontman"
@@ -294,14 +324,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       refute_running_eventually(task_id)
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
 
       assert [_first_turn, second_turn] = turn_started_rows(task_id)
       assert second_turn.data.agent_id == "test-planner"
       assert length(second_turn.data.user_message_ids) == 1
     end
 
-    test "groups only contiguous messages from the same agent", %{
+    test "groups only contiguous messages with the same agent and model", %{
       task_id: task_id,
       scope: scope
     } do
@@ -321,7 +351,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           task_id: task_id,
           message_id: Ecto.UUID.generate(),
           message: user_content("planner"),
-          model: "openrouter:google/gemini-3-flash-preview",
+          model: "openrouter:anthropic/claude-fable-5",
           agent_id: "test-planner"
         })
 
@@ -330,7 +360,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           task_id: task_id,
           message_id: Ecto.UUID.generate(),
           message: user_content("frontman two"),
-          model: "openrouter:anthropic/claude-sonnet-4-6",
+          model: "openrouter:openai/gpt-5.5",
           agent_id: "test-frontman"
         })
 
@@ -343,13 +373,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           agent_id: "test-frontman"
         })
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
       refute_running_eventually(task_id)
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
       refute_running_eventually(task_id)
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
 
       assert [first_turn, second_turn, third_turn] = turn_started_rows(task_id)
       assert first_turn.data.agent_id == "test-frontman"
@@ -379,7 +409,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       })
       |> Repo.insert!()
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
 
       assert [turn_started] = turn_started_rows(task_id)
       assert turn_started.data.agent_id == "test-planner"
@@ -408,7 +438,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       refute_running_eventually(task_id)
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
@@ -477,7 +507,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                  type: :agent_error
                )
 
-      assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+      assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
     end
 
     test "submits browser context prompt through production recording path" do
@@ -581,11 +611,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       turn_one = latest_turn_number(task_id)
 
       {:ok, error} =
-        Tasks.record_agent_run_result(scope, task_id, turn_one, {:failed, "Rate limited"})
+        Tasks.record_execution_outcome(scope, task_id, turn_one, {:failed, "Rate limited"})
 
       {:ok, _message} = user_message_fixture(scope, task_id, user_content("turn two"))
       turn_two = latest_turn_number(task_id)
-      {:ok, _done} = Tasks.record_agent_run_result(scope, task_id, turn_two, :completed)
+      {:ok, _done} = Tasks.record_execution_outcome(scope, task_id, turn_two, :completed)
 
       assert {:error, :stale_turn} =
                Tasks.retry_execution(
@@ -616,14 +646,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       insert_accepted_user_message!(task, "queued for next turn")
 
-      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
-        send(parent, {:provider_messages, messages})
+      expect(LLMProviderMock, :stream_text, fn model, messages, _opts ->
+        send(parent, {:provider_request, model, messages})
         ReqLLMResponses.response("done")
       end)
 
-      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+      execution = execution_request_fixture(model: "missing:test")
+      assert :ok = Tasks.resume_execution(scope, task_id, execution)
 
-      assert_receive {:provider_messages, messages}, 1_000
+      assert_receive {:provider_request, %LLMDB.Model{id: "openai/gpt-5.5"}, messages}, 1_000
       assert [user_text] = provider_user_texts(messages)
       assert user_text =~ "included"
       refute user_text =~ "queued for next turn"
@@ -1400,8 +1431,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   defp task_schema!(task_id), do: Repo.get!(FrontmanServer.Tasks.TaskSchema, task_id)
 
-  defp insert_accepted_user_message!(task, text) do
-    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), "openrouter:openai/gpt-5.5")
+  defp insert_accepted_user_message!(task, text, model \\ "openrouter:openai/gpt-5.5") do
+    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
     message_id = Ecto.UUID.generate()
 
     interaction_changeset(task.id, %{

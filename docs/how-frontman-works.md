@@ -176,8 +176,7 @@ The server code is organized into bounded contexts, each owning a specific domai
 | Context | What it does |
 |---------|-------------|
 | **Accounts** | User registration, authentication (email/password, GitHub, Google via WorkOS), session management |
-| **Tasks** | Conversation sessions and their interactions. Each "task" is a conversation thread. Interactions are stored as typed JSONB documents (user messages, agent responses, tool calls, tool results). |
-| **Execution** | Orchestrates agent runs. Builds root agent runs, submits to SwarmAi, routes tool calls, persists results. |
+| **Tasks** | Durable agent conversations, persisted history, and execution. Private modules handle runtime mechanics and history projections. |
 | **Providers** | API key resolution, OAuth token management, and model catalog data. |
 | **Tools** | Tool registry. Knows which tools exist, whether they run on the server or browser, and how to convert them for the LLM. |
 | **Organizations** | Team workspaces and membership roles. |

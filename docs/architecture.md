@@ -68,7 +68,7 @@ Client                          Server                          LLM Provider
 **Sequence:**
 1. `TaskChannel.handle_in("acp:message")` receives prompt
 2. `Providers.prepare_llm_args/3` resolves provider auth and ReqLLM arguments
-3. `Execution.run` builds a root agent run from prompt, model config, and tools
+3. `Execution.start` starts agent execution with the prompt, model configuration, and tools
 4. `SwarmAi.run(runtime, agent)` starts supervised execution
 5. SwarmAi calls LLM via `ReqLLM` (custom Req wrapper), receives response
 6. `ToolExecutor.make` routes tool calls:
@@ -119,8 +119,7 @@ Application
 | Context | Modules | Responsibility |
 |---------|---------|---------------|
 | Accounts | User, UserToken, UserIdentity | Registration, session tokens, OAuth (WorkOS for GitHub/Google), email verification |
-| Tasks | Task, Interaction | CRUD for conversation sessions, interaction storage (JSONB), PubSub topics |
-| Execution | Execution, SwarmDispatcher, ToolExecutor | Agent run orchestration, prompt building, tool routing, result notification |
+| Tasks | Task, Interaction, Execution, ToolExecutor | Conversation tasks, timeline storage, execution, tool routing, PubSub topics |
 | Providers | ApiKey, OauthToken, ModelCatalog | Key resolution hierarchy, OAuth token management, model catalog |
 | Tools | Backend, ToolExecutor | Tool registry, backend implementations (TodoList/Add/Update/Remove), MCP aggregation |
 | Organizations | Organization, Membership | Team workspaces, membership roles |
@@ -141,9 +140,9 @@ Application
 
 Encrypted fields: `api_keys.key`, `oauth_tokens.access_token` — use `FrontmanServer.Encrypted.Binary` (Cloak vault).
 
-### Interaction Domain Model
+### Task Timeline
 
-Interactions are typed domain events persisted as JSONB:
+Interactions are typed timeline records persisted as JSONB:
 
 | Type | Purpose |
 |------|---------|

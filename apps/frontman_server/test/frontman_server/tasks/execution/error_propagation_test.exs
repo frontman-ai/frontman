@@ -79,7 +79,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
            })
          ) do
       {:ok, interaction} ->
-        case Tasks.run_next_turn(scope, task_id, execution_request) do
+        case Tasks.execute_next_turn(scope, task_id, execution_request) do
           :ok ->
             {:ok, interaction, latest_turn_number(task_id)}
 
