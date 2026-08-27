@@ -138,7 +138,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   defp register_tool_receiver(tool_call_id) do
-    Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}, %{
+    Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, tool_call_id}, %{
       caller_pid: self()
     })
   end
@@ -197,16 +197,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "join task:<id>" do
-    test "succeeds when task exists", %{scope: scope} do
+    test "allows one connection per task", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      {:ok, reply, socket} =
+      {:ok, %{task_id: ^task_id}, _socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      assert reply == %{task_id: task_id}
-      assert socket.assigns.task_id == task_id
+      other = socket(UserSocket, "other_user_id", %{scope: scope})
+
+      assert {:error, %{reason: "task_already_joined"}} =
+               subscribe_and_join(other, "task:#{task_id}", %{})
     end
 
     test "fails when task does not exist", %{scope: scope} do
@@ -560,6 +562,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       assert_reply(first_ref, :ok, %{"acp:message" => %{"id" => 11, "result" => %{}}})
+      :sys.get_state(socket.channel_pid)
       assert_state_update_running(task_id)
 
       second_ref =
@@ -581,6 +584,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       assert_reply(second_ref, :ok, %{"acp:message" => %{"id" => 12, "result" => %{}}})
+      refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
 
       assert_state_update_idle(task_id)
       assert_state_update_running_then_idle(task_id)

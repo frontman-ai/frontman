@@ -51,7 +51,7 @@ defmodule FrontmanServer.Application do
       {DNSCluster, query: Application.get_env(:frontman_server, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: FrontmanServer.PubSub},
       {SwarmAi, name: FrontmanServer.AgentRuntime},
-      {Registry, keys: :unique, name: FrontmanServer.ToolCallRegistry},
+      {Registry, keys: :unique, name: FrontmanServer.ProcessRegistry},
       {Oban, Application.fetch_env!(:frontman_server, Oban)},
       FrontmanServerWeb.Endpoint
     ]

@@ -154,7 +154,7 @@ defmodule FrontmanServer.Tasks.Execution do
   def notify_tool_result(%Interaction.ToolResult{}), do: :no_executor
 
   defp notify_tool_result(tool_call_id, content, is_error) do
-    case Elixir.Registry.lookup(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}) do
+    case Elixir.Registry.lookup(FrontmanServer.ProcessRegistry, {:tool_call, tool_call_id}) do
       [{_pid, %{caller_pid: caller}}] ->
         content_parts =
           content

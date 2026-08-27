@@ -73,7 +73,7 @@ Client                          Server                          LLM Provider
 5. SwarmAi calls LLM via `ReqLLM` (custom Req wrapper), receives response
 6. `ToolExecutor.make` routes tool calls:
    - Backend tools → `ToolExecution.Sync`: executed in supervised tasks (todo list, web_fetch)
-   - MCP tools → `ToolExecution.Await`: registered in `ToolCallRegistry`, published to client via channel, executor blocks until Registry receives result
+   - MCP tools → `ToolExecution.Await`: registered in `ProcessRegistry`, published to client via channel, executor blocks until Registry receives result
 7. `SwarmDispatcher` persists each interaction to PostgreSQL, then broadcasts via PubSub
 8. Channel pushes events to client for UI rendering
 9. Loop repeats until LLM returns `turn_complete`
@@ -109,7 +109,7 @@ Application
 ├── DNSCluster
 ├── Phoenix.PubSub (FrontmanServer.PubSub)
 ├── SwarmAi (named: FrontmanServer.AgentRuntime)
-├── Registry (FrontmanServer.ToolCallRegistry)
+├── Registry (FrontmanServer.ProcessRegistry)
 ├── Oban (background jobs)
 └── Endpoint (HTTP/WebSocket)
 ```
