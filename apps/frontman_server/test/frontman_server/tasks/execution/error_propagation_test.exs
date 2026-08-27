@@ -72,7 +72,11 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
 
     case Tasks.submit_user_message(
            scope,
-           Map.merge(execution_request, %{task_id: task_id, message: message})
+           Map.merge(execution_request, %{
+             task_id: task_id,
+             message_id: Ecto.UUID.generate(),
+             message: message
+           })
          ) do
       {:ok, interaction} ->
         case Tasks.run_next_turn(scope, task_id, execution_request) do

@@ -8,7 +8,7 @@ module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
   let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
-    let id = `user-${Date.now()->Float.toString}`
+    let id = Client__Message.UserMessageId.make()
     Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
   }
 
@@ -102,6 +102,9 @@ module Actions = {
       TaskAction({target: CurrentTask, action: UpdateAnnotationComment({id, comment})}),
     )
 
+  let highlightAnnotation = (~annotationId, ~selector) =>
+    Client__State__Store.dispatch(HighlightAnnotation({annotationId, selector}))
+
   let closeAnnotationPopup = () =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: SetActivePopupAnnotationId({id: None})}),
@@ -119,7 +122,7 @@ module Actions = {
   let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
 
   let executePendingPlan = () => {
-    let id = `user-${Date.now()->Float.toString}`
+    let id = Client__Message.UserMessageId.make()
     Client__State__Store.dispatch(ExecutePendingPlan({id: id}))
   }
 
@@ -145,8 +148,8 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
     )
 
-  let executionStateIdle = (~taskId: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}))
+  let executionStateIdle = (~taskId: string, ~stopReason) =>
+    Client__State__Store.dispatch(TaskExecutionStopped({taskId, stopReason}))
 
   let executionStateRequiresAction = (~taskId: string) =>
     Client__State__Store.dispatch(
@@ -269,22 +272,26 @@ module Actions = {
 
   let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
 
-  let fetchCustomEndpoints = () => Client__State__Store.dispatch(FetchCustomEndpoints)
+  let dismissFirstTaskFeedbackDialog = () =>
+    Client__State__Store.dispatch(DismissFirstTaskFeedbackDialog)
 
-  let saveCustomEndpoint = (~id=?, ~name, ~baseUrl, ~apiKey=?, ~onComplete) =>
-    Client__State__Store.dispatch(SaveCustomEndpoint({id, name, baseUrl, apiKey, onComplete}))
+  let shareFrontman = () => Client__State__Store.dispatch(ShareFrontman)
 
-  let deleteCustomEndpoint = (~id, ~onComplete) =>
-    Client__State__Store.dispatch(DeleteCustomEndpoint({id, onComplete}))
+  let fetchCustomProviders = () => Client__State__Store.dispatch(FetchCustomProviders)
 
-  @live
-  let addCustomEndpointModel = (~endpointId, ~modelId, ~displayName=?, ~position=?, ~onComplete) =>
+  let saveCustomProvider = (~id=?, ~name, ~baseUrl, ~apiKey=?, ~onComplete) =>
+    Client__State__Store.dispatch(SaveCustomProvider({id, name, baseUrl, apiKey, onComplete}))
+
+  let deleteCustomProvider = (~id, ~onComplete) =>
+    Client__State__Store.dispatch(DeleteCustomProvider({id, onComplete}))
+
+  let addCustomProviderModel = (~providerId, ~modelId, ~onComplete) =>
+    Client__State__Store.dispatch(AddCustomProviderModel({providerId, modelId, onComplete}))
+
+  let removeCustomProviderModel = (~providerId, ~providerModelId, ~onComplete) =>
     Client__State__Store.dispatch(
-      AddCustomEndpointModel({endpointId, modelId, displayName, position, onComplete}),
+      RemoveCustomProviderModel({providerId, providerModelId, onComplete}),
     )
-
-  let removeCustomEndpointModel = (~endpointId, ~modelId, ~onComplete) =>
-    Client__State__Store.dispatch(RemoveCustomEndpointModel({endpointId, modelId, onComplete}))
 
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
     Client__State__Store.dispatch(

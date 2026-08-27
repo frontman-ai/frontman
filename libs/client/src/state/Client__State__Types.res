@@ -111,40 +111,31 @@ type openAIDeviceAuthPollResponse = {
 }
 
 @schema
-type customEndpointModel = {
+type customProviderModel = {
   id: string,
   @as("model_id")
   modelId: string,
-  @as("display_name")
-  displayName: option<string>,
-  @live
-  position: option<int>,
 }
 
 @schema
-type customEndpoint = {
+type customProvider = {
   id: string,
   name: string,
   @as("base_url")
   baseUrl: string,
   @as("has_api_key")
   hasApiKey: bool,
-  models: array<customEndpointModel>,
+  models: array<customProviderModel>,
 }
 
 @schema
-type customEndpointsResponse = {
-  endpoints: array<customEndpoint>,
+type customProvidersResponse = {
+  providers: array<customProvider>,
 }
 
 @schema
-type customEndpointResponse = {
-  endpoint: customEndpoint,
-}
-
-@schema
-type customEndpointModelResponse = {
-  model: customEndpointModel,
+type customProviderResponse = {
+  provider: customProvider,
 }
 
 module ACPConfig = {
@@ -194,6 +185,20 @@ type updateCheckStatus =
   | UpdateNotChecked
   | UpdateChecked
 
+type highlightedAnnotation = {
+  taskId: string,
+  annotationId: string,
+  selector: string,
+}
+
+type firstTaskFeedbackDialogState =
+  | Waiting
+  | AwaitingHistory
+  | Visible
+  | LinkCopied
+  | ShareFailed
+  | Dismissed
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
@@ -211,8 +216,10 @@ type state = {
   selectedAgentId: option<string>,
   pendingProviderAutoSelect: option<string>,
   sessionsLoadState: sessionsLoadState,
-  customEndpoints: option<array<customEndpoint>>,
+  customProviders: option<array<customProvider>>,
   updateInfo: option<updateInfo>,
   updateCheckStatus: updateCheckStatus,
   updateBannerDismissed: bool,
+  firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
+  highlightedAnnotation: option<highlightedAnnotation>,
 }

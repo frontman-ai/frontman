@@ -118,7 +118,7 @@ The existing `frontman-dev` Dockerfile is extended to include PostgreSQL. Image 
 | `infra-up` | `infra-up` | Verify msb installed + image built |
 | `infra-down` | `infra-down` | Remove all frontman sandboxes |
 
-**Removed targets:** `wt-dev`, `wt-urls`, `wt-gc`, `wt-logs` — dev server lifecycle moves inside the sandbox; agents don't need a dashboard or URL routing.
+**Removed targets:** `wt-dev`, `wt-urls`, `wt-logs` — dev server lifecycle moves inside the sandbox; agents don't need a dashboard or URL routing.
 
 ## Backwards Compatibility
 
@@ -135,7 +135,6 @@ The existing `frontman-dev` Dockerfile is extended to include PostgreSQL. Image 
 | `bin/wt-pod-remove` | Deleted |
 | `bin/wt-resolve` | Deleted |
 | `bin/wt-dashboard` | Deleted |
-| `bin/wt-gc` | Deleted |
 | `infra/local/` | Deleted — Caddy/dnsmasq infra |
 | `.devcontainer/Dockerfile` | Updated — add Postgres |
 | `Makefile` | Updated — sb-* targets, simplified infra-* |

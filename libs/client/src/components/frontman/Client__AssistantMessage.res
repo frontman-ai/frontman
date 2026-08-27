@@ -11,6 +11,16 @@ type variant = Streaming | Completed
 @react.component
 let make = (~variant: variant, ~content: string, ~agent: Client__Agent.t, ~isNew: bool=false) => {
   let isStreaming = variant == Streaming
+  let (isCopied, setIsCopied) = React.useState(() => false)
+  let copiedTimeoutRef: React.ref<option<WebAPI.DomTypes.timeoutId>> = React.useRef(None)
+
+  let resetCopied = () => {
+    copiedTimeoutRef.current->Option.forEach(timeout =>
+      WebAPI.Window.clearTimeout(WebAPI.Window.current, timeout)
+    )
+    copiedTimeoutRef.current = None
+    setIsCopied(_ => false)
+  }
 
   <MessageContainer isNew isStreaming className="group relative">
     <div className="absolute left-1 z-10">
@@ -29,16 +39,29 @@ let make = (~variant: variant, ~content: string, ~agent: Client__Agent.t, ~isNew
           <button
             type_="button"
             className="flex items-center justify-center w-5 h-5 border-none bg-transparent rounded cursor-pointer opacity-50 hover:opacity-80 transition-opacity text-zinc-200"
-            title="Copy to clipboard"
+            title={isCopied ? "Copied" : "Copy to clipboard"}
             onClick={_ => {
-              let _ =
-                WebAPI.Window.current
+              let copy = async () => {
+                await WebAPI.Window.current
                 ->WebAPI.Window.navigator
                 ->WebAPI.Navigator.clipboard
                 ->WebAPI.Clipboard.writeText(content)
+                setIsCopied(_ => true)
+                copiedTimeoutRef.current->Option.forEach(timeout =>
+                  WebAPI.Window.clearTimeout(WebAPI.Window.current, timeout)
+                )
+                copiedTimeoutRef.current = Some(
+                  WebAPI.Window.setTimeout(
+                    WebAPI.Window.current,
+                    ~handler=resetCopied,
+                    ~timeout=2000,
+                  ),
+                )
+              }
+              copy()->ignore
             }}
           >
-            <Icons.CopyIcon size=14 />
+            {isCopied ? <Icons.CheckIcon size=14 /> : <Icons.CopyIcon size=14 />}
           </button>
         </div>
       : React.null}

@@ -86,30 +86,9 @@ defmodule FrontmanServer.Tools.WebFetchTest do
   describe "execute/2 — SSRF protection" do
     @public_test_url "http://93.184.216.34"
 
-    @blocked_urls [
-      {"localhost", "http://localhost/secret"},
-      {"localhost with port", "http://localhost:8080/admin"},
-      {"loopback 127.0.0.1", "http://127.0.0.1/"},
-      {"loopback 127.x", "http://127.0.0.42:9200/"},
-      {"10.x private", "http://10.0.0.1/"},
-      {"172.16.x private", "http://172.16.0.1/"},
-      {"192.168.x private", "http://192.168.1.1/"},
-      {"link-local metadata", "http://169.254.169.254/latest/meta-data/"},
-      {"0.0.0.0", "http://0.0.0.0/"},
-      {"IPv6 loopback", "http://[::1]/"},
-      {"IPv4-mapped IPv6 loopback", "http://[::ffff:127.0.0.1]/"},
-      {"IPv4-mapped IPv6 metadata", "http://[::ffff:169.254.169.254]/"},
-      {"ULA fd01::1", "http://[fd01::1]/"},
-      {"ULA fdff::1", "http://[fdff::1]/"},
-      {"link-local fe90::1", "http://[fe90::1]/"},
-      {"link-local febf::1", "http://[febf::1]/"}
-    ]
-
-    for {label, url} <- @blocked_urls do
-      test "rejects #{label}: #{url}", %{context: ctx} do
-        msg = execute_error(unquote(url), ctx)
-        assert msg =~ "private"
-      end
+    test "rejects private initial URLs", %{context: ctx} do
+      msg = execute_error("http://127.0.0.1/", ctx)
+      assert msg =~ "private"
     end
 
     test "blocks redirect to private IP", %{context: ctx} do

@@ -8,10 +8,9 @@ defmodule FrontmanServer.Providers do
   @moduledoc "Manages API keys, OAuth tokens, and model provider access."
 
   use Boundary,
-    deps: [FrontmanServer, FrontmanServer.Accounts],
-    exports: [CustomLlmEndpoint, CustomLlmModel, CustomLlmEndpoints]
+    deps: [FrontmanServer, FrontmanServer.Accounts]
 
-  alias FrontmanServer.Repo
+  alias FrontmanServer.{PublicURL, Repo}
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.{Scope, User}
@@ -19,12 +18,85 @@ defmodule FrontmanServer.Providers do
   alias FrontmanServer.Providers.{
     AnthropicOAuth,
     ApiKey,
-    CustomLlmEndpoint,
-    CustomLlmEndpoints,
-    CustomLlmModel,
+    CustomProvider,
+    CustomProviderModel,
     OAuthToken,
     OpenAIOAuth
   }
+
+  def list_custom_providers(%Scope{user: %User{id: user_id}}) do
+    CustomProvider
+    |> CustomProvider.for_user(user_id)
+    |> Repo.all()
+    |> Repo.preload(models: CustomProviderModel.ordered())
+    |> Enum.map(&custom_provider_data/1)
+  end
+
+  def create_custom_provider(%Scope{user: %User{id: user_id}}, attrs) do
+    %CustomProvider{user_id: user_id}
+    |> CustomProvider.changeset(attrs)
+    |> Repo.insert()
+    |> custom_provider_result()
+  end
+
+  def update_custom_provider(%Scope{user: %User{}} = scope, id, attrs) do
+    case get_owned_custom_provider(scope, id) do
+      %CustomProvider{} = provider ->
+        provider
+        |> CustomProvider.changeset(attrs)
+        |> Repo.update()
+        |> custom_provider_result()
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  def delete_custom_provider(%Scope{user: %User{}} = scope, id) do
+    case get_owned_custom_provider(scope, id) do
+      %CustomProvider{} = provider ->
+        Repo.delete!(provider)
+        :ok
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  def add_custom_provider_model(%Scope{user: %User{}} = scope, custom_provider_id, attrs) do
+    case get_owned_custom_provider(scope, custom_provider_id) do
+      %CustomProvider{} = provider ->
+        case %CustomProviderModel{custom_provider_id: custom_provider_id}
+             |> CustomProviderModel.changeset(attrs)
+             |> Repo.insert() do
+          {:ok, _model} -> custom_provider_result({:ok, provider})
+          {:error, changeset} -> {:error, validation_errors(changeset)}
+        end
+
+      nil ->
+        {:error, :not_found}
+    end
+  end
+
+  def remove_custom_provider_model(
+        %Scope{user: %User{}} = scope,
+        custom_provider_id,
+        provider_model_id
+      ) do
+    with {:ok, provider_model_id} <- Ecto.UUID.cast(provider_model_id),
+         %CustomProvider{} = provider <- get_owned_custom_provider(scope, custom_provider_id),
+         %CustomProviderModel{} = model <-
+           Repo.get_by(CustomProviderModel,
+             id: provider_model_id,
+             custom_provider_id: custom_provider_id
+           ) do
+      {:ok, _model} = Repo.delete(model)
+      custom_provider_result({:ok, provider})
+    else
+      :error -> {:error, :not_found}
+      nil -> {:error, :not_found}
+    end
+  end
 
   @doc """
   Prepares ReqLLM arguments for a request. Resolves model and provider auth.
@@ -46,8 +118,8 @@ defmodule FrontmanServer.Providers do
 
   def prepare_llm_args(scope, "custom:" <> rest, opts) when is_binary(rest) and rest != "" do
     case String.split(rest, ":", parts: 2) do
-      [endpoint_id, model_id] when endpoint_id != "" and model_id != "" ->
-        resolve_custom_model(scope, endpoint_id, model_id, opts)
+      [provider_id, model_id] when provider_id != "" and model_id != "" ->
+        resolve_custom_model(scope, provider_id, model_id, opts)
 
       _ ->
         {:error, :unknown_model}
@@ -107,23 +179,26 @@ defmodule FrontmanServer.Providers do
 
   defp transport_llm_opts(%LLMDB.Model{}), do: []
 
-  defp resolve_custom_model(scope, endpoint_id, model_id, opts) do
-    with {:ok, endpoint} <- CustomLlmEndpoints.get_endpoint_safe(scope, endpoint_id),
-         %CustomLlmModel{} = _model <-
-           Enum.find(endpoint.models || [], &(&1.model_id == model_id)) do
-      model = %LLMDB.Model{provider: :openai, id: model_id, base_url: endpoint.base_url}
+  defp resolve_custom_model(scope, provider_id, model_id, opts) do
+    with {:ok, provider_id} <- Ecto.UUID.cast(provider_id),
+         %CustomProvider{} = provider <- get_owned_custom_provider(scope, provider_id),
+         %CustomProviderModel{} <-
+           Repo.get_by(CustomProviderModel,
+             custom_provider_id: provider_id,
+             model_id: model_id
+           ) do
+      model = %LLMDB.Model{provider: :openai, id: model_id, base_url: provider.base_url}
 
       llm_opts =
         []
-        |> maybe_put_api_key(endpoint.api_key)
-        |> Keyword.merge(transport_llm_opts(model))
+        |> maybe_put_api_key(provider.api_key)
         |> Keyword.merge(opts)
+        |> Keyword.merge(custom_provider_transport_opts())
 
       {:ok, {model, llm_opts}}
     else
       :error -> {:error, :unknown_model}
       nil -> {:error, :unknown_model}
-      {:error, _reason} = error -> error
     end
   end
 
@@ -134,6 +209,15 @@ defmodule FrontmanServer.Providers do
 
   defp maybe_put_api_key(opts, _api_key),
     do: Keyword.put(opts, :api_key, @placeholder_api_key)
+
+  defp custom_provider_transport_opts do
+    [
+      req_http_options: [plugins: [PublicURL], redirect: false],
+      on_finch_request: fn request ->
+        PublicURL.protect_finch(request, ReqLLM.Application.finch_name())
+      end
+    ]
+  end
 
   defp resolve_catalog_model(model) do
     with {:ok, {group, model_id}} <- model_parts(model),
@@ -159,7 +243,7 @@ defmodule FrontmanServer.Providers do
   def model_from_client_params(%{"provider" => "custom", "value" => value})
       when is_binary(value) and value != "" do
     case String.split(value, ":", parts: 3) do
-      ["custom", endpoint_id, model_id] when endpoint_id != "" and model_id != "" ->
+      ["custom", provider_id, model_id] when provider_id != "" and model_id != "" ->
         {:ok, value}
 
       _ ->
@@ -506,27 +590,68 @@ defmodule FrontmanServer.Providers do
         %{id: provider, name: config.display_name, options: options}
       end)
 
-    groups = groups ++ build_custom_endpoint_groups(scope)
+    groups = groups ++ build_custom_provider_groups(scope)
 
     %{groups: groups}
   end
 
-  defp build_custom_endpoint_groups(%Scope{user: %User{id: user_id}}) do
-    CustomLlmEndpoint
-    |> CustomLlmEndpoint.for_user(user_id)
+  defp build_custom_provider_groups(%Scope{user: %User{id: user_id}}) do
+    CustomProvider
+    |> CustomProvider.for_user(user_id)
     |> Repo.all()
     |> Repo.preload(:models)
-    |> Enum.filter(fn endpoint -> endpoint.models != [] and endpoint.models != nil end)
+    |> Enum.filter(fn provider -> provider.models != [] end)
     |> Enum.sort_by(& &1.name)
-    |> Enum.map(fn endpoint ->
+    |> Enum.map(fn provider ->
       options =
-        endpoint.models
-        |> Enum.sort_by(&{&1.position || 0, &1.model_id})
+        provider.models
+        |> Enum.sort_by(& &1.model_id)
         |> Enum.map(fn model ->
-          %{name: model.model_id, value: "custom:#{endpoint.id}:#{model.model_id}"}
+          %{name: model.model_id, value: "custom:#{provider.id}:#{model.model_id}"}
         end)
 
-      %{id: "custom:#{endpoint.id}", name: endpoint.name, options: options}
+      %{id: "custom:#{provider.id}", name: provider.name, options: options}
+    end)
+  end
+
+  defp get_owned_custom_provider(%Scope{user: %User{id: user_id}}, id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, id} ->
+        CustomProvider
+        |> CustomProvider.for_user(user_id)
+        |> Repo.get(id)
+
+      :error ->
+        nil
+    end
+  end
+
+  defp custom_provider_result({:ok, %CustomProvider{} = provider}) do
+    provider = Repo.preload(provider, models: CustomProviderModel.ordered())
+    {:ok, custom_provider_data(provider)}
+  end
+
+  defp custom_provider_result({:error, changeset}), do: {:error, validation_errors(changeset)}
+
+  defp custom_provider_data(%CustomProvider{} = provider) do
+    %{
+      id: provider.id,
+      name: provider.name,
+      base_url: provider.base_url,
+      has_api_key: not is_nil(provider.api_key),
+      models: Enum.map(provider.models, &custom_provider_model_data/1)
+    }
+  end
+
+  defp custom_provider_model_data(%CustomProviderModel{} = model) do
+    %{id: model.id, model_id: model.model_id}
+  end
+
+  defp validation_errors(changeset) do
+    Ecto.Changeset.traverse_errors(changeset, fn {message, options} ->
+      Enum.reduce(options, message, fn {key, value}, rendered ->
+        String.replace(rendered, "%{#{key}}", to_string(value))
+      end)
     end)
   end
 

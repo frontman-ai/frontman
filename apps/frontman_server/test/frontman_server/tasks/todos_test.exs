@@ -205,6 +205,36 @@ defmodule FrontmanServer.Tasks.TodosTest do
     end
   end
 
+  describe "Tasks.list_todos/1" do
+    test "projects todos from an already-loaded task", %{
+      task_id: task_id,
+      scope: scope,
+      turn_number: turn_number
+    } do
+      todo = %{
+        "id" => Ecto.UUID.generate(),
+        "content" => "Reuse loaded history",
+        "active_form" => "Reusing loaded history",
+        "status" => "pending",
+        "priority" => "high",
+        "created_at" => DateTime.to_iso8601(DateTime.utc_now()),
+        "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
+      }
+
+      Tasks.resolve_tool_request(
+        scope,
+        task_id,
+        %{id: "loaded-task", name: "todo_write"},
+        %{"content" => [], "structuredContent" => %{"todos" => [todo]}},
+        turn_number: turn_number
+      )
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
+      assert [%{content: "Reuse loaded history", priority: :high}] = Tasks.list_todos(task)
+    end
+  end
+
   describe "Todo.make/4" do
     test "creates a todo with default priority" do
       assert {:ok, todo} = Todos.Todo.make("Fix bug", "Fixing bug", "pending")

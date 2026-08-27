@@ -1,5 +1,9 @@
 @react.component
-let make = (~element: option<WebAPI.DomTypes.element>, ~scrollTimestamp: float) => {
+let make = (
+  ~element: option<WebAPI.DomTypes.element>,
+  ~scrollTimestamp: float,
+  ~mutationTimestamp: float=0.0,
+) => {
   let (info, setInfo) = React.useState(() => None)
   let hasElement = element->Option.isSome
 
@@ -9,7 +13,7 @@ let make = (~element: option<WebAPI.DomTypes.element>, ~scrollTimestamp: float) 
     | None => ()
     }
     None
-  }, (element, scrollTimestamp))
+  }, (element, scrollTimestamp, mutationTimestamp))
 
   switch info {
   | Some(info) => {

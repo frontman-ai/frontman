@@ -103,6 +103,13 @@ let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): b
     )
   )
 
+let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSelect, text) => {
+  switch providerSetupRequired {
+  | true => onConfigureProvider()
+  | false => onSelect(text)
+  }
+}
+
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
@@ -119,6 +126,9 @@ let make = (~onConfigureProvider: unit => unit) => {
   let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
+  let providerSetupRequired = Client__State.useSelector(
+    Client__State.Selectors.providerSetupRequired,
+  )
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -379,6 +389,20 @@ let make = (~onConfigureProvider: unit => unit) => {
           </div>
         }}
 
+        {switch (hasActiveACPSession, totalItems) {
+        | (true, 0) =>
+          <Client__GetStartedTasks
+            onSelect={text =>
+              selectGetStartedTask(
+                ~providerSetupRequired,
+                ~onConfigureProvider,
+                ~onSelect=text => handleSubmit(~text, ~inputItems=[]),
+                text,
+              )}
+          />
+        | _ => React.null
+        }}
+
         {displayItems
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
@@ -391,14 +415,13 @@ let make = (~onConfigureProvider: unit => unit) => {
 
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({id, message, category}), Some(taskId))
+        | (None, Some({id, message, category, retryErrorId}), Some(taskId))
           if shouldRenderTurnError(messages, id) =>
-          <ErrorBanner
-            error=message
-            category
-            onConfigureProvider
-            onRetry={() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=id)}
-          />
+          let onRetry =
+            retryErrorId->Option.map(retriedErrorId =>
+              () => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId)
+            )
+          <ErrorBanner error=message category onConfigureProvider onRetry=?onRetry />
         | _ => React.null
         }}
 

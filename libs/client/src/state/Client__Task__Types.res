@@ -15,6 +15,7 @@ module Task = {
     id: string,
     message: string,
     category: Client__ErrorCategory.t,
+    retryErrorId: option<string>,
   }
 
   type retryStatus = {
@@ -68,6 +69,7 @@ module Task = {
         lastTurnCancelled: bool,
         planEntries: array<ACPTypes.planEntry>,
         queuedUserMessages: array<Message.t>,
+        pendingUserMessageIds: array<string>,
         turnError: option<turnErrorInfo>,
         retryStatus: option<retryStatus>,
         imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
@@ -253,6 +255,7 @@ module Task = {
         lastTurnCancelled: false,
         planEntries: [],
         queuedUserMessages: [],
+        pendingUserMessageIds: [],
         turnError: None,
         retryStatus: None,
         imageAttachments: Dict.make(),
@@ -273,6 +276,7 @@ module Task = {
     lastTurnCancelled: bool,
     planEntries: array<ACPTypes.planEntry>,
     queuedUserMessages: array<Message.t>,
+    pendingUserMessageIds: array<string>,
     turnError: option<turnErrorInfo>,
     pendingQuestion: option<Client__Question__Types.pendingQuestion>,
   }
@@ -305,6 +309,7 @@ module Task = {
         lastTurnCancelled,
         planEntries,
         queuedUserMessages,
+        pendingUserMessageIds,
         turnError,
         retryStatus,
         imageAttachments,
@@ -320,6 +325,7 @@ module Task = {
           lastTurnCancelled,
           planEntries,
           queuedUserMessages,
+          pendingUserMessageIds,
           turnError,
           pendingQuestion,
         }
@@ -339,6 +345,7 @@ module Task = {
           lastTurnCancelled: updated.lastTurnCancelled,
           planEntries: updated.planEntries,
           queuedUserMessages: updated.queuedUserMessages,
+          pendingUserMessageIds: updated.pendingUserMessageIds,
           turnError: updated.turnError,
           retryStatus,
           imageAttachments,
@@ -367,6 +374,7 @@ module Task = {
           lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
+          pendingUserMessageIds: [],
           turnError: None,
           pendingQuestion: None,
         }
@@ -394,6 +402,7 @@ module Task = {
           lastTurnCancelled: false,
           planEntries: [],
           queuedUserMessages: [],
+          pendingUserMessageIds: [],
           turnError: None,
           pendingQuestion: None,
         }

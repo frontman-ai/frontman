@@ -35,10 +35,10 @@
 	},
 	"dependencies": {
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
-		"sury": "11.0.0-alpha.10"
+		"sury": "catalog:"
 	},
 	"devDependencies": {
-		"@rescript/webapi": "*",
+		"@rescript/webapi": "catalog:",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",

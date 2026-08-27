@@ -81,6 +81,7 @@ let make = (~apiBaseUrl: string) => {
     <Client__ProviderSetupModal
       open_={showProviderSetupModal} onOpenSettings=openSettingsProviders
     />
+    <Client__FirstTaskFeedbackDialog />
     {switch authRedirectUrl {
     | Some(loginUrl) => <Client__WelcomeModal loginUrl onSignIn=beginAuthenticationRetry />
     | None => React.null

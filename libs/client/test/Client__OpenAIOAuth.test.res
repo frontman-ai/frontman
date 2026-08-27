@@ -36,7 +36,9 @@ let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
     updateInfo: None,
     updateCheckStatus: UpdateNotChecked,
     updateBannerDismissed: false,
-    customEndpoints: None,
+    firstTaskFeedbackDialogState: Waiting,
+    highlightedAnnotation: None,
+    customProviders: None,
   }
 }
 

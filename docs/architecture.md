@@ -377,7 +377,7 @@ Each feature branch gets:
 - Deterministic port range derived from 4-char branch name hash
 - Caddy routing: `{hash}.{service}.frontman.local → localhost:{port}`
 
-Management: `make wt` (dashboard), `make wt-new`, `make wt-dev`, `make wt-stop`, `make wt-start`, `make wt-sh`, `make wt-rm`, `make wt-gc`.
+Management: `make wt` (dashboard), `make wt-new`, `make wt-dev`, `make wt-stop`, `make wt-start`, `make wt-sh`, `make wt-rm`.
 
 ### CI/CD
 

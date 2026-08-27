@@ -76,7 +76,7 @@ let renderConnectedToken = (~expiresAt, ~onDisconnect) => {
   </div>
 }
 
-let emptyCustomEndpointDraft: Types.customEndpoint = {
+let emptyCustomProviderDraft: Types.customProvider = {
   id: "",
   name: "",
   baseUrl: "",
@@ -99,15 +99,15 @@ let isValidProviderUrl = (url: string): bool =>
     }
   }
 
-module CustomEndpointCard = {
+module CustomProviderCard = {
   @react.component
   let make = (
-    ~endpoint: Types.customEndpoint,
+    ~provider: Types.customProvider,
     ~isDraft: bool,
     ~onDraftSaved: option<unit => unit>=?,
   ) => {
-    let (name, setName) = React.useState(() => endpoint.name)
-    let (baseUrl, setBaseUrl) = React.useState(() => endpoint.baseUrl)
+    let (name, setName) = React.useState(() => provider.name)
+    let (baseUrl, setBaseUrl) = React.useState(() => provider.baseUrl)
     let (apiKeyInput, setApiKeyInput) = React.useState(() => "")
     let (newModelId, setNewModelId) = React.useState(() => "")
     let (busy, setBusy) = React.useState(() => false)
@@ -116,7 +116,7 @@ module CustomEndpointCard = {
     let (urlError, setUrlError) = React.useState(() => None)
     let (confirmingDelete, setConfirmingDelete) = React.useState(() => false)
 
-    let doSave = (~apiKey: option<string>) => {
+    let doSave = (~name, ~baseUrl, ~apiKey: option<string>) => {
       let trimmedName = String.trim(name)
       let trimmedUrl = String.trim(baseUrl)
 
@@ -129,8 +129,8 @@ module CustomEndpointCard = {
       | (_, false) => setUrlError(_ => Some("Invalid URL"))
       | (_, true) =>
         setBusy(_ => true)
-        State.Actions.saveCustomEndpoint(
-          ~id=?isDraft ? None : Some(endpoint.id),
+        State.Actions.saveCustomProvider(
+          ~id=?isDraft ? None : Some(provider.id),
           ~name=trimmedName,
           ~baseUrl=trimmedUrl,
           ~apiKey?,
@@ -139,14 +139,14 @@ module CustomEndpointCard = {
             switch result {
             | Ok(_) =>
               setApiKeyInput(_ => "")
-              if isDraft {
-                onDraftSaved->Option.forEach(callback => callback())
+              switch isDraft {
+              | true => onDraftSaved->Option.forEach(callback => callback())
+              | false => ()
               }
             | Error(message) =>
-              if message->String.includes("has already been taken") {
-                setNameError(_ => Some("Provider name already used"))
-              } else {
-                setError(_ => Some(message))
+              switch message->String.includes("has already been taken") {
+              | true => setNameError(_ => Some("Provider name already used"))
+              | false => setError(_ => Some(message))
               }
             }
           },
@@ -154,26 +154,14 @@ module CustomEndpointCard = {
       }
     }
 
-    let saveIfChangedOnBlur = () =>
-      if !isDraft {
-        let trimmedName = String.trim(name)
-        let trimmedUrl = String.trim(baseUrl)
-
-        if (
-          trimmedName != "" &&
-          trimmedUrl != "" &&
-          (trimmedName != endpoint.name || trimmedUrl != endpoint.baseUrl)
-        ) {
-          doSave(~apiKey=None)
-        }
-      }
-
     let addModel = () => {
       let trimmedModelId = String.trim(newModelId)
 
-      if trimmedModelId != "" {
-        State.Actions.addCustomEndpointModel(
-          ~endpointId=endpoint.id,
+      switch trimmedModelId {
+      | "" => ()
+      | _ =>
+        State.Actions.addCustomProviderModel(
+          ~providerId=provider.id,
           ~modelId=trimmedModelId,
           ~onComplete=result =>
             switch result {
@@ -188,11 +176,22 @@ module CustomEndpointCard = {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-zinc-100">
-            {React.string(isDraft ? "New provider" : name == "" ? endpoint.name : name)}
+            {React.string(
+              switch (isDraft, name) {
+              | (true, _) => "New provider"
+              | (false, "") => provider.name
+              | (false, _) => name
+              },
+            )}
           </span>
-          {endpoint.hasApiKey
-            ? renderBadge(~label="User key", ~tone=Blue)
-            : renderBadge(~label="Not configured", ~tone=Zinc)}
+          {switch provider.models->Array.length > 0 {
+          | true => renderBadge(~label="Ready", ~tone=Blue)
+          | false => renderBadge(~label="Incomplete", ~tone=Zinc)
+          }}
+          {switch provider.hasApiKey {
+          | true => renderBadge(~label="User key", ~tone=Zinc)
+          | false => renderBadge(~label="Keyless", ~tone=Zinc)
+          }}
         </div>
         {isDraft
           ? <Button
@@ -208,7 +207,7 @@ module CustomEndpointCard = {
               variant={Button.Variant.Destructive}
               size={Button.Size.Sm}
               onClick={_ =>
-                State.Actions.deleteCustomEndpoint(~id=endpoint.id, ~onComplete=_ => ())}
+                State.Actions.deleteCustomProvider(~id=provider.id, ~onComplete=_ => ())}
             >
               {React.string("Confirm Delete?")}
             </Button>
@@ -237,7 +236,6 @@ module CustomEndpointCard = {
               placeholder=""
               value={name}
               onValueChange={(value, _) => setName(_ => value)}
-              onBlur={_ => saveIfChangedOnBlur()}
               disabled={busy}
               className="w-56 min-w-0"
             />
@@ -254,7 +252,6 @@ module CustomEndpointCard = {
               placeholder="https://api.example.com/v1"
               value={baseUrl}
               onValueChange={(value, _) => setBaseUrl(_ => value)}
-              onBlur={_ => saveIfChangedOnBlur()}
               disabled={busy}
               className="w-full min-w-0"
             />
@@ -267,25 +264,35 @@ module CustomEndpointCard = {
         </div>
         <div className="mt-2">
           <div className="text-[11px] text-zinc-500 mb-1"> {React.string("API Key")} </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Input
               type_="password"
-              placeholder={endpoint.hasApiKey ? "Key saved - enter new key to replace" : "Optional"}
+              placeholder={provider.hasApiKey ? "Key saved - enter new key to replace" : "Optional"}
               value={apiKeyInput}
               onValueChange={(value, _) => setApiKeyInput(_ => value)}
               disabled={busy}
-              className="flex-1 min-w-0"
+              className="w-full min-w-0 sm:flex-1"
             />
             <Button
               variant={Button.Variant.Secondary}
               onClick={_ => {
                 let trimmedKey = String.trim(apiKeyInput)
-                doSave(~apiKey=trimmedKey == "" ? None : Some(trimmedKey))
+                doSave(~name, ~baseUrl, ~apiKey=trimmedKey == "" ? None : Some(trimmedKey))
               }}
               disabled={busy}
             >
               {React.string(busy ? "Saving..." : "Save")}
             </Button>
+            {provider.hasApiKey
+              ? <Button
+                  variant={Button.Variant.Ghost}
+                  onClick={_ =>
+                    doSave(~name=provider.name, ~baseUrl=provider.baseUrl, ~apiKey=Some(""))}
+                  disabled={busy}
+                >
+                  {React.string("Remove API key")}
+                </Button>
+              : React.null}
           </div>
         </div>
         <div className="mt-1 text-[11px] text-zinc-600">
@@ -296,30 +303,25 @@ module CustomEndpointCard = {
       | Some(message) => <div className="mt-2 text-xs text-red-400"> {React.string(message)} </div>
       | None => React.null
       }}
-      {if isDraft {
-        React.null
-      } else {
+      {switch isDraft {
+      | true => React.null
+      | false =>
         <div className="mt-3 border-t border-zinc-800 pt-3">
           <div className="text-xs font-bold text-zinc-500"> {React.string("Models")} </div>
           <div className="mt-2 space-y-1">
-            {endpoint.models
+            {provider.models
             ->Array.map(model =>
               <div key={model.id} className="flex items-center justify-between py-0.5">
                 <div className="min-w-0 truncate">
-                  {switch model.displayName {
-                  | Some(displayName) =>
-                    <span className="text-xs text-zinc-300"> {React.string(displayName)} </span>
-                  | None => React.null
-                  }}
                   <span className="text-xs text-zinc-100"> {React.string(model.modelId)} </span>
                 </div>
                 <button
                   type_="button"
                   className="text-xs text-zinc-400 transition-colors hover:text-zinc-200"
                   onClick={_ =>
-                    State.Actions.removeCustomEndpointModel(
-                      ~endpointId=endpoint.id,
-                      ~modelId=model.modelId,
+                    State.Actions.removeCustomProviderModel(
+                      ~providerId=provider.id,
+                      ~providerModelId=model.id,
                       ~onComplete=_ => (),
                     )}
                 >
@@ -328,10 +330,9 @@ module CustomEndpointCard = {
               </div>
             )
             ->React.array}
-            {if endpoint.models->Array.length == 0 {
-              <div className="text-xs text-zinc-600"> {React.string("No models yet.")} </div>
-            } else {
-              React.null
+            {switch provider.models->Array.length {
+            | 0 => <div className="text-xs text-zinc-600"> {React.string("No models yet.")} </div>
+            | _ => React.null
             }}
             <div className="flex items-center gap-2 pt-1">
               <Input
@@ -367,46 +368,37 @@ module CustomEndpointCard = {
 module CustomProvidersSection = {
   @react.component
   let make = () => {
-    let customEndpoints = State.useSelector(State.Selectors.customEndpoints)
-    let (draftSlots, setDraftSlots) = React.useState(() => [])
-    let nextSlotId = React.useRef(0)
-
-    let endpoints = customEndpoints->Option.getOr([])
-
-    let removeDraftSlot = slotId =>
-      setDraftSlots(slots => slots->Array.filter(slot => slot != slotId))
+    let customProviders = State.useSelector(State.Selectors.customProviders)
+    let (isDrafting, setIsDrafting) = React.useState(() => false)
+    let providers = customProviders->Option.getOr([])
 
     <div className="space-y-4">
       <div className="text-sm text-zinc-400"> {React.string("Custom providers")} </div>
-      {if customEndpoints->Option.isNone {
+      {switch customProviders {
+      | None =>
         <div
           className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4 text-xs text-zinc-500"
         >
           {React.string("Loading custom providers...")}
         </div>
-      } else {
-        React.null
+      | Some(_) => React.null
       }}
-      {endpoints
-      ->Array.map(endpoint => <CustomEndpointCard key={endpoint.id} endpoint isDraft=false />)
+      {providers
+      ->Array.map(provider => <CustomProviderCard key={provider.id} provider isDraft=false />)
       ->React.array}
-      {draftSlots
-      ->Array.map(slotId =>
-        <CustomEndpointCard
-          key={`draft-${slotId->Int.toString}`}
-          endpoint=emptyCustomEndpointDraft
+      {switch isDrafting {
+      | true =>
+        <CustomProviderCard
+          provider=emptyCustomProviderDraft
           isDraft=true
-          onDraftSaved={() => removeDraftSlot(slotId)}
+          onDraftSaved={() => setIsDrafting(_ => false)}
         />
-      )
-      ->React.array}
+      | false => React.null
+      }}
       <Button
         variant={Button.Variant.Secondary}
-        onClick={_ => {
-          let slotId = nextSlotId.current
-          nextSlotId.current = slotId + 1
-          setDraftSlots(slots => Array.concat(slots, [slotId]))
-        }}
+        onClick={_ => setIsDrafting(_ => true)}
+        disabled=isDrafting
       >
         {React.string("Add Additional Provider")}
       </Button>
@@ -502,7 +494,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   React.useEffect2(() => {
     if open_ {
       State.Actions.fetchApiKeySettings()
-      State.Actions.fetchCustomEndpoints()
+      State.Actions.fetchCustomProviders()
       State.Actions.fetchAnthropicOAuthStatus()
       State.Actions.fetchOpenAIOAuthStatus()
       State.Actions.resetOpenRouterKeySaveStatus()

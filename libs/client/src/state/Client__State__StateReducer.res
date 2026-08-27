@@ -16,6 +16,7 @@ module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 type state = Client__State__Types.state
 
 module TaskReducer = Client__Task__Reducer
+module FirstTaskFeedbackShare = Client__FirstTaskFeedbackShare
 
 type taskTarget = CurrentTask | ForTask(string)
 
@@ -25,15 +26,16 @@ type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 
 type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
+  | TaskExecutionStopped({taskId: string, stopReason: option<ACP.stopReason>})
   | AddUserMessage({
-      id: string,
+      id: Message.UserMessageId.t,
       sessionId: string,
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
     })
   | CancelTurn
-  | ExecutePendingPlan({id: string})
+  | ExecutePendingPlan({id: Message.UserMessageId.t})
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask
@@ -90,40 +92,34 @@ type action =
   | CheckForUpdate({installedVersion: string, npmPackage: string})
   | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
   | DismissUpdateBanner
-  | FetchCustomEndpoints
-  | FetchCustomEndpointsSuccess({endpoints: array<Client__State__Types.customEndpoint>})
-  | FetchCustomEndpointsError({error: string})
-  | SaveCustomEndpoint({
+  | DismissFirstTaskFeedbackDialog
+  | ShareFrontman
+  | ShareFrontmanLinkCopied
+  | ShareFrontmanFailed
+  | HighlightAnnotation({annotationId: string, selector: string})
+  | FetchCustomProviders
+  | CustomProvidersReceived({providers: array<Client__State__Types.customProvider>})
+  | CustomProviderRequestFailed({error: string})
+  | SaveCustomProvider({
       id: option<string>,
       name: string,
       baseUrl: string,
       apiKey: option<string>,
-      onComplete: result<Client__State__Types.customEndpoint, string> => unit,
+      onComplete: result<Client__State__Types.customProvider, string> => unit,
     })
-  | SaveCustomEndpointSuccess({endpoint: Client__State__Types.customEndpoint})
-  | SaveCustomEndpointError({error: string})
-  | DeleteCustomEndpoint({id: string, onComplete: result<unit, string> => unit})
-  | DeleteCustomEndpointSuccess({id: string})
-  | DeleteCustomEndpointError({error: string})
-  | AddCustomEndpointModel({
-      endpointId: string,
+  | DeleteCustomProvider({id: string, onComplete: result<unit, string> => unit})
+  | AddCustomProviderModel({
+      providerId: string,
       modelId: string,
-      displayName: option<string>,
-      position: option<int>,
-      onComplete: result<Client__State__Types.customEndpointModel, string> => unit,
+      onComplete: result<Client__State__Types.customProvider, string> => unit,
     })
-  | AddCustomEndpointModelSuccess({
-      endpointId: string,
-      model: Client__State__Types.customEndpointModel,
-    })
-  | AddCustomEndpointModelError({error: string})
-  | RemoveCustomEndpointModel({
-      endpointId: string,
-      modelId: string,
+  | RemoveCustomProviderModel({
+      providerId: string,
+      providerModelId: string,
       onComplete: result<unit, string> => unit,
     })
-  | RemoveCustomEndpointModelSuccess({endpointId: string, modelId: string})
-  | RemoveCustomEndpointModelError({error: string})
+  | CustomProviderUpserted({provider: Client__State__Types.customProvider})
+  | CustomProviderDeleted({id: string})
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
@@ -139,33 +135,33 @@ type effect =
   | PollOpenAIDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
   | FetchUserProfileEffect({apiBaseUrl: string})
   | LoadTaskEffect({taskId: string})
+  | DeleteSessionEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
-  | FetchCustomEndpointsEffect({apiBaseUrl: string})
-  | SaveCustomEndpointEffect({
+  | ShareFrontmanEffect
+  | FetchCustomProvidersEffect({apiBaseUrl: string})
+  | SaveCustomProviderEffect({
       apiBaseUrl: string,
       id: option<string>,
       name: string,
       baseUrl: string,
       apiKey: option<string>,
-      onComplete: result<Client__State__Types.customEndpoint, string> => unit,
+      onComplete: result<Client__State__Types.customProvider, string> => unit,
     })
-  | DeleteCustomEndpointEffect({
+  | DeleteCustomProviderEffect({
       apiBaseUrl: string,
       id: string,
       onComplete: result<unit, string> => unit,
     })
-  | AddCustomEndpointModelEffect({
+  | AddCustomProviderModelEffect({
       apiBaseUrl: string,
-      endpointId: string,
+      providerId: string,
       modelId: string,
-      displayName: option<string>,
-      position: option<int>,
-      onComplete: result<Client__State__Types.customEndpointModel, string> => unit,
+      onComplete: result<Client__State__Types.customProvider, string> => unit,
     })
-  | RemoveCustomEndpointModelEffect({
+  | RemoveCustomProviderModelEffect({
       apiBaseUrl: string,
-      endpointId: string,
-      modelId: string,
+      providerId: string,
+      providerModelId: string,
       onComplete: result<unit, string> => unit,
     })
 
@@ -225,13 +221,15 @@ let loadSelectedModelValueFromStorage = (): option<string> => {
   }
 }
 
-let saveSelectedModelValueToStorage = (value: string): unit => {
+let syncSelectedModelValueToStorage = (value: option<string>): unit => {
   try {
-    WebAPI.Window.current
-    ->WebAPI.Window.localStorage
-    ->WebAPI.Storage.setItem(~key=selectedModelStorageKey, ~value)
+    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
+    switch value {
+    | Some(value) => storage->WebAPI.Storage.setItem(~key=selectedModelStorageKey, ~value)
+    | None => storage->WebAPI.Storage.removeItem(selectedModelStorageKey)
+    }
   } catch {
-  | exn => Log.error(~error=JsExn.fromException(exn), "saveSelectedModelValueToStorage failed")
+  | exn => Log.error(~error=JsExn.fromException(exn), "syncSelectedModelValueToStorage failed")
   }
 }
 
@@ -299,10 +297,12 @@ let defaultState: state = {
   selectedAgentId: None,
   pendingProviderAutoSelect: None,
   sessionsLoadState: Client__State__Types.SessionsNotLoaded,
-  customEndpoints: None,
+  customProviders: None,
   updateInfo: None,
   updateCheckStatus: UpdateNotChecked,
   updateBannerDismissed: false,
+  firstTaskFeedbackDialogState: Waiting,
+  highlightedAnnotation: None,
 }
 
 module Selectors = {
@@ -482,8 +482,29 @@ module Selectors = {
     state.updateBannerDismissed
   }
 
-  let customEndpoints = (state: state): option<array<Client__State__Types.customEndpoint>> => {
-    state.customEndpoints
+  let showFirstTaskFeedbackDialog = (state: state) =>
+    switch state.firstTaskFeedbackDialogState {
+    | Visible | LinkCopied | ShareFailed => true
+    | Waiting | AwaitingHistory | Dismissed => false
+    }
+
+  let firstTaskFeedbackLinkCopied = (state: state) =>
+    state.firstTaskFeedbackDialogState == LinkCopied
+
+  let firstTaskFeedbackShareFailed = (state: state) =>
+    state.firstTaskFeedbackDialogState == ShareFailed
+
+  let highlightedAnnotation = (state: state): option<
+    Client__State__Types.highlightedAnnotation,
+  > => {
+    switch state.highlightedAnnotation {
+    | Some(highlighted) if highlighted.taskId == currentTaskClientId(state) => Some(highlighted)
+    | Some(_) | None => None
+    }
+  }
+
+  let customProviders = (state: state): option<array<Client__State__Types.customProvider>> => {
+    state.customProviders
   }
 
   let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {
@@ -552,7 +573,8 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
 
 let sendMessageToAPIImpl = (
   state: state,
-  _dispatch,
+  dispatch,
+  ~messageId,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
@@ -578,11 +600,38 @@ let sendMessageToAPIImpl = (
     state.selectedModelValue->Option.forEach(modelValue =>
       metadata->Dict.set("model", JSON.Encode.string(modelValue))
     )
+    metadata->Dict.set(
+      "frontman.dev/messageId",
+      JSON.Encode.string(Message.UserMessageId.toString(messageId)),
+    )
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
     let _meta = Some(JSON.Encode.object(metadata))
 
-    sendPrompt(message, ~additionalBlocks, ~onComplete=_result => (), ~_meta)
-  | NoAcpSession => Log.error("Cannot send message: no active ACP session")
+    sendPrompt(
+      message,
+      ~additionalBlocks,
+      ~onComplete=result =>
+        switch result {
+        | Ok(_) => ()
+        | Error(error) =>
+          dispatch(
+            TaskAction({
+              target: ForTask(taskId),
+              action: UserMessageSendFailed({id: messageId, error}),
+            }),
+          )
+        },
+      ~_meta,
+    )
+  | NoAcpSession =>
+    let error = "Cannot send message: no active ACP session"
+    Log.error(error)
+    dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: UserMessageSendFailed({id: messageId, error}),
+      }),
+    )
   }
 }
 
@@ -590,6 +639,24 @@ let targetIsCurrent = (state: state, target: taskTarget): bool =>
   switch target {
   | CurrentTask => true
   | ForTask(taskId) => Selectors.currentTaskId(state) == Some(taskId)
+  }
+
+let canShowFirstTaskFeedback = (state: state, task) =>
+  state.tasks->Dict.valuesToArray->Array.length == 1 &&
+  TaskReducer.Selectors.completedIdleTurn(task)->Option.isSome &&
+  TaskReducer.Selectors.queuedUserMessages(task)->Option.getOrThrow->Array.length == 0
+
+let resolveFeedbackHistory = (state: state) =>
+  switch state.firstTaskFeedbackDialogState {
+  | AwaitingHistory
+    if state.sessionsLoadState == Client__State__Types.SessionsLoaded &&
+    Selectors.pendingPlanHandoff(state)->Option.isNone &&
+    canShowFirstTaskFeedback(state, Selectors.currentTask(state)) => {
+      ...state,
+      firstTaskFeedbackDialogState: Visible,
+    }
+  | AwaitingHistory => {...state, firstTaskFeedbackDialogState: Dismissed}
+  | Waiting | Visible | LinkCopied | ShareFailed | Dismissed => state
   }
 
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
@@ -702,35 +769,35 @@ let errorFromResponse = async (response): string => {
   }
 }
 
-let fetchCustomEndpointsImpl = (dispatch, ~apiBaseUrl) => {
+let fetchCustomProvidersImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
-    let url = `${apiBaseUrl}/api/user/custom-endpoints`
+    let url = `${apiBaseUrl}/api/user/custom-providers`
 
     try {
       let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
       if response.ok {
         let json = await response->WebAPI.Response.json
-        let endpointsResponse =
+        let providersResponse =
           json->S.decodeOrThrow(
             ~from=S.json,
-            ~to=Client__State__Types.customEndpointsResponseSchema,
+            ~to=Client__State__Types.customProvidersResponseSchema,
           )
-        dispatch(FetchCustomEndpointsSuccess({endpoints: endpointsResponse.endpoints}))
+        dispatch(CustomProvidersReceived({providers: providersResponse.providers}))
       } else {
         let error = await errorFromResponse(response)
-        dispatch(FetchCustomEndpointsError({error: error}))
+        dispatch(CustomProviderRequestFailed({error: error}))
       }
     } catch {
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      dispatch(FetchCustomEndpointsError({error: `Failed to fetch custom endpoints: ${msg}`}))
+      dispatch(CustomProviderRequestFailed({error: `Failed to fetch custom providers: ${msg}`}))
     }
   }
   fetch()->ignore
 }
 
-let encodeCustomEndpointSaveRequest = (~name, ~baseUrl, ~apiKey) => {
+let encodeCustomProviderSaveRequest = (~name, ~baseUrl, ~apiKey) => {
   let obj = Dict.make()
   obj->Dict.set("name", JSON.Encode.string(name))
   obj->Dict.set("base_url", JSON.Encode.string(baseUrl))
@@ -738,7 +805,7 @@ let encodeCustomEndpointSaveRequest = (~name, ~baseUrl, ~apiKey) => {
   JSON.stringify(obj->JSON.Encode.object)
 }
 
-let saveCustomEndpointImpl = (
+let saveCustomProviderImpl = (
   dispatch,
   ~apiBaseUrl,
   ~id,
@@ -749,8 +816,8 @@ let saveCustomEndpointImpl = (
 ) => {
   let save = async () => {
     let url = switch id {
-    | Some(endpointId) => `${apiBaseUrl}/api/user/custom-endpoints/${endpointId}`
-    | None => `${apiBaseUrl}/api/user/custom-endpoints`
+    | Some(providerId) => `${apiBaseUrl}/api/user/custom-providers/${providerId}`
+    | None => `${apiBaseUrl}/api/user/custom-providers`
     }
     let method = switch id {
     | Some(_) => "PATCH"
@@ -765,82 +832,70 @@ let saveCustomEndpointImpl = (
           method,
           headers: jsonContentHeaders(),
           body: WebAPI.BodyInit.fromString(
-            encodeCustomEndpointSaveRequest(~name, ~baseUrl, ~apiKey),
+            encodeCustomProviderSaveRequest(~name, ~baseUrl, ~apiKey),
           ),
         },
       )
 
       if response.ok {
         let json = await response->WebAPI.Response.json
-        let {endpoint} =
-          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.customEndpointResponseSchema)
-        onComplete(Ok(endpoint))
-        dispatch(SaveCustomEndpointSuccess({endpoint: endpoint}))
+        let {provider} =
+          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.customProviderResponseSchema)
+        onComplete(Ok(provider))
+        dispatch(CustomProviderUpserted({provider: provider}))
       } else {
         let error = await errorFromResponse(response)
         onComplete(Error(error))
-        dispatch(SaveCustomEndpointError({error: error}))
+        dispatch(CustomProviderRequestFailed({error: error}))
       }
     } catch {
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let error = `Failed to save custom endpoint: ${msg}`
+      let error = `Failed to save custom provider: ${msg}`
       onComplete(Error(error))
-      dispatch(SaveCustomEndpointError({error: error}))
+      dispatch(CustomProviderRequestFailed({error: error}))
     }
   }
   save()->ignore
 }
 
-let deleteCustomEndpointImpl = (dispatch, ~apiBaseUrl, ~id, ~onComplete) => {
+let deleteCustomProviderImpl = (dispatch, ~apiBaseUrl, ~id, ~onComplete) => {
   let remove = async () => {
-    let url = `${apiBaseUrl}/api/user/custom-endpoints/${id}`
+    let url = `${apiBaseUrl}/api/user/custom-providers/${id}`
 
     try {
       let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include, method: "DELETE"})
       if response.ok {
         onComplete(Ok())
-        dispatch(DeleteCustomEndpointSuccess({id: id}))
+        dispatch(CustomProviderDeleted({id: id}))
       } else {
         let error = switch response.status {
         | 404 => "not_found"
         | _ => await errorFromResponse(response)
         }
         onComplete(Error(error))
-        dispatch(DeleteCustomEndpointError({error: error}))
+        dispatch(CustomProviderRequestFailed({error: error}))
       }
     } catch {
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let error = `Failed to delete custom endpoint: ${msg}`
+      let error = `Failed to delete custom provider: ${msg}`
       onComplete(Error(error))
-      dispatch(DeleteCustomEndpointError({error: error}))
+      dispatch(CustomProviderRequestFailed({error: error}))
     }
   }
   remove()->ignore
 }
 
-let addCustomEndpointModelImpl = (
-  dispatch,
-  ~apiBaseUrl,
-  ~endpointId,
-  ~modelId,
-  ~displayName,
-  ~position,
-  ~onComplete,
-) => {
+let addCustomProviderModelImpl = (dispatch, ~apiBaseUrl, ~providerId, ~modelId, ~onComplete) => {
   let add = async () => {
-    let url = `${apiBaseUrl}/api/user/custom-endpoints/${endpointId}/models`
+    let url = `${apiBaseUrl}/api/user/custom-providers/${providerId}/models`
 
     try {
       let bodyObj = Dict.make()
       bodyObj->Dict.set("model_id", JSON.Encode.string(modelId))
-      displayName->Option.forEach(name =>
-        bodyObj->Dict.set("display_name", JSON.Encode.string(name))
-      )
-      position->Option.forEach(pos => bodyObj->Dict.set("position", JSON.Encode.int(pos)))
 
       let response = await WebAPI.Fetch.fetch(
         url,
@@ -853,57 +908,63 @@ let addCustomEndpointModelImpl = (
       )
       if response.ok {
         let json = await response->WebAPI.Response.json
-        let {model} =
-          json->S.decodeOrThrow(
-            ~from=S.json,
-            ~to=Client__State__Types.customEndpointModelResponseSchema,
-          )
-        onComplete(Ok(model))
-        dispatch(AddCustomEndpointModelSuccess({endpointId, model}))
+        let {provider} =
+          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.customProviderResponseSchema)
+        onComplete(Ok(provider))
+        dispatch(CustomProviderUpserted({provider: provider}))
       } else {
         let error = switch response.status {
         | 404 => "not_found"
         | _ => await errorFromResponse(response)
         }
         onComplete(Error(error))
-        dispatch(AddCustomEndpointModelError({error: error}))
+        dispatch(CustomProviderRequestFailed({error: error}))
       }
     } catch {
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let error = `Failed to add custom endpoint model: ${msg}`
+      let error = `Failed to add custom provider model: ${msg}`
       onComplete(Error(error))
-      dispatch(AddCustomEndpointModelError({error: error}))
+      dispatch(CustomProviderRequestFailed({error: error}))
     }
   }
   add()->ignore
 }
 
-let removeCustomEndpointModelImpl = (dispatch, ~apiBaseUrl, ~endpointId, ~modelId, ~onComplete) => {
+let removeCustomProviderModelImpl = (
+  dispatch,
+  ~apiBaseUrl,
+  ~providerId,
+  ~providerModelId,
+  ~onComplete,
+) => {
   let remove = async () => {
-    let url = `${apiBaseUrl}/api/user/custom-endpoints/${endpointId}/models/${modelId}`
+    let url = `${apiBaseUrl}/api/user/custom-providers/${providerId}/models/${providerModelId}`
 
     try {
       let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include, method: "DELETE"})
       if response.ok {
+        let json = await response->WebAPI.Response.json
+        let {provider} =
+          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.customProviderResponseSchema)
         onComplete(Ok())
-        dispatch(RemoveCustomEndpointModelSuccess({endpointId, modelId}))
+        dispatch(CustomProviderUpserted({provider: provider}))
       } else {
         let error = switch response.status {
         | 404 => "not_found"
         | _ => await errorFromResponse(response)
         }
         onComplete(Error(error))
-        dispatch(RemoveCustomEndpointModelError({error: error}))
+        dispatch(CustomProviderRequestFailed({error: error}))
       }
     } catch {
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let error = `Failed to remove custom endpoint model: ${msg}`
+      let error = `Failed to remove custom provider model: ${msg}`
       onComplete(Error(error))
-      dispatch(RemoveCustomEndpointModelError({error: error}))
+      dispatch(CustomProviderRequestFailed({error: error}))
     }
   }
   remove()->ignore
@@ -919,7 +980,7 @@ let handleEffect = (effect, state: state, dispatch) => {
 
       let delegate = (delegated: TaskReducer.delegated) => {
         switch delegated {
-        | NeedSendMessage({text, attachments, annotations, agentId}) =>
+        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
           let taskId = switch target {
           | ForTask(id) => id
           | CurrentTask =>
@@ -932,6 +993,7 @@ let handleEffect = (effect, state: state, dispatch) => {
           sendMessageToAPIImpl(
             state,
             dispatch,
+            ~messageId=id,
             ~message=text,
             ~attachments,
             ~annotations,
@@ -1218,6 +1280,12 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     disconnect()->ignore
 
+  | DeleteSessionEffect({taskId}) =>
+    switch state.acpSession {
+    | AcpSessionActive({deleteSession}) => deleteSession(taskId, ~onComplete=_ => ())
+    | NoAcpSession => ()
+    }
+
   | LoadTaskEffect({taskId}) =>
     switch state.acpSession {
     | AcpSessionActive({loadTask}) =>
@@ -1283,50 +1351,71 @@ let handleEffect = (effect, state: state, dispatch) => {
       }
     }
     fetch()->ignore
-
-  | FetchCustomEndpointsEffect({apiBaseUrl}) => fetchCustomEndpointsImpl(dispatch, ~apiBaseUrl)
-  | SaveCustomEndpointEffect({apiBaseUrl, id, name, baseUrl, apiKey, onComplete}) =>
-    saveCustomEndpointImpl(dispatch, ~apiBaseUrl, ~id, ~name, ~baseUrl, ~apiKey, ~onComplete)
-  | DeleteCustomEndpointEffect({apiBaseUrl, id, onComplete}) =>
-    deleteCustomEndpointImpl(dispatch, ~apiBaseUrl, ~id, ~onComplete)
-  | AddCustomEndpointModelEffect({
-      apiBaseUrl,
-      endpointId,
-      modelId,
-      displayName,
-      position,
-      onComplete,
-    }) =>
-    addCustomEndpointModelImpl(
-      dispatch,
-      ~apiBaseUrl,
-      ~endpointId,
-      ~modelId,
-      ~displayName,
-      ~position,
-      ~onComplete,
+  | ShareFrontmanEffect =>
+    FirstTaskFeedbackShare.run(
+      ~onShared=() => dispatch(DismissFirstTaskFeedbackDialog),
+      ~onCopied=() => dispatch(ShareFrontmanLinkCopied),
+      ~onFailed=() => dispatch(ShareFrontmanFailed),
     )
-  | RemoveCustomEndpointModelEffect({apiBaseUrl, endpointId, modelId, onComplete}) =>
-    removeCustomEndpointModelImpl(dispatch, ~apiBaseUrl, ~endpointId, ~modelId, ~onComplete)
+
+  | FetchCustomProvidersEffect({apiBaseUrl}) => fetchCustomProvidersImpl(dispatch, ~apiBaseUrl)
+  | SaveCustomProviderEffect({apiBaseUrl, id, name, baseUrl, apiKey, onComplete}) =>
+    saveCustomProviderImpl(dispatch, ~apiBaseUrl, ~id, ~name, ~baseUrl, ~apiKey, ~onComplete)
+  | DeleteCustomProviderEffect({apiBaseUrl, id, onComplete}) =>
+    deleteCustomProviderImpl(dispatch, ~apiBaseUrl, ~id, ~onComplete)
+  | AddCustomProviderModelEffect({apiBaseUrl, providerId, modelId, onComplete}) =>
+    addCustomProviderModelImpl(dispatch, ~apiBaseUrl, ~providerId, ~modelId, ~onComplete)
+  | RemoveCustomProviderModelEffect({apiBaseUrl, providerId, providerModelId, onComplete}) =>
+    removeCustomProviderModelImpl(dispatch, ~apiBaseUrl, ~providerId, ~providerModelId, ~onComplete)
   }
 }
 
-let mergeOrAppendEndpoint = (
-  existing: option<array<Client__State__Types.customEndpoint>>,
-  endpoint: Client__State__Types.customEndpoint,
-): array<Client__State__Types.customEndpoint> => {
-  let endpoints = existing->Option.getOr([])
-  switch endpoints->Array.findIndexOpt(e => e.id == endpoint.id) {
+let upsertCustomProvider = (
+  existing: option<array<Client__State__Types.customProvider>>,
+  provider: Client__State__Types.customProvider,
+): array<Client__State__Types.customProvider> => {
+  let providers = existing->Option.getOr([])
+  switch providers->Array.findIndexOpt(existing => existing.id == provider.id) {
   | Some(idx) =>
-    let merged = endpoints->Array.copy
-    merged[idx] = endpoint
+    let merged = providers->Array.copy
+    merged[idx] = provider
     merged
-  | None => Array.concat(endpoints, [endpoint])
+  | None => Array.concat(providers, [provider])
   }
+}
+
+let clearSelectedModelValue = (state: state): state => {
+  syncSelectedModelValueToStorage(None)
+  {...state, selectedModelValue: None}
 }
 
 let next = (state: state, action) => {
   switch action {
+  | TaskExecutionStopped({taskId, stopReason}) => {
+      let (state, effects) = state->Lens.delegateToTask(ForTask(taskId), ExecutionStateIdle)
+      let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+      let feedbackState: Client__State__Types.firstTaskFeedbackDialogState = switch (
+        state.firstTaskFeedbackDialogState,
+        stopReason,
+      ) {
+      | (Waiting, Some(EndTurn)) =>
+        switch (canShowFirstTaskFeedback(state, task), Selectors.pendingPlanHandoff(state)) {
+        | (true, None) =>
+          switch state.sessionsLoadState {
+          | Client__State__Types.SessionsLoaded => Visible
+          | Client__State__Types.SessionsNotLoaded | Client__State__Types.SessionsLoading =>
+            AwaitingHistory
+          | Client__State__Types.SessionsLoadError(_) => Dismissed
+          }
+        | (false, _) => Dismissed
+        | (true, Some(_)) => Waiting
+        }
+      | _ => state.firstTaskFeedbackDialogState
+      }
+      {...state, firstTaskFeedbackDialogState: feedbackState}->StateReducer.update(
+        ~sideEffects=effects,
+      )
+    }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
   | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
@@ -1404,6 +1493,7 @@ let next = (state: state, action) => {
       {
         ...updatedState,
         currentTask: Task.Selected(taskId),
+        highlightedAnnotation: None,
       }->StateReducer.update(
         ~sideEffects=Array.concat([LoadTaskEffect({taskId: taskId})], taskEffects),
       )
@@ -1431,16 +1521,12 @@ let next = (state: state, action) => {
       | other => other
       }
 
-      switch state.acpSession {
-      | AcpSessionActive({deleteSession}) => deleteSession(taskId, ~onComplete=_ => ())
-      | NoAcpSession => ()
-      }
-
       {
         ...state,
         tasks: updatedTasks,
         currentTask: newCurrentTask,
-      }->StateReducer.update
+        highlightedAnnotation: None,
+      }->StateReducer.update(~sideEffects=[DeleteSessionEffect({taskId: taskId})])
     }
 
   | ClearCurrentTask =>
@@ -1448,6 +1534,7 @@ let next = (state: state, action) => {
     {
       ...state,
       currentTask: Task.New(Task.makeNew(~previewUrl)),
+      highlightedAnnotation: None,
     }->StateReducer.update
 
   | UpdateTaskTitle({taskId, title}) =>
@@ -1541,7 +1628,20 @@ let next = (state: state, action) => {
     let firstModelValue =
       modelConfigOption->ACP.sessionConfigOptionFirstOption->Option.map(option => option.value)
 
-    let (selectedModelValue, didAutoSelect) = switch state.pendingProviderAutoSelect {
+    let modelValueExists = value =>
+      switch modelConfigOption {
+      | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
+        groups->Array.some(group => group.options->Array.some(option => option.value == value))
+      | ACP.SelectConfigOption({options: ACP.Ungrouped(options)}) =>
+        options->Array.some(option => option.value == value)
+      }
+
+    let currentOrFirstModelValue = switch state.selectedModelValue {
+    | Some(value) if modelValueExists(value) => Some(value)
+    | _ => firstModelValue
+    }
+
+    let selectedModelValue = switch state.pendingProviderAutoSelect {
     | Some(providerId) =>
       let providerModelValue = switch modelConfigOption {
       | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
@@ -1552,18 +1652,15 @@ let next = (state: state, action) => {
       | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) => None
       }
       switch providerModelValue {
-      | Some(value) => (Some(value), true)
-      | None => (state.selectedModelValue, false)
+      | Some(value) => Some(value)
+      | None => currentOrFirstModelValue
       }
-    | None =>
-      switch state.selectedModelValue {
-      | Some(value) => (Some(value), false)
-      | None => (firstModelValue, firstModelValue->Option.isSome)
-      }
+    | None => currentOrFirstModelValue
     }
-    switch (didAutoSelect, selectedModelValue) {
-    | (true, Some(value)) => saveSelectedModelValueToStorage(value)
-    | _ => ()
+    switch (state.selectedModelValue, selectedModelValue) {
+    | (Some(current), Some(next)) if current == next => ()
+    | (None, None) => ()
+    | _ => syncSelectedModelValueToStorage(selectedModelValue)
     }
     {
       ...state,
@@ -1573,7 +1670,7 @@ let next = (state: state, action) => {
     }->StateReducer.update
 
   | SetSelectedModelValue({value}) =>
-    saveSelectedModelValueToStorage(value)
+    syncSelectedModelValueToStorage(Some(value))
     {...state, selectedModelValue: Some(value)}->StateReducer.update
 
   | AgentAttributionConfigured({agentCatalog, defaultAgentId}) =>
@@ -1826,13 +1923,17 @@ let next = (state: state, action) => {
       ...state,
       tasks: updatedTasks,
       sessionsLoadState: Client__State__Types.SessionsLoaded,
-    }->StateReducer.update
+    }
+    ->resolveFeedbackHistory
+    ->StateReducer.update
 
   | SessionsLoadError({error}) =>
     {
       ...state,
       sessionsLoadState: Client__State__Types.SessionsLoadError(error),
-    }->StateReducer.update
+    }
+    ->resolveFeedbackHistory
+    ->StateReducer.update
 
   | CheckForUpdate({installedVersion, npmPackage}) =>
     switch (state.updateCheckStatus, state.acpSession) {
@@ -1851,28 +1952,59 @@ let next = (state: state, action) => {
 
   | DismissUpdateBanner => {...state, updateBannerDismissed: true}->StateReducer.update
 
-  | FetchCustomEndpoints =>
+  | DismissFirstTaskFeedbackDialog =>
+    {...state, firstTaskFeedbackDialogState: Dismissed}->StateReducer.update
+
+  | ShareFrontman =>
+    switch state.firstTaskFeedbackDialogState {
+    | Visible | ShareFailed => state->StateReducer.update(~sideEffects=[ShareFrontmanEffect])
+    | Waiting | AwaitingHistory | LinkCopied | Dismissed => state->StateReducer.update
+    }
+
+  | ShareFrontmanLinkCopied =>
+    switch state.firstTaskFeedbackDialogState {
+    | Visible | ShareFailed =>
+      {...state, firstTaskFeedbackDialogState: LinkCopied}->StateReducer.update
+    | Waiting | AwaitingHistory | LinkCopied | Dismissed => state->StateReducer.update
+    }
+
+  | ShareFrontmanFailed =>
+    switch state.firstTaskFeedbackDialogState {
+    | Visible | ShareFailed =>
+      {...state, firstTaskFeedbackDialogState: ShareFailed}->StateReducer.update
+    | Waiting | AwaitingHistory | LinkCopied | Dismissed => state->StateReducer.update
+    }
+
+  | HighlightAnnotation({annotationId, selector}) =>
+    let taskId = Selectors.currentTaskClientId(state)
+    let highlighted = switch state.highlightedAnnotation {
+    | Some(current) if current.taskId == taskId && current.annotationId == annotationId => None
+    | Some(_) | None => Some({Client__State__Types.taskId, annotationId, selector})
+    }
+    {...state, highlightedAnnotation: highlighted}->StateReducer.update
+
+  | FetchCustomProviders =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       state->StateReducer.update(
-        ~sideEffects=[FetchCustomEndpointsEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[FetchCustomProvidersEffect({apiBaseUrl: apiBaseUrl})],
       )
     | NoAcpSession => state->StateReducer.update
     }
 
-  | FetchCustomEndpointsSuccess({endpoints}) =>
-    {...state, customEndpoints: Some(endpoints)}->StateReducer.update
+  | CustomProvidersReceived({providers}) =>
+    {...state, customProviders: Some(providers)}->StateReducer.update
 
-  | FetchCustomEndpointsError({error}) =>
-    Log.error(`FetchCustomEndpoints failed: ${error}`)
+  | CustomProviderRequestFailed({error}) =>
+    Log.error(`Custom Provider request failed: ${error}`)
     state->StateReducer.update
 
-  | SaveCustomEndpoint({id, name, baseUrl, apiKey, onComplete}) =>
+  | SaveCustomProvider({id, name, baseUrl, apiKey, onComplete}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       state->StateReducer.update(
         ~sideEffects=[
-          SaveCustomEndpointEffect({apiBaseUrl, id, name, baseUrl, apiKey, onComplete}),
+          SaveCustomProviderEffect({apiBaseUrl, id, name, baseUrl, apiKey, onComplete}),
         ],
       )
     | NoAcpSession =>
@@ -1880,52 +2012,34 @@ let next = (state: state, action) => {
       state->StateReducer.update
     }
 
-  | SaveCustomEndpointSuccess({endpoint}) =>
-    {
-      ...state,
-      customEndpoints: Some(mergeOrAppendEndpoint(state.customEndpoints, endpoint)),
-    }->StateReducer.update
-
-  | SaveCustomEndpointError({error}) =>
-    Log.error(`SaveCustomEndpoint failed: ${error}`)
-    state->StateReducer.update
-
-  | DeleteCustomEndpoint({id, onComplete}) =>
+  | DeleteCustomProvider({id, onComplete}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       state->StateReducer.update(
-        ~sideEffects=[DeleteCustomEndpointEffect({apiBaseUrl, id, onComplete})],
+        ~sideEffects=[DeleteCustomProviderEffect({apiBaseUrl, id, onComplete})],
       )
     | NoAcpSession =>
       onComplete(Error("No active ACP session"))
       state->StateReducer.update
     }
 
-  | DeleteCustomEndpointSuccess({id}) =>
-    {
-      ...state,
-      customEndpoints: state.customEndpoints->Option.map(endpoints =>
-        endpoints->Array.filter(endpoint => endpoint.id != id)
-      ),
-    }->StateReducer.update
+  | AddCustomProviderModel({providerId, modelId, onComplete}) =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      state->StateReducer.update(
+        ~sideEffects=[AddCustomProviderModelEffect({apiBaseUrl, providerId, modelId, onComplete})],
+      )
+    | NoAcpSession =>
+      onComplete(Error("No active ACP session"))
+      state->StateReducer.update
+    }
 
-  | DeleteCustomEndpointError({error}) =>
-    Log.error(`DeleteCustomEndpoint failed: ${error}`)
-    state->StateReducer.update
-
-  | AddCustomEndpointModel({endpointId, modelId, displayName, position, onComplete}) =>
+  | RemoveCustomProviderModel({providerId, providerModelId, onComplete}) =>
     switch state.acpSession {
     | AcpSessionActive({apiBaseUrl}) =>
       state->StateReducer.update(
         ~sideEffects=[
-          AddCustomEndpointModelEffect({
-            apiBaseUrl,
-            endpointId,
-            modelId,
-            displayName,
-            position,
-            onComplete,
-          }),
+          RemoveCustomProviderModelEffect({apiBaseUrl, providerId, providerModelId, onComplete}),
         ],
       )
     | NoAcpSession =>
@@ -1933,54 +2047,34 @@ let next = (state: state, action) => {
       state->StateReducer.update
     }
 
-  | AddCustomEndpointModelSuccess({endpointId, model}) =>
-    {
+  | CustomProviderUpserted({provider}) =>
+    let state = {
       ...state,
-      customEndpoints: state.customEndpoints->Option.map(endpoints =>
-        endpoints->Array.map(endpoint =>
-          switch endpoint.id == endpointId {
-          | true => {...endpoint, models: Array.concat(endpoint.models, [model])}
-          | false => endpoint
-          }
-        )
-      ),
-    }->StateReducer.update
-
-  | AddCustomEndpointModelError({error}) =>
-    Log.error(`AddCustomEndpointModel failed: ${error}`)
+      customProviders: Some(upsertCustomProvider(state.customProviders, provider)),
+    }
+    let state = switch state.selectedModelValue {
+    | Some(value) if value->String.startsWith(`custom:${provider.id}:`) =>
+      switch provider.models->Array.some(model =>
+        value == `custom:${provider.id}:${model.modelId}`
+      ) {
+      | true => state
+      | false => clearSelectedModelValue(state)
+      }
+    | _ => state
+    }
     state->StateReducer.update
 
-  | RemoveCustomEndpointModel({endpointId, modelId, onComplete}) =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
-        ~sideEffects=[
-          RemoveCustomEndpointModelEffect({apiBaseUrl, endpointId, modelId, onComplete}),
-        ],
-      )
-    | NoAcpSession =>
-      onComplete(Error("No active ACP session"))
-      state->StateReducer.update
-    }
-
-  | RemoveCustomEndpointModelSuccess({endpointId, modelId}) =>
-    {
+  | CustomProviderDeleted({id}) =>
+    let state = {
       ...state,
-      customEndpoints: state.customEndpoints->Option.map(endpoints =>
-        endpoints->Array.map(endpoint =>
-          switch endpoint.id == endpointId {
-          | true => {
-              ...endpoint,
-              models: endpoint.models->Array.filter(model => model.modelId != modelId),
-            }
-          | false => endpoint
-          }
-        )
+      customProviders: state.customProviders->Option.map(providers =>
+        providers->Array.filter(provider => provider.id != id)
       ),
-    }->StateReducer.update
-
-  | RemoveCustomEndpointModelError({error}) =>
-    Log.error(`RemoveCustomEndpointModel failed: ${error}`)
+    }
+    let state = switch state.selectedModelValue {
+    | Some(value) if value->String.startsWith(`custom:${id}:`) => clearSelectedModelValue(state)
+    | _ => state
+    }
     state->StateReducer.update
   }
 }

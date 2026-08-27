@@ -10,7 +10,7 @@
   },
   "devDependencies": {
     "@frontman-ai/frontman-protocol": "workspace:*",
-    "@rescript/webapi": "*",
+    "@rescript/webapi": "catalog:",
     "rescript": "catalog:",
     "rescript-vitest": "catalog:",
     "sury": "catalog:",

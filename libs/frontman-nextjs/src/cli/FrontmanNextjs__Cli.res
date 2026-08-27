@@ -24,7 +24,7 @@ Options:
   --server <host>   Frontman server host (default: api.frontman.sh)
   --prefix <path>   Target directory (default: current directory)
   --dry-run         Preview changes without writing files
-  --skip-deps       Skip dependency installation
+  --skip-deps       Skip dependency installation and validation
   --help            Show this help message
 
 Examples:
