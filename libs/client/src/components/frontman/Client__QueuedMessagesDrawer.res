@@ -124,7 +124,9 @@ let make = (~messages: array<Message.t>) => {
               }}
             </div>
           </div>
-          <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#8051CD]" />
+          <div
+            className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-[#8051CD] shadow-[0_0_6px_2px_#8051CD]"
+          />
         </button>
         {switch isExpanded {
         | false => React.null
