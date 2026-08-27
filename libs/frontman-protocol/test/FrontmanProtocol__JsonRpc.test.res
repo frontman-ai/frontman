@@ -28,6 +28,13 @@ describe("JSON-RPC wire contracts", () => {
     )
   })
 
+  test("preserves integer request IDs above signed 32-bit", t => {
+    let json = JSON.parseOrThrow(`{"jsonrpc":"2.0","id":2147483648,"method":"tools/list"}`)
+    let request = json->S.parseOrThrow(~to=JsonRpc.Request.schema)
+
+    t->expect(JsonRpc.Request.toJson(request))->Expect.toEqual(json)
+  })
+
   test("requires success ID and result without error", t => {
     let valid = `{"jsonrpc":"2.0","id":"request-1","result":null}`
     let invalid = [

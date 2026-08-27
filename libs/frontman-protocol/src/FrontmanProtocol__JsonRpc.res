@@ -17,25 +17,34 @@ module Id: {
   let toInt: t => option<int>
   let schema: S.t<t>
 } = {
-  type t = IntId(int) | StringId(string)
+  type t = NumberId(float) | StringId(string)
 
-  let fromInt = value => IntId(value)
+  @scope("Number") @val
+  external isInteger: float => bool = "isInteger"
+
+  let fromInt = value => NumberId(Float.fromInt(value))
 
   let toInt = id =>
     switch id {
-    | IntId(value) => Some(value)
+    | NumberId(value) => {
+        let intValue = Float.toInt(value)
+        switch Float.fromInt(intValue) == value {
+        | true => Some(intValue)
+        | false => None
+        }
+      }
     | StringId(_) => None
     }
 
   let schema: S.t<t> = S.union([
     S.float
-    ->S.refine(value => Float.fromInt(Float.toInt(value)) == value, ~error="Expected integer")
+    ->S.refine(isInteger, ~error="Expected integer")
     ->S.extendJSONSchema(S.int->S.toJSONSchema)
     ->S.transform(s => {
-      parser: value => IntId(Float.toInt(value)),
+      parser: value => NumberId(value),
       serializer: id =>
         switch id {
-        | IntId(value) => Float.fromInt(value)
+        | NumberId(value) => value
         | StringId(_) => s.fail("Expected integer JSON-RPC id")
         },
     }),
@@ -44,7 +53,7 @@ module Id: {
       serializer: id =>
         switch id {
         | StringId(value) => value
-        | IntId(_) => s.fail("Expected string JSON-RPC id")
+        | NumberId(_) => s.fail("Expected string JSON-RPC id")
         },
     }),
   ])
