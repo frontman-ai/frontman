@@ -336,13 +336,13 @@ describe("MCP 2026-07-28", () => {
     let invoke = async payload => {
       let (channel, calls) = MockChannel.make()
       await MCP.handleMessage(handler(channel, ref(None)), JSON.parseOrThrow(payload))
-      response(calls)->S.parseOrThrow(~to=S.object(s => s.field("id", S.json)))
+      response(calls)->S.parseOrThrow(~to=S.object(s => s.field("id", S.option(S.json))))
     }
     let ids = await Promise.all([
       invoke(`{"jsonrpc":"2.0","id":23,"method":{},"params":{${metadata}}}`),
       invoke(`{"jsonrpc":"2.0","id":{},"method":"server/discover","params":{${metadata}}}`),
     ])
-    t->expect(ids)->Expect.toEqual([JSON.Encode.int(23), JSON.Encode.null])
+    t->expect(ids)->Expect.toEqual([Some(JSON.Encode.int(23)), None])
   })
 
   test("accepts array structuredContent", _ => {

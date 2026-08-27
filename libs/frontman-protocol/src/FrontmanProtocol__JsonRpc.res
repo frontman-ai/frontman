@@ -160,7 +160,6 @@ module Response: {
     JSON.Encode.object(
       Dict.fromArray([
         ("jsonrpc", JSON.Encode.string(version)),
-        ("id", JSON.Encode.null),
         ("error", error->S.decodeOrThrow(~from=RpcError.schema, ~to=S.json->S.noValidation(true))),
       ]),
     )

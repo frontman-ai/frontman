@@ -383,17 +383,21 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp handle_tool_call_response(tool_call, result, socket) do
-    output_schema =
-      case Enum.find(socket.assigns.mcp_tools, &(&1.name == tool_call.tool_name)) do
-        %{output_schema: output_schema} -> output_schema
-        nil -> nil
-      end
+    tools = socket.assigns.mcp_tools
 
-    result =
-      case MCPSchema.validate_call_tool_result(result, output_schema) do
-        :ok -> result
-        :error -> MCP.tool_result_error("Invalid MCP tools/call result")
-      end
+    %{output_schema: output_schema} =
+      Enum.find(tools, %{output_schema: nil}, &(&1.name == tool_call.tool_name))
+
+    with :ok <- MCPSchema.validate_call_tool_result(result, output_schema),
+         nil <- Enum.find(result["content"], &(&1["type"] not in ["text", "image"])) do
+      :ok
+    else
+      :error ->
+        raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
+
+      %{"type" => type} ->
+        raise "Unsupported MCP tools/call content type #{inspect(type)} for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
+    end
 
     {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end

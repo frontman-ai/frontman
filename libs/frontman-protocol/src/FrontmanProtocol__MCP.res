@@ -229,7 +229,7 @@ module CallToolResult: {
 } = {
   @schema
   type t = {
-    resultType: @s.matches(S.literal("complete")) string,
+    resultType: @s.default("complete") @s.matches(S.literal("complete")) string,
     content: @s.matches(FrontmanProtocol__ContentBlock.arraySchema)
     array<FrontmanProtocol__ContentBlock.t>,
     structuredContent?: JSON.t,

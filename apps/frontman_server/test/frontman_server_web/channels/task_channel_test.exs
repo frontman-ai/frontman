@@ -148,6 +148,28 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     })
   end
 
+  defp assert_tool_result_crash(context, content, reason) do
+    %{socket: socket, task_id: task_id, scope: scope} = context
+    result = %{"resultType" => "complete", "content" => content}
+    result = Map.put(result, "structuredContent", %{"logged" => true})
+    tool_call = tool_call("call_invalid_result", "testTool")
+    register_tool_receiver(tool_call.tool_call_id)
+
+    persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
+
+    assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
+    channel_pid = socket.channel_pid
+    Process.flag(:trap_exit, true)
+    push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+    assert_receive {:EXIT, ^channel_pid, {%RuntimeError{message: message}, _stacktrace}}
+
+    assert message ==
+             "#{reason} for task #{task_id}, tool testTool, call #{tool_call.tool_call_id}"
+
+    {:ok, task} = Tasks.get_task(scope, task_id)
+    refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+  end
+
   defp question_tool_call(id, header, label) do
     args =
       Jason.encode!(%{
@@ -1103,41 +1125,16 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "stores malformed tool results as errors", %{
-      socket: socket,
-      task_id: task_id,
-      scope: scope
-    } do
-      tool_call = tool_call("call_invalid_result", "testTool")
-      turn_number = start_turn_fixture(scope, task_id)
-      register_tool_receiver(tool_call.tool_call_id)
-
-      {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
-
-      assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
-
-      push(
-        socket,
-        "mcp:message",
-        JsonRpc.success_response(mcp_request_id, %{
-          "resultType" => "complete",
-          "content" => [%{"type" => "text", "text" => "invalid"}],
-          "structuredContent" => %{"logged" => "yes"}
-        })
+    test "crashes loudly for unsupported MCP tool result content", context do
+      assert_tool_result_crash(
+        context,
+        [%{"type" => "audio", "data" => "YXVkaW8=", "mimeType" => "audio/wav"}],
+        ~s(Unsupported MCP tools/call content type "audio")
       )
+    end
 
-      :sys.get_state(socket.channel_pid)
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      assert Enum.any?(task.interaction_rows, &(&1.type == :discovered_project_rule))
-      assert Enum.any?(task.interaction_rows, &(&1.type == :discovered_project_structure))
-
-      assert %Interaction.ToolResult{
-               is_error: true,
-               result: %{"content" => [%{"text" => "Invalid MCP tools/call result"}]}
-             } =
-               Enum.find(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
-
-      assert Process.alive?(socket.channel_pid)
+    test "crashes loudly for malformed MCP tool results", context do
+      assert_tool_result_crash(context, "invalid", "Invalid MCP tools/call result")
     end
 
     test "ignores MCP responses with string IDs instead of crashing", %{socket: socket} do

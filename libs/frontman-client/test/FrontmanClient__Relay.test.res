@@ -14,11 +14,11 @@ describe("Relay.connect", _t => {
   })
 })
 
-test("preserves optional output schemas in MCP tool definitions", t => {
+test("preserves optional output schemas and parses legacy results", t => {
   let relay = Relay.make(~baseUrl="http://localhost")
-  let tool = (~name, ~outputSchema): FrontmanClient__Relay__Types.remoteTool => {
-    name,
-    description: name,
+  let tool = (outputSchema): FrontmanClient__Relay__Types.remoteTool => {
+    name: "tool",
+    description: "tool",
     access: None,
     inputSchema: JSON.Encode.object(Dict.make()),
     outputSchema,
@@ -26,14 +26,14 @@ test("preserves optional output schemas in MCP tool definitions", t => {
   }
   relay.state :=
     Relay.Connected({
-      tools: [
-        tool(~name="structured", ~outputSchema=Some(JSON.Encode.object(Dict.make()))),
-        tool(~name="content_only", ~outputSchema=None),
-      ],
+      tools: [tool(Some(JSON.Encode.object(Dict.make()))), tool(None)],
       serverInfo: {name: "test", version: "1"},
     })
 
   let definitions = relay->Relay.getToolsJson->Array.map(json => JSON.stringify(json))
   t->expect(definitions[0]->Option.getOrThrow->String.includes("outputSchema"))->Expect.toBe(true)
   t->expect(definitions[1]->Option.getOrThrow->String.includes("outputSchema"))->Expect.toBe(false)
+  JSON.parseOrThrow(`{"content":[]}`)
+  ->S.parseOrThrow(~to=FrontmanClient__MCP__Types.callToolResultSchema)
+  ->ignore
 })
