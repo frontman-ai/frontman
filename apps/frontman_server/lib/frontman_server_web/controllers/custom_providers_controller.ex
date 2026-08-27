@@ -18,7 +18,6 @@ defmodule FrontmanServerWeb.CustomProvidersController do
 
     case Providers.create_custom_provider(scope, attrs) do
       {:ok, provider} ->
-        Providers.broadcast_config_changed(scope.user.id)
         json(conn, %{provider: provider})
 
       {:error, errors} ->
@@ -34,7 +33,6 @@ defmodule FrontmanServerWeb.CustomProvidersController do
 
     case Providers.update_custom_provider(scope, provider_id, attrs) do
       {:ok, provider} ->
-        Providers.broadcast_config_changed(scope.user.id)
         json(conn, %{provider: provider})
 
       {:error, :not_found} ->
@@ -52,7 +50,6 @@ defmodule FrontmanServerWeb.CustomProvidersController do
 
     case Providers.delete_custom_provider(scope, provider_id) do
       :ok ->
-        Providers.broadcast_config_changed(scope.user.id)
         json(conn, %{status: "ok"})
 
       {:error, :not_found} ->
@@ -66,7 +63,6 @@ defmodule FrontmanServerWeb.CustomProvidersController do
 
     case Providers.add_custom_provider_model(scope, provider_id, attrs) do
       {:ok, provider} ->
-        Providers.broadcast_config_changed(scope.user.id)
         json(conn, %{provider: provider})
 
       {:error, :not_found} ->
@@ -87,7 +83,6 @@ defmodule FrontmanServerWeb.CustomProvidersController do
 
     case Providers.remove_custom_provider_model(scope, provider_id, provider_model_id) do
       {:ok, provider} ->
-        Providers.broadcast_config_changed(scope.user.id)
         json(conn, %{provider: provider})
 
       {:error, :not_found} ->

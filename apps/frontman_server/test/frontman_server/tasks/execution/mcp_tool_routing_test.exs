@@ -77,7 +77,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], ""}, "Component implemented!"])
 
-      {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "test-key")
+      :ok = Providers.upsert_api_key(scope, "openrouter", "test-key")
 
       execution_request =
         execution_request_fixture(

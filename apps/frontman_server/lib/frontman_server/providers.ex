@@ -56,6 +56,7 @@ defmodule FrontmanServer.Providers do
     case get_owned_custom_provider(scope, id) do
       %CustomProvider{} = provider ->
         Repo.delete!(provider)
+        broadcast_config_changed(provider.user_id)
         :ok
 
       nil ->
@@ -99,24 +100,27 @@ defmodule FrontmanServer.Providers do
   end
 
   @doc """
-  Prepares ReqLLM arguments for a request. Resolves model and provider auth.
+  Resolves model access into ReqLLM arguments for a request.
 
   This is the primary entry point for provider auth resolution at the domain layer.
   Call this before making LLM calls, not inside LLM implementations.
 
   ## Parameters
-    - scope: The user scope (or nil for anonymous).
+    - scope: The user scope.
     - model: The model string (e.g., "openrouter:openai/gpt-4")
 
   ## Returns
     - `{:ok, {model_spec, llm_opts}}` - Ready to use for LLM calls
     - `{:error, :no_api_key}` - No API key available
   """
-  def prepare_llm_args(scope, model, opts \\ [])
+  @spec resolve_model_access(Scope.t(), String.t() | nil, keyword()) ::
+          {:ok, {LLMDB.Model.t(), keyword()}} | {:error, term()}
+  def resolve_model_access(scope, model, opts \\ [])
 
-  def prepare_llm_args(_scope, nil, _opts), do: {:error, :missing_model}
+  def resolve_model_access(%Scope{}, nil, _opts), do: {:error, :missing_model}
 
-  def prepare_llm_args(scope, "custom:" <> rest, opts) when is_binary(rest) and rest != "" do
+  def resolve_model_access(%Scope{} = scope, "custom:" <> rest, opts)
+      when is_binary(rest) and rest != "" do
     case String.split(rest, ":", parts: 2) do
       [provider_id, model_id] when provider_id != "" and model_id != "" ->
         resolve_custom_model(scope, provider_id, model_id, opts)
@@ -126,7 +130,8 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  def prepare_llm_args(scope, model, opts) when is_binary(model) and model != "" do
+  def resolve_model_access(%Scope{} = scope, model, opts)
+      when is_binary(model) and model != "" do
     with {:ok, {credential_source, resolved_model}} <- resolve_catalog_model(model) do
       case oauth_llm_opts(credential_source, resolve_oauth_token(scope, credential_source)) do
         {:ok, llm_opts} ->
@@ -142,7 +147,7 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  def prepare_llm_args(_scope, _model, _opts), do: {:error, :missing_model}
+  def resolve_model_access(%Scope{}, _model, _opts), do: {:error, :missing_model}
 
   defp oauth_llm_opts("anthropic", %OAuthToken{access_token: access_token}) do
     {:ok,
@@ -238,33 +243,22 @@ defmodule FrontmanServer.Providers do
   defp model_entry({name, model_id}, group), do: {name, model_id, model_string(group, model_id)}
   defp model_entry({name, model_id, model_spec}, _group), do: {name, model_id, model_spec}
 
-  def model_from_client_params(nil), do: :error
-
-  def model_from_client_params(%{"provider" => "custom", "value" => value})
-      when is_binary(value) and value != "" do
-    case String.split(value, ":", parts: 3) do
-      ["custom", provider_id, model_id] when provider_id != "" and model_id != "" ->
-        {:ok, value}
-
-      _ ->
-        :error
+  @spec parse_model_ref(term()) :: {:ok, String.t()} | :error
+  def parse_model_ref("custom:" <> rest = model_ref) do
+    case String.split(rest, ":", parts: 2) do
+      [provider_id, model_id] when provider_id != "" and model_id != "" -> {:ok, model_ref}
+      _ -> :error
     end
   end
 
-  def model_from_client_params(%{"provider" => provider, "value" => value})
-      when is_binary(provider) and is_binary(value) and provider != "" and value != "" and
-             provider != "custom" do
-    {:ok, model_string(provider, value)}
-  end
-
-  def model_from_client_params(params) when is_binary(params) do
+  def parse_model_ref(params) when is_binary(params) do
     case model_parts(params) do
       {:ok, {provider, name}} -> {:ok, model_string(provider, name)}
       :error -> :error
     end
   end
 
-  def model_from_client_params(_params), do: :error
+  def parse_model_ref(_params), do: :error
 
   def start_anthropic_oauth do
     {verifier, challenge} = AnthropicOAuth.generate_pkce()
@@ -303,7 +297,8 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  def oauth_connection_status(scope, provider) do
+  @spec resolve_oauth_connection_status(Scope.t(), String.t()) :: map()
+  def resolve_oauth_connection_status(%Scope{} = scope, provider) do
     case resolve_oauth_token(scope, provider) do
       nil ->
         %{connected: false}
@@ -342,17 +337,12 @@ defmodule FrontmanServer.Providers do
   end
 
   @doc """
-  Returns a human-friendly model name for logs and telemetry.
-  """
-  def display_model_name(model_ref) when is_binary(model_ref), do: model_ref
-  def display_model_name(%{id: id}) when is_binary(id), do: id
-
-  @doc """
   Stores or updates a user API key for a provider.
 
   On success, broadcasts a config change notification so subscribers
   (e.g. the tasks channel) can push updated config options to the client.
   """
+  @spec upsert_api_key(Scope.t(), String.t(), String.t()) :: :ok | {:error, map()}
   def upsert_api_key(%Scope{user: %User{} = user}, provider, key) do
     user_id = user.id
     provider = String.downcase(provider)
@@ -364,12 +354,12 @@ defmodule FrontmanServer.Providers do
            on_conflict: {:replace, [:key, :updated_at]},
            conflict_target: [:user_id, :provider]
          ) do
-      {:ok, record} ->
+      {:ok, _record} ->
         broadcast_config_changed(user_id)
-        {:ok, record}
+        :ok
 
-      error ->
-        error
+      {:error, changeset} ->
+        {:error, validation_errors(changeset)}
     end
   end
 
@@ -398,15 +388,14 @@ defmodule FrontmanServer.Providers do
     end
   end
 
-  @doc "Stores or updates an OAuth token for a provider without broadcasting."
-  def upsert_oauth_token(
-        %Scope{user: %User{} = user},
-        provider,
-        access_token,
-        refresh_token,
-        expires_at,
-        metadata \\ %{}
-      ) do
+  defp upsert_oauth_token(
+         %Scope{user: %User{} = user},
+         provider,
+         access_token,
+         refresh_token,
+         expires_at,
+         metadata \\ %{}
+       ) do
     provider = String.downcase(provider)
     oauth_token = %OAuthToken{user_id: user.id}
 
@@ -427,10 +416,7 @@ defmodule FrontmanServer.Providers do
     )
   end
 
-  @doc """
-  Fetches an OAuth token for a provider (may be expired).
-  """
-  def get_oauth_token(%Scope{user: %User{} = user}, provider) do
+  defp get_oauth_token(%Scope{user: %User{} = user}, provider) do
     OAuthToken
     |> OAuthToken.for_user_and_provider(user.id, provider)
     |> Repo.one()
@@ -519,13 +505,7 @@ defmodule FrontmanServer.Providers do
     "config_update:user:#{user_id}"
   end
 
-  @doc """
-  Broadcasts a config options changed event for the given user.
-
-  Called after API key saves or OAuth token changes so that subscribers
-  (e.g. the tasks channel) can push updated config options to the client.
-  """
-  def broadcast_config_changed(user_id) when is_binary(user_id) do
+  defp broadcast_config_changed(user_id) when is_binary(user_id) do
     Phoenix.PubSub.broadcast(
       FrontmanServer.PubSub,
       config_pubsub_topic(user_id),
@@ -550,7 +530,8 @@ defmodule FrontmanServer.Providers do
       `:options` (list of `%{name: name, value: value}` maps where
       `value` is a serialized `"provider:model"` string)
   """
-  def model_config_data(scope) do
+  @spec available_models(Scope.t()) :: %{groups: [map()]}
+  def available_models(%Scope{} = scope) do
     api_key_providers = list_api_key_providers(scope)
 
     oauth_providers =
@@ -628,6 +609,7 @@ defmodule FrontmanServer.Providers do
 
   defp custom_provider_result({:ok, %CustomProvider{} = provider}) do
     provider = Repo.preload(provider, models: CustomProviderModel.ordered())
+    broadcast_config_changed(provider.user_id)
     {:ok, custom_provider_data(provider)}
   end
 

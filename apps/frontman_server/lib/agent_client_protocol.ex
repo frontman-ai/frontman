@@ -169,7 +169,7 @@ defmodule AgentClientProtocol do
   @doc """
   Translates domain model config data into ACP SessionConfigOption format.
 
-  Receives the output of `Providers.model_config_data/1` — a domain DTO
+  Receives the output of `Providers.available_models/1` — a domain DTO
   containing model groups — and serializes it into the ACP wire format.
   This function has no knowledge of provider
   internals; all domain logic is encapsulated in the Providers context.
