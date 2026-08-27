@@ -148,6 +148,36 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "unqueue_user_message/3" do
+    test "deletes a queued message", %{scope: scope} do
+      task = task_fixture(scope)
+      message_id = Ecto.UUID.generate()
+
+      {:ok, _row} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task.id,
+          message_id: message_id,
+          message: user_content("oops"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      assert Tasks.unqueue_user_message(scope, task.id, message_id) == :ok
+      assert db_rows(task.id) == []
+    end
+
+    test "refuses a message already claimed by a turn", %{scope: scope} do
+      task = task_fixture(scope)
+      start_turn_fixture(scope, task.id, user_content("first"))
+
+      [%InteractionSchema{id: claimed_id}] =
+        task.id |> db_rows() |> Enum.filter(&(&1.type == :user_message))
+
+      assert Tasks.unqueue_user_message(scope, task.id, claimed_id) == {:error, :not_queued}
+      assert Enum.any?(db_rows(task.id), &(&1.id == claimed_id))
+    end
+  end
+
   describe "execute_next_turn/3 agent identity" do
     test "persists configured agent identity", %{scope: scope} do
       task = task_fixture(scope)

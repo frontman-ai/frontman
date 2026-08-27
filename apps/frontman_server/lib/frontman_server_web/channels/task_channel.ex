@@ -97,6 +97,9 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, {:notification, "session/retry_turn", %{"retriedErrorId" => retried_error_id}}} ->
         handle_retry_turn(retried_error_id, socket)
 
+      {:ok, {:notification, "session/unqueue_message", %{"messageId" => message_id}}} ->
+        handle_unqueue_message(message_id, socket)
+
       {:ok, {:notification, _method, _params}} ->
         {:noreply, socket}
 
@@ -806,6 +809,18 @@ defmodule FrontmanServerWeb.TaskChannel do
       _ ->
         {:noreply, socket}
     end
+  end
+
+  defp handle_unqueue_message(message_id, socket) do
+    case Tasks.unqueue_user_message(socket.assigns.scope, socket.assigns.task_id, message_id) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.info("Unqueue skipped for #{message_id}: #{inspect(reason)}")
+    end
+
+    {:noreply, socket}
   end
 
   defp handle_retry_turn(retried_error_id, socket) do

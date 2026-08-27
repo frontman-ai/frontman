@@ -524,6 +524,28 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  @doc """
+  Removes a queued (not yet claimed by a turn) user message.
+
+  Returns `:ok` when the row is deleted, `{:error, :not_queued}` when the
+  message was already claimed by a turn or does not exist.
+  """
+  def unqueue_user_message(%Scope{} = scope, task_id, message_id)
+      when is_binary(task_id) and is_binary(message_id) do
+    Repo.transact(fn ->
+      with %TaskSchema{} <- get_task_by_id_for_update(scope, task_id),
+           {:ok, history} <- History.new(load_interaction_rows(task_id)),
+           %InteractionSchema{} = row <-
+             Enum.find(History.pending_accepted_messages(history), &(&1.id == message_id)),
+           {:ok, _deleted} <- Repo.delete(row) do
+        :ok
+      else
+        nil -> {:error, :not_queued}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
   def submit_user_message(%Scope{}, %{agent_id: agent_id})
       when is_binary(agent_id) and agent_id != "" do
     {:error, :missing_model}

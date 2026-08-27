@@ -373,6 +373,7 @@ type action =
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
+  | UnqueueMessage({messageId: string})
   | ClearTurnError
   | LoadStarted({previewUrl: string})
   | LoadComplete
@@ -413,6 +414,7 @@ type effect =
     })
   | CancelPrompt
   | RetryTurnEffect({retriedErrorId: string})
+  | UnqueueMessageEffect({messageId: string})
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
   | RejectQuestionToolEffect({resolveError: string => unit, message: string})
   | SyncBrowserUrl(string)
@@ -427,6 +429,7 @@ type delegated =
     })
   | NeedCancelPrompt
   | NeedRetryTurn({retriedErrorId: string})
+  | NeedUnqueueMessage({messageId: string})
   | NeedSyncBrowserUrl(string)
 
 let actionToString = (action: action): string =>
@@ -461,6 +464,7 @@ let actionToString = (action: action): string =>
   | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
+  | UnqueueMessage(_) => "UnqueueMessage"
   | ClearTurnError => "ClearTurnError"
   | LoadStarted(_) => "LoadStarted"
   | LoadComplete => "LoadComplete"
@@ -1090,6 +1094,21 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
+  | (Task.Loaded(data), UnqueueMessage({messageId})) =>
+    switch data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId) {
+    | false => (task, [])
+    | true => (
+        Task.Loaded({
+          ...data,
+          queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
+            Message.getId(message) != messageId
+          ),
+          pendingUserMessageIds: data.pendingUserMessageIds->Array.filter(id => id != messageId),
+        }),
+        [UnqueueMessageEffect({messageId: messageId})],
+      )
+    }
+
   | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
       Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
       [RetryTurnEffect({retriedErrorId: retriedErrorId})],
@@ -1291,6 +1310,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | ClearTurnError
       | RetryingUpdate(_)
       | RetryTurn(_)
+      | UnqueueMessage(_)
       | QuestionReceived(_)
       | QuestionStepChanged(_)
       | QuestionOptionToggled(_)
@@ -1491,6 +1511,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
     delegate(NeedSendMessage({id, text, attachments, annotations, agentId}))
   | CancelPrompt => delegate(NeedCancelPrompt)
   | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
+  | UnqueueMessageEffect({messageId}) => delegate(NeedUnqueueMessage({messageId: messageId}))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
   | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
   | SyncBrowserUrl(url) => delegate(NeedSyncBrowserUrl(url))

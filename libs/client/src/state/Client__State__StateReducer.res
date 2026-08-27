@@ -50,6 +50,7 @@ type action =
       sendPrompt: Client__State__Types.sendPromptFn,
       cancelPrompt: Client__State__Types.cancelPromptFn,
       retryTurn: Client__State__Types.retryTurnFn,
+      unqueueMessage: Client__State__Types.unqueueMessageFn,
       loadTask: Client__State__Types.loadTaskFn,
       deleteSession: Client__State__Types.deleteSessionFn,
       requireAuthentication: Client__State__Types.requireAuthenticationFn,
@@ -1109,6 +1110,11 @@ let handleEffect = (effect, state: state, dispatch) => {
           | AcpSessionActive({cancelPrompt}) => cancelPrompt()
           | NoAcpSession => Log.error("Cannot cancel prompt: no active ACP session")
           }
+        | NeedUnqueueMessage({messageId}) =>
+          switch state.acpSession {
+          | AcpSessionActive({unqueueMessage}) => unqueueMessage(messageId)
+          | NoAcpSession => Log.error("Cannot unqueue message: no active ACP session")
+          }
         | NeedRetryTurn({retriedErrorId}) =>
           switch state.acpSession {
           | AcpSessionActive({retryTurn}) => retryTurn(retriedErrorId)
@@ -1751,6 +1757,7 @@ let next = (state: state, action) => {
       sendPrompt,
       cancelPrompt,
       retryTurn,
+      unqueueMessage,
       loadTask,
       deleteSession,
       requireAuthentication,
@@ -1762,6 +1769,7 @@ let next = (state: state, action) => {
         sendPrompt,
         cancelPrompt,
         retryTurn,
+        unqueueMessage,
         loadTask,
         deleteSession,
         requireAuthentication,

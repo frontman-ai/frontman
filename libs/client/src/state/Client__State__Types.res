@@ -23,6 +23,8 @@ type cancelPromptFn = unit => unit
 
 type retryTurnFn = string => unit
 
+type unqueueMessageFn = string => unit
+
 type requireAuthenticationFn = unit => unit
 
 type acpSession =
@@ -31,6 +33,7 @@ type acpSession =
       sendPrompt: sendPromptFn,
       cancelPrompt: cancelPromptFn,
       retryTurn: retryTurnFn,
+      unqueueMessage: unqueueMessageFn,
       loadTask: loadTaskFn,
       deleteSession: deleteSessionFn,
       requireAuthentication: requireAuthenticationFn,

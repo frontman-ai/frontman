@@ -135,6 +135,7 @@ module Actions = {
     ~sendPrompt,
     ~cancelPrompt,
     ~retryTurn,
+    ~unqueueMessage,
     ~loadTask,
     ~deleteSession,
     ~requireAuthentication,
@@ -145,6 +146,7 @@ module Actions = {
         sendPrompt,
         cancelPrompt,
         retryTurn,
+        unqueueMessage,
         loadTask,
         deleteSession,
         requireAuthentication,
@@ -189,6 +191,11 @@ module Actions = {
   ) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: RetryingUpdate({retryStatus: retryStatus})}),
+    )
+
+  let unqueueMessage = (~taskId: string, ~messageId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: UnqueueMessage({messageId: messageId})}),
     )
 
   let retryTurn = (~taskId: string, ~retriedErrorId: string) =>

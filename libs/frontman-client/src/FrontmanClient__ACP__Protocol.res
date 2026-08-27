@@ -110,6 +110,27 @@ let sendRetryTurn = (~channel: Channel.t, ~sessionId: string, ~retriedErrorId: s
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
+let sendUnqueueMessage = (
+  ~channel: Channel.t,
+  ~sessionId: string,
+  ~messageId: string,
+  ~onMessage: option<(messageDirection, JSON.t) => unit>,
+): unit => {
+  let params = JSON.Encode.object(
+    Dict.fromArray([
+      ("sessionId", JSON.Encode.string(sessionId)),
+      ("messageId", JSON.Encode.string(messageId)),
+    ]),
+  )
+  let notification = JsonRpc.Notification.make(
+    ~method="session/unqueue_message",
+    ~params=Some(params),
+  )
+  let payload = notification->JsonRpc.Notification.toJson
+  onMessage->Option.forEach(cb => cb(Send, payload))
+  channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
+}
+
 let getMethod = (payload: JSON.t): option<string> => {
   payload
   ->JSON.Decode.object
