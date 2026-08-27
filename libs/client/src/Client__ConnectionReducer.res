@@ -114,9 +114,7 @@ type action =
       onComplete: result<ACPTypes.promptResult, string> => unit,
       _meta: option<JSON.t>,
     })
-  | CancelPrompt
-  | RetryTurn({retriedErrorId: string})
-  | UnqueueMessage({messageId: string})
+  | SendSessionCommand(ACP.sessionCommand)
   | LoadTask(loadTaskRequest)
   | DeleteSession({taskId: string, onComplete: result<unit, string> => unit})
   | ClearSession
@@ -146,9 +144,7 @@ type effect =
       onComplete: result<ACPTypes.promptResult, string> => unit,
       _meta: option<JSON.t>,
     })
-  | CancelPromptEffect({session: ACP.session})
-  | RetryTurnEffect({session: ACP.session, retriedErrorId: string})
-  | UnqueueMessageEffect({session: ACP.session, messageId: string})
+  | SendSessionCommandEffect({session: ACP.session, command: ACP.sessionCommand})
   | FetchSessionsEffect(ACP.connection)
   | LoadTaskEffect({connection: ACP.connection, mcpServer: MCPServer.t, request: loadTaskRequest})
   | DeleteSessionEffect({
@@ -413,24 +409,12 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       SendPrompt({text, additionalBlocks, onComplete, _meta}),
     ) => (state, [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})])
 
-  | ({session: SessionActive(session)}, CancelPrompt) => (
+  | ({session: SessionActive(session)}, SendSessionCommand(command)) => (
       state,
-      [CancelPromptEffect({session: session})],
+      [SendSessionCommandEffect({session, command})],
     )
 
-  | ({session: SessionActive(session)}, RetryTurn({retriedErrorId})) => (
-      state,
-      [RetryTurnEffect({session, retriedErrorId})],
-    )
-
-  | (_, RetryTurn(_)) => (state, [LogError("Cannot retry turn: no active session")])
-
-  | ({session: SessionActive(session)}, UnqueueMessage({messageId})) => (
-      state,
-      [UnqueueMessageEffect({session, messageId})],
-    )
-
-  | (_, UnqueueMessage(_)) => (state, [LogError("Cannot unqueue message: no active session")])
+  | (_, SendSessionCommand(_)) => (state, [LogError("Cannot send command: no active session")])
 
   | ({session: NoSession | SessionCreating(_) | SessionError(_)}, SendPrompt(_)) => (
       state,
@@ -497,11 +481,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (_, SessionCreateError(_)) => (state, [LogInfo("Stale session create result ignored")])
-
-  | ({session: NoSession | SessionCreating(_) | SessionError(_)}, CancelPrompt) => (
-      state,
-      [LogError("CancelPrompt rejected: no active session")],
-    )
   }
 }
 
@@ -679,11 +658,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       }
     }
     send()->ignore
-  | CancelPromptEffect({session}) => ACP.cancelPrompt(session)
-
-  | RetryTurnEffect({session, retriedErrorId}) => ACP.retryTurn(session, ~retriedErrorId)
-
-  | UnqueueMessageEffect({session, messageId}) => ACP.unqueueMessage(session, ~messageId)
+  | SendSessionCommandEffect({session, command}) => ACP.sendSessionCommand(session, command)
 
   | FetchSessionsEffect(conn) =>
     Client__State.Actions.sessionsLoadStarted()

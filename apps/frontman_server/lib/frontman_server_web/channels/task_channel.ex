@@ -97,7 +97,8 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, {:notification, "session/retry_turn", %{"retriedErrorId" => retried_error_id}}} ->
         handle_retry_turn(retried_error_id, socket)
 
-      {:ok, {:notification, "session/unqueue_message", %{"messageId" => message_id}}} ->
+      {:ok, {:notification, "session/unqueue_message", %{"messageId" => message_id}}}
+      when is_binary(message_id) ->
         handle_unqueue_message(message_id, socket)
 
       {:ok, {:notification, _method, _params}} ->
@@ -166,6 +167,11 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_turn_started(interaction, turn_started_id, turn_number, socket)
   end
 
+  def handle_info({:interaction, %{data: %Tasks.Interaction.UserMessage{}} = row}, socket) do
+    push_user_message_chunks(socket, socket.assigns.task_id, row)
+    {:noreply, socket}
+  end
+
   def handle_info({:interaction, %{data: interaction, turn_number: turn_number}}, socket) do
     handle_interaction(interaction, turn_number, socket)
   end
@@ -184,6 +190,16 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info({:task_title_changed, task_id, title}, socket) do
     push(socket, @acp_title_updated, %{"sessionId" => task_id, "title" => title})
+    {:noreply, socket}
+  end
+
+  def handle_info({:message_unqueued, message_id}, socket) do
+    push(
+      socket,
+      @acp_message,
+      ACP.build_message_unqueued_notification(socket.assigns.task_id, message_id)
+    )
+
     {:noreply, socket}
   end
 
@@ -614,7 +630,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
-             {:ok, row} <-
+             {:ok, _row} <-
                Tasks.submit_user_message(
                  scope,
                  %{
@@ -625,8 +641,6 @@ defmodule FrontmanServerWeb.TaskChannel do
                    agent_id: agent_id
                  }
                ) do
-          push_user_message_chunks(socket, task_id, row)
-
           wake_runner(socket, meta)
 
           Logger.info("User message accepted for task #{task_id}")

@@ -10,9 +10,7 @@ let _dummySendPrompt: Types.sendPromptFn = (
   ~onComplete as _,
   ~_meta as _,
 ) => ()
-let _dummyCancelPrompt: Types.cancelPromptFn = () => ()
-let _dummyRetryTurn: Types.retryTurnFn = _ => ()
-let _dummyUnqueueMessage: Types.unqueueMessageFn = _ => ()
+let _dummySendSessionCommand = _ => ()
 let _dummyLoadTask: Types.loadTaskFn = (_, ~needsHistory as _, ~onComplete as _) => ()
 let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 
@@ -24,9 +22,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     currentTask: Types.Task.New(Types.Task.makeNew(~previewUrl="http://localhost:3000")),
     acpSession: AcpSessionActive({
       sendPrompt: _dummySendPrompt,
-      cancelPrompt: _dummyCancelPrompt,
-      retryTurn: _dummyRetryTurn,
-      unqueueMessage: _dummyUnqueueMessage,
+      sendSessionCommand: _dummySendSessionCommand,
       loadTask: _dummyLoadTask,
       deleteSession: _dummyDeleteSession,
       apiBaseUrl: _apiBaseUrl,

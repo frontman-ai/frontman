@@ -126,21 +126,11 @@ module Actions = {
     Client__State__Store.dispatch(ExecutePendingPlan({id: id}))
   }
 
-  let setAcpSession = (
-    ~sendPrompt,
-    ~cancelPrompt,
-    ~retryTurn,
-    ~unqueueMessage,
-    ~loadTask,
-    ~deleteSession,
-    ~apiBaseUrl,
-  ) =>
+  let setAcpSession = (~sendPrompt, ~sendSessionCommand, ~loadTask, ~deleteSession, ~apiBaseUrl) =>
     Client__State__Store.dispatch(
       SetAcpSession({
         sendPrompt,
-        cancelPrompt,
-        retryTurn,
-        unqueueMessage,
+        sendSessionCommand,
         loadTask,
         deleteSession,
         apiBaseUrl,
@@ -187,6 +177,14 @@ module Actions = {
     )
 
   let unqueueMessage = (~taskId: string, ~messageId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: RequestUnqueueMessage({messageId: messageId}),
+      }),
+    )
+
+  let messageUnqueued = (~taskId: string, ~messageId: string) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: UnqueueMessage({messageId: messageId})}),
     )

@@ -42,9 +42,7 @@ type action =
   | UpdateTaskTitle({taskId: string, title: string})
   | SetAcpSession({
       sendPrompt: Client__State__Types.sendPromptFn,
-      cancelPrompt: Client__State__Types.cancelPromptFn,
-      retryTurn: Client__State__Types.retryTurnFn,
-      unqueueMessage: Client__State__Types.unqueueMessageFn,
+      sendSessionCommand: FrontmanAiFrontmanClient.FrontmanClient__ACP.sessionCommand => unit,
       loadTask: Client__State__Types.loadTaskFn,
       deleteSession: Client__State__Types.deleteSessionFn,
       apiBaseUrl: string,
@@ -735,17 +733,17 @@ let handleEffect = (effect, state: state, dispatch) => {
           )
         | NeedCancelPrompt =>
           switch state.acpSession {
-          | AcpSessionActive({cancelPrompt}) => cancelPrompt()
+          | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(Cancel)
           | NoAcpSession => Log.error("Cannot cancel prompt: no active ACP session")
           }
         | NeedUnqueueMessage({messageId}) =>
           switch state.acpSession {
-          | AcpSessionActive({unqueueMessage}) => unqueueMessage(messageId)
+          | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(Unqueue(messageId))
           | NoAcpSession => Log.error("Cannot unqueue message: no active ACP session")
           }
         | NeedRetryTurn({retriedErrorId}) =>
           switch state.acpSession {
-          | AcpSessionActive({retryTurn}) => retryTurn(retriedErrorId)
+          | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(Retry(retriedErrorId))
           | NoAcpSession => Log.error("Cannot retry turn: no active ACP session")
           }
         | NeedSyncBrowserUrl(url) =>
@@ -1255,22 +1253,12 @@ let next = (state: state, action) => {
     | None => state->StateReducer.update
     }
 
-  | SetAcpSession({
-      sendPrompt,
-      cancelPrompt,
-      retryTurn,
-      unqueueMessage,
-      loadTask,
-      deleteSession,
-      apiBaseUrl,
-    }) =>
+  | SetAcpSession({sendPrompt, sendSessionCommand, loadTask, deleteSession, apiBaseUrl}) =>
     {
       ...state,
       acpSession: AcpSessionActive({
         sendPrompt,
-        cancelPrompt,
-        retryTurn,
-        unqueueMessage,
+        sendSessionCommand,
         loadTask,
         deleteSession,
         apiBaseUrl,

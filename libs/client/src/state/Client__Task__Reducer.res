@@ -373,6 +373,7 @@ type action =
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
+  | RequestUnqueueMessage({messageId: string})
   | UnqueueMessage({messageId: string})
   | ClearTurnError
   | LoadStarted({previewUrl: string})
@@ -464,6 +465,7 @@ let actionToString = (action: action): string =>
   | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
+  | RequestUnqueueMessage(_) => "RequestUnqueueMessage"
   | UnqueueMessage(_) => "UnqueueMessage"
   | ClearTurnError => "ClearTurnError"
   | LoadStarted(_) => "LoadStarted"
@@ -1093,20 +1095,22 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loaded(data), UnqueueMessage({messageId})) =>
+  | (Task.Loaded(data), RequestUnqueueMessage({messageId})) =>
     switch data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId) {
+    | true => (task, [UnqueueMessageEffect({messageId: messageId})])
     | false => (task, [])
-    | true => (
-        Task.Loaded({
-          ...data,
-          queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
-            Message.getId(message) != messageId
-          ),
-          pendingUserMessageIds: data.pendingUserMessageIds->Array.filter(id => id != messageId),
-        }),
-        [UnqueueMessageEffect({messageId: messageId})],
-      )
     }
+
+  | (Task.Loaded(data), UnqueueMessage({messageId})) => (
+      Task.Loaded({
+        ...data,
+        queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
+          Message.getId(message) != messageId
+        ),
+        pendingUserMessageIds: data.pendingUserMessageIds->Array.filter(id => id != messageId),
+      }),
+      [],
+    )
 
   | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
       Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
@@ -1309,6 +1313,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | ClearTurnError
       | RetryingUpdate(_)
       | RetryTurn(_)
+      | RequestUnqueueMessage(_)
       | UnqueueMessage(_)
       | QuestionReceived(_)
       | QuestionStepChanged(_)

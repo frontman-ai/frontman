@@ -533,6 +533,7 @@ type sessionUpdate =
       content: FrontmanProtocol__ContentBlock.t,
       _meta: messageMetadata,
     })
+  | MessageUnqueued({messageId: string})
   | GenericAgentMessageChunk({
       messageId: option<string>,
       content: FrontmanProtocol__ContentBlock.t,
@@ -620,6 +621,10 @@ let commonSessionUpdateSchema = S.union([
     CurrentModeUpdate({
       currentModeId: s.field("currentModeId", S.string),
     })
+  }),
+  S.object(s => {
+    s.tag("sessionUpdate", "message_unqueued")
+    MessageUnqueued({messageId: s.field("messageId", nonEmptyStringSchema)})
   }),
   S.object(s => {
     s.tag("sessionUpdate", "state_update")

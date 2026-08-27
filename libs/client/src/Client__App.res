@@ -5,9 +5,7 @@ let make = (~apiBaseUrl: string) => {
   let {
     connectionState,
     sendPrompt,
-    cancelPrompt,
-    retryTurn,
-    unqueueMessage,
+    sendSessionCommand,
     loadTask,
     deleteSession,
     authRedirectUrl,
@@ -21,9 +19,7 @@ let make = (~apiBaseUrl: string) => {
     | Connected | SessionActive(_) =>
       Client__State.Actions.setAcpSession(
         ~sendPrompt,
-        ~cancelPrompt,
-        ~retryTurn,
-        ~unqueueMessage,
+        ~sendSessionCommand,
         ~loadTask,
         ~deleteSession,
         ~apiBaseUrl,
@@ -31,7 +27,7 @@ let make = (~apiBaseUrl: string) => {
     | LoggingOut | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
     }
     None
-  }, (connectionState, sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl))
+  }, (connectionState, sendPrompt, sendSessionCommand, loadTask, deleteSession, apiBaseUrl))
 
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 

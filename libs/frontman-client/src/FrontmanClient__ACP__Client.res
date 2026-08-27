@@ -194,6 +194,7 @@ let knownSessionUpdate = name =>
   switch name {
   | "agent_message_chunk"
   | "user_message_chunk"
+  | "message_unqueued"
   | "tool_call"
   | "tool_call_update"
   | "plan"

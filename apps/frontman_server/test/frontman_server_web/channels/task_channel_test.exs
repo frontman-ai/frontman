@@ -1770,6 +1770,69 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "session/unqueue_message" do
+    test "ignores malformed message ids", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/unqueue_message", nil, %{"messageId" => 123})
+      )
+
+      assert :sys.get_state(socket.channel_pid)
+    end
+
+    test "broadcasts accepted messages to every task subscriber", %{scope: scope} do
+      {_socket, task_id} = join_task_channel(scope)
+
+      {:ok, _reply, _second_socket} =
+        UserSocket
+        |> socket("second-user-socket", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      message_id = Ecto.UUID.generate()
+
+      {:ok, _row} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: message_id,
+          message: [%{"type" => "text", "text" => "queued"}],
+          model: @persisted_restart_model,
+          agent_id: "test-frontman"
+        })
+
+      for _subscriber <- 1..2 do
+        assert_push("acp:message", %{
+          "params" => %{
+            "sessionId" => ^task_id,
+            "update" => %{
+              "sessionUpdate" => "user_message_chunk",
+              "messageId" => ^message_id
+            }
+          }
+        })
+      end
+    end
+
+    test "pushes authoritative deletion updates", %{scope: scope} do
+      {socket, task_id} = join_task_channel(scope)
+      message_id = Ecto.UUID.generate()
+
+      send(socket.channel_pid, {:message_unqueued, message_id})
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "message_unqueued",
+            "messageId" => ^message_id
+          }
+        }
+      })
+    end
+  end
+
   describe "retry flow" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)

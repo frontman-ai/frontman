@@ -276,28 +276,37 @@ describe("Task - Agent Running State", () => {
     }
   })
 
-  test("unqueue removes the queued message and emits the unqueue effect", t => {
+  test("unqueue waits for acceptance and server confirmation", t => {
     let task = TestHelpers.makeLoadedTask()
-    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="One")
-    let task = TestHelpers.acceptUserMessage(task, ~id="queued-2", ~text="Two")
+    let (pending, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "One"})],
+        annotations: [],
+        agentId: "executor-id",
+      }),
+    )
+    let messageId = testUserMessageId->UserMessageId.toString
 
-    let (updated, effects) = TaskReducer.next(task, UnqueueMessage({messageId: "queued-1"}))
-
-    let queued = TestHelpers.getQueuedUserMessages(updated)
-    t->expect(queued->Array.length)->Expect.toBe(1)
-    switch queued->Array.get(0) {
-    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("queued-2")
-    | _ => t->expect("Remaining queued message")->Expect.toBe("missing")
-    }
+    let (requested, effects) = TaskReducer.next(
+      pending,
+      RequestUnqueueMessage({messageId: messageId}),
+    )
+    t->expect(TestHelpers.getQueuedUserMessages(requested)->Array.length)->Expect.toBe(1)
     switch effects->Array.get(0) {
     | Some(TaskReducer.UnqueueMessageEffect({messageId})) =>
-      t->expect(messageId)->Expect.toBe("queued-1")
+      t->expect(messageId)->Expect.toBe(testUserMessageId->UserMessageId.toString)
     | _ => t->expect("UnqueueMessageEffect")->Expect.toBe("missing")
     }
 
-    let (unchanged, noEffects) = TaskReducer.next(updated, UnqueueMessage({messageId: "queued-1"}))
-    t->expect(TestHelpers.getQueuedUserMessages(unchanged)->Array.length)->Expect.toBe(1)
-    t->expect(noEffects->Array.length)->Expect.toBe(0)
+    let accepted = TestHelpers.acceptUserMessage(requested, ~id=messageId, ~text="One")
+    let (confirmed, confirmationEffects) = TaskReducer.next(
+      accepted,
+      UnqueueMessage({messageId: messageId}),
+    )
+    t->expect(TestHelpers.getQueuedUserMessages(confirmed)->Array.length)->Expect.toBe(0)
+    t->expect(confirmationEffects->Array.length)->Expect.toBe(0)
   })
 
   test("question submit leaves queued user messages queued", t => {

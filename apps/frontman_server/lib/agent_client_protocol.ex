@@ -303,6 +303,14 @@ defmodule AgentClientProtocol do
     })
   end
 
+  @spec build_message_unqueued_notification(String.t(), String.t()) :: map()
+  def build_message_unqueued_notification(session_id, message_id) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "message_unqueued",
+      "messageId" => message_id
+    })
+  end
+
   defp message_metadata(agent_id, timestamp) do
     %{
       @agent_id_metadata_key => agent_id,

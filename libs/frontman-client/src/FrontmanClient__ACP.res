@@ -440,28 +440,24 @@ let sendPrompt = async (
   )
 }
 
-let cancelPrompt = (session: session): unit => {
-  Protocol.sendCancel(
-    ~channel=session.channel,
-    ~sessionId=session.sessionId,
-    ~onMessage=session.connection.onMessage,
-  )
-}
+type sessionCommand = Cancel | Retry(string) | Unqueue(string)
 
-let retryTurn = (session: session, ~retriedErrorId: string): unit => {
-  Protocol.sendRetryTurn(
+let sendSessionCommand = (session: session, command: sessionCommand): unit => {
+  let (method, fields) = switch command {
+  | Cancel => ("session/cancel", [])
+  | Retry(retriedErrorId) => (
+      "session/retry_turn",
+      [("retriedErrorId", JSON.Encode.string(retriedErrorId))],
+    )
+  | Unqueue(messageId) => (
+      "session/unqueue_message",
+      [("messageId", JSON.Encode.string(messageId))],
+    )
+  }
+  Protocol.sendNotification(
     ~channel=session.channel,
-    ~sessionId=session.sessionId,
-    ~retriedErrorId,
-    ~onMessage=session.connection.onMessage,
-  )
-}
-
-let unqueueMessage = (session: session, ~messageId: string): unit => {
-  Protocol.sendUnqueueMessage(
-    ~channel=session.channel,
-    ~sessionId=session.sessionId,
-    ~messageId,
+    ~method,
+    ~params=Array.concat([("sessionId", JSON.Encode.string(session.sessionId))], fields),
     ~onMessage=session.connection.onMessage,
   )
 }

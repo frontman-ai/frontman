@@ -162,7 +162,9 @@ defmodule FrontmanServer.TasksTest do
           agent_id: "test-frontman"
         })
 
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, "task:#{task.id}")
       assert Tasks.unqueue_user_message(scope, task.id, message_id) == :ok
+      assert_receive {:message_unqueued, ^message_id}
       assert db_rows(task.id) == []
     end
 

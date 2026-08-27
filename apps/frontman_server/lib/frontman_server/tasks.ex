@@ -457,29 +457,13 @@ defmodule FrontmanServer.Tasks do
              agent_id != "" do
     with {:ok, user_message_attrs} <-
            Interaction.UserMessage.attrs(content_blocks, model, agent_id),
-         {:ok, task_schema} <- get_task_by_id(scope, task_id),
-         first_message? <- accepted_user_message_count(task_id) == 0,
-         {:ok, accepted_row} <-
-           record_interaction_row(
-             task_schema,
-             %{
-               id: message_id,
-               type: :user_message,
-               data: Map.put(user_message_attrs, :id, message_id),
-               turn_number: nil
-             }
-           ) do
-      if first_message? do
-        GenerateTitle.new(%{
-          user_id: scope.user.id,
-          task_id: task_id,
-          user_prompt_text: Interaction.user_prompt_text(accepted_row.data),
-          model: model
-        })
-        |> Oban.insert!()
-      end
-
-      {:ok, accepted_row}
+         {:ok, task_schema} <- get_task_by_id(scope, task_id) do
+      record_interaction_row(task_schema, %{
+        id: message_id,
+        type: :user_message,
+        data: Map.put(user_message_attrs, :id, message_id),
+        turn_number: nil
+      })
     end
   end
 
@@ -513,15 +497,13 @@ defmodule FrontmanServer.Tasks do
       end
     end)
     |> case do
-      {:ok, _deleted} -> :ok
-      {:error, reason} -> {:error, reason}
-    end
-  end
+      {:ok, %InteractionSchema{id: deleted_id}} ->
+        broadcast_task(task_id, {:message_unqueued, deleted_id})
+        :ok
 
-  defp accepted_user_message_count(task_id) do
-    task_id
-    |> load_interaction_rows()
-    |> Enum.count(&(&1.type == :user_message))
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp start_next_turn(%Scope{} = scope, task_id) when is_binary(task_id) do
@@ -575,6 +557,7 @@ defmodule FrontmanServer.Tasks do
            },
            {:ok, turn_started_row} <-
              insert_turn_started(task_schema, turn_started_attrs, turn_number) do
+        enqueue_initial_title(scope, task_id, accepted_messages, turn_model, turn_number)
         {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}}
       else
         {:error, reason} -> {:error, reason}
@@ -585,6 +568,24 @@ defmodule FrontmanServer.Tasks do
       {_turn_number, _accepted_messages} -> {:error, :already_running}
     end
   end
+
+  defp enqueue_initial_title(
+         scope,
+         task_id,
+         [%InteractionSchema{data: first_message} | _],
+         model,
+         1
+       ) do
+    GenerateTitle.new(%{
+      user_id: scope.user.id,
+      task_id: task_id,
+      user_prompt_text: Interaction.user_prompt_text(first_message),
+      model: model
+    })
+    |> Oban.insert!()
+  end
+
+  defp enqueue_initial_title(_scope, _task_id, _accepted_messages, _model, _turn_number), do: :ok
 
   defp turn_model_for_accepted_messages(accepted_messages) do
     case List.last(accepted_messages) do
