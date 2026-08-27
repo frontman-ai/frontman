@@ -21,7 +21,25 @@ defmodule ModelContextProtocol.Schema do
   @call_tool_result @call_tool_result_path |> File.read!() |> Jason.decode!() |> JSV.build!()
 
   def validate_discover_result(result), do: validate(result, @discover_result)
-  def validate_tools_list_result(result), do: validate(result, @tools_list_result)
+
+  def validate_tools_list_result(result) do
+    with :ok <- validate(result, @tools_list_result),
+         %{"tools" => tools} <- result,
+         schemas =
+           Enum.flat_map(tools, fn tool ->
+             tool |> Map.take(["inputSchema", "outputSchema"]) |> Map.values()
+           end),
+         true <-
+           Enum.all?(
+             schemas,
+             &match?({:ok, _schema}, JSV.build(&1, atoms: false, warnings: :silent))
+           ) do
+      :ok
+    else
+      _error -> :error
+    end
+  end
+
   def validate_call_tool_result(result), do: validate(result, @call_tool_result)
 
   def validate_call_tool_result(%{"isError" => true} = result, output_schema)

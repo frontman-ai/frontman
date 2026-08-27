@@ -2,12 +2,20 @@
   "type": "object",
   "properties": {
     "jsonrpc": {
-      "type": "string"
+      "type": "string",
+      "const": "2.0"
     },
     "id": {
-      "type": "integer",
-      "minimum": -2147483648,
-      "maximum": 2147483647
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": -2147483648,
+          "maximum": 2147483647
+        },
+        {
+          "type": "string"
+        }
+      ]
     },
     "method": {
       "type": "string"

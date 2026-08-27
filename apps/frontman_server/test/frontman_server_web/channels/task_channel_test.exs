@@ -163,7 +163,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
     assert_receive {:EXIT, ^channel_pid, {%RuntimeError{message: message}, _stacktrace}}
 
-    assert message ==
+    assert message =~
              "#{reason} for task #{task_id}, tool testTool, call #{tool_call.tool_call_id}"
 
     {:ok, task} = Tasks.get_task(scope, task_id)
@@ -1102,7 +1102,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       mcp_result = %{
         "resultType" => "complete",
-        "content" => [%{"type" => "text", "text" => "Success"}],
+        "content" => [],
         "structuredContent" => %{"logged" => true},
         "_meta" => %{"envApiKey" => "sk-fake-valid-mcp-marker"}
       }
@@ -1115,6 +1115,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       refute log =~ "sk-fake-valid-mcp-marker"
       refute log =~ "envApiKey"
+      assert_receive {:tool_result, ^tool_call_id, [], false}
 
       assert_push("acp:message", %{
         "method" => "session/update",
@@ -1135,6 +1136,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "crashes loudly for malformed MCP tool results", context do
       assert_tool_result_crash(context, "invalid", "Invalid MCP tools/call result")
+    end
+
+    test "rejects invalid image data before persistence", context do
+      assert_tool_result_crash(
+        context,
+        [%{"type" => "image", "data" => "invalid", "mimeType" => "image/png"}],
+        "Failed to store MCP tools/call result"
+      )
     end
 
     test "ignores MCP responses with string IDs instead of crashing", %{socket: socket} do

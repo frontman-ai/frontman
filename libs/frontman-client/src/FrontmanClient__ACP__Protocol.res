@@ -19,7 +19,7 @@ let sendRequest = (
 ): promise<result<'a, string>> => {
   Promise.make((resolve, _) => {
     let id = state.contents.currentId + 1
-    let request = JsonRpc.Request.make(~id, ~method, ~params)
+    let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
 
     let pending: Client.pendingRequest = {
       resolve: json => {

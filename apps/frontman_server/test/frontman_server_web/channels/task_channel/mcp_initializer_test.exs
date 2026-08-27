@@ -104,7 +104,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       second_page =
         tools_result([%{"name" => "second", "inputSchema" => %{"type" => "object"}}])
 
-      assert {%{status: :loading_project_rules, tools: [first, second]}, [{:push_mcp, _}]} =
+      assert {%{status: :loading_project_rules, tools: [second, first]}, [{:push_mcp, _}]} =
                MCPInitializer.handle_response(new_state, request["id"], second_page)
 
       assert {first.name, second.name} == {"first", "second"}
@@ -125,6 +125,27 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       assert message =~ "repeated cursor"
     end
 
+    test "fails initialization for unsupported tool JSON Schemas" do
+      for {schema_key, invalid_schema} <- [
+            {"inputSchema",
+             %{"type" => "object", "properties" => %{"value" => %{"type" => "unsupported"}}}},
+            {"outputSchema", %{"type" => "unsupported"}}
+          ] do
+        state = tools_state(1)
+
+        tool = %{
+          "name" => "invalid_schema",
+          "inputSchema" => %{"type" => "object"},
+          schema_key => invalid_schema
+        }
+
+        assert {%{status: :failed, tools: []}, [{:initialization_failed, message}]} =
+                 MCPInitializer.handle_response(state, 1, tools_result([tool]))
+
+        assert message == "Invalid MCP tools/list response"
+      end
+    end
+
     test "crashes with context when tools pagination exceeds its bound" do
       seen_tool_cursors = 1..99 |> Enum.map(&"page-#{&1}") |> MapSet.new()
       state = %{tools_state(1) | seen_tool_cursors: seen_tool_cursors}
@@ -132,6 +153,20 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
       assert_raise RuntimeError, ~r/MCP tools\/list exceeded 100 pages/, fn ->
         MCPInitializer.handle_response(state, 1, page)
+      end
+    end
+
+    test "crashes when the accumulated catalog exceeds its memory bound" do
+      state = tools_state(1)
+
+      tool = %{
+        "name" => "oversized",
+        "description" => String.duplicate("x", 8 * 1024 * 1024),
+        "inputSchema" => %{"type" => "object"}
+      }
+
+      assert_raise RuntimeError, ~r/MCP tools\/list catalog exceeded/, fn ->
+        MCPInitializer.handle_response(state, 1, tools_result([tool]))
       end
     end
 

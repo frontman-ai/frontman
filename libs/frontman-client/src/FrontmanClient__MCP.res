@@ -55,7 +55,7 @@ let parseParams = (params, schema, missingMessage) =>
   }
 
 let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
-  let payload = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
+  let payload = JsonRpc.Response.makeSuccess(~id, ~result)->JsonRpc.Response.toJson
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
@@ -68,14 +68,14 @@ let sendError = (
   ~data: option<JSON.t>=?,
 ): unit => {
   let error = JsonRpc.RpcError.make(~code, ~message, ~data)
-  let payload = JsonRpc.Response.makeErrorPayloadWithId(~id, ~error)
+  let payload = JsonRpc.Response.makeError(~id, ~error)->JsonRpc.Response.toJson
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
 let sendErrorWithoutId = (handler: mcpHandler<'server>, code: int, message: string): unit => {
   let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
-  let payload = JsonRpc.Response.makeErrorPayloadWithoutId(~error)
+  let payload = JsonRpc.Response.makeErrorWithoutId(~error)->JsonRpc.Response.toJson
   handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }

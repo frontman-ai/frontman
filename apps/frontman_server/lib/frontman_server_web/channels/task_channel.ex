@@ -430,10 +430,8 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         resume_after_tool_result(executor_status, socket, scope, task_id)
 
-      {:error, _reason} ->
-        Logger.warning("Failed to store tool result")
-
-        socket
+      {:error, reason} ->
+        raise "Failed to store MCP tools/call result for task #{task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}: #{inspect(reason)}"
     end
   end
 

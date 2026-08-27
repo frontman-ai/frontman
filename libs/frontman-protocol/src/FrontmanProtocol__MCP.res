@@ -14,14 +14,23 @@ let ttlMsWireSchema =
   ->S.extendJSONSchema({minimum: 0., multipleOf: 1.})
 
 let jsonObjectShapeSchema = S.object(s => s.flatten(S.dict(S.json))->JSON.Encode.object)
+let extensionIdentifierPattern = /^[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\/(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$/
 let extensionsSchema =
   S.dict(S.json)
   ->S.refine(extensions =>
     extensions
-    ->Dict.valuesToArray
-    ->Array.every(value => value->JSON.Decode.object->Option.isSome)
-  , ~error="Expected extension settings to be objects")
-  ->S.extendJSONSchema(S.dict(jsonObjectShapeSchema)->S.toJSONSchema)
+    ->Dict.keysToArray
+    ->Array.every(key => extensionIdentifierPattern->RegExp.test(key)) &&
+      extensions
+      ->Dict.valuesToArray
+      ->Array.every(value => value->JSON.Decode.object->Option.isSome)
+  , ~error="Expected valid extension identifiers")
+  ->S.extendJSONSchema({
+    additionalProperties: JSONSchema.Schema(jsonObjectShapeSchema->S.toJSONSchema),
+    propertyNames: JSONSchema.Schema(
+      S.string->S.pattern(extensionIdentifierPattern)->S.toJSONSchema,
+    ),
+  })
 
 @schema
 type info = {

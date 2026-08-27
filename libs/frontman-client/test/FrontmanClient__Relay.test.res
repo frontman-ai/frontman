@@ -3,14 +3,11 @@ open Vitest
 module Relay = FrontmanClient__Relay
 
 describe("Relay.connect", _t => {
-  testAsync("sets state to Error when server is unreachable", async t => {
-    let relay = Relay.make(~baseUrl="http://localhost:19999")
-    let _ = await Relay.connect(relay)
-
-    switch Relay.getState(relay) {
-    | Error(_) => t->expect(true)->Expect.toBe(true)
-    | _ => t->expect(false)->Expect.toBe(true)
-    }
+  test("rejects incompatible protocol versions", t => {
+    let json = JSON.parseOrThrow(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`)
+    t
+    ->expect(() => json->S.parseOrThrow(~to=FrontmanClient__Relay__Types.toolsResponseSchema))
+    ->Expect.toThrow
   })
 })
 

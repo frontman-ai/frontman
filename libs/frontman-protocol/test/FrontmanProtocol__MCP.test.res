@@ -55,18 +55,26 @@ describe("MCP wire contracts", () => {
     t->expect(parses(MCP.discoverResultWireSchema, longLived))->Expect.toBe(true)
   })
 
-  test("requires extension settings to be objects", t => {
-    let valid = `{
-      "_meta":{
-        "io.modelcontextprotocol/protocolVersion":"2026-07-28",
-        "io.modelcontextprotocol/clientCapabilities":{
-          "extensions":{"ai.frontman/execution-context":{"version":1}}
-        }
-      }
-    }`
-    let invalid = valid->String.replace(`{"version":1}`, `true`)
+  test("requires valid extension identifiers and object settings", t => {
+    let valid = ["a/", "ai.frontman/execution-context", "com.example-1/name_1.part-2"]
+    let invalid = [
+      "execution-context",
+      "1.example/name",
+      "com.-example/name",
+      "com.example-/name",
+      "com.example/_name",
+      "com.example/name_",
+      "com.example/name/extra",
+    ]
 
-    t->expect(parses(MCP.discoverParamsSchema, valid))->Expect.toBe(true)
-    t->expect(parses(MCP.discoverParamsSchema, invalid))->Expect.toBe(false)
+    valid->Array.forEach(
+      key => t->expect(parses(MCP.extensionsSchema, `{"${key}":{}}`))->Expect.toBe(true),
+    )
+    invalid->Array.forEach(
+      key => t->expect(parses(MCP.extensionsSchema, `{"${key}":{}}`))->Expect.toBe(false),
+    )
+    t
+    ->expect(parses(MCP.extensionsSchema, `{"ai.frontman/execution-context":true}`))
+    ->Expect.toBe(false)
   })
 })

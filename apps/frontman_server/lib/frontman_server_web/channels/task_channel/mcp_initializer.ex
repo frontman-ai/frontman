@@ -18,6 +18,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   @execution_context_extension "ai.frontman/execution-context"
   @tool_metadata_extension "ai.frontman/tool-metadata"
   @tools_page_limit 100
+  @tools_size_limit 8 * 1024 * 1024
 
   def start(task_id, scope, framework) do
     request_id = System.unique_integer([:positive])
@@ -34,6 +35,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       project_rules_request_id: nil,
       project_structure_request_id: nil,
       seen_tool_cursors: MapSet.new(),
+      tools_size: 0,
       load_project_context: Frameworks.load_project_context?(framework),
       tools: []
     }
@@ -136,10 +138,16 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     case validate_tools_response(result) do
       {:ok, raw_tools, cursor} ->
         Logger.info("MCPInitializer: Received #{length(raw_tools)} tools from MCP server")
+        tools_size = state.tools_size + :erlang.external_size(raw_tools)
+
+        if tools_size > @tools_size_limit do
+          raise "MCP tools/list catalog exceeded #{@tools_size_limit} bytes for task #{state.task_id}"
+        end
 
         state = %{
           state
-          | tools: state.tools ++ MCPTools.from_maps(raw_tools),
+          | tools: Enum.reverse(MCPTools.from_maps(raw_tools), state.tools),
+            tools_size: tools_size,
             tools_request_id: nil
         }
 
@@ -327,7 +335,10 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   defp format_workspace_section(_other), do: ""
 
   defp complete_initialization(state) do
-    state = state |> clear_request_ids() |> Map.put(:status, :ready)
+    state =
+      state
+      |> clear_request_ids()
+      |> Map.merge(%{status: :ready, tools: Enum.reverse(state.tools)})
 
     {state, [{:initialization_complete, %{tools: state.tools}}]}
   end
