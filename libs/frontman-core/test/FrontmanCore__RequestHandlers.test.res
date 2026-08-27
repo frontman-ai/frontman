@@ -250,7 +250,7 @@ describe("RequestHandlers", _t => {
         t->expect(response.status)->Expect.toBe(200)
 
         let text = await response->WebAPI.Response.text
-        t->expect(text->String.includes("event: error"))->Expect.toBe(true)
+        t->expect(text->String.includes("event: result"))->Expect.toBe(true)
         t->expect(text->String.includes("Tool not found"))->Expect.toBe(true)
       },
     )

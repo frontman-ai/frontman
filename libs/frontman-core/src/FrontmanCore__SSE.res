@@ -18,14 +18,6 @@ let resultEvent = (result: MCP.CallToolResult.t): string => {
   formatEvent(~eventType="result", ~data)
 }
 
-let errorEvent = (result: MCP.CallToolResult.t): string => {
-  let data =
-    result
-    ->S.decodeOrThrow(~from=MCP.callToolResultSchema, ~to=S.json->S.noValidation(true))
-    ->JSON.stringify
-  formatEvent(~eventType="error", ~data)
-}
-
 let headers = () => {
   WebAPI.HeadersInit.fromDict(
     Dict.fromArray([

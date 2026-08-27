@@ -2,44 +2,24 @@ defmodule FrontmanServer.Protocols.McpContractTest do
   use ExUnit.Case, async: true
 
   alias FrontmanServer.ProtocolSchema
+  alias ModelContextProtocol, as: MCP
 
-  describe "ModelContextProtocol.initialize_params/0" do
-    test "validates against mcp/initializeParams schema" do
-      payload = ModelContextProtocol.initialize_params()
-      ProtocolSchema.validate!(payload, "mcp/initializeParams")
-    end
+  test "discovery and tools/list params satisfy the shared contract" do
+    ProtocolSchema.validate!(MCP.request_params(), "mcp/discoverParams")
+    ProtocolSchema.validate!(MCP.request_params(), "mcp/toolsListParams")
   end
 
-  describe "ModelContextProtocol.client_info/0" do
-    test "validates against mcp/info schema" do
-      payload = ModelContextProtocol.client_info()
-      ProtocolSchema.validate!(payload, "mcp/info")
-    end
-  end
+  test "tools/call params satisfy the shared contract" do
+    request =
+      MCP.build_tool_execution(%MCP.ToolCallParams{
+        request_id: 123,
+        tool_name: "read_file",
+        arguments: %{"path" => "/tmp/test.txt"},
+        task_id: "task-1",
+        call_id: "call-123"
+      })
 
-  describe "ModelContextProtocol.build_tool_execution/1" do
-    test "params field validates against mcp/toolCallParams schema" do
-      request =
-        ModelContextProtocol.build_tool_execution(%ModelContextProtocol.ToolCallParams{
-          request_id: 123,
-          tool_name: "read_file",
-          arguments: %{"path" => "/tmp/test.txt"},
-          call_id: "call-123"
-        })
-
-      ProtocolSchema.validate!(request["params"], "mcp/toolCallParams")
-    end
-
-    test "full request validates against jsonrpc/request schema" do
-      request =
-        ModelContextProtocol.build_tool_execution(%ModelContextProtocol.ToolCallParams{
-          request_id: 456,
-          tool_name: "search_files",
-          arguments: %{"query" => "test"},
-          call_id: "call-456"
-        })
-
-      ProtocolSchema.validate!(request, "jsonrpc/request")
-    end
+    ProtocolSchema.validate!(request["params"], "mcp/toolCallParams")
+    ProtocolSchema.validate!(request, "jsonrpc/request")
   end
 end

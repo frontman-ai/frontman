@@ -1,6 +1,10 @@
 {
   "type": "object",
   "properties": {
+    "resultType": {
+      "type": "string",
+      "const": "complete"
+    },
     "content": {
       "items": {
         "anyOf": [
@@ -172,10 +176,7 @@
       },
       "type": "array"
     },
-    "structuredContent": {
-      "type": "object",
-      "additionalProperties": true
-    },
+    "structuredContent": {},
     "isError": {
       "type": "boolean"
     },
@@ -185,6 +186,7 @@
     }
   },
   "required": [
+    "resultType",
     "content"
   ]
 }

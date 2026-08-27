@@ -83,13 +83,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         "name" => "read_mcp",
         "description" => "Read MCP tool",
         "inputSchema" => %{"type" => "object", "properties" => %{}},
-        "access" => "read"
+        "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => "read"}}
       },
       %{
         "name" => "write_mcp",
         "description" => "Write MCP tool",
         "inputSchema" => %{"type" => "object", "properties" => %{}},
-        "access" => "write"
+        "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => "write"}}
       },
       %{
         "name" => "read_write_mcp",
@@ -100,8 +100,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         "name" => "hidden_read_mcp",
         "description" => "Hidden read MCP tool",
         "inputSchema" => %{"type" => "object", "properties" => %{}},
-        "access" => "read",
-        "visibleToAgent" => false
+        "_meta" => %{
+          "ai.frontman/tool-metadata" => %{"access" => "read", "visibleToAgent" => false}
+        }
       }
     ])
   end
