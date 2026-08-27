@@ -1,6 +1,6 @@
 # Frontman Blog Writing Style
 
-This guide documents how blog posts in `src/content/blog/` are structured, optimized for search, and written. It reflects patterns across the current blog, not generic content-marketing advice.
+This guide documents how blog posts in `src/content/blog/` are structured, optimized for search, and written. The schema in `src/content.config.ts` and the tests in `src/content/blogMetadata.test.mjs` enforce the metadata rules.
 
 ## Editorial Model
 
@@ -38,12 +38,8 @@ title: 'Readable Human Title'
 description: 'Direct summary of the answer and scope.'
 pubDate: 2026-07-15T00:00:00Z
 image: '/blog/post-slug-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Specific description of this post cover'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 articleSection: 'Technical Explainer'
 tags: ['primary-topic', 'secondary-topic']
 ---
@@ -62,7 +58,15 @@ comparisonItems:
     url: 'https://example.com'
     description: 'What distinguishes this tool.'
 softwareApplication:
+  name: 'Application name'
+  url: 'https://example.com'
+  applicationCategory: 'DeveloperApplication'
+  operatingSystem: 'Web'
+  description: 'Direct description of the application.'
 video:
+  name: 'Video title'
+  description: 'Direct description of the video.'
+  youtubeId: 'youtube-video-id'
 ```
 
 Field behavior:
@@ -71,11 +75,26 @@ Field behavior:
 - `seoTitle`, when present, becomes document and social title. Layout appends `| Frontman`.
 - `description` becomes meta description, Open Graph description, Twitter description, RSS description, and schema description. Metadata rendering truncates it to 160 characters.
 - `updatedDate` appears visibly, populates article metadata, and controls sitemap freshness.
-- `author`, `authorRole`, and `authorUrl` are required and must identify one canonical human author. Use `Danni Friedland`, `Co-founder, Frontman`, and `/authors/danni-friedland/`, or `Itay Adler`, `Co-founder, Frontman`, and `/authors/itay-adler/`. These canonical URLs power visible bylines and `Person` author schema; do not invent alternate author URLs.
+- `author` is required and must be `Danni Friedland` or `Itay Adler`. The site gets the role and URL from `src/content/authors.ts`.
+- Do not add `authorRole` or `authorUrl` to post frontmatter. Metadata tests reject these fields.
 - `articleSection` is required and must be exactly one of: `Problem Diagnosis`, `Product Announcement`, `Tutorial`, `Comparison or Buyer Guide`, `Technical Explainer`, or `Operational Audit`.
 - `tags` are separate lowercase slug facets for topics, products, frameworks, and audiences. Their order does not define `articleSection`.
-- `imageAlt`, `imageWidth`, and `imageHeight` are required. Current cover assets are `1200x450`, so metadata must declare `1200` by `450`.
+- `imageAlt` is required and must describe the post-specific cover. Metadata tests require more than ten characters.
+- Do not add `imageWidth` or `imageHeight` to post frontmatter. The schema gets both values from `src/content/frontmanFacts.ts`.
 - `faq` emits `FAQPage` alongside `BlogPosting`; `comparisonItems` emits `ItemList` alongside `BlogPosting`; `video` emits `VideoObject`.
+- `softwareApplication` is accepted by the content schema, but the blog layout does not render or emit it as structured data.
+
+## Files, Routes, and Publication
+
+Keep each post directly in `src/content/blog/`. Use a lowercase, hyphenated filename such as `runtime-context-gap.md`.
+
+The filename becomes the URL. For example, `runtime-context-gap.md` becomes `/blog/runtime-context-gap/`.
+
+Do not put posts in nested directories. The content loader can find nested files, but metadata tests and sitemap date collection scan only the top-level directory.
+
+The blog has no `draft` field and no scheduled-publication filter. Every file in the collection builds as a public route. A future `pubDate` does not prevent publication.
+
+Posts use Markdown, not MDX. You cannot import Astro components into a post. Use Markdown features or raw HTML for body content.
 
 ## Post Structure
 
@@ -288,12 +307,15 @@ The `/vs/` layout emits `FAQPage` and `WebPage`; `WebPage.dateModified` comes fr
 
 ### Images
 
-Current cover generator outputs `1200x450`. Declare matching dimensions:
+Current cover generator outputs `1200x450`. Every cover file must have these dimensions because metadata tests inspect the asset.
 
-```yaml
-imageWidth: 1200
-imageHeight: 450
+Generate a cover from the repository root:
+
+```sh
+make -C apps/marketing blog-cover TITLE="Your Post Title" FILE=post-slug-cover
 ```
+
+Store the cover in `public/blog/`. Reference it as `/blog/post-slug-cover.png`.
 
 Always provide post-specific `imageAlt`. Do not rely on generic Frontman fallback.
 
@@ -382,13 +404,9 @@ Editorial work remains independent from product and vendor interests. A named hu
 
 Some older posts use H3 immediately after page H1. New posts should use H2 for primary sections and H3 only as child sections.
 
-### Incorrect Social Image Dimensions
-
-SEO component defaults to `1200x630`, while generated covers are `1200x450`. Always set explicit `imageWidth` and `imageHeight` until generator or default changes.
-
 ### Generic Image Alt Text
 
-Posts without `imageAlt` receive brand-level fallback unrelated to post topic. Always write specific alt text.
+The schema requires `imageAlt`, and metadata tests require more than ten characters. Always write specific alt text.
 
 ### Repeated Product Narrative
 
@@ -404,11 +422,7 @@ pubDate: 2026-07-15T00:00:00Z
 updatedDate: 2026-07-15T00:00:00Z
 description: 'Direct answer and concrete scope, written for search snippets.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
-authorUrl: '/authors/danni-friedland/'
 image: '/blog/post-slug-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Specific description of this post cover'
 articleSection: 'Technical Explainer'
 tags: ['primary-topic', 'secondary-topic']
@@ -443,3 +457,14 @@ One specific CTA plus one or two contextually related internal links.
 ```
 
 Core rule: one post, one search intent, one distinct role. Answer early, prove claims concretely, disclose bias, include limitations, and route readers to sibling content instead of repeating it.
+
+## Publication Checks
+
+Run these commands from the repository root before publication:
+
+```sh
+make -C apps/marketing test
+make -C apps/marketing build
+```
+
+The tests check canonical authors, article sections, forbidden metadata fields, cover dimensions, and image alt text. The build checks Astro content schemas and internal links.
