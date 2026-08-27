@@ -39,7 +39,7 @@ defmodule FrontmanServer.Providers.CustomProvider do
   Does not accept user_id - it must be set explicitly via the struct to prevent
   unauthorized user_id injection from untrusted input.
   """
-  def changeset(provider, attrs) do
+  def changeset(%__MODULE__{} = provider, attrs) do
     provider
     |> cast(attrs, [:name, :base_url, :api_key])
     |> validate_required([:name, :base_url])

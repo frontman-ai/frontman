@@ -28,7 +28,7 @@ defmodule FrontmanServer.Providers.CustomProviderModel do
   @doc """
   Changeset for adding a model to a provider.
   """
-  def changeset(model, attrs) do
+  def changeset(%__MODULE__{} = model, attrs) do
     model
     |> cast(attrs, [:model_id])
     |> validate_required([:model_id])
