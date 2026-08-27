@@ -409,16 +409,22 @@ let make = (
   }
 
   let hasSubmittableContent = hasContent || hasAnnotations
-  let isInputDisabled = !hasActiveACPSession || disabled || noModelsConfigured
+  let noModelSelected = selectedModelValue->Option.isNone
+  let isInputDisabled = !hasActiveACPSession || disabled || noModelsConfigured || noModelSelected
   let isSubmitDisabled = isInputDisabled || !hasSubmittableContent || isEnrichingAnnotations
   let showStopButton = isAgentRunning && !hasSubmittableContent
 
-  let currentPlaceholder = if noModelsConfigured {
-    "Connect an AI provider to start chatting."
-  } else if disabled {
-    disabledPlaceholder->Option.getOr("Input disabled")
-  } else {
-    placeholder
+  let currentPlaceholder = switch (
+    noModelsConfigured,
+    disabled,
+    isModelsConfigLoading,
+    noModelSelected,
+  ) {
+  | (true, _, _, _) => "Connect an AI provider to start chatting."
+  | (_, true, _, _) => disabledPlaceholder->Option.getOr("Input disabled")
+  | (_, _, true, _) => "Loading models..."
+  | (_, _, _, true) => "Select a model to start chatting."
+  | _ => placeholder
   }
 
   <div

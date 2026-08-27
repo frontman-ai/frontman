@@ -1121,36 +1121,42 @@ let next = (state: state, action) => {
     }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
-  | AddUserMessage({id, sessionId, content, annotations, agentId}) => {
-      let textContent = TaskReducer.extractTextFromUserContent(content)
+  | AddUserMessage({id, sessionId, content, annotations, agentId}) =>
+    switch state.selectedModelValue {
+    | None => state->StateReducer.update
+    | Some(_) => {
+        let textContent = TaskReducer.extractTextFromUserContent(content)
 
-      switch state.currentTask {
-      | Task.New(newTask) =>
-        let loadedTask = Task.newToLoaded(newTask, ~id=sessionId, ~title=textContent)
-        let updatedTasks = state.tasks->Dict.copy
-        updatedTasks->Dict.set(sessionId, loadedTask)
-        let promotedState = {
-          ...state,
-          tasks: updatedTasks,
-          currentTask: Task.Selected(sessionId),
-        }
-        promotedState->Lens.delegateToTask(
-          ForTask(sessionId),
-          TaskReducer.AddUserMessage({id, content, annotations, agentId}),
-        )
-      | Task.Selected(taskId) =>
-        let pendingPlanHandoff = Selectors.pendingPlanHandoff(state)
-        let (updatedState, sendEffects) =
-          state->Lens.delegateToTask(
-            ForTask(taskId),
+        switch state.currentTask {
+        | Task.New(newTask) =>
+          let loadedTask = Task.newToLoaded(newTask, ~id=sessionId, ~title=textContent)
+          let updatedTasks = state.tasks->Dict.copy
+          updatedTasks->Dict.set(sessionId, loadedTask)
+          let promotedState = {
+            ...state,
+            tasks: updatedTasks,
+            currentTask: Task.Selected(sessionId),
+          }
+          promotedState->Lens.delegateToTask(
+            ForTask(sessionId),
             TaskReducer.AddUserMessage({id, content, annotations, agentId}),
           )
-        switch pendingPlanHandoff {
-        | Some(_) =>
-          let (runningState, runningEffects) =
-            updatedState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
-          runningState->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
-        | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
+        | Task.Selected(taskId) =>
+          let pendingPlanHandoff = Selectors.pendingPlanHandoff(state)
+          let (updatedState, sendEffects) =
+            state->Lens.delegateToTask(
+              ForTask(taskId),
+              TaskReducer.AddUserMessage({id, content, annotations, agentId}),
+            )
+          switch pendingPlanHandoff {
+          | Some(_) =>
+            let (runningState, runningEffects) =
+              updatedState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
+            runningState->StateReducer.update(
+              ~sideEffects=Array.concat(sendEffects, runningEffects),
+            )
+          | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
+          }
         }
       }
     }
@@ -1162,8 +1168,8 @@ let next = (state: state, action) => {
     }
 
   | ExecutePendingPlan({id}) =>
-    switch Selectors.pendingPlanHandoff(state) {
-    | Some({taskId, executorAgentId}) =>
+    switch (state.selectedModelValue, Selectors.pendingPlanHandoff(state)) {
+    | (Some(_), Some({taskId, executorAgentId})) =>
       let (messageState, sendEffects) = state->Lens.delegateToTask(
         ForTask(taskId),
         TaskReducer.AddUserMessage({
