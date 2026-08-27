@@ -1,7 +1,7 @@
 {
 	"name": "@frontman-ai/frontman-core",
 	"private": true,
-	"version": "1.0.4",
+	"version": "1.1.0",
 	"description": "Core server-side tools for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -33,7 +33,7 @@
 		"build": "rescript build"
 	},
 	"dependencies": {
-		"@frontman-ai/frontman-protocol": "2.0.0",
+		"@frontman-ai/frontman-protocol": "3.0.0",
 		"@frontman/bindings": "0.3.1",
 		"@rescript/runtime": "catalog:",
 		"chrome-launcher": "^1.1.2",
