@@ -25,6 +25,7 @@ defmodule FrontmanServer do
     Vault,
     Image,
     CurrentPageContext,
+    PublicURL,
     Mailer,
     Release,
     Encrypted.Binary,
