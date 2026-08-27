@@ -18,7 +18,7 @@ let fixture = name => Path.join([fixturesPath, name])
 
 let nextVersionForFixture = (fixtureName: string): option<string> => {
   if fixtureName->String.startsWith("nextjs15") {
-    Some("15.0.0")
+    Some("15.5.0")
   } else if fixtureName->String.startsWith("nextjs16") {
     Some("16.0.0")
   } else {
@@ -124,7 +124,7 @@ describe("Project Detection", _t => {
         switch result {
         | Ok(info) =>
           t->expect(info.nextVersion.major)->Expect.toBe(15)
-          t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
+          t->expect(info.nextVersion.raw)->Expect.toBe("15.5.0")
         | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
       },
@@ -154,7 +154,7 @@ describe("Project Detection", _t => {
         switch result {
         | Ok(info) =>
           t->expect(info.nextVersion.major)->Expect.toBe(15)
-          t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
+          t->expect(info.nextVersion.raw)->Expect.toBe("15.5.0")
         | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
       },
@@ -269,8 +269,8 @@ describe("Project Detection", _t => {
         switch result {
         | Ok(version) =>
           t->expect(version.major)->Expect.toBe(15)
-          t->expect(version.minor)->Expect.toBe(0)
-          t->expect(version.raw)->Expect.toBe("15.0.0")
+          t->expect(version.minor)->Expect.toBe(5)
+          t->expect(version.raw)->Expect.toBe("15.5.0")
         | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
       },
@@ -909,6 +909,79 @@ describe("Dry Run Mode", _t => {
     let instrumentationExists = await tempFileExists(tempDir, "instrumentation.ts")
     t->expect(instrumentationExists)->Expect.toBe(false)
 
+    await cleanupTempFixture(tempDir)
+  })
+})
+
+describe("Unsupported Next.js Versions", _t => {
+  testAsync("rejects Next.js 15.4 with --skip-deps before generating files", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    await setupMockNextVersion(tempDir, "15.4.0")
+
+    let result = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    switch result {
+    | Install.Failure(message) =>
+      t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
+    | _ => t->expect("install")->Expect.toBe("reject unsupported Next.js")
+    }
+    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
+    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("rejects Next.js 15.4 before installing dependencies", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    await setupMockNextVersion(tempDir, "15.4.0")
+    let failingExec = async (_command, _options): result<
+      ChildProcess.execResult,
+      ChildProcess.execError,
+    > => Error({code: None, stdout: "", stderr: "dependencies ran", message: "dependencies ran"})
+
+    let result = await Install.run(
+      {
+        server: "test.frontman.dev",
+        prefix: Some(tempDir),
+        dryRun: false,
+        skipDeps: false,
+      },
+      ~exec=failingExec,
+    )
+
+    switch result {
+    | Install.Failure(message) =>
+      t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
+      t->expect(message->String.includes("dependencies ran"))->Expect.toBe(false)
+    | _ => t->expect("install")->Expect.toBe("reject unsupported Next.js")
+    }
+    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
+    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("rejects Next.js 15.4 during --dry-run", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    await setupMockNextVersion(tempDir, "15.4.0")
+
+    let result = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: true,
+      skipDeps: false,
+    })
+
+    switch result {
+    | Install.Failure(message) =>
+      t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
+    | _ => t->expect("install")->Expect.toBe("reject unsupported Next.js")
+    }
+    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
+    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
     await cleanupTempFixture(tempDir)
   })
 })

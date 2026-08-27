@@ -45,7 +45,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
         [{:ok, canonical, :no_executor}, {:ok, canonical, :no_executor}] = results
 
-        Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, "call_dedup"}, %{
+        Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, "call_dedup"}, %{
           caller_pid: self()
         })
 

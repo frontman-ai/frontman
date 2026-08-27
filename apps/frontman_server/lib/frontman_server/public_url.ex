@@ -13,18 +13,18 @@ defmodule FrontmanServer.PublicURL do
 
   @spec validate(String.t()) :: :ok | {:error, String.t()}
   def validate(url) when is_binary(url) do
-    case resolve(url) do
-      {:ok, _resolved} -> :ok
-      {:error, message} -> {:error, message}
-    end
+    with {:ok, _resolved} <- resolve(url), do: :ok
   end
 
   @doc false
+  @spec attach(Req.Request.t()) :: Req.Request.t()
   def attach(request) do
     Req.Request.append_request_steps(request, public_url: &protect_req/1)
   end
 
   @doc false
+  @spec protect_req(Req.Request.t()) ::
+          Req.Request.t() | {Req.Request.t(), Exception.t()}
   def protect_req(%Req.Request{adapter: Req.Plug} = request), do: request
 
   def protect_req(%Req.Request{} = request) do
@@ -41,6 +41,7 @@ defmodule FrontmanServer.PublicURL do
   end
 
   @doc false
+  @spec protect_finch(Finch.Request.t(), atom()) :: Finch.Request.t()
   def protect_finch(%Finch.Request{} = request, finch_name) do
     url = %URI{scheme: Atom.to_string(request.scheme), host: request.host, port: request.port}
 

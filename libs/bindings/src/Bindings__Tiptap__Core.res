@@ -3,12 +3,12 @@ type extension
 type nodeExtension = extension
 type nodeConstructor
 type chain
-type selection = {from: int, to_: int}
+type selection = {from: int, @as("to") to_: int}
 type proseMirrorNodeType
 type proseMirrorNode
 type editorState = {selection: selection, doc: proseMirrorNode}
 
-type insertRange = {from: int, to_: int}
+type insertRange = {from: int, @as("to") to_: int}
 type htmlAttributes
 type htmlRenderContext = {"HTMLAttributes": htmlAttributes}
 type attributeSpec = {default: string}

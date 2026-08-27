@@ -1,6 +1,7 @@
 export const articleSections = [
 	'Problem Diagnosis',
 	'Product Announcement',
+	'Case Study',
 	'Tutorial',
 	'Comparison or Buyer Guide',
 	'Technical Explainer',

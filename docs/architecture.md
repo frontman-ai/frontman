@@ -68,12 +68,12 @@ Client                          Server                          LLM Provider
 **Sequence:**
 1. `TaskChannel.handle_in("acp:message")` receives prompt
 2. `Providers.resolve_model_access/3` resolves provider auth and ReqLLM arguments
-3. `Execution.run` builds a root agent run from prompt, model config, and tools
+3. `Execution.start` starts agent execution with the prompt, model configuration, and tools
 4. `SwarmAi.run(runtime, agent)` starts supervised execution
 5. SwarmAi calls LLM via `ReqLLM` (custom Req wrapper), receives response
 6. `ToolExecutor.make` routes tool calls:
    - Backend tools → `ToolExecution.Sync`: executed in supervised tasks (todo list, web_fetch)
-   - MCP tools → `ToolExecution.Await`: registered in `ToolCallRegistry`, published to client via channel, executor blocks until Registry receives result
+   - MCP tools → `ToolExecution.Await`: registered in `ProcessRegistry`, published to client via channel, executor blocks until Registry receives result
 7. `SwarmDispatcher` persists each interaction to PostgreSQL, then broadcasts via PubSub
 8. Channel pushes events to client for UI rendering
 9. Loop repeats until LLM returns `turn_complete`
@@ -109,7 +109,7 @@ Application
 ├── DNSCluster
 ├── Phoenix.PubSub (FrontmanServer.PubSub)
 ├── SwarmAi (named: FrontmanServer.AgentRuntime)
-├── Registry (FrontmanServer.ToolCallRegistry)
+├── Registry (FrontmanServer.ProcessRegistry)
 ├── Oban (background jobs)
 └── Endpoint (HTTP/WebSocket)
 ```
@@ -119,8 +119,7 @@ Application
 | Context | Modules | Responsibility |
 |---------|---------|---------------|
 | Accounts | User, UserToken, UserIdentity | Registration, session tokens, OAuth (WorkOS for GitHub/Google), email verification |
-| Tasks | Task, Interaction | CRUD for conversation sessions, interaction storage (JSONB), PubSub topics |
-| Execution | Execution, SwarmDispatcher, ToolExecutor | Agent run orchestration, prompt building, tool routing, result notification |
+| Tasks | Task, Interaction, Execution, ToolExecutor | Conversation tasks, timeline storage, execution, tool routing, PubSub topics |
 | Providers | ApiKey, OauthToken, ModelCatalog | Key resolution hierarchy, OAuth token management, model catalog |
 | Tools | Backend, ToolExecutor | Tool registry, backend implementations (TodoList/Add/Update/Remove), MCP aggregation |
 | Organizations | Organization, Membership | Team workspaces, membership roles |
@@ -141,9 +140,9 @@ Application
 
 Encrypted fields: `api_keys.key`, `oauth_tokens.access_token` — use `FrontmanServer.Encrypted.Binary` (Cloak vault).
 
-### Interaction Domain Model
+### Task Timeline
 
-Interactions are typed domain events persisted as JSONB:
+Interactions are typed timeline records persisted as JSONB:
 
 | Type | Purpose |
 |------|---------|
@@ -337,7 +336,7 @@ Session update types: `UserMessageChunk`, `AssistantMessageStart`, `ToolCallStar
 Three published npm packages inject Frontman into dev servers:
 
 - **@frontman-ai/astro** (`libs/frontman-astro`) — Astro integration hook + Vite middleware, dev toolbar app, serves Frontman UI at `/<basePath>/`, captures Astro 5/6 `data-astro-source-*` annotations, injects Astro 7 `data-frontman-source-*` annotations, maps Sätteri and unified Markdown output to source files, and injects component props as HTML comments
-- **@frontman-ai/nextjs** (`libs/frontman-nextjs`) — Middleware (Next.js 15) or proxy (Next.js 16+), serves Frontman UI at `/frontman`, OpenTelemetry instrumentation (tracks HTTP requests, route rendering, API execution), LogCapture (auto-patches console.log, process.stdout.write, error handlers — circular buffer of 1024 entries via `globalThis`)
+- **@frontman-ai/nextjs** (`libs/frontman-nextjs`) — Middleware (Next.js 15.x, 15.5 minimum) or proxy (Next.js 16.x), serves Frontman UI at `/frontman`, OpenTelemetry instrumentation (tracks HTTP requests, route rendering, API execution), LogCapture (auto-patches console.log, process.stdout.write, error handlers — circular buffer of 1024 entries via `globalThis`)
 - **@frontman-ai/vite** (`libs/frontman-vite`) — Vite middleware plugin, auto-detects framework from vite.config (React, Vue, Svelte), adapts Web API to Vite's Node.js request/response
 
 All three packages inject the Frontman client UI into dev servers, establish WebSocket connection to the Frontman backend, and handle MCP tool relay (routing file operations from the agent through the browser to the local filesystem).

@@ -16,12 +16,12 @@ If you want the end-to-end execution model behind that split, read [How the Agen
 
 ## Compatibility summary
 
-| Platform        | Package / integration     | Status    | Minimum versions                       | What Frontman can access                                                                 |
-| --------------- | ------------------------- | --------- | -------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Next.js         | `@frontman-ai/nextjs`     | Supported | Next.js 13.2+, Node.js 18+             | Files, route manifest, dev logs, optional OpenTelemetry spans                            |
-| Astro           | `@frontman-ai/astro`      | Supported | Astro 5.x, 6.x, or 7.x; Node.js 22.19+ | Files, resolved routes, dev logs, Astro and Frontman source annotations                  |
-| Vite-based apps | `@frontman-ai/vite`       | Supported | Vite 5.0+, Node.js 18+                 | Files, dev logs, framework-aware client context                                          |
-| WordPress       | Frontman WordPress plugin | Beta      | WordPress 6.0+, PHP 7.4+               | Site content, Elementor, templates, widgets, menus, and settings through WordPress tools |
+| Platform        | Package / integration     | Status    | Minimum versions                                   | What Frontman can access                                                                 |
+| --------------- | ------------------------- | --------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Next.js         | `@frontman-ai/nextjs`     | Supported | Next.js 15.x (15.5 minimum) or 16.x; Node.js 18+   | Files, route manifest, dev logs, optional OpenTelemetry spans                            |
+| Astro           | `@frontman-ai/astro`      | Supported | Astro 5.x, 6.x, or 7.x; Node.js 22.19+             | Files, resolved routes, dev logs, Astro and Frontman source annotations                  |
+| Vite-based apps | `@frontman-ai/vite`       | Supported | Vite 5.0+, Node.js 18+                             | Files, dev logs, framework-aware client context                                          |
+| WordPress       | Frontman WordPress plugin | Beta      | WordPress 6.0+, PHP 7.4+                           | Site content, Elementor, templates, widgets, menus, and settings through WordPress tools |
 
 ## How compatibility works
 
@@ -43,7 +43,7 @@ For the full request/tool flow, see [Architecture Overview](/docs/reference/arch
 
 **Supported versions**
 
-- Next.js 13.2 or later
+- Next.js 15.x (15.5 minimum) or 16.x
 - Node.js 18 or later
 
 **What the integration provides**
@@ -57,7 +57,7 @@ See [Tool Capabilities](/docs/using/tool-capabilities/) for the shared file, log
 
 **Notes**
 
-- The [generated middleware/proxy](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res) contains no automatic development-only guard. Next.js 15 and earlier use generated middleware with `runtime: 'nodejs'`; Next.js 16 and later use proxy without a runtime declaration, matching Next.js proxy runtime requirements.
+- The [generated middleware/proxy](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res) contains no automatic development-only guard. Next.js 15.x uses generated middleware with `runtime: 'nodejs'`; Next.js 16.x uses proxy without a runtime declaration, matching Next.js proxy runtime requirements.
 - If that entrypoint remains in the application, its Frontman route matcher can be included in production builds. Add an explicit environment guard or remove it when deployed Frontman access is not intended, and verify the production build and route behavior.
 - App Router and Pages Router can coexist in the same project.
 - The integration works with both Webpack and Turbopack because it hooks at the Next.js request-entrypoint layer, not the bundler layer.

@@ -199,7 +199,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp register_mcp_tool(tool_call) do
-    Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call.id}, %{
+    Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, tool_call.id}, %{
       caller_pid: self()
     })
   end

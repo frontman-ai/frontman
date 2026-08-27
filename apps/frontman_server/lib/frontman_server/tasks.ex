@@ -6,13 +6,10 @@
 
 defmodule FrontmanServer.Tasks do
   @moduledoc """
-  Public API for task management.
+  Public API for tasks.
 
-  Tasks are containers for interactions in a conversation with agents.
-  Each task represents a conversation thread with an AI agent.
-
-  This context provides the boundary for all task-related operations,
-  delegating to the domain layer and infrastructure as appropriate.
+  A task is a durable conversation between a user and one or more agents.
+  It owns user messages, turn history, project context, and execution state.
   """
 
   @exports [
@@ -29,8 +26,6 @@ defmodule FrontmanServer.Tasks do
     Interaction.AgentRetry,
     Interaction.ToolCall,
     Interaction.ToolResult,
-    Interaction.DiscoveredProjectRule,
-    Interaction.DiscoveredProjectStructure,
     RetryCoordinator,
     Todos.Todo
   ]
@@ -301,7 +296,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, :completed) do
-    persist_agent_run_result(scope, task_id, turn_number, :completed)
+    persist_execution_outcome(scope, task_id, turn_number, :completed)
   end
 
   defp persist_swarm_event(
@@ -313,7 +308,7 @@ defmodule FrontmanServer.Tasks do
     {reason_str, category, retryable} = ErrorClassifier.classify_error(reason)
 
     with :ok <-
-           persist_agent_run_result(
+           persist_execution_outcome(
              scope,
              task_id,
              turn_number,
@@ -335,11 +330,11 @@ defmodule FrontmanServer.Tasks do
       extra: %{task_id: task_id, reason: inspect(message)}
     )
 
-    persist_agent_run_result(scope, task_id, turn_number, {:crashed, message})
+    persist_execution_outcome(scope, task_id, turn_number, {:crashed, message})
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:cancelled, _}) do
-    persist_agent_run_result(scope, task_id, turn_number, :cancelled)
+    persist_execution_outcome(scope, task_id, turn_number, :cancelled)
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:terminated, _}) do
@@ -362,7 +357,7 @@ defmodule FrontmanServer.Tasks do
 
     case interactive_tool_calls do
       [] ->
-        persist_agent_run_result(scope, task_id, turn_number, :terminated)
+        persist_execution_outcome(scope, task_id, turn_number, :terminated)
 
       [_ | _] ->
         :ok
@@ -385,7 +380,7 @@ defmodule FrontmanServer.Tasks do
       turn_number: turn_number
     )
 
-    persist_agent_run_result(
+    persist_execution_outcome(
       scope,
       task_id,
       turn_number,
@@ -396,8 +391,8 @@ defmodule FrontmanServer.Tasks do
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:chunk, _, _}), do: :ok
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:tool_call, _}), do: :ok
 
-  defp persist_agent_run_result(scope, task_id, turn_number, outcome) do
-    with {:ok, _interaction} <- record_agent_run_result(scope, task_id, turn_number, outcome) do
+  defp persist_execution_outcome(scope, task_id, turn_number, outcome) do
+    with {:ok, _interaction} <- record_execution_outcome(scope, task_id, turn_number, outcome) do
       :ok
     end
   end
@@ -441,7 +436,7 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Accepts a user prompt into session history.
 
-  Starting execution is handled separately by `run_next_turn/3`.
+  Starting execution is handled separately by `execute_next_turn/3`.
   """
   def submit_user_message(
         %Scope{} = scope,
@@ -529,30 +524,26 @@ defmodule FrontmanServer.Tasks do
 
     with {:ok, history} <- History.new(rows),
          {nil, [_ | _] = accepted_messages} <-
-           {History.active_run_turn_number(history), History.pending_accepted_messages(history)} do
-      turn_number = History.next_turn_number(history)
-      default_agent_id = Agents.default_agent_id(scope)
-      agent_id = accepted_message_agent_id(List.first(accepted_messages), default_agent_id)
-
-      accepted_messages =
-        Enum.take_while(accepted_messages, fn row ->
-          accepted_message_agent_id(row, default_agent_id) == agent_id
-        end)
-
-      user_message_ids = Enum.map(accepted_messages, & &1.id)
-
-      with {:ok, turn_model} <- turn_model_for_accepted_messages(accepted_messages),
-           {:ok, agent} <- Agents.get_agent(scope, agent_id),
-           turn_started_attrs = %{
-             agent_id: agent.id,
-             user_message_ids: user_message_ids
-           },
-           {:ok, turn_started_row} <-
-             insert_turn_started(task_schema, turn_started_attrs, turn_number) do
-        {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}}
-      else
-        {:error, reason} -> {:error, reason}
-      end
+           {History.active_turn_number(history), History.pending_accepted_messages(history)},
+         turn_number = History.next_turn_number(history),
+         default_agent_id = Agents.default_agent_id(scope),
+         first_accepted_message = List.first(accepted_messages),
+         agent_id = accepted_message_agent_id(first_accepted_message, default_agent_id),
+         {:ok, turn_model} <- accepted_message_model(first_accepted_message),
+         accepted_messages =
+           Enum.take_while(accepted_messages, fn row ->
+             accepted_message_agent_id(row, default_agent_id) == agent_id and
+               accepted_message_model(row) == {:ok, turn_model}
+           end),
+         user_message_ids = Enum.map(accepted_messages, & &1.id),
+         {:ok, agent} <- Agents.get_agent(scope, agent_id),
+         turn_started_attrs = %{
+           agent_id: agent.id,
+           user_message_ids: user_message_ids
+         },
+         {:ok, turn_started_row} <-
+           insert_turn_started(task_schema, turn_started_attrs, turn_number) do
+      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}}
     else
       {:error, reason} -> {:error, reason}
       {nil, []} -> {:error, :no_accepted_messages}
@@ -560,16 +551,11 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp turn_model_for_accepted_messages(accepted_messages) do
-    case List.last(accepted_messages) do
-      %InteractionSchema{data: %Interaction.UserMessage{model: model}}
-      when is_binary(model) and model != "" ->
-        {:ok, model}
+  defp accepted_message_model(%InteractionSchema{data: %Interaction.UserMessage{model: model}})
+       when is_binary(model) and model != "",
+       do: {:ok, model}
 
-      _missing ->
-        {:error, :missing_model}
-    end
-  end
+  defp accepted_message_model(_missing), do: {:error, :missing_model}
 
   defp accepted_message_agent_id(
          %InteractionSchema{data: %Interaction.UserMessage{agent_id: agent_id}},
@@ -622,17 +608,17 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc "Records how the given agent run ended."
-  def record_agent_run_result(scope, task_id, turn_number, outcome)
+  @doc "Records how the given execution ended."
+  def record_execution_outcome(scope, task_id, turn_number, outcome)
       when is_integer(turn_number) and turn_number > 0 do
     with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
-      {type, attrs} = build_agent_run_result(outcome)
+      {type, attrs} = build_execution_outcome(outcome)
 
       record_interaction(task_schema, type, attrs, turn_number)
     end
   end
 
-  defp build_agent_run_result(outcome) do
+  defp build_execution_outcome(outcome) do
     case outcome do
       :completed ->
         {:agent_completed, %{result: nil}}
@@ -760,19 +746,18 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Returns unresolved tool calls and turn number for the active agent run.
+  Returns unresolved tool calls and the turn number for the active execution.
 
-  `TurnStarted` starts a normal agent run. `AgentRetry` starts a new agent run
-  in the same turn. Agent completed, error, and paused interactions close only
-  the active run attempt for their turn number.
+  `TurnStarted` starts execution for a new turn. `AgentRetry` restarts execution
+  in the same turn. Completion, error, and pause records stop execution.
   """
-  def get_active_run_unresolved_tool_calls(scope, task_id) do
+  def get_active_turn_unresolved_tool_calls(scope, task_id) do
     with {:ok, _schema} <- get_task_by_id(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, history} <- History.new(rows) do
-      case History.active_run_turn_number(history) do
+      case History.active_turn_number(history) do
         nil ->
-          {:ok, :no_active_run}
+          {:ok, :no_active_turn}
 
         turn_number ->
           tool_calls =
@@ -799,17 +784,16 @@ defmodule FrontmanServer.Tasks do
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          retry_attrs = %{retried_error_id: retried_error_id},
          {:ok, _retry} <- record_interaction(schema, :agent_retry, retry_attrs, turn_number) do
-      run_execution(scope, schema, turn_number, agent, execution)
+      start_execution(scope, schema, turn_number, agent, execution)
     end
   end
 
-  @doc "Starts and runs the next accepted-message turn when work is available."
-  def run_next_turn(%Scope{} = scope, task_id, execution) when is_binary(task_id) do
+  @doc "Executes the next accepted-message turn when work is available."
+  def execute_next_turn(%Scope{} = scope, task_id, execution) when is_binary(task_id) do
     case start_next_turn(scope, task_id) do
       {:ok, task, turn_number, turn_model, agent} ->
-        with {:ok, execution} <- put_missing_execution_model(execution, turn_model) do
-          run_execution(scope, task, turn_number, agent, execution)
-        end
+        execution = Map.put(execution, :model, turn_model)
+        start_execution(scope, task, turn_number, agent, execution)
 
       stop when stop in [:already_running, :no_accepted_messages] ->
         stop
@@ -856,14 +840,14 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc "Resumes execution for the active agent run."
+  @doc "Resumes execution for the active turn."
   def resume_execution(scope, task_id, execution) do
     with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- History.new(task.interaction_rows),
-         turn_number when is_integer(turn_number) <- History.active_run_turn_number(history),
+         turn_number when is_integer(turn_number) <- History.active_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          {:ok, execution} <- ensure_execution_model(history, turn_number, execution) do
-      run_execution(scope, task, turn_number, agent, execution)
+      start_execution(scope, task, turn_number, agent, execution)
     else
       nil -> {:error, :not_running}
       {:error, reason} -> {:error, reason}
@@ -876,26 +860,10 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp ensure_execution_model(_history, _turn_number, %{model: model} = execution)
-       when is_binary(model) and model != "" do
-    {:ok, execution}
-  end
-
   defp ensure_execution_model(history, turn_number, execution) do
-    case History.turn_model(history, turn_number) do
-      {:ok, model} -> {:ok, Map.put(execution, :model, model)}
-      {:error, reason} -> {:error, reason}
+    with {:ok, model} <- History.turn_model(history, turn_number) do
+      {:ok, Map.put(execution, :model, model)}
     end
-  end
-
-  defp put_missing_execution_model(%{model: model} = execution, _turn_model)
-       when is_binary(model) and model != "" do
-    {:ok, execution}
-  end
-
-  defp put_missing_execution_model(execution, turn_model)
-       when is_binary(turn_model) and turn_model != "" do
-    {:ok, Map.put(execution, :model, turn_model)}
   end
 
   @doc """
@@ -909,7 +877,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp run_execution(scope, task, turn_number, agent, execution)
+  defp start_execution(scope, task, turn_number, agent, execution)
        when is_integer(turn_number) and turn_number > 0 do
     rows = load_interaction_rows(task.id)
     {:ok, history} = History.new(rows)
@@ -918,7 +886,7 @@ defmodule FrontmanServer.Tasks do
     tool_policy = Agents.tool_policy(agent)
     response_context = History.response_context(history, turn_number, agent.id)
 
-    case Execution.run(
+    case Execution.start(
            scope,
            task,
            turn_number,
@@ -970,7 +938,7 @@ defmodule FrontmanServer.Tasks do
     {message, category, retryable} = ErrorClassifier.classify_error(reason)
 
     {:ok, _error} =
-      record_agent_run_result(
+      record_execution_outcome(
         scope,
         task_id,
         turn_number,

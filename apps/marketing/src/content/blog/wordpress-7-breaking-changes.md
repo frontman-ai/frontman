@@ -397,6 +397,8 @@ Use this to audit your site before upgrading. Each item maps to a breaking chang
 - Rollback process tested on staging before production upgrade
 - Plugin developers contacted for any extension without a WP7 compatibility statement
 
+After the release-specific audit passes, use the [WordPress maintenance checklist by frequency](/blog/wordpress-maintenance-checklist/) to schedule ongoing backups, update review, critical-flow tests, and restore checks.
+
 ## What this means for the WordPress ecosystem
 
 WordPress market share dropped from 65.2% in 2022 to [60.2% in 2026](https://blog.wpodyssey.com/general/wordpress-market-share/). SaaS-based site builders are growing at 32.6% year-over-year. WordPress 7 is a bet that major architectural improvements will reverse that trend. The breaking changes are the cost.

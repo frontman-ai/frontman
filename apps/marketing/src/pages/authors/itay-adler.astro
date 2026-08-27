@@ -23,7 +23,12 @@ const personJsonLd = {
 		url: 'https://frontman.sh/'
 	},
 	knowsAbout: author.knowsAbout,
-	sameAs: [author.github, author.linkedin, author.twitter]
+	sameAs: [
+		author.github,
+		author.linkedin,
+		author.twitter,
+		'https://profiles.wordpress.org/itayadler/'
+	]
 }
 ---
 
@@ -43,7 +48,18 @@ const personJsonLd = {
 
 				<section>
 					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Current work</h2>
-					<p>At Frontman, Itay works on product development and integrations that connect live application context with reviewable source changes.</p>
+					<p>At Frontman, Itay works on product development and integrations that connect live application context with reviewable source changes. Public Git history credits him with major contributions to Frontman's WordPress integration, including Elementor and media tools, WooCommerce support, plugin testing, packaging, and WordPress.org deployment.</p>
+				</section>
+
+				<section>
+					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Selected WordPress engineering</h2>
+					<ul class="list-disc space-y-2 pl-6">
+						<li><a href="https://github.com/frontman-ai/frontman/pull/682" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">Production WordPress integration</a></li>
+						<li><a href="https://github.com/frontman-ai/frontman/pull/930" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">Elementor tools and tests</a></li>
+						<li><a href="https://github.com/frontman-ai/frontman/pull/932" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">Media workflow and plugin-review fixes</a></li>
+						<li><a href="https://github.com/frontman-ai/frontman/pull/1041" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">WooCommerce support</a></li>
+						<li><a href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">Frontman plugin on WordPress.org</a></li>
+					</ul>
 				</section>
 
 				<section>
@@ -57,7 +73,7 @@ const personJsonLd = {
 
 				<section class="border-t border-zinc-800 pt-8">
 					<h2 class="mb-3 text-2xl font-semibold text-zinc-50">Profiles and corrections</h2>
-					<p>Find Itay on <a href={author.github} target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">GitHub</a>, <a href={author.linkedin} target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">LinkedIn</a>, and <a href={author.twitter} target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">X</a>. Report article errors through Frontman's <a href="/editorial-policy/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">editorial and corrections policy</a>.</p>
+					<p>Find Itay on <a href={author.github} target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">GitHub</a>, <a href="https://profiles.wordpress.org/itayadler/" target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">WordPress.org</a>, <a href={author.linkedin} target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">LinkedIn</a>, and <a href={author.twitter} target="_blank" rel="noopener noreferrer" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">X</a>. Report article errors through Frontman's <a href="/editorial-policy/" class="text-zinc-50 underline decoration-zinc-600 underline-offset-[0.18em] hover:decoration-zinc-400">editorial and corrections policy</a>.</p>
 				</section>
 			</div>
 		</article>
