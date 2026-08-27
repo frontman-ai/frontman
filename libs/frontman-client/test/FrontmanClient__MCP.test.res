@@ -65,7 +65,7 @@ let makeInterface = (
     resultType: "complete",
     tools: switch failure {
     | Some(List) => [JSON.Encode.null]
-    | _ => []
+    | _ => [JSON.parseOrThrow(`{"name":"test","inputSchema":{"type":"object"}}`)]
     },
     ttlMs: 0,
     cacheScope: "private",
@@ -101,6 +101,7 @@ let response = (calls: ref<array<MockChannel.pushCall>>) => {
   let {payload} = calls.contents->Array.get(0)->Option.getOrThrow
   payload->JSON.Decode.object->Option.getOrThrow
 }
+let resultJson = message => message->Dict.get("result")->Option.getOrThrow
 
 let errorCode = calls =>
   response(calls)
@@ -156,12 +157,10 @@ describe("MCP 2026-07-28", () => {
       response(calls)
     }
 
-    let discovery = await call(1, "server/discover", metadata)
-    let list = await call(2, "tools/list", metadata)
-    let tool = await call(3, "tools/call", toolParams)
-    t->expect(discovery->Dict.get("result")->Option.isSome)->Expect.toBe(true)
-    t->expect(list->Dict.get("result")->Option.isSome)->Expect.toBe(true)
-    t->expect(tool->Dict.get("result")->Option.isSome)->Expect.toBe(true)
+    resultJson(await call(1, "server/discover", metadata))->ignore
+    let listed = resultJson(await call(2, "tools/list", metadata))->JSON.stringify
+    t->expect(listed->String.includes(`"name":"test"`))->Expect.toBe(true)
+    resultJson(await call(3, "tools/call", toolParams))->ignore
     t->expect(context.contents)->Expect.toEqual(Some(("task-1", "call-1")))
   })
 

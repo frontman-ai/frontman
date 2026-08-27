@@ -127,18 +127,18 @@ let handleToolsList = (
   id: JsonRpc.Id.t,
   params: option<JSON.t>,
 ): unit => {
-  let parsed = parseParams(params, Types.toolsListParamsSchema, "Missing params for tools/list")
-
-  switch parsed {
+  switch parseParams(params, Types.toolsListParamsSchema, "Missing params for tools/list") {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
   | Ok({cursor: Some(_)}) =>
     sendError(handler, id, Types.ErrorCode.invalidParams, "Invalid or expired cursor")
   | Ok({cursor: None}) =>
     sendBuiltResponse(handler, id, "Tools list", () => {
       let {serverInterface} = handler
-      serverInterface.buildToolsListResult(serverInterface.server)
-      ->S.decodeOrThrow(~from=Types.toolsListResultSchema, ~to=S.json->S.noValidation(true))
-      ->S.parseOrThrow(~to=Types.toolsListResultWireSchema)
+      let result = serverInterface.buildToolsListResult(serverInterface.server)
+      let json =
+        result->S.decodeOrThrow(~from=Types.toolsListResultSchema, ~to=S.json->S.noValidation(true))
+      json->S.parseOrThrow(~to=Types.toolsListResultWireSchema)->ignore
+      json
     })
   }
 }

@@ -940,8 +940,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     |> tap(&wake_runner(&1, nil))
   end
 
-  defp apply_init_action(socket, {:initialization_failed, _error}) do
-    Logger.error("MCP initialization failed")
+  defp apply_init_action(socket, {:initialization_failed, error}) do
+    Logger.error("MCP initialization failed", reason: error)
 
     socket
     |> assign(:mcp_status, :failed)
