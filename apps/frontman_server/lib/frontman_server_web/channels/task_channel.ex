@@ -828,6 +828,14 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
+  defp finalize_turn(
+         %{assigns: %{active_turn: %{turn_number: active_turn_number}}} = socket,
+         _outcome,
+         turn_number
+       )
+       when is_integer(turn_number) and turn_number < active_turn_number,
+       do: {:noreply, socket}
+
   defp finalize_turn(socket, outcome, turn_number) do
     task_id = socket.assigns.task_id
 
