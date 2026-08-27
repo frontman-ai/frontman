@@ -41,7 +41,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     case Tasks.get_task(scope, task_id) do
       {:ok, task} ->
         {:ok, history} = TaskHistory.new(task.interaction_rows)
-        active_turn = TaskHistory.active_turn_context(history)
 
         SentryContext.set_task_scope_context(scope, task_id)
 
@@ -57,7 +56,8 @@ defmodule FrontmanServerWeb.TaskChannel do
           |> assign(:mcp_tools, [])
           |> assign(:mcp_status, :pending)
           |> assign(:session_loaded, false)
-          |> assign(:active_turn, active_turn)
+          |> assign(:active_turn, TaskHistory.active_turn_context(history))
+          |> assign(:latest_turn_number, TaskHistory.latest_turn_number(history))
           |> assign(:pending_mcp_tool_requests, %{})
 
         send(self(), {:start_mcp_init, init_actions})
@@ -190,6 +190,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_turn_started(turn, turn_started_id, turn_number, socket) do
     task_id = socket.assigns.task_id
+    latest_turn_number = max(turn_number, socket.assigns.latest_turn_number)
     notification = ACP.build_state_update_notification(task_id, "running")
     push(socket, @acp_message, notification)
 
@@ -199,7 +200,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       turn_started_id: turn_started_id
     }
 
-    {:noreply, assign(socket, :active_turn, context)}
+    {:noreply, assign(socket, active_turn: context, latest_turn_number: latest_turn_number)}
   end
 
   defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
@@ -265,9 +266,16 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  defp handle_interaction(%Tasks.Interaction.AgentCompleted{}, turn_number, socket) do
-    finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, turn_number)
-  end
+  defp handle_interaction(
+         _interaction,
+         turn_number,
+         %{assigns: %{latest_turn_number: latest_turn_number}} = socket
+       )
+       when is_integer(turn_number) and turn_number < latest_turn_number,
+       do: {:noreply, socket}
+
+  defp handle_interaction(%Tasks.Interaction.AgentCompleted{}, turn_number, socket),
+    do: finalize_turn(socket, {:completed, ACP.stop_reason_end_turn()}, turn_number)
 
   defp handle_interaction(%Tasks.Interaction.AgentRetry{}, turn_number, socket) do
     context =
@@ -279,13 +287,11 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, assign(socket, :active_turn, context)}
   end
 
-  defp handle_interaction(%Tasks.Interaction.AgentPaused{}, turn_number, socket) do
-    finalize_turn(socket, :requires_action, turn_number)
-  end
+  defp handle_interaction(%Tasks.Interaction.AgentPaused{}, turn_number, socket),
+    do: finalize_turn(socket, :requires_action, turn_number)
 
-  defp handle_interaction(%Tasks.Interaction.AgentError{kind: "cancelled"}, turn_number, socket) do
-    finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()}, turn_number)
-  end
+  defp handle_interaction(%Tasks.Interaction.AgentError{kind: "cancelled"}, turn_number, socket),
+    do: finalize_turn(socket, {:completed, ACP.stop_reason_cancelled()}, turn_number)
 
   defp handle_interaction(
          %Tasks.Interaction.AgentError{retryable: true} = error,
@@ -827,14 +833,6 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, assign(socket, :retry_state, state)}
     end
   end
-
-  defp finalize_turn(
-         %{assigns: %{active_turn: %{turn_number: active_turn_number}}} = socket,
-         _outcome,
-         turn_number
-       )
-       when is_integer(turn_number) and turn_number < active_turn_number,
-       do: {:noreply, socket}
 
   defp finalize_turn(socket, outcome, turn_number) do
     task_id = socket.assigns.task_id

@@ -737,20 +737,21 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert Process.alive?(socket.channel_pid)
     end
 
-    test "channel ignores a stale completion after the next turn starts", %{
-      socket: socket,
-      task_id: task_id
-    } do
+    test "ignores stale terminal outcomes", %{socket: socket, task_id: task_id} do
       activate_turn(socket, "turn-1")
 
-      next_turn = %{turn_started([]) | id: "turn-2"}
-      send(socket.channel_pid, interaction_event(next_turn, 2))
+      send(socket.channel_pid, interaction_event(%{turn_started([]) | id: "turn-2"}, 2))
       assert_state_update_running(task_id)
 
-      send(socket.channel_pid, interaction_event(agent_completed(), 1))
+      error = agent_error("Rate limited", "failed", true, "rate_limit")
+      send(socket.channel_pid, interaction_event(error, 1))
 
-      channel_socket = :sys.get_state(socket.channel_pid)
-      assert channel_socket.assigns.active_turn.turn_number == 2
+      assert :sys.get_state(socket.channel_pid).assigns[:retry_state] == nil
+      refute_push("acp:message", %{"params" => %{"update" => %{"sessionUpdate" => "error"}}})
+
+      send(socket.channel_pid, interaction_event(agent_completed(), 2))
+      assert_state_update_idle(task_id)
+      send(socket.channel_pid, interaction_event(agent_completed(), 1))
       refute_push("acp:message", %{"params" => %{"update" => %{"state" => "idle"}}})
     end
   end
