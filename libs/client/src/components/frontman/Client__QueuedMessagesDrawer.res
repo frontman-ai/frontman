@@ -60,7 +60,7 @@ let previewForContent = (
 
 module QueuedRow = {
   @react.component
-  let make = (~message: Message.t, ~index: int) =>
+  let make = (~message: Message.t, ~index: int, ~onUnqueue: unit => unit) =>
     switch message {
     | Message.User({content, annotations}) => {
         let preview = previewForContent(~content, ~annotations)
@@ -71,6 +71,14 @@ module QueuedRow = {
           <span className="min-w-0 flex-1 truncate text-[12px] leading-5 text-zinc-300">
             {React.string(preview)}
           </span>
+          <button
+            type_="button"
+            ariaLabel="Remove queued message"
+            onClick={_ => onUnqueue()}
+            className="shrink-0 cursor-pointer rounded p-0.5 text-zinc-500 transition-colors hover:bg-white/10 hover:text-zinc-200"
+          >
+            <Icons.XIcon size=12 />
+          </button>
           {switch annotations->Array.length > 0 {
           | true =>
             <span
@@ -87,7 +95,7 @@ module QueuedRow = {
 }
 
 @react.component
-let make = (~messages: array<Message.t>) => {
+let make = (~messages: array<Message.t>, ~onUnqueue: string => unit) => {
   let count = messages->Array.length
   let (isExpanded, setIsExpanded) = React.useState(() => false)
 
@@ -132,7 +140,12 @@ let make = (~messages: array<Message.t>) => {
           <div className="max-h-36 space-y-1 overflow-y-auto border-t border-white/5 p-2">
             {messages
             ->Array.mapWithIndex((message, index) => {
-              <QueuedRow key={`queued-${index->Int.toString}`} message index />
+              <QueuedRow
+                key={`queued-${index->Int.toString}`}
+                message
+                index
+                onUnqueue={() => onUnqueue(Message.getId(message))}
+              />
             })
             ->React.array}
           </div>

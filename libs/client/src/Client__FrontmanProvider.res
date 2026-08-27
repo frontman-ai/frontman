@@ -107,6 +107,7 @@ type contextValue = {
   ) => unit,
   cancelPrompt: unit => unit,
   retryTurn: string => unit,
+  unqueueMessage: string => unit,
   loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
@@ -123,6 +124,7 @@ let defaultContextValue: contextValue = {
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   cancelPrompt: () => (),
   retryTurn: _ => (),
+  unqueueMessage: _ => (),
   loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
 }
@@ -374,6 +376,10 @@ module Provider = {
       dispatch(RetryTurn({retriedErrorId: retriedErrorId}))
     }, [dispatch])
 
+    let unqueueMessage = React.useCallback1((messageId: string) => {
+      dispatch(UnqueueMessage({messageId: messageId}))
+    }, [dispatch])
+
     let loadTask = React.useCallback1((taskId: string, ~needsHistory, ~onComplete) => {
       dispatch(
         LoadTask({
@@ -409,6 +415,7 @@ module Provider = {
       sendPrompt,
       cancelPrompt,
       retryTurn,
+      unqueueMessage,
       loadTask,
       deleteSession,
     }

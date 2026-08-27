@@ -457,6 +457,15 @@ let retryTurn = (session: session, ~retriedErrorId: string): unit => {
   )
 }
 
+let unqueueMessage = (session: session, ~messageId: string): unit => {
+  Protocol.sendUnqueueMessage(
+    ~channel=session.channel,
+    ~sessionId=session.sessionId,
+    ~messageId,
+    ~onMessage=session.connection.onMessage,
+  )
+}
+
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
   Promise.make((resolve, _) => {
     let pushRef =

@@ -433,7 +433,14 @@ let make = (~onConfigureProvider: unit => unit) => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
-    <Client__QueuedMessagesDrawer messages=queuedUserMessages />
+    <Client__QueuedMessagesDrawer
+      messages=queuedUserMessages
+      onUnqueue={messageId =>
+        switch currentTaskId {
+        | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
+        | None => ()
+        }}
+    />
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {

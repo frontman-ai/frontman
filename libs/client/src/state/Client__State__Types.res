@@ -23,12 +23,15 @@ type cancelPromptFn = unit => unit
 
 type retryTurnFn = string => unit
 
+type unqueueMessageFn = string => unit
+
 type acpSession =
   | NoAcpSession
   | AcpSessionActive({
       sendPrompt: sendPromptFn,
       cancelPrompt: cancelPromptFn,
       retryTurn: retryTurnFn,
+      unqueueMessage: unqueueMessageFn,
       loadTask: loadTaskFn,
       deleteSession: deleteSessionFn,
       apiBaseUrl: string,

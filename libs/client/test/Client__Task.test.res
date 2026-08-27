@@ -276,6 +276,30 @@ describe("Task - Agent Running State", () => {
     }
   })
 
+  test("unqueue removes the queued message and emits the unqueue effect", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="One")
+    let task = TestHelpers.acceptUserMessage(task, ~id="queued-2", ~text="Two")
+
+    let (updated, effects) = TaskReducer.next(task, UnqueueMessage({messageId: "queued-1"}))
+
+    let queued = TestHelpers.getQueuedUserMessages(updated)
+    t->expect(queued->Array.length)->Expect.toBe(1)
+    switch queued->Array.get(0) {
+    | Some(Message.User({id, _})) => t->expect(id)->Expect.toBe("queued-2")
+    | _ => t->expect("Remaining queued message")->Expect.toBe("missing")
+    }
+    switch effects->Array.get(0) {
+    | Some(TaskReducer.UnqueueMessageEffect({messageId})) =>
+      t->expect(messageId)->Expect.toBe("queued-1")
+    | _ => t->expect("UnqueueMessageEffect")->Expect.toBe("missing")
+    }
+
+    let (unchanged, noEffects) = TaskReducer.next(updated, UnqueueMessage({messageId: "queued-1"}))
+    t->expect(TestHelpers.getQueuedUserMessages(unchanged)->Array.length)->Expect.toBe(1)
+    t->expect(noEffects->Array.length)->Expect.toBe(0)
+  })
+
   test("question submit leaves queued user messages queued", t => {
     let task = TestHelpers.makeLoadedTask()
     let task = TestHelpers.acceptUserMessage(task, ~id="queued-1", ~text="Queued")

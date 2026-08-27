@@ -12,6 +12,7 @@ let _dummySendPrompt: Types.sendPromptFn = (
 ) => ()
 let _dummyCancelPrompt: Types.cancelPromptFn = () => ()
 let _dummyRetryTurn: Types.retryTurnFn = _ => ()
+let _dummyUnqueueMessage: Types.unqueueMessageFn = _ => ()
 let _dummyLoadTask: Types.loadTaskFn = (_, ~needsHistory as _, ~onComplete as _) => ()
 let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 
@@ -25,6 +26,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
       sendPrompt: _dummySendPrompt,
       cancelPrompt: _dummyCancelPrompt,
       retryTurn: _dummyRetryTurn,
+      unqueueMessage: _dummyUnqueueMessage,
       loadTask: _dummyLoadTask,
       deleteSession: _dummyDeleteSession,
       apiBaseUrl: _apiBaseUrl,
