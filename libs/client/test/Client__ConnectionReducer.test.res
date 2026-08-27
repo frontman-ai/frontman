@@ -17,6 +17,7 @@ let effectKinds = effects =>
     | Reducer.SendPromptEffect(_) => #sendPrompt
     | Reducer.CancelPromptEffect(_) => #cancelPrompt
     | Reducer.RetryTurnEffect(_) => #retryTurn
+    | Reducer.UnqueueMessageEffect(_) => #unqueueMessage
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
     | Reducer.LoadTaskEffect(_) => #loadTask
     | Reducer.DeleteSessionEffect(_) => #deleteSession
