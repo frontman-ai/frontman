@@ -36,7 +36,8 @@ defmodule FrontmanServer.Agents.SystemPrompt do
         |> Enum.map(&framework_guidance/1),
         if(Frameworks.code_attachment_guidance?(Map.get(context, :framework)),
           do: code_project_attachment_guidance()
-        )
+        ),
+        final_response_guidance()
       ]
       |> List.flatten()
       |> Enum.reject(&is_nil/1)
@@ -231,6 +232,14 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     ## Attachments
 
     Use `write_file` with `image_ref` only when the user asks to use an attachment; then reference the saved file. Do not save unused attachments.
+    """
+  end
+
+  defp final_response_guidance do
+    """
+    ## Final Response
+
+    Include a `TL;DR:` section in every final user-facing response. Keep it to one sentence or 1-3 bullets. Summarize the outcome, blockers, and next action when relevant. Do not replace necessary detail elsewhere in the response.
     """
   end
 
