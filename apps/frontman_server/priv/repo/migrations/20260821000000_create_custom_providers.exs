@@ -8,6 +8,8 @@ defmodule FrontmanServer.Repo.Migrations.CreateCustomProviders do
       add(:name, :string, null: false)
       add(:base_url, :string, null: false)
       add(:api_key, :binary)
+      add(:models, {:array, :text}, null: false, default: [])
+      add(:lock_version, :integer, null: false, default: 1)
 
       timestamps(type: :utc_datetime)
     end
@@ -15,20 +17,10 @@ defmodule FrontmanServer.Repo.Migrations.CreateCustomProviders do
     create(index(:custom_providers, [:user_id]))
     create(unique_index(:custom_providers, [:user_id, :name]))
 
-    create table(:custom_provider_models, primary_key: false) do
-      add(:id, :binary_id, primary_key: true)
-
-      add(
-        :custom_provider_id,
-        references(:custom_providers, type: :binary_id, on_delete: :delete_all),
-        null: false
+    create(
+      constraint(:custom_providers, :custom_providers_models_count,
+        check: "cardinality(models) <= 100"
       )
-
-      add(:model_id, :string, null: false)
-
-      timestamps(type: :utc_datetime)
-    end
-
-    create(unique_index(:custom_provider_models, [:custom_provider_id, :model_id]))
+    )
   end
 end

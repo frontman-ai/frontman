@@ -99,27 +99,21 @@ type action =
   | HighlightAnnotation({annotationId: string, selector: string})
   | FetchCustomProviders
   | CustomProvidersReceived({providers: array<Client__State__Types.customProvider>})
-  | CustomProviderRequestFailed({error: string})
-  | SaveCustomProvider({
-      id: option<string>,
-      name: string,
-      baseUrl: string,
-      apiKey: option<string>,
-      onComplete: result<Client__State__Types.customProvider, string> => unit,
+  | SaveCustomProvider(Client__State__Types.customProviderDraft)
+  | DeleteCustomProvider(string, int)
+  | AcknowledgeCustomProviderMutation
+  | CustomProviderMutationSucceeded({
+      operation: Client__State__Types.customProviderMutationOperation,
+      provider: option<Client__State__Types.customProvider>,
     })
-  | DeleteCustomProvider({id: string, onComplete: result<unit, string> => unit})
-  | AddCustomProviderModel({
-      providerId: string,
-      modelId: string,
-      onComplete: result<Client__State__Types.customProvider, string> => unit,
+  | CustomProviderMutationFailed({
+      operation: Client__State__Types.customProviderMutationOperation,
+      error: Client__State__Types.customProviderMutationError,
     })
-  | RemoveCustomProviderModel({
-      providerId: string,
-      providerModelId: string,
-      onComplete: result<unit, string> => unit,
-    })
-  | CustomProviderUpserted({provider: Client__State__Types.customProvider})
-  | CustomProviderDeleted({id: string})
+
+type customProviderMutationRequest =
+  | SaveCustomProviderRequest(Client__State__Types.customProviderDraft)
+  | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
@@ -139,31 +133,7 @@ type effect =
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
   | ShareFrontmanEffect
   | FetchCustomProvidersEffect({apiBaseUrl: string})
-  | SaveCustomProviderEffect({
-      apiBaseUrl: string,
-      id: option<string>,
-      name: string,
-      baseUrl: string,
-      apiKey: option<string>,
-      onComplete: result<Client__State__Types.customProvider, string> => unit,
-    })
-  | DeleteCustomProviderEffect({
-      apiBaseUrl: string,
-      id: string,
-      onComplete: result<unit, string> => unit,
-    })
-  | AddCustomProviderModelEffect({
-      apiBaseUrl: string,
-      providerId: string,
-      modelId: string,
-      onComplete: result<Client__State__Types.customProvider, string> => unit,
-    })
-  | RemoveCustomProviderModelEffect({
-      apiBaseUrl: string,
-      providerId: string,
-      providerModelId: string,
-      onComplete: result<unit, string> => unit,
-    })
+  | CustomProviderMutationEffect({apiBaseUrl: string, request: customProviderMutationRequest})
 
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
@@ -298,6 +268,7 @@ let defaultState: state = {
   pendingProviderAutoSelect: None,
   sessionsLoadState: Client__State__Types.SessionsNotLoaded,
   customProviders: None,
+  customProviderMutation: Client__State__Types.CustomProviderMutationIdle,
   updateInfo: None,
   updateCheckStatus: UpdateNotChecked,
   updateBannerDismissed: false,
@@ -505,6 +476,10 @@ module Selectors = {
 
   let customProviders = (state: state): option<array<Client__State__Types.customProvider>> => {
     state.customProviders
+  }
+
+  let customProviderMutation = (state: state): Client__State__Types.customProviderMutation => {
+    state.customProviderMutation
   }
 
   let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {
@@ -758,17 +733,6 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
   save()->ignore
 }
 
-let errorFromResponse = async (response): string => {
-  try {
-    let json = await response->WebAPI.Response.json
-    JSON.stringifyAny(json)->Option.getOr(
-      `HTTP ${response.status->Int.toString}: ${response.statusText}`,
-    )
-  } catch {
-  | _ => `HTTP ${response.status->Int.toString}: ${response.statusText}`
-  }
-}
-
 let fetchCustomProvidersImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/custom-providers`
@@ -784,190 +748,164 @@ let fetchCustomProvidersImpl = (dispatch, ~apiBaseUrl) => {
           )
         dispatch(CustomProvidersReceived({providers: providersResponse.providers}))
       } else {
-        let error = await errorFromResponse(response)
-        dispatch(CustomProviderRequestFailed({error: error}))
+        Log.error(
+          `Custom Provider request failed: HTTP ${response.status->Int.toString}: ${response.statusText}`,
+        )
       }
     } catch {
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      dispatch(CustomProviderRequestFailed({error: `Failed to fetch custom providers: ${msg}`}))
+      Log.error(`Failed to fetch custom providers: ${msg}`)
     }
   }
   fetch()->ignore
 }
 
-let encodeCustomProviderSaveRequest = (~name, ~baseUrl, ~apiKey) => {
-  let obj = Dict.make()
-  obj->Dict.set("name", JSON.Encode.string(name))
-  obj->Dict.set("base_url", JSON.Encode.string(baseUrl))
-  apiKey->Option.forEach(key => obj->Dict.set("api_key", JSON.Encode.string(key)))
-  JSON.stringify(obj->JSON.Encode.object)
-}
+let customProviderCreateRequestSchema = S.object(s => (
+  s.field("name", S.string),
+  s.field("base_url", S.string),
+  s.field("models", S.array(S.string)),
+  s.field("api_key", S.option(S.string)),
+))
+let customProviderApiKeyChangeRequestSchema = S.object(s => (
+  s.field("action", S.string),
+  s.field("value", S.option(S.string)),
+))
+let customProviderUpdateRequestSchema = S.object(s => (
+  s.field("name", S.string),
+  s.field("base_url", S.string),
+  s.field("models", S.array(S.string)),
+  s.field("lock_version", S.int),
+  s.field("api_key_change", customProviderApiKeyChangeRequestSchema),
+))
 
-let saveCustomProviderImpl = (
-  dispatch,
-  ~apiBaseUrl,
-  ~id,
-  ~name,
-  ~baseUrl,
-  ~apiKey,
-  ~onComplete,
-) => {
-  let save = async () => {
-    let url = switch id {
-    | Some(providerId) => `${apiBaseUrl}/api/user/custom-providers/${providerId}`
-    | None => `${apiBaseUrl}/api/user/custom-providers`
-    }
-    let method = switch id {
-    | Some(_) => "PATCH"
-    | None => "POST"
-    }
+let jsonString = (value, schema) =>
+  value
+  ->S.decodeOrThrow(~from=schema, ~to=S.json)
+  ->JSON.stringifyAny
+  ->Option.getOrThrow(~message="Expected schema output to be JSON")
 
+let encodeCustomProviderSaveRequest = (draft: Client__State__Types.customProviderDraft) =>
+  switch draft.id {
+  | None =>
+    let apiKey = switch draft.apiKeyChange {
+    | ReplaceCustomProviderApiKey(value) => Some(value)
+    | KeepCustomProviderApiKey | ClearCustomProviderApiKey => None
+    }
+    jsonString((draft.name, draft.baseUrl, draft.models, apiKey), customProviderCreateRequestSchema)
+  | Some(_) =>
+    let apiKeyChange = switch draft.apiKeyChange {
+    | KeepCustomProviderApiKey => ("keep", None)
+    | ClearCustomProviderApiKey => ("clear", None)
+    | ReplaceCustomProviderApiKey(value) => ("replace", Some(value))
+    }
+    jsonString(
+      (draft.name, draft.baseUrl, draft.models, draft.lockVersion->Option.getOrThrow, apiKeyChange),
+      customProviderUpdateRequestSchema,
+    )
+  }
+
+let customProviderValidationErrorsSchema = S.object(s =>
+  s.field("errors", S.dict(S.array(S.string)))
+)
+let customProviderConflictSchema = S.object(s =>
+  s.field("current_provider", Client__State__Types.customProviderSchema)
+)
+
+let decodeCustomProviderMutationError = (~status, ~json) =>
+  switch status {
+  | 404 => Client__State__Types.CustomProviderNotFound
+  | 409 =>
+    let provider = json->S.decodeOrThrow(~from=S.json, ~to=customProviderConflictSchema)
+    Client__State__Types.CustomProviderConflict(provider)
+  | 422 =>
+    let errors = json->S.decodeOrThrow(~from=S.json, ~to=customProviderValidationErrorsSchema)
+    Client__State__Types.CustomProviderValidationError(errors)
+  | _ =>
+    Client__State__Types.CustomProviderNetworkError(
+      json->JSON.stringifyAny->Option.getOr(`HTTP ${status->Int.toString}`),
+    )
+  }
+
+let customProviderSaveTarget = (~apiBaseUrl, draft: Client__State__Types.customProviderDraft) =>
+  switch draft.id {
+  | Some(providerId) => (`${apiBaseUrl}/api/user/custom-providers/${providerId}`, "PUT")
+  | None => (`${apiBaseUrl}/api/user/custom-providers`, "POST")
+  }
+
+let customProviderDeleteUrl = (~apiBaseUrl, ~id, ~lockVersion) =>
+  `${apiBaseUrl}/api/user/custom-providers/${id}?lock_version=${lockVersion->Int.toString}`
+
+let customProviderMutationOperation = request =>
+  switch request {
+  | SaveCustomProviderRequest(draft) => Client__State__Types.SavingCustomProvider(draft.id)
+  | DeleteCustomProviderRequest({id}) => Client__State__Types.DeletingCustomProvider(id)
+  }
+
+let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request) => {
+  let run = async () => {
+    let operation = customProviderMutationOperation(request)
     try {
-      let response = await WebAPI.Fetch.fetch(
-        url,
-        ~init={
-          credentials: Include,
-          method,
-          headers: jsonContentHeaders(),
-          body: WebAPI.BodyInit.fromString(
-            encodeCustomProviderSaveRequest(~name, ~baseUrl, ~apiKey),
+      let response = switch request {
+      | SaveCustomProviderRequest(draft) =>
+        let (url, method) = customProviderSaveTarget(~apiBaseUrl, draft)
+        await WebAPI.Fetch.fetch(
+          url,
+          ~init={
+            credentials: Include,
+            method,
+            headers: jsonContentHeaders(),
+            body: WebAPI.BodyInit.fromString(encodeCustomProviderSaveRequest(draft)),
+          },
+        )
+      | DeleteCustomProviderRequest({id, lockVersion}) =>
+        await WebAPI.Fetch.fetch(
+          customProviderDeleteUrl(~apiBaseUrl, ~id, ~lockVersion),
+          ~init={credentials: Include, method: "DELETE"},
+        )
+      }
+      if response.ok {
+        let provider = switch request {
+        | SaveCustomProviderRequest(_) =>
+          let json = await response->WebAPI.Response.json
+          let {provider} =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.customProviderResponseSchema,
+            )
+          Some(provider)
+        | DeleteCustomProviderRequest(_) => None
+        }
+        dispatch(CustomProviderMutationSucceeded({operation, provider}))
+      } else {
+        let json = await response->WebAPI.Response.json
+        dispatch(
+          CustomProviderMutationFailed({
+            operation,
+            error: decodeCustomProviderMutationError(~status=response.status, ~json),
+          }),
+        )
+      }
+    } catch {
+    | exn =>
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      let action = switch request {
+      | SaveCustomProviderRequest(_) => "save"
+      | DeleteCustomProviderRequest(_) => "delete"
+      }
+      dispatch(
+        CustomProviderMutationFailed({
+          operation,
+          error: Client__State__Types.CustomProviderNetworkError(
+            `Failed to ${action} custom provider: ${msg}`,
           ),
-        },
+        }),
       )
-
-      if response.ok {
-        let json = await response->WebAPI.Response.json
-        let {provider} =
-          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.customProviderResponseSchema)
-        onComplete(Ok(provider))
-        dispatch(CustomProviderUpserted({provider: provider}))
-      } else {
-        let error = await errorFromResponse(response)
-        onComplete(Error(error))
-        dispatch(CustomProviderRequestFailed({error: error}))
-      }
-    } catch {
-    | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let error = `Failed to save custom provider: ${msg}`
-      onComplete(Error(error))
-      dispatch(CustomProviderRequestFailed({error: error}))
     }
   }
-  save()->ignore
-}
-
-let deleteCustomProviderImpl = (dispatch, ~apiBaseUrl, ~id, ~onComplete) => {
-  let remove = async () => {
-    let url = `${apiBaseUrl}/api/user/custom-providers/${id}`
-
-    try {
-      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include, method: "DELETE"})
-      if response.ok {
-        onComplete(Ok())
-        dispatch(CustomProviderDeleted({id: id}))
-      } else {
-        let error = switch response.status {
-        | 404 => "not_found"
-        | _ => await errorFromResponse(response)
-        }
-        onComplete(Error(error))
-        dispatch(CustomProviderRequestFailed({error: error}))
-      }
-    } catch {
-    | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let error = `Failed to delete custom provider: ${msg}`
-      onComplete(Error(error))
-      dispatch(CustomProviderRequestFailed({error: error}))
-    }
-  }
-  remove()->ignore
-}
-
-let addCustomProviderModelImpl = (dispatch, ~apiBaseUrl, ~providerId, ~modelId, ~onComplete) => {
-  let add = async () => {
-    let url = `${apiBaseUrl}/api/user/custom-providers/${providerId}/models`
-
-    try {
-      let bodyObj = Dict.make()
-      bodyObj->Dict.set("model_id", JSON.Encode.string(modelId))
-
-      let response = await WebAPI.Fetch.fetch(
-        url,
-        ~init={
-          credentials: Include,
-          method: "POST",
-          headers: jsonContentHeaders(),
-          body: WebAPI.BodyInit.fromString(JSON.stringify(bodyObj->JSON.Encode.object)),
-        },
-      )
-      if response.ok {
-        let json = await response->WebAPI.Response.json
-        let {provider} =
-          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.customProviderResponseSchema)
-        onComplete(Ok(provider))
-        dispatch(CustomProviderUpserted({provider: provider}))
-      } else {
-        let error = switch response.status {
-        | 404 => "not_found"
-        | _ => await errorFromResponse(response)
-        }
-        onComplete(Error(error))
-        dispatch(CustomProviderRequestFailed({error: error}))
-      }
-    } catch {
-    | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let error = `Failed to add custom provider model: ${msg}`
-      onComplete(Error(error))
-      dispatch(CustomProviderRequestFailed({error: error}))
-    }
-  }
-  add()->ignore
-}
-
-let removeCustomProviderModelImpl = (
-  dispatch,
-  ~apiBaseUrl,
-  ~providerId,
-  ~providerModelId,
-  ~onComplete,
-) => {
-  let remove = async () => {
-    let url = `${apiBaseUrl}/api/user/custom-providers/${providerId}/models/${providerModelId}`
-
-    try {
-      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include, method: "DELETE"})
-      if response.ok {
-        let json = await response->WebAPI.Response.json
-        let {provider} =
-          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.customProviderResponseSchema)
-        onComplete(Ok())
-        dispatch(CustomProviderUpserted({provider: provider}))
-      } else {
-        let error = switch response.status {
-        | 404 => "not_found"
-        | _ => await errorFromResponse(response)
-        }
-        onComplete(Error(error))
-        dispatch(CustomProviderRequestFailed({error: error}))
-      }
-    } catch {
-    | exn =>
-      let msg =
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      let error = `Failed to remove custom provider model: ${msg}`
-      onComplete(Error(error))
-      dispatch(CustomProviderRequestFailed({error: error}))
-    }
-  }
-  remove()->ignore
+  run()->ignore
 }
 
 let handleEffect = (effect, state: state, dispatch) => {
@@ -1359,14 +1297,8 @@ let handleEffect = (effect, state: state, dispatch) => {
     )
 
   | FetchCustomProvidersEffect({apiBaseUrl}) => fetchCustomProvidersImpl(dispatch, ~apiBaseUrl)
-  | SaveCustomProviderEffect({apiBaseUrl, id, name, baseUrl, apiKey, onComplete}) =>
-    saveCustomProviderImpl(dispatch, ~apiBaseUrl, ~id, ~name, ~baseUrl, ~apiKey, ~onComplete)
-  | DeleteCustomProviderEffect({apiBaseUrl, id, onComplete}) =>
-    deleteCustomProviderImpl(dispatch, ~apiBaseUrl, ~id, ~onComplete)
-  | AddCustomProviderModelEffect({apiBaseUrl, providerId, modelId, onComplete}) =>
-    addCustomProviderModelImpl(dispatch, ~apiBaseUrl, ~providerId, ~modelId, ~onComplete)
-  | RemoveCustomProviderModelEffect({apiBaseUrl, providerId, providerModelId, onComplete}) =>
-    removeCustomProviderModelImpl(dispatch, ~apiBaseUrl, ~providerId, ~providerModelId, ~onComplete)
+  | CustomProviderMutationEffect({apiBaseUrl, request}) =>
+    customProviderMutationImpl(dispatch, ~apiBaseUrl, ~request)
   }
 }
 
@@ -1387,6 +1319,44 @@ let upsertCustomProvider = (
 let clearSelectedModelValue = (state: state): state => {
   syncSelectedModelValueToStorage(None)
   {...state, selectedModelValue: None}
+}
+
+let applyCustomProvider = (state: state, provider: Client__State__Types.customProvider): state => {
+  let state = {
+    ...state,
+    customProviders: Some(upsertCustomProvider(state.customProviders, provider)),
+  }
+  switch state.selectedModelValue {
+  | Some(value) if value->String.startsWith(`custom:${provider.id}:`) =>
+    switch provider.models->Array.some(model => value == `custom:${provider.id}:${model}`) {
+    | true => state
+    | false => clearSelectedModelValue(state)
+    }
+  | _ => state
+  }
+}
+
+let startCustomProviderMutation = (state: state, request) => {
+  let operation = customProviderMutationOperation(request)
+  switch state.customProviderMutation {
+  | CustomProviderMutationIdle =>
+    switch state.acpSession {
+    | AcpSessionActive({apiBaseUrl}) =>
+      {
+        ...state,
+        customProviderMutation: CustomProviderMutationPending(operation),
+      }->StateReducer.update(~sideEffects=[CustomProviderMutationEffect({apiBaseUrl, request})])
+    | NoAcpSession =>
+      {
+        ...state,
+        customProviderMutation: CustomProviderMutationFailed({
+          operation,
+          error: CustomProviderNetworkError("No active ACP session"),
+        }),
+      }->StateReducer.update
+    }
+  | _ => state->StateReducer.update
+  }
 }
 
 let next = (state: state, action) => {
@@ -1995,86 +1965,58 @@ let next = (state: state, action) => {
   | CustomProvidersReceived({providers}) =>
     {...state, customProviders: Some(providers)}->StateReducer.update
 
-  | CustomProviderRequestFailed({error}) =>
-    Log.error(`Custom Provider request failed: ${error}`)
-    state->StateReducer.update
+  | SaveCustomProvider(draft) =>
+    startCustomProviderMutation(state, SaveCustomProviderRequest(draft))
 
-  | SaveCustomProvider({id, name, baseUrl, apiKey, onComplete}) =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
-        ~sideEffects=[
-          SaveCustomProviderEffect({apiBaseUrl, id, name, baseUrl, apiKey, onComplete}),
-        ],
-      )
-    | NoAcpSession =>
-      onComplete(Error("No active ACP session"))
-      state->StateReducer.update
+  | DeleteCustomProvider(id, lockVersion) =>
+    startCustomProviderMutation(state, DeleteCustomProviderRequest({id, lockVersion}))
+
+  | AcknowledgeCustomProviderMutation =>
+    switch state.customProviderMutation {
+    | CustomProviderMutationFailed({error: CustomProviderConflict(provider), _}) =>
+      {
+        ...applyCustomProvider(state, provider),
+        customProviderMutation: CustomProviderMutationIdle,
+      }->StateReducer.update
+    | CustomProviderMutationSucceeded(_) | CustomProviderMutationFailed(_) =>
+      {...state, customProviderMutation: CustomProviderMutationIdle}->StateReducer.update
+    | CustomProviderMutationIdle | CustomProviderMutationPending(_) => state->StateReducer.update
     }
 
-  | DeleteCustomProvider({id, onComplete}) =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
-        ~sideEffects=[DeleteCustomProviderEffect({apiBaseUrl, id, onComplete})],
-      )
-    | NoAcpSession =>
-      onComplete(Error("No active ACP session"))
-      state->StateReducer.update
-    }
-
-  | AddCustomProviderModel({providerId, modelId, onComplete}) =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
-        ~sideEffects=[AddCustomProviderModelEffect({apiBaseUrl, providerId, modelId, onComplete})],
-      )
-    | NoAcpSession =>
-      onComplete(Error("No active ACP session"))
-      state->StateReducer.update
-    }
-
-  | RemoveCustomProviderModel({providerId, providerModelId, onComplete}) =>
-    switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
-      state->StateReducer.update(
-        ~sideEffects=[
-          RemoveCustomProviderModelEffect({apiBaseUrl, providerId, providerModelId, onComplete}),
-        ],
-      )
-    | NoAcpSession =>
-      onComplete(Error("No active ACP session"))
-      state->StateReducer.update
-    }
-
-  | CustomProviderUpserted({provider}) =>
-    let state = {
-      ...state,
-      customProviders: Some(upsertCustomProvider(state.customProviders, provider)),
-    }
-    let state = switch state.selectedModelValue {
-    | Some(value) if value->String.startsWith(`custom:${provider.id}:`) =>
-      switch provider.models->Array.some(model =>
-        value == `custom:${provider.id}:${model.modelId}`
-      ) {
-      | true => state
-      | false => clearSelectedModelValue(state)
+  | CustomProviderMutationSucceeded({operation, provider}) =>
+    switch state.customProviderMutation {
+    | CustomProviderMutationPending(pending) if pending == operation =>
+      let state = switch operation {
+      | SavingCustomProvider(_) =>
+        let provider = provider->Option.getOrThrow
+        applyCustomProvider(state, provider)
+      | DeletingCustomProvider(id) =>
+        let state = {
+          ...state,
+          customProviders: state.customProviders->Option.map(providers =>
+            providers->Array.filter(provider => provider.id != id)
+          ),
+        }
+        switch state.selectedModelValue {
+        | Some(value) if value->String.startsWith(`custom:${id}:`) => clearSelectedModelValue(state)
+        | _ => state
+        }
       }
-    | _ => state
+      {
+        ...state,
+        customProviderMutation: CustomProviderMutationSucceeded(operation),
+      }->StateReducer.update
+    | _ => state->StateReducer.update
     }
-    state->StateReducer.update
 
-  | CustomProviderDeleted({id}) =>
-    let state = {
-      ...state,
-      customProviders: state.customProviders->Option.map(providers =>
-        providers->Array.filter(provider => provider.id != id)
-      ),
+  | CustomProviderMutationFailed({operation, error}) =>
+    switch state.customProviderMutation {
+    | CustomProviderMutationPending(pending) if pending == operation =>
+      {
+        ...state,
+        customProviderMutation: CustomProviderMutationFailed({operation, error}),
+      }->StateReducer.update
+    | _ => state->StateReducer.update
     }
-    let state = switch state.selectedModelValue {
-    | Some(value) if value->String.startsWith(`custom:${id}:`) => clearSelectedModelValue(state)
-    | _ => state
-    }
-    state->StateReducer.update
   }
 }

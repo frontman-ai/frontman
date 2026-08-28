@@ -279,19 +279,14 @@ module Actions = {
 
   let fetchCustomProviders = () => Client__State__Store.dispatch(FetchCustomProviders)
 
-  let saveCustomProvider = (~id=?, ~name, ~baseUrl, ~apiKey=?, ~onComplete) =>
-    Client__State__Store.dispatch(SaveCustomProvider({id, name, baseUrl, apiKey, onComplete}))
+  let saveCustomProvider = (~draft: Client__State__Types.customProviderDraft) =>
+    Client__State__Store.dispatch(SaveCustomProvider(draft))
 
-  let deleteCustomProvider = (~id, ~onComplete) =>
-    Client__State__Store.dispatch(DeleteCustomProvider({id, onComplete}))
+  let deleteCustomProvider = (~id, ~lockVersion) =>
+    Client__State__Store.dispatch(DeleteCustomProvider(id, lockVersion))
 
-  let addCustomProviderModel = (~providerId, ~modelId, ~onComplete) =>
-    Client__State__Store.dispatch(AddCustomProviderModel({providerId, modelId, onComplete}))
-
-  let removeCustomProviderModel = (~providerId, ~providerModelId, ~onComplete) =>
-    Client__State__Store.dispatch(
-      RemoveCustomProviderModel({providerId, providerModelId, onComplete}),
-    )
+  let acknowledgeCustomProviderMutation = () =>
+    Client__State__Store.dispatch(AcknowledgeCustomProviderMutation)
 
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
     Client__State__Store.dispatch(

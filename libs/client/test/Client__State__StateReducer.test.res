@@ -124,76 +124,161 @@ module TestHelpers = {
 }
 
 describe("Client State Reducer - Custom Providers", () => {
-  let provider = (~name, ~models=[]): StateTypes.customProvider => {
+  let provider = (~name, ~models): StateTypes.customProvider => {
     id: "provider-1",
     name,
     baseUrl: "https://api.example.com/v1",
     hasApiKey: false,
     models,
+    lockVersion: 3,
   }
 
-  test("save preserves an omitted key and removes an explicit empty key", t => {
-    let encode = apiKey =>
-      Reducer.encodeCustomProviderSaveRequest(
-        ~name="Provider",
-        ~baseUrl="https://api.example.com/v1",
-        ~apiKey,
+  let draft = (
+    ~id=None,
+    ~apiKeyChange=StateTypes.KeepCustomProviderApiKey,
+  ): StateTypes.customProviderDraft => {
+    id,
+    name: "Provider",
+    baseUrl: "https://api.example.com/v1",
+    apiKeyChange,
+    models: ["model-a", "model-b"],
+    lockVersion: id->Option.map(_ => 3),
+  }
+  let updateBody = apiKeyChange =>
+    `{"name":"Provider","base_url":"https://api.example.com/v1","models":["model-a","model-b"],"lock_version":3,"api_key_change":${apiKeyChange}}`
+  let reduce = (state, action) => Reducer.next(state, action)->Pair.first
+
+  test("save encodes requests and decodes successful responses", t => {
+    let update = draft(
+      ~id=Some("provider-1"),
+      ~apiKeyChange=StateTypes.ReplaceCustomProviderApiKey("secret"),
+    )
+    [
+      (
+        draft(),
+        `{"name":"Provider","base_url":"https://api.example.com/v1","models":["model-a","model-b"]}`,
+      ),
+      (update, updateBody(`{"action":"replace","value":"secret"}`)),
+      (draft(~id=Some("provider-1")), updateBody(`{"action":"keep"}`)),
+      (
+        draft(~id=Some("provider-1"), ~apiKeyChange=StateTypes.ClearCustomProviderApiKey),
+        updateBody(`{"action":"clear"}`),
+      ),
+    ]->Array.forEach(
+      ((draft, body)) =>
+        t->expect(Reducer.encodeCustomProviderSaveRequest(draft))->Expect.toEqual(body),
+    )
+    t
+    ->expect(Reducer.customProviderSaveTarget(~apiBaseUrl="/api", draft()))
+    ->Expect.toEqual(("/api/api/user/custom-providers", "POST"))
+    t
+    ->expect(Reducer.customProviderSaveTarget(~apiBaseUrl="/api", update))
+    ->Expect.toEqual(("/api/api/user/custom-providers/provider-1", "PUT"))
+    t
+    ->expect(Reducer.customProviderDeleteUrl(~apiBaseUrl="/api", ~id="provider-1", ~lockVersion=3))
+    ->Expect.toEqual("/api/api/user/custom-providers/provider-1?lock_version=3")
+
+    let decoded =
+      JSON.parseOrThrow(`{"data":{"id":"provider-1","name":"Updated","base_url":"https://api.example.com/v1","has_api_key":false,"models":["vision-model"],"lock_version":3}}`)->S.decodeOrThrow(
+        ~from=S.json,
+        ~to=StateTypes.customProviderResponseSchema,
       )
-
-    t
-    ->expect(encode(None))
-    ->Expect.toEqual(`{"name":"Provider","base_url":"https://api.example.com/v1"}`)
-    t
-    ->expect(encode(Some("")))
-    ->Expect.toEqual(`{"name":"Provider","base_url":"https://api.example.com/v1","api_key":""}`)
+    t->expect(decoded.provider)->Expect.toEqual(provider(~name="Updated", ~models=["vision-model"]))
   })
 
-  test("upsert replaces the complete provider", t => {
-    let selectedModel = "custom:provider-1:removed-model"
-    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
-    storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=selectedModel)
-    let state = {
-      ...Reducer.defaultState,
-      customProviders: Some([provider(~name="Old")]),
-      selectedModelValue: Some(selectedModel),
-    }
-    let updated = provider(~name="New", ~models=[{id: "model-1", modelId: "vision-model"}])
-
-    let (nextState, effects) = Reducer.next(
+  test("mutations serialize and accept only matching completions", t => {
+    let state = {...Reducer.defaultState, acpSession: TestHelpers.activeAcpSession()}
+    let saveOperation = StateTypes.SavingCustomProvider(Some("provider-1"))
+    let (saving, effects) = Reducer.next(
       state,
-      Reducer.CustomProviderUpserted({provider: updated}),
+      Reducer.SaveCustomProvider(draft(~id=Some("provider-1"))),
     )
-
-    t->expect(nextState.customProviders)->Expect.toEqual(Some([updated]))
-    t->expect(nextState.selectedModelValue)->Expect.toEqual(None)
     t
-    ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)
-    ->Expect.toEqual(None)
-    t->expect(effects)->Expect.toEqual([])
+    ->expect(saving.customProviderMutation)
+    ->Expect.toEqual(StateTypes.CustomProviderMutationPending(saveOperation))
+    t->expect(effects->Array.length)->Expect.toEqual(1)
+
+    let (unchanged, blockedEffects) = Reducer.next(
+      saving,
+      Reducer.DeleteCustomProvider("provider-1", 3),
+    )
+    t->expect(unchanged)->Expect.toEqual(saving)
+    t->expect(blockedEffects)->Expect.toEqual([])
+
+    let updated = provider(~name="Updated", ~models=["vision-model"])
+    let saved = reduce(
+      saving,
+      Reducer.CustomProviderMutationSucceeded({operation: saveOperation, provider: Some(updated)}),
+    )
+    t->expect(saved.customProviders)->Expect.toEqual(Some([updated]))
+    t
+    ->expect(saved.customProviderMutation)
+    ->Expect.toEqual(StateTypes.CustomProviderMutationSucceeded(saveOperation))
+    t
+    ->expect(reduce(saved, Reducer.AcknowledgeCustomProviderMutation).customProviderMutation)
+    ->Expect.toEqual(StateTypes.CustomProviderMutationIdle)
+
+    let deleteOperation = StateTypes.DeletingCustomProvider("provider-1")
+    let kept = {...updated, id: "provider-2"}
+    let deleting = {
+      ...saving,
+      customProviders: Some([updated, kept]),
+      selectedModelValue: Some("custom:provider-1:vision-model"),
+      customProviderMutation: StateTypes.CustomProviderMutationPending(deleteOperation),
+    }
+    let deleted = reduce(
+      deleting,
+      Reducer.CustomProviderMutationSucceeded({operation: deleteOperation, provider: None}),
+    )
+    t->expect(deleted.customProviders)->Expect.toEqual(Some([kept]))
+    t->expect(deleted.selectedModelValue)->Expect.toEqual(None)
+
+    let error = StateTypes.CustomProviderNetworkError("offline")
+    let failed = reduce(
+      saving,
+      Reducer.CustomProviderMutationFailed({operation: saveOperation, error}),
+    )
+    t
+    ->expect(failed.customProviderMutation)
+    ->Expect.toEqual(StateTypes.CustomProviderMutationFailed({operation: saveOperation, error}))
+    t
+    ->expect(reduce(failed, Reducer.AcknowledgeCustomProviderMutation).customProviderMutation)
+    ->Expect.toEqual(StateTypes.CustomProviderMutationIdle)
+    [
+      Reducer.CustomProviderMutationSucceeded({operation: deleteOperation, provider: None}),
+      Reducer.CustomProviderMutationFailed({operation: deleteOperation, error}),
+    ]->Array.forEach(action => t->expect(reduce(saving, action))->Expect.toEqual(saving))
   })
 
-  test("delete removes only the matching provider", t => {
-    let kept = {...provider(~name="Kept"), id: "provider-2"}
-    let selectedModel = "custom:provider-1:model"
-    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
-    storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=selectedModel)
-    let state = {
-      ...Reducer.defaultState,
-      customProviders: Some([provider(~name="Deleted"), kept]),
-      selectedModelValue: Some(selectedModel),
-    }
-
-    let (nextState, effects) = Reducer.next(
-      state,
-      Reducer.CustomProviderDeleted({id: "provider-1"}),
+  test("stale errors retain latest sanitized provider", t => {
+    let current = provider(~name="Current", ~models=["model-a"])
+    let error = Reducer.decodeCustomProviderMutationError(
+      ~status=409,
+      ~json=JSON.parseOrThrow(`{"status":"error","code":"stale","current_provider":{"id":"provider-1","name":"Current","base_url":"https://api.example.com/v1","has_api_key":false,"models":["model-a"],"lock_version":3}}`),
     )
-
-    t->expect(nextState.customProviders)->Expect.toEqual(Some([kept]))
-    t->expect(nextState.selectedModelValue)->Expect.toEqual(None)
+    t->expect(error)->Expect.toEqual(StateTypes.CustomProviderConflict(current))
+    let conflicted = {
+      ...Reducer.defaultState,
+      customProviderMutation: StateTypes.CustomProviderMutationFailed({
+        operation: StateTypes.SavingCustomProvider(Some("provider-1")),
+        error,
+      }),
+    }
+    let resolved = reduce(conflicted, Reducer.AcknowledgeCustomProviderMutation)
+    t->expect(resolved.customProviders)->Expect.toEqual(Some([current]))
     t
-    ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)
-    ->Expect.toEqual(None)
-    t->expect(effects)->Expect.toEqual([])
+    ->expect(Reducer.decodeCustomProviderMutationError(~status=404, ~json=JSON.parseOrThrow(`{}`)))
+    ->Expect.toEqual(StateTypes.CustomProviderNotFound)
+    t
+    ->expect(
+      Reducer.decodeCustomProviderMutationError(
+        ~status=422,
+        ~json=JSON.parseOrThrow(`{"code":"validation_failed","errors":{"name":["is required"]}}`),
+      ),
+    )
+    ->Expect.toEqual(
+      StateTypes.CustomProviderValidationError(Dict.fromArray([("name", ["is required"])])),
+    )
   })
 })
 

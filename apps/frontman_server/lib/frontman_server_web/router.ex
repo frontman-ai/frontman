@@ -115,15 +115,8 @@ defmodule FrontmanServerWeb.Router do
 
     get("/user/custom-providers", CustomProvidersController, :index)
     post("/user/custom-providers", CustomProvidersController, :create)
-    patch("/user/custom-providers/:provider_id", CustomProvidersController, :update)
+    put("/user/custom-providers/:provider_id", CustomProvidersController, :update)
     delete("/user/custom-providers/:provider_id", CustomProvidersController, :delete)
-    post("/user/custom-providers/:provider_id/models", CustomProvidersController, :add_model)
-
-    delete(
-      "/user/custom-providers/:provider_id/models/:provider_model_id",
-      CustomProvidersController,
-      :remove_model
-    )
   end
 
   if Application.compile_env(:frontman_server, :dev_routes) do

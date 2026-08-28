@@ -1,10 +1,4 @@
 defmodule FrontmanServer.Providers.PrepareCustomProviderTest do
-  @moduledoc """
-  Tests for custom-provider integration in `FrontmanServer.Providers`:
-  picker groups in `available_models/1`, LLM access resolution for
-  `"custom:<provider_id>:<model_id>"` strings via `resolve_model_access/3`,
-  and validation in `parse_model_ref/1`.
-  """
   use FrontmanServer.DataCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
@@ -12,170 +6,124 @@ defmodule FrontmanServer.Providers.PrepareCustomProviderTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
 
-  setup do
-    user = user_fixture()
-    scope = %Scope{user: user}
-    {:ok, scope: scope}
-  end
+  setup do: {:ok, scope: Scope.for_user(user_fixture())}
 
   describe "available_models/1 with custom providers" do
-    test "includes each custom provider as a group with one option per model", %{scope: scope} do
-      provider_a = provider_fixture(scope, %{"name" => "Alpha"})
-      provider_b = provider_fixture(scope, %{"name" => "Beta"})
+    test "includes configured models and omits empty providers", %{scope: scope} do
+      alpha = provider_fixture(scope, %{"name" => "Alpha", "models" => ["m-one"]})
+      empty = provider_fixture(scope, %{"name" => "Empty"})
 
-      add_model(scope, provider_a.id, "m-one")
-      add_model(scope, provider_b.id, "m-two")
+      groups = Providers.available_models(scope).groups
 
-      config = Providers.available_models(scope)
+      assert find_group(groups, alpha.id) == %{
+               id: "custom:#{alpha.id}",
+               name: "Alpha",
+               options: [%{name: "m-one", value: "custom:#{alpha.id}:m-one"}]
+             }
 
-      group_a = find_group(config.groups, provider_a.id)
-      group_b = find_group(config.groups, provider_b.id)
-
-      assert group_a.id == "custom:#{provider_a.id}"
-      assert group_a.name == "Alpha"
-      assert group_a.options == [%{name: "m-one", value: "custom:#{provider_a.id}:m-one"}]
-
-      assert group_b.id == "custom:#{provider_b.id}"
-      assert group_b.name == "Beta"
-      assert group_b.options == [%{name: "m-two", value: "custom:#{provider_b.id}:m-two"}]
-    end
-
-    test "orders models by model_id and omits providers with no models", %{
-      scope: scope
-    } do
-      provider = provider_fixture(scope)
-      empty_provider = provider_fixture(scope, %{"name" => "Empty"})
-
-      {:ok, _} =
-        Providers.add_custom_provider_model(scope, provider.id, %{model_id: "m-b", position: 1})
-
-      {:ok, _} =
-        Providers.add_custom_provider_model(scope, provider.id, %{model_id: "m-a", position: 2})
-
-      {:ok, _} =
-        Providers.add_custom_provider_model(scope, provider.id, %{model_id: "m-zero", position: 0})
-
-      config = Providers.available_models(scope)
-
-      assert [%{options: [%{name: "m-a"}, %{name: "m-b"}, %{name: "m-zero"}]}] = config.groups
-
-      refute Enum.any?(config.groups, &(&1.id == "custom:#{empty_provider.id}"))
+      refute find_group(groups, empty.id)
     end
   end
 
   describe "resolve_model_access/3 with custom providers" do
-    test "resolves a custom provider model to a base_url on the LLMDB.Model", %{scope: scope} do
-      provider = provider_fixture(scope)
-      add_model(scope, provider.id, "gpt-custom")
+    test "resolves configured models with protected transport options", %{scope: scope} do
+      provider = provider_fixture(scope, %{"models" => ["gpt-custom"]})
 
-      {:ok, {model, llm_opts}} =
-        Providers.resolve_model_access(scope, "custom:#{provider.id}:gpt-custom")
+      assert {:ok, {%LLMDB.Model{} = model, llm_opts}} =
+               Providers.resolve_model_access(scope, "custom:#{provider.id}:gpt-custom")
 
-      assert %LLMDB.Model{provider: :openai, id: "gpt-custom"} = model
+      assert model.provider == :openai
+      assert model.id == "gpt-custom"
       assert model.base_url == "http://93.184.216.34:8000/v1"
       assert llm_opts[:api_key] == "sk-no-key-required"
       assert llm_opts[:req_http_options] == [plugins: [FrontmanServer.PublicURL], redirect: false]
       assert is_function(llm_opts[:on_finch_request], 1)
     end
 
-    test "includes the provider's api_key in llm_opts when set", %{scope: scope} do
+    test "uses the current URL and explicit API-key changes", %{scope: scope} do
       provider =
-        provider_fixture(scope, %{
-          "base_url" => "http://93.184.216.35:8000/v1",
-          "api_key" => "secret-key"
-        })
+        provider_fixture(scope, %{"api_key" => "original", "models" => ["gpt-custom"]})
 
-      add_model(scope, provider.id, "gpt-custom")
-
-      {:ok, {_model, llm_opts}} =
-        Providers.resolve_model_access(scope, "custom:#{provider.id}:gpt-custom")
-
-      assert llm_opts[:api_key] == "secret-key"
-    end
-
-    test "resolves the current URL and preserved, replaced, or removed API key", %{scope: scope} do
-      provider = provider_fixture(scope, %{"api_key" => "original-key"})
-      add_model(scope, provider.id, "gpt-custom")
       model_ref = "custom:#{provider.id}:gpt-custom"
 
-      assert {:ok, _} =
-               Providers.update_custom_provider(scope, provider.id, %{
-                 "base_url" => "https://93.184.216.35/v1"
-               })
+      assert {:ok, kept} =
+               Providers.update_custom_provider(
+                 scope,
+                 provider.id,
+                 replacement(provider, %{
+                   "base_url" => "https://93.184.216.35/v1",
+                   "api_key" => "ignored",
+                   "api_key_change" => %{"action" => "keep"}
+                 })
+               )
 
-      assert {:ok, {%{base_url: "https://93.184.216.35/v1"}, llm_opts}} =
+      assert {:ok, {%{base_url: "https://93.184.216.35/v1"}, opts}} =
                Providers.resolve_model_access(scope, model_ref)
 
-      assert llm_opts[:api_key] == "original-key"
+      assert opts[:api_key] == "original"
 
-      assert {:ok, _} =
-               Providers.update_custom_provider(scope, provider.id, %{
-                 "api_key" => "replacement-key"
-               })
+      assert {:ok, replaced} =
+               Providers.update_custom_provider(
+                 scope,
+                 provider.id,
+                 replacement(kept, %{
+                   "api_key_change" => %{"action" => "replace", "value" => "replacement"}
+                 })
+               )
 
-      assert {:ok, {_, llm_opts}} = Providers.resolve_model_access(scope, model_ref)
-      assert llm_opts[:api_key] == "replacement-key"
+      assert {:ok, {_, opts}} = Providers.resolve_model_access(scope, model_ref)
+      assert opts[:api_key] == "replacement"
 
-      assert {:ok, _} = Providers.update_custom_provider(scope, provider.id, %{"api_key" => ""})
+      assert {:ok, _cleared} =
+               Providers.update_custom_provider(
+                 scope,
+                 provider.id,
+                 replacement(replaced, %{"api_key_change" => %{"action" => "clear"}})
+               )
 
-      assert {:ok, {_, llm_opts}} = Providers.resolve_model_access(scope, model_ref)
-      assert llm_opts[:api_key] == "sk-no-key-required"
+      assert {:ok, {_, opts}} = Providers.resolve_model_access(scope, model_ref)
+      assert opts[:api_key] == "sk-no-key-required"
     end
 
-    test "returns :unknown_model for another user's provider", %{scope: scope} do
-      other_scope = %Scope{user: user_fixture()}
-      provider = provider_fixture(other_scope)
-      add_model(other_scope, provider.id, "gpt-custom")
+    test "rejects unconfigured, foreign, and malformed references", %{scope: scope} do
+      provider = provider_fixture(scope, %{"models" => ["configured"]})
+      other = provider_fixture(Scope.for_user(user_fixture()), %{"models" => ["private"]})
 
       assert {:error, :unknown_model} =
-               Providers.resolve_model_access(scope, "custom:#{provider.id}:gpt-custom")
-    end
-
-    test "returns :unknown_model for an unknown model_id on an owned provider", %{scope: scope} do
-      provider = provider_fixture(scope)
-      add_model(scope, provider.id, "gpt-custom")
+               Providers.resolve_model_access(scope, "custom:#{provider.id}:other")
 
       assert {:error, :unknown_model} =
-               Providers.resolve_model_access(scope, "custom:#{provider.id}:other-model")
-    end
+               Providers.resolve_model_access(scope, "custom:#{other.id}:private")
 
-    test "returns :unknown_model for a malformed provider id", %{scope: scope} do
       assert {:error, :unknown_model} =
-               Providers.resolve_model_access(scope, "custom:not-a-uuid:gpt-custom")
+               Providers.resolve_model_access(scope, "custom:not-a-uuid:configured")
     end
   end
 
-  describe "parse_model_ref/1" do
-    test "accepts custom:<id>:<model>" do
-      assert {:ok, "custom:abc-123:gpt-x"} =
-               Providers.parse_model_ref("custom:abc-123:gpt-x")
-    end
-
-    test "rejects incomplete custom references" do
-      assert :error = Providers.parse_model_ref("custom:abc-123")
-    end
-
-    test "accepts catalog references" do
-      assert {:ok, "anthropic:claude-sonnet-5"} =
-               Providers.parse_model_ref("anthropic:claude-sonnet-5")
-    end
-  end
-
-  defp provider_fixture(scope, attrs \\ %{}) do
+  defp provider_fixture(scope, attrs) do
     {:ok, provider} =
       Providers.create_custom_provider(
         scope,
-        Map.merge(%{"name" => "vLLM", "base_url" => "http://93.184.216.34:8000/v1"}, attrs)
+        Map.merge(
+          %{"name" => "vLLM", "base_url" => "http://93.184.216.34:8000/v1", "models" => []},
+          attrs
+        )
       )
 
     provider
   end
 
-  defp add_model(scope, provider_id, model_id) do
-    {:ok, _model} =
-      Providers.add_custom_provider_model(scope, provider_id, %{"model_id" => model_id})
-
-    :ok
+  defp replacement(provider, attrs) do
+    Map.merge(
+      %{
+        "name" => provider.name,
+        "base_url" => provider.base_url,
+        "models" => provider.models,
+        "lock_version" => provider.lock_version,
+        "api_key_change" => %{"action" => "keep"}
+      },
+      attrs
+    )
   end
 
   defp find_group(groups, provider_id) do

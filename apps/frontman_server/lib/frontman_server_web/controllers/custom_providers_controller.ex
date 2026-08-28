@@ -8,85 +8,56 @@ defmodule FrontmanServerWeb.CustomProvidersController do
   alias FrontmanServer.Providers
 
   def index(conn, _params) do
-    scope = conn.assigns.current_scope
-    json(conn, %{providers: Providers.list_custom_providers(scope)})
+    json(conn, %{data: Providers.list_custom_providers(conn.assigns.current_scope)})
   end
 
   def create(conn, params) do
-    scope = conn.assigns.current_scope
-    attrs = Map.take(params, ["name", "base_url", "api_key"])
+    attrs = Map.take(params, ["name", "base_url", "api_key", "models"])
 
-    case Providers.create_custom_provider(scope, attrs) do
-      {:ok, provider} ->
-        json(conn, %{provider: provider})
-
-      {:error, errors} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{status: "error", errors: errors})
+    case Providers.create_custom_provider(conn.assigns.current_scope, attrs) do
+      {:ok, provider} -> conn |> put_status(:created) |> json(%{data: provider})
+      {:error, errors} -> validation_error(conn, errors)
     end
   end
 
   def update(conn, %{"provider_id" => provider_id} = params) do
-    scope = conn.assigns.current_scope
-    attrs = Map.take(params, ["name", "base_url", "api_key"])
+    attrs =
+      Map.take(params, ["name", "base_url", "models", "lock_version", "api_key_change"])
 
-    case Providers.update_custom_provider(scope, provider_id, attrs) do
-      {:ok, provider} ->
-        json(conn, %{provider: provider})
-
-      {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{status: "error", error: "not_found"})
-
-      {:error, errors} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{status: "error", errors: errors})
+    case Providers.update_custom_provider(conn.assigns.current_scope, provider_id, attrs) do
+      {:ok, provider} -> json(conn, %{data: provider})
+      {:error, :not_found} -> not_found(conn)
+      {:error, {:stale, provider}} -> stale(conn, provider)
+      {:error, errors} -> validation_error(conn, errors)
     end
   end
 
-  def delete(conn, %{"provider_id" => provider_id}) do
-    scope = conn.assigns.current_scope
-
-    case Providers.delete_custom_provider(scope, provider_id) do
-      :ok ->
-        json(conn, %{status: "ok"})
-
-      {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{status: "error", error: "not_found"})
+  def delete(conn, %{"provider_id" => provider_id} = params) do
+    case Providers.delete_custom_provider(
+           conn.assigns.current_scope,
+           provider_id,
+           params["lock_version"]
+         ) do
+      :ok -> send_resp(conn, :no_content, "")
+      {:error, :not_found} -> not_found(conn)
+      {:error, {:stale, provider}} -> stale(conn, provider)
+      {:error, errors} -> validation_error(conn, errors)
     end
   end
 
-  def add_model(conn, %{"provider_id" => provider_id} = params) do
-    scope = conn.assigns.current_scope
-    attrs = Map.take(params, ["model_id"])
-
-    case Providers.add_custom_provider_model(scope, provider_id, attrs) do
-      {:ok, provider} ->
-        json(conn, %{provider: provider})
-
-      {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{status: "error", error: "not_found"})
-
-      {:error, errors} ->
-        conn
-        |> put_status(:unprocessable_entity)
-        |> json(%{status: "error", errors: errors})
-    end
+  defp not_found(conn) do
+    conn |> put_status(:not_found) |> json(%{status: "error", code: "not_found"})
   end
 
-  def remove_model(conn, %{
-        "provider_id" => provider_id,
-        "provider_model_id" => provider_model_id
-      }) do
-    scope = conn.assigns.current_scope
+  defp stale(conn, provider) do
+    conn
+    |> put_status(:conflict)
+    |> json(%{status: "error", code: "stale", current_provider: provider})
+  end
 
-    case Providers.remove_custom_provider_model(scope, provider_id, provider_model_id) do
-      {:ok, provider} ->
-        json(conn, %{provider: provider})
-
-      {:error, :not_found} ->
-        conn |> put_status(:not_found) |> json(%{status: "error", error: "not_found"})
-    end
+  defp validation_error(conn, errors) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{status: "error", code: "validation_failed", errors: errors})
   end
 end

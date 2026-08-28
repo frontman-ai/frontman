@@ -8,6 +8,13 @@ defmodule FrontmanServer.PublicURLTest do
     assert :ok = PublicURL.validate("https://[2606:2800:220:1:248:1893:25c8:1946]")
   end
 
+  for url <- ["ftp://example.com", "not-a-url", ""] do
+    test "rejects invalid URL syntax: #{inspect(url)}" do
+      assert {:error, "URL must start with http:// or https://"} =
+               PublicURL.validate(unquote(url))
+    end
+  end
+
   @blocked_urls ~w(
     http://localhost/secret http://localhost:8080/admin http://127.0.0.1/
     http://127.0.0.42:9200/ http://10.0.0.1/ http://172.16.0.1/ http://192.168.1.1/

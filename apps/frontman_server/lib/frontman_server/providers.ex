@@ -19,83 +19,58 @@ defmodule FrontmanServer.Providers do
     AnthropicOAuth,
     ApiKey,
     CustomProvider,
-    CustomProviderModel,
     OAuthToken,
     OpenAIOAuth
   }
 
+  @spec list_custom_providers(Scope.t()) :: [map()]
   def list_custom_providers(%Scope{user: %User{id: user_id}}) do
     CustomProvider
     |> CustomProvider.for_user(user_id)
     |> Repo.all()
-    |> Repo.preload(models: CustomProviderModel.ordered())
     |> Enum.map(&custom_provider_data/1)
   end
 
+  @spec create_custom_provider(Scope.t(), map()) :: {:ok, map()} | {:error, map()}
   def create_custom_provider(%Scope{user: %User{id: user_id}}, attrs) do
     %CustomProvider{user_id: user_id}
-    |> CustomProvider.changeset(attrs)
+    |> CustomProvider.changeset(normalize_create_api_key(attrs))
     |> Repo.insert()
     |> custom_provider_result()
   end
 
+  @spec update_custom_provider(Scope.t(), String.t(), map()) ::
+          {:ok, map()} | {:error, :not_found | map() | {:stale, map()}}
   def update_custom_provider(%Scope{user: %User{}} = scope, id, attrs) do
-    case get_owned_custom_provider(scope, id) do
-      %CustomProvider{} = provider ->
-        provider
-        |> CustomProvider.changeset(attrs)
-        |> Repo.update()
-        |> custom_provider_result()
-
-      nil ->
-        {:error, :not_found}
-    end
-  end
-
-  def delete_custom_provider(%Scope{user: %User{}} = scope, id) do
-    case get_owned_custom_provider(scope, id) do
-      %CustomProvider{} = provider ->
-        Repo.delete!(provider)
-        broadcast_config_changed(provider.user_id)
-        :ok
-
-      nil ->
-        {:error, :not_found}
-    end
-  end
-
-  def add_custom_provider_model(%Scope{user: %User{}} = scope, custom_provider_id, attrs) do
-    case get_owned_custom_provider(scope, custom_provider_id) do
-      %CustomProvider{} = provider ->
-        case %CustomProviderModel{custom_provider_id: custom_provider_id}
-             |> CustomProviderModel.changeset(attrs)
-             |> Repo.insert() do
-          {:ok, _model} -> custom_provider_result({:ok, provider})
-          {:error, changeset} -> {:error, validation_errors(changeset)}
-        end
-
-      nil ->
-        {:error, :not_found}
-    end
-  end
-
-  def remove_custom_provider_model(
-        %Scope{user: %User{}} = scope,
-        custom_provider_id,
-        provider_model_id
-      ) do
-    with {:ok, provider_model_id} <- Ecto.UUID.cast(provider_model_id),
-         %CustomProvider{} = provider <- get_owned_custom_provider(scope, custom_provider_id),
-         %CustomProviderModel{} = model <-
-           Repo.get_by(CustomProviderModel,
-             id: provider_model_id,
-             custom_provider_id: custom_provider_id
-           ) do
-      {:ok, _model} = Repo.delete(model)
-      custom_provider_result({:ok, provider})
+    with %CustomProvider{} = provider <- get_owned_custom_provider(scope, id),
+         :ok <- require_replacement_attrs(attrs),
+         {:ok, lock_version} <- positive_lock_version(attrs),
+         {:ok, attrs} <- apply_api_key_change(attrs) do
+      provider
+      |> Map.replace!(:lock_version, lock_version)
+      |> CustomProvider.changeset(attrs)
+      |> Ecto.Changeset.optimistic_lock(:lock_version)
+      |> Repo.update(stale_error_field: :lock_version)
+      |> custom_provider_update_result(scope, id)
     else
-      :error -> {:error, :not_found}
       nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @spec delete_custom_provider(Scope.t(), String.t(), term()) ::
+          :ok | {:error, :not_found | map() | {:stale, map()}}
+  def delete_custom_provider(%Scope{user: %User{}} = scope, id, lock_version) do
+    with {:ok, lock_version} <- delete_lock_version(lock_version),
+         %CustomProvider{} = provider <- get_owned_custom_provider(scope, id) do
+      provider
+      |> Map.replace!(:lock_version, lock_version)
+      |> Ecto.Changeset.optimistic_lock(:lock_version)
+      |> Repo.delete(stale_error_field: :lock_version)
+      |> custom_provider_delete_result(scope, id)
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
     end
   end
 
@@ -187,11 +162,7 @@ defmodule FrontmanServer.Providers do
   defp resolve_custom_model(scope, provider_id, model_id, opts) do
     with {:ok, provider_id} <- Ecto.UUID.cast(provider_id),
          %CustomProvider{} = provider <- get_owned_custom_provider(scope, provider_id),
-         %CustomProviderModel{} <-
-           Repo.get_by(CustomProviderModel,
-             custom_provider_id: provider_id,
-             model_id: model_id
-           ) do
+         true <- model_id in provider.models do
       model = %LLMDB.Model{provider: :openai, id: model_id, base_url: provider.base_url}
 
       llm_opts =
@@ -204,6 +175,7 @@ defmodule FrontmanServer.Providers do
     else
       :error -> {:error, :unknown_model}
       nil -> {:error, :unknown_model}
+      false -> {:error, :unknown_model}
     end
   end
 
@@ -580,15 +552,12 @@ defmodule FrontmanServer.Providers do
     CustomProvider
     |> CustomProvider.for_user(user_id)
     |> Repo.all()
-    |> Repo.preload(:models)
     |> Enum.filter(fn provider -> provider.models != [] end)
     |> Enum.sort_by(& &1.name)
     |> Enum.map(fn provider ->
       options =
-        provider.models
-        |> Enum.sort_by(& &1.model_id)
-        |> Enum.map(fn model ->
-          %{name: model.model_id, value: "custom:#{provider.id}:#{model.model_id}"}
+        Enum.map(provider.models, fn model_id ->
+          %{name: model_id, value: "custom:#{provider.id}:#{model_id}"}
         end)
 
       %{id: "custom:#{provider.id}", name: provider.name, options: options}
@@ -608,12 +577,30 @@ defmodule FrontmanServer.Providers do
   end
 
   defp custom_provider_result({:ok, %CustomProvider{} = provider}) do
-    provider = Repo.preload(provider, models: CustomProviderModel.ordered())
     broadcast_config_changed(provider.user_id)
     {:ok, custom_provider_data(provider)}
   end
 
   defp custom_provider_result({:error, changeset}), do: {:error, validation_errors(changeset)}
+
+  defp custom_provider_update_result({:error, changeset}, scope, id),
+    do: custom_provider_error(changeset, scope, id)
+
+  defp custom_provider_update_result(result, _scope, _id), do: custom_provider_result(result)
+
+  defp custom_provider_delete_result({:ok, provider}, _scope, _id) do
+    broadcast_config_changed(provider.user_id)
+    :ok
+  end
+
+  defp custom_provider_delete_result({:error, changeset}, scope, id),
+    do: custom_provider_error(changeset, scope, id)
+
+  defp custom_provider_error(changeset, scope, id) do
+    if stale_changeset?(changeset),
+      do: stale_result(scope, id),
+      else: {:error, validation_errors(changeset)}
+  end
 
   defp custom_provider_data(%CustomProvider{} = provider) do
     %{
@@ -621,12 +608,72 @@ defmodule FrontmanServer.Providers do
       name: provider.name,
       base_url: provider.base_url,
       has_api_key: not is_nil(provider.api_key),
-      models: Enum.map(provider.models, &custom_provider_model_data/1)
+      models: provider.models,
+      lock_version: provider.lock_version
     }
   end
 
-  defp custom_provider_model_data(%CustomProviderModel{} = model) do
-    %{id: model.id, model_id: model.model_id}
+  defp normalize_create_api_key(%{"api_key" => ""} = attrs),
+    do: Map.put(attrs, "api_key", nil)
+
+  defp normalize_create_api_key(attrs), do: attrs
+
+  defp require_replacement_attrs(attrs) do
+    case Enum.reject(
+           ~w(name base_url models lock_version api_key_change),
+           &Map.has_key?(attrs, &1)
+         ) do
+      [] -> :ok
+      keys -> {:error, Map.new(keys, &{String.to_existing_atom(&1), ["is required"]})}
+    end
+  end
+
+  defp apply_api_key_change(%{"api_key_change" => %{"action" => "keep"}} = attrs),
+    do: {:ok, Map.drop(attrs, ["api_key_change", "api_key"])}
+
+  defp apply_api_key_change(%{"api_key_change" => %{"action" => "clear"}} = attrs),
+    do: {:ok, attrs |> Map.delete("api_key_change") |> Map.put("api_key", nil)}
+
+  defp apply_api_key_change(
+         %{"api_key_change" => %{"action" => "replace", "value" => value}} = attrs
+       )
+       when is_binary(value) and value != "",
+       do: {:ok, attrs |> Map.delete("api_key_change") |> Map.put("api_key", value)}
+
+  defp apply_api_key_change(%{"api_key_change" => %{"action" => "replace"}}),
+    do: {:error, %{api_key_change: ["replacement value must not be empty"]}}
+
+  defp apply_api_key_change(_attrs),
+    do: {:error, %{api_key_change: ["has an invalid action"]}}
+
+  defp positive_lock_version(%{"lock_version" => version}), do: positive_lock_version(version)
+
+  defp positive_lock_version(attrs) when is_map(attrs),
+    do: {:error, %{lock_version: ["is required"]}}
+
+  defp positive_lock_version(version) when is_integer(version) and version > 0, do: {:ok, version}
+
+  defp positive_lock_version(_version),
+    do: {:error, %{lock_version: ["must be a positive integer"]}}
+
+  defp delete_lock_version(version) when is_binary(version) do
+    case Integer.parse(version) do
+      {parsed, ""} when parsed > 0 -> {:ok, parsed}
+      _ -> {:error, %{lock_version: ["must be a positive integer"]}}
+    end
+  end
+
+  defp delete_lock_version(version), do: positive_lock_version(version)
+
+  defp stale_changeset?(changeset) do
+    Enum.any?(changeset.errors, fn {_field, {_message, options}} -> options[:stale] end)
+  end
+
+  defp stale_result(scope, id) do
+    case get_owned_custom_provider(scope, id) do
+      %CustomProvider{} = provider -> {:error, {:stale, custom_provider_data(provider)}}
+      nil -> {:error, :not_found}
+    end
   end
 
   defp validation_errors(changeset) do

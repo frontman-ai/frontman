@@ -111,13 +111,6 @@ type openAIDeviceAuthPollResponse = {
 }
 
 @schema
-type customProviderModel = {
-  id: string,
-  @as("model_id")
-  modelId: string,
-}
-
-@schema
 type customProvider = {
   id: string,
   name: string,
@@ -125,18 +118,55 @@ type customProvider = {
   baseUrl: string,
   @as("has_api_key")
   hasApiKey: bool,
-  models: array<customProviderModel>,
+  models: array<string>,
+  @as("lock_version")
+  lockVersion: int,
 }
 
 @schema
 type customProvidersResponse = {
+  @as("data")
   providers: array<customProvider>,
 }
 
 @schema
 type customProviderResponse = {
+  @as("data")
   provider: customProvider,
 }
+
+type customProviderApiKeyChange =
+  | KeepCustomProviderApiKey
+  | ClearCustomProviderApiKey
+  | ReplaceCustomProviderApiKey(string)
+
+type customProviderDraft = {
+  id: option<string>,
+  name: string,
+  baseUrl: string,
+  apiKeyChange: customProviderApiKeyChange,
+  models: array<string>,
+  lockVersion: option<int>,
+}
+
+type customProviderMutationOperation =
+  | SavingCustomProvider(option<string>)
+  | DeletingCustomProvider(string)
+
+type customProviderMutationError =
+  | CustomProviderValidationError(Dict.t<array<string>>)
+  | CustomProviderNotFound
+  | CustomProviderConflict(customProvider)
+  | CustomProviderNetworkError(string)
+
+type customProviderMutation =
+  | CustomProviderMutationIdle
+  | CustomProviderMutationPending(customProviderMutationOperation)
+  | CustomProviderMutationSucceeded(customProviderMutationOperation)
+  | CustomProviderMutationFailed({
+      operation: customProviderMutationOperation,
+      error: customProviderMutationError,
+    })
 
 module ACPConfig = {
   type sessionConfigOption = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption
@@ -217,6 +247,7 @@ type state = {
   pendingProviderAutoSelect: option<string>,
   sessionsLoadState: sessionsLoadState,
   customProviders: option<array<customProvider>>,
+  customProviderMutation: customProviderMutation,
   updateInfo: option<updateInfo>,
   updateCheckStatus: updateCheckStatus,
   updateBannerDismissed: bool,

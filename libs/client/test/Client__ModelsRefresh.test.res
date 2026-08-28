@@ -18,40 +18,17 @@ let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 let _apiBaseUrl = "http://localhost:4000"
 
 let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
-  {
-    tasks: Dict.make(),
-    currentTask: Types.Task.New(Types.Task.makeNew(~previewUrl="http://localhost:3000")),
-    acpSession: AcpSessionActive({
-      sendPrompt: _dummySendPrompt,
-      cancelPrompt: _dummyCancelPrompt,
-      retryTurn: _dummyRetryTurn,
-      loadTask: _dummyLoadTask,
-      deleteSession: _dummyDeleteSession,
-      apiBaseUrl: _apiBaseUrl,
-    }),
-    userProfile: None,
-    openrouterKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
-    anthropicKeySettings: {
-      source: Types.None,
-      saveStatus: Types.Idle,
-    },
-    fireworksKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
-    nvidiaKeySettings: {Types.source: Types.None, saveStatus: Types.Idle},
-    anthropicOAuthStatus: Types.NotConnected,
-    openaiOAuthStatus: Types.OpenAINotConnected,
-    configOptions: None,
-    selectedModelValue,
-    agentCatalog: None,
-    selectedAgentId: None,
-    pendingProviderAutoSelect,
-    sessionsLoadState: Types.SessionsNotLoaded,
-    updateInfo: None,
-    updateCheckStatus: UpdateNotChecked,
-    updateBannerDismissed: false,
-    firstTaskFeedbackDialogState: Waiting,
-    highlightedAnnotation: None,
-    customProviders: None,
-  }
+  ...Reducer.defaultState,
+  acpSession: AcpSessionActive({
+    sendPrompt: _dummySendPrompt,
+    cancelPrompt: _dummyCancelPrompt,
+    retryTurn: _dummyRetryTurn,
+    loadTask: _dummyLoadTask,
+    deleteSession: _dummyDeleteSession,
+    apiBaseUrl: _apiBaseUrl,
+  }),
+  selectedModelValue,
+  pendingProviderAutoSelect,
 }
 
 module SampleConfig = {

@@ -5,12 +5,6 @@
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
 defmodule FrontmanServer.Providers.CustomProvidersTest do
-  @moduledoc """
-  Unit tests for the Custom Provider API on `Providers`.
-
-  Covers user scoping (no cross-user access), CRUD, and delete cascading.
-  """
-
   use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.Test.Fixtures.Accounts
@@ -18,163 +12,173 @@ defmodule FrontmanServer.Providers.CustomProvidersTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
 
-  setup do
-    user = user_fixture()
-    %{scope: Scope.for_user(user)}
+  setup do: %{scope: Scope.for_user(user_fixture())}
+
+  test "creates one sanitized aggregate with normalized models", %{scope: scope} do
+    subscribe_to_config_changes(scope)
+
+    assert {:ok, provider} =
+             Providers.create_custom_provider(
+               scope,
+               valid_attributes(%{"models" => [" zeta ", "Alpha", "beta"]})
+             )
+
+    assert provider.models == ["Alpha", "beta", "zeta"]
+    refute provider.has_api_key
+    assert_receive :config_options_changed
+
+    assert {:ok, %{has_api_key: false}} =
+             Providers.create_custom_provider(scope, valid_attributes(%{"api_key" => ""}))
   end
 
-  describe "create_custom_provider/2" do
-    test "creates a provider without an API key", %{scope: scope} do
-      attrs = valid_provider_attributes()
+  test "rejects invalid aggregate model lists", %{scope: scope} do
+    model_id = String.duplicate("x", 256)
 
-      assert {:ok, provider} = Providers.create_custom_provider(scope, attrs)
+    assert {:ok, %{models: [^model_id]}} =
+             Providers.create_custom_provider(scope, valid_attributes(%{"models" => [model_id]}))
 
-      assert provider.name == attrs.name
-      assert provider.base_url == attrs.base_url
-      assert provider.has_api_key == false
-      assert provider.models == []
-      refute Map.has_key?(provider, :api_key)
-      refute Map.has_key?(provider, :user_id)
-    end
-  end
+    invalid_models = [
+      nil,
+      ["duplicate", " duplicate "],
+      [" "],
+      [String.duplicate("x", 257)],
+      Enum.map(1..101, &"model-#{&1}")
+    ]
 
-  describe "list_custom_providers/1" do
-    test "returns only the current user's providers", %{scope: scope} do
-      {:ok, mine} = Providers.create_custom_provider(scope, valid_provider_attributes())
-
-      other_scope = Scope.for_user(user_fixture())
-      {:ok, _} = Providers.create_custom_provider(other_scope, valid_provider_attributes())
-
-      assert [%{id: id}] = Providers.list_custom_providers(scope)
-      assert id == mine.id
-    end
-
-    test "preloads models ordered by model_id", %{scope: scope} do
-      {:ok, provider} = Providers.create_custom_provider(scope, valid_provider_attributes())
-
-      {:ok, _} =
-        Providers.add_custom_provider_model(scope, provider.id, %{
-          model_id: "zeta",
-          position: 0,
-          display_name: "ignored"
-        })
-
-      {:ok, _} =
-        Providers.add_custom_provider_model(scope, provider.id, %{model_id: "gamma", position: 1})
-
-      {:ok, _} =
-        Providers.add_custom_provider_model(scope, provider.id, %{model_id: "beta", position: 10})
-
-      {:ok, _} =
-        Providers.add_custom_provider_model(scope, provider.id, %{model_id: "alpha", position: 20})
-
-      assert [ordered] = Providers.list_custom_providers(scope)
-      assert ["alpha", "beta", "gamma", "zeta"] == Enum.map(ordered.models, & &1.model_id)
+    for models <- invalid_models do
+      assert {:error, %{models: [_ | _]}} =
+               Providers.create_custom_provider(scope, valid_attributes(%{"models" => models}))
     end
   end
 
-  describe "update_custom_provider/3" do
-    test "returns :not_found for another user's provider", %{scope: scope} do
-      other_scope = Scope.for_user(user_fixture())
+  test "validates required and maximum provider fields", %{scope: scope} do
+    for {field, value} <- [
+          {"name", ""},
+          {"name", String.duplicate("x", 65)},
+          {"base_url", ""},
+          {"base_url", "https://example.com/" <> String.duplicate("x", 493)}
+        ] do
+      error_field = String.to_existing_atom(field)
 
-      {:ok, provider} =
-        Providers.create_custom_provider(other_scope, valid_provider_attributes())
-
-      assert {:error, :not_found} =
-               Providers.update_custom_provider(scope, provider.id, %{name: "hijacked"})
-    end
-
-    test "create and update reject non-public base URLs", %{scope: scope} do
-      assert {:error, create_changeset} =
-               Providers.create_custom_provider(
-                 scope,
-                 valid_provider_attributes(base_url: "http://127.0.0.1")
-               )
-
-      {:ok, provider} = Providers.create_custom_provider(scope, valid_provider_attributes())
-
-      assert {:error, update_errors} =
-               Providers.update_custom_provider(scope, provider.id, %{base_url: "http://10.0.0.1"})
-
-      for errors <- [create_changeset, update_errors] do
-        assert Enum.any?(errors.base_url, &String.starts_with?(&1, "Requests to private"))
-      end
+      assert {:error, %{^error_field => [_ | _]}} =
+               Providers.create_custom_provider(scope, valid_attributes(%{field => value}))
     end
   end
 
-  describe "delete_custom_provider/2" do
-    test "deletes the provider", %{scope: scope} do
-      {:ok, provider} = Providers.create_custom_provider(scope, valid_provider_attributes())
+  test "lists only the current user's aggregates", %{scope: scope} do
+    attrs = valid_attributes(%{"name" => "shared", "models" => ["model-b"]})
+    {:ok, mine} = Providers.create_custom_provider(scope, attrs)
+    other_scope = Scope.for_user(user_fixture())
+    assert {:ok, _} = Providers.create_custom_provider(other_scope, attrs)
+    assert {:error, %{name: [_ | _]}} = Providers.create_custom_provider(scope, attrs)
 
-      {:ok, _} = Providers.add_custom_provider_model(scope, provider.id, %{model_id: "model-a"})
-      {:ok, _} = Providers.add_custom_provider_model(scope, provider.id, %{model_id: "model-b"})
-
-      assert :ok = Providers.delete_custom_provider(scope, provider.id)
-      assert Providers.list_custom_providers(scope) == []
-    end
-
-    test "returns :not_found for another user's provider", %{scope: scope} do
-      other_scope = Scope.for_user(user_fixture())
-
-      {:ok, provider} =
-        Providers.create_custom_provider(other_scope, valid_provider_attributes())
-
-      assert {:error, :not_found} = Providers.delete_custom_provider(scope, provider.id)
-    end
+    assert [%{id: id, models: ["model-b"]}] = Providers.list_custom_providers(scope)
+    assert id == mine.id
   end
 
-  describe "add_custom_provider_model/3" do
-    test "adds a model to an owned provider", %{scope: scope} do
-      {:ok, provider} = Providers.create_custom_provider(scope, valid_provider_attributes())
+  test "rejects invalid API-key changes", %{scope: scope} do
+    {:ok, provider} = Providers.create_custom_provider(scope, valid_attributes())
+    subscribe_to_config_changes(scope)
 
-      assert {:ok, updated_provider} =
-               Providers.add_custom_provider_model(scope, provider.id, %{
-                 model_id: "llama-4-scout"
-               })
+    assert {:error, %{api_key_change: [_ | _]}} =
+             Providers.update_custom_provider(
+               scope,
+               provider.id,
+               replacement(provider, %{"api_key_change" => "keep"})
+             )
 
-      assert [%{id: _, model_id: "llama-4-scout"}] = updated_provider.models
-    end
-
-    test "rejects duplicate model IDs on one provider", %{scope: scope} do
-      {:ok, provider} = Providers.create_custom_provider(scope, valid_provider_attributes())
-      attrs = %{model_id: "llama-4-scout"}
-
-      assert {:ok, _provider} = Providers.add_custom_provider_model(scope, provider.id, attrs)
-      assert {:error, errors} = Providers.add_custom_provider_model(scope, provider.id, attrs)
-      assert "has already been taken" in errors.model_id
-    end
-
-    test "allows the same model ID on different providers", %{scope: scope} do
-      {:ok, first} = Providers.create_custom_provider(scope, valid_provider_attributes())
-      {:ok, second} = Providers.create_custom_provider(scope, valid_provider_attributes())
-      attrs = %{model_id: "llama-4-scout"}
-
-      assert {:ok, _provider} = Providers.add_custom_provider_model(scope, first.id, attrs)
-      assert {:ok, _provider} = Providers.add_custom_provider_model(scope, second.id, attrs)
-    end
+    refute_receive :config_options_changed, 50
   end
 
-  describe "remove_custom_provider_model/3" do
-    test "returns :not_found for another user's model", %{scope: scope} do
-      other_scope = Scope.for_user(user_fixture())
-      {:ok, provider} = Providers.create_custom_provider(other_scope, valid_provider_attributes())
+  test "does not expose another user's provider", %{scope: scope} do
+    other_scope = Scope.for_user(user_fixture())
+    {:ok, provider} = Providers.create_custom_provider(other_scope, valid_attributes())
 
-      {:ok, updated_provider} =
-        Providers.add_custom_provider_model(other_scope, provider.id, %{model_id: "private"})
+    assert {:error, :not_found} =
+             Providers.update_custom_provider(scope, provider.id, replacement(provider))
 
-      [%{id: model_id}] = updated_provider.models
-
-      assert {:error, :not_found} =
-               Providers.remove_custom_provider_model(scope, provider.id, model_id)
-    end
+    assert {:error, :not_found} =
+             Providers.delete_custom_provider(scope, provider.id, provider.lock_version)
   end
 
-  defp unique_provider_name, do: "provider-#{System.unique_integer([:positive])}"
+  test "stale replacement preserves winner and returns sanitized current aggregate", %{
+    scope: scope
+  } do
+    {:ok, provider} =
+      Providers.create_custom_provider(
+        scope,
+        valid_attributes(%{"name" => "provider", "models" => ["original"]})
+      )
 
-  defp valid_provider_attributes(attrs \\ %{}) do
-    Enum.into(attrs, %{
-      name: unique_provider_name(),
-      base_url: "https://93.184.216.34/v1"
-    })
+    subscribe_to_config_changes(scope)
+
+    assert {:ok, winner} =
+             Providers.update_custom_provider(
+               scope,
+               provider.id,
+               replacement(provider, %{"name" => "winner", "models" => ["winner"]})
+             )
+
+    assert winner.lock_version == provider.lock_version + 1
+    assert_receive :config_options_changed
+
+    assert {:error, {:stale, ^winner}} =
+             Providers.update_custom_provider(
+               scope,
+               provider.id,
+               replacement(provider, %{"name" => "loser", "models" => ["loser"]})
+             )
+
+    refute_receive :config_options_changed, 50
+    assert [^winner] = Providers.list_custom_providers(scope)
+  end
+
+  test "stale delete preserves aggregate and publishes no notification", %{scope: scope} do
+    {:ok, provider} = Providers.create_custom_provider(scope, valid_attributes())
+
+    {:ok, current} =
+      Providers.update_custom_provider(
+        scope,
+        provider.id,
+        replacement(provider, %{"name" => "winner"})
+      )
+
+    subscribe_to_config_changes(scope)
+
+    assert {:error, {:stale, ^current}} =
+             Providers.delete_custom_provider(scope, provider.id, provider.lock_version)
+
+    refute_receive :config_options_changed, 50
+    assert [^current] = Providers.list_custom_providers(scope)
+
+    assert :ok = Providers.delete_custom_provider(scope, provider.id, current.lock_version)
+    assert_receive :config_options_changed
+  end
+
+  defp valid_attributes(attrs \\ %{}) do
+    %{
+      "name" => "provider-#{System.unique_integer([:positive])}",
+      "base_url" => "https://93.184.216.34/v1",
+      "models" => []
+    }
+    |> Map.merge(attrs)
+  end
+
+  defp replacement(provider, attrs \\ %{}) do
+    %{
+      "name" => provider.name,
+      "base_url" => provider.base_url,
+      "models" => provider.models,
+      "lock_version" => provider.lock_version,
+      "api_key_change" => %{"action" => "keep"}
+    }
+    |> Map.merge(attrs)
+  end
+
+  defp subscribe_to_config_changes(scope) do
+    Phoenix.PubSub.subscribe(
+      FrontmanServer.PubSub,
+      Providers.config_pubsub_topic(Scope.user(scope).id)
+    )
   end
 end
