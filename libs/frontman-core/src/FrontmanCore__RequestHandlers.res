@@ -199,7 +199,6 @@ let handleToolCall = async (
     let ctx: CoreServer.executionContext = {
       projectRoot: config.projectRoot,
       sourceRoot: config.sourceRoot,
-      onProgress: None,
     }
 
     let resultPromise = CoreServer.executeTool(

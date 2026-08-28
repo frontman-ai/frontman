@@ -356,9 +356,5 @@ type serverInterface<'server> = {
   server: 'server,
   buildDiscoverResult: 'server => discoverResult,
   buildToolsListResult: 'server => toolsListResult,
-  executeTool: (
-    'server,
-    AuthorizedToolCall.t,
-    ~onProgress: option<string => unit>,
-  ) => promise<executeToolResult>,
+  executeTool: ('server, AuthorizedToolCall.t) => promise<executeToolResult>,
 }

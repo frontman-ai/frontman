@@ -40,7 +40,6 @@ let initConfig: Reducer.initConfig = {
   loginUrl: "http://test/users/log-in",
   clientName: "test",
   clientVersion: "1.0.0",
-  onACPMessage: (_, _) => (),
   onTitleUpdated: None,
   _meta: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
 }
@@ -55,7 +54,6 @@ let loadTask = taskId => Reducer.LoadTask({
   needsHistory: true,
   onUpdate: (_, _) => (),
   onTitleUpdated: (_, _) => (),
-  onMcpMessage: (_, _) => (),
   onComplete: _ => (),
 })
 describe("Connection Reducer", () => {
@@ -494,7 +492,6 @@ describe("Connection Reducer", () => {
             sessionId: "sess-1",
             onUpdate: (_, _) => (),
             onTitleUpdated: (_, _) => (),
-            onMcpMessage: (_, _) => (),
             onComplete: _ => (),
           }),
         )

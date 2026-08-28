@@ -145,16 +145,6 @@ module Provider = {
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
-      let arrow = direction == Send ? `→` : `←`
-      Log.debug(~ctx={"payload": payload}, `ACP ${arrow}`)
-    })
-
-    let logMCPMessage = React.useCallback0((direction, payload) => {
-      let arrow = direction == FrontmanAiFrontmanClient.FrontmanClient__MCP.Send ? `→` : `←`
-      Log.debug(~ctx={"payload": payload}, `MCP ${arrow}`)
-    })
-
     let (state, dispatch) = StateReducer.useReducer(module(Reducer), Reducer.initialState)
     let connectionStateRef = React.useRef(state)
 
@@ -189,7 +179,6 @@ module Provider = {
         loginUrl,
         clientName,
         clientVersion,
-        onACPMessage: logACPMessage,
         _meta,
         onTitleUpdated: Some(
           (taskId, title) => {
@@ -354,7 +343,6 @@ module Provider = {
           sessionId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
-          onMcpMessage: logMCPMessage,
           onComplete,
         }),
       )
@@ -381,7 +369,6 @@ module Provider = {
           needsHistory,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
-          onMcpMessage: logMCPMessage,
           onComplete,
         }),
       )

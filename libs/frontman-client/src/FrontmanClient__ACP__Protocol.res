@@ -7,15 +7,12 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
-type messageDirection = Send | Receive
-
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
   ~method: string,
   ~params: option<JSON.t>,
   ~parseResult: JSON.t => result<'a, string>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
 ): promise<result<'a, string>> => {
   Promise.make((resolve, _) => {
     let id = state.contents.currentId + 1
@@ -34,7 +31,6 @@ let sendRequest = (
     state := state.contents->Client.reduce(Client.RequestSent(id, pending))
 
     let payload = request->JsonRpc.Request.toJson
-    onMessage->Option.forEach(cb => cb(Send, payload))
     channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
   })
 }
@@ -43,7 +39,6 @@ let sendInitialize = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
   ~clientConfig: Client.config,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
 ): promise<result<Types.initializeResult, string>> => {
   let params = Client.buildInitializeParams(clientConfig)
   sendRequest(
@@ -52,16 +47,12 @@ let sendInitialize = (
     ~method="initialize",
     ~params=Some(params),
     ~parseResult=Client.parseInitializeResult,
-    ~onMessage,
   )
 }
 
-let sendSessionNew = (
-  ~channel: Channel.t,
-  ~state: ref<Client.state>,
-  ~sessionId: string,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
-): promise<result<Types.sessionNewResult, string>> => {
+let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId: string): promise<
+  result<Types.sessionNewResult, string>,
+> => {
   let params = Dict.make()
   params->Dict.set("sessionId", JSON.Encode.string(sessionId))
   sendRequest(
@@ -70,7 +61,6 @@ let sendSessionNew = (
     ~method="session/new",
     ~params=Some(JSON.Encode.object(params)),
     ~parseResult=Client.parseSessionNewResult,
-    ~onMessage,
   )
 }
 
@@ -80,7 +70,6 @@ let sendPrompt = (
   ~sessionId: string,
   ~prompt: array<JSON.t>,
   ~_meta: option<JSON.t>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
 ): promise<result<Types.promptResult, string>> => {
   let entries = [
     ("sessionId", JSON.Encode.string(sessionId)),
@@ -97,30 +86,19 @@ let sendPrompt = (
     ~method="session/prompt",
     ~params=Some(promptParams),
     ~parseResult=Client.parsePromptResult,
-    ~onMessage,
   )
 }
 
-let sendCancel = (
-  ~channel: Channel.t,
-  ~sessionId: string,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
-): unit => {
+let sendCancel = (~channel: Channel.t, ~sessionId: string): unit => {
   let cancelParams = JSON.Encode.object(
     Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]),
   )
   let notification = JsonRpc.Notification.make(~method="session/cancel", ~params=Some(cancelParams))
   let payload = notification->JsonRpc.Notification.toJson
-  onMessage->Option.forEach(cb => cb(Send, payload))
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
-let sendRetryTurn = (
-  ~channel: Channel.t,
-  ~sessionId: string,
-  ~retriedErrorId: string,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
-): unit => {
+let sendRetryTurn = (~channel: Channel.t, ~sessionId: string, ~retriedErrorId: string): unit => {
   let params = JSON.Encode.object(
     Dict.fromArray([
       ("sessionId", JSON.Encode.string(sessionId)),
@@ -129,7 +107,6 @@ let sendRetryTurn = (
   )
   let notification = JsonRpc.Notification.make(~method="session/retry_turn", ~params=Some(params))
   let payload = notification->JsonRpc.Notification.toJson
-  onMessage->Option.forEach(cb => cb(Send, payload))
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
@@ -143,12 +120,9 @@ let getMethod = (payload: JSON.t): option<string> => {
 let handleIncomingMessage = (
   ~state: ref<Client.state>,
   ~onUpdate: option<(string, Types.sessionUpdate) => unit>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
   ~onParseError: option<string => unit>,
   payload: JSON.t,
 ): unit => {
-  onMessage->Option.forEach(cb => cb(Receive, payload))
-
   switch getMethod(payload) {
   | Some("session/update") =>
     switch Client.parseSessionUpdateNotification(state.contents, payload) {
@@ -178,10 +152,9 @@ let attachMessageHandler = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
   ~onUpdate: option<(string, Types.sessionUpdate) => unit>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
   ~onParseError: option<string => unit>,
 ): unit => {
   channel->Channel.on(~event=Constants.acpMessageEvent, ~callback=payload =>
-    handleIncomingMessage(~state, ~onUpdate, ~onMessage, ~onParseError, payload)
+    handleIncomingMessage(~state, ~onUpdate, ~onParseError, payload)
   )
 }

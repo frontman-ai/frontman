@@ -6,13 +6,10 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #MCP
 })
 
-type messageDirection = Send | Receive
-
 type mcpHandler<'server> = {
   serverInterface: Types.serverInterface<'server>,
   channel: Channel.t,
   sessionId: string,
-  onMessage: option<(messageDirection, JSON.t) => unit>,
 }
 
 @@live
@@ -56,7 +53,6 @@ let parseParams = (params, schema, missingMessage) =>
 
 let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
   let payload = JsonRpc.Response.makeSuccess(~id, ~result)->JsonRpc.Response.toJson
-  handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
@@ -69,14 +65,12 @@ let sendError = (
 ): unit => {
   let error = JsonRpc.RpcError.make(~code, ~message, ~data)
   let payload = JsonRpc.Response.makeError(~id, ~error)->JsonRpc.Response.toJson
-  handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
 let sendErrorWithoutId = (handler: mcpHandler<'server>, code: int, message: string): unit => {
   let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
   let payload = JsonRpc.Response.makeErrorWithoutId(~error)->JsonRpc.Response.toJson
-  handler.onMessage->Option.forEach(cb => cb(Send, payload))
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
@@ -168,11 +162,7 @@ let handleToolsCall = async (
     | Ok(authorizedToolCall) =>
       try {
         let {serverInterface} = handler
-        let result = await serverInterface.executeTool(
-          serverInterface.server,
-          authorizedToolCall,
-          ~onProgress=None,
-        )
+        let result = await serverInterface.executeTool(serverInterface.server, authorizedToolCall)
         switch result {
         | Completed(callToolResult) =>
           let resultJson =
@@ -197,8 +187,6 @@ let handleToolsCall = async (
 
 let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit => {
   try {
-    handler.onMessage->Option.forEach(cb => cb(Receive, payload))
-
     switch parse(payload) {
     | Ok(Request({id, method, params})) =>
       switch parseParams(params, Types.discoverParamsSchema, "Missing request params") {
@@ -237,9 +225,8 @@ let attach = (
   ~channel: Channel.t,
   ~sessionId: string,
   ~serverInterface: Types.serverInterface<'server>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
 ): mcpHandler<'server> => {
-  let handler = {serverInterface, channel, sessionId, onMessage}
+  let handler = {serverInterface, channel, sessionId}
 
   channel->Channel.on(~event=#"mcp:message", ~callback=payload => {
     handleMessage(handler, payload)->ignore

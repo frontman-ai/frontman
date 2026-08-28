@@ -11,7 +11,6 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
-type messageDirection = Protocol.messageDirection
 @@live
 type config = {
   endpoint: string,
@@ -19,7 +18,6 @@ type config = {
   loginUrl: string,
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
-  onMessage: option<(messageDirection, JSON.t) => unit>,
   onTitleUpdated: option<(string, string) => unit>,
   onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
 }
@@ -32,7 +30,6 @@ let makeConfig = (
   ~name: string,
   ~version: string,
   ~_meta: JSON.t,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
   ~onTitleUpdated: option<(string, string) => unit>=?,
   ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
 ): config => {
@@ -53,7 +50,6 @@ let makeConfig = (
     elicitation: None,
     _meta: None,
   },
-  onMessage,
 }
 
 type connection = {
@@ -61,7 +57,6 @@ type connection = {
   channel: Channel.t,
   clientConfig: Client.config,
   state: ref<Client.state>,
-  onMessage: option<(messageDirection, JSON.t) => unit>,
 }
 
 @@live
@@ -196,13 +191,7 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       clientCapabilities: config.clientCapabilities,
     }
 
-    Protocol.attachMessageHandler(
-      ~channel,
-      ~state,
-      ~onUpdate=None,
-      ~onMessage=config.onMessage,
-      ~onParseError=None,
-    )
+    Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
 
     let socketResult = await waitForSocket(socket)
 
@@ -244,25 +233,14 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       }
 
       Sentry.addBreadcrumb(~category=#acp, ~message="Channel joined, sending initialize")
-      switch await Protocol.sendInitialize(
-        ~channel,
-        ~state,
-        ~clientConfig,
-        ~onMessage=config.onMessage,
-      ) {
+      switch await Protocol.sendInitialize(~channel, ~state, ~clientConfig) {
       | Error(e) =>
         Log.error(`ACP initialize failed: ${e}`)
         Error(ConnectionFailed(e))
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
         state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
-        Ok({
-          socket,
-          channel,
-          clientConfig,
-          state,
-          onMessage: config.onMessage,
-        })
+        Ok({socket, channel, clientConfig, state})
       }
     }
   }
@@ -305,7 +283,6 @@ let joinSession = async (
   ~onParseError: option<string => unit>=?,
   ~cleanupOnParseError: option<ref<bool>>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
-  ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
   let handleParseError = err => {
@@ -323,7 +300,6 @@ let joinSession = async (
     ~channel=sessionChannel,
     ~state=conn.state,
     ~onUpdate=Some(onUpdate),
-    ~onMessage=conn.onMessage,
     ~onParseError=Some(handleParseError),
   )
 
@@ -332,7 +308,6 @@ let joinSession = async (
       serverInterface,
       channel: sessionChannel,
       sessionId,
-      onMessage: onMcpMessage,
     }
     sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
       MCP.handleMessage(handler, payload)->ignore
@@ -377,7 +352,6 @@ let createSession = async (
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
-  ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<(session, Types.sessionNewResult), string> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
@@ -385,7 +359,6 @@ let createSession = async (
     ~channel=conn.channel,
     ~state=conn.state,
     ~sessionId,
-    ~onMessage=conn.onMessage,
   )
 
   switch sessionNewResult {
@@ -400,7 +373,6 @@ let createSession = async (
         ~onTitleUpdated,
         ~onParseError?,
         ~mcpServerInterface?,
-        ~onMcpMessage?,
       )
       switch joinResult {
       | Ok(session) => Ok((session, result))
@@ -436,25 +408,14 @@ let sendPrompt = async (
     ~sessionId=session.sessionId,
     ~prompt=allBlocks,
     ~_meta,
-    ~onMessage=session.connection.onMessage,
   )
 }
 
-let cancelPrompt = (session: session): unit => {
-  Protocol.sendCancel(
-    ~channel=session.channel,
-    ~sessionId=session.sessionId,
-    ~onMessage=session.connection.onMessage,
-  )
-}
+let cancelPrompt = (session: session): unit =>
+  Protocol.sendCancel(~channel=session.channel, ~sessionId=session.sessionId)
 
 let retryTurn = (session: session, ~retriedErrorId: string): unit => {
-  Protocol.sendRetryTurn(
-    ~channel=session.channel,
-    ~sessionId=session.sessionId,
-    ~retriedErrorId,
-    ~onMessage=session.connection.onMessage,
-  )
+  Protocol.sendRetryTurn(~channel=session.channel, ~sessionId=session.sessionId, ~retriedErrorId)
 }
 
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
@@ -497,7 +458,6 @@ let loadSession = async (
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
-  ~onMcpMessage: option<(MCP.messageDirection, JSON.t) => unit>=?,
 ): result<(session, Types.sessionLoadResult), string> => {
   let buffering = ref(true)
   let bufferedUpdates = ref([])
@@ -534,7 +494,6 @@ let loadSession = async (
       },
     ~cleanupOnParseError,
     ~mcpServerInterface?,
-    ~onMcpMessage?,
   )
 
   switch joinResult {
@@ -557,7 +516,6 @@ let loadSession = async (
         ),
       ),
       ~parseResult=Client.parseSessionLoadResult,
-      ~onMessage=conn.onMessage,
     )
     cleanupOnParseError := true
 
