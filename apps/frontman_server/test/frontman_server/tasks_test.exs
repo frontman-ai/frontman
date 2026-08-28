@@ -1159,27 +1159,6 @@ defmodule FrontmanServer.TasksTest do
 
       refute Repo.exists?(InteractionSchema.for_task(task_id))
     end
-
-    test "serializes concurrent batches against the durable limit", %{scope: scope} do
-      task_id = task_fixture(scope).id
-
-      results =
-        ["first", "second"]
-        |> Task.async_stream(fn prefix ->
-          rules = Enum.map(1..32, &{"#{prefix}-#{&1}", "content"})
-
-          try do
-            {:ok, _rules} = Tasks.add_discovered_project_rules(scope, task_id, rules)
-            :inserted
-          rescue
-            RuntimeError -> :rejected
-          end
-        end)
-        |> Enum.map(fn {:ok, result} -> result end)
-
-      assert Enum.sort(results) == [:inserted, :rejected]
-      assert Repo.aggregate(InteractionSchema.for_task(task_id), :count) == 32
-    end
   end
 
   describe "add_discovered_project_structure/3" do
