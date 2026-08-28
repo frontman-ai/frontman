@@ -19,6 +19,9 @@ let make = (
   ~mutationTimestamp: float,
   ~onCommentChange: string => unit,
   ~onClose: unit => unit,
+  ~quickPrompt: bool=false,
+  ~onSubmitPrompt: string => unit=_ => (),
+  ~selectedCount: int=1,
 ) => {
   let (comment, setComment) = React.useState(() => annotation.comment->Option.getOr(""))
   let inputRef = React.useRef(Nullable.null)
@@ -42,7 +45,13 @@ let make = (
     switch ReactEvent.Keyboard.key(e) {
     | "Enter" =>
       ReactEvent.Keyboard.preventDefault(e)
-      onClose()
+      switch (quickPrompt, comment->String.trim) {
+      | (false, _) => onClose()
+      | (true, "") => ()
+      | (true, prompt) =>
+        setComment(_ => "")
+        onSubmitPrompt(prompt)
+      }
     | "Escape" =>
       ReactEvent.Keyboard.preventDefault(e)
       onClose()
@@ -53,7 +62,10 @@ let make = (
   let handleChange = (e: ReactEvent.Form.t) => {
     let value: string = ReactEvent.Form.target(e)["value"]
     setComment(_ => value)
-    onCommentChange(value)
+    switch quickPrompt {
+    | true => ()
+    | false => onCommentChange(value)
+    }
   }
 
   switch rect {
@@ -78,7 +90,12 @@ let make = (
               {React.int(index + 1)}
             </div>
             <span className="text-[11px] text-gray-500 font-medium">
-              {React.string(`<${annotation.tagName}>`)}
+              {React.string(
+                switch (quickPrompt, selectedCount > 1) {
+                | (true, true) => `${Int.toString(selectedCount)} elements selected`
+                | _ => `<${annotation.tagName}>`
+                },
+              )}
             </span>
           </div>
           <div className="flex items-center gap-1">
@@ -88,7 +105,9 @@ let make = (
               value={comment}
               onChange={handleChange}
               onKeyDown={handleKeyDown}
-              placeholder="Add a comment (optional)..."
+              placeholder={quickPrompt
+                ? "Describe the change, press Enter to send\u2026"
+                : "Add a comment (optional)..."}
               className="flex-1 h-7 px-2 text-xs bg-gray-50 border border-gray-200 rounded
                          text-gray-700 placeholder-gray-400
                          focus:outline-none focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50"

@@ -159,7 +159,8 @@ let _collapsedLimit = 3
 
 @react.component
 let make = () => {
-  let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
+  let annotations =
+    Client__State.useSelector(Client__State.Selectors.annotations)->Array.filter(a => !a.isQuick)
   let (isExpanded, setIsExpanded) = React.useState(() => false)
 
   let count = Array.length(annotations)

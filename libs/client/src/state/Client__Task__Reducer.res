@@ -337,6 +337,8 @@ type action =
     })
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
+  | ToggleQuickPromptMode
+  | ClearQuickAnnotations
   | ToggleAnnotation({element: WebAPI.DomTypes.element, tagName: string})
   | AddAnnotation({element: WebAPI.DomTypes.element, tagName: string})
   | AnnotationDetailsResolved({
@@ -439,6 +441,8 @@ let actionToString = (action: action): string =>
   | ToolErrorReceived(_) => "ToolErrorReceived"
   | SetAnnotationMode(_) => "SetAnnotationMode"
   | ToggleAnnotationMode => "ToggleAnnotationMode"
+  | ToggleQuickPromptMode => "ToggleQuickPromptMode"
+  | ClearQuickAnnotations => "ClearQuickAnnotations"
   | ToggleAnnotation(_) => "ToggleAnnotation"
   | AddAnnotation(_) => "AddAnnotation"
   | AnnotationDetailsResolved(_) => "AnnotationDetailsResolved"
@@ -588,6 +592,20 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
   | _ => (task, [])
   }
 
+let isQuickMode = (task: Task.t): bool => Task.getAnnotationMode(task) == Annotation.QuickPrompt
+
+/* Quick-prompt annotations are isolated from the chatbox selection, so they are
+ dropped whenever quick mode ends or the chatbox selector takes over. */
+let clearQuickAnnotations = (task: Task.t): Task.t => {
+  let kept = Task.getAnnotations(task)->Array.filter(a => !a.isQuick)
+  let updated = Lens.setAnnotations(task, kept)
+  switch Task.getActivePopupAnnotationId(task) {
+  | Some(activeId) if !(kept->Array.some(a => a.id == activeId)) =>
+    Lens.setActivePopupAnnotationId(updated, None)
+  | _ => updated
+  }
+}
+
 let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   switch (task, action) {
   | (Task.Unloaded(_), SetPreviewUrl(_)) => (task, [])
@@ -626,7 +644,22 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
     (Lens.setDeviceMode(task, newDeviceMode), [])
 
-  | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode) => (task, [])
+  | (
+      Task.Unloaded(_),
+      SetAnnotationMode(_) | ToggleAnnotationMode | ToggleQuickPromptMode | ClearQuickAnnotations,
+    ) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearQuickAnnotations) => (
+      clearQuickAnnotations(task),
+      [],
+    )
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleQuickPromptMode) => {
+      let newMode = switch Task.getAnnotationMode(task) {
+      | Annotation.QuickPrompt => Annotation.Off
+      | Annotation.Off | Annotation.Selecting => Annotation.QuickPrompt
+      }
+      let updated = Lens.setAnnotationMode(clearQuickAnnotations(task), newMode)
+      (updated, [])
+    }
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
       let updated = Lens.setAnnotationMode(task, mode)
       let updated = switch mode {
@@ -640,7 +673,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | Annotation.Off => Annotation.Selecting
       | _ => Annotation.Off
       }
-      let updated = Lens.setAnnotationMode(task, newMode)
+      let updated = Lens.setAnnotationMode(clearQuickAnnotations(task), newMode)
       let updated = switch newMode {
       | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
       | _ => updated
@@ -658,7 +691,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         let updated = Lens.setActivePopupAnnotationId(updated, None)
         (updated, [])
       | None =>
-        let annotation = Annotation.make(~element, ~tagName)
+        let annotation = Annotation.make(~element, ~tagName, ~isQuick=isQuickMode(task))
         let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
         let effects = [
           FetchAnnotationDetails({
@@ -677,7 +710,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, tagName})) => {
-      let annotation = Annotation.make(~element, ~tagName)
+      let annotation = Annotation.make(~element, ~tagName, ~isQuick=isQuickMode(task))
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let effects = [
         FetchAnnotationDetails({
@@ -728,7 +761,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotations({elements})) => {
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let newAnnotations =
-        elements->Array.map(el => Annotation.make(~element=el.element, ~tagName=el.tagName))
+        elements->Array.map(el =>
+          Annotation.make(~element=el.element, ~tagName=el.tagName, ~isQuick=isQuickMode(task))
+        )
       let effects = newAnnotations->Array.map(annotation => FetchAnnotationDetails({
         id: annotation.id,
         element: annotation.element,

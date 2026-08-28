@@ -142,7 +142,8 @@ let make = (~onConfigureProvider: unit => unit) => {
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
-  let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
+  let annotations =
+    Client__State.useSelector(Client__State.Selectors.annotations)->Array.filter(a => !a.isQuick)
   let hasEnrichingAnnotations = Client__State.useSelector(
     Client__State.Selectors.hasEnrichingAnnotations,
   )

@@ -74,6 +74,12 @@ module Actions = {
   let toggleWebPreviewSelection = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotationMode}))
 
+  let toggleQuickPromptMode = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleQuickPromptMode}))
+
+  let clearQuickAnnotations = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ClearQuickAnnotations}))
+
   let toggleAnnotation = (~element, ~tagName) =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: ToggleAnnotation({element, tagName})}),

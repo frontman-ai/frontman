@@ -322,6 +322,10 @@ module Selectors = {
     Task.getWebPreviewIsSelecting(currentTask(state))
   }
 
+  let isQuickPromptMode = (state: state): bool => {
+    Task.getAnnotationMode(currentTask(state)) == Client__Annotation__Types.QuickPrompt
+  }
+
   let hasEnrichingAnnotations = (state: state): bool => {
     TaskReducer.Selectors.hasEnrichingAnnotations(currentTask(state))->Option.getOr(false)
   }
