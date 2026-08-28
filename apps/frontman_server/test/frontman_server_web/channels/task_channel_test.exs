@@ -170,6 +170,48 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
   end
 
+  defp assert_unsupported_tool_result(context, content, content_type) do
+    %{socket: socket, task_id: task_id, scope: scope} = context
+    tool_call = tool_call("call_unsupported_result", "testTool")
+    tool_call_id = tool_call.tool_call_id
+    register_tool_receiver(tool_call_id)
+
+    persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
+
+    assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
+
+    result = %{
+      "resultType" => "complete",
+      "content" => content,
+      "structuredContent" => %{"logged" => true}
+    }
+
+    push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+    :sys.get_state(socket.channel_pid)
+
+    assert Process.alive?(socket.channel_pid)
+    assert_receive {:tool_result, ^tool_call_id, [%SwarmAi.Message.ContentPart{text: text}], true}
+    assert text == "Unsupported MCP tool result content type: #{content_type}"
+
+    assert_push("acp:message", %{
+      "method" => "session/update",
+      "params" => %{
+        "sessionId" => ^task_id,
+        "update" => %{"status" => "failed"}
+      }
+    })
+
+    {:ok, task} = Tasks.get_task(scope, task_id)
+
+    assert %Interaction.ToolResult{
+             result: %{
+               "content" => [%{"type" => "text", "text" => ^text}],
+               "isError" => true
+             },
+             is_error: true
+           } = Enum.find(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+  end
+
   defp question_tool_call(id, header, label) do
     args =
       Jason.encode!(%{
@@ -1104,9 +1146,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert is_integer(mcp_request_id)
 
+      image_data =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
       mcp_result = %{
         "resultType" => "complete",
-        "content" => [],
+        "content" => [
+          %{"type" => "text", "text" => "done"},
+          %{"type" => "image", "data" => image_data, "mimeType" => "image/png"}
+        ],
         "structuredContent" => %{"logged" => true},
         "_meta" => %{"envApiKey" => "sk-fake-valid-mcp-marker"}
       }
@@ -1119,7 +1167,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       refute log =~ "sk-fake-valid-mcp-marker"
       refute log =~ "envApiKey"
-      assert_receive {:tool_result, ^tool_call_id, [], false}
+
+      assert_receive {:tool_result, ^tool_call_id,
+                      [
+                        %SwarmAi.Message.ContentPart{type: :text, text: "done"},
+                        %SwarmAi.Message.ContentPart{
+                          type: :image,
+                          data: decoded_image_data,
+                          media_type: "image/png"
+                        }
+                      ], false}
+
+      assert decoded_image_data == Base.decode64!(image_data)
 
       assert_push("acp:message", %{
         "method" => "session/update",
@@ -1130,11 +1189,60 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "crashes loudly for unsupported MCP tool result content", context do
-      assert_tool_result_crash(
+    test "converts audio content to a tool error", context do
+      assert_unsupported_tool_result(
         context,
         [%{"type" => "audio", "data" => "YXVkaW8=", "mimeType" => "audio/wav"}],
-        ~s(Unsupported MCP tools/call content type "audio")
+        "audio"
+      )
+    end
+
+    test "converts resource link content to a tool error", context do
+      assert_unsupported_tool_result(
+        context,
+        [%{"type" => "resource_link", "name" => "Example", "uri" => "https://example.com"}],
+        "resource_link"
+      )
+    end
+
+    test "converts embedded text resource content to a tool error", context do
+      assert_unsupported_tool_result(
+        context,
+        [
+          %{
+            "type" => "resource",
+            "resource" => %{"uri" => "file:///example.txt", "text" => "example"}
+          }
+        ],
+        "resource"
+      )
+    end
+
+    test "converts embedded blob resource content to a tool error", context do
+      assert_unsupported_tool_result(
+        context,
+        [
+          %{
+            "type" => "resource",
+            "resource" => %{
+              "uri" => "file:///example.bin",
+              "mimeType" => "application/octet-stream",
+              "blob" => "YmxvYg=="
+            }
+          }
+        ],
+        "resource"
+      )
+    end
+
+    test "converts mixed supported and unsupported content to one tool error", context do
+      assert_unsupported_tool_result(
+        context,
+        [
+          %{"type" => "text", "text" => "partial result"},
+          %{"type" => "audio", "data" => "YXVkaW8=", "mimeType" => "audio/wav"}
+        ],
+        "audio"
       )
     end
 
