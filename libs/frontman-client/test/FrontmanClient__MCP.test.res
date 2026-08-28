@@ -281,6 +281,18 @@ describe("MCP 2026-07-28", () => {
     t->expect(response(calls)->Dict.get("id"))->Expect.toEqual(Some(JSON.Encode.string("call-1")))
   })
 
+  testAsync("echoes numeric JSON-RPC ids above signed 32-bit", async t => {
+    let (channel, calls) = MockChannel.make()
+    await MCP.handleMessage(
+      handler(channel, ref(None)),
+      requestWithId(~id="2147483648", ~method="tools/list", ~params=metadata),
+    )
+
+    t
+    ->expect(response(calls)->Dict.get("id"))
+    ->Expect.toEqual(Some(JSON.parseOrThrow("2147483648")))
+  })
+
   testAsync("returns invalid params for an unknown tool", async t => {
     let server = MCPServer.make(~relay=Relay.make(~baseUrl="http://relay.invalid"))
     let (channel, calls) = MockChannel.make()
