@@ -200,7 +200,7 @@ defmodule FrontmanServerWeb.ChannelCase do
   ## Examples
 
       build_acp_request("session/prompt", 42, %{"prompt" => [%{"type" => "text", "text" => "Hello"}]})
-      build_acp_request("session/cancel", nil, %{"sessionId" => "irrelevant"})
+      build_acp_request("session/command", nil, %{"sessionId" => "irrelevant", "command" => "cancel"})
   """
   def build_acp_request(method, id, params) do
     base = %{"jsonrpc" => "2.0", "method" => method, "params" => params}

@@ -3,6 +3,7 @@ open Vitest
 module Task = Client__Task__Types.Task
 module Message = Client__Task__Types.Message
 module TaskReducer = Client__Task__Reducer
+module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 module UserMessageId = Client__Message.UserMessageId
 let testUserMessageId = UserMessageId.make()
 
@@ -540,7 +541,7 @@ describe("Task - CancelTurn", () => {
     task3
   }
 
-  test("CancelTurn stops running, preserves text, cancels tools, and emits CancelPrompt", t => {
+  test("CancelTurn stops running, preserves text, cancels tools, and emits a cancel command", t => {
     let task = _startAgentWithStreaming()
     let toolCall: Message.toolCall = {
       id: "tool-1",
@@ -557,7 +558,7 @@ describe("Task - CancelTurn", () => {
     let (cancelled, effects) = TaskReducer.next(withTool, CancelTurn)
 
     t->expect(TaskReducer.Selectors.isAgentRunning(cancelled))->Expect.toEqual(Some(false))
-    t->expect(effects)->Expect.toEqual([TaskReducer.CancelPrompt])
+    t->expect(effects)->Expect.toEqual([TaskReducer.SessionCommand(ACP.Cancel)])
     let messages = TestHelpers.getMessages(cancelled)
     switch messages->Array.get(1) {
     | Some(Message.Assistant(Completed({content}))) =>

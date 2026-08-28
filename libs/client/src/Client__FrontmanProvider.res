@@ -106,9 +106,7 @@ type contextValue = {
     ~onComplete: result<Types.promptResult, string> => unit,
     ~_meta: option<JSON.t>,
   ) => unit,
-  cancelPrompt: unit => unit,
-  retryTurn: string => unit,
-  unqueueMessage: string => unit,
+  sendSessionCommand: ACP.sessionCommand => unit,
   loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
@@ -124,9 +122,7 @@ let defaultContextValue: contextValue = {
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-  cancelPrompt: () => (),
-  retryTurn: _ => (),
-  unqueueMessage: _ => (),
+  sendSessionCommand: _ => (),
   loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
 }
@@ -356,16 +352,8 @@ module Provider = {
       dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta}))
     }, [dispatch])
 
-    let cancelPrompt = React.useCallback1(() => {
-      dispatch(CancelPrompt)
-    }, [dispatch])
-
-    let retryTurn = React.useCallback1((retriedErrorId: string) => {
-      dispatch(RetryTurn({retriedErrorId: retriedErrorId}))
-    }, [dispatch])
-
-    let unqueueMessage = React.useCallback1((messageId: string) => {
-      dispatch(UnqueueMessage({messageId: messageId}))
+    let sendSessionCommand = React.useCallback1((command: ACP.sessionCommand) => {
+      dispatch(SessionCommand(command))
     }, [dispatch])
 
     let loadTask = React.useCallback1((taskId: string, ~needsHistory, ~onComplete) => {
@@ -405,9 +393,7 @@ module Provider = {
       createSession,
       clearSession,
       sendPrompt,
-      cancelPrompt,
-      retryTurn,
-      unqueueMessage,
+      sendSessionCommand,
       loadTask,
       deleteSession,
     }

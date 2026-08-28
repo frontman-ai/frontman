@@ -1649,7 +1649,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  describe "session/cancel" do
+  describe "session/command" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
@@ -2247,7 +2247,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "session/retry_turn notification creates AgentRetry interaction", %{
+    test "retry_turn command creates AgentRetry interaction", %{
       scope: scope,
       socket: socket,
       task_id: task_id
@@ -2263,8 +2263,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "acp:message",
-        build_acp_request("session/retry_turn", nil, %{
+        build_acp_request("session/command", nil, %{
           "sessionId" => task_id,
+          "command" => "retry_turn",
           "retriedErrorId" => retried_error_id
         })
       )
@@ -2286,7 +2287,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_state_update_idle(task_id)
     end
 
-    test "session/retry_turn rejects client-generated error ids", %{
+    test "retry_turn command rejects client-generated error ids", %{
       scope: scope,
       socket: socket,
       task_id: task_id
@@ -2345,7 +2346,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "acp:message",
-        build_acp_request("session/cancel", nil, %{"sessionId" => task_id})
+        build_acp_request("session/command", nil, %{"sessionId" => task_id, "command" => "cancel"})
       )
 
       :sys.get_state(socket.channel_pid)

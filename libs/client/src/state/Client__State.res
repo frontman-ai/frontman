@@ -133,9 +133,7 @@ module Actions = {
 
   let setAcpSession = (
     ~sendPrompt,
-    ~cancelPrompt,
-    ~retryTurn,
-    ~unqueueMessage,
+    ~sendSessionCommand,
     ~loadTask,
     ~deleteSession,
     ~requireAuthentication,
@@ -144,9 +142,7 @@ module Actions = {
     Client__State__Store.dispatch(
       SetAcpSession({
         sendPrompt,
-        cancelPrompt,
-        retryTurn,
-        unqueueMessage,
+        sendSessionCommand,
         loadTask,
         deleteSession,
         requireAuthentication,

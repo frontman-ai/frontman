@@ -23,9 +23,7 @@ module TestHelpers = {
     ~requireAuthentication=() => (),
   ): Client__State__Types.acpSession => AcpSessionActive({
     sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-    cancelPrompt: () => (),
-    retryTurn: _ => (),
-    unqueueMessage: _ => (),
+    sendSessionCommand: _ => (),
     loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
     deleteSession,
     requireAuthentication,
@@ -1695,9 +1693,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       selectedModelValue: Some("anthropic:claude-opus-4-6"),
       acpSession: AcpSessionActive({
         sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta) => sentMetadata := _meta,
-        cancelPrompt: () => (),
-        retryTurn: _ => (),
-        unqueueMessage: _ => (),
+        sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
         requireAuthentication: () => (),
@@ -1744,9 +1740,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       acpSession: AcpSessionActive({
         sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
           completion := Some(onComplete),
-        cancelPrompt: () => (),
-        retryTurn: _ => (),
-        unqueueMessage: _ => (),
+        sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
         requireAuthentication: () => (),
@@ -1800,9 +1794,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
     let _setAcpSessionAction = (): Reducer.action => SetAcpSession({
       sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-      cancelPrompt: () => (),
-      retryTurn: _ => (),
-      unqueueMessage: _ => (),
+      sendSessionCommand: _ => (),
       loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
       deleteSession: (_, ~onComplete as _) => (),
       requireAuthentication: () => (),

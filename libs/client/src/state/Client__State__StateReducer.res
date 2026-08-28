@@ -48,9 +48,7 @@ type action =
   | UpdateTaskTitle({taskId: string, title: string})
   | SetAcpSession({
       sendPrompt: Client__State__Types.sendPromptFn,
-      cancelPrompt: Client__State__Types.cancelPromptFn,
-      retryTurn: Client__State__Types.retryTurnFn,
-      unqueueMessage: Client__State__Types.unqueueMessageFn,
+      sendSessionCommand: Client__State__Types.sendSessionCommandFn,
       loadTask: Client__State__Types.loadTaskFn,
       deleteSession: Client__State__Types.deleteSessionFn,
       requireAuthentication: Client__State__Types.requireAuthenticationFn,
@@ -1105,20 +1103,10 @@ let handleEffect = (effect, state: state, dispatch) => {
             ~taskId,
             ~agentId,
           )
-        | NeedCancelPrompt =>
+        | NeedSessionCommand(command) =>
           switch state.acpSession {
-          | AcpSessionActive({cancelPrompt}) => cancelPrompt()
-          | NoAcpSession => Log.error("Cannot cancel prompt: no active ACP session")
-          }
-        | NeedUnqueueMessage({messageId}) =>
-          switch state.acpSession {
-          | AcpSessionActive({unqueueMessage}) => unqueueMessage(messageId)
-          | NoAcpSession => Log.error("Cannot unqueue message: no active ACP session")
-          }
-        | NeedRetryTurn({retriedErrorId}) =>
-          switch state.acpSession {
-          | AcpSessionActive({retryTurn}) => retryTurn(retriedErrorId)
-          | NoAcpSession => Log.error("Cannot retry turn: no active ACP session")
+          | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)
+          | NoAcpSession => Log.error("Cannot send session command: no active ACP session")
           }
         | NeedSyncBrowserUrl(url) =>
           switch targetIsCurrent(state, target) {
@@ -1755,9 +1743,7 @@ let next = (state: state, action) => {
 
   | SetAcpSession({
       sendPrompt,
-      cancelPrompt,
-      retryTurn,
-      unqueueMessage,
+      sendSessionCommand,
       loadTask,
       deleteSession,
       requireAuthentication,
@@ -1767,9 +1753,7 @@ let next = (state: state, action) => {
       ...state,
       acpSession: AcpSessionActive({
         sendPrompt,
-        cancelPrompt,
-        retryTurn,
-        unqueueMessage,
+        sendSessionCommand,
         loadTask,
         deleteSession,
         requireAuthentication,

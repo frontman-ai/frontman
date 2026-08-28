@@ -33,7 +33,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   @acp_message ACP.event_acp_message()
   @acp_title_updated ACP.event_title_updated()
   @acp_method_session_prompt ACP.method_session_prompt()
-  @acp_method_session_cancel ACP.method_session_cancel()
   @acp_method_session_load ACP.method_session_load()
   @mcp_init_timeout_ms 30_000
   @impl true
@@ -80,8 +79,8 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, {:request, id, @acp_method_session_prompt, params}} ->
         handle_prompt(id, params, socket)
 
-      {:ok, {:notification, @acp_method_session_cancel, params}} ->
-        handle_cancel(params, socket)
+      {:ok, {:notification, "session/command", params}} ->
+        handle_session_command(params, socket)
 
       {:ok, {:request, id, @acp_method_session_load, params}} ->
         handle_session_load(id, params, socket)
@@ -568,7 +567,22 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp mcp_error_code(%{"code" => code}) when is_integer(code), do: code
   defp mcp_error_code(_error), do: :unknown
 
-  defp handle_cancel(_params, socket) do
+  defp handle_session_command(%{"command" => "cancel"}, socket), do: handle_cancel(socket)
+
+  defp handle_session_command(%{"command" => "retry_turn", "retriedErrorId" => retried_error_id}, socket)
+       when is_binary(retried_error_id),
+       do: handle_retry_turn(retried_error_id, socket)
+
+  defp handle_session_command(%{"command" => "unqueue_message", "messageId" => message_id}, socket)
+       when is_binary(message_id),
+       do: handle_unqueue_message(message_id, socket)
+
+  defp handle_session_command(params, socket) do
+    Logger.warning("Invalid session command: #{inspect(params)}")
+    {:noreply, socket}
+  end
+
+  defp handle_cancel(socket) do
     task_id = socket.assigns.task_id
     Logger.info("Cancel notification received for task #{task_id}")
 

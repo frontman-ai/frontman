@@ -19,11 +19,7 @@ type loadTaskFn = (string, ~needsHistory: bool, ~onComplete: result<unit, string
 
 type deleteSessionFn = (string, ~onComplete: result<unit, string> => unit) => unit
 
-type cancelPromptFn = unit => unit
-
-type retryTurnFn = string => unit
-
-type unqueueMessageFn = string => unit
+type sendSessionCommandFn = FrontmanAiFrontmanClient.FrontmanClient__ACP.sessionCommand => unit
 
 type requireAuthenticationFn = unit => unit
 
@@ -31,9 +27,7 @@ type acpSession =
   | NoAcpSession
   | AcpSessionActive({
       sendPrompt: sendPromptFn,
-      cancelPrompt: cancelPromptFn,
-      retryTurn: retryTurnFn,
-      unqueueMessage: unqueueMessageFn,
+      sendSessionCommand: sendSessionCommandFn,
       loadTask: loadTaskFn,
       deleteSession: deleteSessionFn,
       requireAuthentication: requireAuthenticationFn,
