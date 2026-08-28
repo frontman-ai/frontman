@@ -194,6 +194,11 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: UnqueueMessage({messageId: messageId})}),
     )
 
+  let messageUnqueued = (~taskId: string, ~messageId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: MessageUnqueued({messageId: messageId})}),
+    )
+
   let retryTurn = (~taskId: string, ~retriedErrorId: string) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: RetryTurn({retriedErrorId: retriedErrorId})}),

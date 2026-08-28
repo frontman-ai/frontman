@@ -93,12 +93,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           "Method not found: #{method}"
         )
 
-      {:ok, {:notification, "session/retry_turn", %{"retriedErrorId" => retried_error_id}}} ->
-        handle_retry_turn(retried_error_id, socket)
-
-      {:ok, {:notification, "session/unqueue_message", %{"messageId" => message_id}}} ->
-        handle_unqueue_message(message_id, socket)
-
       {:ok, {:notification, _method, _params}} ->
         {:noreply, socket}
 
@@ -181,8 +175,37 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_turn_started(interaction, turn_started_id, turn_number, socket)
   end
 
+  def handle_info(
+        {:interaction,
+         %{id: message_id, data: %Tasks.Interaction.UserMessage{} = message}},
+        socket
+      ) do
+    message
+    |> ACP.Content.from_user_message()
+    |> Enum.each(fn content ->
+      notification =
+        ACP.build_user_message_chunk_notification(
+          socket.assigns.task_id,
+          message_id,
+          content,
+          message.agent_id,
+          message.timestamp
+        )
+
+      push(socket, @acp_message, notification)
+    end)
+
+    {:noreply, socket}
+  end
+
   def handle_info({:interaction, %{data: interaction, turn_number: turn_number}}, socket) do
     handle_interaction(interaction, turn_number, socket)
+  end
+
+  def handle_info({:message_unqueued, message_id}, socket) when is_binary(message_id) do
+    notification = ACP.build_message_unqueued_notification(socket.assigns.task_id, message_id)
+    push(socket, @acp_message, notification)
+    {:noreply, socket}
   end
 
   def handle_info({:fire_retry, token}, socket) do
@@ -675,8 +698,6 @@ defmodule FrontmanServerWeb.TaskChannel do
                    agent_id: agent_id
                  }
                ) do
-          push_user_message_chunks(socket, task_id, row)
-
           wake_runner(socket, meta)
 
           Logger.info("User message accepted for task #{task_id}")
@@ -704,12 +725,6 @@ defmodule FrontmanServerWeb.TaskChannel do
       :error ->
         reply_invalid_params(socket, id, "Model is required")
     end
-  end
-
-  defp push_user_message_chunks(socket, task_id, row) do
-    %{row: row, agent_id: row.data.agent_id}
-    |> ACPHistory.encode_row(task_id)
-    |> Enum.each(&push(socket, @acp_message, &1))
   end
 
   defp reply_acp_error(socket, id, code, message) do

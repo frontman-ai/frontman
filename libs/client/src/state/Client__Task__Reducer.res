@@ -375,6 +375,7 @@ type action =
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
   | UnqueueMessage({messageId: string})
+  | MessageUnqueued({messageId: string})
   | ClearTurnError
   | LoadStarted({previewUrl: string})
   | LoadComplete
@@ -462,6 +463,7 @@ let actionToString = (action: action): string =>
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
   | UnqueueMessage(_) => "UnqueueMessage"
+  | MessageUnqueued(_) => "MessageUnqueued"
   | ClearTurnError => "ClearTurnError"
   | LoadStarted(_) => "LoadStarted"
   | LoadComplete => "LoadComplete"
@@ -1094,6 +1096,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loaded(data), UnqueueMessage({messageId})) =>
     switch data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId) {
     | false => (task, [])
+    | true => (task, [SessionCommand(ACP.UnqueueMessage(messageId))])
+    }
+
+  | (Task.Loaded(data), MessageUnqueued({messageId})) =>
+    switch data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId) {
+    | false => (task, [])
     | true => (
         Task.Loaded({
           ...data,
@@ -1102,7 +1110,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           ),
           pendingUserMessageIds: data.pendingUserMessageIds->Array.filter(id => id != messageId),
         }),
-        [SessionCommand(ACP.UnqueueMessage(messageId))],
+        [],
       )
     }
 
@@ -1308,6 +1316,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | RetryingUpdate(_)
       | RetryTurn(_)
       | UnqueueMessage(_)
+      | MessageUnqueued(_)
       | QuestionReceived(_)
       | QuestionStepChanged(_)
       | QuestionOptionToggled(_)

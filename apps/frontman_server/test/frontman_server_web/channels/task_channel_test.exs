@@ -2303,8 +2303,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "acp:message",
-        build_acp_request("session/retry_turn", nil, %{
+        build_acp_request("session/command", nil, %{
           "sessionId" => task_id,
+          "command" => "retry_turn",
           "retriedErrorId" => retried_error_id
         })
       )
@@ -2328,6 +2329,88 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           }
         }
       })
+    end
+
+    test "unqueue broadcasts confirmation after deleting a queued message", %{
+      scope: scope,
+      socket: socket,
+      task_id: task_id
+    } do
+      message_id = Ecto.UUID.generate()
+
+      {:ok, _row} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: message_id,
+          message: [%{"type" => "text", "text" => "Remove me"}],
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk", "messageId" => ^message_id}}
+      })
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/command", nil, %{
+          "sessionId" => task_id,
+          "command" => "unqueue_message",
+          "messageId" => message_id
+        })
+      )
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "message_unqueued", "messageId" => ^message_id}
+        }
+      })
+
+      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      refute Enum.any?(task.interaction_rows, &(&1.id == message_id))
+    end
+
+    test "unqueue cannot delete a message claimed by a turn", %{
+      scope: scope,
+      socket: socket,
+      task_id: task_id
+    } do
+      start_turn_fixture(scope, task_id, [%{"type" => "text", "text" => "Claimed"}])
+
+      [%{id: message_id}] =
+        task_id
+        |> db_rows()
+        |> Enum.filter(&(&1.type == :user_message))
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/command", nil, %{
+          "sessionId" => task_id,
+          "command" => "unqueue_message",
+          "messageId" => message_id
+        })
+      )
+
+      refute_push("acp:message", %{"params" => %{"update" => %{"sessionUpdate" => "message_unqueued"}}})
+      assert Enum.any?(db_rows(task_id), &(&1.id == message_id))
+    end
+
+    test "malformed unqueue IDs leave the channel alive", %{socket: socket, task_id: task_id} do
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/command", nil, %{
+          "sessionId" => task_id,
+          "command" => "unqueue_message",
+          "messageId" => 1
+        })
+      )
+
+      :sys.get_state(socket.channel_pid)
+      assert Process.alive?(socket.channel_pid)
     end
 
     test "cancel during retry countdown clears pending retry without recording retry", %{

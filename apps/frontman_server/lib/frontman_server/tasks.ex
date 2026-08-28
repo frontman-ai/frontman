@@ -499,7 +499,6 @@ defmodule FrontmanServer.Tasks do
     with {:ok, user_message_attrs} <-
            Interaction.UserMessage.attrs(content_blocks, model, agent_id),
          {:ok, task_schema} <- get_task_by_id(scope, task_id),
-         first_message? <- accepted_user_message_count(task_id) == 0,
          {:ok, accepted_row} <-
            record_interaction_row(
              task_schema,
@@ -510,16 +509,6 @@ defmodule FrontmanServer.Tasks do
                turn_number: nil
              }
            ) do
-      if first_message? do
-        GenerateTitle.new(%{
-          user_id: scope.user.id,
-          task_id: task_id,
-          user_prompt_text: Interaction.user_prompt_text(accepted_row.data),
-          model: model
-        })
-        |> Oban.insert!()
-      end
-
       {:ok, accepted_row}
     end
   end
@@ -554,21 +543,19 @@ defmodule FrontmanServer.Tasks do
       end
     end)
     |> case do
-      {:ok, _deleted} -> :ok
+      {:ok, %InteractionSchema{id: deleted_id}} ->
+        broadcast_task(task_id, {:message_unqueued, deleted_id})
+        :ok
+
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp accepted_user_message_count(task_id) do
-    task_id
-    |> load_interaction_rows()
-    |> Enum.count(&(&1.type == :user_message))
-  end
-
   defp start_next_turn(%Scope{} = scope, task_id) when is_binary(task_id) do
     case claim_next_turn(scope, task_id) do
-      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}} ->
+      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent, first_message}} ->
         broadcast_task(task_id, {:interaction, turn_started_row})
+        enqueue_title_generation(scope, task_id, first_message, turn_model, turn_number)
         {:ok, task_schema, turn_number, turn_model, agent}
 
       {:error, :already_running} ->
@@ -615,13 +602,32 @@ defmodule FrontmanServer.Tasks do
          },
          {:ok, turn_started_row} <-
            insert_turn_started(task_schema, turn_started_attrs, turn_number) do
-      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}}
+      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message}}
     else
       {:error, reason} -> {:error, reason}
       {nil, []} -> {:error, :no_accepted_messages}
       {_turn_number, _accepted_messages} -> {:error, :already_running}
     end
   end
+
+  defp enqueue_title_generation(
+         %Scope{} = scope,
+         task_id,
+         %InteractionSchema{data: user_message},
+         model,
+         1
+       ) do
+    GenerateTitle.new(%{
+      user_id: scope.user.id,
+      task_id: task_id,
+      user_prompt_text: Interaction.user_prompt_text(user_message),
+      model: model
+    })
+    |> Oban.insert!()
+  end
+
+  defp enqueue_title_generation(%Scope{}, _task_id, %InteractionSchema{}, _model, _turn_number),
+    do: :ok
 
   defp accepted_message_model(%InteractionSchema{data: %Interaction.UserMessage{model: model}})
        when is_binary(model) and model != "",

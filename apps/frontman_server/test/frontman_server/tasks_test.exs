@@ -1,5 +1,6 @@
 defmodule FrontmanServer.TasksTest do
   use FrontmanServer.DataCase, async: false
+  use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
@@ -18,6 +19,7 @@ defmodule FrontmanServer.TasksTest do
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
+  alias FrontmanServer.Workers.GenerateTitle
   alias ModelContextProtocol, as: MCP
 
   setup do
@@ -164,6 +166,7 @@ defmodule FrontmanServer.TasksTest do
 
       assert Tasks.unqueue_user_message(scope, task.id, message_id) == :ok
       assert db_rows(task.id) == []
+      assert all_enqueued(worker: GenerateTitle) == []
     end
 
     test "refuses a message already claimed by a turn", %{scope: scope} do

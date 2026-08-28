@@ -224,6 +224,7 @@ module Provider = {
         })
       | UserMessageChunk({messageId, content, _meta}) =>
         textDeltaBuffer.addUserBlock(~taskId, ~messageId, ~block=content, ~agentId=_meta.agentId)
+      | MessageUnqueued({messageId}) => Client__State.Actions.messageUnqueued(~taskId, ~messageId)
       | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
         failwith("Frontman UI requires negotiated agent attribution")
       | Unknown(_) => ()
