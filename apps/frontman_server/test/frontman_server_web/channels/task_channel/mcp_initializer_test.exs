@@ -5,6 +5,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
   alias FrontmanServerWeb.ChannelCase
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
+  alias ModelContextProtocol, as: MCP
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
@@ -244,5 +245,24 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
       assert Sentry.Test.pop_sentry_reports() == []
     end
+  end
+
+  test "raises when project structure exceeds its bounds" do
+    cases = [
+      {%{"tree" => ".", "workspaces" => List.duplicate(%{}, 129)}, ~r/workspace count 129.*128/},
+      {%{"tree" => String.duplicate("x", 512 * 1024)}, ~r/structure bytes \d+.*524288/},
+      {%{"tree" => ".", "workspaces" => [%{"name" => String.duplicate("x", 512 * 1024)}]},
+       ~r/structure bytes \d+.*524288/}
+    ]
+
+    Enum.each(cases, fn {payload, message} ->
+      assert_raise RuntimeError, message, fn ->
+        MCPInitializer.handle_response(
+          structure_state(1),
+          1,
+          MCP.tool_result_text(Jason.encode!(payload))
+        )
+      end
+    end)
   end
 end

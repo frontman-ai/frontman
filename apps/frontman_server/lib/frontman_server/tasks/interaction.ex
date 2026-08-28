@@ -951,6 +951,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     use Ecto.Schema
 
+    @content_bytes_limit 64 * 1024
+
     @primary_key false
     embedded_schema do
       field :path, :string
@@ -959,7 +961,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = discovered_project_rule, attrs) do
-      Interaction.cast_timestamped(discovered_project_rule, attrs, [:path, :content, :timestamp])
+      discovered_project_rule
+      |> Interaction.cast_timestamped(attrs, [:path, :content, :timestamp])
+      |> Ecto.Changeset.validate_length(:path, count: :bytes, max: @content_bytes_limit)
+      |> Ecto.Changeset.validate_length(:content, count: :bytes, max: @content_bytes_limit)
     end
   end
 
@@ -973,6 +978,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     use Ecto.Schema
 
+    @summary_bytes_limit 512 * 1024
+
     @primary_key false
     embedded_schema do
       field :summary, :string
@@ -980,7 +987,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = discovered_project_structure, attrs) do
-      Interaction.cast_timestamped(discovered_project_structure, attrs, [:summary, :timestamp])
+      discovered_project_structure
+      |> Interaction.cast_timestamped(attrs, [:summary, :timestamp])
+      |> Ecto.Changeset.validate_length(:summary, count: :bytes, max: @summary_bytes_limit)
     end
   end
 
