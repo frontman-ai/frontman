@@ -35,6 +35,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       project_rules_request_id: nil,
       project_structure_request_id: nil,
       seen_tool_cursors: MapSet.new(),
+      seen_tool_names: MapSet.new(),
       tools_size: 0,
       load_project_context: Frameworks.load_project_context?(framework),
       tools: []
@@ -135,8 +136,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   defp handle_tools_response(result, state) do
-    case validate_tools_response(result) do
-      {:ok, raw_tools, cursor} ->
+    case validate_tools_response(result, state.seen_tool_names) do
+      {:ok, raw_tools, cursor, seen_tool_names} ->
         Logger.info("MCPInitializer: Received #{length(raw_tools)} tools from MCP server")
         tools_size = state.tools_size + :erlang.external_size(raw_tools)
 
@@ -147,6 +148,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
         state = %{
           state
           | tools: Enum.reverse(MCPTools.from_maps(raw_tools), state.tools),
+            seen_tool_names: seen_tool_names,
             tools_size: tools_size,
             tools_request_id: nil
         }
@@ -161,13 +163,27 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     end
   end
 
-  defp validate_tools_response(result) do
+  defp validate_tools_response(result, seen_tool_names) do
     with :ok <- MCPSchema.validate_tools_list_result(result),
-         %{"tools" => tools} <- result do
-      {:ok, tools, Map.get(result, "nextCursor")}
+         %{"tools" => tools} <- result,
+         {:ok, seen_tool_names} <- track_tool_names(tools, seen_tool_names) do
+      {:ok, tools, Map.get(result, "nextCursor"), seen_tool_names}
     else
-      _ -> {:error, "Invalid MCP tools/list response"}
+      {:error, {:duplicate_tool_name, name}} ->
+        {:error, "MCP tools/list returned duplicate tool name: #{name}"}
+
+      _ ->
+        {:error, "Invalid MCP tools/list response"}
     end
+  end
+
+  defp track_tool_names(tools, seen_tool_names) do
+    Enum.reduce_while(tools, {:ok, seen_tool_names}, fn %{"name" => name}, {:ok, names} ->
+      case MapSet.member?(names, name) do
+        true -> {:halt, {:error, {:duplicate_tool_name, name}}}
+        false -> {:cont, {:ok, MapSet.put(names, name)}}
+      end
+    end)
   end
 
   defp request_next_tools_page(state, cursor) do
