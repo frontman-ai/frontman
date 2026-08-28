@@ -110,6 +110,34 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       assert {first.name, second.name} == {"first", "second"}
     end
 
+    test "fails initialization when one tools page contains duplicate names" do
+      state = tools_state(1)
+
+      duplicate_tools = [
+        %{"name" => "duplicate", "inputSchema" => %{"type" => "object"}},
+        %{"name" => "duplicate", "inputSchema" => %{"type" => "object"}}
+      ]
+
+      assert {%{status: :failed, tools: []}, [{:initialization_failed, message}]} =
+               MCPInitializer.handle_response(state, 1, tools_result(duplicate_tools))
+
+      assert message == "MCP tools/list returned duplicate tool name: duplicate"
+    end
+
+    test "fails initialization when tools pages contain duplicate names" do
+      state = tools_state(1)
+      tool = %{"name" => "duplicate", "inputSchema" => %{"type" => "object"}}
+      first_page = tools_result([tool], %{"nextCursor" => "page-2"})
+
+      assert {new_state, [{:push_mcp, request}]} =
+               MCPInitializer.handle_response(state, 1, first_page)
+
+      assert {%{status: :failed}, [{:initialization_failed, message}]} =
+               MCPInitializer.handle_response(new_state, request["id"], tools_result([tool]))
+
+      assert message == "MCP tools/list returned duplicate tool name: duplicate"
+    end
+
     test "fails initialization when a tools cursor repeats" do
       state = tools_state(1)
       first_page = tools_result([], %{"nextCursor" => "same-cursor"})
