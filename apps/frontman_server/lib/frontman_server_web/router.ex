@@ -112,6 +112,11 @@ defmodule FrontmanServerWeb.Router do
     post("/oauth/openai/poll", OpenAIOAuthController, :poll)
     delete("/oauth/openai/disconnect", OpenAIOAuthController, :disconnect)
     get("/oauth/openai/status", OpenAIOAuthController, :status)
+
+    get("/user/custom-providers", CustomProvidersController, :index)
+    post("/user/custom-providers", CustomProvidersController, :create)
+    put("/user/custom-providers/:provider_id", CustomProvidersController, :update)
+    delete("/user/custom-providers/:provider_id", CustomProvidersController, :delete)
   end
 
   if Application.compile_env(:frontman_server, :dev_routes) do

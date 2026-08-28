@@ -1,6 +1,6 @@
 defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   @moduledoc """
-  Integration tests for the full `Providers.prepare_llm_args/3` resolution chain.
+  Integration tests for the full `Providers.resolve_model_access/3` resolution chain.
 
   Tests the priority order: OAuth > user key.
   This is the primary entry point for all LLM key resolution in the system.
@@ -10,8 +10,8 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   import FrontmanServer.Test.Fixtures.Accounts
 
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Providers
-  alias FrontmanServer.Providers.Nvidia
+  alias FrontmanServer.{Providers, Repo}
+  alias FrontmanServer.Providers.{Nvidia, OAuthToken}
   alias ReqLLM.Context
   alias ReqLLM.Providers.Anthropic
 
@@ -24,13 +24,13 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     {:ok, scope: scope}
   end
 
-  describe "prepare_llm_args/3 resolution priority" do
+  describe "resolve_model_access/3 resolution priority" do
     test "resolves OAuth token as highest priority for anthropic", %{scope: scope} do
       {:ok, _} = upsert_anthropic_oauth_token(scope, :valid)
-      {:ok, _} = upsert_anthropic_api_key(scope)
+      :ok = upsert_anthropic_api_key(scope)
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
+        Providers.resolve_model_access(scope, "anthropic:claude-sonnet-4-6")
 
       assert %LLMDB.Model{provider: :anthropic, id: "claude-sonnet-4-6"} = model
       assert llm_opts[:access_token] == "oauth_access"
@@ -41,10 +41,10 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "falls back to user key when no OAuth token", %{scope: scope} do
-      {:ok, _} = upsert_anthropic_api_key(scope)
+      :ok = upsert_anthropic_api_key(scope)
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-5")
+        Providers.resolve_model_access(scope, "anthropic:claude-sonnet-5")
 
       assert %LLMDB.Model{provider: :anthropic, id: "claude-sonnet-5"} = model
       assert llm_opts[:api_key] == "user_key_456"
@@ -53,10 +53,10 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
 
     test "resolved Anthropic opts mark the last message for prompt caching", %{scope: scope} do
-      {:ok, _} = upsert_anthropic_api_key(scope)
+      :ok = upsert_anthropic_api_key(scope)
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
+        Providers.resolve_model_access(scope, "anthropic:claude-sonnet-4-6")
 
       context =
         Context.new([
@@ -80,7 +80,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
     test "returns :no_api_key when no key source is available", %{scope: scope} do
       assert {:error, :no_api_key} =
-               Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
+               Providers.resolve_model_access(scope, "anthropic:claude-sonnet-4-6")
     end
 
     test "refreshes expired Anthropic OAuth token before resolving LLM args", %{scope: scope} do
@@ -88,7 +88,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_anthropic_refresh_success()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
+        Providers.resolve_model_access(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:access_token] == "fresh_access"
       assert llm_opts[:auth_mode] == :oauth
@@ -96,45 +96,45 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
 
     test "invalid Anthropic refresh falls back to API key and deletes token", %{scope: scope} do
       {:ok, _} = upsert_anthropic_oauth_token(scope, :expired)
-      {:ok, _} = upsert_anthropic_api_key(scope)
+      :ok = upsert_anthropic_api_key(scope)
 
       expect_anthropic_refresh_permanent_failure()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
+        Providers.resolve_model_access(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:api_key] == "user_key_456"
-      refute Providers.get_oauth_token(scope, "anthropic")
+      refute oauth_token(scope, "anthropic")
     end
 
     test "transient Anthropic refresh failure keeps token and can recover", %{scope: scope} do
       {:ok, _} = upsert_anthropic_oauth_token(scope, :expired)
-      {:ok, _} = upsert_anthropic_api_key(scope)
+      :ok = upsert_anthropic_api_key(scope)
       expect_anthropic_refresh_transient_failure()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
+        Providers.resolve_model_access(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:api_key] == "user_key_456"
-      assert Providers.get_oauth_token(scope, "anthropic")
+      assert oauth_token(scope, "anthropic")
 
       expect_anthropic_refresh_success()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "anthropic:claude-sonnet-4-6")
+        Providers.resolve_model_access(scope, "anthropic:claude-sonnet-4-6")
 
       assert llm_opts[:access_token] == "fresh_access"
     end
 
     test "returns :missing_model when no model is provided", %{scope: scope} do
-      assert {:error, :missing_model} = Providers.prepare_llm_args(scope, nil)
+      assert {:error, :missing_model} = Providers.resolve_model_access(scope, nil)
     end
 
     test "openrouter user key resolves correctly", %{scope: scope} do
-      {:ok, _} = Providers.upsert_api_key(scope, "openrouter", "sk-or-user-test")
+      :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-user-test")
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "openrouter:anthropic/claude-fable-5")
+        Providers.resolve_model_access(scope, "openrouter:anthropic/claude-fable-5")
 
       assert %LLMDB.Model{provider: :openrouter, id: "anthropic/claude-fable-5"} = model
       assert llm_opts[:api_key] == "sk-or-user-test"
@@ -144,7 +144,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, _} = upsert_openai_oauth_token(scope, :valid)
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "openai_codex:gpt-5.6-sol", max_tokens: 16_384)
+        Providers.resolve_model_access(scope, "openai_codex:gpt-5.6-sol", max_tokens: 16_384)
 
       assert %LLMDB.Model{provider: :openai_codex, id: "gpt-5.6-sol"} = model
       assert llm_opts[:access_token] == "openai_access"
@@ -158,7 +158,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_openai_refresh_success()
 
       {:ok, {_model, llm_opts}} =
-        Providers.prepare_llm_args(scope, "openai_codex:gpt-5.3-codex-spark")
+        Providers.resolve_model_access(scope, "openai_codex:gpt-5.3-codex-spark")
 
       assert llm_opts[:access_token] == "fresh_openai_access"
       assert llm_opts[:auth_mode] == :oauth
@@ -170,14 +170,14 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       expect_openai_refresh_permanent_failure()
 
       assert {:error, :no_api_key} =
-               Providers.prepare_llm_args(scope, "openai_codex:gpt-5.3-codex-spark")
+               Providers.resolve_model_access(scope, "openai_codex:gpt-5.3-codex-spark")
 
-      refute Providers.get_oauth_token(scope, "openai_codex")
+      refute oauth_token(scope, "openai_codex")
     end
 
     test "openai codex oauth without account id is invalid", %{scope: scope} do
       {:ok, _} =
-        Providers.upsert_oauth_token(
+        insert_oauth_token(
           scope,
           "openai_codex",
           "openai_access",
@@ -186,7 +186,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
         )
 
       assert {:error, :invalid_oauth_token} =
-               Providers.prepare_llm_args(scope, "openai_codex:gpt-5.5")
+               Providers.resolve_model_access(scope, "openai_codex:gpt-5.5")
     end
 
     test "reads runtime catalog and separates group, credential, and transport", %{scope: scope} do
@@ -194,8 +194,8 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       on_exit(fn -> Application.put_env(:frontman_server, :providers, original_providers) end)
 
       Application.put_env(:frontman_server, :providers,
-        custom: %{
-          display_name: "Custom",
+        self_hosted: %{
+          display_name: "Self-hosted",
           credential_source: "anthropic",
           models: [
             {"Qwen3 Coder", "qwen3-coder",
@@ -208,11 +208,11 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
         }
       )
 
-      {:ok, _} = Providers.upsert_api_key(scope, "anthropic", "runtime-key")
-      assert %{groups: [%{id: "custom"}]} = Providers.model_config_data(scope)
+      :ok = Providers.upsert_api_key(scope, "anthropic", "runtime-key")
+      assert %{groups: [%{id: "self_hosted"}]} = Providers.available_models(scope)
 
       assert {:ok, {%LLMDB.Model{} = resolved_model, llm_opts}} =
-               Providers.prepare_llm_args(scope, "custom:qwen3-coder")
+               Providers.resolve_model_access(scope, "self_hosted:qwen3-coder")
 
       assert resolved_model.provider == :openai
       assert resolved_model.id == "qwen3-coder"
@@ -221,7 +221,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       refute llm_opts[:anthropic_prompt_cache]
 
       assert {:error, :unknown_model} =
-               Providers.prepare_llm_args(scope, "future_provider:missing")
+               Providers.resolve_model_access(scope, "future_provider:missing")
     end
   end
 
@@ -230,7 +230,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, _} = upsert_anthropic_oauth_token(scope, :expired)
       expect_anthropic_refresh_success()
 
-      config = Providers.model_config_data(scope)
+      config = Providers.available_models(scope)
 
       assert Enum.any?(config.groups, &(&1.id == "anthropic"))
     end
@@ -243,7 +243,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
                connected: true,
                expired: false,
                expires_at: expires_at
-             } = Providers.oauth_connection_status(scope, "openai_codex")
+             } = Providers.resolve_oauth_connection_status(scope, "openai_codex")
 
       assert {:ok, refreshed_expires_at, _offset} = DateTime.from_iso8601(expires_at)
       assert DateTime.compare(refreshed_expires_at, DateTime.utc_now()) == :gt
@@ -266,9 +266,9 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     test "NVIDIA models cross real provider dispatch and decode streaming responses", %{
       scope: scope
     } do
-      {:ok, _api_key} = Providers.upsert_api_key(scope, "nvidia", "nvapi-test")
+      :ok = Providers.upsert_api_key(scope, "nvidia", "nvapi-test")
 
-      %{groups: groups} = Providers.model_config_data(scope)
+      %{groups: groups} = Providers.available_models(scope)
       %{options: [nvidia_model | _]} = Enum.find(groups, &(&1.id == "nvidia"))
       bypass = Bypass.open()
 
@@ -323,7 +323,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       end)
 
       {:ok, {model, llm_opts}} =
-        Providers.prepare_llm_args(scope, nvidia_model.value,
+        Providers.resolve_model_access(scope, nvidia_model.value,
           base_url: "http://localhost:#{bypass.port}/v1"
         )
 
@@ -362,7 +362,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   end
 
   defp upsert_anthropic_oauth_token(scope, expiration) do
-    Providers.upsert_oauth_token(
+    insert_oauth_token(
       scope,
       "anthropic",
       anthropic_access_token(expiration),
@@ -401,7 +401,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   end
 
   defp upsert_openai_oauth_token(scope, expiration) do
-    Providers.upsert_oauth_token(
+    insert_oauth_token(
       scope,
       "openai_codex",
       "openai_access",
@@ -427,6 +427,29 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       |> Plug.Conn.put_status(400)
       |> Req.Test.json(%{"error" => "invalid_grant"})
     end)
+  end
+
+  defp insert_oauth_token(
+         scope,
+         provider,
+         access_token,
+         refresh_token,
+         expires_at,
+         metadata \\ %{}
+       ) do
+    %OAuthToken{user_id: scope.user.id}
+    |> OAuthToken.changeset(%{
+      provider: provider,
+      access_token: access_token,
+      refresh_token: refresh_token,
+      expires_at: expires_at,
+      metadata: metadata
+    })
+    |> Repo.insert()
+  end
+
+  defp oauth_token(scope, provider) do
+    OAuthToken |> OAuthToken.for_user_and_provider(scope.user.id, provider) |> Repo.one()
   end
 
   defp oauth_expiration(:valid), do: DateTime.add(DateTime.utc_now(), 3600, :second)

@@ -6,6 +6,18 @@ module State = Client__State
 module Types = Client__State__Types
 module RuntimeConfig = Client__RuntimeConfig
 
+@val external confirm: string => bool = "confirm"
+
+let requestSettingsOpenChange = (open_, hasUnsavedChanges, onOpenChange) =>
+  switch (open_, hasUnsavedChanges) {
+  | (false, true) =>
+    switch confirm("You have unsaved changes. Discard them and close?") {
+    | true => onOpenChange(false)
+    | false => ()
+    }
+  | _ => onOpenChange(open_)
+  }
+
 type badgeTone = Blue | Emerald | Amber | Red | Zinc
 
 let badgeClass = tone =>
@@ -74,6 +86,398 @@ let renderConnectedToken = (~expiresAt, ~onDisconnect) => {
       {React.string("Disconnect")}
     </Button>
   </div>
+}
+
+let emptyCustomProviderDraft: Types.customProviderDraft = {
+  id: None,
+  name: "",
+  baseUrl: "",
+  apiKeyChange: Types.KeepCustomProviderApiKey,
+  models: [],
+  lockVersion: None,
+}
+
+let customProviderDraft = (provider: Types.customProvider): Types.customProviderDraft => {
+  id: Some(provider.id),
+  name: provider.name,
+  baseUrl: provider.baseUrl,
+  apiKeyChange: Types.KeepCustomProviderApiKey,
+  models: provider.models,
+  lockVersion: Some(provider.lockVersion),
+}
+
+module CustomProviderCard = {
+  @react.component
+  let make = (
+    ~provider: option<Types.customProvider>,
+    ~onClose: option<unit => unit>=?,
+    ~onDirtyChange: bool => unit=_ => (),
+  ) => {
+    let (draft, setDraft) = React.useState(() =>
+      provider->Option.map(customProviderDraft)->Option.getOr(emptyCustomProviderDraft)
+    )
+    let (newModelId, setNewModelId) = React.useState(() => "")
+    let mutation = State.useSelector(State.Selectors.customProviderMutation)
+    let controlsDisabled = mutation != Types.CustomProviderMutationIdle
+    let initialDraft =
+      provider->Option.map(customProviderDraft)->Option.getOr(emptyCustomProviderDraft)
+    let hasChanges = draft != initialDraft
+    let hasUnsavedChanges = hasChanges || newModelId->String.trim != ""
+    let apiKeyInput = switch draft.apiKeyChange {
+    | Types.ReplaceCustomProviderApiKey(key) => key
+    | Types.KeepCustomProviderApiKey | Types.ClearCustomProviderApiKey => ""
+    }
+
+    React.useEffect1(() => {
+      onDirtyChange(hasUnsavedChanges)
+      Some(() => onDirtyChange(false))
+    }, [hasUnsavedChanges])
+
+    React.useEffect2(() => {
+      switch (mutation, provider) {
+      | (Types.CustomProviderMutationSucceeded(Types.SavingCustomProvider(Some(id))), Some(saved))
+        if saved.id == id && Some(saved.lockVersion) != draft.lockVersion =>
+        setDraft(_ => customProviderDraft(saved))
+        State.Actions.acknowledgeCustomProviderMutation()
+      | _ => ()
+      }
+      None
+    }, (mutation, provider))
+
+    let doSave = () =>
+      State.Actions.saveCustomProvider(
+        ~draft={
+          ...draft,
+          name: draft.name->String.trim,
+          baseUrl: draft.baseUrl->String.trim,
+        },
+      )
+
+    let addModel = () => {
+      let trimmedModelId = String.trim(newModelId)
+
+      switch (trimmedModelId, draft.models->Array.includes(trimmedModelId)) {
+      | ("", _) | (_, true) => ()
+      | (_, false) =>
+        setDraft(current => {...current, models: current.models->Array.concat([trimmedModelId])})
+        setNewModelId(_ => "")
+      }
+    }
+
+    let matchingFailure = switch mutation {
+    | Types.CustomProviderMutationFailed({operation: Types.SavingCustomProvider(id), error})
+      if id == draft.id =>
+      Some((Types.SavingCustomProvider(id), error))
+    | Types.CustomProviderMutationFailed({operation: Types.DeletingCustomProvider(id), error})
+      if Some(id) == draft.id =>
+      Some((Types.DeletingCustomProvider(id), error))
+    | _ => None
+    }
+
+    let errorMessage = switch matchingFailure {
+    | Some((_, Types.CustomProviderValidationError(errors))) =>
+      errors->Dict.valuesToArray->Array.flatMap(messages => messages)->Array.get(0)
+    | Some((_, Types.CustomProviderNotFound)) => Some("Provider no longer exists")
+    | Some((_, Types.CustomProviderNetworkError(message))) => Some(message)
+    | Some((_, Types.CustomProviderConflict(_))) => Some("Provider changed elsewhere")
+    | None => None
+    }
+
+    let confirmThen = (message, action) =>
+      switch confirm(message) {
+      | true => action()
+      | false => ()
+      }
+
+    let failureActions = switch matchingFailure {
+    | Some((Types.SavingCustomProvider(_), Types.CustomProviderConflict(current))) => [
+        (
+          "Load latest",
+          () =>
+            confirmThen("Discard unsaved changes and load latest provider?", () => {
+              setDraft(_ => customProviderDraft(current))
+              State.Actions.acknowledgeCustomProviderMutation()
+            }),
+        ),
+        (
+          "Overwrite latest",
+          () =>
+            confirmThen("Overwrite latest provider with unsaved changes?", () => {
+              State.Actions.acknowledgeCustomProviderMutation()
+              State.Actions.saveCustomProvider(
+                ~draft={
+                  ...draft,
+                  lockVersion: Some(current.lockVersion),
+                },
+              )
+            }),
+        ),
+      ]
+    | Some((Types.DeletingCustomProvider(_), Types.CustomProviderConflict(current))) => [
+        ("Cancel delete", State.Actions.acknowledgeCustomProviderMutation),
+        (
+          "Delete latest",
+          () =>
+            confirmThen("Delete latest provider?", () => {
+              State.Actions.acknowledgeCustomProviderMutation()
+              State.Actions.deleteCustomProvider(~id=current.id, ~lockVersion=current.lockVersion)
+            }),
+        ),
+      ]
+    | Some(_) => [("Dismiss", State.Actions.acknowledgeCustomProviderMutation)]
+    | None => []
+    }
+
+    let hasApiKey = provider->Option.map(provider => provider.hasApiKey)->Option.getOr(false)
+
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-zinc-100">
+          {React.string(provider->Option.isNone ? "New provider" : draft.name)}
+        </span>
+        <div className="flex gap-2">
+          {switch provider {
+          | Some(provider) =>
+            <Button
+              variant={Button.Variant.Destructive}
+              size={Button.Size.Sm}
+              disabled=controlsDisabled
+              onClick={_ =>
+                confirmThen("Delete provider?", () =>
+                  State.Actions.deleteCustomProvider(
+                    ~id=provider.id,
+                    ~lockVersion=provider.lockVersion,
+                  )
+                )}
+            >
+              {React.string("Delete")}
+            </Button>
+          | None => React.null
+          }}
+          <Button
+            variant={Button.Variant.Ghost}
+            size={Button.Size.Sm}
+            disabled={controlsDisabled || (provider->Option.isSome && !hasUnsavedChanges)}
+            onClick={_ =>
+              switch provider {
+              | Some(provider) => {
+                  setDraft(_ => customProviderDraft(provider))
+                  setNewModelId(_ => "")
+                }
+              | None => onClose->Option.forEach(close => close())
+              }}
+          >
+            {React.string("Cancel")}
+          </Button>
+          <Button
+            variant={Button.Variant.Secondary}
+            size={Button.Size.Sm}
+            onClick={_ => doSave()}
+            disabled={controlsDisabled || !hasChanges}
+          >
+            {React.string(controlsDisabled ? "Saving..." : "Save")}
+          </Button>
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <Input
+          type_="text"
+          placeholder="Provider name"
+          value={draft.name}
+          onValueChange={(value, _) => setDraft(current => {...current, name: value})}
+          disabled=controlsDisabled
+        />
+        <Input
+          type_="text"
+          placeholder="https://api.example.com/v1"
+          value={draft.baseUrl}
+          onValueChange={(value, _) => setDraft(current => {...current, baseUrl: value})}
+          disabled=controlsDisabled
+        />
+        <div className="flex flex-col gap-2 sm:col-span-2 sm:flex-row">
+          <Input
+            type_="password"
+            placeholder={hasApiKey ? "Key saved - enter replacement" : "Optional API key"}
+            value={apiKeyInput}
+            disabled=controlsDisabled
+            className="min-w-0 flex-1"
+            onValueChange={(value, _) => {
+              setDraft(current => {
+                ...current,
+                apiKeyChange: switch value->String.trim {
+                | "" => Types.KeepCustomProviderApiKey
+                | key => Types.ReplaceCustomProviderApiKey(key)
+                },
+              })
+            }}
+          />
+          {hasApiKey
+            ? <Button
+                variant={Button.Variant.Ghost}
+                disabled=controlsDisabled
+                onClick={_ => {
+                  setDraft(current => {...current, apiKeyChange: Types.ClearCustomProviderApiKey})
+                }}
+              >
+                {React.string("Remove key")}
+              </Button>
+            : React.null}
+        </div>
+      </div>
+      {switch errorMessage {
+      | Some(message) => <div className="mt-2 text-xs text-red-400"> {React.string(message)} </div>
+      | None => React.null
+      }}
+      <div className="mt-3 border-t border-zinc-800 pt-3">
+        <div className="space-y-2">
+          {draft.models
+          ->Array.mapWithIndex((model, modelIndex) =>
+            <div key={modelIndex->Int.toString} className="flex gap-2">
+              <Input
+                type_="text"
+                value=model
+                disabled=controlsDisabled
+                onValueChange={(value, _) =>
+                  setDraft(current => {
+                    ...current,
+                    models: current.models->Array.mapWithIndex(
+                      (currentModel, currentIndex) =>
+                        switch currentIndex == modelIndex {
+                        | true => value
+                        | false => currentModel
+                        },
+                    ),
+                  })}
+              />
+              <Button
+                size={Button.Size.Sm}
+                variant={Button.Variant.Link}
+                disabled=controlsDisabled
+                onClick={_ =>
+                  setDraft(current => {
+                    ...current,
+                    models: current.models->Array.filter(currentModel => currentModel != model),
+                  })}
+              >
+                {React.string("Remove")}
+              </Button>
+            </div>
+          )
+          ->React.array}
+        </div>
+        <div className="mt-2 flex gap-2">
+          <Input
+            type_="text"
+            placeholder="Model ID"
+            value={newModelId}
+            onValueChange={(value, _) => setNewModelId(_ => value)}
+            disabled=controlsDisabled
+          />
+          <Button
+            size={Button.Size.Sm}
+            variant={Button.Variant.Link}
+            onClick={_ => addModel()}
+            disabled={controlsDisabled ||
+            newModelId->String.trim == "" ||
+            draft.models->Array.includes(newModelId->String.trim)}
+          >
+            {React.string("Add")}
+          </Button>
+        </div>
+      </div>
+      {switch failureActions {
+      | [] => React.null
+      | actions =>
+        <div className="flex gap-2">
+          {actions
+          ->Array.map(((label, action)) =>
+            <Button
+              key=label size={Button.Size.Sm} variant={Button.Variant.Ghost} onClick={_ => action()}
+            >
+              {React.string(label)}
+            </Button>
+          )
+          ->React.array}
+        </div>
+      }}
+    </div>
+  }
+}
+
+module CustomProvidersSection = {
+  @react.component
+  let make = (~onDirtyChange: bool => unit=_ => ()) => {
+    let customProviders = State.useSelector(State.Selectors.customProviders)
+    let mutation = State.useSelector(State.Selectors.customProviderMutation)
+    let (isDrafting, setIsDrafting) = React.useState(() => false)
+    let (dirtyProviderIds, setDirtyProviderIds) = React.useState(() => [])
+    let providers = customProviders->Option.getOr([])
+    let showDraft =
+      isDrafting ||
+      switch mutation {
+      | Types.CustomProviderMutationFailed({operation: Types.SavingCustomProvider(None), _}) => true
+      | _ => false
+      }
+
+    let setProviderDirty = (providerId, isDirty) =>
+      setDirtyProviderIds(current =>
+        switch (isDirty, current->Array.includes(providerId)) {
+        | (true, false) => current->Array.concat([providerId])
+        | (false, true) => current->Array.filter(id => id != providerId)
+        | _ => current
+        }
+      )
+
+    React.useEffect1(() => {
+      onDirtyChange(dirtyProviderIds->Array.length > 0)
+      None
+    }, [dirtyProviderIds])
+
+    React.useEffect0(() => Some(() => onDirtyChange(false)))
+
+    React.useEffect(() => {
+      switch mutation {
+      | Types.CustomProviderMutationSucceeded(Types.SavingCustomProvider(None)) =>
+        setIsDrafting(_ => false)
+        State.Actions.acknowledgeCustomProviderMutation()
+      | Types.CustomProviderMutationSucceeded(Types.DeletingCustomProvider(_)) =>
+        State.Actions.acknowledgeCustomProviderMutation()
+      | _ => ()
+      }
+      None
+    }, [mutation])
+
+    <div className="space-y-4">
+      <div className="text-sm text-zinc-400"> {React.string("Custom providers")} </div>
+      {providers
+      ->Array.map(provider =>
+        <CustomProviderCard
+          key={provider.id}
+          provider={Some(provider)}
+          onDirtyChange={isDirty => setProviderDirty(Some(provider.id), isDirty)}
+        />
+      )
+      ->React.array}
+      {switch showDraft {
+      | true =>
+        <CustomProviderCard
+          provider=None
+          onClose={() => setIsDrafting(_ => false)}
+          onDirtyChange={isDirty => setProviderDirty(None, isDirty)}
+        />
+      | false => React.null
+      }}
+      <Button
+        variant={Button.Variant.Secondary}
+        onClick={_ => setIsDrafting(_ => true)}
+        disabled={customProviders->Option.isNone ||
+        showDraft ||
+        mutation != Types.CustomProviderMutationIdle}
+      >
+        {React.string("Add Additional Provider")}
+      </Button>
+    </div>
+  }
 }
 
 module APIKeyCard = {
@@ -150,6 +554,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let (fireworksKey, setFireworksKey) = React.useState(() => "")
   let (nvidiaKey, setNvidiaKey) = React.useState(() => "")
   let (oauthCode, setOauthCode) = React.useState(() => "")
+  let (customProvidersDirty, setCustomProvidersDirty) = React.useState(() => false)
   let userProfile = State.useSelector(State.Selectors.userProfile)
   let userEmail = userProfile->Option.map(p => p.email)
 
@@ -164,6 +569,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   React.useEffect2(() => {
     if open_ {
       State.Actions.fetchApiKeySettings()
+      State.Actions.fetchCustomProviders()
       State.Actions.fetchAnthropicOAuthStatus()
       State.Actions.fetchOpenAIOAuthStatus()
       State.Actions.resetOpenRouterKeySaveStatus()
@@ -186,7 +592,16 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     "Enter Anthropic API key",
   )
 
-  <Dialog open_ onOpenChange={(open_, _) => onOpenChange(open_)}>
+  let hasUnsavedChanges =
+    customProvidersDirty ||
+    [openrouterKey, anthropicKey, fireworksKey, nvidiaKey, oauthCode]->Array.some(value =>
+      value->String.trim != ""
+    )
+
+  <Dialog
+    open_
+    onOpenChange={(open_, _) => requestSettingsOpenChange(open_, hasUnsavedChanges, onOpenChange)}
+  >
     <Dialog.Content
       className="sm:max-w-none max-w-none h-[560px] w-[960px] p-0" showCloseButton={false}
     >
@@ -598,6 +1013,11 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     reset={State.Actions.resetOpenRouterKeySaveStatus}
                   />
                 </div>}
+            <div className={activeTab == "providers" ? "mt-6" : "hidden"}>
+              <CustomProvidersSection
+                onDirtyChange={isDirty => setCustomProvidersDirty(_ => isDirty)}
+              />
+            </div>
           </div>
         </div>
       </div>

@@ -67,7 +67,7 @@ Client                          Server                          LLM Provider
 
 **Sequence:**
 1. `TaskChannel.handle_in("acp:message")` receives prompt
-2. `Providers.prepare_llm_args/3` resolves provider auth and ReqLLM arguments
+2. `Providers.resolve_model_access/3` resolves provider auth and ReqLLM arguments
 3. `Execution.start` starts agent execution with the prompt, model configuration, and tools
 4. `SwarmAi.run(runtime, agent)` starts supervised execution
 5. SwarmAi calls LLM via `ReqLLM` (custom Req wrapper), receives response

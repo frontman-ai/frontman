@@ -27,8 +27,8 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
-    {:ok, _api_key} = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
-    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+    :ok = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
+    :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
     task_id = task_with_pubsub_fixture(scope).id
 

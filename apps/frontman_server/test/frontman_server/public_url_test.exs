@@ -8,6 +8,13 @@ defmodule FrontmanServer.PublicURLTest do
     assert :ok = PublicURL.validate("https://[2606:2800:220:1:248:1893:25c8:1946]")
   end
 
+  for url <- ["ftp://example.com", "not-a-url", ""] do
+    test "rejects invalid URL syntax: #{inspect(url)}" do
+      assert {:error, "URL must start with http:// or https://"} =
+               PublicURL.validate(unquote(url))
+    end
+  end
+
   @blocked_urls ~w(
     http://localhost/secret http://localhost:8080/admin http://127.0.0.1/
     http://127.0.0.42:9200/ http://10.0.0.1/ http://172.16.0.1/ http://192.168.1.1/
@@ -83,6 +90,19 @@ defmodule FrontmanServer.PublicURLTest do
     assert Req.Request.get_header(protected, "host") == [
              "[2606:2800:220:1:248:1893:25c8:1946]"
            ]
+  end
+
+  test "pins Finch connections to the validated address while preserving the hostname" do
+    with_host("public-stream.invalid", {93, 184, 216, 35}, fn ->
+      request = Finch.build(:get, "https://public-stream.invalid/resource")
+
+      protected =
+        PublicURL.protect_finch(request, ReqLLM.Application.finch_name())
+
+      assert protected.host == "93.184.216.35"
+      assert {"host", "public-stream.invalid"} in protected.headers
+      assert protected.pool_tag == {:public_url, "public-stream.invalid"}
+    end)
   end
 
   defp with_host(host, address, fun) do

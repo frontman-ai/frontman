@@ -926,7 +926,8 @@ describe("Unsupported Next.js Versions", _t => {
     })
 
     switch result {
-    | Install.Failure(message) => t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
+    | Install.Failure(message) =>
+      t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
     | _ => t->expect("install")->Expect.toBe("reject unsupported Next.js")
     }
     t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
@@ -975,7 +976,8 @@ describe("Unsupported Next.js Versions", _t => {
     })
 
     switch result {
-    | Install.Failure(message) => t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
+    | Install.Failure(message) =>
+      t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
     | _ => t->expect("install")->Expect.toBe("reject unsupported Next.js")
     }
     t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)

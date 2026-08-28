@@ -579,7 +579,7 @@ defmodule FrontmanServerWeb.TaskChannel do
             id,
             ACP.build_session_load_result(
               scope
-              |> Providers.model_config_data()
+              |> Providers.available_models()
               |> ACP.build_model_config_options()
             )
           )
@@ -611,7 +611,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
-    case Providers.model_from_client_params(meta["model"]) do
+    case parse_client_model(meta["model"]) do
       {:ok, model} ->
         Logger.info("process_prompt", %{task_id: task_id, model: model})
 
@@ -890,7 +890,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp execution_context(socket, meta) do
     model =
-      case Providers.model_from_client_params(meta && meta["model"]) do
+      case parse_client_model(meta && meta["model"]) do
         {:ok, model} -> model
         :error -> nil
       end
@@ -902,6 +902,19 @@ defmodule FrontmanServerWeb.TaskChannel do
     }
   end
 
+  defp parse_client_model(%{"provider" => "custom", "value" => value}) do
+    Providers.parse_model_ref(value)
+  end
+
+  defp parse_client_model(%{"provider" => provider, "value" => value})
+       when is_binary(provider) do
+    case value do
+      value when is_binary(value) -> Providers.parse_model_ref("#{provider}:#{value}")
+      _invalid -> :error
+    end
+  end
+
+  defp parse_client_model(value), do: Providers.parse_model_ref(value)
   defp apply_init_actions([], socket), do: socket
 
   defp apply_init_actions([action | rest], socket) do

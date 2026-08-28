@@ -4,41 +4,9 @@ module Reducer = Client__State__StateReducer
 module Types = Client__State__Types
 
 let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
-  {
-    tasks: Dict.make(),
-    currentTask: Types.Task.New(Types.Task.makeNew(~previewUrl="http://localhost:3000")),
-    acpSession: NoAcpSession,
-    userProfile: None,
-    openrouterKeySettings: {
-      source: Types.None,
-      saveStatus: Types.Idle,
-    },
-    anthropicKeySettings: {
-      source: Types.None,
-      saveStatus: Types.Idle,
-    },
-    fireworksKeySettings: {
-      source: Types.None,
-      saveStatus: Types.Idle,
-    },
-    nvidiaKeySettings: {
-      source: Types.None,
-      saveStatus: Types.Idle,
-    },
-    anthropicOAuthStatus: Types.NotConnected,
-    openaiOAuthStatus,
-    configOptions: None,
-    selectedModelValue: None,
-    agentCatalog: None,
-    selectedAgentId: None,
-    pendingProviderAutoSelect: None,
-    sessionsLoadState: Types.SessionsNotLoaded,
-    updateInfo: None,
-    updateCheckStatus: UpdateNotChecked,
-    updateBannerDismissed: false,
-    firstTaskFeedbackDialogState: Waiting,
-    highlightedAnnotation: None,
-  }
+  ...Reducer.defaultState,
+  openaiOAuthStatus,
+  selectedModelValue: None,
 }
 
 let _makeShowingCodeState = (~deviceAuthId: string): Types.state => {

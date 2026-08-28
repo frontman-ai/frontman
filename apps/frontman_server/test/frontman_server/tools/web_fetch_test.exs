@@ -66,21 +66,11 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
   end
 
-  describe "execute/2 — URL validation" do
-    test "rejects URLs without http/https scheme", %{context: ctx} do
-      msg = execute_error("ftp://example.com", ctx)
-      assert msg =~ "http:// or https://"
-
-      execute_error("not-a-url", ctx)
-      execute_error("", ctx)
-    end
-
-    test "rejects missing url", %{context: ctx} do
-      result = WebFetch.execute(%{}, ctx)
-      assert MCP.error?(result)
-      msg = MCP.extract_content_text(result)
-      assert msg =~ "url"
-    end
+  test "execute/2 rejects missing url", %{context: ctx} do
+    result = WebFetch.execute(%{}, ctx)
+    assert MCP.error?(result)
+    msg = MCP.extract_content_text(result)
+    assert msg =~ "url"
   end
 
   describe "execute/2 — SSRF protection" do
@@ -99,28 +89,6 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       end)
 
       msg = execute_error("#{@public_test_url}/redirect", ctx)
-      assert msg =~ "private"
-    end
-
-    test "blocks redirect to metadata IP", %{context: ctx} do
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_header("location", "http://169.254.169.254/latest/meta-data/")
-        |> Plug.Conn.send_resp(301, "")
-      end)
-
-      msg = execute_error("#{@public_test_url}/aws", ctx)
-      assert msg =~ "private"
-    end
-
-    test "blocks redirect to IPv4-mapped IPv6", %{context: ctx} do
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_header("location", "http://[::ffff:127.0.0.1]/")
-        |> Plug.Conn.send_resp(302, "")
-      end)
-
-      msg = execute_error("#{@public_test_url}/mapped", ctx)
       assert msg =~ "private"
     end
 

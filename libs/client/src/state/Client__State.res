@@ -277,6 +277,17 @@ module Actions = {
 
   let shareFrontman = () => Client__State__Store.dispatch(ShareFrontman)
 
+  let fetchCustomProviders = () => Client__State__Store.dispatch(FetchCustomProviders)
+
+  let saveCustomProvider = (~draft: Client__State__Types.customProviderDraft) =>
+    Client__State__Store.dispatch(SaveCustomProvider(draft))
+
+  let deleteCustomProvider = (~id, ~lockVersion) =>
+    Client__State__Store.dispatch(DeleteCustomProvider(id, lockVersion))
+
+  let acknowledgeCustomProviderMutation = () =>
+    Client__State__Store.dispatch(AcknowledgeCustomProviderMutation)
+
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
     Client__State__Store.dispatch(
       TaskAction({

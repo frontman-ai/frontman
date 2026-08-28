@@ -40,6 +40,17 @@ defmodule FrontmanServer.PublicURL do
     end
   end
 
+  @doc false
+  @spec protect_finch(Finch.Request.t(), atom()) :: Finch.Request.t()
+  def protect_finch(%Finch.Request{} = request, finch_name) do
+    url = %URI{scheme: Atom.to_string(request.scheme), host: request.host, port: request.port}
+
+    case resolve(url) do
+      {:ok, {host, address}} -> pin_finch(request, finch_name, host, address)
+      {:error, message} -> raise ArgumentError, message
+    end
+  end
+
   defp resolve(url) when is_binary(url) do
     with :ok <- validate_scheme(url) do
       resolve(URI.parse(url))
@@ -125,6 +136,17 @@ defmodule FrontmanServer.PublicURL do
       |> Map.put(:finch, finch_options)
       |> Map.put(:redirect, false)
     end)
+  end
+
+  defp pin_finch(request, finch_name, host, address) do
+    {address, pool_tag} = start_pool(finch_name, request.scheme, request.port, host, address)
+
+    headers =
+      request.headers
+      |> Enum.reject(fn {name, _value} -> String.downcase(name) == "host" end)
+      |> List.insert_at(0, {"host", authority(host, request.scheme, request.port)})
+
+    %{request | host: address, headers: headers, pool_tag: pool_tag}
   end
 
   defp start_pool(finch_name, scheme, port, host, address) do
