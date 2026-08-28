@@ -155,59 +155,94 @@ defmodule FrontmanServer.Tasks do
     |> Repo.all()
   end
 
-  @doc """
-  Adds a discovered project rule to the task.
+  @max_project_rules 32
 
-  Deduplicates by path - returns `{:ok, :already_loaded}` if already present.
-  """
-  def add_discovered_project_rule(scope, task_id, path, content) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      interactions = task_id |> load_interaction_rows() |> Enum.map(& &1.data)
+  @doc "Adds discovered project rules to the task, deduplicated by path."
+  def add_discovered_project_rules(scope, task_id, rules) when is_list(rules) do
+    enforce_project_rule_limit!(length(rules), task_id)
 
-      if rule_loaded?(interactions, path) do
-        {:ok, :already_loaded}
-      else
-        record_interaction(
-          schema,
-          :discovered_project_rule,
-          %{
-            path: path,
-            content: content
-          },
-          nil
-        )
+    Repo.transact(fn ->
+      case get_task_by_id_for_update(scope, task_id) do
+        %TaskSchema{} = task -> insert_project_rules(task, rules)
+        nil -> {:error, :not_found}
       end
-    end
-  end
-
-  @doc """
-  Stores the discovered project structure summary for a task.
-  Called during MCP initialization after `list_tree` returns.
-  """
-  def add_discovered_project_structure(scope, task_id, summary) do
-    with {:ok, %TaskSchema{} = task} <- get_task_by_id(scope, task_id) do
-      interactions = task.id |> load_interaction_rows() |> Enum.map(& &1.data)
-
-      if Enum.any?(interactions, &match?(%Interaction.DiscoveredProjectStructure{}, &1)) do
-        {:ok, :already_loaded}
-      else
-        record_interaction(
-          task,
-          :discovered_project_structure,
-          %{
-            summary: summary
-          },
-          nil
-        )
-      end
-    end
-  end
-
-  defp rule_loaded?(interactions, path) do
-    Enum.any?(interactions, fn
-      %Interaction.DiscoveredProjectRule{path: p} -> p == path
-      _ -> false
     end)
+    |> case do
+      {:ok, {task, rows}} ->
+        Enum.each(rows, &broadcast_task(task.id, {:interaction, &1}))
+        {:ok, rows}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp insert_project_rules(task, rules) do
+    loaded_paths =
+      task.id
+      |> InteractionSchema.for_task()
+      |> InteractionSchema.of_type(:discovered_project_rule)
+      |> InteractionSchema.limited_data_values("path", @max_project_rules + 1)
+      |> Repo.all()
+
+    attrs =
+      rules
+      |> Enum.uniq_by(&elem(&1, 0))
+      |> Enum.reject(fn {path, _content} -> path in loaded_paths end)
+      |> Enum.map(fn {path, content} ->
+        %{
+          id: Ecto.UUID.generate(),
+          type: :discovered_project_rule,
+          data: %{path: path, content: content},
+          turn_number: nil
+        }
+      end)
+
+    enforce_project_rule_limit!(length(loaded_paths) + length(attrs), task.id)
+
+    case attrs do
+      [] ->
+        {:ok, {task, []}}
+
+      [_ | _] ->
+        rows =
+          Enum.map(attrs, fn attrs ->
+            task
+            |> Ecto.build_assoc(:interaction_rows)
+            |> InteractionSchema.changeset(attrs)
+            |> Repo.insert!()
+          end)
+
+        {1, _} =
+          TaskSchema
+          |> TaskSchema.by_id(task.id)
+          |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)])
+
+        {:ok, {task, rows}}
+    end
+  end
+
+  defp enforce_project_rule_limit!(count, _task_id) when count <= @max_project_rules, do: :ok
+
+  defp enforce_project_rule_limit!(count, task_id),
+    do:
+      raise(
+        "project rule count #{count} exceeded limit #{@max_project_rules} for task #{task_id}"
+      )
+
+  @doc "Stores the discovered project structure summary for a task."
+  def add_discovered_project_structure(scope, task_id, summary) do
+    with {:ok, %TaskSchema{} = task} <- get_task_by_id(scope, task_id),
+         false <-
+           task.id
+           |> InteractionSchema.for_task()
+           |> InteractionSchema.of_type(:discovered_project_structure)
+           |> Repo.exists?() do
+      record_interaction(task, :discovered_project_structure, %{summary: summary}, nil)
+    else
+      true -> {:ok, :already_loaded}
+      {:error, reason} -> {:error, reason}
+    end
   end
 
   defp record_interaction(%TaskSchema{} = task_schema, type, data, turn_number) do
@@ -242,11 +277,7 @@ defmodule FrontmanServer.Tasks do
     end)
     |> case do
       {:ok, %InteractionSchema{} = interaction_schema} ->
-        broadcast_task(
-          task.id,
-          {:interaction, interaction_schema}
-        )
-
+        broadcast_task(task.id, {:interaction, interaction_schema})
         {:ok, interaction_schema}
 
       {:error, reason} ->

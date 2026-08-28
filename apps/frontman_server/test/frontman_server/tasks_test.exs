@@ -1079,49 +1079,106 @@ defmodule FrontmanServer.TasksTest do
     %SwarmAi.ToolCall{id: id, name: name, arguments: Jason.encode!(args)}
   end
 
-  describe "add_discovered_project_rule/4" do
-    test "adds rule to task", %{scope: scope} do
+  describe "add_discovered_project_rules/3" do
+    test "adds rules and deduplicates by path", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      {:ok, rule} =
-        Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules")
+      assert {:ok, [first, second]} =
+               Tasks.add_discovered_project_rules(scope, task_id, [
+                 {"/project/AGENTS.md", "# Rules"},
+                 {"/project/AGENTS.md", "# Ignored"},
+                 {"/project/CLAUDE.md", "# Claude"}
+               ])
 
-      assert rule.path == "/project/AGENTS.md"
-      assert rule.content == "# Rules"
+      assert {first.data.path, first.data.content} == {"/project/AGENTS.md", "# Rules"}
+      assert {second.data.path, second.data.content} == {"/project/CLAUDE.md", "# Claude"}
 
-      assert Repo.get_by!(InteractionSchema,
-               task_id: task_id,
-               type: :discovered_project_rule
-             ).turn_number ==
-               nil
+      assert {:ok, []} =
+               Tasks.add_discovered_project_rules(scope, task_id, [
+                 {"/project/AGENTS.md", "# Replacement"}
+               ])
+
+      assert_raise RuntimeError, ~r/project rule count 33 exceeded limit 32/, fn ->
+        Tasks.add_discovered_project_rules(
+          scope,
+          task_id,
+          Enum.map(1..31, &{"new-rule-#{&1}", "content"})
+        )
+      end
+
+      assert Repo.aggregate(
+               InteractionSchema.for_task(task_id),
+               :count
+             ) == 2
     end
 
-    test "deduplicates by path", %{scope: scope} do
+    test "rejects over-limit batches before writing", %{scope: scope} do
       task_id = task_fixture(scope).id
+      rules = Enum.map(1..33, &{"rule-#{&1}", "content"})
 
-      {:ok, _rule} =
-        Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v1")
+      assert_raise RuntimeError, ~r/project rule count 33 exceeded limit 32/, fn ->
+        Tasks.add_discovered_project_rules(scope, task_id, rules)
+      end
 
-      {:ok, :already_loaded} =
-        Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v2")
+      refute Repo.exists?(InteractionSchema.for_task(task_id))
+    end
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+    test "bounds queries for the largest accepted batch", %{scope: scope} do
+      task_id = task_fixture(scope).id
 
       rules =
-        Enum.filter(
-          Tasks.interactions(task),
-          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
+        [{"rule-1", String.duplicate("x", 65_536)} | Enum.map(2..32, &{"rule-#{&1}", "content"})]
+
+      counter = :counters.new(1, [])
+      handler = {__MODULE__, make_ref()}
+
+      :ok =
+        :telemetry.attach(
+          handler,
+          [:frontman_server, :repo, :query],
+          fn _event, _measurements, _metadata, counter -> :counters.add(counter, 1, 1) end,
+          counter
         )
 
-      assert length(rules) == 1
-      assert hd(rules).content == "# Rules v1"
+      on_exit(fn -> :telemetry.detach(handler) end)
+
+      assert {:ok, inserted} = Tasks.add_discovered_project_rules(scope, task_id, rules)
+      assert length(inserted) == 32
+      assert :counters.get(counter, 1) <= 40
     end
 
-    test "returns error for non-existent task", %{scope: scope} do
-      nonexistent_id = Ecto.UUID.generate()
+    test "rolls back valid rules when one rule is too large", %{scope: scope} do
+      task_id = task_fixture(scope).id
 
-      assert {:error, :not_found} =
-               Tasks.add_discovered_project_rule(scope, nonexistent_id, "/path", "content")
+      assert_raise Ecto.InvalidChangesetError, fn ->
+        Tasks.add_discovered_project_rules(scope, task_id, [
+          {"valid", "content"},
+          {"oversized", String.duplicate("x", 65_537)}
+        ])
+      end
+
+      refute Repo.exists?(InteractionSchema.for_task(task_id))
+    end
+
+    test "serializes concurrent batches against the durable limit", %{scope: scope} do
+      task_id = task_fixture(scope).id
+
+      results =
+        ["first", "second"]
+        |> Task.async_stream(fn prefix ->
+          rules = Enum.map(1..32, &{"#{prefix}-#{&1}", "content"})
+
+          try do
+            {:ok, _rules} = Tasks.add_discovered_project_rules(scope, task_id, rules)
+            :inserted
+          rescue
+            RuntimeError -> :rejected
+          end
+        end)
+        |> Enum.map(fn {:ok, result} -> result end)
+
+      assert Enum.sort(results) == [:inserted, :rejected]
+      assert Repo.aggregate(InteractionSchema.for_task(task_id), :count) == 32
     end
   end
 
@@ -1147,6 +1204,19 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:error, :not_found} =
                Tasks.add_discovered_project_structure(scope, nonexistent_id, "summary")
+    end
+
+    test "rejects oversized structures", %{scope: scope} do
+      task_id = task_fixture(scope).id
+
+      assert {:error, %Ecto.Changeset{}} =
+               Tasks.add_discovered_project_structure(
+                 scope,
+                 task_id,
+                 String.duplicate("x", 512 * 1024 + 1)
+               )
+
+      refute Repo.exists?(InteractionSchema.for_task(task_id))
     end
   end
 

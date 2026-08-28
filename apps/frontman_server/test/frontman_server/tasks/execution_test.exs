@@ -720,7 +720,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
       {:ok, _rule} =
-        Tasks.add_discovered_project_rule(scope, task_id, "AGENTS.md", "Use project rules.")
+        Tasks.add_discovered_project_rules(scope, task_id, [{"AGENTS.md", "Use project rules."}])
 
       {:ok, _structure} =
         Tasks.add_discovered_project_structure(scope, task_id, "Project type: single project")

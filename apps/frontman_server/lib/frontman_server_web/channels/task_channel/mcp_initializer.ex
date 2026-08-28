@@ -19,6 +19,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   @tool_metadata_extension "ai.frontman/tool-metadata"
   @tools_page_limit 100
   @tools_size_limit 8 * 1024 * 1024
+  @workspace_limit 128
+  @project_structure_bytes_limit 512 * 1024
 
   def start(task_id, scope, framework) do
     request_id = System.unique_integer([:positive])
@@ -255,9 +257,10 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   defp parse_project_rules(result, state) do
     with text when text != "" <- MCP.extract_content_text(result) |> String.trim(),
          {:ok, rules} when is_list(rules) <- Jason.decode(text) do
-      Enum.each(rules, fn %{"fullPath" => path, "content" => content} ->
-        Tasks.add_discovered_project_rule(state.scope, state.task_id, path, content)
-      end)
+      rules =
+        Enum.map(rules, fn %{"fullPath" => path, "content" => content} -> {path, content} end)
+
+      {:ok, _rules} = Tasks.add_discovered_project_rules(state.scope, state.task_id, rules)
 
       Logger.info("MCPInitializer: Initialized #{length(rules)} project rules")
     else
@@ -313,6 +316,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
          {:ok, %{"tree" => tree} = decoded} when is_binary(tree) <- Jason.decode(text) do
       monorepo_type = Map.get(decoded, "monorepoType")
       workspaces = Map.get(decoded, "workspaces", [])
+      enforce_limit!(length(workspaces), @workspace_limit, "workspace count", state.task_id)
 
       type_line =
         case monorepo_type do
@@ -323,6 +327,14 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
       workspace_section = format_workspace_section(workspaces)
 
       summary = type_line <> workspace_section <> "\n\nDirectory layout:\n" <> tree
+
+      enforce_limit!(
+        byte_size(summary),
+        @project_structure_bytes_limit,
+        "structure bytes",
+        state.task_id
+      )
+
       {:ok, _} = Tasks.add_discovered_project_structure(state.scope, state.task_id, summary)
       Logger.info("MCPInitializer: Discovered project structure")
     else
@@ -348,7 +360,11 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     "\n\nWorkspaces:\n" <> Enum.join(ws_lines, "\n")
   end
 
-  defp format_workspace_section(_other), do: ""
+  defp enforce_limit!(actual, limit, _label, _task_id) when actual <= limit, do: :ok
+
+  defp enforce_limit!(actual, limit, label, task_id) do
+    raise "MCP project #{label} #{actual} exceeded limit #{limit} for task #{task_id}"
+  end
 
   defp complete_initialization(state) do
     state =

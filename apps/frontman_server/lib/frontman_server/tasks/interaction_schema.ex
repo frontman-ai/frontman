@@ -92,6 +92,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: fragment("?->>?", i.data, ^field) == ^value)
   end
 
+  def limited_data_values(query, field, limit) do
+    from(i in query, select: fragment("?->>?", i.data, ^field), limit: ^limit)
+  end
+
   def duplicate_tool_result?(%Ecto.Changeset{} = changeset) do
     Enum.any?(changeset.errors, fn {_field, {_message, metadata}} ->
       case {Keyword.fetch(metadata, :constraint), Keyword.fetch(metadata, :constraint_name)} do
