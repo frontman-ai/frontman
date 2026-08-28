@@ -5,7 +5,7 @@ pubDate: 2026-08-27T00:00:00Z
 description: 'The August 2026 Frontman AI update adds one-click plan execution, file-change diffs, linked UI annotations, and stronger task recovery.'
 author: 'Danni Friedland'
 image: '/blog/frontman-august-2026-release-cover.png'
-imageAlt: 'Frontman AI workflow connecting a plan, file diff, and annotated browser element'
+imageAlt: 'Frontman logo and the title Frontman AI Update: Plan, Execute, and Review in One Workflow on a dark grid background'
 articleSection: 'Product Announcement'
 tags: ['announcement', 'frontend-agent', 'browser-aware-ai', 'mcp']
 ---
@@ -76,7 +76,7 @@ Annotations already give Frontman a bounded DOM region and source context. They 
 
 Annotation chips in sent messages are now interactive. Select a chip to highlight its element and scroll it into view. Select the chip again to clear the highlight.
 
-This matters after navigation or a long agent turn. Earlier instructions no longer become detached references inside chat history.
+This matters after a long agent turn. Earlier instructions no longer become detached references inside chat history.
 
 ## Why Some Packages Have Major Version Bumps
 
@@ -120,10 +120,10 @@ Use a general coding agent or IDE-centered workflow for backend changes, data mo
 
 ## Update Frontman
 
-Next.js now requires version 15.5 or newer. Frontman's React packages require React 19.2.8 or newer. Review these requirements before you update.
+Next.js now requires version 15.5.x or 16.x. Frontman's React packages require React 19.2.8 or newer. Review these requirements before you update.
 
 For Next.js, Astro, or Vite, update the relevant `@frontman-ai/*` package with your current package manager. Then restart the development server and open `/frontman` to verify the installation.
 
 For WordPress, install the update through the normal plugin update flow in wp-admin.
 
-Read the [complete release notes](https://github.com/frontman-ai/frontman/releases/tag/v4.0.0), then use the [Frontman installation guide](/docs/installation/) for framework-specific steps. Start with one visible task: create a plan, execute it, and inspect **Changes** before you keep the edit.
+Read the [complete release notes](https://github.com/frontman-ai/frontman/releases/tag/v4.0.0), then use the [Frontman installation guide](/docs/installation/) for framework-specific steps. For Next.js, Astro, or Vite, start with one visible task: create a plan, execute it, and inspect **Changes** before you keep the edit.
