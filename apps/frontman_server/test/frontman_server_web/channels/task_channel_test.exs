@@ -170,6 +170,39 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
   end
 
+  defp assert_unsupported_tool_result(context, content, content_type) do
+    %{socket: socket, task_id: task_id, scope: scope} = context
+    tool_call = tool_call("call_unsupported_result", "testTool")
+    tool_call_id = tool_call.tool_call_id
+    message = "Unsupported MCP tool result content type: #{content_type}"
+    register_tool_receiver(tool_call_id)
+
+    persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
+
+    assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
+
+    result = %{
+      "resultType" => "complete",
+      "content" => content,
+      "structuredContent" => %{"logged" => true}
+    }
+
+    push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+    :sys.get_state(socket.channel_pid)
+
+    assert Process.alive?(socket.channel_pid)
+
+    assert_receive {:tool_result, ^tool_call_id,
+                    [%SwarmAi.Message.ContentPart{type: :text, text: ^message}], true}
+
+    assert {:ok, task} = Tasks.get_task(scope, task_id)
+
+    assert Enum.any?(
+             Tasks.interactions(task),
+             &match?(%Interaction.ToolResult{is_error: true}, &1)
+           )
+  end
+
   defp question_tool_call(id, header, label) do
     args =
       Jason.encode!(%{
@@ -1104,12 +1137,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert is_integer(mcp_request_id)
 
-      mcp_result = %{
-        "resultType" => "complete",
-        "content" => [],
-        "structuredContent" => %{"logged" => true},
-        "_meta" => %{"envApiKey" => "sk-fake-valid-mcp-marker"}
-      }
+      image_data =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+      mcp_result =
+        image_data
+        |> MCP.tool_result_image("image/png")
+        |> Map.put("structuredContent", %{"logged" => true})
+        |> Map.put("_meta", %{"envApiKey" => "sk-fake-valid-mcp-marker"})
 
       log =
         capture_log([level: :info], fn ->
@@ -1119,7 +1154,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       refute log =~ "sk-fake-valid-mcp-marker"
       refute log =~ "envApiKey"
-      assert_receive {:tool_result, ^tool_call_id, [], false}
+
+      assert_receive {:tool_result, ^tool_call_id,
+                      [
+                        %SwarmAi.Message.ContentPart{
+                          type: :image,
+                          data: decoded_image_data,
+                          media_type: "image/png"
+                        }
+                      ], false}
+
+      assert decoded_image_data == Base.decode64!(image_data)
 
       assert_push("acp:message", %{
         "method" => "session/update",
@@ -1130,12 +1175,39 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "crashes loudly for unsupported MCP tool result content", context do
-      assert_tool_result_crash(
-        context,
-        [%{"type" => "audio", "data" => "YXVkaW8=", "mimeType" => "audio/wav"}],
-        ~s(Unsupported MCP tools/call content type "audio")
-      )
+    for {name, content, content_type} <- [
+          {"audio", [%{"type" => "audio", "data" => "YXVkaW8=", "mimeType" => "audio/wav"}],
+           "audio"},
+          {"resource link",
+           [%{"type" => "resource_link", "name" => "Example", "uri" => "https://example.com"}],
+           "resource_link"},
+          {"embedded text resource",
+           [
+             %{
+               "type" => "resource",
+               "resource" => %{"uri" => "file:///example.txt", "text" => "example"}
+             }
+           ], "resource"},
+          {"embedded blob resource",
+           [
+             %{
+               "type" => "resource",
+               "resource" => %{"uri" => "file:///example.bin", "blob" => "YmxvYg=="}
+             }
+           ], "resource"},
+          {"mixed supported and audio",
+           [
+             %{"type" => "text", "text" => "partial result"},
+             %{"type" => "audio", "data" => "YXVkaW8=", "mimeType" => "audio/wav"}
+           ], "audio"}
+        ] do
+      test "converts #{name} content to a tool error", context do
+        assert_unsupported_tool_result(
+          context,
+          unquote(Macro.escape(content)),
+          unquote(content_type)
+        )
+      end
     end
 
     test "crashes loudly for malformed MCP tool results", context do

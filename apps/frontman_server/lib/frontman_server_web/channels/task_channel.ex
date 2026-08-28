@@ -381,19 +381,33 @@ defmodule FrontmanServerWeb.TaskChannel do
     %{output_schema: output_schema} =
       Enum.find(tools, %{output_schema: nil}, &(&1.name == tool_call.tool_name))
 
-    with :ok <- MCPSchema.validate_call_tool_result(result, output_schema),
-         nil <- Enum.find(result["content"], &(&1["type"] not in ["text", "image"])) do
-      :ok
-    else
-      :error ->
-        raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
+    result =
+      case MCPSchema.validate_call_tool_result(result, output_schema) do
+        :ok ->
+          normalize_tool_call_result(result)
 
-      %{"type" => type} ->
-        raise "Unsupported MCP tools/call content type #{inspect(type)} for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
-    end
+        :error ->
+          raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
+      end
 
     {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end
+
+  defp normalize_tool_call_result(%{"content" => content} = result) do
+    case Enum.find(content, &(not supported_tool_result_content?(&1))) do
+      nil ->
+        result
+
+      %{"type" => type} ->
+        MCP.tool_result_error("Unsupported MCP tool result content type: #{type}")
+    end
+  end
+
+  defp supported_tool_result_content?(%{"type" => "text"}), do: true
+  defp supported_tool_result_content?(%{"type" => "image"}), do: true
+  defp supported_tool_result_content?(%{"type" => "audio"}), do: false
+  defp supported_tool_result_content?(%{"type" => "resource_link"}), do: false
+  defp supported_tool_result_content?(%{"type" => "resource"}), do: false
 
   defp persist_tool_call_result(tool_call, result, socket) do
     task_id = socket.assigns.task_id
