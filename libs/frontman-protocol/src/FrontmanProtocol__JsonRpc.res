@@ -20,7 +20,7 @@ module Id: {
   type t = NumberId(float) | StringId(string)
 
   @scope("Number") @val
-  external isInteger: float => bool = "isInteger"
+  external isSafeInteger: float => bool = "isSafeInteger"
 
   let fromInt = value => NumberId(Float.fromInt(value))
 
@@ -38,7 +38,7 @@ module Id: {
 
   let schema: S.t<t> = S.union([
     S.float
-    ->S.refine(isInteger, ~error="Expected integer")
+    ->S.refine(isSafeInteger, ~error="Expected safe integer")
     ->S.extendJSONSchema(S.int->S.toJSONSchema)
     ->S.transform(s => {
       parser: value => NumberId(value),

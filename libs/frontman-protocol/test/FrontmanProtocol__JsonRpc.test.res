@@ -35,6 +35,26 @@ describe("JSON-RPC wire contracts", () => {
     t->expect(JsonRpc.Request.toJson(request))->Expect.toEqual(json)
   })
 
+  test("accepts request IDs at JavaScript safe integer boundaries", t => {
+    let valid = [
+      `{"jsonrpc":"2.0","id":9007199254740991,"method":"tools/list"}`,
+      `{"jsonrpc":"2.0","id":-9007199254740991,"method":"tools/list"}`,
+    ]
+
+    valid->Array.forEach(json => t->expect(parses(JsonRpc.Request.schema, json))->Expect.toBe(true))
+  })
+
+  test("rejects request IDs outside JavaScript safe integer boundaries", t => {
+    let invalid = [
+      `{"jsonrpc":"2.0","id":9007199254740992,"method":"tools/list"}`,
+      `{"jsonrpc":"2.0","id":-9007199254740992,"method":"tools/list"}`,
+    ]
+
+    invalid->Array.forEach(
+      json => t->expect(parses(JsonRpc.Request.schema, json))->Expect.toBe(false),
+    )
+  })
+
   test("requires success ID and result without error", t => {
     let valid = `{"jsonrpc":"2.0","id":"request-1","result":null}`
     let invalid = [
