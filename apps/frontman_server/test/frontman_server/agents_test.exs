@@ -113,6 +113,17 @@ defmodule FrontmanServer.AgentsTest do
   end
 
   describe "system_prompt/2" do
+    test "requires a concise TL;DR in every agent's final response", %{scope: scope} do
+      for agent <- Agents.list_agents(scope) do
+        prompt = Agents.system_prompt(agent, %{})
+
+        assert prompt =~ "Include a `TL;DR:` section in every final user-facing response"
+        assert prompt =~ "one sentence or 1-3 bullets"
+        assert prompt =~ "outcome, blockers, and next action when relevant"
+        assert prompt =~ "Do not replace necessary detail"
+      end
+    end
+
     test "uses agent system as base and appends runtime context", %{scope: scope} do
       {:ok, agent} = Agents.get_agent(scope, @executor_id)
 
