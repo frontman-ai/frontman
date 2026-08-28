@@ -110,6 +110,16 @@ let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSel
   }
 }
 
+module ExecutePlanAction = {
+  @react.component
+  let make = (~pendingPlanHandoff, ~selectedModelValue, ~onExecute) => {
+    switch (pendingPlanHandoff, selectedModelValue) {
+    | (Some(_), Some(_)) => <Client__ExecutePlanBanner onExecute />
+    | _ => React.null
+    }
+  }
+}
+
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
@@ -407,11 +417,9 @@ let make = (~onConfigureProvider: unit => unit) => {
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
 
-        {switch pendingPlanHandoff {
-        | Some(_) =>
-          <Client__ExecutePlanBanner onExecute={Client__State.Actions.executePendingPlan} />
-        | None => React.null
-        }}
+        <ExecutePlanAction
+          pendingPlanHandoff selectedModelValue onExecute={Client__State.Actions.executePendingPlan}
+        />
 
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />

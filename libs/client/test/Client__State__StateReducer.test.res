@@ -45,7 +45,7 @@ module TestHelpers = {
     ...Reducer.defaultState,
     tasks,
     currentTask,
-    selectedModelValue: None,
+    selectedModelValue: Some("test:model"),
   }
 
   let makeStateWithTask = (
@@ -177,6 +177,20 @@ describe("Client State Reducer - Plan Handoff", () => {
     t->expect(duplicateEffects)->Expect.toEqual([])
   })
 
+  test("execute does nothing without a selected model", t => {
+    let state = {
+      ...TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext,
+      selectedModelValue: None,
+    }
+    let (nextState, effects) = Reducer.next(
+      state,
+      Reducer.ExecutePendingPlan({id: testUserMessageId}),
+    )
+
+    t->expect(nextState)->Expect.toEqual(state)
+    t->expect(effects)->Expect.toEqual([])
+  })
+
   test("planner follow-up consumes the handoff before the server reports running", t => {
     let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
     let (submitting, _) = Reducer.next(
@@ -274,7 +288,7 @@ describe("Client State Reducer", () => {
   })
 
   test("AddUserMessage creates task and sends without optimistic message", t => {
-    let state = Reducer.defaultState
+    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
     let action = Reducer.AddUserMessage({
       id: testUserMessageId,
       sessionId: "session-1",
@@ -299,7 +313,7 @@ describe("Client State Reducer", () => {
   })
 
   test("messages maintain order", t => {
-    let state = Reducer.defaultState
+    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
 
     let (state, _) = Reducer.next(
       state,
@@ -785,7 +799,7 @@ describe("Client State Reducer - Tool Lifecycle", () => {
 
 describe("Client State Reducer - Task ID Continuity", () => {
   test("multiple user messages in same conversation use same task ID in state", t => {
-    let state = Reducer.defaultState
+    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
 
     let (state1, _effects1) = Reducer.next(
       state,
@@ -819,7 +833,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
   })
 
   test("effect contains same task ID as state", t => {
-    let state = Reducer.defaultState
+    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
 
     let (state1, effects1) = Reducer.next(
       state,
@@ -1244,7 +1258,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
   ]
 
   test("UserMessageReceived with annotations stores them on the message", t => {
-    let state = Reducer.defaultState
+    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
@@ -1282,7 +1296,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
   })
 
   test("UserMessageReceived with only annotations creates valid message", t => {
-    let state = Reducer.defaultState
+    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
@@ -1315,7 +1329,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
   })
 
   test("UserMessageReceived without annotations stores empty array", t => {
-    let state = Reducer.defaultState
+    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
     let (state, _) = Reducer.next(
       state,
       Reducer.AddUserMessage({
@@ -1343,7 +1357,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
   })
 
   test("SendMessage effect carries annotations from AddUserMessage", t => {
-    let state = Reducer.defaultState
+    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
     let action = Reducer.AddUserMessage({
       id: testUserMessageId,
       sessionId: "session-1",
@@ -1368,6 +1382,27 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect((annotations->Array.getUnsafe(0)).id)->Expect.toBe("ann-1")
     | _ => JsExn.throw("Expected TaskEffect(SendMessage) with annotations")
     }
+  })
+
+  test("AddUserMessage does nothing without a selected model", t => {
+    let state = {
+      ...Reducer.defaultState,
+      acpSession: TestHelpers.activeAcpSession(),
+      selectedModelValue: None,
+    }
+    let (nextState, effects) = Reducer.next(
+      state,
+      Reducer.AddUserMessage({
+        id: UserMessageId.make(),
+        sessionId: "session-1",
+        content: [UserContentPart.text("Fix this")],
+        annotations: [],
+        agentId: "planner-id",
+      }),
+    )
+
+    t->expect(nextState)->Expect.toEqual(state)
+    t->expect(effects)->Expect.toEqual([])
   })
 
   test("SendMessage metadata carries message ID, submission agent, and selected model", t => {
@@ -1422,6 +1457,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let dispatched = ref([])
     let state = {
       ...Reducer.defaultState,
+      selectedModelValue: Some("test:model"),
       acpSession: AcpSessionActive({
         sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
           completion := Some(onComplete),
