@@ -135,7 +135,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
-    register_mcp_tool(tool_call)
+    register_mcp_tool(task_id, tool_call)
     publish_mcp_tool_call(scope, task_id, turn_number, tool_call)
     :ok
   end
@@ -198,11 +198,23 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     )
   end
 
-  defp register_mcp_tool(tool_call) do
-    Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, tool_call.id}, %{
-      caller_pid: self()
-    })
+  defp register_mcp_tool(task_id, tool_call) do
+    case Registry.register(
+           FrontmanServer.ProcessRegistry,
+           tool_registry_key(task_id, tool_call.id),
+           %{
+             caller_pid: self()
+           }
+         ) do
+      {:ok, _pid} ->
+        :ok
+
+      {:error, {:already_registered, _pid}} ->
+        raise "Duplicate MCP tool executor registration for task #{task_id}, call #{tool_call.id}"
+    end
   end
+
+  defp tool_registry_key(task_id, tool_call_id), do: {:tool_call, task_id, tool_call_id}
 
   defp publish_mcp_tool_call(%Scope{} = scope, task_id, turn_number, tool_call) do
     case Tasks.request_client_tool(scope, task_id, turn_number, tool_call) do
