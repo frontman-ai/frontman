@@ -119,12 +119,10 @@ let hasTool = (relay: t, name: string): bool => {
   }
 }
 
-let executeTool = async (
-  relay: t,
-  ~name: string,
-  ~arguments: option<Dict.t<JSON.t>>=?,
-  ~onProgress: option<string => unit>=?,
-): result<MCPTypes.CallToolResult.t, string> => {
+let executeTool = async (relay: t, ~name: string, ~arguments: option<Dict.t<JSON.t>>=?): result<
+  MCPTypes.CallToolResult.t,
+  string,
+> => {
   switch relay->isConnected {
   | false => Error("Relay not connected")
   | true =>
@@ -155,7 +153,7 @@ let executeTool = async (
         Log.error(~ctx={"tool": name}, msg)
         Error(msg)
       | true =>
-        switch await SSE.readStream(response, ~onProgress?) {
+        switch await SSE.readStream(response) {
         | Ok(json) =>
           json
           ->Decoders.parseSchema(MCPTypes.callToolResultSchema)

@@ -71,7 +71,7 @@ let makeInterface = (
     cacheScope: "private",
     _meta: {serverInfo: serverInfo},
   },
-  executeTool: async (_, toolCall, ~onProgress as _) => {
+  executeTool: async (_, toolCall) => {
     switch failure == Some(Tool) {
     | true => JsError.throwWithMessage("tool exploded")
     | false => ()
@@ -121,7 +121,6 @@ let handler = (channel, context, ~sessionId="task-1", ~failure=?) => {
   MCP.serverInterface: makeInterface(~context, ~failure?),
   channel,
   sessionId,
-  onMessage: None,
 }
 
 describe("MCP 2026-07-28", () => {
@@ -302,7 +301,6 @@ describe("MCP 2026-07-28", () => {
         MCP.serverInterface: MCPServer.toInterface(server),
         channel,
         sessionId: "task-1",
-        onMessage: None,
       },
       request(
         ~id=21,
@@ -327,7 +325,6 @@ describe("MCP 2026-07-28", () => {
         MCP.serverInterface: MCPServer.toInterface(server),
         channel,
         sessionId: "task-1",
-        onMessage: None,
       },
       request(
         ~id=22,

@@ -187,7 +187,6 @@ let executeTool = async (
   ~arguments: option<Dict.t<JSON.t>>=?,
   ~taskId: string,
   ~callId: string,
-  ~onProgress: option<string => unit>=?,
 ): Types.executeToolResult => {
   switch getToolByName(server, name) {
   | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId)
@@ -219,11 +218,7 @@ let executeTool = async (
       switch resolvedArgs {
       | Error(msg) => Completed(toolError(msg))
       | Ok(finalArgs) =>
-        let result = await server.relay->Relay.executeTool(
-          ~name,
-          ~arguments=?finalArgs,
-          ~onProgress?,
-        )
+        let result = await server.relay->Relay.executeTool(~name, ~arguments=?finalArgs)
         switch result {
         | Ok(toolResult) => Completed(toolResult)
         | Error(msg) => Completed(toolError(msg))
@@ -261,13 +256,12 @@ let toInterface = (server: t): Types.serverInterface<t> => {
   server,
   buildDiscoverResult,
   buildToolsListResult,
-  executeTool: (server, toolCall, ~onProgress) =>
+  executeTool: (server, toolCall) =>
     executeTool(
       server,
       ~name=Types.AuthorizedToolCall.name(toolCall),
       ~arguments=?Types.AuthorizedToolCall.arguments(toolCall),
       ~taskId=Types.AuthorizedToolCall.taskId(toolCall),
       ~callId=Types.AuthorizedToolCall.callId(toolCall),
-      ~onProgress?,
     ),
 }

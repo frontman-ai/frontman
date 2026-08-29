@@ -73,7 +73,6 @@ let loadConnectionWithTransport = (history, result): (ACP.connection, mockTransp
     channel: transport.channel,
     clientConfig,
     state: ref(Client.initialState),
-    onMessage: None,
   }
   (connection, transport)
 }
@@ -473,7 +472,6 @@ describe("ACP Client handleResponse", _t => {
           | _ => ()
           },
       ),
-      ~onMessage=None,
       ~onParseError=Some(error => parseError := Some(error)),
       payload,
     )
