@@ -57,8 +57,8 @@ See [Tool Capabilities](/docs/using/tool-capabilities/) for the shared file, log
 
 **Notes**
 
-- The [generated middleware/proxy](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res) contains no automatic development-only guard. Next.js 15.x uses generated middleware with `runtime: 'nodejs'`; Next.js 16.x uses proxy without a runtime declaration, matching Next.js proxy runtime requirements.
-- If that entrypoint remains in the application, its Frontman route matcher can be included in production builds. Add an explicit environment guard or remove it when deployed Frontman access is not intended, and verify the production build and route behavior.
+- The [generated middleware/proxy](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res) uses a package runtime guard. Routes are handled only when `NODE_ENV=development` by default. Use `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1` to opt in outside development, and `FRONTMAN_ENABLED=0` to force the integration off.
+- If that entrypoint remains in the application, its Frontman route matcher can be included in production builds. Verify production build and route behavior when deployment behavior matters.
 - App Router and Pages Router can coexist in the same project.
 - The integration works with both Webpack and Turbopack because it hooks at the Next.js request-entrypoint layer, not the bundler layer.
 
@@ -168,9 +168,9 @@ In practice, that means:
 
 - Astro support applies to `astro dev`, not `astro build` or `astro preview`
 - Vite support applies to `vite dev`, not `vite build` or `vite preview`
-- Next.js middleware/proxy can execute in a production deployment if the generated or manually integrated entrypoint remains. Frontman does not add an environment guard; deployment owners must add one or remove the integration when needed.
+- Next.js middleware/proxy can execute in a production deployment if the generated or manually integrated entrypoint remains. Frontman routes fail closed outside `NODE_ENV=development` by default, unless deployment owners opt in with `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`.
 
-For every integration, run the framework's production build and inspect the deployed result. Confirm whether Frontman routes, middleware/proxy logic, and client assets are emitted and reachable, then apply environment, authentication, reverse-proxy, and network controls appropriate to that result.
+For every integration, run the framework's production build and inspect the deployed result. Confirm whether Frontman routes, middleware/proxy logic, and client assets are emitted and reachable, then apply environment, authentication, reverse-proxy, and network controls appropriate to that result. For Next.js, also confirm the intended `FRONTMAN_ENABLED` / `FRONTMAN_ENABLE_IN_PRODUCTION` settings.
 
 ### Access outside the integration boundary
 

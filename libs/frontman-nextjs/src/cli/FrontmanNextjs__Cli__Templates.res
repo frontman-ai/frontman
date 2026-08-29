@@ -91,6 +91,10 @@ module ManualInstructions = {
   ${bar}
   ${bar}  ${s("3.")} In your middleware function, add as the ${b("very first lines")}:
   ${bar}
+  ${bar}     ${d("// Handles routes only when NODE_ENV === 'development' by default")}
+  ${bar}     ${d(
+        "// Set FRONTMAN_ENABLE_IN_PRODUCTION=1 or FRONTMAN_ENABLED=1 to opt in elsewhere",
+      )}
   ${bar}     ${d("const response = await frontman(req);")}
   ${bar}     ${d("if (response) return response;")}
   ${bar}
@@ -129,6 +133,10 @@ module ManualInstructions = {
   ${bar}
   ${bar}  ${s("3.")} In your proxy function, add Frontman handler as the ${b("very first lines")}:
   ${bar}
+  ${bar}     ${d("// Handles routes only when NODE_ENV === 'development' by default")}
+  ${bar}     ${d(
+        "// Set FRONTMAN_ENABLE_IN_PRODUCTION=1 or FRONTMAN_ENABLED=1 to opt in elsewhere",
+      )}
   ${bar}     ${d("const response = await frontman(req);")}
   ${bar}     ${d("if (response) return response;")}
   ${bar}

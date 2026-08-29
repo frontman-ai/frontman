@@ -47,7 +47,7 @@ Frontman uses a few simple rules across integrations:
 2. **`PROJECT_ROOT` overrides auto-detected root resolution** if you do not pass `projectRoot` directly.
 3. **`FRONTMAN_CLIENT_URL` overrides the generated client bundle URL** if you do not pass `clientUrl` directly.
 4. **`sourceRoot` defaults to `projectRoot`** when omitted.
-5. **Non-production hosts are treated as dev mode** in Astro and Vite, and in Next.js unless you explicitly override `isDev`.
+5. **Non-production hosts are treated as dev mode** in Astro and Vite, and for Next.js client asset selection unless you explicitly override `isDev`. Next.js route handling also requires `NODE_ENV=development` unless you set `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`.
 
 ## `host`
 
@@ -299,7 +299,10 @@ Place the file next to your `app/` or `pages/` directory. For projects using `sr
 
 ### Next.js-specific notes
 
-- Next.js exposes an explicit `isDev` override in addition to the shared options.
+- Next.js handles Frontman routes only when `NODE_ENV=development` by default.
+- Set `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1` to opt in outside development.
+- Set `FRONTMAN_ENABLED=0` to force Frontman off in any environment.
+- Next.js exposes an explicit `isDev` override for client asset selection in addition to the shared options.
 - Host values are normalized, so full URLs and bare hostnames are both accepted.
 - If you override `clientUrl`, it must include a `host` query parameter or Frontman throws immediately.
 - OpenTelemetry setup is separate from config and is recommended if you want richer logs and request traces.
@@ -308,7 +311,7 @@ Place the file next to your `app/` or `pages/` directory. For projects using `sr
 
 | Option | Type | Default |
 |---|---|---|
-| `isDev` | `boolean` | inferred from `host` |
+| `isDev` | `boolean` | inferred from `host`; does not override the route runtime guard |
 | `basePath` | `string` | `"frontman"` |
 | `serverName` | `string` | `"frontman-nextjs"` |
 | `serverVersion` | `string` | installed package version |
@@ -351,13 +354,15 @@ Use the Vite plugin inside `vite.config.ts`.
 
 ## Environment variables
 
-Frontman supports these environment variables across integrations:
+Frontman supports these environment variables:
 
 | Variable | Used by | Purpose |
 |---|---|---|
 | `FRONTMAN_HOST` | Astro, Next.js, Vite | Default Frontman server host when `host` is not passed explicitly |
 | `PROJECT_ROOT` | Astro, Next.js, Vite | Default project root when `projectRoot` is omitted |
 | `FRONTMAN_CLIENT_URL` | Astro, Next.js, Vite | Overrides the generated browser client bundle URL |
+| `FRONTMAN_ENABLE_IN_PRODUCTION` | Next.js | Set to `1` to enable route handling when `NODE_ENV` is not `development` |
+| `FRONTMAN_ENABLED` | Next.js | Global override. Set to `1` or `true` to enable route handling, or `0` to force it off |
 
 ### Example `.env`
 
@@ -365,6 +370,9 @@ Frontman supports these environment variables across integrations:
 FRONTMAN_HOST=frontman.local:4000
 PROJECT_ROOT=/Users/you/code/acme-web
 FRONTMAN_CLIENT_URL=http://localhost:5174/frontman.es.js
+
+# Next.js only: opt in outside NODE_ENV=development
+FRONTMAN_ENABLE_IN_PRODUCTION=1
 ```
 
 ## Common configuration patterns

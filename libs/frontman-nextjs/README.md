@@ -56,6 +56,8 @@ Then open your browser to `http://localhost:3000/frontman` to access the Frontma
 
 With the default hosted setup, Frontman redirects you to `api.frontman.sh` to sign in with GitHub or Google, then returns you to the local `/frontman` URL. Before your first prompt, connect a supported AI provider with OAuth or add an API key. If you configured another Frontman server, sign in on that server instead.
 
+Frontman routes are enabled only when `process.env.NODE_ENV === 'development'` by default. Set `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1` to opt in outside development. Set `FRONTMAN_ENABLED=0` to force Frontman off in any environment.
+
 ## Manual Setup
 
 ### Next.js 15.x (middleware.ts, 15.5 minimum)
@@ -69,6 +71,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const frontman = createMiddleware({
   host: 'api.frontman.sh', // or 'frontman.local:4000' for local development
 });
+// Handles routes only when NODE_ENV === 'development' by default.
+// Set FRONTMAN_ENABLE_IN_PRODUCTION=1 or FRONTMAN_ENABLED=1 to opt in elsewhere.
 
 export async function middleware(req: NextRequest) {
   const response = await frontman(req);
@@ -92,6 +96,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const frontman = createMiddleware({
   host: 'api.frontman.sh', // or 'frontman.local:4000' for local development
 });
+// Handles routes only when NODE_ENV === 'development' by default.
+// Set FRONTMAN_ENABLE_IN_PRODUCTION=1 or FRONTMAN_ENABLED=1 to opt in elsewhere.
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
   if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {

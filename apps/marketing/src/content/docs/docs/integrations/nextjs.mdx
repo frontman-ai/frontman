@@ -9,7 +9,7 @@ import CodeFromFile from '../../../../components/docs/CodeFromFile.astro';
 
 `@frontman-ai/nextjs` integrates the Frontman AI agent into your Next.js dev server through middleware on Next.js 15.x (15.5 minimum) or proxy on Next.js 16.x. It intercepts requests to `/frontman/*`, giving the AI access to your source files, dev server logs, route manifest, and optionally OpenTelemetry spans covering HTTP requests and route render timing.
 
-**Frontman is intended for development workflows.** Installer-generated middleware or proxy code has no automatic development-only guard, so it can compile into and run with a production deployment while its matcher includes Frontman routes. Add an environment guard or remove the integration when Frontman must be absent, then verify the built artifact and deployed `/frontman` route instead of assuming the production build removes it.
+**Frontman is intended for development workflows.** The Next.js runtime handles Frontman routes only when `process.env.NODE_ENV === "development"` by default. Production and preview builds fail closed unless you set `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`. Set `FRONTMAN_ENABLED=0` to force Frontman off in any environment.
 
 ## Quick Start
 
@@ -74,7 +74,7 @@ All options are optional.
 | `clientCssUrl` | `string` | Production CDN URL; `undefined` in dev | Override the Frontman client CSS URL. |
 | `entrypointUrl` | `string` | — | Custom entrypoint URL for the AI API. |
 | `isLightTheme` | `boolean` | `false` | Render the Frontman UI with a light color scheme. |
-| `isDev` | `boolean` | `true` unless `host === "api.frontman.sh"` | Override dev/prod mode detection. |
+| `isDev` | `boolean` | `true` unless `host === "api.frontman.sh"` | Override client asset dev/prod mode. This does not override the route runtime guard. |
 
 ### Monorepo configuration
 
@@ -89,6 +89,20 @@ const frontman = createMiddleware({
 
 Start your dev server (`next dev` or `npm run dev`) and open `http://localhost:3000/frontman`. The port matches whatever `next dev` binds to.
 
+## Runtime environment guard
+
+Next.js sets `process.env.NODE_ENV` to `development` for `next dev` and to `production` for other commands. Frontman follows that value for route handling:
+
+| Environment setting | Behavior |
+|---|---|
+| `NODE_ENV=development` | Frontman routes are handled |
+| `NODE_ENV=production` | Frontman routes pass through by default |
+| `FRONTMAN_ENABLE_IN_PRODUCTION=1` | Enables Frontman routes outside development |
+| `FRONTMAN_ENABLED=1` or `FRONTMAN_ENABLED=true` | Enables Frontman routes in any environment |
+| `FRONTMAN_ENABLED=0` | Disables Frontman routes in any environment |
+
+The `isDev` option only controls client asset selection. It does not enable route handling outside development.
+
 ## How It Works
 
 ### Request handling
@@ -100,7 +114,7 @@ Start your dev server (`next dev` or `npm run dev`) and open `http://localhost:3
 3. **SSE** (`GET /frontman/tools`) opens a server-sent event stream for streaming tool responses.
 4. All other requests to `/frontman/` serve the Frontman UI, injecting the client JS and CSS.
 
-When the request does not match a Frontman path, `frontman(req)` returns `undefined` (Next.js 15.x) or a pass-through `NextResponse.next()` (Next.js 16.x).
+When the request does not match a Frontman path, `frontman(req)` returns `undefined` (Next.js 15.x) or a pass-through `NextResponse.next()` (Next.js 16.x). The same pass-through behavior applies outside development unless `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1` is set.
 
 ### Route discovery
 
