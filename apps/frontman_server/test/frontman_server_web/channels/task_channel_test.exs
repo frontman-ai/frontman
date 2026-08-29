@@ -142,8 +142,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
            "Agent should not be running after completion"
   end
 
-  defp register_tool_receiver(tool_call_id) do
-    Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, tool_call_id}, %{
+  defp register_tool_receiver(task_id, tool_call_id) do
+    Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, task_id, tool_call_id}, %{
       caller_pid: self()
     })
   end
@@ -153,7 +153,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     result = %{"resultType" => "complete", "content" => content}
     result = Map.put(result, "structuredContent", %{"logged" => true})
     tool_call = tool_call("call_invalid_result", "testTool")
-    register_tool_receiver(tool_call.tool_call_id)
+    register_tool_receiver(task_id, tool_call.tool_call_id)
 
     persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
 
@@ -175,7 +175,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     tool_call = tool_call("call_unsupported_result", "testTool")
     tool_call_id = tool_call.tool_call_id
     message = "Unsupported MCP tool result content type: #{content_type}"
-    register_tool_receiver(tool_call_id)
+    register_tool_receiver(task_id, tool_call_id)
 
     persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
 
@@ -872,7 +872,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         tool_call("call_123", "consoleLog", %{"message" => "hello"})
 
       turn_number = start_turn_fixture(scope, task_id)
-      register_tool_receiver(tool_call.tool_call_id)
+      register_tool_receiver(task_id, tool_call.tool_call_id)
 
       {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
 
@@ -1121,7 +1121,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tool_call = tool_call("call_valid_test", "testTool")
       tool_call_id = tool_call.tool_call_id
       turn_number = start_turn_fixture(scope, task_id)
-      register_tool_receiver(tool_call.tool_call_id)
+      register_tool_receiver(task_id, tool_call.tool_call_id)
 
       {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
 

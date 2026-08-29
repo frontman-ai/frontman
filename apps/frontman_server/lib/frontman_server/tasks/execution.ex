@@ -139,18 +139,21 @@ defmodule FrontmanServer.Tasks.Execution do
   Returns `:notified` when the result was delivered to a live executor,
   `:no_executor` when no executor was waiting (e.g., server restarted).
   """
-  def notify_tool_result(%Interaction.ToolResult{
+  def notify_tool_result(task_id, %Interaction.ToolResult{
         tool_call_id: tool_call_id,
         result: %{"content" => content},
         is_error: is_error
       })
       when is_list(content),
-      do: notify_tool_result(tool_call_id, content, is_error)
+      do: notify_tool_result(task_id, tool_call_id, content, is_error)
 
-  def notify_tool_result(%Interaction.ToolResult{}), do: :no_executor
+  def notify_tool_result(_task_id, %Interaction.ToolResult{}), do: :no_executor
 
-  defp notify_tool_result(tool_call_id, content, is_error) do
-    case Elixir.Registry.lookup(FrontmanServer.ProcessRegistry, {:tool_call, tool_call_id}) do
+  defp notify_tool_result(task_id, tool_call_id, content, is_error) do
+    case Elixir.Registry.lookup(
+           FrontmanServer.ProcessRegistry,
+           tool_registry_key(task_id, tool_call_id)
+         ) do
       [{_pid, %{caller_pid: caller}}] ->
         content_parts =
           content
@@ -164,6 +167,8 @@ defmodule FrontmanServer.Tasks.Execution do
         :no_executor
     end
   end
+
+  defp tool_registry_key(task_id, tool_call_id), do: {:tool_call, task_id, tool_call_id}
 
   defp prompt_messages(rows, turn_number)
        when is_list(rows) and is_integer(turn_number) and turn_number > 0 do

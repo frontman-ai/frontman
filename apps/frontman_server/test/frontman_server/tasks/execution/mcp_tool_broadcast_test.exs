@@ -160,7 +160,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       )
 
       registered =
-        case Registry.lookup(FrontmanServer.ProcessRegistry, {:tool_call, expected_id}) do
+        case Registry.lookup(FrontmanServer.ProcessRegistry, {:tool_call, task_id, expected_id}) do
           [{_pid, _}] -> true
           [] -> false
         end

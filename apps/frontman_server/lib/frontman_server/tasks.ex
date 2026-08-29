@@ -726,8 +726,8 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp resolve_recorded_tool_result({:ok, interaction}, _task_id, _turn_number, _tool_call_id) do
-    notify_recorded_tool_result(interaction)
+  defp resolve_recorded_tool_result({:ok, interaction}, task_id, _turn_number, _tool_call_id) do
+    notify_recorded_tool_result(interaction, task_id)
   end
 
   defp resolve_recorded_tool_result(
@@ -747,15 +747,15 @@ defmodule FrontmanServer.Tasks do
           |> Repo.one!()
           |> Map.fetch!(:data)
 
-        notify_recorded_tool_result(interaction)
+        notify_recorded_tool_result(interaction, task_id)
 
       false ->
         {:error, changeset}
     end
   end
 
-  defp notify_recorded_tool_result(interaction) do
-    {:ok, interaction, Execution.notify_tool_result(interaction)}
+  defp notify_recorded_tool_result(interaction, task_id) do
+    {:ok, interaction, Execution.notify_tool_result(task_id, interaction)}
   end
 
   defp tool_result_turn_number(task_id, tool_call_id, opts) do
