@@ -120,9 +120,10 @@ HELP_test-wordpress-core-tools := Run PHP tests for WordPress tool implementatio
 HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
 
 HELP_E2E_TITLE := E2E Tests
-HELP_E2E_TARGETS := e2e e2e-nextjs e2e-astro e2e-vite e2e-vue-vite
+HELP_E2E_TARGETS := e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite
 HELP_e2e := Run all e2e tests (loads secrets from test/e2e/.env)
 HELP_e2e-nextjs := Run Next.js e2e test
+HELP_e2e-nextjs-compat := Run packed Next.js dev/build compatibility check (NEXT_VERSION=16)
 HELP_e2e-astro := Run Astro e2e test
 HELP_e2e-vite := Run Vite e2e test
 HELP_e2e-vue-vite := Run Vue + Vite e2e test
@@ -248,7 +249,7 @@ clean:
 
 
 
-.PHONY: e2e e2e-nextjs e2e-astro e2e-vite e2e-vue-vite
+.PHONY: e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite
 
 e2e:
 	@printf "$(YELLOW)Running all e2e tests...$(RESET)\n"
@@ -257,6 +258,12 @@ e2e:
 e2e-nextjs:
 	@printf "$(YELLOW)Running Next.js e2e test...$(RESET)\n"
 	$(call run_e2e,tests/nextjs.test.ts)
+
+e2e-nextjs-compat:
+	@printf "$(YELLOW)Running packed Next.js compatibility check...$(RESET)\n"
+	yarn rescript
+	yarn workspace @frontman-ai/nextjs build
+	NEXT_VERSION=$${NEXT_VERSION:-16} bash scripts/ci/nextjs-compat.sh
 
 e2e-astro:
 	@printf "$(YELLOW)Running Astro e2e test...$(RESET)\n"

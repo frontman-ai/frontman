@@ -6,12 +6,19 @@ on:
       - "test/e2e/**"
       - "libs/client/src/**"
       - "libs/frontman-client/src/**"
+      - "libs/frontman-nextjs/**"
+      - "libs/frontman-core/**"
+      - "libs/frontman-protocol/**"
+      - "libs/bindings/**"
       - "adapters/**"
       - "apps/frontman_server/lib/**"
       - "apps/frontman_server/config/**"
       - "apps/frontman_server/mix.*"
       - "apps/swarm_ai/**"
       - "mise.toml"
+      - "package.json"
+      - "yarn.lock"
+      - "scripts/ci/nextjs-compat.sh"
       - ".github/workflows/e2e.yml"
   workflow_dispatch:
     inputs:
@@ -35,6 +42,56 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  nextjs-compat:
+    name: Next.js compatibility (${{ matrix.next.label }})
+    if: github.event_name == 'pull_request' || github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'nextjs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        next:
+          - label: "15.5 minimum"
+            version: "15.5.0"
+          - label: "latest 15"
+            version: "15"
+          - label: "latest 16"
+            version: "16"
+
+    env:
+      YARN_ENABLE_HARDENED_MODE: "0"
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          clean: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24.4.1"
+
+      - name: Enable Corepack
+        run: corepack enable && corepack install
+
+      - name: Cache Yarn
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-
+
+      - name: Install Node.js dependencies
+        run: yarn install --immutable
+
+      - name: Run Next.js packed-consumer dev/build compatibility
+        env:
+          NEXT_LABEL: ${{ matrix.next.label }}
+          NEXT_VERSION: ${{ matrix.next.version }}
+        run: make e2e-nextjs-compat
+
   e2e:
     name: E2E (${{ github.event.inputs.test_suite || 'all' }})
     runs-on: ubuntu-latest
