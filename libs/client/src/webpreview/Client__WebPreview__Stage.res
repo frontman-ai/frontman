@@ -66,6 +66,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     Client__State.Selectors.webPreviewIsSelecting,
   )
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
+  let hasAnnotations = annotations->Array.length > 0
 
   let lastProcessedClickId = React.useRef(-1)
   let wasSelecting = React.useRef(false)
@@ -126,8 +127,10 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     | (Some(doc), true) => {
         let handleKeyDown = ev => {
           let kbEv = ev->asKeyboardEvent
-          switch kbEv.key {
-          | "Escape" => Client__State.Actions.toggleWebPreviewSelection()
+          switch (kbEv.key, activePopupAnnotationId, hasAnnotations) {
+          | ("Escape", Some(_), _) => Client__State.Actions.closeAnnotationPopup()
+          | ("Escape", None, true) => Client__State.Actions.clearAnnotations()
+          | ("Escape", None, false) => Client__State.Actions.toggleWebPreviewSelection()
           | _ => ()
           }
         }
@@ -144,7 +147,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
       }
     | _ => None
     }
-  }, (document, webPreviewIsSelecting))
+  }, (document, webPreviewIsSelecting, activePopupAnnotationId, hasAnnotations))
 
   React.useEffect(() => {
     switch (document, webPreviewIsSelecting) {
