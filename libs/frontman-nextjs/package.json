@@ -15,6 +15,16 @@
 			"default": "./dist/instrumentation.js"
 		}
 	},
+	"typesVersions": {
+		"*": {
+			"Instrumentation": [
+				"types/instrumentation.d.ts"
+			],
+			"*": [
+				"types/index.d.ts"
+			]
+		}
+	},
 	"bin": {
 		"frontman-nextjs": "dist/cli.js",
 		"nextjs": "dist/cli.js"
