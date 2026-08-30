@@ -68,7 +68,7 @@ For Next.js, Astro, or Vite:
 
 Use the framework's development server for this functional installation check. Then run the normal production build and deployment verification for your app: confirm whether Frontman routes and client assets are present, whether `/frontman` is reachable, and whether your intended environment or network controls block access.
 
-Next.js differs from Astro and Vite here. Its [installer templates](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res) write request middleware for Next.js 15.x (15.5 minimum) or proxy for Next.js 16.x. Generated code has no automatic development-only guard, so it can compile into and run with a production deployment while its matcher includes Frontman routes. Add your own environment guard or remove the integration before deployment when Frontman must be absent, then verify the built artifact rather than assuming `next build` removes it.
+Next.js differs from Astro and Vite here. Its [installer templates](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res) write request middleware for Next.js 15.x (15.5 minimum) or proxy for Next.js 16.x. The package runtime handles routes only when `NODE_ENV=development` by default. Production and preview builds require `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`; `FRONTMAN_ENABLED=0` forces the integration off. Verify the built artifact and deployed `/frontman` route when deployment behavior matters.
 
 For WordPress, verify that an administrator can open `/frontman`, complete hosted sign-in, and see the site preview beside chat.
 

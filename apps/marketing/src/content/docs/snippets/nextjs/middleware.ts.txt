@@ -4,6 +4,8 @@ import { type NextRequest, NextResponse } from 'next/server';
 const frontman = createMiddleware({
   projectRoot: process.cwd(),
 });
+// Frontman handles routes only when NODE_ENV === 'development' by default.
+// Set FRONTMAN_ENABLE_IN_PRODUCTION=1 or FRONTMAN_ENABLED=1 to opt in elsewhere.
 
 export async function middleware(req: NextRequest) {
   const response = await frontman(req);

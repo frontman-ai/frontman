@@ -35,6 +35,8 @@ try {
   await writeFile(resolve(consumer, "search-target.txt"), "packed ripgrep runtime\n")
   run("npm", ["install", "--strict-peer-deps", "--save-exact"])
 
+  if (integration === "nextjs") process.env.FRONTMAN_ENABLED = "1"
+
   const packageRoot = resolve(consumer, "node_modules", packageConfig.packageName)
   const frontman = await import(pathToFileURL(resolve(packageRoot, "dist", "index.js")))
   const configInput = {projectRoot: consumer, sourceRoot: consumer, basePath: "frontman"}

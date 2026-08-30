@@ -13,7 +13,7 @@ faq:
   - question: 'Is Frontman safe to use?'
     answer: 'No development tool can be guaranteed safe for every environment. Frontman separates browser tools, local filesystem tools, server orchestration, and external AI-provider processing. Teams should assess those boundaries, connected providers, data categories, deployment configuration, and generated diffs against their own threat model before use.'
   - question: 'Does Frontman run in production?'
-    answer: 'The JavaScript integrations are intended for development workflows, but Next.js middleware or proxy code can remain active in a production build unless you add an environment guard or remove it. The WordPress plugin is a live-site integration and can mutate production WordPress data. Verify deployed routes, restrict access, test built artifacts, and use staging or current backups before production changes.'
+    answer: 'The JavaScript integrations are intended for development workflows. Next.js route handling is off outside NODE_ENV=development unless explicitly enabled, but you should still verify deployed routes and configuration. The WordPress plugin is a live-site integration and can mutate production WordPress data. Restrict access, test built artifacts, and use staging or current backups before production changes.'
   - question: 'What does the AI agent see when using Frontman?'
     answer: 'Depending on the task and tools used, Customer Content can include prompts, source-code snippets, project files, DOM and component information, computed CSS, screenshots, logs, routes, source maps, build errors, metadata, tool results, generated output, and task history. Relevant content passes through the Frontman server to the customer-selected AI provider.'
   - question: 'Can Frontman edit any file on my system?'
@@ -107,7 +107,7 @@ For each framework and release:
 4. Apply network and authentication controls appropriate to any reachable route.
 5. Keep code deployment, secrets, production credentials, and approval authority outside the agent workflow.
 
-Next.js needs particular attention: the [installer templates](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res) write middleware for supported Next.js 15.x releases (15.5 minimum) or a proxy for Next.js 16.x. Those generated handlers and matchers contain no `NODE_ENV` guard. Next.js 15.x middleware declares the Node.js runtime; Next.js 16.x proxy uses its supported default runtime because the generated proxy omits the runtime field. If the files remain in a production build, Frontman request handling can remain present. Add an explicit environment guard or remove the integration for deployment, then build and test the deployed artifact. Avoid absolute claims such as “cannot exist in production” unless your own artifact and controls prove that statement.
+Next.js needs particular attention: the [installer templates](https://github.com/frontman-ai/frontman/blob/main/libs/frontman-nextjs/src/cli/FrontmanNextjs__Cli__Templates.res) write middleware for supported Next.js 15.x releases (15.5 minimum) or a proxy for Next.js 16.x. The package runtime handles routes only when `NODE_ENV=development` by default. Production and preview builds require `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`; `FRONTMAN_ENABLED=0` forces the integration off. If you opt in outside development, apply the same deployment verification and access controls that you use for other sensitive developer tools.
 
 ## WordPress live-site threat model
 

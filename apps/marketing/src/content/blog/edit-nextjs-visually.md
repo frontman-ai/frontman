@@ -9,7 +9,7 @@ imageAlt: 'Next.js component selected for visual editing in the browser'
 tags: ['nextjs', 'tutorial', 'developer-tools']
 faq:
   - question: 'Do I need to eject from Next.js or change my build setup?'
-    answer: 'No. Frontman runs inside supported Next.js dev servers through middleware on Next.js 15.x (15.5 minimum) or proxy on Next.js 16.x. You run your usual dev server and open the browser. Nothing is ejected or replaced. The generated entrypoint has no automatic development-only guard, so remove it or add a guard when Frontman must be absent from production.'
+    answer: 'No. Frontman runs inside supported Next.js dev servers through middleware on Next.js 15.x (15.5 minimum) or proxy on Next.js 16.x. You run your usual dev server and open the browser. Nothing is ejected or replaced. The package runtime only handles routes in NODE_ENV=development by default.'
   - question: 'Does this work with the App Router?'
     answer: 'Yes. Frontman supports both the App Router and the Pages Router. It understands Server Components and Client Components and handles them appropriately — server-only components are edited in source, client components get live hot-reload verification.'
   - question: 'What happens when I click a shared component — does it change every instance?'
@@ -53,7 +53,7 @@ npm run dev
 
 Open your browser. The Frontman sidebar appears. Click anything.
 
-There is no step 3 for development. The generated entrypoint can remain in production builds because it has no automatic development-only guard. Add an environment guard or remove the integration when Frontman must be absent, then verify the production build and deployed `/frontman` route.
+There is no step 3 for development. The generated entrypoint can remain in production builds, but the package runtime only handles routes when `NODE_ENV=development` by default. Set `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1` to opt in outside development. Set `FRONTMAN_ENABLED=0` to force it off.
 
 ## The Workflow
 
