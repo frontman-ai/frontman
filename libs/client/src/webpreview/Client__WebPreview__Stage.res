@@ -67,25 +67,21 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   )
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasAnnotations = annotations->Array.length > 0
-  let isQuickPromptMode = Client__State.useSelector(Client__State.Selectors.isQuickPromptMode)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
 
-  let handleQuickPrompt = (prompt: string) => {
+  let executeAnnotations = () => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
     let messageAnnotations =
       annotations
-      ->Array.filter(a => a.isQuick)
       ->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
-    let content = [Client__State.UserContentPart.Text({text: prompt})]
     let send = (sessionId: string) => {
       Client__State.Actions.addUserMessage(
         ~sessionId,
-        ~content,
+        ~content=[],
         ~annotations=messageAnnotations,
         ~agentId,
       )
-      Client__State.Actions.clearQuickAnnotations()
     }
     switch session {
     | Some(sess) => send(sess.sessionId)
@@ -462,10 +458,9 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     />
 
   let annotationPopupOverlay = {
-    let activeAnnotation = switch (activePopupAnnotationId, isQuickPromptMode) {
-    | (Some(id), _) => annotations->Array.find(a => a.id == id)
-    | (None, true) => annotations->Array.filter(a => a.isQuick)->Array.at(-1)
-    | (None, false) => None
+    let activeAnnotation = switch activePopupAnnotationId {
+    | Some(id) => annotations->Array.find(a => a.id == id)
+    | None => None
     }
 
     switch activeAnnotation {
@@ -479,9 +474,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         onCommentChange={comment =>
           Client__State.Actions.updateAnnotationComment(~id=annotation.id, ~comment)}
         onClose={() => Client__State.Actions.closeAnnotationPopup()}
-        quickPrompt={isQuickPromptMode}
-        onSubmitPrompt={handleQuickPrompt}
-        selectedCount={annotations->Array.filter(a => a.isQuick)->Array.length}
+        onExecute={executeAnnotations}
       />
     | None => React.null
     }

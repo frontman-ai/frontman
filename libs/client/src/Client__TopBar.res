@@ -1,5 +1,4 @@
 module Icons = Client__UI__Icons
-module ToolIcons = Client__ToolIcons
 module Button = Client__UI__Button
 module Tooltip = Client__UI__Tooltip
 module FrontmanLogo = Client__FrontmanLogo
@@ -28,7 +27,6 @@ let make = (
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
   let deviceMode = Client__State.useSelector(Client__State.Selectors.deviceMode)
-  let isQuickPromptMode = Client__State.useSelector(Client__State.Selectors.isQuickPromptMode)
   let completedFileChanges = Client__State.useSelector(Client__State.Selectors.completedFileChanges)
   let supportsChanges =
     Client__RuntimeConfig.read().framework->Client__RuntimeConfig.supportsFileChanges
@@ -134,14 +132,6 @@ let make = (
           fileChangeCount
           isAgentRunning
           previewControls={<>
-            {renderToolbarButton(
-              ~label=isQuickPromptMode
-                ? "Cancel element prompt"
-                : "Select an element and prompt inline",
-              ~onClick=_ => Client__State.Actions.toggleQuickPromptMode(),
-              ~className=isQuickPromptMode ? "bg-violet-500/15 text-violet-400" : "",
-              ~children=<ToolIcons.CursorClickIcon size=13 />,
-            )}
             {renderToolbarButton(
               ~label="Reload",
               ~onClick=_ => handleReload(),

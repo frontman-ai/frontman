@@ -3,7 +3,6 @@ module SourceLocation = Client__Types.SourceLocation
 type annotationMode =
   | Off
   | Selecting
-  | QuickPrompt
 
 type boundingBox = {
   x: float,
@@ -31,10 +30,9 @@ type t = {
   nearbyText: option<string>,
   elementorContext: option<Client__ElementorDetection.t>,
   enrichmentStatus: enrichmentStatus,
-  isQuick: bool,
 }
 
-let make = (~element: WebAPI.DomTypes.element, ~tagName: string, ~isQuick: bool=false): t => {
+let make = (~element: WebAPI.DomTypes.element, ~tagName: string): t => {
   id: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
   element,
   comment: None,
@@ -48,7 +46,6 @@ let make = (~element: WebAPI.DomTypes.element, ~tagName: string, ~isQuick: bool=
   nearbyText: None,
   elementorContext: None,
   enrichmentStatus: Enriching,
-  isQuick,
 }
 
 let findByElement = (annotations: array<t>, element: WebAPI.DomTypes.element): option<t> =>
