@@ -86,17 +86,11 @@ jobs:
       - name: Install Node.js dependencies
         run: yarn install --immutable
 
-      - name: Build ReScript
-        run: yarn rescript
-
-      - name: Build packed Next.js integration
-        run: yarn workspace @frontman-ai/nextjs build
-
       - name: Run Next.js packed-consumer dev/build compatibility
         env:
           NEXT_LABEL: ${{ matrix.next.label }}
           NEXT_VERSION: ${{ matrix.next.version }}
-        run: bash scripts/ci/nextjs-compat.sh
+        run: make e2e-nextjs-compat
 
   e2e:
     name: E2E (${{ github.event.inputs.test_suite || 'all' }})

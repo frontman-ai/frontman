@@ -19,9 +19,6 @@
 		"*": {
 			"Instrumentation": [
 				"types/instrumentation.d.ts"
-			],
-			"*": [
-				"types/index.d.ts"
 			]
 		}
 	},
