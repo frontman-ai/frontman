@@ -20,7 +20,7 @@ let make = (
   ~mutationTimestamp: float,
   ~onCommentChange: string => unit,
   ~onClose: unit => unit,
-  ~onExecute: unit => unit,
+  ~onExecute: string => unit,
 ) => {
   let (comment, setComment) = React.useState(() => annotation.comment->Option.getOr(""))
   let inputRef = React.useRef(Nullable.null)
@@ -42,7 +42,7 @@ let make = (
 
   let execute = () => {
     onCommentChange(comment)
-    onExecute()
+    onExecute(comment)
   }
 
   let handleKeyDown = (e: ReactEvent.Keyboard.t) => {

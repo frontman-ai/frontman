@@ -33,15 +33,12 @@ module TiptapCore = FrontmanBindings.Bindings__Tiptap__Core
 module TiptapExtensions = FrontmanBindings.Bindings__Tiptap__Extensions
 
 let activeEditorRef: ref<Null.t<TiptapCore.editor>> = ref(Null.null)
-let activeSubmitRef: ref<unit => bool> = ref(() => false)
 
 let focus = () => {
   activeEditorRef.contents
   ->Null.toOption
   ->Option.forEach(editor => editor->TiptapCore.chain->TiptapCore.focus->TiptapCore.run->ignore)
 }
-
-let submit = () => activeSubmitRef.contents()
 
 type fileAttachmentNodeOptions = {onPreviewImage: string => unit}
 type fileAttachmentAttrs = editorFileAttachment
@@ -717,11 +714,6 @@ let make = (
   React.useEffect1(() => {
     editorRef.current = editor
     activeEditorRef.contents = editor
-    activeSubmitRef.contents = () =>
-      switch (editor->Null.toOption, isInputBlocked()) {
-      | (Some(editor), false) => submitEditor(editor)
-      | _ => false
-      }
     Some(
       () => {
         switch editorRef.current == editor {
@@ -729,9 +721,7 @@ let make = (
         | false => ()
         }
         switch activeEditorRef.contents == editor {
-        | true =>
-          activeEditorRef.contents = Null.null
-          activeSubmitRef.contents = () => false
+        | true => activeEditorRef.contents = Null.null
         | false => ()
         }
       },

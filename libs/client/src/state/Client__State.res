@@ -12,6 +12,11 @@ module Actions = {
     Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
   }
 
+  let executeAnnotation = (~sessionId, ~annotationId, ~comment) => {
+    let id = Client__Message.UserMessageId.make()
+    Client__State__Store.dispatch(ExecuteAnnotation({id, sessionId, annotationId, comment}))
+  }
+
   let textDeltaReceived = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) =>
     Client__State__Store.dispatch(
       TaskAction({
