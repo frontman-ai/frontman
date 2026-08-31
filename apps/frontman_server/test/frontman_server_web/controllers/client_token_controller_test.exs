@@ -11,10 +11,10 @@ defmodule FrontmanServerWeb.ClientTokenControllerTest do
   test "deletes the authenticated embedded client token", %{conn: conn} do
     user = user_fixture()
 
-    conn = put_embedded_client_bearer(conn, user)
+    auth = embedded_client_auth(user)
     [user_token] = Repo.all(UserToken.by_embedded_client_user(user.id))
 
-    conn = delete(conn, ~p"/api/client-token")
+    conn = bearer_delete(conn, auth, ~p"/api/client-token")
 
     assert response(conn, 204) == ""
     assert Repo.get(UserToken, user_token.id) == nil
@@ -44,10 +44,7 @@ defmodule FrontmanServerWeb.ClientTokenControllerTest do
     user = user_fixture()
     other_token = Accounts.generate_embedded_client_token(user, "https://other.example")
 
-    conn =
-      conn
-      |> put_embedded_client_bearer(user)
-      |> delete(~p"/api/client-token")
+    conn = bearer_delete(conn, embedded_client_auth(user), ~p"/api/client-token")
 
     assert response(conn, 204) == ""
 

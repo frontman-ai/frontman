@@ -7,10 +7,7 @@ defmodule FrontmanServerWeb.UserMeControllerTest do
     test "returns the current user for an embedded client bearer token", %{conn: conn} do
       user = user_fixture()
 
-      conn =
-        conn
-        |> put_embedded_client_bearer(user)
-        |> get(~p"/api/user/me")
+      conn = bearer_get(conn, embedded_client_auth(user), ~p"/api/user/me")
 
       assert %{"id" => user.id, "email" => user.email, "name" => user.name} ==
                json_response(conn, 200)

@@ -20,6 +20,10 @@ defmodule FrontmanServerWeb.ConnCase do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
 
+  require Phoenix.ConnTest
+
+  @endpoint FrontmanServerWeb.Endpoint
+
   using do
     quote do
       @endpoint FrontmanServerWeb.Endpoint
@@ -73,14 +77,59 @@ defmodule FrontmanServerWeb.ConnCase do
   end
 
   @doc """
-  Adds a valid embedded client bearer token for the given user.
+  Creates reusable bearer auth data for embedded client API requests.
   """
-  def put_embedded_client_bearer(conn, user, approved_origin \\ "https://customer.example") do
-    token = Accounts.generate_embedded_client_token(user, approved_origin)
+  def embedded_client_auth(user, approved_origin \\ "https://customer.example") do
+    %{
+      token: Accounts.generate_embedded_client_token(user, approved_origin),
+      origin: approved_origin
+    }
+  end
 
+  @doc """
+  Adds embedded client bearer headers to one request.
+  """
+  def put_embedded_client_bearer(conn, %{token: token, origin: origin})
+      when is_binary(token) and is_binary(origin) do
     conn
     |> Plug.Conn.put_req_header("authorization", "Bearer #{token}")
-    |> Plug.Conn.put_req_header("origin", approved_origin)
+    |> Plug.Conn.put_req_header("origin", origin)
+  end
+
+  def put_embedded_client_bearer(conn, user) do
+    put_embedded_client_bearer(conn, embedded_client_auth(user))
+  end
+
+  def put_embedded_client_bearer(conn, user, approved_origin) do
+    put_embedded_client_bearer(conn, embedded_client_auth(user, approved_origin))
+  end
+
+  def bearer_get(conn, auth, path) do
+    conn
+    |> Phoenix.ConnTest.recycle()
+    |> put_embedded_client_bearer(auth)
+    |> Phoenix.ConnTest.get(path)
+  end
+
+  def bearer_post(conn, auth, path, params) do
+    conn
+    |> Phoenix.ConnTest.recycle()
+    |> put_embedded_client_bearer(auth)
+    |> Phoenix.ConnTest.post(path, params)
+  end
+
+  def bearer_put(conn, auth, path, params) do
+    conn
+    |> Phoenix.ConnTest.recycle()
+    |> put_embedded_client_bearer(auth)
+    |> Phoenix.ConnTest.put(path, params)
+  end
+
+  def bearer_delete(conn, auth, path) do
+    conn
+    |> Phoenix.ConnTest.recycle()
+    |> put_embedded_client_bearer(auth)
+    |> Phoenix.ConnTest.delete(path)
   end
 
   defp maybe_set_token_authenticated_at(_token, nil), do: nil

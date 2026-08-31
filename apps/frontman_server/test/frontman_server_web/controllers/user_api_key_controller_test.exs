@@ -7,19 +7,22 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
   alias FrontmanServer.Providers
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
-  setup %{conn: conn} do
+  setup do
     user = AccountsFixtures.user_fixture()
     scope = Scope.for_user(user)
-    conn = put_embedded_client_bearer(conn, user)
 
-    %{conn: conn, user: user, scope: scope}
+    %{embedded_auth: embedded_client_auth(user), user: user, scope: scope}
   end
 
   describe "POST /api/user/api-keys" do
-    test "stores provider key for bearer-authenticated user", %{conn: conn, user: user} do
+    test "stores provider key for bearer-authenticated user", %{
+      conn: conn,
+      embedded_auth: auth,
+      user: user
+    } do
       params = %{"provider" => "openrouter", "key" => "sk-test-123"}
 
-      conn = post(conn, ~p"/api/user/api-keys", params)
+      conn = bearer_post(conn, auth, ~p"/api/user/api-keys", params)
       response = json_response(conn, 200)
 
       assert response["status"] == "ok"
@@ -33,10 +36,14 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert llm_opts[:api_key] == "sk-test-123"
     end
 
-    test "stores Fireworks keys for bearer-authenticated user", %{conn: conn, user: user} do
+    test "stores Fireworks keys for bearer-authenticated user", %{
+      conn: conn,
+      embedded_auth: auth,
+      user: user
+    } do
       params = %{"provider" => "fireworks_ai", "key" => "sk-fireworks-test-123"}
 
-      conn = post(conn, ~p"/api/user/api-keys", params)
+      conn = bearer_post(conn, auth, ~p"/api/user/api-keys", params)
       response = json_response(conn, 200)
 
       assert response["status"] == "ok"
@@ -55,13 +62,17 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert llm_opts[:api_key] == "sk-fireworks-test-123"
     end
 
-    test "stores Fireworks keys without affecting other users", %{conn: conn, user: user} do
+    test "stores Fireworks keys without affecting other users", %{
+      conn: conn,
+      embedded_auth: auth,
+      user: user
+    } do
       other_user = AccountsFixtures.user_fixture()
       other_scope = Scope.for_user(other_user)
       :ok = Providers.upsert_api_key(other_scope, "fireworks_ai", "sk-fireworks-other-user")
 
       conn =
-        post(conn, ~p"/api/user/api-keys", %{
+        bearer_post(conn, auth, ~p"/api/user/api-keys", %{
           "provider" => "fireworks_ai",
           "key" => "sk-fireworks-current-user"
         })
@@ -100,29 +111,32 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
   end
 
   describe "GET /api/user/api-keys" do
-    test "returns saved key metadata", %{conn: conn} do
-      conn = get(conn, ~p"/api/user/api-keys")
+    test "returns saved key metadata", %{conn: conn, embedded_auth: auth} do
+      conn = bearer_get(conn, auth, ~p"/api/user/api-keys")
       response = json_response(conn, 200)
 
       assert response["providers"] == []
     end
 
-    test "returns saved key providers", %{conn: conn, user: user} do
+    test "returns saved key providers", %{conn: conn, embedded_auth: auth, user: user} do
       :ok =
         Providers.upsert_api_key(Scope.for_user(user), "fireworks_ai", "sk-fireworks-user-key")
 
-      conn = get(conn, ~p"/api/user/api-keys")
+      conn = bearer_get(conn, auth, ~p"/api/user/api-keys")
       response = json_response(conn, 200)
 
       assert response["providers"] == ["fireworks_ai"]
     end
 
-    test "returns saved key providers for the bearer-authenticated user only", %{conn: conn} do
+    test "returns saved key providers for the bearer-authenticated user only", %{
+      conn: conn,
+      embedded_auth: auth
+    } do
       other_user = AccountsFixtures.user_fixture()
       other_scope = Scope.for_user(other_user)
       :ok = Providers.upsert_api_key(other_scope, "fireworks_ai", "sk-fireworks-other-user")
 
-      conn = get(conn, ~p"/api/user/api-keys")
+      conn = bearer_get(conn, auth, ~p"/api/user/api-keys")
       response = json_response(conn, 200)
 
       assert response["providers"] == []

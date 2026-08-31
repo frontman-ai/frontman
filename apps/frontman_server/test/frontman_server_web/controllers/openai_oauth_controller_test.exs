@@ -3,16 +3,18 @@ defmodule FrontmanServerWeb.OpenAIOAuthControllerTest do
 
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
-  setup %{conn: conn} do
+  setup do
     user = AccountsFixtures.user_fixture()
-    conn = put_embedded_client_bearer(conn, user)
 
-    %{conn: conn, user: user}
+    %{embedded_auth: embedded_client_auth(user), user: user}
   end
 
   describe "GET /api/oauth/openai/status" do
-    test "returns OAuth status for a bearer-authenticated user", %{conn: conn} do
-      conn = get(conn, ~p"/api/oauth/openai/status")
+    test "returns OAuth status for a bearer-authenticated user", %{
+      conn: conn,
+      embedded_auth: auth
+    } do
+      conn = bearer_get(conn, auth, ~p"/api/oauth/openai/status")
 
       assert %{"connected" => false} == json_response(conn, 200)
     end
