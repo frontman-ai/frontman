@@ -63,7 +63,7 @@
 		"rescript": "catalog:",
 		"rescript-base-ui": "^1.2.5",
 		"rescript-vitest": "catalog:",
-		"shadcn": "^4.13.1",
+		"shadcn": "^4.16.1",
 		"streamdown": "^2.5.0",
 		"sury": "catalog:",
 		"sury-ppx": "catalog:",
