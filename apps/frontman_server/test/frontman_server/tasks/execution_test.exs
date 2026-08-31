@@ -323,6 +323,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert first_turn.data.agent_id == "test-frontman"
       assert length(first_turn.data.user_message_ids) == 2
 
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       refute_running_eventually(task_id)
 
       assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
@@ -330,6 +331,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert [_first_turn, second_turn] = turn_started_rows(task_id)
       assert second_turn.data.agent_id == "test-planner"
       assert length(second_turn.data.user_message_ids) == 1
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
+      refute_running_eventually(task_id)
     end
 
     test "groups only contiguous messages with the same agent and model", %{
@@ -375,12 +379,16 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         })
 
       assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       refute_running_eventually(task_id)
 
       assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
       refute_running_eventually(task_id)
 
       assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 3)
+      refute_running_eventually(task_id)
 
       assert [first_turn, second_turn, third_turn] = turn_started_rows(task_id)
       assert first_turn.data.agent_id == "test-frontman"
