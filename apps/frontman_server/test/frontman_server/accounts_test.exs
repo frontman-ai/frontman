@@ -366,6 +366,99 @@ defmodule FrontmanServer.AccountsTest do
     end
   end
 
+  describe "embedded client tokens" do
+    setup do
+      %{user: user_fixture(), approved_origin: "https://customer.example"}
+    end
+
+    test "generates an opaque token and stores only its hash", %{
+      user: user,
+      approved_origin: approved_origin
+    } do
+      token = Accounts.generate_embedded_client_token(user, approved_origin)
+      {:ok, decoded_token} = Base.url_decode64(token, padding: false)
+
+      stored_token = Repo.get_by!(UserToken, token: :crypto.hash(:sha256, decoded_token))
+      assert stored_token.token == :crypto.hash(:sha256, decoded_token)
+      refute stored_token.token == token
+      assert stored_token.context == "embedded_client"
+      assert stored_token.user_id == user.id
+      assert stored_token.approved_origin == approved_origin
+      assert stored_token.expires_at != nil
+      assert is_nil(stored_token.last_used_at)
+    end
+
+    test "returns scope and token record for a valid token", %{
+      user: user,
+      approved_origin: approved_origin
+    } do
+      token = Accounts.generate_embedded_client_token(user, approved_origin)
+      stored_token = user_token_by_raw_token(token)
+
+      assert {scope, token_id} = Accounts.get_scope_by_embedded_client_token(token)
+      assert Accounts.scope_user_id(scope) == user.id
+      assert token_id == stored_token.id
+      assert stored_token.approved_origin == approved_origin
+    end
+
+    test "does not return scope for invalid tokens", %{user: user} do
+      Accounts.generate_embedded_client_token(user, "https://customer.example")
+
+      refute Accounts.get_scope_by_embedded_client_token("oops")
+    end
+
+    test "does not return scope for expired tokens", %{
+      user: user,
+      approved_origin: approved_origin
+    } do
+      token = Accounts.generate_embedded_client_token(user, approved_origin)
+      user_token = user_token_by_raw_token(token)
+
+      {1, nil} =
+        user_token.id
+        |> UserToken.by_embedded_client_id()
+        |> Repo.update_all(
+          set: [expires_at: DateTime.add(DateTime.utc_now(:second), -1, :second)]
+        )
+
+      refute Accounts.get_scope_by_embedded_client_token(token)
+    end
+
+    test "updates last_used_at for an embedded client token", %{
+      user: user,
+      approved_origin: approved_origin
+    } do
+      token = Accounts.generate_embedded_client_token(user, approved_origin)
+      user_token = user_token_by_raw_token(token)
+      assert Accounts.touch_embedded_client_token(user_token.id) == :ok
+
+      touched_token = Repo.get!(UserToken, user_token.id)
+      assert touched_token.last_used_at != nil
+    end
+
+    test "revokes one embedded client token", %{user: user} do
+      first_token = Accounts.generate_embedded_client_token(user, "https://first.example")
+      first_user_token = user_token_by_raw_token(first_token)
+      second_token = Accounts.generate_embedded_client_token(user, "https://second.example")
+
+      assert Accounts.delete_embedded_client_token(first_user_token.id) == :ok
+      refute Accounts.get_scope_by_embedded_client_token(first_token)
+      assert Accounts.get_scope_by_embedded_client_token(second_token)
+    end
+
+    test "revokes all embedded client tokens without deleting session tokens", %{user: user} do
+      first_token = Accounts.generate_embedded_client_token(user, "https://first.example")
+      second_token = Accounts.generate_embedded_client_token(user, "https://second.example")
+
+      session_token = Accounts.generate_user_session_token(user)
+
+      assert Accounts.delete_all_embedded_client_tokens(user) == :ok
+      refute Accounts.get_scope_by_embedded_client_token(first_token)
+      refute Accounts.get_scope_by_embedded_client_token(second_token)
+      assert Accounts.get_user_by_session_token(session_token)
+    end
+  end
+
   describe "deliver_login_instructions/2" do
     setup do
       %{user: unconfirmed_user_fixture()}
@@ -389,6 +482,11 @@ defmodule FrontmanServer.AccountsTest do
     test "does not include password" do
       refute inspect(%User{password: "123456"}) =~ "password: \"123456\""
     end
+  end
+
+  defp user_token_by_raw_token(token) do
+    {:ok, decoded_token} = Base.url_decode64(token, padding: false)
+    Repo.get_by!(UserToken, token: :crypto.hash(:sha256, decoded_token))
   end
 
   describe "list_user_identities/1" do
