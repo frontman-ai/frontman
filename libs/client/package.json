@@ -51,7 +51,7 @@
 		"@rescript/webapi": "catalog:",
 		"@tailwindcss/vite": "^4.3.2",
 		"@types/babel__core": "^7",
-		"@types/react": "^19.2.15",
+		"@types/react": "^19.2.18",
 		"@types/react-dom": "^19.2.3",
 		"@zumer/snapdom": "^2.24.7",
 		"babel-plugin-react-compiler": "^1.0.0",
