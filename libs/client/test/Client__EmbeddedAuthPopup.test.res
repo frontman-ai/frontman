@@ -12,23 +12,17 @@ let message = (~origin, ~source=?, ~data): Client__EmbeddedAuthPopup.messageEven
     },
   )
 
-let completionData = (~state="state-123", ~token="token-123", ~messageType=?, ~version=?) =>
+let completionData = (~state, ~token) =>
   JSON.Encode.object(
     Dict.fromArray([
-      (
-        "type",
-        JSON.Encode.string(
-          messageType->Option.getOr(Client__EmbeddedAuthPopup.completionMessageType),
-        ),
-      ),
-      (
-        "version",
-        JSON.Encode.int(version->Option.getOr(Client__EmbeddedAuthPopup.completionMessageVersion)),
-      ),
+      ("type", JSON.Encode.string(Client__EmbeddedAuthPopup.completionMessageType)),
+      ("version", JSON.Encode.int(Client__EmbeddedAuthPopup.completionMessageVersion)),
       ("state", JSON.Encode.string(state)),
       ("token", JSON.Encode.string(token)),
     ]),
   )
+
+let validCompletionData = () => completionData(~state="state-123", ~token="token-123")
 
 describe("EmbeddedAuthPopup", () => {
   test("adds embedded state and origin without losing existing login URL parameters", t => {
@@ -56,7 +50,7 @@ describe("EmbeddedAuthPopup", () => {
       ~event=message(
         ~origin="https://app.frontman.sh",
         ~source=FrontmanBindings.Bindings__WebAPI.messageSourceFromWindow(popup()),
-        ~data=completionData(),
+        ~data=validCompletionData(),
       ),
       ~frontmanOrigin="https://app.frontman.sh",
       ~popup=popup(),
@@ -71,7 +65,7 @@ describe("EmbeddedAuthPopup", () => {
       ~event=message(
         ~origin="https://evil.example",
         ~source=FrontmanBindings.Bindings__WebAPI.messageSourceFromWindow(popup()),
-        ~data=completionData(),
+        ~data=validCompletionData(),
       ),
       ~frontmanOrigin="https://app.frontman.sh",
       ~popup=popup(),
@@ -83,7 +77,7 @@ describe("EmbeddedAuthPopup", () => {
 
   test("rejects a completion message from the wrong popup source", t => {
     let result = Client__EmbeddedAuthPopup.validateMessage(
-      ~event=message(~origin="https://app.frontman.sh", ~data=completionData()),
+      ~event=message(~origin="https://app.frontman.sh", ~data=validCompletionData()),
       ~frontmanOrigin="https://app.frontman.sh",
       ~popup=popup(),
       ~state="state-123",
@@ -97,7 +91,7 @@ describe("EmbeddedAuthPopup", () => {
       ~event=message(
         ~origin="https://app.frontman.sh",
         ~source=FrontmanBindings.Bindings__WebAPI.messageSourceFromWindow(popup()),
-        ~data=completionData(~state="other-state"),
+        ~data=completionData(~state="other-state", ~token="token-123"),
       ),
       ~frontmanOrigin="https://app.frontman.sh",
       ~popup=popup(),
