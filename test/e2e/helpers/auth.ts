@@ -4,12 +4,14 @@
  * Uses the dev-only email+password form on /users/log-in.
  */
 
+import { randomUUID } from "node:crypto";
 import type { Page } from "playwright";
 
 const E2E_EMAIL = "e2e@frontman.local";
 const E2E_PASSWORD = "e2epassword123!";
 
 const PHOENIX_ORIGIN = "https://localhost:4002";
+const EMBEDDED_TOKEN_STORAGE_KEY = "frontman:embeddedClientToken";
 
 /**
  * Log in the e2e test user via the dev email/password form.
@@ -40,6 +42,43 @@ export async function login(
       }
     }
   }
+}
+
+export async function authorizeEmbeddedClient(
+  page: Page,
+  opts: { origin: string },
+): Promise<string> {
+  const state = randomUUID();
+  const loginUrl = new URL("/users/log-in", PHOENIX_ORIGIN);
+  loginUrl.searchParams.set("return_to", "/users/popup-complete");
+  loginUrl.searchParams.set("embedded_state", state);
+  loginUrl.searchParams.set("embedded_origin", opts.origin);
+
+  await login(page, { returnTo: loginUrl.toString() });
+
+  if (!page.url().includes("/users/popup-complete")) {
+    await page.goto(loginUrl.toString());
+  }
+
+  await page.locator('button[type="submit"]', { hasText: "Allow and continue" }).click();
+  await page.locator("#embedded-client-auth-completion").waitFor({
+    state: "attached",
+    timeout: 30_000,
+  });
+
+  const token = await page.locator("#embedded-client-auth-completion").getAttribute("data-token");
+  if (!token) {
+    throw new Error("Embedded client authorization completed without a token");
+  }
+
+  await page.addInitScript(
+    ({ storageKey, tokenValue }) => {
+      localStorage.setItem(storageKey, tokenValue);
+    },
+    { storageKey: EMBEDDED_TOKEN_STORAGE_KEY, tokenValue: token },
+  );
+
+  return token;
 }
 
 async function loginOnce(
