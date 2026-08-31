@@ -5,7 +5,23 @@
     "annotations": {
       "type": "object",
       "properties": {
-        "_meta": {}
+        "audience": {
+          "items": {
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "type": "array"
+        },
+        "priority": {
+          "type": "number",
+          "maximum": 1,
+          "minimum": 0
+        },
+        "lastModified": {
+          "type": "string"
+        }
       }
     },
     "resource": {
@@ -21,7 +37,8 @@
             },
             "text": {
               "type": "string"
-            }
+            },
+            "_meta": {}
           },
           "required": [
             "uri",
@@ -39,7 +56,8 @@
             },
             "blob": {
               "type": "string"
-            }
+            },
+            "_meta": {}
           },
           "required": [
             "uri",

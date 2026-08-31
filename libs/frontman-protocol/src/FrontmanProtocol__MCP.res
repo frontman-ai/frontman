@@ -35,7 +35,9 @@ let extensionsSchema =
 @schema
 type info = {
   name: string,
+  title?: string,
   version: string,
+  description?: string,
 }
 
 @schema
@@ -120,7 +122,21 @@ let resultMetaWireSchema = S.object(s => {
 
 let cacheScopeWireSchema = S.union([S.literal("public"), S.literal("private")])
 
-let discoverResultWireSchema = S.object(s => {
+let preservingJson = schema =>
+  S.json
+  ->S.transform(_ => {
+    parser: json => {
+      json->S.parseOrThrow(~to=schema)->ignore
+      json
+    },
+    serializer: json => {
+      json->S.parseOrThrow(~to=schema)->ignore
+      json
+    },
+  })
+  ->S.extendJSONSchema(schema->S.toJSONSchema)
+
+let discoverResultWireShapeSchema = S.object(s => {
   s.field("resultType", S.literal("complete"))->ignore
   s.field("supportedVersions", S.array(S.string))->ignore
   s.field("capabilities", serverCapabilitiesWireSchema)->ignore
@@ -130,6 +146,7 @@ let discoverResultWireSchema = S.object(s => {
   s.field("_meta", S.option(resultMetaWireSchema))->ignore
   s.flatten(S.dict(S.json))->JSON.Encode.object
 })
+let discoverResultWireSchema = preservingJson(discoverResultWireShapeSchema)
 
 @schema
 type toolsListParams = {_meta: requestMeta, cursor: option<string>}
@@ -310,14 +327,35 @@ let toolInputSchema = S.object(s => {
   s.flatten(S.dict(S.json))->JSON.Encode.object
 })
 
-let toolJsonSchema = S.object(s => {
+let iconSchema = S.object(s => {
+  s.field("src", S.string)->ignore
+  s.field("mimeType", S.option(S.string))->ignore
+  s.field("sizes", S.option(S.array(S.string)))->ignore
+  s.field("theme", S.option(S.union([S.literal("light"), S.literal("dark")])))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let toolAnnotationsSchema = S.object(s => {
+  s.field("title", S.option(S.string))->ignore
+  s.field("readOnlyHint", S.option(S.bool))->ignore
+  s.field("destructiveHint", S.option(S.bool))->ignore
+  s.field("idempotentHint", S.option(S.bool))->ignore
+  s.field("openWorldHint", S.option(S.bool))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let toolJsonShapeSchema = S.object(s => {
   s.field("name", S.string->S.min(1))->ignore
+  s.field("title", S.option(S.string))->ignore
   s.field("description", S.option(S.string))->ignore
+  s.field("icons", S.option(S.array(iconSchema)))->ignore
   s.field("inputSchema", toolInputSchema)->ignore
   s.field("outputSchema", S.option(S.dict(S.json)))->ignore
+  s.field("annotations", S.option(toolAnnotationsSchema))->ignore
   s.field("_meta", S.option(toolMetaSchema))->ignore
   s.flatten(S.dict(S.json))->JSON.Encode.object
 })
+let toolJsonSchema = preservingJson(toolJsonShapeSchema)
 
 @schema
 type toolsListResult = {
@@ -328,7 +366,7 @@ type toolsListResult = {
   _meta: resultMeta,
 }
 
-let toolsListResultWireSchema = S.object(s => {
+let toolsListResultWireShapeSchema = S.object(s => {
   s.field("resultType", S.literal("complete"))->ignore
   s.field("tools", S.array(toolJsonSchema))->ignore
   s.field("nextCursor", S.option(S.string))->ignore
@@ -337,6 +375,7 @@ let toolsListResultWireSchema = S.object(s => {
   s.field("_meta", S.option(resultMetaWireSchema))->ignore
   s.flatten(S.dict(S.json))->JSON.Encode.object
 })
+let toolsListResultWireSchema = preservingJson(toolsListResultWireShapeSchema)
 
 type executeToolResult =
   | Completed(CallToolResult.t)

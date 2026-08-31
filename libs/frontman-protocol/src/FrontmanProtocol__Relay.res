@@ -2,22 +2,21 @@ module MCP = FrontmanProtocol__MCP
 
 let protocolVersion = "1.0"
 
-@schema
-type remoteTool = {
-  name: string,
-  description: string,
-  access: option<FrontmanProtocol__Tool.access>,
-  inputSchema: JSON.t,
-  outputSchema: option<JSON.t>,
-  visibleToAgent: bool,
-}
+type remoteTool = JSON.t
 
-@schema
+let remoteToolSchema = MCP.toolJsonSchema
+
 type toolsResponse = {
   tools: array<remoteTool>,
   serverInfo: MCP.info,
-  protocolVersion: @s.matches(S.literal("1.0")) string,
+  protocolVersion: string,
 }
+
+let toolsResponseSchema = S.object(s => {
+  tools: s.field("tools", S.array(MCP.toolJsonSchema)),
+  serverInfo: s.field("serverInfo", MCP.infoSchema),
+  protocolVersion: s.field("protocolVersion", S.literal("1.0")),
+})
 
 @schema
 type toolCallRequest = {

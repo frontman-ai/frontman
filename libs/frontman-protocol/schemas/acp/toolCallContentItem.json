@@ -23,7 +23,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
-                    "_meta": {}
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    }
                   }
                 }
               },
@@ -49,7 +65,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
-                    "_meta": {}
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    }
                   }
                 }
               },
@@ -76,7 +108,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
-                    "_meta": {}
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    }
                   }
                 }
               },
@@ -96,14 +144,44 @@
                 "name": {
                   "type": "string"
                 },
+                "title": {
+                  "type": "string"
+                },
                 "uri": {
                   "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer",
+                  "minimum": -2147483648,
+                  "maximum": 2147483647
                 },
                 "_meta": {},
                 "annotations": {
                   "type": "object",
                   "properties": {
-                    "_meta": {}
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    }
                   }
                 }
               },
@@ -124,7 +202,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
-                    "_meta": {}
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    }
                   }
                 },
                 "resource": {
@@ -140,7 +234,8 @@
                         },
                         "text": {
                           "type": "string"
-                        }
+                        },
+                        "_meta": {}
                       },
                       "required": [
                         "uri",
@@ -158,7 +253,8 @@
                         },
                         "blob": {
                           "type": "string"
-                        }
+                        },
+                        "_meta": {}
                       },
                       "required": [
                         "uri",
