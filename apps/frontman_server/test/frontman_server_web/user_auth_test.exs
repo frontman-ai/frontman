@@ -394,4 +394,81 @@ defmodule FrontmanServerWeb.UserAuthTest do
       refute conn.status
     end
   end
+
+  describe "require_embedded_client_bearer_token/2" do
+    test "authenticates with a valid embedded client bearer token", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> put_embedded_client_bearer(user)
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.assigns.current_scope.user.id == user.id
+      assert is_binary(conn.assigns.embedded_client_token_id)
+      refute conn.halted
+    end
+
+    test "rejects a missing authorization header", %{conn: conn} do
+      conn = UserAuth.require_embedded_client_bearer_token(conn, [])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects duplicate authorization headers", %{conn: conn, user: user} do
+      token = Accounts.generate_embedded_client_token(user, "https://customer.example")
+
+      conn =
+        %{
+          conn
+          | req_headers: [
+              {"authorization", "Bearer #{token}"},
+              {"authorization", "Bearer #{token}"} | conn.req_headers
+            ]
+        }
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects non-bearer authorization", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("authorization", "Basic abc123")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects malformed bearer authorization", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer ")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects an invalid bearer token", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer invalid-token")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects session authentication without a bearer token", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+  end
 end

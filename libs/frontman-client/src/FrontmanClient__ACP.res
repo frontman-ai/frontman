@@ -14,8 +14,8 @@ module Log = FrontmanLogs.Logs.Make({
 @@live
 type config = {
   endpoint: string,
-  tokenUrl: string,
   loginUrl: string,
+  getAuthToken: unit => option<string>,
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
   onTitleUpdated: option<(string, string) => unit>,
@@ -25,8 +25,8 @@ type config = {
 @@live
 let makeConfig = (
   ~endpoint: string,
-  ~tokenUrl: string,
   ~loginUrl: string,
+  ~getAuthToken: unit => option<string>,
   ~name: string,
   ~version: string,
   ~_meta: JSON.t,
@@ -34,8 +34,8 @@ let makeConfig = (
   ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
 ): config => {
   endpoint,
-  tokenUrl,
   loginUrl,
+  getAuthToken,
   clientInfo: {
     name,
     version,
@@ -126,38 +126,6 @@ type connectError =
   | AuthRequired({loginUrl: string})
   | ConnectionFailed(string)
 
-type tokenError =
-  | FetchFailed(string)
-  | NotAuthenticated
-  | InvalidResponse
-
-let fetchSocketToken = async (tokenUrl: string): result<string, tokenError> => {
-  try {
-    let response = await WebAPI.Fetch.fetch(tokenUrl, ~init={credentials: Include})
-    if response.ok {
-      let json = await response->WebAPI.Response.json
-      switch json
-      ->JSON.Decode.object
-      ->Option.flatMap(obj => obj->Dict.get("token"))
-      ->Option.flatMap(JSON.Decode.string) {
-      | Some(token) => Ok(token)
-      | None => Error(InvalidResponse)
-      }
-    } else if response.status == 401 {
-      Error(NotAuthenticated)
-    } else {
-      Error(FetchFailed(`HTTP ${response.status->Int.toString}`))
-    }
-  } catch {
-  | exn =>
-    Error(
-      FetchFailed(
-        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error"),
-      ),
-    )
-  }
-}
-
 @@live
 let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSignal>=?): result<
   connection,
@@ -166,22 +134,16 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
 
-  let tokenResult = switch await fetchSocketToken(config.tokenUrl) {
-  | Ok(token) => Ok(token)
-  | Error(NotAuthenticated) => Error(AuthRequired({loginUrl: config.loginUrl}))
-  | Error(FetchFailed(msg)) =>
-    Log.error(`Token fetch failed: ${msg}`)
-    Error(ConnectionFailed(`Token fetch failed: ${msg}`))
-  | Error(InvalidResponse) =>
-    Log.error("Invalid token response")
-    Error(ConnectionFailed("Invalid token response"))
+  let tokenResult = switch config.getAuthToken() {
+  | Some(token) => Ok(token)
+  | None => Error(AuthRequired({loginUrl: config.loginUrl}))
   }
 
   switch (tokenResult, checkAborted(signal)) {
   | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
   | (Error(e), _) => Error(e)
   | (Ok(token), Ok()) =>
-    let socketOpts: Socket.socketOptions = {params: Dict.fromArray([("token", token)])}
+    let socketOpts: Socket.socketOptions = {authToken: token}
     let socket = Socket.make(~endpoint=config.endpoint, ~opts=socketOpts)
     let channel = socket->Socket.channel(~topic=Constants.tasksTopic)
     let state = ref(Client.initialState)

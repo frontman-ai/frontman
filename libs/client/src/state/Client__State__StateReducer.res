@@ -52,6 +52,7 @@ type action =
       retryTurn: Client__State__Types.retryTurnFn,
       loadTask: Client__State__Types.loadTaskFn,
       deleteSession: Client__State__Types.deleteSessionFn,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
       apiBaseUrl: string,
     })
   | ClearAcpSession
@@ -125,21 +126,56 @@ type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
-  | FetchAnthropicOAuthStatusEffect({apiBaseUrl: string})
-  | GetAnthropicOAuthUrlEffect({apiBaseUrl: string})
-  | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl: string, code: string, verifier: string})
-  | DisconnectAnthropicOAuthEffect({apiBaseUrl: string})
-  | FetchOpenAIOAuthStatusEffect({apiBaseUrl: string})
-  | InitiateOpenAIDeviceAuthEffect({apiBaseUrl: string})
-  | DisconnectOpenAIOAuthEffect({apiBaseUrl: string})
-  | PollOpenAIDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
+  | FetchAnthropicOAuthStatusEffect({
+      apiBaseUrl: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
+  | GetAnthropicOAuthUrlEffect({
+      apiBaseUrl: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
+  | ExchangeAnthropicOAuthCodeEffect({
+      apiBaseUrl: string,
+      code: string,
+      verifier: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
+  | DisconnectAnthropicOAuthEffect({
+      apiBaseUrl: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
+  | FetchOpenAIOAuthStatusEffect({
+      apiBaseUrl: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
+  | InitiateOpenAIDeviceAuthEffect({
+      apiBaseUrl: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
+  | DisconnectOpenAIOAuthEffect({
+      apiBaseUrl: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
+  | PollOpenAIDeviceAuthEffect({
+      apiBaseUrl: string,
+      deviceAuthId: string,
+      userCode: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
   | FetchUserProfileEffect({apiBaseUrl: string})
   | LoadTaskEffect({taskId: string})
   | DeleteSessionEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
   | ShareFrontmanEffect
-  | FetchCustomProvidersEffect({apiBaseUrl: string})
-  | CustomProviderMutationEffect({apiBaseUrl: string, request: customProviderMutationRequest})
+  | FetchCustomProvidersEffect({
+      apiBaseUrl: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
+  | CustomProviderMutationEffect({
+      apiBaseUrl: string,
+      request: customProviderMutationRequest,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
 
 module Lens = {
   let updateTask = (state: state, taskId: string, fn: Task.t => Task.t): state => {
@@ -678,18 +714,32 @@ let resolveFeedbackHistory = (state: state) =>
   | Waiting | Visible | LinkCopied | ShareFailed | Dismissed => state
   }
 
+let requireEmbeddedAuthentication = requireAuthentication => {
+  Client__EmbeddedAuth.clearToken()
+  requireAuthentication()
+}
+
+let embeddedAuthRequiredError = "Frontman authorization is required"
+
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/me`
 
     try {
-      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
-      if response.ok {
-        let json = await response->WebAPI.Response.json
-        let userProfile =
-          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userProfileSchema)
-        dispatch(UserProfileReceived({userProfile: userProfile}))
-        Client__Heap.heap.identify(userProfile.id)
+      switch Client__EmbeddedAuth.headers() {
+      | Some(headers) =>
+        let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
+        Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+        switch response.ok {
+        | true =>
+          let json = await response->WebAPI.Response.json
+          let userProfile =
+            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userProfileSchema)
+          dispatch(UserProfileReceived({userProfile: userProfile}))
+          Client__Heap.heap.identify(userProfile.id)
+        | false => ()
+        }
+      | None => ()
       }
     } catch {
     | exn => Log.error(~error=JsExn.fromException(exn), "FetchUserProfile failed")
@@ -708,29 +758,33 @@ let encodeUserApiKeySaveRequest = (~provider, ~key) => {
   ->JSON.stringify
 }
 
-let jsonContentHeaders = () =>
-  WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
-
 let fetchApiKeySettingsImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/api-keys`
 
     try {
-      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
-      if response.ok {
-        let json = await response->WebAPI.Response.json
-        let apiKeysResponse =
-          json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userApiKeysResponseSchema)
-        apiKeyProviders->Array.forEach(provider => {
-          let providerId = apiKeyProviderId(provider)
-          let hasUserKey = apiKeysResponse.providers->Array.includes(providerId)
-          let source = switch hasUserKey {
-          | true => Client__State__Types.UserOverride
-          | false => Client__State__Types.None
-          }
+      switch Client__EmbeddedAuth.headers() {
+      | Some(headers) =>
+        let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
+        Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+        switch response.ok {
+        | true =>
+          let json = await response->WebAPI.Response.json
+          let apiKeysResponse =
+            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userApiKeysResponseSchema)
+          apiKeyProviders->Array.forEach(provider => {
+            let providerId = apiKeyProviderId(provider)
+            let hasUserKey = apiKeysResponse.providers->Array.includes(providerId)
+            let source = switch hasUserKey {
+            | true => Client__State__Types.UserOverride
+            | false => Client__State__Types.None
+            }
 
-          dispatch(ApiKeySettingsReceived({provider, source}))
-        })
+            dispatch(ApiKeySettingsReceived({provider, source}))
+          })
+        | false => ()
+        }
+      | None => ()
       }
     } catch {
     | exn => Log.error(~error=JsExn.fromException(exn), "FetchApiKeySettings failed")
@@ -745,27 +799,31 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
     let url = `${apiBaseUrl}/api/user/api-keys`
 
     try {
-      let response = await WebAPI.Fetch.fetch(
-        url,
-        ~init={
-          credentials: Include,
-          method: "POST",
-          headers: jsonContentHeaders(),
-          body: WebAPI.BodyInit.fromString(
-            encodeUserApiKeySaveRequest(~provider=apiKeyProviderId(provider), ~key),
-          ),
-        },
-      )
-
-      if !response.ok {
-        dispatch(
-          ApiKeySaveError({
-            provider,
-            error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
-          }),
+      switch Client__EmbeddedAuth.jsonHeaders() {
+      | Some(headers) =>
+        let response = await WebAPI.Fetch.fetch(
+          url,
+          ~init={
+            method: "POST",
+            headers,
+            body: WebAPI.BodyInit.fromString(
+              encodeUserApiKeySaveRequest(~provider=apiKeyProviderId(provider), ~key),
+            ),
+          },
         )
-      } else {
-        dispatch(ApiKeySaved({provider: provider}))
+        Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+
+        switch response.ok {
+        | false =>
+          dispatch(
+            ApiKeySaveError({
+              provider,
+              error: `HTTP ${response.status->Int.toString}: ${response.statusText}`,
+            }),
+          )
+        | true => dispatch(ApiKeySaved({provider: provider}))
+        }
+      | None => dispatch(ApiKeySaveError({provider, error: embeddedAuthRequiredError}))
       }
     } catch {
     | exn =>
@@ -777,24 +835,34 @@ let saveApiKeyImpl = (dispatch, ~apiBaseUrl, ~provider: apiKeyProvider, ~key) =>
   save()->ignore
 }
 
-let fetchCustomProvidersImpl = (dispatch, ~apiBaseUrl) => {
+let fetchCustomProvidersImpl = (dispatch, ~apiBaseUrl, ~requireAuthentication) => {
   let fetch = async () => {
     let url = `${apiBaseUrl}/api/user/custom-providers`
 
     try {
-      let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
-      if response.ok {
-        let json = await response->WebAPI.Response.json
-        let providersResponse =
-          json->S.decodeOrThrow(
-            ~from=S.json,
-            ~to=Client__State__Types.customProvidersResponseSchema,
-          )
-        dispatch(CustomProvidersReceived({providers: providersResponse.providers}))
-      } else {
-        Log.error(
-          `Custom Provider request failed: HTTP ${response.status->Int.toString}: ${response.statusText}`,
-        )
+      switch Client__EmbeddedAuth.headers() {
+      | Some(headers) =>
+        let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
+        Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+        switch response.ok {
+        | true =>
+          let json = await response->WebAPI.Response.json
+          let providersResponse =
+            json->S.decodeOrThrow(
+              ~from=S.json,
+              ~to=Client__State__Types.customProvidersResponseSchema,
+            )
+          dispatch(CustomProvidersReceived({providers: providersResponse.providers}))
+        | false =>
+          switch response.status {
+          | 401 => requireAuthentication()
+          | _ =>
+            Log.error(
+              `Custom Provider request failed: HTTP ${response.status->Int.toString}: ${response.statusText}`,
+            )
+          }
+        }
+      | None => requireAuthentication()
       }
     } catch {
     | exn =>
@@ -887,49 +955,91 @@ let customProviderMutationOperation = request =>
   | DeleteCustomProviderRequest({id}) => Client__State__Types.DeletingCustomProvider(id)
   }
 
-let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request) => {
+let dispatchCustomProviderAuthRequired = (dispatch, ~operation, ~requireAuthentication) => {
+  requireAuthentication()
+  dispatch(
+    CustomProviderMutationFailed({
+      operation,
+      error: Client__State__Types.CustomProviderNetworkError(embeddedAuthRequiredError),
+    }),
+  )
+}
+
+let handleCustomProviderMutationError = async (
+  dispatch,
+  response,
+  ~operation,
+  ~requireAuthentication,
+) =>
+  switch response.WebAPI.Response.status {
+  | 401 => dispatchCustomProviderAuthRequired(dispatch, ~operation, ~requireAuthentication)
+  | _ =>
+    let json = await response->WebAPI.Response.json
+    dispatch(
+      CustomProviderMutationFailed({
+        operation,
+        error: decodeCustomProviderMutationError(~status=response.status, ~json),
+      }),
+    )
+  }
+
+let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request, ~requireAuthentication) => {
   let run = async () => {
     let operation = customProviderMutationOperation(request)
     try {
-      let response = switch request {
+      switch request {
       | SaveCustomProviderRequest(draft) =>
-        let (url, method) = customProviderSaveTarget(~apiBaseUrl, draft)
-        await WebAPI.Fetch.fetch(
-          url,
-          ~init={
-            credentials: Include,
-            method,
-            headers: jsonContentHeaders(),
-            body: WebAPI.BodyInit.fromString(encodeCustomProviderSaveRequest(draft)),
-          },
-        )
-      | DeleteCustomProviderRequest({id, lockVersion}) =>
-        await WebAPI.Fetch.fetch(
-          customProviderDeleteUrl(~apiBaseUrl, ~id, ~lockVersion),
-          ~init={credentials: Include, method: "DELETE"},
-        )
-      }
-      if response.ok {
-        let provider = switch request {
-        | SaveCustomProviderRequest(_) =>
-          let json = await response->WebAPI.Response.json
-          let {provider} =
-            json->S.decodeOrThrow(
-              ~from=S.json,
-              ~to=Client__State__Types.customProviderResponseSchema,
+        switch Client__EmbeddedAuth.jsonHeaders() {
+        | Some(headers) =>
+          let (url, method) = customProviderSaveTarget(~apiBaseUrl, draft)
+          let response = await WebAPI.Fetch.fetch(
+            url,
+            ~init={
+              method,
+              headers,
+              body: WebAPI.BodyInit.fromString(encodeCustomProviderSaveRequest(draft)),
+            },
+          )
+          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+          switch response.ok {
+          | true =>
+            let json = await response->WebAPI.Response.json
+            let {provider} =
+              json->S.decodeOrThrow(
+                ~from=S.json,
+                ~to=Client__State__Types.customProviderResponseSchema,
+              )
+            dispatch(CustomProviderMutationSucceeded({operation, provider: Some(provider)}))
+          | false =>
+            await handleCustomProviderMutationError(
+              dispatch,
+              response,
+              ~operation,
+              ~requireAuthentication,
             )
-          Some(provider)
-        | DeleteCustomProviderRequest(_) => None
+          }
+        | None => dispatchCustomProviderAuthRequired(dispatch, ~operation, ~requireAuthentication)
         }
-        dispatch(CustomProviderMutationSucceeded({operation, provider}))
-      } else {
-        let json = await response->WebAPI.Response.json
-        dispatch(
-          CustomProviderMutationFailed({
-            operation,
-            error: decodeCustomProviderMutationError(~status=response.status, ~json),
-          }),
-        )
+      | DeleteCustomProviderRequest({id, lockVersion}) =>
+        switch Client__EmbeddedAuth.headers() {
+        | Some(headers) =>
+          let response = await WebAPI.Fetch.fetch(
+            customProviderDeleteUrl(~apiBaseUrl, ~id, ~lockVersion),
+            ~init={headers, method: "DELETE"},
+          )
+          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+          switch response.ok {
+          | true => dispatch(CustomProviderMutationSucceeded({operation, provider: None}))
+          | false =>
+            await handleCustomProviderMutationError(
+              dispatch,
+              response,
+              ~operation,
+              ~requireAuthentication,
+            )
+          }
+        | None => dispatchCustomProviderAuthRequired(dispatch, ~operation, ~requireAuthentication)
+        }
       }
     } catch {
     | exn =>
@@ -1005,17 +1115,31 @@ let handleEffect = (effect, state: state, dispatch) => {
   | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
     saveApiKeyImpl(dispatch, ~apiBaseUrl, ~provider, ~key)
-  | FetchAnthropicOAuthStatusEffect({apiBaseUrl}) =>
+  | FetchAnthropicOAuthStatusEffect({apiBaseUrl, requireAuthentication}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/status`
 
       try {
-        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
-        if response.ok {
-          let json = await response->WebAPI.Response.json
-          let {connected, expiresAt} =
-            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.oauthStatusResponseSchema)
-          dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
+        switch Client__EmbeddedAuth.headers() {
+        | Some(headers) =>
+          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
+          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+          switch response.ok {
+          | true =>
+            let json = await response->WebAPI.Response.json
+            let {connected, expiresAt} =
+              json->S.decodeOrThrow(
+                ~from=S.json,
+                ~to=Client__State__Types.oauthStatusResponseSchema,
+              )
+            dispatch(AnthropicOAuthStatusReceived({connected, expiresAt}))
+          | false =>
+            switch response.status {
+            | 401 => requireEmbeddedAuthentication(requireAuthentication)
+            | _ => ()
+            }
+          }
+        | None => requireEmbeddedAuthentication(requireAuthentication)
         }
       } catch {
       | _ => dispatch(AnthropicOAuthError({error: "Failed to fetch OAuth status"}))
@@ -1023,22 +1147,31 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     fetch()->ignore
 
-  | GetAnthropicOAuthUrlEffect({apiBaseUrl}) =>
+  | GetAnthropicOAuthUrlEffect({apiBaseUrl, requireAuthentication}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/authorize-url`
 
       try {
-        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
-        if response.ok {
-          let json = await response->WebAPI.Response.json
-          let {authorizeUrl, verifier} =
-            json->S.decodeOrThrow(
-              ~from=S.json,
-              ~to=Client__State__Types.anthropicOAuthAuthorizeUrlResponseSchema,
-            )
-          dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
-        } else {
-          dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
+        switch Client__EmbeddedAuth.headers() {
+        | Some(headers) =>
+          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
+          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+          switch response.ok {
+          | true =>
+            let json = await response->WebAPI.Response.json
+            let {authorizeUrl, verifier} =
+              json->S.decodeOrThrow(
+                ~from=S.json,
+                ~to=Client__State__Types.anthropicOAuthAuthorizeUrlResponseSchema,
+              )
+            dispatch(AnthropicOAuthUrlReceived({authorizeUrl, verifier}))
+          | false =>
+            switch response.status {
+            | 401 => requireEmbeddedAuthentication(requireAuthentication)
+            | _ => dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
+            }
+          }
+        | None => requireEmbeddedAuthentication(requireAuthentication)
         }
       } catch {
       | _ => dispatch(AnthropicOAuthError({error: "Failed to get authorization URL"}))
@@ -1046,7 +1179,7 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     fetch()->ignore
 
-  | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier}) =>
+  | ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier, requireAuthentication}) =>
     let exchange = async () => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/exchange`
 
@@ -1057,31 +1190,40 @@ let handleEffect = (effect, state: state, dispatch) => {
             ("verifier", JSON.Encode.string(verifier)),
           ]),
         )
-        let response = await WebAPI.Fetch.fetch(
-          url,
-          ~init={
-            method: "POST",
-            credentials: Include,
-            headers: jsonContentHeaders(),
-            body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
-          },
-        )
-        if response.ok {
-          let json = await response->WebAPI.Response.json
-          let {expiresAt} =
-            json->S.decodeOrThrow(
-              ~from=S.json,
-              ~to=Client__State__Types.anthropicOAuthExchangeResponseSchema,
-            )
-          dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
-        } else {
-          let json = await response->WebAPI.Response.json
-          let {error} =
-            json->S.decodeOrThrow(
-              ~from=S.json,
-              ~to=Client__State__Types.anthropicOAuthErrorResponseSchema,
-            )
-          dispatch(AnthropicOAuthError({error: error}))
+        switch Client__EmbeddedAuth.jsonHeaders() {
+        | Some(headers) =>
+          let response = await WebAPI.Fetch.fetch(
+            url,
+            ~init={
+              method: "POST",
+              headers,
+              body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
+            },
+          )
+          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+          switch response.ok {
+          | true =>
+            let json = await response->WebAPI.Response.json
+            let {expiresAt} =
+              json->S.decodeOrThrow(
+                ~from=S.json,
+                ~to=Client__State__Types.anthropicOAuthExchangeResponseSchema,
+              )
+            dispatch(AnthropicOAuthConnected({expiresAt: expiresAt}))
+          | false =>
+            switch response.status {
+            | 401 => requireEmbeddedAuthentication(requireAuthentication)
+            | _ =>
+              let json = await response->WebAPI.Response.json
+              let {error} =
+                json->S.decodeOrThrow(
+                  ~from=S.json,
+                  ~to=Client__State__Types.anthropicOAuthErrorResponseSchema,
+                )
+              dispatch(AnthropicOAuthError({error: error}))
+            }
+          }
+        | None => requireEmbeddedAuthentication(requireAuthentication)
         }
       } catch {
       | _ => dispatch(AnthropicOAuthError({error: "Failed to exchange authorization code"}))
@@ -1089,22 +1231,24 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     exchange()->ignore
 
-  | DisconnectAnthropicOAuthEffect({apiBaseUrl}) =>
+  | DisconnectAnthropicOAuthEffect({apiBaseUrl, requireAuthentication}) =>
     let disconnect = async () => {
       let url = `${apiBaseUrl}/api/oauth/anthropic/disconnect`
 
       try {
-        let response = await WebAPI.Fetch.fetch(
-          url,
-          ~init={
-            method: "DELETE",
-            credentials: Include,
-          },
-        )
-        if response.ok {
-          dispatch(AnthropicOAuthDisconnected)
-        } else {
-          dispatch(AnthropicOAuthError({error: "Failed to disconnect"}))
+        switch Client__EmbeddedAuth.headers() {
+        | Some(headers) =>
+          let response = await WebAPI.Fetch.fetch(url, ~init={method: "DELETE", headers})
+          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+          switch response.ok {
+          | true => dispatch(AnthropicOAuthDisconnected)
+          | false =>
+            switch response.status {
+            | 401 => requireEmbeddedAuthentication(requireAuthentication)
+            | _ => dispatch(AnthropicOAuthError({error: "Failed to disconnect"}))
+            }
+          }
+        | None => requireEmbeddedAuthentication(requireAuthentication)
         }
       } catch {
       | _ => dispatch(AnthropicOAuthError({error: "Failed to disconnect"}))
@@ -1112,17 +1256,31 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     disconnect()->ignore
 
-  | FetchOpenAIOAuthStatusEffect({apiBaseUrl}) =>
+  | FetchOpenAIOAuthStatusEffect({apiBaseUrl, requireAuthentication}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/openai/status`
 
       try {
-        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
-        if response.ok {
-          let json = await response->WebAPI.Response.json
-          let {connected, expiresAt} =
-            json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.oauthStatusResponseSchema)
-          dispatch(OpenAIOAuthStatusReceived({connected, expiresAt}))
+        switch Client__EmbeddedAuth.headers() {
+        | Some(headers) =>
+          let response = await WebAPI.Fetch.fetch(url, ~init={headers: headers})
+          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+          switch response.ok {
+          | true =>
+            let json = await response->WebAPI.Response.json
+            let {connected, expiresAt} =
+              json->S.decodeOrThrow(
+                ~from=S.json,
+                ~to=Client__State__Types.oauthStatusResponseSchema,
+              )
+            dispatch(OpenAIOAuthStatusReceived({connected, expiresAt}))
+          | false =>
+            switch response.status {
+            | 401 => requireEmbeddedAuthentication(requireAuthentication)
+            | _ => ()
+            }
+          }
+        | None => requireEmbeddedAuthentication(requireAuthentication)
         }
       } catch {
       | _ =>
@@ -1133,31 +1291,34 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     fetch()->ignore
 
-  | InitiateOpenAIDeviceAuthEffect({apiBaseUrl}) =>
+  | InitiateOpenAIDeviceAuthEffect({apiBaseUrl, requireAuthentication}) =>
     let fetch = async () => {
       let url = `${apiBaseUrl}/api/oauth/openai/initiate`
 
       try {
-        let response = await WebAPI.Fetch.fetch(
-          url,
-          ~init={
-            method: "POST",
-            credentials: Include,
-            headers: jsonContentHeaders(),
-          },
-        )
-        if response.ok {
-          let json = await response->WebAPI.Response.json
-          let {deviceAuthId, userCode, verificationUrl} =
-            json->S.decodeOrThrow(
-              ~from=S.json,
-              ~to=Client__State__Types.openAIDeviceAuthResponseSchema,
-            )
-          dispatch(OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
-        } else {
-          dispatch(
-            OpenAIOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
-          )
+        switch Client__EmbeddedAuth.jsonHeaders() {
+        | Some(headers) =>
+          let response = await WebAPI.Fetch.fetch(url, ~init={method: "POST", headers})
+          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+          switch response.ok {
+          | true =>
+            let json = await response->WebAPI.Response.json
+            let {deviceAuthId, userCode, verificationUrl} =
+              json->S.decodeOrThrow(
+                ~from=S.json,
+                ~to=Client__State__Types.openAIDeviceAuthResponseSchema,
+              )
+            dispatch(OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}))
+          | false =>
+            switch response.status {
+            | 401 => requireEmbeddedAuthentication(requireAuthentication)
+            | _ =>
+              dispatch(
+                OpenAIOAuthError({deviceAuthId: None, error: "Failed to initiate authentication"}),
+              )
+            }
+          }
+        | None => requireEmbeddedAuthentication(requireAuthentication)
         }
       } catch {
       | _ =>
@@ -1166,7 +1327,7 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     fetch()->ignore
 
-  | PollOpenAIDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode}) =>
+  | PollOpenAIDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode, requireAuthentication}) =>
     let poll = async () => {
       let maxAttempts = 180
       let intervalMs = 5000
@@ -1176,61 +1337,66 @@ let handleEffect = (effect, state: state, dispatch) => {
           "user_code": userCode,
         },
       )->Option.getOr("{}")
+      let waitForNextPoll = () =>
+        Promise.make((resolve, _) => {
+          let _ = setTimeout(() => resolve(), intervalMs)
+        })
       let rec pollLoop = async attempt => {
-        if attempt >= maxAttempts {
+        switch attempt < maxAttempts {
+        | false =>
           dispatch(
             OpenAIOAuthError({
               deviceAuthId: Some(deviceAuthId),
               error: "Authorization timed out. Please try again.",
             }),
           )
-        } else {
+        | true =>
           try {
             let url = `${apiBaseUrl}/api/oauth/openai/poll`
-            let response = await WebAPI.Fetch.fetch(
-              url,
-              ~init={
-                method: "POST",
-                credentials: Include,
-                headers: jsonContentHeaders(),
-                body: WebAPI.BodyInit.fromString(body),
-              },
-            )
-            if response.ok {
-              let json = await response->WebAPI.Response.json
-              let {status, expiresAt} =
-                json->S.decodeOrThrow(
-                  ~from=S.json,
-                  ~to=Client__State__Types.openAIDeviceAuthPollResponseSchema,
+            switch Client__EmbeddedAuth.jsonHeaders() {
+            | Some(headers) =>
+              let response = await WebAPI.Fetch.fetch(
+                url,
+                ~init={
+                  method: "POST",
+                  headers,
+                  body: WebAPI.BodyInit.fromString(body),
+                },
+              )
+              Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+              switch (response.ok, response.status) {
+              | (true, _) =>
+                let json = await response->WebAPI.Response.json
+                let {status, expiresAt} =
+                  json->S.decodeOrThrow(
+                    ~from=S.json,
+                    ~to=Client__State__Types.openAIDeviceAuthPollResponseSchema,
+                  )
+                switch status {
+                | Client__State__Types.DeviceAuthConnected =>
+                  let expiresAt = expiresAt->Option.getOrThrow
+                  dispatch(OpenAIOAuthConnected({deviceAuthId, expiresAt}))
+                | Client__State__Types.DeviceAuthPending =>
+                  await waitForNextPoll()
+                  await pollLoop(attempt + 1)
+                }
+              | (false, 401) => requireEmbeddedAuthentication(requireAuthentication)
+              | (false, 403) =>
+                dispatch(
+                  OpenAIOAuthError({
+                    deviceAuthId: Some(deviceAuthId),
+                    error: "Authorization was declined.",
+                  }),
                 )
-              switch status {
-              | Client__State__Types.DeviceAuthConnected =>
-                let expiresAt = expiresAt->Option.getOrThrow
-                dispatch(OpenAIOAuthConnected({deviceAuthId, expiresAt}))
-              | Client__State__Types.DeviceAuthPending =>
-                await Promise.make((resolve, _) => {
-                  let _ = setTimeout(() => resolve(), intervalMs)
-                })
+              | (false, _) =>
+                await waitForNextPoll()
                 await pollLoop(attempt + 1)
               }
-            } else if response.status == 403 {
-              dispatch(
-                OpenAIOAuthError({
-                  deviceAuthId: Some(deviceAuthId),
-                  error: "Authorization was declined.",
-                }),
-              )
-            } else {
-              await Promise.make((resolve, _) => {
-                let _ = setTimeout(() => resolve(), intervalMs)
-              })
-              await pollLoop(attempt + 1)
+            | None => requireEmbeddedAuthentication(requireAuthentication)
             }
           } catch {
           | _ =>
-            await Promise.make((resolve, _) => {
-              let _ = setTimeout(() => resolve(), intervalMs)
-            })
+            await waitForNextPoll()
             await pollLoop(attempt + 1)
           }
         }
@@ -1239,22 +1405,24 @@ let handleEffect = (effect, state: state, dispatch) => {
     }
     poll()->ignore
 
-  | DisconnectOpenAIOAuthEffect({apiBaseUrl}) =>
+  | DisconnectOpenAIOAuthEffect({apiBaseUrl, requireAuthentication}) =>
     let disconnect = async () => {
       let url = `${apiBaseUrl}/api/oauth/openai/disconnect`
 
       try {
-        let response = await WebAPI.Fetch.fetch(
-          url,
-          ~init={
-            method: "DELETE",
-            credentials: Include,
-          },
-        )
-        if response.ok {
-          dispatch(OpenAIOAuthDisconnected)
-        } else {
-          dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
+        switch Client__EmbeddedAuth.headers() {
+        | Some(headers) =>
+          let response = await WebAPI.Fetch.fetch(url, ~init={method: "DELETE", headers})
+          Client__EmbeddedAuth.clearTokenOnUnauthorized(response)
+          switch response.ok {
+          | true => dispatch(OpenAIOAuthDisconnected)
+          | false =>
+            switch response.status {
+            | 401 => requireEmbeddedAuthentication(requireAuthentication)
+            | _ => dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
+            }
+          }
+        | None => requireEmbeddedAuthentication(requireAuthentication)
         }
       } catch {
       | _ => dispatch(OpenAIOAuthError({deviceAuthId: None, error: "Failed to disconnect"}))
@@ -1296,7 +1464,7 @@ let handleEffect = (effect, state: state, dispatch) => {
     let fetch = async () => {
       try {
         let url = `${apiBaseUrl}/api/integrations/latest-versions`
-        let response = await WebAPI.Fetch.fetch(url, ~init={credentials: Include})
+        let response = await WebAPI.Fetch.fetch(url)
         switch response.ok {
         | false =>
           Sentry.captureConnectionError(
@@ -1340,9 +1508,10 @@ let handleEffect = (effect, state: state, dispatch) => {
       ~onFailed=() => dispatch(ShareFrontmanFailed),
     )
 
-  | FetchCustomProvidersEffect({apiBaseUrl}) => fetchCustomProvidersImpl(dispatch, ~apiBaseUrl)
-  | CustomProviderMutationEffect({apiBaseUrl, request}) =>
-    customProviderMutationImpl(dispatch, ~apiBaseUrl, ~request)
+  | FetchCustomProvidersEffect({apiBaseUrl, requireAuthentication}) =>
+    fetchCustomProvidersImpl(dispatch, ~apiBaseUrl, ~requireAuthentication)
+  | CustomProviderMutationEffect({apiBaseUrl, request, requireAuthentication}) =>
+    customProviderMutationImpl(dispatch, ~apiBaseUrl, ~request, ~requireAuthentication)
   }
 }
 
@@ -1385,17 +1554,19 @@ let startCustomProviderMutation = (state: state, request) => {
   switch state.customProviderMutation {
   | CustomProviderMutationIdle =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       {
         ...state,
         customProviderMutation: CustomProviderMutationPending(operation),
-      }->StateReducer.update(~sideEffects=[CustomProviderMutationEffect({apiBaseUrl, request})])
+      }->StateReducer.update(
+        ~sideEffects=[CustomProviderMutationEffect({apiBaseUrl, request, requireAuthentication})],
+      )
     | NoAcpSession =>
       {
         ...state,
         customProviderMutation: CustomProviderMutationFailed({
           operation,
-          error: CustomProviderNetworkError("No active ACP session"),
+          error: CustomProviderNetworkError(embeddedAuthRequiredError),
         }),
       }->StateReducer.update
     }
@@ -1558,7 +1729,15 @@ let next = (state: state, action) => {
     | None => state->StateReducer.update
     }
 
-  | SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}) =>
+  | SetAcpSession({
+      sendPrompt,
+      cancelPrompt,
+      retryTurn,
+      loadTask,
+      deleteSession,
+      requireAuthentication,
+      apiBaseUrl,
+    }) =>
     {
       ...state,
       acpSession: AcpSessionActive({
@@ -1567,6 +1746,7 @@ let next = (state: state, action) => {
         retryTurn,
         loadTask,
         deleteSession,
+        requireAuthentication,
         apiBaseUrl,
       }),
     }->StateReducer.update
@@ -1699,12 +1879,12 @@ let next = (state: state, action) => {
 
   | FetchAnthropicOAuthStatus =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.FetchingStatus,
       }->StateReducer.update(
-        ~sideEffects=[FetchAnthropicOAuthStatusEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[FetchAnthropicOAuthStatusEffect({apiBaseUrl, requireAuthentication})],
       )
     | NoAcpSession => state->StateReducer.update
     }
@@ -1721,9 +1901,9 @@ let next = (state: state, action) => {
 
   | InitiateAnthropicOAuth =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       state->StateReducer.update(
-        ~sideEffects=[GetAnthropicOAuthUrlEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[GetAnthropicOAuthUrlEffect({apiBaseUrl, requireAuthentication})],
       )
     | NoAcpSession => state->StateReducer.update
     }
@@ -1736,13 +1916,20 @@ let next = (state: state, action) => {
 
   | ExchangeAnthropicOAuthCode({code, verifier}) =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       {
         ...state,
         anthropicOAuthStatus: Client__State__Types.Exchanging,
         pendingProviderAutoSelect: Some("anthropic"),
       }->StateReducer.update(
-        ~sideEffects=[ExchangeAnthropicOAuthCodeEffect({apiBaseUrl, code, verifier})],
+        ~sideEffects=[
+          ExchangeAnthropicOAuthCodeEffect({
+            apiBaseUrl,
+            code,
+            verifier,
+            requireAuthentication,
+          }),
+        ],
       )
     | NoAcpSession => state->StateReducer.update
     }
@@ -1763,9 +1950,9 @@ let next = (state: state, action) => {
 
   | DisconnectAnthropicOAuth =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       state->StateReducer.update(
-        ~sideEffects=[DisconnectAnthropicOAuthEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[DisconnectAnthropicOAuthEffect({apiBaseUrl, requireAuthentication})],
       )
     | NoAcpSession => state->StateReducer.update
     }
@@ -1794,11 +1981,13 @@ let next = (state: state, action) => {
 
   | FetchOpenAIOAuthStatus =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       {
         ...state,
         openaiOAuthStatus: Client__State__Types.OpenAIFetchingStatus,
-      }->StateReducer.update(~sideEffects=[FetchOpenAIOAuthStatusEffect({apiBaseUrl: apiBaseUrl})])
+      }->StateReducer.update(
+        ~sideEffects=[FetchOpenAIOAuthStatusEffect({apiBaseUrl, requireAuthentication})],
+      )
     | NoAcpSession => state->StateReducer.update
     }
 
@@ -1814,20 +2003,20 @@ let next = (state: state, action) => {
 
   | InitiateOpenAIOAuth =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       {
         ...state,
         openaiOAuthStatus: Client__State__Types.OpenAIWaitingForCode,
         pendingProviderAutoSelect: Some("openai_codex"),
       }->StateReducer.update(
-        ~sideEffects=[InitiateOpenAIDeviceAuthEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[InitiateOpenAIDeviceAuthEffect({apiBaseUrl, requireAuthentication})],
       )
     | NoAcpSession => state->StateReducer.update
     }
 
   | OpenAIDeviceCodeReceived({deviceAuthId, userCode, verificationUrl}) =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       {
         ...state,
         openaiOAuthStatus: Client__State__Types.OpenAIShowingCode({
@@ -1836,7 +2025,14 @@ let next = (state: state, action) => {
           verificationUrl,
         }),
       }->StateReducer.update(
-        ~sideEffects=[PollOpenAIDeviceAuthEffect({apiBaseUrl, deviceAuthId, userCode})],
+        ~sideEffects=[
+          PollOpenAIDeviceAuthEffect({
+            apiBaseUrl,
+            deviceAuthId,
+            userCode,
+            requireAuthentication,
+          }),
+        ],
       )
     | NoAcpSession =>
       {
@@ -1882,9 +2078,9 @@ let next = (state: state, action) => {
 
   | DisconnectOpenAIOAuth =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       state->StateReducer.update(
-        ~sideEffects=[DisconnectOpenAIOAuthEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[DisconnectOpenAIOAuthEffect({apiBaseUrl, requireAuthentication})],
       )
     | NoAcpSession => state->StateReducer.update
     }
@@ -1997,9 +2193,9 @@ let next = (state: state, action) => {
 
   | FetchCustomProviders =>
     switch state.acpSession {
-    | AcpSessionActive({apiBaseUrl}) =>
+    | AcpSessionActive({apiBaseUrl, requireAuthentication}) =>
       state->StateReducer.update(
-        ~sideEffects=[FetchCustomProvidersEffect({apiBaseUrl: apiBaseUrl})],
+        ~sideEffects=[FetchCustomProvidersEffect({apiBaseUrl, requireAuthentication})],
       )
     | NoAcpSession => state->StateReducer.update
     }

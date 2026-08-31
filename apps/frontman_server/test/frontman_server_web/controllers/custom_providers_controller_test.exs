@@ -5,7 +5,14 @@
 defmodule FrontmanServerWeb.CustomProvidersControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
 
-  setup :register_and_log_in_user
+  alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
+
+  setup %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    conn = put_embedded_client_bearer(conn, user)
+
+    %{conn: conn, user: user}
+  end
 
   test "creates and lists sanitized aggregates", %{conn: conn} do
     secret = "sk-custom-secret-value"
@@ -23,9 +30,20 @@ defmodule FrontmanServerWeb.CustomProvidersControllerTest do
     refute conn.resp_body =~ secret
   end
 
-  test "requires authentication" do
+  test "requires bearer authentication", %{user: user} do
     conn =
-      post(build_conn(), ~p"/api/user/custom-providers", %{
+      build_conn()
+      |> post(~p"/api/user/custom-providers", %{
+        "name" => "vLLM",
+        "base_url" => "http://93.184.216.34:8000/v1"
+      })
+
+    assert json_response(conn, 401)["error"] == "authentication_required"
+
+    conn =
+      build_conn()
+      |> log_in_user(user)
+      |> post(~p"/api/user/custom-providers", %{
         "name" => "vLLM",
         "base_url" => "http://93.184.216.34:8000/v1"
       })

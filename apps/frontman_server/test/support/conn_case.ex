@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.ConnCase do
 
   use ExUnit.CaseTemplate
 
+  alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
 
   using do
@@ -62,13 +63,23 @@ defmodule FrontmanServerWeb.ConnCase do
   It returns an updated `conn`.
   """
   def log_in_user(conn, user, opts \\ []) do
-    token = FrontmanServer.Accounts.generate_user_session_token(user)
+    token = Accounts.generate_user_session_token(user)
 
     maybe_set_token_authenticated_at(token, opts[:token_authenticated_at])
 
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
     |> Plug.Conn.put_session(:user_token, token)
+  end
+
+  @doc """
+  Adds a valid embedded client bearer token for the given user.
+  """
+  def put_embedded_client_bearer(conn, user, approved_origin \\ "https://customer.example") do
+    token = Accounts.generate_embedded_client_token(user, approved_origin)
+
+    conn
+    |> Plug.Conn.put_req_header("authorization", "Bearer #{token}")
   end
 
   defp maybe_set_token_authenticated_at(_token, nil), do: nil

@@ -1,0 +1,21 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <section class="mx-auto max-w-lg space-y-6 text-center">
+    <div class="space-y-3">
+      <h1 class="font-headings text-3xl font-bold tracking-tight text-base-content">
+        Authorize Frontman
+      </h1>
+      <p class="text-sm leading-6 text-base-content/70">
+        Allow this site to connect to your Frontman account:
+      </p>
+      <p class="rounded-box border border-base-300 bg-base-200 p-4 font-mono text-sm text-base-content">
+        {@origin}
+      </p>
+    </div>
+
+    <.form for={%{}} action={~p"/users/popup-complete"} method="post">
+      <button type="submit" class="btn btn-primary btn-lg btn-block">
+        Allow this site
+      </button>
+    </.form>
+  </section>
+</Layouts.app>

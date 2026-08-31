@@ -13,40 +13,28 @@ defmodule FrontmanServerWeb.UserSocket do
   channel "tasks", FrontmanServerWeb.TasksChannel
   channel "task:*", FrontmanServerWeb.TaskChannel
 
-  @max_age 14 * 24 * 60 * 60
+  @impl true
+  def connect(_params, socket, %{auth_token: token}) when is_binary(token) do
+    case Accounts.get_scope_by_embedded_client_token(token) do
+      {%Scope{} = scope, token_id} when is_binary(token_id) ->
+        Accounts.touch_embedded_client_token(token_id)
+
+        {:ok,
+         socket
+         |> assign(:scope, scope)
+         |> assign(:embedded_client_token_id, token_id)}
+
+      nil ->
+        :error
+    end
+  end
+
+  def connect(_params, _socket, _connect_info), do: :error
 
   @impl true
-  def connect(params, socket, connect_info) do
-    scope =
-      get_scope_from_token(params) ||
-        get_scope_from_session(connect_info)
-
-    case scope do
-      %Scope{} -> {:ok, assign(socket, :scope, scope)}
-      nil -> {:ok, socket}
-    end
+  def id(%{assigns: %{embedded_client_token_id: token_id}}) when is_binary(token_id) do
+    "client_token:#{token_id}"
   end
 
-  defp get_scope_from_token(%{"token" => token}) do
-    case Phoenix.Token.verify(FrontmanServerWeb.Endpoint, "user socket", token, max_age: @max_age) do
-      {:ok, user_id} -> Accounts.get_user!(user_id) |> Scope.for_user()
-      _ -> nil
-    end
-  rescue
-    Ecto.NoResultsError -> nil
-  end
-
-  defp get_scope_from_token(_), do: nil
-
-  defp get_scope_from_session(connect_info) do
-    with %{"user_token" => token} <- connect_info[:session],
-         {user, _} <- Accounts.get_user_by_session_token(token) do
-      Scope.for_user(user)
-    else
-      _ -> nil
-    end
-  end
-
-  @impl true
   def id(_socket), do: nil
 end

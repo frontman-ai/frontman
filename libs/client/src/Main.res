@@ -18,7 +18,6 @@ external asReactElement: WebAPI.DomTypes.element => Dom.element = "%identity"
 type clientConfig = {
   clientName: string,
   endpoint: string,
-  tokenUrl: string,
   loginUrl: string,
   apiBaseUrl: string,
 }
@@ -39,7 +38,6 @@ let getConfig = (): clientConfig => {
   {
     clientName: get("clientName")->Option.getOr("unknown"),
     endpoint: `wss://${host}/socket`,
-    tokenUrl: `https://${host}/api/socket-token`,
     loginUrl: `https://${host}/users/log-in`,
     apiBaseUrl: `https://${host}`,
   }
@@ -59,10 +57,7 @@ WebAPI.Window.current
     root->ReactDOM.Client.Root.render(
       <React.StrictMode>
         <Client__FrontmanProvider.Provider
-          clientName={config.clientName}
-          endpoint={config.endpoint}
-          tokenUrl={config.tokenUrl}
-          loginUrl={config.loginUrl}
+          clientName={config.clientName} endpoint={config.endpoint} loginUrl={config.loginUrl}
         >
           <Client__App apiBaseUrl={config.apiBaseUrl} />
         </Client__FrontmanProvider.Provider>

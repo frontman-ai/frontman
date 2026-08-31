@@ -96,6 +96,7 @@ type contextValue = {
   relay: option<Relay.t>,
   authRedirectUrl: option<string>,
   beginAuthenticationRetry: unit => unit,
+  requireAuthentication: unit => unit,
   beginLogout: unit => unit,
   createSession: (~onComplete: result<string, string> => unit) => unit,
   clearSession: unit => unit,
@@ -117,6 +118,7 @@ let defaultContextValue: contextValue = {
   relay: None,
   authRedirectUrl: None,
   beginAuthenticationRetry: () => (),
+  requireAuthentication: () => (),
   beginLogout: () => (),
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
@@ -139,7 +141,6 @@ module Provider = {
   @react.component
   let make = (
     ~endpoint: string,
-    ~tokenUrl: string,
     ~loginUrl: string,
     ~clientName: string="frontman-client",
     ~clientVersion: string="1.0.0",
@@ -175,7 +176,6 @@ module Provider = {
 
       let config: Reducer.initConfig = {
         endpoint,
-        tokenUrl,
         loginUrl,
         clientName,
         clientVersion,
@@ -382,6 +382,10 @@ module Provider = {
     let beginAuthenticationRetry = React.useCallback1(() => {
       dispatch(BeginAuthenticationRetry)
     }, [dispatch])
+    let requireAuthentication = React.useCallback1(
+      () => dispatch(RequireAuthentication),
+      [dispatch],
+    )
     let beginLogout = React.useCallback1(() => dispatch(BeginLogout), [dispatch])
 
     let contextValue: contextValue = {
@@ -390,6 +394,7 @@ module Provider = {
       relay: state.relayInstance,
       authRedirectUrl,
       beginAuthenticationRetry,
+      requireAuthentication,
       beginLogout,
       createSession,
       clearSession,

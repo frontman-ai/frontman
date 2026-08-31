@@ -7,10 +7,16 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
   alias FrontmanServer.Providers
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
-  describe "POST /api/user/api-keys" do
-    setup :register_and_log_in_user
+  setup %{conn: conn} do
+    user = AccountsFixtures.user_fixture()
+    scope = Scope.for_user(user)
+    conn = put_embedded_client_bearer(conn, user)
 
-    test "stores provider key for logged-in user", %{conn: conn, user: user} do
+    %{conn: conn, user: user, scope: scope}
+  end
+
+  describe "POST /api/user/api-keys" do
+    test "stores provider key for bearer-authenticated user", %{conn: conn, user: user} do
       params = %{"provider" => "openrouter", "key" => "sk-test-123"}
 
       conn = post(conn, ~p"/api/user/api-keys", params)
@@ -27,7 +33,7 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert llm_opts[:api_key] == "sk-test-123"
     end
 
-    test "stores Fireworks keys for logged-in user", %{conn: conn, user: user} do
+    test "stores Fireworks keys for bearer-authenticated user", %{conn: conn, user: user} do
       params = %{"provider" => "fireworks_ai", "key" => "sk-fireworks-test-123"}
 
       conn = post(conn, ~p"/api/user/api-keys", params)
@@ -75,18 +81,25 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert other_llm_opts[:api_key] == "sk-fireworks-other-user"
     end
 
-    test "returns unauthorized without user" do
+    test "returns unauthorized without bearer token" do
       conn = build_conn()
       conn = post(conn, ~p"/api/user/api-keys", %{provider: "openrouter", key: "sk-test"})
       response = json_response(conn, 401)
 
       assert response["error"] == "authentication_required"
     end
+
+    test "returns unauthorized for session-only authentication", %{user: user} do
+      conn =
+        build_conn()
+        |> log_in_user(user)
+        |> post(~p"/api/user/api-keys", %{provider: "openrouter", key: "sk-test"})
+
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
   end
 
   describe "GET /api/user/api-keys" do
-    setup :register_and_log_in_user
-
     test "returns saved key metadata", %{conn: conn} do
       conn = get(conn, ~p"/api/user/api-keys")
       response = json_response(conn, 200)
@@ -104,7 +117,7 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert response["providers"] == ["fireworks_ai"]
     end
 
-    test "returns saved key providers for the logged-in user only", %{conn: conn} do
+    test "returns saved key providers for the bearer-authenticated user only", %{conn: conn} do
       other_user = AccountsFixtures.user_fixture()
       other_scope = Scope.for_user(other_user)
       :ok = Providers.upsert_api_key(other_scope, "fireworks_ai", "sk-fireworks-other-user")
@@ -115,12 +128,21 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       assert response["providers"] == []
     end
 
-    test "returns unauthorized without user" do
+    test "returns unauthorized without bearer token" do
       conn = build_conn()
       conn = get(conn, ~p"/api/user/api-keys")
       response = json_response(conn, 401)
 
       assert response["error"] == "authentication_required"
+    end
+
+    test "returns unauthorized for session-only authentication", %{user: user} do
+      conn =
+        build_conn()
+        |> log_in_user(user)
+        |> get(~p"/api/user/api-keys")
+
+      assert json_response(conn, 401)["error"] == "authentication_required"
     end
   end
 end

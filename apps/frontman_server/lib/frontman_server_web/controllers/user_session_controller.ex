@@ -9,6 +9,8 @@ defmodule FrontmanServerWeb.UserSessionController do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Frameworks
+  alias FrontmanServerWeb.EmbeddedClientAuth
+  alias FrontmanServerWeb.EmbeddedClientOrigin
   alias FrontmanServerWeb.UserAuth
 
   def new(conn, params) do
@@ -20,7 +22,10 @@ defmodule FrontmanServerWeb.UserSessionController do
       |> maybe_put_user_return_to(params["return_to"])
       |> maybe_put_signup_framework(params["framework"])
 
-    render(conn, :new, form: form)
+    case put_embedded_client_auth_request(conn, params) do
+      {:ok, conn} -> render(conn, :new, form: form)
+      {:error, conn} -> conn
+    end
   end
 
   def create(conn, %{"user" => %{"token" => token} = user_params} = params) do
@@ -98,8 +103,6 @@ defmodule FrontmanServerWeb.UserSessionController do
     render(conn, :confirm_logout, return_to: params["return_to"])
   end
 
-  def popup_complete(conn, _params), do: render(conn, :popup_complete)
-
   def delete(conn, params) do
     conn
     |> put_flash(:info, "Logged out successfully.")
@@ -122,4 +125,32 @@ defmodule FrontmanServerWeb.UserSessionController do
   end
 
   defp maybe_put_signup_framework(conn, _), do: delete_session(conn, :signup_framework)
+
+  defp put_embedded_client_auth_request(conn, %{
+         "embedded_state" => state,
+         "embedded_origin" => origin
+       })
+       when is_binary(state) and byte_size(state) > 0 and is_binary(origin) do
+    case EmbeddedClientOrigin.normalize(origin) do
+      {:ok, normalized_origin} ->
+        conn =
+          put_session(conn, EmbeddedClientAuth.pending_session_key(), %{
+            "state" => state,
+            "origin" => normalized_origin
+          })
+
+        {:ok, conn}
+
+      {:error, :invalid_origin} ->
+        conn =
+          conn
+          |> put_resp_content_type("text/plain")
+          |> send_resp(:bad_request, "Invalid embedded origin")
+          |> halt()
+
+        {:error, conn}
+    end
+  end
+
+  defp put_embedded_client_auth_request(conn, _params), do: {:ok, conn}
 end

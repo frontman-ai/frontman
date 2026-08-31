@@ -8,6 +8,7 @@ type socketOptions = {
   heartbeatIntervalMs?: int,
   reconnectAfterMs?: int => int,
   params?: Dict.t<string>,
+  authToken?: string,
 }
 
 @module("phoenix") @new
