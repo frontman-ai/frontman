@@ -88,7 +88,7 @@ defmodule FrontmanServer.MixProject do
       {:zoi, "~> 0.14"},
       {:dotenvy, "~> 1.1"},
       {:sentry, "~> 13.0"},
-      {:workos, "~> 2.0"},
+      {:workos, "~> 3.0"},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
