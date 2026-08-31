@@ -2393,7 +2393,7 @@ __metadata:
     diff: "npm:^9.0.0"
     dom-accessibility-api: "npm:^0.7.1"
     dom-element-to-component-source: "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb"
-    lucide-react: "npm:^1.26.0"
+    lucide-react: "npm:^1.28.0"
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
     rescript: "catalog:"
@@ -12984,12 +12984,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^1.26.0":
-  version: 1.26.0
-  resolution: "lucide-react@npm:1.26.0"
+"lucide-react@npm:^1.28.0":
+  version: 1.28.0
+  resolution: "lucide-react@npm:1.28.0"
   peerDependencies:
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/018125879059e926ba2fe441295237331e563923e0ee80f1d3aeb25edccd6cf71f50a16aa7c447c4da5c33f5ecaf05a81f4475a634a7fa6055b3c8a6710149f0
+  checksum: 10c0/7a18911a68d6227865ca03120e3423665478131648ffbd47d62b242ef25a5982c6312ca7041b5a4d60cf0d8ea66d0f97f50dbe848ae60ab0143471da41ef057e
   languageName: node
   linkType: hard
 
