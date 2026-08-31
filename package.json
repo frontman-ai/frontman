@@ -37,6 +37,7 @@
 		"libs/react-statestore"
 	],
 	"dependencies": {
+		"cookie": "^2.0.1",
 		"rescript": "catalog:"
 	},
 	"resolutions_comment": "Minimal security overrides for transitive deps whose upstream ranges still resolve vulnerable versions.",
