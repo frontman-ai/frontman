@@ -2592,7 +2592,7 @@ __metadata:
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
     rescript: "catalog:"
-    sentry-testkit: "npm:^6.4.0"
+    sentry-testkit: "npm:^7.2.1"
   languageName: unknown
   linkType: soft
 
@@ -16883,13 +16883,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sentry-testkit@npm:^6.4.0":
-  version: 6.4.1
-  resolution: "sentry-testkit@npm:6.4.1"
+"sentry-testkit@npm:^7.2.1":
+  version: 7.2.1
+  resolution: "sentry-testkit@npm:7.2.1"
   dependencies:
     body-parser: "npm:^1.20.3"
     express: "npm:^4.21.2"
-  checksum: 10c0/3b143d3c579b12d3389df25b5f565b327f28b64064a02627387bf903ec4d583297f97db36d87575da1e306b8f4095fd92ddaf8422e9299a07e202fe3df51ca93
+  checksum: 10c0/c00e5d97d8a124566ea730d2a3875011cb086978142a8620575811266db1e25701e6b344a30aa5bef0def140da708205465dd4726fe2253f602fa2b812354b14
   languageName: node
   linkType: hard
 
