@@ -24,6 +24,11 @@ defmodule FrontmanServerWeb.EmbeddedClientOriginTest do
                {:ok, "http://localhost:3000"}
     end
 
+    test "brackets IPv6 localhost origins" do
+      assert EmbeddedClientOrigin.normalize("http://[::1]:3000") ==
+               {:ok, "http://[::1]:3000"}
+    end
+
     test "rejects non-localhost http origins" do
       assert EmbeddedClientOrigin.normalize("http://customer.example") ==
                {:error, :invalid_origin}

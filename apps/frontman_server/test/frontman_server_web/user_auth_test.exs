@@ -64,16 +64,9 @@ defmodule FrontmanServerWeb.UserAuthTest do
 
     test "redirects to allowed external return_to URLs", %{conn: conn, user: user} do
       allowed_urls = [
-        "http://localhost:3000/frontman",
         "https://frontman.sh/dashboard",
         "https://api.frontman.sh/settings",
-        "https://shop.example.com.au/checkout",
-        "https://example.net/landing",
-        "https://www.example.org/blog",
-        "https://category-creation.com/wp-admin",
-        "https://www.category-creation.com/wp-json/wp/v2/posts",
-        "https://frontman.local:4000/test",
-        "http://127.0.0.1:3000/frontman"
+        "https://API.Frontman.SH/settings"
       ]
 
       for url <- allowed_urls do
@@ -84,7 +77,14 @@ defmodule FrontmanServerWeb.UserAuthTest do
 
     test "blocks open redirect to untrusted domains", %{conn: conn, user: user} do
       blocked_urls = [
+        "http://localhost:3000/frontman",
         "https://evil-frontman.sh/phishing",
+        "https://shop.example.com.au/checkout",
+        "https://example.net/landing",
+        "https://www.example.org/blog",
+        "https://category-creation.com/wp-admin",
+        "https://frontman.local:4000/test",
+        "http://127.0.0.1:3000/frontman",
         "http://attacker.xyz",
         "javascript:alert(1)",
         "//evil.com"

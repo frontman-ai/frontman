@@ -47,11 +47,18 @@ defmodule FrontmanServerWeb.EmbeddedClientOrigin do
   end
 
   defp origin_string(%URI{scheme: scheme, host: host, port: port}) do
-    normalized_host = String.downcase(host)
+    normalized_host = host |> String.downcase() |> bracket_ipv6_host()
 
     case default_port?(scheme, port) do
       true -> "#{scheme}://#{normalized_host}"
       false -> "#{scheme}://#{normalized_host}:#{port}"
+    end
+  end
+
+  defp bracket_ipv6_host(host) do
+    case String.contains?(host, ":") do
+      true -> "[#{host}]"
+      false -> host
     end
   end
 

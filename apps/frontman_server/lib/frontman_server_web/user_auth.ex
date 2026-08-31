@@ -75,7 +75,7 @@ defmodule FrontmanServerWeb.UserAuth do
   defp safe_return_url?(url) do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
-        allowed_return_host?(host)
+        host |> String.downcase() |> allowed_return_host?()
 
       _ ->
         false
@@ -87,17 +87,11 @@ defmodule FrontmanServerWeb.UserAuth do
   end
 
   defp exact_return_host?(host) do
-    host in ["frontman.sh", "category-creation.com", "frontman.local", "localhost", "127.0.0.1"]
+    host == "frontman.sh"
   end
 
   defp subdomain_return_host?(host) do
-    String.ends_with?(host, ".com") or
-      String.ends_with?(host, ".com.au") or
-      String.ends_with?(host, ".net") or
-      String.ends_with?(host, ".org") or
-      String.ends_with?(host, ".frontman.sh") or
-      String.ends_with?(host, ".category-creation.com") or
-      String.ends_with?(host, ".frontman.local")
+    String.ends_with?(host, ".frontman.sh")
   end
 
   @doc """
