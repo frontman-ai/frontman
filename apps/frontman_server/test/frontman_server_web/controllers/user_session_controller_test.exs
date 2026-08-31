@@ -117,6 +117,41 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert text_response(conn, 400) == "Invalid embedded origin"
       assert conn.halted
     end
+
+    test "already-authenticated users keep embedded auth request before redirect", %{
+      conn: conn,
+      user: user
+    } do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get(
+          ~p"/users/log-in?#{%{"return_to" => "/users/popup-complete", "embedded_state" => "state-123", "embedded_origin" => "https://Customer.Example:443"}}"
+        )
+
+      assert redirected_to(conn) == ~p"/users/popup-complete"
+
+      assert get_session(conn, EmbeddedClientAuth.pending_session_key()) == %{
+               "origin" => "https://customer.example",
+               "state" => "state-123"
+             }
+    end
+
+    test "already-authenticated users get bad request for invalid embedded auth origin", %{
+      conn: conn,
+      user: user
+    } do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get(
+          ~p"/users/log-in?#{%{"return_to" => "/users/popup-complete", "embedded_state" => "state-123", "embedded_origin" => "https://customer.example/path"}}"
+        )
+
+      assert text_response(conn, 400) == "Invalid embedded origin"
+      assert conn.halted
+      refute get_session(conn, EmbeddedClientAuth.pending_session_key())
+    end
   end
 
   describe "POST /users/log-in - email and password" do

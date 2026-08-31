@@ -330,11 +330,17 @@ defmodule FrontmanServerWeb.UserAuth do
   """
   def redirect_if_user_is_authenticated(conn, _opts) do
     if conn.assigns.current_scope do
-      return_to = conn.params["return_to"]
+      case EmbeddedClientAuth.put_pending_request(conn, conn.params) do
+        {:ok, conn} ->
+          return_to = conn.params["return_to"]
 
-      conn
-      |> redirect_to_return_path(return_to)
-      |> halt()
+          conn
+          |> redirect_to_return_path(return_to)
+          |> halt()
+
+        {:error, conn} ->
+          conn
+      end
     else
       conn
     end
