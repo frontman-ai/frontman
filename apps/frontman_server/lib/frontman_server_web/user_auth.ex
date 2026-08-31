@@ -17,6 +17,7 @@ defmodule FrontmanServerWeb.UserAuth do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServerWeb.EmbeddedClientAuth
+  alias FrontmanServerWeb.EmbeddedClientOrigin
 
   @max_cookie_age_in_days 14
   @remember_me_cookie "_frontman_server_web_user_remember_me"
@@ -368,14 +369,24 @@ defmodule FrontmanServerWeb.UserAuth do
   """
   def require_embedded_client_bearer_token(conn, _opts) do
     with {:ok, token} <- embedded_client_bearer_token(conn),
-         {%Scope{} = scope, token_id} <- Accounts.get_scope_by_embedded_client_token(token) do
-      :ok = Accounts.touch_embedded_client_token(token_id)
+         {:ok, origin} <- embedded_client_origin(conn),
+         {%Scope{} = scope, token_id} <-
+           Accounts.get_scope_by_embedded_client_token(token, origin) do
+      :ok = Accounts.touch_embedded_client_token(scope, token_id)
 
       conn
       |> assign(:current_scope, scope)
       |> assign(:embedded_client_token_id, token_id)
     else
       _ -> unauthorized_api(conn)
+    end
+  end
+
+  defp embedded_client_origin(conn) do
+    case get_req_header(conn, "origin") do
+      [origin] -> EmbeddedClientOrigin.normalize(origin)
+      [] -> :error
+      _headers -> :error
     end
   end
 

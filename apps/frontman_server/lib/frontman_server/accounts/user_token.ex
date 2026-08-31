@@ -196,7 +196,8 @@ defmodule FrontmanServer.Accounts.UserToken do
 
   If found, the query returns a tuple of the form `{user, token}`.
   """
-  def verify_embedded_client_token_query(token) when is_binary(token) do
+  def verify_embedded_client_token_query(token, approved_origin)
+      when is_binary(token) and is_binary(approved_origin) do
     case Base.url_decode64(token, padding: false) do
       {:ok, decoded_token} ->
         hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
@@ -204,6 +205,7 @@ defmodule FrontmanServer.Accounts.UserToken do
         query =
           from token in by_token_and_context_query(hashed_token, @embedded_client_context),
             join: user in assoc(token, :user),
+            where: token.approved_origin == ^approved_origin,
             where: token.expires_at > ^DateTime.utc_now(:second),
             select: {user, token}
 
@@ -224,6 +226,12 @@ defmodule FrontmanServer.Accounts.UserToken do
 
   def by_embedded_client_id(query \\ __MODULE__, id) do
     from(t in query, where: t.id == ^id and t.context == @embedded_client_context)
+  end
+
+  def by_embedded_client_id_and_user(query \\ __MODULE__, id, user_id) do
+    query
+    |> by_embedded_client_id(id)
+    |> where([t], t.user_id == ^user_id)
   end
 
   def by_ids(query \\ __MODULE__, ids) when is_list(ids) do

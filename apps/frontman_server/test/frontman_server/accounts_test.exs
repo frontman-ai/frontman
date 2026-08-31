@@ -4,7 +4,7 @@ defmodule FrontmanServer.AccountsTest do
   alias FrontmanServer.Accounts
 
   import FrontmanServer.Test.Fixtures.Accounts
-  alias FrontmanServer.Accounts.{User, UserToken}
+  alias FrontmanServer.Accounts.{Scope, User, UserToken}
 
   describe "get_user_by_email/1" do
     test "does not return the user if the email does not exist" do
@@ -395,16 +395,24 @@ defmodule FrontmanServer.AccountsTest do
       token = Accounts.generate_embedded_client_token(user, approved_origin)
       stored_token = user_token_by_raw_token(token)
 
-      assert {scope, token_id} = Accounts.get_scope_by_embedded_client_token(token)
+      assert {scope, token_id} =
+               Accounts.get_scope_by_embedded_client_token(token, "https://customer.example")
+
       assert Accounts.scope_user_id(scope) == user.id
       assert token_id == stored_token.id
       assert stored_token.approved_origin == approved_origin
     end
 
+    test "does not return scope when origin does not match", %{user: user} do
+      token = Accounts.generate_embedded_client_token(user, "https://customer.example")
+
+      refute Accounts.get_scope_by_embedded_client_token(token, "https://evil.example")
+    end
+
     test "does not return scope for invalid tokens", %{user: user} do
       Accounts.generate_embedded_client_token(user, "https://customer.example")
 
-      refute Accounts.get_scope_by_embedded_client_token("oops")
+      refute Accounts.get_scope_by_embedded_client_token("oops", "https://customer.example")
     end
 
     test "does not return scope for expired tokens", %{
@@ -421,7 +429,7 @@ defmodule FrontmanServer.AccountsTest do
           set: [expires_at: DateTime.add(DateTime.utc_now(:second), -1, :second)]
         )
 
-      refute Accounts.get_scope_by_embedded_client_token(token)
+      refute Accounts.get_scope_by_embedded_client_token(token, "https://customer.example")
     end
 
     test "updates last_used_at for an embedded client token", %{
@@ -430,10 +438,21 @@ defmodule FrontmanServer.AccountsTest do
     } do
       token = Accounts.generate_embedded_client_token(user, approved_origin)
       user_token = user_token_by_raw_token(token)
-      assert Accounts.touch_embedded_client_token(user_token.id) == :ok
+      assert Accounts.touch_embedded_client_token(Scope.for_user(user), user_token.id) == :ok
 
       touched_token = Repo.get!(UserToken, user_token.id)
       assert touched_token.last_used_at != nil
+    end
+
+    test "does not touch another user's embedded client token", %{user: user} do
+      other_user = user_fixture()
+      token = Accounts.generate_embedded_client_token(other_user, "https://customer.example")
+      user_token = user_token_by_raw_token(token)
+
+      assert Accounts.touch_embedded_client_token(Scope.for_user(user), user_token.id) == :ok
+
+      untouched_token = Repo.get!(UserToken, user_token.id)
+      assert is_nil(untouched_token.last_used_at)
     end
 
     test "revokes one embedded client token", %{user: user} do
@@ -441,9 +460,21 @@ defmodule FrontmanServer.AccountsTest do
       first_user_token = user_token_by_raw_token(first_token)
       second_token = Accounts.generate_embedded_client_token(user, "https://second.example")
 
-      assert Accounts.delete_embedded_client_token(first_user_token.id) == :ok
-      refute Accounts.get_scope_by_embedded_client_token(first_token)
-      assert Accounts.get_scope_by_embedded_client_token(second_token)
+      assert Accounts.delete_embedded_client_token(Scope.for_user(user), first_user_token.id) ==
+               :ok
+
+      refute Accounts.get_scope_by_embedded_client_token(first_token, "https://first.example")
+      assert Accounts.get_scope_by_embedded_client_token(second_token, "https://second.example")
+    end
+
+    test "does not revoke another user's embedded client token", %{user: user} do
+      other_user = user_fixture()
+      token = Accounts.generate_embedded_client_token(other_user, "https://customer.example")
+      user_token = user_token_by_raw_token(token)
+
+      assert Accounts.delete_embedded_client_token(Scope.for_user(user), user_token.id) == :ok
+
+      assert Repo.get(UserToken, user_token.id)
     end
 
     test "revokes all embedded client tokens without deleting session tokens", %{user: user} do
@@ -453,8 +484,8 @@ defmodule FrontmanServer.AccountsTest do
       session_token = Accounts.generate_user_session_token(user)
 
       assert Accounts.delete_all_embedded_client_tokens(user) == :ok
-      refute Accounts.get_scope_by_embedded_client_token(first_token)
-      refute Accounts.get_scope_by_embedded_client_token(second_token)
+      refute Accounts.get_scope_by_embedded_client_token(first_token, "https://first.example")
+      refute Accounts.get_scope_by_embedded_client_token(second_token, "https://second.example")
       assert Accounts.get_user_by_session_token(session_token)
     end
   end

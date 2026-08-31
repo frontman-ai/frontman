@@ -1,21 +1,52 @@
 <Layouts.app flash={@flash} current_scope={@current_scope}>
-  <section class="mx-auto max-w-lg space-y-6 text-center">
-    <div class="space-y-3">
+  <section class="mx-auto max-w-lg space-y-6">
+    <div class="space-y-3 text-center">
+      <p class="text-sm font-semibold uppercase tracking-[0.2em] text-primary">
+        Frontman sign-in request
+      </p>
       <h1 class="font-headings text-3xl font-bold tracking-tight text-base-content">
-        Authorize Frontman
+        Connect this site to Frontman?
       </h1>
       <p class="text-sm leading-6 text-base-content/70">
-        Allow this site to connect to your Frontman account:
+        The Frontman assistant on this site needs your permission before it can use your Frontman account.
       </p>
-      <p class="rounded-box border border-base-300 bg-base-200 p-4 font-mono text-sm text-base-content">
+    </div>
+
+    <div class="rounded-box border border-base-300 bg-base-200 p-4 text-sm text-base-content/80">
+      <p class="font-semibold text-base-content">Site asking for access</p>
+      <p class="mt-2 break-all rounded-box bg-base-100 p-3 font-mono text-base-content">
         {@origin}
       </p>
     </div>
 
-    <.form for={%{}} action={~p"/users/popup-complete"} method="post">
+    <div class="space-y-3 rounded-box border border-base-300 p-4 text-sm leading-6 text-base-content/75">
+      <div>
+        <p class="font-semibold text-base-content">Why am I seeing this?</p>
+        <p>
+          You opened Frontman from this website. Frontman must check that you want this website to connect before chat can continue.
+        </p>
+      </div>
+      <div>
+        <p class="font-semibold text-base-content">What will happen?</p>
+        <p>
+          Frontman will send a secure sign-in pass back to the site above. This lets the Frontman chat window talk to your Frontman account. It does not share your password.
+        </p>
+      </div>
+      <div>
+        <p class="font-semibold text-base-content">When should I allow it?</p>
+        <p>
+          Choose Allow only if you recognize this site and want to use Frontman here.
+        </p>
+      </div>
+    </div>
+
+    <.form for={%{}} action={~p"/users/popup-complete"} method="post" class="space-y-3">
       <button type="submit" class="btn btn-primary btn-lg btn-block">
-        Allow this site
+        Allow and continue
       </button>
+      <p class="text-center text-xs leading-5 text-base-content/60">
+        If this does not look right, close this popup instead.
+      </p>
     </.form>
   </section>
 </Layouts.app>

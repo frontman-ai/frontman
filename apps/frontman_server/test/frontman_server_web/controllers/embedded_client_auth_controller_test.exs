@@ -29,9 +29,11 @@ defmodule FrontmanServerWeb.EmbeddedClientAuthControllerTest do
         |> get(~p"/users/popup-complete")
 
       response = html_response(conn, 200)
-      assert response =~ "Authorize Frontman"
+      assert response =~ "Connect this site to Frontman?"
       assert response =~ "https://customer.example"
-      assert response =~ "Allow this site"
+      assert response =~ "Why am I seeing this?"
+      assert response =~ "What will happen?"
+      assert response =~ "Allow and continue"
       assert get_resp_header(conn, "cache-control") == ["no-store"]
     end
 

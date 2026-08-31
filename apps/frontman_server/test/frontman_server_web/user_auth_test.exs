@@ -407,6 +407,29 @@ defmodule FrontmanServerWeb.UserAuthTest do
       refute conn.halted
     end
 
+    test "rejects a token presented from a different origin", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> put_embedded_client_bearer(user)
+        |> Plug.Conn.delete_req_header("origin")
+        |> put_req_header("origin", "https://evil.example")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects a missing origin header", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> put_embedded_client_bearer(user)
+        |> Plug.Conn.delete_req_header("origin")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
     test "rejects a missing authorization header", %{conn: conn} do
       conn = UserAuth.require_embedded_client_bearer_token(conn, [])
 

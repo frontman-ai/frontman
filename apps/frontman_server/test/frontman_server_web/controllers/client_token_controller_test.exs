@@ -27,12 +27,15 @@ defmodule FrontmanServerWeb.ClientTokenControllerTest do
     conn =
       conn
       |> put_req_header("authorization", "Bearer #{token}")
+      |> put_req_header("origin", "https://customer.example")
       |> delete(~p"/api/client-token")
 
     assert response(conn, 204) == ""
 
     assert :error =
-             Phoenix.ChannelTest.connect(FrontmanServerWeb.UserSocket, %{},
+             Phoenix.ChannelTest.connect(
+               FrontmanServerWeb.UserSocket,
+               %{"origin" => "https://customer.example"},
                connect_info: %{auth_token: token}
              )
   end
@@ -47,7 +50,9 @@ defmodule FrontmanServerWeb.ClientTokenControllerTest do
       |> delete(~p"/api/client-token")
 
     assert response(conn, 204) == ""
-    assert Accounts.get_scope_by_embedded_client_token(other_token) != nil
+
+    assert Accounts.get_scope_by_embedded_client_token(other_token, "https://other.example") !=
+             nil
   end
 
   test "requires bearer auth", %{conn: conn} do

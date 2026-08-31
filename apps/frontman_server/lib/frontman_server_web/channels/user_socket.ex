@@ -9,23 +9,25 @@ defmodule FrontmanServerWeb.UserSocket do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServerWeb.EmbeddedClientOrigin
 
   channel "tasks", FrontmanServerWeb.TasksChannel
   channel "task:*", FrontmanServerWeb.TaskChannel
 
   @impl true
-  def connect(_params, socket, %{auth_token: token}) when is_binary(token) do
-    case Accounts.get_scope_by_embedded_client_token(token) do
-      {%Scope{} = scope, token_id} when is_binary(token_id) ->
-        Accounts.touch_embedded_client_token(token_id)
+  def connect(%{"origin" => origin}, socket, %{auth_token: token})
+      when is_binary(origin) and is_binary(token) do
+    with {:ok, normalized_origin} <- EmbeddedClientOrigin.normalize(origin),
+         {%Scope{} = scope, token_id} <-
+           Accounts.get_scope_by_embedded_client_token(token, normalized_origin) do
+      Accounts.touch_embedded_client_token(scope, token_id)
 
-        {:ok,
-         socket
-         |> assign(:scope, scope)
-         |> assign(:embedded_client_token_id, token_id)}
-
-      nil ->
-        :error
+      {:ok,
+       socket
+       |> assign(:scope, scope)
+       |> assign(:embedded_client_token_id, token_id)}
+    else
+      _ -> :error
     end
   end
 

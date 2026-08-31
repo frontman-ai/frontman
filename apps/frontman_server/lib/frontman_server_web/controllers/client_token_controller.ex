@@ -12,8 +12,8 @@ defmodule FrontmanServerWeb.ClientTokenController do
 
   def delete(conn, _params) do
     case conn.assigns do
-      %{embedded_client_token_id: token_id} when is_binary(token_id) ->
-        Accounts.delete_embedded_client_token(token_id)
+      %{current_scope: scope, embedded_client_token_id: token_id} when is_binary(token_id) ->
+        Accounts.delete_embedded_client_token(scope, token_id)
         Endpoint.broadcast("client_token:#{token_id}", "disconnect", %{})
         send_resp(conn, :no_content, "")
 

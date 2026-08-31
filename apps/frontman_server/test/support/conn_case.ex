@@ -80,6 +80,7 @@ defmodule FrontmanServerWeb.ConnCase do
 
     conn
     |> Plug.Conn.put_req_header("authorization", "Bearer #{token}")
+    |> Plug.Conn.put_req_header("origin", approved_origin)
   end
 
   defp maybe_set_token_authenticated_at(_token, nil), do: nil

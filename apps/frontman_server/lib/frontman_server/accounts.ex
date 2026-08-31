@@ -222,10 +222,11 @@ defmodule FrontmanServer.Accounts do
   end
 
   @doc """
-  Gets the scope and token id for a valid embedded client bearer token.
+  Gets the scope and token id for a valid embedded client bearer token issued for the origin.
   """
-  def get_scope_by_embedded_client_token(token) when is_binary(token) do
-    with {:ok, query} <- UserToken.verify_embedded_client_token_query(token),
+  def get_scope_by_embedded_client_token(token, approved_origin)
+      when is_binary(token) and is_binary(approved_origin) do
+    with {:ok, query} <- UserToken.verify_embedded_client_token_query(token, approved_origin),
          {%User{} = user, %UserToken{id: token_id}} <- Repo.one(query) do
       {Scope.for_user(user), token_id}
     else
@@ -234,22 +235,24 @@ defmodule FrontmanServer.Accounts do
   end
 
   @doc """
-  Updates the last-used timestamp for an embedded client token.
+  Updates the last-used timestamp for one of the current user's embedded client tokens.
   """
-  def touch_embedded_client_token(token_id) when is_binary(token_id) do
-    token_id
-    |> UserToken.by_embedded_client_id()
+  def touch_embedded_client_token(%Scope{} = scope, token_id) when is_binary(token_id) do
+    scope
+    |> scope_user_id()
+    |> then(&UserToken.by_embedded_client_id_and_user(token_id, &1))
     |> Repo.update_all(set: [last_used_at: DateTime.utc_now(:second)])
 
     :ok
   end
 
   @doc """
-  Revokes one embedded client token.
+  Revokes one of the current user's embedded client tokens.
   """
-  def delete_embedded_client_token(token_id) when is_binary(token_id) do
-    token_id
-    |> UserToken.by_embedded_client_id()
+  def delete_embedded_client_token(%Scope{} = scope, token_id) when is_binary(token_id) do
+    scope
+    |> scope_user_id()
+    |> then(&UserToken.by_embedded_client_id_and_user(token_id, &1))
     |> Repo.delete_all()
 
     :ok
