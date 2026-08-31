@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@astrojs/check": "^0.9.10",
-    "@astrojs/preact": "6.0.1",
+    "@astrojs/preact": "6.0.2",
     "@astrojs/rss": "4.0.19",
     "@astrojs/sitemap": "^3.7.3",
     "@astrojs/starlight": "0.41.3",
