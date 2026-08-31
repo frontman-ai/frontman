@@ -1,66 +1,51 @@
-import {
-	type Browser,
-	type BrowserContext,
-	chromium,
-	type Page,
-} from "playwright";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { hasE2EOpenAICredentials } from "../helpers/credentials.js";
-import {
-	type FrameworkServer,
-	headingFileContains,
-	startVueVite,
-	stopFramework,
-} from "../helpers/framework.js";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { startVueVite, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
 import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installVueVite } from "../helpers/installer.js";
 
 const PORT = 3013;
-const itWithOpenAI = hasE2EOpenAICredentials() ? it : it.skip;
 
 describe("Vue + Vite E2E", () => {
-	let browser: Browser;
-	let context: BrowserContext;
-	let page: Page;
-	let server: FrameworkServer;
+  let browser: Browser;
+  let context: BrowserContext;
+  let page: Page;
+  let server: FrameworkServer;
 
-	beforeAll(async () => {
-		installVueVite();
+  beforeAll(async () => {
+    installVueVite();
 
-		browser = await chromium.launch({ headless: true });
-		context = await browser.newContext({ ignoreHTTPSErrors: true });
-		server = await startVueVite(PORT);
-	});
+    browser = await chromium.launch({ headless: true });
+    context = await browser.newContext({ ignoreHTTPSErrors: true });
+    server = await startVueVite(PORT);
+  });
 
-	afterAll(async () => {
-		await page?.close().catch(() => {});
-		await context?.close().catch(() => {});
-		await browser?.close().catch(() => {});
-		await stopFramework(server);
-	});
+  afterAll(async () => {
+    await page?.close().catch(() => {});
+    await context?.close().catch(() => {});
+    await browser?.close().catch(() => {});
+    await stopFramework(server);
+  });
 
-	it("should render pages without breaking", async () => {
-		page = await context.newPage();
-		const response = await page.goto(`http://127.0.0.1:${PORT}/`, {
-			waitUntil: "domcontentloaded",
-		});
+  it("should render pages without breaking", async () => {
+    page = await context.newPage();
+    const response = await page.goto(`http://127.0.0.1:${PORT}/`, {
+      waitUntil: "domcontentloaded",
+    });
 
-		expect(response?.status()).toBe(200);
-		await page
-			.getByRole("heading", { name: "Hello World" })
-			.waitFor({ state: "visible" });
-	});
+    expect(response?.status()).toBe(200);
+    await page
+      .getByRole("heading", { name: "Hello World" })
+      .waitFor({ state: "visible" });
+  });
 
-	itWithOpenAI("should make a text change via AI prompt", async () => {
-		page = await context.newPage();
+  it("should make a text change via AI prompt", async () => {
+    page = await context.newPage();
 
-		await openFrontmanUI(page, PORT);
+    await openFrontmanUI(page, PORT);
 
-		await sendPrompt(
-			page,
-			'Change the h1 heading text in src/App.vue to say "Hello Frontman"',
-		);
+    await sendPrompt(page, 'Change the h1 heading text in src/App.vue to say "Hello Frontman"');
 
-		expect(headingFileContains(server, "Hello Frontman")).toBe(true);
-	});
+    expect(headingFileContains(server, "Hello Frontman")).toBe(true);
+  });
 });
