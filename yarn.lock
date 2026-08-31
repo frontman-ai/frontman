@@ -2246,10 +2246,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@fontsource-variable/outfit@npm:^5.0.13":
-  version: 5.2.8
-  resolution: "@fontsource-variable/outfit@npm:5.2.8"
-  checksum: 10c0/0d8e3cf0153780d794c28bde93384ed22691a95c5e743489c3c43d4e4ec88d1c6e6a0684bc890bbbb04fb292e1505785636c60b3748e835375617e2af2e6c230
+"@fontsource-variable/outfit@npm:^5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource-variable/outfit@npm:5.3.0"
+  checksum: 10c0/e9b29488f79f91f07180ef559beb25b82cf135ae35772271e25498880bb535d1eeab26ef82e820631c06c1a8aa13a25fc5fc432e3a0b70ae94e52e001087ce01
   languageName: node
   linkType: hard
 
@@ -13097,7 +13097,7 @@ __metadata:
     "@astrojs/starlight": "npm:0.41.3"
     "@astrojs/starlight-tailwind": "npm:^5.0.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
-    "@fontsource-variable/outfit": "npm:^5.0.13"
+    "@fontsource-variable/outfit": "npm:^5.3.0"
     "@frontman-ai/astro": "workspace:*"
     "@tailwindcss/typography": "npm:^0.5.20"
     "@tailwindcss/vite": "npm:^4.3.3"
