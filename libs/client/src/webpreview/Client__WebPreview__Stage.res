@@ -68,13 +68,27 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasAnnotations = annotations->Array.length > 0
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
+  let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
+  let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
+  let providerSetupRequired = Client__State.useSelector(
+    Client__State.Selectors.providerSetupRequired,
+  )
+  let hasEnrichingAnnotations = Client__State.useSelector(
+    Client__State.Selectors.hasEnrichingAnnotations,
+  )
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
+  let canExecuteAnnotations = Client__WebPreview__AnnotationPopup.canExecute(
+    ~hasActiveACPSession,
+    ~selectedAgentId,
+    ~selectedModelValue,
+    ~providerSetupRequired,
+    ~hasEnrichingAnnotations,
+  )
 
   let executeAnnotations = () => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
     let messageAnnotations =
-      annotations
-      ->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
+      annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
     let send = (sessionId: string) => {
       Client__State.Actions.addUserMessage(
         ~sessionId,
@@ -475,6 +489,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           Client__State.Actions.updateAnnotationComment(~id=annotation.id, ~comment)}
         onClose={() => Client__State.Actions.closeAnnotationPopup()}
         onExecute={executeAnnotations}
+        disabled={!canExecuteAnnotations}
       />
     | None => React.null
     }
