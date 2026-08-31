@@ -67,6 +67,23 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   )
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasAnnotations = annotations->Array.length > 0
+  let {session, createSession} = Client__FrontmanProvider.useFrontman()
+
+  let executeAnnotation = (~annotationId: string, ~comment: string) => {
+    let dispatchExecute = sessionId =>
+      Client__State.Actions.executeAnnotation(~sessionId, ~annotationId, ~comment)
+
+    switch session {
+    | Some(sess) => dispatchExecute(sess.sessionId)
+    | None =>
+      createSession(~onComplete=result =>
+        switch result {
+        | Ok(sessionId) => dispatchExecute(sessionId)
+        | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
+        }
+      )
+    }
+  }
 
   let lastProcessedClickId = React.useRef(-1)
   let wasSelecting = React.useRef(false)
@@ -440,6 +457,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     | Some(annotation) =>
       let index = annotations->Array.findIndex(a => a.id == annotation.id)
       <Client__WebPreview__AnnotationPopup
+        key={annotation.id}
         annotation={annotation}
         index={index}
         scrollTimestamp={scrollTimestamp}
@@ -447,6 +465,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         onCommentChange={comment =>
           Client__State.Actions.updateAnnotationComment(~id=annotation.id, ~comment)}
         onClose={() => Client__State.Actions.closeAnnotationPopup()}
+        onExecute={comment => executeAnnotation(~annotationId=annotation.id, ~comment)}
       />
     | None => React.null
     }
