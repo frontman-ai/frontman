@@ -34,6 +34,12 @@ type action =
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
     })
+  | ExecuteAnnotation({
+      id: Message.UserMessageId.t,
+      sessionId: string,
+      annotationId: string,
+      comment: string,
+    })
   | CancelTurn
   | ExecutePendingPlan({id: Message.UserMessageId.t})
   | SwitchTask({taskId: string})
@@ -620,6 +626,44 @@ let canShowFirstTaskFeedback = (state: state, task) =>
   state.tasks->Dict.valuesToArray->Array.length == 1 &&
   TaskReducer.Selectors.completedIdleTurn(task)->Option.isSome &&
   TaskReducer.Selectors.queuedUserMessages(task)->Option.getOrThrow->Array.length == 0
+
+let addUserMessageToState = (state: state, ~id, ~sessionId, ~content, ~annotations, ~agentId) =>
+  switch state.selectedModelValue {
+  | None => state->StateReducer.update
+  | Some(_) => {
+      let textContent = TaskReducer.extractTextFromUserContent(content)
+
+      switch state.currentTask {
+      | Task.New(newTask) =>
+        let loadedTask = Task.newToLoaded(newTask, ~id=sessionId, ~title=textContent)
+        let updatedTasks = state.tasks->Dict.copy
+        updatedTasks->Dict.set(sessionId, loadedTask)
+        let promotedState = {
+          ...state,
+          tasks: updatedTasks,
+          currentTask: Task.Selected(sessionId),
+        }
+        promotedState->Lens.delegateToTask(
+          ForTask(sessionId),
+          TaskReducer.AddUserMessage({id, content, annotations, agentId}),
+        )
+      | Task.Selected(taskId) =>
+        let pendingPlanHandoff = Selectors.pendingPlanHandoff(state)
+        let (updatedState, sendEffects) =
+          state->Lens.delegateToTask(
+            ForTask(taskId),
+            TaskReducer.AddUserMessage({id, content, annotations, agentId}),
+          )
+        switch pendingPlanHandoff {
+        | Some(_) =>
+          let (runningState, runningEffects) =
+            updatedState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
+          runningState->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
+        | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
+        }
+      }
+    }
+  }
 
 let resolveFeedbackHistory = (state: state) =>
   switch state.firstTaskFeedbackDialogState {
@@ -1388,45 +1432,37 @@ let next = (state: state, action) => {
     }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
-  | AddUserMessage({id, sessionId, content, annotations, agentId}) =>
-    switch state.selectedModelValue {
-    | None => state->StateReducer.update
-    | Some(_) => {
-        let textContent = TaskReducer.extractTextFromUserContent(content)
-
-        switch state.currentTask {
-        | Task.New(newTask) =>
-          let loadedTask = Task.newToLoaded(newTask, ~id=sessionId, ~title=textContent)
-          let updatedTasks = state.tasks->Dict.copy
-          updatedTasks->Dict.set(sessionId, loadedTask)
-          let promotedState = {
-            ...state,
-            tasks: updatedTasks,
-            currentTask: Task.Selected(sessionId),
-          }
-          promotedState->Lens.delegateToTask(
-            ForTask(sessionId),
-            TaskReducer.AddUserMessage({id, content, annotations, agentId}),
-          )
-        | Task.Selected(taskId) =>
-          let pendingPlanHandoff = Selectors.pendingPlanHandoff(state)
-          let (updatedState, sendEffects) =
-            state->Lens.delegateToTask(
-              ForTask(taskId),
-              TaskReducer.AddUserMessage({id, content, annotations, agentId}),
-            )
-          switch pendingPlanHandoff {
-          | Some(_) =>
-            let (runningState, runningEffects) =
-              updatedState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
-            runningState->StateReducer.update(
-              ~sideEffects=Array.concat(sendEffects, runningEffects),
-            )
-          | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
-          }
-        }
-      }
+  | ExecuteAnnotation({id, sessionId, annotationId, comment}) =>
+    let agentId = state.selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
+    let annotation =
+      Selectors.currentTask(state)
+      ->Task.getAnnotations
+      ->Array.find(annotation => annotation.id == annotationId)
+      ->Option.getOrThrow(~message=`Annotation ${annotationId} not found`)
+    let trimmedComment = comment->String.trim
+    let annotation = {
+      ...annotation,
+      comment: switch trimmedComment {
+      | "" => None
+      | value => Some(value)
+      },
     }
+    let content = switch trimmedComment {
+    | "" => []
+    | value => [UserContentPart.Text({text: value})]
+    }
+    let messageAnnotation = Client__Message.MessageAnnotation.fromAnnotation(annotation)
+    addUserMessageToState(
+      state,
+      ~id,
+      ~sessionId,
+      ~content,
+      ~annotations=[messageAnnotation],
+      ~agentId,
+    )
+
+  | AddUserMessage({id, sessionId, content, annotations, agentId}) =>
+    addUserMessageToState(state, ~id, ~sessionId, ~content, ~annotations, ~agentId)
 
   | CancelTurn =>
     switch state.currentTask {

@@ -63,7 +63,7 @@
 		"build": "yarn build:rescript && yarn build:bundle"
 	},
 	"dependencies": {
-		"@sentry/nextjs": "^10.66.0",
+		"@sentry/nextjs": "^10.69.0",
 		"chrome-launcher": "^1.1.2",
 		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
 		"lighthouse": "^13.4.0",
