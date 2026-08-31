@@ -11129,6 +11129,7 @@ __metadata:
     "@changesets/changelog-github": "npm:^0.7.0"
     "@changesets/cli": "npm:^2.31.1"
     "@vitest/coverage-v8": "catalog:"
+    cookie: "npm:^2.0.1"
     rescript: "catalog:"
     vitest: "catalog:"
   dependenciesMeta:
