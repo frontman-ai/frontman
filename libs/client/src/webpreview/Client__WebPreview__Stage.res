@@ -67,47 +67,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   )
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasAnnotations = annotations->Array.length > 0
-  let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
-  let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
-  let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
-  let providerSetupRequired = Client__State.useSelector(
-    Client__State.Selectors.providerSetupRequired,
-  )
-  let hasEnrichingAnnotations = Client__State.useSelector(
-    Client__State.Selectors.hasEnrichingAnnotations,
-  )
-  let {session, createSession} = Client__FrontmanProvider.useFrontman()
-  let canExecuteAnnotations = Client__WebPreview__AnnotationPopup.canExecute(
-    ~hasActiveACPSession,
-    ~selectedAgentId,
-    ~selectedModelValue,
-    ~providerSetupRequired,
-    ~hasEnrichingAnnotations,
-  )
-
-  let executeAnnotations = () => {
-    let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
-    let messageAnnotations =
-      annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
-    let send = (sessionId: string) => {
-      Client__State.Actions.addUserMessage(
-        ~sessionId,
-        ~content=[],
-        ~annotations=messageAnnotations,
-        ~agentId,
-      )
-    }
-    switch session {
-    | Some(sess) => send(sess.sessionId)
-    | None =>
-      createSession(~onComplete=result =>
-        switch result {
-        | Ok(sessionId) => send(sessionId)
-        | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
-        }
-      )
-    }
-  }
 
   let lastProcessedClickId = React.useRef(-1)
   let wasSelecting = React.useRef(false)
@@ -488,8 +447,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         onCommentChange={comment =>
           Client__State.Actions.updateAnnotationComment(~id=annotation.id, ~comment)}
         onClose={() => Client__State.Actions.closeAnnotationPopup()}
-        onExecute={executeAnnotations}
-        disabled={!canExecuteAnnotations}
+        onExecute={() => Client__PromptEditor.submit()->ignore}
       />
     | None => React.null
     }

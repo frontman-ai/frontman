@@ -12,24 +12,6 @@
 module Annotation = Client__Annotation__Types
 module Icons = Client__UI__Icons
 
-let canExecute = (
-  ~hasActiveACPSession,
-  ~selectedAgentId,
-  ~selectedModelValue,
-  ~providerSetupRequired,
-  ~hasEnrichingAnnotations,
-) =>
-  switch (
-    hasActiveACPSession,
-    selectedAgentId,
-    selectedModelValue,
-    providerSetupRequired,
-    hasEnrichingAnnotations,
-  ) {
-  | (true, Some(_), Some(_), false, false) => true
-  | _ => false
-  }
-
 @react.component
 let make = (
   ~annotation: Annotation.t,
@@ -39,7 +21,6 @@ let make = (
   ~onCommentChange: string => unit,
   ~onClose: unit => unit,
   ~onExecute: unit => unit,
-  ~disabled: bool=false,
 ) => {
   let (comment, setComment) = React.useState(() => annotation.comment->Option.getOr(""))
   let inputRef = React.useRef(Nullable.null)
@@ -60,12 +41,8 @@ let make = (
   }, [rect->Option.isSome])
 
   let execute = () => {
-    switch disabled {
-    | true => ()
-    | false =>
-      onCommentChange(comment)
-      onExecute()
-    }
+    onCommentChange(comment)
+    onExecute()
   }
 
   let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
@@ -130,11 +107,9 @@ let make = (
             <button
               type_="button"
               onClick={_ => execute()}
-              disabled={disabled}
-              className={`flex items-center justify-center w-7 h-7 rounded transition-colors ${disabled
-                  ? "text-gray-300 cursor-not-allowed"
-                  : "text-violet-500 hover:text-violet-700 hover:bg-violet-50"}`}
-              title="Execute (Cmd/Ctrl+Enter)"
+              className="flex items-center justify-center w-7 h-7 rounded
+                         text-violet-500 hover:text-violet-700 hover:bg-violet-50 transition-colors"
+              title="execute (cmd (or ctrl) + enter)"
             >
               <Icons.SendIcon className="size-3" />
             </button>
