@@ -210,7 +210,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/compiler-rs@npm:^0.3.1":
+"@astrojs/compiler-rs@npm:^0.3.2":
   version: 0.3.2
   resolution: "@astrojs/compiler-rs@npm:0.3.2"
   dependencies:
@@ -333,7 +333,20 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/markdown-satteri@npm:0.3.4, @astrojs/markdown-satteri@npm:^0.3.2":
+"@astrojs/markdown-satteri@npm:0.3.5":
+  version: 0.3.5
+  resolution: "@astrojs/markdown-satteri@npm:0.3.5"
+  dependencies:
+    "@astrojs/internal-helpers": "npm:0.10.2"
+    "@astrojs/prism": "npm:4.0.2"
+    github-slugger: "npm:^2.0.0"
+    hast-util-from-html: "npm:^2.0.3"
+    satteri: "npm:^0.9.1"
+  checksum: 10c0/4d88de2c7b058c8ab0a1343e35cfec14f50f36c2c7a7f8024f679ef4edb5e42c8ca8c8828446aa9124aa1c2f5fb1e0ec837e7bf789cd775e7e61a2405a09bc24
+  languageName: node
+  linkType: hard
+
+"@astrojs/markdown-satteri@npm:^0.3.2":
   version: 0.3.4
   resolution: "@astrojs/markdown-satteri@npm:0.3.4"
   dependencies:
@@ -2617,7 +2630,7 @@ __metadata:
   resolution: "@frontman/e2e-astro@workspace:test/e2e/fixtures/astro"
   dependencies:
     "@frontman-ai/astro": "workspace:*"
-    astro: "npm:7.1.0"
+    astro: "npm:7.1.6"
   languageName: unknown
   linkType: soft
 
@@ -8233,13 +8246,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"astro@npm:7.1.0":
-  version: 7.1.0
-  resolution: "astro@npm:7.1.0"
+"astro@npm:7.1.6":
+  version: 7.1.6
+  resolution: "astro@npm:7.1.6"
   dependencies:
-    "@astrojs/compiler-rs": "npm:^0.3.1"
-    "@astrojs/internal-helpers": "npm:0.10.1"
-    "@astrojs/markdown-satteri": "npm:0.3.4"
+    "@astrojs/compiler-rs": "npm:^0.3.2"
+    "@astrojs/internal-helpers": "npm:0.10.2"
+    "@astrojs/markdown-satteri": "npm:0.3.5"
     "@astrojs/telemetry": "npm:3.3.3"
     "@capsizecss/unpack": "npm:^4.0.0"
     "@clack/prompts": "npm:^1.1.0"
@@ -8251,7 +8264,7 @@ __metadata:
     ci-info: "npm:^4.4.0"
     clsx: "npm:^2.1.1"
     common-ancestor-path: "npm:^2.0.0"
-    cookie: "npm:^1.1.1"
+    cookie: "npm:^2.0.1"
     devalue: "npm:^5.8.1"
     diff: "npm:^8.0.3"
     dset: "npm:^3.1.4"
@@ -8263,12 +8276,12 @@ __metadata:
     github-slugger: "npm:^2.0.0"
     html-escaper: "npm:3.0.3"
     http-cache-semantics: "npm:^4.2.0"
-    js-yaml: "npm:^4.1.1"
+    js-yaml: "npm:^4.3.0"
     jsonc-parser: "npm:^3.3.1"
-    magic-string: "npm:^0.30.21"
+    magic-string: "npm:^1.0.0"
     magicast: "npm:^0.5.2"
     mrmime: "npm:^2.0.1"
-    neotraverse: "npm:^0.6.18"
+    neotraverse: "npm:^1.0.1"
     obug: "npm:^2.1.1"
     p-limit: "npm:^7.3.0"
     p-queue: "npm:^9.1.0"
@@ -8292,7 +8305,7 @@ __metadata:
     yargs-parser: "npm:^22.0.0"
     zod: "npm:^4.3.6"
   peerDependencies:
-    "@astrojs/markdown-remark": 7.2.1
+    "@astrojs/markdown-remark": 7.2.2
   dependenciesMeta:
     sharp:
       optional: true
@@ -8301,7 +8314,7 @@ __metadata:
       optional: true
   bin:
     astro: ./bin/astro.mjs
-  checksum: 10c0/4639367de441cd1832e2c63bc9e99d566519668a686fcddc2a542c0ef4e8a1ca76cc28490edc3f1b8ce0b2e3b8028333a87f84f8019530546b9bdca9af9749b6
+  checksum: 10c0/cdf83d5b19fa5fbb533bbcb7d8a9cef10f9e350ffe1585a5e0e79ead10915e73527270c3eb140ee8641754907e79df7e915a4547663833ab79cbe7d8bef4f590
   languageName: node
   linkType: hard
 
@@ -9151,10 +9164,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"cookie@npm:^1.1.1":
-  version: 1.1.1
-  resolution: "cookie@npm:1.1.1"
-  checksum: 10c0/79c4ddc0fcad9c4f045f826f42edf54bcc921a29586a4558b0898277fa89fb47be95bc384c2253f493af7b29500c830da28341274527328f18eba9f58afa112c
+"cookie@npm:^2.0.1":
+  version: 2.0.1
+  resolution: "cookie@npm:2.0.1"
+  checksum: 10c0/dcf3bd6ec9d0f4f32be7575e23242866cb53be55fc3d4cf36215638596661cec1327a3b4ca286ba15eba8f2abd443e422b8c5f708af4ea9f75b4d3dedc67ee4c
   languageName: node
   linkType: hard
 
@@ -13022,6 +13035,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"magic-string@npm:^1.0.0":
+  version: 1.1.0
+  resolution: "magic-string@npm:1.1.0"
+  dependencies:
+    "@jridgewell/sourcemap-codec": "npm:^1.5.5"
+  checksum: 10c0/f904dee2fd190ee5450c754234d8a831228677e9092ed2e545e42746beecf18d617156eb911af55a14496ebe1e60179678c4080c919f74eca7738eba3f38f13a
+  languageName: node
+  linkType: hard
+
 "magicast@npm:^0.5.2":
   version: 0.5.2
   resolution: "magicast@npm:0.5.2"
@@ -13117,7 +13139,7 @@ __metadata:
     "@frontman-ai/astro": "workspace:*"
     "@tailwindcss/typography": "npm:^0.5.20"
     "@tailwindcss/vite": "npm:^4.3.3"
-    astro: "npm:7.1.0"
+    astro: "npm:7.1.6"
     astro-broken-links-checker: "npm:^1.1.0"
     astro-icon: "npm:^1.1.5"
     hc-starlight: "npm:^0.0.8"
@@ -14247,10 +14269,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"neotraverse@npm:^0.6.18":
-  version: 0.6.18
-  resolution: "neotraverse@npm:0.6.18"
-  checksum: 10c0/46f4c53cbbdc53671150916b544a9f46e27781f8003985237507542190173bec131168d89b846535f9c34c0a2a7debb1ab3a4f7a93d08218e2c194a363708ffa
+"neotraverse@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "neotraverse@npm:1.0.1"
+  checksum: 10c0/98e5d2d1974f91d527851a9dcfceb62701a1d31970b324b9f35fbdd244d173edc7a379ea1773f64771a9dc282486e3d3b693b24e14b1e969291612b2ff6b5054
   languageName: node
   linkType: hard
 
