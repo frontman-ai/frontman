@@ -3,6 +3,14 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+### Fixed
+
+- Fix hosted Google/GitHub sign-in redirects after the WorkOS v3 SDK upgrade and add automatic OAuth-start smoke coverage.
+- Replace generic HTML error pages with support guidance that links to `support@frontman.sh` and Discord.
+
 ## [4.0.0] - 2026-08-27
 
 

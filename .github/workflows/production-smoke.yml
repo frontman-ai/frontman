@@ -1,0 +1,34 @@
+name: Production Smoke Tests
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Production smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Check health and OAuth start routes
+        run: scripts/ci/production-smoke.sh
+
+      - name: Notify Discord on smoke failure
+        if: failure()
+        continue-on-error: true
+        uses: ./.github/actions/discord-notify
+        with:
+          status: ${{ job.status }}
+          component: Production smoke
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}

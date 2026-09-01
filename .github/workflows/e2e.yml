@@ -33,6 +33,7 @@ on:
           - astro
           - vite
           - vue-vite
+          - oauth-start
 
 permissions:
   contents: read

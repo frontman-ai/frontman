@@ -7,6 +7,24 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
     %{user: user_fixture()}
   end
 
+  describe "GET /auth/:provider" do
+    test "redirects Google sign-in to WorkOS authorization", %{conn: conn} do
+      conn = get(conn, ~p"/auth/google")
+
+      assert redirected_to(conn, 302) =~ "https://api.workos.com/user_management/authorize"
+      assert redirected_to(conn, 302) =~ "provider=GoogleOAuth"
+      assert redirected_to(conn, 302) =~ "client_id=client_test_workos"
+    end
+
+    test "redirects GitHub sign-in to WorkOS authorization", %{conn: conn} do
+      conn = get(conn, ~p"/auth/github")
+
+      assert redirected_to(conn, 302) =~ "https://api.workos.com/user_management/authorize"
+      assert redirected_to(conn, 302) =~ "provider=GitHubOAuth"
+      assert redirected_to(conn, 302) =~ "client_id=client_test_workos"
+    end
+  end
+
   describe "GET /auth/callback - access_denied" do
     test "redirects with error message when user cancels", %{conn: conn} do
       conn = get(conn, ~p"/auth/callback", %{"error" => "access_denied"})
