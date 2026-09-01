@@ -84,37 +84,20 @@ let disconnect = (relay: t): unit => {
 
 let getToolsJson = (relay: t): array<JSON.t> => {
   switch relay.state.contents {
-  | Connected({tools}) =>
-    tools->Array.map(tool => {
-      let frontmanMetadata = dict{
-        "access": tool.access
-        ->Option.getOr(FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite)
-        ->S.decodeOrThrow(
-          ~from=FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.accessSchema,
-          ~to=S.json->S.noValidation(true),
-        ),
-        "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
-      }
-      let definition = dict{
-        "name": JSON.Encode.string(tool.name),
-        "description": JSON.Encode.string(tool.description),
-        "_meta": JSON.Encode.object(
-          dict{"ai.frontman/tool-metadata": JSON.Encode.object(frontmanMetadata)},
-        ),
-        "inputSchema": tool.inputSchema,
-      }
-      tool.outputSchema->Option.forEach(outputSchema =>
-        definition->Dict.set("outputSchema", outputSchema)
-      )
-      JSON.Encode.object(definition)
-    })
+  | Connected({tools}) => tools
   | Disconnected | Error(_) => []
   }
 }
 
+let toolName = tool =>
+  tool
+  ->JSON.Decode.object
+  ->Option.flatMap(tool => tool->Dict.get("name"))
+  ->Option.flatMap(JSON.Decode.string)
+
 let hasTool = (relay: t, name: string): bool => {
   switch relay.state.contents {
-  | Connected({tools}) => tools->Array.some(tool => tool.name == name)
+  | Connected({tools}) => tools->Array.some(tool => tool->toolName == Some(name))
   | Disconnected | Error(_) => false
   }
 }

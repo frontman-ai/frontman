@@ -11,32 +11,102 @@ let parses = (schema, json) => {
   }
 }
 
+let parseJson = (schema, json) => json->JSON.parseOrThrow->S.parseOrThrow(~to=schema)
+let typedRoundTrip = (schema, json) =>
+  json
+  ->JSON.parseOrThrow
+  ->S.parseOrThrow(~to=schema)
+  ->S.decodeOrThrow(~from=schema, ~to=S.json->S.noValidation(true))
+
 describe("MCP wire contracts", () => {
-  test("accepts broad discovery results", t => {
+  test("round-trips discovery implementation metadata", t => {
     let json = `{
       "resultType":"complete",
       "supportedVersions":["2026-07-28","2027-01-01"],
       "capabilities":{"tools":{},"logging":{}},
       "instructions":"Use tools carefully",
       "ttlMs":1,
-      "cacheScope":"public"
+      "cacheScope":"public",
+      "_meta":{
+        "io.modelcontextprotocol/serverInfo":{
+          "name":"server",
+          "title":"Server",
+          "version":"1.0.0",
+          "description":"A test MCP server"
+        }
+      }
     }`
 
-    t->expect(parses(MCP.discoverResultWireSchema, json))->Expect.toBe(true)
+    t
+    ->expect(parseJson(MCP.discoverResultWireSchema, json))
+    ->Expect.toEqual(JSON.parseOrThrow(json))
   })
 
-  test("accepts broad tools/list results", t => {
+  test("round-trips official tool metadata and rejects malformed known fields", t => {
     let json = `{
       "resultType":"complete",
-      "tools":[{"name":"search","inputSchema":{"type":"object"},"title":"Search"}],
+      "tools":[{
+        "name":"search",
+        "title":"Search",
+        "description":"Search files",
+        "icons":[{"src":"data:image/png;base64,AA==","mimeType":"image/png","sizes":["48x48"],"theme":"dark"}],
+        "inputSchema":{"type":"object","properties":{"q":{"type":"string","title":"Query"}}},
+        "outputSchema":{"type":"object","properties":{"matches":{"type":"array"}}},
+        "annotations":{
+          "title":"Search files",
+          "readOnlyHint":true,
+          "destructiveHint":false,
+          "idempotentHint":true,
+          "openWorldHint":false
+        },
+        "_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"}}
+      }],
       "nextCursor":"opaque",
       "ttlMs":2,
       "cacheScope":"public"
     }`
-    let invalid = `{"resultType":"complete","tools":[{"name":"search","inputSchema":{"type":"object"},"_meta":{"ai.frontman/tool-metadata":{"executionMode":"invalid"}}}],"ttlMs":2,"cacheScope":"public"}`
 
-    t->expect(parses(MCP.toolsListResultWireSchema, json))->Expect.toBe(true)
-    t->expect(parses(MCP.toolsListResultWireSchema, invalid))->Expect.toBe(false)
+    let invalid = [
+      `{"resultType":"complete","tools":[{"name":"search","inputSchema":{"type":"object"},"title":123}],"ttlMs":2,"cacheScope":"public"}`,
+      `{"resultType":"complete","tools":[{"name":"search","inputSchema":{"type":"object"},"icons":[{"src":"x","theme":"system"}]}],"ttlMs":2,"cacheScope":"public"}`,
+      `{"resultType":"complete","tools":[{"name":"search","inputSchema":{"type":"object"},"annotations":{"readOnlyHint":"yes"}}],"ttlMs":2,"cacheScope":"public"}`,
+      `{"resultType":"complete","tools":[{"name":"search","inputSchema":{"type":"object"},"_meta":{"ai.frontman/tool-metadata":{"executionMode":"invalid"}}}],"ttlMs":2,"cacheScope":"public"}`,
+    ]
+
+    t
+    ->expect(parseJson(MCP.toolsListResultWireSchema, json))
+    ->Expect.toEqual(JSON.parseOrThrow(json))
+    invalid->Array.forEach(
+      json => t->expect(parses(MCP.toolsListResultWireSchema, json))->Expect.toBe(false),
+    )
+  })
+
+  test("round-trips official content annotations", t => {
+    let json = `{
+      "resultType":"complete",
+      "content":[{
+        "type":"text",
+        "text":"hello",
+        "annotations":{"audience":["user","assistant"],"priority":0.5,"lastModified":"2025-01-12T15:00:58Z","_meta":{"vendor":"annotation"}},
+        "_meta":{"trace":"1"}
+      },{
+        "type":"resource_link",
+        "name":"file",
+        "title":"File",
+        "uri":"file:///tmp/a.txt",
+        "description":"A file",
+        "mimeType":"text/plain",
+        "size":3000000000,
+        "annotations":{"audience":["assistant"],"priority":1,"_meta":{"vendor":"resource-annotation"}},
+        "_meta":{"trace":"2"}
+      }]
+    }`
+    let invalid = `{"resultType":"complete","content":[{"type":"text","text":"hello","annotations":{"priority":2}}]}`
+
+    t
+    ->expect(typedRoundTrip(MCP.callToolResultSchema, json))
+    ->Expect.toEqual(JSON.parseOrThrow(json))
+    t->expect(parses(MCP.callToolResultSchema, invalid))->Expect.toBe(false)
   })
 
   test("requires finite nonnegative ttlMs", t => {

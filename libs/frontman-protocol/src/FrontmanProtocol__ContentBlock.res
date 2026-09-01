@@ -1,11 +1,30 @@
-@schema
-type annotations = {_meta: option<JSON.t>}
+let prioritySchema =
+  S.float
+  ->S.refine(value => value >= 0. && value <= 1., ~error="Expected number between 0 and 1")
+  ->S.extendJSONSchema({minimum: 0., maximum: 1.})
+let audienceSchema = S.union([S.literal("user"), S.literal("assistant")])
 
 @schema
-type textResourceContents = {uri: string, mimeType: option<string>, text: string}
+type annotations = {
+  audience: option<array<@s.matches(audienceSchema) string>>,
+  priority: option<@s.matches(prioritySchema) float>,
+  lastModified: option<string>,
+  _meta: option<JSON.t>,
+}
+
+@scope("Number") @val
+external numberIsInteger: float => bool = "isInteger"
+
+let sizeWireSchema =
+  S.float
+  ->S.refine(value => value >= 0. && numberIsInteger(value), ~error="Expected nonnegative integer")
+  ->S.extendJSONSchema({minimum: 0., multipleOf: 1.})
 
 @schema
-type blobResourceContents = {uri: string, mimeType: option<string>, blob: string}
+type textResourceContents = {uri: string, mimeType: option<string>, text: string, _meta?: JSON.t}
+
+@schema
+type blobResourceContents = {uri: string, mimeType: option<string>, blob: string, _meta?: JSON.t}
 
 type embeddedResourceResource =
   | TextResourceContents(textResourceContents)
@@ -17,6 +36,7 @@ let embeddedResourceResourceSchema = S.union([
       uri: s.field("uri", S.string),
       mimeType: s.field("mimeType", S.option(S.string)),
       text: s.field("text", S.string),
+      _meta: ?s.field("_meta", S.option(S.json)),
     })
   }),
   S.object(s => {
@@ -24,6 +44,7 @@ let embeddedResourceResourceSchema = S.union([
       uri: s.field("uri", S.string),
       mimeType: s.field("mimeType", S.option(S.string)),
       blob: s.field("blob", S.string),
+      _meta: ?s.field("_meta", S.option(S.json)),
     })
   }),
 ])
@@ -54,7 +75,11 @@ type t =
   | AudioContent(mediaContent)
   | ResourceLink({
       name: string,
+      title: option<string>,
       uri: string,
+      description: option<string>,
+      mimeType: option<string>,
+      size: option<float>,
       _meta: option<JSON.t>,
       annotations: option<annotations>,
     })
@@ -91,7 +116,11 @@ let schema = S.union([
     s.tag("type", "resource_link")
     ResourceLink({
       name: s.field("name", S.string),
+      title: s.field("title", S.option(S.string)),
       uri: s.field("uri", S.string),
+      description: s.field("description", S.option(S.string)),
+      mimeType: s.field("mimeType", S.option(S.string)),
+      size: s.field("size", S.option(sizeWireSchema)),
       _meta: s.field("_meta", S.option(S.json)),
       annotations: s.field("annotations", S.option(annotationsSchema)),
     })
