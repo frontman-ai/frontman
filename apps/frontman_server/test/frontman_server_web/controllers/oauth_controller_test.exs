@@ -8,24 +8,6 @@ defmodule FrontmanServerWeb.OAuthControllerTest do
   end
 
   describe "GET /auth/:provider" do
-    setup do
-      original_config = Application.get_env(:workos, WorkOS.Client)
-
-      Application.put_env(:workos, WorkOS.Client,
-        api_key: "sk_test_workos",
-        client_id: "client_test_workos"
-      )
-
-      on_exit(fn ->
-        case original_config do
-          nil -> Application.delete_env(:workos, WorkOS.Client)
-          config -> Application.put_env(:workos, WorkOS.Client, config)
-        end
-      end)
-
-      :ok
-    end
-
     test "redirects Google sign-in to WorkOS authorization", %{conn: conn} do
       conn = get(conn, ~p"/auth/google")
 

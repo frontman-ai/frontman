@@ -51,9 +51,11 @@ end
 
 config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 
-config :workos, WorkOS.Client,
-  api_key: env!("WORKOS_API_KEY", :string, nil),
-  client_id: env!("WORKOS_CLIENT_ID", :string, nil)
+if config_env() in [:dev, :prod] do
+  config :workos, WorkOS.Client,
+    api_key: env!("WORKOS_API_KEY", :string!),
+    client_id: env!("WORKOS_CLIENT_ID", :string!)
+end
 
 if config_env() in [:dev, :test, :e2e] do
   db_host = env!("DB_HOST", :string, "localhost")
