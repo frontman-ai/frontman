@@ -17,7 +17,7 @@ let make = () => {
     onOpenChange={(isOpen, _) =>
       switch isOpen {
       | true => ()
-      | false => Client__State.Actions.dismissFirstTaskFeedbackDialog()
+      | false => Client__State.Actions.closeFirstTaskFeedbackDialog()
       }}
   >
     <Dialog.Content className="sm:max-w-md">
@@ -49,6 +49,15 @@ let make = () => {
           | (false, false) => React.string("Share Frontman")
           }}
         </Button>
+        <a
+          href="https://discord.gg/xk8uXJSvhC"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={Button.buttonVariants(~variant=Button.Variant.Secondary)}
+          onClick={_ => Client__Analytics.track(FirstTaskFeedbackDiscordClicked)}
+        >
+          {React.string("Join Discord")}
+        </a>
         <a
           href=ratingUrl
           target="_blank"

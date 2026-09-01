@@ -286,6 +286,9 @@ module Actions = {
 
   let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
 
+  let closeFirstTaskFeedbackDialog = () =>
+    Client__State__Store.dispatch(CloseFirstTaskFeedbackDialog)
+
   let dismissFirstTaskFeedbackDialog = () =>
     Client__State__Store.dispatch(DismissFirstTaskFeedbackDialog)
 

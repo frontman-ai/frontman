@@ -99,6 +99,7 @@ type action =
   | CheckForUpdate({installedVersion: string, npmPackage: string})
   | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
   | DismissUpdateBanner
+  | CloseFirstTaskFeedbackDialog
   | DismissFirstTaskFeedbackDialog
   | ShareFrontman
   | ShareFrontmanLinkCopied
@@ -166,6 +167,7 @@ type effect =
   | LoadTaskEffect({taskId: string})
   | DeleteSessionEffect({taskId: string})
   | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
+  | TrackAnalyticsEffect(Client__Analytics.event)
   | ShareFrontmanEffect
   | FetchCustomProvidersEffect({
       apiBaseUrl: string,
@@ -663,6 +665,16 @@ let canShowFirstTaskFeedback = (state: state, task) =>
   TaskReducer.Selectors.completedIdleTurn(task)->Option.isSome &&
   TaskReducer.Selectors.queuedUserMessages(task)->Option.getOrThrow->Array.length == 0
 
+let firstTaskFeedbackTransitionEffects = (
+  previous: Client__State__Types.firstTaskFeedbackDialogState,
+  next: Client__State__Types.firstTaskFeedbackDialogState,
+) =>
+  switch (previous, next) {
+  | (Visible, Visible) => []
+  | (_, Visible) => [TrackAnalyticsEffect(FirstTaskFeedbackDialogShown)]
+  | _ => []
+  }
+
 let addUserMessageToState = (state: state, ~id, ~sessionId, ~content, ~annotations, ~agentId) =>
   switch state.selectedModelValue {
   | None => state->StateReducer.update
@@ -736,7 +748,7 @@ let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
           let userProfile =
             json->S.decodeOrThrow(~from=S.json, ~to=Client__State__Types.userProfileSchema)
           dispatch(UserProfileReceived({userProfile: userProfile}))
-          Client__Heap.heap.identify(userProfile.id)
+          Client__Heap.identify(userProfile.id)
         | false => ()
         }
       | None => ()
@@ -1501,6 +1513,8 @@ let handleEffect = (effect, state: state, dispatch) => {
       }
     }
     fetch()->ignore
+  | TrackAnalyticsEffect(event) => Client__Analytics.track(event)
+
   | ShareFrontmanEffect =>
     FirstTaskFeedbackShare.run(
       ~onShared=() => dispatch(DismissFirstTaskFeedbackDialog),
@@ -1597,8 +1611,12 @@ let next = (state: state, action) => {
         }
       | _ => state.firstTaskFeedbackDialogState
       }
+      let feedbackEffects = firstTaskFeedbackTransitionEffects(
+        state.firstTaskFeedbackDialogState,
+        feedbackState,
+      )
       {...state, firstTaskFeedbackDialogState: feedbackState}->StateReducer.update(
-        ~sideEffects=effects,
+        ~sideEffects=Array.concat(effects, feedbackEffects),
       )
     }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
@@ -2127,13 +2145,18 @@ let next = (state: state, action) => {
       }
     })
 
-    {
+    let loadedState = {
       ...state,
       tasks: updatedTasks,
       sessionsLoadState: Client__State__Types.SessionsLoaded,
     }
-    ->resolveFeedbackHistory
-    ->StateReducer.update
+    let resolvedState = loadedState->resolveFeedbackHistory
+    resolvedState->StateReducer.update(
+      ~sideEffects=firstTaskFeedbackTransitionEffects(
+        loadedState.firstTaskFeedbackDialogState,
+        resolvedState.firstTaskFeedbackDialogState,
+      ),
+    )
 
   | SessionsLoadError({error}) =>
     {
@@ -2160,12 +2183,24 @@ let next = (state: state, action) => {
 
   | DismissUpdateBanner => {...state, updateBannerDismissed: true}->StateReducer.update
 
+  | CloseFirstTaskFeedbackDialog =>
+    switch state.firstTaskFeedbackDialogState {
+    | Visible | LinkCopied | ShareFailed =>
+      {...state, firstTaskFeedbackDialogState: Dismissed}->StateReducer.update(
+        ~sideEffects=[TrackAnalyticsEffect(FirstTaskFeedbackDialogClosed)],
+      )
+    | Waiting | AwaitingHistory | Dismissed => state->StateReducer.update
+    }
+
   | DismissFirstTaskFeedbackDialog =>
     {...state, firstTaskFeedbackDialogState: Dismissed}->StateReducer.update
 
   | ShareFrontman =>
     switch state.firstTaskFeedbackDialogState {
-    | Visible | ShareFailed => state->StateReducer.update(~sideEffects=[ShareFrontmanEffect])
+    | Visible | ShareFailed =>
+      state->StateReducer.update(
+        ~sideEffects=[TrackAnalyticsEffect(FirstTaskFeedbackShareClicked), ShareFrontmanEffect],
+      )
     | Waiting | AwaitingHistory | LinkCopied | Dismissed => state->StateReducer.update
     }
 

@@ -16,7 +16,7 @@ beforeEach(() => setup())
 let property = (properties, name) => properties->Dict.get(name)->Option.flatMap(JSON.Decode.string)
 
 test("tracks normalized relay outcomes", t => {
-  Client__Heap.trackRelayConnection(Failure(NetworkError))
+  Client__Analytics.track(RelayConnectionCompleted(Failure(NetworkError)))
   let failed = trackedProperties()
 
   t->expect(trackedName())->Expect.toBe("relay_connection_completed")
@@ -24,7 +24,7 @@ test("tracks normalized relay outcomes", t => {
   t->expect(property(failed, "outcome"))->Expect.toEqual(Some("failure"))
   t->expect(property(failed, "reason_code"))->Expect.toEqual(Some("network_error"))
 
-  Client__Heap.trackRelayConnection(Success)
+  Client__Analytics.track(RelayConnectionCompleted(Success))
   let succeeded = trackedProperties()
   t->expect(property(succeeded, "outcome"))->Expect.toEqual(Some("success"))
   t->expect(property(succeeded, "reason_code"))->Expect.toEqual(None)

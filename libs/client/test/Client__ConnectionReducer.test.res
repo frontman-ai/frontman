@@ -8,7 +8,7 @@ let effectKinds = effects =>
     switch effect {
     | Reducer.LogError(_) => #logError
     | Reducer.LogInfo(_) => #logInfo
-    | Reducer.TrackRelay(_) => #trackRelay
+    | Reducer.TrackAnalytics(_) => #trackAnalytics
     | Reducer.ConnectACP(_) => #connectACP
     | Reducer.ScheduleAuthRetry(_) => #scheduleAuthRetry
     | Reducer.LogoutEffect(_) => #logout
@@ -24,10 +24,10 @@ let effectKinds = effects =>
     | Reducer.CleanupSessionEffect(_) => #cleanupSession
     }
   )
-let trackedOutcomes = effects =>
+let trackedRelayOutcomes = effects =>
   effects->Array.filterMap(e =>
     switch e {
-    | Reducer.TrackRelay(outcome) => Some(outcome)
+    | Reducer.TrackAnalytics(RelayConnectionCompleted(outcome)) => Some(outcome)
     | _ => None
     }
   )
@@ -280,8 +280,8 @@ describe("Connection Reducer", () => {
 
         t->expect(nextState.relay)->Expect.toBe(Reducer.RelayConnected)
         t
-        ->expect(trackedOutcomes(effects))
-        ->Expect.toEqual([Client__Heap.Success])
+        ->expect(trackedRelayOutcomes(effects))
+        ->Expect.toEqual([Client__Analytics.Success])
       },
     )
 
@@ -289,16 +289,18 @@ describe("Connection Reducer", () => {
       "RelayConnectError transitions to RelayError and classifies analytics",
       t => {
         [
-          ("HTTP 500: Error", Client__Heap.HttpError),
-          ("Invalid tools response: bad data", Client__Heap.InvalidResponse),
-          ("Connection refused", Client__Heap.NetworkError),
+          ("HTTP 500: Error", Client__Analytics.HttpError),
+          ("Invalid tools response: bad data", Client__Analytics.InvalidResponse),
+          ("Connection refused", Client__Analytics.NetworkError),
         ]->Array.forEach(
           ((message, reason)) => {
             let state = {...Reducer.initialState, relay: RelayConnecting}
             let (nextState, effects) = Reducer.reduce(state, RelayConnectError(message))
 
             t->expect(nextState.relay)->Expect.toEqual(Reducer.RelayError(message))
-            t->expect(trackedOutcomes(effects))->Expect.toEqual([Client__Heap.Failure(reason)])
+            t
+            ->expect(trackedRelayOutcomes(effects))
+            ->Expect.toEqual([Client__Analytics.Failure(reason)])
           },
         )
       },
@@ -315,7 +317,7 @@ describe("Connection Reducer", () => {
         actions->Array.forEach(
           action => {
             let (_, effects) = Reducer.reduce(state, action)
-            t->expect(trackedOutcomes(effects))->Expect.toEqual([])
+            t->expect(trackedRelayOutcomes(effects))->Expect.toEqual([])
           },
         )
       },
