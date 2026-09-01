@@ -35,6 +35,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   @acp_method_session_prompt ACP.method_session_prompt()
   @acp_method_session_cancel ACP.method_session_cancel()
   @acp_method_session_load ACP.method_session_load()
+  @mcp_init_timeout_ms 30_000
   @impl true
   def join("task:" <> task_id, _params, socket) do
     scope = socket.assigns.scope
@@ -52,6 +53,8 @@ defmodule FrontmanServerWeb.TaskChannel do
         |> assign(:task_id, task_id)
         |> assign(:framework, task.framework)
         |> assign(:mcp_init_state, init_state)
+        |> assign(:mcp_init_timeout_ref, nil)
+        |> assign(:mcp_init_timeout_token, nil)
         |> assign(:mcp_tools, [])
         |> assign(:mcp_status, :pending)
         |> assign(:session_loaded, false)
@@ -130,6 +133,22 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_info({:start_mcp_init, actions}, socket) do
     socket = apply_init_actions(actions, socket)
     {:noreply, socket}
+  end
+
+  def handle_info({:mcp_init_timeout, token}, socket) do
+    case socket.assigns[:mcp_init_timeout_token] do
+      nil ->
+        {:noreply, socket}
+
+      ^token ->
+        socket = clear_mcp_init_timeout(socket)
+        {new_state, actions} = MCPInitializer.handle_timeout(socket.assigns.mcp_init_state)
+        socket = assign(socket, :mcp_init_state, new_state)
+        {:noreply, apply_init_actions(actions, socket)}
+
+      _stale_or_nil ->
+        {:noreply, socket}
+    end
   end
 
   def handle_info({:execute_next_turn, execution}, socket) do
@@ -937,6 +956,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp apply_init_action(socket, {:push_mcp, msg}) do
+    socket = schedule_mcp_init_timeout(socket)
     push(socket, "mcp:message", msg)
     socket
   end
@@ -946,6 +966,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     Logger.info("MCP initialization complete for task #{task_id}")
 
     socket
+    |> clear_mcp_init_timeout()
     |> assign(:mcp_status, :ready)
     |> assign(:mcp_tools, data.tools)
     |> redispatch_unresolved_tool_calls()
@@ -956,9 +977,40 @@ defmodule FrontmanServerWeb.TaskChannel do
     Logger.error("MCP initialization failed", reason: error)
 
     socket
+    |> clear_mcp_init_timeout()
     |> assign(:mcp_status, :failed)
     |> redispatch_unresolved_tool_calls()
     |> tap(&wake_runner(&1, nil))
+  end
+
+  defp schedule_mcp_init_timeout(socket) do
+    socket = clear_mcp_init_timeout(socket)
+    token = make_ref()
+
+    timeout_ref =
+      Process.send_after(
+        self(),
+        {:mcp_init_timeout, token},
+        @mcp_init_timeout_ms
+      )
+
+    socket
+    |> assign(:mcp_init_timeout_ref, timeout_ref)
+    |> assign(:mcp_init_timeout_token, token)
+  end
+
+  defp clear_mcp_init_timeout(socket) do
+    case socket.assigns[:mcp_init_timeout_ref] do
+      nil ->
+        :ok
+
+      timeout_ref ->
+        Process.cancel_timer(timeout_ref)
+    end
+
+    socket
+    |> assign(:mcp_init_timeout_ref, nil)
+    |> assign(:mcp_init_timeout_token, nil)
   end
 
   defp redispatch_unresolved_tool_calls(

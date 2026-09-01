@@ -91,6 +91,49 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  defp next_mcp_initialization_request(socket, method) do
+    :sys.get_state(socket.channel_pid)
+    assert_push("mcp:message", %{"id" => request_id, "method" => ^method})
+    assert is_integer(request_id)
+
+    timer = mcp_initialization_timer(socket)
+    {request_id, timer}
+  end
+
+  defp mcp_initialization_timer(socket) do
+    %{assigns: %{mcp_init_timeout_ref: timeout_ref, mcp_init_timeout_token: token}} =
+      :sys.get_state(socket.channel_pid)
+
+    assert is_reference(timeout_ref)
+    assert is_reference(token)
+    %{ref: timeout_ref, token: token}
+  end
+
+  defp assert_mcp_initialization_timeout(socket, timer) do
+    send(socket.channel_pid, {:mcp_init_timeout, timer.token})
+
+    channel_socket = :sys.get_state(socket.channel_pid)
+
+    assert %{
+             assigns: %{
+               mcp_status: :failed,
+               mcp_init_timeout_ref: nil,
+               mcp_init_timeout_token: nil
+             }
+           } = channel_socket
+    assert channel_socket.assigns.mcp_init_state.status == :failed
+    assert Process.alive?(socket.channel_pid)
+    channel_socket
+  end
+
+  defp assert_mcp_timer_replaced(previous_timer, current_timer) do
+    assert previous_timer.ref != current_timer.ref
+    assert previous_timer.token != current_timer.token
+    assert Process.cancel_timer(previous_timer.ref) == false
+    assert current_timer.ref != nil
+    assert current_timer.token != nil
+  end
+
   defp assert_state_update_idle(task_id) do
     assert_push(
       "acp:message",
@@ -1018,6 +1061,243 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
+    test "fails initialization when discovery times out", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      {_request_id, timer} = next_mcp_initialization_request(socket, "server/discover")
+
+      assert_mcp_initialization_timeout(socket, timer)
+    end
+
+    test "fails initialization when the first tools/list request times out", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      {discovery_request_id, discovery_timer} =
+        next_mcp_initialization_request(socket, "server/discover")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(discovery_request_id, mcp_discovery_result())
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {_tools_request_id, tools_timer} = next_mcp_initialization_request(socket, "tools/list")
+
+      assert_mcp_timer_replaced(discovery_timer, tools_timer)
+      assert_mcp_initialization_timeout(socket, tools_timer)
+    end
+
+    test "replaces the timer for tools/list pagination and ignores stale timeout tokens", %{
+      scope: scope
+    } do
+      {socket, _task_id} = join_task_channel(scope)
+      {discovery_request_id, discovery_timer} =
+        next_mcp_initialization_request(socket, "server/discover")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(discovery_request_id, mcp_discovery_result())
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {tools_request_id, tools_timer} = next_mcp_initialization_request(socket, "tools/list")
+
+      assert_mcp_timer_replaced(discovery_timer, tools_timer)
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(
+          tools_request_id,
+          mcp_tools_result([], %{"nextCursor" => "page-2"})
+        )
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {next_tools_request_id, next_tools_timer} =
+        next_mcp_initialization_request(socket, "tools/list")
+
+      assert_mcp_timer_replaced(tools_timer, next_tools_timer)
+
+      send(socket.channel_pid, {:mcp_init_timeout, tools_timer.token})
+      channel_socket = :sys.get_state(socket.channel_pid)
+
+      assert channel_socket.assigns.mcp_status == :pending
+      assert channel_socket.assigns.mcp_init_state.status == :loading_tools
+      assert channel_socket.assigns.mcp_init_state.tools_request_id == next_tools_request_id
+      assert channel_socket.assigns.mcp_init_timeout_ref == next_tools_timer.ref
+      assert channel_socket.assigns.mcp_init_timeout_token == next_tools_timer.token
+
+      assert_mcp_initialization_timeout(socket, next_tools_timer)
+    end
+
+    test "fails initialization when project rules time out", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      {discovery_request_id, _discovery_timer} =
+        next_mcp_initialization_request(socket, "server/discover")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(discovery_request_id, mcp_discovery_result())
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {tools_request_id, _tools_timer} = next_mcp_initialization_request(socket, "tools/list")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(tools_request_id, mcp_tools_result([]))
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {_rules_request_id, rules_timer} =
+        next_mcp_initialization_request(socket, "tools/call")
+
+      assert_mcp_initialization_timeout(socket, rules_timer)
+    end
+
+    test "fails initialization when project structure times out", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      {discovery_request_id, _discovery_timer} =
+        next_mcp_initialization_request(socket, "server/discover")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(discovery_request_id, mcp_discovery_result())
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {tools_request_id, _tools_timer} = next_mcp_initialization_request(socket, "tools/list")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(tools_request_id, mcp_tools_result([]))
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {rules_request_id, rules_timer} =
+        next_mcp_initialization_request(socket, "tools/call")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(rules_request_id, MCP.tool_result_text(""))
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {_structure_request_id, structure_timer} =
+        next_mcp_initialization_request(socket, "tools/call")
+
+      assert_mcp_timer_replaced(rules_timer, structure_timer)
+      assert_mcp_initialization_timeout(socket, structure_timer)
+    end
+
+    test "preserves project context error transitions and clears the terminal timer", %{
+      scope: scope
+    } do
+      {socket, _task_id} = join_task_channel(scope)
+      {discovery_request_id, _discovery_timer} =
+        next_mcp_initialization_request(socket, "server/discover")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(discovery_request_id, mcp_discovery_result())
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {tools_request_id, _tools_timer} = next_mcp_initialization_request(socket, "tools/list")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(tools_request_id, mcp_tools_result([]))
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {rules_request_id, rules_timer} =
+        next_mcp_initialization_request(socket, "tools/call")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.error_response(rules_request_id, -32_000, "rules unavailable")
+      )
+
+      :sys.get_state(socket.channel_pid)
+      {structure_request_id, structure_timer} =
+        next_mcp_initialization_request(socket, "tools/call")
+
+      assert_mcp_timer_replaced(rules_timer, structure_timer)
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.error_response(structure_request_id, -32_000, "structure unavailable")
+      )
+
+      channel_socket = :sys.get_state(socket.channel_pid)
+      assert channel_socket.assigns.mcp_status == :ready
+      assert channel_socket.assigns.mcp_init_state.status == :ready
+      assert channel_socket.assigns.mcp_init_timeout_ref == nil
+      assert channel_socket.assigns.mcp_init_timeout_token == nil
+    end
+
+    test "clears the timer after an explicit initialization failure", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      {discovery_request_id, discovery_timer} =
+        next_mcp_initialization_request(socket, "server/discover")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(
+          discovery_request_id,
+          mcp_discovery_result(%{"supportedVersions" => ["unsupported"]})
+        )
+      )
+
+      channel_socket = :sys.get_state(socket.channel_pid)
+      assert channel_socket.assigns.mcp_status == :failed
+      assert channel_socket.assigns.mcp_init_state.status == :failed
+      assert channel_socket.assigns.mcp_init_timeout_ref == nil
+      assert channel_socket.assigns.mcp_init_timeout_token == nil
+      assert Process.cancel_timer(discovery_timer.ref) == false
+    end
+
+    test "does not revive initialization after a timeout", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      {discovery_request_id, discovery_timer} =
+        next_mcp_initialization_request(socket, "server/discover")
+
+      assert_mcp_initialization_timeout(socket, discovery_timer)
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(discovery_request_id, mcp_discovery_result())
+      )
+
+      channel_socket = :sys.get_state(socket.channel_pid)
+
+      assert Process.alive?(socket.channel_pid)
+      assert channel_socket.assigns.mcp_status == :failed
+      assert channel_socket.assigns.mcp_init_timeout_ref == nil
+      assert channel_socket.assigns.mcp_init_timeout_token == nil
+
+      assert %{
+               status: :failed,
+               discovery_request_id: nil,
+               tools_request_id: nil,
+               project_rules_request_id: nil,
+               project_structure_request_id: nil
+             } = channel_socket.assigns.mcp_init_state
+    end
+
     test "wordpress completes after tools/list without filesystem tool calls", %{scope: scope} do
       {socket, _task_id} = join_task_channel(scope, framework: "wordpress")
 
@@ -1027,6 +1307,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       channel_socket = :sys.get_state(socket.channel_pid)
       assert channel_socket.assigns.mcp_status == :ready
+      assert channel_socket.assigns.mcp_init_timeout_ref == nil
+      assert channel_socket.assigns.mcp_init_timeout_token == nil
     end
   end
 

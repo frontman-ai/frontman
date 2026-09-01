@@ -48,6 +48,26 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
     {state, [{:push_mcp, request}]}
   end
 
+  def handle_timeout(%{status: :discovering_mcp, discovery_request_id: request_id} = state)
+      when is_integer(request_id),
+      do: fail_initialization(state, "MCP discovery timed out")
+
+  def handle_timeout(%{status: :loading_tools, tools_request_id: request_id} = state)
+      when is_integer(request_id),
+      do: fail_initialization(state, "MCP tools/list timed out")
+
+  def handle_timeout(
+        %{status: :loading_project_rules, project_rules_request_id: request_id} = state
+      )
+      when is_integer(request_id),
+      do: fail_initialization(state, "MCP project rules timed out")
+
+  def handle_timeout(
+        %{status: :loading_project_structure, project_structure_request_id: request_id} = state
+      )
+      when is_integer(request_id),
+      do: fail_initialization(state, "MCP project structure timed out")
+
   def handle_response(state, request_id, result) do
     case state do
       %{status: :discovering_mcp, discovery_request_id: ^request_id} ->

@@ -62,6 +62,63 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     assert tools_request["params"] == ModelContextProtocol.tools_list_params()
   end
 
+  describe "handle_timeout/1" do
+    test "fails the active request in every initialization phase" do
+      phases = [
+        {:discovering_mcp, :discovery_request_id, "MCP discovery timed out"},
+        {:loading_tools, :tools_request_id, "MCP tools/list timed out"},
+        {:loading_project_rules, :project_rules_request_id, "MCP project rules timed out"},
+        {:loading_project_structure, :project_structure_request_id,
+         "MCP project structure timed out"}
+      ]
+
+      for {status, request_key, message} <- phases do
+        request_id = System.unique_integer([:positive])
+
+        init_state =
+          state(%{
+            status: status,
+            discovery_request_id: nil,
+            tools_request_id: nil,
+            project_rules_request_id: nil,
+            project_structure_request_id: nil
+          })
+          |> Map.put(request_key, request_id)
+
+        assert {
+                 %{
+                   status: :failed,
+                   discovery_request_id: nil,
+                   tools_request_id: nil,
+                   project_rules_request_id: nil,
+                   project_structure_request_id: nil
+                 },
+                 [{:initialization_failed, ^message}]
+               } = MCPInitializer.handle_timeout(init_state)
+      end
+    end
+
+    test "does not silently accept a timeout without a current request" do
+      for status <- [
+            :discovering_mcp,
+            :loading_tools,
+            :loading_project_rules,
+            :loading_project_structure
+          ] do
+        state =
+          state(%{
+            status: status,
+            discovery_request_id: nil,
+            tools_request_id: nil,
+            project_rules_request_id: nil,
+            project_structure_request_id: nil
+          })
+
+        assert_raise FunctionClauseError, fn -> MCPInitializer.handle_timeout(state) end
+      end
+    end
+  end
+
   test "fails initialization for incompatible protocol or extension versions" do
     incompatible_results = [
       discovery_result(%{"supportedVersions" => ["2025-11-25"]}),
