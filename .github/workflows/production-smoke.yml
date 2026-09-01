@@ -1,0 +1,69 @@
+name: Production Smoke Tests
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-smoke
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Production smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Check health and OAuth start routes
+        run: |
+          set -euo pipefail
+
+          check_redirect() {
+            local path="$1"
+            local expected_provider="$2"
+            local headers
+            local status
+            local location
+            headers="$(mktemp)"
+
+            status="$(curl -sS -o /dev/null -D "$headers" -w '%{http_code}' "https://api.frontman.sh${path}")"
+            location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/, ""); print substr($0, 11)}' "$headers" | tail -1)"
+            rm -f "$headers"
+
+            if [ "$status" != "302" ]; then
+              echo "Expected ${path} to return 302, got ${status}" >&2
+              exit 1
+            fi
+
+            if ! printf '%s' "$location" | grep -q 'https://api.workos.com/user_management/authorize'; then
+              echo "Expected ${path} to redirect to WorkOS, got: ${location}" >&2
+              exit 1
+            fi
+
+            if ! printf '%s' "$location" | grep -q "provider=${expected_provider}"; then
+              echo "Expected ${path} to include provider=${expected_provider}, got: ${location}" >&2
+              exit 1
+            fi
+          }
+
+          curl -fsS https://api.frontman.sh/health >/dev/null
+          curl -fsS https://api.frontman.sh/health/ready >/dev/null
+          curl -fsS https://api.frontman.sh/users/log-in >/dev/null
+          check_redirect /auth/google GoogleOAuth
+          check_redirect /auth/github GitHubOAuth
+
+      - name: Notify Discord on smoke failure
+        if: failure()
+        continue-on-error: true
+        uses: ./.github/actions/discord-notify
+        with:
+          status: ${{ job.status }}
+          component: Production smoke
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}

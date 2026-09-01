@@ -63,6 +63,8 @@ const E2E_ENV = {
   ...process.env,
   MIX_ENV: "e2e",
   PHX_SERVER: parseEnvBoolean("PHX_SERVER", true) ? "true" : "false",
+  WORKOS_API_KEY: process.env.WORKOS_API_KEY || "sk_test_workos_e2e",
+  WORKOS_CLIENT_ID: process.env.WORKOS_CLIENT_ID || "client_test_workos_e2e",
 } satisfies NodeJS.ProcessEnv;
 
 let phoenixProc: ChildProcess | undefined;

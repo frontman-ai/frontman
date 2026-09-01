@@ -7,7 +7,8 @@
 		"test:nextjs": "vitest run tests/nextjs.test.ts",
 		"test:astro": "vitest run tests/astro.test.ts",
 		"test:vite": "vitest run tests/vite.test.ts",
-		"test:vue-vite": "vitest run tests/vue-vite.test.ts"
+		"test:vue-vite": "vitest run tests/vue-vite.test.ts",
+		"test:oauth-start": "vitest run tests/oauth-start.test.ts"
 	},
 	"devDependencies": {
 		"playwright": "^1.61.1",

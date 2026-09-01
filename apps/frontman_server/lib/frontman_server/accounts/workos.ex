@@ -53,7 +53,7 @@ defmodule FrontmanServer.Accounts.WorkOS do
       }
       |> Map.reject(fn {_k, v} -> is_nil(v) end)
 
-    WorkOS.UserManagement.get_authorization_url(opts)
+    {:ok, WorkOS.UserManagement.get_authorization_url(workos_client(), opts)}
   end
 
   def get_authorization_url(provider, _redirect_uri, _state) do
@@ -444,6 +444,10 @@ defmodule FrontmanServer.Accounts.WorkOS do
 
   defp require_non_empty_binary(_value, field),
     do: {:error, {:invalid_auth_response_field, field}}
+
+  defp workos_client do
+    WorkOS.client(api_key: workos_api_key(), client_id: workos_client_id())
+  end
 
   defp workos_api_key do
     Application.get_env(:workos, WorkOS.Client)[:api_key]
