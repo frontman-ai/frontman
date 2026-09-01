@@ -735,25 +735,33 @@ describe("Client State Reducer - First Task Feedback Dialog", () => {
   }
 
   let reduce = (state, action) => Reducer.next(state, action)->Pair.first
-  let stopTurn = (state, stopReason) => {
+  let stopTurnResult = (state, stopReason) => {
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    state->reduce(TaskExecutionStopped({taskId, stopReason}))
+    Reducer.next(state, TaskExecutionStopped({taskId, stopReason}))
   }
+  let stopTurn = (state, stopReason) => stopTurnResult(state, stopReason)->Pair.first
   let completeSuccessfulTurn = state => stopTurn(state, Some(ACP.EndTurn))
-  let loadHistory = state => state->reduce(SessionsLoadSuccess({sessions: []}))
+  let loadHistoryResult = state => Reducer.next(state, SessionsLoadSuccess({sessions: []}))
+  let loadHistory = state => state->loadHistoryResult->Pair.first
   let expectOpen = (t, state, expected) =>
     t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(state))->Expect.toBe(expected)
 
   test("opens only after the first task's first successful turn", t => {
     expectOpen(t, firstTurnState()->stopTurn(Some(ACP.Refusal)), false)
-    expectOpen(t, firstTurnState()->completeSuccessfulTurn, true)
+
+    let (completedState, effects) = firstTurnState()->stopTurnResult(Some(ACP.EndTurn))
+    expectOpen(t, completedState, true)
+    t->expect(effects)->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackDialogShown)])
   })
 
   test("waits for session history and only celebrates a new user", t => {
     let pendingState =
       firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
     expectOpen(t, pendingState, false)
-    expectOpen(t, pendingState->loadHistory, true)
+
+    let (loadedState, effects) = pendingState->loadHistoryResult
+    expectOpen(t, loadedState, true)
+    t->expect(effects)->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackDialogShown)])
 
     let returningUserState = {...pendingState, tasks: pendingState.tasks->Dict.copy}
     returningUserState.tasks->Dict.set("previous-task", Task.makeNew(~previewUrl=""))
@@ -808,6 +816,14 @@ describe("Client State Reducer - First Task Feedback Dialog", () => {
     expectOpen(t, executingState->completeSuccessfulTurn, true)
   })
 
+  test("tracks close through the reducer", t => {
+    let visibleState = firstTurnState()->completeSuccessfulTurn
+    let (closedState, effects) = Reducer.next(visibleState, CloseFirstTaskFeedbackDialog)
+
+    t->expect(closedState.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
+    t->expect(effects)->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackDialogClosed)])
+  })
+
   test("keeps failed sharing visible and retryable", t => {
     let visibleState = firstTurnState()->completeSuccessfulTurn
     let failedState = visibleState->reduce(ShareFrontmanFailed)
@@ -815,7 +831,9 @@ describe("Client State Reducer - First Task Feedback Dialog", () => {
 
     expectOpen(t, failedState, true)
     t->expect(Reducer.Selectors.firstTaskFeedbackShareFailed(failedState))->Expect.toBe(true)
-    t->expect(retryEffects)->Expect.toEqual([ShareFrontmanEffect])
+    t
+    ->expect(retryEffects)
+    ->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackShareClicked), ShareFrontmanEffect])
 
     let copiedState = failedState->reduce(ShareFrontmanLinkCopied)
     t->expect(copiedState.firstTaskFeedbackDialogState)->Expect.toEqual(LinkCopied)

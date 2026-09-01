@@ -125,7 +125,7 @@ type action =
 type effect =
   | LogError(string)
   | LogInfo(string)
-  | TrackRelay(Client__Heap.relayOutcome)
+  | TrackAnalytics(Client__Analytics.event)
   | ConnectACP({config: ACP.config, signal: WebAPI.EventTypes.abortSignal})
   | ScheduleAuthRetry({signal: WebAPI.EventTypes.abortSignal})
   | LogoutEffect({
@@ -173,10 +173,10 @@ let initialState: state = {
 
 let relayFailureReason = message =>
   switch message {
-  | message if message->String.startsWith("HTTP ") => Client__Heap.HttpError
+  | message if message->String.startsWith("HTTP ") => Client__Analytics.HttpError
   | message if message->String.startsWith("Invalid tools response: ") =>
-    Client__Heap.InvalidResponse
-  | _ => Client__Heap.NetworkError
+    Client__Analytics.InvalidResponse
+  | _ => Client__Analytics.NetworkError
   }
 
 module Selectors = {
@@ -372,12 +372,12 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | ({relay: RelayConnecting}, RelayConnectSuccess) => (
       {...state, relay: RelayConnected},
-      [TrackRelay(Success)],
+      [TrackAnalytics(RelayConnectionCompleted(Success))],
     )
 
   | ({relay: RelayConnecting}, RelayConnectError(message)) => (
       {...state, relay: RelayError(message)},
-      [TrackRelay(Failure(relayFailureReason(message)))],
+      [TrackAnalytics(RelayConnectionCompleted(Failure(relayFailureReason(message))))],
     )
 
   | ({session: SessionCreating(expectedSessionId)}, SessionCreateSuccess(sess))
@@ -558,7 +558,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   switch effect {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
-  | TrackRelay(outcome) => Client__Heap.trackRelayConnection(outcome)
+  | TrackAnalytics(event) => Client__Analytics.track(event)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
   | ConnectACP({config, signal}) =>
     let connect = async () => {
