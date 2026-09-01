@@ -122,41 +122,6 @@ jobs:
             "deploy@${PROD_SERVER}" \
             '/opt/frontman/build-and-deploy.sh'
 
-      - name: Smoke test production OAuth start routes
-        run: |
-          set -euo pipefail
-
-          check_redirect() {
-            local path="$1"
-            local expected_provider="$2"
-            local headers
-            headers="$(mktemp)"
-
-            status="$(curl -sS -o /dev/null -D "$headers" -w '%{http_code}' "https://api.frontman.sh${path}")"
-            location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/, ""); print substr($0, 11)}' "$headers" | tail -1)"
-            rm -f "$headers"
-
-            if [ "$status" != "302" ]; then
-              echo "Expected ${path} to return 302, got ${status}" >&2
-              exit 1
-            fi
-
-            if ! printf '%s' "$location" | grep -q 'https://api.workos.com/user_management/authorize'; then
-              echo "Expected ${path} to redirect to WorkOS, got: ${location}" >&2
-              exit 1
-            fi
-
-            if ! printf '%s' "$location" | grep -q "provider=${expected_provider}"; then
-              echo "Expected ${path} to include provider=${expected_provider}, got: ${location}" >&2
-              exit 1
-            fi
-          }
-
-          curl -fsS https://api.frontman.sh/health >/dev/null
-          curl -fsS https://api.frontman.sh/health/ready >/dev/null
-          check_redirect /auth/google GoogleOAuth
-          check_redirect /auth/github GitHubOAuth
-
       - name: Sync monitoring configs and reload
         run: |
           ssh -i ~/.ssh/deploy_key "deploy@${PROD_SERVER}" bash -s <<'EOF'
@@ -181,6 +146,41 @@ jobs:
             echo "Monitoring not installed — skipping config sync."
           fi
           EOF
+
+      - name: Smoke test production OAuth start routes
+        run: |
+          set -euo pipefail
+
+          check_redirect() {
+            local path="$1"
+            local expected_provider="$2"
+            local headers
+            headers="$(mktemp)"
+
+            status="$(curl --connect-timeout 5 --max-time 20 -sS -o /dev/null -D "$headers" -w '%{http_code}' "https://api.frontman.sh${path}")"
+            location="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/, ""); print substr($0, 11)}' "$headers" | tail -1)"
+            rm -f "$headers"
+
+            if [ "$status" != "302" ]; then
+              echo "Expected ${path} to return 302, got ${status}" >&2
+              exit 1
+            fi
+
+            if ! printf '%s' "$location" | grep -q 'https://api.workos.com/user_management/authorize'; then
+              echo "Expected ${path} to redirect to WorkOS, got: ${location}" >&2
+              exit 1
+            fi
+
+            if ! printf '%s' "$location" | grep -q "provider=${expected_provider}"; then
+              echo "Expected ${path} to include provider=${expected_provider}, got: ${location}" >&2
+              exit 1
+            fi
+          }
+
+          curl --connect-timeout 5 --max-time 20 -fsS https://api.frontman.sh/health >/dev/null
+          curl --connect-timeout 5 --max-time 20 -fsS https://api.frontman.sh/health/ready >/dev/null
+          check_redirect /auth/google GoogleOAuth
+          check_redirect /auth/github GitHubOAuth
 
       - name: Cleanup SSH
         if: always()
