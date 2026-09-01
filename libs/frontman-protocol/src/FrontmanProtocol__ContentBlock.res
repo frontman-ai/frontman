@@ -9,7 +9,16 @@ type annotations = {
   audience: option<array<@s.matches(audienceSchema) string>>,
   priority: option<@s.matches(prioritySchema) float>,
   lastModified: option<string>,
+  _meta: option<JSON.t>,
 }
+
+@scope("Number") @val
+external numberIsInteger: float => bool = "isInteger"
+
+let sizeWireSchema =
+  S.float
+  ->S.refine(value => value >= 0. && numberIsInteger(value), ~error="Expected nonnegative integer")
+  ->S.extendJSONSchema({minimum: 0., multipleOf: 1.})
 
 @schema
 type textResourceContents = {uri: string, mimeType: option<string>, text: string, _meta?: JSON.t}
@@ -70,7 +79,7 @@ type t =
       uri: string,
       description: option<string>,
       mimeType: option<string>,
-      size: option<int>,
+      size: option<float>,
       _meta: option<JSON.t>,
       annotations: option<annotations>,
     })
@@ -111,7 +120,7 @@ let schema = S.union([
       uri: s.field("uri", S.string),
       description: s.field("description", S.option(S.string)),
       mimeType: s.field("mimeType", S.option(S.string)),
-      size: s.field("size", S.option(S.int)),
+      size: s.field("size", S.option(sizeWireSchema)),
       _meta: s.field("_meta", S.option(S.json)),
       annotations: s.field("annotations", S.option(annotationsSchema)),
     })

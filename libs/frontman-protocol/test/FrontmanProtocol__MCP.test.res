@@ -87,7 +87,7 @@ describe("MCP wire contracts", () => {
       "content":[{
         "type":"text",
         "text":"hello",
-        "annotations":{"audience":["user","assistant"],"priority":0.5,"lastModified":"2025-01-12T15:00:58Z"},
+        "annotations":{"audience":["user","assistant"],"priority":0.5,"lastModified":"2025-01-12T15:00:58Z","_meta":{"vendor":"annotation"}},
         "_meta":{"trace":"1"}
       },{
         "type":"resource_link",
@@ -96,8 +96,8 @@ describe("MCP wire contracts", () => {
         "uri":"file:///tmp/a.txt",
         "description":"A file",
         "mimeType":"text/plain",
-        "size":12,
-        "annotations":{"audience":["assistant"],"priority":1},
+        "size":3000000000,
+        "annotations":{"audience":["assistant"],"priority":1,"_meta":{"vendor":"resource-annotation"}},
         "_meta":{"trace":"2"}
       }]
     }`

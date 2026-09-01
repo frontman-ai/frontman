@@ -5,11 +5,29 @@ module Relay = FrontmanClient__Relay
 let jsonString = json => JSON.stringify(json)
 
 describe("Relay.connect", _t => {
-  test("rejects incompatible protocol versions", t => {
-    let json = JSON.parseOrThrow(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`)
+  test("accepts only the current relay protocol version", t => {
+    let json = JSON.parseOrThrow(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"1.0"}`)
     t
     ->expect(() => json->S.parseOrThrow(~to=FrontmanClient__Relay__Types.toolsResponseSchema))
     ->Expect.toThrow
+  })
+
+  test("requires relay v2 tool metadata shape", t => {
+    let legacy = JSON.parseOrThrow(`{
+      "tools":[{"name":"hidden","inputSchema":{"type":"object"},"access":"read","visibleToAgent":false}],
+      "serverInfo":{"name":"test","version":"1"},
+      "protocolVersion":"2.0"
+    }`)
+    let current = JSON.parseOrThrow(`{
+      "tools":[{"name":"hidden","inputSchema":{"type":"object"},"_meta":{"ai.frontman/tool-metadata":{"access":"read","visibleToAgent":false}}}],
+      "serverInfo":{"name":"test","version":"1"},
+      "protocolVersion":"2.0"
+    }`)
+
+    t
+    ->expect(() => legacy->S.parseOrThrow(~to=FrontmanClient__Relay__Types.toolsResponseSchema))
+    ->Expect.toThrow
+    current->S.parseOrThrow(~to=FrontmanClient__Relay__Types.toolsResponseSchema)->ignore
   })
 })
 

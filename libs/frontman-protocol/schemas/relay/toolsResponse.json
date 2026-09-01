@@ -89,27 +89,35 @@
                   "visibleToAgent": {
                     "type": "boolean"
                   },
-                  "executionMode": {
-                    "enum": [
-                      "Synchronous",
-                      "Interactive"
-                    ]
-                  },
                   "access": {
                     "enum": [
                       "read",
                       "write",
                       "read-write"
                     ]
+                  },
+                  "executionMode": {
+                    "enum": [
+                      "Synchronous",
+                      "Interactive"
+                    ]
                   }
-                }
+                },
+                "required": [
+                  "visibleToAgent",
+                  "access"
+                ]
               }
-            }
+            },
+            "required": [
+              "ai.frontman/tool-metadata"
+            ]
           }
         },
         "required": [
           "name",
-          "inputSchema"
+          "inputSchema",
+          "_meta"
         ]
       },
       "type": "array"
@@ -137,7 +145,7 @@
     },
     "protocolVersion": {
       "type": "string",
-      "const": "1.0"
+      "const": "2.0"
     }
   },
   "required": [

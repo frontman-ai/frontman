@@ -39,7 +39,8 @@
                     },
                     "lastModified": {
                       "type": "string"
-                    }
+                    },
+                    "_meta": {}
                   }
                 }
               },
@@ -81,7 +82,8 @@
                     },
                     "lastModified": {
                       "type": "string"
-                    }
+                    },
+                    "_meta": {}
                   }
                 }
               },
@@ -124,7 +126,8 @@
                     },
                     "lastModified": {
                       "type": "string"
-                    }
+                    },
+                    "_meta": {}
                   }
                 }
               },
@@ -157,9 +160,9 @@
                   "type": "string"
                 },
                 "size": {
-                  "type": "integer",
-                  "minimum": -2147483648,
-                  "maximum": 2147483647
+                  "type": "number",
+                  "multipleOf": 1,
+                  "minimum": 0
                 },
                 "_meta": {},
                 "annotations": {
@@ -181,7 +184,8 @@
                     },
                     "lastModified": {
                       "type": "string"
-                    }
+                    },
+                    "_meta": {}
                   }
                 }
               },
@@ -218,7 +222,8 @@
                     },
                     "lastModified": {
                       "type": "string"
-                    }
+                    },
+                    "_meta": {}
                   }
                 },
                 "resource": {

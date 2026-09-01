@@ -21,7 +21,8 @@
         },
         "lastModified": {
           "type": "string"
-        }
+        },
+        "_meta": {}
       }
     },
     "resource": {
