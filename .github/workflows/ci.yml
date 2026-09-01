@@ -24,10 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -45,10 +45,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -80,10 +80,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -119,10 +119,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -158,10 +158,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -188,6 +188,40 @@ jobs:
           overall_coverage_fail_threshold: 0
           artifact_name: coverage-${{ github.job }}-%name%
 
+  test-framework-adapters:
+    name: Test framework adapters
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        run: corepack enable && corepack install
+
+      - name: Cache dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Test Astro adapter
+        run: make -C libs/frontman-astro test
+
+      - name: Test Vite adapter
+        run: make -C libs/frontman-vite test
+
+      - name: Test Astro browser tools
+        run: make -C libs/frontman-astro-browser test
+
   test-react-statestore:
     name: Test react-statestore
     runs-on: ubuntu-latest
@@ -197,10 +231,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -236,10 +270,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -274,7 +308,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 0
 
@@ -288,7 +322,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.changes.outputs.client == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -320,7 +354,7 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           fetch-depth: 0
 
@@ -331,10 +365,12 @@ jobs:
           filters: |
             protocol:
               - 'libs/frontman-protocol/**'
+              - 'docs/mcp/**'
+              - 'Makefile'
 
       - name: Setup Node.js
         if: steps.changes.outputs.protocol == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -358,13 +394,9 @@ jobs:
         if: steps.changes.outputs.protocol == 'true'
         run: make build
 
-      - name: Test preview protocol
+      - name: Verify MCP oracle and schemas
         if: steps.changes.outputs.protocol == 'true'
-        run: make -C libs/frontman-protocol test
-
-      - name: Check schemas are up to date
-        if: steps.changes.outputs.protocol == 'true'
-        run: make -C libs/frontman-protocol check-schemas
+        run: make -C libs/frontman-protocol mcp-verify && make -C libs/frontman-protocol check-schemas
 
       - name: Fetch main branch for diff
         if: steps.changes.outputs.protocol == 'true'
@@ -372,67 +404,17 @@ jobs:
 
       - name: Check for breaking changes
         if: steps.changes.outputs.protocol == 'true'
-        run: node libs/frontman-protocol/scripts/CheckBreakingChanges.res.mjs
-
-  preview-bridge-check:
-    name: Preview bridge check
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
-
-      - name: Check for preview bridge changes
-        id: changes
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706
-        with:
-          filters: |
-            bridge:
-              - 'libs/frontman-preview-bridge/**'
-              - 'libs/frontman-protocol/**'
-              - 'package.json'
-              - '.yarnrc.yml'
-              - 'yarn.lock'
-
-      - name: Setup Node.js
-        if: steps.changes.outputs.bridge == 'true'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
-        with:
-          node-version: '24.4.1'
-
-      - name: Enable Corepack
-        if: steps.changes.outputs.bridge == 'true'
-        run: corepack enable && corepack install
-
-      - name: Cache dependencies
-        if: steps.changes.outputs.bridge == 'true'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
-        with:
-          path: ~/.yarn/berry/cache
-          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
-          restore-keys: yarn-berry-${{ runner.os }}-
-
-      - name: Install dependencies
-        if: steps.changes.outputs.bridge == 'true'
-        run: yarn install --immutable
-
-      - name: Run focused bridge tests
-        if: steps.changes.outputs.bridge == 'true'
-        run: make -C libs/frontman-preview-bridge test
+        run: make -C libs/frontman-protocol schema-compatibility
 
   dead-code:
     name: Dead code analysis
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -467,10 +449,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
         with:
           node-version: '24.4.1'
 
@@ -513,7 +495,7 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install native build dependencies
         run: |
@@ -525,7 +507,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d
         with:
           install: true
           cache: true
@@ -575,27 +557,28 @@ jobs:
 
   test-frontman-server:
     name: Test frontman-server
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
       checks: write
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-
-      - name: Start PostgreSQL
-        run: |
-          container_name="frontman-postgres-${{ github.run_id }}"
-          docker rm --force "$container_name" 2>/dev/null || true
-          docker run --detach --rm \
-            --name "$container_name" \
-            --network "container:$(hostname)" \
-            --env POSTGRES_USER=postgres \
-            --env POSTGRES_PASSWORD=postgres \
-            --env POSTGRES_DB=postgres \
-            postgres:16
-          timeout 60 bash -c "until docker exec '$container_name' pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done"
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install native build dependencies
         run: |
@@ -607,7 +590,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d
         with:
           install: true
           cache: true
@@ -680,16 +663,12 @@ jobs:
         run: |
           rm -rf apps/frontman_server/_build apps/frontman_server/deps
 
-      - name: Stop PostgreSQL
-        if: always()
-        run: docker rm --force "frontman-postgres-${{ github.run_id }}" 2>/dev/null || true
-
   lint-frontman-server:
     name: Lint frontman-server
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Install native build dependencies
         run: |
@@ -701,7 +680,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@e6a8b3978addb5a52f2b4cd9d91eafa7f0ab959d
         with:
           install: true
           cache: true

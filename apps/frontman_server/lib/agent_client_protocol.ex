@@ -405,6 +405,10 @@ defmodule AgentClientProtocol do
     session_update_notification(session_id, update)
   end
 
+  defp put_raw_output(update, raw_output) when raw_output in [:absent, nil], do: update
+  defp put_raw_output(update, {:ok, raw_output}), do: Map.put(update, "rawOutput", raw_output)
+  defp put_raw_output(update, raw_output), do: Map.put(update, "rawOutput", raw_output)
+
   @doc """
   Updates an existing tool call (sessionUpdate: "tool_call_update").
 
@@ -428,7 +432,7 @@ defmodule AgentClientProtocol do
 
     update = if content, do: Map.put(update, "content", content), else: update
     update = if is_nil(raw_input), do: update, else: Map.put(update, "rawInput", raw_input)
-    update = if is_nil(raw_output), do: update, else: Map.put(update, "rawOutput", raw_output)
+    update = put_raw_output(update, raw_output)
 
     session_update_notification(session_id, update)
   end

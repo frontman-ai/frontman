@@ -62,17 +62,29 @@ class Frontman_Tool_Definition {
 		$this->preserve_input_strings = $preserve_input_strings;
 	}
 
-	/**
-	 * Serialize to relay protocol format.
-	 */
 	public function to_array(): array {
-		return [
-			'name'           => $this->name,
-			'description'    => $this->description,
-			'access'         => $this->access,
-			'inputSchema'    => $this->input_schema,
-			'visibleToAgent' => $this->visible_to_agent,
+		$definition = [
+			'name'        => $this->name,
+			'description' => $this->description,
+			'inputSchema' => $this->input_schema,
+			'annotations' => [ 'readOnlyHint' => 'read' === $this->access ],
 		];
+
+		if ( 'wp_upload_media' === $this->name ) {
+			$definition['_meta'] = [
+				'ai.frontman/attachment-resolution' => [
+					'version'             => 1,
+					'referenceArgument'   => 'image_ref',
+					'contentArgument'     => 'content',
+					'encodingArgument'    => 'encoding',
+					'encodingValue'       => 'base64',
+					'removeReference'     => false,
+					'mediaTypeArgument'   => 'mime_type',
+				],
+			];
+		}
+
+		return $definition;
 	}
 
 	private function normalize_access( string $access ): string {
@@ -107,8 +119,13 @@ class Frontman_Tool_Definition {
  * the registry wraps into MCP callToolResult with _meta.
  */
 class Frontman_Tools {
+	public const MAX_TOOLS = 256;
+	public const MAX_DEFINITION_BYTES = 65536;
+	public const MAX_CATALOG_BYTES = 1048576;
+
 	/** @var Frontman_Tool_Definition[] */
 	private array $tools = [];
+	private int $catalog_bytes = 0;
 
 	private static ?self $instance = null;
 
@@ -123,6 +140,28 @@ class Frontman_Tools {
 	 * Register a tool definition.
 	 */
 	public function add( Frontman_Tool_Definition $tool ): void {
+		if ( ! preg_match( '/^[A-Za-z0-9_.-]{1,128}$/D', $tool->name ) ) {
+			throw new \InvalidArgumentException( 'Invalid tool name' );
+		}
+		if ( isset( $this->tools[ $tool->name ] ) ) {
+			throw new \InvalidArgumentException( 'Duplicate tool name' );
+		}
+		if ( count( $this->tools ) >= self::MAX_TOOLS ) {
+			throw new \LengthException( 'Tool count limit exceeded' );
+		}
+		$this->validate_schema_definition( $tool->input_schema, true );
+		$encoded = wp_json_encode( $tool->to_array(), JSON_UNESCAPED_SLASHES );
+		if ( ! is_string( $encoded ) ) {
+			throw new \InvalidArgumentException( 'Tool definition is not JSON serializable' );
+		}
+		$definition_bytes = strlen( $encoded );
+		if ( $definition_bytes > self::MAX_DEFINITION_BYTES ) {
+			throw new \LengthException( 'Tool definition byte limit exceeded' );
+		}
+		if ( $this->catalog_bytes + $definition_bytes > self::MAX_CATALOG_BYTES ) {
+			throw new \LengthException( 'Tool catalog byte limit exceeded' );
+		}
+		$this->catalog_bytes += $definition_bytes;
 		$this->tools[ $tool->name ] = $tool;
 	}
 
@@ -139,12 +178,12 @@ class Frontman_Tools {
 	 * @return array[]
 	 */
 	public function all_definitions(): array {
-		return array_values(
-			array_map(
-				function( Frontman_Tool_Definition $t ) { return $t->to_array(); },
-				$this->tools
-			)
+		$tools = array_filter(
+			$this->tools,
+			function ( Frontman_Tool_Definition $tool ): bool { return $tool->visible_to_agent; }
 		);
+		ksort( $tools, SORT_STRING );
+		return array_values( array_map( function ( Frontman_Tool_Definition $tool ): array { return $tool->to_array(); }, $tools ) );
 	}
 
 	/**
@@ -158,6 +197,11 @@ class Frontman_Tools {
 
 		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $tool->preserve_input_strings );
 		return is_array( $sanitized ) ? $sanitized : [];
+	}
+
+	public function valid_input( string $name, $input ): bool {
+		$tool = $this->get( $name );
+		return null !== $tool && $this->valid_schema_value( $input, $tool->input_schema );
 	}
 
 	/**
@@ -209,8 +253,7 @@ class Frontman_Tools {
 		$text = is_string( $data ) ? $data : wp_json_encode( $data );
 		return [
 			'resultType' => 'complete',
-			'content' => [ [ 'type' => 'text', 'text' => $text ] ],
-			'isError' => false,
+			'content'    => [ [ 'type' => 'text', 'text' => $text ] ],
 		];
 	}
 
@@ -220,8 +263,8 @@ class Frontman_Tools {
 	public static function error_result( string $message ): array {
 		return [
 			'resultType' => 'complete',
-			'content' => [ [ 'type' => 'text', 'text' => $message ] ],
-			'isError' => true,
+			'content'    => [ [ 'type' => 'text', 'text' => $message ] ],
+			'isError'    => true,
 		];
 	}
 
@@ -251,20 +294,12 @@ class Frontman_Tools {
 				);
 
 			case 'integer':
-				if ( $preserve_input_strings && ! is_int( $value ) ) {
-					return $value;
-				}
-
 				return (int) $value;
 
 			case 'number':
 				return (float) $value;
 
 			case 'boolean':
-				if ( $preserve_input_strings && 'confirm' === $field_name && ! is_bool( $value ) ) {
-					return $value;
-				}
-
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':
@@ -295,7 +330,7 @@ class Frontman_Tools {
 	 */
 	private function sanitize_object_for_schema( array $value, array $schema, string $tool_name, bool $preserve_input_strings = false ): array {
 		$properties            = isset( $schema['properties'] ) && is_array( $schema['properties'] ) ? $schema['properties'] : [];
-		$allow_extra_properties = ! empty( $schema['additionalProperties'] );
+		$allow_extra_properties = ! array_key_exists( 'additionalProperties', $schema ) || true === $schema['additionalProperties'];
 		$sanitized             = [];
 
 		foreach ( $properties as $property_name => $property_schema ) {
@@ -371,5 +406,175 @@ class Frontman_Tools {
 		}
 
 		return sanitize_text_field( $value );
+	}
+
+	private function validate_schema_definition( array $schema, bool $root = false ): void {
+		$allowed = [ 'type', 'properties', 'required', 'additionalProperties', 'items', 'enum', 'minProperties', 'description', 'default' ];
+		if ( $root ) {
+			$allowed[] = '$schema';
+		}
+		foreach ( array_keys( $schema ) as $keyword ) {
+			if ( ! in_array( $keyword, $allowed, true ) ) {
+				throw new \InvalidArgumentException( 'Unsupported JSON Schema keyword' );
+			}
+		}
+		if ( isset( $schema['$schema'] ) && 'https://json-schema.org/draft/2020-12/schema' !== $schema['$schema'] ) {
+			throw new \InvalidArgumentException( 'Unsupported JSON Schema dialect' );
+		}
+		$types = [ 'object', 'array', 'string', 'integer', 'number', 'boolean', 'null' ];
+		$type = $schema['type'] ?? null;
+		if ( null !== $type && ( ! is_string( $type ) || ! in_array( $type, $types, true ) ) ) {
+			throw new \InvalidArgumentException( 'Schema requires one supported type' );
+		}
+		if ( $root && 'object' !== $type ) {
+			throw new \InvalidArgumentException( 'Tool input schema root must be an object' );
+		}
+		if ( isset( $schema['description'] ) && ! is_string( $schema['description'] ) ) {
+			throw new \InvalidArgumentException( 'Schema description must be a string' );
+		}
+		if ( array_key_exists( 'properties', $schema ) ) {
+			if ( 'object' !== $type ) {
+				throw new \InvalidArgumentException( 'Schema properties require object type' );
+			}
+			$properties = $this->schema_properties( $schema['properties'] );
+			foreach ( $properties as $name => $property_schema ) {
+				if ( ! is_string( $name ) || ! is_array( $property_schema ) ) {
+					throw new \InvalidArgumentException( 'Invalid schema property' );
+				}
+				$this->validate_schema_definition( $property_schema );
+			}
+		}
+		if ( array_key_exists( 'required', $schema ) ) {
+			if ( 'object' !== $type || ! is_array( $schema['required'] ) ) {
+				throw new \InvalidArgumentException( 'Invalid schema required keyword' );
+			}
+			$required_names = [];
+			foreach ( $schema['required'] as $name ) {
+				if ( ! is_string( $name ) || isset( $required_names[ $name ] ) ) {
+					throw new \InvalidArgumentException( 'Invalid schema required property' );
+				}
+				$required_names[ $name ] = true;
+			}
+		}
+		if ( array_key_exists( 'additionalProperties', $schema ) && ( 'object' !== $type || ! is_bool( $schema['additionalProperties'] ) ) ) {
+			throw new \InvalidArgumentException( 'Unsupported additionalProperties schema' );
+		}
+		if ( array_key_exists( 'minProperties', $schema ) && ( 'object' !== $type || ! is_int( $schema['minProperties'] ) || $schema['minProperties'] < 0 ) ) {
+			throw new \InvalidArgumentException( 'Invalid minProperties constraint' );
+		}
+		if ( array_key_exists( 'items', $schema ) ) {
+			if ( 'array' !== $type || ! is_array( $schema['items'] ) ) {
+				throw new \InvalidArgumentException( 'Invalid items schema' );
+			}
+			$this->validate_schema_definition( $schema['items'] );
+		}
+		if ( 'array' === $type && ! isset( $schema['items'] ) ) {
+			throw new \InvalidArgumentException( 'Array schema requires items' );
+		}
+		if ( array_key_exists( 'enum', $schema ) ) {
+			if ( ! is_array( $schema['enum'] ) || [] === $schema['enum'] ) {
+				throw new \InvalidArgumentException( 'Invalid enum constraint' );
+			}
+			if ( null === $type || in_array( $type, [ 'object', 'array' ], true ) ) {
+				throw new \InvalidArgumentException( 'Unsupported enum value profile' );
+			}
+			foreach ( $schema['enum'] as $index => $enum_value ) {
+				if ( ! $this->valid_type( $enum_value, $type ) ) {
+					throw new \InvalidArgumentException( 'Enum value does not match schema type' );
+				}
+				foreach ( array_slice( $schema['enum'], 0, $index ) as $prior_value ) {
+					if ( $this->schema_values_equal( $enum_value, $prior_value ) ) {
+						throw new \InvalidArgumentException( 'Enum values must be unique' );
+					}
+				}
+			}
+		}
+	}
+
+	private function schema_properties( $properties ): array {
+		if ( $properties instanceof \stdClass ) {
+			return get_object_vars( $properties );
+		}
+		if ( is_array( $properties ) ) {
+			return $properties;
+		}
+		throw new \InvalidArgumentException( 'Schema properties must be an object' );
+	}
+
+	private function valid_schema_value( $value, array $schema ): bool {
+		$type = $schema['type'] ?? null;
+		if ( ! $this->valid_type( $value, $type ) ) {
+			return false;
+		}
+		if ( isset( $schema['enum'] ) ) {
+			$matched = false;
+			foreach ( $schema['enum'] as $enum_value ) {
+				if ( $this->schema_values_equal( $value, $enum_value ) ) {
+					$matched = true;
+					break;
+				}
+			}
+			if ( ! $matched ) {
+				return false;
+			}
+		}
+		if ( 'object' === $type ) {
+			$properties = isset( $schema['properties'] ) ? $this->schema_properties( $schema['properties'] ) : [];
+			foreach ( $schema['required'] ?? [] as $required ) {
+				if ( ! property_exists( $value, $required ) ) {
+					return false;
+				}
+			}
+			if ( isset( $schema['minProperties'] ) && count( get_object_vars( $value ) ) < $schema['minProperties'] ) {
+				return false;
+			}
+			foreach ( get_object_vars( $value ) as $name => $property_value ) {
+				if ( isset( $properties[ $name ] ) ) {
+					if ( ! $this->valid_schema_value( $property_value, $properties[ $name ] ) ) {
+						return false;
+					}
+				} elseif ( array_key_exists( 'additionalProperties', $schema ) && false === $schema['additionalProperties'] ) {
+					return false;
+				}
+			}
+		}
+		if ( 'array' === $type ) {
+			foreach ( $value as $item ) {
+				if ( ! $this->valid_schema_value( $item, $schema['items'] ) ) {
+					return false;
+				}
+			}
+		}
+		return true;
+	}
+
+	private function valid_type( $value, ?string $type ): bool {
+		if ( null === $type ) {
+			return true;
+		}
+		switch ( $type ) {
+			case 'object':
+				return $value instanceof \stdClass;
+			case 'array':
+				return is_array( $value );
+			case 'string':
+				return is_string( $value );
+			case 'integer':
+				return is_int( $value );
+			case 'number':
+				return is_int( $value ) || is_float( $value );
+			case 'boolean':
+				return is_bool( $value );
+			case 'null':
+				return null === $value;
+		}
+		return false;
+	}
+
+	private function schema_values_equal( $left, $right ): bool {
+		if ( ( is_int( $left ) || is_float( $left ) ) && ( is_int( $right ) || is_float( $right ) ) ) {
+			return (float) $left === (float) $right;
+		}
+		return $left === $right;
 	}
 }

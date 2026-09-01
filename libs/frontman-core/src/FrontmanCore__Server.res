@@ -1,79 +1,109 @@
 module Protocol = FrontmanAiFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
-module Relay = Protocol.FrontmanProtocol__Relay
 module Tool = Protocol.FrontmanProtocol__Tool
 module ToolRegistry = FrontmanCore__ToolRegistry
 
 type executionContext = {
   projectRoot: string,
   sourceRoot: string,
+  signal: WebAPI.EventTypes.abortSignal,
+  @live
+  onProgress: option<string => unit>,
 }
 
 type executeResult =
   | Ok(MCP.CallToolResult.t)
-  | ToolNotFound(string)
   | InvalidInput(string)
   | ExecutionError(string)
 
-let executeTool = async (
-  ~registry: ToolRegistry.t,
+@schema
+type resultMetaFields = {
+  @live @as("io.modelcontextprotocol/serverInfo") serverInfo: MCP.Implementation.t,
+}
+
+@schema
+type toolCapability = {@live listChanged: bool}
+
+@schema
+type serverCapabilitiesFields = {@live tools: toolCapability}
+
+let serverInfo = (~serverName, ~serverVersion): MCP.Implementation.t => {
+  name: serverName,
+  version: serverVersion,
+  title: None,
+  description: None,
+  websiteUrl: None,
+  icons: None,
+}
+
+let resultMeta = (~serverName, ~serverVersion): MCP.ResultMeta.t =>
+  {serverInfo: serverInfo(~serverName, ~serverVersion)}->S.decodeOrThrow(
+    ~from=resultMetaFieldsSchema,
+    ~to=MCP.ResultMeta.schema,
+  )
+
+let discoverResult = (~serverName, ~serverVersion): MCP.DiscoverResult.t => {
+  let capabilities =
+    {tools: {listChanged: false}}->S.decodeOrThrow(
+      ~from=serverCapabilitiesFieldsSchema,
+      ~to=MCP.ServerCapabilities.schema,
+    )
+  {
+    resultType: "complete",
+    supportedVersions: [MCP.protocolVersion],
+    capabilities,
+    _meta: Some(resultMeta(~serverName, ~serverVersion)),
+    instructions: None,
+    ttlMs: 0.,
+    cacheScope: MCP.CacheScope.Private,
+  }
+}
+
+let listToolsResult = (~registry, ~serverName, ~serverVersion): MCP.ListToolsResult.t => {
+  resultType: "complete",
+  tools: registry->ToolRegistry.getMCPToolDefinitions,
+  nextCursor: None,
+  ttlMs: 0.,
+  cacheScope: MCP.CacheScope.Private,
+  _meta: Some(resultMeta(~serverName, ~serverVersion)),
+}
+
+let executeSelectedTool = async (
+  ~tool: ToolRegistry.tool,
   ~ctx: executionContext,
-  ~name: string,
   ~arguments: option<Dict.t<JSON.t>>,
 ): executeResult => {
-  switch registry->ToolRegistry.getToolByName(name) {
-  | None => ToolNotFound(name)
-  | Some(toolModule) =>
-    module T = unpack(toolModule)
+  module T = unpack(tool)
 
-    let toolCtx: Tool.serverExecutionContext = {
-      projectRoot: ctx.projectRoot,
-      sourceRoot: ctx.sourceRoot,
-    }
+  let toolCtx: Tool.serverExecutionContext = {
+    projectRoot: ctx.projectRoot,
+    sourceRoot: ctx.sourceRoot,
+    signal: ctx.signal,
+  }
 
-    let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
+  let inputJson = arguments->Option.getOr(Dict.make())->JSON.Encode.object
 
-    let inputResult: result<T.input, string> = try {
-      Ok(inputJson->S.parseOrThrow(~to=T.inputSchema))
+  let inputResult: result<T.input, string> = try {
+    Ok(inputJson->S.parseOrThrow(~to=T.inputSchema))
+  } catch {
+  | exn =>
+    Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid input"))
+  }
+
+  switch inputResult {
+  | Error(msg) => InvalidInput(msg)
+  | Ok(input) =>
+    ctx.signal->WebAPI.AbortSignal.throwIfAborted
+    try {
+      let result = await T.execute(toolCtx, input)
+      ctx.signal->WebAPI.AbortSignal.throwIfAborted
+      Ok(result)
     } catch {
+    | exn if ctx.signal.aborted => throw(exn)
     | exn =>
-      Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid input"))
-    }
-
-    switch inputResult {
-    | Error(msg) => InvalidInput(msg)
-    | Ok(input) =>
-      try {
-        let result = await T.execute(toolCtx, input)
-        Ok(result)
-      } catch {
-      | exn =>
-        let msg =
-          exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-        ExecutionError(msg)
-      }
+      let msg =
+        exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+      ExecutionError(msg)
     }
   }
-}
-
-let resultToMCP = (result: executeResult): MCP.CallToolResult.t => {
-  switch result {
-  | Ok(r) => r
-  | ToolNotFound(name) => MCP.CallToolResult.makeError(`Tool not found: ${name}`)
-  | InvalidInput(msg) => MCP.CallToolResult.makeError(`Invalid input: ${msg}`)
-  | ExecutionError(msg) => MCP.CallToolResult.makeError(`Execution error: ${msg}`)
-  }
-}
-
-let getToolsResponse = (
-  ~registry: ToolRegistry.t,
-  ~serverName: string,
-  ~serverVersion: string,
-): Relay.toolsResponse => {
-  tools: registry->ToolRegistry.getToolDefinitions,
-  serverInfo: {
-    name: serverName,
-    version: serverVersion,
-  },
-  protocolVersion: Relay.protocolVersion,
 }

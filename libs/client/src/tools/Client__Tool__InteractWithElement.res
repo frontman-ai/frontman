@@ -105,15 +105,10 @@ type resolution =
   | Error(string)
   | Resolved({element: option<WebAPI.DomTypes.element>, matchCount: int})
 
-let resolveTarget = (
-  ~doc: WebAPI.DomTypes.document,
-  ~contentWindow: WebAPI.DomTypes.window,
-  ~input: input,
-  ~index: int,
-): resolution =>
+let resolveTarget = (~doc: WebAPI.DomTypes.document, ~input: input, ~index: int): resolution =>
   switch input.selector {
   | Some(selector) =>
-    let (element, matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
+    let (element, matchCount) = Client__Tool__ElementResolver.resolveBySelector(
       ~doc,
       ~selector,
       ~index,
@@ -122,9 +117,8 @@ let resolveTarget = (
   | None =>
     switch (input.role, input.name) {
     | (Some(role), Some(name)) =>
-      let (element, matchCount) = Client__Tool__ElementQuery.resolveByRoleAndName(
+      let (element, matchCount) = Client__Tool__ElementResolver.resolveByRoleAndName(
         ~document=doc,
-        ~contentWindow,
         ~role,
         ~name,
         ~index,
@@ -134,13 +128,13 @@ let resolveTarget = (
       Error("Both 'role' and 'name' are required when using role-based targeting")
     | (None, None) =>
       switch input.text {
-      | Some(text) if text->String.trim === "" => Error("Text targeting cannot be empty")
       | Some(text) =>
-        let matches = Client__Tool__ElementQuery.findMatchingElements(
-          ~root=doc.body->WebAPI.HTMLElement.asElement,
-          ~query=text,
+        let (element, matchCount) = Client__Tool__ElementResolver.resolveByText(
+          ~document=doc,
+          ~text,
+          ~index,
         )
-        Resolved({element: matches->Array.get(index), matchCount: matches->Array.length})
+        Resolved({element, matchCount})
       | None =>
         Error(
           "No targeting strategy provided. Use 'selector', 'role'+'name', or 'text' to identify the element.",
@@ -165,15 +159,16 @@ let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
+  ~signal as _signal: WebAPI.EventTypes.abortSignal,
 ): Tool.MCP.CallToolResult.t => {
   let action = input.action->Option.getOr(#click)
   let index = Math.Int.max(0, input.index->Option.getOr(0))
 
-  Client__Tool__PreviewContext.withPreview(
+  Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=() => errorResult("Preview frame document not available"),
-    ({doc, win}) => {
+    ({doc, win: _}) => {
       try {
-        switch resolveTarget(~doc, ~contentWindow=win, ~input, ~index) {
+        switch resolveTarget(~doc, ~input, ~index) {
         | Error(msg) => errorResult(msg)
         | Resolved({element: None, matchCount: 0}) =>
           errorResult("No element found matching the given criteria", ~matchCount=0)
@@ -186,16 +181,10 @@ let execute = async (
           )
         | Resolved({element: Some(el), matchCount}) =>
           performAction(el, action)
-          let role = Client__Tool__ElementQuery.effectiveRole(el)
           Tool.structuredResult(
             {
               success: true,
-              interactedElement: Some(
-                switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el) {
-                | "" => role
-                | name => `${role} '${name}'`
-                },
-              ),
+              interactedElement: Some(Client__Tool__ElementResolver.describeElement(el)),
               action: Some(actionToString(action)),
               matchCount: Some(matchCount),
               error: None,
@@ -204,7 +193,7 @@ let execute = async (
           )
         }
       } catch {
-      | exn => errorResult(Client__Tool__PreviewContext.exnMessage(exn))
+      | exn => errorResult(Client__Tool__ElementResolver.exnMessage(exn))
       }
     },
   )

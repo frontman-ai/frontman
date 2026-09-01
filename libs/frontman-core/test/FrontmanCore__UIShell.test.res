@@ -27,6 +27,8 @@ module Helpers = {
     entrypointUrl,
     frameworkId,
     traits,
+    mcpBrowserToken: None,
+    sourceLocationSecurity: None,
   }
 }
 

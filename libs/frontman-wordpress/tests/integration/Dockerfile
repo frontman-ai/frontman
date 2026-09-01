@@ -6,6 +6,7 @@ RUN docker-php-ext-install mysqli \
   && printf '%s\n' \
     '<Directory /var/www/html/>' \
     '  AllowOverride All' \
+	'  FallbackResource /index.php' \
     '</Directory>' \
     > /etc/apache2/conf-available/wordpress.conf \
   && a2enconf wordpress

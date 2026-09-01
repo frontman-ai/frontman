@@ -1,0 +1,3499 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "acp/initializeParams": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "$ref": "#/$defs/shared~1dd5e66f402e6529b"
+        },
+        "clientCapabilities": {
+          "type": "object",
+          "properties": {
+            "fs": {
+              "type": "object",
+              "properties": {
+                "readTextFile": {
+                  "type": "boolean"
+                },
+                "writeTextFile": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "terminal": {
+              "type": "boolean"
+            },
+            "elicitation": {
+              "type": "object",
+              "properties": {
+                "form": {},
+                "url": {}
+              }
+            },
+            "_meta": {}
+          }
+        },
+        "clientInfo": {
+          "$ref": "#/$defs/acp~1implementation"
+        }
+      },
+      "required": [
+        "protocolVersion"
+      ]
+    },
+    "acp/initializeResult": {
+      "type": "object",
+      "properties": {
+        "protocolVersion": {
+          "$ref": "#/$defs/shared~1dd5e66f402e6529b"
+        },
+        "agentCapabilities": {
+          "type": "object",
+          "properties": {
+            "loadSession": {
+              "type": "boolean"
+            },
+            "mcpCapabilities": {
+              "type": "object",
+              "properties": {
+                "http": {
+                  "type": "boolean"
+                },
+                "sse": {
+                  "type": "boolean"
+                },
+                "websocket": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "promptCapabilities": {
+              "type": "object",
+              "properties": {
+                "image": {
+                  "type": "boolean"
+                },
+                "audio": {
+                  "type": "boolean"
+                },
+                "embeddedContext": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "_meta": {}
+          }
+        },
+        "agentInfo": {
+          "$ref": "#/$defs/acp~1implementation"
+        },
+        "authMethods": {
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name"
+            ]
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "protocolVersion"
+      ]
+    },
+    "acp/capabilityMetadata": {
+      "type": "object",
+      "properties": {
+        "frontman.dev": {
+          "type": "object",
+          "properties": {
+            "agentAttribution": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              },
+              "required": [
+                "version"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "acp/agentCatalogEntry": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "color": {
+          "type": "string",
+          "pattern": "^#[0-9A-Fa-f]{6}$"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "displayName",
+        "description",
+        "color"
+      ]
+    },
+    "acp/agentAttributionConfigurationMetadata": {
+      "type": "object",
+      "properties": {
+        "agentAttribution": {
+          "type": "object",
+          "properties": {
+            "version": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            }
+          },
+          "required": [
+            "version"
+          ]
+        },
+        "agents": {
+          "items": {
+            "$ref": "#/$defs/acp~1agentCatalogEntry"
+          },
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "description": "Frontman runtime validation also requires unique id fields"
+        },
+        "defaultAgentId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "agentAttribution",
+        "agents",
+        "defaultAgentId"
+      ]
+    },
+    "acp/messageMetadata": {
+      "type": "object",
+      "properties": {
+        "frontman.dev/agentId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "frontman.dev/timestamp": {
+          "$ref": "#/$defs/shared~12593626f42d1cf22"
+        }
+      },
+      "required": [
+        "frontman.dev/agentId",
+        "frontman.dev/timestamp"
+      ]
+    },
+    "acp/sessionUpdate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~1770f354aba0bcb74"
+        },
+        {
+          "$ref": "#/$defs/shared~1a36cc51760df21dd"
+        },
+        {
+          "$ref": "#/$defs/shared~14ab504114dcf01c1"
+        },
+        {
+          "$ref": "#/$defs/shared~10a7daa5fb25f61f7"
+        },
+        {
+          "$ref": "#/$defs/shared~19812fb7b94eec7d8"
+        },
+        {
+          "$ref": "#/$defs/shared~10a8bac5a48b4d655"
+        },
+        {
+          "$ref": "#/$defs/shared~14529cc9e3cfdbd83"
+        },
+        {
+          "$ref": "#/$defs/shared~1e640b1df99d54775"
+        },
+        {
+          "$ref": "#/$defs/shared~1aca992d172918dc8"
+        }
+      ]
+    },
+    "acp/sessionUpdateNotification": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "method": {
+          "type": "string",
+          "const": "session/update"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "sessionId": {
+              "type": "string"
+            },
+            "update": {
+              "$ref": "#/$defs/acp~1sessionUpdate"
+            }
+          },
+          "required": [
+            "sessionId",
+            "update"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method",
+        "params"
+      ]
+    },
+    "acp/contentBlock": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~1ad64ad497b9a1c0e"
+        },
+        {
+          "$ref": "#/$defs/shared~1cdfd264fcf587c32"
+        },
+        {
+          "$ref": "#/$defs/shared~12728bf9ed1fcee04"
+        },
+        {
+          "$ref": "#/$defs/shared~1b35dd18d173f86e7"
+        },
+        {
+          "$ref": "#/$defs/acp~1embeddedResource"
+        }
+      ]
+    },
+    "acp/promptResult": {
+      "type": "object",
+      "properties": {}
+    },
+    "acp/sessionSummary": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "title",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "acp/listSessionsResult": {
+      "type": "object",
+      "properties": {
+        "sessions": {
+          "items": {
+            "$ref": "#/$defs/acp~1sessionSummary"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "sessions"
+      ]
+    },
+    "acp/sessionNewResult": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "modes": {
+          "$ref": "#/$defs/acp~1sessionModeState"
+        },
+        "configOptions": {
+          "$ref": "#/$defs/shared~16e4dd5c71f1fd28a"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "acp/sessionLoadParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "cwd": {
+          "type": "string"
+        },
+        "mcpServers": {
+          "items": {},
+          "type": "array"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "sessionId",
+        "cwd",
+        "mcpServers"
+      ]
+    },
+    "acp/sessionLoadResult": {
+      "type": "object",
+      "properties": {
+        "modes": {
+          "$ref": "#/$defs/acp~1sessionModeState"
+        },
+        "configOptions": {
+          "$ref": "#/$defs/shared~16e4dd5c71f1fd28a"
+        },
+        "_meta": {}
+      }
+    },
+    "acp/sessionConfigOption": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "select"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/$defs/shared~12f241cbaea01b59b"
+        },
+        "options": {
+          "$ref": "#/$defs/shared~140ee8527aa0ae714"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "type",
+        "id",
+        "name",
+        "options"
+      ]
+    },
+    "acp/sessionModeState": {
+      "type": "object",
+      "properties": {
+        "currentModeId": {
+          "type": "string"
+        },
+        "availableModes": {
+          "$ref": "#/$defs/shared~1f52647e1038780d5"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "currentModeId",
+        "availableModes"
+      ]
+    },
+    "acp/deleteSessionParams": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
+    "acp/implementation": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "acp/planEntry": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ]
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed"
+          ]
+        }
+      },
+      "required": [
+        "content",
+        "priority",
+        "status"
+      ]
+    },
+    "acp/toolCallContentItem": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~1c5a195560e119035"
+        },
+        {
+          "$ref": "#/$defs/shared~1bc48802f6b13d321"
+        },
+        {
+          "$ref": "#/$defs/shared~12930dbf3c41e6327"
+        }
+      ]
+    },
+    "acp/embeddedResource": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "resource"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        },
+        "annotations": {
+          "$ref": "#/$defs/shared~187c59186fba72467"
+        },
+        "resource": {
+          "$ref": "#/$defs/shared~1833c0f57d3165aff"
+        }
+      },
+      "required": [
+        "type",
+        "resource"
+      ]
+    },
+    "mcp/callToolResult": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/shared~12a24f383c6f67e37"
+        },
+        "structuredContent": {},
+        "isError": {
+          "type": "boolean"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1resultMeta"
+        },
+        "resultType": {
+          "type": "string",
+          "const": "complete"
+        }
+      },
+      "required": [
+        "content",
+        "resultType"
+      ]
+    },
+    "mcp/callToolRequestParams": {
+      "type": "object",
+      "properties": {
+        "_meta": {
+          "$ref": "#/$defs/mcp~1requestMeta"
+        },
+        "name": {
+          "type": "string"
+        },
+        "arguments": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "inputResponses": {
+          "$ref": "#/$defs/mcp~1inputResponses"
+        },
+        "requestState": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "_meta",
+        "name"
+      ]
+    },
+    "mcp/callToolRequest": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "method": {
+          "type": "string",
+          "const": "tools/call"
+        },
+        "params": {
+          "$ref": "#/$defs/mcp~1callToolRequestParams"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params"
+      ]
+    },
+    "mcp/cancelledNotification": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "method": {
+          "type": "string",
+          "const": "notifications/cancelled"
+        },
+        "params": {
+          "$ref": "#/$defs/mcp~1cancelledNotificationParams"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method",
+        "params"
+      ],
+      "allOf": [
+        {
+          "type": "object",
+          "properties": {
+            "jsonrpc": {
+              "type": "string",
+              "const": "2.0"
+            },
+            "method": {
+              "type": "string",
+              "const": "notifications/cancelled"
+            },
+            "params": {
+              "$ref": "#/$defs/mcp~1cancelledNotificationParams"
+            }
+          },
+          "required": [
+            "jsonrpc",
+            "method",
+            "params"
+          ]
+        },
+        {
+          "properties": {
+            "id": false
+          }
+        }
+      ]
+    },
+    "mcp/cancelledNotificationParams": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1notificationMeta"
+        }
+      },
+      "required": [
+        "requestId"
+      ]
+    },
+    "mcp/createMessageRequest": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "sampling/createMessage"
+        },
+        "params": {
+          "$ref": "#/$defs/mcp~1createMessageRequestParams"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    "mcp/createMessageRequestParams": {
+      "type": "object",
+      "properties": {
+        "messages": {
+          "$ref": "#/$defs/shared~1fee0f4f2b3f77b80"
+        },
+        "modelPreferences": {
+          "$ref": "#/$defs/mcp~1modelPreferences"
+        },
+        "systemPrompt": {
+          "type": "string"
+        },
+        "includeContext": {
+          "enum": [
+            "allServers",
+            "none",
+            "thisServer"
+          ]
+        },
+        "temperature": {
+          "type": "number"
+        },
+        "maxTokens": {
+          "type": "integer"
+        },
+        "stopSequences": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "metadata": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "tools": {
+          "$ref": "#/$defs/shared~13bd47b4bae7032e1"
+        },
+        "toolChoice": {
+          "$ref": "#/$defs/mcp~1toolChoice"
+        }
+      },
+      "required": [
+        "messages",
+        "maxTokens"
+      ]
+    },
+    "mcp/clientCapabilities": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "elicitation": {
+          "$ref": "#/$defs/shared~1b76dc30ca9b9fdbf"
+        },
+        "experimental": {
+          "$ref": "#/$defs/shared~1788838d987811cc4"
+        },
+        "extensions": {
+          "$ref": "#/$defs/mcp~1extensions"
+        },
+        "roots": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "sampling": {
+          "$ref": "#/$defs/shared~1b3754ba32ade4dd7"
+        }
+      }
+    },
+    "mcp/discoverRequest": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "method": {
+          "type": "string",
+          "const": "server/discover"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "_meta": {
+              "$ref": "#/$defs/mcp~1requestMeta"
+            }
+          },
+          "required": [
+            "_meta"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params"
+      ]
+    },
+    "mcp/discoverResult": {
+      "type": "object",
+      "properties": {
+        "resultType": {
+          "type": "string"
+        },
+        "supportedVersions": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/mcp~1serverCapabilities"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1resultMeta"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "ttlMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheScope": {
+          "enum": [
+            "private",
+            "public"
+          ]
+        }
+      },
+      "required": [
+        "resultType",
+        "supportedVersions",
+        "capabilities",
+        "ttlMs",
+        "cacheScope"
+      ]
+    },
+    "mcp/discoverResultResponse": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "result": {
+          "$ref": "#/$defs/mcp~1discoverResult"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ]
+    },
+    "mcp/extensions": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      },
+      "propertyNames": {
+        "allOf": [
+          {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          },
+          {
+            "pattern": "/"
+          }
+        ]
+      }
+    },
+    "mcp/executionContextExtensionSettings": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "number",
+          "const": 1
+        }
+      },
+      "required": [
+        "version"
+      ]
+    },
+    "mcp/executionContext": {
+      "type": "object",
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "toolCallId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "taskId",
+        "toolCallId"
+      ]
+    },
+    "mcp/executionContextClientCapabilities": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "elicitation": {
+          "$ref": "#/$defs/shared~1b76dc30ca9b9fdbf"
+        },
+        "experimental": {
+          "$ref": "#/$defs/shared~1788838d987811cc4"
+        },
+        "extensions": {
+          "$ref": "#/$defs/mcp~1extensions"
+        },
+        "roots": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "sampling": {
+          "$ref": "#/$defs/shared~1b3754ba32ade4dd7"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/mcp~1clientCapabilities"
+        },
+        {
+          "$ref": "#/$defs/shared~1c3e790b7877f98f0"
+        }
+      ]
+    },
+    "mcp/executionContextServerCapabilities": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "completions": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "experimental": {
+          "$ref": "#/$defs/shared~1788838d987811cc4"
+        },
+        "extensions": {
+          "$ref": "#/$defs/mcp~1extensions"
+        },
+        "logging": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "prompts": {
+          "$ref": "#/$defs/shared~1c60f1c6554d00c78"
+        },
+        "resources": {
+          "$ref": "#/$defs/shared~114c43f407933b34a"
+        },
+        "tools": {
+          "$ref": "#/$defs/shared~1c60f1c6554d00c78"
+        }
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/mcp~1serverCapabilities"
+        },
+        {
+          "$ref": "#/$defs/shared~1c3e790b7877f98f0"
+        }
+      ]
+    },
+    "mcp/executionContextRequestMeta": {
+      "type": "object",
+      "additionalProperties": true,
+      "maxProperties": 64,
+      "propertyNames": {
+        "allOf": [
+          {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          },
+          {
+            "$ref": "#/$defs/shared~17a23b47af43db7e3"
+          }
+        ]
+      },
+      "properties": {
+        "io.modelcontextprotocol/protocolVersion": {
+          "type": "string"
+        },
+        "io.modelcontextprotocol/clientCapabilities": {
+          "$ref": "#/$defs/mcp~1clientCapabilities"
+        },
+        "io.modelcontextprotocol/clientInfo": {
+          "$ref": "#/$defs/mcp~1implementation"
+        },
+        "io.modelcontextprotocol/logLevel": {
+          "$ref": "#/$defs/shared~10e28b6216914ea72"
+        },
+        "progressToken": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        }
+      },
+      "required": [
+        "io.modelcontextprotocol/protocolVersion",
+        "io.modelcontextprotocol/clientCapabilities"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/mcp~1requestMeta"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ai.frontman/execution-context": {
+              "$ref": "#/$defs/mcp~1executionContext"
+            }
+          },
+          "required": [
+            "ai.frontman/execution-context"
+          ]
+        }
+      ]
+    },
+    "mcp/elicitRequest": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "elicitation/create"
+        },
+        "params": {
+          "$ref": "#/$defs/shared~1b1e5b3f2ca48b357"
+        }
+      },
+      "required": [
+        "method",
+        "params"
+      ]
+    },
+    "mcp/elicitRequestFormParams": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "const": "form"
+        },
+        "message": {
+          "type": "string"
+        },
+        "requestedSchema": {
+          "$ref": "#/$defs/shared~1a7ebbd195e1f04bc"
+        }
+      },
+      "required": [
+        "message",
+        "requestedSchema"
+      ]
+    },
+    "mcp/elicitRequestUrlParams": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "const": "url"
+        },
+        "message": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "mode",
+        "message",
+        "url"
+      ]
+    },
+    "mcp/parseError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "number",
+          "const": -32700
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "mcp/invalidRequestError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "number",
+          "const": -32600
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "mcp/jsonRpcRequest": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared~1aaba6dcc08ac755d"
+        },
+        {
+          "properties": {
+            "result": false,
+            "error": false
+          }
+        }
+      ]
+    },
+    "mcp/jsonRpcMessage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/mcp~1jsonRpcRequest"
+        },
+        {
+          "$ref": "#/$defs/shared~170d601a38e617263"
+        },
+        {
+          "$ref": "#/$defs/shared~1c9ea77da7acab807"
+        },
+        {
+          "$ref": "#/$defs/shared~17888610c2c184867"
+        }
+      ]
+    },
+    "mcp/methodNotFoundError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "number",
+          "const": -32601
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "mcp/invalidParamsError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "number",
+          "const": -32602
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "mcp/internalError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "number",
+          "const": -32603
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "mcp/headerMismatchError": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "number",
+              "const": -32020
+            },
+            "message": {
+              "type": "string"
+            },
+            "data": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "error"
+      ]
+    },
+    "mcp/missingRequiredClientCapabilityError": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "number",
+              "const": -32021
+            },
+            "message": {
+              "type": "string"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "requiredCapabilities": {
+                  "$ref": "#/$defs/mcp~1clientCapabilities"
+                }
+              },
+              "required": [
+                "requiredCapabilities"
+              ]
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "data"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "error"
+      ]
+    },
+    "mcp/unsupportedProtocolVersionError": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "number",
+              "const": -32022
+            },
+            "message": {
+              "type": "string"
+            },
+            "data": {
+              "type": "object",
+              "properties": {
+                "requested": {
+                  "type": "string"
+                },
+                "supported": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "requested",
+                "supported"
+              ]
+            }
+          },
+          "required": [
+            "code",
+            "message",
+            "data"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "error"
+      ]
+    },
+    "mcp/implementation": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "websiteUrl": {
+          "type": "string",
+          "format": "uri"
+        },
+        "icons": {
+          "$ref": "#/$defs/shared~14d92987349d730ba"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "mcp/inputRequiredResult": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "resultType": {
+              "type": "string",
+              "const": "input_required"
+            },
+            "inputRequests": {
+              "$ref": "#/$defs/mcp~1inputRequests"
+            },
+            "requestState": {
+              "type": "string"
+            },
+            "_meta": {
+              "$ref": "#/$defs/mcp~1resultMeta"
+            }
+          },
+          "required": [
+            "resultType",
+            "inputRequests"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "resultType": {
+              "type": "string",
+              "const": "input_required"
+            },
+            "inputRequests": {
+              "$ref": "#/$defs/mcp~1inputRequests"
+            },
+            "requestState": {
+              "type": "string"
+            },
+            "_meta": {
+              "$ref": "#/$defs/mcp~1resultMeta"
+            }
+          },
+          "required": [
+            "resultType",
+            "requestState"
+          ]
+        }
+      ]
+    },
+    "mcp/inputRequests": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/shared~1bf86cd99900df900"
+      }
+    },
+    "mcp/inputResponses": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/shared~160d3e12a9dff2f95"
+      }
+    },
+    "mcp/listRootsRequest": {
+      "type": "object",
+      "properties": {
+        "method": {
+          "type": "string",
+          "const": "roots/list"
+        },
+        "params": {
+          "$ref": "#/$defs/shared~1cae4b7f130b682d7"
+        }
+      },
+      "required": [
+        "method"
+      ]
+    },
+    "mcp/listToolsRequest": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "method": {
+          "type": "string",
+          "const": "tools/list"
+        },
+        "params": {
+          "type": "object",
+          "properties": {
+            "_meta": {
+              "$ref": "#/$defs/mcp~1requestMeta"
+            },
+            "cursor": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "_meta"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method",
+        "params"
+      ]
+    },
+    "mcp/listToolsResult": {
+      "type": "object",
+      "properties": {
+        "resultType": {
+          "type": "string"
+        },
+        "tools": {
+          "$ref": "#/$defs/shared~13bd47b4bae7032e1"
+        },
+        "nextCursor": {
+          "type": "string"
+        },
+        "ttlMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cacheScope": {
+          "enum": [
+            "private",
+            "public"
+          ]
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1resultMeta"
+        }
+      },
+      "required": [
+        "resultType",
+        "tools",
+        "ttlMs",
+        "cacheScope"
+      ]
+    },
+    "mcp/listToolsResultResponse": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "result": {
+          "$ref": "#/$defs/mcp~1listToolsResult"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ]
+    },
+    "mcp/metaObject": {
+      "type": "object",
+      "additionalProperties": true,
+      "maxProperties": 64,
+      "propertyNames": {
+        "allOf": [
+          {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          },
+          {
+            "$ref": "#/$defs/shared~17a23b47af43db7e3"
+          }
+        ]
+      }
+    },
+    "mcp/modelHint": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      }
+    },
+    "mcp/modelPreferences": {
+      "type": "object",
+      "properties": {
+        "hints": {
+          "$ref": "#/$defs/shared~1ad2f2494b14fe678"
+        },
+        "costPriority": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "intelligencePriority": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "speedPriority": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "mcp/notificationMeta": {
+      "type": "object",
+      "additionalProperties": true,
+      "maxProperties": 64,
+      "propertyNames": {
+        "allOf": [
+          {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          },
+          {
+            "$ref": "#/$defs/shared~17a23b47af43db7e3"
+          }
+        ]
+      },
+      "properties": {
+        "io.modelcontextprotocol/subscriptionId": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        }
+      }
+    },
+    "mcp/primitiveSchemaDefinition": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~192f978dc6ee7a3af"
+        },
+        {
+          "$ref": "#/$defs/shared~18a0682c5d55a51f7"
+        },
+        {
+          "$ref": "#/$defs/shared~118dc5a8688e40c51"
+        },
+        {
+          "$ref": "#/$defs/shared~1e4bc907cda550b8a"
+        },
+        {
+          "$ref": "#/$defs/shared~173929bbbeaf43be0"
+        },
+        {
+          "$ref": "#/$defs/shared~1865c2a390c1b6948"
+        },
+        {
+          "$ref": "#/$defs/shared~15c4b706752d58943"
+        },
+        {
+          "$ref": "#/$defs/shared~1531f21fe7c432c17"
+        }
+      ]
+    },
+    "mcp/requestMeta": {
+      "type": "object",
+      "additionalProperties": true,
+      "maxProperties": 64,
+      "propertyNames": {
+        "allOf": [
+          {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          },
+          {
+            "$ref": "#/$defs/shared~17a23b47af43db7e3"
+          }
+        ]
+      },
+      "properties": {
+        "io.modelcontextprotocol/protocolVersion": {
+          "type": "string"
+        },
+        "io.modelcontextprotocol/clientCapabilities": {
+          "$ref": "#/$defs/mcp~1clientCapabilities"
+        },
+        "io.modelcontextprotocol/clientInfo": {
+          "$ref": "#/$defs/mcp~1implementation"
+        },
+        "io.modelcontextprotocol/logLevel": {
+          "$ref": "#/$defs/shared~10e28b6216914ea72"
+        },
+        "progressToken": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        }
+      },
+      "required": [
+        "io.modelcontextprotocol/protocolVersion",
+        "io.modelcontextprotocol/clientCapabilities"
+      ]
+    },
+    "mcp/resultMeta": {
+      "type": "object",
+      "additionalProperties": true,
+      "maxProperties": 64,
+      "propertyNames": {
+        "allOf": [
+          {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          },
+          {
+            "$ref": "#/$defs/shared~17a23b47af43db7e3"
+          }
+        ]
+      },
+      "properties": {
+        "io.modelcontextprotocol/serverInfo": {
+          "$ref": "#/$defs/mcp~1implementation"
+        }
+      }
+    },
+    "mcp/samplingMessage": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "assistant",
+            "user"
+          ]
+        },
+        "content": {
+          "$ref": "#/$defs/shared~1d2f2efafbbfc4ce9"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ]
+    },
+    "mcp/streamableHttpSseMessage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~170d601a38e617263"
+        },
+        {
+          "$ref": "#/$defs/shared~1c9ea77da7acab807"
+        },
+        {
+          "$ref": "#/$defs/shared~17888610c2c184867"
+        }
+      ]
+    },
+    "mcp/serverCapabilities": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "completions": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "experimental": {
+          "$ref": "#/$defs/shared~1788838d987811cc4"
+        },
+        "extensions": {
+          "$ref": "#/$defs/mcp~1extensions"
+        },
+        "logging": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "prompts": {
+          "$ref": "#/$defs/shared~1c60f1c6554d00c78"
+        },
+        "resources": {
+          "$ref": "#/$defs/shared~114c43f407933b34a"
+        },
+        "tools": {
+          "$ref": "#/$defs/shared~1c60f1c6554d00c78"
+        }
+      }
+    },
+    "mcp/tool": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "inputSchema": {
+          "$ref": "#/$defs/shared~1787e95ba74fd3cdf"
+        },
+        "outputSchema": {
+          "$ref": "#/$defs/shared~16fff687306ae3e66"
+        },
+        "icons": {
+          "$ref": "#/$defs/shared~14d92987349d730ba"
+        },
+        "annotations": {
+          "$ref": "#/$defs/shared~16f0729eec2129c1e"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        }
+      },
+      "required": [
+        "name",
+        "inputSchema"
+      ]
+    },
+    "mcp/toolChoice": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "auto",
+            "none",
+            "required"
+          ]
+        }
+      }
+    },
+    "jsonrpc/request": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": {}
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method"
+      ]
+    },
+    "jsonrpc/response": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "result": {},
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "$ref": "#/$defs/shared~1dd5e66f402e6529b"
+            },
+            "message": {
+              "type": "string"
+            },
+            "data": {}
+          },
+          "required": [
+            "code",
+            "message"
+          ]
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id"
+      ]
+    },
+    "jsonrpc/notification": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": {}
+      },
+      "required": [
+        "jsonrpc",
+        "method"
+      ]
+    },
+    "shared/0a7daa5fb25f61f7": {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "tool_call_update"
+        },
+        "toolCallId": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "failed"
+          ]
+        },
+        "content": {
+          "$ref": "#/$defs/shared~1ae3ef3c096b65bfd"
+        },
+        "rawInput": {},
+        "rawOutput": {}
+      },
+      "required": [
+        "sessionUpdate",
+        "toolCallId"
+      ]
+    },
+    "shared/0a8bac5a48b4d655": {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "config_option_update"
+        },
+        "configOptions": {
+          "$ref": "#/$defs/shared~16e4dd5c71f1fd28a"
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "configOptions"
+      ]
+    },
+    "shared/0e28b6216914ea72": {
+      "enum": [
+        "alert",
+        "critical",
+        "debug",
+        "emergency",
+        "error",
+        "info",
+        "notice",
+        "warning"
+      ]
+    },
+    "shared/14c43f407933b34a": {
+      "type": "object",
+      "properties": {
+        "listChanged": {
+          "type": "boolean"
+        },
+        "subscribe": {
+          "type": "boolean"
+        }
+      }
+    },
+    "shared/18dc5a8688e40c51": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "default": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "shared/2593626f42d1cf22": {
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])[Tt]([01]\\d|2[0-3]):[0-5]\\d:([0-5]\\d|60)(\\.\\d+)?([Zz]|[+-]([01]\\d|2[0-3]):[0-5]\\d)$",
+      "format": "date-time"
+    },
+    "shared/2728bf9ed1fcee04": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "audio"
+        },
+        "data": {
+          "type": "string",
+          "format": "byte"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        },
+        "annotations": {
+          "$ref": "#/$defs/shared~187c59186fba72467"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "mimeType"
+      ]
+    },
+    "shared/2930dbf3c41e6327": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "terminal"
+        },
+        "terminalId": {
+          "type": "string"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "type",
+        "terminalId"
+      ]
+    },
+    "shared/2a24f383c6f67e37": {
+      "items": {
+        "$ref": "#/$defs/acp~1contentBlock"
+      },
+      "type": "array"
+    },
+    "shared/2f241cbaea01b59b": {
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "mode"
+        },
+        {
+          "type": "string",
+          "const": "model"
+        },
+        {
+          "type": "string",
+          "const": "thought_level"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "shared/324cdb267c0f3d4a": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/$defs/shared~1278eaeabce086854"
+        }
+      ]
+    },
+    "shared/3bd47b4bae7032e1": {
+      "items": {
+        "$ref": "#/$defs/mcp~1tool"
+      },
+      "type": "array"
+    },
+    "shared/40ee8527aa0ae714": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~19a0ed630fe956019"
+        },
+        {
+          "$ref": "#/$defs/shared~1c2e8ccafca61ed90"
+        }
+      ]
+    },
+    "shared/4529cc9e3cfdbd83": {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "current_mode_update"
+        },
+        "currentModeId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "currentModeId"
+      ]
+    },
+    "shared/4ab504114dcf01c1": {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "tool_call"
+        },
+        "toolCallId": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "in_progress",
+            "completed",
+            "failed"
+          ]
+        },
+        "content": {
+          "$ref": "#/$defs/shared~1ae3ef3c096b65bfd"
+        },
+        "rawInput": {},
+        "rawOutput": {},
+        "timestamp": {
+          "type": "string"
+        },
+        "parentAgentId": {
+          "type": "string"
+        },
+        "spawningToolName": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "toolCallId",
+        "title",
+        "timestamp"
+      ]
+    },
+    "shared/4d92987349d730ba": {
+      "items": {
+        "$ref": "#/$defs/shared~1138bacf1fb10e5cb"
+      },
+      "type": "array"
+    },
+    "shared/531f21fe7c432c17": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enum": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "enumNames": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "default": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "enum"
+      ]
+    },
+    "shared/5c4b706752d58943": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "items": {
+          "$ref": "#/$defs/shared~1dafbd6004fc6efbf"
+        },
+        "minItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "default": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ]
+    },
+    "shared/60d3e12a9dff2f95": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~15720602c4dea4a59"
+        },
+        {
+          "$ref": "#/$defs/shared~136f452d3fb732161"
+        },
+        {
+          "$ref": "#/$defs/shared~198330d4f1527e024"
+        }
+      ]
+    },
+    "shared/6e4dd5c71f1fd28a": {
+      "items": {
+        "$ref": "#/$defs/acp~1sessionConfigOption"
+      },
+      "type": "array"
+    },
+    "shared/6f0729eec2129c1e": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "destructiveHint": {
+          "type": "boolean"
+        },
+        "idempotentHint": {
+          "type": "boolean"
+        },
+        "openWorldHint": {
+          "type": "boolean"
+        },
+        "readOnlyHint": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "shared/6fff687306ae3e66": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "$schema": {
+          "type": "string"
+        }
+      }
+    },
+    "shared/70d601a38e617263": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared~1caa53ce140522dc8"
+        },
+        {
+          "properties": {
+            "id": false,
+            "result": false,
+            "error": false
+          }
+        }
+      ]
+    },
+    "shared/73929bbbeaf43be0": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "oneOf": {
+          "$ref": "#/$defs/shared~17e0342689c701b60"
+        },
+        "default": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "oneOf"
+      ]
+    },
+    "shared/770f354aba0bcb74": {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "agent_message_chunk"
+        },
+        "messageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content": {
+          "$ref": "#/$defs/acp~1contentBlock"
+        },
+        "_meta": {
+          "$ref": "#/$defs/acp~1messageMetadata"
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "messageId",
+        "content",
+        "_meta"
+      ]
+    },
+    "shared/787e95ba74fd3cdf": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "const": "object"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "shared/788838d987811cc4": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+      }
+    },
+    "shared/7888610c2c184867": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "error": {
+          "$ref": "#/$defs/shared~11551591a269f2833"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "error"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared~1caa1a8acbf849101"
+        },
+        {
+          "properties": {
+            "method": false,
+            "result": false
+          }
+        }
+      ]
+    },
+    "shared/7a23b47af43db7e3": {
+      "not": {
+        "$ref": "#/$defs/shared~1c3e7bbf8e25aeedc"
+      }
+    },
+    "shared/82ef96cebaf5fbe1": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "shared/833c0f57d3165aff": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~113178184f20d801d"
+        },
+        {
+          "$ref": "#/$defs/shared~1099327191f193017"
+        }
+      ]
+    },
+    "shared/865c2a390c1b6948": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "array"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "items": {
+          "$ref": "#/$defs/shared~11e85cef034b42e01"
+        },
+        "minItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxItems": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "default": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "items"
+      ]
+    },
+    "shared/87c59186fba72467": {
+      "type": "object",
+      "properties": {
+        "audience": {
+          "$ref": "#/$defs/shared~1dae7b6ced039f16f"
+        },
+        "priority": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "lastModified": {
+          "type": "string"
+        }
+      }
+    },
+    "shared/8a0682c5d55a51f7": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "enum": [
+            "integer",
+            "number"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "default": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "shared/92f978dc6ee7a3af": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "minLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "format": {
+          "enum": [
+            "date",
+            "date-time",
+            "email",
+            "uri"
+          ]
+        },
+        "default": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "shared/9812fb7b94eec7d8": {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "plan"
+        },
+        "entries": {
+          "$ref": "#/$defs/shared~153f46d1f4b30c8e5"
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "entries"
+      ]
+    },
+    "shared/a36cc51760df21dd": {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "user_message_chunk"
+        },
+        "messageId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "content": {
+          "$ref": "#/$defs/acp~1contentBlock"
+        },
+        "_meta": {
+          "$ref": "#/$defs/acp~1messageMetadata"
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "messageId",
+        "content",
+        "_meta"
+      ]
+    },
+    "shared/a7ebbd195e1f04bc": {
+      "type": "object",
+      "properties": {
+        "$schema": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "const": "object"
+        },
+        "properties": {
+          "$ref": "#/$defs/shared~1d625c1a914ac7490"
+        },
+        "required": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "properties"
+      ]
+    },
+    "shared/aaba6dcc08ac755d": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "method"
+      ]
+    },
+    "shared/aca992d172918dc8": {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "error"
+        },
+        "_meta": {},
+        "message": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "retryAt": {
+          "type": "string"
+        },
+        "attempt": {
+          "$ref": "#/$defs/shared~1dd5e66f402e6529b"
+        },
+        "maxAttempts": {
+          "$ref": "#/$defs/shared~1dd5e66f402e6529b"
+        },
+        "category": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "message",
+        "timestamp"
+      ]
+    },
+    "shared/ad2f2494b14fe678": {
+      "items": {
+        "$ref": "#/$defs/mcp~1modelHint"
+      },
+      "type": "array"
+    },
+    "shared/ad64ad497b9a1c0e": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "text"
+        },
+        "text": {
+          "type": "string"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        },
+        "annotations": {
+          "$ref": "#/$defs/shared~187c59186fba72467"
+        }
+      },
+      "required": [
+        "type",
+        "text"
+      ]
+    },
+    "shared/b1e5b3f2ca48b357": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/mcp~1elicitRequestFormParams"
+        },
+        {
+          "$ref": "#/$defs/mcp~1elicitRequestUrlParams"
+        }
+      ]
+    },
+    "shared/b35dd18d173f86e7": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "resource_link"
+        },
+        "name": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "integer"
+        },
+        "icons": {
+          "$ref": "#/$defs/shared~14d92987349d730ba"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        },
+        "annotations": {
+          "$ref": "#/$defs/shared~187c59186fba72467"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "uri"
+      ]
+    },
+    "shared/b3754ba32ade4dd7": {
+      "type": "object",
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "tools": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        }
+      }
+    },
+    "shared/b76dc30ca9b9fdbf": {
+      "type": "object",
+      "properties": {
+        "form": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "url": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        }
+      }
+    },
+    "shared/bc48802f6b13d321": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "diff"
+        },
+        "path": {
+          "type": "string"
+        },
+        "oldText": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "newText": {
+          "type": "string"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "type",
+        "path",
+        "newText"
+      ]
+    },
+    "shared/bf86cd99900df900": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/mcp~1createMessageRequest"
+        },
+        {
+          "$ref": "#/$defs/mcp~1listRootsRequest"
+        },
+        {
+          "$ref": "#/$defs/mcp~1elicitRequest"
+        }
+      ]
+    },
+    "shared/c3e790b7877f98f0": {
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "$ref": "#/$defs/shared~1437cba78bc4eb932"
+        }
+      },
+      "required": [
+        "extensions"
+      ]
+    },
+    "shared/c5a195560e119035": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "content"
+        },
+        "content": {
+          "$ref": "#/$defs/acp~1contentBlock"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "type",
+        "content"
+      ]
+    },
+    "shared/c60f1c6554d00c78": {
+      "type": "object",
+      "properties": {
+        "listChanged": {
+          "type": "boolean"
+        }
+      }
+    },
+    "shared/c9ea77da7acab807": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "result": {
+          "$ref": "#/$defs/shared~1d3563cf161a7253a"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ],
+      "allOf": [
+        {
+          "$ref": "#/$defs/shared~1719fe179d62adffe"
+        },
+        {
+          "properties": {
+            "method": false,
+            "error": false
+          }
+        }
+      ]
+    },
+    "shared/cae4b7f130b682d7": {
+      "type": "object",
+      "properties": {
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        }
+      }
+    },
+    "shared/cdfd264fcf587c32": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "image"
+        },
+        "data": {
+          "type": "string",
+          "format": "byte"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        },
+        "annotations": {
+          "$ref": "#/$defs/shared~187c59186fba72467"
+        }
+      },
+      "required": [
+        "type",
+        "data",
+        "mimeType"
+      ]
+    },
+    "shared/d2f2efafbbfc4ce9": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~1ad64ad497b9a1c0e"
+        },
+        {
+          "$ref": "#/$defs/shared~1cdfd264fcf587c32"
+        },
+        {
+          "$ref": "#/$defs/shared~12728bf9ed1fcee04"
+        },
+        {
+          "$ref": "#/$defs/shared~1f34c8a654aaf2377"
+        },
+        {
+          "$ref": "#/$defs/shared~1a672a7e7dd4a5363"
+        },
+        {
+          "$ref": "#/$defs/shared~119e71721a279db37"
+        }
+      ]
+    },
+    "shared/dd5e66f402e6529b": {
+      "type": "integer",
+      "minimum": -2147483648,
+      "maximum": 2147483647
+    },
+    "shared/e4bc907cda550b8a": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "enum": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "default": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "enum"
+      ]
+    },
+    "shared/e640b1df99d54775": {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "state_update"
+        },
+        "state": {
+          "enum": [
+            "running",
+            "idle",
+            "requires_action"
+          ]
+        },
+        "stopReason": {
+          "enum": [
+            "end_turn",
+            "max_tokens",
+            "max_turn_requests",
+            "refusal",
+            "cancelled"
+          ]
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "state"
+      ]
+    },
+    "shared/f52647e1038780d5": {
+      "items": {
+        "$ref": "#/$defs/shared~169b0a1b3dcf96b79"
+      },
+      "type": "array"
+    },
+    "shared/fee0f4f2b3f77b80": {
+      "items": {
+        "$ref": "#/$defs/mcp~1samplingMessage"
+      },
+      "type": "array"
+    },
+    "shared/ae3ef3c096b65bfd": {
+      "items": {
+        "$ref": "#/$defs/acp~1toolCallContentItem"
+      },
+      "type": "array"
+    },
+    "shared/278eaeabce086854": {
+      "type": "integer",
+      "maximum": 9007199254740991,
+      "minimum": -9007199254740991
+    },
+    "shared/9a0ed630fe956019": {
+      "items": {
+        "$ref": "#/$defs/shared~125682cd92933275e"
+      },
+      "type": "array"
+    },
+    "shared/c2e8ccafca61ed90": {
+      "items": {
+        "$ref": "#/$defs/shared~1fe25aa270f99643d"
+      },
+      "type": "array"
+    },
+    "shared/138bacf1fb10e5cb": {
+      "type": "object",
+      "properties": {
+        "src": {
+          "type": "string",
+          "format": "uri"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "sizes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "theme": {
+          "enum": [
+            "dark",
+            "light"
+          ]
+        }
+      },
+      "required": [
+        "src"
+      ]
+    },
+    "shared/dafbd6004fc6efbf": {
+      "type": "object",
+      "properties": {
+        "anyOf": {
+          "$ref": "#/$defs/shared~17e0342689c701b60"
+        }
+      },
+      "required": [
+        "anyOf"
+      ]
+    },
+    "shared/36f452d3fb732161": {
+      "type": "object",
+      "properties": {
+        "roots": {
+          "$ref": "#/$defs/shared~1408075a25e73fc3f"
+        }
+      },
+      "required": [
+        "roots"
+      ]
+    },
+    "shared/5720602c4dea4a59": {
+      "type": "object",
+      "properties": {
+        "role": {
+          "enum": [
+            "assistant",
+            "user"
+          ]
+        },
+        "content": {
+          "$ref": "#/$defs/shared~1d2f2efafbbfc4ce9"
+        },
+        "model": {
+          "type": "string"
+        },
+        "stopReason": {
+          "type": "string"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        }
+      },
+      "required": [
+        "role",
+        "content",
+        "model"
+      ]
+    },
+    "shared/98330d4f1527e024": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "enum": [
+            "accept",
+            "cancel",
+            "decline"
+          ]
+        },
+        "content": {
+          "$ref": "#/$defs/shared~128dbeeb8e9c60365"
+        }
+      },
+      "required": [
+        "action"
+      ]
+    },
+    "shared/caa53ce140522dc8": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "method"
+      ]
+    },
+    "shared/7e0342689c701b60": {
+      "items": {
+        "$ref": "#/$defs/shared~11128750d549b267a"
+      },
+      "type": "array"
+    },
+    "shared/1551591a269f2833": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "data": {}
+      },
+      "required": [
+        "code",
+        "message"
+      ]
+    },
+    "shared/caa1a8acbf849101": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "error": {
+          "$ref": "#/$defs/shared~11551591a269f2833"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "error"
+      ]
+    },
+    "shared/c3e7bbf8e25aeedc": {
+      "enum": [
+        "traceparent",
+        "tracestate",
+        "baggage"
+      ]
+    },
+    "shared/099327191f193017": {
+      "type": "object",
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "blob": {
+          "type": "string",
+          "format": "byte"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        }
+      },
+      "required": [
+        "uri",
+        "blob"
+      ]
+    },
+    "shared/13178184f20d801d": {
+      "type": "object",
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        }
+      },
+      "required": [
+        "uri",
+        "text"
+      ]
+    },
+    "shared/1e85cef034b42e01": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "string"
+        },
+        "enum": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "type",
+        "enum"
+      ]
+    },
+    "shared/dae7b6ced039f16f": {
+      "items": {
+        "enum": [
+          "assistant",
+          "user"
+        ]
+      },
+      "type": "array"
+    },
+    "shared/53f46d1f4b30c8e5": {
+      "items": {
+        "$ref": "#/$defs/acp~1planEntry"
+      },
+      "type": "array"
+    },
+    "shared/d625c1a914ac7490": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/mcp~1primitiveSchemaDefinition"
+      }
+    },
+    "shared/437cba78bc4eb932": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      },
+      "propertyNames": {
+        "allOf": [
+          {
+            "pattern": "^(?:[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\\/)?(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$(?![\\s\\S])"
+          },
+          {
+            "pattern": "/"
+          }
+        ]
+      },
+      "allOf": [
+        {
+          "$ref": "#/$defs/mcp~1extensions"
+        },
+        {
+          "$ref": "#/$defs/shared~10355595f1a2b834b"
+        }
+      ]
+    },
+    "shared/719fe179d62adffe": {
+      "type": "object",
+      "properties": {
+        "jsonrpc": {
+          "type": "string",
+          "const": "2.0"
+        },
+        "id": {
+          "$ref": "#/$defs/shared~1324cdb267c0f3d4a"
+        },
+        "result": {
+          "$ref": "#/$defs/shared~1d3563cf161a7253a"
+        }
+      },
+      "required": [
+        "jsonrpc",
+        "id",
+        "result"
+      ]
+    },
+    "shared/d3563cf161a7253a": {
+      "type": "object",
+      "properties": {
+        "resultType": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "resultType"
+      ]
+    },
+    "shared/19e71721a279db37": {
+      "items": {
+        "$ref": "#/$defs/shared~1c94fa02827c69a14"
+      },
+      "type": "array"
+    },
+    "shared/a672a7e7dd4a5363": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "tool_result"
+        },
+        "toolUseId": {
+          "type": "string"
+        },
+        "content": {
+          "$ref": "#/$defs/shared~12a24f383c6f67e37"
+        },
+        "structuredContent": {},
+        "isError": {
+          "type": "boolean"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        }
+      },
+      "required": [
+        "type",
+        "toolUseId",
+        "content"
+      ]
+    },
+    "shared/f34c8a654aaf2377": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "const": "tool_use"
+        },
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "input": {
+          "$ref": "#/$defs/shared~182ef96cebaf5fbe1"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        }
+      },
+      "required": [
+        "type",
+        "id",
+        "name",
+        "input"
+      ]
+    },
+    "shared/69b0a1b3dcf96b79": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    },
+    "shared/25682cd92933275e": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "options": {
+          "$ref": "#/$defs/shared~1c2e8ccafca61ed90"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "group",
+        "name",
+        "options"
+      ]
+    },
+    "shared/fe25aa270f99643d": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "value",
+        "name"
+      ]
+    },
+    "shared/408075a25e73fc3f": {
+      "items": {
+        "$ref": "#/$defs/shared~12537eaa6c08dda26"
+      },
+      "type": "array"
+    },
+    "shared/28dbeeb8e9c60365": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/shared~130a560b3c7c9536d"
+      }
+    },
+    "shared/1128750d549b267a": {
+      "type": "object",
+      "properties": {
+        "const": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "const",
+        "title"
+      ]
+    },
+    "shared/0355595f1a2b834b": {
+      "type": "object",
+      "properties": {
+        "ai.frontman/execution-context": {
+          "$ref": "#/$defs/mcp~1executionContextExtensionSettings"
+        }
+      },
+      "required": [
+        "ai.frontman/execution-context"
+      ]
+    },
+    "shared/c94fa02827c69a14": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/shared~1ad64ad497b9a1c0e"
+        },
+        {
+          "$ref": "#/$defs/shared~1cdfd264fcf587c32"
+        },
+        {
+          "$ref": "#/$defs/shared~12728bf9ed1fcee04"
+        },
+        {
+          "$ref": "#/$defs/shared~1f34c8a654aaf2377"
+        },
+        {
+          "$ref": "#/$defs/shared~1a672a7e7dd4a5363"
+        }
+      ]
+    },
+    "shared/2537eaa6c08dda26": {
+      "type": "object",
+      "properties": {
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^[Ff][Ii][Ll][Ee]://"
+        },
+        "name": {
+          "type": "string"
+        },
+        "_meta": {
+          "$ref": "#/$defs/mcp~1metaObject"
+        }
+      },
+      "required": [
+        "uri"
+      ]
+    },
+    "shared/30a560b3c7c9536d": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      ]
+    }
+  }
+}

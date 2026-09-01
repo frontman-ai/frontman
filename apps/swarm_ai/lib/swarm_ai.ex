@@ -42,9 +42,14 @@ defmodule SwarmAi do
            execution_supervisor_name(runtime),
            {SwarmAi.ExecutionWorker, {runtime, loop}}
          ) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, _pid}} -> {:error, :already_running}
-      {:error, reason} -> {:error, {:start_failed, reason}}
+      {:ok, lifecycle_pid} ->
+        {:ok, lifecycle_pid}
+
+      {:error, {:already_started, _pid}} ->
+        {:error, :already_running}
+
+      {:error, reason} ->
+        {:error, {:start_failed, reason}}
     end
   end
 
@@ -59,8 +64,30 @@ defmodule SwarmAi do
     case running_lookup(runtime, task_id) do
       [{pid, _}] ->
         Logger.info("Cancelling execution for #{inspect(task_id)}")
-        Process.exit(pid, :cancelled)
+        send(pid, :cancel_execution)
         :ok
+
+      [] ->
+        {:error, :not_running}
+    end
+  end
+
+  @doc "Cancels a running execution and waits for lifecycle cleanup."
+  @spec cancel(atom(), String.t(), pos_integer()) :: :ok | {:error, :not_running | :timeout}
+  def cancel(runtime, task_id, timeout)
+      when is_atom(runtime) and is_binary(task_id) and is_integer(timeout) and timeout > 0 do
+    case running_lookup(runtime, task_id) do
+      [{pid, _}] ->
+        monitor = Process.monitor(pid)
+        send(pid, :cancel_execution)
+
+        receive do
+          {:DOWN, ^monitor, :process, ^pid, _reason} -> :ok
+        after
+          timeout ->
+            Process.demonitor(monitor, [:flush])
+            {:error, :timeout}
+        end
 
       [] ->
         {:error, :not_running}

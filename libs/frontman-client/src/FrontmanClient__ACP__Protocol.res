@@ -154,7 +154,9 @@ let attachMessageHandler = (
   ~onUpdate: option<(string, Types.sessionUpdate) => unit>,
   ~onParseError: option<string => unit>,
 ): unit => {
-  channel->Channel.on(~event=Constants.acpMessageEvent, ~callback=payload =>
+  channel
+  ->Channel.on(~event=Constants.acpMessageEvent, ~callback=payload =>
     handleIncomingMessage(~state, ~onUpdate, ~onParseError, payload)
   )
+  ->ignore
 }

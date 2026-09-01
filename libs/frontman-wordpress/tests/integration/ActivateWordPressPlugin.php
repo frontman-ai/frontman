@@ -17,4 +17,7 @@ if ( is_wp_error( $result ) ) {
 	throw new RuntimeException( $result->get_error_message() );
 }
 
+update_option( 'permalink_structure', '/%postname%/' );
+flush_rewrite_rules();
+
 restore_error_handler();

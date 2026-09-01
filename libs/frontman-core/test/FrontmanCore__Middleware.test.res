@@ -2,10 +2,14 @@ open Vitest
 
 module Middleware = FrontmanCore__Middleware
 module MiddlewareConfig = FrontmanCore__MiddlewareConfig
-module ToolRegistry = FrontmanCore__ToolRegistry
-module Relay = FrontmanAiFrontmanProtocol.FrontmanProtocol__Relay
+module HttpSecurity = FrontmanCore__MCP__HttpSecurity
 
 module Helpers = {
+  let sourceLocationSecurity = HttpSecurity.make(
+    ~allowedOrigins=["https://client.example"],
+    ~authorize=async _headers => HttpSecurity.Authorized,
+  )
+
   let config: MiddlewareConfig.t = {
     projectRoot: "/test/project",
     sourceRoot: "/test/project",
@@ -17,24 +21,35 @@ module Helpers = {
     entrypointUrl: None,
     frameworkId: MiddlewareConfig.Nextjs,
     traits: ["react", "typescript"],
+    mcpBrowserToken: None,
+    sourceLocationSecurity: Some(sourceLocationSecurity),
   }
 
-  let registry = ToolRegistry.coreTools()
-
-  let middleware = Middleware.createMiddleware(~config, ~registry)
+  let middleware = req => Middleware.createMiddleware(~config)(req)
 
   let makeGetRequest = (url: string): WebAPI.Request.t => {
     WebAPI.Request.fromURL(url)
   }
 
-  let makeOptionsRequest = (url: string): WebAPI.Request.t => {
-    WebAPI.Request.fromURL(url, ~init={method: "OPTIONS"})
+  let makeOptionsRequest = (url: string, ~sourceLocation=false): WebAPI.Request.t => {
+    let headers = switch sourceLocation {
+    | false => WebAPI.HeadersInit.fromKeyValueArray([])
+    | true =>
+      WebAPI.HeadersInit.fromKeyValueArray([
+        ("Origin", "https://client.example"),
+        ("Access-Control-Request-Method", "POST"),
+        ("Access-Control-Request-Headers", "Content-Type"),
+      ])
+    }
+    WebAPI.Request.fromURL(url, ~init={method: "OPTIONS", headers})
   }
 
-  let makePostRequest = (url: string, body: JSON.t): WebAPI.Request.t => {
-    let headers = WebAPI.HeadersInit.fromDict(
-      Dict.fromArray([("Content-Type", "application/json")]),
-    )
+  let makePostRequest = (url: string, body: JSON.t, ~origin=?): WebAPI.Request.t => {
+    let headerValues = switch origin {
+    | Some(origin) => [("Content-Type", "application/json"), ("Origin", origin)]
+    | None => [("Content-Type", "application/json")]
+    }
+    let headers = WebAPI.HeadersInit.fromKeyValueArray(headerValues)
     WebAPI.Request.fromURL(
       url,
       ~init={
@@ -109,39 +124,20 @@ describe("Middleware (integration)", _t => {
     )
 
     testAsync(
-      "handles OPTIONS for /frontman/tools",
-      async t => {
-        let req = Helpers.makeOptionsRequest("http://localhost/frontman/tools")
-        let result = await Helpers.middleware(req)
-
-        switch result {
-        | Some(response) => t->expect(response.status)->Expect.toBe(204)
-        | None => failwith("Expected Some(response) for OPTIONS /frontman/tools")
-        }
-      },
-    )
-
-    testAsync(
-      "handles OPTIONS for /frontman/tools/call",
-      async t => {
-        let req = Helpers.makeOptionsRequest("http://localhost/frontman/tools/call")
-        let result = await Helpers.middleware(req)
-
-        switch result {
-        | Some(response) => t->expect(response.status)->Expect.toBe(204)
-        | None => failwith("Expected Some(response) for OPTIONS /frontman/tools/call")
-        }
-      },
-    )
-
-    testAsync(
       "handles OPTIONS for /frontman/resolve-source-location",
       async t => {
-        let req = Helpers.makeOptionsRequest("http://localhost/frontman/resolve-source-location")
+        let req = Helpers.makeOptionsRequest(
+          "http://localhost/frontman/resolve-source-location",
+          ~sourceLocation=true,
+        )
         let result = await Helpers.middleware(req)
 
         switch result {
-        | Some(response) => t->expect(response.status)->Expect.toBe(204)
+        | Some(response) =>
+          t->expect(response.status)->Expect.toBe(204)
+          t
+          ->expect(response.headers->WebAPI.Headers.get("Access-Control-Allow-Origin"))
+          ->Expect.toEqual(Null.Value("https://client.example"))
         | None => failwith("Expected Some(response) for OPTIONS /frontman/resolve-source-location")
         }
       },
@@ -159,6 +155,51 @@ describe("Middleware (integration)", _t => {
   })
 
   describe("GET /frontman (UI)", _t => {
+    testAsync(
+      "sets a path-scoped HttpOnly MCP cookie without exposing it in HTML",
+      async t => {
+        let config = {...Helpers.config, mcpBrowserToken: Some("secret token;value")}
+        let result = await Middleware.createMiddleware(~config)(
+          Helpers.makeGetRequest("https://localhost/frontman"),
+        )
+
+        switch result {
+        | Some(response) =>
+          t
+          ->expect(response.headers->WebAPI.Headers.get("Set-Cookie"))
+          ->Expect.toEqual(
+            Null.Value(
+              "frontman_mcp_session=secret%20token%3Bvalue; Path=/mcp; HttpOnly; SameSite=Strict; Secure",
+            ),
+          )
+          let body = await response->WebAPI.Response.text
+          t->expect(body->String.includes("secret token;value"))->Expect.toBe(false)
+          t->expect(body->String.includes("secret%20token%3Bvalue"))->Expect.toBe(false)
+        | None => failwith("Expected Some(response) for GET /frontman")
+        }
+      },
+    )
+
+    testAsync(
+      "omits Secure from the MCP cookie on local HTTP",
+      async t => {
+        let config = {...Helpers.config, mcpBrowserToken: Some("local-token")}
+        let result = await Middleware.createMiddleware(~config)(
+          Helpers.makeGetRequest("http://localhost/frontman"),
+        )
+
+        switch result {
+        | Some(response) =>
+          t
+          ->expect(response.headers->WebAPI.Headers.get("Set-Cookie"))
+          ->Expect.toEqual(
+            Null.Value("frontman_mcp_session=local-token; Path=/mcp; HttpOnly; SameSite=Strict"),
+          )
+        | None => failwith("Expected Some(response) for GET /frontman")
+        }
+      },
+    )
+
     testAsync(
       "returns HTML response",
       async t => {
@@ -245,48 +286,29 @@ describe("Middleware (integration)", _t => {
     )
   })
 
-  describe("GET /frontman/tools", _t => {
+  describe("removed legacy tool routes", _t => {
     testAsync(
-      "returns JSON with tools list",
+      "does not own GET /frontman/tools",
       async t => {
         let req = Helpers.makeGetRequest("http://localhost/frontman/tools")
         let result = await Helpers.middleware(req)
 
-        switch result {
-        | Some(response) =>
-          t
-          ->expect(response.headers->WebAPI.Headers.get("Content-Type"))
-          ->Expect.toEqual(Null.Value("application/json"))
-          let body = await response->WebAPI.Response.text
-          let json = JSON.parseOrThrow(body)
-          let obj = json->JSON.Decode.object->Option.getOrThrow
-          t->expect(obj->Dict.get("tools")->Option.isSome)->Expect.toBe(true)
-          t->expect(obj->Dict.get("serverInfo")->Option.isSome)->Expect.toBe(true)
-        | None => failwith("Expected Some(response) for GET /frontman/tools")
-        }
+        t->expect(result->Option.isNone)->Expect.toBe(true)
       },
     )
 
     testAsync(
-      "tools response includes CORS headers",
+      "does not own OPTIONS /frontman/tools",
       async t => {
-        let req = Helpers.makeGetRequest("http://localhost/frontman/tools")
+        let req = Helpers.makeOptionsRequest("http://localhost/frontman/tools")
         let result = await Helpers.middleware(req)
 
-        switch result {
-        | Some(response) =>
-          t
-          ->expect(response.headers->WebAPI.Headers.get("Access-Control-Allow-Origin"))
-          ->Expect.toEqual(Null.Value("*"))
-        | None => failwith("Expected Some(response)")
-        }
+        t->expect(result->Option.isNone)->Expect.toBe(true)
       },
     )
-  })
 
-  describe("POST /frontman/tools/call", _t => {
     testAsync(
-      "returns SSE stream for valid tool call",
+      "does not own POST /frontman/tools/call or consume its body",
       async t => {
         let body = JSON.Encode.object(
           Dict.fromArray([
@@ -300,34 +322,18 @@ describe("Middleware (integration)", _t => {
         let req = Helpers.makePostRequest("http://localhost/frontman/tools/call", body)
         let result = await Helpers.middleware(req)
 
-        switch result {
-        | Some(response) =>
-          t
-          ->expect(response.headers->WebAPI.Headers.get("Content-Type"))
-          ->Expect.toEqual(Null.Value("text/event-stream"))
-          t
-          ->expect(response.headers->WebAPI.Headers.get("Access-Control-Allow-Origin"))
-          ->Expect.toEqual(Null.Value("*"))
-        | None => failwith("Expected Some(response) for POST /frontman/tools/call")
-        }
+        t->expect(result->Option.isNone)->Expect.toBe(true)
+        t->expect(req.bodyUsed)->Expect.toBe(false)
       },
     )
 
     testAsync(
-      "returns 400 for malformed request",
+      "does not own OPTIONS /frontman/tools/call",
       async t => {
-        let body = JSON.Encode.string("not valid")
-        let req = Helpers.makePostRequest("http://localhost/frontman/tools/call", body)
+        let req = Helpers.makeOptionsRequest("http://localhost/frontman/tools/call")
         let result = await Helpers.middleware(req)
 
-        switch result {
-        | Some(response) =>
-          t->expect(response.status)->Expect.toBe(400)
-          t
-          ->expect(response.headers->WebAPI.Headers.get("Access-Control-Allow-Origin"))
-          ->Expect.toEqual(Null.Value("*"))
-        | None => failwith("Expected Some(response) for invalid POST")
-        }
+        t->expect(result->Option.isNone)->Expect.toBe(true)
       },
     )
   })
@@ -337,7 +343,11 @@ describe("Middleware (integration)", _t => {
       "returns 400 for invalid body",
       async t => {
         let body = JSON.Encode.string("bad")
-        let req = Helpers.makePostRequest("http://localhost/frontman/resolve-source-location", body)
+        let req = Helpers.makePostRequest(
+          "http://localhost/frontman/resolve-source-location",
+          body,
+          ~origin="https://client.example",
+        )
         let result = await Helpers.middleware(req)
 
         switch result {
@@ -345,25 +355,25 @@ describe("Middleware (integration)", _t => {
           t->expect(response.status)->Expect.toBe(400)
           t
           ->expect(response.headers->WebAPI.Headers.get("Access-Control-Allow-Origin"))
-          ->Expect.toEqual(Null.Value("*"))
+          ->Expect.toEqual(Null.Value("https://client.example"))
         | None => failwith("Expected Some(response) for invalid POST")
         }
       },
     )
   })
 
-  describe("case insensitivity", _t => {
+  describe("UI route case insensitivity", _t => {
     testAsync(
       "handles uppercase path",
       async t => {
-        let req = Helpers.makeGetRequest("http://localhost/FRONTMAN/TOOLS")
+        let req = Helpers.makeGetRequest("http://localhost/FRONTMAN")
         let result = await Helpers.middleware(req)
 
         switch result {
         | Some(response) =>
           t
           ->expect(response.headers->WebAPI.Headers.get("Content-Type"))
-          ->Expect.toEqual(Null.Value("application/json"))
+          ->Expect.toEqual(Null.Value("text/html"))
         | None => failwith("Expected Some(response) for uppercase path")
         }
       },
@@ -372,14 +382,14 @@ describe("Middleware (integration)", _t => {
     testAsync(
       "handles mixed case path",
       async t => {
-        let req = Helpers.makeGetRequest("http://localhost/Frontman/Tools")
+        let req = Helpers.makeGetRequest("http://localhost/Frontman")
         let result = await Helpers.middleware(req)
 
         switch result {
         | Some(response) =>
           t
           ->expect(response.headers->WebAPI.Headers.get("Content-Type"))
-          ->Expect.toEqual(Null.Value("application/json"))
+          ->Expect.toEqual(Null.Value("text/html"))
         | None => failwith("Expected Some(response) for mixed case path")
         }
       },

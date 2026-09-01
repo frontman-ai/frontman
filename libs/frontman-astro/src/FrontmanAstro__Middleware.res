@@ -4,11 +4,21 @@ module Core = FrontmanAiFrontmanCore
 module CoreMiddleware = Core.FrontmanCore__Middleware
 module CoreMiddlewareConfig = Core.FrontmanCore__MiddlewareConfig
 
+@@live
 type routeDiscovery =
   | Filesystem
   | ResolvedRoutes({getRoutes: unit => array<FrontmanBindings.Astro.integrationResolvedRoute>})
 
 type loadContentApi = unit => promise<FrontmanAstro__Tool__GetContentCollections.contentApi>
+
+type bundle = {
+  middleware: (
+    WebAPI.Request.t,
+    ~rawHeaders: Core.FrontmanCore__MCP__RawHeaders.t=?,
+  ) => promise<option<WebAPI.Response.t>>,
+  @live
+  registry: Core.FrontmanCore__ToolRegistry.t,
+}
 
 let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   projectRoot: config.projectRoot,
@@ -21,18 +31,24 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   entrypointUrl: config.entrypointUrl,
   frameworkId: CoreMiddlewareConfig.Astro,
   traits: [],
+  mcpBrowserToken: config.mcpBrowserToken,
+  sourceLocationSecurity: config.sourceLocationSecurity,
 }
 
-let createMiddleware = (
+let make = (
   config: Config.t,
   ~routeDiscovery: routeDiscovery,
   ~loadContentApi: loadContentApi,
-) => {
+): bundle => {
   let registry = switch routeDiscovery {
   | Filesystem => ToolRegistry.makeWithAstroRuntime(~loadContentApi)
   | ResolvedRoutes({getRoutes}) =>
     ToolRegistry.makeWithResolvedRoutesAndAstroRuntime(~getRoutes, ~loadContentApi)
   }
   let middlewareConfig = toMiddlewareConfig(config)
-  CoreMiddleware.createMiddleware(~config=middlewareConfig, ~registry)
+  {middleware: CoreMiddleware.createMiddleware(~config=middlewareConfig), registry}
 }
+
+@@live
+let createMiddleware = (config, ~routeDiscovery, ~loadContentApi) =>
+  make(config, ~routeDiscovery, ~loadContentApi).middleware

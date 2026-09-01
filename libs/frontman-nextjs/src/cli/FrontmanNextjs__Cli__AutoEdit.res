@@ -24,8 +24,7 @@ let buildSystemPrompt = (~fileType: fileType, ~host: string): string => {
       Templates.middlewareTemplate(host),
       `- Add the import for '@frontman-ai/nextjs' at the top of the file
 - Create the frontman middleware instance with host: '${host}'
-- CRITICAL: The Frontman handler MUST be the very first thing that runs inside the middleware function body. Place 'const response = await frontman(req); if (response) return response;' as the first two lines of the function, before ANY other logic — before auth checks, redirects, rewrites, header modifications, or any other middleware behavior. If another middleware intercepts the request first, Frontman routes will break.
-- Do NOT wrap the Frontman handler inside any condition, if-block, or path check — it must run unconditionally on every request so it can handle its own routes
+- Run the Frontman handler before auth checks, redirects, header modifications, or other middleware behavior
 - Preserve ALL existing functionality unchanged - do not remove or modify any existing code
 - Include '/frontman' and '/frontman/:path*' in the matcher config alongside existing matchers
 - Add runtime: 'nodejs' to the config export`,
@@ -36,10 +35,10 @@ let buildSystemPrompt = (~fileType: fileType, ~host: string): string => {
       Templates.proxyTemplate(host),
       `- Add the import for '@frontman-ai/nextjs' at the top of the file
 - Create the frontman middleware instance with host: '${host}'
-- CRITICAL: The Frontman handler MUST be the very first thing that runs inside the proxy function body. Place 'const response = await frontman(req); if (response) return response;' as the first two lines of the function, before ANY other logic — before auth checks, redirects, rewrites, header modifications, or any other proxy behavior. If another handler intercepts the request first, Frontman routes will break.
-- Do NOT wrap the Frontman handler inside any condition, if-block, or path check — it must run unconditionally on every request so it can handle its own routes
+- Run the Frontman handler before auth checks, redirects, header modifications, or other proxy behavior
 - Include '/frontman' and '/frontman/:path*' in the matcher config alongside existing matchers
-- Preserve ALL existing functionality unchanged - do not remove or modify any existing code`,
+- Preserve ALL existing functionality unchanged - do not remove or modify any existing code
+- Do not add a runtime field to Proxy config`,
     )
   | Instrumentation => (
       "instrumentation.ts",
@@ -162,6 +161,7 @@ let stripMarkdownFences = (content: string): string => {
 }
 
 let validateOutput = (~content: string, ~fileType: fileType): bool => {
+  let content = content->String.replaceRegExp(/\/\*[\s\S]*?\*\/|\/\/[^\n\r]*/g, "")
   let hasFrontmanImport = content->String.includes("@frontman-ai/nextjs")
 
   switch fileType {
@@ -169,6 +169,7 @@ let validateOutput = (~content: string, ~fileType: fileType): bool => {
     hasFrontmanImport &&
     content->String.includes("createMiddleware") &&
     content->String.includes("frontman") &&
+    content->String.includes("/frontman") &&
     content->String.includes("matcher")
   | Proxy =>
     hasFrontmanImport &&
@@ -181,6 +182,21 @@ let validateOutput = (~content: string, ~fileType: fileType): bool => {
     content->String.includes("@frontman-ai/nextjs/Instrumentation") &&
     content->String.includes("setup")
   }
+}
+
+let validateMcpApiRoute = (source: string): bool => {
+  let content = source->String.replaceRegExp(/\/\*[\s\S]*?\*\/|\/\/[^\n\r]*/g, "")
+  let directHandler = /export\s+default\s+createMcpHandler\s*\(/
+  let namedHandler = /const\s+([A-Za-z_$][\w$]*)\s*=\s*createMcpHandler\s*\([\s\S]*?export\s+default\s+\1\s*;/
+  let disabledBodyParser = /export\s+const\s+config\s*=\s*\{[\s\S]*?api\s*:\s*\{[\s\S]*?bodyParser\s*:\s*false/
+  (directHandler->RegExp.test(content) || namedHandler->RegExp.test(content)) &&
+    disabledBodyParser->RegExp.test(content)
+}
+
+let validateMcpRewrite = (source: string): bool => {
+  let content = source->String.replaceRegExp(/\/\*[\s\S]*?\*\/|\/\/[^\n\r]*/g, "")
+  content->String.includes("source: '/mcp'") &&
+    content->String.includes("destination: '/api/frontman-mcp'")
 }
 
 let callLLM = async (~existingContent: string, ~fileType: fileType, ~host: string): result<

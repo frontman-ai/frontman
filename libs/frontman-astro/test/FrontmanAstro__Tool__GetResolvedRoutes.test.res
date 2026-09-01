@@ -126,15 +126,14 @@ module Fixtures = {
   }
 }
 
-let makeMiddleware = (~routes) =>
-  Helpers.makeMiddleware(~registry=ToolRegistry.makeWithResolvedRoutes(~getRoutes=() => routes))
+let makeRegistry = (~routes) => ToolRegistry.makeWithResolvedRoutes(~getRoutes=() => routes)
 
-describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
+describe("get_client_pages selected-tool execution", _t => {
   describe("routes the v4 filesystem scanner misses", _t => {
     testAsync(
       "includes API endpoints (v4 excludes api/ directory)",
       async t => {
-        let middleware = makeMiddleware(~routes=[Fixtures.apiHealth, Fixtures.apiUserById])
+        let middleware = makeRegistry(~routes=[Fixtures.apiHealth, Fixtures.apiUserById])
 
         let sseBody = await Helpers.callTool(
           middleware,
@@ -151,9 +150,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "includes config-defined redirects (no file on disk)",
       async t => {
-        let middleware = makeMiddleware(
-          ~routes=[Fixtures.redirectOldBlog, Fixtures.redirectDynamic],
-        )
+        let middleware = makeRegistry(~routes=[Fixtures.redirectOldBlog, Fixtures.redirectDynamic])
 
         let sseBody = await Helpers.callTool(
           middleware,
@@ -170,7 +167,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "includes integration-injected routes (external origin, e.g. @astrojs/sitemap)",
       async t => {
-        let middleware = makeMiddleware(~routes=[Fixtures.sitemapXml])
+        let middleware = makeRegistry(~routes=[Fixtures.sitemapXml])
 
         let sseBody = await Helpers.callTool(
           middleware,
@@ -186,7 +183,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "includes internal/fallback routes (Astro built-ins)",
       async t => {
-        let middleware = makeMiddleware(~routes=[Fixtures.imageEndpoint, Fixtures.fallback404])
+        let middleware = makeRegistry(~routes=[Fixtures.imageEndpoint, Fixtures.fallback404])
 
         let sseBody = await Helpers.callTool(
           middleware,
@@ -205,7 +202,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "populates params from hook data",
       async t => {
-        let middleware = makeMiddleware(~routes=[Fixtures.blogPost, Fixtures.docsSection])
+        let middleware = makeRegistry(~routes=[Fixtures.blogPost, Fixtures.docsSection])
 
         let sseBody = await Helpers.callTool(
           middleware,
@@ -221,7 +218,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "reports multiple params for multi-param routes",
       async t => {
-        let middleware = makeMiddleware(~routes=[Fixtures.i18nBlogPost])
+        let middleware = makeRegistry(~routes=[Fixtures.i18nBlogPost])
 
         let sseBody = await Helpers.callTool(
           middleware,
@@ -237,7 +234,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "marks routes with params as dynamic",
       async t => {
-        let middleware = makeMiddleware(~routes=[Fixtures.homePage, Fixtures.blogPost])
+        let middleware = makeRegistry(~routes=[Fixtures.homePage, Fixtures.blogPost])
 
         let sseBody = await Helpers.callTool(
           middleware,
@@ -253,7 +250,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "includes prerender status",
       async t => {
-        let middleware = makeMiddleware(~routes=[Fixtures.homePage, Fixtures.aboutPage])
+        let middleware = makeRegistry(~routes=[Fixtures.homePage, Fixtures.aboutPage])
 
         let sseBody = await Helpers.callTool(
           middleware,
@@ -269,7 +266,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "includes route type and origin",
       async t => {
-        let middleware = makeMiddleware(
+        let middleware = makeRegistry(
           ~routes=[Fixtures.homePage, Fixtures.apiHealth, Fixtures.sitemapXml],
         )
 
@@ -291,7 +288,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "returns empty array when no routes resolved",
       async t => {
-        let middleware = makeMiddleware(~routes=[])
+        let middleware = makeRegistry(~routes=[])
 
         let sseBody = await Helpers.callTool(
           middleware,
@@ -306,7 +303,7 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "handles full route mix without errors",
       async t => {
-        let middleware = makeMiddleware(
+        let middleware = makeRegistry(
           ~routes=[
             Fixtures.homePage,
             Fixtures.aboutPage,
@@ -343,10 +340,10 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
 
   describe("tool listing", _t => {
     testAsync(
-      "get_client_pages is listed in the tools endpoint",
+      "get_client_pages is listed in modern tool definitions",
       async t => {
-        let middleware = makeMiddleware(~routes=[])
-        let body = await Helpers.getEndpoint(middleware, ~path="tools")
+        let registry = makeRegistry(~routes=[])
+        let body = Helpers.serializeModernTools(registry)
         t->expect(body->String.includes("get_client_pages"))->Expect.toBe(true)
       },
     )
@@ -354,8 +351,8 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
     testAsync(
       "tool description mentions resolved routes",
       async t => {
-        let middleware = makeMiddleware(~routes=[])
-        let body = await Helpers.getEndpoint(middleware, ~path="tools")
+        let registry = makeRegistry(~routes=[])
+        let body = Helpers.serializeModernTools(registry)
         t->expect(body->String.includes("resolved"))->Expect.toBe(true)
       },
     )

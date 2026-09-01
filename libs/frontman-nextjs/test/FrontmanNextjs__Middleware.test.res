@@ -4,26 +4,17 @@ module Middleware = FrontmanNextjs__Middleware
 module Config = FrontmanNextjs__Config
 
 module Helpers = {
-  let configInput = (): Config.jsConfigInput => {
-    projectRoot: "/test/project",
-    sourceRoot: "/test/project",
-    basePath: "frontman",
-    serverName: "test-nextjs",
-    serverVersion: "1.0.0",
-    host: "localhost:3000",
-    clientUrl: "http://localhost:3000/client.js?clientName=nextjs&host=localhost:3000",
-  }
-
   let createTestMiddleware = () => {
-    FrontmanBindings.Process.env->Dict.set("FRONTMAN_ENABLED", "1")
-    Middleware.createMiddleware(configInput())
-  }
-
-  let restoreEnv = (key: string, value: option<string>) => {
-    switch value {
-    | Some(value) => FrontmanBindings.Process.env->Dict.set(key, value)
-    | None => FrontmanBindings.Process.env->Dict.delete(key)
+    let configInput: Config.jsConfigInput = {
+      projectRoot: "/test/project",
+      sourceRoot: "/test/project",
+      basePath: "frontman",
+      serverName: "test-nextjs",
+      serverVersion: "1.0.0",
+      host: "localhost:3000",
+      clientUrl: "http://localhost:3000/client.js?clientName=nextjs&host=localhost:3000",
     }
+    request => Middleware.createMiddleware(configInput)(request)
   }
 
   let makeGetRequest = (url: string): WebAPI.Request.t => {
@@ -82,6 +73,60 @@ describe("FrontmanNextjs Middleware (adapter)", _t => {
         t->expect(result->Option.isNone)->Expect.toBe(true)
       },
     )
+
+    testAsync(
+      "keeps MCP POST and preflight unregistered",
+      async t => {
+        let mw = Helpers.createTestMiddleware()
+        let post = Helpers.makePostRequest(
+          "http://localhost:3000/mcp",
+          JSON.Encode.object(Dict.make()),
+        )
+        let nested = Helpers.makePostRequest(
+          "http://localhost:3000/frontman/mcp",
+          JSON.Encode.object(Dict.make()),
+        )
+        let options = Helpers.makeOptionsRequest("http://localhost:3000/mcp")
+        let customBaseMiddleware = request =>
+          Middleware.createMiddleware({
+            projectRoot: "/test/project",
+            sourceRoot: "/test/project",
+            basePath: "fm",
+            host: "localhost:3000",
+            clientUrl: "http://localhost:3000/client.js?clientName=nextjs&host=localhost:3000",
+          })(request)
+        let customBase = Helpers.makePostRequest(
+          "http://localhost:3000/fm/mcp",
+          JSON.Encode.object(Dict.make()),
+        )
+
+        t->expect((await mw(post))->Option.isNone)->Expect.toBe(true)
+        t->expect((await mw(nested))->Option.isNone)->Expect.toBe(true)
+        t->expect((await mw(options))->Option.isNone)->Expect.toBe(true)
+        t->expect((await customBaseMiddleware(customBase))->Option.isNone)->Expect.toBe(true)
+        t->expect(post.bodyUsed)->Expect.toBe(false)
+        t->expect(nested.bodyUsed)->Expect.toBe(false)
+        t->expect(customBase.bodyUsed)->Expect.toBe(false)
+      },
+    )
+
+    testAsync(
+      "does not own the removed legacy tool routes",
+      async t => {
+        let mw = Helpers.createTestMiddleware()
+        let get = Helpers.makeGetRequest("http://localhost:3000/frontman/tools")
+        let post = Helpers.makePostRequest(
+          "http://localhost:3000/frontman/tools/call",
+          JSON.Encode.object(Dict.make()),
+        )
+        let options = Helpers.makeOptionsRequest("http://localhost:3000/frontman/tools")
+
+        t->expect((await mw(get))->Option.isNone)->Expect.toBe(true)
+        t->expect((await mw(post))->Option.isNone)->Expect.toBe(true)
+        t->expect((await mw(options))->Option.isNone)->Expect.toBe(true)
+        t->expect(post.bodyUsed)->Expect.toBe(false)
+      },
+    )
   })
 
   describe("UI route (GET /frontman)", _t => {
@@ -123,34 +168,6 @@ describe("FrontmanNextjs Middleware (adapter)", _t => {
     )
   })
 
-  describe("tools route (GET /frontman/tools)", _t => {
-    testAsync(
-      "returns JSON with tools",
-      async t => {
-        let mw = Helpers.createTestMiddleware()
-        let req = Helpers.makeGetRequest("http://localhost:3000/frontman/tools")
-        let result = await mw(req)
-
-        switch result {
-        | Some(response) =>
-          t
-          ->expect(response.headers->WebAPI.Headers.get("Content-Type"))
-          ->Expect.toEqual(Null.Value("application/json"))
-          let body = await response->WebAPI.Response.text
-          let json = JSON.parseOrThrow(body)
-          let obj = json->JSON.Decode.object->Option.getOrThrow
-          t->expect(obj->Dict.get("tools")->Option.isSome)->Expect.toBe(true)
-          let serverInfo =
-            obj->Dict.get("serverInfo")->Option.flatMap(JSON.Decode.object)->Option.getOrThrow
-          t
-          ->expect(serverInfo->Dict.get("name")->Option.flatMap(JSON.Decode.string))
-          ->Expect.toEqual(Some("test-nextjs"))
-        | None => failwith("Expected Some(response) for GET /frontman/tools")
-        }
-      },
-    )
-  })
-
   describe("CORS preflight", _t => {
     testAsync(
       "OPTIONS /frontman returns 204",
@@ -176,147 +193,6 @@ describe("FrontmanNextjs Middleware (adapter)", _t => {
         let mw = Helpers.createTestMiddleware()
         let req = Helpers.makeOptionsRequest("http://localhost:3000/api/data")
         let result = await mw(req)
-
-        t->expect(result->Option.isNone)->Expect.toBe(true)
-      },
-    )
-  })
-
-  describe("tool call route", _t => {
-    testAsync(
-      "POST /frontman/tools/call returns SSE stream",
-      async t => {
-        let mw = Helpers.createTestMiddleware()
-        let body = JSON.Encode.object(
-          Dict.fromArray([
-            ("name", JSON.Encode.string("file_exists")),
-            (
-              "arguments",
-              JSON.Encode.object(Dict.fromArray([("path", JSON.Encode.string("/tmp/test.txt"))])),
-            ),
-          ]),
-        )
-        let req = Helpers.makePostRequest("http://localhost:3000/frontman/tools/call", body)
-        let result = await mw(req)
-
-        switch result {
-        | Some(response) =>
-          t
-          ->expect(response.headers->WebAPI.Headers.get("Content-Type"))
-          ->Expect.toEqual(Null.Value("text/event-stream"))
-        | None => failwith("Expected Some(response) for POST /frontman/tools/call")
-        }
-      },
-    )
-
-    testAsync(
-      "POST /frontman/tools/call returns 400 for bad request",
-      async t => {
-        let mw = Helpers.createTestMiddleware()
-        let body = JSON.Encode.string("invalid")
-        let req = Helpers.makePostRequest("http://localhost:3000/frontman/tools/call", body)
-        let result = await mw(req)
-
-        switch result {
-        | Some(response) => t->expect(response.status)->Expect.toBe(400)
-        | None => failwith("Expected Some(response) for invalid POST")
-        }
-      },
-    )
-  })
-
-  describe("runtime environment guard", _t => {
-    testAsync(
-      "returns None in production by default",
-      async t => {
-        let env = FrontmanBindings.Process.env
-        let nodeEnv = env->Dict.get("NODE_ENV")
-        let frontmanEnabled = env->Dict.get("FRONTMAN_ENABLED")
-        let enableInProduction = env->Dict.get("FRONTMAN_ENABLE_IN_PRODUCTION")
-
-        env->Dict.set("NODE_ENV", "production")
-        env->Dict.delete("FRONTMAN_ENABLED")
-        env->Dict.delete("FRONTMAN_ENABLE_IN_PRODUCTION")
-
-        let mw = Middleware.createMiddleware(Helpers.configInput())
-        let req = Helpers.makeGetRequest("http://localhost:3000/frontman/tools")
-        let result = await mw(req)
-
-        Helpers.restoreEnv("NODE_ENV", nodeEnv)
-        Helpers.restoreEnv("FRONTMAN_ENABLED", frontmanEnabled)
-        Helpers.restoreEnv("FRONTMAN_ENABLE_IN_PRODUCTION", enableInProduction)
-
-        t->expect(result->Option.isNone)->Expect.toBe(true)
-      },
-    )
-
-    testAsync(
-      "FRONTMAN_ENABLE_IN_PRODUCTION enables production handling",
-      async t => {
-        let env = FrontmanBindings.Process.env
-        let nodeEnv = env->Dict.get("NODE_ENV")
-        let frontmanEnabled = env->Dict.get("FRONTMAN_ENABLED")
-        let enableInProduction = env->Dict.get("FRONTMAN_ENABLE_IN_PRODUCTION")
-
-        env->Dict.set("NODE_ENV", "production")
-        env->Dict.delete("FRONTMAN_ENABLED")
-        env->Dict.set("FRONTMAN_ENABLE_IN_PRODUCTION", "1")
-
-        let mw = Middleware.createMiddleware(Helpers.configInput())
-        let req = Helpers.makeGetRequest("http://localhost:3000/frontman/tools")
-        let result = await mw(req)
-
-        Helpers.restoreEnv("NODE_ENV", nodeEnv)
-        Helpers.restoreEnv("FRONTMAN_ENABLED", frontmanEnabled)
-        Helpers.restoreEnv("FRONTMAN_ENABLE_IN_PRODUCTION", enableInProduction)
-
-        t->expect(result->Option.isSome)->Expect.toBe(true)
-      },
-    )
-
-    testAsync(
-      "FRONTMAN_ENABLED overrides production guard",
-      async t => {
-        let env = FrontmanBindings.Process.env
-        let nodeEnv = env->Dict.get("NODE_ENV")
-        let frontmanEnabled = env->Dict.get("FRONTMAN_ENABLED")
-        let enableInProduction = env->Dict.get("FRONTMAN_ENABLE_IN_PRODUCTION")
-
-        env->Dict.set("NODE_ENV", "production")
-        env->Dict.set("FRONTMAN_ENABLED", "true")
-        env->Dict.delete("FRONTMAN_ENABLE_IN_PRODUCTION")
-
-        let mw = Middleware.createMiddleware(Helpers.configInput())
-        let req = Helpers.makeGetRequest("http://localhost:3000/frontman/tools")
-        let result = await mw(req)
-
-        Helpers.restoreEnv("NODE_ENV", nodeEnv)
-        Helpers.restoreEnv("FRONTMAN_ENABLED", frontmanEnabled)
-        Helpers.restoreEnv("FRONTMAN_ENABLE_IN_PRODUCTION", enableInProduction)
-
-        t->expect(result->Option.isSome)->Expect.toBe(true)
-      },
-    )
-
-    testAsync(
-      "FRONTMAN_ENABLED can disable development handling",
-      async t => {
-        let env = FrontmanBindings.Process.env
-        let nodeEnv = env->Dict.get("NODE_ENV")
-        let frontmanEnabled = env->Dict.get("FRONTMAN_ENABLED")
-        let enableInProduction = env->Dict.get("FRONTMAN_ENABLE_IN_PRODUCTION")
-
-        env->Dict.set("NODE_ENV", "development")
-        env->Dict.set("FRONTMAN_ENABLED", "0")
-        env->Dict.set("FRONTMAN_ENABLE_IN_PRODUCTION", "1")
-
-        let mw = Middleware.createMiddleware(Helpers.configInput())
-        let req = Helpers.makeGetRequest("http://localhost:3000/frontman/tools")
-        let result = await mw(req)
-
-        Helpers.restoreEnv("NODE_ENV", nodeEnv)
-        Helpers.restoreEnv("FRONTMAN_ENABLED", frontmanEnabled)
-        Helpers.restoreEnv("FRONTMAN_ENABLE_IN_PRODUCTION", enableInProduction)
 
         t->expect(result->Option.isNone)->Expect.toBe(true)
       },

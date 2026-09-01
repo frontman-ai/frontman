@@ -92,7 +92,7 @@ defmodule FrontmanServer.Frameworks do
     end)
   end
 
-  @doc "Returns whether MCP initialization should load project rules and structure."
+  @doc "Returns whether project rules and structure should be loaded."
   def load_project_context?(id) do
     id |> record_by_id!() |> Map.fetch!(:load_project_context?)
   end

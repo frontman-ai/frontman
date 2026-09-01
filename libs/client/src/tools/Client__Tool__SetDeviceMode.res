@@ -97,6 +97,7 @@ let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
+  ~signal as _signal: WebAPI.EventTypes.abortSignal,
 ): Tool.MCP.CallToolResult.t => {
   switch input.action {
   | #set_preset =>

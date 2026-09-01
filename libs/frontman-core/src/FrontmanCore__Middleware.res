@@ -2,7 +2,32 @@ module CORS = FrontmanCore__CORS
 module RequestHandlers = FrontmanCore__RequestHandlers
 module UIShell = FrontmanCore__UIShell
 module MiddlewareConfig = FrontmanCore__MiddlewareConfig
-module ToolRegistry = FrontmanCore__ToolRegistry
+module RawHeaders = FrontmanCore__MCP__RawHeaders
+module SourceLocationEndpoint = FrontmanCore__SourceLocationEndpoint
+
+@val external encodeURIComponent: string => string = "encodeURIComponent"
+
+let mcpCookieName = "frontman_mcp_session"
+
+let withMcpBrowserCookie = (
+  response: WebAPI.Response.t,
+  ~token: option<string>,
+  ~secure: bool,
+): WebAPI.Response.t => {
+  token->Option.forEach(token => {
+    let secureAttribute = switch secure {
+    | true => "; Secure"
+    | false => ""
+    }
+    response.headers->WebAPI.Headers.set(
+      ~name="Set-Cookie",
+      ~value=`${mcpCookieName}=${encodeURIComponent(
+          token,
+        )}; Path=/mcp; HttpOnly; SameSite=Strict${secureAttribute}`,
+    )
+  })
+  response
+}
 
 let getSuffixRoutePrefix = (~path: string, ~basePath: string): option<string> => {
   switch path == basePath {
@@ -16,7 +41,6 @@ let getSuffixRoutePrefix = (~path: string, ~basePath: string): option<string> =>
   }
 }
 
-@@live
 let isFrontmanRoute = (~pathname: string, ~basePath: string, ~method: string): bool => {
   let prefix = "/" ++ basePath->String.toLowerCase
   let path = pathname->String.toLowerCase
@@ -80,17 +104,11 @@ let buildEntrypointUrl = (
   }
 }
 
-let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t): (
-  WebAPI.Request.t => promise<option<WebAPI.Response.t>>
+@@live
+let createMiddleware = (~config: MiddlewareConfig.t): (
+  (WebAPI.Request.t, ~rawHeaders: RawHeaders.t=?) => promise<option<WebAPI.Response.t>>
 ) => {
-  let handlerConfig: RequestHandlers.handlerConfig = {
-    projectRoot: config.projectRoot,
-    sourceRoot: config.sourceRoot,
-    serverName: config.serverName,
-    serverVersion: config.serverVersion,
-  }
-
-  let middleware: WebAPI.Request.t => promise<option<WebAPI.Response.t>> = async req => {
+  let middleware = async (req: WebAPI.Request.t, ~rawHeaders as _: option<RawHeaders.t>=?) => {
     let method = req.method->String.toLowerCase
     let url = WebAPI.URL.make(~url=req.url)
     let pathname = url.pathname
@@ -103,11 +121,9 @@ let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t):
     let path = originalPath->String.toLowerCase
 
     let basePath = config.basePath->String.toLowerCase
-    let toolsPath = basePath ++ "/tools"
-    let toolsCallPath = basePath ++ "/tools/call"
     let resolveSourceLocationPath = basePath ++ "/resolve-source-location"
 
-    let isApiRoute = path == toolsPath || path == toolsCallPath || path == resolveSourceLocationPath
+    let isApiRoute = path == resolveSourceLocationPath
 
     let suffixPrefix = switch isApiRoute {
     | true => None
@@ -124,25 +140,21 @@ let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t):
     let isFrontmanRoute = isApiRoute || suffixPrefix->Option.isSome
 
     switch (method, path) {
+    | ("options", p) if p == resolveSourceLocationPath =>
+      Some(
+        await SourceLocationEndpoint.dispatch(
+          ~config={security: config.sourceLocationSecurity, sourceRoot: config.sourceRoot},
+          req,
+        ),
+      )
     | ("options", _) if isFrontmanRoute => Some(CORS.handlePreflight())
 
-    | ("get", p) if p == toolsPath =>
-      Some(RequestHandlers.handleGetTools(~registry, ~config=handlerConfig)->CORS.withCors)
-    | ("post", p) if p == toolsCallPath =>
-      Some(
-        (
-          await RequestHandlers.handleToolCall(~registry, ~config=handlerConfig, req)
-        )->CORS.withCors,
-      )
     | ("post", p) if p == resolveSourceLocationPath =>
       Some(
-        (
-          await RequestHandlers.handleResolveSourceLocation(
-            ~projectRoot=config.projectRoot,
-            ~sourceRoot=config.sourceRoot,
-            req,
-          )
-        )->CORS.withCors,
+        await SourceLocationEndpoint.dispatch(
+          ~config={security: config.sourceLocationSecurity, sourceRoot: config.sourceRoot},
+          req,
+        ),
       )
 
     | ("get", _) if suffixPrefix->Option.isSome =>
@@ -168,7 +180,11 @@ let createMiddleware = (~config: MiddlewareConfig.t, ~registry: ToolRegistry.t):
           ~requestUrl=req.url,
           ~prefixPath=originalPrefix,
         )
-        Some(UIShell.serveWithEntrypoint(~config, ~entrypointUrl, ~enableReactScan)->CORS.withCors)
+        Some(
+          UIShell.serveWithEntrypoint(~config, ~entrypointUrl, ~enableReactScan)
+          ->CORS.withCors
+          ->withMcpBrowserCookie(~token=config.mcpBrowserToken, ~secure=url.protocol == "https:"),
+        )
       }
 
     | _ => None

@@ -24,6 +24,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     let ctx: Tool.serverExecutionContext = {
       projectRoot: fixtureDir,
       sourceRoot: fixtureDir,
+      signal: WebAPI.AbortController.make().signal,
     }
 
     let result = await execute(ctx, {})
@@ -48,6 +49,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     let ctx: Tool.serverExecutionContext = {
       projectRoot: fixtureDir,
       sourceRoot: fixtureDir,
+      signal: WebAPI.AbortController.make().signal,
     }
 
     let result = await execute(ctx, {})
@@ -72,6 +74,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     let ctx: Tool.serverExecutionContext = {
       projectRoot: fixtureDir,
       sourceRoot: fixtureDir,
+      signal: WebAPI.AbortController.make().signal,
     }
 
     let result = await execute(ctx, {})
@@ -89,6 +92,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     let ctx: Tool.serverExecutionContext = {
       projectRoot: fixtureDir,
       sourceRoot: fixtureDir,
+      signal: WebAPI.AbortController.make().signal,
     }
 
     let result = await execute(ctx, {path: "src"})
@@ -114,6 +118,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     let ctx: Tool.serverExecutionContext = {
       projectRoot: fixtureDir,
       sourceRoot: fixtureDir,
+      signal: WebAPI.AbortController.make().signal,
     }
 
     let result = await execute(ctx, {})
@@ -146,6 +151,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     let ctx: Tool.serverExecutionContext = {
       projectRoot: fixtureDir,
       sourceRoot: fixtureDir,
+      signal: WebAPI.AbortController.make().signal,
     }
 
     let result = await execute(ctx, {path: "index.ts"})
@@ -165,6 +171,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     let ctx: Tool.serverExecutionContext = {
       projectRoot: fixtureDir,
       sourceRoot: fixtureDir,
+      signal: WebAPI.AbortController.make().signal,
     }
 
     let result = await execute(ctx, {path: "nonexistent"})
@@ -179,6 +186,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     let ctx: Tool.serverExecutionContext = {
       projectRoot: fixtureDir,
       sourceRoot: fixtureDir,
+      signal: WebAPI.AbortController.make().signal,
     }
 
     let result = await execute(ctx, {path: "../../../etc"})

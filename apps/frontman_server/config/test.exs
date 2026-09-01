@@ -25,6 +25,7 @@ config :workos, WorkOS.Client,
   client_id: "client_test_workos"
 
 config :frontman_server, Oban, testing: :manual
+config :frontman_server, :mcp_recovery_enabled, false
 
 config :frontman_server, discord_new_users_webhook_url: "https://discord.test/webhook"
 

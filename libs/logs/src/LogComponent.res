@@ -4,6 +4,7 @@ type t = [
   | #MCP
   | #MCPServer
   | #Relay
+  | #SSE
   | #Session
   | #Phoenix
   | #ConnectionReducer

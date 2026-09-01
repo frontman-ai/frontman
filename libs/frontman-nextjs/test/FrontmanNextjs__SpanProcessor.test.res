@@ -358,6 +358,30 @@ describe("SpanProcessor Integration Tests", _t => {
     )
 
     testAsync(
+      "filters out public and internal MCP paths",
+      async t => {
+        let ctx = TestHelpers.setup()
+
+        let noNewLogs = await ctx->TestHelpers.assertNoNewLogs(
+          async () => {
+            await ctx->TestHelpers.executeSpans([
+              Fixtures.makeBaseServerSpan(
+                ctx.tracer,
+                {method: "POST", route: "/mcp", statusCode: 200.0},
+              ),
+              Fixtures.makeBaseServerSpan(
+                ctx.tracer,
+                {method: "POST", route: "/api/frontman-mcp", statusCode: 200.0},
+              ),
+            ])
+          },
+        )
+
+        t->expect(noNewLogs)->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
       "ignores irrelevant span types",
       async t => {
         let ctx = TestHelpers.setup()

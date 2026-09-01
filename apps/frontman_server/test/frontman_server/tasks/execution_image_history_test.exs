@@ -2,6 +2,8 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   use FrontmanServer.ExecutionCase
 
   import Mox
+  import Phoenix.ChannelTest
+  import FrontmanServerWeb.ChannelCase, only: [complete_mcp_handshake_for_scope: 1]
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 2, text_block: 1]
@@ -10,27 +12,27 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Image
   alias FrontmanServer.Providers
-  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
 
+  @endpoint FrontmanServerWeb.Endpoint
+
   setup :verify_on_exit!
 
   setup do
-    pid = Sandbox.start_owner!(Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    FrontmanServer.DataCase.start_shared_owner!()
 
     scope = user_scope_fixture()
     :ok = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
     :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
 
     task_id = task_with_pubsub_fixture(scope).id
+    complete_mcp_handshake_for_scope(scope)
 
     {:ok, scope: scope, task_id: task_id}
   end
@@ -56,6 +58,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       |> update_in(["content", Access.at(0)], &Map.put(&1, "unknown", "drop me"))
 
     canonical_result = %{
+      "resultType" => "complete",
       "content" => [
         %{
           "type" => "image",
@@ -64,8 +67,8 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
           "unknown" => "drop me"
         }
       ],
-      "isError" => false,
-      "_meta" => %{}
+      "_meta" => %{},
+      "unknownTopLevel" => "drop me"
     }
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
@@ -186,6 +189,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     persisted = tool_result!(Tasks.interactions(task), tool_call_id)
 
     assert persisted.result == %{
+             "resultType" => "complete",
              "content" => [
                %{
                  "type" => "image",
@@ -258,8 +262,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
       %{
         "name" => "take_screenshot",
         "description" => "Take a screenshot",
-        "inputSchema" => %{"type" => "object", "properties" => %{}},
-        "executionMode" => "blocking"
+        "inputSchema" => %{"type" => "object", "properties" => %{}}
       }
     ])
   end
@@ -273,6 +276,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   defp client_mcp_image_result(binary, mime \\ "image/png") do
     %{
+      "resultType" => "complete",
       "content" => [%{"type" => "image", "data" => Base.encode64(binary), "mimeType" => mime}],
       "_meta" => %{}
     }

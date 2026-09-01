@@ -18,15 +18,14 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.DataCase
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
 
   describe "LLM stream error propagation" do
     setup do
-      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-      on_exit(fn -> Sandbox.stop_owner(pid) end)
+      DataCase.start_shared_owner!()
 
       scope = user_scope_fixture()
       task_id = task_with_pubsub_fixture(scope, framework: "nextjs").id

@@ -33,17 +33,18 @@ type output = array<fileEntry>
 
 let (visibleToAgent, outputJsonSchema) = (true, None)
 
-let getIgnoredEntries = async (~cwd: string, entries: array<string>): result<
-  array<string>,
-  string,
-> => {
+let getIgnoredEntries = async (
+  ~cwd: string,
+  entries: array<string>,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
+): result<array<string>, string> => {
   if Array.length(entries) == 0 {
     Ok([])
   } else {
     try {
       let entriesArg = entries->Array.join("\n")
       let command = `printf "%s" "${entriesArg}" | git check-ignore --stdin`
-      let result = await ChildProcess.execWithOptions(command, {cwd: cwd})
+      let result = await ChildProcess.execWithOptions(command, {cwd: cwd}, ~signal?)
 
       switch result {
       | Ok({stdout}) => Ok(stdout->String.trim->String.split("\n")->Array.filter(s => s !== ""))
@@ -79,7 +80,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
       let entries = await Fs.Promises.readdir(fullPath)
 
       let filteredEntriesResult =
-        (await getIgnoredEntries(~cwd=fullPath, entries))->Result.map(ignored =>
+        (await getIgnoredEntries(~cwd=fullPath, entries, ~signal=ctx.signal))->Result.map(ignored =>
           entries->Array.filter(name => !(ignored->Array.includes(name)))
         )
 

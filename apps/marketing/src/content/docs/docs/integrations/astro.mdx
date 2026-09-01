@@ -56,6 +56,7 @@ All options are optional. Defaults are inferred from environment variables and t
 | `clientCssUrl` | `string` | Production CDN URL; `undefined` in dev | Override the URL of the Frontman client CSS stylesheet. |
 | `entrypointUrl` | `string` | — | Custom entrypoint URL for the AI API. |
 | `isLightTheme` | `boolean` | `false` | Render the Frontman UI with a light color scheme instead of the default dark theme. |
+| `mcp` | `{ allowedOrigins, authorize }` | Disabled | Explicit Origin allowlist and authorization callback required to expose exact `/mcp`. |
 
 ### Monorepo configuration
 
@@ -97,7 +98,7 @@ The integration registers handlers at four Astro lifecycle points:
 
 Three Vite plugins run inside the Astro Vite instance:
 
-**`frontman-middleware`** — Installs a Connect middleware that intercepts all `/{basePath}/*` requests. Serves the Frontman UI, handles tool call requests (`POST /frontman/tools/call`), manages SSE streams for streaming responses (`GET /frontman/tools`), and resolves source locations. CORS is enabled for all `/frontman/*` routes.
+**`frontman-middleware`** — Installs a Connect middleware that serves the `/{basePath}/*` UI and source-location routes. With explicit `mcp` security configuration, it separately handles exact `POST /mcp` for `server/discover`, `tools/list`, and `tools/call`. The endpoint returns JSON today; the browser client also accepts standard MCP SSE responses. Deprecated private tool-call and GET event-stream routes are not exposed, and `/mcp` never uses wildcard CORS.
 
 **`frontman-source-annotations`** *(Astro 7)* — Adds dev-only `data-frontman-source-*` attributes before Astro's Rust compiler runs. Production output remains unchanged.
 

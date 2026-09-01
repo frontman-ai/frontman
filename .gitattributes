@@ -1,2 +1,3 @@
 **/*.res.js linguist-generated=true
 **/*.res.js -diff
+libs/frontman-protocol/test/mcp-upstream/schema.json whitespace=-blank-at-eof

@@ -39,7 +39,7 @@ Frontman has three main parts:
 │  │  - tools     │  │  - screenshot capture      │   │
 │  │  - plans     │  │  - DOM inspection          │   │
 │  └──────┬───────┘  └────────────┬───────────────┘   │
-│         │     WebSocket         │  HTTP/SSE          │
+│         │     WebSocket         │ MCP Streamable HTTP│
 └─────────┼───────────────────────┼───────────────────┘
           │                       │
           ▼                       ▼
@@ -125,7 +125,7 @@ Handles tool-related communication:
 
 - **Tool discovery** — server asks client what browser tools are available
 - **Tool execution** — server sends tool calls to the client, client returns results
-- **Relay tools** — browser forwards tool calls to your dev server (for file editing, project discovery)
+- **Framework tools** — browser uses an MCP client to discover and call dev-server tools (for file editing and project discovery)
 
 ### How they work together
 
@@ -185,10 +185,12 @@ The server code is organized into bounded contexts, each owning a specific domai
 
 Real-time communication happens over Phoenix Channels:
 
-- **TasksChannel** (`"tasks"`) — session listing, creation, deletion, config broadcasts
-- **TaskChannel** (`"task:{id}"`) — per-conversation: prompts, tool call routing, streaming responses, history loading
+- **TasksChannel** (`"tasks"`) — session management and connection-wide MCP ownership
+- **TaskChannel** (`"task:{id}"`) — per-conversation ACP observer: prompts, streaming responses, history loading, and execution gating
 
-On join, each TaskChannel runs an **MCP initialization sequence** — a state machine that handshakes with the client to discover available tools and load project context (agent instructions, file tree).
+`MCPConnection` deterministically selects one joined tasks channel as the connection owner. That owner discovers browser tools, executes and correlates browser calls, and hydrates project rules and structure. TaskChannel waits for the owner's terminal catalog and, where the framework requires project context, an explicit owner-scoped readiness signal sent only after persistence or a terminal absent/disabled/nonfatal-failure/timeout outcome. A `session/load` response is sent before this gate can release execution and produce browser calls.
+
+If an owner fails over, task observers discard its readiness, re-gate against the successor, and unresolved durable calls are redispatched without cancelling the live agent. PostgreSQL interaction rows own generation-fenced claims, immutable deadlines, terminal results, and recovery markers; a supervised recovery process and reconnect handling converge outstanding work for Frontman's supported single-Phoenix-node deployment. Registry and PubSub provide live addressing and delivery only. Multi-node recovery and distributed scheduling are unsupported.
 
 ### Data Safety: Persist-Then-Broadcast
 
@@ -320,12 +322,12 @@ Executed in supervised tasks. Currently includes todo list management tools. The
 Sent to the client over WebSocket. The executor:
 1. Registers itself in the ProcessRegistry (so the result can find its way back)
 2. Persists the tool call to the database
-3. Sends the tool call to the client via the MCP channel
-4. **Blocks** waiting for the result (60-second timeout for regular tools, 24-hour timeout for interactive tools like Question)
-5. When the client responds, the channel looks up the registry and delivers the result
-6. The executor unblocks and returns the result to the agent
+3. Acquires the durable interaction-row claim and sends the tool call through the selected MCP connection owner
+4. Waits within the immutable 10-minute MCP deadline; browser-local interactive UI lifecycle is cancelled separately when its task ends
+5. The connection owner validates the result against the invocation-time schema snapshot and commits one canonical terminal result
+6. The executor receives the persisted result and returns it to the agent
 
-If the client disconnects while a tool is pending, the channel's `terminate` callback sends an error result to the blocked executor — preventing a timeout hang. On reconnect, unresolved tool calls are re-dispatched to the new client.
+If a selected connection owner disconnects while a tool is pending, a successor may redispatch only under the durable claim/replay policy. Started non-idempotent work is never blindly replayed. Without a successor, cancellation, timeout, ambiguity, or supervised recovery commits one canonical terminal state and fences late owners/results.
 
 ---
 
@@ -350,15 +352,15 @@ Three npm packages inject Frontman into your dev server. Each follows the same p
 | **Next.js** (`@frontman-ai/nextjs`) | OpenTelemetry instrumentation + client injection | Log capture integration (circular buffer) |
 | **Vite** (`@frontman-ai/vite`) | Vite middleware plugin | Adapts Web API to Vite's Node.js request/response |
 
-### Tool Relay
+### Framework MCP Endpoint
 
 When the agent calls a tool that needs to run on your dev server (like reading a file), the flow is:
 
 ```
-Agent → Server → Browser (MCP) → Dev Server (HTTP/SSE) → Browser → Server → Agent
+Agent → Server → Browser (MCP client) → Dev Server (`POST /mcp`) → Browser → Server → Agent
 ```
 
-The browser acts as a bridge — it receives the MCP tool call, forwards it to your dev server's Frontman plugin via HTTP, streams the result back via SSE, and returns it to the server.
+The browser acts as a bridge: it receives the MCP tool call, sends a new JSON-RPC request to the dev server's exact `/mcp` endpoint, accepts either a JSON response or a standard MCP SSE response, and returns the result to the server. The old private discovery, tool-call, and GET event-stream routes are not part of this path.
 
 ---
 
@@ -375,7 +377,7 @@ The browser acts as a bridge — it receives the MCP tool call, forwards it to y
 | `apps/marketing/` | Astro static site |
 | `apps/chrome-extension/` | Chrome extension |
 | `libs/client/` | React UI components (ReScript) |
-| `libs/frontman-client/` | ACP/Relay/MCP protocol implementation |
+| `libs/frontman-client/` | ACP and MCP client/server implementation |
 | `libs/frontman-protocol/` | Protocol type definitions + Sury schemas |
 | `libs/frontman-core/` | Shared middleware and utilities |
 | `libs/frontman-astro/` | Astro integration (npm package) |

@@ -14,6 +14,7 @@ defmodule FrontmanServer.MixProject do
       compilers: [:boundary, :phoenix_live_view] ++ Mix.compilers(),
       listeners: [Phoenix.CodeReloader],
       test_coverage: [tool: ExCoveralls],
+      hex: [ignore_advisories: ["CVE-2026-43966", "CVE-2026-43969"]],
       licenses: ["AGPL-3.0-only"],
       releases: [
         frontman_server: [

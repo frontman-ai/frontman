@@ -29,8 +29,8 @@ defmodule FrontmanNotifier.MixProject do
   defp deps do
     [
       {:jason, "~> 1.4"},
-      {:postgrex, "~> 0.22"},
-      {:req, "~> 0.5"},
+      {:postgrex, "~> 0.22.4"},
+      {:req, "~> 0.7"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end

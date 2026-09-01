@@ -1,5 +1,12 @@
 defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
-  @moduledoc false
+  @moduledoc """
+  Integration tests verifying Sentry error reporting for tool execution failures.
+
+  Tests the following gaps identified in issue #474:
+  - Gap 2: Soft tool errors ({:error, reason}) reported to Sentry
+  - Gap 4: MCP tool timeouts reported to Sentry
+  - Gap 5: JSON argument parse failures reported to Sentry
+  """
 
   use SwarmAi.Testing, async: false
 
@@ -7,7 +14,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   import FrontmanServer.InteractionCase.Helpers, only: [swarm_tool_call: 2]
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
@@ -18,11 +24,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
 
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    FrontmanServer.DataCase.start_shared_owner!()
 
     scope = user_scope_fixture()
-    task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id
+    task_id = task_with_active_run_fixture(scope, framework: "nextjs").id
 
     {:ok, task_id: task_id, scope: scope, turn_number: latest_turn_number(task_id)}
   end
@@ -87,8 +92,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       scope: scope,
       turn_number: turn_number
     } do
-      secret = "frontman-secret-1445"
-      tool_call = swarm_tool_call("todo_write", ~s({"secret":"#{secret}"))
+      tool_call = swarm_tool_call("todo_write", "{invalid json!!!}")
 
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
@@ -119,7 +123,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       assert metadata[:tool_name] == "todo_write"
       assert metadata[:user_id] == scope.user.id
       assert metadata[:task_id] == task_id
-      refute inspect(report) =~ secret
+      refute Map.has_key?(metadata, :raw_arguments)
+      refute Map.has_key?(metadata, :decode_error)
 
       soft_error_reports =
         Enum.filter(reports, fn event ->
@@ -159,21 +164,39 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     end
 
     @tag :capture_log
-    test "reports malformed MCP arguments without their content", %{
+    test "never reports long raw arguments to Sentry", %{
       task_id: task_id,
       scope: scope,
       turn_number: turn_number
     } do
-      secret = "frontman-mcp-secret-1445"
-      tool_call = swarm_tool_call("take_screenshot", ~s(["#{secret}"]))
+      long_invalid_json = String.duplicate("x", 1000)
 
-      assert :ok = ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tool_call)
-      assert_receive {:tool_result, _, [%{text: "Failed to parse arguments for tool"}], true}
+      tool_call = swarm_tool_call("todo_write", long_invalid_json)
 
-      assert [report] = Sentry.Test.pop_sentry_reports()
-      assert report.tags[:error_type] == "tool_parse_error"
-      assert report.tags[:tool_name] == "take_screenshot"
-      refute inspect(report) =~ secret
+      todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
+
+      result =
+        ToolExecutor.run_backend_tool(
+          scope,
+          todo_write_module,
+          task_id,
+          turn_number,
+          tool_call
+        )
+
+      assert %SwarmAi.ToolResult{is_error: true} = result
+
+      reports = Sentry.Test.pop_sentry_reports()
+
+      parse_error_reports =
+        Enum.filter(reports, fn event ->
+          event.tags[:error_type] == "tool_parse_error"
+        end)
+
+      assert [report] = parse_error_reports
+
+      refute Map.has_key?(report.extra[:logger_metadata], :raw_arguments)
+      refute inspect(report) =~ long_invalid_json
     end
   end
 

@@ -11,6 +11,34 @@ const require = createRequire(import.meta.url)
 const astroPackagePath = require.resolve("astro/package.json")
 const astroPackage = require(astroPackagePath)
 const astroBin = resolve(dirname(astroPackagePath), astroPackage.bin.astro)
+const mcpVersion = "2026-07-28"
+
+function mcpBody(method, id, params = {}) {
+  return JSON.stringify({
+    jsonrpc: "2.0",
+    id,
+    method,
+    params: {
+      _meta: {
+        "io.modelcontextprotocol/protocolVersion": mcpVersion,
+        "io.modelcontextprotocol/clientCapabilities": {},
+      },
+      ...params,
+    },
+  })
+}
+
+function mcpHeaders(method, name) {
+  return {
+    origin: "https://mcp-client.example",
+    authorization: "Bearer astro-compat-token",
+    "content-type": "application/json",
+    accept: "application/json, text/event-stream",
+    "mcp-protocol-version": mcpVersion,
+    "mcp-method": method,
+    ...(name ? {"mcp-name": name} : {}),
+  }
+}
 
 async function waitForServer(process, output) {
   for (let attempt = 0; attempt < 180; attempt++) {
@@ -63,27 +91,23 @@ test("packed integration works in Astro dev server", {timeout: 120_000}, async t
   assert.match(markdownHtml, /<template data-frontman-content-file="src\/pages\/docs\.md"><\/template>/)
 
   const frontmanPath = trailingSlash === "always" ? "/frontman" : "/frontman/"
-  const toolPath = trailingSlash === "always" ? "/frontman/tools/call" : "/frontman/tools/call/"
   const frontmanResponse = await fetch(`${origin}${frontmanPath}`)
   assert.equal(frontmanResponse.status, 200)
 
-  const toolResponse = await fetch(`${origin}${toolPath}`, {
+  const toolResponse = await fetch(`${origin}/mcp`, {
     method: "POST",
-    headers: {"content-type": "application/json"},
-    body: JSON.stringify({name: "get_client_pages", arguments: {}}),
+    headers: mcpHeaders("tools/call", "get_client_pages"),
+    body: mcpBody("tools/call", "get-client-pages", {
+      name: "get_client_pages",
+      arguments: {},
+    }),
   })
-  const body = await toolResponse.text()
   assert.equal(toolResponse.status, 200)
-  assert.match(body, /index\.astro/)
-  assert.match(body, /\[slug\]\.astro/)
-  assert.match(body, /health\.json\.ts/)
-
-  const searchResponse = await fetch(`${origin}${toolPath}`, {
-    method: "POST",
-    headers: {"content-type": "application/json"},
-    body: JSON.stringify({name: "search_files", arguments: {pattern: "package.json"}}),
-  })
-  const searchBody = await searchResponse.text()
-  assert.equal(searchResponse.status, 200)
-  assert.match(searchBody, /package\.json/)
+  const envelope = await toolResponse.json()
+  assert.equal(envelope.id, "get-client-pages")
+  assert.equal(envelope.result.resultType, "complete")
+  const routes = JSON.parse(envelope.result.content[0].text)
+  assert.ok(routes.some(route => route.file?.endsWith("index.astro")))
+  assert.ok(routes.some(route => route.file?.endsWith("[slug].astro")))
+  assert.ok(routes.some(route => route.file?.endsWith("health.json.ts")))
 })

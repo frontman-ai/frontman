@@ -2,14 +2,14 @@ open Vitest
 
 module ToolRegistry = Client__ToolRegistry
 module FrontmanClient = FrontmanAiFrontmanClient
-module Relay = FrontmanClient.FrontmanClient__Relay
+module MCPClient = FrontmanClient.FrontmanClient__MCP__Client
 module MCPServer = FrontmanClient.FrontmanClient__MCP__Server
 module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
 let toolDefinitions = framework => {
   let registry = ToolRegistry.forFramework(framework)
-  let relay = Relay.make(~baseUrl="http://localhost:3000")
-  let server = ToolRegistry.registerAll(registry, MCPServer.make(~relay))
+  let frameworkClient = MCPClient.make(~baseUrl="http://localhost:3000")
+  let server = ToolRegistry.registerAll(registry, MCPServer.make(~frameworkClient))
   server
   ->MCPServer.getToolsJson
   ->Array.map(json => json->JSON.Decode.object->Option.getOrThrow)
@@ -51,23 +51,28 @@ describe("ToolRegistry", _t => {
     t->expect(wordpressNames->Array.length)->Expect.toBe(8)
     t->expect(wordpressNames->Array.includes("get_astro_audit"))->Expect.toBe(false)
   })
-  test("serializes browser tool access levels", t => {
-    let metadata = name =>
-      toolByName(Client__RuntimeConfig.Nextjs, name)
-      ->Dict.get("_meta")
-      ->Option.flatMap(JSON.Decode.object)
-      ->Option.flatMap(meta => meta->Dict.get("ai.frontman/tool-metadata"))
-      ->Option.flatMap(JSON.Decode.object)
-      ->Option.getOrThrow
-    let access = name => metadata(name)->Dict.get("access")
 
-    t->expect(access("take_screenshot"))->Expect.toEqual(Some(JSON.Encode.string("read")))
-    t->expect(access("execute_js"))->Expect.toEqual(Some(JSON.Encode.string("read-write")))
-    t->expect(access("set_device_mode"))->Expect.toEqual(Some(JSON.Encode.string("write")))
-    t
-    ->expect(metadata("take_screenshot")->Dict.get("executionMode"))
-    ->Expect.toEqual(Some(JSON.Encode.string("Synchronous")))
+  test("does not serialize internal browser tool policy", t => {
+    let tool = toolByName(Client__RuntimeConfig.Nextjs, "take_screenshot")
+
+    t->expect(tool->Dict.has("access"))->Expect.toBe(false)
+    t->expect(tool->Dict.has("visibleToAgent"))->Expect.toBe(false)
+    t->expect(tool->Dict.has("executionMode"))->Expect.toBe(false)
   })
+
+  test("serializes standard read-only metadata for Astro audit", t => {
+    let tool = toolByName(Client__RuntimeConfig.Astro, "get_astro_audit")
+    let parsed = tool->JSON.Encode.object->S.parseOrThrow(~to=MCP.Tool.schema)
+    let annotations = parsed.annotations->Option.getOrThrow
+
+    t
+    ->expect(annotations->MCP.ToolAnnotations.toJson->JSON.stringify)
+    ->Expect.toBe(`{"readOnlyHint":true}`)
+    t->expect(tool->Dict.has("access"))->Expect.toBe(false)
+    t->expect(tool->Dict.has("visibleToAgent"))->Expect.toBe(false)
+    t->expect(tool->Dict.has("executionMode"))->Expect.toBe(false)
+  })
+
   test("advertises only structured browser output schemas", t => {
     toolDefinitions(Client__RuntimeConfig.Astro)->Array.forEach(
       tool => {
@@ -79,34 +84,12 @@ describe("ToolRegistry", _t => {
 
   test("screenshot data becomes image content", t => {
     let result = Client__Tool__TakeScreenshot.imageResultFromDataUrl(
-      "data:image/jpeg;base64,image-data",
+      "data:image/jpeg;base64,aW1hZ2U=",
     )
 
     let json = result->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json)
     t
     ->expect(JSON.stringify(json))
-    ->Expect.toBe(`{"resultType":"complete","content":[{"type":"image","data":"image-data","mimeType":"image/jpeg"}]}`)
-  })
-
-  test("explains generated image decode failures", t => {
-    let message = Client__Tool__TakeScreenshot.captureErrorMessage(
-      "The source image cannot be decoded.",
-    )
-    let alternateMessage = Client__Tool__TakeScreenshot.captureErrorMessage(
-      "Invalid encoded image data",
-    )
-
-    t->expect(message->String.includes("generated page image"))->Expect.toBe(true)
-    t
-    ->expect(message->String.includes("capture a smaller element with the selector option"))
-    ->Expect.toBe(true)
-    t->expect(alternateMessage)->Expect.toBe(message)
-  })
-
-  test("keeps unrelated screenshot errors unchanged", t => {
-    let message = "Canvas dimensions must be positive"
-    t
-    ->expect(Client__Tool__TakeScreenshot.captureErrorMessage(message))
-    ->Expect.toBe(message)
+    ->Expect.toBe(`{"content":[{"type":"image","data":"aW1hZ2U=","mimeType":"image/jpeg"}],"resultType":"complete"}`)
   })
 })

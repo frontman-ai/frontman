@@ -8,6 +8,7 @@ type channelEvent = [
   | #send_message
   | #"acp:message"
   | #"mcp:message"
+  | #"mcp:ready"
   | #list_sessions
   | #delete_session
   | #title_updated
@@ -15,6 +16,7 @@ type channelEvent = [
 ]
 
 type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) => pushResponse}
+type listenerRef = int
 
 @send external join: (t, ~timeout: int=?) => pushResponse = "join"
 
@@ -23,8 +25,8 @@ type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) =
 @send
 external push: (t, ~event: channelEvent, ~payload: JSON.t, ~timeout: int=?) => pushResponse = "push"
 
-@send external on: (t, ~event: channelEvent, ~callback: JSON.t => unit) => unit = "on"
+@send external on: (t, ~event: channelEvent, ~callback: JSON.t => unit) => listenerRef = "on"
 
-@send external off: (t, ~event: channelEvent) => unit = "off"
+@send external off: (t, ~event: channelEvent, ~ref: listenerRef=?) => unit = "off"
 
 @get external state: t => string = "state"

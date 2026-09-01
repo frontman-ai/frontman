@@ -1,48 +1,34 @@
-module CoreMiddlewareConfig = FrontmanAiFrontmanCore.FrontmanCore__MiddlewareConfig
-module CoreMiddleware = FrontmanAiFrontmanCore.FrontmanCore__Middleware
 module ToolRegistry = FrontmanAiFrontmanCore.FrontmanCore__ToolRegistry
+module Server = FrontmanAiFrontmanCore.FrontmanCore__Server
+module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
-let defaultConfig: CoreMiddlewareConfig.t = {
+let executionContext: Server.executionContext = {
   projectRoot: "/tmp/project",
   sourceRoot: "/tmp/project",
-  basePath: "frontman",
-  serverName: "test-server",
-  serverVersion: "1.0.0",
-  clientUrl: "http://localhost/client.js",
-  clientCssUrl: None,
-  entrypointUrl: None,
-  frameworkId: CoreMiddlewareConfig.Astro,
-  traits: [],
+  signal: WebAPI.AbortController.make().signal,
+  onProgress: None,
 }
 
-let makeMiddleware = (~registry: ToolRegistry.t) =>
-  CoreMiddleware.createMiddleware(~config=defaultConfig, ~registry)
-
-let callTool = async (middleware, ~name: string, ~arguments: JSON.t): string => {
-  let body = JSON.Encode.object(
-    Dict.fromArray([("name", JSON.Encode.string(name)), ("arguments", arguments)]),
-  )
-  let headers = WebAPI.HeadersInit.fromDict(Dict.fromArray([("Content-Type", "application/json")]))
-  let req = WebAPI.Request.fromURL(
-    "http://localhost/frontman/tools/call",
-    ~init={
-      method: "POST",
-      body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
-      headers,
-    },
-  )
-  let result = await middleware(req)
-  switch result {
-  | None => failwith("Middleware did not handle /frontman/tools/call")
-  | Some(response) => await response->WebAPI.Response.text
+let callTool = async (registry: ToolRegistry.t, ~name: string, ~arguments: JSON.t): string => {
+  let tool = registry->ToolRegistry.getToolByName(name)->Option.getOrThrow
+  let arguments = arguments->JSON.Decode.object->Option.getOrThrow
+  switch await Server.executeSelectedTool(
+    ~tool,
+    ~ctx=executionContext,
+    ~arguments=Some(arguments),
+  ) {
+  | Server.Ok(result) =>
+    result
+    ->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json->S.noValidation(true))
+    ->JSON.stringify
+  | Server.InvalidInput(message) => failwith(`Invalid tool input: ${message}`)
+  | Server.ExecutionError(message) => failwith(`Tool execution failed: ${message}`)
   }
 }
 
-let getEndpoint = async (middleware, ~path: string): string => {
-  let req = WebAPI.Request.fromURL(`http://localhost/frontman/${path}`)
-  let result = await middleware(req)
-  switch result {
-  | None => failwith(`Middleware did not handle /frontman/${path}`)
-  | Some(response) => await response->WebAPI.Response.text
-  }
-}
+let serializeModernTools = (registry: ToolRegistry.t): string =>
+  registry
+  ->ToolRegistry.getMCPToolDefinitions
+  ->Array.map(tool => tool->S.decodeOrThrow(~from=MCP.Tool.schema, ~to=S.json))
+  ->JSON.Encode.array
+  ->JSON.stringify

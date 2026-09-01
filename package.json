@@ -46,13 +46,28 @@
 		"glob": ">=13.0.5",
 		"yaml": ">=2.8.3",
 		"esbuild": ">=0.28.1",
-		"postcss": ">=8.5.23"
+		"postcss": ">=8.5.23",
+		"@iconify/tools": ">=5.0.0 <6",
+		"sharp": ">=0.35.0 <0.36",
+		"undici": ">=7.29.0 <8"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^0.7.0",
 		"@changesets/cli": "^2.31.1",
+		"@modelcontextprotocol/sdk": "1.29.0",
+		"@octokit/rest": "22.0.1",
 		"@vitest/coverage-v8": "catalog:",
-		"vitest": "catalog:"
+		"ajv": "8.20.0",
+		"ajv-formats": "3.0.1",
+		"commander": "14.0.3",
+		"cookie": "2.0.1",
+		"eventsource-parser": "3.0.8",
+		"express": "5.2.1",
+		"jose": "6.2.2",
+		"undici": "7.29.0",
+		"vitest": "catalog:",
+		"yaml": "2.8.3",
+		"zod": "4.3.6"
 	},
 	"dependenciesMeta": {
 		"@sentry/cli": {

@@ -1,21 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "sessionId": {
-      "type": "string"
-    },
-    "cwd": {
-      "type": "string"
-    },
-    "mcpServers": {
-      "items": {},
-      "type": "array"
-    },
-    "_meta": {}
-  },
-  "required": [
-    "sessionId",
-    "cwd",
-    "mcpServers"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/acp~1sessionLoadParams"
 }

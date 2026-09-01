@@ -378,6 +378,27 @@ module Selectors = {
     TaskReducer.Selectors.isAgentRunning(currentTask(state))->Option.getOr(false)
   }
 
+  let sessionInitialized = (state: state): bool => {
+    switch state.acpSession {
+    | AcpSessionActive(_) => true
+    | NoAcpSession => false
+    }
+  }
+
+  let providerSettingsLoaded = (state: state): bool => {
+    state.openrouterKeySettings.source != Loading &&
+    state.anthropicKeySettings.source != Loading &&
+    state.fireworksKeySettings.source != Loading &&
+    state.nvidiaKeySettings.source != Loading
+  }
+
+  let hasAnyProviderConfigured = (state: state): bool => {
+    state.openrouterKeySettings.source == UserOverride ||
+    state.anthropicKeySettings.source == UserOverride ||
+    state.fireworksKeySettings.source == UserOverride ||
+    state.nvidiaKeySettings.source == UserOverride
+  }
+
   let currentPlanEntries = (state: state): array<Client__State__Types.ACPTypes.planEntry> => {
     TaskReducer.Selectors.planEntries(currentTask(state))->Option.getOr([])
   }
@@ -576,15 +597,14 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
     let metaObj = Dict.make()
     metaObj->Dict.set("user_image", JSON.Encode.bool(true))
     metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
-    let meta = JSON.Encode.object(metaObj)
-
     Client__State__Types.ContentBlock.EmbeddedResource({
       resource: Client__State__Types.ContentBlock.BlobResourceContents({
         uri: `attachment://${att.id}/${att.filename}`,
         mimeType: Some(att.mediaType),
         blob: base64Data,
+        _meta: None,
       }),
-      _meta: Some(meta),
+      _meta: Some(metaObj),
       annotations: None,
     })
   })

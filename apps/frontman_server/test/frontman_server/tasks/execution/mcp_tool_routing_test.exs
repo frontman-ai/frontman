@@ -24,8 +24,9 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       {:ok, _reply, socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
-        |> subscribe_and_join("task:#{task_id}", %{})
+        |> subscribe_and_join("tasks", %{})
 
+      push(socket, "mcp:ready", %{})
       assert_push("mcp:message", %{"method" => "server/discover"})
 
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
@@ -33,7 +34,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
-    test "MCP tool calls are automatically routed to channel", %{
+    test "MCP tool calls are routed directly to the connection channel", %{
       task_id: task_id,
       scope: scope
     } do
@@ -42,7 +43,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#main"}))
 
-      ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tool_call)
+      ToolExecutor.start_mcp_tool(scope, task_id, turn_number, nil, tool_call)
 
       assert_push(
         "mcp:message",

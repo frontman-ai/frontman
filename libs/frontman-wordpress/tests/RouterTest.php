@@ -41,26 +41,24 @@ class Frontman_Router_Test_Runner {
 	private int $assertions = 0;
 	private ReflectionMethod $classifyRoute;
 	private ReflectionMethod $getRequestPath;
-	private ReflectionMethod $sendSseToolResult;
 
 	public function __construct() {
 		$reflection = new ReflectionClass( 'Frontman_Router' );
 		$this->classifyRoute = $reflection->getMethod( 'classify_route' );
 		$this->getRequestPath = $reflection->getMethod( 'get_request_path' );
-		$this->sendSseToolResult = $reflection->getMethod( 'send_sse_tool_result' );
-		$this->classifyRoute->setAccessible( true );
-		$this->getRequestPath->setAccessible( true );
-		$this->sendSseToolResult->setAccessible( true );
+		if ( PHP_VERSION_ID < 80100 ) {
+			$this->classifyRoute->setAccessible( true );
+			$this->getRequestPath->setAccessible( true );
+		}
 	}
 
 	public function run(): void {
 		$this->test_suffix_routes_win_over_prefix_regex();
-		$this->test_prefix_api_routes_still_match();
+		$this->test_exact_mcp_route_and_legacy_route_removal();
+		$this->test_protected_resource_metadata_routes_are_absent();
 		$this->test_non_frontman_routes_are_ignored();
 		$this->test_request_path_preserves_percent_encoded_segments();
-		$this->test_request_path_strips_front_controller();
 		$this->test_tool_results_use_canonical_shape();
-		$this->test_sse_errors_use_result_event_format();
 
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
 	}
@@ -77,16 +75,30 @@ class Frontman_Router_Test_Runner {
 		$this->assert_same( 'about', $route['prefix'], 'suffix route should preserve preview path' );
 	}
 
-	private function test_prefix_api_routes_still_match(): void {
+	private function test_exact_mcp_route_and_legacy_route_removal(): void {
 		$router = ( new ReflectionClass( 'Frontman_Router' ) )->newInstanceWithoutConstructor();
 
-		$route = $this->classifyRoute->invoke( $router, '/frontman/tools', 'GET' );
-		$this->assert_same( 'prefix', $route['type'], 'frontman API routes should still classify as prefix routes' );
-		$this->assert_same( 'tools', $route['subPath'], 'prefix route should preserve API subpath' );
+		$this->assert_same( 'mcp', $this->classifyRoute->invoke( $router, '/mcp', 'POST' )['type'], 'root MCP route is exact' );
+		$this->assert_same( 'mcp', $this->classifyRoute->invoke( $router, '/mcp', 'OPTIONS' )['type'], 'MCP preflight uses the same exact route' );
+		$this->assert_same( 'none', $this->classifyRoute->invoke( $router, '/mcp/', 'POST' )['type'], 'trailing slash is not normalized' );
+		$this->assert_same( 'none', $this->classifyRoute->invoke( $router, '/MCP', 'POST' )['type'], 'route matching is case-sensitive' );
+		$this->assert_same( 'none', $this->classifyRoute->invoke( $router, '/frontman/mcp', 'POST' )['type'], 'private MCP alias is absent' );
+		$this->assert_same( 'none', $this->classifyRoute->invoke( $router, '/frontman/tools', 'GET' )['type'], 'legacy tool listing route is removed' );
+		$this->assert_same( 'none', $this->classifyRoute->invoke( $router, '/frontman/tools/call', 'POST' )['type'], 'legacy tool call route is removed' );
+	}
 
-		$route = $this->classifyRoute->invoke( $router, '/frontman/tools/call', 'POST' );
-		$this->assert_same( 'prefix', $route['type'], 'non-GET API routes should still classify as prefix routes' );
-		$this->assert_same( 'tools/call', $route['subPath'], 'prefix route should preserve nested API subpath' );
+	private function test_protected_resource_metadata_routes_are_absent(): void {
+		$router = ( new ReflectionClass( 'Frontman_Router' ) )->newInstanceWithoutConstructor();
+		$paths = [
+			'/.well-known/oauth-protected-resource',
+			'/.well-known/oauth-protected-resource/mcp',
+			'/.well-known/oauth-protected-resource/scope:frontman-runtime/mcp',
+			'/scope:frontman-runtime/.well-known/oauth-protected-resource/mcp',
+		];
+
+		foreach ( $paths as $path ) {
+			$this->assert_same( 'none', $this->classifyRoute->invoke( $router, $path, 'GET' )['type'], 'protected-resource metadata route is absent at ' . $path );
+		}
 	}
 
 	private function test_non_frontman_routes_are_ignored(): void {
@@ -107,35 +119,11 @@ class Frontman_Router_Test_Runner {
 		}
 	}
 
-	private function test_request_path_strips_front_controller(): void {
-		$router = ( new ReflectionClass( 'Frontman_Router' ) )->newInstanceWithoutConstructor();
-		$_SERVER['REQUEST_URI'] = '/blog/index.php/frontman/tools';
-
-		try {
-			$path = $this->getRequestPath->invoke( $router );
-			$this->assert_same( '/frontman/tools', $path, 'request path should strip the WordPress front controller' );
-		} finally {
-			unset( $_SERVER['REQUEST_URI'] );
-		}
-	}
-
-	private function test_sse_errors_use_result_event_format(): void {
-		$router = ( new ReflectionClass( 'Frontman_Router' ) )->newInstanceWithoutConstructor();
-		ob_start();
-		$this->sendSseToolResult->invoke( $router, Frontman_Tools::error_result( 'Missing tool name' ) );
-		$output = ob_get_clean();
-
-		$this->assert_true( 0 === strpos( $output, "event: result\n" ), 'tool errors should be sent through SSE result events so the client parses MCP error payloads' );
-		$this->assert_true( false !== strpos( $output, '"isError":true' ), 'SSE result payload should preserve MCP error metadata' );
-		$this->assert_true( false !== strpos( $output, 'Missing tool name' ), 'SSE result payload should include the tool error message' );
-	}
-
 	private function test_tool_results_use_canonical_shape(): void {
 		$this->assert_same(
 			[
 				'resultType' => 'complete',
-				'content' => [ [ 'type' => 'text', 'text' => '{"ok":true}' ] ],
-				'isError' => false,
+				'content'    => [ [ 'type' => 'text', 'text' => '{"ok":true}' ] ],
 			],
 			Frontman_Tools::success_result( [ 'ok' => true ] ),
 			'successful tool results should contain only canonical fields'
@@ -143,8 +131,8 @@ class Frontman_Router_Test_Runner {
 		$this->assert_same(
 			[
 				'resultType' => 'complete',
-				'content' => [ [ 'type' => 'text', 'text' => 'Failed' ] ],
-				'isError' => true,
+				'content'    => [ [ 'type' => 'text', 'text' => 'Failed' ] ],
+				'isError'    => true,
 			],
 			Frontman_Tools::error_result( 'Failed' ),
 			'error tool results should contain only canonical fields'

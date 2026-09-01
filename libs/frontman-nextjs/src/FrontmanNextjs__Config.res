@@ -5,6 +5,9 @@ let () = if typeof(packageVersion) == #undefined {
 
 module Bindings = FrontmanBindings
 module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
+module AdapterSecurity = FrontmanAiFrontmanCore.FrontmanCore__MCP__AdapterSecurity
+module HttpSecurity = FrontmanAiFrontmanCore.FrontmanCore__MCP__HttpSecurity
+module SourceLocationEndpoint = FrontmanAiFrontmanCore.FrontmanCore__SourceLocationEndpoint
 
 let defaultHost = switch Bindings.Process.env->Dict.get("FRONTMAN_HOST") {
 | Some(host) if host != "" => host
@@ -42,6 +45,9 @@ type t = {
   entrypointUrl: option<string>,
   projectRoot: string,
   sourceRoot: string,
+  mcpBrowserToken: option<string>,
+  mcpSecurity: option<HttpSecurity.policy>,
+  sourceLocationSecurity: option<HttpSecurity.policy>,
 }
 
 @@live
@@ -56,6 +62,9 @@ let make = (
   ~entrypointUrl=None,
   ~projectRoot=None,
   ~sourceRoot=None,
+  ~mcpBrowserToken=None,
+  ~mcp=None,
+  ~sourceLocation=None,
 ) => {
   let host = host->Option.getOr(defaultHost)->normalizeHost
 
@@ -101,6 +110,8 @@ let make = (
     )
   }
 
+  let mcpSecurity = mcp->Option.map(AdapterSecurity.make)
+
   {
     isDev,
     basePath,
@@ -117,6 +128,11 @@ let make = (
     entrypointUrl,
     projectRoot,
     sourceRoot,
+    mcpBrowserToken,
+    mcpSecurity,
+    sourceLocationSecurity: sourceLocation
+    ->Option.map(SourceLocationEndpoint.makeSecurity)
+    ->Option.orElse(mcpSecurity),
   }
 }
 
@@ -131,6 +147,9 @@ type jsConfigInput = {
   entrypointUrl?: string,
   projectRoot?: string,
   sourceRoot?: string,
+  mcpBrowserToken?: string,
+  mcp?: AdapterSecurity.input,
+  sourceLocation?: SourceLocationEndpoint.input,
 }
 
 let makeFromObject = (config: jsConfigInput): t =>
@@ -145,4 +164,7 @@ let makeFromObject = (config: jsConfigInput): t =>
     ~entrypointUrl=config.entrypointUrl,
     ~projectRoot=config.projectRoot,
     ~sourceRoot=config.sourceRoot,
+    ~mcpBrowserToken=config.mcpBrowserToken,
+    ~mcp=config.mcp,
+    ~sourceLocation=config.sourceLocation,
   )

@@ -119,5 +119,5 @@ let resolveRootOrBody = (~doc: WebAPI.DomTypes.document, ~selector: option<strin
     | (Some(element), _) => Ok(element)
     | (None, _) => Error(`No element found for selector: ${selector}`)
     }
-  | None => Ok(doc.body->WebAPI.HTMLElement.asElement)
+  | None => Ok(doc.body->Obj.magic)
   }

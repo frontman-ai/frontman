@@ -1,0 +1,36 @@
+name: MCP Property Tests
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  property-tests:
+    name: MCP Property Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: "24.4.1"
+
+      - name: Enable Corepack
+        run: corepack enable && corepack install
+
+      - name: Install dependencies
+        run: make -C libs/frontman-protocol install
+
+      - name: Build protocol
+        run: make -C libs/frontman-protocol build
+
+      - name: Run extended deterministic property tests
+        env:
+          MCP_PROPERTY_CASES: "10000"
+        run: make -C libs/frontman-protocol mcp-property

@@ -1,87 +1,22 @@
 module NodeHttp = FrontmanBindings.NodeHttp
-module WebStreams = FrontmanBindings.WebStreams
 module CoreMiddleware = FrontmanAiFrontmanCore.FrontmanCore__Middleware
+module Chassis = FrontmanAiFrontmanCore.FrontmanCore__NodeWebChassis
+module RawHeaders = FrontmanAiFrontmanCore.FrontmanCore__MCP__RawHeaders
+module McpEndpoint = FrontmanAiFrontmanCore.FrontmanCore__MCP__Endpoint
 
-let collectRequestBody: NodeHttp.incomingMessage => promise<NodeHttp.Buffer.t> = %raw(`
-  async function(req) {
-    const chunks = [];
-    for await (const chunk of req) {
-      chunks.push(chunk);
-    }
-    const { Buffer } = await import("node:buffer");
-    return Buffer.concat(chunks);
-  }
-`)
+@module("./astro-route-rewrite.mjs")
+external isExactMcpRequest: NodeHttp.incomingMessage => bool = "isExactMcpRequest"
 
-let copyHeaders: (WebAPI.FetchTypes.headers, NodeHttp.serverResponse) => unit = %raw(`
-  function(headers, res) {
-    headers.forEach(function(value, key) {
-      res.setHeader(key, value);
-    });
-  }
-`)
+type webMiddleware = (
+  WebAPI.Request.t,
+  ~rawHeaders: RawHeaders.t,
+) => promise<option<WebAPI.Response.t>>
 
-type webMiddleware = WebAPI.Request.t => promise<option<WebAPI.Response.t>>
-
-let toWebRequest = async (req: NodeHttp.incomingMessage): WebAPI.Request.t => {
-  let host = req->NodeHttp.headers->Dict.get("host")->Option.getOr("localhost")
-  let url = `http://${host}${req->NodeHttp.url}`
-  let method = req->NodeHttp.method
-
-  let body = switch method->String.toUpperCase {
-  | "POST" | "PUT" | "PATCH" =>
-    let buffer = await collectRequestBody(req)
-    Some(buffer->NodeHttp.Buffer.toUint8Array)
-  | _ => None
-  }
-
-  let headersDict = req->NodeHttp.headers
-
-  let init: WebAPI.Request.requestInit = {
-    method,
-    headers: WebAPI.HeadersInit.fromDict(headersDict),
-    body: ?(body->Option.map(b => WebAPI.BodyInit.fromTypedArray(b))),
-  }
-  switch body {
-  | Some(_) => init->Obj.magic->Dict.set("duplex", "half")
-  | None => ()
-  }
-
-  WebAPI.Request.fromURL(url, ~init)
-}
-
-let writeWebResponse = async (
-  webResponse: WebAPI.Response.t,
-  res: NodeHttp.serverResponse,
-): unit => {
-  res->NodeHttp.setStatusCode(webResponse.status)
-
-  copyHeaders(webResponse.headers, res)
-
-  switch webResponse.body->Null.toOption {
-  | Some(body) =>
-    let reader = body->WebAPI.ReadableStream.getReader
-    let decoder = WebStreams.makeTextDecoder()
-    let reading = ref(true)
-    while reading.contents {
-      let result = await WebStreams.readChunk(reader)
-      if result.done {
-        reading := false
-      } else {
-        switch result.value->Nullable.toOption {
-        | Some(chunk) =>
-          let text = decoder->WebStreams.decodeWithOptions(chunk, {"stream": true})
-          res->NodeHttp.writeString(text)->ignore
-        | None => ()
-        }
-      }
-    }
-    res->NodeHttp.end
-  | None => res->NodeHttp.end
-  }
-}
-
-let adaptToConnect = (middleware: webMiddleware, ~basePath: string): NodeHttp.connectMiddleware => {
+let adaptToConnect = (
+  middleware: webMiddleware,
+  ~basePath: string,
+  ~mcp: option<McpEndpoint.config>=None,
+): NodeHttp.connectMiddleware => {
   (req, res, next) => {
     let reqPath =
       req
@@ -94,26 +29,58 @@ let adaptToConnect = (middleware: webMiddleware, ~basePath: string): NodeHttp.co
       ~basePath,
       ~method=req->NodeHttp.method,
     )
-    if !isFrontmanRoute {
-      next()
-    } else {
-      let handleRequest = async () => {
-        let webRequest = await toWebRequest(req)
-        let maybeResponse = await middleware(webRequest)
-        switch maybeResponse {
-        | Some(webResponse) => await writeWebResponse(webResponse, res)
-        | None => next()
+    let isMcpRoute = (reqPath == "/mcp" || req->isExactMcpRequest) && mcp->Option.isSome
+    switch (isMcpRoute, isFrontmanRoute) {
+    | (false, false) => next()
+    | (true, _) =>
+      let config = mcp->Option.getOrThrow
+      Chassis.handle(
+        ~nodeRequest=req,
+        ~nodeResponse=res,
+        ~absoluteTimeoutMs=McpEndpoint.absoluteTimeoutMs,
+        ~gate=(headers, _rawHeaders) =>
+          McpEndpoint.gate(~config, ~method=req->NodeHttp.method, ~headers),
+        ~dispatch=adapted => McpEndpoint.dispatch(~config, adapted),
+      )
+      ->Promise.then(outcome => {
+        switch outcome {
+        | Chassis.Passed => failwith("The active MCP endpoint passed through")
+        | Chassis.Responded | Chassis.Cancelled | Chassis.TimedOut => ()
         }
-      }
-      handleRequest()
+        Promise.resolve()
+      })
       ->Promise.catch(error => {
-        Console.error2("[Frontman] Middleware error:", error)
-
-        if !(res->NodeHttp.headersSent) {
+        Console.error2("[Frontman] MCP endpoint error:", error)
+        switch res->NodeHttp.headersSent {
+        | false =>
           res->NodeHttp.setStatusCode(500)
           res->NodeHttp.endWithData("Internal Server Error")
-        } else {
-          res->NodeHttp.end
+        | true => res->NodeHttp.end
+        }
+        Promise.resolve()
+      })
+      ->ignore
+    | (false, true) =>
+      Chassis.handle(
+        ~nodeRequest=req,
+        ~nodeResponse=res,
+        ~gate=(_headers, _rawHeaders) => Promise.resolve(Chassis.Granted()),
+        ~dispatch=adapted => middleware(adapted.request, ~rawHeaders=adapted.rawHeaders),
+      )
+      ->Promise.then(outcome => {
+        switch outcome {
+        | Chassis.Passed => next()
+        | Chassis.Responded | Chassis.Cancelled | Chassis.TimedOut => ()
+        }
+        Promise.resolve()
+      })
+      ->Promise.catch(error => {
+        Console.error2("[Frontman] Middleware error:", error)
+        switch res->NodeHttp.headersSent {
+        | false =>
+          res->NodeHttp.setStatusCode(500)
+          res->NodeHttp.endWithData("Internal Server Error")
+        | true => res->NodeHttp.end
         }
         Promise.resolve()
       })

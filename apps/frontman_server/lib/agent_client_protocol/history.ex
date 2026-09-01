@@ -140,7 +140,7 @@ defmodule AgentClientProtocol.History do
             ACP.tool_call_status(result.is_error),
             ACP.Content.from_tool_result(result.result),
             nil,
-            result.result["structuredContent"]
+            Map.fetch(result.result, "structuredContent")
           )
         ]
 

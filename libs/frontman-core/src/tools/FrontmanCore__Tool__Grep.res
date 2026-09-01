@@ -218,6 +218,7 @@ let executeRipgrep = async (
   ~caseInsensitive: bool,
   ~literal: bool,
   ~maxResults: int,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): result<output, string> => {
   let args = buildRipgrepArgs(
     ~pattern,
@@ -229,7 +230,7 @@ let executeRipgrep = async (
     ~maxResults,
   )
 
-  let result = await ChildProcess.spawnResult(rgPath, args)
+  let result = await ChildProcess.spawnResult(rgPath, args, ~signal)
 
   switch result {
   | Ok({stdout}) => Ok(parseGrepOutput(stdout, ~maxResults))
@@ -252,6 +253,7 @@ let executeGitGrep = async (
   ~maxResults: int,
   ~glob: option<string>,
   ~type_: option<string>,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): result<output, string> => {
   let args = buildGitGrepArgs(~pattern, ~caseInsensitive, ~literal, ~maxResults, ~glob, ~type_)
 
@@ -277,7 +279,7 @@ let executeGitGrep = async (
   | None => ()
   }
 
-  let result = await ChildProcess.spawnResult("git", args, ~cwd)
+  let result = await ChildProcess.spawnResult("git", args, ~cwd, ~signal)
 
   switch result {
   | Ok({stdout}) => Ok(parseGrepOutput(stdout, ~maxResults))
@@ -352,6 +354,7 @@ let executePlainGrep = async (
   ~maxResults: int,
   ~glob: option<string>,
   ~type_: option<string>,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): result<output, string> => {
   let args = buildPlainGrepArgs(
     ~pattern,
@@ -363,7 +366,7 @@ let executePlainGrep = async (
     ~type_,
   )
 
-  let result = await ChildProcess.spawnResult("grep", args)
+  let result = await ChildProcess.spawnResult("grep", args, ~signal)
 
   switch result {
   | Ok({stdout}) => Ok(parseGrepOutput(stdout, ~maxResults))
@@ -394,6 +397,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
       ~maxResults,
       ~glob=input.glob,
       ~type_=input.type_,
+      ~signal=ctx.signal,
     )
     switch gitResult {
     | Ok(_) => gitResult
@@ -406,6 +410,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
         ~maxResults,
         ~glob=input.glob,
         ~type_=input.type_,
+        ~signal=ctx.signal,
       )
     }
   }
@@ -421,6 +426,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
       ~caseInsensitive,
       ~literal,
       ~maxResults,
+      ~signal=ctx.signal,
     )
 
     switch result {

@@ -1,19 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string"
-    },
-    "version": {
-      "type": "string"
-    },
-    "title": {
-      "type": "string"
-    },
-    "_meta": {}
-  },
-  "required": [
-    "name",
-    "version"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/acp~1implementation"
 }

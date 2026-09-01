@@ -105,12 +105,31 @@ export function installVueVite(): void {
  * Astro has no dedicated Frontman CLI — users run `npx astro add @frontman-ai/astro`.
  * We programmatically write the integration config (equivalent to what `astro add` does).
  */
-export function installAstro(): void {
+export function installAstro(mcp?: { allowedOrigins: string[]; token: string }): void {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/astro");
   resetFixture(fixtureDir);
   rmSync(resolve(fixtureDir, ".astro"), { recursive: true, force: true });
 
   console.log("  [e2e] Configuring Frontman Astro integration...");
+  const mcpConfig = mcp
+    ? `      mcpBrowserToken: '${mcp.token}',
+      mcp: {
+        allowedOrigins: ${JSON.stringify(mcp.allowedOrigins)},
+        authorize: async (headers) => {
+          const authorization = headers.get('Authorization');
+          const cookie = (headers.get('Cookie') ?? '')
+            .split(';')
+            .map((part) => part.trim())
+            .find((part) => part.startsWith('frontman_mcp_session='));
+          if (!authorization && !cookie) return 'missing-authentication';
+          return authorization === 'Bearer ${mcp.token}'
+            || cookie === 'frontman_mcp_session=${encodeURIComponent(mcp.token)}'
+            ? 'authorized'
+            : 'insufficient-authorization';
+        },
+      },
+`
+    : "";
   const config = `import { defineConfig } from 'astro/config';
 import frontman from '@frontman-ai/astro';
 
@@ -119,10 +138,130 @@ export default defineConfig({
     frontman({
       host: '${FRONTMAN_SERVER}',
       projectRoot: import.meta.dirname,
+${mcpConfig}
     }),
   ],
 });
 `;
   writeFileSync(resolve(fixtureDir, "astro.config.mjs"), config);
   console.log("  [e2e] \u2713 astro.config.mjs configured with Frontman integration");
+}
+
+export function configureMcpNextjs(): void {
+  installNextjs();
+}
+
+export function configureMcpAstro(allowedOrigin: string, token: string): void {
+  installAstro({allowedOrigins: [allowedOrigin], token});
+}
+
+export function configureMcpVite(allowedOrigin: string, token: string): void {
+  const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vite");
+  installVite();
+  writeFileSync(
+    resolve(fixtureDir, "vite.config.ts"),
+    `import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { frontmanPlugin } from '@frontman-ai/vite';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    ...frontmanPlugin({
+      host: '${FRONTMAN_SERVER}',
+      projectRoot: import.meta.dirname,
+      mcpBrowserToken: '${token}',
+      mcp: {
+        allowedOrigins: ['${allowedOrigin}'],
+        authorize: async (headers) => {
+          const authorization = headers.get('Authorization');
+          const cookie = (headers.get('Cookie') ?? '')
+            .split(';')
+            .map((part) => part.trim())
+            .find((part) => part.startsWith('frontman_mcp_session='));
+          if (!authorization && !cookie) return 'missing-authentication';
+          return authorization === 'Bearer ${token}'
+            || cookie === 'frontman_mcp_session=${encodeURIComponent(token)}'
+            ? 'authorized'
+            : 'insufficient-authorization';
+        },
+      },
+    }),
+  ],
+});
+`,
+  );
+}
+
+export function configureInstalledMcpVite(allowedOrigins: string[], token: string): void {
+  configureMcpVite(allowedOrigins[0], token);
+  const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vite");
+  const configPath = resolve(fixtureDir, "vite.config.ts");
+  const config = `import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { frontmanPlugin } from '@frontman-ai/vite';
+
+export default defineConfig({
+  plugins: [
+    react(),
+    ...frontmanPlugin({
+      host: '${FRONTMAN_SERVER}',
+      projectRoot: import.meta.dirname,
+      mcpBrowserToken: '${token}',
+      mcp: {
+        allowedOrigins: ${JSON.stringify(allowedOrigins)},
+        authorize: async (headers) => {
+          const authorization = headers.get('Authorization');
+          const cookie = (headers.get('Cookie') ?? '')
+            .split(';')
+            .map((part) => part.trim())
+            .find((part) => part.startsWith('frontman_mcp_session='));
+          if (!authorization && !cookie) return 'missing-authentication';
+          return authorization === 'Bearer ${token}'
+            || cookie === 'frontman_mcp_session=${encodeURIComponent(token)}'
+            ? 'authorized'
+            : 'insufficient-authorization';
+        },
+      },
+    }),
+  ],
+});
+`;
+  writeFileSync(configPath, config);
+}
+
+export function configureInstalledMcpVueVite(allowedOrigins: string[], token: string): void {
+  installVueVite();
+  const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vue-vite");
+  const config = `import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import { frontmanPlugin } from '@frontman-ai/vite';
+
+export default defineConfig({
+  plugins: [
+    vue(),
+    ...frontmanPlugin({
+      host: '${FRONTMAN_SERVER}',
+      projectRoot: import.meta.dirname,
+      mcpBrowserToken: '${token}',
+      mcp: {
+        allowedOrigins: ${JSON.stringify(allowedOrigins)},
+        authorize: async (headers) => {
+          const authorization = headers.get('Authorization');
+          const cookie = (headers.get('Cookie') ?? '')
+            .split(';')
+            .map((part) => part.trim())
+            .find((part) => part.startsWith('frontman_mcp_session='));
+          if (!authorization && !cookie) return 'missing-authentication';
+          return authorization === 'Bearer ${token}'
+            || cookie === 'frontman_mcp_session=${encodeURIComponent(token)}'
+            ? 'authorized'
+            : 'insufficient-authorization';
+        },
+      },
+    }),
+  ],
+});
+`;
+  writeFileSync(resolve(fixtureDir, "vite.config.ts"), config);
 }

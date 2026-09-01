@@ -16,6 +16,7 @@ let fixture = name => Bindings.Path.join([fixturesPath, name])
 let makeCtx = (sourceRoot: string): Protocol.serverExecutionContext => {
   projectRoot: sourceRoot,
   sourceRoot,
+  signal: WebAPI.AbortController.make().signal,
 }
 
 let execute = (ctx, input) =>

@@ -5,11 +5,15 @@ module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
 let sourceRoot = "/tmp/frontman-astro-content-collections-test"
 let projectRoot = sourceRoot ++ "/apps/site"
-let ctx = {FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.projectRoot, sourceRoot}
+let ctx = {
+  FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.projectRoot,
+  sourceRoot,
+  signal: WebAPI.AbortController.make().signal,
+}
 
 let decodeToolResult = (result: MCP.CallToolResult.t): result<Tool.output, string> => {
   let json =
-    result->S.decodeOrThrow(~from=MCP.callToolResultSchema, ~to=S.json->S.noValidation(true))
+    result->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json->S.noValidation(true))
   let obj = json->JSON.Decode.object->Option.getOrThrow
   let isError = obj->Dict.get("isError")->Option.flatMap(JSON.Decode.bool)->Option.getOr(false)
   let content = obj->Dict.get("content")->Option.flatMap(JSON.Decode.array)->Option.getOrThrow

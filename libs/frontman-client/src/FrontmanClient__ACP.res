@@ -195,12 +195,14 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
     | (Ok(), Ok()) =>
       switch config.onConfigOptionsUpdated {
       | Some(callback) =>
-        channel->Channel.on(~event=#config_options_updated, ~callback=payload => {
+        channel
+        ->Channel.on(~event=#config_options_updated, ~callback=payload => {
           switch payload->Decoders.parseSchema(Types.configOptionsUpdatedSchema) {
           | Ok({configOptions}) => callback(configOptions)
           | Error(e) => Log.error(`Failed to parse config_options_updated payload: ${e}`)
           }
         })
+        ->ignore
       | None => ()
       }
 
@@ -276,22 +278,17 @@ let joinSession = async (
   )
 
   mcpServerInterface->Option.forEach(serverInterface => {
-    let handler: MCP.mcpHandler<'server> = {
-      serverInterface,
-      channel: sessionChannel,
-      sessionId,
-    }
-    sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
-      MCP.handleMessage(handler, payload)->ignore
-    })
+    MCP.attach(~channel=sessionChannel, ~serverInterface)->ignore
   })
 
-  sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
+  sessionChannel
+  ->Channel.on(~event=#title_updated, ~callback=payload => {
     switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
     | Ok({sessionId, title}) => onTitleUpdated(sessionId, title)
     | Error(e) => Log.error(`Failed to parse title_updated payload: ${e}`)
     }
   })
+  ->ignore
 
   let joinResult = await joinChannel(sessionChannel)
 

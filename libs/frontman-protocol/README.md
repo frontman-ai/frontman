@@ -13,15 +13,9 @@ Shared protocol definitions and type schemas for communication between clients a
 ### MCP (Model Context Protocol)
 
 Types for AI agent communication:
-- `server/discover` - Capability and version discovery
+- `server/discover` - Discover server identity and capabilities
 - `tools/list` - List available tools
 - `tools/call` - Execute a tool
-
-### Relay
-
-Framework tool relay protocol:
-- `remoteTool` - Remote tool execution request
-- `toolsResponse` - Tool execution response
 
 ### Tool
 
@@ -30,7 +24,11 @@ Tool interface definitions:
 - `BrowserTool` module type - Browser-side tool without context
 - `ExecutionContext` - Tool execution context with project/source root
 
+Framework integrations expose these tools through the MCP `server/discover`, `tools/list`, and `tools/call` contracts. There is no separate Relay protocol or private tool route contract.
+
 ## Development
+
+Generated JSON Schemas live in `schemas/generated.json` as named `$defs`. Stable per-schema files remain as small `$ref` entry points. `make check-schemas` verifies deterministic generation and `make schema-compatibility-test` verifies compaction plus backward-compatibility rules.
 
 Build the library:
 

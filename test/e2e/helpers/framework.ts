@@ -121,7 +121,10 @@ function logOutput(
 }
 
 
-export async function startNextjs(port: number): Promise<FrameworkServer> {
+export async function startNextjs(
+  port: number,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<FrameworkServer> {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/nextjs");
   killPort(port);
   let outputBuffer = "";
@@ -139,12 +142,15 @@ export async function startNextjs(port: number): Promise<FrameworkServer> {
   };
 
   const nextBin = resolveBin(fixtureDir, "next");
+  const devArgs = env.FRONTMAN_E2E_NEXT_WEBPACK === "1"
+    ? [nextBin, "dev", "--webpack", "-p", String(port)]
+    : [nextBin, "dev", "--turbopack", "-p", String(port)];
   const proc = spawn(
     process.execPath,
-    [nextBin, "dev", "--turbopack", "-p", String(port)],
+    devArgs,
     {
       cwd: fixtureDir,
-      env: { ...process.env, PORT: String(port) } as NodeJS.ProcessEnv,
+      env: { ...env, PORT: String(port) },
       stdio: "pipe",
     },
   );
@@ -163,12 +169,15 @@ export async function startNextjs(port: number): Promise<FrameworkServer> {
 }
 
 
-export async function startAstro(port: number): Promise<FrameworkServer> {
+export async function startAstro(
+  port: number,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<FrameworkServer> {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/astro");
   killPort(port);
 
   const astroBin = resolveBin(fixtureDir, "astro");
-  const astroEnv = { ...process.env, ASTRO_DEV_BACKGROUND: "0" };
+  const astroEnv = { ...env, ASTRO_DEV_BACKGROUND: "0" };
   delete astroEnv.VITEST;
   const proc = spawn(
     process.execPath,
@@ -192,7 +201,10 @@ export async function startAstro(port: number): Promise<FrameworkServer> {
 }
 
 
-export async function startVite(port: number): Promise<FrameworkServer> {
+export async function startVite(
+  port: number,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<FrameworkServer> {
   const fixtureDir = resolve(ROOT, "test/e2e/fixtures/vite");
   killPort(port);
 
@@ -202,7 +214,7 @@ export async function startVite(port: number): Promise<FrameworkServer> {
     [viteBin, "--host", "127.0.0.1", "--port", String(port), "--strictPort"],
     {
       cwd: fixtureDir,
-      env: { ...process.env } as NodeJS.ProcessEnv,
+      env: { ...env },
       stdio: "pipe",
     },
   );
@@ -252,7 +264,16 @@ export async function stopFramework(
 ): Promise<void> {
   if (!server) return;
 
-  server.proc.kill("SIGTERM");
+  if (server.proc.exitCode === null && server.proc.signalCode === null) {
+    server.proc.kill("SIGTERM");
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => server.proc.kill("SIGKILL"), 5_000);
+      server.proc.once("exit", () => {
+        clearTimeout(timer);
+        resolve();
+      });
+    });
+  }
   const fixturePath = relative(ROOT, server.fixtureDir);
 
   try {

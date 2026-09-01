@@ -53,5 +53,5 @@ let textResultWithFileChange = (
   let envelopeJson =
     envelope->S.decodeOrThrow(~from=FileChange.envelopeSchema, ~to=S.json->S.noValidation(true))
   structuredContent->Dict.set(FileChange.reservedKey, envelopeJson)
-  Tool.MCP.CallToolResult.makeTextWithStructured(message, structuredContent)
+  Tool.MCP.CallToolResult.makeTextWithStructured(message, JSON.Encode.object(structuredContent))
 }

@@ -79,6 +79,26 @@ defmodule SwarmAiTest do
 
       assert SwarmAi.running?(runtime, "task-r")
     end
+
+    test "stays exclusive after worker completion until terminal dispatch finishes" do
+      assert_lifecycle_exclusive("task-terminal", fn parent ->
+        send(parent, {:worker_running, self()})
+
+        receive do
+          :finish_worker -> {:error, :finished}
+        end
+      end)
+    end
+
+    test "stays exclusive after abnormal worker exit until crash dispatch finishes" do
+      assert_lifecycle_exclusive("task-crash", fn parent ->
+        send(parent, {:worker_running, self()})
+
+        receive do
+          :finish_worker -> raise "boom"
+        end
+      end)
+    end
   end
 
   describe "cancel/2" do
@@ -98,6 +118,76 @@ defmodule SwarmAiTest do
     test "returns error when not running" do
       runtime = start_runtime!()
       assert SwarmAi.cancel(runtime, "nope") == {:error, :not_running}
+    end
+
+    test "waits for an in-flight event dispatch before terminating the executor" do
+      runtime = start_runtime!()
+      parent = self()
+
+      loop =
+        test_execution(%MockLLM{response: "done"}, "TestBot",
+          id: "task-cancel-dispatch",
+          dispatch_event: fn event ->
+            case event do
+              {:chunk, _, _} ->
+                send(parent, {:dispatch_started, self(), event})
+
+                receive do
+                  :finish_dispatch -> :ok
+                end
+
+              _event ->
+                :ok
+            end
+          end
+        )
+
+      {:ok, lifecycle} = SwarmAi.run(runtime, loop)
+      assert_receive {:dispatch_started, ^lifecycle, {:chunk, _, _}}, 2_000
+      assert :ok = SwarmAi.cancel(runtime, "task-cancel-dispatch")
+      assert Process.alive?(lifecycle)
+
+      send(lifecycle, :finish_dispatch)
+      await_exit(lifecycle)
+    end
+  end
+
+  describe "lifecycle ownership" do
+    test "untrappable lifecycle death terminates the inner worker" do
+      runtime = start_runtime!()
+      parent = self()
+
+      loop =
+        test_execution(
+          %MockLLM{
+            response: fn ->
+              send(parent, {:inner_worker, self()})
+
+              receive do
+                :continue -> send(parent, :side_effect)
+              end
+            end
+          },
+          "TestBot",
+          id: "task-lifecycle-kill",
+          dispatch_event: fn event -> send(parent, {:event, event}) end
+        )
+
+      {:ok, lifecycle} = SwarmAi.run(runtime, loop)
+      assert_receive {:inner_worker, worker}, 2_000
+      lifecycle_monitor = Process.monitor(lifecycle)
+      worker_monitor = Process.monitor(worker)
+      assert SwarmAi.running?(runtime, "task-lifecycle-kill")
+
+      Process.exit(lifecycle, :kill)
+
+      assert_receive {:DOWN, ^lifecycle_monitor, :process, ^lifecycle, :killed}, 2_000
+      assert_receive {:DOWN, ^worker_monitor, :process, ^worker, :killed}, 2_000
+      refute SwarmAi.running?(runtime, "task-lifecycle-kill")
+
+      send(worker, :continue)
+      refute_receive :side_effect, 100
+      refute_receive {:event, _event}, 0
     end
   end
 
@@ -174,6 +264,41 @@ defmodule SwarmAiTest do
 
   defp run_agent(runtime, id, llm, opts \\ []) do
     SwarmAi.run(runtime, agent(id, llm, opts))
+  end
+
+  defp assert_lifecycle_exclusive(task_id, response) do
+    runtime = start_runtime!()
+    parent = self()
+    dispatch_release = make_ref()
+
+    loop =
+      test_execution(%MockLLM{response: fn -> response.(parent) end}, "TestBot",
+        id: task_id,
+        dispatch_event: fn event ->
+          send(parent, {:terminal_dispatching, event})
+
+          receive do
+            ^dispatch_release -> :ok
+          end
+        end
+      )
+
+    {:ok, lifecycle} = SwarmAi.run(runtime, loop)
+    assert_receive {:worker_running, worker}, 2_000
+    worker_monitor = Process.monitor(worker)
+    assert SwarmAi.running?(runtime, task_id)
+    assert SwarmAi.run(runtime, loop) == {:error, :already_running}
+
+    send(worker, :finish_worker)
+    assert_receive {:DOWN, ^worker_monitor, :process, ^worker, _reason}, 2_000
+    assert_receive {:terminal_dispatching, _event}, 2_000
+    assert SwarmAi.running?(runtime, task_id)
+    assert SwarmAi.run(runtime, loop) == {:error, :already_running}
+
+    lifecycle_monitor = Process.monitor(lifecycle)
+    send(lifecycle, dispatch_release)
+    assert_receive {:DOWN, ^lifecycle_monitor, :process, ^lifecycle, _reason}, 2_000
+    refute SwarmAi.running?(runtime, task_id)
   end
 
   defp await_exit(pid) do

@@ -1,0 +1,135 @@
+{
+  "discoverRequest": {
+    "jsonrpc": "2.0",
+    "id": "discover-1",
+    "method": "server/discover",
+    "params": {
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {
+          "extensions": {
+            "ai.frontman/execution-context": {
+              "version": 1
+            }
+          }
+        },
+        "io.modelcontextprotocol/clientInfo": {
+          "name": "frontman-server",
+          "version": "1.0.0"
+        }
+      }
+    }
+  },
+  "discoverResult": {
+    "resultType": "complete",
+    "supportedVersions": [
+      "2026-07-28"
+    ],
+    "capabilities": {
+      "tools": {},
+      "extensions": {
+        "ai.frontman/execution-context": {
+          "version": 1
+        }
+      }
+    },
+    "ttlMs": 0,
+    "cacheScope": "private"
+  },
+  "listRequest": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "tools/list",
+    "params": {
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {
+          "extensions": {
+            "ai.frontman/execution-context": {
+              "version": 1
+            }
+          }
+        },
+        "io.modelcontextprotocol/clientInfo": {
+          "name": "frontman-server",
+          "version": "1.0.0"
+        }
+      }
+    }
+  },
+  "listResult": {
+    "resultType": "complete",
+    "tools": [
+      {
+        "name": "read_file",
+        "inputSchema": {
+          "type": "object"
+        }
+      }
+    ],
+    "ttlMs": 0,
+    "cacheScope": "private"
+  },
+  "callRequest": {
+    "jsonrpc": "2.0",
+    "id": "call-1",
+    "method": "tools/call",
+    "params": {
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {
+          "extensions": {
+            "ai.frontman/execution-context": {
+              "version": 1
+            }
+          }
+        },
+        "io.modelcontextprotocol/clientInfo": {
+          "name": "frontman-server",
+          "version": "1.0.0"
+        },
+        "ai.frontman/execution-context": {
+          "taskId": "task-1",
+          "toolCallId": "tool-call-1"
+        }
+      },
+      "name": "read_file",
+      "arguments": {
+        "path": "README.md"
+      }
+    }
+  },
+  "completeResult": {
+    "resultType": "complete",
+    "content": [
+      {
+        "type": "text",
+        "text": "ok"
+      }
+    ],
+    "structuredContent": false,
+    "isError": false
+  },
+  "namedError": {
+    "jsonrpc": "2.0",
+    "id": 4,
+    "error": {
+      "code": -32022,
+      "message": "Unsupported MCP protocol version",
+      "data": {
+        "requested": "2025-11-25",
+        "supported": [
+          "2026-07-28"
+        ]
+      }
+    }
+  },
+  "cancellation": {
+    "jsonrpc": "2.0",
+    "method": "notifications/cancelled",
+    "params": {
+      "requestId": "call-1",
+      "reason": "timeout"
+    }
+  }
+}

@@ -30,7 +30,7 @@ Official sources:
 ## Validation Layers
 
 1. `acp_upstream_compliance_test.exs` validates complete JSON-RPC envelopes against official ACP.
-2. Generated schemas under `schemas/acp/` mirror local implementation types; metadata fragment schemas define the strict Frontman extension contract, while full session-update unions also include local behavior.
+2. Named ACP definitions in `schemas/generated.json` mirror local implementation types, with compatibility wrappers under `schemas/acp/`; metadata fragment schemas define the strict Frontman extension contract, while full session-update unions also include local behavior.
 3. Sury runtime parsing rejects malformed known attributed updates without degrading to unknown.
 4. Generic, unnegotiated parsing accepts ignorable Frontman metadata without applying it.
 

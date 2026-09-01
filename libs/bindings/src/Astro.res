@@ -39,12 +39,14 @@ external ssrLoadModule: (viteDevServer, string) => promise<'a> = "ssrLoadModule"
 
 type vitePluginConfig = {
   name: string,
+  enforce?: string,
   configureServer?: viteDevServer => unit,
 }
 
 external makeVitePlugin: vitePluginConfig => vitePlugin = "%identity"
 
-type partialViteConfig = {plugins?: array<vitePlugin>}
+type partialViteServerConfig = {cors?: bool}
+type partialViteConfig = {plugins?: array<vitePlugin>, server?: partialViteServerConfig}
 
 type partialMarkdownConfig = {rehypePlugins?: array<rehypePlugin>}
 type partialAstroConfig = {vite?: partialViteConfig, markdown?: partialMarkdownConfig}

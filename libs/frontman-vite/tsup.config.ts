@@ -76,4 +76,16 @@ export default defineConfig([
       js: '#!/usr/bin/env node',
     },
   },
+  {
+    entry: { 'mcp-json-schema-worker': '../frontman-core/src/mcp-json-schema-worker.mjs' },
+    format: ['esm'],
+    outDir: 'dist',
+    outExtension: () => ({ js: '.mjs' }),
+    clean: false,
+    noExternal: ['ajv'],
+    external: nodeBuiltins,
+    platform: 'node',
+    target: 'node18',
+    treeshake: true,
+  },
 ]);

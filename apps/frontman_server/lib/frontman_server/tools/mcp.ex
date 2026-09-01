@@ -9,11 +9,19 @@ defmodule FrontmanServer.Tools.MCP do
   Utilities for MCP tools from external clients.
   """
 
-  @enforce_keys [:name, :description, :input_schema, :timeout_ms, :on_timeout]
+  require Logger
+
+  alias FrontmanServer.JSONSchema
+
+  @enforce_keys [:name, :input_schema, :timeout_ms, :on_timeout]
   defstruct name: nil,
+            title: nil,
             description: nil,
             input_schema: nil,
             output_schema: nil,
+            icons: nil,
+            annotations: nil,
+            meta: nil,
             access: :read_write,
             visible_to_agent: true,
             timeout_ms: nil,
@@ -21,36 +29,29 @@ defmodule FrontmanServer.Tools.MCP do
 
   @default_timeout_ms 600_000
   @default_on_timeout :error
-  @tool_metadata_extension "ai.frontman/tool-metadata"
 
+  @spec from_map(map()) :: %__MODULE__{}
   def from_map(tool) when is_map(tool) do
-    metadata = get_in(tool, ["_meta", @tool_metadata_extension]) || %{}
-    {timeout_ms, on_timeout} = timeout_policy(metadata["executionMode"])
-
     %__MODULE__{
-      name: tool["name"],
+      name: Map.fetch!(tool, "name"),
+      title: tool["title"],
       description: tool["description"] || "",
-      input_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
+      input_schema: Map.fetch!(tool, "inputSchema"),
       output_schema: tool["outputSchema"],
-      access: parse_access(metadata["access"]),
-      visible_to_agent: Map.get(metadata, "visibleToAgent", true),
-      timeout_ms: timeout_ms,
-      on_timeout: on_timeout
+      icons: tool["icons"],
+      annotations: tool["annotations"],
+      meta: tool["_meta"],
+      timeout_ms: @default_timeout_ms,
+      on_timeout: @default_on_timeout
     }
   end
 
-  defp timeout_policy("Interactive"), do: {120_000, :pause_agent}
-  defp timeout_policy(_), do: {@default_timeout_ms, @default_on_timeout}
-
-  defp parse_access("read"), do: :read
-  defp parse_access("write"), do: :write
-  defp parse_access("read-write"), do: :read_write
-  defp parse_access(_), do: :read_write
-
+  @spec from_maps(list(map())) :: list(%__MODULE__{})
   def from_maps(tools) when is_list(tools) do
-    Enum.map(tools, &from_map/1)
+    Enum.flat_map(tools, &from_valid_map/1)
   end
 
+  @spec to_swarm_tools(list(%__MODULE__{})) :: list(SwarmAi.Tool.t())
   def to_swarm_tools(mcp_tools) when is_list(mcp_tools) do
     mcp_tools
     |> Enum.filter(& &1.visible_to_agent)
@@ -67,4 +68,22 @@ defmodule FrontmanServer.Tools.MCP do
       on_timeout: tool.on_timeout
     )
   end
+
+  defp from_valid_map(tool) do
+    with :ok <- JSONSchema.validate_schema(tool["inputSchema"]),
+         :ok <- validate_optional_schema(tool["outputSchema"]) do
+      [from_map(tool)]
+    else
+      {:error, reason} ->
+        Logger.warning("Excluding MCP tool with invalid schema",
+          tool_name: tool["name"],
+          reason: reason
+        )
+
+        []
+    end
+  end
+
+  defp validate_optional_schema(nil), do: :ok
+  defp validate_optional_schema(schema), do: JSONSchema.validate_schema(schema)
 end

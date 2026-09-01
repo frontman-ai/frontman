@@ -18,7 +18,7 @@ let fixture = name => Path.join([fixturesPath, name])
 
 let nextVersionForFixture = (fixtureName: string): option<string> => {
   if fixtureName->String.startsWith("nextjs15") {
-    Some("15.5.0")
+    Some("15.0.0")
   } else if fixtureName->String.startsWith("nextjs16") {
     Some("16.0.0")
   } else {
@@ -124,7 +124,7 @@ describe("Project Detection", _t => {
         switch result {
         | Ok(info) =>
           t->expect(info.nextVersion.major)->Expect.toBe(15)
-          t->expect(info.nextVersion.raw)->Expect.toBe("15.5.0")
+          t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
         | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
       },
@@ -154,7 +154,7 @@ describe("Project Detection", _t => {
         switch result {
         | Ok(info) =>
           t->expect(info.nextVersion.major)->Expect.toBe(15)
-          t->expect(info.nextVersion.raw)->Expect.toBe("15.5.0")
+          t->expect(info.nextVersion.raw)->Expect.toBe("15.0.0")
         | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
       },
@@ -269,8 +269,8 @@ describe("Project Detection", _t => {
         switch result {
         | Ok(version) =>
           t->expect(version.major)->Expect.toBe(15)
-          t->expect(version.minor)->Expect.toBe(5)
-          t->expect(version.raw)->Expect.toBe("15.5.0")
+          t->expect(version.minor)->Expect.toBe(0)
+          t->expect(version.raw)->Expect.toBe("15.0.0")
         | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
         }
       },
@@ -467,7 +467,30 @@ describe("Next.js 15 Clean Install", _t => {
       t->expect(c->String.includes("@frontman-ai/nextjs"))->Expect.toBe(true)
       t->expect(c->String.includes("host: 'test.frontman.dev'"))->Expect.toBe(true)
       t->expect(c->String.includes("createMiddleware"))->Expect.toBe(true)
+      t->expect(c->String.includes("'/mcp'"))->Expect.toBe(false)
     | None => t->expect("middleware.ts")->Expect.toBe("should exist")
+    }
+
+    let mcpRoute = await readTempFile(tempDir, "pages/api/frontman-mcp.ts")
+    switch mcpRoute {
+    | Some(c) =>
+      t->expect(c->String.includes("createMcpHandler"))->Expect.toBe(true)
+      t->expect(c->String.includes("bodyParser: false"))->Expect.toBe(true)
+      t->expect(c->String.includes("FRONTMAN_MCP_TOKEN"))->Expect.toBe(true)
+      t->expect(c->String.includes("FRONTMAN_MCP_ALLOWED_ORIGINS"))->Expect.toBe(true)
+      t->expect(c->String.includes("frontman_mcp_session"))->Expect.toBe(true)
+      t->expect(c->String.includes("headers.get('Cookie')"))->Expect.toBe(true)
+      t->expect(c->String.includes("headers.get('Authorization')"))->Expect.toBe(true)
+      t->expect(c->String.includes("principal: (headers)"))->Expect.toBe(true)
+    | None => t->expect("pages/api/frontman-mcp.ts")->Expect.toBe("should exist")
+    }
+
+    let nextConfig = await readTempFile(tempDir, "next.config.mjs")
+    switch nextConfig {
+    | Some(c) =>
+      t->expect(c->String.includes("source: '/mcp'"))->Expect.toBe(true)
+      t->expect(c->String.includes("destination: '/api/frontman-mcp'"))->Expect.toBe(true)
+    | None => t->expect("next.config.mjs")->Expect.toBe("should exist")
     }
 
     await cleanupTempFixture(tempDir)
@@ -496,6 +519,59 @@ describe("Next.js 15 Clean Install", _t => {
 
     await cleanupTempFixture(tempDir)
   })
+
+  testAsync("requires repair when an existing MCP route leaves body parsing enabled", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    let apiDirectory = Path.join([tempDir, "pages", "api"])
+    let _ = await Fs.Promises.mkdir(apiDirectory, {recursive: true})
+    await Fs.Promises.writeFile(
+      Path.join([apiDirectory, "frontman-mcp.ts"]),
+      "import { createMcpHandler } from '@frontman-ai/nextjs';\nexport default createMcpHandler({});\n// bodyParser: false\n",
+    )
+
+    let result = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    switch result {
+    | Install.PartialSuccess({manualStepsRequired}) =>
+      t
+      ->expect(
+        manualStepsRequired->Array.some(step => step->String.includes("pages/api/frontman-mcp.ts")),
+      )
+      ->Expect.toBe(true)
+    | Install.Success | Install.Failure(_) =>
+      t->expect("partial MCP route")->Expect.toBe("manual repair")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
+
+  testAsync("updates an existing next.config.ts without creating a competing config", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    await Fs.Promises.writeFile(Path.join([tempDir, "next.config.ts"]), "const nextConfig = {};\n")
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let nextConfig = await readTempFile(tempDir, "next.config.ts")
+    switch nextConfig {
+    | Some(content) =>
+      t->expect(content->String.includes("source: '/mcp'"))->Expect.toBe(true)
+      t->expect(content->String.includes("destination: '/api/frontman-mcp'"))->Expect.toBe(true)
+    | None => t->expect("next.config.ts")->Expect.toBe("should exist")
+    }
+    t->expect(await tempFileExists(tempDir, "next.config.mjs"))->Expect.toBe(false)
+
+    await cleanupTempFixture(tempDir)
+  })
 })
 
 describe("Next.js 16 Clean Install", _t => {
@@ -517,6 +593,7 @@ describe("Next.js 16 Clean Install", _t => {
       t->expect(c->String.includes("function proxy"))->Expect.toBe(true)
       t->expect(c->String.includes("matcher"))->Expect.toBe(true)
       t->expect(c->String.includes("/frontman"))->Expect.toBe(true)
+      t->expect(c->String.includes("'/mcp'"))->Expect.toBe(false)
     | None => t->expect("proxy.ts")->Expect.toBe("should exist")
     }
 
@@ -909,142 +986,6 @@ describe("Dry Run Mode", _t => {
     let instrumentationExists = await tempFileExists(tempDir, "instrumentation.ts")
     t->expect(instrumentationExists)->Expect.toBe(false)
 
-    await cleanupTempFixture(tempDir)
-  })
-})
-
-describe("Unsupported Next.js Versions", _t => {
-  testAsync("rejects Next.js 15.4 with --skip-deps before generating files", async t => {
-    let tempDir = await createTempFixture("nextjs15-clean")
-    await setupMockNextVersion(tempDir, "15.4.0")
-
-    let result = await Install.run({
-      server: "test.frontman.dev",
-      prefix: Some(tempDir),
-      dryRun: false,
-      skipDeps: true,
-    })
-
-    switch result {
-    | Install.Failure(message) =>
-      t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
-    | _ => t->expect("install")->Expect.toBe("reject unsupported Next.js")
-    }
-    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
-    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
-    await cleanupTempFixture(tempDir)
-  })
-
-  testAsync("rejects Next.js 15.4 before installing dependencies", async t => {
-    let tempDir = await createTempFixture("nextjs15-clean")
-    await setupMockNextVersion(tempDir, "15.4.0")
-    let failingExec = async (_command, _options): result<
-      ChildProcess.execResult,
-      ChildProcess.execError,
-    > => Error({code: None, stdout: "", stderr: "dependencies ran", message: "dependencies ran"})
-
-    let result = await Install.run(
-      {
-        server: "test.frontman.dev",
-        prefix: Some(tempDir),
-        dryRun: false,
-        skipDeps: false,
-      },
-      ~exec=failingExec,
-    )
-
-    switch result {
-    | Install.Failure(message) =>
-      t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
-      t->expect(message->String.includes("dependencies ran"))->Expect.toBe(false)
-    | _ => t->expect("install")->Expect.toBe("reject unsupported Next.js")
-    }
-    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
-    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
-    await cleanupTempFixture(tempDir)
-  })
-
-  testAsync("rejects Next.js 15.4 during --dry-run", async t => {
-    let tempDir = await createTempFixture("nextjs15-clean")
-    await setupMockNextVersion(tempDir, "15.4.0")
-
-    let result = await Install.run({
-      server: "test.frontman.dev",
-      prefix: Some(tempDir),
-      dryRun: true,
-      skipDeps: false,
-    })
-
-    switch result {
-    | Install.Failure(message) =>
-      t->expect(message->String.includes("15.5 or later"))->Expect.toBe(true)
-    | _ => t->expect("install")->Expect.toBe("reject unsupported Next.js")
-    }
-    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
-    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
-    await cleanupTempFixture(tempDir)
-  })
-})
-
-describe("Dependency Installation Failure", _t => {
-  testAsync("fails when the imported Frontman entrypoint cannot be resolved", async t => {
-    let tempDir = await createTempFixture("nextjs15-clean")
-    let frontmanDir = Path.join([tempDir, "node_modules", "@frontman-ai", "nextjs"])
-    let _ = await Fs.Promises.mkdir(frontmanDir, {recursive: true})
-    await Fs.Promises.writeFile(Path.join([frontmanDir, "package.json"]), `{"main":"index.js"}`)
-    await Fs.Promises.writeFile(Path.join([frontmanDir, "index.js"]), "")
-    let successfulExec = async (_command, _options): result<
-      ChildProcess.execResult,
-      ChildProcess.execError,
-    > => Ok({stdout: "", stderr: ""})
-
-    let result = await Install.installDependencies(
-      ~projectDir=tempDir,
-      ~packageManager=Detect.Npm,
-      ~dryRun=false,
-      ~exec=successfulExec,
-    )
-
-    switch result {
-    | Error(message) =>
-      t->expect(message->String.includes("@frontman-ai/nextjs/Instrumentation"))->Expect.toBe(true)
-    | Ok() => t->expect("success")->Expect.toBe("dependency resolution failure")
-    }
-
-    await cleanupTempFixture(tempDir)
-  })
-
-  testAsync("stops before writing integration files", async t => {
-    let tempDir = await createTempFixture("nextjs15-clean")
-    let failingExec = async (_command, _options): result<
-      ChildProcess.execResult,
-      ChildProcess.execError,
-    > => Error({
-      code: None,
-      stdout: "",
-      stderr: "network failure",
-      message: "network failure",
-    })
-
-    let result = await Install.run(
-      {
-        server: "test.frontman.dev",
-        prefix: Some(tempDir),
-        dryRun: false,
-        skipDeps: false,
-      },
-      ~exec=failingExec,
-    )
-
-    switch result {
-    | Install.Failure(message) =>
-      t->expect(message->String.includes("network failure"))->Expect.toBe(true)
-    | Install.Success => t->expect("success")->Expect.toBe("dependency failure")
-    | Install.PartialSuccess(_) => t->expect("partial success")->Expect.toBe("dependency failure")
-    }
-
-    t->expect(await tempFileExists(tempDir, "middleware.ts"))->Expect.toBe(false)
-    t->expect(await tempFileExists(tempDir, "instrumentation.ts"))->Expect.toBe(false)
     await cleanupTempFixture(tempDir)
   })
 })

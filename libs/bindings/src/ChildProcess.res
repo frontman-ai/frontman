@@ -27,6 +27,8 @@ type execInternalOptions = {
   encoding: string,
 }
 
+type childProcess
+
 @module("node:child_process")
 external nodeExec: (
   string,
@@ -34,7 +36,12 @@ external nodeExec: (
   (Nullable.t<execException>, string, string) => unit,
 ) => unit = "exec"
 
-type childProcess
+@module("node:child_process")
+external nodeExecProcess: (
+  string,
+  execInternalOptions,
+  (Nullable.t<execException>, string, string) => unit,
+) => childProcess = "exec"
 
 type spawnOptions = {
   cwd?: string,

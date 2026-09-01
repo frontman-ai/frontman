@@ -43,7 +43,14 @@ let make = (): Trace.spanProcessor => {
         let statusCode = getNum(attrs, "http.status_code")
         let path = route->Option.getOr("unknown")
 
-        if !(path == "/frontman" || path->String.startsWith("/frontman/")) {
+        if (
+          !(
+            path == "/frontman" ||
+            path->String.startsWith("/frontman/") ||
+            path == "/mcp" ||
+            path == "/api/frontman-mcp"
+          )
+        ) {
           let durationMs = calculateDuration(span)
 
           let (message, level) = switch spanType {

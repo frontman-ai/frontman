@@ -8,7 +8,7 @@ module Log = FrontmanLogs.Logs.Make({
 
 type relayState =
   | Disconnected
-  | Connected({tools: array<Types.remoteTool>, @live serverInfo: MCPTypes.info})
+  | Connected({tools: array<Types.remoteTool>, @live serverInfo: MCPTypes.Implementation.t})
   | Error(string)
 
 type t = {
@@ -139,7 +139,7 @@ let executeTool = async (relay: t, ~name: string, ~arguments: option<Dict.t<JSON
         switch await SSE.readStream(response) {
         | Ok(json) =>
           json
-          ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
+          ->Decoders.parseSchema(MCPTypes.CallToolResult.schema)
           ->Result.mapError(msg => `Invalid result: ${msg}`)
         | Error(msg) => Error(msg)
         }

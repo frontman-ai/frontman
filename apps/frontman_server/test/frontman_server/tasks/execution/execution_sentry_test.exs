@@ -15,7 +15,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.StreamStallTimeout
@@ -25,8 +24,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
 
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
+    FrontmanServer.DataCase.start_shared_owner!()
 
     scope = user_scope_fixture()
     task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id

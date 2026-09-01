@@ -8,9 +8,11 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
   blocks->Array.forEach(block =>
     switch block {
     | EmbeddedResource({_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})})
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation_screenshot")) !=
-        None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.screenshotMetaSchema)
+      if meta->Dict.get("annotation_screenshot") != None =>
+      let parsed = S.parseOrThrow(
+        JSON.Encode.object(meta),
+        ~to=Client__Task__Types.screenshotMetaSchema,
+      )
       if parsed.annotationScreenshot {
         screenshotMap->Dict.set(
           parsed.annotationId,
@@ -28,8 +30,11 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
     | TextContent({text}) =>
       content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
     | EmbeddedResource({_meta: Some(meta), resource: TextResourceContents(_)})
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation")) != None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.annotationMetaSchema)
+      if meta->Dict.get("annotation") != None =>
+      let parsed = S.parseOrThrow(
+        JSON.Encode.object(meta),
+        ~to=Client__Task__Types.annotationMetaSchema,
+      )
       if parsed.annotation {
         annotations
         ->Array.push(
@@ -41,10 +46,10 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
         ->ignore
       }
     | EmbeddedResource({_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})}) =>
-      switch meta->JSON.Decode.object {
-      | Some(d) if d->Dict.get("user_image") == Some(JSON.Encode.bool(true)) =>
+      switch meta->Dict.get("user_image") {
+      | Some(value) if value == JSON.Encode.bool(true) =>
         let filename =
-          d->Dict.get("filename")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
+          meta->Dict.get("filename")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
         let mime = mimeType->Option.getOrThrow
         content
         ->Array.push(

@@ -329,6 +329,7 @@ describe("Grep Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: Grep.input = {
@@ -373,6 +374,7 @@ describe("Grep Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: Grep.input = {
@@ -413,6 +415,7 @@ describe("Grep Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: Grep.input = {
@@ -449,6 +452,7 @@ describe("Grep Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: Grep.input = {
@@ -484,6 +488,7 @@ describe("Grep Tool - execute (integration)", _t => {
       let ctx: Tool.serverExecutionContext = {
         projectRoot: tempDir,
         sourceRoot: tempDir,
+        signal: WebAPI.AbortController.make().signal,
       }
 
       let input: Grep.input = {

@@ -42,9 +42,9 @@ That architecture creates a protocol problem. The browser has the UI and runtime
 So Frontman is not one process. It is a small distributed system.
 
 ```text
-Browser Client --ACP/MCP over WebSocket-- Frontman Server --LLM API-- Provider
+Browser Client --ACP and MCP over Phoenix-- Frontman Server --LLM API-- Provider
      |                                             |
-     +----HTTP/SSE relay---- Dev Server Tools <----+
+     +----MCP Streamable HTTP---- Dev Server Tools <----+
 ```
 
 That split is deliberate. The Frontman server does not need direct access to your local filesystem. Browser inspection happens in the browser. File reads and edits happen through the framework integration running with your dev server. The server coordinates the loop and persists task history.
@@ -169,11 +169,11 @@ ACP answers: what is happening in the agent session?
 
 MCP answers: what tools exist, how does the agent call them, and what result came back?
 
-Frontman uses MCP concepts for `initialize`, `tools/list`, `tools/call`, browser-side tools, and dev-server relay tools. A file edit might follow this path:
+Frontman uses latest-only MCP `server/discover`, `tools/list`, and `tools/call` contracts for browser-side and dev-server tools. A file edit might follow this path:
 
 ```text
-Agent runtime --MCP tool call--> Browser client --HTTP/SSE--> Dev server plugin
-Agent runtime <--MCP tool result-- Browser client <---------- Dev server plugin
+Agent runtime --MCP tool call--> Browser client --MCP Streamable HTTP--> Dev server plugin
+Agent runtime <--MCP tool result-- Browser client <--------------------- Dev server plugin
 ```
 
 ACP wraps the user-facing task state around that. It lets the browser render "editing file," "tool completed," "plan updated," and "turn complete" without caring whether the tool ran in the browser, on the dev server, or on the Frontman server.
@@ -198,7 +198,7 @@ Frontman is ACP-aligned for core agent-client session semantics. It is not a pur
 
 The transport is Phoenix Channels. ACP payloads move inside the `acp:message` channel event rather than over a raw process transport. Frontman also has product-level channel events for session listing, deletion, title updates, and config option refreshes. There is a Frontman-specific `session/retry_turn` notification because retries are part of the product's failure recovery model.
 
-That is the honest architecture. ACP gives Frontman the session contract. Phoenix gives us authenticated WebSocket infrastructure. MCP gives us executable tool contracts. The relay protocol gets local file operations to the dev server without giving the hosted server direct filesystem access.
+That is the honest architecture. ACP gives Frontman the session contract. Phoenix gives us authenticated WebSocket infrastructure and carries the documented custom MCP transport. MCP Streamable HTTP gets local file operations to the dev server without giving the hosted server direct filesystem access.
 
 The important rule is to keep the seams explicit. Standard where standard fits. Extend where the product needs it. Do not pretend extensions are the standard.
 

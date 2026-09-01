@@ -46,14 +46,21 @@ test("preserves relayed MCP tool metadata and parses legacy results", t => {
   relay.state :=
     Relay.Connected({
       tools: [tool],
-      serverInfo: {name: "test", version: "1"},
+      serverInfo: {
+        name: "test",
+        title: None,
+        version: "1",
+        description: None,
+        websiteUrl: None,
+        icons: None,
+      },
     })
 
   t
   ->expect(relay->Relay.getToolsJson->Array.get(0)->Option.map(jsonString))
   ->Expect.toEqual(Some(JSON.stringify(tool)))
   t->expect(relay->Relay.hasTool("tool"))->Expect.toBe(true)
-  JSON.parseOrThrow(`{"content":[]}`)
-  ->S.parseOrThrow(~to=FrontmanClient__MCP__Types.callToolResultSchema)
+  JSON.parseOrThrow(`{"resultType":"complete","content":[]}`)
+  ->S.parseOrThrow(~to=FrontmanClient__MCP__Types.CallToolResult.schema)
   ->ignore
 })

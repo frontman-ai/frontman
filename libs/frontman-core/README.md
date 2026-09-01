@@ -6,7 +6,7 @@ Core server functionality shared across framework adapters, providing a composab
 
 - [ReScript](https://rescript-lang.org) with ES6 modules
 - Composable tool registry pattern
-- SSE for streaming
+- MCP 2026-07-28 Streamable HTTP request handling
 - Ripgrep for fast content search (with git grep fallback)
 
 ## Features
@@ -14,7 +14,8 @@ Core server functionality shared across framework adapters, providing a composab
 - Composable tool registry for managing server-side tools
 - Core tool execution engine
 - Safe path validation
-- Event streaming utilities
+- Exact `/mcp` endpoint dispatch with Origin and authorization gates
+- JSON and Streamable HTTP SSE response handling
 
 ## Built-in Tools
 

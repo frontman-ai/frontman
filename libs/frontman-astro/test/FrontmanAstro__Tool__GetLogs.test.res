@@ -15,27 +15,24 @@ let writeToStderr: string => unit = %raw(`
   function(message) { process.stderr.write(message + "\n"); }
 `)
 
-let makeMiddleware = () => Helpers.makeMiddleware(~registry=ToolRegistry.make())
+let makeRegistry = () => ToolRegistry.make()
 
-describe("get_logs via HTTP middleware (integration)", _t => {
-  testAsync(
-    "stderr Astro [ERROR] messages are returned by get_logs through the tools/call endpoint",
-    async t => {
-      resetLogCapture()
-      LogCapture.initialize()
+describe("get_logs selected-tool execution", _t => {
+  testAsync("stderr Astro [ERROR] messages are returned by get_logs", async t => {
+    resetLogCapture()
+    LogCapture.initialize()
 
-      writeToStderr(`18:16:48 [ERROR] Unable to locate "viewfinder-circle" icon!`)
+    writeToStderr(`18:16:48 [ERROR] Unable to locate "viewfinder-circle" icon!`)
 
-      let middleware = makeMiddleware()
-      let sseBody = await Helpers.callTool(
-        middleware,
-        ~name="get_logs",
-        ~arguments=JSON.Encode.object(Dict.fromArray([("level", JSON.Encode.string("build"))])),
-      )
+    let registry = makeRegistry()
+    let resultBody = await Helpers.callTool(
+      registry,
+      ~name="get_logs",
+      ~arguments=JSON.Encode.object(Dict.fromArray([("level", JSON.Encode.string("build"))])),
+    )
 
-      t->expect(sseBody->String.includes("viewfinder-circle"))->Expect.toBe(true)
-    },
-  )
+    t->expect(resultBody->String.includes("viewfinder-circle"))->Expect.toBe(true)
+  })
 
   testAsync(
     "get_logs with level:build returns nothing when stderr was not initialized",
@@ -44,20 +41,19 @@ describe("get_logs via HTTP middleware (integration)", _t => {
 
       writeToStderr(`18:16:48 [ERROR] Unable to locate "some-other-icon" icon!`)
 
-      let middleware = makeMiddleware()
-      let sseBody = await Helpers.callTool(
-        middleware,
+      let registry = makeRegistry()
+      let resultBody = await Helpers.callTool(
+        registry,
         ~name="get_logs",
         ~arguments=JSON.Encode.object(Dict.fromArray([("level", JSON.Encode.string("build"))])),
       )
 
-      t->expect(sseBody->String.includes("some-other-icon"))->Expect.toBe(false)
+      t->expect(resultBody->String.includes("some-other-icon"))->Expect.toBe(false)
     },
   )
 
-  testAsync("get_logs is listed in the tools endpoint", async t => {
-    let middleware = makeMiddleware()
-    let body = await Helpers.getEndpoint(middleware, ~path="tools")
+  test("get_logs is listed in modern tool definitions", t => {
+    let body = makeRegistry()->Helpers.serializeModernTools
     t->expect(body->String.includes("get_logs"))->Expect.toBe(true)
   })
 })

@@ -1,27 +1,4 @@
 {
-  "type": "object",
-  "properties": {
-    "content": {
-      "type": "string"
-    },
-    "priority": {
-      "enum": [
-        "high",
-        "medium",
-        "low"
-      ]
-    },
-    "status": {
-      "enum": [
-        "pending",
-        "in_progress",
-        "completed"
-      ]
-    }
-  },
-  "required": [
-    "content",
-    "priority",
-    "status"
-  ]
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$ref": "../generated.json#/$defs/acp~1planEntry"
 }

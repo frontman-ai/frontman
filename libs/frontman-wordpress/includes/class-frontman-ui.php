@@ -3,8 +3,7 @@
  * UI — serves the Frontman client at /frontman.
  *
  * This page is served directly by the router's parse_request interception,
- * not via wp-admin. The client JS fetches /frontman/tools and
- * /frontman/tools/call at the same origin as the WordPress site.
+ * not via wp-admin. The client uses /mcp at the same origin as the WordPress site.
  *
  * Auth is already verified by the router before render_page() is called.
  *
@@ -60,7 +59,7 @@ class Frontman_UI {
 		);
 
 		add_action( 'load-toplevel_page_frontman', function (): void {
-			wp_safe_redirect( self::url( '/frontman' ) );
+			wp_safe_redirect( home_url( '/frontman' ) );
 			exit;
 		} );
 	}
@@ -103,10 +102,10 @@ class Frontman_UI {
 		);
 
 		$runtime = [
-			'framework'    => 'wordpress',
-			'basePath'     => 'frontman',
-			'relayBaseUrl' => self::url( '' ),
-			'wpNonce'      => Frontman_Auth::create_nonce(),
+			'framework' => 'wordpress',
+			'basePath'  => 'frontman',
+			'mcpBaseUrl' => untrailingslashit( home_url() ),
+			'wpNonce'   => Frontman_Auth::create_nonce(),
 		];
 
 		$entrypoint_url = null;
@@ -134,7 +133,7 @@ class Frontman_UI {
 		hidden
 		data-framework="<?php echo esc_attr( $runtime['framework'] ); ?>"
 		data-base-path="<?php echo esc_attr( $runtime['basePath'] ); ?>"
-		data-relay-base-url="<?php echo esc_attr( $runtime['relayBaseUrl'] ); ?>"
+		data-mcp-base-url="<?php echo esc_url( $runtime['mcpBaseUrl'] ); ?>"
 		data-wp-nonce="<?php echo esc_attr( $runtime['wpNonce'] ); ?>"
 	></div>
 	<?php if ( $entrypoint_url ) : ?>
@@ -160,15 +159,6 @@ class Frontman_UI {
 </body>
 </html>
 		<?php
-	}
-
-	/**
-	 * Return a Frontman URL for the active permalink mode.
-	 */
-	public static function url( string $path ): string {
-		$permalink_structure = get_option( 'permalink_structure' );
-		$front_controller = '' === $permalink_structure || 0 === strpos( $permalink_structure, '/index.php' ) ? '/index.php' : '';
-		return home_url( $front_controller . $path );
 	}
 
 	/**

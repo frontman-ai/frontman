@@ -22,7 +22,7 @@ let _getBasePath: unit => string = {
 
 let _getRoutePaths = () => {
   try {
-    let routePrefix = WebAPI.URL.make(~url=Client__RelayBaseUrl.current()).pathname
+    let routePrefix = WebAPI.URL.make(~url=Client__MCPBaseUrl.current()).pathname
     (routePrefix, routePrefix->String.replace("/index.php", ""))
   } catch {
   | _ => ("", "")

@@ -1,0 +1,9 @@
+{
+	"landingPage": "/wp-admin/",
+	"steps": [
+		{
+			"step": "activatePlugin",
+			"pluginPath": "frontman-agentic-ai-editor/frontman.php"
+		}
+	]
+}

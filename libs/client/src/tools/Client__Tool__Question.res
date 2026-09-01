@@ -49,7 +49,9 @@ let execute = async (
   input: input,
   ~taskId: string,
   ~toolCallId: string,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): Tool.MCP.CallToolResult.t => {
+  let onAbort = ref(None)
   let result = await Promise.make((resolve, _reject) => {
     let resolveOk = (json: JSON.t) => {
       resolve(Ok(json))
@@ -58,14 +60,28 @@ let execute = async (
       resolve(Error(msg))
     }
 
-    Client__State.Actions.questionReceived(
-      ~taskId,
-      ~questions=input.questions,
-      ~toolCallId,
-      ~resolveOk,
-      ~resolveError,
-    )
+    let listener = _ => {
+      Client__State.Actions.questionCancelled(~taskId)
+      resolveError("Request cancelled")
+    }
+    onAbort := Some(listener)
+    signal->WebAPI.AbortSignal.addEventListener(Abort, listener, ~options={once: true})
+
+    switch signal.aborted {
+    | true => resolveError("Request cancelled")
+    | false =>
+      Client__State.Actions.questionReceived(
+        ~taskId,
+        ~questions=input.questions,
+        ~toolCallId,
+        ~resolveOk,
+        ~resolveError,
+      )
+    }
   })
+  onAbort.contents->Option.forEach(listener =>
+    signal->WebAPI.AbortSignal.removeEventListener(Abort, listener)
+  )
 
   switch result {
   | Ok(json) =>

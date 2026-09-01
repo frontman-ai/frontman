@@ -53,7 +53,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        %{"content" => [], "structuredContent" => write_result},
+        %{"resultType" => "complete", "content" => [], "structuredContent" => write_result},
         turn_number: turn_number
       )
 
@@ -99,7 +99,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        %{"content" => [], "structuredContent" => first_result},
+        %{"resultType" => "complete", "content" => [], "structuredContent" => first_result},
         turn_number: turn_number
       )
 
@@ -107,7 +107,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
-        %{"content" => [], "structuredContent" => second_result},
+        %{"resultType" => "complete", "content" => [], "structuredContent" => second_result},
         turn_number: turn_number
       )
 
@@ -143,7 +143,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        %{"content" => [], "structuredContent" => good_result},
+        %{"resultType" => "complete", "content" => [], "structuredContent" => good_result},
         turn_number: turn_number
       )
 
@@ -170,7 +170,11 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
-        %{"content" => [], "structuredContent" => %{"todos" => []}},
+        %{
+          "resultType" => "complete",
+          "content" => [],
+          "structuredContent" => %{"todos" => []}
+        },
         turn_number: turn_number
       )
 
@@ -187,7 +191,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c1", name: "todo_add"},
-        %{"id" => "fake", "content" => "Old todo"},
+        MCP.tool_result_json(%{"id" => "fake", "content" => "Old todo"}),
         turn_number: turn_number
       )
 
@@ -195,7 +199,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         scope,
         task_id,
         %{id: "c2", name: "todo_update"},
-        %{"id" => "fake", "status" => "completed"},
+        MCP.tool_result_json(%{"id" => "fake", "status" => "completed"}),
         turn_number: turn_number
       )
 

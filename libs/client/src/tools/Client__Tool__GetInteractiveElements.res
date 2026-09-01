@@ -70,8 +70,9 @@ let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
+  ~signal as _signal: WebAPI.EventTypes.abortSignal,
 ): Tool.MCP.CallToolResult.t => {
-  Client__Tool__PreviewContext.withPreview(
+  Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=() =>
       Tool.structuredResult(
         {
@@ -85,22 +86,19 @@ let execute = async (
       ),
     ({doc, win}) => {
       try {
-        let resolved = Client__Tool__ElementQuery.queryInteractiveElements(
+        let resolved = Client__Tool__ElementResolver.collectInteractiveElements(
           ~document=doc,
           ~contentWindow=win,
-          ~roleFilter=input.role,
-          ~nameFilter=input.name,
-          ~limit=Some(maxElements),
+          ~roleFilter=?input.role,
+          ~nameFilter=?input.name,
+          ~maxElements,
         )
 
         let elements = resolved->Array.mapWithIndex((el, idx) => {
-          let selector = switch Client__ElementInspector.findSelector(
+          let selector = Client__Tool__ElementResolver.generateSelector(
             ~element=el.element,
-            ~document=doc,
-          ) {
-          | Ok(selector) => Some(selector)
-          | Error(_) => None
-          }
+            ~document=Some(doc),
+          )
 
           {
             index: idx,
@@ -108,7 +106,9 @@ let execute = async (
             name: el.name,
             tag: el.tag,
             selector,
-            detectionMethod: Client__Tool__ElementQuery.detectionMethodToString(el.detectionMethod),
+            detectionMethod: Client__Tool__ElementResolver.detectionMethodToString(
+              el.detectionMethod,
+            ),
             visibleText: el.visibleText,
           }
         })
@@ -132,7 +132,7 @@ let execute = async (
             elements: None,
             totalCount: None,
             truncated: None,
-            error: Some(Client__Tool__PreviewContext.exnMessage(exn)),
+            error: Some(Client__Tool__ElementResolver.exnMessage(exn)),
           },
           outputSchema,
         )

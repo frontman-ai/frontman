@@ -11,3 +11,7 @@ export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
   }
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: ['/frontman', '/frontman/:path*'],
+};
