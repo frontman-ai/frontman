@@ -82,6 +82,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     fallback_title_length = 60
 
     user_prompt_text
+    |> String.trim()
     |> String.split("\n", parts: 2)
     |> hd()
     |> String.trim()
