@@ -36,7 +36,6 @@ let mock = value => Obj.magic(value)
 let loginUrl = "https://app.frontman.sh/users/log-in"
 let initConfig: Reducer.initConfig = {
   endpoint: "ws://test",
-  tokenUrl: "http://test/api/socket-token",
   loginUrl: "http://test/users/log-in",
   clientName: "test",
   clientVersion: "1.0.0",

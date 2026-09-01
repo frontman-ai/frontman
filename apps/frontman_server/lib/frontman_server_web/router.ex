@@ -24,11 +24,9 @@ defmodule FrontmanServerWeb.Router do
     plug(:accepts, ["json"])
   end
 
-  pipeline :api_with_session do
+  pipeline :bearer_api do
     plug(:accepts, ["json"])
-    plug(:fetch_session)
-    plug(:fetch_current_scope_for_user)
-    plug(:require_authenticated_user_api)
+    plug(:require_embedded_client_bearer_token)
     plug(FrontmanServerWeb.Plugs.SentryContext)
   end
 
@@ -39,7 +37,8 @@ defmodule FrontmanServerWeb.Router do
 
     delete("/users/log-out", UserSessionController, :delete)
     get("/users/log-out", UserSessionController, :confirm_logout)
-    get("/users/popup-complete", UserSessionController, :popup_complete)
+    get("/users/popup-complete", EmbeddedClientAuthController, :show)
+    post("/users/popup-complete", EmbeddedClientAuthController, :approve)
   end
 
   scope "/health", FrontmanServerWeb do
@@ -91,13 +90,9 @@ defmodule FrontmanServerWeb.Router do
   end
 
   scope "/api", FrontmanServerWeb do
-    pipe_through(:browser)
+    pipe_through(:bearer_api)
 
-    get("/socket-token", SocketTokenController, :show)
-  end
-
-  scope "/api", FrontmanServerWeb do
-    pipe_through(:api_with_session)
+    delete("/client-token", ClientTokenController, :delete)
 
     get("/user/me", UserMeController, :show)
     get("/user/api-keys", UserApiKeyController, :index)

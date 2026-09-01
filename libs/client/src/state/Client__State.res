@@ -137,10 +137,19 @@ module Actions = {
     ~retryTurn,
     ~loadTask,
     ~deleteSession,
+    ~requireAuthentication,
     ~apiBaseUrl,
   ) =>
     Client__State__Store.dispatch(
-      SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}),
+      SetAcpSession({
+        sendPrompt,
+        cancelPrompt,
+        retryTurn,
+        loadTask,
+        deleteSession,
+        requireAuthentication,
+        apiBaseUrl,
+      }),
     )
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)

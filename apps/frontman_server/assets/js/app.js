@@ -30,6 +30,19 @@ document.querySelectorAll("form[data-auto-submit]").forEach(form => {
   form.requestSubmit()
 })
 
+const embeddedClientAuthCompletion = document.getElementById("embedded-client-auth-completion")
+if (embeddedClientAuthCompletion && window.opener) {
+  window.opener.postMessage(
+    {
+      type: "frontman.embeddedClient.authorized",
+      version: 1,
+      state: embeddedClientAuthCompletion.dataset.state,
+      token: embeddedClientAuthCompletion.dataset.token,
+    },
+    embeddedClientAuthCompletion.dataset.origin,
+  )
+}
+
 window.liveSocket = liveSocket
 
 if (process.env.NODE_ENV === "development") {

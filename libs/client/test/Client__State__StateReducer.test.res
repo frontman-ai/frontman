@@ -20,12 +20,14 @@ afterEach(() => clearRuntime())
 module TestHelpers = {
   let activeAcpSession = (
     ~deleteSession=(_, ~onComplete as _) => (),
+    ~requireAuthentication=() => (),
   ): Client__State__Types.acpSession => AcpSessionActive({
     sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
     cancelPrompt: () => (),
     retryTurn: _ => (),
     loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
     deleteSession,
+    requireAuthentication,
     apiBaseUrl: "http://localhost:4000",
   })
 
@@ -248,6 +250,107 @@ describe("Client State Reducer - Custom Providers", () => {
       Reducer.CustomProviderMutationSucceeded({operation: deleteOperation, provider: None}),
       Reducer.CustomProviderMutationFailed({operation: deleteOperation, error}),
     ]->Array.forEach(action => t->expect(reduce(saving, action))->Expect.toEqual(saving))
+  })
+
+  test("custom provider effects request shared authentication when token is missing", t => {
+    WebAPI.Window.current
+    ->WebAPI.Window.localStorage
+    ->WebAPI.Storage.removeItem(Client__EmbeddedAuth.tokenStorageKey)
+
+    let requireAuthenticationCalled = ref(false)
+    let state = {
+      ...Reducer.defaultState,
+      acpSession: TestHelpers.activeAcpSession(
+        ~requireAuthentication=() => {
+          requireAuthenticationCalled := true
+        },
+      ),
+    }
+    let (_fetchState, fetchEffects) = Reducer.next(state, Reducer.FetchCustomProviders)
+
+    switch fetchEffects->Array.get(0) {
+    | Some(effect) => Reducer.handleEffect(effect, state, _ => ())
+    | None => JsExn.throw("Expected FetchCustomProvidersEffect")
+    }
+    t->expect(requireAuthenticationCalled.contents)->Expect.toBe(true)
+
+    requireAuthenticationCalled := false
+    let (mutationState, mutationEffects) = Reducer.next(state, Reducer.SaveCustomProvider(draft()))
+    let dispatched = ref([])
+    switch mutationEffects->Array.get(0) {
+    | Some(effect) =>
+      Reducer.handleEffect(
+        effect,
+        mutationState,
+        action => dispatched := Array.concat(dispatched.contents, [action]),
+      )
+    | None => JsExn.throw("Expected CustomProviderMutationEffect")
+    }
+    t->expect(requireAuthenticationCalled.contents)->Expect.toBe(true)
+    switch dispatched.contents {
+    | [Reducer.CustomProviderMutationFailed({operation, error})] => {
+        t->expect(operation)->Expect.toEqual(StateTypes.SavingCustomProvider(None))
+        t
+        ->expect(error)
+        ->Expect.toEqual(
+          StateTypes.CustomProviderNetworkError("Frontman authorization is required"),
+        )
+      }
+    | _ => JsExn.throw("Expected custom provider auth-required failure")
+    }
+  })
+
+  test("OAuth effects request shared authentication when token is missing", t => {
+    WebAPI.Window.current
+    ->WebAPI.Window.localStorage
+    ->WebAPI.Storage.removeItem(Client__EmbeddedAuth.tokenStorageKey)
+
+    let requireAuthenticationCount = ref(0)
+    let requireAuthentication = () => {
+      requireAuthenticationCount := requireAuthenticationCount.contents + 1
+    }
+    let effects = [
+      Reducer.FetchAnthropicOAuthStatusEffect({
+        apiBaseUrl: "http://localhost:4000",
+        requireAuthentication,
+      }),
+      Reducer.GetAnthropicOAuthUrlEffect({
+        apiBaseUrl: "http://localhost:4000",
+        requireAuthentication,
+      }),
+      Reducer.ExchangeAnthropicOAuthCodeEffect({
+        apiBaseUrl: "http://localhost:4000",
+        code: "code-123",
+        verifier: "verifier-123",
+        requireAuthentication,
+      }),
+      Reducer.DisconnectAnthropicOAuthEffect({
+        apiBaseUrl: "http://localhost:4000",
+        requireAuthentication,
+      }),
+      Reducer.FetchOpenAIOAuthStatusEffect({
+        apiBaseUrl: "http://localhost:4000",
+        requireAuthentication,
+      }),
+      Reducer.InitiateOpenAIDeviceAuthEffect({
+        apiBaseUrl: "http://localhost:4000",
+        requireAuthentication,
+      }),
+      Reducer.PollOpenAIDeviceAuthEffect({
+        apiBaseUrl: "http://localhost:4000",
+        deviceAuthId: "device-123",
+        userCode: "user-code",
+        requireAuthentication,
+      }),
+      Reducer.DisconnectOpenAIOAuthEffect({
+        apiBaseUrl: "http://localhost:4000",
+        requireAuthentication,
+      }),
+    ]
+
+    effects->Array.forEach(effect => Reducer.handleEffect(effect, Reducer.defaultState, _ => ()))
+
+    t->expect(requireAuthenticationCount.contents)->Expect.toBe(effects->Array.length)
   })
 
   test("stale errors retain latest sanitized provider", t => {
@@ -1577,6 +1680,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         retryTurn: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
+        requireAuthentication: () => (),
         apiBaseUrl: "http://localhost:4000",
       }),
     }
@@ -1624,6 +1728,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         retryTurn: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
+        requireAuthentication: () => (),
         apiBaseUrl: "http://localhost:4000",
       }),
     }
@@ -1678,6 +1783,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       retryTurn: _ => (),
       loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
       deleteSession: (_, ~onComplete as _) => (),
+      requireAuthentication: () => (),
       apiBaseUrl: "http://localhost:4000",
     })
 

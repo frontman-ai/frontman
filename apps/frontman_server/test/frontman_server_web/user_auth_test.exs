@@ -64,16 +64,9 @@ defmodule FrontmanServerWeb.UserAuthTest do
 
     test "redirects to allowed external return_to URLs", %{conn: conn, user: user} do
       allowed_urls = [
-        "http://localhost:3000/frontman",
         "https://frontman.sh/dashboard",
         "https://api.frontman.sh/settings",
-        "https://shop.example.com.au/checkout",
-        "https://example.net/landing",
-        "https://www.example.org/blog",
-        "https://category-creation.com/wp-admin",
-        "https://www.category-creation.com/wp-json/wp/v2/posts",
-        "https://frontman.local:4000/test",
-        "http://127.0.0.1:3000/frontman"
+        "https://API.Frontman.SH/settings"
       ]
 
       for url <- allowed_urls do
@@ -84,7 +77,14 @@ defmodule FrontmanServerWeb.UserAuthTest do
 
     test "blocks open redirect to untrusted domains", %{conn: conn, user: user} do
       blocked_urls = [
+        "http://localhost:3000/frontman",
         "https://evil-frontman.sh/phishing",
+        "https://shop.example.com.au/checkout",
+        "https://example.net/landing",
+        "https://www.example.org/blog",
+        "https://category-creation.com/wp-admin",
+        "https://frontman.local:4000/test",
+        "http://127.0.0.1:3000/frontman",
         "http://attacker.xyz",
         "javascript:alert(1)",
         "//evil.com"
@@ -392,6 +392,106 @@ defmodule FrontmanServerWeb.UserAuthTest do
 
       refute conn.halted
       refute conn.status
+    end
+  end
+
+  describe "require_embedded_client_bearer_token/2" do
+    test "authenticates with a valid embedded client bearer token", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> put_embedded_client_bearer(user)
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.assigns.current_scope.user.id == user.id
+      assert is_binary(conn.assigns.embedded_client_token_id)
+      refute conn.halted
+    end
+
+    test "rejects a token presented from a different origin", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> put_embedded_client_bearer(user)
+        |> Plug.Conn.delete_req_header("origin")
+        |> put_req_header("origin", "https://evil.example")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects a missing origin header", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> put_embedded_client_bearer(user)
+        |> Plug.Conn.delete_req_header("origin")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects a missing authorization header", %{conn: conn} do
+      conn = UserAuth.require_embedded_client_bearer_token(conn, [])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects duplicate authorization headers", %{conn: conn, user: user} do
+      token = Accounts.generate_embedded_client_token(user, "https://customer.example")
+
+      conn =
+        %{
+          conn
+          | req_headers: [
+              {"authorization", "Bearer #{token}"},
+              {"authorization", "Bearer #{token}"} | conn.req_headers
+            ]
+        }
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects non-bearer authorization", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("authorization", "Basic abc123")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects malformed bearer authorization", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer ")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects an invalid bearer token", %{conn: conn} do
+      conn =
+        conn
+        |> put_req_header("authorization", "Bearer invalid-token")
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
+    end
+
+    test "rejects session authentication without a bearer token", %{conn: conn, user: user} do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> UserAuth.require_embedded_client_bearer_token([])
+
+      assert conn.halted
+      assert json_response(conn, 401)["error"] == "authentication_required"
     end
   end
 end

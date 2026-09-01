@@ -89,10 +89,10 @@ export async function openFrontmanUI(
     console.log(`  [e2e][page error] ${err.message}`);
   });
 
-  const { login } = await import("./auth.js");
-  await login(page, { returnTo: frontmanUrl });
+  const { authorizeEmbeddedClient } = await import("./auth.js");
+  await authorizeEmbeddedClient(page, { origin: `http://localhost:${devServerPort}` });
   options.assertHealthy?.();
-  console.log(`  [e2e] Login complete (${elapsed(t0)}), URL: ${page.url()}`);
+  console.log(`  [e2e] Embedded authorization complete (${elapsed(t0)}), URL: ${page.url()}`);
 
   const response = await page.goto(frontmanUrl, { waitUntil: "domcontentloaded" });
   options.assertHealthy?.();
@@ -117,7 +117,7 @@ export async function openFrontmanUI(
 
   if (page.url().includes("/users/log-in")) {
     console.log(`  [e2e] Redirected to login (${elapsed(t0)}), re-authenticating`);
-    await login(page, { returnTo: frontmanUrl });
+    await authorizeEmbeddedClient(page, { origin: `http://localhost:${devServerPort}` });
     options.assertHealthy?.();
     const reauthResponse = await page.goto(frontmanUrl, {
       waitUntil: "load",

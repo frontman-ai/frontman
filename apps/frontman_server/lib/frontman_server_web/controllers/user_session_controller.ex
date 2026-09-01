@@ -9,6 +9,7 @@ defmodule FrontmanServerWeb.UserSessionController do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Frameworks
+  alias FrontmanServerWeb.EmbeddedClientAuth
   alias FrontmanServerWeb.UserAuth
 
   def new(conn, params) do
@@ -20,7 +21,10 @@ defmodule FrontmanServerWeb.UserSessionController do
       |> maybe_put_user_return_to(params["return_to"])
       |> maybe_put_signup_framework(params["framework"])
 
-    render(conn, :new, form: form)
+    case EmbeddedClientAuth.put_pending_request(conn, params) do
+      {:ok, conn} -> render(conn, :new, form: form)
+      {:error, conn} -> conn
+    end
   end
 
   def create(conn, %{"user" => %{"token" => token} = user_params} = params) do
@@ -97,8 +101,6 @@ defmodule FrontmanServerWeb.UserSessionController do
   def confirm_logout(conn, params) do
     render(conn, :confirm_logout, return_to: params["return_to"])
   end
-
-  def popup_complete(conn, _params), do: render(conn, :popup_complete)
 
   def delete(conn, params) do
     conn

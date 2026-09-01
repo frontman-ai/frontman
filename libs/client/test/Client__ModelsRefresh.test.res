@@ -14,6 +14,7 @@ let _dummyCancelPrompt: Types.cancelPromptFn = () => ()
 let _dummyRetryTurn: Types.retryTurnFn = _ => ()
 let _dummyLoadTask: Types.loadTaskFn = (_, ~needsHistory as _, ~onComplete as _) => ()
 let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
+let _dummyRequireAuthentication: Types.requireAuthenticationFn = () => ()
 
 let _apiBaseUrl = "http://localhost:4000"
 
@@ -25,6 +26,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
     retryTurn: _dummyRetryTurn,
     loadTask: _dummyLoadTask,
     deleteSession: _dummyDeleteSession,
+    requireAuthentication: _dummyRequireAuthentication,
     apiBaseUrl: _apiBaseUrl,
   }),
   selectedModelValue,

@@ -10,7 +10,6 @@ module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 
 type initConfig = {
   endpoint: string,
-  tokenUrl: string,
   loginUrl: string,
   clientName: string,
   clientVersion: string,
@@ -69,6 +68,11 @@ let enrichLoginUrl = (~loginUrl: string, ~framework: option<string>): string => 
   url.href
 }
 
+let apiBaseUrlFromLoginUrl = (loginUrl: string): string => {
+  let url = WebAPI.URL.make(~url=loginUrl)
+  url.origin
+}
+
 type initPayload = {
   config: initConfig,
   relay: Relay.t,
@@ -94,6 +98,7 @@ type action =
   | Initialize(initPayload)
   | Dispose
   | BeginAuthenticationRetry
+  | RequireAuthentication
   | RetryAuthentication
   | BeginLogout
   | ACPConnectSuccess(ACP.connection)
@@ -126,7 +131,7 @@ type effect =
   | LogoutEffect({
       connection: ACP.connection,
       session: option<ACP.session>,
-      tokenUrl: string,
+      apiBaseUrl: string,
       signal: WebAPI.EventTypes.abortSignal,
     })
   | ConnectRelay(Relay.t, WebAPI.EventTypes.abortSignal)
@@ -220,8 +225,8 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   | ({acp: ACPDisconnected, relay: RelayDisconnected}, Initialize({config, relay, mcpServer})) =>
     let acpConfig = ACP.makeConfig(
       ~endpoint=config.endpoint,
-      ~tokenUrl=config.tokenUrl,
       ~loginUrl=config.loginUrl,
+      ~getAuthToken=Client__EmbeddedAuth.loadToken,
       ~name=config.clientName,
       ~version=config.clientVersion,
       ~_meta=config._meta,
@@ -299,7 +304,20 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [ConnectACP({config, signal: signalController.signal})],
     )
 
-  | (_, BeginAuthenticationRetry | RetryAuthentication) => (state, [])
+  | ({acpConfig: Some(config)}, RequireAuthentication) => {
+      let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
+      (
+        {
+          ...state,
+          acp: ACPAuthRequired({loginUrl: enrichLoginUrl(~loginUrl=config.loginUrl, ~framework)}),
+          authRetryActive: false,
+          authRetryInFlight: false,
+        },
+        [],
+      )
+    }
+
+  | (_, BeginAuthenticationRetry | RequireAuthentication | RetryAuthentication) => (state, [])
 
   | (
       {
@@ -323,7 +341,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         ~sideEffect=LogoutEffect({
           connection,
           session,
-          tokenUrl: config.tokenUrl,
+          apiBaseUrl: apiBaseUrlFromLoginUrl(config.loginUrl),
           signal: signalController.signal,
         }),
       )
@@ -501,52 +519,32 @@ let cleanupSession = (session: ACP.session): unit => {
   Log.debug(~ctx={"sessionId": session.sessionId}, "Cleaned up session channel")
 }
 
-let wait = (timeout: int): promise<unit> =>
-  Promise.make((resolve, _) => {
-    let _ = WebAPI.Window.setTimeout(WebAPI.Window.current, ~timeout, ~handler=resolve)
-  })
-
-let fetchLogoutStatus = async (tokenUrl: string): option<int> => {
-  let controller = WebAPI.AbortController.make()
-  let timeout = WebAPI.Window.setTimeout(WebAPI.Window.current, ~timeout=1000, ~handler=() =>
-    WebAPI.AbortController.abort(controller)
-  )
-
-  try {
-    let response = await WebAPI.Fetch.fetch(
-      tokenUrl,
-      ~init={credentials: Include, signal: Null.make(controller.signal)},
-    )
-    WebAPI.Window.clearTimeout(WebAPI.Window.current, timeout)
-    Some(response.status)
-  } catch {
-  | exn =>
-    WebAPI.Window.clearTimeout(WebAPI.Window.current, timeout)
-    switch exn->JsExn.fromException->Option.map(FrontmanBindings.JsException.name) {
-    | Some("AbortError") | Some("TypeError") => None
-    | _ => throw(exn)
-    }
-  }
-}
-
-let rec waitForLogout = async (
-  ~tokenUrl: string,
+let revokeEmbeddedClientToken = async (
+  ~apiBaseUrl: string,
   ~signal: WebAPI.EventTypes.abortSignal,
-  ~attempt: int,
-): unit => {
-  await wait(1000)
-
-  switch signal.aborted {
-  | true => ()
-  | false =>
-    let status = await fetchLogoutStatus(tokenUrl)
-    switch (signal.aborted, status, attempt < 15) {
-    | (true, _, _) => ()
-    | (false, Some(401), _) | (false, _, false) =>
-      WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
-    | (false, _, true) => await waitForLogout(~tokenUrl, ~signal, ~attempt=attempt + 1)
+) => {
+  switch Client__EmbeddedAuth.headers() {
+  | Some(headers) =>
+    try {
+      let response = await WebAPI.Fetch.fetch(
+        `${apiBaseUrl}/api/client-token`,
+        ~init={method: "DELETE", headers, signal: Null.make(signal)},
+      )
+      switch response.status {
+      | 204 | 401 => ()
+      | status => Log.error(`Embedded token revocation failed: HTTP ${status->Int.toString}`)
+      }
+    } catch {
+    | exn =>
+      switch exn->JsExn.fromException->Option.map(FrontmanBindings.JsException.name) {
+      | Some("AbortError") | Some("TypeError") => ()
+      | _ => throw(exn)
+      }
     }
+  | None => ()
   }
+  Client__EmbeddedAuth.clearToken()
+  WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
 }
 
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
@@ -600,9 +598,9 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       | false => dispatch(RetryAuthentication)
       }
     })
-  | LogoutEffect({connection, session, tokenUrl, signal}) =>
+  | LogoutEffect({connection, session, apiBaseUrl, signal}) =>
     ACP.disconnect(connection, ~session?)
-    waitForLogout(~tokenUrl, ~signal, ~attempt=1)->ignore
+    revokeEmbeddedClientToken(~apiBaseUrl, ~signal)->ignore
   | ConnectRelay(relay, signal) =>
     let connect = async () => {
       let result = await Relay.connect(relay, ~signal)

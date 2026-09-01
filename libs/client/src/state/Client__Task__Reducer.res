@@ -170,7 +170,7 @@ module Lens = {
       Task.Loaded({
         ...data,
         completedFileChanges: Client__FileChanges.refresh(
-          data.completedFileChanges,
+          Task.getCompletedFileChanges(task),
           MessageStore.toArray(data.messages),
         ),
       })

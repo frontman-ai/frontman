@@ -30,7 +30,7 @@ Our default is:
 - If a struct/type must be reused across boundaries:
   - Export it from the owner boundary.
   - Add a one-way dependency from consumer boundary to owner boundary.
-  - Keep function specs and pattern matches explicit.
+  - Keep pattern matches explicit.
 
 4. No dependency cycles
 - Never create two-way boundary deps.

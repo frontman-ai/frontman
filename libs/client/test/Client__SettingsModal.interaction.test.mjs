@@ -35,13 +35,19 @@ const button = (text) =>
 const input = (hint) => container.querySelector(`input[placeholder="${hint}"]`);
 const mutation = () => StateStore.getState(store).customProviderMutation;
 const body = (fetch, i) => JSON.parse(fetch.mock.calls[i][1].body);
-const setState = (state = {}) =>
+const setState = (state = {}) => {
+	localStorage.setItem("frontman:embeddedClientToken", "test-token");
 	StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
 		...defaultState,
-		acpSession: { TAG: "AcpSessionActive", apiBaseUrl: "/api" },
+		acpSession: {
+			TAG: "AcpSessionActive",
+			apiBaseUrl: "/api",
+			requireAuthentication: () => {},
+		},
 		customProviders: [],
 		...state,
 	});
+};
 
 function fail(TAG, id = "provider-1") {
 	setState({
@@ -74,6 +80,7 @@ async function fill(placeholder, value) {
 
 afterEach(() => {
 	act(() => root?.unmount());
+	localStorage.removeItem("frontman:embeddedClientToken");
 	vi.restoreAllMocks();
 });
 

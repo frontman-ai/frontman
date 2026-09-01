@@ -23,6 +23,8 @@ type cancelPromptFn = unit => unit
 
 type retryTurnFn = string => unit
 
+type requireAuthenticationFn = unit => unit
+
 type acpSession =
   | NoAcpSession
   | AcpSessionActive({
@@ -31,6 +33,7 @@ type acpSession =
       retryTurn: retryTurnFn,
       loadTask: loadTaskFn,
       deleteSession: deleteSessionFn,
+      requireAuthentication: requireAuthenticationFn,
       apiBaseUrl: string,
     })
 

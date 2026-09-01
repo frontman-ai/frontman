@@ -1,5 +1,18 @@
 external elementFromReact: Dom.element => WebAPI.DomTypes.element = "%identity"
 
+@get external locationOrigin: WebAPI.DomTypes.location => string = "origin"
+
+@send
+external openPopup: (
+  WebAPI.Window.t,
+  ~url: string,
+  ~target: string,
+  ~features: string,
+) => Null.t<WebAPI.Window.t> = "open"
+
+external messageSourceFromWindow: WebAPI.Window.t => WebAPI.MessageEvent.messageEventSource =
+  "%identity"
+
 external unsafeIframeElementFromElement: WebAPI.DomTypes.element => WebAPI.DomTypes.htmliFrameElement =
   "%identity"
 

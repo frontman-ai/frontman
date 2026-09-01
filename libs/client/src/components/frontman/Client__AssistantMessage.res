@@ -42,8 +42,7 @@ let make = (~variant: variant, ~content: string, ~agent: Client__Agent.t, ~isNew
             title={isCopied ? "Copied" : "Copy to clipboard"}
             onClick={_ => {
               let copy = async () => {
-                await
-                WebAPI.Window.current
+                await WebAPI.Window.current
                 ->WebAPI.Window.navigator
                 ->WebAPI.Navigator.clipboard
                 ->WebAPI.Clipboard.writeText(content)
