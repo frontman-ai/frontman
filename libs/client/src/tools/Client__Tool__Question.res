@@ -49,7 +49,7 @@ let execute = async (
   input: input,
   ~taskId: string,
   ~toolCallId: string,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): Tool.MCP.CallToolResult.t => {
   let onAbort = ref(None)
   let result = await Promise.make((resolve, _reject) => {
@@ -61,7 +61,7 @@ let execute = async (
     }
 
     let listener = _ => {
-      Client__State.Actions.questionTerminated(~taskId, ~message="Request cancelled")
+      Client__State.Actions.questionCancelled(~taskId)
       resolveError("Request cancelled")
     }
     onAbort := Some(listener)

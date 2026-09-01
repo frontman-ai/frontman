@@ -218,7 +218,7 @@ let executeRipgrep = async (
   ~caseInsensitive: bool,
   ~literal: bool,
   ~maxResults: int,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): result<output, string> => {
   let args = buildRipgrepArgs(
     ~pattern,
@@ -253,7 +253,7 @@ let executeGitGrep = async (
   ~maxResults: int,
   ~glob: option<string>,
   ~type_: option<string>,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): result<output, string> => {
   let args = buildGitGrepArgs(~pattern, ~caseInsensitive, ~literal, ~maxResults, ~glob, ~type_)
 
@@ -354,7 +354,7 @@ let executePlainGrep = async (
   ~maxResults: int,
   ~glob: option<string>,
   ~type_: option<string>,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): result<output, string> => {
   let args = buildPlainGrepArgs(
     ~pattern,

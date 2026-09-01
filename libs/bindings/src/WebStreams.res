@@ -7,10 +7,11 @@ type readResult<'t> = {
 external readChunk: WebAPI.FileTypes.readableStreamReader<'t> => promise<readResult<'t>> = "read"
 
 @send
-external cancelReader: (WebAPI.FileAPI.readableStreamReader<'t>, string) => promise<unit> = "cancel"
+external cancelReader: (WebAPI.FileTypes.readableStreamReader<'t>, string) => promise<unit> =
+  "cancel"
 
 @send
-external releaseReader: WebAPI.FileAPI.readableStreamReader<'t> => unit = "releaseLock"
+external releaseReader: WebAPI.FileTypes.readableStreamReader<'t> => unit = "releaseLock"
 
 type textDecoder
 

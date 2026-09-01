@@ -17,7 +17,7 @@ let imageResult = MCP.CallToolResult.makeImage
 type serverExecutionContext = {
   projectRoot: string,
   sourceRoot: string,
-  signal: WebAPI.EventAPI.abortSignal,
+  signal: WebAPI.EventTypes.abortSignal,
 }
 
 type executionMode = Synchronous | Interactive
@@ -67,7 +67,7 @@ module type BrowserTool = {
     input,
     ~taskId: string,
     ~toolCallId: string,
-    ~signal: WebAPI.EventAPI.abortSignal,
+    ~signal: WebAPI.EventTypes.abortSignal,
   ) => promise<MCP.CallToolResult.t>
   let visibleToAgent: bool
   let executionMode: executionMode

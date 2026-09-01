@@ -138,7 +138,7 @@ module RequestStateDecoyTool = {
 let headers = entries => WebAPI.Headers.fromKeyValueArray(entries)
 
 let adapted = (~method, ~headers, ~body=?, ~context): Chassis.adaptedRequest<Endpoint.context> => {
-  let init: WebAPI.FetchAPI.requestInit = switch body {
+  let init: WebAPI.Request.requestInit = switch body {
   | Some(body) => {
       method,
       headers: headers->WebAPI.HeadersInit.fromHeaders,

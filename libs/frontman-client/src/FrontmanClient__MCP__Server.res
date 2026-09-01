@@ -181,7 +181,7 @@ let executeLocalTool = async (
   ~arguments: option<Dict.t<JSON.t>>,
   ~taskId: string,
   ~toolCallId: string,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): Types.CallToolResult.t => {
   module T = unpack(toolModule)
   Log.debug(~ctx={"tool": T.name}, "Executing local tool")
@@ -282,7 +282,7 @@ let executeToolWithoutPolicy = async (
   ~taskId: string,
   ~toolCallId: string,
   ~onProgress: option<string => unit>=?,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): Types.CallToolResult.t => {
   let localTool = getToolByName(server, name)
   let authorized = await server.authorizeTool(
@@ -374,7 +374,7 @@ let executeTool = async (
   ~taskId: string,
   ~toolCallId: string,
   ~onProgress: option<string => unit>=?,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): Types.CallToolResult.t => {
   let result = switch consumeInvocation(server) {
   | false => toolError("Tool invocation rate limit exceeded")

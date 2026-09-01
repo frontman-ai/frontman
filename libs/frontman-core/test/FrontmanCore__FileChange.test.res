@@ -9,6 +9,7 @@ describe("FileChange", _t => {
     let ctx = {
       FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.projectRoot: "/tmp",
       sourceRoot: "/tmp",
+      signal: WebAPI.AbortController.make().signal,
     }
     switch await EditFile.executeOutput(ctx, {path: "new.txt", oldText: "", newText: "content"}) {
     | Error(message) => t->expect(message->String.includes("write_file"))->Expect.toBe(true)

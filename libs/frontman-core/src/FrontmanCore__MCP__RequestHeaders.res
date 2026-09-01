@@ -38,7 +38,7 @@ let validateName = (~headerValue, ~authority) => {
   }
 }
 
-let validate = (~headers: WebAPI.FetchAPI.headers, ~request: requestFields): result<
+let validate = (~headers: WebAPI.FetchTypes.headers, ~request: requestFields): result<
   unit,
   validationError,
 > => {

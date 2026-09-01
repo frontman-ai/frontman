@@ -210,7 +210,7 @@ describe("Next.js Node API adapter", _t => {
       Dict.fromArray([("host", "localhost:3000"), ("origin", "https://client.example")]),
     )
     let response = makeResponse()
-    let signal: ref<option<WebAPI.EventAPI.abortSignal>> = ref(None)
+    let signal: ref<option<WebAPI.EventTypes.abortSignal>> = ref(None)
     let resolveMiddleware = ref(None)
     let pending = Promise.make((resolve, _reject) => resolveMiddleware := Some(resolve))
     let resolveStarted = ref(None)
@@ -228,7 +228,7 @@ describe("Next.js Node API adapter", _t => {
 
     await started
     response->emitEvent("close")->ignore
-    let cancellationSignal: WebAPI.EventAPI.abortSignal = signal.contents->Option.getOrThrow
+    let cancellationSignal: WebAPI.EventTypes.abortSignal = signal.contents->Option.getOrThrow
     t->expect(cancellationSignal.aborted)->Expect.toBe(true)
 
     t->expect((await handling) == NodeApiAdapter.Chassis.Cancelled)->Expect.toBe(true)

@@ -11,7 +11,6 @@ let parses = (schema, json) => {
   }
 }
 
-let parseJson = (schema, json) => json->JSON.parseOrThrow->S.parseOrThrow(~to=schema)
 let typedRoundTrip = (schema, json) =>
   json
   ->JSON.parseOrThrow
@@ -38,7 +37,7 @@ describe("MCP wire contracts", () => {
     }`
 
     t
-    ->expect(parseJson(MCP.discoverResultWireSchema, json))
+    ->expect(typedRoundTrip(MCP.DiscoverResult.schema, json))
     ->Expect.toEqual(JSON.parseOrThrow(json))
   })
 
@@ -74,10 +73,10 @@ describe("MCP wire contracts", () => {
     ]
 
     t
-    ->expect(parseJson(MCP.toolsListResultWireSchema, json))
+    ->expect(typedRoundTrip(MCP.ListToolsResult.schema, json))
     ->Expect.toEqual(JSON.parseOrThrow(json))
     invalid->Array.forEach(
-      json => t->expect(parses(MCP.toolsListResultWireSchema, json))->Expect.toBe(false),
+      json => t->expect(parses(MCP.ListToolsResult.schema, json))->Expect.toBe(false),
     )
   })
 
@@ -104,15 +103,15 @@ describe("MCP wire contracts", () => {
     let invalid = `{"resultType":"complete","content":[{"type":"text","text":"hello","annotations":{"priority":2}}]}`
 
     t
-    ->expect(typedRoundTrip(MCP.callToolResultSchema, json))
+    ->expect(typedRoundTrip(MCP.CallToolResult.schema, json))
     ->Expect.toEqual(JSON.parseOrThrow(json))
-    t->expect(parses(MCP.callToolResultSchema, invalid))->Expect.toBe(false)
+    t->expect(parses(MCP.CallToolResult.schema, invalid))->Expect.toBe(false)
   })
 
   test("requires finite nonnegative ttlMs", t => {
-    t->expect(JSON.Encode.int(1)->S.parseOrThrow(~to=MCP.ttlMsSchema))->Expect.toBe(1)
-    t->expect(() => JSON.Encode.float(0.5)->S.parseOrThrow(~to=MCP.ttlMsSchema))->Expect.toThrow
-    t->expect(() => JSON.Encode.int(-1)->S.parseOrThrow(~to=MCP.ttlMsSchema))->Expect.toThrow
+    t->expect(JSON.Encode.int(1)->S.parseOrThrow(~to=MCP.CacheTtl.schema))->Expect.toBe(1.)
+    t->expect(() => JSON.Encode.float(0.5)->S.parseOrThrow(~to=MCP.CacheTtl.schema))->Expect.toThrow
+    t->expect(() => JSON.Encode.int(-1)->S.parseOrThrow(~to=MCP.CacheTtl.schema))->Expect.toThrow
 
     let longLived = `{
       "resultType":"complete",
@@ -122,7 +121,7 @@ describe("MCP wire contracts", () => {
       "cacheScope":"public"
     }`
 
-    t->expect(parses(MCP.discoverResultWireSchema, longLived))->Expect.toBe(true)
+    t->expect(parses(MCP.DiscoverResult.schema, longLived))->Expect.toBe(true)
   })
 
   test("requires valid extension identifiers and object settings", t => {
@@ -138,13 +137,13 @@ describe("MCP wire contracts", () => {
     ]
 
     valid->Array.forEach(
-      key => t->expect(parses(MCP.extensionsSchema, `{"${key}":{}}`))->Expect.toBe(true),
+      key => t->expect(parses(MCP.Extensions.schema, `{"${key}":{}}`))->Expect.toBe(true),
     )
     invalid->Array.forEach(
-      key => t->expect(parses(MCP.extensionsSchema, `{"${key}":{}}`))->Expect.toBe(false),
+      key => t->expect(parses(MCP.Extensions.schema, `{"${key}":{}}`))->Expect.toBe(false),
     )
     t
-    ->expect(parses(MCP.extensionsSchema, `{"ai.frontman/execution-context":true}`))
+    ->expect(parses(MCP.Extensions.schema, `{"ai.frontman/execution-context":true}`))
     ->Expect.toBe(false)
   })
 })

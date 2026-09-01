@@ -4,8 +4,8 @@ type authorization = [#authorized | #"missing-authentication" | #"insufficient-a
 
 type input = {
   allowedOrigins: array<string>,
-  authorize: WebAPI.FetchAPI.headers => promise<authorization>,
-  principal?: WebAPI.FetchAPI.headers => string,
+  authorize: WebAPI.FetchTypes.headers => promise<authorization>,
+  principal?: WebAPI.FetchTypes.headers => string,
 }
 
 let make = (input: input): HttpSecurity.policy =>

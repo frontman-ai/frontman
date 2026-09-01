@@ -37,15 +37,12 @@ let rpcError = error =>
     )
   }
 
-let make = (
-  ~id: JsonRpc.Id.t,
-  ~error: RequestHeaders.validationError,
-): WebAPI.FetchAPI.response => {
+let make = (~id: JsonRpc.Id.t, ~error: RequestHeaders.validationError): WebAPI.Response.t => {
   let data = JsonRpc.Response.makeErrorPayloadWithId(~id, ~error=rpcError(error))
   WebAPI.Response.jsonR(~data, ~init={status: 400})
 }
 
-let invalidRequest = (~id: option<JsonRpc.Id.t>): WebAPI.FetchAPI.response => {
+let invalidRequest = (~id: option<JsonRpc.Id.t>): WebAPI.Response.t => {
   let payload: standardErrorResponse = {
     jsonrpc: JsonRpc.version,
     id,
@@ -59,7 +56,7 @@ let invalidRequest = (~id: option<JsonRpc.Id.t>): WebAPI.FetchAPI.response => {
   WebAPI.Response.jsonR(~data, ~init={status: 400})
 }
 
-let parseError = (): WebAPI.FetchAPI.response => {
+let parseError = (): WebAPI.Response.t => {
   let payload: standardErrorResponse = {
     jsonrpc: JsonRpc.version,
     id: None,
@@ -73,7 +70,7 @@ let parseError = (): WebAPI.FetchAPI.response => {
   WebAPI.Response.jsonR(~data, ~init={status: 400})
 }
 
-let invalidRequestMetadata = (~id: JsonRpc.Id.t): WebAPI.FetchAPI.response => {
+let invalidRequestMetadata = (~id: JsonRpc.Id.t): WebAPI.Response.t => {
   let error = JsonRpc.RpcError.make(
     ~code=MCP.ModernErrorCode.invalidParams,
     ~message="Invalid request metadata",
@@ -86,7 +83,7 @@ let invalidRequestMetadata = (~id: JsonRpc.Id.t): WebAPI.FetchAPI.response => {
 let missingRequiredClientCapability = (
   ~id: JsonRpc.Id.t,
   ~requiredCapabilities: MCP.ClientCapabilities.t,
-): WebAPI.FetchAPI.response => {
+): WebAPI.Response.t => {
   let fields: MCP.MissingRequiredClientCapabilityError.dataFields = {
     requiredCapabilities: requiredCapabilities,
   }
@@ -101,7 +98,7 @@ let missingRequiredClientCapability = (
   WebAPI.Response.jsonR(~data, ~init={status: 400})
 }
 
-let invalidMethodParams = (~id: JsonRpc.Id.t): WebAPI.FetchAPI.response => {
+let invalidMethodParams = (~id: JsonRpc.Id.t): WebAPI.Response.t => {
   let error = JsonRpc.RpcError.make(
     ~code=MCP.ModernErrorCode.invalidParams,
     ~message="Invalid method parameters",
@@ -111,7 +108,7 @@ let invalidMethodParams = (~id: JsonRpc.Id.t): WebAPI.FetchAPI.response => {
   WebAPI.Response.jsonR(~data, ~init={status: 200})
 }
 
-let unknownTool = (~id: JsonRpc.Id.t, ~name: string): WebAPI.FetchAPI.response => {
+let unknownTool = (~id: JsonRpc.Id.t, ~name: string): WebAPI.Response.t => {
   let error = JsonRpc.RpcError.make(
     ~code=MCP.ModernErrorCode.invalidParams,
     ~message=`Unknown tool: ${name}`,
@@ -121,7 +118,7 @@ let unknownTool = (~id: JsonRpc.Id.t, ~name: string): WebAPI.FetchAPI.response =
   WebAPI.Response.jsonR(~data, ~init={status: 200})
 }
 
-let toolOutputSchemaMismatch = (~id: JsonRpc.Id.t): WebAPI.FetchAPI.response => {
+let toolOutputSchemaMismatch = (~id: JsonRpc.Id.t): WebAPI.Response.t => {
   let error = JsonRpc.RpcError.make(
     ~code=MCP.ModernErrorCode.internalError,
     ~message="Tool output did not match output schema",
@@ -131,7 +128,7 @@ let toolOutputSchemaMismatch = (~id: JsonRpc.Id.t): WebAPI.FetchAPI.response => 
   WebAPI.Response.jsonR(~data, ~init={status: 200})
 }
 
-let methodNotFound = (~id: JsonRpc.Id.t): WebAPI.FetchAPI.response => {
+let methodNotFound = (~id: JsonRpc.Id.t): WebAPI.Response.t => {
   let error = JsonRpc.RpcError.make(
     ~code=MCP.ModernErrorCode.methodNotFound,
     ~message="Method not found",

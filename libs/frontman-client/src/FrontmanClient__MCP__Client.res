@@ -42,7 +42,7 @@ type t = {
   nextId: ref<int>,
   cache: ref<option<cache>>,
   connectGeneration: ref<int>,
-  connectController: ref<option<WebAPI.EventAPI.abortController>>,
+  connectController: ref<option<WebAPI.EventTypes.abortController>>,
 }
 
 type responseId = {id: JsonRpc.Id.t}
@@ -156,8 +156,8 @@ let normalizeAbsentResultType = json =>
   }
 
 let responseJson = async (
-  response: WebAPI.FetchAPI.response,
-  ~signal: option<WebAPI.EventAPI.abortSignal>,
+  response: WebAPI.Response.t,
+  ~signal: option<WebAPI.EventTypes.abortSignal>,
   ~onNotification: option<JSON.t => unit>,
 ): result<JSON.t, string> => {
   let mediaType =
@@ -266,7 +266,7 @@ let post = async (
       )
     let send = async () => {
       let outcome: result<JSON.t, string> = try {
-        let response = await WebAPI.Global.fetch(
+        let response = await WebAPI.Fetch.fetch(
           endpoint(client),
           ~init={
             method: "POST",
@@ -402,7 +402,7 @@ let serverInfo = result =>
 
 let validateTool = async (
   definition: Types.Tool.t,
-  ~signal: option<WebAPI.EventAPI.abortSignal>,
+  ~signal: option<WebAPI.EventTypes.abortSignal>,
 ): result<remoteTool, toolValidationError> => {
   let definitionJson = definition->S.decodeOrThrow(~from=Types.Tool.schema, ~to=S.json)
   let inputSchema = Types.ToolSchema.toJson(definition.Types.Tool.inputSchema)

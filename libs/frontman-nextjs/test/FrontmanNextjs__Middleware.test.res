@@ -17,15 +17,15 @@ module Helpers = {
     request => Middleware.createMiddleware(configInput)(request)
   }
 
-  let makeGetRequest = (url: string): WebAPI.FetchAPI.request => {
+  let makeGetRequest = (url: string): WebAPI.Request.t => {
     WebAPI.Request.fromURL(url)
   }
 
-  let makeOptionsRequest = (url: string): WebAPI.FetchAPI.request => {
+  let makeOptionsRequest = (url: string): WebAPI.Request.t => {
     WebAPI.Request.fromURL(url, ~init={method: "OPTIONS"})
   }
 
-  let makePostRequest = (url: string, body: JSON.t): WebAPI.FetchAPI.request => {
+  let makePostRequest = (url: string, body: JSON.t): WebAPI.Request.t => {
     let headers = WebAPI.HeadersInit.fromDict(
       Dict.fromArray([("Content-Type", "application/json")]),
     )

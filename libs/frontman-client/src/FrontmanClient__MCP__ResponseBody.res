@@ -30,7 +30,7 @@ let cancelWithoutWaiting = (reader, reason) => {
 let readBeforeDeadline = (
   reader,
   deadline,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): promise<timedRead<'value>> => {
   let cancel = outcome => {
     switch outcome {
@@ -135,8 +135,8 @@ let exceedsDepth = source => {
 }
 
 let readText = async (
-  response: WebAPI.FetchAPI.response,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  response: WebAPI.Response.t,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): result<string, readError> =>
   switch response.body->Null.toOption {
   | None => Error(ReadFailed("No response body"))

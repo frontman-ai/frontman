@@ -1522,6 +1522,7 @@ module CallToolResult: {
   let schema: S.t<t>
   let jsonSchema: S.t<t>
   let makeText: string => t
+  let makeTextWithStructured: (string, JSON.t) => t
   let makeStructured: JSON.t => t
   let makeImage: (~data: string, ~mimeType: string) => t
   let makeError: string => t
@@ -1550,10 +1551,14 @@ module CallToolResult: {
     resultType: "complete",
   }
 
-  let makeStructured = json => {
-    content: [TextContent({text: JSON.stringify(json), _meta: None, annotations: None})],
-    structuredContent: json,
+  let makeTextWithStructured = (text, structuredContent) => {
+    content: [TextContent({text, _meta: None, annotations: None})],
+    structuredContent,
     resultType: "complete",
+  }
+
+  let makeStructured = json => {
+    makeTextWithStructured(JSON.stringify(json), json)
   }
 
   let makeImage = (~data, ~mimeType) => {
@@ -1587,7 +1592,7 @@ type serverInterface<'server> = {
     ~taskId: string,
     ~toolCallId: string,
     ~onProgress: option<string => unit>,
-    ~signal: WebAPI.EventAPI.abortSignal,
+    ~signal: WebAPI.EventTypes.abortSignal,
   ) => promise<CallToolResult.t>,
 }
 
@@ -1602,6 +1607,6 @@ module type Server = {
     ~taskId: string,
     ~toolCallId: string,
     ~onProgress: option<string => unit>=?,
-    ~signal: WebAPI.EventAPI.abortSignal,
+    ~signal: WebAPI.EventTypes.abortSignal,
   ) => promise<CallToolResult.t>
 }

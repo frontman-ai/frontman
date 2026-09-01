@@ -15,8 +15,8 @@ type accepted = {
 
 type t =
   | Accepted(accepted)
-  | Completed(WebAPI.FetchAPI.response)
-  | Rejected(WebAPI.FetchAPI.response)
+  | Completed(WebAPI.Response.t)
+  | Rejected(WebAPI.Response.t)
 
 let emptyResponse = (status: int) => WebAPI.Response.fromNull(~init={status: status})
 
@@ -43,7 +43,7 @@ let bodyErrorResponse = error =>
   }
 
 let validateAfterSecurity = async (
-  ~request: WebAPI.FetchAPI.request,
+  ~request: WebAPI.Request.t,
   ~origin: string,
   ~rawHeaders: option<RawHeaders.t>,
   ~registry: ToolRegistry.t,
@@ -74,7 +74,7 @@ let validateAfterSecurity = async (
 
 @@live
 let validate = async (
-  ~request: WebAPI.FetchAPI.request,
+  ~request: WebAPI.Request.t,
   ~security: HttpSecurity.policy,
   ~rawHeaders: option<RawHeaders.t>=None,
   ~registry: ToolRegistry.t,

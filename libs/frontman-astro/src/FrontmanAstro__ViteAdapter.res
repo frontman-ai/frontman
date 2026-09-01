@@ -8,9 +8,9 @@ module McpEndpoint = FrontmanAiFrontmanCore.FrontmanCore__MCP__Endpoint
 external isExactMcpRequest: NodeHttp.incomingMessage => bool = "isExactMcpRequest"
 
 type webMiddleware = (
-  WebAPI.FetchAPI.request,
+  WebAPI.Request.t,
   ~rawHeaders: RawHeaders.t,
-) => promise<option<WebAPI.FetchAPI.response>>
+) => promise<option<WebAPI.Response.t>>
 
 let adaptToConnect = (
   middleware: webMiddleware,

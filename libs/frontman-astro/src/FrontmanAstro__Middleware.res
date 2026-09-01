@@ -13,9 +13,9 @@ type loadContentApi = unit => promise<FrontmanAstro__Tool__GetContentCollections
 
 type bundle = {
   middleware: (
-    WebAPI.FetchAPI.request,
+    WebAPI.Request.t,
     ~rawHeaders: Core.FrontmanCore__MCP__RawHeaders.t=?,
-  ) => promise<option<WebAPI.FetchAPI.response>>,
+  ) => promise<option<WebAPI.Response.t>>,
   @live
   registry: Core.FrontmanCore__ToolRegistry.t,
 }

@@ -10,10 +10,11 @@ let make = (~apiBaseUrl: string) => {
     loadTask,
     deleteSession,
     authRedirectUrl,
-    beginAuthenticationRetry,
-    requireAuthentication,
     _,
   } = Client__FrontmanProvider.useFrontman()
+
+  let requireAuthentication = () =>
+    authRedirectUrl->Option.forEach(loginUrl => Client__HostNavigation.assign(~url=loginUrl))
 
   React.useEffect(() => {
     switch connectionState {
@@ -28,7 +29,7 @@ let make = (~apiBaseUrl: string) => {
         ~requireAuthentication,
         ~apiBaseUrl,
       )
-    | LoggingOut | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
+    | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
     }
     None
   }, (
@@ -48,34 +49,48 @@ let make = (~apiBaseUrl: string) => {
   let (selectedWorkspaceView, setSelectedWorkspaceView) = React.useState(() =>
     Client__WorkspacePanel.Preview
   )
-  let completedFileChanges = Client__State.useSelector(Client__State.Selectors.completedFileChanges)
-  let fileChangeCount = Array.length(completedFileChanges.files)
-  let workspaceView = Client__WorkspacePanel.availableView(
-    ~view=selectedWorkspaceView,
-    ~fileChangeCount,
-  )
-
-  React.useEffect(() => {
-    switch fileChangeCount {
-    | 0 => setSelectedWorkspaceView(_ => Client__WorkspacePanel.Preview)
-    | _ => ()
-    }
-    None
-  }, [fileChangeCount])
 
   let (settingsOpen, setSettingsOpen) = React.useState(() => false)
   let (settingsInitialTab, setSettingsInitialTab) = React.useState(() => None)
 
-  let providerSetupRequired = Client__State.useSelector(
-    Client__State.Selectors.providerSetupRequired,
+  let (ftueState, setFtueState) = React.useState(() => Client__FtueState.get())
+  let hasProviderConfigured = Client__State.useSelector(
+    Client__State.Selectors.hasAnyProviderConfigured,
   )
+  let providerSettingsLoaded = Client__State.useSelector(
+    Client__State.Selectors.providerSettingsLoaded,
+  )
+  let sessionInitialized = Client__State.useSelector(Client__State.Selectors.sessionInitialized)
+
+  React.useEffect(() => {
+    switch (connectionState, ftueState) {
+    | (Connected | SessionActive(_), Client__FtueState.WelcomeShown) =>
+      Client__FtueState.setCompleted()
+      setFtueState(_ => Client__FtueState.Completed)
+    | _ => ()
+    }
+    None
+  }, (connectionState, ftueState))
 
   let openSettingsProviders = () => {
     setSettingsInitialTab(_ => Some("providers"))
     setSettingsOpen(_ => true)
   }
 
-  let showProviderSetupModal = providerSetupRequired && !settingsOpen
+  let showNudge = switch (
+    ftueState,
+    sessionInitialized,
+    providerSettingsLoaded,
+    hasProviderConfigured,
+  ) {
+  | (Client__FtueState.Completed, true, true, false) => true
+  | _ => false
+  }
+  let showProviderSetupModal = showNudge && !settingsOpen
+
+  let handleProviderSetupCta = () => {
+    openSettingsProviders()
+  }
 
   let handleSettingsOpenChange = (value: bool) => {
     setSettingsOpen(_ => value)
@@ -90,17 +105,19 @@ let make = (~apiBaseUrl: string) => {
       open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
     />
     <Client__ProviderSetupModal
-      open_={showProviderSetupModal} onOpenSettings=openSettingsProviders
+      open_={showProviderSetupModal} onOpenSettings=handleProviderSetupCta
     />
-    <Client__FirstTaskFeedbackDialog />
-    {switch authRedirectUrl {
-    | Some(loginUrl) => <Client__WelcomeModal loginUrl onSignIn=beginAuthenticationRetry />
-    | None => React.null
+    {switch (authRedirectUrl, ftueState) {
+    | (Some(loginUrl), Client__FtueState.New) =>
+      <Client__WelcomeModal
+        loginUrl onSignIn={() => Client__HostNavigation.assign(~url=loginUrl)}
+      />
+    | _ => React.null
     }}
     <Client__TopBar
       chatboxWidth
       chatOpen
-      workspaceView
+      workspaceView={selectedWorkspaceView}
       onWorkspaceViewChange={view => setSelectedWorkspaceView(_ => view)}
       onToggleChat={() => setChatOpen(prev => !prev)}
       onSettingsClick={() => setSettingsOpen(_ => true)}
@@ -116,7 +133,7 @@ let make = (~apiBaseUrl: string) => {
             style={{width: `${Int.toString(chatboxWidth)}px`}}
             className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
           >
-            <Client__ConversationPanel onConfigureProvider=openSettingsProviders />
+            <Client__Chatbox onConfigureProvider=openSettingsProviders />
             <div
               className={[
                 "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
@@ -129,11 +146,11 @@ let make = (~apiBaseUrl: string) => {
             />
           </div>
         : React.null}
-      <div className="grow h-full min-w-0">
-        <Client__WorkspacePanel
-          view=workspaceView preview={<Client__WebPreview />} changes={<Client__ChangesView />}
-        />
-      </div>
+      <Client__WorkspacePanel
+        view={selectedWorkspaceView}
+        preview={<Client__WebPreview />}
+        changes={<Client__ChangesView />}
+      />
     </div>
   </div>
 }

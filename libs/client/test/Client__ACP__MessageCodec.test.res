@@ -148,6 +148,7 @@ test("rejects annotation metadata with source coordinates and an error", t => {
         uri: "annotation://annotation-1",
         mimeType: None,
         text: "",
+        _meta: None,
       }),
     ),
   ]

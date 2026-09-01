@@ -14,7 +14,7 @@ type initConfig = {
   loginUrl: string,
   clientName: string,
   clientVersion: string,
-  onACPMessage: (ACP.messageDirection, JSON.t) => unit,
+  onACPMessage: (FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection, JSON.t) => unit,
   _meta: JSON.t,
   onTitleUpdated: option<(string, string) => unit>,
 }
@@ -49,7 +49,7 @@ type state = {
   initialAuthBehavior: Client__FtueState.authBehavior,
   frameworkMCPClient: option<MCPClient.t>,
   mcpServer: option<MCPServer.t>,
-  abortController: option<WebAPI.EventAPI.abortController>,
+  abortController: option<WebAPI.EventTypes.abortController>,
 }
 
 @schema
@@ -111,10 +111,10 @@ type effect =
   | LogInfo(string)
   | ConnectACP({
       config: ACP.config,
-      signal: WebAPI.EventAPI.abortSignal,
+      signal: WebAPI.EventTypes.abortSignal,
       initialAuthBehavior: Client__FtueState.authBehavior,
     })
-  | ConnectFrameworkMCP(MCPClient.t, WebAPI.EventAPI.abortSignal)
+  | ConnectFrameworkMCP(MCPClient.t, WebAPI.EventTypes.abortSignal)
   | CreateSessionEffect({
       connection: ACP.connection,
       mcpServer: MCPServer.t,
@@ -207,12 +207,11 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     ) =>
     let acpConfig = ACP.makeConfig(
       ~endpoint=config.endpoint,
-      ~tokenUrl=config.tokenUrl,
       ~loginUrl=config.loginUrl,
+      ~getAuthToken=Client__EmbeddedAuth.loadToken,
       ~name=config.clientName,
       ~version=config.clientVersion,
       ~_meta=config._meta,
-      ~onMessage=config.onACPMessage,
       ~onTitleUpdated=?config.onTitleUpdated,
       ~onConfigOptionsUpdated=configOptions => {
         Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
@@ -522,7 +521,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | CreateSessionEffect({
       connection,
       mcpServer,
-      request: {sessionId, onUpdate, onTitleUpdated, onMcpMessage, onComplete},
+      request: {sessionId, onUpdate, onTitleUpdated, onMcpMessage: _onMcpMessage, onComplete},
     }) =>
     let create = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
@@ -538,7 +537,6 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           dispatch(SessionFailed({sessionId, error}))
         },
         ~mcpServerInterface,
-        ~onMcpMessage,
       )
       switch result {
       | Ok((sess, sessionNewResult)) =>
@@ -588,7 +586,14 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | LoadTaskEffect({
       connection,
       mcpServer,
-      request: {taskId, needsHistory, onUpdate, onTitleUpdated, onMcpMessage, onComplete},
+      request: {
+        taskId,
+        needsHistory,
+        onUpdate,
+        onTitleUpdated,
+        onMcpMessage: _onMcpMessage,
+        onComplete,
+      },
     }) =>
     let activateSession = async () => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
@@ -607,7 +612,6 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
             dispatch(SessionFailed({sessionId: taskId, error: err}))
           },
           ~mcpServerInterface,
-          ~onMcpMessage,
         )
         loadResult->Result.map(((session, _)) => session)
       | false =>
@@ -622,7 +626,6 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
             dispatch(SessionFailed({sessionId: taskId, error: err}))
           },
           ~mcpServerInterface,
-          ~onMcpMessage,
         )
       }
       switch result {

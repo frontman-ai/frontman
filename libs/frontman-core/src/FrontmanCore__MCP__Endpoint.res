@@ -37,7 +37,10 @@ let allowedPreflightHeader = (~config, header) => {
   config.allowedPreflightHeaders->Array.some(allowed => allowed->String.toLowerCase == header)
 }
 
-let requestedPreflightHeaders = (headers: WebAPI.FetchAPI.headers): result<array<string>, unit> => {
+let requestedPreflightHeaders = (headers: WebAPI.FetchTypes.headers): result<
+  array<string>,
+  unit,
+> => {
   switch headers->WebAPI.Headers.get("Access-Control-Request-Headers")->Null.toOption {
   | None => Ok([])
   | Some(value) =>
@@ -73,7 +76,7 @@ let gate = async (~config, ~method, ~headers): Chassis.gateResult<context> => {
   }
 }
 
-let preflight = (~config, ~origin, ~headers): WebAPI.FetchAPI.response => {
+let preflight = (~config, ~origin, ~headers): WebAPI.Response.t => {
   let requestedMethod = headers->WebAPI.Headers.get("Access-Control-Request-Method")->Null.toOption
   switch (requestedMethod, requestedPreflightHeaders(headers)) {
   | (Some("POST"), Ok(requested))

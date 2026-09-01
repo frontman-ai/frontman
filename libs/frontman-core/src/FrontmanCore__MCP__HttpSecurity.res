@@ -2,13 +2,13 @@ type authorization = Authorized | MissingAuthentication | InsufficientAuthorizat
 
 type policy = {
   allowedOrigins: array<string>,
-  authorize: WebAPI.FetchAPI.headers => promise<authorization>,
-  principal: (WebAPI.FetchAPI.headers, string) => string,
+  authorize: WebAPI.FetchTypes.headers => promise<authorization>,
+  principal: (WebAPI.FetchTypes.headers, string) => string,
   limiter: FrontmanCore__MCP__RateLimiter.t,
 }
 
-type t = Allowed(string) | Rejected(WebAPI.FetchAPI.response)
-type originValidation = ValidOrigin(string) | InvalidOrigin(WebAPI.FetchAPI.response)
+type t = Allowed(string) | Rejected(WebAPI.Response.t)
+type originValidation = ValidOrigin(string) | InvalidOrigin(WebAPI.Response.t)
 
 let normalizeAuthority = (~protocol: string, authority: string): string => {
   let authority = authority->String.toLowerCase
@@ -101,14 +101,14 @@ let emptyResponse = (~status, ~origin=?) => {
   WebAPI.Response.fromNull(~init={status, headers})
 }
 
-let withOrigin = (~origin, response: WebAPI.FetchAPI.response): WebAPI.FetchAPI.response => {
+let withOrigin = (~origin, response: WebAPI.Response.t): WebAPI.Response.t => {
   response.headers->WebAPI.Headers.set(~name="Access-Control-Allow-Origin", ~value=origin)
   response.headers->WebAPI.Headers.append(~name="Vary", ~value="Origin")
   response
 }
 
 let validateOriginHeaders = (
-  ~headers: WebAPI.FetchAPI.headers,
+  ~headers: WebAPI.FetchTypes.headers,
   ~policy: policy,
 ): originValidation => {
   let origin = headers->WebAPI.Headers.get("Origin")->Null.toOption->Option.flatMap(parseOrigin)
@@ -120,7 +120,7 @@ let validateOriginHeaders = (
   }
 }
 
-let validateHeaders = async (~headers: WebAPI.FetchAPI.headers, ~policy: policy): t => {
+let validateHeaders = async (~headers: WebAPI.FetchTypes.headers, ~policy: policy): t => {
   switch validateOriginHeaders(~headers, ~policy) {
   | InvalidOrigin(response) => Rejected(response)
   | ValidOrigin(origin) =>
@@ -132,5 +132,5 @@ let validateHeaders = async (~headers: WebAPI.FetchAPI.headers, ~policy: policy)
   }
 }
 
-let validate = async (~request: WebAPI.FetchAPI.request, ~policy: policy): t =>
+let validate = async (~request: WebAPI.Request.t, ~policy: policy): t =>
   await validateHeaders(~headers=request.headers, ~policy)

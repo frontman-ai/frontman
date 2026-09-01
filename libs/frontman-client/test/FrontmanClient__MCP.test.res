@@ -444,7 +444,7 @@ describe("modern MCP consumer", () => {
 
   testAsync("cancels only the matching request and suppresses its late result", async t => {
     let resolvers: Dict.t<unit => unit> = Dict.make()
-    let signals: Dict.t<WebAPI.EventAPI.abortSignal> = Dict.make()
+    let signals: Dict.t<WebAPI.EventTypes.abortSignal> = Dict.make()
     let serverInterface = makeServerInterface(
       ~executeTool=async (
         _,
@@ -473,8 +473,8 @@ describe("modern MCP consumer", () => {
     let payload = JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"request-7","reason":"user requested"}}`)
     await MCP.handleMessage(handler, payload)
 
-    let firstSignal: WebAPI.EventAPI.abortSignal = signals->Dict.get("task-7")->Option.getOrThrow
-    let secondSignal: WebAPI.EventAPI.abortSignal = signals->Dict.get("task-8")->Option.getOrThrow
+    let firstSignal: WebAPI.EventTypes.abortSignal = signals->Dict.get("task-7")->Option.getOrThrow
+    let secondSignal: WebAPI.EventTypes.abortSignal = signals->Dict.get("task-8")->Option.getOrThrow
     t->expect(firstSignal.aborted)->Expect.toBe(true)
     t->expect(secondSignal.aborted)->Expect.toBe(false)
     let resolveFirst = resolvers->Dict.get("task-7")->Option.getOrThrow
@@ -687,7 +687,7 @@ describe("modern MCP consumer", () => {
     let second = MCP.handleMessage(handler, callRequest(~id=JSON.Encode.string("second")))
     await MCP.handleMessage(handler, cancellation(JSON.Encode.string("first")))
 
-    let executionSignal: WebAPI.EventAPI.abortSignal = signal.contents->Option.getOrThrow
+    let executionSignal: WebAPI.EventTypes.abortSignal = signal.contents->Option.getOrThrow
     t->expect(executionSignal.aborted)->Expect.toBe(false)
     let resolve = resolveExecution.contents->Option.getOrThrow
     resolve()
@@ -738,7 +738,8 @@ describe("modern MCP consumer", () => {
         callRequest(~id=JSON.Encode.string("request-0-replay"), ~taskId="task-0"),
       )
       await MCP.handleMessage(handler, cancellation(JSON.Encode.string("request-0")))
-      let executionSignal: WebAPI.EventAPI.abortSignal = cancelledSignal.contents->Option.getOrThrow
+      let executionSignal: WebAPI.EventTypes.abortSignal =
+        cancelledSignal.contents->Option.getOrThrow
       t->expect(executionSignal.aborted)->Expect.toBe(false)
       await MCP.handleMessage(handler, cancellation(JSON.Encode.string("request-0-replay")))
       await MCP.handleMessage(
@@ -1193,7 +1194,7 @@ describe("modern MCP consumer", () => {
 
   testAsync("detaches only its listener and fences active calls", async t => {
     let resolvers: Dict.t<unit => unit> = Dict.make()
-    let signals: Dict.t<WebAPI.EventAPI.abortSignal> = Dict.make()
+    let signals: Dict.t<WebAPI.EventTypes.abortSignal> = Dict.make()
     let serverInterface = makeServerInterface(
       ~executeTool=async (
         _,

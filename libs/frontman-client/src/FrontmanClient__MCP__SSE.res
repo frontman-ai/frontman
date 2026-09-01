@@ -112,9 +112,9 @@ let consumeBlocks = (text, blockParts, suffix, onBlock) => {
 }
 
 let readStream = async (
-  response: WebAPI.FetchAPI.response,
+  response: WebAPI.Response.t,
   ~onNotification: option<JSON.t => unit>=?,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): result<JSON.t, string> => {
   switch response.body->Null.toOption {
   | None => Error("No response body")

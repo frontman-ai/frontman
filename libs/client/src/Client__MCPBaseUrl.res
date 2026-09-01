@@ -22,7 +22,5 @@ let fromParts = (~protocol: string, ~host: string, ~pathname: string): string =>
 
 let current = (): string => {
   let location = WebAPI.Window.current->WebAPI.Window.location
-  Client__RuntimeConfig.read().relayBaseUrl->Option.getOr(
-    fromParts(~protocol=location.protocol, ~host=location.host, ~pathname=location.pathname),
-  )
+  fromParts(~protocol=location.protocol, ~host=location.host, ~pathname=location.pathname)
 }

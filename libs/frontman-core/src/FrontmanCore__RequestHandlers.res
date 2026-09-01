@@ -34,8 +34,8 @@ type errorResponse = {
 
 let handleResolveSourceLocation = async (
   ~sourceRoot: string,
-  req: WebAPI.FetchAPI.request,
-): WebAPI.FetchAPI.response => {
+  req: WebAPI.Request.t,
+): WebAPI.Response.t => {
   let request = switch await RequestBody.decode(req) {
   | Error(RequestBody.BodyAlreadyUsed) =>
     failwith("Source-location request body was already consumed")

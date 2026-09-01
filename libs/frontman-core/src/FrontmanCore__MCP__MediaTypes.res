@@ -81,7 +81,7 @@ let accepts = (~ranges, ~expected) =>
     }
   })
 
-let validate = (headers: WebAPI.FetchAPI.headers): result<unit, validationError> => {
+let validate = (headers: WebAPI.FetchTypes.headers): result<unit, validationError> => {
   switch headers->WebAPI.Headers.get("Content-Type")->Null.toOption {
   | Some(value) if value->isJsonContentType =>
     switch headers->WebAPI.Headers.get("Accept")->Null.toOption {

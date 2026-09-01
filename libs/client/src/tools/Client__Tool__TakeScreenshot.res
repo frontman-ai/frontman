@@ -17,18 +17,6 @@ type input = {
   fullPage: option<bool>,
 }
 
-let decodeError = message => {
-  let normalized = message->String.toLowerCase
-  normalized->String.includes("source image cannot be decoded") ||
-    normalized->String.includes("invalid encoded image data")
-}
-
-let captureErrorMessage = (message: string) =>
-  switch decodeError(message) {
-  | true => `Screenshot could not be rendered because the browser could not decode the generated page image. The page may contain malformed HTML, unsupported SVG content, or exceed browser image limits. Try again after the page finishes loading or capture a smaller element with the selector option.`
-  | false => message
-  }
-
 let _cropCanvasToViewport = (
   sourceCanvas: WebAPI.DomTypes.htmlCanvasElement,
   ~scrollX: float,
@@ -55,7 +43,7 @@ let _cropCanvasToViewport = (
   if sw <= 0.0 || sh <= 0.0 {
     sourceCanvas->HTMLCanvasElement.toDataURL(~type_="image/jpeg", ~quality=qualityJson)
   } else {
-    let crop = Window.current->Window.document->Document.createCanvasElement
+    let crop = WebAPI.Window.current->WebAPI.Window.document->Document.createCanvasElement
     crop.width = sw->Float.toInt
     crop.height = sh->Float.toInt
     let ctx = crop->HTMLCanvasElement.getContext2D
@@ -97,11 +85,11 @@ let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
-  ~signal as _signal: WebAPI.EventAPI.abortSignal,
+  ~signal as _signal: WebAPI.EventTypes.abortSignal,
 ): Tool.MCP.CallToolResult.t => {
   let fullPage = input.fullPage->Option.getOr(false)
 
-  await Client__Tool__PreviewContext.withPreview(
+  await Client__Tool__ElementResolver.withPreviewDoc(
     ~onUnavailable=async () =>
       Tool.MCP.CallToolResult.makeError("Preview frame document not available"),
     async ({doc, win}) => {
@@ -115,9 +103,7 @@ let execute = async (
         doc
         ->WebAPI.Document.body
         ->Null.toOption
-        ->Option.mapOr(Error("Document body not available"), el => Ok(
-          el->WebAPI.HTMLElement.asElement,
-        ))
+        ->Option.mapOr(Error("Document body not available"), el => Ok(el->Obj.magic))
       }
 
       let viewportCrop = switch (fullPage, input.selector) {
@@ -164,9 +150,7 @@ let execute = async (
               imageResultFromDataUrl(jpgImage.src)
             }
           } catch {
-          | exn =>
-            let message = Client__Tool__PreviewContext.exnMessage(exn)
-            Tool.MCP.CallToolResult.makeError(captureErrorMessage(message))
+          | exn => Tool.MCP.CallToolResult.makeError(Client__Tool__ElementResolver.exnMessage(exn))
           }
         }
       }

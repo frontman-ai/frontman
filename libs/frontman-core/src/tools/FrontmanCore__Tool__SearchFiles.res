@@ -151,7 +151,7 @@ let executeRipgrep = async (
   ~pattern: string,
   ~searchPath: string,
   ~maxResults: int,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): result<output, backendError> => {
   let args = buildRipgrepArgs(~searchPath)
 
@@ -182,7 +182,7 @@ let executeGitLsFiles = async (
   ~pattern: string,
   ~searchPath: string,
   ~maxResults: int,
-  ~signal: WebAPI.EventAPI.abortSignal,
+  ~signal: WebAPI.EventTypes.abortSignal,
 ): result<output, backendError> => {
   let result = await ChildProcess.spawnResult("git", ["ls-files"], ~cwd=searchPath, ~signal)
 

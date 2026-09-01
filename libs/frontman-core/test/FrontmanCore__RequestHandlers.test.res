@@ -3,7 +3,7 @@ open Vitest
 module RequestHandlers = FrontmanCore__RequestHandlers
 
 module Helpers = {
-  let makePostRequest = (url: string, body: JSON.t): WebAPI.FetchAPI.request => {
+  let makePostRequest = (url: string, body: JSON.t): WebAPI.Request.t => {
     let headers = WebAPI.HeadersInit.fromDict(
       Dict.fromArray([("Content-Type", "application/json")]),
     )

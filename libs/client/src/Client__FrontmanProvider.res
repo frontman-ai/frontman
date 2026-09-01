@@ -135,13 +135,16 @@ module Provider = {
   @react.component
   let make = (
     ~endpoint: string,
-    ~tokenUrl: string,
+    ~tokenUrl: string="",
     ~loginUrl: string,
     ~clientName: string="frontman-client",
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    let logACPMessage = React.useCallback0((direction: ACP.messageDirection, _payload: JSON.t) => {
+    let logACPMessage = React.useCallback0((
+      direction: FrontmanAiFrontmanClient.FrontmanClient__MCP.messageDirection,
+      _payload: JSON.t,
+    ) => {
       let arrow = direction == Send ? `→` : `←`
       Log.debug(`ACP ${arrow}`)
     })
@@ -323,7 +326,7 @@ module Provider = {
         Client__TextDeltaBuffer.flush()
         switch state {
         | Running => Client__State.Actions.executionStateRunning(~taskId)
-        | Idle => Client__State.Actions.executionStateIdle(~taskId)
+        | Idle => Client__State.Actions.executionStateIdle(~taskId, ~stopReason=None)
         | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
         }
       | ConfigOptionUpdate({configOptions}) =>
@@ -356,7 +359,7 @@ module Provider = {
     let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
       dispatch(
         CreateSession({
-          sessionId: WebAPI.Global.crypto->WebAPI.Crypto.randomUUID,
+          sessionId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
           onMcpMessage: logMCPMessage,

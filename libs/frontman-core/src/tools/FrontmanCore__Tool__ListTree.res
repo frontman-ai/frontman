@@ -369,7 +369,7 @@ let detectMonorepo = async (rootPath: string): monorepoInfo => {
   {monorepoType, workspaces}
 }
 
-let getTrackedFiles = async (~cwd: string, ~signal: WebAPI.EventAPI.abortSignal): result<
+let getTrackedFiles = async (~cwd: string, ~signal: WebAPI.EventTypes.abortSignal): result<
   array<string>,
   string,
 > => {

@@ -6,7 +6,7 @@ module ToolRegistry = FrontmanCore__ToolRegistry
 type executionContext = {
   projectRoot: string,
   sourceRoot: string,
-  signal: WebAPI.EventAPI.abortSignal,
+  signal: WebAPI.EventTypes.abortSignal,
   @live
   onProgress: option<string => unit>,
 }

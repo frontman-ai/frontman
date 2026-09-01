@@ -73,8 +73,6 @@ let loadConnectionWithTransport = (history, result): (ACP.connection, mockTransp
     channel: transport.channel,
     clientConfig,
     state: ref(Client.initialState),
-    onMessage: None,
-    detachMcp: ref(None),
   }
   (connection, transport)
 }
@@ -136,7 +134,13 @@ let genericUserUpdate = JSON.parseOrThrow(`{
 
 let loadResult = JSON.parseOrThrow(`{}`)
 
-let loadCleanupEvents = ["load-response", "off:acp:message", "off:title_updated", "leave"]
+let loadCleanupEvents = [
+  "load-response",
+  "off:acp:message",
+  "off:mcp:message",
+  "off:title_updated",
+  "leave",
+]
 
 let loadSession = (connection, ~onLoadResult, ~onUpdate, ~onParseError=?) =>
   ACP.loadSession(
@@ -468,7 +472,6 @@ describe("ACP Client handleResponse", _t => {
           | _ => ()
           },
       ),
-      ~onMessage=None,
       ~onParseError=Some(error => parseError := Some(error)),
       payload,
     )

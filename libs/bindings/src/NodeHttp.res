@@ -13,7 +13,7 @@ module Buffer = {
 
 module Readable = {
   @module("node:stream") @scope("Readable")
-  external toWeb: incomingMessage => WebAPI.FileAPI.readableStream<Uint8Array.t> = "toWeb"
+  external toWeb: incomingMessage => WebAPI.FileTypes.readableStream<Uint8Array.t> = "toWeb"
 }
 
 @get external method: incomingMessage => string = "method"

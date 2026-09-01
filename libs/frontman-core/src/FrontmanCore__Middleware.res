@@ -10,10 +10,10 @@ module SourceLocationEndpoint = FrontmanCore__SourceLocationEndpoint
 let mcpCookieName = "frontman_mcp_session"
 
 let withMcpBrowserCookie = (
-  response: WebAPI.FetchAPI.response,
+  response: WebAPI.Response.t,
   ~token: option<string>,
   ~secure: bool,
-): WebAPI.FetchAPI.response => {
+): WebAPI.Response.t => {
   token->Option.forEach(token => {
     let secureAttribute = switch secure {
     | true => "; Secure"
@@ -106,15 +106,9 @@ let buildEntrypointUrl = (
 
 @@live
 let createMiddleware = (~config: MiddlewareConfig.t): (
-  (
-    WebAPI.FetchAPI.request,
-    ~rawHeaders: RawHeaders.t=?,
-  ) => promise<option<WebAPI.FetchAPI.response>>
+  (WebAPI.Request.t, ~rawHeaders: RawHeaders.t=?) => promise<option<WebAPI.Response.t>>
 ) => {
-  let middleware = async (
-    req: WebAPI.FetchAPI.request,
-    ~rawHeaders as _: option<RawHeaders.t>=?,
-  ) => {
+  let middleware = async (req: WebAPI.Request.t, ~rawHeaders as _: option<RawHeaders.t>=?) => {
     let method = req.method->String.toLowerCase
     let url = WebAPI.URL.make(~url=req.url)
     let pathname = url.pathname

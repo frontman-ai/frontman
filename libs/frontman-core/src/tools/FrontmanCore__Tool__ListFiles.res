@@ -36,7 +36,7 @@ let (visibleToAgent, outputJsonSchema) = (true, None)
 let getIgnoredEntries = async (
   ~cwd: string,
   entries: array<string>,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): result<array<string>, string> => {
   if Array.length(entries) == 0 {
     Ok([])

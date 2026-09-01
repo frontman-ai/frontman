@@ -29,6 +29,12 @@ let frameworkDisplayName = (id: frameworkId): string =>
   | Wordpress => "WordPress"
   }
 
+let supportsFileChanges = (id: frameworkId): bool =>
+  switch id {
+  | Nextjs | Vite | Astro => true
+  | Wordpress => false
+  }
+
 @schema
 type parsed = {
   framework: string,

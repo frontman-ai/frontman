@@ -110,7 +110,7 @@ describe("Vite Node adapter physical headers", _t => {
   testAsync("streams a matched request without pre-buffering", async t => {
     let bodyUsedAtDispatch = ref(true)
     let body = ref("")
-    let middleware = (request: WebAPI.FetchAPI.request, ~rawHeaders) => {
+    let middleware = (request: WebAPI.Request.t, ~rawHeaders) => {
       rawHeaders->ignore
       bodyUsedAtDispatch := request.bodyUsed
       request

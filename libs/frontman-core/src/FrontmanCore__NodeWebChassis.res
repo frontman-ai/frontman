@@ -2,13 +2,13 @@ module NodeHttp = FrontmanBindings.NodeHttp
 module WebStreams = FrontmanBindings.WebStreams
 module RawHeaders = FrontmanCore__MCP__RawHeaders
 
-type gateResult<'context> = Granted('context) | Denied(WebAPI.FetchAPI.response)
+type gateResult<'context> = Granted('context) | Denied(WebAPI.Response.t)
 
 type adaptedRequest<'context> = {
-  request: WebAPI.FetchAPI.request,
+  request: WebAPI.Request.t,
   rawHeaders: RawHeaders.t,
   context: 'context,
-  signal: WebAPI.EventAPI.abortSignal,
+  signal: WebAPI.EventTypes.abortSignal,
 }
 
 type outcome = Passed | Responded | Cancelled | TimedOut
@@ -26,15 +26,15 @@ type streamingRequestInit = {
   @live
   duplex: string,
   @live
-  signal: WebAPI.EventAPI.abortSignal,
+  signal: WebAPI.EventTypes.abortSignal,
 }
 
 type lifecycle = {
   terminalReason: ref<terminalReason>,
   absoluteDeadline: option<float>,
-  controller: WebAPI.EventAPI.abortController,
+  controller: WebAPI.EventTypes.abortController,
   nodeRequest: NodeHttp.incomingMessage,
-  responseReader: ref<option<WebAPI.FileAPI.readableStreamReader<Uint8Array.t>>>,
+  responseReader: ref<option<WebAPI.FileTypes.readableStreamReader<Uint8Array.t>>>,
   drainResolver: ref<option<bool => unit>>,
   terminalResolver: ref<option<terminalReason => unit>>,
 }
@@ -48,13 +48,13 @@ external clearTimeout: timeoutId => unit = "clearTimeout"
 @val @scope("performance")
 external monotonicNow: unit => float = "now"
 
-external streamingRequestInitAsRequestInit: streamingRequestInit => WebAPI.FetchAPI.requestInit =
+external streamingRequestInitAsRequestInit: streamingRequestInit => WebAPI.Request.requestInit =
   "%identity"
 
 @send
-external forEachHeader: (WebAPI.FetchAPI.headers, (string, string) => unit) => unit = "forEach"
+external forEachHeader: (WebAPI.FetchTypes.headers, (string, string) => unit) => unit = "forEach"
 
-let headerSnapshot = (rawHeaders: RawHeaders.t): WebAPI.FetchAPI.headers => {
+let headerSnapshot = (rawHeaders: RawHeaders.t): WebAPI.FetchTypes.headers => {
   let headers = WebAPI.Headers.make()
   rawHeaders->Array.forEach(field =>
     headers->WebAPI.Headers.append(~name=field.name, ~value=field.value)
@@ -145,8 +145,8 @@ let makeWebRequest = (
   ~nodeRequest,
   ~url,
   ~headers,
-  ~signal: WebAPI.EventAPI.abortSignal,
-): WebAPI.FetchAPI.request => {
+  ~signal: WebAPI.EventTypes.abortSignal,
+): WebAPI.Request.t => {
   let method = nodeRequest->NodeHttp.method
   switch method->String.toUpperCase {
   | "GET" | "HEAD" =>
@@ -172,7 +172,7 @@ let makeWebRequest = (
 }
 
 let writeHeaders = (
-  ~webResponse: WebAPI.FetchAPI.response,
+  ~webResponse: WebAPI.Response.t,
   ~nodeResponse: NodeHttp.serverResponse,
 ): unit => {
   nodeResponse->NodeHttp.setStatusCode(webResponse.status)
@@ -254,8 +254,8 @@ let handle = async (
   ~nodeRequest: NodeHttp.incomingMessage,
   ~nodeResponse: NodeHttp.serverResponse,
   ~absoluteTimeoutMs: option<int>=?,
-  ~gate: (WebAPI.FetchAPI.headers, RawHeaders.t) => promise<gateResult<'context>>,
-  ~dispatch: adaptedRequest<'context> => promise<option<WebAPI.FetchAPI.response>>,
+  ~gate: (WebAPI.FetchTypes.headers, RawHeaders.t) => promise<gateResult<'context>>,
+  ~dispatch: adaptedRequest<'context> => promise<option<WebAPI.Response.t>>,
 ): outcome => {
   let rawHeaders = nodeRequest->NodeHttp.rawHeaders->RawHeaders.fromFlatArray
   let url = requestUrl(~nodeRequest, ~rawHeaders)

@@ -27,11 +27,11 @@ module Helpers = {
 
   let middleware = req => Middleware.createMiddleware(~config)(req)
 
-  let makeGetRequest = (url: string): WebAPI.FetchAPI.request => {
+  let makeGetRequest = (url: string): WebAPI.Request.t => {
     WebAPI.Request.fromURL(url)
   }
 
-  let makeOptionsRequest = (url: string, ~sourceLocation=false): WebAPI.FetchAPI.request => {
+  let makeOptionsRequest = (url: string, ~sourceLocation=false): WebAPI.Request.t => {
     let headers = switch sourceLocation {
     | false => WebAPI.HeadersInit.fromKeyValueArray([])
     | true =>
@@ -44,7 +44,7 @@ module Helpers = {
     WebAPI.Request.fromURL(url, ~init={method: "OPTIONS", headers})
   }
 
-  let makePostRequest = (url: string, body: JSON.t, ~origin=?): WebAPI.FetchAPI.request => {
+  let makePostRequest = (url: string, body: JSON.t, ~origin=?): WebAPI.Request.t => {
     let headerValues = switch origin {
     | Some(origin) => [("Content-Type", "application/json"), ("Origin", origin)]
     | None => [("Content-Type", "application/json")]

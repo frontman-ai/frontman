@@ -10,7 +10,7 @@ let handleRequest = async (
   request: NodeHttp.incomingMessage,
   response: NodeHttp.serverResponse,
   ~security: HttpSecurity.policy,
-  ~middleware: adaptedRequest => promise<option<WebAPI.FetchAPI.response>>,
+  ~middleware: adaptedRequest => promise<option<WebAPI.Response.t>>,
 ): outcome =>
   await Chassis.handle(
     ~nodeRequest=request,

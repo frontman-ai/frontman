@@ -347,12 +347,4 @@ module Actions = {
 
   let questionCancelled = (~taskId) =>
     Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: QuestionCancelled}))
-
-  let questionTerminated = (~taskId, ~message) =>
-    Client__State__Store.dispatch(
-      TaskAction({
-        target: ForTask(taskId),
-        action: Client__Task__Reducer.QuestionTerminated({message: message}),
-      }),
-    )
 }

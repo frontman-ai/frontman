@@ -110,8 +110,8 @@ let readBeforeDeadline = async (reader, deadline) => {
 }
 
 let read = async (
-  ~headers: WebAPI.FetchAPI.headers,
-  ~body: WebAPI.FileAPI.readableStream<Uint8Array.t>,
+  ~headers: WebAPI.FetchTypes.headers,
+  ~body: WebAPI.FileTypes.readableStream<Uint8Array.t>,
 ): result<Uint8Array.t, readError> => {
   switch validateContentLength(headers) {
   | Error(_) as error => error

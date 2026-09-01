@@ -142,7 +142,7 @@ describe("Astro Node adapter physical headers", _t => {
     let resolveNext = ref(None)
     let nextCalled = Promise.make((resolve, _reject) => resolveNext := Some(resolve))
     let adapted = ViteAdapter.adaptToConnect(
-      (request: WebAPI.FetchAPI.request, ~rawHeaders) => {
+      (request: WebAPI.Request.t, ~rawHeaders) => {
         rawHeaders->ignore
         bodyUsedAtDispatch := request.bodyUsed
         request

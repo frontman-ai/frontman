@@ -8,10 +8,9 @@ type boundaryError =
   | DecoderError(BodyDecoder.decodeError)
 
 @get
-external body: WebAPI.FetchAPI.request => Null.t<WebAPI.FileAPI.readableStream<Uint8Array.t>> =
-  "body"
+external body: WebAPI.Request.t => Null.t<WebAPI.FileTypes.readableStream<Uint8Array.t>> = "body"
 
-let decode = async (request: WebAPI.FetchAPI.request): result<JSON.t, boundaryError> => {
+let decode = async (request: WebAPI.Request.t): result<JSON.t, boundaryError> => {
   switch request.bodyUsed {
   | true => Error(BodyAlreadyUsed)
   | false =>

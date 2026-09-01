@@ -55,7 +55,7 @@ let preflight = (~origin, ~headers) => {
   }
 }
 
-let dispatch = async (~config, request: WebAPI.FetchAPI.request) => {
+let dispatch = async (~config, request: WebAPI.Request.t) => {
   switch validateOrigin(~config, ~headers=request.headers) {
   | HttpSecurity.InvalidOrigin(response) => response
   | HttpSecurity.ValidOrigin(origin) =>

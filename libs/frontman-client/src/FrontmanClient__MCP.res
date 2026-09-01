@@ -11,7 +11,7 @@ type messageDirection = Send | Receive
 type activeRequest = {executionKey: string}
 
 type durableExecution = {
-  controller: WebAPI.EventAPI.abortController,
+  controller: WebAPI.EventTypes.abortController,
   fingerprint: string,
   waiters: ref<Dict.t<JsonRpc.Id.t>>,
 }

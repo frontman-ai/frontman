@@ -8,18 +8,16 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
   blocks->Array.forEach(block =>
     switch block {
     | EmbeddedResource({_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})})
-      if meta->Dict.has("annotation_screenshot") =>
+      if meta->Dict.get("annotation_screenshot") != None =>
       let parsed = S.parseOrThrow(
         JSON.Encode.object(meta),
         ~to=Client__Task__Types.screenshotMetaSchema,
       )
-      switch parsed.annotationScreenshot {
-      | true =>
+      if parsed.annotationScreenshot {
         screenshotMap->Dict.set(
           parsed.annotationId,
           `data:${mimeType->Option.getOrThrow};base64,${blob}`,
         )
-      | false => ()
       }
     | _ => ()
     }
@@ -32,13 +30,12 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
     | TextContent({text}) =>
       content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
     | EmbeddedResource({_meta: Some(meta), resource: TextResourceContents(_)})
-      if meta->Dict.has("annotation") =>
+      if meta->Dict.get("annotation") != None =>
       let parsed = S.parseOrThrow(
         JSON.Encode.object(meta),
         ~to=Client__Task__Types.annotationMetaSchema,
       )
-      switch parsed.annotation {
-      | true =>
+      if parsed.annotation {
         annotations
         ->Array.push(
           Client__Task__Types.annotationMetaToMessageAnnotation(
@@ -47,11 +44,10 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
           ),
         )
         ->ignore
-      | false => ()
       }
     | EmbeddedResource({_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})}) =>
-      switch meta->Dict.get("user_image")->Option.flatMap(JSON.Decode.bool) {
-      | Some(true) =>
+      switch meta->Dict.get("user_image") {
+      | Some(value) if value == JSON.Encode.bool(true) =>
         let filename =
           meta->Dict.get("filename")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
         let mime = mimeType->Option.getOrThrow
@@ -65,7 +61,7 @@ let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
           }),
         )
         ->ignore
-      | Some(false) | None => ()
+      | _ => ()
       }
     | _ => ()
     }

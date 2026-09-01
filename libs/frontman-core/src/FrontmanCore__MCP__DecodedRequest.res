@@ -49,8 +49,8 @@ type withMethod = {
 
 type t =
   | Accepted(accepted)
-  | Completed(WebAPI.FetchAPI.response)
-  | Rejected(WebAPI.FetchAPI.response)
+  | Completed(WebAPI.Response.t)
+  | Rejected(WebAPI.Response.t)
 
 let parseMetadata = metadata => {
   switch metadata {
@@ -79,7 +79,7 @@ let hasRequiredClientCapabilities = (~metadata, ~required) => {
   }
 }
 
-let validateHeaders = (~headers, envelope): result<withAuthorities, WebAPI.FetchAPI.response> => {
+let validateHeaders = (~headers, envelope): result<withAuthorities, WebAPI.Response.t> => {
   let authorities = RequestAuthorities.extract(envelope)
   switch RequestHeaders.validate(~headers, ~request=authorities.headers) {
   | Error(error) => Error(ErrorResponse.make(~id=envelope.id, ~error))
@@ -87,10 +87,7 @@ let validateHeaders = (~headers, envelope): result<withAuthorities, WebAPI.Fetch
   }
 }
 
-let validateMetadata = (request: withAuthorities): result<
-  withMetadata,
-  WebAPI.FetchAPI.response,
-> => {
+let validateMetadata = (request: withAuthorities): result<withMetadata, WebAPI.Response.t> => {
   let {envelope, authorities} = request
   switch parseMetadata(authorities.metadata) {
   | Error() => Error(ErrorResponse.invalidRequestMetadata(~id=envelope.id))
@@ -111,7 +108,7 @@ let validateCapabilities = (~requiredClientCapabilities, request: withMetadata) 
   }
 }
 
-let validateMethod = (validated: withMetadata): result<withMethod, WebAPI.FetchAPI.response> => {
+let validateMethod = (validated: withMetadata): result<withMethod, WebAPI.Response.t> => {
   let {envelope, authorities, metadata} = validated
   switch MethodRequest.validate(envelope) {
   | Error(MethodRequest.MethodNotFound) => Error(ErrorResponse.methodNotFound(~id=envelope.id))
@@ -120,7 +117,7 @@ let validateMethod = (validated: withMetadata): result<withMethod, WebAPI.FetchA
   }
 }
 
-let selectTool = (~registry, validated: withMethod): result<accepted, WebAPI.FetchAPI.response> => {
+let selectTool = (~registry, validated: withMethod): result<accepted, WebAPI.Response.t> => {
   let {envelope, authorities, metadata, request} = validated
   switch MethodRequest.select(~registry, request) {
   | Error(MethodRequest.UnknownTool(name)) =>
@@ -131,7 +128,7 @@ let selectTool = (~registry, validated: withMethod): result<accepted, WebAPI.Fet
 
 let validateCustomHeaders = (~rawHeaders, accepted: accepted): result<
   accepted,
-  WebAPI.FetchAPI.response,
+  WebAPI.Response.t,
 > => {
   switch accepted.request {
   | MethodRequest.SelectedDiscover(_) | MethodRequest.SelectedListTools(_) => Ok(accepted)
@@ -159,7 +156,7 @@ let validateCustomHeaders = (~rawHeaders, accepted: accepted): result<
   }
 }
 
-let completeToolResult = (~id, ~result, ~serverIdentity): WebAPI.FetchAPI.response => {
+let completeToolResult = (~id, ~result, ~serverIdentity): WebAPI.Response.t => {
   let result = result->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json)
   let result = switch serverIdentity {
   | None => result
@@ -182,13 +179,13 @@ let completeToolResult = (~id, ~result, ~serverIdentity): WebAPI.FetchAPI.respon
   WebAPI.Response.jsonR(~data, ~init={status: 200})
 }
 
-let completeDiscoverResult = (~id, ~result): WebAPI.FetchAPI.response => {
+let completeDiscoverResult = (~id, ~result): WebAPI.Response.t => {
   let result = result->S.decodeOrThrow(~from=MCP.DiscoverResult.schema, ~to=S.json)
   let data = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
   WebAPI.Response.jsonR(~data, ~init={status: 200})
 }
 
-let completeListToolsResult = (~id, ~result): WebAPI.FetchAPI.response => {
+let completeListToolsResult = (~id, ~result): WebAPI.Response.t => {
   let result = result->S.decodeOrThrow(~from=MCP.ListToolsResult.schema, ~to=S.json)
   let data = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
   WebAPI.Response.jsonR(~data, ~init={status: 200})
@@ -246,7 +243,7 @@ let validateToolOutput = async (~tool: ToolRegistry.tool, result: MCP.CallToolRe
 
 let validateToolArguments = (~serverIdentity, accepted: accepted): result<
   accepted,
-  WebAPI.FetchAPI.response,
+  WebAPI.Response.t,
 > => {
   switch accepted.request {
   | MethodRequest.SelectedDiscover(_) | MethodRequest.SelectedListTools(_) => Ok(accepted)
@@ -313,7 +310,7 @@ let execute = async (
 }
 
 let validate = (
-  ~headers: WebAPI.FetchAPI.headers,
+  ~headers: WebAPI.FetchTypes.headers,
   ~rawHeaders: option<RawHeaders.t>=None,
   ~json: JSON.t,
   ~registry: ToolRegistry.t,

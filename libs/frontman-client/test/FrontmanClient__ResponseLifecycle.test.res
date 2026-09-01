@@ -5,7 +5,7 @@ module SSE = FrontmanClient__MCP__SSE
 module WebStreams = FrontmanBindings.WebStreams
 
 @new
-external makeResponse: WebAPI.FileAPI.readableStream<Uint8Array.t> => WebAPI.FetchAPI.response =
+external makeResponse: WebAPI.FileTypes.readableStream<Uint8Array.t> => WebAPI.Response.t =
   "Response"
 
 let encode = value => WebStreams.makeTextEncoder()->WebStreams.encode(value)

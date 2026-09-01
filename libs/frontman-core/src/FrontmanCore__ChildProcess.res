@@ -16,7 +16,7 @@ let defaultMaxBuffer = 50 * 1024 * 1024
 let execPromise = (
   command: string,
   options: B.execOptions,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): Promise.t<result<B.execResult, B.execError>> => {
   let maxBuffer = options.maxBuffer->Option.getOr(defaultMaxBuffer)
   Promise.make((resolve, _reject) => {
@@ -76,7 +76,7 @@ let spawnPromise = (
   command: string,
   args: array<string>,
   options: B.execOptions,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): Promise.t<result<B.execResult, B.execError>> => {
   let maxBuffer = options.maxBuffer->Option.getOr(defaultMaxBuffer)
 
@@ -242,7 +242,7 @@ let exec = async (command: string): result<B.execResult, B.execError> => {
 let execWithOptions = async (
   command: string,
   options: B.execOptions,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): result<B.execResult, B.execError> => {
   await execPromise(command, options, ~signal?)
 }
@@ -251,7 +251,7 @@ let spawnResult = async (
   command: string,
   args: array<string>,
   ~cwd: option<string>=?,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): result<B.execResult, B.execError> => {
   let options: B.execOptions = {
     ?cwd,

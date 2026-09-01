@@ -47,13 +47,15 @@ let errorMessage = exn =>
 @val external setTimeout: (unit => unit, int) => timeoutId = "setTimeout"
 @val external clearTimeout: timeoutId => unit = "clearTimeout"
 @val @scope("performance") external monotonicNow: unit => float = "now"
+@val external browserWindow: 'a = "window"
+@val @scope("location") external browserOrigin: string = "origin"
 
 let defaultMakeWorker = () => {
   let moduleUrl = WebAPI.URL.make(
     ~url="./FrontmanClient__MCP__RemoteSchemaWorker.res.mjs",
     ~base=importMetaUrl,
   )
-  switch Js.typeof(WebAPI.Global.window) {
+  switch Js.typeof(browserWindow) {
   | "undefined" =>
     makeWorker(
       WebAPI.URL.make(
@@ -62,8 +64,7 @@ let defaultMakeWorker = () => {
       ),
       {type_: "module"},
     )
-  | _ if moduleUrl.origin == WebAPI.Global.location.origin =>
-    makeWorker(moduleUrl, {type_: "module"})
+  | _ if moduleUrl.origin == browserOrigin => makeWorker(moduleUrl, {type_: "module"})
   | _ =>
     let importSpecifier = JSON.stringify(JSON.Encode.string(moduleUrl.href))
     let blobUrl = createObjectUrl(
@@ -86,7 +87,7 @@ let run = async (
   ~operation,
   ~value,
   ~limits,
-  ~signal: option<WebAPI.EventAPI.abortSignal>,
+  ~signal: option<WebAPI.EventTypes.abortSignal>,
   ~makeWorker=defaultMakeWorker,
 ): result<unit, validationError> => {
   switch signal->Option.mapOr(false, signal => signal.aborted) {
@@ -175,11 +176,13 @@ let run = async (
 let compileSchema = async (
   ~schema,
   ~limits=defaultLimits,
-  ~signal: option<WebAPI.EventAPI.abortSignal>=?,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
 ): result<unit, validationError> =>
   await run(~schema, ~operation="compile", ~value=schema, ~limits, ~signal)
 
-let validateValue = async (~schema, ~value, ~signal: option<WebAPI.EventAPI.abortSignal>=?): result<
-  unit,
-  validationError,
-> => await run(~schema, ~operation="validate", ~value, ~limits=defaultLimits, ~signal)
+let validateValue = async (
+  ~schema,
+  ~value,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
+): result<unit, validationError> =>
+  await run(~schema, ~operation="validate", ~value, ~limits=defaultLimits, ~signal)

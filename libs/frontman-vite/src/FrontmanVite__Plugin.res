@@ -10,9 +10,9 @@ let adaptMiddlewareToVite = (
   ~basePath: string,
   ~mcp: option<McpEndpoint.config>=None,
   middleware: (
-    WebAPI.FetchAPI.request,
+    WebAPI.Request.t,
     ~rawHeaders: Core.FrontmanCore__MCP__RawHeaders.t,
-  ) => promise<option<WebAPI.FetchAPI.response>>,
+  ) => promise<option<WebAPI.Response.t>>,
 ): ((incomingMessage, serverResponse, unit => unit) => promise<unit>) => {
   async (req, res, next) => {
     let reqUrl = req->NodeHttp.url
