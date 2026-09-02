@@ -674,7 +674,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       let annotation = {
         ...Annotation.make(~element, ~tagName),
         comment: Some(
-          `The user edited this element's text directly in the preview (preview-only, not persisted). Change its text from original text to new text in the corresponding source file. Change the source location if the source originates from props, i18n or similar.
+          `The user edited this element's text directly in the preview. Change its text from original text to new text in the corresponding source file. Change the source location if the source originates from props, i18n or similar.
 <original_text>${originalText}</original_text>
 <new_text>${newText}</new_text>`,
         ),
