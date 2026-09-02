@@ -58,6 +58,9 @@ describe("DOM snapshot", _t => {
     t
     ->expect(output.error->Option.getOrThrow->String.includes("Subtree too large"))
     ->Expect.toBe(true)
+    t
+    ->expect(output.hint->Option.getOrThrow->String.includes(`selector="#large > :nth-child(1)"`))
+    ->Expect.toBe(true)
     t->expect(structuredClone(output))->Expect.toEqual(output)
   })
 })

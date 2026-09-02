@@ -2355,6 +2355,7 @@ __metadata:
   dependencies:
     "@astrojs/compiler": "npm:^4.0.0"
     "@frontman-ai/frontman-core": "npm:*"
+    "@frontman-ai/frontman-preview-bridge": "npm:^0.2.0"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@frontman/bindings": "npm:*"
     "@rescript/runtime": "catalog:"
@@ -2478,7 +2479,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge":
+"@frontman-ai/frontman-preview-bridge@npm:^0.2.0, @frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge":
   version: 0.0.0-use.local
   resolution: "@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge"
   dependencies:
@@ -2589,6 +2590,7 @@ __metadata:
   resolution: "@frontman-ai/vite@workspace:libs/frontman-vite"
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
+    "@frontman-ai/frontman-preview-bridge": "npm:^0.2.0"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "catalog:"

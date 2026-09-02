@@ -387,11 +387,23 @@ let success = (~html, ~nodeCount, ~hint: option<string>=?): Preview.getDomOutput
   error: None,
 }
 
-let tooLargeHint = (~el: WebAPI.DomTypes.element, ~document, ~elementCount, ~maxNodes) => {
+let selectorForHint = (~el, ~document, ~inputSelector) =>
+  switch classifySelector(inputSelector) {
+  | CssSelector(_) => Some(inputSelector)
+  | XPathExpression(_) => selectorForElement(~element=el, ~document)
+  }
+
+let tooLargeHint = (
+  ~el: WebAPI.DomTypes.element,
+  ~document,
+  ~inputSelector,
+  ~elementCount,
+  ~maxNodes,
+) => {
   let (overview, _, _) = inspect(
     ~element=el,
     ~document,
-    ~selector=None,
+    ~selector=selectorForHint(~el, ~document, ~inputSelector),
     ~maxDepth=1,
     ~maxNodes=16,
     ~pierceShadowDom=false,
@@ -413,7 +425,13 @@ let executeWithDocument = (input: Preview.getDomInput, ~document: WebAPI.DomType
         if elementCount > maxNodes {
           Preview.getDomError(
             ~error=`Subtree too large for full mode (${elementCount->Int.toString} elements, limit: ${maxNodes->Int.toString}).`,
-            ~hint=tooLargeHint(~el, ~document, ~elementCount, ~maxNodes),
+            ~hint=tooLargeHint(
+              ~el,
+              ~document,
+              ~inputSelector=input.selector,
+              ~elementCount,
+              ~maxNodes,
+            ),
             ~nodeCount=elementCount,
           )
         } else {
@@ -422,7 +440,13 @@ let executeWithDocument = (input: Preview.getDomInput, ~document: WebAPI.DomType
           if byteSize > fullModeMaxBytes {
             Preview.getDomError(
               ~error=`HTML too large: ${byteSize->Int.toString} bytes (limit: ${fullModeMaxBytes->Int.toString}). Use simplified mode for an overview, or target a smaller component.`,
-              ~hint=tooLargeHint(~el, ~document, ~elementCount, ~maxNodes),
+              ~hint=tooLargeHint(
+                ~el,
+                ~document,
+                ~inputSelector=input.selector,
+                ~elementCount,
+                ~maxNodes,
+              ),
               ~nodeCount=elementCount,
             )
           } else {

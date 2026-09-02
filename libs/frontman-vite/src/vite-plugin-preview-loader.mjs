@@ -5,6 +5,8 @@ const require = createRequire(import.meta.url)
 
 const parentOriginParam = "__frontman_parent_origin"
 const channelParam = "__frontman_channel"
+const storageParentOriginKey = "frontman.previewBridge.parentOrigin"
+const storageChannelKey = "frontman.previewBridge.channel"
 
 function escapeScriptString(value) {
   return JSON.stringify(value).replace(/</g, "\\u003c")
@@ -16,9 +18,32 @@ function makeLoaderScript({ bridgeUrl }) {
   if (document.documentElement.hasAttribute(installedAttribute)) return;
   document.documentElement.setAttribute(installedAttribute, "true");
 
+  function sessionGet(key) {
+    try { return window.sessionStorage.getItem(key); } catch (_error) { return null; }
+  }
+  function sessionSet(key, value) {
+    try { window.sessionStorage.setItem(key, value); } catch (_error) {}
+  }
+  function isTrustedParentOrigin(origin) {
+    try {
+      var parsed = new URL(origin);
+      var hostname = parsed.hostname.toLowerCase();
+      return origin === window.location.origin ||
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname === "frontman.local" ||
+        hostname.endsWith(".frontman.local") ||
+        hostname === "frontman.sh" ||
+        hostname.endsWith(".frontman.sh");
+    } catch (_error) {
+      return false;
+    }
+  }
+
   var params = new URLSearchParams(window.location.search);
-  var parentOrigin = params.get(${escapeScriptString(parentOriginParam)});
-  var channel = params.get(${escapeScriptString(channelParam)});
+  var parentOrigin = params.get(${escapeScriptString(parentOriginParam)}) || sessionGet(${escapeScriptString(storageParentOriginKey)});
+  var channel = params.get(${escapeScriptString(channelParam)}) || sessionGet(${escapeScriptString(storageChannelKey)});
   if (!parentOrigin || !channel) {
     console.error("Frontman preview bridge loader missing runtime params", {
       hasParentOrigin: !!parentOrigin,
@@ -26,12 +51,20 @@ function makeLoaderScript({ bridgeUrl }) {
     });
     return;
   }
+  if (!isTrustedParentOrigin(parentOrigin)) {
+    console.error("Frontman preview bridge rejected untrusted parent origin", { parentOrigin: parentOrigin });
+    return;
+  }
+  sessionSet(${escapeScriptString(storageParentOriginKey)}, parentOrigin);
+  sessionSet(${escapeScriptString(storageChannelKey)}, channel);
 
-  params.delete(${escapeScriptString(parentOriginParam)});
-  params.delete(${escapeScriptString(channelParam)});
-  var cleanSearch = params.toString();
-  var cleanUrl = window.location.pathname + (cleanSearch ? "?" + cleanSearch : "") + window.location.hash;
-  window.history.replaceState(window.history.state, "", cleanUrl);
+  if (params.has(${escapeScriptString(parentOriginParam)}) || params.has(${escapeScriptString(channelParam)})) {
+    params.delete(${escapeScriptString(parentOriginParam)});
+    params.delete(${escapeScriptString(channelParam)});
+    var cleanSearch = params.toString();
+    var cleanUrl = window.location.pathname + (cleanSearch ? "?" + cleanSearch : "") + window.location.hash;
+    window.history.replaceState(window.history.state, "", cleanUrl);
+  }
 
   if (document.querySelector("script[data-frontman-bridge]")) return;
   var script = document.createElement("script");
