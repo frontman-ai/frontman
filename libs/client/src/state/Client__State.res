@@ -79,6 +79,17 @@ module Actions = {
   let toggleWebPreviewSelection = () =>
     Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotationMode}))
 
+  let toggleTextEditMode = () =>
+    Client__State__Store.dispatch(TaskAction({target: CurrentTask, action: ToggleTextEditMode}))
+
+  let addTextEditAnnotation = (~element, ~tagName, ~originalText, ~newText) =>
+    Client__State__Store.dispatch(
+      TaskAction({
+        target: CurrentTask,
+        action: AddTextEditAnnotation({element, tagName, originalText, newText}),
+      }),
+    )
+
   let toggleAnnotation = (~element, ~tagName) =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: ToggleAnnotation({element, tagName})}),
