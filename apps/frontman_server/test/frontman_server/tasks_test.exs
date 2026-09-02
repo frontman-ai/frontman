@@ -148,6 +148,51 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "replace_user_message/3" do
+    test "drops the edited message and records its replacement atomically", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, _first} = user_message_fixture(scope, task_id, user_content("first"))
+      complete_turn(scope, task_id, "first answer")
+
+      {:ok, second} = user_message_fixture(scope, task_id, user_content("second"))
+      complete_turn(scope, task_id, "second answer")
+
+      replacement_id = Ecto.UUID.generate()
+
+      assert {:ok, %InteractionSchema{id: ^replacement_id}} =
+               Tasks.replace_user_message(scope, second.id, %{
+                 task_id: task_id,
+                 message_id: replacement_id,
+                 message: user_content("second edited"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
+      assert [:user_message, :turn_started, :agent_response, :agent_completed, :user_message] =
+               task_id |> db_rows() |> Enum.map(& &1.type)
+    end
+
+    test "keeps original history when replacement insert fails", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, first} = user_message_fixture(scope, task_id, user_content("first"))
+      complete_turn(scope, task_id, "first answer")
+
+      {:ok, second} = user_message_fixture(scope, task_id, user_content("second"))
+      complete_turn(scope, task_id, "second answer")
+
+      assert {:error, %Ecto.Changeset{}} =
+               Tasks.replace_user_message(scope, second.id, %{
+                 task_id: task_id,
+                 message_id: first.id,
+                 message: user_content("second edited"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
+      assert length(db_rows(task_id)) == 8
+    end
+  end
+
   describe "truncate_from_message/3" do
     test "drops the edited message and everything it produced", %{scope: scope} do
       task_id = task_fixture(scope).id
@@ -1375,7 +1420,7 @@ defmodule FrontmanServer.TasksTest do
   defp complete_turn(scope, task_id, response) do
     turn_number = latest_turn_number(task_id)
     {:ok, _response} = Tasks.agent_replied(scope, task_id, turn_number, response)
-    {:ok, _completed} = Tasks.record_agent_run_result(scope, task_id, turn_number, :completed)
+    {:ok, _completed} = Tasks.record_execution_outcome(scope, task_id, turn_number, :completed)
     turn_number
   end
 

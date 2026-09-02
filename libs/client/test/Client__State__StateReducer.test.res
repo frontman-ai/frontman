@@ -786,6 +786,7 @@ describe("Client State Reducer - First Task Feedback Dialog", () => {
         content: [UserContentPart.text("Second message")],
         annotations: [],
         agentId: "test-agent",
+        replacesMessageId: None,
       }),
     )
     expectOpen(t, queuedState->loadHistory, false)
@@ -1691,6 +1692,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         content: [UserContentPart.text("Fix this")],
         annotations: [],
         agentId: "planner-id",
+        replacesMessageId: None,
       }),
     )
 

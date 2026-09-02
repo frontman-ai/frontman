@@ -229,6 +229,9 @@ module Provider = {
       | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
         failwith("Frontman UI requires negotiated agent attribution")
       | Unknown(_) => ()
+      | FrontmanTaskRewound({messageId}) =>
+        Client__TextDeltaBuffer.discardTask(taskId)
+        Client__State.Actions.truncateTaskFromMessage(~taskId, ~messageId)
       | ToolCall({
           toolCallId,
           title,

@@ -334,8 +334,6 @@ type action =
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
-      /* Set when the user edited an already-sent message: that message and
-       everything after it is dropped before this one is appended. */
       replacesMessageId: option<string>,
     })
   | SetAnnotationMode({mode: Annotation.annotationMode})
@@ -373,6 +371,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
+  | TruncateFromMessage({messageId: string})
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
@@ -463,6 +462,7 @@ let actionToString = (action: action): string =>
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
   | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
+  | TruncateFromMessage(_) => "TruncateFromMessage"
   | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
@@ -937,17 +937,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       updatedImageAttachments->Dict.set(uri, att)
     })
 
-    /* The server truncates its own history from the same message id, so the
-     two stay in step. */
-    let messages = switch replacesMessageId {
-    | Some(replacedId) => MessageStore.truncateFrom(data.messages, replacedId)
-    | None => data.messages
-    }
-
     (
       Task.Loaded({
         ...data,
-        messages,
         turnError: None,
         retryStatus: None,
         imageAttachments: updatedImageAttachments,
@@ -958,6 +950,11 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         activePopupAnnotationId: None,
       }),
       [SendMessage({id, text, attachments, annotations, agentId, replacesMessageId})],
+    )
+
+  | (Task.Loaded(data), TruncateFromMessage({messageId})) => (
+      Task.Loaded({...data, messages: MessageStore.truncateFrom(data.messages, messageId)}),
+      [],
     )
 
   | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
@@ -1294,6 +1291,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Unloaded(_),
       AddUserMessage(_)
+      | TruncateFromMessage(_)
       | UserMessageSendFailed(_)
       | PlanReceived(_)
       | ExecutionStateRunning

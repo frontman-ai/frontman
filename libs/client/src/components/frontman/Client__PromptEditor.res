@@ -436,8 +436,6 @@ let expandPastedText = (editor, paste, range: TiptapCore.insertRange) => {
   ->ignore
 }
 
-/* Replaces the whole composer with `text`. clearContent leaves a single empty
- paragraph, so position 1 is inside it. */
 let setEditorText = (editor, text) => {
   editor->TiptapCore.Commands.commands->TiptapCore.Commands.clearContent
   editor
@@ -796,7 +794,7 @@ let make = (
     None
   }, (dropFilesSignal, editor, droppedFiles))
 
-  React.useEffect2(() => {
+  React.useEffect3(() => {
     switch (editor->Null.toOption, setTextSignal == lastSetTextSignalRef.current) {
     | (Some(editor), false) =>
       lastSetTextSignalRef.current = setTextSignal
@@ -804,7 +802,7 @@ let make = (
     | _ => ()
     }
     None
-  }, (editor, setTextSignal))
+  }, (editor, setTextSignal, textToSet))
 
   let handleFileInputChange = (event: ReactEvent.Form.t) => {
     let input = ReactEvent.Form.currentTarget(event)

@@ -140,25 +140,69 @@ defmodule FrontmanServer.Tasks do
   def truncate_from_message(%Scope{} = scope, task_id, message_id)
       when is_binary(task_id) and is_binary(message_id) do
     Repo.transact(fn ->
-      with {:ok, _task_schema} <- get_task_by_id(scope, task_id),
+      with {:ok, task_schema} <- lock_task_by_id(scope, task_id),
            {:ok, history} <- History.new(load_interaction_rows(task_id)),
            :idle <- run_state(history),
            {:ok, sequence} <- user_message_sequence(history, message_id) do
-        {deleted_count, _returned} =
-          task_id
-          |> InteractionSchema.for_task()
-          |> InteractionSchema.from_sequence(sequence)
-          |> Repo.delete_all()
-
-        {:ok, deleted_count}
+        delete_interactions_from_sequence(task_schema.id, sequence)
       else
         {:error, reason} -> {:error, reason}
       end
     end)
   end
 
+  @doc """
+  Atomically replaces a user message with a fresh accepted message.
+
+  The replacement content is validated before rows are deleted. The delete and
+  insert happen in one transaction, so a rejected replacement cannot leave the
+  task rewound without the new message.
+  """
+  @spec replace_user_message(Scope.t(), String.t(), map()) ::
+          {:ok, InteractionSchema.t()} | {:error, term()}
+  def replace_user_message(%Scope{} = scope, replaced_message_id, attrs)
+      when is_binary(replaced_message_id) and is_map(attrs) do
+    Repo.transact(fn ->
+      with {:ok, user_message_attrs} <-
+             Interaction.UserMessage.attrs(attrs.message, attrs.model, attrs.agent_id),
+           {:ok, task_schema} <- lock_task_by_id(scope, attrs.task_id),
+           {:ok, history} <- History.new(load_interaction_rows(attrs.task_id)),
+           :idle <- run_state(history),
+           {:ok, sequence} <- user_message_sequence(history, replaced_message_id),
+           {:ok, _deleted_count} <- delete_interactions_from_sequence(task_schema.id, sequence),
+           {:ok, accepted_row} <-
+             insert_interaction_row(task_schema, %{
+               id: attrs.message_id,
+               type: :user_message,
+               data: Map.put(user_message_attrs, :id, attrs.message_id),
+               turn_number: nil
+             }) do
+        {:ok, accepted_row}
+      else
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+  end
+
+  defp lock_task_by_id(scope, task_id) do
+    case get_task_by_id_for_update(scope, task_id) do
+      %TaskSchema{} = task_schema -> {:ok, task_schema}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  defp delete_interactions_from_sequence(task_id, sequence) do
+    {deleted_count, _returned} =
+      task_id
+      |> InteractionSchema.for_task()
+      |> InteractionSchema.from_sequence(sequence)
+      |> Repo.delete_all()
+
+    {:ok, deleted_count}
+  end
+
   defp run_state(%History{} = history) do
-    case History.active_run_turn_number(history) do
+    case History.active_turn_number(history) do
       nil -> :idle
       turn_number when is_integer(turn_number) -> {:error, :turn_running}
     end
@@ -306,22 +350,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp record_interaction_row(%TaskSchema{} = task, attrs) do
-    Repo.transact(fn ->
-      with {:ok, schema} <-
-             task
-             |> Ecto.build_assoc(:interaction_rows)
-             |> InteractionSchema.changeset(attrs)
-             |> Repo.insert(),
-           {1, _} <-
-             TaskSchema
-             |> TaskSchema.by_id(task.id)
-             |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)]) do
-        {:ok, schema}
-      else
-        {:error, reason} -> {:error, reason}
-        {0, _} -> {:error, :not_found}
-      end
-    end)
+    Repo.transact(fn -> insert_interaction_row(task, attrs) end)
     |> case do
       {:ok, %InteractionSchema{} = interaction_schema} ->
         broadcast_task(task.id, {:interaction, interaction_schema})
@@ -329,6 +358,23 @@ defmodule FrontmanServer.Tasks do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp insert_interaction_row(%TaskSchema{} = task, attrs) do
+    with {:ok, schema} <-
+           task
+           |> Ecto.build_assoc(:interaction_rows)
+           |> InteractionSchema.changeset(attrs)
+           |> Repo.insert(),
+         {1, _} <-
+           TaskSchema
+           |> TaskSchema.by_id(task.id)
+           |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)]) do
+      {:ok, schema}
+    else
+      {:error, reason} -> {:error, reason}
+      {0, _} -> {:error, :not_found}
     end
   end
 

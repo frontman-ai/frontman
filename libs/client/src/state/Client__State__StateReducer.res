@@ -626,8 +626,6 @@ let sendMessageToAPIImpl = (
       JSON.Encode.string(Message.UserMessageId.toString(messageId)),
     )
     metadata->Dict.set("agent", JSON.Encode.string(agentId))
-    /* Tells the server to drop the edited message and everything it produced
-     before recording this one. */
     replacesMessageId->Option.forEach(replacedId =>
       metadata->Dict.set("frontman.dev/replacesMessageId", JSON.Encode.string(replacedId))
     )

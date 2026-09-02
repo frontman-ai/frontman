@@ -650,18 +650,9 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
-             :ok <- rewind_edited_message(scope, task_id, meta["frontman.dev/replacesMessageId"]),
              {:ok, row} <-
-               Tasks.submit_user_message(
-                 scope,
-                 %{
-                   task_id: task_id,
-                   message_id: meta["frontman.dev/messageId"],
-                   message: content_blocks,
-                   model: model,
-                   agent_id: agent_id
-                 }
-               ) do
+               accept_prompt(scope, task_id, content_blocks, model, agent_id, meta) do
+          push_rewind_if_edited(socket, task_id, meta["frontman.dev/replacesMessageId"])
           push_user_message_chunks(socket, task_id, row)
 
           wake_runner(socket, meta)
@@ -699,22 +690,31 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  # An edit replaces the original message rather than following it, so the
-  # original and everything it produced is dropped before the edit is recorded.
-  defp rewind_edited_message(_scope, _task_id, nil), do: :ok
+  defp accept_prompt(scope, task_id, content_blocks, model, agent_id, meta) do
+    attrs = %{
+      task_id: task_id,
+      message_id: meta["frontman.dev/messageId"],
+      message: content_blocks,
+      model: model,
+      agent_id: agent_id
+    }
 
-  defp rewind_edited_message(scope, task_id, message_id) when is_binary(message_id) do
-    case Tasks.truncate_from_message(scope, task_id, message_id) do
-      {:ok, deleted_count} ->
-        Logger.info("Rewound task #{task_id} to message #{message_id}", %{
-          deleted_count: deleted_count
-        })
+    case meta["frontman.dev/replacesMessageId"] do
+      nil ->
+        Tasks.submit_user_message(scope, attrs)
 
-        :ok
+      message_id when is_binary(message_id) ->
+        Tasks.replace_user_message(scope, message_id, attrs)
 
-      {:error, reason} ->
-        {:error, reason}
+      _invalid ->
+        {:error, :message_not_found}
     end
+  end
+
+  defp push_rewind_if_edited(_socket, _task_id, nil), do: :ok
+
+  defp push_rewind_if_edited(socket, task_id, message_id) when is_binary(message_id) do
+    push(socket, @acp_message, ACP.build_task_rewound_notification(task_id, message_id))
   end
 
   defp push_user_message_chunks(socket, task_id, row) do

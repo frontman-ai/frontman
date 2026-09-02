@@ -185,6 +185,11 @@ module Actions = {
       }),
     )
 
+  let truncateTaskFromMessage = (~taskId: string, ~messageId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: TruncateFromMessage({messageId: messageId})}),
+    )
+
   let retryingStatusReceived = (
     ~taskId: string,
     ~retryStatus: Client__Task__Types.Task.retryStatus,
