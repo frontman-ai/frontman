@@ -365,6 +365,10 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:cancelled, _}) do
+    task_id
+    |> unresolved_tool_calls_for_turn(turn_number)
+    |> Enum.each(&interrupt_tool_call(scope, task_id, turn_number, &1, "Interrupted by user"))
+
     persist_execution_outcome(scope, task_id, turn_number, :cancelled)
   end
 
@@ -376,15 +380,10 @@ defmodule FrontmanServer.Tasks do
     {interactive_tool_calls, interrupted_tool_calls} =
       Enum.split_with(unresolved_tool_calls, &keeps_turn_open_after_restart?/1)
 
-    Enum.each(interrupted_tool_calls, fn tool_call ->
-      resolve_tool_request(
-        scope,
-        task_id,
-        %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-        ModelContextProtocol.tool_result_error("Interrupted by restart"),
-        turn_number: turn_number
-      )
-    end)
+    Enum.each(
+      interrupted_tool_calls,
+      &interrupt_tool_call(scope, task_id, turn_number, &1, "Interrupted by restart")
+    )
 
     case interactive_tool_calls do
       [] ->
@@ -459,6 +458,22 @@ defmodule FrontmanServer.Tasks do
     |> InteractionSchema.ordered()
     |> Repo.all()
     |> Enum.map(& &1.data)
+  end
+
+  defp interrupt_tool_call(
+         scope,
+         task_id,
+         turn_number,
+         %Interaction.ToolCall{} = tool_call,
+         reason
+       ) do
+    resolve_tool_request(
+      scope,
+      task_id,
+      %{id: tool_call.tool_call_id, name: tool_call.tool_name},
+      ModelContextProtocol.tool_result_error(reason),
+      turn_number: turn_number
+    )
   end
 
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{tool_name: "question"}), do: true
