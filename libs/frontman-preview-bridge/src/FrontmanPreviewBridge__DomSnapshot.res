@@ -164,17 +164,61 @@ let contextText = (element: WebAPI.DomTypes.element) =>
   | _ => directText(element)
   }
 
-let childElements = (~element: WebAPI.DomTypes.element, ~pierceShadowDom) => {
-  let light = element.children->WebAPI.HTMLCollection.toArray
+type childRelation =
+  | LightChild(int)
+  | ShadowChild(int)
+
+type walkChild = {
+  element: WebAPI.DomTypes.element,
+  relation: childRelation,
+}
+
+let childElements = (~element: WebAPI.DomTypes.element, ~pierceShadowDom): array<walkChild> => {
+  let light =
+    element.children
+    ->WebAPI.HTMLCollection.toArray
+    ->Array.mapWithIndex((child, index) => {element: child, relation: LightChild(index + 1)})
   switch (pierceShadowDom, element.shadowRoot->Null.toOption) {
   | (true, Some(shadowRoot)) =>
-    light->Array.concat(shadowRoot->WebAPI.ShadowRoot.children->WebAPI.HTMLCollection.toArray)
+    light->Array.concat(
+      shadowRoot
+      ->WebAPI.ShadowRoot.children
+      ->WebAPI.HTMLCollection.toArray
+      ->Array.mapWithIndex((child, index) => {element: child, relation: ShadowChild(index + 1)}),
+    )
   | _ => light
   }
 }
 
 let pushField = (fields, name, value) =>
   fields->Array.push(`${name}=${value->truncate(~maxLen=80)->quote}`)->ignore
+
+let rec selectorForElement = (
+  ~element: WebAPI.DomTypes.element,
+  ~document: WebAPI.DomTypes.document,
+) => {
+  let tag = element.tagName->String.toLowerCase
+  switch element->WebAPI.Element.getAttribute("id")->Null.toOption {
+  | Some(id) if id !== "" => Some(`[id=${id->quote}]`)
+  | Some(_) | None =>
+    switch document->WebAPI.Document.querySelectorAll(tag)->WebAPI.NodeList.toArray->Array.length {
+    | 1 => Some(tag)
+    | _ =>
+      switch element.parentElement->Null.toOption {
+      | None => Some(tag)
+      | Some(parent) =>
+        let parent = parent->WebAPI.HTMLElement.asElement
+        let siblings = parent.children->WebAPI.HTMLCollection.toArray
+        let index = siblings->Array.findIndex(sibling => sibling == element)
+        switch selectorForElement(~element=parent, ~document) {
+        | Some(parentSelector) if index >= 0 =>
+          Some(`${parentSelector} > :nth-child(${(index + 1)->Int.toString})`)
+        | _ => None
+        }
+      }
+    }
+  }
+}
 
 let describe = (~relation, ~element: WebAPI.DomTypes.element, ~selector, ~pierceShadowDom) => {
   let fields = [relation]
@@ -236,7 +280,15 @@ let appendLine = (state, line) => {
   }
 }
 
-let rec walk = (~element, ~selector, ~depth, ~maxDepth, ~pierceShadowDom, ~state) =>
+let rec walk = (
+  ~element,
+  ~selector,
+  ~depth,
+  ~maxDepth,
+  ~pierceShadowDom,
+  ~insideShadowDom,
+  ~state,
+) =>
   switch state.truncated || state.nodeCount >= state.maxNodes {
   | true => state.truncated = true
   | false =>
@@ -253,15 +305,23 @@ let rec walk = (~element, ~selector, ~depth, ~maxDepth, ~pierceShadowDom, ~state
         switch depth < maxDepth {
         | false => ()
         | true =>
-          children->Array.forEachWithIndex((child, index) =>
+          children->Array.forEach(child =>
             walk(
-              ~element=child,
+              ~element=child.element,
               ~selector=selector->Option.map(selector =>
-                `${selector} > :nth-child(${(index + 1)->Int.toString})`
+                switch (child.relation, insideShadowDom) {
+                | (ShadowChild(index), _) => `${selector} >>> ${index->Int.toString}`
+                | (LightChild(index), true) => `${selector}/${index->Int.toString}`
+                | (LightChild(index), false) => `${selector} > :nth-child(${index->Int.toString})`
+                }
               ),
               ~depth=depth + 1,
               ~maxDepth,
               ~pierceShadowDom,
+              ~insideShadowDom=switch child.relation {
+              | ShadowChild(_) => true
+              | LightChild(_) => insideShadowDom
+              },
               ~state,
             )
           )
@@ -272,6 +332,7 @@ let rec walk = (~element, ~selector, ~depth, ~maxDepth, ~pierceShadowDom, ~state
 
 let inspect = (
   ~element: WebAPI.DomTypes.element,
+  ~document: WebAPI.DomTypes.document,
   ~selector,
   ~maxDepth,
   ~maxNodes,
@@ -288,16 +349,25 @@ let inspect = (
   }
   switch element.parentElement->Null.toOption {
   | Some(parent) =>
+    let parent = parent->WebAPI.HTMLElement.asElement
     let (line, _) = describe(
       ~relation="parent",
-      ~element=parent->WebAPI.HTMLElement.asElement,
-      ~selector=None,
+      ~element=parent,
+      ~selector=selectorForElement(~element=parent, ~document),
       ~pierceShadowDom=false,
     )
     appendLine(state, line)->ignore
   | None => appendLine(state, "parent none")->ignore
   }
-  walk(~element, ~selector, ~depth=0, ~maxDepth, ~pierceShadowDom, ~state)
+  walk(
+    ~element,
+    ~selector,
+    ~depth=0,
+    ~maxDepth,
+    ~pierceShadowDom,
+    ~insideShadowDom=selector->Option.mapOr(false, selector => selector->String.includes(" >>> ")),
+    ~state,
+  )
   switch state.truncated {
   | true => state.lines->Array.push(`truncated nodes=${state.nodeCount->Int.toString}`)->ignore
   | false => ()
@@ -317,9 +387,10 @@ let success = (~html, ~nodeCount, ~hint: option<string>=?): Preview.getDomOutput
   error: None,
 }
 
-let tooLargeHint = (~el: WebAPI.DomTypes.element, ~elementCount, ~maxNodes) => {
+let tooLargeHint = (~el: WebAPI.DomTypes.element, ~document, ~elementCount, ~maxNodes) => {
   let (overview, _, _) = inspect(
     ~element=el,
+    ~document,
     ~selector=None,
     ~maxDepth=1,
     ~maxNodes=16,
@@ -342,7 +413,7 @@ let executeWithDocument = (input: Preview.getDomInput, ~document: WebAPI.DomType
         if elementCount > maxNodes {
           Preview.getDomError(
             ~error=`Subtree too large for full mode (${elementCount->Int.toString} elements, limit: ${maxNodes->Int.toString}).`,
-            ~hint=tooLargeHint(~el, ~elementCount, ~maxNodes),
+            ~hint=tooLargeHint(~el, ~document, ~elementCount, ~maxNodes),
             ~nodeCount=elementCount,
           )
         } else {
@@ -351,7 +422,7 @@ let executeWithDocument = (input: Preview.getDomInput, ~document: WebAPI.DomType
           if byteSize > fullModeMaxBytes {
             Preview.getDomError(
               ~error=`HTML too large: ${byteSize->Int.toString} bytes (limit: ${fullModeMaxBytes->Int.toString}). Use simplified mode for an overview, or target a smaller component.`,
-              ~hint=tooLargeHint(~el, ~elementCount, ~maxNodes),
+              ~hint=tooLargeHint(~el, ~document, ~elementCount, ~maxNodes),
               ~nodeCount=elementCount,
             )
           } else {
@@ -361,6 +432,7 @@ let executeWithDocument = (input: Preview.getDomInput, ~document: WebAPI.DomType
       | #simplified =>
         let (html, nodeCount, truncated) = inspect(
           ~element=el,
+          ~document,
           ~selector=switch classifySelector(input.selector) {
           | CssSelector(_) => Some(input.selector)
           | XPathExpression(_) => None
