@@ -1,4 +1,5 @@
 module Icons = Client__UI__Icons
+module ToolIcons = Client__ToolIcons
 module Button = Client__UI__Button
 module Tooltip = Client__UI__Tooltip
 module FrontmanLogo = Client__FrontmanLogo
@@ -27,6 +28,9 @@ let make = (
   let previewUrl = Client__State.useSelector(Client__State.Selectors.previewUrl)
   let previewFrame = Client__State.useSelector(Client__State.Selectors.previewFrame)
   let deviceMode = Client__State.useSelector(Client__State.Selectors.deviceMode)
+  let webPreviewIsTextEditing = Client__State.useSelector(
+    Client__State.Selectors.webPreviewIsTextEditing,
+  )
   let completedFileChanges = Client__State.useSelector(Client__State.Selectors.completedFileChanges)
   let supportsChanges =
     Client__RuntimeConfig.read().framework->Client__RuntimeConfig.supportsFileChanges
@@ -124,6 +128,18 @@ let make = (
       </div>
       <div className="w-px h-full bg-[#1e1538] shrink-0" />
       <div className="flex items-center h-full flex-1 min-w-0 px-1 gap-1">
+        {renderToolbarButton(
+          ~label=switch webPreviewIsTextEditing {
+          | true => "Stop editing text"
+          | false => "Edit text directly in the preview"
+          },
+          ~onClick=_ => Client__State.Actions.toggleTextEditMode(),
+          ~className=switch webPreviewIsTextEditing {
+          | true => "bg-violet-500/15 text-violet-300"
+          | false => ""
+          },
+          ~children=<ToolIcons.PencilIcon size=13 />,
+        )}
         <Client__WorkspaceTabs
           view=workspaceView fileChangeCount supportsChanges onViewChange=onWorkspaceViewChange
         />

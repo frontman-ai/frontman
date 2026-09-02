@@ -211,35 +211,6 @@ module SelectElementButton = {
   }
 }
 
-module EditTextButton = {
-  @react.component
-  let make = (~onClick: unit => unit, ~isEditing: bool, ~showLabel: bool) => {
-    let (extraClass, iconClass) = switch isEditing {
-    | true => ("text-violet-300 bg-violet-600/20 hover:bg-violet-600/30", "text-violet-300")
-    | false => ("text-zinc-400 hover:text-zinc-200 hover:bg-white/6", "text-zinc-400")
-    }
-
-    <button
-      type_="button"
-      onClick={_ => onClick()}
-      className={`inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-xs font-medium
-                 transition-colors cursor-pointer ${extraClass}`}
-      title={isEditing ? "Stop editing text" : "Edit text directly in the preview"}
-    >
-      {switch isEditing {
-      | true =>
-        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse flex-shrink-0" />
-      | false => <Icons.PencilIcon size=13 className={iconClass} />
-      }}
-      {showLabel
-        ? <span className="whitespace-nowrap">
-            {React.string(isEditing ? "Editing\u{2026}" : "Edit text")}
-          </span>
-        : React.null}
-    </button>
-  }
-}
-
 module AttachButton = {
   @react.component
   let make = (~onClick: unit => unit, ~disabled: bool, ~showLabel: bool) => {
@@ -339,8 +310,6 @@ let make = (
   ~disabledPlaceholder: option<string>=?,
   ~onSelectElement: option<unit => unit>=?,
   ~isSelecting: bool=false,
-  ~onEditText: option<unit => unit>=?,
-  ~isTextEditing: bool=false,
   ~hasAnnotations: bool=false,
   ~isEnrichingAnnotations: bool=false,
 ) => {
@@ -518,14 +487,6 @@ let make = (
                 isSelecting={isSelecting}
                 hasAnnotations={hasAnnotations}
                 showLabel={showToolbarLabels}
-              />
-            | None => React.null
-            }}
-
-            {switch onEditText {
-            | Some(handler) =>
-              <EditTextButton
-                onClick={handler} isEditing={isTextEditing} showLabel={showToolbarLabels}
               />
             | None => React.null
             }}

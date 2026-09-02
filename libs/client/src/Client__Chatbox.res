@@ -142,9 +142,6 @@ let make = (~onConfigureProvider: unit => unit) => {
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
-  let webPreviewIsTextEditing = Client__State.useSelector(
-    Client__State.Selectors.webPreviewIsTextEditing,
-  )
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasEnrichingAnnotations = Client__State.useSelector(
     Client__State.Selectors.hasEnrichingAnnotations,
@@ -465,8 +462,6 @@ let make = (~onConfigureProvider: unit => unit) => {
           hasActiveACPSession
           onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
           isSelecting={webPreviewIsSelecting}
-          onEditText={Client__State.Actions.toggleTextEditMode}
-          isTextEditing={webPreviewIsTextEditing}
           hasAnnotations
           isEnrichingAnnotations={hasEnrichingAnnotations}
         />
