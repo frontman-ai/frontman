@@ -935,6 +935,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     (
       Task.Loaded({
         ...data,
+        updatedAt: Date.now(),
         turnError: None,
         retryStatus: None,
         imageAttachments: updatedImageAttachments,

@@ -245,16 +245,15 @@ let make = (~onConfigureProvider: unit => unit) => {
   }
 
   let groupCacheRef: React.ref<Dict.t<ToolGroupTypes.toolGroup>> = React.useRef(Dict.make())
-  let recentTasks = React.useMemo1(() => {
+  let recentTasks =
     tasks
-    ->Array.slice(~start=0, ~end=5)
-    ->Array.filterMap(task => {
+    ->Array.filterMap(task =>
       switch (Client__Task__Types.Task.getId(task), Client__Task__Types.Task.getTitle(task)) {
       | (Some(id), Some(title)) => Some({Client__GetStartedTasks.id, title})
       | _ => None
       }
-    })
-  }, [tasks])
+    )
+    ->Array.slice(~start=0, ~end=5)
 
   let displayItems = React.useMemo1(() => {
     let items = groupMessages(messages)
