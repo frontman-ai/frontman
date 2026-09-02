@@ -37,38 +37,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
     |> constrain_image_dimensions(opts)
     |> truncate_tool_results(opts)
     |> dedup_page_context()
-    |> backfill_missing_tool_results()
-  end
-
-  defp backfill_missing_tool_results(messages) do
-    resolved =
-      for %Message.Tool{tool_call_id: id} <- messages, into: MapSet.new(), do: id
-
-    Enum.flat_map(messages, fn
-      %Message.Assistant{tool_calls: [_ | _] = tool_calls} = msg ->
-        [msg | Enum.flat_map(tool_calls, &placeholder_result(&1, resolved))]
-
-      msg ->
-        [msg]
-    end)
-  end
-
-  defp placeholder_result(%SwarmAi.ToolCall{id: id, name: name}, resolved) do
-    case MapSet.member?(resolved, id) do
-      true ->
-        []
-
-      false ->
-        Logger.warning("Backfilling missing tool result for #{name} (#{id})")
-
-        [
-          %Message.Tool{
-            tool_call_id: id,
-            name: name,
-            content: [ContentPart.text("Tool call interrupted: no result was recorded.")]
-          }
-        ]
-    end
   end
 
   defp strip_unsupported_images(messages, opts) do

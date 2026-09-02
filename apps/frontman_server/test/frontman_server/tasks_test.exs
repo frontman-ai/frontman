@@ -241,6 +241,53 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "cancelled execution" do
+    test "records interrupted results for every unresolved tool call", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      turn_number = start_turn_fixture(scope, task_id)
+
+      {:ok, _tool_call} =
+        Tasks.request_client_tool(
+          scope,
+          task_id,
+          turn_number,
+          named_swarm_tool_call("question_1", "question")
+        )
+
+      {:ok, _tool_call} =
+        Tasks.request_client_tool(
+          scope,
+          task_id,
+          turn_number,
+          named_swarm_tool_call("read_1", "read_file")
+        )
+
+      Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user})
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      interactions = Tasks.interactions(task)
+
+      assert Enum.any?(interactions, &match?(%Interaction.AgentError{kind: "cancelled"}, &1))
+
+      assert [
+               %Interaction.ToolResult{
+                 tool_call_id: "question_1",
+                 is_error: true,
+                 result: result
+               },
+               %Interaction.ToolResult{tool_call_id: "read_1", is_error: true, result: result}
+             ] = Enum.filter(interactions, &match?(%Interaction.ToolResult{}, &1))
+
+      assert result == %{
+               "content" => [%{"type" => "text", "text" => "Interrupted by user"}],
+               "isError" => true,
+               "_meta" => %{}
+             }
+
+      assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+    end
+  end
+
   describe "swarm event persistence" do
     test "persists mixed-key provider usage with known fields only", %{scope: scope} do
       task_id = task_fixture(scope).id

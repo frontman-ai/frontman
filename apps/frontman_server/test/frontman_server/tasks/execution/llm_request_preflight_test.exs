@@ -29,26 +29,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert LLMRequestPreflight.run([]) == []
     end
 
-    test "backfills a placeholder result for an unresolved tool call" do
-      messages = [
-        %Message.Assistant{
-          tool_calls: [
-            %SwarmAi.ToolCall{id: "tc-a", name: "grep", arguments: "{}"},
-            %SwarmAi.ToolCall{id: "tc-b", name: "grep", arguments: "{}"}
-          ]
-        },
-        %Message.Tool{name: "grep", tool_call_id: "tc-b", content: [ContentPart.text("hit")]}
-      ]
-
-      assert [
-               %Message.Assistant{},
-               %Message.Tool{tool_call_id: "tc-a", content: [%ContentPart{text: text}]},
-               %Message.Tool{tool_call_id: "tc-b", content: [%ContentPart{text: "hit"}]}
-             ] = LLMRequestPreflight.run(messages)
-
-      assert text =~ "interrupted"
-    end
-
     test "leaves live non-image tool results unchanged" do
       messages = [
         %Message.Tool{
