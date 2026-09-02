@@ -11,7 +11,7 @@ let isEditable: WebAPI.DomTypes.element => bool = %raw(`
   function(el) {
     const blocked = new Set(["SCRIPT","STYLE","INPUT","TEXTAREA","SELECT","OPTION","IFRAME","IMG","VIDEO","AUDIO","CANVAS","SVG","BR","HR"]);
     if (blocked.has(el.tagName) || el.closest("svg")) return false;
-    for (const n = el.firstChild; n; n = n.nextSibling) {
+    for (let n = el.firstChild; n; n = n.nextSibling) {
       if (n.nodeType === 3 && n.textContent.trim() !== "") return true;
     }
     return false;
