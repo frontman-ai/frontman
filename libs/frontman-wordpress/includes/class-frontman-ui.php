@@ -31,6 +31,7 @@ class Frontman_UI {
 	public function register(): void {
 		add_action( 'admin_menu', [ $this, 'add_admin_menu_link' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
+		add_action( 'wp_head', [ $this, 'render_preview_bridge_loader' ], 1 );
 	}
 
 	/**
@@ -63,6 +64,68 @@ class Frontman_UI {
 			wp_safe_redirect( self::url( '/frontman' ) );
 			exit;
 		} );
+	}
+
+	/**
+	 * Inject the child preview bridge into frontend pages viewed by admins.
+	 */
+	public function render_preview_bridge_loader(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+
+		$bridge_url = wp_json_encode( self::url( '/frontman/preview-bridge.js' ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
+		if ( ! is_string( $bridge_url ) ) {
+			return;
+		}
+		?>
+<script data-frontman-preview-loader>
+(function(){
+  var installedAttribute = "data-frontman-preview-loader-installed";
+  if (document.documentElement.hasAttribute(installedAttribute)) return;
+  document.documentElement.setAttribute(installedAttribute, "true");
+  function sessionGet(key) { try { return window.sessionStorage.getItem(key); } catch (_error) { return null; } }
+  function sessionSet(key, value) { try { window.sessionStorage.setItem(key, value); } catch (_error) {} }
+  function isTrustedParentOrigin(origin) {
+    try {
+      var parsed = new URL(origin);
+      var hostname = parsed.hostname.toLowerCase();
+      return origin === window.location.origin || hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "frontman.local" || hostname.endsWith(".frontman.local") || hostname === "frontman.sh" || hostname.endsWith(".frontman.sh");
+    } catch (_error) { return false; }
+  }
+  var parentOriginParam = "__frontman_parent_origin";
+  var channelParam = "__frontman_channel";
+  var storageParentOriginKey = "frontman.previewBridge.parentOrigin";
+  var storageChannelKey = "frontman.previewBridge.channel";
+  var params = new URLSearchParams(window.location.search);
+  var parentOrigin = params.get(parentOriginParam) || sessionGet(storageParentOriginKey);
+  var channel = params.get(channelParam) || sessionGet(storageChannelKey);
+  if (!parentOrigin || !channel) return;
+  if (!isTrustedParentOrigin(parentOrigin)) {
+    console.error("Frontman preview bridge rejected untrusted parent origin", { parentOrigin: parentOrigin });
+    return;
+  }
+  sessionSet(storageParentOriginKey, parentOrigin);
+  sessionSet(storageChannelKey, channel);
+  if (params.has(parentOriginParam) || params.has(channelParam)) {
+    params.delete(parentOriginParam);
+    params.delete(channelParam);
+    var cleanSearch = params.toString();
+    var cleanUrl = window.location.pathname + (cleanSearch ? "?" + cleanSearch : "") + window.location.hash;
+    window.history.replaceState(window.history.state, "", cleanUrl);
+  }
+  if (document.querySelector("script[data-frontman-bridge]")) return;
+  var script = document.createElement("script");
+  script.src = <?php echo $bridge_url; ?>;
+  script.async = false;
+  script.setAttribute("data-frontman-bridge", "true");
+  script.setAttribute("data-frontman-parent-origin", parentOrigin);
+  script.setAttribute("data-frontman-channel", channel);
+  script.onerror = function() { console.error("Frontman preview bridge script failed to load", { src: script.src }); };
+  document.head.appendChild(script);
+})();
+</script>
+		<?php
 	}
 
 	/**

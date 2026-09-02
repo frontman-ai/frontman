@@ -798,6 +798,7 @@ describe("Batched Auto-Edit Collection", _t => {
       middleware: Detect.NeedsManualEdit,
       proxy: Detect.NotFound,
       instrumentation: Detect.NotFound,
+      instrumentationClient: Detect.NotFound,
       hasSrcDir: false,
       packageManager: Detect.Npm,
     }
@@ -812,6 +813,7 @@ describe("Batched Auto-Edit Collection", _t => {
       middleware: Detect.NeedsManualEdit,
       proxy: Detect.NotFound,
       instrumentation: Detect.NeedsManualEdit,
+      instrumentationClient: Detect.NotFound,
       hasSrcDir: false,
       packageManager: Detect.Npm,
     }
@@ -828,6 +830,7 @@ describe("Batched Auto-Edit Collection", _t => {
       middleware: Detect.NeedsManualEdit,
       proxy: Detect.NeedsManualEdit,
       instrumentation: Detect.NotFound,
+      instrumentationClient: Detect.NotFound,
       hasSrcDir: false,
       packageManager: Detect.Npm,
     }
@@ -842,6 +845,7 @@ describe("Batched Auto-Edit Collection", _t => {
       middleware: Detect.NotFound,
       proxy: Detect.NotFound,
       instrumentation: Detect.NeedsManualEdit,
+      instrumentationClient: Detect.NotFound,
       hasSrcDir: true,
       packageManager: Detect.Npm,
     }
@@ -856,6 +860,7 @@ describe("Batched Auto-Edit Collection", _t => {
       middleware: Detect.NeedsManualEdit,
       proxy: Detect.NotFound,
       instrumentation: Detect.NotFound,
+      instrumentationClient: Detect.NotFound,
       hasSrcDir: true,
       packageManager: Detect.Npm,
     }
@@ -870,6 +875,7 @@ describe("Batched Auto-Edit Collection", _t => {
       middleware: Detect.NotFound,
       proxy: Detect.NeedsManualEdit,
       instrumentation: Detect.NotFound,
+      instrumentationClient: Detect.NotFound,
       hasSrcDir: true,
       packageManager: Detect.Npm,
     }
@@ -884,6 +890,7 @@ describe("Batched Auto-Edit Collection", _t => {
       middleware: Detect.NotFound,
       proxy: Detect.NotFound,
       instrumentation: Detect.NotFound,
+      instrumentationClient: Detect.NotFound,
       hasSrcDir: false,
       packageManager: Detect.Npm,
     }

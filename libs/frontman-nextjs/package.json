@@ -13,6 +13,10 @@
 		"./Instrumentation": {
 			"types": "./types/instrumentation.d.ts",
 			"default": "./dist/instrumentation.js"
+		},
+		"./preview-loader": {
+			"types": "./types/preview-loader.d.ts",
+			"default": "./dist/preview-loader.js"
 		}
 	},
 	"typesVersions": {
@@ -60,9 +64,11 @@
 	"scripts": {
 		"build:rescript": "rescript build",
 		"build:bundle": "tsup",
-		"build": "yarn build:rescript && yarn build:bundle"
+		"build:bridge": "yarn workspace @frontman-ai/frontman-preview-bridge build",
+		"build": "yarn build:bridge && yarn build:rescript && yarn build:bundle"
 	},
 	"dependencies": {
+		"@frontman-ai/frontman-preview-bridge": "^0.2.0",
 		"@sentry/nextjs": "^10.69.0",
 		"chrome-launcher": "^1.1.2",
 		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",

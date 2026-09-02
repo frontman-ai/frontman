@@ -27,8 +27,12 @@ rm -rf "$BUILD_DIR" "$ZIP_PATH" "$WPORG_TARBALL_PATH" "$WPORG_EXPORT_PATH"
 mkdir -p "$DIST_DIR"
 mkdir -p "$PLUGIN_DIR" "$WPORG_DIR/trunk" "$WPORG_DIR/tags/$VERSION"
 
+yarn workspace @frontman-ai/frontman-preview-bridge build
+
 rsync -a --delete --exclude '.DS_Store' --exclude '.wordpress-org/' --exclude 'tests/' --exclude 'package.json' "$PLUGIN_SRC/" "$PLUGIN_DIR/"
 rsync -a --delete --exclude '.DS_Store' --exclude '.wordpress-org/' --exclude 'tests/' --exclude 'package.json' --exclude 'CHANGELOG.md' "$PLUGIN_SRC/" "$WPORG_DIR/trunk/"
+cp "$ROOT_DIR/libs/frontman-preview-bridge/dist/bridge.js" "$PLUGIN_DIR/assets/preview-bridge.js"
+cp "$ROOT_DIR/libs/frontman-preview-bridge/dist/bridge.js" "$WPORG_DIR/trunk/assets/preview-bridge.js"
 rsync -a --delete "$WPORG_DIR/trunk/" "$WPORG_DIR/tags/$VERSION/"
 
 if [ -d "$PLUGIN_SRC/.wordpress-org/assets" ]; then

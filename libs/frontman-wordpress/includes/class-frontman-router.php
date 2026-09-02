@@ -8,6 +8,7 @@
  *
  *   GET  /frontman                        → Serve the UI (preview: homepage)
  *   GET  /about/frontman                  → Serve the UI (preview: /about)
+ *   GET  /frontman/preview-bridge.js      → Preview bridge runtime
  *   GET  /frontman/tools                  → Tool list
  *   POST /frontman/tools/call             → Dispatch tool call (SSE)
  *   POST /frontman/resolve-source-location → Not supported in WordPress PHP mode
@@ -66,6 +67,10 @@ class Frontman_Router {
 			}
 
 			switch ( true ) {
+				case $method === 'GET' && $sub_path === 'preview-bridge.js':
+					$this->handle_preview_bridge();
+					exit;
+
 				case $method === 'GET' && $sub_path === 'tools':
 					$this->handle_get_tools();
 					exit;
@@ -302,6 +307,27 @@ class Frontman_Router {
 		}
 
 		return $body;
+	}
+
+	/**
+	 * GET /frontman/preview-bridge.js — serve the child preview runtime.
+	 */
+	private function handle_preview_bridge(): void {
+		$bridge_path = FRONTMAN_PLUGIN_DIR . 'assets/preview-bridge.js';
+		if ( ! is_readable( $bridge_path ) ) {
+			$bridge_path = dirname( FRONTMAN_PLUGIN_DIR ) . '/frontman-preview-bridge/dist/bridge.js';
+		}
+		if ( ! is_readable( $bridge_path ) ) {
+			status_header( 500 );
+			header( 'Content-Type: text/plain; charset=utf-8' );
+			echo esc_html__( 'Frontman preview bridge asset unavailable', 'frontman-agentic-ai-editor' );
+			return;
+		}
+
+		status_header( 200 );
+		header( 'Content-Type: text/javascript; charset=utf-8' );
+		header( 'Cache-Control: no-store' );
+		readfile( $bridge_path );
 	}
 
 	/**

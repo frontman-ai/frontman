@@ -70,6 +70,10 @@ let instrumentationTemplate = () =>
 }
 `
 
+let instrumentationClientTemplate = () =>
+  `import '@frontman-ai/nextjs/preview-loader';
+`
+
 module ManualInstructions = {
   let middleware = (fileName: string, host: string) => {
     let h = Style.yellowBold
@@ -149,6 +153,26 @@ module ManualInstructions = {
         "  matcher: ['/frontman', '/frontman/:path*', '/:path*/frontman', '/:path*/frontman/', ...yourExistingMatchers],",
       )}
   ${bar}     ${d("};")}
+  ${bar}
+  ${bar}  ${b("Docs:")} ${d("https://frontman.sh/docs/nextjs")}
+  ${bar}`
+  }
+
+  let instrumentationClient = (fileName: string) => {
+    let h = Style.yellowBold
+    let s = Style.purple
+    let d = Style.dim
+    let b = Style.bold
+    let bar = Style.yellow("|")
+
+    `  ${bar}
+  ${bar}  ${h(fileName)} needs manual modification.
+  ${bar}
+  ${bar}  ${s("1.")} Add this import as the ${b("first line")} of the file:
+  ${bar}
+  ${bar}     ${d("import '@frontman-ai/nextjs/preview-loader';")}
+  ${bar}
+  ${bar}  This installs the child preview bridge in pages loaded inside Frontman.
   ${bar}
   ${bar}  ${b("Docs:")} ${d("https://frontman.sh/docs/nextjs")}
   ${bar}`
@@ -341,10 +365,11 @@ module SuccessMessages = {
 
   ${pb("Next steps:")}
     ${p("1.")} Start your dev server   ${d(devCommand)}
-    ${p("2.")} Open your browser to    ${d("http://localhost:3000/frontman")}
-    ${p("3.")} Sign in on your Frontman server   ${d(server)}
-    ${p("4.")} Production sign-in uses GitHub or Google
-    ${p("5.")} After returning, connect an AI provider or add an API key
+    ${p("2.")} Restart it if it was already running, so Next.js picks up instrumentation-client.ts
+    ${p("3.")} Open your browser to    ${d("http://localhost:3000/frontman")}
+    ${p("4.")} Sign in on your Frontman server   ${d(server)}
+    ${p("5.")} Production sign-in uses GitHub or Google
+    ${p("6.")} After returning, connect an AI provider or add an API key
 
   ${p(
         "┌───────────────────────────────────────────────┐",

@@ -49,11 +49,15 @@ let installDependencies = async (
       switch Detect.resolveFrom(projectDir, "@frontman-ai/nextjs/Instrumentation") {
       | Error(msg) => Error(msg)
       | Ok(_) =>
-        switch Detect.resolveFrom(projectDir, "@opentelemetry/sdk-node") {
+        switch Detect.resolveFrom(projectDir, "@frontman-ai/nextjs/preview-loader") {
         | Error(msg) => Error(msg)
         | Ok(_) =>
-          Console.log(`  ${Style.check} Dependencies installed`)
-          Ok()
+          switch Detect.resolveFrom(projectDir, "@opentelemetry/sdk-node") {
+          | Error(msg) => Error(msg)
+          | Ok(_) =>
+            Console.log(`  ${Style.check} Dependencies installed`)
+            Ok()
+          }
         }
       }
     | Error(err) =>
@@ -115,6 +119,18 @@ let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): 
   | false => "instrumentation.ts"
   }
   switch Files.getPendingAutoEdit(~existingFile=info.instrumentation, ~fileName=instrFileName) {
+  | Some(p) => pending->Array.push(p)->ignore
+  | None => ()
+  }
+
+  let instrClientFileName = switch info.hasSrcDir {
+  | true => "src/instrumentation-client.ts"
+  | false => "instrumentation-client.ts"
+  }
+  switch Files.getPendingAutoEdit(
+    ~existingFile=info.instrumentationClient,
+    ~fileName=instrClientFileName,
+  ) {
   | Some(p) => pending->Array.push(p)->ignore
   | None => ()
   }
@@ -227,25 +243,36 @@ let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): i
           switch processFileResult(instrumentationResult, manualSteps) {
           | Error(msg) => Failure(msg)
           | Ok() =>
-            switch manualSteps->Array.length > 0 {
-            | true =>
-              Console.log("")
-              Console.log(`  ${Style.divider}`)
-              Console.log("")
-              Console.log(`  ${Style.yellowBold("Manual steps required:")}`)
-              Console.log("")
-              manualSteps->Array.forEach(step => Console.log(step))
-              Console.log("")
-              PartialSuccess({manualStepsRequired: manualSteps})
-            | false =>
-              switch options.dryRun {
-              | true => Success
-              | false =>
-                let devCommand = Detect.getDevCommand(info.packageManager)
+            let instrumentationClientResult = await Files.handleInstrumentationClient(
+              ~projectDir,
+              ~hasSrcDir=info.hasSrcDir,
+              ~existingFile=info.instrumentationClient,
+              ~dryRun=options.dryRun,
+            )
+
+            switch processFileResult(instrumentationClientResult, manualSteps) {
+            | Error(msg) => Failure(msg)
+            | Ok() =>
+              switch manualSteps->Array.length > 0 {
+              | true =>
                 Console.log("")
                 Console.log(`  ${Style.divider}`)
-                Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~server=host))
-                Success
+                Console.log("")
+                Console.log(`  ${Style.yellowBold("Manual steps required:")}`)
+                Console.log("")
+                manualSteps->Array.forEach(step => Console.log(step))
+                Console.log("")
+                PartialSuccess({manualStepsRequired: manualSteps})
+              | false =>
+                switch options.dryRun {
+                | true => Success
+                | false =>
+                  let devCommand = Detect.getDevCommand(info.packageManager)
+                  Console.log("")
+                  Console.log(`  ${Style.divider}`)
+                  Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~server=host))
+                  Success
+                }
               }
             }
           }

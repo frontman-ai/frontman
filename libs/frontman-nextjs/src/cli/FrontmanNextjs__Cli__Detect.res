@@ -34,6 +34,7 @@ type projectInfo = {
   middleware: existingFile,
   proxy: existingFile,
   instrumentation: existingFile,
+  instrumentationClient: existingFile,
   hasSrcDir: bool,
   packageManager: packageManager,
 }
@@ -172,10 +173,15 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
       | true => Path.join([projectDir, "src", "instrumentation.ts"])
       | false => Path.join([projectDir, "instrumentation.ts"])
       }
+      let instrumentationClientPath = switch hasSrcDir {
+      | true => Path.join([projectDir, "src", "instrumentation-client.ts"])
+      | false => Path.join([projectDir, "instrumentation-client.ts"])
+      }
 
       let middleware = await analyzeFile(middlewarePath)
       let proxy = await analyzeFile(proxyPath)
       let instrumentation = await analyzeFile(instrumentationPath)
+      let instrumentationClient = await analyzeFile(instrumentationClientPath)
 
       let packageManager = await detectPackageManager(projectDir)
 
@@ -184,6 +190,7 @@ let detect = async (projectDir: string): result<projectInfo, string> => {
         middleware,
         proxy,
         instrumentation,
+        instrumentationClient,
         hasSrcDir,
         packageManager,
       })
