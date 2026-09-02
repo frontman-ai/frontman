@@ -1,5 +1,6 @@
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module GetDom = FrontmanAiFrontmanProtocol.FrontmanProtocol__GetDom
+module Log = FrontmanLogs.Logs.Make({let component = #MCP})
 
 let name = Tool.ToolNames.getDom
 let access = Tool.Read
@@ -142,14 +143,22 @@ let inspect = (input: input, {doc, win}: Tool.previewContext, ~additionalAttribu
 
 let execute = async (
   input: input,
-  ~taskId as _taskId: string,
+  ~taskId: string,
   ~toolCallId as _toolCallId: string,
-): Tool.MCP.CallToolResult.t =>
-  switch Client__Tool__PreviewContext.get() {
-  | None => Tool.MCP.CallToolResult.makeError("Preview frame not available")
-  | Some(preview) =>
-    switch inspect(input, preview) {
-    | Ok((output, _element)) => Tool.structuredResult(output, outputSchema)
-    | Error(message) => Tool.MCP.CallToolResult.makeError(message)
+): Tool.MCP.CallToolResult.t => {
+  switch Client__PreviewRuntimeRegistry.get() {
+  | None => Tool.MCP.CallToolResult.makeError("Preview bridge runtime not available")
+  | Some(runtime) =>
+    try {
+      switch await Client__PreviewRuntime.getDom(runtime, input) {
+      | Ok(output) => Tool.structuredResult(output, outputSchema)
+      | Error(message) => Tool.MCP.CallToolResult.makeError(message)
+      }
+    } catch {
+    | exn =>
+      let message = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Preview bridge request failed")
+      Log.error(~ctx={"taskId": taskId, "selector": input.selector}, ~error=JsExn.fromException(exn), "Preview bridge get_dom request failed")
+      Tool.MCP.CallToolResult.makeError(message)
     }
   }
+}

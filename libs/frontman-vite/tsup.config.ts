@@ -54,7 +54,7 @@ export default defineConfig([
     outDir: 'dist',
     clean: true,
     dts: true,
-    noExternal: [...internalDeps, /vite-plugin-vue-source/],
+    noExternal: [...internalDeps, /vite-plugin-vue-source/, /vite-plugin-preview-loader/],
     external: ['vite', 'lighthouse', 'chrome-launcher', 'source-map', ...nodeBuiltins],
     platform: 'node',
     target: 'node18',
