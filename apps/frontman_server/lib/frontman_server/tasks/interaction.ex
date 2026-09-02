@@ -972,7 +972,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     def build(%Skill{} = skill) do
       %__MODULE__{
-        id: Interaction.new_id(),
+        id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
         skill_id: skill.id,
         skill_name: skill.name,

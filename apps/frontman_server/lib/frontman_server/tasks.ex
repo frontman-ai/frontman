@@ -518,6 +518,15 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
+  def submit_user_message(%Scope{}, %{agent_id: agent_id})
+      when is_binary(agent_id) and agent_id != "" do
+    {:error, :missing_model}
+  end
+
+  def submit_user_message(%Scope{}, %{model: _model}) do
+    {:error, :missing_agent}
+  end
+
   defp selected_skill(_scope, nil), do: {:ok, nil}
 
   defp selected_skill(%Scope{} = scope, selected_server_skill_id) do

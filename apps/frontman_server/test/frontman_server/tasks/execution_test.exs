@@ -525,7 +525,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           selected_server_skill_id: skill.id
         )
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, 1}, 5_000
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       assert_receive {:provider_messages, messages}, 1_000
 
       user_message = Enum.find(messages, &(&1.role == :user))
@@ -543,7 +543,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, _, 2} = submit_user_message(scope, task_id, user_content("Now tighten copy"))
 
-      assert_receive {:interaction, %Interaction.AgentCompleted{}, 2}, 5_000
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
       assert_receive {:followup_provider_messages, followup_messages}, 1_000
 
       user_messages = Enum.filter(followup_messages, &(&1.role == :user))

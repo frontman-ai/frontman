@@ -1,7 +1,6 @@
 defmodule FrontmanServer.Tasks.InteractionTest do
   use FrontmanServer.InteractionCase, async: true
 
-  alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Skills.Skill
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
@@ -648,11 +647,11 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
       row = %InteractionSchema{
         type: :skill_used,
-        data: Interaction.to_data_map(skill_used)
+        data: skill_used
       }
 
       assert %Interaction.SkillUsed{skill_name: "design_polish", skill_content: "Use hierarchy."} =
-               InteractionSchema.to_struct(row)
+               row.data
     end
   end
 
@@ -666,11 +665,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       }
 
       changeset =
-        InteractionSchema.create_changeset(
-          %FrontmanServer.Tasks.TaskSchema{id: Ecto.UUID.generate()},
-          skill_used,
-          nil
-        )
+        %FrontmanServer.Tasks.TaskSchema{id: Ecto.UUID.generate()}
+        |> Ecto.build_assoc(:interaction_rows)
+        |> InteractionSchema.changeset(%{
+          id: Ecto.UUID.generate(),
+          type: :skill_used,
+          data: Map.from_struct(skill_used),
+          turn_number: nil
+        })
 
       refute changeset.valid?
       assert {"missing for skill_used", []} = changeset.errors[:turn_number]
