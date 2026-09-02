@@ -34,4 +34,9 @@ let make = (~iframe: WebAPI.DomTypes.htmliFrameElement, ~targetOrigin, ~channel)
 let status = Runtime.status
 let onStatus = Runtime.onStatus
 let whenOpen = Runtime.whenOpen
+let getDom = (
+  runtime: t,
+  input: FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.getDomInput,
+) =>
+  Runtime.sendMessage(runtime, FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.GetDom(input))
 let close = Runtime.close

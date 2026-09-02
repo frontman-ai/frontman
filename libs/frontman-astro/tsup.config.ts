@@ -10,6 +10,7 @@ const sharedNoExternal = [
   '@rescript/runtime',
   'sury',
   'dom-element-to-component-source',
+  /vite-plugin-preview-loader/,
 ];
 
 const sharedExternal = [

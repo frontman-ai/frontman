@@ -18,7 +18,12 @@ let limits: Runtime.limits = {
 
 let handler:
   type response. (Types.message<response>, unit, Runtime.context) => Response.t<response> =
-  (_message, _sender, _context) => Response.none
+  (message, _sender, _context) =>
+    switch message {
+    | FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.GetDom(input) =>
+      Response.now(FrontmanPreviewBridge__DomSnapshot.execute(input))
+    | _ => Response.none
+    }
 
 let install: config => t = config => {
   let window = WebAPI.Window.current

@@ -2524,6 +2524,8 @@ __metadata:
     "@frontman/bindings": "workspace:*"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
+    dom-accessibility-api: "npm:^0.7.1"
+    jsdom: "npm:^30.0.1"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     vite: "catalog:"
