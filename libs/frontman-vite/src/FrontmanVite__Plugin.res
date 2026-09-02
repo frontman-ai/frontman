@@ -152,5 +152,9 @@ let frontmanPlugin = (~options: option<pluginOptions>=?): array<plugin> => {
     },
   }
 
-  [middlewarePlugin, frontmanVueSourcePlugin()]
+  let previewLoaderPlugin = frontmanPreviewLoaderPlugin({
+    "basePath": opts.basePath->Option.getOr("frontman"),
+  })
+
+  [middlewarePlugin, previewLoaderPlugin, frontmanVueSourcePlugin()]
 }

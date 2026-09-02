@@ -10,9 +10,11 @@
 		"@frontman-ai/frontman-protocol": "workspace:*",
 		"@frontman/bindings": "workspace:*",
 		"@rescript/runtime": "catalog:",
-		"@rescript/webapi": "catalog:"
+		"@rescript/webapi": "catalog:",
+		"dom-accessibility-api": "^0.7.1"
 	},
 	"devDependencies": {
+		"jsdom": "^30.0.1",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",
