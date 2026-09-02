@@ -1108,3 +1108,33 @@ describe("Task - Annotation Enrichment Lifecycle (Issue #582)", () => {
     t->expect(TaskReducer.Selectors.hasEnrichingAnnotations(task4))->Expect.toEqual(Some(true))
   })
 })
+
+describe("Task - Text Edit Mode", () => {
+  test("ToggleTextEditMode toggles TextEditing without enabling selection", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let (task2, _) = TaskReducer.next(task, ToggleTextEditMode)
+    t
+    ->expect(Client__Task__Types.Task.getAnnotationMode(task2))
+    ->Expect.toEqual(Client__Annotation__Types.TextEditing)
+    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(task2))->Expect.toEqual(Some(false))
+
+    let (task3, _) = TaskReducer.next(task2, ToggleTextEditMode)
+    t
+    ->expect(Client__Task__Types.Task.getAnnotationMode(task3))
+    ->Expect.toEqual(Client__Annotation__Types.Off)
+  })
+
+  test("AddTextEditAnnotation appends annotation with edit comment and enrichment effect", t => {
+    let task = TestHelpers.makeLoadedTask()
+    let el = _makeMockElement()
+    let (task2, effects) = TaskReducer.next(
+      task,
+      AddTextEditAnnotation({element: el, tagName: "H1", originalText: "Hello", newText: "Hi"}),
+    )
+    let annotations = TaskReducer.Selectors.annotations(task2)->Option.getOrThrow
+    t->expect(annotations->Array.length)->Expect.toBe(1)
+    let comment = (annotations->Array.getUnsafe(0)).comment->Option.getOrThrow
+    t->expect(comment->String.includes(`from "Hello" to "Hi"`))->Expect.toBe(true)
+    t->expect(effects->Array.length)->Expect.toBe(1)
+  })
+})

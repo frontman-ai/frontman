@@ -337,6 +337,13 @@ type action =
     })
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
+  | ToggleTextEditMode
+  | AddTextEditAnnotation({
+      element: WebAPI.DomTypes.element,
+      tagName: string,
+      originalText: string,
+      newText: string,
+    })
   | ToggleAnnotation({element: WebAPI.DomTypes.element, tagName: string})
   | AddAnnotation({element: WebAPI.DomTypes.element, tagName: string})
   | AnnotationDetailsResolved({
@@ -439,6 +446,8 @@ let actionToString = (action: action): string =>
   | ToolErrorReceived(_) => "ToolErrorReceived"
   | SetAnnotationMode(_) => "SetAnnotationMode"
   | ToggleAnnotationMode => "ToggleAnnotationMode"
+  | ToggleTextEditMode => "ToggleTextEditMode"
+  | AddTextEditAnnotation(_) => "AddTextEditAnnotation"
   | ToggleAnnotation(_) => "ToggleAnnotation"
   | AddAnnotation(_) => "AddAnnotation"
   | AnnotationDetailsResolved(_) => "AnnotationDetailsResolved"
@@ -637,8 +646,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotationMode) => {
       let newMode = switch Task.getAnnotationMode(task) {
-      | Annotation.Off => Annotation.Selecting
-      | _ => Annotation.Off
+      | Annotation.Selecting => Annotation.Off
+      | _ => Annotation.Selecting
       }
       let updated = Lens.setAnnotationMode(task, newMode)
       let updated = switch newMode {
@@ -646,6 +655,41 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | _ => updated
       }
       (updated, [])
+    }
+
+  | (Task.Unloaded(_), ToggleTextEditMode | AddTextEditAnnotation(_)) => (task, [])
+  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleTextEditMode) => {
+      let newMode = switch Task.getAnnotationMode(task) {
+      | Annotation.TextEditing => Annotation.Off
+      | _ => Annotation.TextEditing
+      }
+      let updated = Lens.setAnnotationMode(task, newMode)
+      let updated = updated->Lens.setActivePopupAnnotationId(None)
+      (updated, [])
+    }
+  | (
+      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
+      AddTextEditAnnotation({element, tagName, originalText, newText}),
+    ) => {
+      let annotation = {
+        ...Annotation.make(~element, ~tagName),
+        comment: Some(
+          `The user edited this element's text directly in the preview (preview-only, not persisted). Change its text from original text to new text in the corresponding source file. Change the source location if the source originates from props, i18n or similar.
+<original_text>${originalText}</original_text>
+<new_text>${newText}</new_text>`,
+        ),
+      }
+      let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
+      let effects = [
+        FetchAnnotationDetails({
+          id: annotation.id,
+          element,
+          document: previewFrame.contentDocument,
+          contentWindow: previewFrame.contentWindow,
+        }),
+      ]
+      let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
+      (Lens.setAnnotations(task, allAnnotations), effects)
     }
 
   | (Task.Unloaded(_), ToggleAnnotation(_)) => (task, [])
