@@ -126,6 +126,8 @@ let make = (~onConfigureProvider: unit => unit) => {
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
+  let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
+  let tasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
@@ -243,6 +245,17 @@ let make = (~onConfigureProvider: unit => unit) => {
   }
 
   let groupCacheRef: React.ref<Dict.t<ToolGroupTypes.toolGroup>> = React.useRef(Dict.make())
+  let recentTasks = React.useMemo1(() => {
+    tasks
+    ->Array.slice(~start=0, ~end=5)
+    ->Array.filterMap(task => {
+      switch (Client__Task__Types.Task.getId(task), Client__Task__Types.Task.getTitle(task)) {
+      | (Some(id), Some(title)) => Some({Client__GetStartedTasks.id, title})
+      | _ => None
+      }
+    })
+  }, [tasks])
+
   let displayItems = React.useMemo1(() => {
     let items = groupMessages(messages)
     let prevCache = groupCacheRef.current
@@ -399,9 +412,11 @@ let make = (~onConfigureProvider: unit => unit) => {
           </div>
         }}
 
-        {switch (hasActiveACPSession, totalItems) {
-        | (true, 0) =>
+        {switch (hasActiveACPSession, isNewTask, totalItems) {
+        | (true, true, 0) =>
           <Client__GetStartedTasks
+            recentTasks
+            onResume={taskId => Client__State.Actions.switchTask(~taskId)}
             onSelect={text =>
               selectGetStartedTask(
                 ~providerSetupRequired,
