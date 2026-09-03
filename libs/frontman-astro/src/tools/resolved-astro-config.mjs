@@ -8,7 +8,7 @@ function jsonSafe(value) {
   try {
     return JSON.parse(JSON.stringify(value))
   } catch {
-    return undefined
+    return { serializationError: "Unable to serialize value" }
   }
 }
 
@@ -65,8 +65,7 @@ function sanitizeImage(image) {
     const entrypoint = jsonSafe(image.service.entrypoint)
     if (entrypoint !== undefined) service.entrypoint = entrypoint
 
-    const config = jsonSafe(image.service.config)
-    if (config !== undefined) service.config = config
+    if (image.service.config !== undefined) service.config = "redacted"
 
     if (Object.keys(service).length) out.service = service
   }
