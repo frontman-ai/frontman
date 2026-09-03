@@ -68,12 +68,14 @@ HELP_dev-nextjs-prebuilt := Start Next.js test site with prebuilt integration
 HELP_dev-marketing := Start development server for marketing site
 
 HELP_BUILD_TITLE := Build & Quality
-HELP_BUILD_TARGETS := install hooks-install setup-elixir-tools verify-toolchain-pins build rescript-watch rescript-build rescript-format reanalyze check-source-comments clean
+HELP_BUILD_TARGETS := install hooks-install setup-elixir-tools verify-toolchain-pins build build-preview-capsule test-preview-capsule rescript-watch rescript-build rescript-format reanalyze check-source-comments clean
 HELP_install := Install dependencies
 HELP_hooks-install := Install git pre-commit hooks via Lefthook
 HELP_setup-elixir-tools := Install Hex/Rebar for the active mise Elixir
 HELP_verify-toolchain-pins := Verify Docker Elixir image matches mise.toml
 HELP_build := Build ReScript project
+HELP_build-preview-capsule := Build immutable parent/bridge capsule
+HELP_test-preview-capsule := Test immutable capsule manifest output
 HELP_rescript-watch := Watch and rebuild ReScript on changes
 HELP_rescript-build := Build ReScript project (one-shot)
 HELP_rescript-format := Format ReScript source
@@ -176,7 +178,7 @@ dev-marketing:
 
 
 
-.PHONY: install build rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments
+.PHONY: install build build-preview-capsule test-preview-capsule rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments
 
 install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
@@ -222,6 +224,13 @@ verify-toolchain-pins:
 build:
 	@printf "$(YELLOW)Building ReScript project...$(RESET)\n"
 	yarn rescript
+
+build-preview-capsule:
+	@printf "$(YELLOW)Building immutable parent/bridge capsule...$(RESET)\n"
+	node scripts/build-preview-capsule.mjs
+
+test-preview-capsule:
+	node --test test/capsule-build.test.mjs
 
 rescript-watch:
 	@printf "$(YELLOW)Starting ReScript watch mode...$(RESET)\n"
