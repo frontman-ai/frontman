@@ -891,6 +891,34 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
 
+    test "first claimed message generates the title after an earlier queued message is removed",
+         %{
+           task_id: task_id,
+           scope: scope
+         } do
+      first_message_id = Ecto.UUID.generate()
+
+      assert {:ok, _row} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task_id,
+                 message_id: first_message_id,
+                 message: user_content("Remove this prompt"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
+      assert :ok = Tasks.unqueue_user_message(scope, task_id, first_message_id)
+      assert all_enqueued(worker: GenerateTitle) == []
+
+      expect_llm_responses(["Response"])
+      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Use this prompt"))
+
+      assert_enqueued(
+        worker: GenerateTitle,
+        args: %{task_id: task_id, user_prompt_text: "Use this prompt"}
+      )
+    end
+
     test "second message does not enqueue an additional title generation job", %{
       task_id: task_id,
       scope: scope

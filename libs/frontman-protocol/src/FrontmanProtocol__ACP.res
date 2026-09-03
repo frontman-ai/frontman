@@ -528,6 +528,7 @@ type sessionUpdate =
       content: FrontmanProtocol__ContentBlock.t,
       _meta: messageMetadata,
     })
+  | MessageUnqueued({messageId: string})
   | UserMessageChunk({
       messageId: string,
       content: FrontmanProtocol__ContentBlock.t,
@@ -578,6 +579,10 @@ type sessionUpdate =
     })
 
 let commonSessionUpdateSchema = S.union([
+  S.object(s => {
+    s.tag("sessionUpdate", "message_unqueued")
+    MessageUnqueued({messageId: s.field("messageId", nonEmptyStringSchema)})
+  }),
   S.object(s => {
     s.tag("sessionUpdate", "tool_call")
     ToolCall({

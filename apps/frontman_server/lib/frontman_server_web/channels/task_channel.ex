@@ -33,7 +33,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   @acp_message ACP.event_acp_message()
   @acp_title_updated ACP.event_title_updated()
   @acp_method_session_prompt ACP.method_session_prompt()
-  @acp_method_session_cancel ACP.method_session_cancel()
   @acp_method_session_load ACP.method_session_load()
   @mcp_init_timeout_ms 30_000
   @impl true
@@ -80,8 +79,11 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, {:request, id, @acp_method_session_prompt, params}} ->
         handle_prompt(id, params, socket)
 
-      {:ok, {:notification, @acp_method_session_cancel, params}} ->
-        handle_cancel(params, socket)
+      {:ok, {:notification, "session/cancel", _params}} ->
+        handle_cancel(socket)
+
+      {:ok, {:notification, "session/command", params}} ->
+        handle_session_command(params, socket)
 
       {:ok, {:request, id, @acp_method_session_load, params}} ->
         handle_session_load(id, params, socket)
@@ -93,9 +95,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           JsonRpc.error_method_not_found(),
           "Method not found: #{method}"
         )
-
-      {:ok, {:notification, "session/retry_turn", %{"retriedErrorId" => retried_error_id}}} ->
-        handle_retry_turn(retried_error_id, socket)
 
       {:ok, {:notification, _method, _params}} ->
         {:noreply, socket}
@@ -179,8 +178,36 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_turn_started(interaction, turn_started_id, turn_number, socket)
   end
 
+  def handle_info(
+        {:interaction, %{id: message_id, data: %Tasks.Interaction.UserMessage{} = message}},
+        socket
+      ) do
+    message
+    |> ACP.Content.from_user_message()
+    |> Enum.each(fn content ->
+      notification =
+        ACP.build_user_message_chunk_notification(
+          socket.assigns.task_id,
+          message_id,
+          content,
+          message.agent_id,
+          message.timestamp
+        )
+
+      push(socket, @acp_message, notification)
+    end)
+
+    {:noreply, socket}
+  end
+
   def handle_info({:interaction, %{data: interaction, turn_number: turn_number}}, socket) do
     handle_interaction(interaction, turn_number, socket)
+  end
+
+  def handle_info({:message_unqueued, message_id}, socket) when is_binary(message_id) do
+    notification = ACP.build_message_unqueued_notification(socket.assigns.task_id, message_id)
+    push(socket, @acp_message, notification)
+    {:noreply, socket}
   end
 
   def handle_info({:fire_retry, token}, socket) do
@@ -565,7 +592,28 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp mcp_error_code(%{"code" => code}) when is_integer(code), do: code
   defp mcp_error_code(_error), do: :unknown
 
-  defp handle_cancel(_params, socket) do
+  defp handle_session_command(%{"command" => "cancel"}, socket), do: handle_cancel(socket)
+
+  defp handle_session_command(
+         %{"command" => "retry_turn", "retriedErrorId" => retried_error_id},
+         socket
+       )
+       when is_binary(retried_error_id),
+       do: handle_retry_turn(retried_error_id, socket)
+
+  defp handle_session_command(
+         %{"command" => "unqueue_message", "messageId" => message_id},
+         socket
+       )
+       when is_binary(message_id),
+       do: handle_unqueue_message(message_id, socket)
+
+  defp handle_session_command(params, socket) do
+    Logger.warning("Invalid session command: #{inspect(params)}")
+    {:noreply, socket}
+  end
+
+  defp handle_cancel(socket) do
     task_id = socket.assigns.task_id
     Logger.info("Cancel notification received for task #{task_id}")
 
@@ -647,7 +695,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
-             {:ok, row} <-
+             {:ok, _row} <-
                Tasks.submit_user_message(
                  scope,
                  %{
@@ -658,8 +706,6 @@ defmodule FrontmanServerWeb.TaskChannel do
                    agent_id: agent_id
                  }
                ) do
-          push_user_message_chunks(socket, task_id, row)
-
           wake_runner(socket, meta)
 
           Logger.info("User message accepted for task #{task_id}")
@@ -687,12 +733,6 @@ defmodule FrontmanServerWeb.TaskChannel do
       :error ->
         reply_invalid_params(socket, id, "Model is required")
     end
-  end
-
-  defp push_user_message_chunks(socket, task_id, row) do
-    %{row: row, agent_id: row.data.agent_id}
-    |> ACPHistory.encode_row(task_id)
-    |> Enum.each(&push(socket, @acp_message, &1))
   end
 
   defp reply_acp_error(socket, id, code, message) do
@@ -806,6 +846,18 @@ defmodule FrontmanServerWeb.TaskChannel do
       _ ->
         {:noreply, socket}
     end
+  end
+
+  defp handle_unqueue_message(message_id, socket) do
+    case Tasks.unqueue_user_message(socket.assigns.scope, socket.assigns.task_id, message_id) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.info("Unqueue skipped for #{message_id}: #{inspect(reason)}")
+    end
+
+    {:noreply, socket}
   end
 
   defp handle_retry_turn(retried_error_id, socket) do

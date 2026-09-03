@@ -41,7 +41,6 @@ defmodule AgentClientProtocol do
   @method_session_new "session/new"
   @method_session_load "session/load"
   @method_session_prompt "session/prompt"
-  @method_session_cancel "session/cancel"
   @method_session_update "session/update"
 
   @tool_call_status_pending "pending"
@@ -99,7 +98,6 @@ defmodule AgentClientProtocol do
   def method_session_new, do: @method_session_new
   def method_session_load, do: @method_session_load
   def method_session_prompt, do: @method_session_prompt
-  def method_session_cancel, do: @method_session_cancel
   def method_session_update, do: @method_session_update
 
   def agent_info do
@@ -300,6 +298,14 @@ defmodule AgentClientProtocol do
       "messageId" => message_id,
       "content" => content,
       "_meta" => message_metadata(agent_id, timestamp)
+    })
+  end
+
+  @doc "Builds a notification confirming that a queued user message was deleted."
+  def build_message_unqueued_notification(session_id, message_id) when is_binary(message_id) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "message_unqueued",
+      "messageId" => message_id
     })
   end
 

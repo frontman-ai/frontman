@@ -5,8 +5,7 @@ let make = (~apiBaseUrl: string) => {
   let {
     connectionState,
     sendPrompt,
-    cancelPrompt,
-    retryTurn,
+    sendSessionCommand,
     loadTask,
     deleteSession,
     authRedirectUrl,
@@ -21,8 +20,7 @@ let make = (~apiBaseUrl: string) => {
     | Connected | SessionActive(_) =>
       Client__State.Actions.setAcpSession(
         ~sendPrompt,
-        ~cancelPrompt,
-        ~retryTurn,
+        ~sendSessionCommand,
         ~loadTask,
         ~deleteSession,
         ~requireAuthentication,
@@ -34,8 +32,7 @@ let make = (~apiBaseUrl: string) => {
   }, (
     connectionState,
     sendPrompt,
-    cancelPrompt,
-    retryTurn,
+    sendSessionCommand,
     loadTask,
     deleteSession,
     requireAuthentication,
