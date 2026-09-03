@@ -65,7 +65,7 @@ If you want a chatbot, use the chatbot plugin. If you want embeddings and knowle
 
 That last sentence is where [Frontman for WordPress](/wordpress/) lives.
 
-Before installing anything, [watch one complete existing-site edit](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) or [try the workflow in a disposable WordPress Playground](https://playground.wordpress.net/?networking=yes&blueprint-url=https%3A%2F%2Ffrontman.sh%2Fwordpress-playground%2Fblueprint.json). The Playground loads a seeded page and the plugin automatically; Frontman sign-in and your own supported AI provider are still required.
+Before installing anything, [watch one complete existing-site edit](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo). Then install Frontman on a staging site and use your own supported AI provider.
 
 ### Why Frontman's WordPress plugin is different
 
