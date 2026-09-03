@@ -7,6 +7,7 @@
 .PHONY: help install test test-record test-coverage format lint dev dev-container build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit strict-compile credo debug-task
 
 SHELL := /bin/bash
+OP_RUN := op run --env-file=envs/.dev.secrets.env --
 
 HELP_TARGETS := help install setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy test test-record test-coverage format lint dev dev-container build clean precommit credo check debug-task
 HELP_help := Display this help message
@@ -46,19 +47,19 @@ setup:
 	$(MAKE) assets-build
 
 db-setup:
-	mix ecto.create
-	mix ecto.migrate
-	mix run priv/repo/seeds.exs
+	$(OP_RUN) mix ecto.create
+	$(OP_RUN) mix ecto.migrate
+	$(OP_RUN) mix run priv/repo/seeds.exs
 
 db-reset:
-	mix ecto.drop
+	$(OP_RUN) mix ecto.drop
 	$(MAKE) db-setup
 
 db-migrate:
-	mix ecto.migrate
+	$(OP_RUN) mix ecto.migrate
 
 db-seed:
-	mix run priv/repo/seeds.exs
+	$(OP_RUN) mix run priv/repo/seeds.exs
 
 assets-setup:
 	mix tailwind.install --if-missing
@@ -99,7 +100,7 @@ lint:
 	mix credo --strict
 
 dev:
-	op run --env-file=envs/.dev.secrets.env -- mix phx.server
+	$(OP_RUN) mix phx.server
 
 dev-container:
 	mix phx.server
@@ -128,4 +129,4 @@ credo:
 check: lint test
 
 debug-task:
-	op run --env-file=envs/.dev.secrets.env -- mix debug_task $(ARGS)
+	$(OP_RUN) mix debug_task $(ARGS)
