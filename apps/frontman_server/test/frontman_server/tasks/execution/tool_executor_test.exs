@@ -98,7 +98,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
                    task_id: task_id,
                    turn_number: turn_number,
                    tool_calls: [available, unavailable],
-                   task_supervisor: SwarmAi.task_supervisor_name(FrontmanServer.AgentRuntime),
+                   task_supervisor:
+                     SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
                    backend_tool_modules: [PauseOnTimeoutTool],
                    mcp_tool_defs: [],
                    execution_mode: mode
@@ -166,7 +167,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
                  task_id: task_id,
                  turn_number: turn_number,
                  tool_calls: [tc],
-                 task_supervisor: SwarmAi.task_supervisor_name(FrontmanServer.AgentRuntime),
+                 task_supervisor:
+                   SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
                  backend_tool_modules: [],
                  mcp_tool_defs: [todo_write_mcp_def],
                  execution_mode: :serial

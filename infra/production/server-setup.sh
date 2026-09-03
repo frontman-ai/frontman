@@ -88,6 +88,7 @@ deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl stop frontman-green
 deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl start frontman-blue
 deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl start frontman-green
 deploy ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload caddy
+deploy ALL=(ALL) NOPASSWD: /usr/bin/install -o root -g root -m 0644 /opt/frontman/Caddyfile.* /etc/caddy/Caddyfile
 SUDOERS
 chmod 440 /etc/sudoers.d/deploy-frontman
 
@@ -205,6 +206,7 @@ for SLOT in blue green; do
 PORT=${PORT}
 PHX_HOST=${DOMAIN}
 PHX_SERVER=true
+HTTP_SHUTDOWN_TIMEOUT_MS=30000
 
 DATABASE_URL=ecto://${DB_USER}:${DB_PASSWORD}@localhost/${DB_NAME}
 DATABASE_SSL=false

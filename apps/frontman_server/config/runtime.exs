@@ -145,6 +145,9 @@ if config_env() == :prod do
   host = System.get_env("PHX_HOST") || "example.com"
   port = String.to_integer(System.get_env("PORT") || "4000")
 
+  http_shutdown_timeout_ms =
+    String.to_integer(System.get_env("HTTP_SHUTDOWN_TIMEOUT_MS") || "30000")
+
   config :frontman_server, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   check_origin = ["https://#{host}", "https://*.#{host}"]
@@ -153,7 +156,8 @@ if config_env() == :prod do
     url: [host: host, port: 443, scheme: "https"],
     http: [
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
-      port: port
+      port: port,
+      thousand_island_options: [shutdown_timeout: http_shutdown_timeout_ms]
     ],
     check_origin: check_origin,
     secret_key_base: secret_key_base
