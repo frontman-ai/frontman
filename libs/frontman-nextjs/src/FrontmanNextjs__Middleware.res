@@ -6,6 +6,11 @@ module Config = FrontmanNextjs__Config
 module LogCapture = FrontmanNextjs__LogCapture
 module RuntimeEnv = FrontmanNextjs__RuntimeEnv
 
+@module("./FrontmanNextjs__PreviewBridgeAsset.mjs")
+external isPreviewBridgePath: (string, string) => bool = "isPreviewBridgePath"
+@module("./FrontmanNextjs__PreviewBridgeAsset.mjs")
+external makePreviewBridgeResponse: unit => promise<WebAPI.Response.t> = "makePreviewBridgeResponse"
+
 type config = Config.t
 
 let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
@@ -31,10 +36,15 @@ let createMiddleware = (configInput: Config.jsConfigInput) => {
     ~serverVersion=config.serverVersion,
   )
 
-  let middleware = CoreMiddleware.createMiddleware(
+  let coreMiddleware = CoreMiddleware.createMiddleware(
     ~config=middlewareConfig,
     ~registry=server.registry,
   )
+  let middleware = async (req: WebAPI.Request.t) =>
+    switch isPreviewBridgePath(req.url, config.basePath) {
+    | true => Some(await makePreviewBridgeResponse())
+    | false => await coreMiddleware(req)
+    }
 
   switch RuntimeEnv.isRuntimeEnabled() {
   | true =>

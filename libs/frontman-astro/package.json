@@ -46,13 +46,15 @@
 	"scripts": {
 		"build:rescript": "rescript build",
 		"build:bundle": "tsup",
-		"build": "yarn build:rescript && yarn build:bundle"
+		"build:bridge": "yarn workspace @frontman-ai/frontman-preview-bridge build",
+		"build": "yarn build:bridge && yarn build:rescript && yarn build:bundle"
 	},
 	"engines": {
 		"node": ">=22.19.0"
 	},
 	"dependencies": {
 		"@astrojs/compiler": "^4.0.0",
+		"@frontman-ai/frontman-preview-bridge": "^0.2.0",
 		"chrome-launcher": "^1.1.2",
 		"lighthouse": "^13.4.0",
 		"magic-string": "^0.30.21",

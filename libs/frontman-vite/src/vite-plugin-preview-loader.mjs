@@ -1,0 +1,127 @@
+import { createRequire } from "node:module"
+import { readFile } from "node:fs/promises"
+
+const require = createRequire(import.meta.url)
+
+const parentOriginParam = "__frontman_parent_origin"
+const channelParam = "__frontman_channel"
+const storageParentOriginKey = "frontman.previewBridge.parentOrigin"
+const storageChannelKey = "frontman.previewBridge.channel"
+
+function escapeScriptString(value) {
+  return JSON.stringify(value).replace(/</g, "\\u003c")
+}
+
+function makeLoaderScript({ bridgeUrl }) {
+  return `<script data-frontman-preview-loader>(function(){
+  var installedAttribute = "data-frontman-preview-loader-installed";
+  if (document.documentElement.hasAttribute(installedAttribute)) return;
+  document.documentElement.setAttribute(installedAttribute, "true");
+
+  function sessionGet(key) {
+    try { return window.sessionStorage.getItem(key); } catch (_error) { return null; }
+  }
+  function sessionSet(key, value) {
+    try { window.sessionStorage.setItem(key, value); } catch (_error) {}
+  }
+  function isTrustedParentOrigin(origin) {
+    try {
+      var parsed = new URL(origin);
+      var hostname = parsed.hostname.toLowerCase();
+      return origin === window.location.origin ||
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "::1" ||
+        hostname === "frontman.local" ||
+        hostname.endsWith(".frontman.local") ||
+        hostname === "frontman.sh" ||
+        hostname.endsWith(".frontman.sh");
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  var params = new URLSearchParams(window.location.search);
+  var parentOrigin = params.get(${escapeScriptString(parentOriginParam)}) || sessionGet(${escapeScriptString(storageParentOriginKey)});
+  var channel = params.get(${escapeScriptString(channelParam)}) || sessionGet(${escapeScriptString(storageChannelKey)});
+  if (!parentOrigin || !channel) {
+    console.error("Frontman preview bridge loader missing runtime params", {
+      hasParentOrigin: !!parentOrigin,
+      hasChannel: !!channel
+    });
+    return;
+  }
+  if (!isTrustedParentOrigin(parentOrigin)) {
+    console.error("Frontman preview bridge rejected untrusted parent origin", { parentOrigin: parentOrigin });
+    return;
+  }
+  sessionSet(${escapeScriptString(storageParentOriginKey)}, parentOrigin);
+  sessionSet(${escapeScriptString(storageChannelKey)}, channel);
+
+  if (params.has(${escapeScriptString(parentOriginParam)}) || params.has(${escapeScriptString(channelParam)})) {
+    params.delete(${escapeScriptString(parentOriginParam)});
+    params.delete(${escapeScriptString(channelParam)});
+    var cleanSearch = params.toString();
+    var cleanUrl = window.location.pathname + (cleanSearch ? "?" + cleanSearch : "") + window.location.hash;
+    window.history.replaceState(window.history.state, "", cleanUrl);
+  }
+
+  if (document.querySelector("script[data-frontman-bridge]")) return;
+  var script = document.createElement("script");
+  script.src = ${escapeScriptString(bridgeUrl)};
+  script.async = false;
+  script.setAttribute("data-frontman-bridge", "true");
+  script.setAttribute("data-frontman-parent-origin", parentOrigin);
+  script.setAttribute("data-frontman-channel", channel);
+  script.onerror = function() {
+    console.error("Frontman preview bridge script failed to load", { src: script.src });
+  };
+  document.head.appendChild(script);
+})();</script>`
+}
+
+function shouldSkipHtmlTransform(html, ctx, basePath) {
+  if (html.includes("data-frontman-preview-loader")) return true
+
+  const path = String(ctx?.path ?? "")
+  const normalizedBase = `/${basePath}`.toLowerCase()
+  const normalizedPath = path.toLowerCase().replace(/\/+$/, "")
+  return normalizedPath === normalizedBase || normalizedPath.startsWith(`${normalizedBase}/`)
+}
+
+export function frontmanPreviewLoaderPlugin(options = {}) {
+  const basePath = options.basePath || "frontman"
+  const bridgeUrl = options.bridgeUrl || `/${basePath}/preview-bridge.js`
+
+  return {
+    name: "frontman-preview-loader",
+    apply: "serve",
+    configureServer(server) {
+      server.middlewares.use(bridgeUrl, async (_req, res, next) => {
+        try {
+          const bridgePath = require.resolve("@frontman-ai/frontman-preview-bridge/dist/bridge.js")
+          const bridge = await readFile(bridgePath, "utf8")
+          res.statusCode = 200
+          res.setHeader("Content-Type", "text/javascript; charset=utf-8")
+          res.end(bridge)
+        } catch (error) {
+          console.error("Frontman preview bridge asset unavailable", error)
+          res.statusCode = 500
+          res.end("Frontman preview bridge asset unavailable")
+        }
+      })
+    },
+    transformIndexHtml: {
+      order: "pre",
+      handler(html, ctx) {
+        if (shouldSkipHtmlTransform(html, ctx, basePath)) return html
+
+        const loader = makeLoaderScript({ bridgeUrl })
+        if (/<head\b[^>]*>/i.test(html)) {
+          return html.replace(/<head(\s[^>]*)?>/i, match => `${match}\n${loader}`)
+        }
+        return `${loader}\n${html}`
+      },
+    },
+  }
+}

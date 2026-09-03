@@ -214,6 +214,62 @@ let handleProxy = async (
   }
 }
 
+let previewLoaderImport = "import '@frontman-ai/nextjs/preview-loader';"
+
+let handleInstrumentationClient = async (
+  ~projectDir: string,
+  ~hasSrcDir: bool,
+  ~existingFile: Detect.existingFile,
+  ~dryRun: bool,
+): result<fileResult, string> => {
+  let filePath = switch hasSrcDir {
+  | true => Path.join([projectDir, "src", "instrumentation-client.ts"])
+  | false => Path.join([projectDir, "instrumentation-client.ts"])
+  }
+  let fileName = switch hasSrcDir {
+  | true => "src/instrumentation-client.ts"
+  | false => "instrumentation-client.ts"
+  }
+
+  switch existingFile {
+  | NotFound =>
+    switch dryRun {
+    | true => Ok(Created(fileName))
+    | false =>
+      switch hasSrcDir {
+      | true =>
+        let srcDir = Path.join([projectDir, "src"])
+        let _ = await Fs.Promises.mkdir(srcDir, {recursive: true})
+      | false => ()
+      }
+      switch await writeFile(filePath, Templates.instrumentationClientTemplate()) {
+      | Ok() => Ok(Created(fileName))
+      | Error(e) => Error(e)
+      }
+    }
+  | HasFrontman(_) => Ok(Skipped(fileName))
+  | NeedsManualEdit =>
+    switch dryRun {
+    | true =>
+      Ok(
+        ManualEditRequired({
+          fileName,
+          details: Templates.ManualInstructions.instrumentationClient(fileName),
+        }),
+      )
+    | false =>
+      switch await readFile(filePath) {
+      | None => Error(`Failed to read ${fileName}`)
+      | Some(content) =>
+        switch await writeFile(filePath, `${previewLoaderImport}\n${content}`) {
+        | Ok() => Ok(AutoEdited(fileName))
+        | Error(e) => Error(e)
+        }
+      }
+    }
+  }
+}
+
 let handleInstrumentation = async (
   ~projectDir: string,
   ~host: string,

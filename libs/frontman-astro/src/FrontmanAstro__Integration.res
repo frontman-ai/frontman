@@ -37,6 +37,12 @@ external frontmanSourceAnnotationsPlugin: unit => Bindings.vitePlugin =
 @module("./annotation-capture.mjs")
 external annotationCaptureScript: string = "annotationCaptureScript"
 
+@module("./vite-plugin-preview-loader.mjs")
+external frontmanPreviewLoaderPlugin: {..} => Bindings.vitePlugin = "frontmanPreviewLoaderPlugin"
+
+@module("./vite-plugin-preview-loader.mjs")
+external makeFrontmanPreviewLoaderBody: {..} => string = "makeFrontmanPreviewLoaderBody"
+
 @module("./astro-route-rewrite.mjs")
 external prependFrontmanRouteRewrite: (
   Bindings.viteDevServer,
@@ -118,13 +124,15 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               ),
             })
 
+            let previewLoaderPlugin = frontmanPreviewLoaderPlugin({"basePath": config.basePath})
             let vitePlugins = switch astroMajorVersion >= 7 {
             | true => [
                 middlewarePlugin,
+                previewLoaderPlugin,
                 frontmanSourceAnnotationsPlugin(),
                 frontmanPropsInjectionPlugin(),
               ]
-            | false => [middlewarePlugin, frontmanPropsInjectionPlugin()]
+            | false => [middlewarePlugin, previewLoaderPlugin, frontmanPropsInjectionPlugin()]
             }
             ctx.updateConfig({
               vite: ?Some({
@@ -162,7 +170,13 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               meta.content = ${safeBasePath};
               document.head.appendChild(meta);
             }`
-            ctx.injectScript("head-inline", basePathMeta ++ "\n" ++ annotationCaptureScript)
+            let previewBridgeLoader = makeFrontmanPreviewLoaderBody({
+              "bridgeUrl": `/${config.basePath}/preview-bridge.js`,
+            })
+            ctx.injectScript(
+              "head-inline",
+              basePathMeta ++ "\n" ++ previewBridgeLoader ++ "\n" ++ annotationCaptureScript,
+            )
           }
         },
       ),

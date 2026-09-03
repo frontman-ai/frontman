@@ -1,5 +1,6 @@
 module WebStreams = FrontmanBindings.WebStreams
 
+@@live
 type t = {
   selector: result<option<string>, string>,
   cssClasses: option<string>,
@@ -34,6 +35,7 @@ let truncationMarkerBytes = 32
 
 let keyAttributes = ["id", "class", "data-testid", "href", "src", "type", "placeholder", "alt"]
 
+@@live
 let utf8ByteSize = WebStreams.utf8ByteSize
 
 let quote = value => JSON.stringifyAny(value)->Option.getOr(`""`)
@@ -284,6 +286,7 @@ let optionalTrimmed = (value: Null.t<string>): option<string> =>
   | value => value
   }
 
+@@live
 let inspect = (
   ~element: WebAPI.DomTypes.element,
   ~document: WebAPI.DomTypes.document,

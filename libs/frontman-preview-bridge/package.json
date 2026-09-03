@@ -1,18 +1,30 @@
 {
 	"name": "@frontman-ai/frontman-preview-bridge",
-	"private": true,
 	"version": "0.2.0",
 	"description": "Child-side runtime for Frontman preview capsules",
 	"license": "Apache-2.0",
 	"type": "module",
-	"dependencies": {
+	"main": "./dist/bridge.js",
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"scripts": {
+		"build:rescript": "rescript build",
+		"build:bundle": "vite build",
+		"build": "yarn build:rescript && yarn build:bundle"
+	},
+	"devDependencies": {
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
 		"@frontman-ai/frontman-protocol": "workspace:*",
 		"@frontman/bindings": "workspace:*",
 		"@rescript/runtime": "catalog:",
-		"@rescript/webapi": "catalog:"
-	},
-	"devDependencies": {
+		"@rescript/webapi": "catalog:",
+		"dom-accessibility-api": "^0.7.1",
+		"jsdom": "^30.0.1",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",

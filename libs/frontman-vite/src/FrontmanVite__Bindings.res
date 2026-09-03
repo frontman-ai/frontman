@@ -31,3 +31,6 @@ type plugin = {
 
 @module("./vite-plugin-vue-source.mjs")
 external frontmanVueSourcePlugin: unit => plugin = "frontmanVueSourcePlugin"
+
+@module("./vite-plugin-preview-loader.mjs")
+external frontmanPreviewLoaderPlugin: {..} => plugin = "frontmanPreviewLoaderPlugin"

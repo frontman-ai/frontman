@@ -1229,7 +1229,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "does not revive initialization after a timeout", %{scope: scope} do
       {socket, _task_id} = join_task_channel(scope)
-
       {discovery_request_id, discovery_timer} =
         next_mcp_initialization_request(socket, "server/discover")
 
