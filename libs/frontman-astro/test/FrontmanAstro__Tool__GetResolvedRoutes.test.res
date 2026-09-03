@@ -42,6 +42,10 @@ module Fixtures = {
     origin: #project,
     params: ["path"],
     pathname: None,
+    segments: ?Some([
+      [{content: "docs", dynamic: false, spread: false}],
+      [{content: "...path", dynamic: true, spread: true}],
+    ]),
     isPrerendered: true,
   }
 
@@ -72,6 +76,8 @@ module Fixtures = {
     origin: #project,
     params: [],
     pathname: Some("/old-blog"),
+    redirect: ?Some(JSON.Encode.string("/blog")),
+    redirectRoute: ?Some(aboutPage),
     isPrerendered: false,
   }
 
@@ -123,6 +129,7 @@ module Fixtures = {
     params: ["lang", "slug"],
     pathname: None,
     isPrerendered: false,
+    fallbackRoutes: ?Some([blogPost]),
   }
 }
 
@@ -263,6 +270,86 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
 
         t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":true`))->Expect.toBe(true)
         t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":false`))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes pathname for static routes",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.aboutPage])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"pathname\\\":\\\"/about\\\"`))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes segments for dynamic and spread routes",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.docsSection])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"content\\\":\\\"...path\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"spread\\\":true`))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes redirect metadata",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.redirectOldBlog])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"redirect\\\":\\\"/blog\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"redirectRoute\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/about"))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes i18n fallback routes",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.i18nBlogPost])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"fallbackRoutes\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/blog/[slug]"))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes captured route order",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.homePage, Fixtures.aboutPage])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"order\\\":0`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"order\\\":1`))->Expect.toBe(true)
       },
     )
 

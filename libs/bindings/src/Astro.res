@@ -131,7 +131,15 @@ type serverSetupHookContext = {
 type routeType = [#page | #endpoint | #redirect | #fallback]
 type routeOrigin = [#internal | #"external" | #project]
 
-type integrationResolvedRoute = {
+type routePart = {
+  content: string,
+  dynamic: bool,
+  spread: bool,
+}
+
+type patternRegex
+
+type rec integrationResolvedRoute = {
   pattern: string,
   entrypoint: string,
   @as("type")
@@ -139,7 +147,12 @@ type integrationResolvedRoute = {
   origin: routeOrigin,
   params: array<string>,
   pathname: option<string>,
+  segments?: array<array<routePart>>,
+  redirect?: JSON.t,
+  patternRegex?: patternRegex,
   isPrerendered: bool,
+  redirectRoute?: integrationResolvedRoute,
+  fallbackRoutes?: array<integrationResolvedRoute>,
 }
 
 type routesResolvedHookContext = {routes: array<integrationResolvedRoute>}
