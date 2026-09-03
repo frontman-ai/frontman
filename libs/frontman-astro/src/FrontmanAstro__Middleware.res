@@ -9,6 +9,7 @@ type routeDiscovery =
   | ResolvedRoutes({getRoutes: unit => array<FrontmanBindings.Astro.integrationResolvedRoute>})
 
 type loadContentApi = unit => promise<FrontmanAstro__Tool__GetContentCollections.contentApi>
+type getAstroConfig = unit => option<FrontmanAstro__Tool__GetResolvedAstroConfig.captured>
 
 let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   projectRoot: config.projectRoot,
@@ -27,11 +28,12 @@ let createMiddleware = (
   config: Config.t,
   ~routeDiscovery: routeDiscovery,
   ~loadContentApi: loadContentApi,
+  ~getAstroConfig: getAstroConfig,
 ) => {
   let registry = switch routeDiscovery {
-  | Filesystem => ToolRegistry.makeWithAstroRuntime(~loadContentApi)
+  | Filesystem => ToolRegistry.makeWithAstroRuntime(~loadContentApi, ~getAstroConfig)
   | ResolvedRoutes({getRoutes}) =>
-    ToolRegistry.makeWithResolvedRoutesAndAstroRuntime(~getRoutes, ~loadContentApi)
+    ToolRegistry.makeWithResolvedRoutesAndAstroRuntime(~getRoutes, ~loadContentApi, ~getAstroConfig)
   }
   let middlewareConfig = toMiddlewareConfig(config)
   CoreMiddleware.createMiddleware(~config=middlewareConfig, ~registry)

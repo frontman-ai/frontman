@@ -18,11 +18,57 @@ type markdownConfig = {
   rehypePlugins: array<rehypePlugin>,
 }
 
+type unsafeConfigValue
+
+type namedConfig = {name?: string}
+
+type remotePattern = {
+  protocol?: string,
+  hostname?: string,
+  port?: string,
+  pathname?: string,
+}
+
+type imageConfig = {
+  endpoint?: unsafeConfigValue,
+  service?: unsafeConfigValue,
+  domains?: array<string>,
+  remotePatterns?: array<remotePattern>,
+}
+
+type securityConfig = {
+  checkOrigin?: bool,
+  allowedDomains?: array<remotePattern>,
+  actionBodySizeLimit?: int,
+  serverIslandBodySizeLimit?: int,
+  csp?: unsafeConfigValue,
+}
+
+type sessionConfig = {
+  driver?: string,
+  ttl?: int,
+  cookie?: unsafeConfigValue,
+  options?: unsafeConfigValue,
+}
+
+type serverConfig = {allowedHosts?: array<string>}
+
 type astroConfig = {
   root: string,
   devToolbar: devToolbarConfig,
   markdown: markdownConfig,
   trailingSlash: trailingSlash,
+  output?: string,
+  adapter?: namedConfig,
+  integrations?: array<namedConfig>,
+  site?: string,
+  base: string,
+  redirects?: unsafeConfigValue,
+  i18n?: unsafeConfigValue,
+  image?: imageConfig,
+  security?: securityConfig,
+  session?: sessionConfig,
+  server?: serverConfig,
 }
 
 type vitePlugin
@@ -57,7 +103,7 @@ type configSetupHookContext = {
   command: astroCommand,
 }
 
-type configDoneHookContext = {config: astroConfig}
+type configDoneHookContext = {config: astroConfig, buildOutput: string}
 
 type toolbarServerSide
 

@@ -75,7 +75,7 @@ All options are optional with sensible defaults:
 The integration uses four Astro hooks:
 
 - **`astro:config:setup`** — Registers the dev toolbar app and injects the annotation capture script via `injectScript('head-inline', ...)`
-- **`astro:config:done`** — Captures the final trailing-slash policy
+- **`astro:config:done`** — Captures sanitized resolved Astro config, including build output, adapter, integrations, routing, image, Markdown, security, session, and server fields
 - **`astro:server:setup`** — Registers Frontman API routes as Vite dev server middleware via `server.middlewares.use()`
 - **`astro:routes:resolved`** — Captures Astro's resolved route manifest
 

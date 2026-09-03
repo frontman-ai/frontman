@@ -64,7 +64,7 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     """
     ## Astro
 
-    - Astro integrations are configured in `astro.config.*`; read the actual config before changing integration wiring.
+    - Call `get_resolved_astro_config` when available before changing routing, SSR/static behavior, adapters, i18n, images, Markdown/MDX, redirects, sessions, security, or deployment behavior; otherwise read `astro.config.*` first.
     - Global CSS is usually imported through a shared layout or the project's existing global stylesheet pattern; read the actual layout before adding stylesheet imports.
     - Layouts are commonly under `src/layouts/*.astro`, but use the project's actual layout file names instead of assuming `BaseLayout.astro` exists.
     - When an Astro package documents generated project files, create or edit the documented local project file instead of guessing an upstream package source path.
