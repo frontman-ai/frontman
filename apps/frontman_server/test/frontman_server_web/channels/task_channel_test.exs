@@ -2365,7 +2365,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         })
 
       assert_push("acp:message", %{
-        "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk", "messageId" => ^message_id}}
+        "params" => %{
+          "update" => %{"sessionUpdate" => "user_message_chunk", "messageId" => ^message_id}
+        }
       })
 
       push(
@@ -2411,7 +2413,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         })
       )
 
-      refute_push("acp:message", %{"params" => %{"update" => %{"sessionUpdate" => "message_unqueued"}}})
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "message_unqueued"}}
+      })
+
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert Enum.any?(task.interaction_rows, &(&1.id == message_id))
     end

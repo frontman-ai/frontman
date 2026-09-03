@@ -547,7 +547,8 @@ defmodule FrontmanServer.Tasks do
         broadcast_task(task_id, {:message_unqueued, deleted_id})
         :ok
 
-      {:error, reason} -> {:error, reason}
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -602,7 +603,8 @@ defmodule FrontmanServer.Tasks do
          },
          {:ok, turn_started_row} <-
            insert_turn_started(task_schema, turn_started_attrs, turn_number) do
-      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message}}
+      {:ok,
+       {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message}}
     else
       {:error, reason} -> {:error, reason}
       {nil, []} -> {:error, :no_accepted_messages}

@@ -196,7 +196,8 @@ defmodule FrontmanServer.Protocols.AcpContractTest do
 
   describe "AgentClientProtocol.build_message_unqueued_notification/2" do
     test "validates against acp/sessionUpdateNotification schema" do
-      payload = AgentClientProtocol.build_message_unqueued_notification("session-123", "message-123")
+      payload =
+        AgentClientProtocol.build_message_unqueued_notification("session-123", "message-123")
 
       ProtocolSchema.validate!(payload, "acp/sessionUpdateNotification")
     end

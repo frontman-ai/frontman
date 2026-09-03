@@ -891,10 +891,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
 
-    test "first claimed message generates the title after an earlier queued message is removed", %{
-      task_id: task_id,
-      scope: scope
-    } do
+    test "first claimed message generates the title after an earlier queued message is removed",
+         %{
+           task_id: task_id,
+           scope: scope
+         } do
       first_message_id = Ecto.UUID.generate()
 
       assert {:ok, _row} =

@@ -179,8 +179,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info(
-        {:interaction,
-         %{id: message_id, data: %Tasks.Interaction.UserMessage{} = message}},
+        {:interaction, %{id: message_id, data: %Tasks.Interaction.UserMessage{} = message}},
         socket
       ) do
     message
@@ -595,11 +594,17 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp handle_session_command(%{"command" => "cancel"}, socket), do: handle_cancel(socket)
 
-  defp handle_session_command(%{"command" => "retry_turn", "retriedErrorId" => retried_error_id}, socket)
+  defp handle_session_command(
+         %{"command" => "retry_turn", "retriedErrorId" => retried_error_id},
+         socket
+       )
        when is_binary(retried_error_id),
        do: handle_retry_turn(retried_error_id, socket)
 
-  defp handle_session_command(%{"command" => "unqueue_message", "messageId" => message_id}, socket)
+  defp handle_session_command(
+         %{"command" => "unqueue_message", "messageId" => message_id},
+         socket
+       )
        when is_binary(message_id),
        do: handle_unqueue_message(message_id, socket)
 
