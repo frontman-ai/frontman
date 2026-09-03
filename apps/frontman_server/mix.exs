@@ -77,7 +77,6 @@ defmodule FrontmanServer.MixProject do
       {:oban, "~> 2.20"},
       {:req, "~> 0.5"},
       {:html2markdown, "~> 0.3"},
-      {:uuidv7, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
@@ -97,8 +96,7 @@ defmodule FrontmanServer.MixProject do
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:bypass, "~> 2.1", only: :test},
-      {:mox, "~> 1.2", only: :test},
-      {:toml, github: "bitwalker/toml-elixir", branch: "main", override: true}
+      {:mox, "~> 1.2", only: :test}
     ]
   end
 end

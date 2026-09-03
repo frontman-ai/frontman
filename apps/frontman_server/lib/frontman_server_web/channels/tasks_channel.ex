@@ -191,9 +191,11 @@ defmodule FrontmanServerWeb.TasksChannel do
     |> ACP.build_model_config_options()
   end
 
-  @uuid_regex ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
   defp validate_uuid_format(string) do
-    if Regex.match?(@uuid_regex, string), do: :ok, else: :error
+    case Ecto.UUID.cast(string) do
+      {:ok, uuid} -> if uuid == String.downcase(string), do: :ok, else: :error
+      :error -> :error
+    end
   end
 
   defp extract_framework(%{"_meta" => %{"framework" => framework}}) when is_binary(framework),

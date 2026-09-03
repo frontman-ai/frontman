@@ -15,11 +15,7 @@ defmodule FrontmanServerWeb.CoreComponents do
   them in any way you want, based on your application growth and needs.
 
   The foundation for styling is Tailwind CSS, a utility-first CSS framework,
-  augmented with daisyUI, a Tailwind CSS plugin that provides UI components
-  and themes. Here are useful references:
-
-    * [daisyUI](https://daisyui.com/docs/intro/) - a good place to get
-      started and see the available components.
+  with a small local component layer in `assets/css/app.css`. Here are useful references:
 
     * [Tailwind CSS](https://tailwindcss.com) - the foundational framework
       we build on. You will use it for layout, sizing, flexbox, grid, and
