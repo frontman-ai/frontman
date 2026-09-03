@@ -89,18 +89,31 @@ let sendPrompt = (
   )
 }
 
+let sendCancel = (~channel: Channel.t, ~sessionId: string): unit => {
+  let params = JSON.Encode.object(Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]))
+  let notification = JsonRpc.Notification.make(~method="session/cancel", ~params=Some(params))
+  let payload = notification->JsonRpc.Notification.toJson
+  channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
+}
+
 let sendSessionCommand = (
   ~channel: Channel.t,
   ~sessionId: string,
   ~command: string,
   ~argument: option<(string, JSON.t)>,
 ): unit => {
-  let params = [("sessionId", JSON.Encode.string(sessionId)), ("command", JSON.Encode.string(command))]
+  let params = [
+    ("sessionId", JSON.Encode.string(sessionId)),
+    ("command", JSON.Encode.string(command)),
+  ]
   let params = switch argument {
   | Some(argument) => Array.concat(params, [argument])
   | None => params
   }
-  let notification = JsonRpc.Notification.make(~method="session/command", ~params=Some(JSON.Encode.object(Dict.fromArray(params))))
+  let notification = JsonRpc.Notification.make(
+    ~method="session/command",
+    ~params=Some(JSON.Encode.object(Dict.fromArray(params))),
+  )
   let payload = notification->JsonRpc.Notification.toJson
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }

@@ -79,6 +79,9 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, {:request, id, @acp_method_session_prompt, params}} ->
         handle_prompt(id, params, socket)
 
+      {:ok, {:notification, "session/cancel", _params}} ->
+        handle_cancel(socket)
+
       {:ok, {:notification, "session/command", params}} ->
         handle_session_command(params, socket)
 

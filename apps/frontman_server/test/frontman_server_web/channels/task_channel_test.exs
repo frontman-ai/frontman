@@ -2429,7 +2429,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "acp:message",
-        build_acp_request("session/command", nil, %{"sessionId" => task_id, "command" => "cancel"})
+        build_acp_request("session/cancel", nil, %{"sessionId" => task_id})
       )
 
       :sys.get_state(socket.channel_pid)

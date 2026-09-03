@@ -389,17 +389,23 @@ let sendPrompt = async (
 }
 
 let sendSessionCommand = (session: session, command: sessionCommand): unit => {
-  let (command, argument) = switch command {
-  | Cancel => ("cancel", None)
-  | RetryTurn(retriedErrorId) => ("retry_turn", Some(("retriedErrorId", JSON.Encode.string(retriedErrorId))))
-  | UnqueueMessage(messageId) => ("unqueue_message", Some(("messageId", JSON.Encode.string(messageId))))
+  switch command {
+  | Cancel => Protocol.sendCancel(~channel=session.channel, ~sessionId=session.sessionId)
+  | RetryTurn(retriedErrorId) =>
+    Protocol.sendSessionCommand(
+      ~channel=session.channel,
+      ~sessionId=session.sessionId,
+      ~command="retry_turn",
+      ~argument=Some(("retriedErrorId", JSON.Encode.string(retriedErrorId))),
+    )
+  | UnqueueMessage(messageId) =>
+    Protocol.sendSessionCommand(
+      ~channel=session.channel,
+      ~sessionId=session.sessionId,
+      ~command="unqueue_message",
+      ~argument=Some(("messageId", JSON.Encode.string(messageId))),
+    )
   }
-  Protocol.sendSessionCommand(
-    ~channel=session.channel,
-    ~sessionId=session.sessionId,
-    ~command,
-    ~argument,
-  )
 }
 
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
