@@ -13,6 +13,7 @@ module Fixtures = {
     params: [],
     pathname: Some("/"),
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
   let aboutPage: Bindings.integrationResolvedRoute = {
@@ -23,6 +24,7 @@ module Fixtures = {
     params: [],
     pathname: Some("/about"),
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
   let blogPost: Bindings.integrationResolvedRoute = {
@@ -33,6 +35,7 @@ module Fixtures = {
     params: ["slug"],
     pathname: None,
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
   let docsSection: Bindings.integrationResolvedRoute = {
@@ -47,6 +50,7 @@ module Fixtures = {
       [{content: "...path", dynamic: true, spread: true}],
     ]),
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
   let apiHealth: Bindings.integrationResolvedRoute = {
@@ -57,6 +61,7 @@ module Fixtures = {
     params: [],
     pathname: Some("/api/health"),
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
   let apiUserById: Bindings.integrationResolvedRoute = {
@@ -67,6 +72,7 @@ module Fixtures = {
     params: ["id"],
     pathname: None,
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
   let redirectOldBlog: Bindings.integrationResolvedRoute = {
@@ -79,6 +85,7 @@ module Fixtures = {
     redirect: ?Some(JSON.Encode.string("/blog")),
     redirectRoute: ?Some(aboutPage),
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
   let redirectDynamic: Bindings.integrationResolvedRoute = {
@@ -89,6 +96,7 @@ module Fixtures = {
     params: ["slug"],
     pathname: None,
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
   let sitemapXml: Bindings.integrationResolvedRoute = {
@@ -99,6 +107,7 @@ module Fixtures = {
     params: [],
     pathname: Some("/sitemap.xml"),
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
   let imageEndpoint: Bindings.integrationResolvedRoute = {
@@ -109,6 +118,7 @@ module Fixtures = {
     params: [],
     pathname: Some("/_image"),
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
   let fallback404: Bindings.integrationResolvedRoute = {
@@ -119,6 +129,7 @@ module Fixtures = {
     params: [],
     pathname: Some("/404"),
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
   let i18nBlogPost: Bindings.integrationResolvedRoute = {
@@ -129,7 +140,7 @@ module Fixtures = {
     params: ["lang", "slug"],
     pathname: None,
     isPrerendered: false,
-    fallbackRoutes: ?Some([blogPost]),
+    fallbackRoutes: [blogPost],
   }
 }
 

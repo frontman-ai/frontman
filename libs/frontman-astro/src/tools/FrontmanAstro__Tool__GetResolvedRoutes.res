@@ -118,7 +118,7 @@ let toRouteEntry = (route: Bindings.integrationResolvedRoute, order): routeEntry
   segments: ?(route.segments->Option.map(toSegments)),
   redirect: ?route.redirect,
   redirectRoute: ?(route.redirectRoute->Option.map(toRouteRef)),
-  fallbackRoutes: route.fallbackRoutes->Option.getOr([])->Array.map(toRouteRef),
+  fallbackRoutes: route.fallbackRoutes->Array.map(toRouteRef),
   patternRegex: ?(route.patternRegex->Option.map(toRegexInfo)),
   type_: route.type_->routeTypeToString,
   origin: route.origin->routeOriginToString,
