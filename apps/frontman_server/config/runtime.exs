@@ -147,7 +147,7 @@ if config_env() == :prod do
 
   config :frontman_server, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
-  check_origin = false
+  check_origin = ["https://#{host}", "https://*.#{host}"]
 
   config :frontman_server, FrontmanServerWeb.Endpoint,
     url: [host: host, port: 443, scheme: "https"],
