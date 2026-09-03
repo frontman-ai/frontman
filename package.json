@@ -46,7 +46,9 @@
 		"glob": ">=13.0.5",
 		"yaml": ">=2.8.3",
 		"esbuild": ">=0.28.1",
-		"postcss": ">=8.5.23"
+		"postcss": ">=8.5.23",
+		"@tiptap/extension-bubble-menu": "3.30.4",
+		"@tiptap/extension-floating-menu": "3.30.4"
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^0.7.0",
