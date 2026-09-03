@@ -436,6 +436,17 @@ let expandPastedText = (editor, paste, range: TiptapCore.insertRange) => {
   ->ignore
 }
 
+let setEditorText = (editor, text) => {
+  editor->TiptapCore.Commands.commands->TiptapCore.Commands.clearContent
+  editor
+  ->TiptapCore.chain
+  ->TiptapCore.focus
+  ->TiptapCore.insertContentAtPos(1, TiptapCore.Content.text(text))
+  ->TiptapCore.setTextSelection(1 + text->String.length)
+  ->TiptapCore.run
+  ->ignore
+}
+
 let makeFileAttachmentNode = onPreviewImage => {
   TiptapCore.makeNode({
     name: "fileAttachment",
@@ -496,6 +507,8 @@ let make = (
   ~attachSignal: int,
   ~dropFilesSignal: int,
   ~droppedFiles: array<browserFile>,
+  ~setTextSignal: int,
+  ~textToSet: string,
   ~onHasContentChange: bool => unit,
   ~onSubmit: (string, array<editorFileAttachment>) => unit,
   ~onPreviewImage: string => unit,
@@ -514,6 +527,7 @@ let make = (
   let lastSubmitSignalRef = React.useRef(submitSignal)
   let lastAttachSignalRef = React.useRef(attachSignal)
   let lastDropFilesSignalRef = React.useRef(dropFilesSignal)
+  let lastSetTextSignalRef = React.useRef(setTextSignal)
   let (expandablePaste, setExpandablePaste) = React.useState((): option<expandablePaste> => None)
   let expandablePasteRef: React.ref<option<expandablePaste>> = React.useRef(None)
   let expandablePasteTimerRef: React.ref<option<WebAPI.DomTypes.timeoutId>> = React.useRef(None)
@@ -779,6 +793,16 @@ let make = (
     }
     None
   }, (dropFilesSignal, editor, droppedFiles))
+
+  React.useEffect3(() => {
+    switch (editor->Null.toOption, setTextSignal == lastSetTextSignalRef.current) {
+    | (Some(editor), false) =>
+      lastSetTextSignalRef.current = setTextSignal
+      setEditorText(editor, textToSet)
+    | _ => ()
+    }
+    None
+  }, (editor, setTextSignal, textToSet))
 
   let handleFileInputChange = (event: ReactEvent.Form.t) => {
     let input = ReactEvent.Form.currentTarget(event)

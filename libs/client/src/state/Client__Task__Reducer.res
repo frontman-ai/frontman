@@ -334,6 +334,7 @@ type action =
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      replacesMessageId: option<string>,
     })
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
@@ -370,6 +371,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
+  | TruncateFromMessage({messageId: string})
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
@@ -410,6 +412,7 @@ type effect =
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      replacesMessageId: option<string>,
     })
   | CancelPrompt
   | RetryTurnEffect({retriedErrorId: string})
@@ -424,6 +427,7 @@ type delegated =
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      replacesMessageId: option<string>,
     })
   | NeedCancelPrompt
   | NeedRetryTurn({retriedErrorId: string})
@@ -458,6 +462,7 @@ let actionToString = (action: action): string =>
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
   | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
+  | TruncateFromMessage(_) => "TruncateFromMessage"
   | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
@@ -915,7 +920,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
+  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId, replacesMessageId})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
     let messageId = Message.UserMessageId.toString(id)
@@ -944,7 +949,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
       }),
-      [SendMessage({id, text, attachments, annotations, agentId})],
+      [SendMessage({id, text, attachments, annotations, agentId, replacesMessageId})],
+    )
+
+  | (Task.Loaded(data), TruncateFromMessage({messageId})) => (
+      Task.Loaded({...data, messages: MessageStore.truncateFrom(data.messages, messageId)}),
+      [],
     )
 
   | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
@@ -1281,6 +1291,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Unloaded(_),
       AddUserMessage(_)
+      | TruncateFromMessage(_)
       | UserMessageSendFailed(_)
       | PlanReceived(_)
       | ExecutionStateRunning
@@ -1486,8 +1497,8 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) =>
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({id, text, attachments, annotations, agentId}) =>
-    delegate(NeedSendMessage({id, text, attachments, annotations, agentId}))
+  | SendMessage({id, text, attachments, annotations, agentId, replacesMessageId}) =>
+    delegate(NeedSendMessage({id, text, attachments, annotations, agentId, replacesMessageId}))
   | CancelPrompt => delegate(NeedCancelPrompt)
   | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)

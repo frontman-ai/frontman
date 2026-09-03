@@ -8,6 +8,7 @@
 module UserContentPart = Client__State__Types.UserContentPart
 module MessageAnnotation = Client__Message.MessageAnnotation
 module AgentChip = Client__AgentChip
+module Icons = Client__ToolIcons
 
 let _circledNumbers = [
   "\u{2460}",
@@ -42,6 +43,7 @@ let make = (
   ~messageId: string,
   ~agent: Client__Agent.t,
   ~isNew: bool=false,
+  ~onEdit: option<unit => unit>=?,
 ) => {
   let rootClass = isNew
     ? "frontman-content-auto animate-in fade-in duration-100"
@@ -74,11 +76,23 @@ let make = (
 
   <div className=rootClass>
     <div
-      className="relative mt-2.5 w-full min-w-0 bg-violet-600/80 rounded-2xl px-3 pb-2 pt-5 text-[14px] leading-relaxed text-white font-semibold"
+      className="group relative mt-2.5 w-full min-w-0 bg-violet-600/80 rounded-2xl px-3 pb-2 pt-5 text-[14px] leading-relaxed text-white font-semibold"
     >
       <div className="absolute -top-2.5 left-1 z-10">
         <AgentChip agent className="" borderColor="rgb(124 58 237 / 0.8)" />
       </div>
+      {switch onEdit {
+      | Some(onEdit) =>
+        <button
+          type_="button"
+          className="absolute top-1 right-1 z-10 flex items-center justify-center w-5 h-5 border-none bg-transparent rounded cursor-pointer opacity-0 group-hover:opacity-70 focus-visible:opacity-70 hover:opacity-100 transition-opacity text-white"
+          title="Edit and resend"
+          onClick={_ => onEdit()}
+        >
+          <Icons.PencilIcon size=12 />
+        </button>
+      | None => React.null
+      }}
       {hasAnnotations
         ? <div className="flex flex-wrap gap-1.5 mb-2 min-w-0 w-full">
             {annotations

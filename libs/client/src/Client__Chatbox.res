@@ -93,6 +93,14 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   result
 }
 
+let lastUserMsgIndex = (items: array<displayItem>): int =>
+  items->Array.reduceWithIndex(-1, (acc, item, idx) =>
+    switch item {
+    | UserMsg(_) => idx
+    | _ => acc
+    }
+  )
+
 let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): bool =>
   !(
     messages->Array.some(message =>
@@ -167,9 +175,16 @@ let make = (~onConfigureProvider: unit => unit) => {
     ~content: array<Client__State.UserContentPart.t>,
     ~annotations: array<Client__Message.MessageAnnotation.t>,
     ~agentId: string,
+    ~replacesMessageId: option<string>,
   ) => {
     let sendMessage = (sessionId: string) => {
-      Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations, ~agentId)
+      Client__State.Actions.addUserMessage(
+        ~sessionId,
+        ~content,
+        ~annotations,
+        ~agentId,
+        ~replacesMessageId?,
+      )
     }
     switch session {
     | Some(sess) => sendMessage(sess.sessionId)
@@ -185,6 +200,25 @@ let make = (~onConfigureProvider: unit => unit) => {
 
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
 
+  let (composerDraft, setComposerDraft) = React.useState(() => (0, "", None))
+  let (draftSignal, draftText, editedMessageId) = composerDraft
+  let editUserMessage = (~messageId, ~content) =>
+    setComposerDraft(((signal, _, _)) => (
+      signal + 1,
+      Client__Task__Reducer.extractTextFromUserContent(content),
+      Some(messageId),
+    ))
+
+  React.useEffect1(() => {
+    setComposerDraft(draft =>
+      switch draft {
+      | (_, _, None) => draft
+      | (signal, _, Some(_)) => (signal + 1, "", None)
+      }
+    )
+    None
+  }, [currentTaskId])
+
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
     let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
     let messageAnnotations =
@@ -193,7 +227,14 @@ let make = (~onConfigureProvider: unit => unit) => {
     let sendWithContent = content => {
       switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => ()
-      | true => sendUserMessage(~content, ~annotations=messageAnnotations, ~agentId)
+      | true =>
+        sendUserMessage(
+          ~content,
+          ~annotations=messageAnnotations,
+          ~agentId,
+          ~replacesMessageId=editedMessageId,
+        )
+        setComposerDraft(((signal, _, _)) => (signal + 1, "", None))
       }
     }
 
@@ -279,6 +320,8 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   })
 
+  let lastUserMsgIndex = lastUserMsgIndex(displayItems)
+
   let renderDisplayItem = (item: displayItem, itemIndex: int) => {
     let isLastItem = itemIndex == totalItems - 1
     let isLastToolGroup = itemIndex == lastToolGroupIndex
@@ -287,7 +330,16 @@ let make = (~onConfigureProvider: unit => unit) => {
     | UserMsg({id, content, annotations, agentId}) =>
       let messageId = `user-${id}`
       <UserMessage
-        key={messageId} content annotations messageId agent={agentForId(agentId)} isNew={isLastItem}
+        key={messageId}
+        content
+        annotations
+        messageId
+        agent={agentForId(agentId)}
+        isNew={isLastItem}
+        onEdit=?{switch itemIndex == lastUserMsgIndex && !isAgentRunning {
+        | true => Some(() => editUserMessage(~messageId=id, ~content))
+        | false => None
+        }}
       />
 
     | AssistantMsg(Streaming({id, textBuffer, agentId, _})) =>
@@ -464,6 +516,8 @@ let make = (~onConfigureProvider: unit => unit) => {
           isSelecting={webPreviewIsSelecting}
           hasAnnotations
           isEnrichingAnnotations={hasEnrichingAnnotations}
+          setTextSignal=draftSignal
+          textToSet=draftText
         />
       }}
     </div>

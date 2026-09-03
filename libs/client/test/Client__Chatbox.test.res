@@ -86,3 +86,25 @@ describe("ExecutePlanAction", () => {
     t->expect(html->String.includes("Execute plan"))->Expect.toBe(true)
   })
 })
+
+describe("lastUserMsgIndex", () => {
+  let userMsg = id => Chatbox.UserMsg({id, content: [], annotations: [], agentId: "a"})
+  let assistantMsg = id => Chatbox.AssistantMsg(Message.Completed({id, content: [], agentId: "a"}))
+
+  test("points at the last user message, not the last item", t => {
+    t
+    ->expect(
+      Chatbox.lastUserMsgIndex([
+        userMsg("u1"),
+        assistantMsg("a1"),
+        userMsg("u2"),
+        assistantMsg("a2"),
+      ]),
+    )
+    ->Expect.toBe(2)
+  })
+
+  test("returns -1 when there are no user messages", t => {
+    t->expect(Chatbox.lastUserMsgIndex([assistantMsg("a1")]))->Expect.toBe(-1)
+  })
+})

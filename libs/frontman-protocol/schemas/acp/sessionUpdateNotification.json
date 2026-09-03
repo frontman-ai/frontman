@@ -634,6 +634,23 @@
               "properties": {
                 "sessionUpdate": {
                   "type": "string",
+                  "const": "frontman_task_rewound"
+                },
+                "messageId": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "sessionUpdate",
+                "messageId"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "sessionUpdate": {
+                  "type": "string",
                   "const": "tool_call"
                 },
                 "toolCallId": {

@@ -303,6 +303,16 @@ defmodule AgentClientProtocol do
     })
   end
 
+  @doc """
+  Builds a Frontman extension update that tells clients to drop history from a message.
+  """
+  def build_task_rewound_notification(session_id, message_id) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "frontman_task_rewound",
+      "messageId" => message_id
+    })
+  end
+
   defp message_metadata(agent_id, timestamp) do
     %{
       @agent_id_metadata_key => agent_id,
