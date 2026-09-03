@@ -134,9 +134,9 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-user-test")
 
       {:ok, {model, llm_opts}} =
-        Providers.resolve_model_access(scope, "openrouter:anthropic/claude-fable-5")
+        Providers.resolve_model_access(scope, "openrouter:anthropic/claude-fable-5.1")
 
-      assert %LLMDB.Model{provider: :openrouter, id: "anthropic/claude-fable-5"} = model
+      assert %LLMDB.Model{provider: :openrouter, id: "anthropic/claude-fable-5.1"} = model
       assert llm_opts[:api_key] == "sk-or-user-test"
     end
 
