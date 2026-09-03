@@ -1,5 +1,9 @@
 open Vitest
 
+afterEach(() => {
+  Vi.useRealTimers()->ignore
+})
+
 module Client = FrontmanClient__ACP__Client
 module ACP = FrontmanClient__ACP
 module Protocol = FrontmanClient__ACP__Protocol
@@ -365,6 +369,35 @@ describe("ACP Client parseInitializeResult", _t => {
     }`)
 
     t->expect(Client.parseInitializeResult(json)->Result.isError)->Expect.toBe(true)
+  })
+})
+
+describe("ACP Protocol sendRequest", _t => {
+  testAsync("times out and removes pending request when no response arrives", async t => {
+    Vi.useFakeTimers()->ignore
+    let transport = makeLoadTransport([], loadResult)
+    let state = ref(Client.initialState)
+    let promise = Protocol.sendRequest(
+      ~channel=transport.channel,
+      ~state,
+      ~method="test/method",
+      ~params=None,
+      ~timeoutMs=10,
+      ~parseResult=json =>
+        switch json->JSON.Decode.string {
+        | Some(value) => Ok(value)
+        | None => Error("Expected string")
+        },
+    )
+
+    t->expect(state.contents.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toBe(true)
+    let _ = await Vi.advanceTimersByTimeAsync(10)
+    let result = await promise
+
+    t
+    ->expect(result)
+    ->Expect.toEqual(Error("Request test/method timed out after 10ms"))
+    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
   })
 })
 
