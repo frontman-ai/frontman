@@ -7,28 +7,45 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
+let requestTimeoutMs = 120000
+
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
   ~method: string,
   ~params: option<JSON.t>,
+  ~timeoutMs: int=requestTimeoutMs,
   ~parseResult: JSON.t => result<'a, string>,
 ): promise<result<'a, string>> => {
   Promise.make((resolve, _) => {
     let id = state.contents.currentId + 1
+    let idStr = Int.toString(id)
     let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
+    let timer = ref(None)
+    let finish = result => {
+      timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
+      resolve(result)
+    }
 
     let pending: Client.pendingRequest = {
       resolve: json => {
         switch parseResult(json) {
-        | Ok(result) => resolve(Ok(result))
-        | Error(e) => resolve(Error(e))
+        | Ok(result) => finish(Ok(result))
+        | Error(e) => finish(Error(e))
         }
       },
-      reject: e => resolve(Error(e)),
+      reject: e => finish(Error(e)),
     }
 
     state := state.contents->Client.reduce(Client.RequestSent(id, pending))
+    timer :=
+      Some(
+        WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
+          state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
+          state := state.contents->Client.reduce(Client.ResponseReceived(id))
+          pending.reject(`Request ${method} timed out after ${Int.toString(timeoutMs)}ms`)
+        }),
+      )
 
     let payload = request->JsonRpc.Request.toJson
     channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
