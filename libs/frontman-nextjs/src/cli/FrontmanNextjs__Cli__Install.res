@@ -123,18 +123,6 @@ let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): 
   | None => ()
   }
 
-  let instrClientFileName = switch info.hasSrcDir {
-  | true => "src/instrumentation-client.ts"
-  | false => "instrumentation-client.ts"
-  }
-  switch Files.getPendingAutoEdit(
-    ~existingFile=info.instrumentationClient,
-    ~fileName=instrClientFileName,
-  ) {
-  | Some(p) => pending->Array.push(p)->ignore
-  | None => ()
-  }
-
   pending
 }
 

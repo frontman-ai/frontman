@@ -667,6 +667,33 @@ describe("Existing Files Without Frontman", _t => {
 
     await cleanupTempFixture(tempDir)
   })
+
+  testAsync("adds preview loader to existing instrumentation-client.ts", async t => {
+    let tempDir = await createTempFixture("nextjs15-clean")
+    await Fs.Promises.writeFile(
+      Path.join([tempDir, "instrumentation-client.ts"]),
+      "console.log('existing client instrumentation')\n",
+    )
+
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+
+    let content = await readTempFile(tempDir, "instrumentation-client.ts")
+    switch content {
+    | Some(c) =>
+      t
+      ->expect(c->String.startsWith("import '@frontman-ai/nextjs/preview-loader';"))
+      ->Expect.toBe(true)
+      t->expect(c->String.includes("existing client instrumentation"))->Expect.toBe(true)
+    | None => t->expect("instrumentation-client.ts")->Expect.toBe("should exist")
+    }
+
+    await cleanupTempFixture(tempDir)
+  })
 })
 
 describe("src/ Directory Support", _t => {

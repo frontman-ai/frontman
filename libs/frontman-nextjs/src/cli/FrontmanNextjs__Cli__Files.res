@@ -214,6 +214,8 @@ let handleProxy = async (
   }
 }
 
+let previewLoaderImport = "import '@frontman-ai/nextjs/preview-loader';"
+
 let handleInstrumentationClient = async (
   ~projectDir: string,
   ~hasSrcDir: bool,
@@ -247,12 +249,24 @@ let handleInstrumentationClient = async (
     }
   | HasFrontman(_) => Ok(Skipped(fileName))
   | NeedsManualEdit =>
-    Ok(
-      ManualEditRequired({
-        fileName,
-        details: Templates.ManualInstructions.instrumentationClient(fileName),
-      }),
-    )
+    switch dryRun {
+    | true =>
+      Ok(
+        ManualEditRequired({
+          fileName,
+          details: Templates.ManualInstructions.instrumentationClient(fileName),
+        }),
+      )
+    | false =>
+      switch await readFile(filePath) {
+      | None => Error(`Failed to read ${fileName}`)
+      | Some(content) =>
+        switch await writeFile(filePath, `${previewLoaderImport}\n${content}`) {
+        | Ok() => Ok(AutoEdited(fileName))
+        | Error(e) => Error(e)
+        }
+      }
+    }
   }
 }
 

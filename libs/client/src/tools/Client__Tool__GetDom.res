@@ -40,6 +40,21 @@ let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
 let structuredResult = output => Tool.structuredResult(output, outputSchema)
 
+let bridgeUnavailableError = () => {
+  let base = "Preview bridge runtime not available"
+  try {
+    switch Client__RuntimeConfig.read().framework {
+    | Nextjs =>
+      base ++ ". Update @frontman-ai/nextjs, then run `npx frontman-nextjs install` or add `import '@frontman-ai/nextjs/preview-loader'` to instrumentation-client.ts and restart your dev server."
+    | Vite => base ++ ". Update @frontman-ai/vite and restart your dev server."
+    | Astro => base ++ ". Update @frontman-ai/astro and restart your dev server."
+    | Wordpress => base ++ ". Update the Frontman WordPress plugin."
+    }
+  } catch {
+  | _ => base
+  }
+}
+
 let runtimeStatusToString = status =>
   switch status {
   | Runtime.Connecting => "connecting"
@@ -62,7 +77,7 @@ let execute = async (
       }
       Console.error2("Preview bridge runtime not available for get_dom", ctx)
       Log.error(~ctx, "Preview bridge runtime not available for get_dom")
-      structuredResult(Preview.getDomError(~error="Preview bridge runtime not available"))
+      structuredResult(Preview.getDomError(~error=bridgeUnavailableError()))
     }
   | Some(runtime) =>
     try {
