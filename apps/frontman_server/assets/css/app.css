@@ -125,12 +125,13 @@
   .btn-sm { min-height: 2rem; padding: 0.375rem 0.75rem; font-size: 0.875rem; }
   .btn-lg { min-height: 3rem; padding: 0.75rem 1.25rem; font-size: 1rem; }
   .btn-block { width: 100%; }
-  .btn-primary, .btn-secondary { background: var(--color-primary-500); color: var(--color-primary-50); }
+  .btn-primary { background: var(--color-primary-500); color: var(--color-primary-50); }
+  .btn-secondary { background: var(--color-secondary); color: var(--color-secondary-content); }
   .btn-neutral { background: var(--color-neutral-800); color: var(--color-neutral-50); }
   .btn-error { background: var(--color-error); color: var(--color-neutral-50); }
   .btn-ghost { background: transparent; color: inherit; }
   .btn-ghost:hover { background: color-mix(in oklab, var(--color-base-content) 8%, transparent); }
-  .btn-outline { border-color: currentColor; background: transparent; color: inherit; }
+  .btn-outline { border-color: currentColor; background: transparent; }
   .btn-soft { background: color-mix(in oklab, var(--color-primary-500) 18%, transparent); color: var(--color-primary-100); }
 
   .card { border-radius: 1rem; }
@@ -148,10 +149,10 @@
     line-height: 1;
   }
   .badge-sm { padding: 0.125rem 0.5rem; font-size: 0.6875rem; }
-  .badge-primary { background: var(--color-primary-500); color: var(--color-primary-50); }
-  .badge-success { background: var(--color-success); color: var(--color-neutral-950); }
-  .badge-warning { background: var(--color-warning); color: var(--color-neutral-950); }
-  .badge-soft { background: color-mix(in oklab, currentColor 16%, transparent); }
+  .badge-primary { --badge-color: var(--color-primary-500); --badge-content: var(--color-primary-50); background: var(--badge-color); color: var(--badge-content); }
+  .badge-success { --badge-color: var(--color-success); --badge-content: var(--color-neutral-950); background: var(--badge-color); color: var(--badge-content); }
+  .badge-warning { --badge-color: var(--color-warning); --badge-content: var(--color-neutral-950); background: var(--badge-color); color: var(--badge-content); }
+  .badge-soft { background: color-mix(in oklab, var(--badge-color, currentColor) 16%, transparent); color: var(--badge-color, currentColor); }
 
   .alert { display: flex; align-items: center; gap: 0.75rem; border-radius: 0.875rem; padding: 1rem; }
   .alert-info { background: color-mix(in oklab, var(--color-info) 18%, var(--color-base-200)); color: var(--color-base-content); }
@@ -182,6 +183,13 @@
   .checkbox-sm { width: 0.875rem; height: 0.875rem; }
   .divider { display: flex; align-items: center; gap: 1rem; }
   .divider::before, .divider::after { content: ""; height: 1px; flex: 1; background: color-mix(in oklab, var(--color-base-content) 12%, transparent); }
+
+  .footer { display: grid; width: 100%; gap: 0.5rem; }
+  .footer-center { place-items: center; text-align: center; }
+  .link { cursor: pointer; text-decoration-line: underline; text-underline-offset: 2px; }
+  .link-hover { text-decoration-line: none; }
+  .link-hover:hover { text-decoration-line: underline; }
+  .rounded-box { border-radius: 0.5rem; }
 }
 
 @custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
@@ -191,6 +199,7 @@
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 html {
+  color-scheme: dark;
   font-family: var(--font-sans);
   background: var(--color-base-100);
   color: var(--color-base-content);
