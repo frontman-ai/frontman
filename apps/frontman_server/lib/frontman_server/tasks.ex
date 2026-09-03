@@ -498,18 +498,16 @@ defmodule FrontmanServer.Tasks do
              agent_id != "" do
     with {:ok, user_message_attrs} <-
            Interaction.UserMessage.attrs(content_blocks, model, agent_id),
-         {:ok, task_schema} <- get_task_by_id(scope, task_id),
-         {:ok, accepted_row} <-
-           record_interaction_row(
-             task_schema,
-             %{
-               id: message_id,
-               type: :user_message,
-               data: Map.put(user_message_attrs, :id, message_id),
-               turn_number: nil
-             }
-           ) do
-      {:ok, accepted_row}
+         {:ok, task_schema} <- get_task_by_id(scope, task_id) do
+      record_interaction_row(
+        task_schema,
+        %{
+          id: message_id,
+          type: :user_message,
+          data: Map.put(user_message_attrs, :id, message_id),
+          turn_number: nil
+        }
+      )
     end
   end
 
