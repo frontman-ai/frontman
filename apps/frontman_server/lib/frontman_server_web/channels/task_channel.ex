@@ -690,7 +690,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
-             {:ok, row} <-
+             {:ok, _row} <-
                Tasks.submit_user_message(
                  scope,
                  %{
