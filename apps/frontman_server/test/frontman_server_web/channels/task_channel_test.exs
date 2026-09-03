@@ -181,16 +181,36 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   defp assert_state_update_running(task_id) do
-    assert_push(
-      "acp:message",
-      %{
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "state_update", "state" => "running"}
+    receive do
+      %Phoenix.Socket.Message{
+        event: "acp:message",
+        payload: %{
+          "params" => %{
+            "sessionId" => ^task_id,
+            "update" => %{"sessionUpdate" => "state_update", "state" => "running"}
+          }
         }
-      },
-      1_000
-    )
+      } ->
+        :ok
+
+      {:interaction, %{task_id: ^task_id, type: :turn_started}} ->
+        receive do
+          %Phoenix.Socket.Message{
+            event: "acp:message",
+            payload: %{
+              "params" => %{
+                "sessionId" => ^task_id,
+                "update" => %{"sessionUpdate" => "state_update", "state" => "running"}
+              }
+            }
+          } ->
+            :ok
+        after
+          100 -> :ok
+        end
+    after
+      1_000 -> flunk("expected running state update or turn_started interaction")
+    end
   end
 
   defp assert_state_update_running_then_idle(task_id) do
@@ -412,15 +432,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_reply(ref, :ok, %{"acp:message" => response})
       assert response["result"] == %{}
 
-      assert_enqueued(
-        worker: GenerateTitle,
-        args: %{
-          user_id: user.id,
-          task_id: task_id,
-          model: "openrouter:openai/gpt-5.5"
-        }
-      )
-
       assert_state_update_running(task_id)
 
       assert_push("acp:message", %{
@@ -439,6 +450,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       assert_state_update_idle(task_id)
+
+      assert Enum.any?(all_enqueued(), fn %{args: args, worker: worker} ->
+               worker == "FrontmanServer.Workers.GenerateTitle" and args["user_id"] == user.id and
+                 args["task_id"] == task_id and args["model"] == "openrouter:openai/gpt-5.5" and
+                 args["user_prompt_text"] == "Hello"
+             end)
 
       assert {:ok, task} = Tasks.get_task(scope, task_id)
       assert Enum.any?(task.interaction_rows, &(&1.type == :user_message and &1.id == message_id))
@@ -2379,10 +2396,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     } do
       start_turn_fixture(scope, task_id, [%{"type" => "text", "text" => "Claimed"}])
 
+      {:ok, task} = Tasks.get_task(scope, task_id)
+
       [%{id: message_id}] =
-        task_id
-        |> db_rows()
-        |> Enum.filter(&(&1.type == :user_message))
+        Enum.filter(task.interaction_rows, &(&1.type == :user_message))
 
       push(
         socket,
@@ -2395,7 +2412,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
 
       refute_push("acp:message", %{"params" => %{"update" => %{"sessionUpdate" => "message_unqueued"}}})
-      assert Enum.any?(db_rows(task_id), &(&1.id == message_id))
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      assert Enum.any?(task.interaction_rows, &(&1.id == message_id))
     end
 
     test "malformed unqueue IDs leave the channel alive", %{socket: socket, task_id: task_id} do
