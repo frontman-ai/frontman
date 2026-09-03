@@ -280,9 +280,9 @@ These tools are added when Frontman is running as an Astro integration.
 
 Lists all routes resolved by Astro's router.
 
-Returns routes from Astro's `astro:routes:resolved` hook, including pages, API endpoints, redirects, content collection routes, and integration-injected routes. Each route includes its pattern, entrypoint, type, origin, params, and prerender status.
+Returns routes from Astro's `astro:routes:resolved` hook, including pages, API endpoints, redirects, content collection routes, and integration-injected routes. Each route includes its pattern, entrypoint, type, origin, params, pathname, segments, redirects, i18n fallback routes, serialized route regex, captured order, and prerender status.
 
-This goes beyond simple filesystem scanning — it captures routes that don't exist as files in `src/pages/`, like content collection pages and config-based redirects.
+This goes beyond simple filesystem scanning — it captures routes that don't exist as files in `src/pages/`, like content collection pages and config-based redirects. Endpoint HTTP methods are not returned because Astro does not expose them via `astro:routes:resolved`.
 
 #### `get_resolved_astro_config`
 
