@@ -479,10 +479,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp resume_agent(socket, scope, task_id) do
-    Tasks.resume_execution(scope, task_id, %{
-      mcp_tools: socket.assigns.mcp_tools,
-      project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
-    })
+    Tasks.resume_execution(scope, task_id, execution_context(socket, nil))
 
     socket
   end
@@ -821,11 +818,7 @@ defmodule FrontmanServerWeb.TaskChannel do
            socket.assigns.scope,
            socket.assigns.task_id,
            retried_error_id,
-           %{
-             model: nil,
-             mcp_tools: socket.assigns.mcp_tools,
-             project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
-           }
+           execution_context(socket, nil)
          ) do
       :ok ->
         notification = ACP.build_state_update_notification(socket.assigns.task_id, "running")
