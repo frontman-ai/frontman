@@ -152,7 +152,7 @@ type rec integrationResolvedRoute = {
   patternRegex?: patternRegex,
   isPrerendered: bool,
   redirectRoute?: integrationResolvedRoute,
-  fallbackRoutes: array<integrationResolvedRoute>,
+  fallbackRoutes?: array<integrationResolvedRoute>,
 }
 
 type routesResolvedHookContext = {routes: array<integrationResolvedRoute>}

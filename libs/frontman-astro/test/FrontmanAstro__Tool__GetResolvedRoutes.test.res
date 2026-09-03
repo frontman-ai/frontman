@@ -387,6 +387,34 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
 
   describe("edge cases", _t => {
     testAsync(
+      "handles Astro routes without fallbackRoutes",
+      async t => {
+        let middleware = makeMiddleware(
+          ~routes=[
+            {
+              pattern: "/legacy",
+              entrypoint: "src/pages/legacy.astro",
+              type_: #page,
+              origin: #project,
+              params: [],
+              pathname: Some("/legacy"),
+              isPrerendered: false,
+            },
+          ],
+        )
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes("Execution error"))->Expect.toBe(false)
+        t->expect(sseBody->String.includes(`\\\"fallbackRoutes\\\":[]`))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
       "returns empty array when no routes resolved",
       async t => {
         let middleware = makeMiddleware(~routes=[])
