@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Frontman Blue-Green Deploy Script
-# =============================================================================
 set -euo pipefail
 
 APP_NAME="${APP_NAME:-frontman_server}"
@@ -46,7 +43,6 @@ active_execution_count() {
 
   if ! output=$(
     set -a
-    # shellcheck disable=SC1090
     source "${DEPLOY_ROOT}/${ACTIVE_SLOT}/env"
     set +a
     "${DEPLOY_ROOT}/${ACTIVE_SLOT}/current/bin/${APP_NAME}" rpc \
@@ -199,7 +195,6 @@ mv -T "${DEPLOY_ROOT}/${INACTIVE_SLOT}/current.tmp" "${DEPLOY_ROOT}/${INACTIVE_S
 echo ">>> Running database migrations..."
 (
   set -a
-  # shellcheck disable=SC1090
   source "${DEPLOY_ROOT}/${INACTIVE_SLOT}/env"
   set +a
   "${DEPLOY_ROOT}/${INACTIVE_SLOT}/current/bin/migrate"

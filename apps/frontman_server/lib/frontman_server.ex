@@ -15,8 +15,10 @@ defmodule FrontmanServer do
 
   @base_exports [
     {Accounts, []},
+    {Agents, []},
     {Organizations, []},
     {Providers, []},
+    {Skills, []},
     {Tasks, []},
     {Frameworks, []},
     BrandTokens,
@@ -24,9 +26,9 @@ defmodule FrontmanServer do
     Vault,
     Image,
     CurrentPageContext,
+    PublicURL,
     Mailer,
     Release,
-    ChangesetSanitizer,
     Encrypted.Binary,
     {Tools, []},
     Observability.ConsoleHandler,

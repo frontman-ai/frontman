@@ -24,15 +24,11 @@ defmodule FrontmanServerWeb.Router do
     plug(:accepts, ["json"])
   end
 
-  pipeline :api_with_session do
+  pipeline :bearer_api do
     plug(:accepts, ["json"])
-    plug(:fetch_session)
-    plug(:fetch_current_scope_for_user)
-    plug(:require_authenticated_user_api)
+    plug(:require_embedded_client_bearer_token)
     plug(FrontmanServerWeb.Plugs.SentryContext)
   end
-
-  ## Public routes
 
   scope "/", FrontmanServerWeb do
     pipe_through(:browser)
@@ -40,9 +36,9 @@ defmodule FrontmanServerWeb.Router do
     get("/", PageController, :home)
 
     delete("/users/log-out", UserSessionController, :delete)
-    # GET logout renders a CSRF-protected confirmation page that auto-submits.
-    # This prevents forced-logout attacks via <img src="/users/log-out">.
     get("/users/log-out", UserSessionController, :confirm_logout)
+    get("/users/popup-complete", EmbeddedClientAuthController, :show)
+    post("/users/popup-complete", EmbeddedClientAuthController, :approve)
   end
 
   scope "/health", FrontmanServerWeb do
@@ -52,9 +48,6 @@ defmodule FrontmanServerWeb.Router do
     get("/ready", HealthController, :ready)
   end
 
-  ## Authentication routes
-
-  # OAuth - unauthenticated (sign in with provider)
   scope "/auth", FrontmanServerWeb do
     pipe_through([:browser, :redirect_if_user_is_authenticated])
 
@@ -64,7 +57,6 @@ defmodule FrontmanServerWeb.Router do
     get("/:provider", OAuthController, :request)
   end
 
-  # OAuth - authenticated (link/unlink providers)
   scope "/auth", FrontmanServerWeb do
     pipe_through([:browser, :require_authenticated_user])
 
@@ -73,8 +65,6 @@ defmodule FrontmanServerWeb.Router do
     delete("/:provider/unlink", OAuthController, :unlink)
   end
 
-  # Registration is disabled — users sign in via OAuth (GitHub/Google) only.
-  # The route is kept so ~p"/users/register" sigils still compile, but it redirects to login.
   scope "/", FrontmanServerWeb do
     pipe_through([:browser, :redirect_if_user_is_authenticated])
 
@@ -93,49 +83,38 @@ defmodule FrontmanServerWeb.Router do
     get("/users/settings/confirm-email/:token", UserSettingsController, :confirm_email)
   end
 
-  ## API routes
-
-  # Public API routes (no auth required)
   scope "/api", FrontmanServerWeb do
     pipe_through(:api)
 
     get("/integrations/latest-versions", IntegrationsController, :latest_versions)
   end
 
-  # API endpoint for socket token (uses browser pipeline for session cookie)
   scope "/api", FrontmanServerWeb do
-    pipe_through(:browser)
+    pipe_through(:bearer_api)
 
-    get("/socket-token", SocketTokenController, :show)
-  end
-
-  scope "/api", FrontmanServerWeb do
-    pipe_through(:api_with_session)
+    delete("/client-token", ClientTokenController, :delete)
 
     get("/user/me", UserMeController, :show)
     get("/user/api-keys", UserApiKeyController, :index)
     post("/user/api-keys", UserApiKeyController, :create)
 
-    # Anthropic OAuth routes
     get("/oauth/anthropic/authorize-url", AnthropicOAuthController, :authorize_url)
     post("/oauth/anthropic/exchange", AnthropicOAuthController, :exchange)
     delete("/oauth/anthropic/disconnect", AnthropicOAuthController, :disconnect)
     get("/oauth/anthropic/status", AnthropicOAuthController, :status)
 
-    # OpenAI OAuth routes (device auth flow - all require session)
     post("/oauth/openai/initiate", OpenAIOAuthController, :initiate)
     post("/oauth/openai/poll", OpenAIOAuthController, :poll)
     delete("/oauth/openai/disconnect", OpenAIOAuthController, :disconnect)
     get("/oauth/openai/status", OpenAIOAuthController, :status)
+
+    get("/user/custom-providers", CustomProvidersController, :index)
+    post("/user/custom-providers", CustomProvidersController, :create)
+    put("/user/custom-providers/:provider_id", CustomProvidersController, :update)
+    delete("/user/custom-providers/:provider_id", CustomProvidersController, :delete)
   end
 
-  # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:frontman_server, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
 
     scope "/dev" do

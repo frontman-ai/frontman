@@ -1,22 +1,12 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Frontman Build & Deploy Script (runs on production server)
-#
-# CI rsyncs the source code to /opt/frontman/build, then invokes this script.
-# It builds the Elixir release natively, then does a blue-green deploy.
-#
-# Usage: build-and-deploy.sh
-# =============================================================================
 set -euo pipefail
 
-# --- Configuration ---
 DEPLOY_ROOT="/opt/frontman"
 BUILD_DIR="${DEPLOY_ROOT}/build"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REBAR_URL="https://s3.amazonaws.com/rebar3/rebar3"
 REBAR_SHA512="0d00494d849fdc521a55142278d1f6ba552954fbd65b80d40df8022f594f05d6c99ed1d731bc263691a04176e11d4c6e126c56ba20dca19c5e42d4ffab2e7e36"
 
-# --- Activate mise ---
 export PATH="/home/deploy/.local/bin:${PATH}"
 if ! command -v mise >/dev/null 2>&1; then
   curl https://mise.run | sh
@@ -42,9 +32,6 @@ ensure_elixir_build_tools() {
   rm -f "${REBAR_TMP}"
 }
 
-# =============================================================================
-# Phase 1: Build (Elixir only — no JS/ReScript needed for server)
-# =============================================================================
 cd "${BUILD_DIR}/apps/frontman_server"
 export MIX_ENV=prod
 
@@ -76,7 +63,6 @@ echo ""
 echo "=== Build Complete ==="
 echo ""
 
-# --- Install and hand off to canonical blue-green deploy implementation ---
 install -m 0755 "${BUILD_DIR}/infra/production/deploy.sh" "${DEPLOY_ROOT}/deploy.sh"
 install -m 0755 "${BUILD_DIR}/infra/production/rollback.sh" "${DEPLOY_ROOT}/rollback.sh"
 

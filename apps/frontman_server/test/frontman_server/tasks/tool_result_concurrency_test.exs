@@ -123,7 +123,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
           task_id: task_id,
           turn_number: turn_number,
           tool_calls: [%SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}],
-          task_supervisor: SwarmAi.task_supervisor_name(FrontmanServer.AgentRuntime),
+          task_supervisor: SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
           backend_tool_modules: [],
           mcp_tool_defs: [mcp_tool_def()],
           execution_mode: :serial

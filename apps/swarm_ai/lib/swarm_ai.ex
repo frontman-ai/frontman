@@ -45,6 +45,18 @@ defmodule SwarmAi do
   @spec active_count(atom()) :: non_neg_integer()
   defdelegate active_count(runtime), to: SwarmAi.Runtime
 
+  @doc false
+  @spec registry_name(atom()) :: atom()
+  defdelegate registry_name(runtime), to: SwarmAi.Runtime.Registry, as: :name
+
+  @doc false
+  @spec task_supervisor_name(atom()) :: atom()
+  defdelegate task_supervisor_name(runtime), to: SwarmAi.Runtime
+
+  @doc false
+  @spec execution_supervisor_name(atom()) :: atom()
+  defdelegate execution_supervisor_name(runtime), to: SwarmAi.Runtime
+
   @doc "Cancels a running execution by conversation/task id."
   @spec cancel(atom(), String.t()) :: :ok | {:error, :not_running}
   defdelegate cancel(runtime, task_id), to: SwarmAi.Runtime
