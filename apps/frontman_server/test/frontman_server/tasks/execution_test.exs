@@ -277,13 +277,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       task = task_schema!(task_id)
       insert_accepted_user_message!(task, "first model")
-      insert_accepted_user_message!(task, "second model", "openrouter:anthropic/claude-fable-5")
+      insert_accepted_user_message!(task, "second model", "openrouter:anthropic/claude-fable-5.1")
 
       assert :ok =
                Tasks.execute_next_turn(
                  scope,
                  task_id,
-                 execution_request_fixture(model: "openrouter:anthropic/claude-fable-5")
+                 execution_request_fixture(model: "openrouter:anthropic/claude-fable-5.1")
                )
 
       assert_receive {:executed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}
@@ -322,7 +322,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           task_id: task_id,
           message_id: Ecto.UUID.generate(),
           message: user_content("planner"),
-          model: "openrouter:anthropic/claude-fable-5",
+          model: "openrouter:anthropic/claude-fable-5.1",
           agent_id: "test-planner"
         })
 
@@ -365,7 +365,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           task_id: task_id,
           message_id: Ecto.UUID.generate(),
           message: user_content("planner"),
-          model: "openrouter:anthropic/claude-fable-5",
+          model: "openrouter:anthropic/claude-fable-5.1",
           agent_id: "test-planner"
         })
 

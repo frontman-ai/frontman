@@ -39,15 +39,10 @@ providers = [
        {"GPT-5.6 Luna", "openai/gpt-5.6-luna"},
        {"GPT-5.5", "openai/gpt-5.5"},
        {"GPT-5.5 Pro", "openai/gpt-5.5-pro"},
-       {"GPT-5.4", "openai/gpt-5.4"},
-       {"GPT-5.4 Pro", "openai/gpt-5.4-pro"},
-       {"GPT-5.3 Codex", "openai/gpt-5.3-codex"},
-       {"Claude Fable 5", "anthropic/claude-fable-5"},
+       {"Claude Fable 5.1", "anthropic/claude-fable-5.1"},
+       {"Claude Opus 5", "anthropic/claude-opus-5"},
        {"Claude Sonnet 5", "anthropic/claude-sonnet-5"},
        {"Claude Opus 4.8", "anthropic/claude-opus-4.8"},
-       {"Claude Opus 4.8 Fast", "anthropic/claude-opus-4.8-fast"},
-       {"Claude Opus 4.7", "anthropic/claude-opus-4.7"},
-       {"Claude Opus 4.7 Fast", "anthropic/claude-opus-4.7-fast"},
        {"Claude Sonnet Latest", "~anthropic/claude-sonnet-latest"},
        {"Claude Haiku Latest", "~anthropic/claude-haiku-latest"},
        {"Claude Sonnet 4.6", "anthropic/claude-sonnet-4.6"},
@@ -55,7 +50,7 @@ providers = [
        {"Gemini 3.1 Pro Preview", "google/gemini-3.1-pro-preview"},
        {"Gemini Flash Latest", "~google/gemini-flash-latest"},
        {"Kimi Latest", "~moonshotai/kimi-latest"},
-       {"MiniMax M2.7", "minimax/minimax-m2.7"}
+       {"MiniMax M3", "minimax/minimax-m3"}
      ]
    }},
   {:fireworks_ai,
