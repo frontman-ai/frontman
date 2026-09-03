@@ -25,10 +25,11 @@ let make = (): t => {
 
 let makeWithResolvedRoutes = (
   ~getRoutes: unit => array<FrontmanBindings.Astro.integrationResolvedRoute>,
-  ~getAstroConfig: getAstroConfig=unavailableAstroConfig,
 ): t => {
   let resolvedRoutesTool = FrontmanAstro__Tool__GetResolvedRoutes.make(~getRoutes)
-  let astroConfigTool = FrontmanAstro__Tool__GetResolvedAstroConfig.make(~getConfig=getAstroConfig)
+  let astroConfigTool = FrontmanAstro__Tool__GetResolvedAstroConfig.make(
+    ~getConfig=unavailableAstroConfig,
+  )
   CoreRegistry.coreTools()
   ->CoreRegistry.addTools([
     resolvedRoutesTool,
@@ -41,7 +42,7 @@ let makeWithResolvedRoutes = (
 
 let makeWithAstroRuntime = (
   ~loadContentApi: loadContentApi,
-  ~getAstroConfig: getAstroConfig=unavailableAstroConfig,
+  ~getAstroConfig: getAstroConfig,
 ): t => {
   let contentCollectionsTool = FrontmanAstro__Tool__GetContentCollections.make(~loadContentApi)
   let astroConfigTool = FrontmanAstro__Tool__GetResolvedAstroConfig.make(~getConfig=getAstroConfig)
@@ -59,7 +60,7 @@ let makeWithAstroRuntime = (
 let makeWithResolvedRoutesAndAstroRuntime = (
   ~getRoutes: unit => array<FrontmanBindings.Astro.integrationResolvedRoute>,
   ~loadContentApi: loadContentApi,
-  ~getAstroConfig: getAstroConfig=unavailableAstroConfig,
+  ~getAstroConfig: getAstroConfig,
 ): t => {
   let resolvedRoutesTool = FrontmanAstro__Tool__GetResolvedRoutes.make(~getRoutes)
   let contentCollectionsTool = FrontmanAstro__Tool__GetContentCollections.make(~loadContentApi)

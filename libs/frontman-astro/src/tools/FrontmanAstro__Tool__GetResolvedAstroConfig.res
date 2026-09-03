@@ -64,7 +64,11 @@ let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchem
 
 let executeWith = async (~getConfig: unit => option<captured>, _ctx, _input) => {
   switch getConfig() {
-  | Some(config) => Tool.structuredResult(config->sanitizeResolvedAstroConfig, outputSchema)
+  | Some({astroVersion, buildOutput, config}) =>
+    Tool.structuredResult(
+      {astroVersion, buildOutput, config}->sanitizeResolvedAstroConfig,
+      outputSchema,
+    )
   | None => Tool.MCP.CallToolResult.makeError("Astro config has not been captured yet")
   }
 }
