@@ -11,6 +11,11 @@ defmodule FrontmanServerWeb.Plugs.CORS do
   When used at the endpoint level, handles OPTIONS preflight requests
   before they reach the router.
 
+  Protected API routes must remain bearer-token-only and must validate the
+  request Origin against the bearer token. This plug deliberately does not set
+  Access-Control-Allow-Credentials, so browser cookies are not exposed through
+  credentialed cross-origin requests.
+
   ## Options
 
     * `:path_prefix` - Only apply CORS to paths starting with this prefix.
