@@ -965,15 +965,17 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :id, :string
       field :timestamp, :utc_datetime_usec
+      field :user_message_id, :binary_id
       field :skill_id, :binary_id
       field :skill_name, :string
       field :skill_content, :string
     end
 
-    def build(%Skill{} = skill) do
+    def build(%Skill{} = skill, user_message_id) when is_binary(user_message_id) do
       %__MODULE__{
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
+        user_message_id: user_message_id,
         skill_id: skill.id,
         skill_name: skill.name,
         skill_content: skill.content
@@ -984,6 +986,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       Interaction.cast_timestamped(skill_used, attrs, [
         :id,
         :timestamp,
+        :user_message_id,
         :skill_id,
         :skill_name,
         :skill_content
@@ -1149,33 +1152,11 @@ defmodule FrontmanServer.Tasks.Interaction do
   tool results) regardless of database insertion timing.
   """
   def to_swarm_messages(interactions) when is_list(interactions) do
-    Enum.reduce(interactions, [], &add_interaction_to_messages/2)
+    Enum.flat_map(interactions, &to_swarm_message/1)
   end
 
-  defp add_interaction_to_messages(%SkillUsed{} = skill_used, messages) do
-    case Enum.reverse(messages) do
-      [%SwarmMessage.User{} = user_message | previous_messages] ->
-        user_message = prepend_active_skill(user_message, skill_used)
-        Enum.reverse([user_message | previous_messages])
-
-      _messages ->
-        messages
-    end
-  end
-
-  defp add_interaction_to_messages(interaction, messages) do
-    messages ++ to_swarm_message(interaction)
-  end
-
-  defp prepend_active_skill(
-         %SwarmMessage.User{content: content} = user_message,
-         %SkillUsed{} = skill_used
-       ) do
-    %{user_message | content: [SwarmContentPart.text(active_skill_text(skill_used)) | content]}
-  end
-
-  defp active_skill_text(%SkillUsed{} = skill_used) do
-    "## Active Skill: #{skill_used.skill_name}\n\nUse this expert lens for this turn.\n\n#{skill_used.skill_content}"
+  defp to_swarm_message(%SkillUsed{} = skill_used) do
+    [%SwarmMessage.User{content: [SwarmContentPart.text(active_skill_text(skill_used))]}]
   end
 
   defp to_swarm_message(%UserMessage{} = msg) do
@@ -1231,6 +1212,10 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp to_swarm_message(%AgentRetry{}), do: []
   defp to_swarm_message(%DiscoveredProjectRule{}), do: []
   defp to_swarm_message(%DiscoveredProjectStructure{}), do: []
+
+  defp active_skill_text(%SkillUsed{} = skill_used) do
+    "## Active Skill: #{skill_used.skill_name}\n\nUse this expert lens for this turn.\n\n#{skill_used.skill_content}"
+  end
 
   def user_prompt_text(%UserMessage{} = msg) do
     msg.messages

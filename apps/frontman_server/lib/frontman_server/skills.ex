@@ -11,8 +11,6 @@ defmodule FrontmanServer.Skills do
     deps: [FrontmanServer],
     exports: [Skill]
 
-  import Ecto.Query, warn: false
-
   alias FrontmanServer.Repo
   alias FrontmanServer.Skills.Skill
 
@@ -27,11 +25,15 @@ defmodule FrontmanServer.Skills do
   def get_by_id(_scope, nil), do: {:ok, nil}
 
   def get_by_id(_scope, id) when is_binary(id) do
-    case Repo.get(Skill, id) do
-      %Skill{} = skill -> {:ok, skill}
-      nil -> {:error, :not_found}
+    with {:ok, id} <- Ecto.UUID.cast(id),
+         %Skill{} = skill <- Repo.get(Skill, id) do
+      {:ok, skill}
+    else
+      _missing -> {:error, :not_found}
     end
   end
+
+  def get_by_id(_scope, _id), do: {:error, :not_found}
 
   @doc "Registers a global skill."
   def register(_scope, attrs) do

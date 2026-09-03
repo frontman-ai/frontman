@@ -545,15 +545,6 @@ defmodule FrontmanServer.Tasks do
     |> Map.put(:selected_server_skill_content, selected_skill.content)
   end
 
-  def submit_user_message(%Scope{}, %{agent_id: agent_id})
-      when is_binary(agent_id) and agent_id != "" do
-    {:error, :missing_model}
-  end
-
-  def submit_user_message(%Scope{}, %{model: _model}) do
-    {:error, :missing_agent}
-  end
-
   @doc """
   Removes a queued (not yet claimed by a turn) user message.
 
@@ -707,17 +698,20 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp skill_used_attrs(%InteractionSchema{
+         id: user_message_id,
          data: %Interaction.UserMessage{
            selected_server_skill_id: skill_id,
            selected_server_skill_name: skill_name,
            selected_server_skill_content: skill_content
          }
        })
-       when is_binary(skill_id) and is_binary(skill_name) and is_binary(skill_content) do
+       when is_binary(user_message_id) and is_binary(skill_id) and is_binary(skill_name) and
+              is_binary(skill_content) do
     [
       %{
         id: Ecto.UUID.generate(),
         timestamp: Interaction.now(),
+        user_message_id: user_message_id,
         skill_id: skill_id,
         skill_name: skill_name,
         skill_content: skill_content

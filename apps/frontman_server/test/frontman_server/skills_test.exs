@@ -94,6 +94,13 @@ defmodule FrontmanServer.SkillsTest do
 
       assert {:error, :not_found} = Skills.get_by_id(scope, Ecto.UUID.generate())
     end
+
+    test "returns not_found for invalid ids" do
+      scope = user_scope_fixture()
+
+      assert {:error, :not_found} = Skills.get_by_id(scope, "not-a-uuid")
+      assert {:error, :not_found} = Skills.get_by_id(scope, 123)
+    end
   end
 
   describe "update/3" do

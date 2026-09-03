@@ -13,7 +13,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
   alias ModelContextProtocol, as: MCP
 
-  describe "SkillUsed.build/1" do
+  describe "SkillUsed.build/2" do
     test "snapshots skill content" do
       skill = %Skill{
         id: Ecto.UUID.generate(),
@@ -22,11 +22,14 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         content: "Use hierarchy."
       }
 
+      user_message_id = Ecto.UUID.generate()
+
       assert %Interaction.SkillUsed{
+               user_message_id: ^user_message_id,
                skill_id: skill_id,
                skill_name: "design_polish",
                skill_content: "Use hierarchy."
-             } = Interaction.SkillUsed.build(skill)
+             } = Interaction.SkillUsed.build(skill, user_message_id)
 
       assert skill_id == skill.id
     end
@@ -329,39 +332,27 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert messages == []
     end
 
-    test "adds active skill as separate content part on previous user message" do
+    test "adds active skill as its own user context message" do
       skill_used = %Interaction.SkillUsed{
         id: "skill-used-1",
         timestamp: DateTime.utc_now(),
+        user_message_id: Ecto.UUID.generate(),
         skill_id: Ecto.UUID.generate(),
         skill_name: "design_polish",
         skill_content: "Use hierarchy."
       }
 
-      messages = Interaction.to_swarm_messages([user_msg("Improve hero"), skill_used])
-
-      assert [%SwarmAi.Message.User{content: content}] = messages
+      messages = Interaction.to_swarm_messages([skill_used, user_msg("Improve hero")])
 
       assert [
-               %SwarmAi.Message.ContentPart{
-                 type: :text,
-                 text:
-                   "## Active Skill: design_polish\n\nUse this expert lens for this turn.\n\nUse hierarchy."
-               },
-               %SwarmAi.Message.ContentPart{type: :text, text: "Improve hero"}
-             ] = content
-    end
+               %SwarmAi.Message.User{content: [skill_part]},
+               %SwarmAi.Message.User{content: [prompt_part]}
+             ] = messages
 
-    test "skips unpaired SkillUsed structs" do
-      skill_used = %Interaction.SkillUsed{
-        id: "skill-used-1",
-        timestamp: DateTime.utc_now(),
-        skill_id: Ecto.UUID.generate(),
-        skill_name: "design_polish",
-        skill_content: "Use hierarchy."
-      }
+      assert skill_part.text ==
+               "## Active Skill: design_polish\n\nUse this expert lens for this turn.\n\nUse hierarchy."
 
-      assert Interaction.to_swarm_messages([skill_used]) == []
+      assert prompt_part.text == "Improve hero"
     end
 
     test "handles mixed conversation in correct order" do

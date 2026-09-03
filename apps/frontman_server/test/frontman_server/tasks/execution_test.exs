@@ -485,6 +485,21 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                submit_user_message(scope, task_id, [%{"type" => "text", "text" => ""}])
     end
 
+    test "returns selected skill errors instead of raising", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      assert {:error, :skill_not_found} =
+               submit_user_message(scope, task_id, user_content("Improve hero"),
+                 selected_server_skill_id: "not-a-uuid"
+               )
+
+      assert {:error, :skill_not_found} =
+               submit_user_message(scope, task_id, user_content("Improve hero"),
+                 selected_server_skill_id: 123
+               )
+    end
+
     test "uses resource context for attachment-only first turn title text", %{
       task_id: task_id,
       scope: scope
@@ -528,12 +543,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       assert_receive {:provider_messages, messages}, 1_000
 
-      user_message = Enum.find(messages, &(&1.role == :user))
-      assert user_message != nil
+      user_messages = Enum.filter(messages, &(&1.role == :user))
+      assert [skill_message, prompt_message] = user_messages
 
-      assert [active_skill_part, user_prompt_part | _rest] = user_message.content
+      assert [active_skill_part] = skill_message.content
       assert active_skill_part.text =~ "## Active Skill: design_polish"
       assert active_skill_part.text =~ "Use hierarchy."
+      assert [user_prompt_part] = prompt_message.content
       assert user_prompt_part.text == "Improve hero"
 
       expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
@@ -547,17 +563,68 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive {:followup_provider_messages, followup_messages}, 1_000
 
       user_messages = Enum.filter(followup_messages, &(&1.role == :user))
-      assert [historical_user_message, current_user_message] = user_messages
 
-      assert [historical_skill_part, historical_prompt_part | _rest] =
-               historical_user_message.content
+      assert [historical_skill_message, historical_prompt_message, current_user_message] =
+               user_messages
 
+      assert [historical_skill_part] = historical_skill_message.content
       assert historical_skill_part.text =~ "## Active Skill: design_polish"
       assert historical_skill_part.text =~ "Use hierarchy."
+
+      assert [historical_prompt_part] = historical_prompt_message.content
       assert historical_prompt_part.text == "Improve hero"
 
       assert [current_prompt_part] = current_user_message.content
       assert current_prompt_part.text == "Now tighten copy"
+    end
+
+    test "keeps selected skill attached to its user message in batched turns", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      {:ok, skill} = register_skill(scope)
+      execution = execution_request_fixture()
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("Response")
+      end)
+
+      {:ok, _first} =
+        Tasks.submit_user_message(
+          scope,
+          Map.merge(execution, %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: user_content("Improve hero"),
+            selected_server_skill_id: skill.id
+          })
+        )
+
+      {:ok, _second} =
+        Tasks.submit_user_message(
+          scope,
+          Map.merge(execution, %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: user_content("Now tighten copy")
+          })
+        )
+
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert_receive {:provider_messages, messages}, 1_000
+
+      user_messages = Enum.filter(messages, &(&1.role == :user))
+      assert [skill_message, first_message, second_message] = user_messages
+
+      assert [skill_part] = skill_message.content
+      assert skill_part.text =~ "## Active Skill: design_polish"
+      assert [first_part] = first_message.content
+      assert first_part.text == "Improve hero"
+      assert [second_part] = second_message.content
+      assert second_part.text == "Now tighten copy"
     end
 
     test "startup failure persists terminal error on the same turn" do
