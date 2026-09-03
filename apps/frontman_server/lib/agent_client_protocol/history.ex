@@ -15,6 +15,7 @@ defmodule AgentClientProtocol.History do
 
   @ignored_types [
     :turn_started,
+    :skill_used,
     :agent_completed,
     :agent_retry,
     :discovered_project_rule,

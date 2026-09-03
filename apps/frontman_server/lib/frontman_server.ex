@@ -18,6 +18,7 @@ defmodule FrontmanServer do
     {Agents, []},
     {Organizations, []},
     {Providers, []},
+    {Skills, []},
     {Tasks, []},
     {Frameworks, []},
     BrandTokens,

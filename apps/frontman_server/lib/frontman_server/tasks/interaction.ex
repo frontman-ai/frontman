@@ -20,6 +20,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     __MODULE__.AgentError,
     __MODULE__.AgentPaused,
     __MODULE__.AgentRetry,
+    __MODULE__.SkillUsed,
     __MODULE__.ToolCall,
     __MODULE__.ToolResult,
     __MODULE__.DiscoveredProjectRule,
@@ -360,6 +361,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :agent_id, :string
       field :model, :string
+      field :selected_server_skill_id, :binary_id
+      field :selected_server_skill_name, :string
+      field :selected_server_skill_content, :string
       field :messages, {:array, :string}, default: []
       embeds_many :annotations, Annotation
       embeds_one :selected_figma_node, FigmaNode
@@ -370,7 +374,16 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     def changeset(%__MODULE__{} = user_message, attrs) do
       user_message
-      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :agent_id, :model, :messages])
+      |> Interaction.cast_timestamped(attrs, [
+        :id,
+        :timestamp,
+        :agent_id,
+        :model,
+        :selected_server_skill_id,
+        :selected_server_skill_name,
+        :selected_server_skill_content,
+        :messages
+      ])
       |> cast_embed(:annotations, with: &Annotation.changeset/2)
       |> cast_embed(:selected_figma_node, with: &FigmaNode.changeset/2)
       |> cast_embed(:images, with: &UserImage.changeset/2)
@@ -941,6 +954,46 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp validate_result(:result, _result), do: []
   end
 
+  defmodule SkillUsed do
+    @moduledoc "Records a skill explicitly selected for a task turn."
+
+    alias FrontmanServer.Skills.Skill
+
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :timestamp, :utc_datetime_usec
+      field :user_message_id, :binary_id
+      field :skill_id, :binary_id
+      field :skill_name, :string
+      field :skill_content, :string
+    end
+
+    def build(%Skill{} = skill, user_message_id) when is_binary(user_message_id) do
+      %__MODULE__{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        user_message_id: user_message_id,
+        skill_id: skill.id,
+        skill_name: skill.name,
+        skill_content: skill.content
+      }
+    end
+
+    def changeset(%__MODULE__{} = skill_used, attrs) do
+      Interaction.cast_timestamped(skill_used, attrs, [
+        :id,
+        :timestamp,
+        :user_message_id,
+        :skill_id,
+        :skill_name,
+        :skill_content
+      ])
+    end
+  end
+
   defmodule DiscoveredProjectRule do
     @moduledoc """
     Represents a discovered project rule file (e.g., AGENTS.md, CLAUDE.md).
@@ -1102,6 +1155,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     Enum.flat_map(interactions, &to_swarm_message/1)
   end
 
+  defp to_swarm_message(%SkillUsed{} = skill_used) do
+    [%SwarmMessage.User{content: [SwarmContentPart.text(active_skill_text(skill_used))]}]
+  end
+
   defp to_swarm_message(%UserMessage{} = msg) do
     prompt_text = user_prompt_text(msg)
     content_parts = build_user_content_parts(prompt_text, msg)
@@ -1155,6 +1212,10 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp to_swarm_message(%AgentRetry{}), do: []
   defp to_swarm_message(%DiscoveredProjectRule{}), do: []
   defp to_swarm_message(%DiscoveredProjectStructure{}), do: []
+
+  defp active_skill_text(%SkillUsed{} = skill_used) do
+    "## Active Skill: #{skill_used.skill_name}\n\nUse this expert lens for this turn.\n\n#{skill_used.skill_content}"
+  end
 
   def user_prompt_text(%UserMessage{} = msg) do
     msg.messages
