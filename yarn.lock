@@ -2400,7 +2400,7 @@ __metadata:
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "catalog:"
     "@tailwindcss/vite": "npm:^4.3.2"
-    "@tiptap/core": "npm:3.30.1"
+    "@tiptap/core": "npm:3.30.4"
     "@tiptap/extension-document": "npm:3.30.1"
     "@tiptap/extension-paragraph": "npm:3.30.1"
     "@tiptap/extension-placeholder": "npm:3.30.1"
@@ -6590,12 +6590,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@tiptap/core@npm:3.30.1":
-  version: 3.30.1
-  resolution: "@tiptap/core@npm:3.30.1"
+"@tiptap/core@npm:3.30.4":
+  version: 3.30.4
+  resolution: "@tiptap/core@npm:3.30.4"
   peerDependencies:
-    "@tiptap/pm": 3.30.1
-  checksum: 10c0/a8f14c9e5f3afd2eabb2bf9786aaafe4f9b5e762dfdf829f99d5f286a2d470902bdd9c52c076d31f5cb7df3d0d7fb542bb2430724edd77e1a477a8c61d2e1166
+    "@tiptap/pm": 3.30.4
+  checksum: 10c0/51cc37a296eee4b1ec0b969bf1c5a95a29793533d976a0085db15b033b4ac6d5e2765a94225a19266fb1c4eec403ec712ea4aa84cb67269d51cd41ce431b28b7
   languageName: node
   linkType: hard
 
