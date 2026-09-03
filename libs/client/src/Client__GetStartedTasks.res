@@ -51,7 +51,7 @@ let make = (
     | true =>
       <div className="w-full max-w-[360px] mt-4 pt-4 border-t border-white/10">
         <p
-          className="text-[11px] leading-none font-medium uppercase tracking-[0.14em] text-zinc-600 mb-3"
+          className="text-[11px] leading-none font-medium uppercase tracking-[0.14em] text-zinc-100 mb-3"
         >
           {React.string("Or get back to where you were")}
         </p>
