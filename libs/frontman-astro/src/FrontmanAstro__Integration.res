@@ -68,10 +68,12 @@ let getToolbarAppPath = () => {
 let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
   let config = Config.makeFromObject(configInput)
 
-  let astroMajorVersion = getAstroMajorVersion()
+  let astroVersion = getAstroVersion()
+  let astroMajorVersion = astroVersion->parseMajorVersion
   let useResolvedRoutes = astroMajorVersion >= 5
   let resolvedRoutes = ref([])
   let trailingSlash = ref(#ignore)
+  let resolvedAstroConfig = ref(None)
 
   let routeDiscovery: Middleware.routeDiscovery = switch useResolvedRoutes {
   | true => ResolvedRoutes({getRoutes: () => resolvedRoutes.contents})
@@ -104,6 +106,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
                     config,
                     ~routeDiscovery,
                     ~loadContentApi,
+                    ~getAstroConfig=() => resolvedAstroConfig.contents,
                   )
                   let connectMiddleware = ViteAdapter.adaptToConnect(
                     webMiddleware,
@@ -163,7 +166,12 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
           }
         },
       ),
-      configDone: ?Some(({config}) => trailingSlash := config.trailingSlash),
+      configDone: ?Some(
+        ({config, buildOutput}) => {
+          trailingSlash := config.trailingSlash
+          resolvedAstroConfig := Some({astroVersion, buildOutput, config})
+        },
+      ),
       serverSetup: ?Some(
         ({server, toolbar}) => {
           FrontmanAiFrontmanCore.FrontmanCore__LogCapture.initialize()

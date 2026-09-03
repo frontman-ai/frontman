@@ -284,6 +284,10 @@ Returns routes from Astro's `astro:routes:resolved` hook, including pages, API e
 
 This goes beyond simple filesystem scanning — it captures routes that don't exist as files in `src/pages/`, like content collection pages and config-based redirects.
 
+#### `get_resolved_astro_config`
+
+Returns sanitized resolved Astro config from `astro:config:done`, including build output, adapter name, integrations, site/base URLs, trailing slash policy, redirects, i18n, image, Markdown, security, session, and selected server settings. Use before changing routing, SSR/static behavior, adapters, i18n, images, Markdown/MDX, redirects, sessions, security, or deployment behavior.
+
 #### `get_logs`
 
 Retrieves Astro dev server logs from a rotating 1024-entry buffer.
