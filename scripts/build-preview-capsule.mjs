@@ -5,7 +5,9 @@ import {join, resolve} from "node:path"
 import {spawnSync} from "node:child_process"
 
 const root = resolve(import.meta.dirname, "..")
-const clientDist = join(root, "libs", "client", "dist")
+const clientDist = process.env.FRONTMAN_CAPSULE_CLIENT_DIST ?? join(root, "libs", "client", "dist")
+const bridgeDist = process.env.FRONTMAN_CAPSULE_BRIDGE_DIST ?? join(root, "libs", "frontman-preview-bridge", "dist")
+const refDist = process.env.FRONTMAN_CAPSULE_REF_DIST ?? join(root, "dist")
 const outRoot = join(clientDist, "capsules")
 
 function run(command, args, cwd = root) {
@@ -28,7 +30,7 @@ run("make", ["-C", "libs/frontman-preview-bridge", "build"])
 
 const parentJs = join(clientDist, "frontman.es.js")
 const parentCss = join(clientDist, "frontman.css")
-const bridgeJs = join(root, "libs", "frontman-preview-bridge", "dist", "bridge.js")
+const bridgeJs = join(bridgeDist, "bridge.js")
 
 await mustExist(parentJs, "Run make -C libs/client build-standalone.")
 await mustExist(parentCss, "Client standalone build must emit CSS for capsules.")
@@ -70,8 +72,8 @@ const manifest = {
 
 const capsuleRef = {capsuleId, manifestPath: `/capsules/${capsuleId}/manifest.json`}
 await writeFile(join(capsuleDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`)
-await mkdir(join(root, "dist"), {recursive: true})
-await writeFile(join(root, "dist", "frontman-capsule.json"), `${JSON.stringify(capsuleRef, null, 2)}\n`)
+await mkdir(refDist, {recursive: true})
+await writeFile(join(refDist, "frontman-capsule.json"), `${JSON.stringify(capsuleRef, null, 2)}\n`)
 await writeFile(join(clientDist, "frontman-capsule.json"), `${JSON.stringify(capsuleRef, null, 2)}\n`)
 
 console.log(capsuleId)

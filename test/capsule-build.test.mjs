@@ -15,25 +15,37 @@ async function sha256(path) {
 }
 
 test("build-preview-capsule emits one immutable parent/bridge capsule", async (t) => {
-  const fakeBin = await mkdtemp(join(tmpdir(), "frontman-capsule-bin-"))
-  t.after(() => rm(fakeBin, {recursive: true, force: true}))
+  const tempRoot = await mkdtemp(join(tmpdir(), "frontman-capsule-test-"))
+  t.after(() => rm(tempRoot, {recursive: true, force: true}))
+
+  const fakeBin = join(tempRoot, "bin")
+  const clientDist = join(tempRoot, "client-dist")
+  const bridgeDist = join(tempRoot, "bridge-dist")
+  const refDist = join(tempRoot, "ref-dist")
   const fakeMake = join(fakeBin, "make")
   await Promise.all([
-    mkdir(join(root, "libs", "client", "dist"), {recursive: true}),
-    mkdir(join(root, "libs", "frontman-preview-bridge", "dist"), {recursive: true}),
+    mkdir(fakeBin, {recursive: true}),
+    mkdir(clientDist, {recursive: true}),
+    mkdir(bridgeDist, {recursive: true}),
   ])
   await writeFile(fakeMake, "#!/bin/sh\nexit 0\n")
   await chmod(fakeMake, 0o755)
 
   await Promise.all([
-    writeFile(join(root, "libs", "client", "dist", "frontman.es.js"), "console.log('parent')\n"),
-    writeFile(join(root, "libs", "client", "dist", "frontman.css"), ".frontman{}\n"),
-    writeFile(join(root, "libs", "frontman-preview-bridge", "dist", "bridge.js"), "console.log('bridge')\n"),
+    writeFile(join(clientDist, "frontman.es.js"), "console.log('parent')\n"),
+    writeFile(join(clientDist, "frontman.css"), ".frontman{}\n"),
+    writeFile(join(bridgeDist, "bridge.js"), "console.log('bridge')\n"),
   ])
 
   const result = spawnSync(process.execPath, [script], {
     cwd: root,
-    env: {...process.env, PATH: `${fakeBin}:${process.env.PATH}`},
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      FRONTMAN_CAPSULE_CLIENT_DIST: clientDist,
+      FRONTMAN_CAPSULE_BRIDGE_DIST: bridgeDist,
+      FRONTMAN_CAPSULE_REF_DIST: refDist,
+    },
     encoding: "utf8",
   })
 
@@ -41,7 +53,7 @@ test("build-preview-capsule emits one immutable parent/bridge capsule", async (t
   const capsuleId = result.stdout.trim()
   assert.match(capsuleId, /^[a-f0-9]{32}$/)
 
-  const dir = join(root, "libs", "client", "dist", "capsules", capsuleId)
+  const dir = join(clientDist, "capsules", capsuleId)
   assert.deepEqual(await readdir(dir), ["bridge.js", "manifest.json", "parent.css", "parent.js"])
 
   const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"))
@@ -53,8 +65,8 @@ test("build-preview-capsule emits one immutable parent/bridge capsule", async (t
   assert.equal(manifest.assets["bridge.js"].path, `/capsules/${capsuleId}/bridge.js`)
 
   const ref = {capsuleId, manifestPath: `/capsules/${capsuleId}/manifest.json`}
-  assert.deepEqual(JSON.parse(await readFile(join(root, "dist", "frontman-capsule.json"), "utf8")), ref)
-  assert.deepEqual(JSON.parse(await readFile(join(root, "libs", "client", "dist", "frontman-capsule.json"), "utf8")), ref)
+  assert.deepEqual(JSON.parse(await readFile(join(refDist, "frontman-capsule.json"), "utf8")), ref)
+  assert.deepEqual(JSON.parse(await readFile(join(clientDist, "frontman-capsule.json"), "utf8")), ref)
 
   assert.equal(existsSync(join(dir, "latest")), false)
 })
