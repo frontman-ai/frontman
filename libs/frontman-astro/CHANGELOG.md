@@ -1,5 +1,19 @@
 # @frontman-ai/astro
 
+## 3.0.0
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Minor Changes
+
+- [#1617](https://github.com/frontman-ai/frontman/pull/1617) [`5782bd7`](https://github.com/frontman-ai/frontman/commit/5782bd77a59f105ffd34bb3093a1f64d8b8e5c38) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enrich `get_client_pages` with Astro route pathname, segments, redirect metadata, fallback routes, and serialized route regex details.
+
+### Patch Changes
+
+- [#1601](https://github.com/frontman-ai/frontman/pull/1601) [`b447a4a`](https://github.com/frontman-ai/frontman/commit/b447a4ad2cb8aedb3c62e2f7a8df803eba7b5ee7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add `get_resolved_astro_config` so Astro agents can inspect sanitized resolved config before routing, rendering, adapter, i18n, image, Markdown, redirect, session, security, or deployment changes.
+
 ## 2.0.3
 
 ### Patch Changes

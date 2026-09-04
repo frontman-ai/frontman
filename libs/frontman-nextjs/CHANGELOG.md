@@ -1,5 +1,21 @@
 # @frontman-ai/nextjs
 
+## 2.0.0
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Minor Changes
+
+- [#1496](https://github.com/frontman-ai/frontman/pull/1496) [`f5f2b9b`](https://github.com/frontman-ai/frontman/commit/f5f2b9b5f4c21a28283663fb009d637b1c8970e8) Thanks [@kevin-ho](https://github.com/kevin-ho)! - Add Custom Providers to Settings so users can configure per-user, publicly reachable OpenAI-compatible providers. Providers save their model IDs atomically, support optional API keys, reject stale updates, and appear as model-picker groups once configured. Outbound requests resolve and pin public destinations before connecting.
+
+### Patch Changes
+
+- [#1572](https://github.com/frontman-ai/frontman/pull/1572) [`45c9872`](https://github.com/frontman-ai/frontman/commit/45c9872e4f11c0eb06380176c3a2e8cc3539e3de) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fail closed for Next.js Frontman routes outside development unless explicitly enabled with `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`.
+
+- [#1574](https://github.com/frontman-ai/frontman/pull/1574) [`7a2776a`](https://github.com/frontman-ai/frontman/commit/7a2776ab9d556a7cccf37ad7c30ccd59112f86b6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix generated instrumentation type resolution during Next.js production builds and add a CI compatibility matrix for packed Next.js consumers.
+
 ## 1.0.6
 
 ### Patch Changes

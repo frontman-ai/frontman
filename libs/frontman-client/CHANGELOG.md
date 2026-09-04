@@ -1,5 +1,23 @@
 # @frontman-ai/frontman-client
 
+## 4.0.0
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Patch Changes
+
+- [#1622](https://github.com/frontman-ai/frontman/pull/1622) [`0bc42d9`](https://github.com/frontman-ai/frontman/commit/0bc42d9ce3a0cfd8d29e0bcbd758f7bf53a35ec8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Handle ACP Phoenix push replies and clean up failed initialize connections after request timeouts.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Complete embedded bearer-token authentication for client sockets, remove the legacy socket-token path, and disable credentialed API CORS.
+
+- [#1619](https://github.com/frontman-ai/frontman/pull/1619) [`e2cd5a0`](https://github.com/frontman-ai/frontman/commit/e2cd5a0099cdfbc8dd7f1d43bb29ff2cdf72c2f7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject ACP client requests after a timeout instead of leaving the UI stuck when the server never responds.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- [#1557](https://github.com/frontman-ai/frontman/pull/1557) [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve integral JSON-RPC numeric IDs above signed 32-bit range.
+
 ## 3.0.0
 
 ### Major Changes
