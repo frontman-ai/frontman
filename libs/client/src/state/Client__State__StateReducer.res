@@ -556,7 +556,7 @@ module Selectors = {
     | (AcpSessionActive(_), Some(configOptions)) =>
       switch configOptions->ACP.findConfigOptionByCategory(ACP.Model) {
       | Some(modelConfig) => ACP.sessionConfigOptionFirstOption(modelConfig)->Option.isNone
-      | None => false
+      | None => true
       }
     | _ => false
     }
@@ -1822,42 +1822,32 @@ let next = (state: state, action) => {
     state->setApiKeySaveStatus(provider, Idle)->StateReducer.update
 
   | ConfigOptionsReceived({configOptions}) =>
-    let modelConfigOption =
-      ACP.findConfigOptionByCategory(configOptions, ACP.Model)->Option.getOrThrow(
-        ~message="ConfigOptionsReceived missing model config option",
-      )
+    let modelConfigOption = ACP.findConfigOptionByCategory(configOptions, ACP.Model)
 
-    let firstModelValue =
-      modelConfigOption->ACP.sessionConfigOptionFirstOption->Option.map(option => option.value)
+    let selectedModelValue = switch modelConfigOption {
+    | Some(modelConfigOption) => {
+        let currentModelValue = switch modelConfigOption {
+        | ACP.SelectConfigOption({currentValue}) => Some(currentValue)
+        }
 
-    let modelValueExists = value =>
-      switch modelConfigOption {
-      | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
-        groups->Array.some(group => group.options->Array.some(option => option.value == value))
-      | ACP.SelectConfigOption({options: ACP.Ungrouped(options)}) =>
-        options->Array.some(option => option.value == value)
+        switch state.pendingProviderAutoSelect {
+        | Some(providerId) =>
+          let providerModelValue = switch modelConfigOption {
+          | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
+            groups
+            ->Array.find(g => g.group == providerId)
+            ->Option.flatMap(g => g.options->Array.get(0))
+            ->Option.map(opt => opt.value)
+          | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) => None
+          }
+          switch providerModelValue {
+          | Some(value) => Some(value)
+          | None => currentModelValue
+          }
+        | None => currentModelValue
+        }
       }
-
-    let currentOrFirstModelValue = switch state.selectedModelValue {
-    | Some(value) if modelValueExists(value) => Some(value)
-    | _ => firstModelValue
-    }
-
-    let selectedModelValue = switch state.pendingProviderAutoSelect {
-    | Some(providerId) =>
-      let providerModelValue = switch modelConfigOption {
-      | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
-        groups
-        ->Array.find(g => g.group == providerId)
-        ->Option.flatMap(g => g.options->Array.get(0))
-        ->Option.map(opt => opt.value)
-      | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) => None
-      }
-      switch providerModelValue {
-      | Some(value) => Some(value)
-      | None => currentOrFirstModelValue
-      }
-    | None => currentOrFirstModelValue
+    | None => None
     }
     switch (state.selectedModelValue, selectedModelValue) {
     | (Some(current), Some(next)) if current == next => ()

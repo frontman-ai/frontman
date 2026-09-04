@@ -181,7 +181,7 @@ defmodule FrontmanServerWeb.ChannelCase do
       task_id = Ecto.UUID.generate()
 
       {:ok, %FrontmanServer.Tasks.TaskSchema{id: ^task_id}} =
-        FrontmanServer.Tasks.create_task(scope, task_id, framework)
+        FrontmanServer.Tasks.create_task(scope, %{id: task_id, framework: framework})
 
       {:ok, _reply, socket} =
         FrontmanServerWeb.UserSocket
