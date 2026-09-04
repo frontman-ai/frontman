@@ -122,7 +122,7 @@ module ExecutePlanAction = {
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
-  let {session, createSession} = Client__FrontmanProvider.useFrontman()
+  let {session, createSession, connectionState} = Client__FrontmanProvider.useFrontman()
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
@@ -403,9 +403,13 @@ let make = (~onConfigureProvider: unit => unit) => {
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
-        {switch hasActiveACPSession {
-        | true => React.null
-        | false =>
+        {switch (hasActiveACPSession, connectionState) {
+        | (true, _) => React.null
+        | (false, Error(message)) =>
+          <div role="alert" className="py-3 px-4 text-[13px] text-red-400">
+            {React.string(`Could not load project context: ${message}`)}
+          </div>
+        | (false, Connecting | LoggingOut | Connected | SessionActive(_) | Disconnected) =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
             <span className="shimmer-text"> {React.string("Loading project context...")} </span>
           </div>

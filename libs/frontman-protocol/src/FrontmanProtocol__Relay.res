@@ -1,8 +1,19 @@
 module MCP = FrontmanProtocol__MCP
 
 let protocolVersion = "2.0"
+let legacyProtocolVersion = "1.0"
 
 type remoteTool = JSON.t
+
+@schema
+type legacyRemoteTool = {
+  name: string,
+  description: string,
+  access: option<FrontmanProtocol__Tool.access>,
+  inputSchema: JSON.t,
+  outputSchema: option<JSON.t>,
+  visibleToAgent: bool,
+}
 
 let relayToolMetadataSchema = S.object(s => {
   s.field("visibleToAgent", S.bool)->ignore
@@ -47,6 +58,13 @@ let toolsResponseSchema = S.object(s => {
   serverInfo: s.field("serverInfo", MCP.infoSchema),
   protocolVersion: s.field("protocolVersion", S.literal(protocolVersion)),
 })
+
+@schema
+type legacyToolsResponse = {
+  tools: array<legacyRemoteTool>,
+  serverInfo: MCP.info,
+  protocolVersion: @s.matches(S.literal(legacyProtocolVersion)) string,
+}
 
 @schema
 type toolCallRequest = {

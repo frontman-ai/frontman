@@ -297,6 +297,7 @@ describe("Connection Reducer", () => {
             let (nextState, effects) = Reducer.reduce(state, RelayConnectError(message))
 
             t->expect(nextState.relay)->Expect.toEqual(Reducer.RelayError(message))
+            t->expect(effectKinds(effects))->Expect.toContain(#logError)
             t
             ->expect(trackedRelayOutcomes(effects))
             ->Expect.toEqual([Client__Analytics.Failure(reason)])
