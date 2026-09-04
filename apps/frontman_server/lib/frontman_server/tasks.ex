@@ -137,25 +137,34 @@ defmodule FrontmanServer.Tasks do
   @doc """
   Creates a new task and stores it.
 
-  The task_id must be provided by the client.
+  The task ID must be provided by the caller.
   Requires a scope with a user.
   Returns `{:ok, task}` on success.
   """
-  def create_task(scope, task_id, framework, opts \\ []) do
-    %{
-      id: task_id,
-      short_desc: TaskSchema.default_title(),
-      framework: framework,
-      user_id: Accounts.scope_user_id(scope)
-    }
+  def create_task(%Scope{} = scope, %{id: task_id, framework: _framework} = attrs, opts \\ [])
+      when is_binary(task_id) do
+    attrs
+    |> Map.take([:id, :framework, :current_model])
+    |> Map.put(:short_desc, TaskSchema.default_title())
+    |> Map.put(:user_id, Accounts.scope_user_id(scope))
     |> TaskSchema.create_changeset()
     |> Repo.insert(opts)
   end
 
-  def ensure_session(scope, task_id, framework) do
+  def ensure_session(scope, %{id: task_id} = attrs) do
     with {:ok, _task} <-
-           create_task(scope, task_id, framework, on_conflict: :nothing, conflict_target: :id) do
+           create_task(scope, attrs, on_conflict: :nothing, conflict_target: :id) do
       get_task(scope, task_id)
+    end
+  end
+
+  @doc "Stores the agent-owned current model for a task."
+  def set_current_model(%Scope{} = scope, task_id, current_model)
+      when is_binary(task_id) and is_binary(current_model) and current_model != "" do
+    with {:ok, task} <- get_task(scope, task_id) do
+      task
+      |> TaskSchema.update_changeset(%{current_model: current_model})
+      |> Repo.update()
     end
   end
 

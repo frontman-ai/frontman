@@ -136,18 +136,20 @@ defmodule FrontmanServerWeb.TasksChannel do
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
          true <- Billing.allow_access?(socket.assigns.scope),
-         {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
-           Tasks.ensure_session(
-             socket.assigns.scope,
-             session_id,
-             raw_framework
-           ) do
+         config_options = current_config_options(socket),
+         current_model <- current_model_value(config_options),
+         {:ok, %Tasks.TaskSchema{id: ^session_id} = task} <-
+           Tasks.ensure_session(socket.assigns.scope, %{
+             id: session_id,
+             framework: raw_framework,
+             current_model: current_model
+           }) do
       push_response(
         socket,
         id,
         ACP.build_session_new_result(
           session_id,
-          current_config_options(socket)
+          ACP.build_model_config_options(task.current_model)
         )
       )
     else
@@ -211,6 +213,9 @@ defmodule FrontmanServerWeb.TasksChannel do
     |> Providers.available_models()
     |> ACP.build_model_config_options()
   end
+
+  defp current_model_value([%{"currentValue" => current_model} | _rest]), do: current_model
+  defp current_model_value([]), do: nil
 
   defp validate_uuid_format(string) do
     case Ecto.UUID.cast(string) do

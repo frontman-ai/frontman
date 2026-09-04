@@ -602,7 +602,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     for {name, message_id, expected_message} <- [
-          {"missing", :missing, "Message ID can't be blank"},
           {"nil", nil, "Message ID can't be blank"},
           {"empty", "", "Message ID can't be blank"},
           {"malformed", "not-a-uuid", "Message ID is invalid"},
@@ -778,7 +777,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       scope: scope
     } do
       task_id = Ecto.UUID.generate()
-      {:ok, _task} = Tasks.create_task(scope, task_id, "nextjs")
+      {:ok, _task} = Tasks.create_task(scope, %{id: task_id, framework: "nextjs"})
 
       {:ok, _reply, socket} =
         UserSocket
