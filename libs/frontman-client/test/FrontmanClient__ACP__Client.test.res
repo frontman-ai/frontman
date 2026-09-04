@@ -373,6 +373,63 @@ describe("ACP Client parseInitializeResult", _t => {
 })
 
 describe("ACP Protocol sendRequest", _t => {
+  testAsync("resolves Phoenix push reply envelopes", async t => {
+    Vi.useFakeTimers()->ignore
+    let channel = %raw(`{
+      push(_event, payload) {
+        return {
+          receive(status, callback) {
+            if (status === "ok") {
+              callback({"acp:message": {jsonrpc: "2.0", id: payload.id, result: "accepted"}});
+            }
+            return this;
+          }
+        };
+      }
+    }`)
+    let state = ref(Client.initialState)
+    let result = await Protocol.sendRequest(
+      ~channel,
+      ~state,
+      ~method="session/prompt",
+      ~params=None,
+      ~timeoutMs=10,
+      ~parseResult=json =>
+        json->JSON.Decode.string->Option.mapOr(Error("Expected string"), value => Ok(value)),
+    )
+
+    t->expect(result)->Expect.toEqual(Ok("accepted"))
+    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+  })
+
+  testAsync("rejects malformed Phoenix push reply envelopes immediately", async t => {
+    Vi.useFakeTimers()->ignore
+    let channel = %raw(`{
+      push(_event, _payload) {
+        return {
+          receive(status, callback) {
+            if (status === "ok") {
+              callback({});
+            }
+            return this;
+          }
+        };
+      }
+    }`)
+    let state = ref(Client.initialState)
+    let result = await Protocol.sendRequest(
+      ~channel,
+      ~state,
+      ~method="session/prompt",
+      ~params=None,
+      ~timeoutMs=10,
+      ~parseResult=_ => Ok("unused"),
+    )
+
+    t->expect(result->Result.isError)->Expect.toEqual(true)
+    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+  })
+
   testAsync("times out and removes pending request when no response arrives", async t => {
     Vi.useFakeTimers()->ignore
     let transport = makeLoadTransport([], loadResult)

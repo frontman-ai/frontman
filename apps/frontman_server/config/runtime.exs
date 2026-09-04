@@ -32,16 +32,9 @@ strict_boolean! = fn env_var_name, raw_value ->
 end
 
 env_boolean = fn env_var_name, default_value ->
-  case env!(env_var_name, :string, :frontman_env_boolean_missing) do
-    :frontman_env_boolean_missing ->
-      default_value
-
-    raw_value ->
-      if String.trim(raw_value) == "" do
-        default_value
-      else
-        strict_boolean!.(env_var_name, raw_value)
-      end
+  case env!(env_var_name, :string?, nil) do
+    nil -> default_value
+    raw_value -> strict_boolean!.(env_var_name, raw_value)
   end
 end
 
@@ -60,7 +53,7 @@ end
 if config_env() in [:dev, :test, :e2e] do
   db_host = env!("DB_HOST", :string, "localhost")
 
-  db_name = env!("DB_NAME", :string, nil)
+  db_name = env!("DB_NAME", :string?, nil)
 
   repo_overrides = []
 
@@ -84,38 +77,23 @@ if config_env() in [:dev, :test, :e2e] do
 end
 
 if config_env() == :prod do
-  discord_new_users_webhook_url = env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string, nil)
-  resend_api_key = env!("RESEND_API_KEY", :string, nil)
+  discord_new_users_webhook_url = env!("DISCORD_NEW_USERS_WEBHOOK_URL", :string!)
+  discord_task_summaries_webhook_url = env!("DISCORD_TASK_SUMMARIES_WEBHOOK_URL", :string!)
+  resend_api_key = env!("RESEND_API_KEY", :string!)
 
-  discord_notifications_enabled =
-    is_binary(discord_new_users_webhook_url) and String.trim(discord_new_users_webhook_url) != ""
+  config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: true
 
-  resend_enabled = is_binary(resend_api_key) and String.trim(resend_api_key) != ""
-
-  config :frontman_server,
-    discord_new_users_webhook_url: discord_new_users_webhook_url
-
-  config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: resend_enabled
-  config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: resend_enabled
+  config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
 
   config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
-    enabled: discord_notifications_enabled
+    enabled: true,
+    webhook_url: discord_new_users_webhook_url
 
-  config :sentry,
-    dsn:
-      "https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.sentry.io/4510512546185296",
-    environment_name: config_env(),
-    release: "frontman_server@#{Application.spec(:frontman_server, :vsn) || "no_vsn"}",
-    enable_source_code_context: true,
-    root_source_code_paths: [File.cwd!()],
-    tags: %{service: "frontman-server"}
+  config :frontman_server, FrontmanServer.Workers.SendAgentFeedbackToDiscord,
+    enabled: true,
+    webhook_url: discord_task_summaries_webhook_url
 
-  database_url =
-    System.get_env("DATABASE_URL") ||
-      raise """
-      environment variable DATABASE_URL is missing.
-      For example: ecto://USER:PASS@HOST/DATABASE
-      """
+  database_url = env!("DATABASE_URL", :string!)
 
   maybe_ipv6 = if env_boolean.("ECTO_IPV6", false), do: [:inet6], else: []
 
@@ -130,25 +108,19 @@ if config_env() == :prod do
 
   config :frontman_server, FrontmanServer.Repo, [
     {:url, database_url},
-    {:pool_size, String.to_integer(System.get_env("POOL_SIZE") || "10")},
+    {:pool_size, env!("POOL_SIZE", :integer, 10)},
     {:socket_options, maybe_ipv6}
     | ssl_config
   ]
 
-  secret_key_base =
-    System.get_env("SECRET_KEY_BASE") ||
-      raise """
-      environment variable SECRET_KEY_BASE is missing.
-      You can generate one by calling: mix phx.gen.secret
-      """
+  secret_key_base = env!("SECRET_KEY_BASE", :string!)
 
-  host = System.get_env("PHX_HOST") || "example.com"
-  port = String.to_integer(System.get_env("PORT") || "4000")
+  host = env!("PHX_HOST", :string, "example.com")
+  port = env!("PORT", :integer, 4000)
 
-  http_shutdown_timeout_ms =
-    String.to_integer(System.get_env("HTTP_SHUTDOWN_TIMEOUT_MS") || "30000")
+  http_shutdown_timeout_ms = env!("HTTP_SHUTDOWN_TIMEOUT_MS", :integer, 30_000)
 
-  config :frontman_server, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
+  config :frontman_server, :dns_cluster_query, env!("DNS_CLUSTER_QUERY", :string?, nil)
 
   check_origin = ["https://#{host}", "https://*.#{host}"]
 
@@ -162,9 +134,7 @@ if config_env() == :prod do
     check_origin: check_origin,
     secret_key_base: secret_key_base
 
-  if resend_enabled do
-    config :frontman_server, FrontmanServer.Mailer,
-      adapter: Swoosh.Adapters.Resend,
-      api_key: resend_api_key
-  end
+  config :frontman_server, FrontmanServer.Mailer,
+    adapter: Swoosh.Adapters.Resend,
+    api_key: resend_api_key
 end
