@@ -45,7 +45,7 @@
 		"@vscode/ripgrep": "^1.18.0"
 	},
 	"devDependencies": {
-		"@rescript/webapi": "catalog:",
+		"@rescript/webapi": "workspace:*",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",

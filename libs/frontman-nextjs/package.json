@@ -98,7 +98,7 @@
 		"@frontman-ai/frontman-core": "*",
 		"@frontman-ai/frontman-protocol": "*",
 		"@rescript/runtime": "catalog:",
-		"@rescript/webapi": "catalog:",
+		"@rescript/webapi": "workspace:*",
 		"next": "^16.2.10",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",

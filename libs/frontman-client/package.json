@@ -34,7 +34,7 @@
 		"phoenix": "^1.8.9"
 	},
 	"devDependencies": {
-		"@rescript/webapi": "catalog:",
+		"@rescript/webapi": "workspace:*",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",

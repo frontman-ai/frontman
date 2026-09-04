@@ -9,7 +9,7 @@
 	},
 	"dependencies": {
 		"@rescript/runtime": "catalog:",
-		"@rescript/webapi": "catalog:"
+		"@rescript/webapi": "workspace:*"
 	},
 	"devDependencies": {
 		"@rescript/react": "^0.15.0",
