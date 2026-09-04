@@ -20,6 +20,8 @@ echo "=== Frontman Build & Deploy ==="
 echo "Build dir: ${BUILD_DIR}"
 echo ""
 
+bash "${BUILD_DIR}/infra/production/ensure-shared-discord-env.sh"
+
 ensure_elixir_build_tools() {
   echo "Installing Hex..."
   mix local.hex --force

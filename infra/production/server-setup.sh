@@ -164,6 +164,7 @@ echo ">>> Creating application directories..."
 mkdir -p "${DEPLOY_ROOT}/blue/releases"
 mkdir -p "${DEPLOY_ROOT}/green/releases"
 mkdir -p "${DEPLOY_ROOT}/backups/daily"
+mkdir -p "${DEPLOY_ROOT}/shared"
 echo "blue" > "${DEPLOY_ROOT}/active_slot"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -186,6 +187,11 @@ else
 fi
 systemctl daemon-reload
 systemctl enable frontman-blue frontman-green
+
+echo ">>> Creating shared environment file..."
+cp "${SCRIPT_DIR}/discord.env.template" "${DEPLOY_ROOT}/shared/discord.env"
+chown deploy:deploy "${DEPLOY_ROOT}/shared/discord.env"
+chmod 600 "${DEPLOY_ROOT}/shared/discord.env"
 
 echo ">>> Creating environment file templates..."
 
@@ -228,7 +234,7 @@ ENV
   chmod 600 "${DEPLOY_ROOT}/${SLOT}/env"
 done
 
-echo "Environment files created. Edit /opt/frontman/{blue,green}/env to fill in secrets."
+echo "Environment files created. Edit /opt/frontman/{blue,green}/env and /opt/frontman/shared/discord.env to fill in secrets."
 
 echo ">>> Setting up backup cron job..."
 CRON_LINE="0 3 * * * ${DEPLOY_ROOT}/backup-pg.sh >> ${DEPLOY_ROOT}/backups/backup.log 2>&1"
@@ -259,6 +265,7 @@ echo ""
 echo "2. Edit the environment files with real secrets:"
 echo "   nano /opt/frontman/blue/env"
 echo "   nano /opt/frontman/green/env"
+echo "   nano /opt/frontman/shared/discord.env"
 echo ""
 echo "3. Ensure DNS A record for ${DOMAIN} points to this server"
 echo "   (Use Cloudflare DNS-only mode, grey cloud)"
