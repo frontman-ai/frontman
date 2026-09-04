@@ -9,6 +9,13 @@ module Log = FrontmanLogs.Logs.Make({
 
 let requestTimeoutMs = 120000
 
+let handlePushReply = (~state: ref<Client.state>, payload: JSON.t): unit => {
+  payload
+  ->JSON.Decode.object
+  ->Option.flatMap(reply => reply->Dict.get("acp:message"))
+  ->Option.forEach(message => state := Client.handleResponse(state.contents, message))
+}
+
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
@@ -48,7 +55,8 @@ let sendRequest = (
       )
 
     let payload = request->JsonRpc.Request.toJson
-    channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
+    let push = channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)
+    push.receive(~status="ok", ~callback=reply => handlePushReply(~state, reply))->ignore
   })
 }
 

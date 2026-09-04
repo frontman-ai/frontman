@@ -213,6 +213,9 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       switch await Protocol.sendInitialize(~channel, ~state, ~clientConfig) {
       | Error(e) =>
         Log.error(`ACP initialize failed: ${e}`)
+        channel->Channel.off(~event=#config_options_updated)
+        cleanupChannel(channel)
+        Socket.disconnect(socket)
         Error(ConnectionFailed(e))
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")

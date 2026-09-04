@@ -373,6 +373,35 @@ describe("ACP Client parseInitializeResult", _t => {
 })
 
 describe("ACP Protocol sendRequest", _t => {
+  testAsync("resolves Phoenix push reply envelopes", async t => {
+    Vi.useFakeTimers()->ignore
+    let channel = %raw(`{
+      push(_event, payload) {
+        return {
+          receive(status, callback) {
+            if (status === "ok") {
+              callback({"acp:message": {jsonrpc: "2.0", id: payload.id, result: "accepted"}});
+            }
+            return this;
+          }
+        };
+      }
+    }`)
+    let state = ref(Client.initialState)
+    let result = await Protocol.sendRequest(
+      ~channel,
+      ~state,
+      ~method="session/prompt",
+      ~params=None,
+      ~timeoutMs=10,
+      ~parseResult=json =>
+        json->JSON.Decode.string->Option.mapOr(Error("Expected string"), value => Ok(value)),
+    )
+
+    t->expect(result)->Expect.toEqual(Ok("accepted"))
+    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+  })
+
   testAsync("times out and removes pending request when no response arrives", async t => {
     Vi.useFakeTimers()->ignore
     let transport = makeLoadTransport([], loadResult)
