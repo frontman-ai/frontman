@@ -49,11 +49,19 @@ defmodule FrontmanServer.TasksTest do
     scope: scope
   } do
     id = Ecto.UUID.generate()
-    results = Task.async_stream(1..2, fn _ -> Tasks.ensure_session(scope, %{id: id, framework: "nextjs"}) end)
+
+    results =
+      Task.async_stream(1..2, fn _ ->
+        Tasks.ensure_session(scope, %{id: id, framework: "nextjs"})
+      end)
+
     Enum.each(results, fn {:ok, result} -> assert {:ok, %TaskSchema{id: ^id}} = result end)
     assert {:error, _} = Tasks.create_task(scope, %{id: id, framework: "nextjs"})
     assert {:error, _} = Tasks.ensure_session(scope, %{id: id, framework: "invalid"})
-    assert {:error, :not_found} = Tasks.ensure_session(user_scope_fixture(), %{id: id, framework: "vite"})
+
+    assert {:error, :not_found} =
+             Tasks.ensure_session(user_scope_fixture(), %{id: id, framework: "vite"})
+
     assert Repo.aggregate(TaskSchema.by_id(id), :count, :id) == 1
     assert {:ok, %{framework: :nextjs}} = Tasks.get_task(scope, id)
   end

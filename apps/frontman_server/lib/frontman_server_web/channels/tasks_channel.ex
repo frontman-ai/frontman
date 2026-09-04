@@ -149,7 +149,7 @@ defmodule FrontmanServerWeb.TasksChannel do
         id,
         ACP.build_session_new_result(
           session_id,
-          ACP.build_model_config_options(task.current_model)
+          current_config_options(socket, task.current_model)
         )
       )
     else
@@ -208,10 +208,10 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  defp current_config_options(socket) do
+  defp current_config_options(socket, current_model \\ nil) do
     socket.assigns.scope
     |> Providers.available_models()
-    |> ACP.build_model_config_options()
+    |> ACP.build_model_config_options(current_model)
   end
 
   defp current_model_value([%{"currentValue" => current_model} | _rest]), do: current_model

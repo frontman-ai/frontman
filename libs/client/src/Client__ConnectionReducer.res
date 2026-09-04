@@ -526,3 +526,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [NotifyRequestRejected(() => onComplete(Error("Cannot create session: not ready")))],
     )
   | (_, Initialize) => (state, [LogInfo("Initialize ignored: dispose before restarting")])
+  }
+}
+
+let next = reduce
