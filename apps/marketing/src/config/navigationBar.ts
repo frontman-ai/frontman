@@ -9,10 +9,20 @@ export interface NavSubItem {
 	link: string
 }
 
+export interface NavMenuColumn {
+	label: string
+	items: NavSubItem[]
+}
+
+export interface NavMegaMenu {
+	columns: NavMenuColumn[]
+}
+
 export interface NavItem {
 	name: string
-	link: string
+	link?: string
 	submenu?: NavSubItem[]
+	megaMenu?: NavMegaMenu
 }
 
 export interface NavAction {
@@ -35,9 +45,30 @@ export const navigationBarData: NavData = {
 		text: 'Frontman'
 	},
 	navItems: [
-		{ name: 'WordPress', link: '/wordpress/' },
-		{ name: 'Marketing Teams', link: '/marketing-teams/' },
-		{ name: 'Docs', link: '/docs/' },
+		{
+			name: 'Product',
+			megaMenu: {
+				columns: [
+					{
+						label: 'Website builder',
+						items: [
+							{ name: 'WordPress', link: '/wordpress/' },
+							{ name: 'Next.js', link: '/docs/integrations/nextjs/' },
+							{ name: 'Astro', link: '/docs/integrations/astro/' },
+							{ name: 'Vite', link: '/docs/integrations/vite/' }
+						]
+					},
+					{
+						label: 'Use cases',
+						items: [
+							{ name: 'Marketing teams', link: '/marketing-teams/' },
+							{ name: 'Designers', link: '/use-cases/designers/' },
+							{ name: 'Frontend developers', link: '/use-cases/frontend-developers/' }
+						]
+					}
+				]
+			}
+		},
 		{
 			name: 'Compare',
 			link: '/vs/',
@@ -51,19 +82,14 @@ export const navigationBarData: NavData = {
 			]
 		},
 		{
-			name: 'Integrations',
-			link: '/integrations/',
+			name: 'Resources',
 			submenu: [
-				{ name: 'All integrations', link: '/integrations/' },
-				{ name: 'WordPress', link: '/wordpress/' },
-				{ name: 'Next.js', link: '/docs/integrations/nextjs/' },
-				{ name: 'Astro', link: '/docs/integrations/astro/' },
-				{ name: 'Vite', link: '/docs/integrations/vite/' }
+				{ name: 'Documentation', link: '/docs/' },
+				{ name: 'Blog', link: '/blog/' },
+				{ name: 'Changelog', link: '/changelog/' },
+				{ name: 'FAQ', link: '/faq/' }
 			]
-		},
-		{ name: 'Changelog', link: '/changelog/' },
-		{ name: 'Blog', link: '/blog/' },
-		{ name: 'FAQ', link: '/faq/' }
+		}
 	],
 	navActions: [{ name: 'Try it now', link: '/#install', style: 'white', size: 'lg' }]
 }
