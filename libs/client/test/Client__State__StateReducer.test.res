@@ -80,31 +80,35 @@ module TestHelpers = {
   }
 
   let modelConfigOptions = (~models: array<string>) => {
-    [
-      ACP.SelectConfigOption({
-        id: "model",
-        name: "Model",
-        description: None,
-        category: Some(ACP.Model),
-        options: ACP.Grouped([
-          {
-            group: "future_provider",
-            name: "Future Provider",
-            options: models->Array.map(value => {
-              let option: ACP.sessionConfigSelectOption = {
-                value,
-                name: value,
-                description: None,
-                _meta: None,
-              }
-              option
-            }),
-            _meta: None,
-          },
-        ]),
-        _meta: None,
-      }),
-    ]
+    switch models->Array.get(0) {
+    | None => []
+    | Some(_first) => [
+        ACP.SelectConfigOption({
+          id: "model",
+          name: "Model",
+          description: None,
+          category: Some(ACP.Model),
+          currentValue: models->Array.get(0)->Option.getOrThrow,
+          options: ACP.Grouped([
+            {
+              group: "future_provider",
+              name: "Future Provider",
+              options: models->Array.map(value => {
+                let option: ACP.sessionConfigSelectOption = {
+                  value,
+                  name: value,
+                  description: None,
+                  _meta: None,
+                }
+                option
+              }),
+              _meta: None,
+            },
+          ]),
+          _meta: None,
+        }),
+      ]
+    }
   }
 
   let acceptUserMessage = (

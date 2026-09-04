@@ -28,11 +28,13 @@ defmodule FrontmanServer.TasksTest do
     %{scope: scope}
   end
 
-  describe "create_task/3" do
+  describe "create_task/2" do
     test "creates task with framework", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       framework = "nextjs"
-      {:ok, %TaskSchema{id: ^task_id}} = Tasks.create_task(scope, task_id, framework)
+
+      {:ok, %TaskSchema{id: ^task_id}} =
+        Tasks.create_task(scope, %{id: task_id, framework: framework})
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.id == task_id
@@ -1372,7 +1374,10 @@ defmodule FrontmanServer.TasksTest do
   describe "record_execution_outcome/4 paused DB round-trip" do
     test "persisted AgentPaused can be loaded back via get_task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, %TaskSchema{id: ^task_id}} = Tasks.create_task(scope, task_id, "nextjs")
+
+      {:ok, %TaskSchema{id: ^task_id}} =
+        Tasks.create_task(scope, %{id: task_id, framework: "nextjs"})
+
       turn_number = start_turn_fixture(scope, task_id)
 
       {:ok, _interaction} =
@@ -1393,7 +1398,9 @@ defmodule FrontmanServer.TasksTest do
 
     test "to_swarm_messages/1 succeeds when interactions include AgentPaused", %{scope: scope} do
       task_id = Ecto.UUID.generate()
-      {:ok, %TaskSchema{id: ^task_id}} = Tasks.create_task(scope, task_id, "nextjs")
+
+      {:ok, %TaskSchema{id: ^task_id}} =
+        Tasks.create_task(scope, %{id: task_id, framework: "nextjs"})
 
       {:ok, _message} =
         user_message_fixture(scope, task_id, [%{"type" => "text", "text" => "Hi"}])

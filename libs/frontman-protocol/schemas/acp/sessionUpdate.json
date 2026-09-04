@@ -1460,6 +1460,9 @@
                   }
                 ]
               },
+              "currentValue": {
+                "type": "string"
+              },
               "options": {
                 "anyOf": [
                   {
@@ -1534,6 +1537,7 @@
               "type",
               "id",
               "name",
+              "currentValue",
               "options"
             ]
           },

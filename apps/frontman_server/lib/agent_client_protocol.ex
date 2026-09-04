@@ -172,26 +172,47 @@ defmodule AgentClientProtocol do
   This function has no knowledge of provider
   internals; all domain logic is encapsulated in the Providers context.
   """
-  def build_model_config_options(%{groups: groups}) do
-    [
-      %{
-        "type" => "select",
-        "id" => "model",
-        "name" => "Model",
-        "category" => "model",
-        "options" =>
-          Enum.map(groups, fn %{id: id, name: name, options: options} ->
-            %{
-              "group" => id,
-              "name" => name,
-              "options" =>
-                Enum.map(options, fn %{name: display_name, value: value} ->
-                  %{"value" => value, "name" => display_name}
-                end)
-            }
-          end)
-      }
-    ]
+  def build_model_config_options(model_data, current_value \\ nil)
+
+  def build_model_config_options(%{groups: groups}, current_value) do
+    groups = Enum.reject(groups, &(&1.options == []))
+    values = groups |> Enum.flat_map(& &1.options) |> Enum.map(& &1.value)
+
+    case current_config_value(values, current_value) do
+      nil ->
+        []
+
+      selected_value ->
+        [
+          %{
+            "type" => "select",
+            "id" => "model",
+            "name" => "Model",
+            "category" => "model",
+            "currentValue" => selected_value,
+            "options" =>
+              Enum.map(groups, fn %{id: id, name: name, options: options} ->
+                %{
+                  "group" => id,
+                  "name" => name,
+                  "options" =>
+                    Enum.map(options, fn %{name: display_name, value: value} ->
+                      %{"value" => value, "name" => display_name}
+                    end)
+                }
+              end)
+          }
+        ]
+    end
+  end
+
+  defp current_config_value([], _current_value), do: nil
+
+  defp current_config_value([first | _rest] = values, current_value) do
+    case current_value in values do
+      true -> current_value
+      false -> first
+    end
   end
 
   @doc "Encodes the resolved agent catalog for ACP metadata."
@@ -250,6 +271,18 @@ defmodule AgentClientProtocol do
   """
   def build_config_options_updated_payload(config_options) when is_list(config_options) do
     %{"configOptions" => config_options}
+  end
+
+  def build_set_config_option_result(config_options) when is_list(config_options) do
+    %{"configOptions" => config_options}
+  end
+
+  def build_config_option_update_notification(session_id, config_options)
+      when is_list(config_options) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "config_option_update",
+      "configOptions" => config_options
+    })
   end
 
   @doc """

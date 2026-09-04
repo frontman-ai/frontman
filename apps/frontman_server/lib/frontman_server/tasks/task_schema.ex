@@ -28,6 +28,7 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   schema "tasks" do
     field(:short_desc, :string)
     field(:framework, Ecto.Enum, values: @framework_values)
+    field(:current_model, :string)
     belongs_to(:user, User)
     has_many(:interaction_rows, InteractionSchema, foreign_key: :task_id)
 
@@ -44,7 +45,7 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   """
   def create_changeset(attrs) do
     %__MODULE__{}
-    |> cast(attrs, [:id, :short_desc, :framework, :user_id])
+    |> cast(attrs, [:id, :short_desc, :framework, :user_id, :current_model])
     |> validate_required([:id, :short_desc, :framework, :user_id])
     |> unique_constraint(:id, name: :tasks_pkey)
     |> foreign_key_constraint(:user_id)
@@ -55,7 +56,7 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   """
   def update_changeset(task, attrs) do
     task
-    |> cast(attrs, [:short_desc])
+    |> cast(attrs, [:short_desc, :current_model])
     |> validate_required([:short_desc])
   end
 

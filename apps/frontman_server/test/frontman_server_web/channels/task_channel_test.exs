@@ -393,6 +393,62 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert response["error"]["message"] =~ "Method not found"
     end
 
+    test "uses the session model without legacy prompt metadata", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
+      model = "openrouter:google/gemini-3.1-pro-preview"
+
+      config_ref =
+        push(
+          socket,
+          "acp:message",
+          build_acp_request("session/set_config_option", 2, %{
+            "sessionId" => task_id,
+            "configId" => "model",
+            "value" => model
+          })
+        )
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{
+            "sessionUpdate" => "config_option_update",
+            "configOptions" => [%{"currentValue" => ^model}]
+          }
+        }
+      })
+
+      assert_reply(config_ref, :ok, %{
+        "acp:message" => %{"result" => %{"configOptions" => [%{"currentValue" => ^model}]}}
+      })
+
+      message_id = Ecto.UUID.generate()
+
+      prompt_ref =
+        push(
+          socket,
+          "acp:message",
+          build_acp_request("session/prompt", 3, %{
+            "prompt" => [%{"type" => "text", "text" => "Hello"}],
+            "_meta" => %{"frontman.dev/messageId" => message_id}
+          })
+        )
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "user_message_chunk", "messageId" => ^message_id}
+        }
+      })
+
+      assert_reply(prompt_ref, :ok, %{"acp:message" => %{"result" => %{}}})
+      assert {:ok, %{current_model: ^model} = task} = Tasks.get_task(scope, task_id)
+      assert [%Interaction.UserMessage{model: ^model}] = Tasks.interactions(task)
+    end
+
     test "forwards prompt model to title generation job", %{
       socket: socket,
       scope: scope,
@@ -591,7 +647,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     for {name, message_id, expected_message} <- [
-          {"missing", :missing, "Message ID can't be blank"},
           {"nil", nil, "Message ID can't be blank"},
           {"empty", "", "Message ID can't be blank"},
           {"malformed", "not-a-uuid", "Message ID is invalid"},

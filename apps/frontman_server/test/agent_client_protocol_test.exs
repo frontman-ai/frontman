@@ -126,12 +126,17 @@ defmodule AgentClientProtocolTest do
       assert Enum.all?(values, &String.starts_with?(&1, "anthropic:"))
     end
 
-    test "does not set currentValue" do
-      data = config_data([])
+    test "sets currentValue" do
+      data =
+        config_data([
+          model_group("anthropic", "Anthropic", [
+            model_option("Claude Sonnet 4.5", "anthropic:claude-sonnet-4-5")
+          ])
+        ])
 
       [option] = ACP.build_model_config_options(data)
 
-      refute Map.has_key?(option, "currentValue")
+      assert option["currentValue"] == "anthropic:claude-sonnet-4-5"
     end
   end
 

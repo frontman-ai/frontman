@@ -39,7 +39,10 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   def task_fixture(scope, opts \\ []) do
     framework = Keyword.get(opts, :framework, "nextjs")
     task_id = Keyword.get(opts, :task_id, Ecto.UUID.generate())
-    {:ok, %TaskSchema{id: ^task_id} = task} = Tasks.create_task(scope, task_id, framework)
+
+    {:ok, %TaskSchema{id: ^task_id} = task} =
+      Tasks.create_task(scope, %{id: task_id, framework: framework})
+
     task
   end
 

@@ -46,12 +46,24 @@ module SampleConfig = {
     _meta: None,
   }
 
+  let _firstModelValue = (options: ACP.sessionConfigSelectOptions) => {
+    let option: ACP.sessionConfigSelectOption = switch options {
+    | ACP.Grouped(groups) =>
+      groups
+      ->Array.findMap(group => group.options->Array.get(0))
+      ->Option.getOrThrow
+    | ACP.Ungrouped(options) => options->Array.get(0)->Option.getOrThrow
+    }
+    option.value
+  }
+
   let _makeModelConfigOption = (options: ACP.sessionConfigSelectOptions) => {
     ACP.SelectConfigOption({
       id: "model",
       name: "Model",
       description: None,
       category: Some(ACP.Model),
+      currentValue: _firstModelValue(options),
       options,
       _meta: None,
     })
@@ -102,7 +114,7 @@ module SampleConfig = {
 
   let configWithFireworksOnly = [_makeModelConfigOption(ACP.Grouped([_fireworksGroup]))]
 
-  let configWithNoModels = [_makeModelConfigOption(ACP.Grouped([]))]
+  let configWithNoModels = []
 
   let configWithEmptyFirstGroup = [
     _makeModelConfigOption(ACP.Grouped([{..._anthropicGroup, options: []}, _openrouterGroup])),
