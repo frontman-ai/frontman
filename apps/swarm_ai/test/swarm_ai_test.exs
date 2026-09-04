@@ -11,7 +11,7 @@ defmodule SwarmAiTest do
   def noop_timeout(_tool_call, _reason), do: :ok
 
   describe "run/2" do
-    test "unregisters before dispatching the terminal event" do
+    test "remains running while dispatching the terminal event" do
       runtime = start_runtime!()
       test_pid = self()
 
@@ -24,7 +24,7 @@ defmodule SwarmAiTest do
         run_agent(runtime, "task-handoff", %MockLLM{response: "done"}, dispatch_event: dispatch)
 
       await_exit(pid)
-      assert_receive {:completed, false}
+      assert_receive {:completed, true}
     end
 
     test "prevents duplicate execution for same key" do

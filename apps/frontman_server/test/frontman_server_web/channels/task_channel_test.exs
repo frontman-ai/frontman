@@ -2245,6 +2245,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                  &1
                )
              )
+
+      assert_state_update_running_then_idle(task_id)
     end
 
     test "non-retryable error pushes error notification without retryAt", %{
