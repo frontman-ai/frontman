@@ -5,6 +5,8 @@
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module RuntimeConfig = Client__RuntimeConfig
 
+let wordpressUpdateCheckIntervalMs = 5 * 60 * 1000
+
 type updateAction =
   | AgentUpdate(string)
   | WordPressUpdate(string)
@@ -30,7 +32,6 @@ let updateDisplayName = (target: Client__State__Types.updateTarget): string =>
 @react.component
 let make = () => {
   let updateInfo = Client__State.useSelector(Client__State.Selectors.updateInfo)
-  let updateCheckStatus = Client__State.useSelector(Client__State.Selectors.updateCheckStatus)
   let updateBannerDismissed = Client__State.useSelector(
     Client__State.Selectors.updateBannerDismissed,
   )
@@ -40,18 +41,37 @@ let make = () => {
   let relayState = relay->Option.map(Relay.getState)
 
   React.useEffect2(() => {
-    switch (updateCheckStatus, relayState) {
-    | (UpdateNotChecked, Some(Connected({serverInfo}))) =>
+    switch relayState {
+    | Some(Connected({serverInfo})) =>
       let target = RuntimeConfig.frameworkUpdateTarget(runtimeConfig.framework)
-      Client__State.Actions.checkForUpdate(
-        ~apiBaseUrl,
-        ~installedVersion=serverInfo.version,
-        ~target,
-      )
-    | _ => ()
+      let check = () =>
+        Client__State.Actions.checkForUpdate(
+          ~apiBaseUrl,
+          ~installedVersion=serverInfo.version,
+          ~target,
+        )
+      check()
+      switch target {
+      | NpmPackage(_) => None
+      | WordPressPlugin(_) =>
+        let handleFocus = _ => check()
+        let window = WebAPI.Window.current
+        window->WebAPI.Window.addEventListener(Custom("focus"), handleFocus)
+        let interval = WebAPI.Window.setInterval2(
+          window,
+          ~handler=check,
+          ~timeout=wordpressUpdateCheckIntervalMs,
+        )
+        Some(
+          () => {
+            window->WebAPI.Window.removeEventListener(Custom("focus"), handleFocus)
+            WebAPI.Window.clearInterval(window, interval)
+          },
+        )
+      }
+    | _ => None
     }
-    None
-  }, (updateCheckStatus, relayState))
+  }, (apiBaseUrl, relayState))
 
   let handleUpdateClick = () => {
     switch updateInfo {

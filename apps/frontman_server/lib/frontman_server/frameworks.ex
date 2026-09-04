@@ -16,7 +16,7 @@ defmodule FrontmanServer.Frameworks do
       id: :nextjs,
       stored_id: "nextjs",
       display_name: "Next.js",
-      update_source: {:npm, "@frontman-ai/nextjs"},
+      npm_package: "@frontman-ai/nextjs",
       load_project_context?: true,
       tool_execution_mode: :parallel,
       code_attachment_guidance?: true,
@@ -26,7 +26,7 @@ defmodule FrontmanServer.Frameworks do
       id: :vite,
       stored_id: "vite",
       display_name: "Vite",
-      update_source: {:npm, "@frontman-ai/vite"},
+      npm_package: "@frontman-ai/vite",
       load_project_context?: true,
       tool_execution_mode: :parallel,
       code_attachment_guidance?: true,
@@ -36,7 +36,7 @@ defmodule FrontmanServer.Frameworks do
       id: :astro,
       stored_id: "astro",
       display_name: "Astro",
-      update_source: {:npm, "@frontman-ai/astro"},
+      npm_package: "@frontman-ai/astro",
       load_project_context?: true,
       tool_execution_mode: :parallel,
       code_attachment_guidance?: true,
@@ -46,7 +46,7 @@ defmodule FrontmanServer.Frameworks do
       id: :wordpress,
       stored_id: "wordpress",
       display_name: "WordPress",
-      update_source: {:wordpress, "frontman-agentic-ai-editor"},
+      npm_package: nil,
       load_project_context?: false,
       tool_execution_mode: :serial,
       code_attachment_guidance?: false,
@@ -84,8 +84,13 @@ defmodule FrontmanServer.Frameworks do
     end
   end
 
-  @doc "Registry sources for integration version checks."
-  def update_sources, do: Enum.map(@catalog, &Map.fetch!(&1, :update_source))
+  @doc "NPM adapter packages with registry version endpoints."
+  def npm_packages do
+    Enum.flat_map(@catalog, fn
+      %{npm_package: nil} -> []
+      %{npm_package: package} -> [package]
+    end)
+  end
 
   @doc "Returns whether MCP initialization should load project rules and structure."
   def load_project_context?(id) do

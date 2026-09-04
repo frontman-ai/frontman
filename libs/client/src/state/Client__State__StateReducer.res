@@ -100,7 +100,7 @@ type action =
       installedVersion: string,
       target: Client__State__Types.updateTarget,
     })
-  | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
+  | UpdateInfoChecked(option<Client__State__Types.updateInfo>)
   | DismissUpdateBanner
   | CloseFirstTaskFeedbackDialog
   | DismissFirstTaskFeedbackDialog
@@ -321,7 +321,6 @@ let defaultState: state = {
   customProviders: None,
   customProviderMutation: Client__State__Types.CustomProviderMutationIdle,
   updateInfo: None,
-  updateCheckStatus: UpdateNotChecked,
   updateBannerDismissed: false,
   firstTaskFeedbackDialogState: Waiting,
   highlightedAnnotation: None,
@@ -494,10 +493,6 @@ module Selectors = {
 
   let updateInfo = (state: state): option<Client__State__Types.updateInfo> => {
     state.updateInfo
-  }
-
-  let updateCheckStatus = (state: state): Client__State__Types.updateCheckStatus => {
-    state.updateCheckStatus
   }
 
   let updateBannerDismissed = (state: state): bool => {
@@ -1504,7 +1499,10 @@ let handleEffect = (effect, state: state, dispatch) => {
   | CheckForUpdateEffect({apiBaseUrl, installedVersion, target}) =>
     let fetch = async () => {
       try {
-        let url = `${apiBaseUrl}/api/integrations/latest-versions`
+        let url = switch target {
+        | NpmPackage(_) => `${apiBaseUrl}/api/integrations/latest-versions`
+        | WordPressPlugin(_) => `${Client__RelayBaseUrl.current()}/frontman/plugin-update`
+        }
         let response = await WebAPI.Fetch.fetch(url)
         switch response.ok {
         | false =>
@@ -1514,29 +1512,23 @@ let handleEffect = (effect, state: state, dispatch) => {
           )
         | true =>
           let json = await response->WebAPI.Response.json
-          let {versions} =
+          let {versions, installedVersion: reportedInstalledVersion} =
             json->S.decodeOrThrow(
               ~from=S.json,
               ~to=Client__State__Types.latestVersionsResponseSchema,
             )
           switch latestVersionFromVersions(~target, ~versions) {
           | Some(_) =>
-            updateInfoFromVersions(~target, ~installedVersion, ~versions)->Option.forEach(({
-              target,
-              installedVersion,
-              latestVersion,
-            }) =>
-              dispatch(UpdateInfoReceived({updateInfo: {target, installedVersion, latestVersion}}))
-            )
+            let installedVersion = reportedInstalledVersion->Option.getOr(installedVersion)
+            let updateInfo = updateInfoFromVersions(~target, ~installedVersion, ~versions)
+            dispatch(UpdateInfoChecked(updateInfo))
           | None =>
-            switch target {
-            | NpmPackage(npmPackage) =>
-              Sentry.captureConnectionError(
-                `CheckForUpdate: package "${npmPackage}" not found or null in registry response`,
-                ~endpoint=url,
-              )
-            | WordPressPlugin(_) => ()
-            }
+            Sentry.captureConnectionError(
+              `CheckForUpdate: integration "${updateTargetKey(
+                  target,
+                )}" not found or null in registry response`,
+              ~endpoint=url,
+            )
           }
         }
       } catch {
@@ -2196,19 +2188,11 @@ let next = (state: state, action) => {
     ->StateReducer.update
 
   | CheckForUpdate({apiBaseUrl, installedVersion, target}) =>
-    switch state.updateCheckStatus {
-    | UpdateNotChecked =>
-      {
-        ...state,
-        updateCheckStatus: Client__State__Types.UpdateChecked,
-      }->StateReducer.update(
-        ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, target})],
-      )
-    | UpdateChecked => state->StateReducer.update
-    }
+    state->StateReducer.update(
+      ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, target})],
+    )
 
-  | UpdateInfoReceived({updateInfo}) =>
-    {...state, updateInfo: Some(updateInfo)}->StateReducer.update
+  | UpdateInfoChecked(updateInfo) => {...state, updateInfo}->StateReducer.update
 
   | DismissUpdateBanner => {...state, updateBannerDismissed: true}->StateReducer.update
 

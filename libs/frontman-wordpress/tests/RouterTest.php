@@ -34,6 +34,15 @@ if ( ! function_exists( 'wp_parse_url' ) ) {
 	}
 }
 
+function wp_update_plugins(): void {}
+function plugin_basename( string $file ): string { return basename( dirname( $file ) ) . '/' . basename( $file ); }
+function sanitize_text_field( string $value ): string { return $value; }
+function get_site_transient( string $name ) { return $GLOBALS[ $name ]; }
+function wp_send_json( $data, int $status ): void { $GLOBALS['json_response'] = [ $data, $status ]; }
+
+define( 'FRONTMAN_VERSION', '5.0.0' );
+define( 'FRONTMAN_PLUGIN_FILE', '/plugins/frontman-agentic-ai-editor/frontman.php' );
+
 require_once __DIR__ . '/../includes/class-frontman-tools.php';
 require_once __DIR__ . '/../includes/class-frontman-router.php';
 
@@ -41,15 +50,18 @@ class Frontman_Router_Test_Runner {
 	private int $assertions = 0;
 	private ReflectionMethod $classifyRoute;
 	private ReflectionMethod $getRequestPath;
+	private ReflectionMethod $handleGetUpdate;
 	private ReflectionMethod $sendSseToolResult;
 
 	public function __construct() {
 		$reflection = new ReflectionClass( 'Frontman_Router' );
 		$this->classifyRoute = $reflection->getMethod( 'classify_route' );
 		$this->getRequestPath = $reflection->getMethod( 'get_request_path' );
+		$this->handleGetUpdate = $reflection->getMethod( 'handle_get_update' );
 		$this->sendSseToolResult = $reflection->getMethod( 'send_sse_tool_result' );
 		$this->classifyRoute->setAccessible( true );
 		$this->getRequestPath->setAccessible( true );
+		$this->handleGetUpdate->setAccessible( true );
 		$this->sendSseToolResult->setAccessible( true );
 	}
 
@@ -59,6 +71,7 @@ class Frontman_Router_Test_Runner {
 		$this->test_non_frontman_routes_are_ignored();
 		$this->test_request_path_preserves_percent_encoded_segments();
 		$this->test_request_path_strips_front_controller();
+		$this->test_plugin_update_status();
 		$this->test_tool_results_use_canonical_shape();
 		$this->test_sse_errors_use_result_event_format();
 
@@ -87,6 +100,9 @@ class Frontman_Router_Test_Runner {
 		$route = $this->classifyRoute->invoke( $router, '/frontman/tools/call', 'POST' );
 		$this->assert_same( 'prefix', $route['type'], 'non-GET API routes should still classify as prefix routes' );
 		$this->assert_same( 'tools/call', $route['subPath'], 'prefix route should preserve nested API subpath' );
+
+		$route = $this->classifyRoute->invoke( $router, '/frontman/plugin-update', 'GET' );
+		$this->assert_same( 'plugin-update', $route['subPath'], 'update status should use the prefix API route' );
 	}
 
 	private function test_non_frontman_routes_are_ignored(): void {
@@ -117,6 +133,26 @@ class Frontman_Router_Test_Runner {
 		} finally {
 			unset( $_SERVER['REQUEST_URI'] );
 		}
+	}
+
+	private function test_plugin_update_status(): void {
+		$GLOBALS['update_plugins'] = (object) [
+			'response' => [
+				'frontman-agentic-ai-editor/frontman.php' => (object) [ 'new_version' => '5.1.0' ],
+			],
+		];
+		$router = ( new ReflectionClass( 'Frontman_Router' ) )->newInstanceWithoutConstructor();
+		$this->handleGetUpdate->invoke( $router );
+		[ $response, $status ] = $GLOBALS['json_response'];
+
+		$this->assert_same( 200, $status, 'update status should succeed' );
+		$this->assert_same( '5.0.0', $response['installedVersion'], 'installed version should come from the plugin' );
+		$this->assert_same( '5.1.0', $response['versions']['wordpress:frontman-agentic-ai-editor'], 'latest version should come from WordPress' );
+
+		$GLOBALS['update_plugins'] = (object) [ 'response' => [] ];
+		$this->handleGetUpdate->invoke( $router );
+		[ $response ] = $GLOBALS['json_response'];
+		$this->assert_same( '5.0.0', $response['versions']['wordpress:frontman-agentic-ai-editor'], 'current plugins should report their installed version' );
 	}
 
 	private function test_sse_errors_use_result_event_format(): void {

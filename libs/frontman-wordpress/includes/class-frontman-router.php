@@ -9,6 +9,7 @@
  *   GET  /frontman                        → Serve the UI (preview: homepage)
  *   GET  /about/frontman                  → Serve the UI (preview: /about)
  *   GET  /frontman/tools                  → Tool list
+ *   GET  /frontman/plugin-update          → Plugin update status
  *   POST /frontman/tools/call             → Dispatch tool call (SSE)
  *   POST /frontman/resolve-source-location → Not supported in WordPress PHP mode
  *
@@ -68,6 +69,10 @@ class Frontman_Router {
 			switch ( true ) {
 				case $method === 'GET' && $sub_path === 'tools':
 					$this->handle_get_tools();
+					exit;
+
+				case $method === 'GET' && $sub_path === 'plugin-update':
+					$this->handle_get_update();
 					exit;
 
 				case $method === 'POST' && $sub_path === 'tools/call':
@@ -318,6 +323,26 @@ class Frontman_Router {
 					'version' => FRONTMAN_VERSION,
 				],
 				'protocolVersion' => '1.0',
+			],
+			200
+		);
+	}
+
+	/**
+	 * GET /frontman/plugin-update — return WordPress's current plugin update status.
+	 */
+	private function handle_get_update(): void {
+		wp_update_plugins();
+		$updates = get_site_transient( 'update_plugins' );
+		$plugin  = plugin_basename( FRONTMAN_PLUGIN_FILE );
+		$latest  = isset( $updates->response[ $plugin ]->new_version )
+			? sanitize_text_field( $updates->response[ $plugin ]->new_version )
+			: FRONTMAN_VERSION;
+
+		wp_send_json(
+			[
+				'installedVersion' => FRONTMAN_VERSION,
+				'versions'         => [ 'wordpress:frontman-agentic-ai-editor' => $latest ],
 			],
 			200
 		);

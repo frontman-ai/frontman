@@ -171,8 +171,8 @@ describe("Client State Reducer - Integration Updates", () => {
     ->Expect.toEqual(Some("1.3.0"))
   })
 
-  test("checks for updates without an ACP session", t => {
-    let (state, effects) = Reducer.next(
+  test("refreshes updates without an ACP session and clears stale notices", t => {
+    let (_, effects) = Reducer.next(
       Reducer.defaultState,
       Reducer.CheckForUpdate({
         apiBaseUrl: "https://api.frontman.sh",
@@ -180,9 +180,16 @@ describe("Client State Reducer - Integration Updates", () => {
         target: wordpress,
       }),
     )
+    let staleInfo: StateTypes.updateInfo = {
+      target: wordpress,
+      installedVersion: "1.2.0",
+      latestVersion: "1.3.0",
+    }
+    let state = {...Reducer.defaultState, updateInfo: Some(staleInfo)}
+    let cleared = Reducer.next(state, Reducer.UpdateInfoChecked(None))->Pair.first
 
-    t->expect(state.updateCheckStatus)->Expect.toEqual(StateTypes.UpdateChecked)
     t->expect(effects->Array.length)->Expect.toEqual(1)
+    t->expect(cleared.updateInfo)->Expect.toEqual(None)
   })
 })
 

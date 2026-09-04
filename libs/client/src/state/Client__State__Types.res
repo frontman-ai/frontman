@@ -213,11 +213,10 @@ type updateInfo = {
 }
 
 @schema
-type latestVersionsResponse = {versions: Dict.t<option<string>>}
-
-type updateCheckStatus =
-  | UpdateNotChecked
-  | UpdateChecked
+type latestVersionsResponse = {
+  versions: Dict.t<option<string>>,
+  installedVersion: option<string>,
+}
 
 type highlightedAnnotation = {
   taskId: string,
@@ -253,7 +252,6 @@ type state = {
   customProviders: option<array<customProvider>>,
   customProviderMutation: customProviderMutation,
   updateInfo: option<updateInfo>,
-  updateCheckStatus: updateCheckStatus,
   updateBannerDismissed: bool,
   firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
   highlightedAnnotation: option<highlightedAnnotation>,
