@@ -33,43 +33,54 @@ let isConnected = (relay: t): bool => {
 
 let getState = (relay: t): relayState => relay.state.contents
 
-let normalizeLegacyTool = (tool: Types.legacyRemoteTool): Types.remoteTool => {
-  let metadata = dict{
-    "access": tool.access
-    ->Option.getOr(FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite)
-    ->S.decodeOrThrow(
-      ~from=FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.accessSchema,
-      ~to=S.json->S.noValidation(true),
-    ),
-    "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
-  }
-  let definition = dict{
-    "name": JSON.Encode.string(tool.name),
-    "description": JSON.Encode.string(tool.description),
-    "inputSchema": tool.inputSchema,
-    "_meta": JSON.Encode.object(dict{"ai.frontman/tool-metadata": JSON.Encode.object(metadata)}),
-  }
-  tool.outputSchema->Option.forEach(outputSchema =>
-    definition->Dict.set("outputSchema", outputSchema)
-  )
-  JSON.Encode.object(definition)
-}
-
 let parseToolsResponse = (json: JSON.t): result<Types.toolsResponse, string> => {
-  switch json->Decoders.parseSchema(Types.toolsResponseSchema) {
-  | Ok(data) => Ok(data)
-  | Error(currentError) =>
-    switch json->Decoders.parseSchema(Types.legacyToolsResponseSchema) {
-    | Ok(data) =>
-      Ok({
-        tools: data.tools->Array.map(normalizeLegacyTool),
-        serverInfo: data.serverInfo,
-        protocolVersion: Types.protocolVersion,
-      })
-    | Error(legacyError) =>
-      Error(`Current protocol: ${currentError}; legacy protocol: ${legacyError}`)
+  let normalizeLegacyTool = (tool: Types.legacyRemoteTool): Types.remoteTool => {
+    let metadata = dict{
+      "access": tool.access
+      ->Option.getOr(FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite)
+      ->S.decodeOrThrow(
+        ~from=FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.accessSchema,
+        ~to=S.json->S.noValidation(true),
+      ),
+      "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
     }
+    let definition = dict{
+      "name": JSON.Encode.string(tool.name),
+      "description": JSON.Encode.string(tool.description),
+      "inputSchema": tool.inputSchema,
+      "_meta": JSON.Encode.object(dict{"ai.frontman/tool-metadata": JSON.Encode.object(metadata)}),
+    }
+    tool.outputSchema->Option.forEach(outputSchema =>
+      definition->Dict.set("outputSchema", outputSchema)
+    )
+    JSON.Encode.object(definition)
   }
+  let protocolVersionSchema = S.object(s => s.field("protocolVersion", S.string))
+
+  json
+  ->Decoders.parseSchema(protocolVersionSchema)
+  ->Result.mapError(error => `Invalid protocol version: ${error}`)
+  ->Result.flatMap(protocolVersion =>
+    switch protocolVersion {
+    | "2.0" =>
+      json
+      ->Decoders.parseSchema(Types.toolsResponseSchema)
+      ->Result.mapError(error => `Relay protocol 2.0: ${error}`)
+    | "1.0" =>
+      json
+      ->Decoders.parseSchema(Types.legacyToolsResponseSchema)
+      ->Result.map(data => {
+        let normalized: Types.toolsResponse = {
+          tools: data.tools->Array.map(normalizeLegacyTool),
+          serverInfo: data.serverInfo,
+          protocolVersion: Types.protocolVersion,
+        }
+        normalized
+      })
+      ->Result.mapError(error => `Relay protocol 1.0: ${error}`)
+    | unsupported => Error(`Unsupported relay protocol version: ${unsupported}`)
+    }
+  )
 }
 
 let connect = async (relay: t, ~signal: option<WebAPI.EventTypes.abortSignal>=?): result<
