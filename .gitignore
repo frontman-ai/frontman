@@ -48,3 +48,5 @@ infra/local/Caddyfile
 .env.secrets.resolved
 
 lefthook-local.yml
+.tiqet/log/
+.tiqet/events/
