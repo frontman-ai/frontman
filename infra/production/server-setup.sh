@@ -188,10 +188,14 @@ fi
 systemctl daemon-reload
 systemctl enable frontman-blue frontman-green
 
-echo ">>> Creating shared environment file..."
-cp "${SCRIPT_DIR}/discord.env.template" "${DEPLOY_ROOT}/shared/discord.env"
-chown deploy:deploy "${DEPLOY_ROOT}/shared/discord.env"
-chmod 600 "${DEPLOY_ROOT}/shared/discord.env"
+echo ">>> Ensuring shared environment file..."
+SHARED_ENV="${DEPLOY_ROOT}/shared/discord.env"
+if [ ! -f "${SHARED_ENV}" ]; then
+  install -o deploy -g deploy -m 0600 "${SCRIPT_DIR}/discord.env.template" "${SHARED_ENV}"
+  echo "Created ${SHARED_ENV}. Fill the task webhook URL before starting Frontman."
+else
+  echo "${SHARED_ENV} already exists; leaving it unchanged."
+fi
 
 echo ">>> Creating environment file templates..."
 
