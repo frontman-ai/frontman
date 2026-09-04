@@ -25,7 +25,7 @@ defmodule FrontmanServer.FrameworksTest do
   end
 
   describe "catalog metadata" do
-    test "returns display names and published npm packages" do
+    test "returns display names and update sources" do
       assert Enum.map(@framework_ids, &Frameworks.display_name/1) == [
                "Next.js",
                "Vite",
@@ -33,13 +33,12 @@ defmodule FrontmanServer.FrameworksTest do
                "WordPress"
              ]
 
-      assert Frameworks.npm_packages() == [
-               "@frontman-ai/nextjs",
-               "@frontman-ai/vite",
-               "@frontman-ai/astro"
+      assert Frameworks.update_sources() == [
+               {:npm, "@frontman-ai/nextjs"},
+               {:npm, "@frontman-ai/vite"},
+               {:npm, "@frontman-ai/astro"},
+               {:wordpress, "frontman-agentic-ai-editor"}
              ]
-
-      assert Frameworks.wordpress_plugins() == ["frontman-agentic-ai-editor"]
     end
   end
 

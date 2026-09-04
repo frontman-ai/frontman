@@ -48,12 +48,8 @@ defmodule FrontmanServerWeb.IntegrationsController do
   end
 
   defp do_fetch_and_cache do
-    sources =
-      Enum.map(Frameworks.npm_packages(), &{:npm, &1}) ++
-        Enum.map(Frameworks.wordpress_plugins(), &{:wordpress, &1})
-
     versions =
-      sources
+      Frameworks.update_sources()
       |> Task.async_stream(&fetch_latest_version/1,
         timeout: :timer.seconds(10),
         on_timeout: :kill_task
