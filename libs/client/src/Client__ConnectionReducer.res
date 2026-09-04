@@ -375,7 +375,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | ({relay: RelayConnecting}, RelayConnectError(message)) => (
       {...state, relay: RelayError(message)},
-      [TrackAnalytics(RelayConnectionCompleted(Failure(relayFailureReason(message))))],
+      [
+        LogError(`Project context connection failed: ${message}`),
+        TrackAnalytics(RelayConnectionCompleted(Failure(relayFailureReason(message)))),
+      ],
     )
 
   | ({session: SessionCreating(expectedSessionId)}, SessionCreateSuccess(sess))
@@ -495,7 +498,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (_, SessionCreateError(_)) => (state, [LogInfo("Stale session create result ignored")])
-
   }
 }
 

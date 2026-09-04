@@ -12,6 +12,37 @@ describe("Relay.connect", _t => {
     ->Expect.toThrow
   })
 
+  test("normalizes WordPress relay v1 responses", t => {
+    let json = JSON.parseOrThrow(`{
+      "tools":[{
+        "name":"wp_list_posts",
+        "description":"List posts",
+        "access":"read",
+        "inputSchema":{"type":"object"},
+        "visibleToAgent":true
+      }],
+      "serverInfo":{"name":"frontman-wordpress","version":"4.0.0"},
+      "protocolVersion":"1.0"
+    }`)
+    let response = json->Relay.parseToolsResponse->Result.getOrThrow
+
+    t->expect(response.protocolVersion)->Expect.toBe("2.0")
+    t
+    ->expect(response.tools->Array.get(0)->Option.map(jsonString))
+    ->Expect.toEqual(
+      Some(
+        JSON.stringify(
+          JSON.parseOrThrow(`{
+            "name":"wp_list_posts",
+            "description":"List posts",
+            "inputSchema":{"type":"object"},
+            "_meta":{"ai.frontman/tool-metadata":{"access":"read","visibleToAgent":true}}
+          }`),
+        ),
+      ),
+    )
+  })
+
   test("requires relay v2 tool metadata shape", t => {
     let legacy = JSON.parseOrThrow(`{
       "tools":[{"name":"hidden","inputSchema":{"type":"object"},"access":"read","visibleToAgent":false}],

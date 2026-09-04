@@ -33,6 +33,45 @@ let isConnected = (relay: t): bool => {
 
 let getState = (relay: t): relayState => relay.state.contents
 
+let normalizeLegacyTool = (tool: Types.legacyRemoteTool): Types.remoteTool => {
+  let metadata = dict{
+    "access": tool.access
+    ->Option.getOr(FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite)
+    ->S.decodeOrThrow(
+      ~from=FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.accessSchema,
+      ~to=S.json->S.noValidation(true),
+    ),
+    "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
+  }
+  let definition = dict{
+    "name": JSON.Encode.string(tool.name),
+    "description": JSON.Encode.string(tool.description),
+    "inputSchema": tool.inputSchema,
+    "_meta": JSON.Encode.object(dict{"ai.frontman/tool-metadata": JSON.Encode.object(metadata)}),
+  }
+  tool.outputSchema->Option.forEach(outputSchema =>
+    definition->Dict.set("outputSchema", outputSchema)
+  )
+  JSON.Encode.object(definition)
+}
+
+let parseToolsResponse = (json: JSON.t): result<Types.toolsResponse, string> => {
+  switch json->Decoders.parseSchema(Types.toolsResponseSchema) {
+  | Ok(data) => Ok(data)
+  | Error(currentError) =>
+    switch json->Decoders.parseSchema(Types.legacyToolsResponseSchema) {
+    | Ok(data) =>
+      Ok({
+        tools: data.tools->Array.map(normalizeLegacyTool),
+        serverInfo: data.serverInfo,
+        protocolVersion: Types.protocolVersion,
+      })
+    | Error(legacyError) =>
+      Error(`Current protocol: ${currentError}; legacy protocol: ${legacyError}`)
+    }
+  }
+}
+
 let connect = async (relay: t, ~signal: option<WebAPI.EventTypes.abortSignal>=?): result<
   unit,
   string,
@@ -54,7 +93,7 @@ let connect = async (relay: t, ~signal: option<WebAPI.EventTypes.abortSignal>=?)
       Error(msg)
     | true =>
       let json = await response->WebAPI.Response.json
-      switch json->Decoders.parseSchema(Types.toolsResponseSchema) {
+      switch json->parseToolsResponse {
       | Ok(data) =>
         relay.state := Connected({tools: data.tools, serverInfo: data.serverInfo})
         Ok()
