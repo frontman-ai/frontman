@@ -1,4 +1,5 @@
 module Fs = FrontmanBindings.Fs
+module SafePath = FrontmanCore__SafePath
 
 type range = {start: int, end_: int}
 
@@ -37,13 +38,14 @@ let mergeRanges = (ranges: array<range>): array<range> => {
 }
 
 let recordRead = (
-  resolvedPath: string,
+  safePath: SafePath.t,
   ~offset: int,
   ~limit: int,
   ~totalLines: int,
   ~mtimeMs: float,
   ~size: float,
 ): unit => {
+  let resolvedPath = SafePath.toString(safePath)
   let newRange = {start: offset, end_: min(offset + limit, totalLines)}
   let existingRanges = switch readFiles.contents->Map.get(resolvedPath) {
   | Some(existing) => existing.ranges
@@ -65,11 +67,12 @@ let isLineCovered = (ranges: array<range>, line: int): bool => {
   ranges->Array.some(r => line >= r.start && line < r.end_)
 }
 
-let get = (resolvedPath: string): option<fileRecord> => {
-  readFiles.contents->Map.get(resolvedPath)
+let get = (safePath: SafePath.t): option<fileRecord> => {
+  readFiles.contents->Map.get(SafePath.toString(safePath))
 }
 
-let assertReadBefore = (resolvedPath: string): result<unit, string> => {
+let assertReadBefore = (safePath: SafePath.t): result<unit, string> => {
+  let resolvedPath = SafePath.toString(safePath)
   switch readFiles.contents->Map.has(resolvedPath) {
   | true => Ok()
   | false =>
@@ -79,7 +82,8 @@ let assertReadBefore = (resolvedPath: string): result<unit, string> => {
   }
 }
 
-let assertNotStale = async (resolvedPath: string): result<unit, string> => {
+let assertNotStale = async (safePath: SafePath.t): result<unit, string> => {
+  let resolvedPath = SafePath.toString(safePath)
   switch readFiles.contents->Map.get(resolvedPath) {
   | None => Ok()
   | Some(record) =>
@@ -103,8 +107,8 @@ let assertNotStale = async (resolvedPath: string): result<unit, string> => {
   }
 }
 
-let checkCoverage = (resolvedPath: string, ~content: string, ~oldText: string): option<string> => {
-  switch readFiles.contents->Map.get(resolvedPath) {
+let checkCoverage = (safePath: SafePath.t, ~content: string, ~oldText: string): option<string> => {
+  switch readFiles.contents->Map.get(SafePath.toString(safePath)) {
   | None => None
   | Some(record) =>
     switch record.ranges {
@@ -136,14 +140,15 @@ let checkCoverage = (resolvedPath: string, ~content: string, ~oldText: string): 
   }
 }
 
-let assertEditSafe = async (resolvedPath: string): result<unit, string> => {
-  switch assertReadBefore(resolvedPath) {
+let assertEditSafe = async (safePath: SafePath.t): result<unit, string> => {
+  switch assertReadBefore(safePath) {
   | Error(_) as e => e
-  | Ok() => await assertNotStale(resolvedPath)
+  | Ok() => await assertNotStale(safePath)
   }
 }
 
-let recordWrite = (resolvedPath: string, ~mtimeMs: float, ~size: float): unit => {
+let recordWrite = (safePath: SafePath.t, ~mtimeMs: float, ~size: float): unit => {
+  let resolvedPath = SafePath.toString(safePath)
   switch readFiles.contents->Map.get(resolvedPath) {
   | Some(record) =>
     readFiles.contents->Map.set(

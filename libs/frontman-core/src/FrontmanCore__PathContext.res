@@ -26,60 +26,41 @@ type responseContext = {
   relativePath: string,
 }
 
-let endsWithSep = (path: string): bool => {
-  path->String.endsWith("/") || path->String.endsWith("\\")
-}
+let toRelativePath = (~sourceRoot: string, ~absolutePath: string): string =>
+  Path.relative(Path.resolve(sourceRoot), absolutePath)
 
-let toRelativePath = (~sourceRoot: string, ~absolutePath: string): string => {
-  let sourceRoot = Path.resolve(sourceRoot)
-  let normalizedRoot = if endsWithSep(sourceRoot) {
-    sourceRoot
-  } else {
-    sourceRoot ++ Path.sep
-  }
-
-  if absolutePath->String.startsWith(normalizedRoot) {
-    absolutePath->String.slice(
-      ~start=normalizedRoot->String.length,
-      ~end=absolutePath->String.length,
-    )
-  } else if absolutePath->String.startsWith(sourceRoot) {
-    absolutePath->String.slice(~start=sourceRoot->String.length, ~end=absolutePath->String.length)
-  } else {
-    absolutePath
-  }
-}
-
-let resolveSearchPath = (~sourceRoot: string, ~inputPath: option<string>): string => {
+let resolveSearchPath = (~sourceRoot: string, ~inputPath: option<string>): result<
+  string,
+  resolveError,
+> => {
   switch inputPath {
-  | None => sourceRoot
+  | None => Ok(Path.resolve(sourceRoot))
   | Some(path) =>
-    if Path.isAbsolute(path) {
-      let normalizedPath = Path.normalize(path)
-      let normalizedRoot = Path.normalize(sourceRoot)
-      if normalizedPath->String.startsWith(normalizedRoot) {
-        normalizedPath
-      } else {
-        sourceRoot
-      }
-    } else {
-      Path.join([sourceRoot, path])
+    switch SafePath.resolve(~sourceRoot, ~inputPath=path) {
+    | Ok(safePath) => Ok(SafePath.toString(safePath))
+    | Error(message) => Error({message, hint: None, sourceRoot, requestedPath: path})
     }
   }
 }
 
 module Fs = FrontmanBindings.Fs
 
-let resolveSearchDir = async (~sourceRoot: string, ~inputPath: option<string>): string => {
-  let resolved = resolveSearchPath(~sourceRoot, ~inputPath)
-  try {
-    let stats = await Fs.Promises.stat(resolved)
-    switch Fs.isFile(stats) {
-    | true => Path.dirname(resolved)
-    | false => resolved
+let resolveSearchDir = async (~sourceRoot: string, ~inputPath: option<string>): result<
+  string,
+  resolveError,
+> => {
+  switch resolveSearchPath(~sourceRoot, ~inputPath) {
+  | Error(_) as error => error
+  | Ok(resolved) =>
+    try {
+      let stats = await Fs.Promises.stat(resolved)
+      switch Fs.isFile(stats) {
+      | true => Ok(Path.dirname(resolved))
+      | false => Ok(resolved)
+      }
+    } catch {
+    | _ => Ok(resolved)
     }
-  } catch {
-  | _ => resolved
   }
 }
 
@@ -103,6 +84,13 @@ let detectPathConfusion = (~sourceRoot: string, ~requestedPath: string): option<
   }
 }
 
+let makeError = (~sourceRoot: string, ~requestedPath: string, ~message: string): resolveError => {
+  message,
+  hint: detectPathConfusion(~sourceRoot, ~requestedPath),
+  sourceRoot,
+  requestedPath,
+}
+
 let dirname = (result: resolveResult): string => {
   SafePath.dirname(result.safePath)
 }
@@ -117,13 +105,7 @@ let resolve = (~sourceRoot: string, ~inputPath: string): result<resolveResult, r
       resolvedPath,
       relativePath: toRelativePath(~sourceRoot, ~absolutePath=resolvedPath),
     })
-  | Error(msg) =>
-    Error({
-      message: msg,
-      hint: detectPathConfusion(~sourceRoot, ~requestedPath=inputPath),
-      sourceRoot,
-      requestedPath: inputPath,
-    })
+  | Error(message) => Error(makeError(~sourceRoot, ~requestedPath=inputPath, ~message))
   }
 }
 

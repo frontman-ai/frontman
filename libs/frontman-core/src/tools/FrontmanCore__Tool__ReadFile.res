@@ -94,7 +94,7 @@ let readResolvedFile = async (
     let hasMore = offset + limit < totalLines
 
     FrontmanCore__FileTracker.recordRead(
-      resolved.resolvedPath,
+      resolved.safePath,
       ~offset,
       ~limit,
       ~totalLines,
