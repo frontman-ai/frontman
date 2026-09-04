@@ -9,7 +9,7 @@ SHARED_ENV="${ROOT}/shared/discord.env"
 VARIABLE="DISCORD_TASK_SUMMARIES_WEBHOOK_URL"
 VALUE="https://discord.test/task?thread_id=123&wait=true"
 
-printf '%s\n%s=%s\n' "${VARIABLE}=CHANGE_ME" "${VARIABLE}" "${VALUE}" > "${LEGACY_ENV}"
+printf '%s\n%s="%s"\n' "${VARIABLE}=CHANGE_ME" "${VARIABLE}" "${VALUE}" > "${LEGACY_ENV}"
 SHARED_ENV="${SHARED_ENV}" LEGACY_ENV="${LEGACY_ENV}" \
   bash "${SCRIPT_DIR}/ensure-shared-discord-env.sh"
 

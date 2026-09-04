@@ -18,6 +18,11 @@ fi
 
 assignment=$(grep "^${VARIABLE}=" "${LEGACY_ENV}" 2>/dev/null | tail -n 1 || true)
 value=${assignment#*=}
+case "${value}" in
+  \"*\") value=${value#\"}; value=${value%\"} ;;
+  \'*\') value=${value#\'}; value=${value%\'} ;;
+esac
+assignment="${VARIABLE}=${value}"
 
 if [ -z "${value}" ] || [ "${value}" = "CHANGE_ME" ]; then
   echo "ERROR: ${VARIABLE} is not configured in ${LEGACY_ENV}" >&2
