@@ -9,7 +9,7 @@ type recovery = {
   siblingEntries: array<string>,
 }
 
-let normalize = (path: string): string => Path.normalize(path)
+let normalize = (path: string): string => Path.resolve(path)
 
 let isUnderSourceRoot = (~candidate: string, ~sourceRoot: string): bool => {
   switch sourceRoot {
