@@ -156,15 +156,33 @@ describe("Client State Reducer - Integration Updates", () => {
   })
 
   test("preserves npm update lookup", t => {
+    let registryVersions = versions([("@frontman-ai/nextjs", Some("1.3.0"))])
     let result = Reducer.updateInfoFromVersions(
       ~target=npm,
       ~installedVersion="1.2.0",
-      ~versions=versions([("@frontman-ai/nextjs", Some("1.3.0"))]),
+      ~versions=registryVersions,
     )
 
     t
     ->expect(result)
     ->Expect.toEqual(Some({target: npm, installedVersion: "1.2.0", latestVersion: "1.3.0"}))
+    t
+    ->expect(Reducer.latestVersionFromVersions(~target=npm, ~versions=registryVersions))
+    ->Expect.toEqual(Some("1.3.0"))
+  })
+
+  test("checks for updates without an ACP session", t => {
+    let (state, effects) = Reducer.next(
+      Reducer.defaultState,
+      Reducer.CheckForUpdate({
+        apiBaseUrl: "https://api.frontman.sh",
+        installedVersion: "1.2.0",
+        target: wordpress,
+      }),
+    )
+
+    t->expect(state.updateCheckStatus)->Expect.toEqual(StateTypes.UpdateChecked)
+    t->expect(effects->Array.length)->Expect.toEqual(1)
   })
 })
 

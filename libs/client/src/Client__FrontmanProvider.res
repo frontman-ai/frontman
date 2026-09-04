@@ -92,6 +92,7 @@ type connectionState = Reducer.Selectors.connectionStatus
 @@live
 type contextValue = {
   connectionState: connectionState,
+  apiBaseUrl: string,
   session: option<ACP.session>,
   relay: option<Relay.t>,
   authRedirectUrl: option<string>,
@@ -113,6 +114,7 @@ type contextValue = {
 
 let defaultContextValue: contextValue = {
   connectionState: Disconnected,
+  apiBaseUrl: "",
   session: None,
   relay: None,
   authRedirectUrl: None,
@@ -140,6 +142,7 @@ module Provider = {
   let make = (
     ~endpoint: string,
     ~loginUrl: string,
+    ~apiBaseUrl: string,
     ~clientName: string="frontman-client",
     ~clientVersion: string="1.0.0",
     ~children: React.element,
@@ -385,6 +388,7 @@ module Provider = {
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
+      apiBaseUrl,
       session: Reducer.Selectors.getSession(state),
       relay: state.relayInstance,
       authRedirectUrl,

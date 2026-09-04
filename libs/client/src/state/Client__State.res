@@ -289,8 +289,8 @@ module Actions = {
   let sessionsLoadError = (~error: string) =>
     Client__State__Store.dispatch(SessionsLoadError({error: error}))
 
-  let checkForUpdate = (~installedVersion, ~target) =>
-    Client__State__Store.dispatch(CheckForUpdate({installedVersion, target}))
+  let checkForUpdate = (~apiBaseUrl, ~installedVersion, ~target) =>
+    Client__State__Store.dispatch(CheckForUpdate({apiBaseUrl, installedVersion, target}))
 
   let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
 

@@ -95,7 +95,11 @@ type action =
       sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
     })
   | SessionsLoadError({error: string})
-  | CheckForUpdate({installedVersion: string, target: Client__State__Types.updateTarget})
+  | CheckForUpdate({
+      apiBaseUrl: string,
+      installedVersion: string,
+      target: Client__State__Types.updateTarget,
+    })
   | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
   | DismissUpdateBanner
   | CloseFirstTaskFeedbackDialog
@@ -663,13 +667,17 @@ let updateTargetKey = (target: Client__State__Types.updateTarget): string =>
   | WordPressPlugin(slug) => `wordpress:${slug}`
   }
 
+let latestVersionFromVersions = (
+  ~target: Client__State__Types.updateTarget,
+  ~versions: Dict.t<option<string>>,
+): option<string> => versions->Dict.get(updateTargetKey(target))->Option.flatMap(version => version)
+
 let updateInfoFromVersions = (
   ~target: Client__State__Types.updateTarget,
   ~installedVersion: string,
   ~versions: Dict.t<option<string>>,
 ): option<Client__State__Types.updateInfo> => {
-  let key = updateTargetKey(target)
-  switch versions->Dict.get(key)->Option.flatMap(version => version) {
+  switch latestVersionFromVersions(~target, ~versions) {
   | Some(latestVersion) =>
     switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latestVersion)) {
     | (Some(installed), Some(latest)) if Client__Semver.isBehind(installed, latest) =>
@@ -1511,9 +1519,15 @@ let handleEffect = (effect, state: state, dispatch) => {
               ~from=S.json,
               ~to=Client__State__Types.latestVersionsResponseSchema,
             )
-          switch updateInfoFromVersions(~target, ~installedVersion, ~versions) {
-          | Some({target, installedVersion, latestVersion}) =>
-            dispatch(UpdateInfoReceived({updateInfo: {target, installedVersion, latestVersion}}))
+          switch latestVersionFromVersions(~target, ~versions) {
+          | Some(_) =>
+            updateInfoFromVersions(~target, ~installedVersion, ~versions)->Option.forEach(({
+              target,
+              installedVersion,
+              latestVersion,
+            }) =>
+              dispatch(UpdateInfoReceived({updateInfo: {target, installedVersion, latestVersion}}))
+            )
           | None =>
             switch target {
             | NpmPackage(npmPackage) =>
@@ -2181,16 +2195,16 @@ let next = (state: state, action) => {
     ->resolveFeedbackHistory
     ->StateReducer.update
 
-  | CheckForUpdate({installedVersion, target}) =>
-    switch (state.updateCheckStatus, state.acpSession) {
-    | (UpdateNotChecked, AcpSessionActive({apiBaseUrl})) =>
+  | CheckForUpdate({apiBaseUrl, installedVersion, target}) =>
+    switch state.updateCheckStatus {
+    | UpdateNotChecked =>
       {
         ...state,
         updateCheckStatus: Client__State__Types.UpdateChecked,
       }->StateReducer.update(
         ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, target})],
       )
-    | _ => state->StateReducer.update
+    | UpdateChecked => state->StateReducer.update
     }
 
   | UpdateInfoReceived({updateInfo}) =>

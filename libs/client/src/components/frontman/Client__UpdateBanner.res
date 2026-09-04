@@ -5,16 +5,20 @@
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module RuntimeConfig = Client__RuntimeConfig
 
-let wordpressPluginUrl = "https://wordpress.org/plugins/frontman-agentic-ai-editor/"
-
 type updateAction =
   | AgentUpdate(string)
   | WordPressUpdate(string)
 
-let updateActionForTarget = (target: Client__State__Types.updateTarget): updateAction =>
+let updateActionForTarget = (
+  target: Client__State__Types.updateTarget,
+  ~wordpressPluginsUrl: option<string>,
+): updateAction =>
   switch target {
   | NpmPackage(npmPackage) => AgentUpdate(npmPackage)
-  | WordPressPlugin(_) => WordPressUpdate(wordpressPluginUrl)
+  | WordPressPlugin(_) =>
+    WordPressUpdate(
+      wordpressPluginsUrl->Option.getOrThrow(~message="WordPress plugins URL is required"),
+    )
   }
 
 let updateDisplayName = (target: Client__State__Types.updateTarget): string =>
@@ -30,32 +34,31 @@ let make = () => {
   let updateBannerDismissed = Client__State.useSelector(
     Client__State.Selectors.updateBannerDismissed,
   )
-  let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
-  let {relay, session, createSession} = Client__FrontmanProvider.useFrontman()
+  let runtimeConfig = RuntimeConfig.read()
+  let {relay, session, createSession, apiBaseUrl} = Client__FrontmanProvider.useFrontman()
+  let relayState = relay->Option.map(Relay.getState)
 
-  React.useEffect3(() => {
-    switch (updateCheckStatus, relay, hasActiveACPSession) {
-    | (UpdateNotChecked, Some(relayInstance), true) =>
-      switch Relay.getState(relayInstance) {
-      | Connected({serverInfo}) =>
-        let runtimeConfig = RuntimeConfig.read()
-        let target = RuntimeConfig.frameworkUpdateTarget(runtimeConfig.framework)
-        Client__State.Actions.checkForUpdate(~installedVersion=serverInfo.version, ~target)
-      | _ => ()
-      }
+  React.useEffect2(() => {
+    switch (updateCheckStatus, relayState) {
+    | (UpdateNotChecked, Some(Connected({serverInfo}))) =>
+      let target = RuntimeConfig.frameworkUpdateTarget(runtimeConfig.framework)
+      Client__State.Actions.checkForUpdate(
+        ~apiBaseUrl,
+        ~installedVersion=serverInfo.version,
+        ~target,
+      )
     | _ => ()
     }
     None
-  }, (updateCheckStatus, relay, hasActiveACPSession))
+  }, (updateCheckStatus, relayState))
 
   let handleUpdateClick = () => {
     switch updateInfo {
     | Some({target, latestVersion, installedVersion}) =>
-      switch updateActionForTarget(target) {
+      switch updateActionForTarget(target, ~wordpressPluginsUrl=runtimeConfig.wordpressPluginsUrl) {
       | AgentUpdate(npmPackage) =>
         let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
-        let runtimeConfig = RuntimeConfig.read()
         let projectRootHint = switch runtimeConfig.projectRoot {
         | Some(root) => ` The project root is ${root}.`
         | None => ""
@@ -120,7 +123,10 @@ let make = () => {
           <span className="text-amber-500/70"> {React.string(`\u2192`)} </span>
           {React.string(` ${latestVersion}`)}
         </p>
-        {switch updateActionForTarget(target) {
+        {switch updateActionForTarget(
+          target,
+          ~wordpressPluginsUrl=runtimeConfig.wordpressPluginsUrl,
+        ) {
         | WordPressUpdate(_) =>
           <p className="text-xs text-amber-400/70 mt-1">
             {React.string("Update from Plugins in wp-admin, then reload Frontman.")}
@@ -128,7 +134,10 @@ let make = () => {
         | AgentUpdate(_) => React.null
         }}
       </div>
-      {switch updateActionForTarget(target) {
+      {switch updateActionForTarget(
+        target,
+        ~wordpressPluginsUrl=runtimeConfig.wordpressPluginsUrl,
+      ) {
       | AgentUpdate(_) =>
         <button
           type_="button"

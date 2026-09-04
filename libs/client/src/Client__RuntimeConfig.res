@@ -37,6 +37,7 @@ type parsed = {
   basePath: option<string>,
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
+  wordpressPluginsUrl: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
 }
@@ -47,6 +48,7 @@ type t = {
   basePath: string,
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
+  wordpressPluginsUrl: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
 }
@@ -68,6 +70,7 @@ let read = (): t => {
     },
     relayBaseUrl: config.relayBaseUrl,
     wpNonce: config.wpNonce,
+    wordpressPluginsUrl: config.wordpressPluginsUrl,
     projectRoot: config.projectRoot,
     traits: config.traits,
   }

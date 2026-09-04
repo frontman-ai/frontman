@@ -37,14 +37,17 @@ describe("Client__RuntimeConfig", _t => {
     ->expect(wordpressTarget)
     ->Expect.toEqual(Client__State__Types.WordPressPlugin("frontman-agentic-ai-editor"))
     t
-    ->expect(Client__UpdateBanner.updateActionForTarget(npmTarget))
+    ->expect(Client__UpdateBanner.updateActionForTarget(npmTarget, ~wordpressPluginsUrl=None))
     ->Expect.toEqual(Client__UpdateBanner.AgentUpdate("@frontman-ai/nextjs"))
     t
-    ->expect(Client__UpdateBanner.updateActionForTarget(wordpressTarget))
-    ->Expect.toEqual(
-      Client__UpdateBanner.WordPressUpdate(
-        "https://wordpress.org/plugins/frontman-agentic-ai-editor/",
+    ->expect(
+      Client__UpdateBanner.updateActionForTarget(
+        wordpressTarget,
+        ~wordpressPluginsUrl=Some("https://example.com/wp-admin/plugins.php"),
       ),
+    )
+    ->Expect.toEqual(
+      Client__UpdateBanner.WordPressUpdate("https://example.com/wp-admin/plugins.php"),
     )
   })
 
@@ -65,6 +68,7 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(config.basePath)->Expect.toBe("frontman")
     t->expect(config.relayBaseUrl)->Expect.toBe(None)
     t->expect(config.wpNonce)->Expect.toBe(None)
+    t->expect(config.wordpressPluginsUrl)->Expect.toBe(None)
     t->expect(config.projectRoot)->Expect.toBe(Some("/test/project"))
     t->expect(config.traits)->Expect.toBe(None)
   })
@@ -101,7 +105,7 @@ describe("Client__RuntimeConfig", _t => {
     )
   })
 
-  test("read preserves wpNonce for WordPress integrations", t => {
+  test("read preserves WordPress runtime values", t => {
     _setRuntime(
       JSON.Encode.object(
         Dict.fromArray([
@@ -109,6 +113,7 @@ describe("Client__RuntimeConfig", _t => {
           ("basePath", JSON.Encode.string("frontman")),
           ("relayBaseUrl", JSON.Encode.string("https://example.com/index.php")),
           ("wpNonce", JSON.Encode.string("nonce-123")),
+          ("wordpressPluginsUrl", JSON.Encode.string("https://example.com/wp-admin/plugins.php")),
         ]),
       ),
     )
@@ -118,6 +123,9 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(config.framework)->Expect.toBe(Client__RuntimeConfig.Wordpress)
     t->expect(config.relayBaseUrl)->Expect.toBe(Some("https://example.com/index.php"))
     t->expect(config.wpNonce)->Expect.toBe(Some("nonce-123"))
+    t
+    ->expect(config.wordpressPluginsUrl)
+    ->Expect.toBe(Some("https://example.com/wp-admin/plugins.php"))
   })
 
   test("toMeta does not leak wpNonce into ACP metadata", t => {
@@ -126,6 +134,7 @@ describe("Client__RuntimeConfig", _t => {
       basePath: "frontman",
       relayBaseUrl: Some("https://example.com/index.php"),
       wpNonce: Some("nonce-123"),
+      wordpressPluginsUrl: Some("https://example.com/wp-admin/plugins.php"),
       projectRoot: None,
       traits: None,
     })
