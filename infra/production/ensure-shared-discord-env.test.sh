@@ -7,9 +7,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LEGACY_ENV="${ROOT}/notifier.env"
 SHARED_ENV="${ROOT}/shared/discord.env"
 VARIABLE="DISCORD_TASK_SUMMARIES_WEBHOOK_URL"
-VALUE="https://discord.test/task"
+VALUE="https://discord.test/task?thread_id=123&wait=true"
 
-printf '%s=%s\n' "${VARIABLE}" "${VALUE}" > "${LEGACY_ENV}"
+printf '%s\n%s=%s\n' "${VARIABLE}=CHANGE_ME" "${VARIABLE}" "${VALUE}" > "${LEGACY_ENV}"
 SHARED_ENV="${SHARED_ENV}" LEGACY_ENV="${LEGACY_ENV}" \
   bash "${SCRIPT_DIR}/ensure-shared-discord-env.sh"
 
@@ -36,3 +36,10 @@ for RELEASE_ENV in \
     exit 1
   fi
 done
+
+printf '%s=%s\n%s=\n' "${VARIABLE}" "${VALUE}" "${VARIABLE}" > "${SHARED_ENV}"
+if SHARED_ENV="${SHARED_ENV}" LEGACY_ENV="${LEGACY_ENV}" \
+  bash "${SCRIPT_DIR}/ensure-shared-discord-env.sh" 2>/dev/null; then
+  echo "ERROR: Accepted an empty final webhook assignment"
+  exit 1
+fi

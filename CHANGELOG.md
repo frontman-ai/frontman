@@ -155,6 +155,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Add an `agent_feedback` backend tool that lets agents send Frontman product feedback and feature requests to Discord.
 
+### Changed
+
+- Share the Discord task-summary webhook between the server and notifier production services.
+
 ### Fixed
 
 - Fix hosted Google/GitHub sign-in redirects after the WorkOS v3 SDK upgrade and add automatic OAuth-start smoke coverage.

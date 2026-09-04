@@ -6,18 +6,21 @@ LEGACY_ENV="${LEGACY_ENV:-/opt/frontman-notifier/env}"
 VARIABLE="DISCORD_TASK_SUMMARIES_WEBHOOK_URL"
 
 if [ -f "${SHARED_ENV}" ]; then
-  if grep -q "^${VARIABLE}=.\+" "${SHARED_ENV}" && ! grep -q "^${VARIABLE}=CHANGE_ME$" "${SHARED_ENV}"; then
+  assignment=$(grep "^${VARIABLE}=" "${SHARED_ENV}" | tail -n 1 || true)
+  value=${assignment#*=}
+  if [ -n "${value}" ] && [ "${value}" != "CHANGE_ME" ]; then
     exit 0
   fi
 
-  echo "ERROR: ${VARIABLE} is not configured in ${SHARED_ENV}"
+  echo "ERROR: ${VARIABLE} is not configured in ${SHARED_ENV}" >&2
   exit 1
 fi
 
-assignment=$(grep -m 1 "^${VARIABLE}=.\+" "${LEGACY_ENV}" 2>/dev/null || true)
+assignment=$(grep "^${VARIABLE}=" "${LEGACY_ENV}" 2>/dev/null | tail -n 1 || true)
+value=${assignment#*=}
 
-if [ -z "${assignment}" ] || [ "${assignment}" = "${VARIABLE}=CHANGE_ME" ]; then
-  echo "ERROR: ${VARIABLE} is not configured in ${LEGACY_ENV}"
+if [ -z "${value}" ] || [ "${value}" = "CHANGE_ME" ]; then
+  echo "ERROR: ${VARIABLE} is not configured in ${LEGACY_ENV}" >&2
   exit 1
 fi
 
