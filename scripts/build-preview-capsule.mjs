@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import {createHash} from "node:crypto"
-import {copyFile, mkdir, readFile, rm, stat, writeFile} from "node:fs/promises"
+import {copyFile, mkdir, readFile, rename, rm, stat, writeFile} from "node:fs/promises"
 import {join, resolve} from "node:path"
 import {spawnSync} from "node:child_process"
 
@@ -43,20 +43,23 @@ const assets = [
 ]
 
 const hashedAssets = await Promise.all(assets.map(async (asset) => ({...asset, sha256: await sha256(asset.source)})))
-
-const idSource = JSON.stringify(hashedAssets.map(({name, sha256}) => [name, sha256]))
+const immutableCacheControl = "public, max-age=31536000, immutable"
+const manifestVersion = 1
+const idSource = JSON.stringify({
+  version: manifestVersion,
+  cacheControl: immutableCacheControl,
+  assets: hashedAssets.map(({name, sha256, contentType}) => ({
+    name,
+    sha256,
+    contentType,
+    cacheControl: immutableCacheControl,
+  })),
+})
 const capsuleId = createHash("sha256").update(idSource).digest("hex").slice(0, 32)
 const capsuleDir = join(outRoot, capsuleId)
-
-await rm(capsuleDir, {recursive: true, force: true})
-await mkdir(capsuleDir, {recursive: true})
-
-for (const asset of hashedAssets) {
-  await copyFile(asset.source, join(capsuleDir, asset.name))
-}
-
-const immutableCacheControl = "public, max-age=31536000, immutable"
+const stageDir = join(outRoot, `.${capsuleId}-${process.pid}.tmp`)
 const manifest = {
+  version: manifestVersion,
   capsuleId,
   cacheControl: immutableCacheControl,
   assets: Object.fromEntries(hashedAssets.map((asset) => [
@@ -70,8 +73,36 @@ const manifest = {
   ])),
 }
 
+async function capsuleMatches() {
+  try {
+    assertJsonEqual(JSON.parse(await readFile(join(capsuleDir, "manifest.json"), "utf8")), manifest)
+    await Promise.all(hashedAssets.map(async (asset) => {
+      if (await sha256(join(capsuleDir, asset.name)) !== asset.sha256) throw new Error("asset mismatch")
+    }))
+    return true
+  } catch {
+    return false
+  }
+}
+
+function assertJsonEqual(left, right) {
+  if (JSON.stringify(left) !== JSON.stringify(right)) throw new Error("manifest mismatch")
+}
+
+if (!await capsuleMatches()) {
+  await rm(stageDir, {recursive: true, force: true})
+  await mkdir(stageDir, {recursive: true})
+
+  for (const asset of hashedAssets) {
+    await copyFile(asset.source, join(stageDir, asset.name))
+  }
+
+  await writeFile(join(stageDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`)
+  await rm(capsuleDir, {recursive: true, force: true})
+  await rename(stageDir, capsuleDir)
+}
+
 const capsuleRef = {capsuleId, manifestPath: `/capsules/${capsuleId}/manifest.json`}
-await writeFile(join(capsuleDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`)
 await mkdir(refDist, {recursive: true})
 await writeFile(join(refDist, "frontman-capsule.json"), `${JSON.stringify(capsuleRef, null, 2)}\n`)
 await writeFile(join(clientDist, "frontman-capsule.json"), `${JSON.stringify(capsuleRef, null, 2)}\n`)

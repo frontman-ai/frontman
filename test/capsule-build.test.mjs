@@ -57,6 +57,7 @@ test("build-preview-capsule emits one immutable parent/bridge capsule", async (t
   assert.deepEqual(await readdir(dir), ["bridge.js", "manifest.json", "parent.css", "parent.js"])
 
   const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"))
+  assert.equal(manifest.version, 1)
   assert.equal(manifest.capsuleId, capsuleId)
   assert.equal(manifest.cacheControl, "public, max-age=31536000, immutable")
   assert.equal(manifest.assets["parent.js"].sha256, await sha256(join(dir, "parent.js")))
@@ -69,4 +70,21 @@ test("build-preview-capsule emits one immutable parent/bridge capsule", async (t
   assert.deepEqual(JSON.parse(await readFile(join(clientDist, "frontman-capsule.json"), "utf8")), ref)
 
   assert.equal(existsSync(join(dir, "latest")), false)
+
+  await writeFile(join(dir, "preserved"), "existing capsule was reused\n")
+  const rerun = spawnSync(process.execPath, [script], {
+    cwd: root,
+    env: {
+      ...process.env,
+      PATH: `${fakeBin}:${process.env.PATH}`,
+      FRONTMAN_CAPSULE_CLIENT_DIST: clientDist,
+      FRONTMAN_CAPSULE_BRIDGE_DIST: bridgeDist,
+      FRONTMAN_CAPSULE_REF_DIST: refDist,
+    },
+    encoding: "utf8",
+  })
+
+  assert.equal(rerun.status, 0, rerun.stderr)
+  assert.equal(rerun.stdout.trim(), capsuleId)
+  assert.equal(await readFile(join(dir, "preserved"), "utf8"), "existing capsule was reused\n")
 })
