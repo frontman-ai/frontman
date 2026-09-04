@@ -12,6 +12,7 @@ defmodule FrontmanServerWeb.IntegrationsController do
   require Logger
 
   @cache_ttl_ms :timer.minutes(30)
+  @wordpress_plugin_info_url "https://api.wordpress.org/plugins/info/1.2/"
 
   def latest_versions(conn, _params) do
     versions = get_cached_versions()
@@ -47,18 +48,22 @@ defmodule FrontmanServerWeb.IntegrationsController do
   end
 
   defp do_fetch_and_cache do
+    sources =
+      Enum.map(Frameworks.npm_packages(), &{:npm, &1}) ++
+        Enum.map(Frameworks.wordpress_plugins(), &{:wordpress, &1})
+
     versions =
-      Frameworks.npm_packages()
+      sources
       |> Task.async_stream(&fetch_latest_version/1,
         timeout: :timer.seconds(10),
         on_timeout: :kill_task
       )
       |> Enum.reduce(%{}, fn
-        {:ok, {pkg, version}}, acc -> Map.put(acc, pkg, version)
+        {:ok, {key, version}}, acc -> Map.put(acc, key, version)
         {:exit, _reason}, acc -> acc
       end)
 
-    has_valid_version = Enum.any?(versions, fn {_pkg, v} -> v != nil end)
+    has_valid_version = Enum.any?(versions, fn {_key, version} -> version != nil end)
 
     if has_valid_version do
       :persistent_term.put({__MODULE__, :cache}, {versions, System.monotonic_time(:millisecond)})
@@ -67,10 +72,10 @@ defmodule FrontmanServerWeb.IntegrationsController do
     versions
   end
 
-  defp fetch_latest_version(package) do
+  defp fetch_latest_version({:npm, package}) do
     url = "https://registry.npmjs.org/#{package}/latest"
 
-    case Req.get(url, headers: [{"accept", "application/json"}]) do
+    case Req.get(url, request_options()) do
       {:ok, %Req.Response{status: 200, body: %{"version" => version}}} ->
         {package, version}
 
@@ -82,5 +87,34 @@ defmodule FrontmanServerWeb.IntegrationsController do
         Logger.warning("Failed to fetch npm version for #{package}: #{inspect(reason)}")
         {package, nil}
     end
+  end
+
+  defp fetch_latest_version({:wordpress, plugin}) do
+    key = "wordpress:#{plugin}"
+
+    params = [
+      {"action", "plugin_information"},
+      {"request[slug]", plugin},
+      {"request[fields][sections]", "0"}
+    ]
+
+    case Req.get(@wordpress_plugin_info_url, [params: params] ++ request_options()) do
+      {:ok, %Req.Response{status: 200, body: %{"version" => version}}}
+      when is_binary(version) and byte_size(version) > 0 ->
+        {key, version}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        Logger.warning("WordPress.org returned #{status} for #{plugin}: #{inspect(body)}")
+        {key, nil}
+
+      {:error, reason} ->
+        Logger.warning("Failed to fetch WordPress version for #{plugin}: #{inspect(reason)}")
+        {key, nil}
+    end
+  end
+
+  defp request_options do
+    [headers: [{"accept", "application/json"}], receive_timeout: :timer.seconds(10)] ++
+      (Application.get_env(:frontman_server, __MODULE__, [])[:req_options] || [])
   end
 end

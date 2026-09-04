@@ -202,8 +202,12 @@ type userProfile = {
   name: option<string>,
 }
 
+type updateTarget =
+  | NpmPackage(string)
+  | WordPressPlugin(string)
+
 type updateInfo = {
-  npmPackage: string,
+  target: updateTarget,
   installedVersion: string,
   latestVersion: string,
 }

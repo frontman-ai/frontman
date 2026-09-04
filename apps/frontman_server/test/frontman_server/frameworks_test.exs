@@ -38,6 +38,8 @@ defmodule FrontmanServer.FrameworksTest do
                "@frontman-ai/vite",
                "@frontman-ai/astro"
              ]
+
+      assert Frameworks.wordpress_plugins() == ["frontman-agentic-ai-editor"]
     end
   end
 

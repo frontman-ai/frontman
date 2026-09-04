@@ -47,6 +47,7 @@ defmodule FrontmanServer.Frameworks do
       stored_id: "wordpress",
       display_name: "WordPress",
       npm_package: nil,
+      wordpress_plugin: "frontman-agentic-ai-editor",
       load_project_context?: false,
       tool_execution_mode: :serial,
       code_attachment_guidance?: false,
@@ -89,6 +90,14 @@ defmodule FrontmanServer.Frameworks do
     Enum.flat_map(@catalog, fn
       %{npm_package: nil} -> []
       %{npm_package: package} -> [package]
+    end)
+  end
+
+  @doc "WordPress plugins with registry version endpoints."
+  def wordpress_plugins do
+    Enum.flat_map(@catalog, fn
+      %{wordpress_plugin: plugin} -> [plugin]
+      _record -> []
     end)
   end
 

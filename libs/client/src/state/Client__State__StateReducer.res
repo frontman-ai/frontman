@@ -95,7 +95,7 @@ type action =
       sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
     })
   | SessionsLoadError({error: string})
-  | CheckForUpdate({installedVersion: string, npmPackage: string})
+  | CheckForUpdate({installedVersion: string, target: Client__State__Types.updateTarget})
   | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
   | DismissUpdateBanner
   | CloseFirstTaskFeedbackDialog
@@ -165,7 +165,11 @@ type effect =
   | FetchUserProfileEffect({apiBaseUrl: string})
   | LoadTaskEffect({taskId: string})
   | DeleteSessionEffect({taskId: string})
-  | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
+  | CheckForUpdateEffect({
+      apiBaseUrl: string,
+      installedVersion: string,
+      target: Client__State__Types.updateTarget,
+    })
   | TrackAnalyticsEffect(Client__Analytics.event)
   | ShareFrontmanEffect
   | FetchCustomProvidersEffect({
@@ -650,6 +654,29 @@ let sendMessageToAPIImpl = (
         action: UserMessageSendFailed({id: messageId, error}),
       }),
     )
+  }
+}
+
+let updateTargetKey = (target: Client__State__Types.updateTarget): string =>
+  switch target {
+  | NpmPackage(npmPackage) => npmPackage
+  | WordPressPlugin(slug) => `wordpress:${slug}`
+  }
+
+let updateInfoFromVersions = (
+  ~target: Client__State__Types.updateTarget,
+  ~installedVersion: string,
+  ~versions: Dict.t<option<string>>,
+): option<Client__State__Types.updateInfo> => {
+  let key = updateTargetKey(target)
+  switch versions->Dict.get(key)->Option.flatMap(version => version) {
+  | Some(latestVersion) =>
+    switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latestVersion)) {
+    | (Some(installed), Some(latest)) if Client__Semver.isBehind(installed, latest) =>
+      Some({target, installedVersion, latestVersion})
+    | _ => None
+    }
+  | None => None
   }
 }
 
@@ -1466,7 +1493,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}),
       )
     }
-  | CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage}) =>
+  | CheckForUpdateEffect({apiBaseUrl, installedVersion, target}) =>
     let fetch = async () => {
       try {
         let url = `${apiBaseUrl}/api/integrations/latest-versions`
@@ -1484,22 +1511,18 @@ let handleEffect = (effect, state: state, dispatch) => {
               ~from=S.json,
               ~to=Client__State__Types.latestVersionsResponseSchema,
             )
-          switch versions->Dict.get(npmPackage)->Option.flatMap(v => v) {
-          | Some(latest) =>
-            switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latest)) {
-            | (Some(installed), Some(latestV)) if Client__Semver.isBehind(installed, latestV) =>
-              dispatch(
-                UpdateInfoReceived({
-                  updateInfo: {npmPackage, installedVersion, latestVersion: latest},
-                }),
-              )
-            | _ => ()
-            }
+          switch updateInfoFromVersions(~target, ~installedVersion, ~versions) {
+          | Some({target, installedVersion, latestVersion}) =>
+            dispatch(UpdateInfoReceived({updateInfo: {target, installedVersion, latestVersion}}))
           | None =>
-            Sentry.captureConnectionError(
-              `CheckForUpdate: package "${npmPackage}" not found or null in registry response`,
-              ~endpoint=url,
-            )
+            switch target {
+            | NpmPackage(npmPackage) =>
+              Sentry.captureConnectionError(
+                `CheckForUpdate: package "${npmPackage}" not found or null in registry response`,
+                ~endpoint=url,
+              )
+            | WordPressPlugin(_) => ()
+            }
           }
         }
       } catch {
@@ -2158,14 +2181,14 @@ let next = (state: state, action) => {
     ->resolveFeedbackHistory
     ->StateReducer.update
 
-  | CheckForUpdate({installedVersion, npmPackage}) =>
+  | CheckForUpdate({installedVersion, target}) =>
     switch (state.updateCheckStatus, state.acpSession) {
     | (UpdateNotChecked, AcpSessionActive({apiBaseUrl})) =>
       {
         ...state,
         updateCheckStatus: Client__State__Types.UpdateChecked,
       }->StateReducer.update(
-        ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage})],
+        ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, target})],
       )
     | _ => state->StateReducer.update
     }

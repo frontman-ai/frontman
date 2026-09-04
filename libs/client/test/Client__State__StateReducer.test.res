@@ -124,6 +124,50 @@ module TestHelpers = {
   }
 }
 
+describe("Client State Reducer - Integration Updates", () => {
+  let wordpress = StateTypes.WordPressPlugin("frontman-agentic-ai-editor")
+  let npm = StateTypes.NpmPackage("@frontman-ai/nextjs")
+  let versions = entries => Dict.fromArray(entries)
+
+  test("finds an outdated WordPress plugin", t => {
+    let result = Reducer.updateInfoFromVersions(
+      ~target=wordpress,
+      ~installedVersion="1.2.0",
+      ~versions=versions([("wordpress:frontman-agentic-ai-editor", Some("1.3.0"))]),
+    )
+
+    t
+    ->expect(result)
+    ->Expect.toEqual(Some({target: wordpress, installedVersion: "1.2.0", latestVersion: "1.3.0"}))
+  })
+
+  test("ignores equal, newer, absent, and null WordPress versions", t => {
+    [
+      ("1.3.0", versions([("wordpress:frontman-agentic-ai-editor", Some("1.3.0"))])),
+      ("1.4.0", versions([("wordpress:frontman-agentic-ai-editor", Some("1.3.0"))])),
+      ("1.2.0", versions([])),
+      ("1.2.0", versions([("wordpress:frontman-agentic-ai-editor", None)])),
+    ]->Array.forEach(
+      ((installedVersion, versions)) =>
+        t
+        ->expect(Reducer.updateInfoFromVersions(~target=wordpress, ~installedVersion, ~versions))
+        ->Expect.toEqual(None),
+    )
+  })
+
+  test("preserves npm update lookup", t => {
+    let result = Reducer.updateInfoFromVersions(
+      ~target=npm,
+      ~installedVersion="1.2.0",
+      ~versions=versions([("@frontman-ai/nextjs", Some("1.3.0"))]),
+    )
+
+    t
+    ->expect(result)
+    ->Expect.toEqual(Some({target: npm, installedVersion: "1.2.0", latestVersion: "1.3.0"}))
+  })
+})
+
 describe("Client State Reducer - Custom Providers", () => {
   let provider = (~name, ~models): StateTypes.customProvider => {
     id: "provider-1",

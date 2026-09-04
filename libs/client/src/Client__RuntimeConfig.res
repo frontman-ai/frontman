@@ -1,9 +1,5 @@
 type frameworkId = Nextjs | Vite | Astro | Wordpress
 
-type updateTarget =
-  | NpmPackage(string)
-  | WordPressPlugin
-
 let frameworkIdFromString = (s: string): frameworkId =>
   switch s {
   | "nextjs" => Nextjs
@@ -77,12 +73,12 @@ let read = (): t => {
   }
 }
 
-let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
+let frameworkUpdateTarget = (id: frameworkId): Client__State__Types.updateTarget =>
   switch id {
   | Nextjs => NpmPackage("@frontman-ai/nextjs")
   | Vite => NpmPackage("@frontman-ai/vite")
   | Astro => NpmPackage("@frontman-ai/astro")
-  | Wordpress => WordPressPlugin
+  | Wordpress => WordPressPlugin("frontman-agentic-ai-editor")
   }
 
 let toMeta = (config: t): JSON.t => {

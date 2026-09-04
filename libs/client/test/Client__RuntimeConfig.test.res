@@ -26,6 +26,28 @@ describe("Client__RuntimeConfig", _t => {
     ->Expect.toBe(false)
   })
 
+  test("maps frameworks to their update registries", t => {
+    let npmTarget = Client__RuntimeConfig.frameworkUpdateTarget(Client__RuntimeConfig.Nextjs)
+    let wordpressTarget = Client__RuntimeConfig.frameworkUpdateTarget(
+      Client__RuntimeConfig.Wordpress,
+    )
+
+    t->expect(npmTarget)->Expect.toEqual(Client__State__Types.NpmPackage("@frontman-ai/nextjs"))
+    t
+    ->expect(wordpressTarget)
+    ->Expect.toEqual(Client__State__Types.WordPressPlugin("frontman-agentic-ai-editor"))
+    t
+    ->expect(Client__UpdateBanner.updateActionForTarget(npmTarget))
+    ->Expect.toEqual(Client__UpdateBanner.AgentUpdate("@frontman-ai/nextjs"))
+    t
+    ->expect(Client__UpdateBanner.updateActionForTarget(wordpressTarget))
+    ->Expect.toEqual(
+      Client__UpdateBanner.WordPressUpdate(
+        "https://wordpress.org/plugins/frontman-agentic-ai-editor/",
+      ),
+    )
+  })
+
   test("read works without wpNonce for non-WordPress integrations", t => {
     _setRuntime(
       JSON.Encode.object(
