@@ -2459,8 +2459,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman-ai/frontman-core@workspace:libs/frontman-core"
   dependencies:
-    "@frontman-ai/frontman-protocol": "npm:3.0.0"
-    "@frontman/bindings": "npm:0.3.1"
+    "@frontman-ai/frontman-protocol": "npm:4.0.0"
+    "@frontman/bindings": "npm:0.3.2"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
     "@vscode/ripgrep": "npm:^1.18.0"
@@ -2494,7 +2494,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman-ai/frontman-protocol@npm:*, @frontman-ai/frontman-protocol@npm:3.0.0, @frontman-ai/frontman-protocol@workspace:*, @frontman-ai/frontman-protocol@workspace:libs/frontman-protocol":
+"@frontman-ai/frontman-protocol@npm:*, @frontman-ai/frontman-protocol@npm:4.0.0, @frontman-ai/frontman-protocol@workspace:*, @frontman-ai/frontman-protocol@workspace:libs/frontman-protocol":
   version: 0.0.0-use.local
   resolution: "@frontman-ai/frontman-protocol@workspace:libs/frontman-protocol"
   dependencies:
@@ -2611,7 +2611,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman/bindings@npm:*, @frontman/bindings@npm:0.3.1, @frontman/bindings@workspace:*, @frontman/bindings@workspace:libs/bindings":
+"@frontman/bindings@npm:*, @frontman/bindings@npm:0.3.2, @frontman/bindings@workspace:*, @frontman/bindings@workspace:libs/bindings":
   version: 0.0.0-use.local
   resolution: "@frontman/bindings@workspace:libs/bindings"
   dependencies:

@@ -3,6 +3,151 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [5.0.0] - 2026-09-04
+
+
+#### @frontman/bindings
+
+
+### Patch Changes
+
+- [#1620](https://github.com/frontman-ai/frontman/pull/1620) [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use Node path.relative for relative path display and reject out-of-root search paths instead of falling back to the source root.
+
+#### @frontman-ai/client
+
+
+### Minor Changes
+
+- [#1496](https://github.com/frontman-ai/frontman/pull/1496) [`f5f2b9b`](https://github.com/frontman-ai/frontman/commit/f5f2b9b5f4c21a28283663fb009d637b1c8970e8) Thanks [@kevin-ho](https://github.com/kevin-ho)! - Add Custom Providers to Settings so users can configure per-user, publicly reachable OpenAI-compatible providers. Providers save their model IDs atomically, support optional API keys, reject stale updates, and appear as model-picker groups once configured. Outbound requests resolve and pin public destinations before connecting.
+
+- [#1559](https://github.com/frontman-ai/frontman/pull/1559) [`d64a09c`](https://github.com/frontman-ai/frontman/commit/d64a09c81349e446ec73aed02e284998ef13db3f) Thanks [@uinstinct](https://github.com/uinstinct)! - Add an execute control to element annotations: Ctrl/Cmd+Enter or the send button sends the selected elements and comments through the chatbox flow.
+
+- [#1538](https://github.com/frontman-ai/frontman/pull/1538) [`76efaeb`](https://github.com/frontman-ai/frontman/commit/76efaeb1bb90633cbeb6793c2b40e945f67ddcf6) Thanks [@uinstinct](https://github.com/uinstinct)! - Add the ability to remove a queued message before the agent picks it up. Each row in the queued-messages drawer now has a remove button, which deletes the pending message server-side.
+
+### Patch Changes
+
+- [#1564](https://github.com/frontman-ai/frontman/pull/1564) [`2424a52`](https://github.com/frontman-ai/frontman/commit/2424a52d1a60773292605d85df9e1c7ff4048c36) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Require every final agent response to include a concise TL;DR covering outcomes and relevant next steps.
+
+- [#1598](https://github.com/frontman-ai/frontman/pull/1598) [`1516deb`](https://github.com/frontman-ai/frontman/commit/1516deb61a02186d52f072d2c8a435618f916dfb) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show the five most recent tasks in the empty chat starter so users can resume previous work.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make the embedded Frontman approval popup clearer for non-technical users by explaining why it appears, what access is granted, and when to allow it.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Complete embedded bearer-token authentication for client sockets, remove the legacy socket-token path, and disable credentialed API CORS.
+
+- [#1573](https://github.com/frontman-ai/frontman/pull/1573) [`0e7830c`](https://github.com/frontman-ai/frontman/commit/0e7830c482032ba57501865b3af476535cfafef7) Thanks [@uinstinct](https://github.com/uinstinct)! - Pressing Escape while the element inspector is active now closes the open comment popup, then clears all selected elements, and finally exits selection mode when nothing is selected.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent the app from crashing when an existing loaded task was created before completed file-change snapshots were added.
+
+- [#1562](https://github.com/frontman-ai/frontman/pull/1562) [`35726d0`](https://github.com/frontman-ai/frontman/commit/35726d07f7ee2e540e2a2d489d8734cf69ff2928) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep task channels alive when MCP tools return audio, resource links, or embedded resources by reporting unsupported content as tool errors.
+
+- [#1561](https://github.com/frontman-ai/frontman/pull/1561) [`e0fc341`](https://github.com/frontman-ai/frontman/commit/e0fc34139a40b21235547932c36618fddcf60528) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject MCP catalogs containing duplicate tool names before publishing any discovered tools.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- [#1556](https://github.com/frontman-ai/frontman/pull/1556) [`45b62c4`](https://github.com/frontman-ai/frontman/commit/45b62c48e31d7c5bda9852120ea56313bc5d0bc4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent message submission until a model is selected.
+
+- [#1594](https://github.com/frontman-ai/frontman/pull/1594) [`033e90f`](https://github.com/frontman-ai/frontman/commit/033e90f1f36a223ba66cb9413f85feb6c91e939d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Track first-task feedback dialog impressions, closes, share clicks, and Discord clicks in Heap.
+
+- [#1599](https://github.com/frontman-ai/frontman/pull/1599) [`991732d`](https://github.com/frontman-ai/frontman/commit/991732da8d93384e186759bbff9524d1c173c8f9) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Tiptap core to 3.30.4.
+
+#### @frontman-ai/astro
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Minor Changes
+
+- [#1617](https://github.com/frontman-ai/frontman/pull/1617) [`5782bd7`](https://github.com/frontman-ai/frontman/commit/5782bd77a59f105ffd34bb3093a1f64d8b8e5c38) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enrich `get_client_pages` with Astro route pathname, segments, redirect metadata, fallback routes, and serialized route regex details.
+
+### Patch Changes
+
+- [#1601](https://github.com/frontman-ai/frontman/pull/1601) [`b447a4a`](https://github.com/frontman-ai/frontman/commit/b447a4ad2cb8aedb3c62e2f7a8df803eba7b5ee7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add `get_resolved_astro_config` so Astro agents can inspect sanitized resolved config before routing, rendering, adapter, i18n, image, Markdown, redirect, session, security, or deployment changes.
+
+#### @frontman-ai/frontman-client
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Patch Changes
+
+- [#1622](https://github.com/frontman-ai/frontman/pull/1622) [`0bc42d9`](https://github.com/frontman-ai/frontman/commit/0bc42d9ce3a0cfd8d29e0bcbd758f7bf53a35ec8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Handle ACP Phoenix push replies and clean up failed initialize connections after request timeouts.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Complete embedded bearer-token authentication for client sockets, remove the legacy socket-token path, and disable credentialed API CORS.
+
+- [#1619](https://github.com/frontman-ai/frontman/pull/1619) [`e2cd5a0`](https://github.com/frontman-ai/frontman/commit/e2cd5a0099cdfbc8dd7f1d43bb29ff2cdf72c2f7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject ACP client requests after a timeout instead of leaving the UI stuck when the server never responds.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- [#1557](https://github.com/frontman-ai/frontman/pull/1557) [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve integral JSON-RPC numeric IDs above signed 32-bit range.
+
+#### @frontman-ai/frontman-core
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Patch Changes
+
+- [#1621](https://github.com/frontman-ai/frontman/pull/1621) [`361d5c9`](https://github.com/frontman-ai/frontman/commit/361d5c9e45e9f3c1c0039290d1e37ff23740b18b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep path recovery scoped when source roots are relative.
+
+- [#1620](https://github.com/frontman-ai/frontman/pull/1620) [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use Node path.relative for relative path display and reject out-of-root search paths instead of falling back to the source root.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- Updated dependencies [[`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8), [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551), [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3), [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9)]:
+  - @frontman-ai/frontman-protocol@4.0.0
+  - @frontman/bindings@0.3.2
+
+#### @frontman-ai/nextjs
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Minor Changes
+
+- [#1496](https://github.com/frontman-ai/frontman/pull/1496) [`f5f2b9b`](https://github.com/frontman-ai/frontman/commit/f5f2b9b5f4c21a28283663fb009d637b1c8970e8) Thanks [@kevin-ho](https://github.com/kevin-ho)! - Add Custom Providers to Settings so users can configure per-user, publicly reachable OpenAI-compatible providers. Providers save their model IDs atomically, support optional API keys, reject stale updates, and appear as model-picker groups once configured. Outbound requests resolve and pin public destinations before connecting.
+
+### Patch Changes
+
+- [#1572](https://github.com/frontman-ai/frontman/pull/1572) [`45c9872`](https://github.com/frontman-ai/frontman/commit/45c9872e4f11c0eb06380176c3a2e8cc3539e3de) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fail closed for Next.js Frontman routes outside development unless explicitly enabled with `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`.
+
+- [#1574](https://github.com/frontman-ai/frontman/pull/1574) [`7a2776a`](https://github.com/frontman-ai/frontman/commit/7a2776ab9d556a7cccf37ad7c30ccd59112f86b6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix generated instrumentation type resolution during Next.js production builds and add a CI compatibility matrix for packed Next.js consumers.
+
+#### @frontman-ai/frontman-preview-bridge
+
+
+### Patch Changes
+
+- Updated dependencies [[`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8), [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551), [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3), [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9)]:
+  - @frontman-ai/frontman-protocol@4.0.0
+  - @frontman/bindings@0.3.2
+
+#### @frontman-ai/frontman-protocol
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Patch Changes
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- [#1557](https://github.com/frontman-ai/frontman/pull/1557) [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve integral JSON-RPC numeric IDs above signed 32-bit range.
+
+#### @frontman-ai/vite
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
 
 ## [Unreleased]
 

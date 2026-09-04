@@ -1,5 +1,23 @@
 # @frontman-ai/frontman-core
 
+## 2.0.0
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Patch Changes
+
+- [#1621](https://github.com/frontman-ai/frontman/pull/1621) [`361d5c9`](https://github.com/frontman-ai/frontman/commit/361d5c9e45e9f3c1c0039290d1e37ff23740b18b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep path recovery scoped when source roots are relative.
+
+- [#1620](https://github.com/frontman-ai/frontman/pull/1620) [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use Node path.relative for relative path display and reject out-of-root search paths instead of falling back to the source root.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- Updated dependencies [[`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8), [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551), [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3), [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9)]:
+  - @frontman-ai/frontman-protocol@4.0.0
+  - @frontman/bindings@0.3.2
+
 ## 1.1.0
 
 ### Minor Changes

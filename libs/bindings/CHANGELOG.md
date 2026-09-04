@@ -1,5 +1,11 @@
 # @frontman/bindings
 
+## 0.3.2
+
+### Patch Changes
+
+- [#1620](https://github.com/frontman-ai/frontman/pull/1620) [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use Node path.relative for relative path display and reject out-of-root search paths instead of falling back to the source root.
+
 ## 0.3.1
 
 ### Patch Changes

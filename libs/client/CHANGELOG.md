@@ -1,5 +1,41 @@
 # @frontman-ai/client
 
+## 1.2.0
+
+### Minor Changes
+
+- [#1496](https://github.com/frontman-ai/frontman/pull/1496) [`f5f2b9b`](https://github.com/frontman-ai/frontman/commit/f5f2b9b5f4c21a28283663fb009d637b1c8970e8) Thanks [@kevin-ho](https://github.com/kevin-ho)! - Add Custom Providers to Settings so users can configure per-user, publicly reachable OpenAI-compatible providers. Providers save their model IDs atomically, support optional API keys, reject stale updates, and appear as model-picker groups once configured. Outbound requests resolve and pin public destinations before connecting.
+
+- [#1559](https://github.com/frontman-ai/frontman/pull/1559) [`d64a09c`](https://github.com/frontman-ai/frontman/commit/d64a09c81349e446ec73aed02e284998ef13db3f) Thanks [@uinstinct](https://github.com/uinstinct)! - Add an execute control to element annotations: Ctrl/Cmd+Enter or the send button sends the selected elements and comments through the chatbox flow.
+
+- [#1538](https://github.com/frontman-ai/frontman/pull/1538) [`76efaeb`](https://github.com/frontman-ai/frontman/commit/76efaeb1bb90633cbeb6793c2b40e945f67ddcf6) Thanks [@uinstinct](https://github.com/uinstinct)! - Add the ability to remove a queued message before the agent picks it up. Each row in the queued-messages drawer now has a remove button, which deletes the pending message server-side.
+
+### Patch Changes
+
+- [#1564](https://github.com/frontman-ai/frontman/pull/1564) [`2424a52`](https://github.com/frontman-ai/frontman/commit/2424a52d1a60773292605d85df9e1c7ff4048c36) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Require every final agent response to include a concise TL;DR covering outcomes and relevant next steps.
+
+- [#1598](https://github.com/frontman-ai/frontman/pull/1598) [`1516deb`](https://github.com/frontman-ai/frontman/commit/1516deb61a02186d52f072d2c8a435618f916dfb) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show the five most recent tasks in the empty chat starter so users can resume previous work.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make the embedded Frontman approval popup clearer for non-technical users by explaining why it appears, what access is granted, and when to allow it.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Complete embedded bearer-token authentication for client sockets, remove the legacy socket-token path, and disable credentialed API CORS.
+
+- [#1573](https://github.com/frontman-ai/frontman/pull/1573) [`0e7830c`](https://github.com/frontman-ai/frontman/commit/0e7830c482032ba57501865b3af476535cfafef7) Thanks [@uinstinct](https://github.com/uinstinct)! - Pressing Escape while the element inspector is active now closes the open comment popup, then clears all selected elements, and finally exits selection mode when nothing is selected.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent the app from crashing when an existing loaded task was created before completed file-change snapshots were added.
+
+- [#1562](https://github.com/frontman-ai/frontman/pull/1562) [`35726d0`](https://github.com/frontman-ai/frontman/commit/35726d07f7ee2e540e2a2d489d8734cf69ff2928) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep task channels alive when MCP tools return audio, resource links, or embedded resources by reporting unsupported content as tool errors.
+
+- [#1561](https://github.com/frontman-ai/frontman/pull/1561) [`e0fc341`](https://github.com/frontman-ai/frontman/commit/e0fc34139a40b21235547932c36618fddcf60528) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject MCP catalogs containing duplicate tool names before publishing any discovered tools.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- [#1556](https://github.com/frontman-ai/frontman/pull/1556) [`45b62c4`](https://github.com/frontman-ai/frontman/commit/45b62c48e31d7c5bda9852120ea56313bc5d0bc4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent message submission until a model is selected.
+
+- [#1594](https://github.com/frontman-ai/frontman/pull/1594) [`033e90f`](https://github.com/frontman-ai/frontman/commit/033e90f1f36a223ba66cb9413f85feb6c91e939d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Track first-task feedback dialog impressions, closes, share clicks, and Discord clicks in Heap.
+
+- [#1599](https://github.com/frontman-ai/frontman/pull/1599) [`991732d`](https://github.com/frontman-ai/frontman/commit/991732da8d93384e186759bbff9524d1c173c8f9) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Tiptap core to 3.30.4.
+
 ## 1.1.0
 
 ### Minor Changes
