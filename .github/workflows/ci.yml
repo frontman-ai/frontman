@@ -71,6 +71,14 @@ jobs:
       - name: Build project
         run: make build
 
+      - name: Build preview capsule
+        env:
+          NODE_OPTIONS: '--max-old-space-size=4096'
+        run: make build-preview-capsule
+
+      - name: Test preview capsule manifest
+        run: make test-preview-capsule
+
   test-frontman-client:
     name: Test frontman-client
     runs-on: ubuntu-latest

@@ -49,10 +49,10 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
 
-      - name: Build client standalone bundle
+      - name: Build client capsule
         env:
           NODE_OPTIONS: '--max-old-space-size=4096'
-        run: make -C libs/client build-standalone
+        run: make build-preview-capsule
 
       - name: Upload client bundle
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
