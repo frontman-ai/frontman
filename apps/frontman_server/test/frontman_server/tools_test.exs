@@ -8,6 +8,7 @@ defmodule FrontmanServer.ToolsTest do
   alias FrontmanServer.Tasks.Interaction.ToolResult
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools
+  alias FrontmanServer.Tools.AgentFeedback
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.GetToolResult
   alias FrontmanServer.Tools.TodoWrite
@@ -37,6 +38,7 @@ defmodule FrontmanServer.ToolsTest do
     test "tools expose expected access levels" do
       by_name = Map.new(Tools.backend_tools(), &{&1.name, &1.access})
 
+      assert by_name["agent_feedback"] == :write
       assert by_name["get_tool_result"] == :read
       assert by_name["web_fetch"] == :read
       assert by_name["todo_write"] == :write
@@ -46,6 +48,7 @@ defmodule FrontmanServer.ToolsTest do
   describe "find_tool/1" do
     test "finds registered tools" do
       for {tool_name, module} <- [
+            {"agent_feedback", AgentFeedback},
             {"todo_write", TodoWrite},
             {"get_tool_result", GetToolResult},
             {"web_fetch", WebFetch}

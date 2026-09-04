@@ -3,17 +3,19 @@ module Client = FrontmanClient__ACP__Client
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Constants = FrontmanClient__Transport__Constants
+module Decoders = FrontmanClient__Decoders
 module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
 let requestTimeoutMs = 120000
 
-let handlePushReply = (~state: ref<Client.state>, payload: JSON.t): unit => {
+let pushReplyMessageSchema: S.t<JSON.t> = S.object(s => s.field("acp:message", S.json))
+
+let parsePushReply = payload => {
   payload
-  ->JSON.Decode.object
-  ->Option.flatMap(reply => reply->Dict.get("acp:message"))
-  ->Option.forEach(message => state := Client.handleResponse(state.contents, message))
+  ->Decoders.parseSchema(pushReplyMessageSchema)
+  ->Result.mapError(error => `Invalid ACP push reply envelope: ${error}`)
 }
 
 let sendRequest = (
@@ -55,8 +57,15 @@ let sendRequest = (
       )
 
     let payload = request->JsonRpc.Request.toJson
-    let push = channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)
-    push.receive(~status="ok", ~callback=reply => handlePushReply(~state, reply))->ignore
+    let push = channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
+    push.receive(~status="ok", ~callback=reply => {
+      switch parsePushReply(reply) {
+      | Ok(message) => state := Client.handleResponse(state.contents, message)
+      | Error(error) =>
+        state := state.contents->Client.reduce(Client.ResponseReceived(id))
+        pending.reject(error)
+      }
+    })->ignore
   })
 }
 

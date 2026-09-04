@@ -26,11 +26,21 @@ config :workos, WorkOS.Client,
 
 config :frontman_server, Oban, testing: :manual
 
-config :frontman_server, discord_new_users_webhook_url: "https://discord.test/webhook"
-
 config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: true
-config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: true
-config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser, enabled: true
+
+config :frontman_server, FrontmanServer.Workers.SyncResendContact,
+  enabled: true,
+  req_options: []
+
+config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
+  enabled: true,
+  webhook_url: "https://discord.test/webhook",
+  req_options: []
+
+config :frontman_server, FrontmanServer.Workers.SendAgentFeedbackToDiscord,
+  enabled: true,
+  webhook_url: "https://discord.test/agent-feedback",
+  req_options: []
 
 config :swoosh, :api_client, false
 

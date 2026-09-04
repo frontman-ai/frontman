@@ -17,9 +17,11 @@ config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
   stream_stall_timeout_ms: 60_000,
-  llm_max_tokens: 64_000
+  llm_max_tokens: 64_000,
+  web_fetch_req_options: []
 
 config :frontman_server, :backend_tools, [
+  FrontmanServer.Tools.AgentFeedback,
   FrontmanServer.Tools.GetToolResult,
   FrontmanServer.Tools.TodoWrite,
   FrontmanServer.Tools.WebFetch
@@ -66,6 +68,7 @@ config :frontman_server, FrontmanServer.Agents,
 
       - Lead with what changed and why. Reference file paths — don't dump full file contents.
       - After edits, summarize: what changed, why, trade-offs, alternatives. For UI changes, suggest visual verification. Never complete silently.
+      - If you complete a task and notice missing Frontman capabilities, or if you are stuck/fail because a tool, context source, or workflow is missing or broken, call `agent_feedback` before your final response.
       - Reference files as `src/app.ts:42`. Use numbered lists for multiple options.
 
       ## Code Quality
@@ -154,8 +157,20 @@ config :frontman_server, FrontmanServer.Mailer,
   segment_id: "5786d8bb-df16-413c-a06d-64d1a579cc2f"
 
 config :frontman_server, FrontmanServer.Workers.SendWelcomeEmail, enabled: false
-config :frontman_server, FrontmanServer.Workers.SyncResendContact, enabled: false
-config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser, enabled: false
+
+config :frontman_server, FrontmanServer.Workers.SyncResendContact,
+  enabled: false,
+  req_options: []
+
+config :frontman_server, FrontmanServer.Workers.NotifyDiscordNewUser,
+  enabled: false,
+  webhook_url: nil,
+  req_options: []
+
+config :frontman_server, FrontmanServer.Workers.SendAgentFeedbackToDiscord,
+  enabled: false,
+  webhook_url: nil,
+  req_options: []
 
 config :frontman_server, Oban,
   repo: FrontmanServer.Repo,

@@ -6,12 +6,16 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
   alias FrontmanServer.Workers.SyncResendContact
 
   setup do
-    Application.put_env(:frontman_server, :sync_resend_contact_req_options,
-      plug: {Req.Test, :resend}
+    original_config = Application.get_env(:frontman_server, SyncResendContact, [])
+
+    Application.put_env(
+      :frontman_server,
+      SyncResendContact,
+      Keyword.put(original_config, :req_options, plug: {Req.Test, :resend})
     )
 
     on_exit(fn ->
-      Application.delete_env(:frontman_server, :sync_resend_contact_req_options)
+      Application.put_env(:frontman_server, SyncResendContact, original_config)
     end)
 
     :ok
