@@ -12,7 +12,6 @@ defmodule FrontmanServerWeb.IntegrationsController do
   require Logger
 
   @cache_ttl_ms :timer.minutes(30)
-  @wordpress_plugin_info_url "https://api.wordpress.org/plugins/info/1.2/"
 
   def latest_versions(conn, _params) do
     versions = get_cached_versions()
@@ -20,20 +19,6 @@ defmodule FrontmanServerWeb.IntegrationsController do
   end
 
   defp get_cached_versions do
-    case :persistent_term.get({__MODULE__, :cache}, nil) do
-      {versions, fetched_at} when is_map(versions) ->
-        if System.monotonic_time(:millisecond) - fetched_at < @cache_ttl_ms do
-          versions
-        else
-          fetch_and_cache()
-        end
-
-      _ ->
-        fetch_and_cache()
-    end
-  end
-
-  defp fetch_and_cache do
     case :persistent_term.get({__MODULE__, :cache}, nil) do
       {versions, fetched_at} when is_map(versions) ->
         if System.monotonic_time(:millisecond) - fetched_at < @cache_ttl_ms do
@@ -71,7 +56,7 @@ defmodule FrontmanServerWeb.IntegrationsController do
   defp fetch_latest_version({:npm, package}) do
     url = "https://registry.npmjs.org/#{package}/latest"
 
-    case Req.get(url, request_options()) do
+    case Req.get(url, registry_request_options()) do
       {:ok, %Req.Response{status: 200, body: %{"version" => version}}} ->
         {package, version}
 
@@ -86,6 +71,7 @@ defmodule FrontmanServerWeb.IntegrationsController do
   end
 
   defp fetch_latest_version({:wordpress, plugin}) do
+    url = "https://api.wordpress.org/plugins/info/1.2/"
     key = "wordpress:#{plugin}"
 
     params = [
@@ -94,7 +80,7 @@ defmodule FrontmanServerWeb.IntegrationsController do
       {"request[fields][sections]", "0"}
     ]
 
-    case Req.get(@wordpress_plugin_info_url, [params: params] ++ request_options()) do
+    case Req.get(url, [params: params] ++ registry_request_options()) do
       {:ok, %Req.Response{status: 200, body: %{"version" => version}}}
       when is_binary(version) and byte_size(version) > 0 ->
         {key, version}
@@ -109,8 +95,8 @@ defmodule FrontmanServerWeb.IntegrationsController do
     end
   end
 
-  defp request_options do
+  defp registry_request_options do
     [headers: [{"accept", "application/json"}], receive_timeout: :timer.seconds(10)] ++
-      (Application.get_env(:frontman_server, __MODULE__, [])[:req_options] || [])
+      (Application.get_env(:frontman_server, __MODULE__, [])[:registry_request_options] || [])
   end
 end

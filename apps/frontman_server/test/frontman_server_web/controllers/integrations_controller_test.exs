@@ -12,7 +12,7 @@ defmodule FrontmanServerWeb.IntegrationsControllerTest do
       Application.get_env(:frontman_server, FrontmanServerWeb.IntegrationsController)
 
     Application.put_env(:frontman_server, FrontmanServerWeb.IntegrationsController,
-      req_options: [plug: {Req.Test, :integration_versions}, retry: false]
+      registry_request_options: [plug: {Req.Test, :integration_versions}, retry: false]
     )
 
     :persistent_term.erase(@cache_key)
