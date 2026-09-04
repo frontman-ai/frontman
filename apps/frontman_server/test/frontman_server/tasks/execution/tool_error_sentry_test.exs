@@ -187,7 +187,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       tc = %SwarmAi.ToolCall{id: "tc-deadline-1", name: "todo_write", arguments: "{}"}
       ToolExecutor.handle_timeout(scope, task_id, turn_number, :error, tc, :triggered)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_result =
         Enum.find(Tasks.interactions(task), fn
@@ -214,7 +214,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       tc = %SwarmAi.ToolCall{id: "tc-pause-1", name: "some_mcp_tool", arguments: "{}"}
       ToolExecutor.handle_timeout(scope, task_id, turn_number, :pause_agent, tc, :triggered)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_result =
         Enum.find(Tasks.interactions(task), fn

@@ -17,7 +17,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
 
   describe "list_todos/1" do
     test "returns empty map when no interactions", %{task_id: task_id, scope: scope} do
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert %{} = Todos.list_todos(task.interaction_rows)
     end
 
@@ -57,7 +57,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       todos = Todos.list_todos(task.interaction_rows)
       assert map_size(todos) == 2
 
@@ -111,7 +111,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       todos = Todos.list_todos(task.interaction_rows)
       assert map_size(todos) == 1
 
@@ -155,7 +155,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       todos = Todos.list_todos(task.interaction_rows)
       assert map_size(todos) == 1
       assert [%{content: "Good task"}] = Map.values(todos)
@@ -174,7 +174,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert %{} = Todos.list_todos(task.interaction_rows)
     end
 
@@ -199,7 +199,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       todos = Todos.list_todos(task.interaction_rows)
       assert todos == %{}
     end
@@ -229,7 +229,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       assert [%{content: "Reuse loaded history", priority: :high}] = Tasks.list_todos(task)
     end

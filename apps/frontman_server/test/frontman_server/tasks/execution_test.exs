@@ -462,7 +462,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       refute_running_eventually(task_id)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       agent_responses =
         Enum.filter(Tasks.interactions(task), &match?(%Interaction.AgentResponse{}, &1))
@@ -694,7 +694,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert [%Interaction.UserMessage{} = persisted_message | _] = Tasks.interactions(task)
 
       assert %Interaction.CurrentPage{title: "Frontman: Visual AI Frontend Editing"} =
@@ -732,7 +732,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       completions =
         Enum.filter(Tasks.interactions(task), &match?(%Interaction.AgentCompleted{}, &1))
@@ -762,7 +762,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                  execution_request_fixture()
                )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentRetry{}, &1))
     end
@@ -986,7 +986,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_results =
         Enum.filter(Tasks.interactions(task), fn
@@ -1089,7 +1089,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentPaused{}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_results =
         Enum.filter(Tasks.interactions(task), fn
@@ -1131,7 +1131,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_call_interaction =
         Enum.find(Tasks.interactions(task), fn
@@ -1242,7 +1242,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
       assert {:ok, []} = Tasks.list_todos(scope, task_id)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       interactions = Tasks.interactions(task)
       refute Enum.any?(interactions, &match?(%Interaction.ToolCall{tool_call_id: ^tc_id}, &1))
       assert Enum.any?(interactions, &match?(%Interaction.ToolResult{tool_call_id: ^tc_id}, &1))
@@ -1363,7 +1363,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentError{kind: "terminated"}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       agent_error =
         Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
@@ -1410,7 +1410,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         }
       })
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       agent_error =
         Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
@@ -1457,7 +1457,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         }
       })
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       agent_error =
         Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
@@ -1542,7 +1542,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_result =
         Enum.find(Tasks.interactions(task), fn
@@ -1578,7 +1578,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_result =
         Enum.find(Tasks.interactions(task), fn

@@ -61,7 +61,8 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Workers.GenerateTitle
   require Logger
 
-  defp get_task_by_id(scope, task_id) do
+  @doc "Gets task metadata by ID without loading its interaction history."
+  def get_task(scope, task_id) do
     case task_id
          |> TaskSchema.by_id_for_user(Accounts.scope_user_id(scope))
          |> Repo.one() do
@@ -97,14 +98,10 @@ defmodule FrontmanServer.Tasks do
     {:ok, tasks}
   end
 
-  @doc """
-  Gets a task by ID. Returns the task with interactions loaded.
-
-  Requires authorization - scope.user.id must match task.user_id.
-  """
-  def get_task(scope, task_id) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      {:ok, hydrate_task(schema)}
+  @doc "Gets a task by ID with its interaction history loaded."
+  def get_task_with_history(scope, task_id) do
+    with {:ok, task} <- get_task(scope, task_id) do
+      {:ok, %{task | interaction_rows: load_interaction_rows(task.id)}}
     end
   end
 
@@ -121,7 +118,7 @@ defmodule FrontmanServer.Tasks do
   Cascade deletes configured in migration handle interaction cleanup.
   """
   def delete_task(scope, task_id) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
+    with {:ok, schema} <- get_task(scope, task_id),
          {:ok, _} <- Repo.delete(schema) do
       :ok
     end
@@ -146,10 +143,6 @@ defmodule FrontmanServer.Tasks do
 
     TaskSchema.create_changeset(attrs)
     |> Repo.insert()
-  end
-
-  defp hydrate_task(%TaskSchema{} = task_schema) do
-    %{task_schema | interaction_rows: load_interaction_rows(task_schema.id)}
   end
 
   defp load_interaction_rows(task_id) do
@@ -235,7 +228,7 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Stores the discovered project structure summary for a task."
   def add_discovered_project_structure(scope, task_id, summary) do
-    with {:ok, %TaskSchema{} = task} <- get_task_by_id(scope, task_id),
+    with {:ok, %TaskSchema{} = task} <- get_task(scope, task_id),
          false <-
            task.id
            |> InteractionSchema.for_task()
@@ -322,7 +315,7 @@ defmodule FrontmanServer.Tasks do
       |> Interaction.AgentResponse.attrs_from_llm_response()
       |> Map.put(:timestamp, metadata.timestamp)
 
-    with {:ok, task_schema} <- get_task_by_id(scope, task_id),
+    with {:ok, task_schema} <- get_task(scope, task_id),
          {:ok, _interaction} <-
            record_interaction(task_schema, :agent_response, attrs, turn_number) do
       :ok
@@ -505,7 +498,7 @@ defmodule FrontmanServer.Tasks do
          {:ok, user_message_attrs} <-
            Interaction.UserMessage.attrs(content_blocks, model, agent_id),
          user_message_attrs = put_selected_skill(user_message_attrs, selected_skill),
-         {:ok, task_schema} <- get_task_by_id(scope, task_id) do
+         {:ok, task_schema} <- get_task(scope, task_id) do
       record_interaction_row(
         task_schema,
         %{
@@ -747,7 +740,7 @@ defmodule FrontmanServer.Tasks do
 
   def agent_replied(scope, task_id, turn_number, content, metadata \\ %{}, usage \\ nil)
       when is_integer(turn_number) and turn_number > 0 do
-    with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
+    with {:ok, task_schema} <- get_task(scope, task_id) do
       record_interaction(
         task_schema,
         :agent_response,
@@ -760,7 +753,7 @@ defmodule FrontmanServer.Tasks do
   @doc "Records how the given execution ended."
   def record_execution_outcome(scope, task_id, turn_number, outcome)
       when is_integer(turn_number) and turn_number > 0 do
-    with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
+    with {:ok, task_schema} <- get_task(scope, task_id) do
       {type, attrs} = build_execution_outcome(outcome)
 
       record_interaction(task_schema, type, attrs, turn_number)
@@ -810,7 +803,7 @@ defmodule FrontmanServer.Tasks do
   @doc "Records a client-handled tool request in the given turn."
   def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
       when is_integer(turn_number) and turn_number > 0 do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
+    with {:ok, schema} <- get_task(scope, task_id),
          {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data) do
       record_interaction(schema, :tool_call, attrs, turn_number)
     end
@@ -834,7 +827,7 @@ defmodule FrontmanServer.Tasks do
         opts \\ []
       )
       when is_list(opts) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
+    with {:ok, schema} <- get_task(scope, task_id) do
       turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
       attrs = Interaction.ToolResult.attrs(tool_call_data, result)
 
@@ -901,7 +894,7 @@ defmodule FrontmanServer.Tasks do
   in the same turn. Completion, error, and pause records stop execution.
   """
   def get_active_turn_unresolved_tool_calls(scope, task_id) do
-    with {:ok, _schema} <- get_task_by_id(scope, task_id),
+    with {:ok, _schema} <- get_task(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, history} <- History.new(rows) do
       case History.active_turn_number(history) do
@@ -924,7 +917,7 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Records a retry request and starts execution."
   def retry_execution(scope, task_id, retried_error_id, execution) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
+    with {:ok, schema} <- get_task(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, history} = History.new(rows),
          {:ok, turn_number} <- retry_turn_number(rows, retried_error_id),
@@ -991,7 +984,7 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Resumes execution for the active turn."
   def resume_execution(scope, task_id, execution) do
-    with {:ok, task} <- get_task(scope, task_id),
+    with {:ok, task} <- get_task_with_history(scope, task_id),
          {:ok, history} <- History.new(task.interaction_rows),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
@@ -1021,7 +1014,7 @@ defmodule FrontmanServer.Tasks do
   Verifies the task exists and belongs to the user before cancelling.
   """
   def cancel_execution(scope, task_id) do
-    with {:ok, _schema} <- get_task_by_id(scope, task_id) do
+    with {:ok, _schema} <- get_task(scope, task_id) do
       SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
     end
   end
@@ -1105,7 +1098,7 @@ defmodule FrontmanServer.Tasks do
   def apply_title_suggestion(scope, task_id, title) do
     default_title = TaskSchema.default_title()
 
-    with {:ok, %TaskSchema{short_desc: ^default_title} = schema} <- get_task_by_id(scope, task_id),
+    with {:ok, %TaskSchema{short_desc: ^default_title} = schema} <- get_task(scope, task_id),
          {:ok, _updated} <-
            schema
            |> TaskSchema.update_changeset(%{short_desc: title})
@@ -1133,7 +1126,7 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Lists all todos for a task."
   def list_todos(scope, task_id) do
-    with {:ok, task} <- get_task(scope, task_id) do
+    with {:ok, task} <- get_task_with_history(scope, task_id) do
       {:ok, list_todos(task)}
     end
   end

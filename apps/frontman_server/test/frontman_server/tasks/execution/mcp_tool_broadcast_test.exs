@@ -61,7 +61,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
              "Expected exactly 1 tool call broadcast, got #{length(tool_call_broadcasts)}. " <>
                "This indicates Tasks.request_client_tool is being called multiple times."
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       assert %Tasks.Interaction.AgentResponse{metadata: %{"tool_calls" => [persisted_call]}} =
                Enum.find(

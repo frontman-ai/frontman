@@ -37,6 +37,7 @@ defmodule FrontmanServer.TasksTest do
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.id == task_id
       assert task.framework == :nextjs
+      assert %Ecto.Association.NotLoaded{} = task.interaction_rows
     end
   end
 
@@ -201,7 +202,7 @@ defmodule FrontmanServer.TasksTest do
                  execution_request_fixture(model: "missing:test")
                )
 
-      assert {:ok, loaded_task} = Tasks.get_task(scope, task.id)
+      assert {:ok, loaded_task} = Tasks.get_task_with_history(scope, task.id)
 
       assert %Interaction.TurnStarted{agent_id: "test-frontman"} =
                Enum.find(
@@ -252,7 +253,7 @@ defmodule FrontmanServer.TasksTest do
 
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       assert [
@@ -297,7 +298,7 @@ defmodule FrontmanServer.TasksTest do
 
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user})
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       interactions = Tasks.interactions(task)
 
       assert Enum.any?(interactions, &match?(%Interaction.AgentError{kind: "cancelled"}, &1))
@@ -779,7 +780,7 @@ defmodule FrontmanServer.TasksTest do
                {Interaction.AgentResponse, ^turn_number}
              ] = db_type_turns(task_id)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       messages = Tasks.Interaction.to_swarm_messages(Tasks.interactions(task))
 
       assert length(messages) == 4,
@@ -1383,7 +1384,7 @@ defmodule FrontmanServer.TasksTest do
           {:paused_for_tool_timeout, "question", 120_000}
         )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       paused = Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentPaused{}, &1))
       assert paused != nil
@@ -1408,7 +1409,7 @@ defmodule FrontmanServer.TasksTest do
           {:paused_for_tool_timeout, "question", 120_000}
         )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       messages = Interaction.to_swarm_messages(Tasks.interactions(task))
 
