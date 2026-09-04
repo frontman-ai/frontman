@@ -172,13 +172,15 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "jsonrpc" => "2.0",
         "id" => 2,
         "result" => %{
-          "sessionId" => ^client_session_id
+          "sessionId" => ^client_session_id,
+          "configOptions" => [%{"currentValue" => current_model}]
         }
       })
 
       assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
       assert task.id == client_session_id
       assert task.framework == :nextjs
+      assert task.current_model == current_model
     end
 
     test "stores framework ID from clientInfo", %{socket: socket, scope: scope} do
