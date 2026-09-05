@@ -35,7 +35,7 @@ describe("Client__RuntimeConfig", _t => {
     t->expect(npmTarget)->Expect.toEqual(Client__State__Types.NpmPackage("@frontman-ai/nextjs"))
     t
     ->expect(wordpressTarget)
-    ->Expect.toEqual(Client__State__Types.WordPressPlugin("frontman-agentic-ai-editor"))
+    ->Expect.toEqual(Client__State__Types.WordPressPlugin)
     t
     ->expect(Client__UpdateBanner.updateActionForTarget(npmTarget, ~wordpressPluginsUrl=None))
     ->Expect.toEqual(Client__UpdateBanner.AgentUpdate("@frontman-ai/nextjs"))

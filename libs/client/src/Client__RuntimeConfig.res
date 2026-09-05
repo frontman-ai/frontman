@@ -81,7 +81,7 @@ let frameworkUpdateTarget = (id: frameworkId): Client__State__Types.updateTarget
   | Nextjs => NpmPackage("@frontman-ai/nextjs")
   | Vite => NpmPackage("@frontman-ai/vite")
   | Astro => NpmPackage("@frontman-ai/astro")
-  | Wordpress => WordPressPlugin("frontman-agentic-ai-editor")
+  | Wordpress => WordPressPlugin
   }
 
 let toMeta = (config: t): JSON.t => {

@@ -204,7 +204,7 @@ type userProfile = {
 
 type updateTarget =
   | NpmPackage(string)
-  | WordPressPlugin(string)
+  | WordPressPlugin
 
 type updateInfo = {
   target: updateTarget,
@@ -213,11 +213,7 @@ type updateInfo = {
 }
 
 @schema
-type latestVersionsResponse = {
-  versions: Dict.t<option<string>>,
-  installedVersion: option<string>,
-  autoUpdateEnabled: option<bool>,
-}
+type latestVersionsResponse = {versions: Dict.t<option<string>>}
 
 type highlightedAnnotation = {
   taskId: string,
@@ -253,8 +249,7 @@ type state = {
   customProviders: option<array<customProvider>>,
   customProviderMutation: customProviderMutation,
   updateInfo: option<updateInfo>,
-  wordpressUpdateUnsupported: bool,
-  wordpressAutoUpdateEnabled: option<bool>,
+  wordpressUpdates: Client__WordPressUpdates.t,
   updateBannerDismissed: bool,
   firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
   highlightedAnnotation: option<highlightedAnnotation>,

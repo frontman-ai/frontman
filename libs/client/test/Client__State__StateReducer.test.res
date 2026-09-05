@@ -125,15 +125,14 @@ module TestHelpers = {
 }
 
 describe("Client State Reducer - Integration Updates", () => {
-  let wordpress = StateTypes.WordPressPlugin("frontman-agentic-ai-editor")
+  let wordpress = StateTypes.WordPressPlugin
   let npm = StateTypes.NpmPackage("@frontman-ai/nextjs")
-  let versions = entries => Dict.fromArray(entries)
 
   test("finds an outdated WordPress plugin", t => {
-    let result = Reducer.updateInfoFromVersions(
+    let result = Reducer.updateInfoForVersions(
       ~target=wordpress,
       ~installedVersion="1.2.0",
-      ~versions=versions([("wordpress:frontman-agentic-ai-editor", Some("1.3.0"))]),
+      ~latestVersion="1.3.0",
     )
 
     t
@@ -141,34 +140,32 @@ describe("Client State Reducer - Integration Updates", () => {
     ->Expect.toEqual(Some({target: wordpress, installedVersion: "1.2.0", latestVersion: "1.3.0"}))
   })
 
-  test("ignores equal, newer, absent, and null WordPress versions", t => {
+  test("ignores equal, newer, and invalid versions", t => {
     [
-      ("1.3.0", versions([("wordpress:frontman-agentic-ai-editor", Some("1.3.0"))])),
-      ("1.4.0", versions([("wordpress:frontman-agentic-ai-editor", Some("1.3.0"))])),
-      ("1.2.0", versions([])),
-      ("1.2.0", versions([("wordpress:frontman-agentic-ai-editor", None)])),
+      ("1.3.0", "1.3.0"),
+      ("1.4.0", "1.3.0"),
+      ("invalid", "1.3.0"),
+      ("1.2.0", "invalid"),
     ]->Array.forEach(
-      ((installedVersion, versions)) =>
+      ((installedVersion, latestVersion)) =>
         t
-        ->expect(Reducer.updateInfoFromVersions(~target=wordpress, ~installedVersion, ~versions))
+        ->expect(
+          Reducer.updateInfoForVersions(~target=wordpress, ~installedVersion, ~latestVersion),
+        )
         ->Expect.toEqual(None),
     )
   })
 
-  test("preserves npm update lookup", t => {
-    let registryVersions = versions([("@frontman-ai/nextjs", Some("1.3.0"))])
-    let result = Reducer.updateInfoFromVersions(
+  test("preserves npm version comparison", t => {
+    let result = Reducer.updateInfoForVersions(
       ~target=npm,
       ~installedVersion="1.2.0",
-      ~versions=registryVersions,
+      ~latestVersion="1.3.0",
     )
 
     t
     ->expect(result)
     ->Expect.toEqual(Some({target: npm, installedVersion: "1.2.0", latestVersion: "1.3.0"}))
-    t
-    ->expect(Reducer.latestVersionFromVersions(~target=npm, ~versions=registryVersions))
-    ->Expect.toEqual(Some("1.3.0"))
   })
 
   test("refreshes updates without an ACP session and clears stale notices", t => {
@@ -186,10 +183,22 @@ describe("Client State Reducer - Integration Updates", () => {
       latestVersion: "1.3.0",
     }
     let state = {...Reducer.defaultState, updateInfo: Some(staleInfo)}
-    let cleared = Reducer.next(state, Reducer.UpdateInfoChecked(None))->Pair.first
+    let cleared = Reducer.next(
+      state,
+      Reducer.WordPressUpdatesChecked(
+        Some({
+          installedVersion: "1.3.0",
+          latestVersion: "1.3.0",
+          autoUpdateEnabled: true,
+        }),
+      ),
+    )->Pair.first
 
     t->expect(effects->Array.length)->Expect.toEqual(1)
     t->expect(cleared.updateInfo)->Expect.toEqual(None)
+    t
+    ->expect(cleared.wordpressUpdates)
+    ->Expect.toEqual(Client__WordPressUpdates.Available({autoUpdateEnabled: true}))
   })
 })
 

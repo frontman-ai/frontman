@@ -41,20 +41,25 @@ it("stops legacy WordPress update checks after a 404 without reporting an error"
 		TAG: "CheckForUpdate",
 		apiBaseUrl: "https://api.frontman.sh",
 		installedVersion: "5.0.0",
-		target: { TAG: "WordPressPlugin", _0: "frontman-agentic-ai-editor" },
+		target: "WordPressPlugin",
 	};
 	const [, effects] = next(defaultState, check);
 	const dispatch = vi.fn();
 	handleEffect(effects[0], defaultState, dispatch);
 	await vi.waitFor(() =>
-		expect(dispatch).toHaveBeenCalledWith("WordPressUpdateUnsupported"),
+		expect(dispatch).toHaveBeenCalledWith({
+			TAG: "WordPressUpdatesChecked",
+			_0: undefined,
+		}),
 	);
 	const [state] = next(defaultState, dispatch.mock.calls[0][0]);
 
 	expect(fetch).toHaveBeenCalledWith(
 		"http://localhost:3000/index.php/frontman/plugin-update",
 	);
-	expect(state.wordpressUpdateUnsupported).toBe(true);
+	expect(state.wordpressUpdates).toBe("Unsupported");
+	selectedState.current = state;
+	expect(renderToStaticMarkup(createElement(UpdateBanner))).toBe("");
 	expect(next(state, check)[1]).toEqual([]);
 	expect(Sentry.captureConnectionError).not.toHaveBeenCalled();
 	expect(Sentry.captureException).not.toHaveBeenCalled();
@@ -67,7 +72,7 @@ it("refreshes the auto-update nudge independently of version updates and dismiss
 		wordpressPluginsUrl: "http://localhost:3000/wp-admin/network/plugins.php",
 	};
 	let state = { ...defaultState, updateBannerDismissed: true };
-	for (const enabled of [false, true, false, undefined]) {
+	for (const enabled of [false, true, false]) {
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(
@@ -75,7 +80,7 @@ it("refreshes the auto-update nudge independently of version updates and dismiss
 					new Response(
 						JSON.stringify({
 							installedVersion: "5.0.0",
-							versions: { "wordpress:frontman-agentic-ai-editor": "5.0.0" },
+							latestVersion: "5.0.0",
 							autoUpdateEnabled: enabled,
 						}),
 					),
@@ -89,13 +94,16 @@ it("refreshes the auto-update nudge independently of version updates and dismiss
 				TAG: "CheckForUpdateEffect",
 				apiBaseUrl: "https://api.frontman.sh",
 				installedVersion: "5.0.0",
-				target: { TAG: "WordPressPlugin", _0: "frontman-agentic-ai-editor" },
+				target: "WordPressPlugin",
 			},
 			state,
 			dispatch,
 		);
-		await vi.waitFor(() => expect(dispatch).toHaveBeenCalledTimes(2));
-		expect(state.wordpressAutoUpdateEnabled).toBe(enabled);
+		await vi.waitFor(() => expect(dispatch).toHaveBeenCalledOnce());
+		expect(state.wordpressUpdates).toEqual({
+			TAG: "Available",
+			autoUpdateEnabled: enabled,
+		});
 		expect(state.updateInfo).toBeUndefined();
 		selectedState.current = state;
 		const markup = renderToStaticMarkup(createElement(UpdateBanner));
@@ -110,6 +118,73 @@ it("refreshes the auto-update nudge independently of version updates and dismiss
 	}
 	expect(Sentry.captureConnectionError).not.toHaveBeenCalled();
 	expect(Sentry.captureException).not.toHaveBeenCalled();
+});
+
+it("reads npm registry versions without WordPress fields", async () => {
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						versions: { "@frontman-ai/nextjs": "5.1.0" },
+					}),
+				),
+		),
+	);
+	const dispatch = vi.fn();
+	const target = { TAG: "NpmPackage", _0: "@frontman-ai/nextjs" };
+	handleEffect(
+		{
+			TAG: "CheckForUpdateEffect",
+			apiBaseUrl: "https://api.frontman.sh",
+			installedVersion: "5.0.0",
+			target,
+		},
+		defaultState,
+		dispatch,
+	);
+	await vi.waitFor(() =>
+		expect(dispatch).toHaveBeenCalledWith({
+			TAG: "UpdateInfoChecked",
+			_0: { target, installedVersion: "5.0.0", latestVersion: "5.1.0" },
+		}),
+	);
+	expect(Sentry.captureException).not.toHaveBeenCalled();
+});
+
+it("rejects a WordPress response without its required auto-update setting", async () => {
+	window.__frontmanRuntime = {
+		framework: "wordpress",
+		relayBaseUrl: "http://localhost:3000",
+	};
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						installedVersion: "5.0.0",
+						latestVersion: "5.1.0",
+					}),
+				),
+		),
+	);
+	const dispatch = vi.fn();
+	handleEffect(
+		{
+			TAG: "CheckForUpdateEffect",
+			apiBaseUrl: "https://api.frontman.sh",
+			installedVersion: "5.0.0",
+			target: "WordPressPlugin",
+		},
+		defaultState,
+		dispatch,
+	);
+	await vi.waitFor(() =>
+		expect(Sentry.captureException).toHaveBeenCalledOnce(),
+	);
+	expect(dispatch).not.toHaveBeenCalled();
 });
 
 it.each([
@@ -130,7 +205,8 @@ it.each([
 			TAG: "CheckForUpdateEffect",
 			apiBaseUrl: "https://api.frontman.sh",
 			installedVersion: "5.0.0",
-			target: { TAG: target, _0: "frontman" },
+			target:
+				target === "WordPressPlugin" ? target : { TAG: target, _0: "frontman" },
 		},
 		defaultState,
 		dispatch,

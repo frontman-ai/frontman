@@ -149,12 +149,12 @@ class Frontman_Router_Test_Runner {
 		$this->assert_same( 200, $status, 'update status should succeed' );
 		$this->assert_same( '5.0.0', $response['installedVersion'], 'installed version should come from the plugin' );
 		$this->assert_same( false, $response['autoUpdateEnabled'], 'auto-updates should default to disabled' );
-		$this->assert_same( '5.1.0', $response['versions']['wordpress:frontman-agentic-ai-editor'], 'latest version should come from WordPress' );
+		$this->assert_same( '5.1.0', $response['latestVersion'], 'latest version should come from WordPress' );
 
 		$GLOBALS['update_plugins'] = (object) [ 'response' => [] ];
 		$this->handleGetUpdate->invoke( $router );
 		[ $response ] = $GLOBALS['json_response'];
-		$this->assert_same( '5.0.0', $response['versions']['wordpress:frontman-agentic-ai-editor'], 'current plugins should report their installed version' );
+		$this->assert_same( '5.0.0', $response['latestVersion'], 'current plugins should report their installed version' );
 
 		foreach ( [
 			[ [ 'another-plugin/plugin.php' ], false ],

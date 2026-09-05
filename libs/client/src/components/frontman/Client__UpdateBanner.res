@@ -17,7 +17,7 @@ let updateActionForTarget = (
 ): updateAction =>
   switch target {
   | NpmPackage(npmPackage) => AgentUpdate(npmPackage)
-  | WordPressPlugin(_) =>
+  | WordPressPlugin =>
     WordPressUpdate(
       wordpressPluginsUrl->Option.getOrThrow(~message="WordPress plugins URL is required"),
     )
@@ -26,7 +26,7 @@ let updateActionForTarget = (
 let updateDisplayName = (target: Client__State__Types.updateTarget): string =>
   switch target {
   | NpmPackage(npmPackage) => npmPackage
-  | WordPressPlugin(_) => "Frontman for WordPress"
+  | WordPressPlugin => "Frontman for WordPress"
   }
 
 @react.component
@@ -35,12 +35,8 @@ let make = () => {
   let updateBannerDismissed = Client__State.useSelector(
     Client__State.Selectors.updateBannerDismissed,
   )
-  let wordpressUpdateUnsupported = Client__State.useSelector(
-    Client__State.Selectors.wordpressUpdateUnsupported,
-  )
-  let wordpressAutoUpdateEnabled = Client__State.useSelector(
-    Client__State.Selectors.wordpressAutoUpdateEnabled,
-  )
+  let wordpressUpdates = Client__State.useSelector(Client__State.Selectors.wordpressUpdates)
+  let wordpressUpdateUnsupported = wordpressUpdates == Unsupported
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let runtimeConfig = RuntimeConfig.read()
   let {relay, session, createSession, apiBaseUrl} = Client__FrontmanProvider.useFrontman()
@@ -59,7 +55,7 @@ let make = () => {
       check()
       switch target {
       | NpmPackage(_) => None
-      | WordPressPlugin(_) =>
+      | WordPressPlugin =>
         let handleFocus = _ => check()
         let window = WebAPI.Window.current
         window->WebAPI.Window.addEventListener(Custom("focus"), handleFocus)
@@ -202,8 +198,8 @@ let make = () => {
   }
 
   <>
-    {switch wordpressAutoUpdateEnabled {
-    | Some(false) =>
+    {switch wordpressUpdates {
+    | Available({autoUpdateEnabled: false}) =>
       <div
         role="status"
         className="flex flex-wrap items-center gap-3 mx-4 mt-3 px-4 py-3 bg-amber-950/40 border border-amber-700/40 rounded-lg"
@@ -229,7 +225,7 @@ let make = () => {
           {React.string("Open Plugins in wp-admin")}
         </a>
       </div>
-    | Some(true) | None => React.null
+    | Available({autoUpdateEnabled: true}) | NotChecked | Unsupported => React.null
     }}
     {updateBanner}
   </>

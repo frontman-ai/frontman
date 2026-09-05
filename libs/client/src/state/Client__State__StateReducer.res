@@ -101,8 +101,7 @@ type action =
       target: Client__State__Types.updateTarget,
     })
   | UpdateInfoChecked(option<Client__State__Types.updateInfo>)
-  | WordPressUpdateUnsupported
-  | WordPressAutoUpdateChecked(option<bool>)
+  | WordPressUpdatesChecked(option<Client__WordPressUpdates.response>)
   | DismissUpdateBanner
   | CloseFirstTaskFeedbackDialog
   | DismissFirstTaskFeedbackDialog
@@ -323,8 +322,7 @@ let defaultState: state = {
   customProviders: None,
   customProviderMutation: Client__State__Types.CustomProviderMutationIdle,
   updateInfo: None,
-  wordpressUpdateUnsupported: false,
-  wordpressAutoUpdateEnabled: None,
+  wordpressUpdates: NotChecked,
   updateBannerDismissed: false,
   firstTaskFeedbackDialogState: Waiting,
   highlightedAnnotation: None,
@@ -499,9 +497,7 @@ module Selectors = {
     state.updateInfo
   }
 
-  let wordpressUpdateUnsupported = (state: state): bool => state.wordpressUpdateUnsupported
-
-  let wordpressAutoUpdateEnabled = (state: state): option<bool> => state.wordpressAutoUpdateEnabled
+  let wordpressUpdates = (state: state): Client__WordPressUpdates.t => state.wordpressUpdates
 
   let updateBannerDismissed = (state: state): bool => {
     state.updateBannerDismissed
@@ -664,32 +660,14 @@ let sendMessageToAPIImpl = (
   }
 }
 
-let updateTargetKey = (target: Client__State__Types.updateTarget): string =>
-  switch target {
-  | NpmPackage(npmPackage) => npmPackage
-  | WordPressPlugin(slug) => `wordpress:${slug}`
+let updateInfoForVersions = (~target, ~installedVersion, ~latestVersion): option<
+  Client__State__Types.updateInfo,
+> =>
+  switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latestVersion)) {
+  | (Some(installed), Some(latest)) if Client__Semver.isBehind(installed, latest) =>
+    Some({target, installedVersion, latestVersion})
+  | _ => None
   }
-
-let latestVersionFromVersions = (
-  ~target: Client__State__Types.updateTarget,
-  ~versions: Dict.t<option<string>>,
-): option<string> => versions->Dict.get(updateTargetKey(target))->Option.flatMap(version => version)
-
-let updateInfoFromVersions = (
-  ~target: Client__State__Types.updateTarget,
-  ~installedVersion: string,
-  ~versions: Dict.t<option<string>>,
-): option<Client__State__Types.updateInfo> => {
-  switch latestVersionFromVersions(~target, ~versions) {
-  | Some(latestVersion) =>
-    switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latestVersion)) {
-    | (Some(installed), Some(latest)) if Client__Semver.isBehind(installed, latest) =>
-      Some({target, installedVersion, latestVersion})
-    | _ => None
-    }
-  | None => None
-  }
-}
 
 let targetIsCurrent = (state: state, target: taskTarget): bool =>
   switch target {
@@ -1509,11 +1487,11 @@ let handleEffect = (effect, state: state, dispatch) => {
       try {
         let url = switch target {
         | NpmPackage(_) => `${apiBaseUrl}/api/integrations/latest-versions`
-        | WordPressPlugin(_) => `${Client__RelayBaseUrl.current()}/frontman/plugin-update`
+        | WordPressPlugin => `${Client__RelayBaseUrl.current()}/frontman/plugin-update`
         }
         let response = await WebAPI.Fetch.fetch(url)
         switch (target, response.status, response.ok) {
-        | (WordPressPlugin(_), 404, _) => dispatch(WordPressUpdateUnsupported)
+        | (WordPressPlugin, 404, _) => dispatch(WordPressUpdatesChecked(None))
         | (_, _, false) =>
           Sentry.captureConnectionError(
             `CheckForUpdate: HTTP ${response.status->Int.toString} ${response.statusText}`,
@@ -1521,27 +1499,30 @@ let handleEffect = (effect, state: state, dispatch) => {
           )
         | (_, _, true) =>
           let json = await response->WebAPI.Response.json
-          let {versions, installedVersion: reportedInstalledVersion, autoUpdateEnabled} =
-            json->S.decodeOrThrow(
-              ~from=S.json,
-              ~to=Client__State__Types.latestVersionsResponseSchema,
-            )
           switch target {
-          | WordPressPlugin(_) => dispatch(WordPressAutoUpdateChecked(autoUpdateEnabled))
-          | NpmPackage(_) => ()
-          }
-          switch latestVersionFromVersions(~target, ~versions) {
-          | Some(_) =>
-            let installedVersion = reportedInstalledVersion->Option.getOr(installedVersion)
-            let updateInfo = updateInfoFromVersions(~target, ~installedVersion, ~versions)
-            dispatch(UpdateInfoChecked(updateInfo))
-          | None =>
-            Sentry.captureConnectionError(
-              `CheckForUpdate: integration "${updateTargetKey(
-                  target,
-                )}" not found or null in registry response`,
-              ~endpoint=url,
-            )
+          | WordPressPlugin =>
+            let data =
+              json->S.decodeOrThrow(~from=S.json, ~to=Client__WordPressUpdates.responseSchema)
+            dispatch(WordPressUpdatesChecked(Some(data)))
+          | NpmPackage(npmPackage) =>
+            let {versions} =
+              json->S.decodeOrThrow(
+                ~from=S.json,
+                ~to=Client__State__Types.latestVersionsResponseSchema,
+              )
+            switch versions->Dict.get(npmPackage)->Option.flatMap(version => version) {
+            | Some(latestVersion) =>
+              dispatch(
+                UpdateInfoChecked(
+                  updateInfoForVersions(~target, ~installedVersion, ~latestVersion),
+                ),
+              )
+            | None =>
+              Sentry.captureConnectionError(
+                `CheckForUpdate: package "${npmPackage}" not found or null in registry response`,
+                ~endpoint=url,
+              )
+            }
           }
         }
       } catch {
@@ -2201,24 +2182,29 @@ let next = (state: state, action) => {
     ->StateReducer.update
 
   | CheckForUpdate({apiBaseUrl, installedVersion, target}) =>
-    switch (target, state.wordpressUpdateUnsupported) {
-    | (WordPressPlugin(_), true) => state->StateReducer.update
+    switch (target, state.wordpressUpdates) {
+    | (WordPressPlugin, Unsupported) => state->StateReducer.update
     | _ =>
       state->StateReducer.update(
         ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, target})],
       )
     }
 
-  | WordPressUpdateUnsupported =>
+  | WordPressUpdatesChecked(None) =>
+    {...state, wordpressUpdates: Unsupported, updateInfo: None}->StateReducer.update
+
+  | WordPressUpdatesChecked(Some(response)) =>
     {
       ...state,
-      wordpressUpdateUnsupported: true,
-      updateInfo: None,
-      wordpressAutoUpdateEnabled: None,
+      wordpressUpdates: Client__WordPressUpdates.Available({
+        autoUpdateEnabled: response.autoUpdateEnabled,
+      }),
+      updateInfo: updateInfoForVersions(
+        ~target=WordPressPlugin,
+        ~installedVersion=response.installedVersion,
+        ~latestVersion=response.latestVersion,
+      ),
     }->StateReducer.update
-
-  | WordPressAutoUpdateChecked(wordpressAutoUpdateEnabled) =>
-    {...state, wordpressAutoUpdateEnabled}->StateReducer.update
 
   | UpdateInfoChecked(updateInfo) => {...state, updateInfo}->StateReducer.update
 
