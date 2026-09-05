@@ -24,20 +24,6 @@ defmodule FrontmanServerWeb.IntegrationsController do
         if System.monotonic_time(:millisecond) - fetched_at < @cache_ttl_ms do
           versions
         else
-          fetch_and_cache()
-        end
-
-      _ ->
-        fetch_and_cache()
-    end
-  end
-
-  defp fetch_and_cache do
-    case :persistent_term.get({__MODULE__, :cache}, nil) do
-      {versions, fetched_at} when is_map(versions) ->
-        if System.monotonic_time(:millisecond) - fetched_at < @cache_ttl_ms do
-          versions
-        else
           do_fetch_and_cache()
         end
 
@@ -54,11 +40,11 @@ defmodule FrontmanServerWeb.IntegrationsController do
         on_timeout: :kill_task
       )
       |> Enum.reduce(%{}, fn
-        {:ok, {pkg, version}}, acc -> Map.put(acc, pkg, version)
+        {:ok, {package, version}}, acc -> Map.put(acc, package, version)
         {:exit, _reason}, acc -> acc
       end)
 
-    has_valid_version = Enum.any?(versions, fn {_pkg, v} -> v != nil end)
+    has_valid_version = Enum.any?(versions, fn {_package, version} -> version != nil end)
 
     if has_valid_version do
       :persistent_term.put({__MODULE__, :cache}, {versions, System.monotonic_time(:millisecond)})

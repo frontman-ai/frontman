@@ -124,6 +124,84 @@ module TestHelpers = {
   }
 }
 
+describe("Client State Reducer - Integration Updates", () => {
+  let wordpress = StateTypes.WordPressPlugin
+  let npm = StateTypes.NpmPackage("@frontman-ai/nextjs")
+
+  test("finds an outdated WordPress plugin", t => {
+    let result = Reducer.updateInfoForVersions(
+      ~target=wordpress,
+      ~installedVersion="1.2.0",
+      ~latestVersion="1.3.0",
+    )
+
+    t
+    ->expect(result)
+    ->Expect.toEqual(Some({target: wordpress, installedVersion: "1.2.0", latestVersion: "1.3.0"}))
+  })
+
+  test("ignores equal, newer, and invalid versions", t => {
+    [
+      ("1.3.0", "1.3.0"),
+      ("1.4.0", "1.3.0"),
+      ("invalid", "1.3.0"),
+      ("1.2.0", "invalid"),
+    ]->Array.forEach(
+      ((installedVersion, latestVersion)) =>
+        t
+        ->expect(
+          Reducer.updateInfoForVersions(~target=wordpress, ~installedVersion, ~latestVersion),
+        )
+        ->Expect.toEqual(None),
+    )
+  })
+
+  test("preserves npm version comparison", t => {
+    let result = Reducer.updateInfoForVersions(
+      ~target=npm,
+      ~installedVersion="1.2.0",
+      ~latestVersion="1.3.0",
+    )
+
+    t
+    ->expect(result)
+    ->Expect.toEqual(Some({target: npm, installedVersion: "1.2.0", latestVersion: "1.3.0"}))
+  })
+
+  test("refreshes updates without an ACP session and clears stale notices", t => {
+    let (_, effects) = Reducer.next(
+      Reducer.defaultState,
+      Reducer.CheckForUpdate({
+        apiBaseUrl: "https://api.frontman.sh",
+        installedVersion: "1.2.0",
+        target: wordpress,
+      }),
+    )
+    let staleInfo: StateTypes.updateInfo = {
+      target: wordpress,
+      installedVersion: "1.2.0",
+      latestVersion: "1.3.0",
+    }
+    let state = {...Reducer.defaultState, updateInfo: Some(staleInfo)}
+    let cleared = Reducer.next(
+      state,
+      Reducer.WordPressUpdatesChecked(
+        Some({
+          installedVersion: "1.3.0",
+          latestVersion: "1.3.0",
+          autoUpdateEnabled: true,
+        }),
+      ),
+    )->Pair.first
+
+    t->expect(effects->Array.length)->Expect.toEqual(1)
+    t->expect(cleared.updateInfo)->Expect.toEqual(None)
+    t
+    ->expect(cleared.wordpressUpdates)
+    ->Expect.toEqual(Client__WordPressUpdates.Available({autoUpdateEnabled: true}))
+  })
+})
+
 describe("Client State Reducer - Custom Providers", () => {
   let provider = (~name, ~models): StateTypes.customProvider => {
     id: "provider-1",

@@ -19,6 +19,30 @@ frontman_runtime_assert( home_url( '/index.php/frontman' ) === Frontman_UI::url(
 $http_context = stream_context_create( [ 'http' => [ 'ignore_errors' => true ] ] );
 file_get_contents( 'http://127.0.0.1/index.php/frontman/tools', false, $http_context );
 frontman_runtime_assert( false !== strpos( $http_response_header[0] ?? '', ' 401 ' ), 'Plain permalink API route did not reach Frontman.' );
+file_get_contents( 'http://127.0.0.1/index.php/frontman/plugin-update', false, $http_context );
+frontman_runtime_assert( false !== strpos( $http_response_header[0] ?? '', ' 401 ' ), 'Update status must require authentication.' );
+require_once ABSPATH . 'wp-admin/includes/plugin.php';
+$plugin = plugin_basename( FRONTMAN_PLUGIN_FILE );
+$admin = get_user_by( 'login', 'admin' );
+$cookie = wp_generate_auth_cookie( $admin->ID, time() + HOUR_IN_SECONDS, 'logged_in' );
+$authenticated_context = stream_context_create( [ 'http' => [
+	'ignore_errors' => true,
+	'header' => 'Cookie: ' . LOGGED_IN_COOKIE . '=' . $cookie,
+] ] );
+foreach ( [ false, true, false ] as $enabled ) {
+	update_site_option( 'auto_update_plugins', $enabled ? [ $plugin ] : [] );
+	set_site_transient( 'update_plugins', (object) [
+		'last_checked' => time(),
+		'checked' => array_map( static fn( $data ) => $data['Version'], get_plugins() ),
+		'response' => $enabled ? [] : [ $plugin => (object) [ 'new_version' => '999.0.0' ] ],
+	] );
+	$response = file_get_contents( 'http://127.0.0.1/index.php/frontman/plugin-update', false, $authenticated_context );
+	frontman_runtime_assert( false !== strpos( $http_response_header[0] ?? '', ' 200 ' ), 'Authenticated update status request failed.' );
+	$status = json_decode( $response, true, 512, JSON_THROW_ON_ERROR );
+	frontman_runtime_assert( FRONTMAN_VERSION === $status['installedVersion'], 'Update endpoint reported the wrong installed version.' );
+	frontman_runtime_assert( ( $enabled ? FRONTMAN_VERSION : '999.0.0' ) === $status['latestVersion'], 'Update endpoint did not use native WordPress update status.' );
+	frontman_runtime_assert( $enabled === $status['autoUpdateEnabled'], 'Update endpoint did not reflect the saved auto-update setting.' );
+}
 update_option( 'permalink_structure', '/index.php/%postname%/' );
 frontman_runtime_assert( home_url( '/index.php/frontman' ) === Frontman_UI::url( '/frontman' ), 'PATHINFO permalink URL skipped the front controller.' );
 

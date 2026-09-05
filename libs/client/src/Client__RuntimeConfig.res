@@ -1,9 +1,5 @@
 type frameworkId = Nextjs | Vite | Astro | Wordpress
 
-type updateTarget =
-  | NpmPackage(string)
-  | WordPressPlugin
-
 let frameworkIdFromString = (s: string): frameworkId =>
   switch s {
   | "nextjs" => Nextjs
@@ -41,6 +37,7 @@ type parsed = {
   basePath: option<string>,
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
+  wordpressPluginsUrl: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
 }
@@ -51,6 +48,7 @@ type t = {
   basePath: string,
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
+  wordpressPluginsUrl: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
 }
@@ -72,12 +70,13 @@ let read = (): t => {
     },
     relayBaseUrl: config.relayBaseUrl,
     wpNonce: config.wpNonce,
+    wordpressPluginsUrl: config.wordpressPluginsUrl,
     projectRoot: config.projectRoot,
     traits: config.traits,
   }
 }
 
-let frameworkUpdateTarget = (id: frameworkId): updateTarget =>
+let frameworkUpdateTarget = (id: frameworkId): Client__State__Types.updateTarget =>
   switch id {
   | Nextjs => NpmPackage("@frontman-ai/nextjs")
   | Vite => NpmPackage("@frontman-ai/vite")

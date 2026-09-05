@@ -95,8 +95,13 @@ type action =
       sessions: array<FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionSummary>,
     })
   | SessionsLoadError({error: string})
-  | CheckForUpdate({installedVersion: string, npmPackage: string})
-  | UpdateInfoReceived({updateInfo: Client__State__Types.updateInfo})
+  | CheckForUpdate({
+      apiBaseUrl: string,
+      installedVersion: string,
+      target: Client__State__Types.updateTarget,
+    })
+  | UpdateInfoChecked(option<Client__State__Types.updateInfo>)
+  | WordPressUpdatesChecked(option<Client__WordPressUpdates.response>)
   | DismissUpdateBanner
   | CloseFirstTaskFeedbackDialog
   | DismissFirstTaskFeedbackDialog
@@ -165,7 +170,11 @@ type effect =
   | FetchUserProfileEffect({apiBaseUrl: string})
   | LoadTaskEffect({taskId: string})
   | DeleteSessionEffect({taskId: string})
-  | CheckForUpdateEffect({apiBaseUrl: string, installedVersion: string, npmPackage: string})
+  | CheckForUpdateEffect({
+      apiBaseUrl: string,
+      installedVersion: string,
+      target: Client__State__Types.updateTarget,
+    })
   | TrackAnalyticsEffect(Client__Analytics.event)
   | ShareFrontmanEffect
   | FetchCustomProvidersEffect({
@@ -313,7 +322,7 @@ let defaultState: state = {
   customProviders: None,
   customProviderMutation: Client__State__Types.CustomProviderMutationIdle,
   updateInfo: None,
-  updateCheckStatus: UpdateNotChecked,
+  wordpressUpdates: NotChecked,
   updateBannerDismissed: false,
   firstTaskFeedbackDialogState: Waiting,
   highlightedAnnotation: None,
@@ -488,9 +497,7 @@ module Selectors = {
     state.updateInfo
   }
 
-  let updateCheckStatus = (state: state): Client__State__Types.updateCheckStatus => {
-    state.updateCheckStatus
-  }
+  let wordpressUpdates = (state: state): Client__WordPressUpdates.t => state.wordpressUpdates
 
   let updateBannerDismissed = (state: state): bool => {
     state.updateBannerDismissed
@@ -652,6 +659,15 @@ let sendMessageToAPIImpl = (
     )
   }
 }
+
+let updateInfoForVersions = (~target, ~installedVersion, ~latestVersion): option<
+  Client__State__Types.updateInfo,
+> =>
+  switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latestVersion)) {
+  | (Some(installed), Some(latest)) if Client__Semver.isBehind(installed, latest) =>
+    Some({target, installedVersion, latestVersion})
+  | _ => None
+  }
 
 let targetIsCurrent = (state: state, target: taskTarget): bool =>
   switch target {
@@ -1466,40 +1482,47 @@ let handleEffect = (effect, state: state, dispatch) => {
         TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}),
       )
     }
-  | CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage}) =>
+  | CheckForUpdateEffect({apiBaseUrl, installedVersion, target}) =>
     let fetch = async () => {
       try {
-        let url = `${apiBaseUrl}/api/integrations/latest-versions`
+        let url = switch target {
+        | NpmPackage(_) => `${apiBaseUrl}/api/integrations/latest-versions`
+        | WordPressPlugin => `${Client__RelayBaseUrl.current()}/frontman/plugin-update`
+        }
         let response = await WebAPI.Fetch.fetch(url)
-        switch response.ok {
-        | false =>
+        switch (target, response.status, response.ok) {
+        | (WordPressPlugin, 404, _) => dispatch(WordPressUpdatesChecked(None))
+        | (_, _, false) =>
           Sentry.captureConnectionError(
             `CheckForUpdate: HTTP ${response.status->Int.toString} ${response.statusText}`,
             ~endpoint=url,
           )
-        | true =>
+        | (_, _, true) =>
           let json = await response->WebAPI.Response.json
-          let {versions} =
-            json->S.decodeOrThrow(
-              ~from=S.json,
-              ~to=Client__State__Types.latestVersionsResponseSchema,
-            )
-          switch versions->Dict.get(npmPackage)->Option.flatMap(v => v) {
-          | Some(latest) =>
-            switch (Client__Semver.parse(installedVersion), Client__Semver.parse(latest)) {
-            | (Some(installed), Some(latestV)) if Client__Semver.isBehind(installed, latestV) =>
-              dispatch(
-                UpdateInfoReceived({
-                  updateInfo: {npmPackage, installedVersion, latestVersion: latest},
-                }),
+          switch target {
+          | WordPressPlugin =>
+            let data =
+              json->S.decodeOrThrow(~from=S.json, ~to=Client__WordPressUpdates.responseSchema)
+            dispatch(WordPressUpdatesChecked(Some(data)))
+          | NpmPackage(npmPackage) =>
+            let {versions} =
+              json->S.decodeOrThrow(
+                ~from=S.json,
+                ~to=Client__State__Types.latestVersionsResponseSchema,
               )
-            | _ => ()
+            switch versions->Dict.get(npmPackage)->Option.flatMap(version => version) {
+            | Some(latestVersion) =>
+              dispatch(
+                UpdateInfoChecked(
+                  updateInfoForVersions(~target, ~installedVersion, ~latestVersion),
+                ),
+              )
+            | None =>
+              Sentry.captureConnectionError(
+                `CheckForUpdate: package "${npmPackage}" not found or null in registry response`,
+                ~endpoint=url,
+              )
             }
-          | None =>
-            Sentry.captureConnectionError(
-              `CheckForUpdate: package "${npmPackage}" not found or null in registry response`,
-              ~endpoint=url,
-            )
           }
         }
       } catch {
@@ -2158,20 +2181,32 @@ let next = (state: state, action) => {
     ->resolveFeedbackHistory
     ->StateReducer.update
 
-  | CheckForUpdate({installedVersion, npmPackage}) =>
-    switch (state.updateCheckStatus, state.acpSession) {
-    | (UpdateNotChecked, AcpSessionActive({apiBaseUrl})) =>
-      {
-        ...state,
-        updateCheckStatus: Client__State__Types.UpdateChecked,
-      }->StateReducer.update(
-        ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, npmPackage})],
+  | CheckForUpdate({apiBaseUrl, installedVersion, target}) =>
+    switch (target, state.wordpressUpdates) {
+    | (WordPressPlugin, Unsupported) => state->StateReducer.update
+    | _ =>
+      state->StateReducer.update(
+        ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, target})],
       )
-    | _ => state->StateReducer.update
     }
 
-  | UpdateInfoReceived({updateInfo}) =>
-    {...state, updateInfo: Some(updateInfo)}->StateReducer.update
+  | WordPressUpdatesChecked(None) =>
+    {...state, wordpressUpdates: Unsupported, updateInfo: None}->StateReducer.update
+
+  | WordPressUpdatesChecked(Some(response)) =>
+    {
+      ...state,
+      wordpressUpdates: Client__WordPressUpdates.Available({
+        autoUpdateEnabled: response.autoUpdateEnabled,
+      }),
+      updateInfo: updateInfoForVersions(
+        ~target=WordPressPlugin,
+        ~installedVersion=response.installedVersion,
+        ~latestVersion=response.latestVersion,
+      ),
+    }->StateReducer.update
+
+  | UpdateInfoChecked(updateInfo) => {...state, updateInfo}->StateReducer.update
 
   | DismissUpdateBanner => {...state, updateBannerDismissed: true}->StateReducer.update
 

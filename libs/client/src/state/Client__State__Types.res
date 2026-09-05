@@ -202,18 +202,18 @@ type userProfile = {
   name: option<string>,
 }
 
+type updateTarget =
+  | NpmPackage(string)
+  | WordPressPlugin
+
 type updateInfo = {
-  npmPackage: string,
+  target: updateTarget,
   installedVersion: string,
   latestVersion: string,
 }
 
 @schema
 type latestVersionsResponse = {versions: Dict.t<option<string>>}
-
-type updateCheckStatus =
-  | UpdateNotChecked
-  | UpdateChecked
 
 type highlightedAnnotation = {
   taskId: string,
@@ -249,7 +249,7 @@ type state = {
   customProviders: option<array<customProvider>>,
   customProviderMutation: customProviderMutation,
   updateInfo: option<updateInfo>,
-  updateCheckStatus: updateCheckStatus,
+  wordpressUpdates: Client__WordPressUpdates.t,
   updateBannerDismissed: bool,
   firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
   highlightedAnnotation: option<highlightedAnnotation>,
