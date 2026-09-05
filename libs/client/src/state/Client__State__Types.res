@@ -216,6 +216,7 @@ type updateInfo = {
 type latestVersionsResponse = {
   versions: Dict.t<option<string>>,
   installedVersion: option<string>,
+  autoUpdateEnabled: option<bool>,
 }
 
 type highlightedAnnotation = {
@@ -253,6 +254,7 @@ type state = {
   customProviderMutation: customProviderMutation,
   updateInfo: option<updateInfo>,
   wordpressUpdateUnsupported: bool,
+  wordpressAutoUpdateEnabled: option<bool>,
   updateBannerDismissed: bool,
   firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
   highlightedAnnotation: option<highlightedAnnotation>,

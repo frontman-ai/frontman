@@ -342,6 +342,7 @@ class Frontman_Router {
 		wp_send_json(
 			[
 				'installedVersion' => FRONTMAN_VERSION,
+				'autoUpdateEnabled' => in_array( $plugin, (array) get_site_option( 'auto_update_plugins', [] ), true ),
 				'versions'         => [ 'wordpress:frontman-agentic-ai-editor' => $latest ],
 			],
 			200

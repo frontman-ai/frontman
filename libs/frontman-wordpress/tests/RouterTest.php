@@ -38,6 +38,7 @@ function wp_update_plugins(): void {}
 function plugin_basename( string $file ): string { return basename( dirname( $file ) ) . '/' . basename( $file ); }
 function sanitize_text_field( string $value ): string { return $value; }
 function get_site_transient( string $name ) { return $GLOBALS[ $name ]; }
+function get_site_option( string $name, $default = false ) { return $GLOBALS[ $name ] ?? $default; }
 function wp_send_json( $data, int $status ): void { $GLOBALS['json_response'] = [ $data, $status ]; }
 
 define( 'FRONTMAN_VERSION', '5.0.0' );
@@ -147,12 +148,24 @@ class Frontman_Router_Test_Runner {
 
 		$this->assert_same( 200, $status, 'update status should succeed' );
 		$this->assert_same( '5.0.0', $response['installedVersion'], 'installed version should come from the plugin' );
+		$this->assert_same( false, $response['autoUpdateEnabled'], 'auto-updates should default to disabled' );
 		$this->assert_same( '5.1.0', $response['versions']['wordpress:frontman-agentic-ai-editor'], 'latest version should come from WordPress' );
 
 		$GLOBALS['update_plugins'] = (object) [ 'response' => [] ];
 		$this->handleGetUpdate->invoke( $router );
 		[ $response ] = $GLOBALS['json_response'];
 		$this->assert_same( '5.0.0', $response['versions']['wordpress:frontman-agentic-ai-editor'], 'current plugins should report their installed version' );
+
+		foreach ( [
+			[ [ 'another-plugin/plugin.php' ], false ],
+			[ [ 'frontman-agentic-ai-editor/frontman.php' ], true ],
+			[ [], false ],
+		] as [ $plugins, $enabled ] ) {
+			$GLOBALS['auto_update_plugins'] = $plugins;
+			$this->handleGetUpdate->invoke( $router );
+			[ $response ] = $GLOBALS['json_response'];
+			$this->assert_same( $enabled, $response['autoUpdateEnabled'], 'auto-updates should reflect the saved Frontman setting' );
+		}
 	}
 
 	private function test_sse_errors_use_result_event_format(): void {

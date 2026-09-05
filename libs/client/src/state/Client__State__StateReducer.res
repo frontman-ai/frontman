@@ -102,6 +102,7 @@ type action =
     })
   | UpdateInfoChecked(option<Client__State__Types.updateInfo>)
   | WordPressUpdateUnsupported
+  | WordPressAutoUpdateChecked(option<bool>)
   | DismissUpdateBanner
   | CloseFirstTaskFeedbackDialog
   | DismissFirstTaskFeedbackDialog
@@ -323,6 +324,7 @@ let defaultState: state = {
   customProviderMutation: Client__State__Types.CustomProviderMutationIdle,
   updateInfo: None,
   wordpressUpdateUnsupported: false,
+  wordpressAutoUpdateEnabled: None,
   updateBannerDismissed: false,
   firstTaskFeedbackDialogState: Waiting,
   highlightedAnnotation: None,
@@ -498,6 +500,8 @@ module Selectors = {
   }
 
   let wordpressUpdateUnsupported = (state: state): bool => state.wordpressUpdateUnsupported
+
+  let wordpressAutoUpdateEnabled = (state: state): option<bool> => state.wordpressAutoUpdateEnabled
 
   let updateBannerDismissed = (state: state): bool => {
     state.updateBannerDismissed
@@ -1517,11 +1521,15 @@ let handleEffect = (effect, state: state, dispatch) => {
           )
         | (_, _, true) =>
           let json = await response->WebAPI.Response.json
-          let {versions, installedVersion: reportedInstalledVersion} =
+          let {versions, installedVersion: reportedInstalledVersion, autoUpdateEnabled} =
             json->S.decodeOrThrow(
               ~from=S.json,
               ~to=Client__State__Types.latestVersionsResponseSchema,
             )
+          switch target {
+          | WordPressPlugin(_) => dispatch(WordPressAutoUpdateChecked(autoUpdateEnabled))
+          | NpmPackage(_) => ()
+          }
           switch latestVersionFromVersions(~target, ~versions) {
           | Some(_) =>
             let installedVersion = reportedInstalledVersion->Option.getOr(installedVersion)
@@ -2202,7 +2210,15 @@ let next = (state: state, action) => {
     }
 
   | WordPressUpdateUnsupported =>
-    {...state, wordpressUpdateUnsupported: true, updateInfo: None}->StateReducer.update
+    {
+      ...state,
+      wordpressUpdateUnsupported: true,
+      updateInfo: None,
+      wordpressAutoUpdateEnabled: None,
+    }->StateReducer.update
+
+  | WordPressAutoUpdateChecked(wordpressAutoUpdateEnabled) =>
+    {...state, wordpressAutoUpdateEnabled}->StateReducer.update
 
   | UpdateInfoChecked(updateInfo) => {...state, updateInfo}->StateReducer.update
 

@@ -38,6 +38,9 @@ let make = () => {
   let wordpressUpdateUnsupported = Client__State.useSelector(
     Client__State.Selectors.wordpressUpdateUnsupported,
   )
+  let wordpressAutoUpdateEnabled = Client__State.useSelector(
+    Client__State.Selectors.wordpressAutoUpdateEnabled,
+  )
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let runtimeConfig = RuntimeConfig.read()
   let {relay, session, createSession, apiBaseUrl} = Client__FrontmanProvider.useFrontman()
@@ -120,7 +123,7 @@ let make = () => {
     Client__State.Actions.dismissUpdateBanner()
   }
 
-  switch (updateBannerDismissed, updateInfo) {
+  let updateBanner = switch (updateBannerDismissed, updateInfo) {
   | (false, Some({target, installedVersion, latestVersion})) =>
     <div
       className="flex items-center gap-3 mx-4 mt-3 px-4 py-3 bg-amber-950/40 border border-amber-700/40 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200"
@@ -197,4 +200,37 @@ let make = () => {
     </div>
   | _ => React.null
   }
+
+  <>
+    {switch wordpressAutoUpdateEnabled {
+    | Some(false) =>
+      <div
+        role="status"
+        className="flex flex-wrap items-center gap-3 mx-4 mt-3 px-4 py-3 bg-amber-950/40 border border-amber-700/40 rounded-lg"
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-amber-300">
+            {React.string("Enable auto-updates for Frontman")}
+          </p>
+          <p className="text-xs text-amber-300/90 mt-1">
+            {React.string(
+              "Auto-updates are off in WordPress settings. We strongly recommend enabling them to receive the latest fixes and improvements. In Plugins, choose Enable auto-updates next to Frontman.",
+            )}
+          </p>
+        </div>
+        <a
+          href={runtimeConfig.wordpressPluginsUrl->Option.getOrThrow(
+            ~message="WordPress plugins URL is required",
+          )}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-shrink-0 text-xs font-medium text-amber-300 hover:text-amber-200 bg-amber-800/30 hover:bg-amber-800/50 px-2.5 py-1 rounded transition-colors"
+        >
+          {React.string("Open Plugins in wp-admin")}
+        </a>
+      </div>
+    | Some(true) | None => React.null
+    }}
+    {updateBanner}
+  </>
 }
