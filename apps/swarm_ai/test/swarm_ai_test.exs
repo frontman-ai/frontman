@@ -137,6 +137,46 @@ defmodule SwarmAiTest do
       refute SwarmAi.running?(runtime, "task-c")
     end
 
+    test "does not interrupt terminal dispatch or emit a second terminal event" do
+      runtime = start_runtime!()
+      test_pid = self()
+
+      dispatch = fn
+        :completed ->
+          send(test_pid, {:completion_started, self()})
+
+          receive do
+            :finish_persistence ->
+              send(test_pid, :completion_persisted)
+              :ok
+          after
+            2_000 -> raise "Terminal persistence was not released"
+          end
+
+        event ->
+          send(test_pid, {:execution_event, event})
+          :ok
+      end
+
+      {:ok, pid} =
+        run_agent(runtime, "task-finishing", %MockLLM{response: "done"}, dispatch_event: dispatch)
+
+      assert_receive {:completion_started, ^pid}
+      ref = Process.monitor(pid)
+      assert :ok = SwarmAi.cancel(runtime, "task-finishing")
+      refute_receive {:DOWN, ^ref, :process, ^pid, _}, 50
+      assert SwarmAi.running?(runtime, "task-finishing")
+
+      send(pid, :finish_persistence)
+      assert_receive :completion_persisted
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2000
+      assert SwarmAi.active_count(runtime) == 0
+      refute_receive {:execution_event, {:cancelled, _}}, 50
+      refute_receive {:execution_event, {:crashed, _}}, 0
+      refute_receive {:execution_event, {:terminated, _}}, 0
+      refute_receive {:completion_started, _}, 0
+    end
+
     test "returns error when not running" do
       runtime = start_runtime!()
       assert SwarmAi.cancel(runtime, "nope") == {:error, :not_running}

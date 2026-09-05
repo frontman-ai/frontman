@@ -52,6 +52,9 @@ defmodule SwarmAi.Runtime do
   @spec cancel(atom(), String.t()) :: :ok | {:error, :not_running}
   def cancel(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
     case SwarmAi.Runtime.Registry.lookup(runtime, task_id) do
+      [{_pid, :finishing}] ->
+        :ok
+
       [{pid, _}] ->
         Logger.info("Cancelling execution for #{inspect(task_id)}")
         Process.exit(pid, :cancelled)
