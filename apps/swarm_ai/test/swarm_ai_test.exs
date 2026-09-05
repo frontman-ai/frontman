@@ -27,6 +27,48 @@ defmodule SwarmAiTest do
       assert_receive {:completed, true}
     end
 
+    test "hands off to the next execution after terminal dispatch finishes" do
+      runtime = start_runtime!()
+      test_pid = self()
+
+      dispatch = fn
+        :completed ->
+          send(test_pid, {:completion_broadcast, self()})
+
+          receive do
+            :finish_persistence -> :ok
+          after
+            2_000 -> raise "Terminal persistence was not released"
+          end
+
+        _event ->
+          :ok
+      end
+
+      {:ok, pid} =
+        run_agent(runtime, "task-handoff", %MockLLM{response: "done"}, dispatch_event: dispatch)
+
+      assert_receive {:completion_broadcast, ^pid}
+
+      next_loop = agent("task-handoff", %MockLLM{response: "follow-up"}, [])
+
+      next_run =
+        Task.async(fn ->
+          send(test_pid, :starting_next_turn)
+          SwarmAi.run(runtime, next_loop)
+        end)
+
+      assert_receive :starting_next_turn
+      assert Task.yield(next_run, 50) == nil
+      assert SwarmAi.running?(runtime, "task-handoff")
+
+      send(pid, :finish_persistence)
+      assert {:ok, next_pid} = Task.await(next_run, 2_000)
+      await_exit(next_pid)
+      assert_receive {:test_event, "task-handoff", :completed}
+      refute SwarmAi.running?(runtime, "task-handoff")
+    end
+
     test "prevents duplicate execution for same key" do
       runtime = start_runtime!()
       llm = %MockLLM{response: "slow", delay_ms: 500}

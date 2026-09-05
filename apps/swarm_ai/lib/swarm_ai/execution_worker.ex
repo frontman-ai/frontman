@@ -31,6 +31,7 @@ defmodule SwarmAi.ExecutionWorker do
     task_supervisor = SwarmAi.Runtime.task_supervisor_name(runtime)
 
     final_loop = SwarmAi.Executor.run(loop, task_supervisor)
+    :ok = SwarmAi.Runtime.Registry.mark_finishing(runtime, loop.task_id)
 
     try do
       final_loop.dispatch_event.(final_loop.status)
