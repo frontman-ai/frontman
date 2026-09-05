@@ -176,7 +176,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
+      assert {:ok, task} = FrontmanServer.Tasks.get_task_with_history(scope, client_session_id)
       assert task.id == client_session_id
       assert task.framework == :nextjs
     end
@@ -222,7 +222,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "result" => %{"sessionId" => ^client_session_id}
       })
 
-      assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
+      assert {:ok, task} = FrontmanServer.Tasks.get_task_with_history(scope, client_session_id)
       assert task.id == client_session_id
       assert task.framework == :nextjs
       assert Repo.get!(TaskSchema, client_session_id).framework == :nextjs
@@ -258,7 +258,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("acp:message", %{"id" => 2, "result" => %{}})
 
-      assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
+      assert {:ok, task} = FrontmanServer.Tasks.get_task_with_history(scope, client_session_id)
       assert task.framework == :vite
       assert Repo.get!(TaskSchema, client_session_id).framework == :vite
     end
@@ -462,12 +462,12 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     test "deletes session and returns empty result", %{socket: socket, scope: scope} do
       task_id = task_fixture(scope).id
 
-      assert {:ok, _task} = FrontmanServer.Tasks.get_task(scope, task_id)
+      assert {:ok, _task} = FrontmanServer.Tasks.get_task_with_history(scope, task_id)
 
       ref = push(socket, "delete_session", %{"sessionId" => task_id})
       assert_reply(ref, :ok, %{})
 
-      assert {:error, :not_found} = FrontmanServer.Tasks.get_task(scope, task_id)
+      assert {:error, :not_found} = FrontmanServer.Tasks.get_task_with_history(scope, task_id)
     end
 
     test "only deletes own sessions", %{socket: socket, scope: scope} do
@@ -479,7 +479,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       ref = push(socket, "delete_session", %{"sessionId" => other_task_id})
       assert_reply(ref, :error, _)
 
-      assert {:ok, _task} = FrontmanServer.Tasks.get_task(other_scope, other_task_id)
+      assert {:ok, _task} = FrontmanServer.Tasks.get_task_with_history(other_scope, other_task_id)
     end
   end
 end

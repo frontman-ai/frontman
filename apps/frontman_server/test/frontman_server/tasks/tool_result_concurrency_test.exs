@@ -106,7 +106,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
         assert %{"content" => [%{"text" => canonical_text}]} = canonical.result
         assert_receive {:tool_result, "call_dedup", [%{text: ^canonical_text}], false}
 
-        {:ok, task} = Tasks.get_task(scope, task_id)
+        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
         assert [_result] =
                  Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))

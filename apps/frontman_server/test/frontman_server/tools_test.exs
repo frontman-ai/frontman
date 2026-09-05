@@ -18,7 +18,7 @@ defmodule FrontmanServer.ToolsTest do
   setup do
     scope = user_scope_fixture()
     task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id
-    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
     {:ok, task_id: task_id, task: task, scope: scope, turn_number: latest_turn_number(task_id)}
   end
 
@@ -228,7 +228,7 @@ defmodule FrontmanServer.ToolsTest do
           turn_number: turn_number
         )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       context = build_context(task)
 
       result = GetToolResult.execute(%{"tool_call_id" => "tc-read"}, context)

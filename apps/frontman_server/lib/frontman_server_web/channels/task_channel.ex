@@ -39,7 +39,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   def join("task:" <> task_id, _params, socket) do
     scope = socket.assigns.scope
 
-    with {:ok, task} <- Tasks.get_task(scope, task_id),
+    with {:ok, task} <- Tasks.get_task_with_history(scope, task_id),
          {:ok, _owner} <-
            Registry.register(FrontmanServer.ProcessRegistry, {:task_channel, task_id}, nil) do
       {:ok, history} = TaskHistory.new(task.interaction_rows)
@@ -353,7 +353,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp load_turn_context!(socket, turn_number) do
-    {:ok, task} = Tasks.get_task(socket.assigns.scope, socket.assigns.task_id)
+    {:ok, task} = Tasks.get_task_with_history(socket.assigns.scope, socket.assigns.task_id)
     {:ok, history} = TaskHistory.new(task.interaction_rows)
     TaskHistory.turn_context(history, turn_number)
   end
@@ -644,7 +644,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
     Logger.info("ACP session/load request received on session channel for: #{task_id}")
 
-    case Tasks.get_task(scope, task_id) do
+    case Tasks.get_task_with_history(scope, task_id) do
       {:ok, task} ->
         {:ok, history} = TaskHistory.new(task.interaction_rows)
         {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))

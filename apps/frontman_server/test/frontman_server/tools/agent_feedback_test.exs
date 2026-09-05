@@ -14,7 +14,7 @@ defmodule FrontmanServer.Tools.AgentFeedbackTest do
   test "enqueues feedback for Discord" do
     scope = user_scope_fixture()
     task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id
-    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
     result =
       AgentFeedback.execute(
@@ -42,7 +42,7 @@ defmodule FrontmanServer.Tools.AgentFeedbackTest do
   test "rejects invalid outcome" do
     scope = user_scope_fixture()
     task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id
-    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
     result = AgentFeedback.execute(%{"outcome" => "bad", "message" => "x"}, %Context{task: task})
 

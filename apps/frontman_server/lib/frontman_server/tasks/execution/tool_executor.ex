@@ -243,7 +243,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp execute_backend_tool(scope, module, tool_call, task_id, turn_number) do
     Logger.debug("ToolExecutor: Executing backend tool #{tool_call.name}")
-    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
     tool_call = SwarmAi.ToolCall.strip_null_arguments(tool_call)
 
     context = %Backend.Context{

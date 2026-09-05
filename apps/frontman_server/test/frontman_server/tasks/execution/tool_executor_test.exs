@@ -49,7 +49,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       tc = %SwarmAi.ToolCall{id: "tc-to-2", name: "some_tool", arguments: "{}"}
       ToolExecutor.handle_timeout(scope, task_id, turn_number, :error, tc, :cancelled)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, tc.id)
     end
 
@@ -67,7 +67,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
       ToolExecutor.handle_timeout(scope, task_id, turn_number, :pause_agent, tc, :cancelled)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, tc.id)
     end
   end
@@ -114,7 +114,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         assert message =~ "filtered_tool"
         assert message =~ "unavailable"
 
-        {:ok, task} = Tasks.get_task(scope, task_id)
+        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
         assert [%Interaction.ToolResult{is_error: false}] = tool_results(task, available.id)
         assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, unavailable.id)
 
@@ -174,7 +174,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
                  execution_mode: :serial
                })
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       refute Enum.any?(Tasks.interactions(task), fn
                %Interaction.ToolCall{tool_call_id: tool_call_id} -> tool_call_id == tc.id

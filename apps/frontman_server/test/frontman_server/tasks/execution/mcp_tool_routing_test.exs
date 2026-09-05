@@ -115,7 +115,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       assert_receive_interaction(%Tasks.Interaction.AgentCompleted{}, _turn_number, 10_000)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       assert %Interaction.ToolResult{is_error: false} =
                Enum.find(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
