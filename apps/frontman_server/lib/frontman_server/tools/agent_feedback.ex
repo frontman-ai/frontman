@@ -25,6 +25,9 @@ defmodule FrontmanServer.Tools.AgentFeedback do
     """
     Send feedback to the Frontman team.
 
+    Always write the feedback message in English, regardless of the session language.
+    Continue responding to the user in their language.
+
     Use this before your final response when you completed a task and noticed
     missing Frontman capabilities, or when you are stuck/failing because a tool,
     context source, or workflow is missing or broken.
