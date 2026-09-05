@@ -30,12 +30,8 @@ defmodule SwarmAi.ExecutionWorker do
   def handle_continue(:run, %__MODULE__{loop: loop, runtime: runtime} = state) do
     task_supervisor = SwarmAi.Runtime.task_supervisor_name(runtime)
 
-    final_loop =
-      try do
-        SwarmAi.Executor.run(loop, task_supervisor)
-      after
-        SwarmAi.Runtime.Registry.unregister(runtime, loop.task_id)
-      end
+    final_loop = SwarmAi.Executor.run(loop, task_supervisor)
+    :ok = SwarmAi.Runtime.Registry.mark_finishing(runtime, loop.task_id)
 
     try do
       final_loop.dispatch_event.(final_loop.status)

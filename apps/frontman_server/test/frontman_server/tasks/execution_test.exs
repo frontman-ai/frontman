@@ -431,6 +431,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert [turn_started] = turn_started_rows(task_id)
       assert turn_started.data.agent_id == "test-planner"
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      refute_running_eventually(task_id)
     end
 
     test "accepts follow-up while running and drains it next", %{
@@ -1045,6 +1047,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         worker: GenerateTitle,
         args: %{task_id: task_id, user_prompt_text: "Use this prompt"}
       )
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
+      refute_running_eventually(task_id)
     end
 
     test "second message does not enqueue an additional title generation job", %{

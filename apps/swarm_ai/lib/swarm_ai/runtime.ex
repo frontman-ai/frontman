@@ -21,9 +21,11 @@ defmodule SwarmAi.Runtime do
   @spec run(atom(), SwarmAi.Loop.t()) ::
           {:ok, pid()} | {:error, :already_running | {:start_failed, term()}}
   def run(runtime, %SwarmAi.Loop{} = loop) when is_atom(runtime) do
-    case GenServer.call(runtime, {:run, loop}, 5_000) do
-      {:error, {:start_failed, {:exit, reason}}} -> exit(reason)
-      result -> result
+    with :ok <- await_finishing_execution(runtime, loop.task_id) do
+      case GenServer.call(runtime, {:run, loop}, 5_000) do
+        {:error, {:start_failed, {:exit, reason}}} -> exit(reason)
+        result -> result
+      end
     end
   end
 
@@ -50,6 +52,9 @@ defmodule SwarmAi.Runtime do
   @spec cancel(atom(), String.t()) :: :ok | {:error, :not_running}
   def cancel(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
     case SwarmAi.Runtime.Registry.lookup(runtime, task_id) do
+      [{_pid, :finishing}] ->
+        :ok
+
       [{pid, _}] ->
         Logger.info("Cancelling execution for #{inspect(task_id)}")
         Process.exit(pid, :cancelled)
@@ -109,6 +114,27 @@ defmodule SwarmAi.Runtime do
       {%SwarmAi.Loop{} = loop, monitors} ->
         SwarmAi.TerminalEvent.emit(loop, reason)
         {:noreply, %{state | monitors: monitors}}
+    end
+  end
+
+  defp await_finishing_execution(runtime, task_id) do
+    case SwarmAi.Runtime.Registry.lookup(runtime, task_id) do
+      [{pid, :finishing}] ->
+        ref = Process.monitor(pid)
+
+        receive do
+          {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+        after
+          5_000 ->
+            Process.demonitor(ref, [:flush])
+            {:error, {:start_failed, :finishing_timeout}}
+        end
+
+      [{_pid, _running}] ->
+        :ok
+
+      [] ->
+        :ok
     end
   end
 

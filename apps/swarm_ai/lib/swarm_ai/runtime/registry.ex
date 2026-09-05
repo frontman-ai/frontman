@@ -15,10 +15,10 @@ defmodule SwarmAi.Runtime.Registry do
     Registry.lookup(name(runtime), task_id)
   end
 
-  def unregister(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
-    Registry.unregister(name(runtime), task_id)
-  catch
-    :exit, {:noproc, _} -> :ok
-    :exit, :noproc -> :ok
+  def mark_finishing(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
+    {:finishing, _previous} =
+      Registry.update_value(name(runtime), task_id, fn _ -> :finishing end)
+
+    :ok
   end
 end
