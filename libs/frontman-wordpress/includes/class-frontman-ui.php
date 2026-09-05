@@ -107,7 +107,7 @@ class Frontman_UI {
 			'basePath'     => 'frontman',
 			'relayBaseUrl' => self::url( '' ),
 			'wpNonce'      => Frontman_Auth::create_nonce(),
-			'wordpressPluginsUrl' => admin_url( 'plugins.php' ),
+			'wordpressPluginsUrl' => network_admin_url( 'plugins.php' ),
 		];
 
 		$entrypoint_url = null;

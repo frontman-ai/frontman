@@ -35,14 +35,17 @@ let make = () => {
   let updateBannerDismissed = Client__State.useSelector(
     Client__State.Selectors.updateBannerDismissed,
   )
+  let wordpressUpdateUnsupported = Client__State.useSelector(
+    Client__State.Selectors.wordpressUpdateUnsupported,
+  )
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let runtimeConfig = RuntimeConfig.read()
   let {relay, session, createSession, apiBaseUrl} = Client__FrontmanProvider.useFrontman()
   let relayState = relay->Option.map(Relay.getState)
 
-  React.useEffect2(() => {
-    switch relayState {
-    | Some(Connected({serverInfo})) =>
+  React.useEffect3(() => {
+    switch (relayState, wordpressUpdateUnsupported) {
+    | (Some(Connected({serverInfo})), false) =>
       let target = RuntimeConfig.frameworkUpdateTarget(runtimeConfig.framework)
       let check = () =>
         Client__State.Actions.checkForUpdate(
@@ -71,7 +74,7 @@ let make = () => {
       }
     | _ => None
     }
-  }, (apiBaseUrl, relayState))
+  }, (apiBaseUrl, relayState, wordpressUpdateUnsupported))
 
   let handleUpdateClick = () => {
     switch updateInfo {

@@ -101,6 +101,7 @@ type action =
       target: Client__State__Types.updateTarget,
     })
   | UpdateInfoChecked(option<Client__State__Types.updateInfo>)
+  | WordPressUpdateUnsupported
   | DismissUpdateBanner
   | CloseFirstTaskFeedbackDialog
   | DismissFirstTaskFeedbackDialog
@@ -321,6 +322,7 @@ let defaultState: state = {
   customProviders: None,
   customProviderMutation: Client__State__Types.CustomProviderMutationIdle,
   updateInfo: None,
+  wordpressUpdateUnsupported: false,
   updateBannerDismissed: false,
   firstTaskFeedbackDialogState: Waiting,
   highlightedAnnotation: None,
@@ -494,6 +496,8 @@ module Selectors = {
   let updateInfo = (state: state): option<Client__State__Types.updateInfo> => {
     state.updateInfo
   }
+
+  let wordpressUpdateUnsupported = (state: state): bool => state.wordpressUpdateUnsupported
 
   let updateBannerDismissed = (state: state): bool => {
     state.updateBannerDismissed
@@ -1504,13 +1508,14 @@ let handleEffect = (effect, state: state, dispatch) => {
         | WordPressPlugin(_) => `${Client__RelayBaseUrl.current()}/frontman/plugin-update`
         }
         let response = await WebAPI.Fetch.fetch(url)
-        switch response.ok {
-        | false =>
+        switch (target, response.status, response.ok) {
+        | (WordPressPlugin(_), 404, _) => dispatch(WordPressUpdateUnsupported)
+        | (_, _, false) =>
           Sentry.captureConnectionError(
             `CheckForUpdate: HTTP ${response.status->Int.toString} ${response.statusText}`,
             ~endpoint=url,
           )
-        | true =>
+        | (_, _, true) =>
           let json = await response->WebAPI.Response.json
           let {versions, installedVersion: reportedInstalledVersion} =
             json->S.decodeOrThrow(
@@ -2188,9 +2193,16 @@ let next = (state: state, action) => {
     ->StateReducer.update
 
   | CheckForUpdate({apiBaseUrl, installedVersion, target}) =>
-    state->StateReducer.update(
-      ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, target})],
-    )
+    switch (target, state.wordpressUpdateUnsupported) {
+    | (WordPressPlugin(_), true) => state->StateReducer.update
+    | _ =>
+      state->StateReducer.update(
+        ~sideEffects=[CheckForUpdateEffect({apiBaseUrl, installedVersion, target})],
+      )
+    }
+
+  | WordPressUpdateUnsupported =>
+    {...state, wordpressUpdateUnsupported: true, updateInfo: None}->StateReducer.update
 
   | UpdateInfoChecked(updateInfo) => {...state, updateInfo}->StateReducer.update
 

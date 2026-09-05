@@ -252,6 +252,7 @@ type state = {
   customProviders: option<array<customProvider>>,
   customProviderMutation: customProviderMutation,
   updateInfo: option<updateInfo>,
+  wordpressUpdateUnsupported: bool,
   updateBannerDismissed: bool,
   firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
   highlightedAnnotation: option<highlightedAnnotation>,
