@@ -50,7 +50,7 @@ defmodule FrontmanServer.Tools.AgentFeedback do
         "message" => %{
           "type" => "string",
           "description" =>
-            "Write in English: what happened, what was missing, or what Frontman feature would help.",
+            "What happened, what was missing, or what Frontman feature would help.",
           "maxLength" => 2000
         }
       },
