@@ -42,7 +42,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#main"}))
 
-      ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tool_call)
+      ToolExecutor.start_mcp_tool(scope, task_id, turn_number, :synchronous, tool_call)
 
       assert_push(
         "mcp:message",
@@ -71,7 +71,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         name: "take_screenshot",
         description: "Take a screenshot",
         input_schema: %{},
-        on_timeout: :pause_agent,
+        execution_mode: :interactive,
         timeout_ms: 60_000
       }
 

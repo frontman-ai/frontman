@@ -77,6 +77,36 @@ defmodule FrontmanServer.Tasks.History do
     end)
   end
 
+  @doc "Unresolved declarations paired with their dispatch snapshot, if dispatch occurred."
+  def unresolved_tool_calls(rows, turn_number) do
+    rows = Enum.filter(rows, &(&1.turn_number == turn_number))
+
+    dispatches =
+      for %{data: %Interaction.ToolCall{} = call} <- rows,
+          into: %{},
+          do: {call.tool_call_id, call}
+
+    resolved =
+      for %{data: %Interaction.ToolResult{} = result} <- rows,
+          into: MapSet.new(),
+          do: result.tool_call_id
+
+    rows
+    |> Enum.flat_map(fn
+      %{data: %Interaction.AgentResponse{metadata: metadata}} ->
+        Interaction.to_swarm_tool_calls(metadata["tool_calls"])
+
+      %{data: %Interaction.ToolCall{} = call} ->
+        [%{id: call.tool_call_id, name: call.tool_name}]
+
+      _row ->
+        []
+    end)
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.reject(&MapSet.member?(resolved, &1.id))
+    |> Enum.map(&{&1, Map.get(dispatches, &1.id)})
+  end
+
   def active_turn_number(%__MODULE__{active_turn: active_turn}), do: active_turn
   def active_turn_context(%__MODULE__{} = history), do: turn_context(history, history.active_turn)
 

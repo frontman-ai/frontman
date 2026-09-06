@@ -116,6 +116,58 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
     end)
   end
 
+  test "an answer concurrent with cancellation cleanup preserves one result and a closed turn" do
+    Sandbox.unboxed_run(Repo, fn ->
+      scope = user_scope_fixture()
+
+      try do
+        task_id = task_fixture(scope).id
+        turn_number = start_turn_fixture(scope, task_id)
+        call = %SwarmAi.ToolCall{id: "cancel_race", name: "approval", arguments: "{}"}
+        {:ok, _} = Tasks.request_client_tool(scope, task_id, turn_number, call, :interactive)
+        parent = self()
+
+        operations = [
+          fn -> Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user}) end,
+          fn -> Tasks.resolve_tool_request(scope, task_id, call, MCP.tool_result_text("yes")) end
+        ]
+
+        tasks =
+          Enum.map(operations, fn operation ->
+            Task.async(fn ->
+              Sandbox.unboxed_run(Repo, fn ->
+                send(parent, {:ready, self()})
+
+                receive do
+                  :go -> operation.()
+                after
+                  1_000 -> raise "cancellation race barrier timed out"
+                end
+              end)
+            end)
+          end)
+
+        assert_receive {:ready, _}, 1_000
+        assert_receive {:ready, _}, 1_000
+        Enum.each(tasks, &send(&1.pid, :go))
+        assert [:ok, {:ok, winner, :no_executor}] = Enum.map(tasks, &Task.await(&1, 1_000))
+
+        assert {:ok, ^winner, :no_executor} =
+                 Tasks.resolve_tool_request(scope, task_id, call, MCP.tool_result_text("late"))
+
+        assert {:ok, :no_active_turn} =
+                 Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+
+        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+        assert [^winner] =
+                 Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+      after
+        Repo.delete!(Scope.user(scope))
+      end
+    end)
+  end
+
   defp start_executor(scope, task_id, turn_number, tool_call_id) do
     Task.async(fn ->
       Sandbox.unboxed_run(Repo, fn ->
@@ -138,7 +190,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
       description: "Some client tool",
       input_schema: %{},
       timeout_ms: 1_000,
-      on_timeout: :error
+      execution_mode: :synchronous
     }
   end
 

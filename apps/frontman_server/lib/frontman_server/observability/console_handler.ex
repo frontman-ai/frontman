@@ -166,7 +166,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   defp format_status(:ok), do: "✓"
   defp format_status(:completed), do: "✓"
   defp format_status({:failed, _reason}), do: "✗"
-  defp format_status({:paused, _reason}), do: "⏸"
   defp format_status(:error), do: "✗"
   defp format_status(status), do: inspect(status)
 end

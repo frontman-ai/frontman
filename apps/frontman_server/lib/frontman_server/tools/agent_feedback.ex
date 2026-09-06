@@ -62,9 +62,6 @@ defmodule FrontmanServer.Tools.AgentFeedback do
   def timeout_ms, do: 30_000
 
   @impl true
-  def on_timeout, do: :error
-
-  @impl true
   def execute(args, %Context{task: task}) do
     with {:ok, outcome} <- validate_outcome(args["outcome"]),
          {:ok, message} <- validate_required_string(args["message"], "message") do

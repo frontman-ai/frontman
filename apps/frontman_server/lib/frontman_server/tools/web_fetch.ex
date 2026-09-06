@@ -90,9 +90,6 @@ defmodule FrontmanServer.Tools.WebFetch do
   def timeout_ms, do: 60_000
 
   @impl true
-  def on_timeout, do: :error
-
-  @impl true
   def execute(args, _context) do
     offset = clamp(Map.get(args, "offset", 0), 0, :infinity)
     limit = clamp(Map.get(args, "limit", 500), 1, 2000)
