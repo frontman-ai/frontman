@@ -400,6 +400,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   }
 
   <div className="relative flex flex-col h-full bg-[#130d20] text-zinc-200">
+    <Client__SupportBanner framework={Client__RuntimeConfig.read().framework} />
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
