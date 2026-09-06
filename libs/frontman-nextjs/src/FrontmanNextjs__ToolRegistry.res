@@ -5,6 +5,7 @@ type tool = CoreRegistry.tool
 type t = CoreRegistry.t
 
 let nextjsTools: array<tool> = [
+  module(FrontmanNextjs__Tool__Git),
   module(FrontmanNextjs__Tool__GetRoutes),
   module(FrontmanNextjs__Tool__GetLogs),
 ]
