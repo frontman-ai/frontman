@@ -875,6 +875,166 @@ describe("Task - QuestionReceived on freshly loaded task (reconnect scenario)", 
   })
 })
 
+describe("Task - Interactive wait contract", () => {
+  let questions: array<Client__Question__Types.questionItem> = [
+    {
+      question: "Pick one",
+      header: "Test",
+      options: [{label: "A", description: "Option A"}],
+      multiple: None,
+    },
+  ]
+
+  let runEffects = (effects, ~delegate=_ => failwith("Unexpected delegated effect")) =>
+    effects->Array.forEach(effect =>
+      TaskReducer.handleEffect(
+        effect,
+        ~dispatch=_ => failwith("Unexpected dispatched action"),
+        ~delegate,
+      )
+    )
+
+  afterEach(() => Vi.useRealTimers()->ignore)
+
+  [
+    ("selected option", TaskReducer.QuestionOptionToggled({questionIndex: 0, label: "A"}), "A"),
+    (
+      "custom text",
+      TaskReducer.QuestionCustomTextChanged({questionIndex: 0, text: "My own answer"}),
+      "My own answer",
+    ),
+  ]->Array.forEach(((label, answerAction, answer)) => {
+    testAsync(
+      `waiting preserves the question and resolves ${label} once without draining prompts`,
+      async t => {
+        Vi.useFakeTimers()->ignore
+        let resolutions = ref([])
+        let rejections = ref([])
+        let (running, _) = TaskReducer.next(TestHelpers.makeLoadedTask(), ExecutionStateRunning)
+        let (waiting, effects) = TaskReducer.next(
+          running,
+          QuestionReceived({
+            questions,
+            toolCallId: "durable-question-1",
+            resolveOk: json => resolutions := Array.concat(resolutions.contents, [json]),
+            resolveError: error => rejections := Array.concat(rejections.contents, [error]),
+          }),
+        )
+        runEffects(effects)
+        let (answered, effects) = TaskReducer.next(waiting, answerAction)
+        runEffects(effects)
+        let (queued, sendEffects) = TaskReducer.next(
+          answered,
+          AddUserMessage({
+            id: testUserMessageId,
+            content: [Client__Task__Types.UserContentPart.Text({text: "Next turn, not an answer"})],
+            annotations: [],
+            agentId: "executor-id",
+          }),
+        )
+        switch sendEffects->Array.get(0) {
+        | Some(SendMessage({text})) => t->expect(text)->Expect.toBe("Next turn, not an answer")
+        | _ => failwith("Expected ordinary prompt, not a question result")
+        }
+        let accepted = TestHelpers.acceptUserMessage(
+          queued,
+          ~id=testUserMessageId->UserMessageId.toString,
+          ~text="Next turn, not an answer",
+        )
+        let _ = await Vi.advanceTimersByTimeAsync(600_001)
+        let pending = TaskReducer.Selectors.pendingQuestion(accepted)->Option.getOrThrow
+        t->expect(pending.toolCallId)->Expect.toBe("durable-question-1")
+        t->expect(resolutions.contents)->Expect.toEqual([])
+        t->expect(rejections.contents)->Expect.toEqual([])
+        t->expect(TaskReducer.Selectors.turnError(accepted))->Expect.toEqual(None)
+
+        let (submitted, effects) = TaskReducer.next(accepted, QuestionSubmitted)
+        runEffects(effects)
+        let (duplicate, effects) = TaskReducer.next(submitted, QuestionSubmitted)
+        runEffects(effects)
+        t->expect(duplicate)->Expect.toEqual(submitted)
+        t->expect(effects)->Expect.toEqual([])
+        t->expect(TaskReducer.Selectors.pendingQuestion(submitted))->Expect.toEqual(None)
+        t
+        ->expect(resolutions.contents)
+        ->Expect.toEqual([
+          JSON.parseOrThrow(
+            `{"answers":[{"question":"Pick one","answer":["${answer}"]}],"skippedAll":false,"cancelled":false}`,
+          ),
+        ])
+        t->expect(rejections.contents)->Expect.toEqual([])
+        t
+        ->expect(TestHelpers.getQueuedUserMessages(submitted))
+        ->Expect.toEqual(TestHelpers.getQueuedUserMessages(accepted))
+        t->expect(TestHelpers.getMessages(submitted))->Expect.toEqual([])
+      },
+    )
+  })
+
+  [TaskReducer.CancelTurn, TaskReducer.QuestionCancelled]->Array.forEach(action => {
+    test(
+      `${TaskReducer.actionToString(action)} cancels a pending question when not running`,
+      t => {
+        let resolutions = ref([])
+        let rejections = ref([])
+        let commands = ref([])
+        let (waiting, _) = TaskReducer.next(
+          TestHelpers.makeLoadedTask(),
+          QuestionReceived({
+            questions,
+            toolCallId: "durable-question-1",
+            resolveOk: json => resolutions := Array.concat(resolutions.contents, [json]),
+            resolveError: error => rejections := Array.concat(rejections.contents, [error]),
+          }),
+        )
+        t->expect(TaskReducer.Selectors.isAgentRunning(waiting))->Expect.toEqual(Some(false))
+        let (cancelled, effects) = TaskReducer.next(waiting, action)
+        runEffects(
+          effects,
+          ~delegate=command => commands := Array.concat(commands.contents, [command]),
+        )
+        t->expect(commands.contents)->Expect.toEqual([TaskReducer.NeedSessionCommand(ACP.Cancel)])
+        t->expect(rejections.contents)->Expect.toEqual(["Cancelled by user"])
+        t->expect(TaskReducer.Selectors.pendingQuestion(cancelled))->Expect.toEqual(None)
+        t->expect(TaskReducer.Selectors.isAgentRunning(cancelled))->Expect.toEqual(Some(false))
+        let (lateAnswer, effects) = TaskReducer.next(cancelled, QuestionSubmitted)
+        runEffects(effects)
+        t->expect(lateAnswer)->Expect.toEqual(cancelled)
+        t->expect(effects)->Expect.toEqual([])
+        t->expect(resolutions.contents)->Expect.toEqual([])
+      },
+    )
+  })
+
+  test("historical requires_action replays without reopening the turn", t => {
+    let (history, _) = TaskReducer.next(
+      TestHelpers.makeLoadingTask(),
+      TextDeltaReceived({
+        messageId: "old-message",
+        text: "Old paused turn",
+        agentId: "executor-id",
+      }),
+    )
+    let (paused, effects) = TaskReducer.next(history, ExecutionStateRequiresAction)
+    t->expect(effects)->Expect.toEqual([])
+    let (loaded, effects) = TaskReducer.next(paused, LoadComplete)
+    t->expect(TaskReducer.Selectors.isAgentRunning(loaded))->Expect.toEqual(Some(false))
+    t->expect(TaskReducer.Selectors.pendingQuestion(loaded))->Expect.toEqual(None)
+    t->expect(effects)->Expect.toEqual([])
+    t
+    ->expect(TestHelpers.getMessages(loaded))
+    ->Expect.toEqual([
+      Message.Assistant(
+        Completed({
+          id: "old-message",
+          content: [Client__Task__Types.AssistantContentPart.Text({text: "Old paused turn"})],
+          agentId: "executor-id",
+        }),
+      ),
+    ])
+  })
+})
+
 describe("Task - QuestionPerQuestionSkipped", () => {
   test("skipping a non-last question advances currentStep without submitting", t => {
     let task = TestHelpers.makeLoadedTask()
