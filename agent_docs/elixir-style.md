@@ -16,6 +16,9 @@ Safety > Performance > Developer Experience. All three matter.
   explicit bound. GenServer mailboxes should have backpressure or bounded queues. Use
   `:queue.len/1` checks or `Process.info(self(), :message_queue_len)` guards where needed.
   Timeouts on every `GenServer.call`, every `Task.await`, every `Req` request. No unbounded waits.
+  Exception: dispatched `Interactive` tools may await human input without a deadline. Their
+  parked execution retains history in memory and remains cancellable. Operation, transport,
+  and control-plane timeouts remain finite; recovery of browser tools requires a connection.
 
 - **Guard clauses are your assertions.** Use `when` guards liberally in function heads to assert
   pre-conditions at the boundary. They crash on violation — exactly what we want.

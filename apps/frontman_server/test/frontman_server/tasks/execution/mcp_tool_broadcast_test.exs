@@ -39,8 +39,8 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
         name: "some_mcp_tool",
         description: "A test MCP tool",
         input_schema: %{},
-        timeout_ms: 60_000,
-        on_timeout: :pause_agent
+        timeout_ms: :infinity,
+        execution_mode: :interactive
       }
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])
@@ -143,8 +143,8 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
         name: "mcp_tool",
         description: "A test MCP tool",
         input_schema: %{},
-        timeout_ms: 60_000,
-        on_timeout: :pause_agent
+        timeout_ms: :infinity,
+        execution_mode: :interactive
       }
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], "Done!"}])

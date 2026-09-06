@@ -46,22 +46,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   @endpoint FrontmanServerWeb.Endpoint
   @acp_message AgentClientProtocol.event_acp_message()
 
-  defp short_timeout_question_mcp_tool_defs do
-    [
-      %MCP{
-        name: "question",
-        description: "Ask the user a question",
-        input_schema: %{
-          "type" => "object",
-          "properties" => %{"questions" => %{"type" => "array"}}
-        },
-        visible_to_agent: true,
-        timeout_ms: 200,
-        on_timeout: :pause_agent
-      }
-    ]
-  end
-
   defp error_timeout_mcp_tool_defs do
     [
       %MCP{
@@ -73,7 +57,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         },
         visible_to_agent: true,
         timeout_ms: 100,
-        on_timeout: :error
+        execution_mode: :synchronous
       }
     ]
   end
@@ -1075,49 +1059,112 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
-  describe "interactive tool timeout — ToolResult DB persistence" do
-    setup [:setup_sandbox, :setup_user, :setup_task]
+  describe "interactive waits and serial recovery" do
+    setup [:setup_sandbox, :setup_user]
 
-    test "ToolResult is persisted in DB when question tool times out", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      question_tc_id = "tc_timeout_#{System.unique_integer([:positive])}"
-      question_tc = tool_call("question", question_args(), id: question_tc_id)
+    test "shutdown preserves approval, interrupts the undispatched write, and resumes the same turn",
+         %{scope: scope} do
+      task_id = task_with_pubsub_fixture(scope, framework: "wordpress").id
+      approval = tool_call("approval", %{}, id: "approval_serial")
+      write = tool_call("write_file", %{}, id: "write_serial")
 
-      expect_llm_responses([{:tool_calls, [question_tc], "done"}])
+      tools =
+        MCP.from_maps([
+          %{
+            "name" => "approval",
+            "_meta" => %{"ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}}
+          },
+          %{"name" => "write_file"}
+        ])
 
-      {:ok, _, _} =
-        submit_user_message(scope, task_id, user_content("Ask me"),
-          mcp_tools: short_timeout_question_mcp_tool_defs()
+      parent = self()
+      expect_llm_responses([{:tool_calls, [approval, write], "Approve first"}])
+
+      expect(LLMProviderMock, :stream_text, fn model, messages, _opts ->
+        send(parent, {:resumed_messages, model, messages})
+        ReqLLMResponses.response("Recovered")
+      end)
+
+      {:ok, _, 1} =
+        submit_user_message(scope, task_id, user_content("Do the change"), mcp_tools: tools)
+
+      assert_receive_interaction(
+        %Interaction.ToolCall{tool_name: "approval", execution_mode: :interactive},
+        1
+      )
+
+      refute_receive {:interaction, %{data: %Interaction.ToolCall{tool_name: "write_file"}}}, 250
+      {:ok, waiting} = Tasks.get_task_with_history(scope, task_id)
+      refute Enum.any?(Tasks.interactions(waiting), &match?(%Interaction.ToolResult{}, &1))
+      refute Enum.any?(Tasks.interactions(waiting), &match?(%Interaction.AgentPaused{}, &1))
+
+      [{worker, _}] = SwarmAi.Runtime.Registry.lookup(FrontmanServer.AgentRuntime, task_id)
+
+      assert :ok =
+               DynamicSupervisor.terminate_child(
+                 SwarmAi.Runtime.execution_supervisor_name(FrontmanServer.AgentRuntime),
+                 worker
+               )
+
+      assert_receive_interaction(
+        %Interaction.ToolResult{tool_name: "write_file", is_error: true},
+        1
+      )
+
+      refute_receive {:interaction, %{data: %Interaction.AgentError{}}}, 50
+      {:ok, pending} = Tasks.get_task_with_history(scope, task_id)
+
+      assert [%Interaction.ToolCall{tool_name: "approval"}] =
+               Enum.filter(Tasks.interactions(pending), &match?(%Interaction.ToolCall{}, &1))
+
+      assert {:ok, 1, [%Interaction.ToolCall{tool_name: "approval"}]} =
+               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+
+      {:ok, _} =
+        Tasks.submit_user_message(
+          scope,
+          Map.merge(execution_request_fixture(), %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: user_content("Queued next turn")
+          })
         )
 
-      assert_receive_interaction(%Interaction.AgentPaused{}, _turn_number)
+      assert {:ok, _, _} =
+               Tasks.resolve_tool_request(
+                 scope,
+                 task_id,
+                 approval,
+                 ModelContextProtocol.tool_result_text("yes")
+               )
 
-      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+      assert :ok =
+               Tasks.resume_execution(
+                 scope,
+                 task_id,
+                 execution_request_fixture(model: "missing:connection-model", mcp_tools: tools)
+               )
 
-      tool_results =
-        Enum.filter(Tasks.interactions(task), fn
-          %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
-          _ -> false
-        end)
+      assert_receive {:resumed_messages, %LLMDB.Model{id: "openai/gpt-5.5"}, messages}, 1_000
+      results = Enum.filter(messages, &(&1.role == :tool))
+      assert Enum.map(results, & &1.tool_call_id) == [write.id, approval.id]
 
-      assert length(tool_results) == 1,
-             "Expected exactly 1 ToolResult for the timed-out ToolCall, got #{length(tool_results)} — double-persist bug"
+      assert Enum.map(results, &extract_content_text(&1.content)) == [
+               "Interrupted by restart",
+               "yes"
+             ]
 
-      [tool_result] = tool_results
-      %{"content" => [%{"text" => result_text}], "isError" => true} = tool_result.result
-      assert tool_result.is_error == true
-
-      assert result_text =~ "on_timeout: :pause_agent",
-             "Expected ToolResult message to come from loop pause handling (includes policy name), got: #{inspect(tool_result.result)}"
+      refute Enum.any?(messages, &(extract_content_text(&1.content) =~ "Queued next turn"))
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert length(turn_started_rows(task_id)) == 1
+      refute_receive {:interaction, %{data: %Interaction.ToolCall{tool_name: "write_file"}}}, 50
     end
   end
 
-  describe "MCP tool timeout with on_timeout: :error" do
+  describe "finite synchronous MCP deadline" do
     setup [:setup_sandbox, :setup_user, :setup_task]
 
-    test "ToolResult is persisted in DB when MCP tool times out (on_timeout: :error)", %{
+    test "ToolResult is persisted in DB when a synchronous MCP tool times out", %{
       task_id: task_id,
       scope: scope
     } do
@@ -1161,7 +1208,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
-  describe "interactive tool timeout — client notification" do
+  describe "historical pause — client notification" do
     setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_channel]
 
     test "session/update is pushed to client when agent pauses", %{
@@ -1262,7 +1309,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     def access, do: :write
     def parameter_schema, do: %{"type" => "object", "properties" => %{}}
     def timeout_ms, do: 5_000
-    def on_timeout, do: :error
     def execute(_args, _ctx), do: raise("boom")
   end
 
@@ -1274,7 +1320,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     def access, do: :write
     def parameter_schema, do: %{"type" => "object", "properties" => %{}}
     def timeout_ms, do: 100
-    def on_timeout, do: :error
     def execute(_args, _ctx), do: Process.sleep(:infinity)
   end
 

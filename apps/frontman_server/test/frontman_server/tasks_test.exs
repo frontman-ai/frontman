@@ -231,7 +231,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "terminated execution recovery" do
-    test "interrupts non-question tools but keeps pending questions open", %{scope: scope} do
+    test "interrupts synchronous tools but keeps persisted interactive mode open", %{scope: scope} do
       task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
@@ -240,7 +240,8 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("question_1", "question")
+          named_swarm_tool_call("question_1", "approval"),
+          :interactive
         )
 
       {:ok, _tool_call} =
@@ -248,7 +249,8 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("read_1", "read_file")
+          named_swarm_tool_call("read_1", "read_file"),
+          :synchronous
         )
 
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
@@ -275,6 +277,67 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  test "historical question mode is recovered after the real JSON load path", %{scope: scope} do
+    task_id = task_fixture(scope).id
+    turn_number = start_turn_fixture(scope, task_id)
+
+    {:ok, _} =
+      Tasks.request_client_tool(
+        scope,
+        task_id,
+        turn_number,
+        named_swarm_tool_call("legacy_question", "question"),
+        :interactive
+      )
+
+    Repo.query!(
+      "UPDATE interactions SET data = data - 'execution_mode' WHERE task_id = $1 AND type = 'tool_call'",
+      [Ecto.UUID.dump!(task_id)]
+    )
+
+    {:ok, ^turn_number, [loaded]} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+    assert loaded.execution_mode == nil
+    assert Interaction.ToolCall.execution_mode(loaded) == :interactive
+
+    assert Interaction.ToolCall.execution_mode(%Interaction.ToolCall{tool_name: "write_file"}) ==
+             :synchronous
+
+    assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
+    assert {:ok, ^turn_number, [_]} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+  end
+
+  test "cancellation cleanup closes undispatched declarations and preserves its canonical result",
+       %{scope: scope} do
+    task_id = task_fixture(scope).id
+    turn_number = start_turn_fixture(scope, task_id)
+    approval = named_swarm_tool_call("approval_pending", "approval")
+    write = named_swarm_tool_call("write_not_dispatched", "write_file")
+
+    {:ok, _} =
+      Tasks.agent_replied(scope, task_id, turn_number, nil, %{
+        "tool_calls" => Enum.map([approval, write], &Map.take(&1, [:id, :name, :arguments]))
+      })
+
+    {:ok, _} = Tasks.request_client_tool(scope, task_id, turn_number, approval, :interactive)
+
+    assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user})
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+    results = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+    assert Enum.map(results, & &1.tool_call_id) == [approval.id, write.id]
+    assert Enum.all?(results, & &1.is_error)
+
+    assert [%Interaction.ToolCall{tool_name: "approval"}] =
+             Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))
+
+    assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+
+    assert {:ok, winner, :no_executor} =
+             Tasks.resolve_tool_request(scope, task_id, approval, MCP.tool_result_text("yes"))
+
+    assert winner == hd(results)
+    assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+  end
+
   describe "cancelled execution" do
     test "records interrupted results for every unresolved tool call", %{scope: scope} do
       task_id = task_fixture(scope).id
@@ -285,7 +348,8 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("question_1", "question")
+          named_swarm_tool_call("question_1", "question"),
+          :interactive
         )
 
       {:ok, _tool_call} =
@@ -293,10 +357,11 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("read_1", "read_file")
+          named_swarm_tool_call("read_1", "read_file"),
+          :synchronous
         )
 
-      Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user})
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user})
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       interactions = Tasks.interactions(task)
@@ -729,7 +794,7 @@ defmodule FrontmanServer.TasksTest do
         arguments: ~s({"expression": "2+2"})
       }
 
-      {:ok, _} = Tasks.request_client_tool(scope, task_id, turn_number, tc)
+      {:ok, _} = Tasks.request_client_tool(scope, task_id, turn_number, tc, :synchronous)
 
       untrusted_result = %{
         "content" => [
@@ -801,7 +866,7 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "request_client_tool/3" do
+  describe "request_client_tool/5" do
     test "creates tool call interaction", %{scope: scope} do
       task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
@@ -812,7 +877,8 @@ defmodule FrontmanServer.TasksTest do
         arguments: ~s({"expression": "1 + 1"})
       }
 
-      {:ok, interaction} = Tasks.request_client_tool(scope, task_id, turn_number, tool_call)
+      {:ok, interaction} =
+        Tasks.request_client_tool(scope, task_id, turn_number, tool_call, :synchronous)
 
       assert interaction.tool_name == "calculator"
       assert interaction.tool_call_id == "call_123"
@@ -830,7 +896,7 @@ defmodule FrontmanServer.TasksTest do
       }
 
       assert {:ok, interaction} =
-               Tasks.request_client_tool(scope, task_id, turn_number, tool_call)
+               Tasks.request_client_tool(scope, task_id, turn_number, tool_call, :synchronous)
 
       assert interaction.arguments == %{}
     end
@@ -845,7 +911,7 @@ defmodule FrontmanServer.TasksTest do
       }
 
       assert {:error, {:invalid_tool_arguments, reason}} =
-               Tasks.request_client_tool(scope, task_id, 1, tool_call)
+               Tasks.request_client_tool(scope, task_id, 1, tool_call, :synchronous)
 
       assert reason =~ "unexpected end of input"
     end
@@ -860,7 +926,7 @@ defmodule FrontmanServer.TasksTest do
       }
 
       assert {:error, {:invalid_tool_arguments, reason}} =
-               Tasks.request_client_tool(scope, task_id, 1, tool_call)
+               Tasks.request_client_tool(scope, task_id, 1, tool_call, :synchronous)
 
       assert reason =~ "expected JSON object"
     end
@@ -870,7 +936,7 @@ defmodule FrontmanServer.TasksTest do
       tool_call = %SwarmAi.ToolCall{id: "call_123", name: "test", arguments: "{}"}
 
       assert {:error, :not_found} =
-               Tasks.request_client_tool(scope, nonexistent_id, 1, tool_call)
+               Tasks.request_client_tool(scope, nonexistent_id, 1, tool_call, :synchronous)
     end
   end
 
@@ -975,11 +1041,14 @@ defmodule FrontmanServer.TasksTest do
 
   defp test_interaction_attrs(Interaction.ToolCall, data) do
     {:ok, attrs} =
-      Interaction.ToolCall.attrs(%SwarmAi.ToolCall{
-        id: Map.get(data, "tool_call_id", Ecto.UUID.generate()),
-        name: Map.get(data, "tool_name", "question"),
-        arguments: Jason.encode!(Map.get(data, "arguments", %{}))
-      })
+      Interaction.ToolCall.attrs(
+        %SwarmAi.ToolCall{
+          id: Map.get(data, "tool_call_id", Ecto.UUID.generate()),
+          name: Map.get(data, "tool_name", "question"),
+          arguments: Jason.encode!(Map.get(data, "arguments", %{}))
+        },
+        :interactive
+      )
 
     {:tool_call, attrs}
   end
@@ -1012,6 +1081,8 @@ defmodule FrontmanServer.TasksTest do
          timestamp: Interaction.now(),
          retried_error_id: Map.fetch!(data, "retried_error_id")
        }}
+
+  defp test_interaction_attrs(:agent_paused, attrs), do: {:agent_paused, attrs}
 
   defp test_interaction_attrs(Interaction.AgentCompleted, _data),
     do: {:agent_completed, %{id: Ecto.UUID.generate(), timestamp: Interaction.now(), result: nil}}
@@ -1376,13 +1447,11 @@ defmodule FrontmanServer.TasksTest do
       {:ok, %TaskSchema{id: ^task_id}} = Tasks.create_task(scope, task_id, "nextjs")
       turn_number = start_turn_fixture(scope, task_id)
 
-      {:ok, _interaction} =
-        Tasks.record_execution_outcome(
-          scope,
-          task_id,
-          turn_number,
-          {:paused_for_tool_timeout, "question", 120_000}
-        )
+      insert_interaction_row(task_id, :agent_paused, turn_number, %{
+        tool_name: "question",
+        timeout_ms: 120_000,
+        reason: "Historical timeout"
+      })
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
@@ -1390,6 +1459,7 @@ defmodule FrontmanServer.TasksTest do
       assert paused != nil
       assert paused.tool_name == "question"
       assert paused.timeout_ms == 120_000
+      assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
     end
 
     test "to_swarm_messages/1 succeeds when interactions include AgentPaused", %{scope: scope} do
@@ -1401,13 +1471,11 @@ defmodule FrontmanServer.TasksTest do
 
       turn_number = latest_turn_number(task_id)
 
-      {:ok, _} =
-        Tasks.record_execution_outcome(
-          scope,
-          task_id,
-          turn_number,
-          {:paused_for_tool_timeout, "question", 120_000}
-        )
+      insert_interaction_row(task_id, :agent_paused, turn_number, %{
+        tool_name: "question",
+        timeout_ms: 120_000,
+        reason: "Historical timeout"
+      })
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 

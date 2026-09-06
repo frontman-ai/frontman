@@ -82,9 +82,11 @@ defmodule AgentClientProtocol.History do
       |> Enum.reject(&MapSet.member?(standalone_tool_call_ids, {turn_number, &1.id}))
       |> Enum.map(fn tool_call ->
         arguments =
-          case Interaction.ToolCall.attrs(tool_call) do
-            {:ok, %{arguments: arguments}} -> arguments
-            {:error, {:invalid_tool_arguments, _message}} -> nil
+          case tool_call
+               |> SwarmAi.ToolCall.strip_null_arguments()
+               |> SwarmAi.ToolCall.parse_arguments() do
+            {:ok, arguments} -> arguments
+            {:error, _message} -> nil
           end
 
         ACP.tool_call_create(

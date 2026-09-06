@@ -245,7 +245,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, assign(socket, :active_turn, context)}
   end
 
-  defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
+  defp dispatch_tool_call(tool_call, socket) do
     task_id = socket.assigns.task_id
 
     announced = socket.assigns[:announced_tool_calls] || MapSet.new()
@@ -281,6 +281,13 @@ defmodule FrontmanServerWeb.TaskChannel do
 
       :mcp ->
         route_to_mcp(tool_call, socket)
+    end
+  end
+
+  defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
+    case open_tool_call(socket, tool_call.tool_call_id) do
+      {:ok, pending} -> dispatch_tool_call(pending, socket)
+      :error -> {:noreply, socket}
     end
   end
 

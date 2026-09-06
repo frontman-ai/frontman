@@ -50,9 +50,6 @@ defmodule FrontmanServer.Tools.GetToolResult do
   def timeout_ms, do: 30_000
 
   @impl true
-  def on_timeout, do: :error
-
-  @impl true
   def execute(args, %Context{task: %{interaction_rows: rows}}) do
     case Map.get(args, "tool_call_id") do
       tool_call_id when is_binary(tool_call_id) ->

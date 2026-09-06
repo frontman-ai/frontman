@@ -55,10 +55,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         %ToolExecution.Sync{
           tool_call: tool_call,
           timeout_ms: module.timeout_ms(),
-          on_timeout_policy: module.on_timeout(),
           run: {__MODULE__, :run_backend_tool, [scope, module, task_id, turn_number]},
-          on_timeout:
-            {__MODULE__, :handle_timeout, [scope, task_id, turn_number, module.on_timeout()]}
+          on_error: {__MODULE__, :handle_error, [scope, task_id, turn_number]}
         }
     end
   end
@@ -77,10 +75,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
         %ToolExecution.Await{
           tool_call: tool_call,
           timeout_ms: tool_def.timeout_ms,
-          on_timeout_policy: tool_def.on_timeout,
-          start: {__MODULE__, :start_mcp_tool, [scope, task_id, turn_number]},
-          on_timeout:
-            {__MODULE__, :handle_timeout, [scope, task_id, turn_number, tool_def.on_timeout]}
+          start:
+            {__MODULE__, :start_mcp_tool, [scope, task_id, turn_number, tool_def.execution_mode]},
+          on_error: {__MODULE__, :handle_error, [scope, task_id, turn_number]}
         }
     end
   end
@@ -89,9 +86,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     %ToolExecution.Sync{
       tool_call: tool_call,
       timeout_ms: 5_000,
-      on_timeout_policy: :error,
       run: {__MODULE__, :reject_unavailable_tool, [scope, task_id, turn_number]},
-      on_timeout: {__MODULE__, :handle_timeout, [scope, task_id, turn_number, :error]}
+      on_error: {__MODULE__, :handle_error, [scope, task_id, turn_number]}
     }
   end
 
@@ -129,57 +125,42 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   @doc false
-  def start_mcp_tool(%Scope{} = scope, task_id, turn_number, tool_call)
+  def start_mcp_tool(%Scope{} = scope, task_id, turn_number, execution_mode, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
     SentryContext.set_task_scope_context(scope, task_id)
 
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     register_mcp_tool(task_id, tool_call)
-    publish_mcp_tool_call(scope, task_id, turn_number, tool_call)
+    publish_mcp_tool_call(scope, task_id, turn_number, tool_call, execution_mode)
     :ok
   end
 
   @doc false
-  def handle_timeout(%Scope{} = scope, task_id, turn_number, :error, tool_call, :triggered)
+  def handle_error(%Scope{} = scope, task_id, turn_number, reason, tool_call)
       when is_integer(turn_number) and turn_number > 0 do
     SentryContext.set_task_scope_context(scope, task_id)
 
-    timeout_msg = "Tool #{tool_call.name} timed out"
+    {error_type, message} =
+      case reason do
+        :timeout ->
+          {"tool_timeout", "Tool #{tool_call.name} timed out"}
+
+        {:crashed, exit_reason} ->
+          {"tool_crash", "Tool #{tool_call.name} crashed: #{inspect(exit_reason)}"}
+      end
 
     metadata = [
-      error_type: "tool_timeout",
+      error_type: error_type,
       tool_name: tool_call.name,
       tool_call_id: tool_call.id,
       task_id: task_id
     ]
 
-    Logger.error("Backend tool timeout", metadata)
+    Logger.error("Tool execution failed", metadata)
 
-    persist_error_tool_result(scope, task_id, turn_number, tool_call, timeout_msg)
-    :ok
-  end
-
-  def handle_timeout(%Scope{} = scope, task_id, turn_number, :error, tool_call, :cancelled)
-      when is_integer(turn_number) and turn_number > 0 do
-    cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
-    Logger.info("ToolExecutor: #{cancel_msg}")
-
-    persist_error_tool_result(scope, task_id, turn_number, tool_call, cancel_msg)
-    :ok
-  end
-
-  def handle_timeout(_scope, _task_id, turn_number, :pause_agent, _tool_call, :triggered)
-      when is_integer(turn_number) and turn_number > 0 do
-    :ok
-  end
-
-  def handle_timeout(%Scope{} = scope, task_id, turn_number, :pause_agent, tool_call, :cancelled)
-      when is_integer(turn_number) and turn_number > 0 do
-    cancel_msg = "Tool #{tool_call.name} cancelled (sibling tool paused agent)"
-
-    persist_error_tool_result(scope, task_id, turn_number, tool_call, cancel_msg)
-    :ok
+    result = persist_error_tool_result(scope, task_id, turn_number, tool_call, message)
+    to_swarm_tool_result(tool_call, result)
   end
 
   defp to_swarm_tool_result(tool_call, %{"content" => content} = result) do
@@ -216,8 +197,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp tool_registry_key(task_id, tool_call_id), do: {:tool_call, task_id, tool_call_id}
 
-  defp publish_mcp_tool_call(%Scope{} = scope, task_id, turn_number, tool_call) do
-    case Tasks.request_client_tool(scope, task_id, turn_number, tool_call) do
+  defp publish_mcp_tool_call(%Scope{} = scope, task_id, turn_number, tool_call, execution_mode) do
+    case Tasks.request_client_tool(scope, task_id, turn_number, tool_call, execution_mode) do
       {:ok, _interaction} ->
         :ok
 
@@ -319,18 +300,17 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     end
 
     persist_tool_result(scope, task_id, turn_number, tool_call, result)
-    result
   end
 
   defp handle_backend_outcome(
-         {:returned, result},
+         {:returned, _invalid},
          scope,
          tool_call,
          task_id,
          turn_number
        ) do
     Logger.error("Incorrect tool result")
-    persist_tool_result(scope, task_id, turn_number, tool_call, result)
+    persist_error_tool_result(scope, task_id, turn_number, tool_call, "Invalid tool result")
   end
 
   defp handle_backend_outcome({:crashed, reason}, scope, tool_call, task_id, turn_number) do
@@ -354,9 +334,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   end
 
   defp persist_tool_result(scope, task_id, turn_number, tool_call, result) do
-    {:ok, _interaction, _executor_status} =
+    {:ok, interaction, _status} =
       Tasks.resolve_tool_request(scope, task_id, tool_call, result, turn_number: turn_number)
 
-    result
+    interaction.result
   end
 end
