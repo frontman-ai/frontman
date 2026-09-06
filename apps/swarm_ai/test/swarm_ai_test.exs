@@ -64,7 +64,7 @@ defmodule SwarmAiTest do
       assert {:ok, next_pid} = Task.await(next_run, 2_000)
       await_exit(next_pid)
       assert_receive {:test_event, "task-handoff", :completed}
-      refute SwarmAi.running?(runtime, "task-handoff")
+      assert_unregistered(runtime, "task-handoff")
     end
 
     test "prevents duplicate execution for same key" do
@@ -241,6 +241,24 @@ defmodule SwarmAiTest do
 
   defp run_agent(runtime, id, llm, opts \\ []) do
     SwarmAi.run(runtime, agent(id, llm, opts))
+  end
+
+  defp assert_unregistered(
+         runtime,
+         task_id,
+         deadline \\ System.monotonic_time(:millisecond) + 2_000
+       ) do
+    case SwarmAi.running?(runtime, task_id) do
+      false ->
+        :ok
+
+      true ->
+        assert System.monotonic_time(:millisecond) < deadline,
+               "Registry did not remove the exited execution for #{task_id}"
+
+        :erlang.yield()
+        assert_unregistered(runtime, task_id, deadline)
+    end
   end
 
   defp await_exit(pid) do
