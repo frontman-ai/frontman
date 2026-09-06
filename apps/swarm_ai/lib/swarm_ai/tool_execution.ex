@@ -4,8 +4,7 @@ defmodule SwarmAi.ToolExecution do
 
   Executors return a list of these structs — PE pattern-matches on the struct
   type to decide whether to spawn a task (Sync) or register in its own receive
-  loop (Await). This makes the executor contract explicit and gives PE full
-  ownership of execution lifecycle.
+  loop (Await). PE runs the descriptors and collects their results.
   """
 
   @type t :: SwarmAi.ToolExecution.Sync.t() | SwarmAi.ToolExecution.Await.t()
