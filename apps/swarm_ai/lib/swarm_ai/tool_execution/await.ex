@@ -8,7 +8,12 @@ defmodule SwarmAi.ToolExecution.Await do
 
   Then waits for `{:tool_result, tool_call_id, content, is_error}` in its
   receive loop. No separate task is spawned — PE's receive loop IS the
-  waiting mechanism.
+  waiting mechanism. `timeout_ms: :infinity` creates no timer. This is the
+  explicit exception to bounded execution for interactive human input; the
+  parked executor retains its history in memory and remains cancellable.
+
+  For a finite deadline, PE calls the `on_error` MFA with appended arguments
+  `[:timeout, tool_call]`. The callback must return the canonical `ToolResult.t()`.
   """
 
   use TypedStruct
@@ -17,11 +22,10 @@ defmodule SwarmAi.ToolExecution.Await do
 
   typedstruct enforce: true do
     field(:tool_call, ToolCall.t())
-    field(:timeout_ms, pos_integer())
-    field(:on_timeout_policy, :error | :pause_agent)
+    field(:timeout_ms, pos_integer() | :infinity)
 
     field(:start, {module(), atom(), list()})
 
-    field(:on_timeout, {module(), atom(), list()})
+    field(:on_error, {module(), atom(), list()})
   end
 end

@@ -5,33 +5,29 @@ defmodule SwarmAi.ParallelExecutor do
   Accepts a list of `ToolExecution.t()` structs. PE is the sole execution
   authority — executors build descriptions, PE runs them.
 
-  - `Sync` executions are spawned as supervised tasks.
+  - `Sync` executions are spawned as supervised tasks with finite deadlines.
   - `Await` executions call their start MFA in PE's own process, then wait
     for `{:tool_result, tool_call_id, content, is_error}` in PE's receive loop.
+    An infinite deadline creates no timer, so human input can arrive later.
+  - Finite deadlines and Sync crashes return the error callback's canonical `ToolResult`.
 
-  ## Return values
-
-  - `{:ok, [ToolResult.t()]}` — all tools completed; results in original call order
-  - `{:halt, {:timeout, tool_call_id, tool_name, timeout_ms}}` — a deadline fired
-    for a tool with `on_timeout: :pause_agent`; all remaining tasks cancelled;
-    first deadline wins
+  Returns `{:ok, [ToolResult.t()]}` with results in original call order.
   """
 
   alias SwarmAi.{ToolCall, ToolExecution, ToolResult}
 
-  @type halt_reason :: {:timeout, String.t(), String.t(), pos_integer()}
-  @type result :: {:ok, [ToolResult.t()]} | {:halt, halt_reason()}
+  @type result :: {:ok, [ToolResult.t()]}
 
   @typep sync_entry :: %{
            kind: :sync,
            exec: ToolExecution.Sync.t(),
            timer: reference(),
-           pid: pid()
+           task: Task.t()
          }
   @typep await_entry :: %{
            kind: :await,
            exec: ToolExecution.Await.t(),
-           timer: reference()
+           timer: reference() | nil
          }
   @typep pending_entry :: sync_entry() | await_entry()
   @typep results_map :: %{ToolCall.id() => ToolResult.t()}
@@ -44,13 +40,9 @@ defmodule SwarmAi.ParallelExecutor do
   @spec run([ToolExecution.t()], pid() | atom()) :: result()
   def run(executions, task_supervisor) do
     {pending, awaiting} = spawn_all(executions, task_supervisor)
-
     tool_calls = Enum.map(executions, & &1.tool_call)
-
-    case collect_results(pending, awaiting, %{}, task_supervisor) do
-      {:ok, results_map} -> {:ok, finalize(tool_calls, results_map)}
-      {:halt, _} = halt -> halt
-    end
+    results_map = collect_results(pending, awaiting, %{})
+    {:ok, finalize(tool_calls, results_map)}
   end
 
   @doc """
@@ -58,16 +50,13 @@ defmodule SwarmAi.ParallelExecutor do
   """
   @spec run_serial([ToolExecution.t()], pid() | atom()) :: result()
   def run_serial(executions, task_supervisor) do
-    Enum.reduce_while(executions, {:ok, []}, fn exec, {:ok, results} ->
-      case run([exec], task_supervisor) do
-        {:ok, [result]} -> {:cont, {:ok, [result | results]}}
-        {:halt, _reason} = halt -> {:halt, halt}
-      end
-    end)
-    |> case do
-      {:ok, results} -> {:ok, Enum.reverse(results)}
-      {:halt, _reason} = halt -> halt
-    end
+    results =
+      Enum.map(executions, fn exec ->
+        {:ok, [result]} = run([exec], task_supervisor)
+        result
+      end)
+
+    {:ok, results}
   end
 
   @spec spawn_all([ToolExecution.t()], pid() | atom()) :: {pending(), awaiting()}
@@ -76,147 +65,105 @@ defmodule SwarmAi.ParallelExecutor do
       case exec do
         %ToolExecution.Sync{} ->
           task = spawn_sync(exec, task_supervisor)
-          timer = Process.send_after(self(), {:deadline, task.ref}, exec.timeout_ms)
-          entry = %{kind: :sync, exec: exec, timer: timer, pid: task.pid}
+          timer = start_timer(task.ref, exec.timeout_ms)
+          entry = %{kind: :sync, exec: exec, timer: timer, task: task}
           {Map.put(pending, task.ref, entry), awaiting}
 
         %ToolExecution.Await{} ->
           ref = make_ref()
           {mod, fun, args} = exec.start
           apply(mod, fun, args ++ [exec.tool_call])
-          timer = Process.send_after(self(), {:deadline, ref}, exec.timeout_ms)
+          timer = start_timer(ref, exec.timeout_ms)
           entry = %{kind: :await, exec: exec, timer: timer}
           {Map.put(pending, ref, entry), Map.put(awaiting, exec.tool_call.id, ref)}
       end
     end)
   end
 
-  @spec collect_results(pending(), awaiting(), results_map(), pid() | atom()) ::
-          {:ok, results_map()} | {:halt, halt_reason()}
-  defp collect_results(pending, _awaiting, results, _task_supervisor) when pending == %{} do
-    {:ok, results}
+  defp start_timer(_ref, :infinity), do: nil
+
+  defp start_timer(ref, timeout_ms) when is_integer(timeout_ms) and timeout_ms > 0 do
+    Process.send_after(self(), {:deadline, ref}, timeout_ms)
   end
 
-  defp collect_results(pending, awaiting, results, task_supervisor) do
+  defp cancel_timer(nil), do: :ok
+  defp cancel_timer(timer), do: Process.cancel_timer(timer)
+
+  @spec collect_results(pending(), awaiting(), results_map()) :: results_map()
+  defp collect_results(pending, _awaiting, results) when pending == %{}, do: results
+
+  defp collect_results(pending, awaiting, results) do
     receive do
       {ref, result} when is_map_key(pending, ref) ->
         Process.demonitor(ref, [:flush])
         %{timer: timer, exec: exec} = Map.fetch!(pending, ref)
-        Process.cancel_timer(timer)
+        cancel_timer(timer)
 
         collect_results(
           Map.delete(pending, ref),
           awaiting,
-          Map.put(results, exec.tool_call.id, result),
-          task_supervisor
+          Map.put(results, exec.tool_call.id, result)
         )
 
       {:DOWN, ref, :process, _pid, reason} when is_map_key(pending, ref) ->
         %{timer: timer, exec: exec} = Map.fetch!(pending, ref)
-        Process.cancel_timer(timer)
+        cancel_timer(timer)
 
-        error_result =
-          ToolResult.make(exec.tool_call.id, "Tool crashed: #{inspect(reason)}", true)
+        error_result = error_result(exec, {:crashed, reason})
 
         collect_results(
           Map.delete(pending, ref),
           awaiting,
-          Map.put(results, exec.tool_call.id, error_result),
-          task_supervisor
+          Map.put(results, exec.tool_call.id, error_result)
         )
 
       {:tool_result, key, content, is_error} when is_map_key(awaiting, key) ->
         ref = Map.fetch!(awaiting, key)
         %{exec: exec, timer: timer} = Map.fetch!(pending, ref)
-        Process.cancel_timer(timer)
+        cancel_timer(timer)
 
         result = ToolResult.make(exec.tool_call.id, content, is_error)
 
         collect_results(
           Map.delete(pending, ref),
           Map.delete(awaiting, key),
-          Map.put(results, exec.tool_call.id, result),
-          task_supervisor
+          Map.put(results, exec.tool_call.id, result)
         )
 
       {:deadline, ref} when is_map_key(pending, ref) ->
-        handle_deadline(pending, awaiting, results, ref, task_supervisor)
+        handle_deadline(pending, awaiting, results, ref)
     end
   end
 
-  @spec handle_deadline(pending(), awaiting(), results_map(), reference(), pid() | atom()) ::
-          {:ok, results_map()} | {:halt, halt_reason()}
-  defp handle_deadline(pending, awaiting, results, ref, task_supervisor) do
-    %{kind: kind, exec: exec} = Map.fetch!(pending, ref)
+  @spec handle_deadline(pending(), awaiting(), results_map(), reference()) :: results_map()
+  defp handle_deadline(pending, awaiting, results, ref) do
+    entry = Map.fetch!(pending, ref)
+    exec = entry.exec
 
-    {mod, fun, args} = exec.on_timeout
-
-    apply(mod, fun, args ++ [exec.tool_call, :triggered])
-
-    awaiting =
-      case kind do
-        :sync ->
-          %{pid: pid} = Map.fetch!(pending, ref)
-          Task.Supervisor.terminate_child(task_supervisor, pid)
-
-          receive do
-            {:DOWN, ^ref, :process, _, _} -> :ok
-          end
-
-          awaiting
-
-        :await ->
-          Map.delete(awaiting, exec.tool_call.id)
-      end
-
-    case exec.on_timeout_policy do
-      :error ->
-        error_result =
-          ToolResult.make(
-            exec.tool_call.id,
-            "Tool timed out after #{exec.timeout_ms}ms",
-            true
-          )
-
-        collect_results(
-          Map.delete(pending, ref),
-          awaiting,
-          Map.put(results, exec.tool_call.id, error_result),
-          task_supervisor
-        )
-
-      :pause_agent ->
-        cancel_remaining(Map.delete(pending, ref), awaiting, task_supervisor)
-        {:halt, {:timeout, exec.tool_call.id, exec.tool_call.name, exec.timeout_ms}}
+    case entry do
+      %{kind: :sync, task: task} -> Task.shutdown(task, :brutal_kill)
+      %{kind: :await} -> :ok
     end
+
+    result = error_result(exec, :timeout)
+
+    collect_results(
+      Map.delete(pending, ref),
+      Map.delete(awaiting, exec.tool_call.id),
+      Map.put(results, exec.tool_call.id, result)
+    )
   end
 
-  @spec cancel_remaining(pending(), awaiting(), pid() | atom()) :: :ok
-  defp cancel_remaining(pending, awaiting, task_supervisor) do
-    Enum.each(pending, fn {ref, entry} ->
-      %{kind: kind, exec: exec, timer: timer} = entry
-      Process.cancel_timer(timer)
-
-      {mod, fun, args} = exec.on_timeout
-      apply(mod, fun, args ++ [exec.tool_call, :cancelled])
-
-      case kind do
-        :sync ->
-          Task.Supervisor.terminate_child(task_supervisor, entry.pid)
-
-          receive do
-            {:DOWN, ^ref, :process, _, _} -> :ok
-          end
-
-        :await ->
-          _ = Map.delete(awaiting, exec.tool_call.id)
-          :ok
-      end
-    end)
+  defp error_result(exec, reason) do
+    {mod, fun, args} = exec.on_error
+    %ToolResult{id: id} = result = apply(mod, fun, args ++ [reason, exec.tool_call])
+    true = id == exec.tool_call.id
+    result
   end
 
   @spec spawn_sync(ToolExecution.Sync.t(), pid() | atom()) :: Task.t()
-  defp spawn_sync(exec, task_supervisor) do
+  defp spawn_sync(%{timeout_ms: timeout_ms} = exec, task_supervisor)
+       when is_integer(timeout_ms) and timeout_ms > 0 do
     Task.Supervisor.async_nolink(task_supervisor, fn ->
       {mod, fun, args} = exec.run
       apply(mod, fun, args ++ [exec.tool_call])

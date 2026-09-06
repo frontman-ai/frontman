@@ -10,7 +10,6 @@ defmodule SwarmAi.Loop do
   - No more tool calls (LLM responds without requesting tools)
   - Max steps reached
   - LLM returns an error
-  - Tool execution pauses the loop
   """
 
   alias SwarmAi.Effect
@@ -30,7 +29,6 @@ defmodule SwarmAi.Loop do
           | :waiting_for_tools
           | :completed
           | {:failed, term()}
-          | {:paused, term()}
 
   @type response_event_metadata :: %{ordinal: non_neg_integer(), timestamp: DateTime.t()}
 
@@ -40,13 +38,12 @@ defmodule SwarmAi.Loop do
           | {:tool_call, ToolCall.t()}
           | :completed
           | {:failed, term()}
-          | {:paused, term()}
           | {:cancelled, nil}
           | {:terminated, term()}
           | {:crashed, %{message: String.t()}}
 
   @type execute_tools ::
-          ([ToolCall.t()], pid() | atom() -> {:ok, [ToolResult.t()]} | {:halt, term()})
+          ([ToolCall.t()], pid() | atom() -> {:ok, [ToolResult.t()]})
 
   typedstruct do
     field(:id, String.t(), enforce: true)
@@ -106,13 +103,6 @@ defmodule SwarmAi.Loop do
   """
   def fail(%__MODULE__{} = loop, reason) do
     %{loop | status: {:failed, reason}}
-  end
-
-  @doc """
-  Pauses the loop with the given reason.
-  """
-  def pause(%__MODULE__{} = loop, reason) do
-    %{loop | status: {:paused, reason}}
   end
 
   @doc """

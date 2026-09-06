@@ -322,9 +322,8 @@ defmodule SwarmAi.Testing do
           %SwarmAi.ToolExecution.Sync{
             tool_call: tc,
             timeout_ms: 5_000,
-            on_timeout_policy: :error,
             run: {__MODULE__, :default_tool_run, []},
-            on_timeout: {__MODULE__, :default_tool_timeout, []}
+            on_error: {__MODULE__, :default_tool_error, []}
           }
         end)
 
@@ -337,8 +336,13 @@ defmodule SwarmAi.Testing do
   def default_tool_run(tool_call), do: SwarmAi.ToolResult.make(tool_call.id, "done", false)
 
   @doc false
-  @spec default_tool_timeout(SwarmAi.ToolCall.t(), term()) :: :ok
-  def default_tool_timeout(_tool_call, _reason), do: :ok
+  @spec default_tool_error(:timeout | {:crashed, term()}, SwarmAi.ToolCall.t()) ::
+          SwarmAi.ToolResult.t()
+  def default_tool_error(:timeout, tool_call),
+    do: SwarmAi.ToolResult.make(tool_call.id, "Tool timed out", true)
+
+  def default_tool_error({:crashed, reason}, tool_call),
+    do: SwarmAi.ToolResult.make(tool_call.id, "Tool crashed: #{inspect(reason)}", true)
 
   @doc """
   Creates a mock LLM with the given response.
