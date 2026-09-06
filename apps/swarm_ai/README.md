@@ -3,100 +3,83 @@
 [![Hex.pm](https://img.shields.io/hexpm/v/swarm_ai.svg)](https://hex.pm/packages/swarm_ai)
 [![Docs](https://img.shields.io/badge/hex-docs-blue.svg)](https://hexdocs.pm/swarm_ai)
 
-A functional AI agent execution framework for Elixir with protocol-based LLM and tool integration.
-
-SwarmAi implements a **functional core / imperative shell** architecture: a pure state machine produces effects (instructions for side effects) which are interpreted by an execution layer. This makes agent logic deterministic and testable while keeping I/O at the edges.
+SwarmAi runs supervised AI loops in Elixir. A pure state machine produces effects. The executor handles LLM calls and tool execution.
 
 ## Installation
 
-Add `swarm_ai` to your list of dependencies in `mix.exs`:
+Add the published package to `mix.exs`:
 
 ```elixir
-def deps do
-  [
-    {:swarm_ai, "~> 0.1.0"}
-  ]
-end
+{:swarm_ai, "~> 1.0"}
 ```
+
+The examples below describe the unreleased source API. The timeout changes break compatibility with previous releases. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Quick Start
 
-### Define an Agent and Run
-
-Agents own lifecycle identity and execution data. `id/1` must return a stable string.
+Add a runtime to the supervision tree:
 
 ```elixir
-defmodule MyAgent do
-  defstruct [:id, :messages, :tool_executor, context: %{}, model: "gpt-4o"]
-
-  defimpl SwarmAi.Agent do
-    def id(%{id: id}) when is_binary(id), do: id
-    def messages(agent), do: agent.messages
-    def context(agent), do: agent.context
-    def tool_executor(agent), do: agent.tool_executor
-    def system_prompt(_agent), do: "You are a helpful assistant."
-    def llm(agent), do: MyLLMClient.new(agent.model)
-  end
-end
+children = [{SwarmAi, name: MyApp.AgentRuntime}]
 ```
 
-### Supervised Execution
+Create a loop with complete input messages, an LLM client, a tool callback, and an event callback:
 
 ```elixir
-children = [
-  {SwarmAi,
-   name: MyApp.AgentRuntime,
-   event_dispatcher: {MyApp.SwarmDispatcher, :dispatch, []}}
-]
+loop = SwarmAi.Loop.new(%{
+  task_id: task_id,
+  turn_number: 1,
+  messages: [SwarmAi.Message.user("Analyze this code")],
+  llm: MyLLMClient.new("my-model"),
+  execute_tools: &MyTools.execute/2,
+  dispatch_event: &MyEvents.dispatch/1
+})
 
-agent = %MyAgent{
-  id: task_id,
-  messages: "Analyze this code",
-  context: %{task_id: task_id},
-  tool_executor: %{build: &build_tool_executions/1, execution_mode: :parallel}
+{:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, loop)
+SwarmAi.running?(MyApp.AgentRuntime, loop.task_id)
+SwarmAi.cancel(MyApp.AgentRuntime, loop.task_id)
+```
+
+The LLM client implements `SwarmAi.LLM.stream/3`. The tool callback accepts tool calls and a task supervisor. It returns `{:ok, results}`.
+
+## Tool Execution
+
+`SwarmAi.Tool` contains only the name, description, access mode, and parameter schema for the LLM. Execution descriptors own deadlines and error callbacks.
+
+```elixir
+%SwarmAi.ToolExecution.Await{
+  tool_call: tool_call,
+  timeout_ms: :infinity,
+  start: {MyTools, :request_answer, [context]},
+  on_error: {MyTools, :persist_error, [context]}
 }
-
-{:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, agent)
-
-SwarmAi.running?(MyApp.AgentRuntime, SwarmAi.Agent.id(agent))
-SwarmAi.cancel(MyApp.AgentRuntime, SwarmAi.Agent.id(agent))
 ```
 
-## Architecture
+The `start` MFA receives one appended argument: `tool_call`. This callback runs in the executor process. It registers delivery before publishing the request.
 
-```
-┌──────────────────────────────────────────────────┐
-│            SwarmAi Public API                     │
-│  Supervised runs, cancellation, execution events  │
-└────────────────────────┬─────────────────────────┘
-                         │ produces/consumes
-                         ▼
-┌──────────────────────────────────────────────────┐
-│        Executor + Loop (Functional Core)          │
-│  State machine for agent execution,               │
-│  returns {loop, effects} tuples, no side effects  │
-└──────────────────────────────────────────────────┘
-```
+The answer arrives as `{:tool_result, tool_call_id, content, is_error}`. With `:infinity`, no timer exists and the error callback does not run for a deadline.
 
-### Key Concepts
+The `on_error` MFA receives two appended arguments: `reason` and `tool_call`. The reason is `:timeout` or `{:crashed, exit_reason}`.
 
-- **Agent Protocol** - Define stable string identity, messages, dispatcher context, tool executor, system prompt, and LLM config
-- **LLM Protocol** - Bring your own LLM client by implementing `SwarmAi.LLM` (streaming interface)
-- **Effect System** - Pure functions produce effects (`{:call_llm, ...}`, `{:execute_tool, ...}`) instead of performing I/O directly
-- **Tool Execution** - Tools are pure data structures; execution is delegated to the agent's `tool_executor`
-- **Telemetry** - Built-in `:telemetry` events for runs, steps, LLM calls, and tool executions
+The error callback returns the canonical `SwarmAi.ToolResult` selected by application persistence. It does not return `:ok`. A stored success can win over a timeout or crash.
 
-## Telemetry Events
+`Sync` descriptors require a positive millisecond deadline and a `run` MFA. The executor kills and monitors the timed-out Sync task before the error callback runs.
 
-SwarmAi emits telemetry under the `[:swarm_ai, ...]` prefix:
+`ParallelExecutor.run/2` returns results in call order. `run_serial/2` also preserves dispatch order. An interactive wait blocks subsequent serial calls, but not parallel siblings.
 
-| Event | Description |
-|-------|-------------|
-| `[:swarm_ai, :run, :start\|:stop\|:exception]` | Full agent run lifecycle |
-| `[:swarm_ai, :step, :start\|:stop]` | Individual step within a run |
-| `[:swarm_ai, :llm, :call, :start\|:stop\|:exception]` | LLM API calls |
-| `[:swarm_ai, :tool, :execute, :start\|:stop\|:exception]` | Tool executions |
+Human waits are an explicit exception to bounded execution. A parked executor retains its history in memory without polling or calling the LLM.
+
+Cancellation terminates the parked executor and removes its registration. Existing Sync tasks use the runtime-global task supervisor and can outlive executor cancellation. This release does not change that ownership.
+
+## Telemetry
+
+| Event | Scope |
+|-------|-------|
+| `[:swarm_ai, :run, :start\|:stop\|:exception]` | Loop execution |
+| `[:swarm_ai, :step, :start\|:stop]` | One LLM step |
+| `[:swarm_ai, :llm, :call, :start\|:stop\|:exception]` | LLM call |
+| `[:swarm_ai, :tool, :execute, :start\|:stop\|:exception]` | Tool execution |
 
 ## License
 
-Apache-2.0 - see the LICENSE file for details.
+Apache-2.0. See [LICENSE](LICENSE).

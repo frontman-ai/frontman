@@ -8,27 +8,25 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend
+  alias FrontmanServer.Tools.MCP
   alias SwarmAi.Message.ContentPart
 
-  defmodule PauseOnTimeoutTool do
+  defmodule FiniteTool do
     @behaviour Backend
 
-    def name, do: "pause_on_timeout_tool"
-    def description, do: "Declares on_timeout: :pause_agent"
+    def name, do: "finite_tool"
+    def description, do: "A finite backend operation"
     def access, do: :read
     def parameter_schema, do: %{"type" => "object", "properties" => %{}}
     def timeout_ms, do: 30_000
-    def on_timeout, do: :pause_agent
-
+    def execute(%{"invalid" => true}, _context), do: %{"unexpected" => "shape"}
     def execute(_args, _context), do: ModelContextProtocol.tool_result_text("done")
   end
 
   setup do
     scope = user_scope_fixture()
-    task_id = task_fixture(scope).id
+    task_id = task_with_active_turn_fixture(scope).id
     Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
-    {:ok, _message} = user_message_fixture(scope, task_id, user_content("test turn"))
-
     {:ok, scope: scope, task_id: task_id, turn_number: latest_turn_number(task_id)}
   end
 
@@ -39,56 +37,112 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     end)
   end
 
-  describe "handle_timeout/5 — cancelled tools" do
+  describe "canonical backend results" do
     @tag :capture_log
-    test "persists error ToolResult for :error policy", %{
-      scope: scope,
-      task_id: task_id,
-      turn_number: turn_number
-    } do
-      tc = %SwarmAi.ToolCall{id: "tc-to-2", name: "some_tool", arguments: "{}"}
-      ToolExecutor.handle_timeout(scope, task_id, turn_number, :error, tc, :cancelled)
+    test "completion and timeout return the persisted winner in either ordering", context do
+      %{scope: scope, task_id: task_id, turn_number: turn_number} = context
 
-      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
-      assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, tc.id)
-    end
+      for first <- [:completion, :timeout] do
+        tc = %SwarmAi.ToolCall{id: "race_#{first}", name: FiniteTool.name(), arguments: "{}"}
 
-    @tag :capture_log
-    test "persists ToolResult for :pause_agent policy", %{
-      scope: scope,
-      task_id: task_id,
-      turn_number: turn_number
-    } do
-      tc = %SwarmAi.ToolCall{
-        id: "tc_#{System.unique_integer([:positive])}",
-        name: PauseOnTimeoutTool.name(),
-        arguments: "{}"
-      }
+        complete = fn ->
+          ToolExecutor.run_backend_tool(scope, FiniteTool, task_id, turn_number, tc)
+        end
 
-      ToolExecutor.handle_timeout(scope, task_id, turn_number, :pause_agent, tc, :cancelled)
+        timeout = fn -> ToolExecutor.handle_error(scope, task_id, turn_number, :timeout, tc) end
 
-      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
-      assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, tc.id)
+        {winner, loser} =
+          case first do
+            :completion -> {complete.(), timeout.()}
+            :timeout -> {timeout.(), complete.()}
+          end
+
+        assert winner == loser
+        assert winner.is_error == (first == :timeout)
+        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+        assert [stored] = tool_results(task, tc.id)
+        assert stored.is_error == winner.is_error
+        assert ModelContextProtocol.extract_content_text(stored.result) == hd(winner.content).text
+      end
     end
   end
 
-  describe "execute/2" do
-    test "runs available and unavailable tools in serial and parallel", %{
-      scope: scope,
-      task_id: task_id,
-      turn_number: turn_number
-    } do
-      for mode <- [:serial, :parallel] do
-        suffix = Atom.to_string(mode)
+  @tag :capture_log
+  test "a malformed backend return becomes a canonical error", context do
+    %{scope: scope, task_id: task_id, turn_number: turn_number} = context
 
+    call = %SwarmAi.ToolCall{
+      id: "malformed_result",
+      name: FiniteTool.name(),
+      arguments: ~s({"invalid":true})
+    }
+
+    assert %SwarmAi.ToolResult{is_error: true, content: [%{text: "Invalid tool result"}]} =
+             ToolExecutor.run_backend_tool(scope, FiniteTool, task_id, turn_number, call)
+
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+    assert [
+             %Interaction.ToolResult{
+               is_error: true,
+               result: %{"content" => [%{"text" => "Invalid tool result"}]}
+             }
+           ] = tool_results(task, call.id)
+  end
+
+  test "Sync DOWN after a committed success returns that same success", context do
+    %{scope: scope, task_id: task_id, turn_number: turn_number} = context
+    call = %SwarmAi.ToolCall{id: "committed_then_down", name: "finite_tool", arguments: "{}"}
+
+    execution = %SwarmAi.ToolExecution.Sync{
+      tool_call: call,
+      timeout_ms: 1_000,
+      run: {__MODULE__, :persist_then_exit, [scope, task_id, turn_number]},
+      on_error: {ToolExecutor, :handle_error, [scope, task_id, turn_number]}
+    }
+
+    assert {:ok, [%SwarmAi.ToolResult{is_error: false, content: [%{text: "committed"}]}]} =
+             SwarmAi.ParallelExecutor.run(
+               [execution],
+               SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
+             )
+
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+    assert [
+             %Interaction.ToolResult{
+               is_error: false,
+               result: %{"content" => [%{"text" => "committed"}]}
+             }
+           ] = tool_results(task, call.id)
+  end
+
+  def persist_then_exit(scope, task_id, turn_number, call) do
+    {:ok, _, _} =
+      Tasks.resolve_tool_request(
+        scope,
+        task_id,
+        call,
+        ModelContextProtocol.tool_result_text("committed"),
+        turn_number: turn_number
+      )
+
+    Process.exit(self(), :kill)
+  end
+
+  describe "execute/2" do
+    test "runs available and unavailable tools in serial and parallel", context do
+      %{scope: scope, task_id: task_id, turn_number: turn_number} = context
+
+      for mode <- [:serial, :parallel] do
         available = %SwarmAi.ToolCall{
-          id: "available_#{suffix}",
-          name: PauseOnTimeoutTool.name(),
+          id: "available_#{mode}",
+          name: FiniteTool.name(),
           arguments: "{}"
         }
 
         unavailable = %SwarmAi.ToolCall{
-          id: "unavailable_#{suffix}",
+          id: "unavailable_#{mode}",
           name: "filtered_tool",
           arguments: "{}"
         }
@@ -100,67 +154,45 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
                    tool_calls: [available, unavailable],
                    task_supervisor:
                      SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
-                   backend_tool_modules: [PauseOnTimeoutTool],
+                   backend_tool_modules: [FiniteTool],
                    mcp_tool_defs: [],
                    execution_mode: mode
                  })
 
-        assert %SwarmAi.ToolResult{is_error: false, content: [%ContentPart{text: "done"}]} =
-                 Enum.find(results, &(&1.id == available.id))
-
-        assert %SwarmAi.ToolResult{is_error: true, content: [%ContentPart{text: message}]} =
-                 Enum.find(results, &(&1.id == unavailable.id))
+        assert [
+                 %SwarmAi.ToolResult{is_error: false, content: [%ContentPart{text: "done"}]},
+                 %SwarmAi.ToolResult{is_error: true, content: [%ContentPart{text: message}]}
+               ] = results
 
         assert message =~ "filtered_tool"
         assert message =~ "unavailable"
-
         {:ok, task} = Tasks.get_task_with_history(scope, task_id)
         assert [%Interaction.ToolResult{is_error: false}] = tool_results(task, available.id)
         assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, unavailable.id)
-
-        refute Enum.any?(Tasks.interactions(task), fn
-                 %Interaction.ToolCall{tool_call_id: id} -> id == unavailable.id
-                 _interaction -> false
-               end)
+        refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))
       end
     end
 
-    test "raises when an MCP tool executor registration unexpectedly collides", %{
-      scope: scope,
-      task_id: task_id,
-      turn_number: turn_number
-    } do
-      tc = %SwarmAi.ToolCall{
-        id: "tc_collision_#{System.unique_integer([:positive])}",
-        name: "some_tool",
-        arguments: "{}"
-      }
+    test "registers before publishing and rejects a duplicate waiter", context do
+      %{scope: scope, task_id: task_id, turn_number: turn_number} = context
+      tc = %SwarmAi.ToolCall{id: "collision", name: "approval", arguments: "{}"}
+      assert :ok = ToolExecutor.start_mcp_tool(scope, task_id, turn_number, :interactive, tc)
+      assert_receive {:interaction, %{data: %Interaction.ToolCall{execution_mode: :interactive}}}
 
-      assert :ok = ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tc)
+      assert [{_, %{caller_pid: caller}}] =
+               Registry.lookup(FrontmanServer.ProcessRegistry, {:tool_call, task_id, tc.id})
 
-      assert_raise RuntimeError,
-                   ~r/Duplicate MCP tool executor registration/,
-                   fn -> ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tc) end
+      assert caller == self()
+
+      assert_raise RuntimeError, ~r/Duplicate MCP tool executor registration/, fn ->
+        ToolExecutor.start_mcp_tool(scope, task_id, turn_number, :interactive, tc)
+      end
     end
 
-    test "rejects a filtered backend tool even when an MCP tool has the same name", %{
-      scope: scope,
-      task_id: task_id,
-      turn_number: turn_number
-    } do
-      todo_write_mcp_def = %FrontmanServer.Tools.MCP{
-        name: "todo_write",
-        description: "Colliding browser tool",
-        input_schema: %{},
-        on_timeout: :error,
-        timeout_ms: 60_000
-      }
-
-      tc = %SwarmAi.ToolCall{
-        id: "tc_#{System.unique_integer([:positive])}",
-        name: "todo_write",
-        arguments: "{}"
-      }
+    test "rejects a filtered backend even when an MCP tool has the same name", context do
+      %{scope: scope, task_id: task_id, turn_number: turn_number} = context
+      tool = MCP.from_map(%{"name" => "todo_write"})
+      tc = %SwarmAi.ToolCall{id: "collision_backend", name: "todo_write", arguments: "{}"}
 
       assert {:ok, [%SwarmAi.ToolResult{is_error: true}]} =
                ToolExecutor.execute(scope, %{
@@ -170,17 +202,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
                  task_supervisor:
                    SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
                  backend_tool_modules: [],
-                 mcp_tool_defs: [todo_write_mcp_def],
+                 mcp_tool_defs: [tool],
                  execution_mode: :serial
                })
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
-
-      refute Enum.any?(Tasks.interactions(task), fn
-               %Interaction.ToolCall{tool_call_id: tool_call_id} -> tool_call_id == tc.id
-               _interaction -> false
-             end)
-
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))
       assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, tc.id)
     end
   end

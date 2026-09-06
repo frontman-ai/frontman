@@ -4,60 +4,36 @@ defmodule SwarmAi.ToolTest do
   alias SwarmAi.Tool
 
   describe "new/1" do
-    test "creates a tool with all required fields" do
+    test "creates a model-facing declaration without operational fields" do
       tool =
         Tool.new(
           name: "my_tool",
           description: "Does something",
           access: :read,
-          parameter_schema: %{},
-          timeout_ms: 30_000,
-          on_timeout: :error
+          parameter_schema: %{}
         )
 
       assert tool.name == "my_tool"
       assert tool.description == "Does something"
       assert tool.access == :read
       assert tool.parameter_schema == %{}
-      assert tool.timeout_ms == 30_000
-      assert tool.on_timeout == :error
+      refute Map.has_key?(tool, :timeout_ms)
+      refute Map.has_key?(tool, :on_timeout)
     end
 
-    test "raises on missing timeout_ms" do
+    test "raises on missing required declaration fields" do
       assert_raise ArgumentError, fn ->
-        Tool.new(
-          name: "t",
-          description: "d",
-          access: :read,
-          parameter_schema: %{},
-          on_timeout: :error
-        )
+        Tool.new(name: "t", description: "d", access: :read)
       end
     end
 
-    test "raises on missing on_timeout" do
-      assert_raise ArgumentError, fn ->
-        Tool.new(
-          name: "t",
-          description: "d",
-          access: :read,
-          parameter_schema: %{},
-          timeout_ms: 5_000
-        )
-      end
-    end
-
-    test "raises on unknown key" do
-      assert_raise KeyError, fn ->
-        Tool.new(
-          name: "t",
-          description: "d",
-          access: :read,
-          parameter_schema: %{},
-          timeout_ms: 5_000,
-          on_timeout: :error,
-          extra: "nope"
-        )
+    test "rejects operational timeout fields and unknown keys" do
+      for key <- [:timeout_ms, :on_timeout, :extra] do
+        assert_raise KeyError, fn ->
+          Tool.new(
+            [name: "t", description: "d", access: :read, parameter_schema: %{}] ++ [{key, 5_000}]
+          )
+        end
       end
     end
   end

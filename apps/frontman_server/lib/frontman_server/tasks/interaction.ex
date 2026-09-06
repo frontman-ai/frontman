@@ -809,9 +809,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defmodule AgentPaused do
     @moduledoc """
-    Recorded when the agent loop is paused due to a tool timeout with
-    `on_timeout: :pause_agent`. Stored as an interaction so reconnecting
-    clients and the debug-task tool can see why the agent stopped.
+    Historical terminal outcome for timeout-driven pauses.
+    Retained for replay; interactive waits no longer produce this event.
     """
 
     use Ecto.Schema
@@ -845,6 +844,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :tool_call_id, :string
       field :tool_name, :string
       field :arguments, :map
+      field :execution_mode, Ecto.Enum, values: [:synchronous, :interactive]
       field :timestamp, :utc_datetime_usec
     end
 
@@ -854,11 +854,19 @@ defmodule FrontmanServer.Tasks.Interaction do
         :tool_call_id,
         :tool_name,
         :arguments,
+        :execution_mode,
         :timestamp
       ])
+      |> Ecto.Changeset.validate_required([:execution_mode])
     end
 
-    def attrs(%SwarmAi.ToolCall{} = tc) do
+    @doc "Historical rows lack a mode snapshot. Only legacy question calls recover as interactive."
+    def execution_mode(%__MODULE__{execution_mode: nil, tool_name: "question"}), do: :interactive
+    def execution_mode(%__MODULE__{execution_mode: nil}), do: :synchronous
+    def execution_mode(%__MODULE__{execution_mode: mode}), do: mode
+
+    def attrs(%SwarmAi.ToolCall{} = tc, execution_mode)
+        when execution_mode in [:synchronous, :interactive] do
       tc = SwarmAi.ToolCall.strip_null_arguments(tc)
 
       case SwarmAi.ToolCall.parse_arguments(tc) do
@@ -867,7 +875,8 @@ defmodule FrontmanServer.Tasks.Interaction do
            %{
              tool_call_id: tc.id,
              tool_name: tc.name,
-             arguments: arguments
+             arguments: arguments,
+             execution_mode: execution_mode
            }}
 
         {:error, message} ->

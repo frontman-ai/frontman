@@ -1023,9 +1023,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
 
   | (Task.Loaded(data), CancelTurn) =>
-    if !data.isAgentRunning {
-      (task, [])
-    } else {
+    switch data.isAgentRunning || data.pendingQuestion->Option.isSome {
+    | false => (task, [])
+    | true =>
       let completed = Lens.completeStreamingMessage(task)
       let withCancelledTools = Lens.updateMessages(completed, store =>
         MessageStore.map(store, msg =>

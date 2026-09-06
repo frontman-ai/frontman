@@ -1,14 +1,12 @@
 defmodule SwarmAiTest do
   use SwarmAi.Testing, async: true
 
-  alias SwarmAi.{ToolExecution, ToolResult}
+  alias SwarmAi.ToolExecution
 
-  def slow_run(tool_call) do
-    Process.sleep(500)
-    ToolResult.make(tool_call.id, "never", false)
+  def start_await(test_pid, tool_call) do
+    send(test_pid, {:await_started, tool_call.id, self()})
+    :ok
   end
-
-  def noop_timeout(_tool_call, _reason), do: :ok
 
   describe "run/2" do
     test "remains running while dispatching the terminal event" do
@@ -66,7 +64,7 @@ defmodule SwarmAiTest do
       assert {:ok, next_pid} = Task.await(next_run, 2_000)
       await_exit(next_pid)
       assert_receive {:test_event, "task-handoff", :completed}
-      refute SwarmAi.running?(runtime, "task-handoff")
+      assert_unregistered(runtime, "task-handoff")
     end
 
     test "prevents duplicate execution for same key" do
@@ -183,50 +181,37 @@ defmodule SwarmAiTest do
     end
   end
 
-  describe "pause_agent" do
-    test "pause_agent tool timeout returns :paused result, no :failed event" do
-      runtime = start_runtime!()
+  test "cancelling an infinite Await terminates the parked worker and unregisters" do
+    runtime = start_runtime!()
+    test_pid = self()
 
-      execute_tools = fn tool_calls, task_supervisor ->
-        executions =
-          Enum.map(tool_calls, fn tool_call ->
-            %ToolExecution.Sync{
-              tool_call: tool_call,
-              timeout_ms: 10,
-              on_timeout_policy: :pause_agent,
-              run: {__MODULE__, :slow_run, []},
-              on_timeout: {__MODULE__, :noop_timeout, []}
-            }
-          end)
-
-        SwarmAi.ParallelExecutor.run(executions, task_supervisor)
-      end
-
-      llm = %MockLLM{
-        response: fn ->
-          {:ok,
-           %SwarmAi.LLM.Response{
-             content: nil,
-             tool_calls: [%SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: "{}"}],
-             usage: %{input_tokens: 10, output_tokens: 5},
-             raw: nil
-           }}
-        end
-      }
-
-      {:ok, pid} =
-        run_agent(runtime, "task-pause", llm, execute_tools: execute_tools)
-
-      await_exit(pid)
-
-      assert_receive {:test_event, "task-pause", {:paused, {:timeout, "tc1", "test_tool", 10}}},
-                     200
-
-      refute_receive {:test_event, "task-pause", :completed}, 200
-      refute_receive {:test_event, "task-pause", {:failed, _}}, 0
-      refute_receive {:test_event, "task-pause", {:crashed, _}}, 0
-      refute SwarmAi.running?(runtime, "task-pause")
+    execute_tools = fn tool_calls, task_supervisor ->
+      Enum.map(tool_calls, fn tool_call ->
+        %ToolExecution.Await{
+          tool_call: tool_call,
+          timeout_ms: :infinity,
+          start: {__MODULE__, :start_await, [test_pid]},
+          on_error: {SwarmAi.Testing, :default_tool_error, []}
+        }
+      end)
+      |> SwarmAi.ParallelExecutor.run(task_supervisor)
     end
+
+    llm = tool_then_complete_llm([tool_call("approval", %{}, id: "tc1")], "done")
+    {:ok, pid} = run_agent(runtime, "task-wait", llm, execute_tools: execute_tools)
+    assert_receive {:await_started, "tc1", ^pid}
+    assert SwarmAi.running?(runtime, "task-wait")
+    refute_receive {:test_event, "task-wait", :completed}, 50
+
+    assert :ok = SwarmAi.cancel(runtime, "task-wait")
+    await_exit(pid)
+    assert_receive {:test_event, "task-wait", {:cancelled, nil}}
+    refute SwarmAi.running?(runtime, "task-wait")
+    assert SwarmAi.active_count(runtime) == 0
+    send(pid, {:tool_result, "tc1", "late answer", false})
+    refute_receive {:test_event, "task-wait", :completed}, 20
+    refute_receive {:test_event, "task-wait", {:failed, _}}, 0
+    refute_receive {:test_event, "task-wait", {:crashed, _}}, 0
   end
 
   defp start_runtime! do
@@ -256,6 +241,24 @@ defmodule SwarmAiTest do
 
   defp run_agent(runtime, id, llm, opts \\ []) do
     SwarmAi.run(runtime, agent(id, llm, opts))
+  end
+
+  defp assert_unregistered(
+         runtime,
+         task_id,
+         deadline \\ System.monotonic_time(:millisecond) + 2_000
+       ) do
+    case SwarmAi.running?(runtime, task_id) do
+      false ->
+        :ok
+
+      true ->
+        assert System.monotonic_time(:millisecond) < deadline,
+               "Registry did not remove the exited execution for #{task_id}"
+
+        :erlang.yield()
+        assert_unregistered(runtime, task_id, deadline)
+    end
   end
 
   defp await_exit(pid) do
