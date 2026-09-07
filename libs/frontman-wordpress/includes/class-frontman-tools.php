@@ -156,6 +156,10 @@ class Frontman_Tools {
 			return $this->sanitize_untyped_array( $input, $name );
 		}
 
+		if ( class_exists( 'Frontman_Tool_Seo' ) && in_array( $name, [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
+			return Frontman_Tool_Seo::validate_input( $name, $input );
+		}
+
 		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $tool->preserve_input_strings );
 		return is_array( $sanitized ) ? $sanitized : [];
 	}

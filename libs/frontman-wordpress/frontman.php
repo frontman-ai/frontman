@@ -62,6 +62,7 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-options.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-templates.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-widgets.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
 
 /**
  * Main plugin bootstrap.
@@ -76,6 +77,10 @@ function frontman_init(): void {
 	( new Frontman_Tool_Templates() )->register( $tools );
 	( new Frontman_Tool_Widgets() )->register( $tools );
 	( new Frontman_Tool_Cache() )->register( $tools );
+
+	if ( Frontman_Tool_Seo::is_available() ) {
+		( new Frontman_Tool_Seo() )->register( $tools );
+	}
 
 	if ( Frontman_Plugin_Dependencies::is_available( 'elementor/elementor.php', '\Elementor\Plugin' ) ) {
 		require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-elementor-data.php';

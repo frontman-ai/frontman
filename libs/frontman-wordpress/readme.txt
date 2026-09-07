@@ -51,6 +51,7 @@ Use Frontman to:
 * Update WooCommerce products and other supported store data
 * Change navigation menus, templates, template parts, and supported widgets
 * Update Additional CSS and allowlisted site settings
+* Read or update supported SEO title and description overrides when a tested provider is available
 * Inspect a page and explain which supported WordPress structure can control it
 
 == How Frontman Works ==
@@ -61,6 +62,16 @@ Frontman then uses WordPress, Elementor, or WooCommerce tools that match the req
 
 Frontman works with WordPress content and structures that its current tools support. Custom themes, custom plugins, hosting controls, and unsupported page builders can require a different workflow.
 
+== Optional SEO Tools ==
+
+`wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. Yoast SEO Free 28.4 is an optional dependency that Frontman does not install.
+
+The route requires WordPress 6.9 or later. Tests cover WordPress 7.0.2 with PHP 7.4 and 8.4. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
+
+Supported objects are posts, pages, and editable non-attachment custom post types with an admin interface, including authorized drafts and private content. Revisions, autosaves, attachments, and internal WordPress object types are not supported.
+
+Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags. Results confirm stored overrides, not rendered HTML or search-engine indexing. Yoast expands variables on later requests. External full-page caches and CDNs have separate refresh behavior.
+
 == Safety, Limits, and Data ==
 
 Only WordPress administrators with the `manage_options` capability can access Frontman. The plugin uses WordPress nonces, sanitizes inputs, and restricts option changes to an allowlist.
@@ -70,6 +81,8 @@ Frontman is early-access software. It has not been tested across every theme, pa
 Start on a staging site. Keep a current backup. Review each change before you use it on a production site.
 
 When you submit a request, relevant site content can pass through Frontman AI to your configured model provider. The Third-Party Services section summarizes this data flow.
+
+During an active, user-requested chat task, SEO tool results can include overrides from authorized drafts and private content. Frontman sends these results to the selected AI provider as request context. Frontman also stores the results in task history. This process uses the existing chat request and consent flow.
 
 == Open Source and Support ==
 
@@ -114,7 +127,7 @@ The hosted service processes your prompts, relevant site or store content, tool 
 This plugin and the hosted Frontman service connect to these external services:
 
 **Frontman Client and API**
-The plugin loads its interface from `app.frontman.sh` and connects to `api.frontman.sh`. Frontman processes prompts, relevant site or store content, tool results, and stored task history to run the agent. Stored provider credentials use server-side encryption.
+The plugin loads its interface from `app.frontman.sh` and connects to `api.frontman.sh`. Frontman processes prompts, relevant site or store content, tool results, and stored task history to run the agent. SEO tool results can include stored title and description overrides from authorized drafts and private content. Stored provider credentials use server-side encryption.
 
 * Services: [Client](https://app.frontman.sh), [API](https://api.frontman.sh)
 * Provider: Frontman AI

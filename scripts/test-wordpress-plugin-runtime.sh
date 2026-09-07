@@ -6,6 +6,8 @@ ROOT_DIR="$(git rev-parse --show-toplevel)"
 RUNTIME="${CONTAINER_RUNTIME:-docker}"
 WORDPRESS_VERSION="${WORDPRESS_VERSION:-7.0.2}"
 PHP_VERSION="${PHP_VERSION:-8.4}"
+YOAST_VERSION="${YOAST_VERSION:-}"
+YOAST_SHA256="93eba5afc65149967a4bb4906bc8fdebf92f4a65ee02bec97f5c01a7e14e7028"
 PLUGIN_VERSION="$(bash "$ROOT_DIR/scripts/validate-wordpress-plugin-release.sh")"
 RUN_ID="frontman-wp-runtime-$$"
 NETWORK="${RUN_ID}-network"
@@ -24,6 +26,16 @@ trap cleanup EXIT
 
 make -C "$ROOT_DIR" package-wordpress-plugin VERSION="$PLUGIN_VERSION" >/dev/null
 curl -fsSL "https://wordpress.org/wordpress-${WORDPRESS_VERSION}.tar.gz" -o "$BUILD_DIR/wordpress.tar.gz"
+if [[ -n "$YOAST_VERSION" ]]; then
+  if [[ "$YOAST_VERSION" != "28.4" ]]; then
+    printf 'Unsupported Yoast runtime test version: %s\n' "$YOAST_VERSION" >&2
+    exit 1
+  fi
+  curl -fsSL "https://downloads.wordpress.org/plugin/wordpress-seo.${YOAST_VERSION}.zip" -o "$BUILD_DIR/wordpress-seo.zip"
+  printf '%s  %s\n' "$YOAST_SHA256" "$BUILD_DIR/wordpress-seo.zip" | sha256sum --check --status
+  unzip -q "$BUILD_DIR/wordpress-seo.zip" -d "$BUILD_DIR/yoast"
+  printf 'Verified official Yoast SEO %s package (SHA-256 %s)\n' "$YOAST_VERSION" "$YOAST_SHA256"
+fi
 "$RUNTIME" build \
   --build-arg PHP_VERSION="$PHP_VERSION" \
   -f "$ROOT_DIR/libs/frontman-wordpress/tests/integration/Dockerfile" \
@@ -60,16 +72,25 @@ done
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/CustomCssRuntimeTest.php" "$WORDPRESS:/tmp/CustomCssRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ActivateWordPressPlugin.php" "$WORDPRESS:/tmp/ActivateWordPressPlugin.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/RunWordPressRuntimeTest.php" "$WORDPRESS:/tmp/RunWordPressRuntimeTest.php"
+if [[ -n "$YOAST_VERSION" ]]; then
+  "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins /var/www/html/wp-content/plugins/wordpress-seo
+  "$RUNTIME" cp "$BUILD_DIR/yoast/wordpress-seo/." "$WORDPRESS:/var/www/html/wp-content/plugins/wordpress-seo/"
+  "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SeoRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-seo-runtime.php"
+fi
 
 "$RUNTIME" exec "$WORDPRESS" php -r 'define("WP_INSTALLING", true); define("WP_SITEURL", "http://frontman-runtime.example.test"); require "/var/www/html/wp-load.php"; require_once ABSPATH . "wp-admin/includes/upgrade.php"; if (!is_blog_installed()) { wp_install("Frontman Runtime", "admin", "admin@example.test", true, "", "frontman-runtime-password"); }'
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); $result = $db->query("SELECT option_value FROM wp_options WHERE option_name = '\''siteurl'\''"); $row = $result ? $result->fetch_row() : false; if (!$row || !$row[0]) { throw new RuntimeException("WordPress installation did not persist a site URL."); }'
-"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ActivateWordPressPlugin.php
-TEST_OUTPUT="$("$RUNTIME" exec \
+"$RUNTIME" exec -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ActivateWordPressPlugin.php
+if TEST_OUTPUT="$("$RUNTIME" exec \
   -e EXPECTED_WORDPRESS_VERSION="$WORDPRESS_VERSION" \
+  -e EXPECTED_YOAST_VERSION="$YOAST_VERSION" \
   "$WORDPRESS" \
-  php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php)"
+  php -d display_errors=1 -d error_reporting=E_ALL /tmp/RunWordPressRuntimeTest.php)"; then
+  TEST_STATUS=0
+else TEST_STATUS=$?
+fi
 printf '%s\n' "$TEST_OUTPUT"
-if [[ "$TEST_OUTPUT" != *"OK (WordPress ${WORDPRESS_VERSION}, PHP "* ]]; then
+if [[ "$TEST_STATUS" -ne 0 || "$TEST_OUTPUT" != *"OK (WordPress ${WORDPRESS_VERSION}, PHP "* ]]; then
   printf 'WordPress runtime tests did not report successful completion.\n' >&2
   exit 1
 fi
