@@ -77,10 +77,21 @@ function sanitizeSession(session) {
   if (!isPlainObject(session)) return undefined
 
   const out = {}
-  for (const key of ["driver", "ttl", "cookie"]) {
+  for (const key of ["ttl", "cookie"]) {
     const value = jsonSafe(session[key])
     if (value !== undefined) out[key] = value
   }
+
+  if (typeof session.driver === "string") {
+    out.driver = session.driver
+  } else if (isPlainObject(session.driver)) {
+    const driver = {}
+    const entrypoint = jsonSafe(session.driver.entrypoint)
+    if (entrypoint !== undefined) driver.entrypoint = entrypoint
+    if (session.driver.config !== undefined) driver.config = "redacted"
+    if (Object.keys(driver).length) out.driver = driver
+  }
+
   return Object.keys(out).length ? out : undefined
 }
 
