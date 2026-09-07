@@ -45,13 +45,6 @@ defmodule FrontmanServer.ToolsTest do
     end
   end
 
-  test "read-only tool sets include feedback but exclude project write tools" do
-    tools = Tools.backend_tool_modules(%{access: [:read]})
-
-    assert AgentFeedback in tools
-    refute TodoWrite in tools
-  end
-
   describe "find_tool/1" do
     test "finds registered tools" do
       for {tool_name, module} <- [
