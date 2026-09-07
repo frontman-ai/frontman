@@ -38,6 +38,7 @@ defmodule FrontmanServer.Workers.SendAgentFeedbackToDiscord do
       embeds: [
         %{
           title: "Agent Feedback",
+          description: args["message"],
           color: color(args["outcome"]),
           fields: fields(args),
           timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
@@ -83,7 +84,6 @@ defmodule FrontmanServer.Workers.SendAgentFeedbackToDiscord do
       %{name: "Outcome", value: value(args["outcome"]), inline: true},
       %{name: "Framework", value: value(args["framework"]), inline: true},
       %{name: "Task", value: value(args["task_title"]), inline: false},
-      %{name: "Message", value: value(args["message"]), inline: false},
       %{name: "Task ID", value: value(args["task_id"]), inline: false}
     ]
   end

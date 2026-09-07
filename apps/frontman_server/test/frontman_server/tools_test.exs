@@ -38,11 +38,18 @@ defmodule FrontmanServer.ToolsTest do
     test "tools expose expected access levels" do
       by_name = Map.new(Tools.backend_tools(), &{&1.name, &1.access})
 
-      assert by_name["agent_feedback"] == :write
+      assert by_name["agent_feedback"] == :read
       assert by_name["get_tool_result"] == :read
       assert by_name["web_fetch"] == :read
       assert by_name["todo_write"] == :write
     end
+  end
+
+  test "read-only tool sets include feedback but exclude project write tools" do
+    tools = Tools.backend_tool_modules(%{access: [:read]})
+
+    assert AgentFeedback in tools
+    refute TodoWrite in tools
   end
 
   describe "find_tool/1" do
