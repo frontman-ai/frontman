@@ -35,7 +35,7 @@ defmodule FrontmanServer.Tools.AgentFeedback do
   end
 
   @impl true
-  def access, do: :write
+  def access, do: :read
 
   @impl true
   def parameter_schema do
@@ -92,9 +92,15 @@ defmodule FrontmanServer.Tools.AgentFeedback do
     do: {:error, "outcome must be one of: #{Enum.join(@outcomes, ", ")}"}
 
   defp validate_required_string(value, _field) when is_binary(value) do
-    case byte_size(value) > 0 do
-      true -> {:ok, value}
-      false -> {:error, "message must be a non-empty string"}
+    cond do
+      String.trim(value) == "" ->
+        {:error, "message must be a non-empty string"}
+
+      length(String.to_charlist(value)) > 2000 ->
+        {:error, "message must be at most 2000 characters"}
+
+      true ->
+        {:ok, value}
     end
   end
 

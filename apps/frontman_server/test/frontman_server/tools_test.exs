@@ -38,7 +38,7 @@ defmodule FrontmanServer.ToolsTest do
     test "tools expose expected access levels" do
       by_name = Map.new(Tools.backend_tools(), &{&1.name, &1.access})
 
-      assert by_name["agent_feedback"] == :write
+      assert by_name["agent_feedback"] == :read
       assert by_name["get_tool_result"] == :read
       assert by_name["web_fetch"] == :read
       assert by_name["todo_write"] == :write

@@ -34,7 +34,7 @@ defmodule FrontmanServer.Workers.SendAgentFeedbackToDiscordTest do
       assert fields["Framework"] == "nextjs"
       assert fields["Task"] == "Fix checkout button"
 
-      assert fields["Message"] ==
+      assert embed["description"] ==
                "Could not inspect server actions. Missing server action context."
 
       assert fields["Task ID"] == "task-1"
@@ -49,6 +49,25 @@ defmodule FrontmanServer.Workers.SendAgentFeedbackToDiscordTest do
                task_title: "Fix checkout button",
                outcome: "stuck",
                message: "Could not inspect server actions. Missing server action context."
+             })
+  end
+
+  test "preserves the full 2000-character message" do
+    message = String.duplicate("é", 2000)
+
+    Req.Test.stub(:agent_feedback_webhook, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      [embed] = Jason.decode!(body)["embeds"]
+      assert embed["description"] == message
+      refute Enum.any?(embed["fields"], &(&1["name"] == "Message"))
+      Req.Test.json(conn, %{ok: true})
+    end)
+
+    assert :ok =
+             perform_job(SendAgentFeedbackToDiscord, %{
+               task_id: "task-1",
+               outcome: "stuck",
+               message: message
              })
   end
 
