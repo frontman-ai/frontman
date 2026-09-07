@@ -922,13 +922,13 @@ defmodule FrontmanServer.Tasks do
           {:ok, :no_active_turn}
 
         turn_number ->
+          dispatches = MapSet.new(History.unresolved_tool_calls(rows, turn_number), &elem(&1, 1))
+
           tool_calls =
-            InteractionSchema.for_task(task_id)
-            |> InteractionSchema.for_turn(turn_number)
-            |> InteractionSchema.unresolved_tool_calls()
-            |> InteractionSchema.ordered()
-            |> Repo.all()
+            rows
+            |> Enum.filter(&(&1.turn_number == turn_number))
             |> Enum.map(& &1.data)
+            |> Enum.filter(&MapSet.member?(dispatches, &1))
 
           {:ok, turn_number, tool_calls}
       end

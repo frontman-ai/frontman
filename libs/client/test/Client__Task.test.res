@@ -894,8 +894,6 @@ describe("Task - Interactive wait contract", () => {
       )
     )
 
-  afterEach(() => Vi.useRealTimers()->ignore)
-
   [
     ("selected option", TaskReducer.QuestionOptionToggled({questionIndex: 0, label: "A"}), "A"),
     (
@@ -904,10 +902,9 @@ describe("Task - Interactive wait contract", () => {
       "My own answer",
     ),
   ]->Array.forEach(((label, answerAction, answer)) => {
-    testAsync(
-      `waiting preserves the question and resolves ${label} once without draining prompts`,
-      async t => {
-        Vi.useFakeTimers()->ignore
+    test(
+      `queued prompts preserve the question and resolve ${label} once without draining prompts`,
+      t => {
         let resolutions = ref([])
         let rejections = ref([])
         let (running, _) = TaskReducer.next(TestHelpers.makeLoadedTask(), ExecutionStateRunning)
@@ -941,7 +938,6 @@ describe("Task - Interactive wait contract", () => {
           ~id=testUserMessageId->UserMessageId.toString,
           ~text="Next turn, not an answer",
         )
-        let _ = await Vi.advanceTimersByTimeAsync(600_001)
         let pending = TaskReducer.Selectors.pendingQuestion(accepted)->Option.getOrThrow
         t->expect(pending.toolCallId)->Expect.toBe("durable-question-1")
         t->expect(resolutions.contents)->Expect.toEqual([])

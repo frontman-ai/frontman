@@ -63,18 +63,26 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "get_active_turn_unresolved_tool_calls/2" do
-    test "returns unresolved tool calls only for the active turn", %{scope: scope} do
+    test "returns only unresolved dispatched calls in dispatch order", %{scope: scope} do
       task_id = task_fixture(scope).id
 
       assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
 
       assert 1 = start_turn_fixture(scope, task_id)
-      insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_1"})
 
-      assert {:ok, 1, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
-               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+      calls =
+        for id <- ~w(call_3 call_2 call_1), do: %{id: id, name: "read_file", arguments: "{}"}
+
+      {:ok, _} = Tasks.agent_replied(scope, task_id, 1, nil, %{"tool_calls" => calls})
+
+      insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_1"})
+      insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_2"})
+
+      assert {:ok, 1, calls} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+      assert Enum.map(calls, & &1.tool_call_id) == ["call_1", "call_2"]
 
       insert_interaction_row(task_id, Interaction.ToolResult, 1, %{"tool_call_id" => "call_1"})
+      insert_interaction_row(task_id, Interaction.ToolResult, 1, %{"tool_call_id" => "call_2"})
 
       assert {:ok, 1, []} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
     end

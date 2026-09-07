@@ -97,16 +97,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, select: fragment("?->>?", i.data, ^field), limit: ^limit)
   end
 
-  def unresolved_tool_calls(query \\ __MODULE__) do
-    from(i in query,
-      left_join: r in __MODULE__,
-      on:
-        r.task_id == i.task_id and r.turn_number == i.turn_number and r.type == :tool_result and
-          fragment("?->>'tool_call_id'", r.data) == fragment("?->>'tool_call_id'", i.data),
-      where: i.type == :tool_call and is_nil(r.id)
-    )
-  end
-
   def to_json_map(%__MODULE__{type: type, data: data}) when is_struct(data) do
     data
     |> Interaction.to_json_map()
