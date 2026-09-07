@@ -1249,7 +1249,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       interactions = Tasks.interactions(task)
-      refute Enum.any?(interactions, &match?(%Interaction.ToolCall{tool_call_id: ^tc_id}, &1))
+
+      assert [%Interaction.ToolCall{execution_target: nil}] =
+               Enum.filter(interactions, &match?(%Interaction.ToolCall{tool_call_id: ^tc_id}, &1))
+
       assert Enum.any?(interactions, &match?(%Interaction.ToolResult{tool_call_id: ^tc_id}, &1))
     end
   end

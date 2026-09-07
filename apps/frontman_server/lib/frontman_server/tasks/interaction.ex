@@ -836,7 +836,9 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defmodule ToolCall do
     @moduledoc """
-    Represents an LLM requesting a tool execution.
+    The canonical execution attempt for a tool declared by an agent response.
+    A nil execution target means execution has not started. Malformed arguments
+    are retained in the response; their execution attempt has nil arguments.
     """
 
     use Ecto.Schema
@@ -845,6 +847,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :tool_call_id, :string
       field :tool_name, :string
       field :arguments, :map
+      field :execution_target, Ecto.Enum, values: [:backend, :mcp]
       field :timestamp, :utc_datetime_usec
     end
 
@@ -854,25 +857,20 @@ defmodule FrontmanServer.Tasks.Interaction do
         :tool_call_id,
         :tool_name,
         :arguments,
+        :execution_target,
         :timestamp
       ])
+      |> Ecto.Changeset.validate_required([:tool_call_id, :tool_name])
     end
 
-    def attrs(%SwarmAi.ToolCall{} = tc) do
-      tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+    def attrs(%SwarmAi.ToolCall{} = call) do
+      arguments =
+        case SwarmAi.ToolCall.parse_arguments(call) do
+          {:ok, arguments} -> SwarmAi.SchemaTransformer.strip_nulls(arguments)
+          {:error, _message} -> nil
+        end
 
-      case SwarmAi.ToolCall.parse_arguments(tc) do
-        {:ok, arguments} ->
-          {:ok,
-           %{
-             tool_call_id: tc.id,
-             tool_name: tc.name,
-             arguments: arguments
-           }}
-
-        {:error, message} ->
-          {:error, {:invalid_tool_arguments, message}}
-      end
+      %{tool_call_id: call.id, tool_name: call.name, arguments: arguments}
     end
   end
 

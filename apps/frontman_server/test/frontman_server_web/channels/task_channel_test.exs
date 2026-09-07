@@ -793,7 +793,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, socket: socket, task_id: task_id}
     end
 
-    test "channel receives tool call interactions via PubSub broadcast", %{
+    test "recorded tool calls are displayed without dispatching them", %{
       socket: _socket,
       task_id: task_id
     } do
@@ -806,10 +806,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         interaction_event(tool_call, 1)
       )
 
-      assert_push("mcp:message", %{
-        "method" => "tools/call",
-        "params" => %{"name" => "testTool"}
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "tool_call", "title" => "testTool"}}
       })
+
+      refute_push("mcp:message", %{"method" => "tools/call"})
     end
 
     test "channel does NOT receive broadcasts to different topics", %{
@@ -827,7 +828,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         interaction_event(tool_call, 1)
       )
 
-      refute_push("mcp:message", %{"params" => %{"name" => "otherTool"}})
+      refute_push("acp:message", %{"params" => %{"update" => %{"title" => "otherTool"}}})
 
       tool_call2 = %{
         tool_call
@@ -841,9 +842,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         interaction_event(tool_call2, 1)
       )
 
-      assert_push("mcp:message", %{
-        "method" => "tools/call",
-        "params" => %{"name" => "ownTool"}
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "tool_call", "title" => "ownTool"}}
       })
     end
 

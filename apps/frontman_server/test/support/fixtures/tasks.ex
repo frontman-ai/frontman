@@ -79,19 +79,38 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
       arguments: Jason.encode!(tool_call.arguments)
     }
 
-    Tasks.request_client_tool(scope, task_id, turn_number, swarm_tool_call)
+    persist_response_tool_call_fixture(scope, task_id, turn_number, nil, swarm_tool_call)
   end
 
   @doc "Persist an agent response and its matching client-handled tool call."
   def persist_response_tool_call_fixture(scope, task_id, turn_number, content, tool_call) do
+    {:ok, _response} =
+      declare_tool_calls_fixture(scope, task_id, turn_number, [tool_call], content)
+
+    Tasks.start_tool_call(scope, task_id, turn_number, tool_call.id, :mcp)
+  end
+
+  def declare_tool_calls_fixture(scope, task_id, turn_number, tool_calls, content \\ nil) do
     metadata = %{
-      "tool_calls" => [
-        %{"id" => tool_call.id, "name" => tool_call.name, "arguments" => tool_call.arguments}
-      ]
+      "tool_calls" =>
+        Enum.map(tool_calls, fn call ->
+          %{"id" => call.id, "name" => call.name, "arguments" => call.arguments}
+        end)
     }
 
-    {:ok, _response} = Tasks.agent_replied(scope, task_id, turn_number, content, metadata)
-    Tasks.request_client_tool(scope, task_id, turn_number, tool_call)
+    Tasks.agent_replied(scope, task_id, turn_number, content, metadata)
+  end
+
+  def tool_result_fixture(scope, task_id, call, result, turn_number: turn_number) do
+    declaration = %SwarmAi.ToolCall{id: call.id, name: call.name, arguments: "{}"}
+    {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [declaration])
+    Tasks.resolve_tool_request(scope, task_id, call, result, turn_number: turn_number)
+  end
+
+  def start_client_tool_fixture(scope, task_id, turn_number, tool_call) do
+    with {:ok, _response} <- declare_tool_calls_fixture(scope, task_id, turn_number, [tool_call]) do
+      Tasks.start_tool_call(scope, task_id, turn_number, tool_call.id, :mcp)
+    end
   end
 
   @doc """

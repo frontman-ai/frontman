@@ -138,6 +138,10 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
       name: @tool_result_unique_constraint,
       message: "duplicate tool result for this tool_call_id"
     )
+    |> unique_constraint([:task_id, :data],
+      name: :interactions_tool_call_turn_uniqueness,
+      message: "duplicate tool call for this tool_call_id"
+    )
   end
 
   defp generate_sequence do

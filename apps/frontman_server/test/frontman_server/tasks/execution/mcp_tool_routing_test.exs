@@ -41,6 +41,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
       turn_number = latest_turn_number(task_id)
 
       tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#main"}))
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tool_call])
 
       ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tool_call)
 

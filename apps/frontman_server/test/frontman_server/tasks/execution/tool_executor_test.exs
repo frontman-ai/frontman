@@ -47,6 +47,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       turn_number: turn_number
     } do
       tc = %SwarmAi.ToolCall{id: "tc-to-2", name: "some_tool", arguments: "{}"}
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tc])
       ToolExecutor.handle_timeout(scope, task_id, turn_number, :error, tc, :cancelled)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
@@ -65,6 +66,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         arguments: "{}"
       }
 
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tc])
       ToolExecutor.handle_timeout(scope, task_id, turn_number, :pause_agent, tc, :cancelled)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
@@ -93,6 +95,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
           arguments: "{}"
         }
 
+        {:ok, _} =
+          declare_tool_calls_fixture(scope, task_id, turn_number, [available, unavailable])
+
         assert {:ok, results} =
                  ToolExecutor.execute(scope, %{
                    task_id: task_id,
@@ -118,10 +123,12 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         assert [%Interaction.ToolResult{is_error: false}] = tool_results(task, available.id)
         assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, unavailable.id)
 
-        refute Enum.any?(Tasks.interactions(task), fn
-                 %Interaction.ToolCall{tool_call_id: id} -> id == unavailable.id
-                 _interaction -> false
-               end)
+        recorded = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))
+
+        assert Enum.find(recorded, &(&1.tool_call_id == available.id)).execution_target ==
+                 :backend
+
+        assert Enum.find(recorded, &(&1.tool_call_id == unavailable.id)).execution_target == nil
       end
     end
 
@@ -136,6 +143,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         arguments: "{}"
       }
 
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tc])
       assert :ok = ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tc)
 
       assert_raise RuntimeError,
@@ -162,6 +170,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         arguments: "{}"
       }
 
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tc])
+
       assert {:ok, [%SwarmAi.ToolResult{is_error: true}]} =
                ToolExecutor.execute(scope, %{
                  task_id: task_id,
@@ -176,10 +186,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
-      refute Enum.any?(Tasks.interactions(task), fn
-               %Interaction.ToolCall{tool_call_id: tool_call_id} -> tool_call_id == tc.id
-               _interaction -> false
-             end)
+      assert [%Interaction.ToolCall{execution_target: nil}] =
+               Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))
 
       assert [%Interaction.ToolResult{is_error: true}] = tool_results(task, tc.id)
     end

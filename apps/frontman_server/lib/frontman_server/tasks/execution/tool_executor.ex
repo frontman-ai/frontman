@@ -101,7 +101,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     SentryContext.set_task_scope_context(scope, task_id)
 
     result =
-      execute_backend_tool(scope, module, tool_call, task_id, turn_number)
+      case start_tool_call(scope, task_id, turn_number, tool_call, :backend) do
+        {:ok, arguments} ->
+          {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+          context = %Backend.Context{task: task}
+          do_run_backend_tool(scope, module, arguments, context, tool_call, task_id, turn_number)
+
+        {:error, result} ->
+          result
+      end
 
     to_swarm_tool_result(tool_call, result)
   end
@@ -136,7 +144,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     Logger.info("ToolExecutor: Routing to MCP tool #{tool_call.name}")
 
     register_mcp_tool(task_id, tool_call)
-    publish_mcp_tool_call(scope, task_id, turn_number, tool_call)
+    start_tool_call(scope, task_id, turn_number, tool_call, :mcp)
     :ok
   end
 
@@ -216,62 +224,27 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   defp tool_registry_key(task_id, tool_call_id), do: {:tool_call, task_id, tool_call_id}
 
-  defp publish_mcp_tool_call(%Scope{} = scope, task_id, turn_number, tool_call) do
-    case Tasks.request_client_tool(scope, task_id, turn_number, tool_call) do
-      {:ok, _interaction} ->
-        :ok
+  defp start_tool_call(scope, task_id, turn_number, tool_call, target) do
+    case Tasks.start_tool_call(scope, task_id, turn_number, tool_call.id, target) do
+      {:ok, call} ->
+        {:ok, call.arguments}
 
-      {:error, {:invalid_tool_arguments, _message}} ->
+      {:error, :invalid_tool_arguments} ->
         Logger.error("Tool argument parse failure", tool_parse_metadata(tool_call, task_id))
 
-        persist_error_tool_result(
-          scope,
-          task_id,
-          turn_number,
-          tool_call,
-          "Failed to parse arguments for tool"
-        )
+        result =
+          persist_error_tool_result(
+            scope,
+            task_id,
+            turn_number,
+            tool_call,
+            "Failed to parse arguments for tool"
+          )
+
+        {:error, result}
 
       {:error, reason} ->
-        Logger.error(
-          "ToolExecutor: Failed to publish MCP tool call #{tool_call.id}: #{inspect(reason)}"
-        )
-
-        raise "Failed to publish MCP tool call: #{inspect(reason)}"
-    end
-  end
-
-  defp execute_backend_tool(scope, module, tool_call, task_id, turn_number) do
-    Logger.debug("ToolExecutor: Executing backend tool #{tool_call.name}")
-    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
-    tool_call = SwarmAi.ToolCall.strip_null_arguments(tool_call)
-
-    context = %Backend.Context{
-      task: task
-    }
-
-    case SwarmAi.ToolCall.parse_arguments(tool_call) do
-      {:error, _message} ->
-        Logger.error("Tool argument parse failure", tool_parse_metadata(tool_call, task_id))
-
-        persist_error_tool_result(
-          scope,
-          task_id,
-          turn_number,
-          tool_call,
-          "Failed to parse arguments for tool"
-        )
-
-      {:ok, args} ->
-        do_run_backend_tool(
-          scope,
-          module,
-          args,
-          context,
-          tool_call,
-          task_id,
-          turn_number
-        )
+        raise "Failed to start tool call: #{inspect(reason)}"
     end
   end
 

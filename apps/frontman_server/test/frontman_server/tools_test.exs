@@ -64,24 +64,6 @@ defmodule FrontmanServer.ToolsTest do
     end
   end
 
-  describe "execution_target/1" do
-    test "returns :backend for backend tools" do
-      Tools.backend_tools()
-      |> Enum.each(fn tool ->
-        assert Tools.execution_target(tool.name) == :backend,
-               "Expected #{tool.name} to target :backend"
-      end)
-    end
-
-    test "returns :mcp for non-backend tools" do
-      assert Tools.execution_target("read_file") == :mcp
-      assert Tools.execution_target("screenshot") == :mcp
-      assert Tools.execution_target("unknown_tool") == :mcp
-      assert Tools.execution_target("question") == :mcp
-      assert Tools.execution_target("") == :mcp
-    end
-  end
-
   describe "todo_mutation?/1" do
     test "returns true for todo_write" do
       assert Tools.todo_mutation?("todo_write")
@@ -220,7 +202,7 @@ defmodule FrontmanServer.ToolsTest do
       }
 
       {:ok, interaction, :no_executor} =
-        Tasks.resolve_tool_request(
+        tool_result_fixture(
           scope,
           task_id,
           %{id: "tc-read", name: "read_file"},
