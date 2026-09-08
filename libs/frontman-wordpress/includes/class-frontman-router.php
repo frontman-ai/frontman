@@ -285,8 +285,15 @@ class Frontman_Router {
 			return [];
 		}
 
-		$raw  = wp_check_invalid_utf8( $raw, true );
 		$data = json_decode( $raw, true );
+		if ( ! is_array( $data ) ) {
+			$raw  = wp_check_invalid_utf8( $raw, true );
+			$data = json_decode( $raw, true );
+			if ( is_array( $data ) && isset( $data['name'] ) && is_string( $data['name'] )
+				&& in_array( sanitize_key( $data['name'] ), [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
+				return [];
+			}
+		}
 		return is_array( $data ) ? $this->sanitize_json_body( $data ) : [];
 	}
 
@@ -358,7 +365,6 @@ class Frontman_Router {
 		$body      = $this->read_json_body();
 		$name      = sanitize_key( $body['name'] ?? '' );
 		$raw_input = $body['arguments'] ?? $body['input'] ?? [];
-		$input     = is_array( $raw_input ) ? $this->tools->sanitize_input( $name, $raw_input ) : [];
 
 		if ( empty( $name ) ) {
 			$this->send_sse_tool_result( Frontman_Tools::error_result( 'Missing tool name' ) );
@@ -367,6 +373,7 @@ class Frontman_Router {
 
 		if ( $this->tools->is_wp_tool( $name ) ) {
 			try {
+				$input  = is_array( $raw_input ) ? $this->tools->sanitize_input( $name, $raw_input ) : [];
 				$result = $this->tools->call( $name, $input );
 				$this->send_sse_tool_result( $result );
 			} catch ( \Throwable $e ) {
