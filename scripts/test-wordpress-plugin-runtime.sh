@@ -76,6 +76,9 @@ done
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ElementorSnapshotRuntimeTest.php" "$WORDPRESS:/tmp/ElementorSnapshotRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ActivateWordPressPlugin.php" "$WORDPRESS:/tmp/ActivateWordPressPlugin.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/RunWordPressRuntimeTest.php" "$WORDPRESS:/tmp/RunWordPressRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-authors-runtime.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeTest.php" "$WORDPRESS:/tmp/PostAuthorsRuntimeTest.php"
 if [[ -n "$YOAST_VERSION" ]]; then
   "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins /var/www/html/wp-content/plugins/wordpress-seo
   "$RUNTIME" cp "$BUILD_DIR/yoast/wordpress-seo/." "$WORDPRESS:/var/www/html/wp-content/plugins/wordpress-seo/"
@@ -96,5 +99,20 @@ fi
 printf '%s\n' "$TEST_OUTPUT"
 if [[ "$TEST_STATUS" -ne 0 || "$TEST_OUTPUT" != *"OK (WordPress ${WORDPRESS_VERSION}, PHP "* ]]; then
   printf 'WordPress runtime tests did not report successful completion.\n' >&2
+  exit 1
+fi
+
+"$RUNTIME" exec "$WORDPRESS" cp -a /var/www/html /tmp/frontman-multisite
+"$RUNTIME" exec "$WORDPRESS" php -r '$path = "/tmp/frontman-multisite/wp-config.php"; $config = file_get_contents($path); $config = str_replace("\x27wp_\x27", "\x27fm_multi_\x27", $config); file_put_contents($path, $config);'
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SetupAuthorsMultisite.php" "$WORDPRESS:/tmp/SetupAuthorsMultisite.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/MultisiteAuthorsRuntimeTest.php" "$WORDPRESS:/tmp/MultisiteAuthorsRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/SetupAuthorsMultisite.php
+if MULTISITE_OUTPUT="$("$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/MultisiteAuthorsRuntimeTest.php)"; then
+  MULTISITE_STATUS=0
+else MULTISITE_STATUS=$?
+fi
+printf '%s\n' "$MULTISITE_OUTPUT"
+if [[ "$MULTISITE_STATUS" -ne 0 || "$MULTISITE_OUTPUT" != *"OK (Multisite authors, WordPress ${WORDPRESS_VERSION}, PHP "* ]]; then
+  printf 'Multisite author tests did not report successful completion.\n' >&2
   exit 1
 fi

@@ -56,6 +56,7 @@ require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
 
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-posts.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-users.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-blocks.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-media.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-menus.php';
@@ -71,6 +72,7 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
 function frontman_init(): void {
 	$tools = Frontman_Tools::instance();
 	( new Frontman_Tool_Posts() )->register( $tools );
+	( new Frontman_Tool_Users() )->register( $tools );
 	( new Frontman_Tool_Blocks() )->register( $tools );
 	( new Frontman_Tool_Media() )->register( $tools );
 	( new Frontman_Tool_Menus() )->register( $tools );

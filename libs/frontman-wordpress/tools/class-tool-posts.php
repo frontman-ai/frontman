@@ -88,7 +88,7 @@ class Frontman_Tool_Posts {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_create_post',
-			'Creates a new post or page. Returns the new post ID and permalink. Use wp_duplicate_post when the user asks to duplicate or clone an existing page so Elementor/post metadata is copied.',
+			'Creates a new post or page. For a user-requested author task, resolve the account with wp_find_users; never guess IDs or choose an ambiguous match. Read back successful author assignment with wp_read_post. Returns the new post ID and permalink. Use wp_duplicate_post when the user asks to duplicate or clone an existing page so Elementor/post metadata is copied.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -104,6 +104,11 @@ class Frontman_Tool_Posts {
 					'content'   => [
 						'type'        => 'string',
 						'description' => 'The post content as HTML or Gutenberg block markup.',
+					],
+					'author' => [
+						'type' => 'integer',
+						'minimum' => 1,
+						'description' => 'Native WordPress account ID. Omit to use the current user. Requires author support; assigning another account requires edit_others_posts for this post type.',
 					],
 					'post_type' => [
 						'type'        => 'string',
@@ -145,7 +150,7 @@ class Frontman_Tool_Posts {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_post',
-			'Updates an existing post or page. Only the fields you provide will be changed. Do not use content on Elementor-managed pages; use wp_elementor_* tools for Elementor content/layout changes.',
+			'Updates an existing post or page. For a user-requested author task, resolve the account with wp_find_users; never guess IDs or choose an ambiguous match. Read back successful author assignment with wp_read_post. Only the fields you provide will be changed. Do not use content on Elementor-managed pages; use wp_elementor_* tools for Elementor content/layout changes.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -170,6 +175,11 @@ class Frontman_Tool_Posts {
 						'type'        => 'string',
 						'description' => 'New post status.',
 						'enum'        => [ 'draft', 'publish', 'pending', 'private', 'trash' ],
+					],
+					'author' => [
+						'type' => 'integer',
+						'minimum' => 1,
+						'description' => 'Native WordPress account ID. Omit to preserve the current author. Requires author support; an explicit other account requires edit_others_posts even when unchanged.',
 					],
 					'excerpt' => [
 						'type'        => 'string',
@@ -275,10 +285,49 @@ class Frontman_Tool_Posts {
 		];
 	}
 
+	/** Validate before registry coercion and for direct handler calls. */
+	public static function validate_author_input( array $input ): void {
+		if ( array_key_exists( 'author', $input ) && ( ! is_int( $input['author'] ) || $input['author'] <= 0 ) ) {
+			throw new Frontman_Tool_Error( 'author must be a positive integer account ID.' );
+		}
+	}
+
+	/** Native writes do not enforce the REST permission layer. Check permissions before writing. */
+	private function check_write_permissions( array $input, string $type, ?\WP_Post $post = null ): void {
+		self::validate_author_input( $input );
+		$post_type = get_post_type_object( $type );
+		if ( ! $post_type ) {
+			throw new Frontman_Tool_Error( 'Post type not found.' );
+		}
+		if ( null === $post ? ! current_user_can( $post_type->cap->create_posts ) : ! current_user_can( 'edit_post', $post->ID ) ) {
+			throw new Frontman_Tool_Error( 'Insufficient permission to create or edit this post.' );
+		}
+		$status = sanitize_key( $input['status'] ?? ( null === $post ? 'draft' : $post->post_status ) );
+		if ( ( null === $post || $status !== $post->post_status ) && in_array( $status, [ 'publish', 'future', 'private' ], true ) && ! current_user_can( $post_type->cap->publish_posts ) ) {
+			throw new Frontman_Tool_Error( 'Insufficient permission to publish or create private posts of this type.' );
+		}
+		if ( ! array_key_exists( 'author', $input ) ) {
+			return;
+		}
+		if ( get_current_user_id() !== $input['author'] && ! current_user_can( $post_type->cap->edit_others_posts ) ) {
+			throw new Frontman_Tool_Error( 'Insufficient permission to assign another author for this post type.' );
+		}
+		if ( ! post_type_supports( $type, 'author' ) ) {
+			throw new Frontman_Tool_Error( 'This post type does not support author assignment.' );
+		}
+		if ( ! get_userdata( $input['author'] ) ) {
+			throw new Frontman_Tool_Error( 'Author account not found.' );
+		}
+		if ( is_multisite() && ! is_user_member_of_blog( $input['author'], get_current_blog_id() ) ) {
+			throw new Frontman_Tool_Error( 'Author must be a member of the current site.' );
+		}
+	}
+
 	/**
 	 * wp_create_post handler.
 	 */
 	public function create_post( array $input ): array {
+		$this->check_write_permissions( $input, sanitize_key( $input['post_type'] ?? 'post' ) );
 		$post_data = [
 			'post_title'   => sanitize_text_field( $input['title'] ),
 			'post_content' => wp_kses_post( $input['content'] ),
@@ -292,6 +341,9 @@ class Frontman_Tool_Posts {
 			$post_data['post_name'] = $input['slug'];
 		}
 
+		if ( array_key_exists( 'author', $input ) ) {
+			$post_data['post_author'] = $input['author'];
+		}
 		$post_id = wp_insert_post( wp_slash( $post_data ), true );
 
 		if ( is_wp_error( $post_id ) ) {
@@ -361,6 +413,7 @@ class Frontman_Tool_Posts {
 			throw new Frontman_Tool_Error( "Post not found: {$id}" );
 		}
 
+		$this->check_write_permissions( $input, $post->post_type, $post );
 		$before = $this->read_post( [ 'id' => $id ] );
 
 		$post_data = [ 'ID' => $id ];
@@ -369,6 +422,9 @@ class Frontman_Tool_Posts {
 				throw new Frontman_Tool_Error( 'slug must be a string.' );
 			}
 			$post_data['post_name'] = $input['slug'];
+		}
+		if ( array_key_exists( 'author', $input ) ) {
+			$post_data['post_author'] = $input['author'];
 		}
 		if ( isset( $input['content'] ) && class_exists( 'Frontman_Elementor_Data' ) && Frontman_Elementor_Data::post_uses_elementor( $id ) ) {
 			throw new Frontman_Tool_Error( 'Refusing to update post_content for Elementor-managed page ' . $id . '. Use wp_elementor_update_element, wp_elementor_save_page_data, or wp_elementor_restore_rollback for Elementor content/layout changes. wp_update_post may still update title, status, or excerpt without content.' );

@@ -62,6 +62,18 @@ Frontman then uses WordPress, Elementor, or WooCommerce tools that match the req
 
 Frontman works with WordPress content and structures that its current tools support. Custom themes, custom plugins, hosting controls, and unsupported page builders can require a different workflow.
 
+== Native Post Authors ==
+
+`wp_create_post` and `wp_update_post` accept an optional positive integer `author` account ID. Omission uses the current user on creation and preserves the existing author on update. These tools assign one native WordPress author, not guest authors or coauthors. They do not create accounts or change roles.
+
+The acting user needs the post type's create capability or permission to edit the existing post. A new published or private status requires the mapped publish capability. An explicit other account requires the mapped `edit_others_posts` capability, even when that author stays unchanged. Target accounts do not need a particular role. Frontman also requires author support and, on multisite, current-site membership. These are Frontman safeguards, not additional WordPress directory policy requirements.
+
+For a user-requested author task, `wp_find_users` searches either login or display name on the current site. It requires both `manage_options` and `list_users`. Each page contains at most 20 candidates in account-ID order, with total and pagination metadata. Results contain only account ID, login, and display name. They do not prove assignment eligibility.
+
+Search uses a literal substring of at most 100 Unicode characters after whitespace trimming. Empty input and input that starts or ends with `*` are rejected before any lookup. This restriction includes whitespace-wrapped boundary asterisks and asterisk-only input. Interior `*`, `%`, `_`, and quotes are literal. Case sensitivity depends on the database collation.
+
+Consider the remaining pages before selecting an account. If multiple accounts can match the requested identity, ask which account the user means. Never guess an ID or select the first ambiguous result. Read back successful assignment with `wp_read_post`.
+
 == Optional SEO Tools ==
 
 `wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. Yoast SEO Free 28.4 is an optional dependency that Frontman does not install.
@@ -83,6 +95,8 @@ Start on a staging site. Keep a current backup. Review each change before you us
 When you submit a request, relevant site content can pass through Frontman AI to your configured model provider. The Third-Party Services section summarizes this data flow.
 
 During an active, user-requested chat task, SEO tool results can include overrides from authorized drafts and private content. Frontman sends these results to the selected AI provider as request context. Frontman also stores the results in task history. This process uses the existing chat request and consent flow.
+
+During a user-requested author task, lookup account IDs, logins, and display names can enter the selected AI provider's request context and stored task history. Names and logins can be personal data even though lookup excludes emails and private metadata. This feature uses the existing chat request and consent flow, not a new service.
 
 == Open Source and Support ==
 
@@ -127,7 +141,7 @@ The hosted service processes your prompts, relevant site or store content, tool 
 This plugin and the hosted Frontman service connect to these external services:
 
 **Frontman Client and API**
-The plugin loads its interface from `app.frontman.sh` and connects to `api.frontman.sh`. Frontman processes prompts, relevant site or store content, tool results, and stored task history to run the agent. SEO tool results can include stored title and description overrides from authorized drafts and private content. Stored provider credentials use server-side encryption.
+The plugin loads its interface from `app.frontman.sh` and connects to `api.frontman.sh`. Frontman processes prompts, relevant site or store content, tool results, and stored task history to run the agent. SEO tool results can include stored title and description overrides from authorized drafts and private content. Author lookup results can include account IDs, logins, and display names in request context and task history. Stored provider credentials use server-side encryption.
 
 * Services: [Client](https://app.frontman.sh), [API](https://api.frontman.sh)
 * Provider: Frontman AI
