@@ -76,6 +76,7 @@ defmodule SwarmAi.Runtime do
   @impl true
   @spec init(atom()) :: {:ok, state()}
   def init(runtime) when is_atom(runtime) do
+    Process.flag(:trap_exit, true)
     {:ok, %{runtime: runtime, monitors: %{}}}
   end
 
@@ -115,6 +116,13 @@ defmodule SwarmAi.Runtime do
         SwarmAi.TerminalEvent.emit(loop, reason)
         {:noreply, %{state | monitors: monitors}}
     end
+  end
+
+  @impl true
+  def terminate(reason, state) do
+    Enum.each(state.monitors, fn {_ref, loop} ->
+      SwarmAi.TerminalEvent.emit(loop, reason)
+    end)
   end
 
   defp await_finishing_execution(runtime, task_id) do
