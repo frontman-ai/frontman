@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 
 - Instruct agents to write Frontman feedback in English regardless of the session language.
+- Interactive tools now wait without a deadline. Finite tool failures return the same result that the server stores. Supported shutdown preserves dispatched interactive calls and interrupts other unresolved declarations, including tools that did not run. Historical timeout pauses remain terminal. Execution admission and reconnect behavior remain unchanged. This change does not guarantee cancellation without a worker or prevent synchronous replay after abrupt process loss.
+- Report pending agent terminations when the runtime shuts down after supervisor restart failures. This prevents the loss of termination events during registry crash recovery.
+- Print the active execution count during deployment so the old server can stop when its work finishes instead of always waiting five minutes.
+- Allow agent feedback in read-only sessions. Reject blank messages and enforce the 2,000-character limit. Preserve the full feedback message in Discord.
+- Keep agent executions registered until terminal events finish so completion checks cannot race persistence. Queued turns wait for the previous worker to exit before they start. Ignore cancellation requests for finishing workers so terminal persistence can complete.
+
+### Changed
+
+- Separate lightweight task metadata lookup from explicit task history loading.
 
 ## [5.0.0] - 2026-09-04
 

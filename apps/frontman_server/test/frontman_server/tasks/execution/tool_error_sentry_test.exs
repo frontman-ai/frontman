@@ -167,7 +167,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       secret = "frontman-mcp-secret-1445"
       tool_call = swarm_tool_call("take_screenshot", ~s(["#{secret}"]))
 
-      assert :ok = ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tool_call)
+      assert :ok =
+               ToolExecutor.start_mcp_tool(scope, task_id, turn_number, :synchronous, tool_call)
+
       assert_receive {:tool_result, _, [%{text: "Failed to parse arguments for tool"}], true}
 
       assert [report] = Sentry.Test.pop_sentry_reports()
@@ -177,7 +179,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     end
   end
 
-  describe "handle_timeout/5 — :error policy Sentry reporting" do
+  describe "handle_error/5 — finite deadline Sentry reporting" do
     @tag :capture_log
     test "persists error ToolResult and reports to Sentry", %{
       task_id: task_id,
@@ -185,7 +187,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       turn_number: turn_number
     } do
       tc = %SwarmAi.ToolCall{id: "tc-deadline-1", name: "todo_write", arguments: "{}"}
-      ToolExecutor.handle_timeout(scope, task_id, turn_number, :error, tc, :triggered)
+      ToolExecutor.handle_error(scope, task_id, turn_number, :timeout, tc)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
@@ -204,25 +206,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       assert [report] = timeout_reports
       assert report.tags[:user_id] == scope.user.id
       assert report.tags[:task_id] == task_id
-    end
-
-    test "handle_timeout(:triggered) is a no-op for :pause_agent policy", %{
-      task_id: task_id,
-      scope: scope,
-      turn_number: turn_number
-    } do
-      tc = %SwarmAi.ToolCall{id: "tc-pause-1", name: "some_mcp_tool", arguments: "{}"}
-      ToolExecutor.handle_timeout(scope, task_id, turn_number, :pause_agent, tc, :triggered)
-
-      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
-
-      tool_result =
-        Enum.find(Tasks.interactions(task), fn
-          %Interaction.ToolResult{tool_call_id: "tc-pause-1"} -> true
-          _ -> false
-        end)
-
-      assert tool_result == nil
     end
   end
 end

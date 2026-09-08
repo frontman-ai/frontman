@@ -793,18 +793,36 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, socket: socket, task_id: task_id}
     end
 
+    test "a delayed synchronous dispatch cannot execute after cancellation", %{
+      scope: scope,
+      task_id: task_id,
+      socket: socket
+    } do
+      :ok = :sys.suspend(socket.channel_pid)
+      turn_number = start_turn_fixture(scope, task_id)
+      call = tool_call("delayed_mutation", "write_file")
+      {:ok, _} = persist_tool_call_fixture(scope, task_id, turn_number, call)
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user})
+      :ok = :sys.resume(socket.channel_pid)
+      :sys.get_state(socket.channel_pid)
+
+      refute_push("mcp:message", %{
+        "method" => "tools/call",
+        "params" => %{"name" => "write_file"}
+      })
+
+      assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+    end
+
     test "channel receives tool call interactions via PubSub broadcast", %{
       socket: _socket,
+      scope: scope,
       task_id: task_id
     } do
       tool_call =
         tool_call("call_pubsub_#{:rand.uniform(1_000_000)}", "testTool", %{"key" => "value"})
 
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        task_topic(task_id),
-        interaction_event(tool_call, 1)
-      )
+      persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
@@ -814,6 +832,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "channel does NOT receive broadcasts to different topics", %{
       socket: _socket,
+      scope: scope,
       task_id: task_id
     } do
       different_topic = "task:different_#{:rand.uniform(1_000_000)}"
@@ -835,11 +854,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           tool_name: "ownTool"
       }
 
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        task_topic(task_id),
-        interaction_event(tool_call2, 1)
-      )
+      persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call2)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
@@ -1700,7 +1715,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "deduplicates tool_call_create when interaction arrives after tool_call", %{
       socket: socket,
-      task_id: _task_id
+      scope: scope,
+      task_id: task_id
     } do
       tool_call_id = "call_dedup_#{:rand.uniform(1_000_000)}"
       activate_turn(socket, "turn-1")
@@ -1720,7 +1736,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tc =
         tool_call(tool_call_id, "write_file", %{"target_file" => "test.txt", "content" => "hello"})
 
-      send(socket.channel_pid, interaction_event(tc, 1))
+      persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tc)
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1748,13 +1764,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "sends tool_call_create for interactions without prior tool_call", %{
       socket: socket,
+      scope: scope,
       task_id: task_id
     } do
       tool_call_id = "call_no_start_#{:rand.uniform(1_000_000)}"
 
       tc = tool_call(tool_call_id, "take_screenshot")
 
-      send(socket.channel_pid, interaction_event(tc, 1))
+      persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tc)
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1788,7 +1805,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, _tool_call} =
-        persist_response_tool_call_fixture(scope, task_id, turn_number, "", tool_call)
+        persist_response_tool_call_fixture(
+          scope,
+          task_id,
+          turn_number,
+          "",
+          tool_call,
+          :interactive
+        )
 
       {:ok, task_id: task_id, scope: scope, tool_call_id: tool_call_id}
     end
@@ -1873,7 +1897,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, _tool_call} =
-        persist_response_tool_call_fixture(scope, task_id, turn_number, "", second_tool_call)
+        persist_response_tool_call_fixture(
+          scope,
+          task_id,
+          turn_number,
+          "",
+          second_tool_call,
+          :interactive
+        )
 
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
       expect_resumed_model()
@@ -1990,7 +2021,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       first_turn_number = latest_turn_number(task_id)
 
       {:ok, _tool_call} =
-        persist_response_tool_call_fixture(scope, task_id, first_turn_number, "", first_tc)
+        persist_response_tool_call_fixture(
+          scope,
+          task_id,
+          first_turn_number,
+          "",
+          first_tc,
+          :interactive
+        )
 
       Tasks.resolve_tool_request(
         scope,
@@ -2006,7 +2044,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       second_turn_number = latest_turn_number(task_id)
 
       {:ok, _tool_call} =
-        persist_response_tool_call_fixture(scope, task_id, second_turn_number, "", second_tc)
+        persist_response_tool_call_fixture(
+          scope,
+          task_id,
+          second_turn_number,
+          "",
+          second_tc,
+          :interactive
+        )
 
       {:ok, _reply, socket} =
         UserSocket

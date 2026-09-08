@@ -7,7 +7,7 @@ defmodule SwarmAi.Loop.RunnerTest do
   alias SwarmAi.Loop.{Config, Runner, Step}
 
   setup do
-    config = %Config{max_steps: 10, timeout_ms: 60_000, step_timeout_ms: 120_000}
+    config = %Config{max_steps: 10, step_timeout_ms: 120_000}
     loop = test_execution(mock_llm("test"), "TestBot", config: config)
 
     %{loop: loop}
