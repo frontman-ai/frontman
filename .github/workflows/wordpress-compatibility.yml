@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "libs/frontman-wordpress/**"
+      - "scripts/build-wordpress-dependencies.sh"
+      - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
       - "scripts/package-wordpress-plugin.sh"
       - "scripts/validate-wordpress-plugin-release.sh"
@@ -14,6 +16,8 @@ on:
       - main
     paths:
       - "libs/frontman-wordpress/**"
+      - "scripts/build-wordpress-dependencies.sh"
+      - "scripts/wordpress-*.php"
       - "scripts/test-wordpress-plugin-runtime.sh"
       - "scripts/package-wordpress-plugin.sh"
       - "scripts/validate-wordpress-plugin-release.sh"
@@ -47,13 +51,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Build isolated PHP dependencies
+        run: make build-wordpress-dependencies
+
       - name: Run isolated PHP tests
         run: |
           docker run --rm \
             -v "$PWD:/workspace:ro" \
             -w /workspace \
             "php:${{ matrix.php }}-cli" \
-            sh -c 'for test in libs/frontman-wordpress/tests/*Test.php; do php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php "$test" || exit 1; done'
+            sh -ec 'for test in libs/frontman-wordpress/tests/*Test.php; do php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php "$test"; done; php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryTest.php --site-first'
 
       - name: Run WordPress runtime tests
         env:

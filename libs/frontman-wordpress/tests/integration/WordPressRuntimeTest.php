@@ -58,6 +58,7 @@ require_once ABSPATH . 'wp-admin/includes/plugin.php';
 $plugin = plugin_basename( FRONTMAN_PLUGIN_FILE );
 $admin = get_user_by( 'login', 'admin' );
 $cookie = wp_generate_auth_cookie( $admin->ID, time() + HOUR_IN_SECONDS, 'logged_in' );
+require __DIR__ . '/SentryRuntimeTest.php';
 $authenticated_context = stream_context_create( [ 'http' => [
 	'ignore_errors' => true,
 	'header' => 'Cookie: ' . LOGGED_IN_COOKIE . '=' . $cookie,

@@ -11,6 +11,7 @@ lib/
 .compiler.log
 
 node_modules/
+libs/frontman-wordpress/vendor/
 
 .env.local
 test/e2e/.env

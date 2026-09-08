@@ -156,6 +156,32 @@ defmodule SwarmAi.SupervisorTest do
       refute_receive {:test_event, "task-reg", {:crashed, _}}, 100
     end
 
+    test "reports pending terminations when registry restart failures stop the runtime" do
+      runtime = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
+      supervisor = start_supervised!({SwarmAi, name: runtime}, restart: :temporary)
+      supervisor_ref = Process.monitor(supervisor)
+
+      {:ok, pid} =
+        run_agent(runtime, "task-reg-restart", %MockLLM{response: "slow", delay_ms: 5000})
+
+      worker_ref = Process.monitor(pid)
+      :ok = :sys.suspend(runtime, 2000)
+
+      registry = Process.whereis(SwarmAi.Runtime.Registry.name(runtime))
+      [{_id, partition, _type, _modules}] = Supervisor.which_children(registry)
+      true = :erlang.suspend_process(partition)
+
+      try do
+        Process.exit(registry, :kill)
+        assert_receive {:DOWN, ^supervisor_ref, :process, ^supervisor, :shutdown}, 2000
+        assert_receive {:DOWN, ^worker_ref, :process, ^pid, _reason}, 2000
+        assert_receive {:test_event, "task-reg-restart", {:terminated, nil}}, 2000
+        refute_receive {:test_event, "task-reg-restart", _event}, 100
+      after
+        true = :erlang.resume_process(partition)
+      end
+    end
+
     test "accepts new work after registry crash" do
       runtime = start_runtime!()
 

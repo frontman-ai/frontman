@@ -377,6 +377,7 @@ class Frontman_Router {
 				$result = $this->tools->call( $name, $input );
 				$this->send_sse_tool_result( $result );
 			} catch ( \Throwable $e ) {
+				Frontman_Sentry::capture( $e, $name );
 				$this->send_sse_tool_result( Frontman_Tools::error_result( $e->getMessage() ) );
 			}
 			return;

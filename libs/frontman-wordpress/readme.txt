@@ -149,6 +149,13 @@ Heap measures product use and onboarding. Sentry records errors and performance 
 * Heap: [Service](https://heap.io), [Privacy](https://www.heap.io/privacy)
 * Sentry: [Service](https://sentry.io), [Privacy](https://sentry.io/privacy/)
 
+**Optional PHP Error Reports**
+PHP error reports are off by default. An administrator can enable or disable them under Settings > Frontman. This setting controls PHP reports only, not diagnostics from the hosted browser client.
+
+When enabled, unexpected Frontman tool exceptions send reports directly to Sentry. Reports include exception types, sanitized stack traces, tool names, and Frontman, WordPress, and PHP versions. Stack traces retain function names, line numbers, and plugin-relative paths or external file names. Reports omit exception messages, source code, arguments, request bodies, cookies, nonces, site URLs, and user context. Sentry receives the server IP address through the network connection.
+
+Expected validation errors and unrelated WordPress errors do not produce PHP reports. Reporting requires the PHP cURL and mbstring extensions. Reporting failures do not replace tool results. Delivery has a two-second HTTP timeout.
+
 Loading the Frontman UI requests hosted client assets. Your site content is not sent to the Frontman API or model providers until you actively use the chat interface and submit a message.
 
 == Screenshots ==
