@@ -175,7 +175,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
 
   defp truncated_suffix(total, max_bytes, tool_call_id) when is_binary(tool_call_id) do
     "\n\n[Output truncated: #{total} bytes total, showing first #{max_bytes}. " <>
-      "For the full output, use get_tool_result with tool_call_id #{tool_call_id}.]"
+      "Read text in pages using get_tool_result with tool_call_id #{tool_call_id}, offset=0, " <>
+      "then follow next_offset until null. Use content_index to select other content parts.]"
   end
 
   defp truncated_suffix(total, max_bytes, _tool_call_id) do

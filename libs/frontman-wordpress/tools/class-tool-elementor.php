@@ -35,8 +35,19 @@ class Frontman_Tool_Elementor {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_get_page_data',
-			'Gets the full Elementor element tree for a post. Prefer wp_elementor_get_page_structure unless you need complete settings.',
-			$this->post_id_schema(),
+			'Gets the full Elementor tree, or a compact widget inventory when widget_type and setting_keys are supplied. For batch inspection, request only the needed setting keys and follow next_offset until null. Missing settings are omitted, not defaulted; values are stored overrides, not computed styles. Do not use filtered results for full-page replacement. Mutation tools save immediately and cannot stage unsaved editor changes.',
+			[
+				'type' => 'object',
+				'additionalProperties' => false,
+				'properties' => [
+					'post_id' => [ 'type' => 'integer' ],
+					'widget_type' => [ 'type' => 'string' ],
+					'setting_keys' => [ 'type' => 'array', 'items' => [ 'type' => 'string' ], 'maxItems' => 50 ],
+					'offset' => [ 'type' => 'integer', 'minimum' => 0 ],
+					'limit' => [ 'type' => 'integer', 'minimum' => 1, 'maximum' => 100 ],
+				],
+				'required' => [ 'post_id' ],
+			],
 			[ $this, 'get_page_data' ]
 		) );
 
@@ -314,6 +325,23 @@ class Frontman_Tool_Elementor {
 
 	public function get_page_data( array $input ): array {
 		$post_id = $this->require_post_id( $input );
+		$filtered = array_intersect( [ 'widget_type', 'setting_keys', 'offset', 'limit' ], array_keys( $input ) );
+		if ( $filtered ) {
+			$type = $input['widget_type'] ?? null;
+			$keys = $input['setting_keys'] ?? null;
+			$offset = $input['offset'] ?? 0;
+			$limit = $input['limit'] ?? 25;
+			if ( ! is_string( $type ) || '' === $type || ! is_array( $keys ) || count( $keys ) > 50
+				|| ! is_int( $offset ) || $offset < 0 || ! is_int( $limit ) || $limit < 1 || $limit > 100 ) {
+				throw new Frontman_Tool_Error( 'Filtered reads require widget_type, setting_keys (up to 50), offset >= 0 and limit between 1 and 100.' );
+			}
+			foreach ( $keys as $key ) {
+				if ( ! is_string( $key ) || '' === $key ) {
+					throw new Frontman_Tool_Error( 'setting_keys must contain non-empty strings.' );
+				}
+			}
+			return [ 'post_id' => $post_id ] + Frontman_Elementor_Data::query_widgets( $this->require_page_data( $post_id ), $type, $keys, $offset, $limit );
+		}
 		$data    = $this->require_page_data( $post_id );
 		return [ 'post_id' => $post_id, 'title' => get_the_title( $post_id ), 'data' => $data ];
 	}
