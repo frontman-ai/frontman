@@ -1,5 +1,17 @@
 # @frontman-ai/client
 
+## 1.2.1
+
+### Patch Changes
+
+- [#1633](https://github.com/frontman-ai/frontman/pull/1633) [`a34bd7a`](https://github.com/frontman-ai/frontman/commit/a34bd7adf51544f068ab5ef06ee1479d76163afd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow cancellation of a pending question even when the client shows the agent as idle.
+
+- [#1632](https://github.com/frontman-ai/frontman/pull/1632) [`85f2a88`](https://github.com/frontman-ai/frontman/commit/85f2a8873b6f64b8bde492b20fbab994c71cbd6e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add an always-visible chat banner linking to GitHub stars or WordPress reviews, matching the first-task dialog.
+
+- [#1626](https://github.com/frontman-ai/frontman/pull/1626) [`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep WordPress v4 installations working with the hosted client by normalizing relay protocol 1.0 tool catalogs. Report project-context connection failures to Sentry and show the failure instead of an endless loading state.
+
+- [#1628](https://github.com/frontman-ai/frontman/pull/1628) [`c4d3212`](https://github.com/frontman-ai/frontman/commit/c4d3212b925371b14c70fbdd1ef99011bf1f23a7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Warn WordPress users when their installed Frontman plugin is behind WordPress.org and direct them to update through WordPress administration. Show a persistent reminder inside Frontman when plugin auto-updates are disabled in WordPress settings, with a link to enable them.
+
 ## 1.2.0
 
 ### Minor Changes

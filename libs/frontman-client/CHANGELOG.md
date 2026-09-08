@@ -1,5 +1,11 @@
 # @frontman-ai/frontman-client
 
+## 4.0.1
+
+### Patch Changes
+
+- [#1626](https://github.com/frontman-ai/frontman/pull/1626) [`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep WordPress v4 installations working with the hosted client by normalizing relay protocol 1.0 tool catalogs. Report project-context connection failures to Sentry and show the failure instead of an endless loading state.
+
 ## 4.0.0
 
 ### Major Changes

@@ -1,5 +1,11 @@
 # @frontman-ai/astro
 
+## 3.0.1
+
+### Patch Changes
+
+- [#1639](https://github.com/frontman-ai/frontman/pull/1639) [`b07ba72`](https://github.com/frontman-ai/frontman/commit/b07ba7293a69a37bf804e015cbbb76114ac7a14e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Redact session driver credentials from the resolved Astro config tool output.
+
 ## 3.0.0
 
 ### Major Changes

@@ -3,6 +3,86 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [5.1.0] - 2026-09-08
+
+
+#### @frontman-ai/client
+
+
+### Patch Changes
+
+- [#1633](https://github.com/frontman-ai/frontman/pull/1633) [`a34bd7a`](https://github.com/frontman-ai/frontman/commit/a34bd7adf51544f068ab5ef06ee1479d76163afd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow cancellation of a pending question even when the client shows the agent as idle.
+
+- [#1632](https://github.com/frontman-ai/frontman/pull/1632) [`85f2a88`](https://github.com/frontman-ai/frontman/commit/85f2a8873b6f64b8bde492b20fbab994c71cbd6e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add an always-visible chat banner linking to GitHub stars or WordPress reviews, matching the first-task dialog.
+
+- [#1626](https://github.com/frontman-ai/frontman/pull/1626) [`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep WordPress v4 installations working with the hosted client by normalizing relay protocol 1.0 tool catalogs. Report project-context connection failures to Sentry and show the failure instead of an endless loading state.
+
+- [#1628](https://github.com/frontman-ai/frontman/pull/1628) [`c4d3212`](https://github.com/frontman-ai/frontman/commit/c4d3212b925371b14c70fbdd1ef99011bf1f23a7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Warn WordPress users when their installed Frontman plugin is behind WordPress.org and direct them to update through WordPress administration. Show a persistent reminder inside Frontman when plugin auto-updates are disabled in WordPress settings, with a link to enable them.
+
+#### @frontman-ai/astro
+
+
+### Patch Changes
+
+- [#1639](https://github.com/frontman-ai/frontman/pull/1639) [`b07ba72`](https://github.com/frontman-ai/frontman/commit/b07ba7293a69a37bf804e015cbbb76114ac7a14e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Redact session driver credentials from the resolved Astro config tool output.
+
+#### @frontman-ai/frontman-client
+
+
+### Patch Changes
+
+- [#1626](https://github.com/frontman-ai/frontman/pull/1626) [`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep WordPress v4 installations working with the hosted client by normalizing relay protocol 1.0 tool catalogs. Report project-context connection failures to Sentry and show the failure instead of an endless loading state.
+
+#### @frontman-ai/frontman-core
+
+
+### Patch Changes
+
+- Updated dependencies [[`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0)]:
+  - @frontman-ai/frontman-protocol@4.0.1
+
+#### @frontman-ai/frontman-preview-bridge
+
+
+### Patch Changes
+
+- Updated dependencies [[`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0)]:
+  - @frontman-ai/frontman-protocol@4.0.1
+
+#### @frontman-ai/frontman-protocol
+
+
+### Patch Changes
+
+- [#1626](https://github.com/frontman-ai/frontman/pull/1626) [`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep WordPress v4 installations working with the hosted client by normalizing relay protocol 1.0 tool catalogs. Report project-context connection failures to Sentry and show the failure instead of an endless loading state.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Minor Changes
+
+- [#1654](https://github.com/frontman-ai/frontman/pull/1654) [`ef80a78`](https://github.com/frontman-ai/frontman/commit/ef80a7840e7cdd8c03da62df460a18d0f067232a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add two provider-neutral WordPress SEO tools for reading and updating Yoast SEO Free 28.4 title and description overrides. Limit the route to tested versions, supported content types, permissions, and installations without detected SEO-plugin conflicts.
+
+- [#1662](https://github.com/frontman-ai/frontman/pull/1662) [`fa9ff56`](https://github.com/frontman-ai/frontman/commit/fa9ff564936f692c03f9cfa1dec56155a11ed15f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add paged Elementor widget inspection with selected settings. Add server-side rollback diagnostics with reference IDs while keeping snapshot verification mandatory. Return the persisted timeout warning to the active agent so it knows tools can still execute, without changing existing server deadlines or question-tool pause behavior. Add UTF-8-safe pages to stored tool-result retrieval so agents can recover truncated text without repeating the full request.
+
+- [#1658](https://github.com/frontman-ai/frontman/pull/1658) [`12b62f8`](https://github.com/frontman-ai/frontman/commit/12b62f806810920afac731134a074ed3c39f0f0d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add exact-text editing to `wp_update_custom_css` with `oldText`, `newText`, and optional `replaceAll`. Agents can change small sections without sending the complete stylesheet. Existing full-replacement calls remain supported.
+
+  Add persisted-source reads, scope checks, best-effort conflict detection, and compact edit receipts. Reject edits to preprocessor-backed CSS.
+
+- [#1663](https://github.com/frontman-ai/frontman/pull/1663) [`a7f7c4f`](https://github.com/frontman-ai/frontman/commit/a7f7c4fcb835a359eac94d444e91901f66a476f0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add permission-checked native WordPress author assignment and bounded current-site account lookup for user-requested author tasks. Validate raw IDs and lookup inputs before coercion. Reject boundary-asterisk searches while preserving literal interior asterisks, percent signs, underscores, and quotes. Document account-identifier disclosure to the selected AI provider and task history.
+
+- [#1657](https://github.com/frontman-ai/frontman/pull/1657) [`6097c5f`](https://github.com/frontman-ai/frontman/commit/6097c5f4b7ff390bb6b22976150060b4625306de) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add opt-in Sentry reports for unexpected WordPress PHP tool exceptions under Settings > Frontman. Bundle an isolated PHP SDK and remove sensitive data from reports. Keep expected tool errors out of Sentry and preserve tool responses if reporting fails.
+
+- [#1656](https://github.com/frontman-ai/frontman/pull/1656) [`5238277`](https://github.com/frontman-ai/frontman/commit/52382772d70208c3ee3bf25424830ff91565d093) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support optional custom slugs when creating or updating WordPress posts and pages. Use WordPress core sanitization and uniqueness rules, reject non-string slugs before writes, and return the persisted slug in post snapshots.
+
+### Patch Changes
+
+- [#1660](https://github.com/frontman-ai/frontman/pull/1660) [`43e458b`](https://github.com/frontman-ai/frontman/commit/43e458bdc3f15b67536aec87e4218c93ecfd5087) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Store Elementor undo snapshots as Unicode-escaped JSON so emoji can be saved on legacy WordPress metadata charsets. Verify snapshot contents before saving edits, preserve existing rollback history, and report rejected writes separately from readback mismatches.
+
+- [#1628](https://github.com/frontman-ai/frontman/pull/1628) [`c4d3212`](https://github.com/frontman-ai/frontman/commit/c4d3212b925371b14c70fbdd1ef99011bf1f23a7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Warn WordPress users when their installed Frontman plugin is behind WordPress.org and direct them to update through WordPress administration. Show a persistent reminder inside Frontman when plugin auto-updates are disabled in WordPress settings, with a link to enable them.
+
+- [#1661](https://github.com/frontman-ai/frontman/pull/1661) [`55430e4`](https://github.com/frontman-ai/frontman/commit/55430e4dd957889e7882fa10b8db36ff16ffa254) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the stored slug in WordPress post list results, consistent with single-post reads. Draft and pending slugs can be empty; publication applies WordPress core slug rules.
+
 ## [Unreleased]
 
 ### Fixed
