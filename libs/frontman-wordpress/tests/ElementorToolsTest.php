@@ -5,6 +5,7 @@ define( 'ABSPATH', sys_get_temp_dir() . '/frontman-wordpress-elementor-tools/' )
 $GLOBALS['frontman_test_posts'] = [];
 $GLOBALS['frontman_test_meta']  = [];
 $GLOBALS['frontman_test_update_meta_callbacks'] = [];
+$GLOBALS['frontman_test_reject_rollback_write'] = false;
 
 if ( ! class_exists( 'WP_Post' ) ) {
 	class WP_Post {
@@ -157,7 +158,14 @@ if ( ! function_exists( 'get_post_meta' ) ) {
 
 if ( ! function_exists( 'update_post_meta' ) ) {
 	function update_post_meta( int $post_id, string $key, $value ): bool {
-		$GLOBALS['frontman_test_meta'][ $post_id ][ $key ] = wp_unslash( $value );
+		if ( '_frontman_elementor_rollbacks' === $key && $GLOBALS['frontman_test_reject_rollback_write'] ) {
+			return false;
+		}
+		$value = wp_unslash( $value );
+		if ( ( $GLOBALS['frontman_test_meta'][ $post_id ][ $key ] ?? null ) === $value ) {
+			return false;
+		}
+		$GLOBALS['frontman_test_meta'][ $post_id ][ $key ] = $value;
 		foreach ( $GLOBALS['frontman_test_update_meta_callbacks'] as $callback ) {
 			$callback( $post_id, $key, $value );
 		}
@@ -232,6 +240,9 @@ class Frontman_Elementor_Tools_Test_Runner {
 		$this->test_add_element_rejects_empty_element();
 		$this->test_add_duplicate_and_move_restore_rollbacks();
 		$this->test_rollback_preserves_backslash_newline_styles();
+		$this->test_rollback_json_and_legacy_storage();
+		$this->test_rollback_write_failures_abort_elementor_save();
+		$this->test_rollback_invalid_encoding_and_id();
 		$this->test_generate_element();
 
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
@@ -961,6 +972,74 @@ class Frontman_Elementor_Tools_Test_Runner {
 
 		$element = Frontman_Elementor_Data::get_element( Frontman_Elementor_Data::get_page_data( 45 ), 'html4501' );
 		$this->assert_same( $original, $element['settings']['html'], 'Rollback preserves backslash-newline CSS data URI content' );
+	}
+
+	private function test_rollback_json_and_legacy_storage(): void {
+		$key = '_frontman_elementor_rollbacks';
+		$data = Frontman_Elementor_Data::get_page_data( 42 );
+		$data[0]['settings']['snapshot_test'] = [ 'text' => "🎃🎄💜 \"quoted\" \\path\nnext", 'size' => 1.0 ];
+		$legacy = Frontman_Elementor_Data::make_page_rollback( 'saved_page_data', $data );
+		$GLOBALS['frontman_test_meta'][42][$key] = [ $legacy ];
+		$rollback = Frontman_Elementor_Data::make_page_rollback( 'saved_page_data', $data );
+		Frontman_Elementor_Data::save_rollback( 42, $rollback );
+		$stored = get_post_meta( 42, $key, true );
+		$this->assert_true( is_string( $stored ), 'New snapshots use JSON storage' );
+		$this->assert_same( 0, preg_match( '/[^\x00-\x7f]/', $stored ), 'JSON snapshots escape Unicode' );
+		$this->assert_same( [ $rollback, $legacy ], json_decode( $stored, true ), 'JSON preserves new and legacy snapshots exactly, including floats' );
+		$restored = $this->call_success( 'wp_elementor_restore_rollback', [ 'post_id' => 42, 'rollback_id' => $legacy['rollback_id'], 'confirm' => true ] );
+		$this->assert_same( true, $restored['success'], 'Legacy snapshot remains restorable after JSON conversion' );
+		$this->assert_same( $data[0]['settings']['snapshot_test']['text'], Frontman_Elementor_Data::get_page_data( 42 )[0]['settings']['snapshot_test']['text'], 'Restore preserves emoji, quotes, backslashes and newlines' );
+
+		$GLOBALS['frontman_test_meta'][42][$key] = array_fill( 0, 20, $rollback );
+		Frontman_Elementor_Data::save_rollback( 42, $rollback );
+		Frontman_Elementor_Data::save_rollback( 42, $rollback );
+		$this->assert_same( array_fill( 0, 20, $rollback ), json_decode( get_post_meta( 42, $key, true ), true ), 'Retention stays at 20 and unchanged writes succeed after exact readback' );
+	}
+
+	private function test_rollback_write_failures_abort_elementor_save(): void {
+		$before = get_post_meta( 42, '_elementor_data', true );
+		$input = [ 'post_id' => 42, 'element_id' => 'head2222', 'settings' => [ 'title' => 'Must not save' ] ];
+		$GLOBALS['frontman_test_reject_rollback_write'] = true;
+		try {
+			$error = $this->call_error( 'wp_elementor_update_element', $input );
+			$this->assert_true( false !== strpos( $error, 'WordPress did not persist' ), 'Rejected metadata writes have a specific error' );
+			$this->assert_same( $before, get_post_meta( 42, '_elementor_data', true ), 'Rejected snapshot writes leave Elementor data unchanged' );
+		} finally {
+			$GLOBALS['frontman_test_reject_rollback_write'] = false;
+		}
+
+		$GLOBALS['frontman_test_update_meta_callbacks'][] = static function ( int $post_id, string $key, $value ): void {
+			if ( '_frontman_elementor_rollbacks' === $key ) {
+				$rollbacks = json_decode( $value, true );
+				$rollbacks[0]['element']['settings']['title'] = 'Corrupted snapshot with original ID';
+				$GLOBALS['frontman_test_meta'][$post_id][$key] = wp_json_encode( $rollbacks, JSON_PRESERVE_ZERO_FRACTION );
+			}
+		};
+		try {
+			$error = $this->call_error( 'wp_elementor_update_element', $input );
+			$this->assert_true( false !== strpos( $error, 'readback did not match' ), 'Content corruption is detected even when the ID survives' );
+			$this->assert_same( $before, get_post_meta( 42, '_elementor_data', true ), 'Corrupted snapshot writes leave Elementor data unchanged' );
+		} finally {
+			$GLOBALS['frontman_test_update_meta_callbacks'] = [];
+		}
+	}
+
+	private function test_rollback_invalid_encoding_and_id(): void {
+		$before = $GLOBALS['frontman_test_meta'][42];
+		foreach ( [
+			[ 'rollback_id' => '', 'data' => [] ],
+			[ 'rollback_id' => 'invalid', 'data' => [ 'number' => INF ] ],
+			[ 'rollback_id' => 'lossy', 'data' => [ 'object' => (object) [] ] ],
+		] as $rollback ) {
+			$error = null;
+			try {
+				Frontman_Elementor_Data::save_rollback( 42, $rollback );
+			} catch ( Frontman_Tool_Error $exception ) {
+				$error = $exception->getMessage();
+			}
+			$this->assert_true( null !== $error && false !== strpos( $error, 'Elementor content was not saved' ), 'Invalid or lossy snapshots fail before writing' );
+			$this->assert_same( $before, $GLOBALS['frontman_test_meta'][42], 'Invalid snapshots leave all metadata unchanged' );
+		}
 	}
 
 	private function test_generate_element(): void {
