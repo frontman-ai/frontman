@@ -9,6 +9,7 @@ module Log = FrontmanLogs.Logs.Make({
 })
 
 let requestTimeoutMs = 120000
+let connectionLost = "Connection lost. Reload to reconnect."
 
 let pushReplyMessageSchema: S.t<JSON.t> = S.object(s => s.field("acp:message", S.json))
 
@@ -26,47 +27,48 @@ let sendRequest = (
   ~timeoutMs: int=requestTimeoutMs,
   ~parseResult: JSON.t => result<'a, string>,
 ): promise<result<'a, string>> => {
-  Promise.make((resolve, _) => {
-    let id = state.contents.currentId + 1
-    let idStr = Int.toString(id)
-    let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
-    let timer = ref(None)
-    let finish = result => {
-      timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
-      resolve(result)
-    }
-
-    let pending: Client.pendingRequest = {
-      resolve: json => {
-        switch parseResult(json) {
-        | Ok(result) => finish(Ok(result))
-        | Error(e) => finish(Error(e))
-        }
-      },
-      reject: e => finish(Error(e)),
-    }
-
-    state := state.contents->Client.reduce(Client.RequestSent(id, pending))
-    timer :=
-      Some(
-        WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
-          state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
-          state := state.contents->Client.reduce(Client.ResponseReceived(id))
-          pending.reject(`Request ${method} timed out after ${Int.toString(timeoutMs)}ms`)
-        }),
-      )
-
-    let payload = request->JsonRpc.Request.toJson
-    let push = channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
-    push.receive(~status="ok", ~callback=reply => {
-      switch parsePushReply(reply) {
-      | Ok(message) => state := Client.handleResponse(state.contents, message)
-      | Error(error) =>
+  switch Channel.state(channel) {
+  | "joined" =>
+    Promise.make((resolve, _) => {
+      let id = state.contents.currentId + 1
+      let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
+      let timer = ref(None)
+      let listeners = ref([])
+      let finish = result => {
+        timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
+        listeners.contents->Array.forEach(((event, ref)) => channel->Channel.off(~event, ~ref))
         state := state.contents->Client.reduce(Client.ResponseReceived(id))
-        pending.reject(error)
+        resolve(result)
       }
-    })->ignore
-  })
+      let pending: Client.pendingRequest = {
+        resolve: json => finish(parseResult(json)),
+        reject: e => finish(Error(e)),
+      }
+      listeners :=
+        [#phx_error, #phx_close]->Array.map(event => (
+          event,
+          channel->Channel.onWithRef(~event, ~callback=_ => pending.reject(connectionLost)),
+        ))
+
+      state := state.contents->Client.reduce(Client.RequestSent(id, pending))
+      timer :=
+        Some(
+          WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() =>
+            pending.reject(`Request ${method} timed out after ${Int.toString(timeoutMs)}ms`)
+          ),
+        )
+      let payload = request->JsonRpc.Request.toJson
+      let push =
+        channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
+      push.receive(~status="ok", ~callback=reply => {
+        switch parsePushReply(reply) {
+        | Ok(message) => state := Client.handleResponse(state.contents, message)
+        | Error(error) => pending.reject(error)
+        }
+      }).receive(~status="error", ~callback=_ => pending.reject("ACP request failed"))->ignore
+    })
+  | _ => Promise.resolve(Error(connectionLost))
+  }
 }
 
 let sendInitialize = (

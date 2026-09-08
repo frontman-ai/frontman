@@ -408,7 +408,9 @@ let make = (~onConfigureProvider: unit => unit) => {
         | (true, _) => React.null
         | (false, Error(message)) =>
           <div role="alert" className="py-3 px-4 text-[13px] text-red-400">
-            {React.string(`Could not load project context: ${message}`)}
+            {React.string(message)}
+            {React.string(" ")}
+            <a href="" className="underline"> {React.string("Reload")} </a>
           </div>
         | (false, Connecting | LoggingOut | Connected | SessionActive(_) | Disconnected) =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">

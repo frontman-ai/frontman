@@ -76,33 +76,35 @@ let cleanupChannel = channel => {
   channel->Channel.off(~event=#"acp:message")
   channel->Channel.off(~event=#"mcp:message")
   channel->Channel.off(~event=#title_updated)
+  channel->Channel.off(~event=#config_options_updated)
   Channel.leave(channel)->ignore
 }
 
 let cleanupSessionChannel = (session: session): unit => cleanupChannel(session.channel)
 
-let disconnect = (conn: connection, ~session: option<session>=?): unit => {
-  session->Option.forEach(cleanupSessionChannel)
-  conn.channel->Channel.off(~event=#"acp:message")
-  conn.channel->Channel.off(~event=#config_options_updated)
-  Channel.leave(conn.channel)->ignore
-  Socket.disconnect(conn.socket)
+let cleanupConnection = (socket, state: ref<Client.state>): unit => {
+  state := state.contents->Client.reduce(Client.ACPStateChanged(Disconnected))
+  state.contents.pendingRequests
+  ->Dict.valuesToArray
+  ->Array.forEach(pending => pending.reject(Protocol.connectionLost))
+  socket->Socket.channels->Array.forEach(cleanupChannel)
+  Socket.disconnect(socket)
 }
 
-let waitForSocket = (socket: Socket.t): promise<result<unit, string>> => {
-  Promise.make((resolve, _) => {
-    socket->Socket.onError(~callback=_ => resolve(Error("Socket connection failed")))
-    socket->Socket.onOpen(~callback=() => resolve(Ok()))
-    socket->Socket.connect
-  })
-}
+let disconnect = (conn: connection): unit => cleanupConnection(conn.socket, conn.state)
 
 type joinError =
   | AuthRequired({loginUrl: string})
   | JoinFailed(string)
 
-let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
+let joinChannel = (channel: Channel.t, ~onError: string => unit): promise<
+  result<unit, joinError>,
+> => {
   Promise.make((resolve, _) => {
+    channel->Channel.on(~event=#phx_error, ~callback=_ => {
+      resolve(Error(JoinFailed(Protocol.connectionLost)))
+      onError(Protocol.connectionLost)
+    })
     Channel.join(channel).receive(~status="ok", ~callback=_ =>
       resolve(Ok())
     ).receive(~status="error", ~callback=err => {
@@ -116,7 +118,9 @@ let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
       | (Some("unauthorized"), Some(url)) => resolve(Error(AuthRequired({loginUrl: url})))
       | _ => resolve(Error(JoinFailed(JSON.stringify(err))))
       }
-    })->ignore
+    }).receive(~status="timeout", ~callback=_ =>
+      resolve(Error(JoinFailed("Channel join timed out")))
+    )->ignore
   })
 }
 
@@ -132,10 +136,11 @@ type connectError =
   | ConnectionFailed(string)
 
 @@live
-let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSignal>=?): result<
-  connection,
-  connectError,
-> => {
+let connect = async (
+  config: config,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
+  ~onError: string => unit,
+): result<connection, connectError> => {
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
 
@@ -170,33 +175,24 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
 
     Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
 
-    let socketResult = await waitForSocket(socket)
-
-    let joinResult = switch (socketResult, checkAborted(signal)) {
-    | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
-    | (Error(e), _) =>
-      Log.error(`Socket connection failed: ${e}`)
-      Error(ConnectionFailed(e))
-    | (Ok(), Ok()) =>
-      Sentry.addBreadcrumb(~category=#acp, ~message="Socket connected, joining channel")
-      switch await joinChannel(channel) {
-      | Error(AuthRequired({loginUrl})) => Error(AuthRequired({loginUrl: loginUrl}))
-      | Error(JoinFailed(e)) =>
-        Log.error(`Channel join failed: ${e}`)
-        Error(ConnectionFailed(e))
-      | Ok() => Ok()
-      }
-    }
+    Socket.connect(socket)
+    let joinResult = await joinChannel(channel, ~onError=error => {
+      cleanupConnection(socket, state)
+      onError(error)
+    })
 
     switch (joinResult, checkAborted(signal)) {
     | (_, Error(_)) =>
-      cleanupChannel(channel)
-      Socket.disconnect(socket)
+      cleanupConnection(socket, state)
       Error(ConnectionFailed("Connection aborted"))
     | (Error(e), _) =>
-      cleanupChannel(channel)
-      Socket.disconnect(socket)
-      Error(e)
+      cleanupConnection(socket, state)
+      Error(
+        switch e {
+        | AuthRequired({loginUrl}) => AuthRequired({loginUrl: loginUrl})
+        | JoinFailed(error) => ConnectionFailed(error)
+        },
+      )
     | (Ok(), Ok()) =>
       switch config.onConfigOptionsUpdated {
       | Some(callback) =>
@@ -213,9 +209,7 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       switch await Protocol.sendInitialize(~channel, ~state, ~clientConfig) {
       | Error(e) =>
         Log.error(`ACP initialize failed: ${e}`)
-        channel->Channel.off(~event=#config_options_updated)
-        cleanupChannel(channel)
-        Socket.disconnect(socket)
+        cleanupConnection(socket, state)
         Error(ConnectionFailed(e))
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
@@ -265,7 +259,7 @@ let joinSession = async (
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
-  let handleParseError = err => {
+  let handleSessionError = err => {
     switch cleanupOnParseError->Option.mapOr(true, enabled => enabled.contents) {
     | true => cleanupChannel(sessionChannel)
     | false => ()
@@ -280,7 +274,7 @@ let joinSession = async (
     ~channel=sessionChannel,
     ~state=conn.state,
     ~onUpdate=Some(onUpdate),
-    ~onParseError=Some(handleParseError),
+    ~onParseError=Some(handleSessionError),
   )
 
   mcpServerInterface->Option.forEach(serverInterface => {
@@ -301,7 +295,7 @@ let joinSession = async (
     }
   })
 
-  let joinResult = await joinChannel(sessionChannel)
+  let joinResult = await joinChannel(sessionChannel, ~onError=handleSessionError)
 
   joinResult
   ->Result.mapError(err => {

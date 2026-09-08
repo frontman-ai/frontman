@@ -2073,12 +2073,38 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
 
     test(
-      "clearing the ACP session invalidates loaded provider settings",
+      "clearing the ACP session ends local running and streaming state without losing text",
       t => {
-        let state = _makeStateWithSession()
+        let taskState = TestHelpers.makeStateWithTask(
+          ~isAgentRunning=true,
+          ~messages=[
+            Reducer.Message.Assistant(
+              Streaming({id: "partial", textBuffer: "Saved text", agentId: "agent-1"}),
+            ),
+          ],
+        )
+        let state = {
+          ..._makeStateWithSession(),
+          tasks: taskState.tasks,
+          currentTask: taskState.currentTask,
+        }
+        t->expect(Reducer.Selectors.isStreaming(state))->Expect.toBe(true)
         let (nextState, _effects) = Reducer.next(state, ClearAcpSession)
 
         t->expect(Reducer.Selectors.hasActiveACPSession(nextState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.isAgentRunning(nextState))->Expect.toBe(false)
+        t->expect(Reducer.Selectors.isStreaming(nextState))->Expect.toBe(false)
+        t
+        ->expect(TestHelpers.getMessages(nextState))
+        ->Expect.toEqual([
+          Reducer.Message.Assistant(
+            Completed({
+              id: "partial",
+              content: [AssistantContentPart.Text({text: "Saved text"})],
+              agentId: "agent-1",
+            }),
+          ),
+        ])
       },
     )
   })

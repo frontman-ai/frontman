@@ -18,11 +18,7 @@ external make: (~endpoint: string, ~opts: socketOptions=?) => t = "Socket"
 
 @send external disconnect: (t, ~callback: unit => unit=?) => unit = "disconnect"
 
+@get external channels: t => array<channel> = "channels"
+
 @send
 external channel: (t, ~topic: string, ~params: dict<JSON.t>=?) => channel = "channel"
-
-@send external onOpen: (t, ~callback: unit => unit) => unit = "onOpen"
-
-@send external onError: (t, ~callback: 'error => unit) => unit = "onError"
-
-@send external onClose: (t, ~callback: 'event => unit) => unit = "onClose"

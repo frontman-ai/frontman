@@ -22,11 +22,14 @@ type mockTransport = {
 let makeLoadTransport: (array<JSON.t>, JSON.t) => mockTransport = %raw(`
   function(history, loadResult) {
     const handlers = {};
+    let ref = 0;
     const events = [];
     const inertPush = { receive() { return this; } };
     const channel = {
-      on(event, callback) { handlers[event] = callback; },
-      off(event) {
+      state: "joined",
+      on(event, callback) { (handlers[event] ||= new Map()).set(++ref, callback); return ref; },
+      off(event, ref) {
+        if (ref !== undefined) { handlers[event]?.delete(ref); return; }
         events.push("off:" + event);
         delete handlers[event];
       },
@@ -44,7 +47,7 @@ let makeLoadTransport: (array<JSON.t>, JSON.t) => mockTransport = %raw(`
       },
       push(event, payload) {
         if (event === "acp:message" && payload.method === "session/load") {
-          const handler = handlers["acp:message"];
+          const handler = payload => handlers["acp:message"].forEach(callback => callback(payload));
           for (const notification of history) handler(notification);
           events.push("load-response");
           handler({
@@ -60,7 +63,7 @@ let makeLoadTransport: (array<JSON.t>, JSON.t) => mockTransport = %raw(`
       socket: {channel() { return channel; }},
       channel,
       events,
-      emit(payload) { handlers["acp:message"](payload); }
+      emit(payload) { handlers["acp:message"].forEach(callback => callback(payload)); }
     };
   }
 `)
@@ -143,6 +146,7 @@ let loadCleanupEvents = [
   "off:acp:message",
   "off:mcp:message",
   "off:title_updated",
+  "off:config_options_updated",
   "leave",
 ]
 
@@ -372,90 +376,131 @@ describe("ACP Client parseInitializeResult", _t => {
   })
 })
 
-describe("ACP Protocol sendRequest", _t => {
-  testAsync("resolves Phoenix push reply envelopes", async t => {
+@send external trigger: (Channel.t, string, JSON.t, ~ref: string=?) => unit = "trigger"
+type pushRef = {ref: string}
+@get external joinPush: Channel.t => pushRef = "joinPush"
+@get external pushBuffer: Channel.t => array<pushRef> = "pushBuffer"
+@send external socketClosed: (Socket.t, JSON.t) => unit = "onConnClose"
+
+let joinedChannel = (socket, ~onError, ~topic="task:test") => {
+  let channel = socket->Socket.channel(~topic)
+  let joined = ACP.joinChannel(channel, ~onError)
+  trigger(
+    channel,
+    "phx_reply",
+    JSON.parseOrThrow(`{"status":"ok","response":{}}`),
+    ~ref=joinPush(channel).ref,
+  )
+  (channel, joined)
+}
+
+let request = (channel, state) =>
+  Protocol.sendRequest(
+    ~channel,
+    ~state,
+    ~method="test/method",
+    ~params=None,
+    ~timeoutMs=10,
+    ~parseResult=json => Ok(S.parseOrThrow(json, ~to=S.string)),
+  )
+
+let reply = (channel, response) =>
+  trigger(
+    channel,
+    "phx_reply",
+    response,
+    ~ref=(pushBuffer(channel)->Array.get(0)->Option.getOrThrow).ref,
+  )
+
+describe("ACP request and channel lifetime", _t => {
+  testAsync("joining without an open socket is bounded by channel failure or timeout", async t => {
     Vi.useFakeTimers()->ignore
-    let channel = %raw(`{
-      push(_event, payload) {
-        return {
-          receive(status, callback) {
-            if (status === "ok") {
-              callback({"acp:message": {jsonrpc: "2.0", id: payload.id, result: "accepted"}});
-            }
-            return this;
-          }
-        };
+    for timeout in 0 to 1 {
+      let socket = Socket.make(~endpoint="ws://localhost/socket", ~opts={timeout: 10})
+      let channel = socket->Socket.channel(~topic="tasks")
+      let joined = ACP.joinChannel(channel, ~onError=_ => ACP.cleanupChannel(channel))
+      switch timeout {
+      | 0 => socketClosed(socket, JSON.parseOrThrow(`{"code":1000}`))
+      | _ => (await Vi.advanceTimersByTimeAsync(10))->ignore
       }
-    }`)
-    let state = ref(Client.initialState)
-    let result = await Protocol.sendRequest(
-      ~channel,
-      ~state,
-      ~method="session/prompt",
-      ~params=None,
-      ~timeoutMs=10,
-      ~parseResult=json =>
-        json->JSON.Decode.string->Option.mapOr(Error("Expected string"), value => Ok(value)),
-    )
-
-    t->expect(result)->Expect.toEqual(Ok("accepted"))
-    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+      t->expect((await joined)->Result.isError)->Expect.toBe(true)
+      ACP.cleanupChannel(channel)
+    }
   })
 
-  testAsync("rejects malformed Phoenix push reply envelopes immediately", async t => {
+  testAsync("handles native push replies, malformed replies, errors and timeouts", async t => {
     Vi.useFakeTimers()->ignore
-    let channel = %raw(`{
-      push(_event, _payload) {
-        return {
-          receive(status, callback) {
-            if (status === "ok") {
-              callback({});
-            }
-            return this;
-          }
-        };
+    let socket = Socket.make(~endpoint="ws://localhost/socket")
+    for index in 0 to 3 {
+      let (channel, joined) = joinedChannel(socket, ~onError=_ => ())
+      t->expect(await joined)->Expect.toEqual(Ok())
+      let state = ref(Client.initialState)
+      let pending = request(channel, state)
+      switch index {
+      | 0 =>
+        reply(
+          channel,
+          JSON.parseOrThrow(`{"status":"ok","response":{"acp:message":{"jsonrpc":"2.0","id":1,"result":"accepted"}}}`),
+        )
+      | 1 => reply(channel, JSON.parseOrThrow(`{"status":"ok","response":{}}`))
+      | 2 => reply(channel, JSON.parseOrThrow(`{"status":"error","response":{}}`))
+      | _ => (await Vi.advanceTimersByTimeAsync(10))->ignore
       }
-    }`)
-    let state = ref(Client.initialState)
-    let result = await Protocol.sendRequest(
-      ~channel,
-      ~state,
-      ~method="session/prompt",
-      ~params=None,
-      ~timeoutMs=10,
-      ~parseResult=_ => Ok("unused"),
-    )
-
-    t->expect(result->Result.isError)->Expect.toEqual(true)
-    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+      let result = await pending
+      switch index {
+      | 0 => t->expect(result)->Expect.toEqual(Ok("accepted"))
+      | 3 => t->expect(result)->Expect.toEqual(Error("Request test/method timed out after 10ms"))
+      | _ => t->expect(result->Result.isError)->Expect.toBe(true)
+      }
+      t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
+      ACP.cleanupChannel(channel)
+    }
   })
 
-  testAsync("times out and removes pending request when no response arrives", async t => {
-    Vi.useFakeTimers()->ignore
-    let transport = makeLoadTransport([], loadResult)
-    let state = ref(Client.initialState)
-    let promise = Protocol.sendRequest(
-      ~channel=transport.channel,
-      ~state,
-      ~method="test/method",
-      ~params=None,
-      ~timeoutMs=10,
-      ~parseResult=json =>
-        switch json->JSON.Decode.string {
-        | Some(value) => Ok(value)
-        | None => Error("Expected string")
-        },
-    )
-
-    t->expect(state.contents.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toBe(true)
-    let _ = await Vi.advanceTimersByTimeAsync(10)
-    let result = await promise
-
-    t
-    ->expect(result)
-    ->Expect.toEqual(Error("Request test/method timed out after 10ms"))
-    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
-  })
+  testAsync(
+    "socket loss and channel errors invalidate even a session with no pending prompt",
+    async t => {
+      Vi.useFakeTimers()->ignore
+      for socketLoss in 0 to 1 {
+        let socket = Socket.make(~endpoint="ws://localhost/socket")
+        let errors = ref([])
+        let (channel, joined) = joinedChannel(
+          socket,
+          ~onError=error => errors := errors.contents->Array.concat([error]),
+        )
+        (await joined)->ignore
+        let state = ref(Client.initialState)
+        let accepted = request(channel, state)
+        reply(
+          channel,
+          JSON.parseOrThrow(`{"status":"ok","response":{"acp:message":{"jsonrpc":"2.0","id":1,"result":"accepted"}}}`),
+        )
+        t->expect(await accepted)->Expect.toEqual(Ok("accepted"))
+        let pending = request(channel, state)
+        let (other, otherJoined) = joinedChannel(socket, ~onError=_ => (), ~topic="task:other")
+        (await otherJoined)->ignore
+        let otherPending = request(other, state)
+        switch socketLoss {
+        | 0 => trigger(channel, "phx_error", JSON.Encode.null)
+        | _ => socketClosed(socket, JSON.parseOrThrow(`{"code":1000}`))
+        }
+        t->expect(await pending)->Expect.toEqual(Error(Protocol.connectionLost))
+        t->expect(await request(channel, state))->Expect.toEqual(Error(Protocol.connectionLost))
+        t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
+        switch socketLoss {
+        | 0 => t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual(["3"])
+        | _ => t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
+        }
+        ACP.cleanupConnection(socket, state)
+        t->expect(await otherPending)->Expect.toEqual(Error(Protocol.connectionLost))
+        t->expect(socket->Socket.channels->Array.length)->Expect.toBe(0)
+        t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
+        (await Vi.advanceTimersByTimeAsync(20))->ignore
+        t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
+        ACP.cleanupChannel(channel)
+      }
+    },
+  )
 })
 
 describe("ACP Client handleResponse", _t => {
