@@ -21,6 +21,14 @@ $GLOBALS['frontman_test_cache_cleared'] = [];
 
 class WP_Post extends stdClass {}
 
+function current_user_can( string $capability, ...$args ): bool {
+	return true;
+}
+
+function get_post_type_object( string $type ) {
+	return (object) [ 'cap' => (object) [ 'create_posts' => 'edit_posts', 'publish_posts' => 'publish_posts', 'edit_others_posts' => 'edit_others_posts' ] ];
+}
+
 if ( ! function_exists( 'sanitize_text_field' ) ) {
 	function sanitize_text_field( $value ): string {
 		return trim( (string) $value );

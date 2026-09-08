@@ -160,6 +160,13 @@ class Frontman_Tools {
 			return Frontman_Tool_Seo::validate_input( $name, $input );
 		}
 
+		if ( class_exists( 'Frontman_Tool_Posts' ) && in_array( $name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+			Frontman_Tool_Posts::validate_author_input( $input );
+		}
+		if ( 'wp_find_users' === $name && class_exists( 'Frontman_Tool_Users' ) ) {
+			return Frontman_Tool_Users::validate_input( $input );
+		}
+
 		$preserve_strings = $tool->preserve_input_strings || ( 'wp_update_custom_css' === $name && 'edit' === ( $input['mode'] ?? null ) );
 		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $preserve_strings );
 		return is_array( $sanitized ) ? $sanitized : [];
