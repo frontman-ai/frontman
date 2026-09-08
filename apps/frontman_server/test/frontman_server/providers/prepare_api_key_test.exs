@@ -13,7 +13,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   alias FrontmanServer.{Providers, Repo}
   alias FrontmanServer.Providers.{Nvidia, OAuthToken}
   alias ReqLLM.Context
-  alias ReqLLM.Providers.Anthropic
+  alias ReqLLM.Providers.{Anthropic, OpenAI}
 
   setup {Req.Test, :set_req_test_from_context}
   setup {Req.Test, :verify_on_exit!}
@@ -251,6 +251,61 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   end
 
   describe "packaged LLMDB metadata" do
+    test "Astra metadata and Responses requests work through both OpenAI transports" do
+      assert {:ok, catalog} = LLMDB.model(:openai, "gpt-6-astra")
+      assert catalog.limits == %{context: 1_050_000, input: 922_000, output: 128_000}
+      assert :image in catalog.modalities.input
+      assert catalog.capabilities.tools.enabled
+      assert catalog.capabilities.reasoning.effort.values == ~w(low medium high xhigh max)
+      assert catalog.cost == %{input: 10.0, output: 50.0, cache_read: 1.0, cache_write: 12.5}
+
+      context =
+        Context.new([
+          Context.user("Read README.md"),
+          Context.assistant("",
+            tool_calls: [ReqLLM.ToolCall.new("call_read", "read_file", %{"path" => "README.md"})]
+          ),
+          Context.tool_result("call_read", "Project documentation")
+        ])
+
+      for {id, path, auth} <- [
+            {:openai, "/v1/responses", [api_key: "test-key"]},
+            {:openai_codex, "/backend-api/codex/responses",
+             [auth_mode: :oauth, access_token: "test-token", chatgpt_account_id: "test-account"]}
+          ] do
+        model = ReqLLM.model!("#{id}:gpt-6-astra")
+        assert model.limits == catalog.limits
+        assert model.capabilities == catalog.capabilities
+        {:ok, provider} = ReqLLM.provider(id)
+
+        for effort <- [:low, :medium, :high, :xhigh, :max] do
+          opts = Keyword.put(auth, :reasoning_effort, effort)
+          assert {:ok, request} = provider.attach_stream(model, context, opts, ReqLLM.Finch)
+          assert request.path == path
+          body = Jason.decode!(request.body)
+          assert body["model"] == "gpt-6-astra"
+          assert body["reasoning"] == %{"effort" => Atom.to_string(effort)}
+          assert body["stream"] == true
+          assert body["include"] == ["reasoning.encrypted_content"]
+          refute Map.has_key?(body, "temperature")
+
+          assert %{"type" => "function_call", "call_id" => "call_read"} =
+                   Enum.at(body["input"], 1)
+
+          assert %{"type" => "function_call_output", "output" => "Project documentation"} =
+                   List.last(body["input"])
+        end
+      end
+
+      for effort <- [:none, :minimal] do
+        assert {:error, _} =
+                 OpenAI.prepare_request(:chat, catalog, context,
+                   api_key: "test-key",
+                   reasoning_effort: effort
+                 )
+      end
+    end
+
     test "NVIDIA Kimi K2.6 no longer needs Frontman metadata" do
       model = ReqLLM.model!("nvidia:moonshotai/kimi-k2.6")
 
