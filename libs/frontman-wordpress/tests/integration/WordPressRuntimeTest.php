@@ -158,6 +158,71 @@ frontman_runtime_assert( 1 <= count( $menu_tool->list_navigation_menus( [] ) ), 
 $deleted = $menu_tool->delete_navigation_menu( [ 'id' => $created['id'], 'confirm' => true ] );
 frontman_runtime_assert( 'Updated Runtime Navigation' === $deleted['before']['title'], 'Navigation deletion did not preserve its snapshot.' );
 frontman_runtime_assert( null === get_post( $created['id'] ), 'Navigation tool did not permanently delete the post.' );
+wp_set_current_user( $admin->ID );
+$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
+$slug_nonce = Frontman_Auth::create_nonce();
+unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
+wp_set_current_user( 0 );
+$slug_call = static function ( string $name, array $arguments ) use ( $cookie, $slug_nonce ): array {
+	$response = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $name, 'arguments' => $arguments ] );
+	frontman_runtime_assert( 200 === $response['status'] && false === $response['body']['isError'], 'Slug tool failed: ' . wp_json_encode( $response ) );
+	$data = json_decode( $response['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	if ( isset( $data['after'] ) ) {
+		clean_post_cache( $data['after']['id'] );
+		frontman_runtime_assert( get_post( $data['after']['id'] )->post_name === $data['after']['slug'], 'Slug snapshot differs from persisted post_name.' );
+	}
+	return $data;
+};
+$slug_fixture = [ 'title' => 'Runtime Slug Fixture', 'content' => 'Unchanged content', 'status' => 'draft', 'slug' => 'sample-delivery-guide' ];
+$slug_created = $slug_call( 'wp_create_post', $slug_fixture );
+$slug_id = $slug_created['id'];
+frontman_runtime_assert( 'sample-delivery-guide' === $slug_created['after']['slug'], 'Custom draft slug was not persisted.' );
+$slug_duplicate = $slug_call( 'wp_create_post', $slug_fixture );
+frontman_runtime_assert( 'sample-delivery-guide' === $slug_duplicate['after']['slug'], 'Draft slugs should not be made unique.' );
+$slug_published = $slug_call( 'wp_update_post', [ 'id' => $slug_id, 'status' => 'publish' ] );
+frontman_runtime_assert( 'sample-delivery-guide-2' === $slug_published['after']['slug'], 'Publication did not resolve the collision with the other draft.' );
+$slug_collision = $slug_call( 'wp_update_post', [ 'id' => $slug_duplicate['id'], 'status' => 'publish' ] );
+frontman_runtime_assert( 'sample-delivery-guide' === $slug_collision['after']['slug'], 'Publication changed the now-available draft slug.' );
+$slug_collision = $slug_call( 'wp_create_post', array_merge( $slug_fixture, [ 'status' => 'publish' ] ) );
+frontman_runtime_assert( 'sample-delivery-guide-3' === $slug_collision['after']['slug'], 'Published create did not return the unique slug.' );
+$slug_updated = $slug_call( 'wp_update_post', [ 'id' => $slug_id, 'slug' => 'updated-delivery-guide' ] );
+frontman_runtime_assert( 'sample-delivery-guide-2' === $slug_updated['before']['slug'] && 'updated-delivery-guide' === $slug_updated['after']['slug'], 'Slug update snapshots are inaccurate.' );
+$slug_omitted = $slug_call( 'wp_update_post', [ 'id' => $slug_id, 'title' => 'Changed title', 'excerpt' => 'Metadata only' ] );
+frontman_runtime_assert( 'updated-delivery-guide' === $slug_omitted['after']['slug'], 'Metadata-only edit regenerated the slug.' );
+$slug_read = $slug_call( 'wp_read_post', [ 'id' => $slug_id ] );
+frontman_runtime_assert( $slug_read === $slug_omitted['after'], 'Read result differs from the mutation snapshot.' );
+
+foreach ( [ 'draft', 'pending', 'publish' ] as $slug_status ) {
+	$empty_fixture = [ 'title' => 'Runtime Empty ' . $slug_status, 'content' => '', 'status' => $slug_status ];
+	$omitted_create = $slug_call( 'wp_create_post', $empty_fixture );
+	frontman_runtime_assert( ( 'publish' === $slug_status ? sanitize_title( $empty_fixture['title'] ) : '' ) === $omitted_create['after']['slug'], 'Omitted create slug changed core behavior.' );
+	$empty_fixture['title'] .= ' Explicit';
+	$empty_create = $slug_call( 'wp_create_post', array_merge( $empty_fixture, [ 'slug' => '' ] ) );
+	$expected_empty = 'publish' === $slug_status ? sanitize_title( $empty_fixture['title'] ) : '';
+	frontman_runtime_assert( $expected_empty === $empty_create['after']['slug'], 'Empty create slug changed core behavior.' );
+	$slug_call( 'wp_update_post', [ 'id' => $empty_create['id'], 'slug' => 'clear-me-' . $slug_status ] );
+	$empty_update = $slug_call( 'wp_update_post', [ 'id' => $empty_create['id'], 'slug' => '' ] );
+	frontman_runtime_assert( $expected_empty === $empty_update['after']['slug'], 'Empty update slug changed core behavior.' );
+}
+foreach ( [ 'Café — 日本! / Delivery', '%e6%97%a5%e6%9c%ac-guide', 'Quote\'s \\ path & punctuation?!' ] as $raw_slug ) {
+	$normalized = $slug_call( 'wp_create_post', array_merge( $slug_fixture, [ 'slug' => $raw_slug ] ) );
+	frontman_runtime_assert( sanitize_title( $raw_slug ) === $normalized['after']['slug'], 'Create slug normalization differs from core.' );
+	$normalized = $slug_call( 'wp_update_post', [ 'id' => $slug_duplicate['id'], 'status' => 'draft', 'slug' => $raw_slug ] );
+	frontman_runtime_assert( sanitize_title( $raw_slug ) === $normalized['after']['slug'], 'Update slug normalization differs from core.' );
+}
+$posts_before_invalid_slugs = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
+foreach ( [ 'wp_create_post', 'wp_update_post' ] as $slug_tool ) {
+	foreach ( [ null, 123, 1.5, true, false, [], [ 'bad' ], (object) [ 'slug' => 'bad' ] ] as $invalid_slug ) {
+		$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $slug_tool, 'arguments' => array_merge( $slug_fixture, [ 'id' => $slug_id, 'title' => 'Must not write', 'slug' => $invalid_slug ] ) ] );
+		frontman_runtime_assert( 200 === $invalid['status'] && true === $invalid['body']['isError'], 'Invalid slug type was accepted.' );
+	}
+	$request = [ 'name' => $slug_tool, 'arguments' => array_merge( $slug_fixture, [ 'id' => $slug_id ] ) ];
+	frontman_runtime_assert( 401 === frontman_runtime_tool( '', null, $request )['status'], 'Slug mutation bypassed authentication.' );
+	frontman_runtime_assert( 403 === frontman_runtime_tool( $cookie, null, $request )['status'], 'Slug mutation bypassed nonce validation.' );
+	frontman_runtime_assert( 403 === frontman_runtime_tool( $cookie, 'invalid', $request )['status'], 'Slug mutation accepted an invalid nonce.' );
+}
+frontman_runtime_assert( $posts_before_invalid_slugs === $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A ), 'Rejected slug requests changed posts.' );
+
 $yoast = getenv( 'EXPECTED_YOAST_VERSION' );
 if ( false === $yoast || '' === $yoast ) {
 	frontman_runtime_assert( null === Frontman_Tools::instance()->get( 'wp_read_seo' ), 'SEO tools were registered without Yoast.' );

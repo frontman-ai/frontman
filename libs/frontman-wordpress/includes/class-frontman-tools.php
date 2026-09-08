@@ -272,6 +272,10 @@ class Frontman_Tools {
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':
+				if ( 'slug' === $field_name && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+					return $value;
+				}
+
 				if ( 'css' === $field_name && 'wp_update_custom_css' === $tool_name && ! is_string( $value ) ) {
 					return $value;
 				}
