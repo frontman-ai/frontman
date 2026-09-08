@@ -443,11 +443,13 @@ let make = (~onConfigureProvider: unit => unit) => {
         />
 
         {switch (retryStatus, turnError, currentTaskId) {
-        | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
+        | (Some(rs), _, _) if hasActiveACPSession => <Client__RetryBanner retryStatus=rs />
         | (None, Some({id, message, category, retryErrorId}), Some(taskId))
           if shouldRenderTurnError(messages, id) =>
           let onRetry =
-            retryErrorId->Option.map(retriedErrorId =>
+            retryErrorId
+            ->Option.filter(_ => hasActiveACPSession)
+            ->Option.map(retriedErrorId =>
               () => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId)
             )
           <ErrorBanner error=message category onConfigureProvider onRetry=?onRetry />
@@ -462,14 +464,16 @@ let make = (~onConfigureProvider: unit => unit) => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
-    <Client__QueuedMessagesDrawer
-      messages=queuedUserMessages
-      onUnqueue={messageId =>
-        switch currentTaskId {
-        | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
-        | None => ()
-        }}
-    />
+    <fieldset disabled={!hasActiveACPSession} className="contents">
+      <Client__QueuedMessagesDrawer
+        messages=queuedUserMessages
+        onUnqueue={messageId =>
+          switch currentTaskId {
+          | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
+          | None => ()
+          }}
+      />
+    </fieldset>
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {

@@ -9,7 +9,7 @@ module Log = FrontmanLogs.Logs.Make({
 })
 
 let requestTimeoutMs = 120000
-let connectionLost = "Connection lost. Reload to reconnect."
+let connectionLost = "Connection lost. The agent may still be running. Reload to reconnect."
 
 let pushReplyMessageSchema: S.t<JSON.t> = S.object(s => s.field("acp:message", S.json))
 

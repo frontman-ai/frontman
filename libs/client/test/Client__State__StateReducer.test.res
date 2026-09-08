@@ -2073,7 +2073,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
 
     test(
-      "clearing the ACP session ends local running and streaming state without losing text",
+      "connection loss preserves the last reported execution and streaming state",
       t => {
         let taskState = TestHelpers.makeStateWithTask(
           ~isAgentRunning=true,
@@ -2083,28 +2083,32 @@ describe("Client State Reducer - Annotations on Messages", () => {
             ),
           ],
         )
-        let state = {
-          ..._makeStateWithSession(),
-          tasks: taskState.tasks,
-          currentTask: taskState.currentTask,
-        }
-        t->expect(Reducer.Selectors.isStreaming(state))->Expect.toBe(true)
+        let (state, _) = Reducer.next(
+          {..._makeStateWithSession(), tasks: taskState.tasks, currentTask: taskState.currentTask},
+          TaskAction({
+            target: CurrentTask,
+            action: RetryingUpdate({
+              retryStatus: {
+                attempt: 1,
+                maxAttempts: 5,
+                retryAt: 1000.0,
+                error: "Retry pending",
+              },
+            }),
+          }),
+        )
         let (nextState, _effects) = Reducer.next(state, ClearAcpSession)
 
         t->expect(Reducer.Selectors.hasActiveACPSession(nextState))->Expect.toBe(false)
-        t->expect(Reducer.Selectors.isAgentRunning(nextState))->Expect.toBe(false)
-        t->expect(Reducer.Selectors.isStreaming(nextState))->Expect.toBe(false)
-        t
-        ->expect(TestHelpers.getMessages(nextState))
-        ->Expect.toEqual([
-          Reducer.Message.Assistant(
-            Completed({
-              id: "partial",
-              content: [AssistantContentPart.Text({text: "Saved text"})],
-              agentId: "agent-1",
-            }),
-          ),
-        ])
+        t->expect(nextState.tasks)->Expect.toEqual(state.tasks)
+        t->expect(Reducer.Selectors.isAgentRunning(nextState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.isStreaming(nextState))->Expect.toBe(true)
+        let thinking = Client__UseThinkingState.use(
+          ~messages=TestHelpers.getMessages(nextState),
+          ~isAgentRunning=Reducer.Selectors.isAgentRunning(nextState),
+          ~hasActiveACPSession=Reducer.Selectors.hasActiveACPSession(nextState),
+        )
+        t->expect(thinking.showThinking)->Expect.toBe(false)
       },
     )
   })

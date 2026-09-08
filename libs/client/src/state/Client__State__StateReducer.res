@@ -1787,13 +1787,11 @@ let next = (state: state, action) => {
   | ClearAcpSession =>
     let updatedTasks = state.tasks->Dict.copy
     updatedTasks->Dict.forEachWithKey((task, taskId) => {
-      let task = switch task->TaskReducer.Lens.completeStreamingMessage {
+      switch task {
       | Task.Loaded(data) =>
-        Task.Loaded({...data, isAgentRunning: false, pendingQuestion: None, retryStatus: None})
-      | Task.Loading(data) => Task.Loading({...data, isAgentRunning: false})
-      | Task.New(_) | Task.Unloaded(_) => task
+        updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
+      | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => ()
       }
-      updatedTasks->Dict.set(taskId, task)
     })
     {
       ...state,

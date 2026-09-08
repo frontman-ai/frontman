@@ -180,26 +180,6 @@ describe("ACP Client State Reducer", _t => {
     t->expect(state.pendingRequests->Dict.keysToArray->Array.length)->Expect.toEqual(0)
   })
 
-  test("pending request lifecycle accumulates and removes by ID", t => {
-    let pending: Client.pendingRequest = {
-      resolve: _ => (),
-      reject: _ => (),
-    }
-
-    let state =
-      Client.initialState
-      ->Client.reduce(Client.RequestSent(1, pending))
-      ->Client.reduce(Client.RequestSent(2, pending))
-
-    t->expect(state.currentId)->Expect.toEqual(2)
-    t->expect(state.pendingRequests->Dict.keysToArray->Array.length)->Expect.toEqual(2)
-
-    let state = state->Client.reduce(Client.ResponseReceived(1))
-
-    t->expect(state.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
-    t->expect(state.pendingRequests->Dict.get("2")->Option.isSome)->Expect.toEqual(true)
-  })
-
   test("ACPStateChanged action updates acpState", t => {
     let state = Client.initialState
     let initResult: Types.initializeResult = {
@@ -382,7 +362,7 @@ type pushRef = {ref: string}
 @get external pushBuffer: Channel.t => array<pushRef> = "pushBuffer"
 @send external socketClosed: (Socket.t, JSON.t) => unit = "onConnClose"
 
-let joinedChannel = (socket, ~onError, ~topic="task:test") => {
+let joinedChannel = async (socket, ~onError, ~topic="task:test") => {
   let channel = socket->Socket.channel(~topic)
   let joined = ACP.joinChannel(channel, ~onError)
   trigger(
@@ -391,7 +371,8 @@ let joinedChannel = (socket, ~onError, ~topic="task:test") => {
     JSON.parseOrThrow(`{"status":"ok","response":{}}`),
     ~ref=joinPush(channel).ref,
   )
-  (channel, joined)
+  (await joined)->Result.getOrThrow
+  channel
 }
 
 let request = (channel, state) =>
@@ -401,7 +382,7 @@ let request = (channel, state) =>
     ~method="test/method",
     ~params=None,
     ~timeoutMs=10,
-    ~parseResult=json => Ok(S.parseOrThrow(json, ~to=S.string)),
+    ~parseResult=json => Ok(json),
   )
 
 let reply = (channel, response) =>
@@ -411,6 +392,8 @@ let reply = (channel, response) =>
     response,
     ~ref=(pushBuffer(channel)->Array.get(0)->Option.getOrThrow).ref,
   )
+
+let acceptedReply = JSON.parseOrThrow(`{"status":"ok","response":{"acp:message":{"jsonrpc":"2.0","id":1,"result":"accepted"}}}`)
 
 describe("ACP request and channel lifetime", _t => {
   testAsync("joining without an open socket is bounded by channel failure or timeout", async t => {
@@ -431,25 +414,32 @@ describe("ACP request and channel lifetime", _t => {
   testAsync("handles native push replies, malformed replies, errors and timeouts", async t => {
     Vi.useFakeTimers()->ignore
     let socket = Socket.make(~endpoint="ws://localhost/socket")
-    for index in 0 to 3 {
-      let (channel, joined) = joinedChannel(socket, ~onError=_ => ())
-      t->expect(await joined)->Expect.toEqual(Ok())
+    for index in 0 to 5 {
+      let channel = await joinedChannel(socket, ~onError=_ => ())
       let state = ref(Client.initialState)
       let pending = request(channel, state)
       switch index {
-      | 0 =>
-        reply(
-          channel,
-          JSON.parseOrThrow(`{"status":"ok","response":{"acp:message":{"jsonrpc":"2.0","id":1,"result":"accepted"}}}`),
-        )
+      | 0 => reply(channel, acceptedReply)
       | 1 => reply(channel, JSON.parseOrThrow(`{"status":"ok","response":{}}`))
       | 2 => reply(channel, JSON.parseOrThrow(`{"status":"error","response":{}}`))
+      | 3 =>
+        reply(
+          channel,
+          JSON.parseOrThrow(`{"status":"ok","response":{"acp:message":{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid request"}}}}`),
+        )
+      | 4 =>
+        reply(
+          channel,
+          JSON.parseOrThrow(`{"status":"ok","response":{"acp:message":{"jsonrpc":"2.0","id":1,"result":null}}}`),
+        )
       | _ => (await Vi.advanceTimersByTimeAsync(10))->ignore
       }
       let result = await pending
       switch index {
-      | 0 => t->expect(result)->Expect.toEqual(Ok("accepted"))
-      | 3 => t->expect(result)->Expect.toEqual(Error("Request test/method timed out after 10ms"))
+      | 0 => t->expect(result)->Expect.toEqual(Ok(JSON.Encode.string("accepted")))
+      | 3 => t->expect(result)->Expect.toEqual(Error("Invalid request"))
+      | 4 => t->expect(result)->Expect.toEqual(Ok(JSON.Encode.null))
+      | 5 => t->expect(result)->Expect.toEqual(Error("Request test/method timed out after 10ms"))
       | _ => t->expect(result->Result.isError)->Expect.toBe(true)
       }
       t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
@@ -464,22 +454,19 @@ describe("ACP request and channel lifetime", _t => {
       for socketLoss in 0 to 1 {
         let socket = Socket.make(~endpoint="ws://localhost/socket")
         let errors = ref([])
-        let (channel, joined) = joinedChannel(
+        let channel = await joinedChannel(
           socket,
           ~onError=error => errors := errors.contents->Array.concat([error]),
         )
-        (await joined)->ignore
         let state = ref(Client.initialState)
         let accepted = request(channel, state)
-        reply(
-          channel,
-          JSON.parseOrThrow(`{"status":"ok","response":{"acp:message":{"jsonrpc":"2.0","id":1,"result":"accepted"}}}`),
-        )
-        t->expect(await accepted)->Expect.toEqual(Ok("accepted"))
+        reply(channel, acceptedReply)
+        t->expect(await accepted)->Expect.toEqual(Ok(JSON.Encode.string("accepted")))
         let pending = request(channel, state)
-        let (other, otherJoined) = joinedChannel(socket, ~onError=_ => (), ~topic="task:other")
-        (await otherJoined)->ignore
+        let other = await joinedChannel(socket, ~onError=_ => (), ~topic="task:other")
         let otherPending = request(other, state)
+        t->expect(state.contents.currentId)->Expect.toBe(3)
+        t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual(["2", "3"])
         switch socketLoss {
         | 0 => trigger(channel, "phx_error", JSON.Encode.null)
         | _ => socketClosed(socket, JSON.parseOrThrow(`{"code":1000}`))
@@ -497,73 +484,12 @@ describe("ACP request and channel lifetime", _t => {
         t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
         (await Vi.advanceTimersByTimeAsync(20))->ignore
         t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
-        ACP.cleanupChannel(channel)
       }
     },
   )
 })
 
 describe("ACP Client handleResponse", _t => {
-  test("resolves pending request on success", t => {
-    let resolved = ref(false)
-    let pending: Client.pendingRequest = {
-      resolve: _ => resolved := true,
-      reject: _ => (),
-    }
-
-    let state = Client.initialState->Client.reduce(Client.RequestSent(1, pending))
-
-    let responseJson = Dict.make()
-    responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
-    responseJson->Dict.set("id", JSON.Encode.int(1))
-    responseJson->Dict.set("result", JSON.Encode.string("success"))
-
-    Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
-
-    t->expect(resolved.contents)->Expect.toEqual(true)
-  })
-
-  test("rejects pending request on error", t => {
-    let rejected = ref(false)
-    let pending: Client.pendingRequest = {
-      resolve: _ => (),
-      reject: _ => rejected := true,
-    }
-
-    let state = Client.initialState->Client.reduce(Client.RequestSent(2, pending))
-
-    let errorObj = Dict.make()
-    errorObj->Dict.set("code", JSON.Encode.int(-32600))
-    errorObj->Dict.set("message", JSON.Encode.string("Invalid request"))
-
-    let responseJson = Dict.make()
-    responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
-    responseJson->Dict.set("id", JSON.Encode.int(2))
-    responseJson->Dict.set("error", JSON.Encode.object(errorObj))
-
-    Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
-
-    t->expect(rejected.contents)->Expect.toEqual(true)
-  })
-
-  test("removes request from pending after handling", t => {
-    let pending: Client.pendingRequest = {
-      resolve: _ => (),
-      reject: _ => (),
-    }
-
-    let state = Client.initialState->Client.reduce(Client.RequestSent(3, pending))
-
-    let responseJson = Dict.make()
-    responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
-    responseJson->Dict.set("id", JSON.Encode.int(3))
-    responseJson->Dict.set("result", JSON.Encode.null)
-
-    let newState = Client.handleResponse(state, JSON.Encode.object(responseJson))
-
-    t->expect(newState.pendingRequests->Dict.get("3"))->Expect.toEqual(None)
-  })
-
   test("unknown agent_turn_complete notification is ignored without resolving prompt", t => {
     let resolved = ref(None)
     let parseError = ref(None)
@@ -574,29 +500,10 @@ describe("ACP Client handleResponse", _t => {
     }
     let state = ref(Client.initialState->Client.reduce(Client.RequestSent(1, pending)))
 
-    let payload = JSON.Encode.object(
-      Dict.fromArray([
-        ("jsonrpc", JSON.Encode.string("2.0")),
-        ("method", JSON.Encode.string("session/update")),
-        (
-          "params",
-          JSON.Encode.object(
-            Dict.fromArray([
-              ("sessionId", JSON.Encode.string("task-1")),
-              (
-                "update",
-                JSON.Encode.object(
-                  Dict.fromArray([
-                    ("sessionUpdate", JSON.Encode.string("agent_turn_complete")),
-                    ("stopReason", JSON.Encode.string("end_turn")),
-                  ]),
-                ),
-              ),
-            ]),
-          ),
-        ),
-      ]),
-    )
+    let payload = JSON.parseOrThrow(`{
+      "jsonrpc":"2.0", "method":"session/update",
+      "params":{"sessionId":"task-1","update":{"sessionUpdate":"agent_turn_complete","stopReason":"end_turn"}}
+    }`)
 
     Protocol.handleIncomingMessage(
       ~state,

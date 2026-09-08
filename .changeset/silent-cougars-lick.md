@@ -3,4 +3,4 @@
 "@frontman-ai/frontman-client": patch
 ---
 
-Fix connection loss that left the agent UI stuck. Failed channels now settle pending ACP requests, clear local activity, and show a reload option.
+Fix connection loss that left the agent UI stuck. Preserve the last server-reported execution state, settle pending ACP requests, and disable disconnected controls with a reload option.
