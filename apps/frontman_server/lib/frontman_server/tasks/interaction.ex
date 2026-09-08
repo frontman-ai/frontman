@@ -193,6 +193,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :title, :string
       field :color_scheme, :string
       field :scroll_y, :integer
+      field :astro_client_routing, :string
     end
 
     def changeset(%__MODULE__{} = current_page, attrs) do
@@ -203,8 +204,10 @@ defmodule FrontmanServer.Tasks.Interaction do
         :device_pixel_ratio,
         :title,
         :color_scheme,
-        :scroll_y
+        :scroll_y,
+        :astro_client_routing
       ])
+      |> validate_inclusion(:astro_client_routing, ["enabled", "disabled", "unavailable"])
     end
 
     def attrs_from_acp_meta(meta) when is_map(meta) do
@@ -217,7 +220,8 @@ defmodule FrontmanServer.Tasks.Interaction do
             device_pixel_ratio: fields.device_pixel_ratio,
             title: fields.title,
             color_scheme: fields.color_scheme,
-            scroll_y: fields.scroll_y
+            scroll_y: fields.scroll_y,
+            astro_client_routing: fields.astro_client_routing
           }
 
         nil ->

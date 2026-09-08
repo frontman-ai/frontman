@@ -1,4 +1,8 @@
-type t = Enabled | Disabled | Unavailable
+@schema
+type t =
+  | @as("enabled") Enabled
+  | @as("disabled") Disabled
+  | @as("unavailable") Unavailable
 
 /// Matches Astro 5–7's transitionEnabledOnThisPage: marker presence means
 /// routing opt-in, not browser animation support or completed navigation.

@@ -778,7 +778,10 @@ let getColorScheme: WebAPI.DomTypes.window => string = %raw(`
   }
 `)
 
-let currentPageToContentBlock = (previewFrame: Task.previewFrame): ContentBlock.t => {
+let currentPageToContentBlock = (
+  previewFrame: Task.previewFrame,
+  ~isAstro: bool,
+): ContentBlock.t => {
   let url = previewFrame.url
 
   let (viewportWidth, viewportHeight, dpr, scrollY) = switch previewFrame.contentWindow {
@@ -833,6 +836,19 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ContentBlock.
   let obj = Dict.make()
   obj->Dict.set("current_page", JSON.Encode.bool(true))
   obj->Dict.set("url", JSON.Encode.string(url))
+
+  switch isAstro {
+  | true =>
+    module ClientRouting = FrontmanAiAstroBrowser.FrontmanAstroBrowser__ClientRouting
+    obj->Dict.set(
+      "astro_client_routing",
+      ClientRouting.read(previewFrame.contentDocument)->S.decodeOrThrow(
+        ~from=ClientRouting.schema,
+        ~to=S.json,
+      ),
+    )
+  | false => ()
+  }
 
   switch viewportWidth {
   | Some(w) => obj->Dict.set("viewport_width", JSON.Encode.int(w))
@@ -924,12 +940,12 @@ let currentPageToContentBlock = (previewFrame: Task.previewFrame): ContentBlock.
   })
 }
 
-let taskToPageContextBlocks = (task: Task.t): array<ContentBlock.t> => {
+let taskToPageContextBlocks = (task: Task.t, ~isAstro: bool): array<ContentBlock.t> => {
   switch task {
   | Task.Unloaded(_) => []
   | Task.New({previewFrame})
   | Task.Loading({previewFrame})
-  | Task.Loaded({previewFrame}) => [currentPageToContentBlock(previewFrame)]
+  | Task.Loaded({previewFrame}) => [currentPageToContentBlock(previewFrame, ~isAstro)]
   }
 }
 

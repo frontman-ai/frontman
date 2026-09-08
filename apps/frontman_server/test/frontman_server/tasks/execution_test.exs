@@ -645,7 +645,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           "device_pixel_ratio" => 2,
           "title" => "Frontman: Visual AI Frontend Editing",
           "color_scheme" => "dark",
-          "scroll_y" => 0
+          "scroll_y" => 0,
+          "astro_client_routing" => "enabled"
         }),
         annotation_block("ann-hero", "H1", "apps/marketing/src/components/Hero.astro", 65, 36,
           comment: "change this text to Danni",
@@ -683,8 +684,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert [%Interaction.UserMessage{} = persisted_message | _] = Tasks.interactions(task)
 
-      assert %Interaction.CurrentPage{title: "Frontman: Visual AI Frontend Editing"} =
-               persisted_message.current_page
+      assert %Interaction.CurrentPage{
+               title: "Frontman: Visual AI Frontend Editing",
+               astro_client_routing: "enabled"
+             } = persisted_message.current_page
 
       assert [%Interaction.Annotation{bounding_box: %Interaction.BoundingBox{}}] =
                persisted_message.annotations
@@ -695,6 +698,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert text =~ "[Current Page Context]"
       assert text =~ "[Annotated Elements]"
       assert text =~ "apps/marketing/src/components/Hero.astro"
+      assert text =~ "Astro Client Routing: enabled"
+      assert text =~ "astro:page-load"
       assert Enum.any?(swarm_message.content, &match?(%{type: :image}, &1))
     end
 

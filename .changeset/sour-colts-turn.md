@@ -1,5 +1,6 @@
 ---
 "@frontman-ai/astro-browser": minor
+"@frontman-ai/client": minor
 ---
 
-Add a typed helper that reads the Astro client-routing marker from the preview document. The helper distinguishes enabled, disabled, and unavailable states.
+Include Astro client-routing status in automatic page context. Detect enabled, disabled, and unavailable states from the preview document, and preserve the status in server storage and conversation history. Add conditional lifecycle guidance to agent prompts.

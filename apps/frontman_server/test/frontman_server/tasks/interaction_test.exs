@@ -710,7 +710,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                "device_pixel_ratio" => 2.0,
                "title" => "Settings",
                "color_scheme" => "dark",
-               "scroll_y" => 320
+               "scroll_y" => 320,
+               "astro_client_routing" => nil
              }
 
       assert [ann] = decoded["annotations"]
