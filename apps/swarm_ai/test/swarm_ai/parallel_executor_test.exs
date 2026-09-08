@@ -20,10 +20,11 @@ defmodule SwarmAi.ParallelExecutorTest do
     raise "boom"
   end
 
-  def noop_timeout(_tool_call, _reason), do: :ok
+  defdelegate noop_timeout(tc, reason), to: SwarmAi.Testing, as: :default_tool_timeout
 
   def record_timeout(test_pid, tool_call, reason) do
     send(test_pid, {:timeout_called, tool_call.id, reason})
+    noop_timeout(tool_call, reason)
   end
 
   def start_await_soon(result_content, tool_call) do
@@ -153,7 +154,7 @@ defmodule SwarmAi.ParallelExecutorTest do
 
       {:ok, [result]} = ParallelExecutor.run([exec], sup)
       assert result.is_error == true
-      assert content_text(result) =~ "timed out"
+      assert result == noop_timeout(tc, :triggered)
     end
 
     test "timed-out Await tool returns error ToolResult, agent continues" do
@@ -170,7 +171,7 @@ defmodule SwarmAi.ParallelExecutorTest do
 
       {:ok, [result]} = ParallelExecutor.run([exec], sup)
       assert result.is_error == true
-      assert content_text(result) =~ "timed out"
+      assert result == noop_timeout(tc, :triggered)
     end
   end
 

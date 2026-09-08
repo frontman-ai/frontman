@@ -145,7 +145,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       when is_integer(turn_number) and turn_number > 0 do
     SentryContext.set_task_scope_context(scope, task_id)
 
-    timeout_msg = "Tool #{tool_call.name} timed out"
+    timeout_msg =
+      "Tool #{tool_call.name} timed out. Execution may still be in progress; " <>
+        "do not blindly retry mutations."
 
     metadata = [
       error_type: "tool_timeout",
@@ -156,8 +158,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     Logger.error("Backend tool timeout", metadata)
 
-    persist_error_tool_result(scope, task_id, turn_number, tool_call, timeout_msg)
-    :ok
+    result = persist_error_tool_result(scope, task_id, turn_number, tool_call, timeout_msg)
+    to_swarm_tool_result(tool_call, result)
   end
 
   def handle_timeout(%Scope{} = scope, task_id, turn_number, :error, tool_call, :cancelled)

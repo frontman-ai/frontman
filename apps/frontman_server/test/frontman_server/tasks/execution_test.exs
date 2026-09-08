@@ -1124,10 +1124,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       question_tc_id = "tc_error_timeout_#{System.unique_integer([:positive])}"
       question_tc = tool_call("question", question_args(), id: question_tc_id)
 
-      expect_llm_responses([
-        {:tool_calls, [question_tc], "Calling question"},
-        "Understood, the tool timed out."
-      ])
+      expect_llm_responses([{:tool_calls, [question_tc], "Calling question"}])
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        %{content: [%{text: text}]} = Enum.find(messages, &(&1.role == :tool))
+        assert text =~ "Execution may still be in progress"
+        assert text =~ "do not blindly retry mutations"
+        ReqLLMResponses.response("Understood, the tool timed out.")
+      end)
 
       {:ok, _, _} =
         submit_user_message(scope, task_id, user_content("Ask me"),
@@ -1138,26 +1142,16 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
-      tool_call_interaction =
-        Enum.find(Tasks.interactions(task), fn
-          %Interaction.ToolCall{tool_call_id: ^question_tc_id} -> true
-          _ -> false
-        end)
+      assert [%Interaction.ToolCall{}, %Interaction.ToolResult{is_error: true} = tool_result] =
+               Enum.filter(Tasks.interactions(task), fn
+                 %Interaction.ToolCall{tool_call_id: ^question_tc_id} -> true
+                 %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
+                 _ -> false
+               end)
 
-      assert tool_call_interaction != nil,
-             "Expected a ToolCall interaction to be persisted"
-
-      tool_result =
-        Enum.find(Tasks.interactions(task), fn
-          %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
-          _ -> false
-        end)
-
-      assert tool_result != nil,
-             "Expected a ToolResult for the timed-out ToolCall — " <>
-               "every persisted ToolCall must have a matching ToolResult"
-
-      assert tool_result.is_error == true
+      %{"content" => [%{"text" => result_text}]} = tool_result.result
+      assert result_text =~ "Execution may still be in progress"
+      assert result_text =~ "do not blindly retry mutations"
     end
   end
 

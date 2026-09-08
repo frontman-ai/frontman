@@ -337,8 +337,9 @@ defmodule SwarmAi.Testing do
   def default_tool_run(tool_call), do: SwarmAi.ToolResult.make(tool_call.id, "done", false)
 
   @doc false
-  @spec default_tool_timeout(SwarmAi.ToolCall.t(), term()) :: :ok
-  def default_tool_timeout(_tool_call, _reason), do: :ok
+  @spec default_tool_timeout(SwarmAi.ToolCall.t(), term()) :: SwarmAi.ToolResult.t()
+  def default_tool_timeout(tool_call, _reason),
+    do: SwarmAi.ToolResult.make(tool_call.id, "Tool timed out", true)
 
   @doc """
   Creates a mock LLM with the given response.
