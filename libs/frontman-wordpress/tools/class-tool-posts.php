@@ -97,6 +97,10 @@ class Frontman_Tool_Posts {
 						'type'        => 'string',
 						'description' => 'The post title.',
 					],
+					'slug'      => [
+						'type'        => 'string',
+						'description' => 'Optional permalink slug. WordPress sanitizes it and applies status-specific uniqueness. Empty allows an empty draft/pending slug; published posts derive one from the title. The persisted slug is returned in after.slug.',
+					],
 					'content'   => [
 						'type'        => 'string',
 						'description' => 'The post content as HTML or Gutenberg block markup.',
@@ -153,6 +157,10 @@ class Frontman_Tool_Posts {
 					'title'   => [
 						'type'        => 'string',
 						'description' => 'New post title.',
+					],
+					'slug'    => [
+						'type'        => 'string',
+						'description' => 'Optional permalink slug. Omit to retain the current slug, subject to WordPress status transitions. WordPress sanitizes it and applies uniqueness. Empty allows an empty draft/pending slug; published posts derive one from the title. See after.slug for the persisted value.',
 					],
 					'content' => [
 						'type'        => 'string',
@@ -276,6 +284,12 @@ class Frontman_Tool_Posts {
 			'post_type'    => sanitize_key( $input['post_type'] ?? 'post' ),
 			'post_status'  => sanitize_key( $input['status'] ?? 'draft' ),
 		];
+		if ( array_key_exists( 'slug', $input ) ) {
+			if ( ! is_string( $input['slug'] ) ) {
+				throw new Frontman_Tool_Error( 'slug must be a string.' );
+			}
+			$post_data['post_name'] = $input['slug'];
+		}
 
 		$post_id = wp_insert_post( wp_slash( $post_data ), true );
 
@@ -349,6 +363,12 @@ class Frontman_Tool_Posts {
 		$before = $this->read_post( [ 'id' => $id ] );
 
 		$post_data = [ 'ID' => $id ];
+		if ( array_key_exists( 'slug', $input ) ) {
+			if ( ! is_string( $input['slug'] ) ) {
+				throw new Frontman_Tool_Error( 'slug must be a string.' );
+			}
+			$post_data['post_name'] = $input['slug'];
+		}
 		if ( isset( $input['content'] ) && class_exists( 'Frontman_Elementor_Data' ) && Frontman_Elementor_Data::post_uses_elementor( $id ) ) {
 			throw new Frontman_Tool_Error( 'Refusing to update post_content for Elementor-managed page ' . $id . '. Use wp_elementor_update_element, wp_elementor_save_page_data, or wp_elementor_restore_rollback for Elementor content/layout changes. wp_update_post may still update title, status, or excerpt without content.' );
 		}

@@ -821,6 +821,40 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_same( 'Created', $created['after']['title'], 'wp_create_post returns created post snapshot as after' );
 		$this->assert_same( $created_content, $created['after']['content'], 'wp_create_post preserves backslashes through WordPress unslashing' );
 
+		$posts_before_slug_tests = serialize( $GLOBALS['frontman_test_posts'] );
+		$registry = new Frontman_Tools();
+		$tool->register( $registry );
+		foreach ( [ 'wp_create_post' => 'create_post', 'wp_update_post' => 'update_post' ] as $name => $handler ) {
+			$this->assert_same( 'string', $registry->get( $name )->input_schema['properties']['slug']['type'], "$name exposes a string slug" );
+			$this->assert_true( ! in_array( 'slug', $registry->get( $name )->input_schema['required'], true ), "$name keeps slug optional" );
+			$input = [ 'id' => 11, 'title' => 'Slug fixture', 'content' => 'Slug content', 'slug' => 'sample-%e6%97%a5-\\path' ];
+			$sanitized = $registry->sanitize_input( $name, $input );
+			$this->assert_same( $input['slug'], $sanitized['slug'], "$name preserves raw slug for core sanitization" );
+			$saved = $tool->$handler( $sanitized );
+			$this->assert_same( $input['slug'], $saved['after']['slug'], "$name passes post_name through the slashing boundary" );
+			$unchanged = $tool->update_post( [ 'id' => $saved['after']['id'], 'excerpt' => 'Metadata only' ] );
+			$this->assert_same( $input['slug'], $unchanged['after']['slug'], 'Omitted slug survives metadata-only edits' );
+			$input['slug'] = '';
+			$this->assert_same( '', $tool->$handler( $registry->sanitize_input( $name, $input ) )['after']['slug'], "$name passes explicit empty slug to core" );
+
+			foreach ( [ null, 123, 1.5, true, false, [], [ 'bad' ], (object) [ 'slug' => 'bad' ] ] as $invalid_slug ) {
+				$input['slug'] = $invalid_slug;
+				$before = serialize( $GLOBALS['frontman_test_posts'] );
+				$this->assert_error_contains(
+					static function() use ( $tool, $handler, $input ) { $tool->$handler( $input ); },
+					'slug must be a string',
+					"$name rejects invalid slugs in direct calls"
+				);
+				$this->assert_tool_error_result_contains(
+					$registry->call( $name, $registry->sanitize_input( $name, $input ) ),
+					'slug must be a string',
+					"$name rejects invalid slugs through the registry"
+				);
+				$this->assert_same( $before, serialize( $GLOBALS['frontman_test_posts'] ), "$name rejects invalid slugs before writes" );
+			}
+		}
+		$GLOBALS['frontman_test_posts'] = unserialize( $posts_before_slug_tests );
+
 		$this->assert_error_contains(
 			static function() use ( $tool ) {
 				$tool->delete_post( [ 'id' => 10, 'force' => true, 'confirm' => false ] );
