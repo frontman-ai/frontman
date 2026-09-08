@@ -1158,6 +1158,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                "every persisted ToolCall must have a matching ToolResult"
 
       assert tool_result.is_error == true
+      %{"content" => [%{"text" => result_text}]} = tool_result.result
+      assert result_text =~ "Execution may still be in progress"
+      assert result_text =~ "do not blindly retry mutations"
     end
   end
 

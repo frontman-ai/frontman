@@ -152,12 +152,10 @@ let hasTool = (relay: t, name: string): bool => {
   }
 }
 
-let executeTool = async (
-  relay: t,
-  ~name: string,
-  ~arguments: option<Dict.t<JSON.t>>=?,
-  ~timeoutMs: int=120_000,
-): result<MCPTypes.CallToolResult.t, string> => {
+let executeTool = async (relay: t, ~name: string, ~arguments: option<Dict.t<JSON.t>>=?): result<
+  MCPTypes.CallToolResult.t,
+  string,
+> => {
   switch relay->isConnected {
   | false => Error("Relay not connected")
   | true =>
@@ -172,23 +170,16 @@ let executeTool = async (
     ])
     relay.requestHeaders->Dict.forEachWithKey((value, key) => headers->Dict.set(key, value))
 
-    let controller = WebAPI.AbortController.make()
-    let stage = ref("fetch")
-    let timer = WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() =>
-      WebAPI.AbortController.abort(controller)
-    )
-    let result = try {
+    try {
       let response = await WebAPI.Fetch.fetch(
         url,
         ~init={
-          signal: Null.make(controller.signal),
           method: "POST",
           headers: WebAPI.HeadersInit.fromDict(headers),
           body: WebAPI.BodyInit.fromString(JSON.stringify(body)),
         },
       )
 
-      stage := "response read"
       switch response.ok {
       | false =>
         let msg = `HTTP ${response.status->Int.toString}: ${response.statusText}`
@@ -212,17 +203,6 @@ let executeTool = async (
         ->Option.getOr("Relay tool execution failed")
       Log.error(~ctx={"tool": name, "url": url}, msg)
       Error(msg)
-    }
-    WebAPI.DomGlobal.clearTimeout(timer)
-    switch controller.signal.aborted {
-    | true =>
-      let message = `Tool ${name} timed out during ${stage.contents} after ${Int.toString(
-          timeoutMs,
-        )}ms. The server may still be executing; inspect current state before retrying a mutation.`
-      Log.error(~ctx={"tool": name, "url": url}, message)
-      Error(message)
-    | false =>
-      result->Result.mapError(message => `Tool ${name} failed during ${stage.contents}: ${message}`)
     }
   }
 }
