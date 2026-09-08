@@ -22,7 +22,7 @@ class Frontman_Tool_Posts {
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_posts',
-			'Lists posts, pages, or custom post types with pagination and filtering.',
+			'Lists posts, pages, or custom post types with pagination and filtering. Returns stored slugs, which can be empty for drafts or pending posts. Publication applies WordPress core slug rules.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -232,6 +232,7 @@ class Frontman_Tool_Posts {
 			$posts[] = [
 				'id'       => $post->ID,
 				'title'    => $post->post_title,
+				'slug'     => $post->post_name,
 				'status'   => $post->post_status,
 				'type'     => $post->post_type,
 				'date'     => $post->post_date,

@@ -224,6 +224,37 @@ foreach ( [ 'wp_create_post', 'wp_update_post' ] as $slug_tool ) {
 }
 frontman_runtime_assert( $posts_before_invalid_slugs === $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A ), 'Rejected slug requests changed posts.' );
 
+$listed_slug_ids = [];
+foreach ( [ [ 'draft', '' ], [ 'pending', '' ], [ 'draft', 'stored-list-slug' ], [ 'publish', 'unique-list-slug' ], [ 'publish', 'unique-list-slug' ] ] as $index => $fixture ) {
+	$created = $slug_call( 'wp_create_post', [
+		'title' => 'Runtime Listed Slug Fixture ' . $index,
+		'content' => '',
+		'status' => $fixture[0],
+	] + ( '' === $fixture[1] ? [] : [ 'slug' => $fixture[1] ] ) );
+	$listed_slug_ids[] = $created['id'];
+}
+$slug_call( 'wp_update_post', [ 'id' => $listed_slug_ids[2], 'excerpt' => 'Metadata-only list fixture update' ] );
+$expected_slugs = [ '', '', 'stored-list-slug', 'unique-list-slug', 'unique-list-slug-2' ];
+$posts_before_listing = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
+foreach ( [ 'any', 'draft', 'pending', 'publish' ] as $status ) {
+	$expected_ids = array_values( array_filter( $listed_slug_ids, static function ( int $id ) use ( $status ): bool {
+		return 'any' === $status || get_post_status( $id ) === $status;
+	} ) );
+	$total_pages = (int) ceil( count( $expected_ids ) / 2 );
+	for ( $page = 1; $page <= $total_pages; $page++ ) {
+		$listed = $slug_call( 'wp_list_posts', [ 'post_type' => 'post', 'status' => $status, 'search' => 'Runtime Listed Slug Fixture', 'per_page' => 2, 'page' => $page, 'orderby' => 'title', 'order' => 'ASC' ] );
+		frontman_runtime_assert( count( $expected_ids ) === $listed['total'] && $total_pages === $listed['total_pages'] && $page === $listed['page'], 'Slug listing changed pagination metadata.' );
+		frontman_runtime_assert( array_slice( $expected_ids, ( $page - 1 ) * 2, 2 ) === array_column( $listed['posts'], 'id' ), 'Slug listing changed filtering or pagination.' );
+		foreach ( $listed['posts'] as $listed_post ) {
+			$read = $slug_call( 'wp_read_post', [ 'id' => $listed_post['id'] ] );
+			$expected_slug = $expected_slugs[ array_search( $listed_post['id'], $listed_slug_ids, true ) ];
+			frontman_runtime_assert( array_key_exists( 'slug', $listed_post ), 'Post list omitted the persisted slug.' );
+			frontman_runtime_assert( $expected_slug === $listed_post['slug'] && $read['slug'] === $listed_post['slug'] && get_post( $listed_post['id'] )->post_name === $listed_post['slug'], 'List/read slugs differ from the stored slug.' );
+		}
+	}
+}
+frontman_runtime_assert( $posts_before_listing === $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A ), 'Listing or reading slugs mutated posts.' );
+
 $yoast = getenv( 'EXPECTED_YOAST_VERSION' );
 if ( false === $yoast || '' === $yoast ) {
 	frontman_runtime_assert( null === Frontman_Tools::instance()->get( 'wp_read_seo' ), 'SEO tools were registered without Yoast.' );
