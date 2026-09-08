@@ -78,7 +78,7 @@ defmodule AgentClientProtocol.HistoryTest do
     assert tool_result["toolCallId"] == "call"
   end
 
-  test "replays embedded-only calls without malformed raw input" do
+  test "replays canonical calls without malformed raw input" do
     rows = [
       row("turn-row", 1, turn("turn-id", [])),
       row(
@@ -91,6 +91,8 @@ defmodule AgentClientProtocol.HistoryTest do
           ]
         })
       ),
+      row("valid-tool", 1, tool_call("valid-call", "todo_write", %{"todos" => []})),
+      row("invalid-tool", 1, tool_call("call", "todo_write", nil)),
       row(
         "tool-result",
         1,

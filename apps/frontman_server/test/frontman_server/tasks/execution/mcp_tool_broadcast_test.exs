@@ -59,7 +59,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
 
       assert length(tool_call_broadcasts) == 1,
              "Expected exactly 1 tool call broadcast, got #{length(tool_call_broadcasts)}. " <>
-               "This indicates Tasks.request_client_tool is being called multiple times."
+               "Each declaration must create exactly one persisted tool call."
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
@@ -135,7 +135,10 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       {:ok, task_id: task_id, scope: scope}
     end
 
-    test "agent is registered before interaction is broadcast", %{task_id: task_id, scope: scope} do
+    test "executor is registered before a client call is ready to dispatch", %{
+      task_id: task_id,
+      scope: scope
+    } do
       mcp_tool_call = swarm_tool_call("mcp_tool")
       expected_id = mcp_tool_call.id
 
@@ -154,10 +157,12 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
       {:ok, _, _} =
         submit_user_message_and_run(scope, task_id, execution_request, user_content("Call tool"))
 
-      assert_receive_interaction(
-        %Tasks.Interaction.ToolCall{tool_call_id: ^expected_id},
-        _turn_number
-      )
+      assert_receive {:tool_call_started, _turn_number,
+                      %Tasks.Interaction.ToolCall{
+                        tool_call_id: ^expected_id,
+                        execution_target: :mcp
+                      }},
+                     5_000
 
       registered =
         case Registry.lookup(FrontmanServer.ProcessRegistry, {:tool_call, task_id, expected_id}) do
@@ -166,7 +171,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
         end
 
       assert registered,
-             "Agent not registered when tool call broadcast - race condition exists"
+             "Executor must be registered before client dispatch"
 
       assert :ok = Tasks.cancel_execution(scope, task_id)
 

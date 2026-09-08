@@ -204,6 +204,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_interaction(interaction, turn_number, socket)
   end
 
+  def handle_info({:tool_call_started, turn_number, tool_call}, socket) do
+    {:noreply, redispatch_unresolved_tool_call(socket, tool_call, turn_number)}
+  end
+
   def handle_info({:message_unqueued, message_id}, socket) when is_binary(message_id) do
     notification = ACP.build_message_unqueued_notification(socket.assigns.task_id, message_id)
     push(socket, @acp_message, notification)
@@ -275,13 +279,10 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     push(socket, @acp_message, notification)
 
-    case Tools.execution_target(tool_call.tool_name) do
-      :backend ->
-        {:noreply, socket}
+    socket =
+      assign(socket, :announced_tool_calls, MapSet.put(announced, tool_call.tool_call_id))
 
-      :mcp ->
-        route_to_mcp(tool_call, socket)
-    end
+    {:noreply, socket}
   end
 
   defp handle_interaction(%Tasks.Interaction.ToolResult{} = tool_result, _turn_number, socket) do
@@ -402,13 +403,14 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
-  defp open_tool_call(socket, tool_call_id) do
-    with {:ok, _turn_number, tool_calls} when is_list(tool_calls) <-
+  defp open_tool_call(socket, tool_call_id, expected_turn \\ nil) do
+    with {:ok, turn_number, tool_calls}
+         when is_list(tool_calls) and expected_turn in [nil, turn_number] <-
            Tasks.get_active_turn_unresolved_tool_calls(
              socket.assigns.scope,
              socket.assigns.task_id
            ),
-         %Tasks.Interaction.ToolCall{} = tool_call <-
+         %Tasks.Interaction.ToolCall{execution_target: :mcp} = tool_call <-
            Enum.find(tool_calls, &(&1.tool_call_id == tool_call_id)) do
       {:ok, tool_call}
     else
@@ -1077,16 +1079,28 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   defp redispatch_unresolved_tool_calls(socket), do: socket
 
-  defp redispatch_unresolved_tool_call(socket, tool_call, turn_number) do
+  defp redispatch_unresolved_tool_call(
+         socket,
+         %Tasks.Interaction.ToolCall{execution_target: :mcp} = tool_call,
+         turn_number
+       ) do
     case mcp_tool_request_pending?(socket, tool_call.tool_call_id) do
       true ->
         socket
 
       false ->
-        {:noreply, socket} = handle_interaction(tool_call, turn_number, socket)
-        socket
+        case open_tool_call(socket, tool_call.tool_call_id, turn_number) do
+          {:ok, call} ->
+            {:noreply, socket} = route_to_mcp(call, socket)
+            socket
+
+          :error ->
+            socket
+        end
     end
   end
+
+  defp redispatch_unresolved_tool_call(socket, _call, _turn_number), do: socket
 
   defp mcp_tool_request_pending?(socket, tool_call_id) do
     socket.assigns.pending_mcp_tool_requests

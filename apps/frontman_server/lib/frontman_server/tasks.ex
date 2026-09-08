@@ -255,31 +255,49 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp record_interaction_row(%TaskSchema{} = task, attrs) do
-    Repo.transact(fn ->
-      with {:ok, schema} <-
-             task
-             |> Ecto.build_assoc(:interaction_rows)
-             |> InteractionSchema.changeset(attrs)
-             |> Repo.insert(),
-           {1, _} <-
-             TaskSchema
-             |> TaskSchema.by_id(task.id)
-             |> Repo.update_all(set: [updated_at: DateTime.utc_now(:second)]) do
-        {:ok, schema}
-      else
-        {:error, reason} -> {:error, reason}
-        {0, _} -> {:error, :not_found}
-      end
-    end)
-    |> case do
-      {:ok, %InteractionSchema{} = interaction_schema} ->
-        broadcast_task(task.id, {:interaction, interaction_schema})
-        {:ok, interaction_schema}
+    entries = Enum.with_index([attrs | declared_tool_calls(attrs)])
 
-      {:error, reason} ->
+    entries
+    |> Enum.reduce(Ecto.Multi.new(), fn {attrs, index}, multi ->
+      changeset =
+        task
+        |> Ecto.build_assoc(:interaction_rows)
+        |> InteractionSchema.changeset(attrs)
+
+      Ecto.Multi.insert(multi, index, changeset)
+    end)
+    |> Ecto.Multi.update_all(:task, TaskSchema.by_id(task.id),
+      set: [updated_at: DateTime.utc_now(:second)]
+    )
+    |> Repo.transaction()
+    |> case do
+      {:ok, rows} ->
+        Enum.each(entries, fn {_attrs, index} ->
+          broadcast_task(task.id, {:interaction, Map.fetch!(rows, index)})
+        end)
+
+        {:ok, Map.fetch!(rows, 0)}
+
+      {:error, _operation, reason, _changes} ->
         {:error, reason}
     end
   end
+
+  defp declared_tool_calls(%{type: :agent_response, data: data, turn_number: turn_number}) do
+    data.metadata
+    |> Map.get("tool_calls")
+    |> Interaction.to_swarm_tool_calls()
+    |> Enum.map(fn call ->
+      %{
+        id: Ecto.UUID.generate(),
+        type: :tool_call,
+        data: Interaction.ToolCall.attrs(call),
+        turn_number: turn_number
+      }
+    end)
+  end
+
+  defp declared_tool_calls(_attrs), do: []
 
   defp topic(task_id), do: "task:#{task_id}"
 
@@ -472,7 +490,12 @@ defmodule FrontmanServer.Tasks do
     )
   end
 
-  defp keeps_turn_open_after_restart?(%Interaction.ToolCall{tool_name: "question"}), do: true
+  defp keeps_turn_open_after_restart?(%Interaction.ToolCall{
+         tool_name: "question",
+         execution_target: :mcp
+       }),
+       do: true
+
   defp keeps_turn_open_after_restart?(%Interaction.ToolCall{}), do: false
 
   @doc """
@@ -756,6 +779,10 @@ defmodule FrontmanServer.Tasks do
     with {:ok, task_schema} <- get_task(scope, task_id) do
       {type, attrs} = build_execution_outcome(outcome)
 
+      task_id
+      |> unresolved_tool_calls_for_turn(turn_number)
+      |> Enum.each(&interrupt_tool_call(scope, task_id, turn_number, &1, "Execution ended"))
+
       record_interaction(task_schema, type, attrs, turn_number)
     end
   end
@@ -800,12 +827,33 @@ defmodule FrontmanServer.Tasks do
      }}
   end
 
-  @doc "Records a client-handled tool request in the given turn."
-  def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
-      when is_integer(turn_number) and turn_number > 0 do
-    with {:ok, schema} <- get_task(scope, task_id),
-         {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data) do
-      record_interaction(schema, :tool_call, attrs, turn_number)
+  @doc "Starts a persisted tool attempt. Only a started MCP call may be dispatched to a client."
+  def start_tool_call(%Scope{} = scope, task_id, turn_number, tool_call_id, execution_target)
+      when is_integer(turn_number) and turn_number > 0 and
+             execution_target in [:backend, :mcp] do
+    with {:ok, _task} <- get_task(scope, task_id),
+         %InteractionSchema{data: %Interaction.ToolCall{arguments: arguments}} = row
+         when is_map(arguments) <-
+           InteractionSchema.for_task(task_id)
+           |> InteractionSchema.for_turn(turn_number)
+           |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
+           |> InteractionSchema.unresolved_tool_calls()
+           |> Repo.one(),
+         {:ok, updated} <-
+           row
+           |> Ecto.Changeset.change(data: %{row.data | execution_target: execution_target})
+           |> Repo.update() do
+      broadcast_task(task_id, {:tool_call_started, turn_number, updated.data})
+      {:ok, updated.data}
+    else
+      %InteractionSchema{data: %Interaction.ToolCall{arguments: nil}} ->
+        {:error, :invalid_tool_arguments}
+
+      nil ->
+        {:error, :not_pending}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -828,12 +876,12 @@ defmodule FrontmanServer.Tasks do
       )
       when is_list(opts) do
     with {:ok, schema} <- get_task(scope, task_id) do
-      turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
+      call = tool_call_row!(task_id, tool_call_id, opts)
       attrs = Interaction.ToolResult.attrs(tool_call_data, result)
 
       schema
-      |> record_interaction(:tool_result, attrs, turn_number)
-      |> resolve_recorded_tool_result(task_id, turn_number, tool_call_id)
+      |> record_interaction(:tool_result, attrs, call.turn_number)
+      |> resolve_recorded_tool_result(task_id, call.turn_number, tool_call_id)
     end
   end
 
@@ -869,21 +917,18 @@ defmodule FrontmanServer.Tasks do
     {:ok, interaction, Execution.notify_tool_result(task_id, interaction)}
   end
 
-  defp tool_result_turn_number(task_id, tool_call_id, opts) do
+  defp tool_call_row!(task_id, tool_call_id, opts) do
+    query =
+      InteractionSchema.for_task(task_id)
+      |> InteractionSchema.of_type(:tool_call)
+      |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
+
     case Keyword.fetch(opts, :turn_number) do
       {:ok, turn_number} when is_integer(turn_number) and turn_number > 0 ->
-        turn_number
+        query |> InteractionSchema.for_turn(turn_number) |> Repo.one!()
 
       :error ->
-        InteractionSchema.for_task(task_id)
-        |> InteractionSchema.of_type(:tool_call)
-        |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
-        |> Repo.one()
-        |> case do
-          %InteractionSchema{turn_number: turn_number}
-          when is_integer(turn_number) and turn_number > 0 ->
-            turn_number
-        end
+        Repo.one!(query)
     end
   end
 
@@ -902,15 +947,7 @@ defmodule FrontmanServer.Tasks do
           {:ok, :no_active_turn}
 
         turn_number ->
-          tool_calls =
-            InteractionSchema.for_task(task_id)
-            |> InteractionSchema.for_turn(turn_number)
-            |> InteractionSchema.unresolved_tool_calls()
-            |> InteractionSchema.ordered()
-            |> Repo.all()
-            |> Enum.map(& &1.data)
-
-          {:ok, turn_number, tool_calls}
+          {:ok, turn_number, unresolved_tool_calls_for_turn(task_id, turn_number)}
       end
     end
   end

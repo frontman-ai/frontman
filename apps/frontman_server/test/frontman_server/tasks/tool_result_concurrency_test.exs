@@ -70,6 +70,8 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
         task_id = task_fixture(scope).id
         turn_number = start_turn_fixture(scope, task_id)
         parent = self()
+        call = %SwarmAi.ToolCall{id: "call_dedup", name: "some_tool", arguments: "{}"}
+        {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [call])
 
         tasks =
           for result <- ["result1", "result2"] do
@@ -117,12 +119,15 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
   end
 
   defp start_executor(scope, task_id, turn_number, tool_call_id) do
+    call = %SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}
+    {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [call])
+
     Task.async(fn ->
       Sandbox.unboxed_run(Repo, fn ->
         ToolExecutor.execute(scope, %{
           task_id: task_id,
           turn_number: turn_number,
-          tool_calls: [%SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}],
+          tool_calls: [call],
           task_supervisor: SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
           backend_tool_modules: [],
           mcp_tool_defs: [mcp_tool_def()],

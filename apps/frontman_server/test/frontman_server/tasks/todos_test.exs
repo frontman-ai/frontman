@@ -49,7 +49,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         ]
       }
 
-      Tasks.resolve_tool_request(
+      tool_result_fixture(
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
@@ -95,7 +95,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         ]
       }
 
-      Tasks.resolve_tool_request(
+      tool_result_fixture(
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
@@ -103,7 +103,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      Tasks.resolve_tool_request(
+      tool_result_fixture(
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
@@ -139,7 +139,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         ]
       }
 
-      Tasks.resolve_tool_request(
+      tool_result_fixture(
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
@@ -147,7 +147,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      Tasks.resolve_tool_request(
+      tool_result_fixture(
         scope,
         task_id,
         %{id: "c2", name: "todo_write"},
@@ -166,7 +166,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
       scope: scope,
       turn_number: turn_number
     } do
-      Tasks.resolve_tool_request(
+      tool_result_fixture(
         scope,
         task_id,
         %{id: "c1", name: "todo_write"},
@@ -183,7 +183,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
       scope: scope,
       turn_number: turn_number
     } do
-      Tasks.resolve_tool_request(
+      tool_result_fixture(
         scope,
         task_id,
         %{id: "c1", name: "todo_add"},
@@ -191,7 +191,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         turn_number: turn_number
       )
 
-      Tasks.resolve_tool_request(
+      tool_result_fixture(
         scope,
         task_id,
         %{id: "c2", name: "todo_update"},
@@ -221,7 +221,7 @@ defmodule FrontmanServer.Tasks.TodosTest do
         "updated_at" => DateTime.to_iso8601(DateTime.utc_now())
       }
 
-      Tasks.resolve_tool_request(
+      tool_result_fixture(
         scope,
         task_id,
         %{id: "loaded-task", name: "todo_write"},

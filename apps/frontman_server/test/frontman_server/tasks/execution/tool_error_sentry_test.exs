@@ -44,6 +44,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
           })
         )
 
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tool_call])
+
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
       result =
@@ -89,6 +91,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     } do
       secret = "frontman-secret-1445"
       tool_call = swarm_tool_call("todo_write", ~s({"secret":"#{secret}"))
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tool_call])
 
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
@@ -135,6 +138,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       turn_number: turn_number
     } do
       tool_call = swarm_tool_call("todo_write", Jason.encode!(%{"todos" => []}))
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tool_call])
 
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
@@ -166,6 +170,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     } do
       secret = "frontman-mcp-secret-1445"
       tool_call = swarm_tool_call("take_screenshot", ~s(["#{secret}"]))
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tool_call])
 
       assert :ok = ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tool_call)
       assert_receive {:tool_result, _, [%{text: "Failed to parse arguments for tool"}], true}
@@ -185,6 +190,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       turn_number: turn_number
     } do
       tc = %SwarmAi.ToolCall{id: "tc-deadline-1", name: "todo_write", arguments: "{}"}
+      {:ok, _} = declare_tool_calls_fixture(scope, task_id, turn_number, [tc])
       ToolExecutor.handle_timeout(scope, task_id, turn_number, :error, tc, :triggered)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
