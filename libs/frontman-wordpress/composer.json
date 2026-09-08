@@ -1,0 +1,14 @@
+{
+  "name": "frontman-ai/wordpress-diagnostics",
+  "description": "Private Sentry runtime bundled with the Frontman WordPress plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=7.4",
+    "sentry/sentry": "^4.0"
+  },
+  "config": {
+    "platform": { "php": "7.4.33" },
+    "allow-plugins": false,
+    "sort-packages": true
+  }
+}

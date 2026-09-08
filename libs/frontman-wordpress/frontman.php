@@ -51,6 +51,7 @@ define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-auth.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-plugin-dependencies.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
+require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
 
@@ -98,6 +99,7 @@ function frontman_init(): void {
 
 	$router->register();
 	$ui->register();
+	Frontman_Sentry::register();
 }
 add_action( 'init', 'frontman_init' );
 

@@ -106,7 +106,7 @@ HELP_infra-down := Tear down all pods, volumes, and Caddy
 HELP_infra-build := Rebuild the frontman-dev container image
 
 HELP_REL_TITLE := Release
-HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn test-wordpress-core-tools test-wordpress-runtime
+HELP_REL_TARGETS := publish publish-astro publish-vite publish-nextjs publish-react-statestore publish-swarm-ai release package-wordpress-plugin publish-wordpress-plugin-svn build-wordpress-dependencies wordpress-composer-lock test-wordpress-core-tools test-wordpress-sentry test-wordpress-runtime
 HELP_publish := Publish all npm packages (pass OTP=<code> for 2FA)
 HELP_publish-astro := Publish @frontman-ai/astro to npm (pass OTP=<code> for 2FA)
 HELP_publish-vite := Publish @frontman-ai/vite to npm (pass OTP=<code> for 2FA)
@@ -118,6 +118,9 @@ HELP_package-wordpress-plugin := Build WordPress ZIP and WordPress.org bundle
 HELP_publish-wordpress-plugin-svn := Publish WordPress.org bundle to SVN (requires WORDPRESS_ORG_* env vars)
 HELP_test-wordpress-core-tools := Run PHP tests for WordPress tool implementations
 HELP_test-wordpress-runtime := Run plugin integration tests in WordPress containers
+HELP_build-wordpress-dependencies := Bundle the locked PHP SDK (Docker, or CONTAINER_RUNTIME=podman)
+HELP_wordpress-composer-lock := Update PHP dependencies while preserving PHP 7.4 compatibility
+HELP_test-wordpress-sentry := Test PHP diagnostics and SDK coexistence (PHP_VERSION=7.4 or 8.4)
 
 HELP_E2E_TITLE := E2E Tests
 HELP_E2E_TARGETS := e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start
@@ -549,13 +552,24 @@ release:
 	@printf "$(GREEN)Release workflow triggered.$(RESET)\n"
 	@echo "Watch for the PR at: https://github.com/frontman-ai/frontman/pulls"
 
+.PHONY: build-wordpress-dependencies wordpress-composer-lock test-wordpress-sentry
+
+build-wordpress-dependencies:
+	@bash ./scripts/build-wordpress-dependencies.sh
+
+wordpress-composer-lock:
+	@bash ./scripts/build-wordpress-dependencies.sh --update-lock
+
+test-wordpress-sentry: build-wordpress-dependencies
+	@$(or $(CONTAINER_RUNTIME),docker) run --rm -v "$(CURDIR):/workspace:ro" -w /workspace docker.io/library/php:$(or $(PHP_VERSION),8.4)-cli sh -ec 'for order in --frontman-first --site-first; do php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryTest.php "$$order"; done; php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryUnavailableTest.php'
+
 package-wordpress-plugin:
 	@VERSION=$(VERSION) bash ./scripts/package-wordpress-plugin.sh
 
 publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
-test-wordpress-core-tools:
+test-wordpress-core-tools: build-wordpress-dependencies
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ElementorToolsTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/MediaToolsTest.php
@@ -564,6 +578,8 @@ test-wordpress-core-tools:
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PluginDependenciesTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SeoToolsTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/RouterTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryTest.php
+	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryUnavailableTest.php
 
 test-wordpress-runtime:
 	@bash scripts/test-wordpress-plugin-runtime.sh
