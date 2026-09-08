@@ -17,7 +17,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
 
   def run_instant(tool_call), do: ToolResult.make(tool_call.id, "OK", false)
   def run_crash(_tool_call), do: raise("boom")
-  def noop_timeout(_tool_call, _reason), do: :ok
+  defdelegate noop_timeout(tc, reason), to: SwarmAi.Testing, as: :default_tool_timeout
 
   def run_serial_gate(test_pid, tool_call) do
     send(test_pid, {:serial_started, tool_call.name, self()})

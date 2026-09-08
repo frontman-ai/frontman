@@ -8,7 +8,7 @@ defmodule SwarmAiTest do
     ToolResult.make(tool_call.id, "never", false)
   end
 
-  def noop_timeout(_tool_call, _reason), do: :ok
+  defdelegate noop_timeout(tc, reason), to: SwarmAi.Testing, as: :default_tool_timeout
 
   describe "run/2" do
     test "remains running while dispatching the terminal event" do

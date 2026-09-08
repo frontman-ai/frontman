@@ -158,8 +158,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
     Logger.error("Backend tool timeout", metadata)
 
-    persist_error_tool_result(scope, task_id, turn_number, tool_call, timeout_msg)
-    :ok
+    result = persist_error_tool_result(scope, task_id, turn_number, tool_call, timeout_msg)
+    to_swarm_tool_result(tool_call, result)
   end
 
   def handle_timeout(%Scope{} = scope, task_id, turn_number, :error, tool_call, :cancelled)

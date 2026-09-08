@@ -9,6 +9,9 @@ defmodule SwarmAi.ParallelExecutor do
   - `Await` executions call their start MFA in PE's own process, then wait
     for `{:tool_result, tool_call_id, content, is_error}` in PE's receive loop.
 
+  Timeout callbacks return `ToolResult.t()` for triggered `:error` deadlines;
+  return values for pauses and sibling cancellations are ignored.
+
   ## Return values
 
   - `{:ok, [ToolResult.t()]}` — all tools completed; results in original call order
@@ -151,7 +154,7 @@ defmodule SwarmAi.ParallelExecutor do
 
     {mod, fun, args} = exec.on_timeout
 
-    apply(mod, fun, args ++ [exec.tool_call, :triggered])
+    error_result = apply(mod, fun, args ++ [exec.tool_call, :triggered])
 
     awaiting =
       case kind do
@@ -171,13 +174,6 @@ defmodule SwarmAi.ParallelExecutor do
 
     case exec.on_timeout_policy do
       :error ->
-        error_result =
-          ToolResult.make(
-            exec.tool_call.id,
-            "Tool timed out after #{exec.timeout_ms}ms",
-            true
-          )
-
         collect_results(
           Map.delete(pending, ref),
           awaiting,
