@@ -143,6 +143,7 @@ class Frontman_Tool_Options {
 				'additionalProperties' => false,
 				'properties'           => [
 					'stylesheet' => [ 'type' => 'string', 'description' => 'Optional theme stylesheet slug. Defaults to the active stylesheet.' ],
+					'source'     => [ 'type' => 'string', 'enum' => [ 'rendered', 'persisted' ], 'description' => 'Defaults to rendered. Use persisted before exact-text editing; its css matches persisted_css_sha256.' ],
 				],
 			],
 			[ $this, 'get_custom_css' ]
@@ -208,16 +209,22 @@ class Frontman_Tool_Options {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_custom_css',
-			'Updates WordPress Additional CSS for the active theme and returns before/after CSS. Use only after inspecting the current CSS; requires confirm=true because it changes site-wide persistent styling.',
+			'Updates WordPress Additional CSS for the active theme. Default mode=replace accepts complete css and returns before/after CSS. For small changes, read wp_get_custom_css with source=persisted, then use mode=edit with oldText/newText and the returned scope and fingerprint. Matching is exact, not fuzzy. Insert by replacing an anchor with anchor plus new text; delete with empty newText. Edit returns compact observed metadata. Requires confirm=true after user approval. Conflict detection is best-effort, not atomic. Never retry automatically after a lost response.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
 				'properties'           => [
-					'css'        => [ 'type' => 'string', 'description' => 'Complete replacement Additional CSS contents for the active theme.' ],
-					'stylesheet' => [ 'type' => 'string', 'description' => 'Optional theme stylesheet slug. If provided, it must match the active stylesheet.' ],
+					'mode'       => [ 'type' => 'string', 'enum' => [ 'replace', 'edit' ], 'description' => 'Defaults to replace. Edit requires oldText, newText, stylesheet, parent_post_id, and expected_current_sha256; css is not allowed.' ],
+					'css'        => [ 'type' => 'string', 'description' => 'Required in replace mode: complete replacement Additional CSS contents.' ],
+					'oldText'    => [ 'type' => 'string', 'description' => 'Edit only: nonempty exact text to replace. Must match once unless replaceAll=true.' ],
+					'newText'    => [ 'type' => 'string', 'description' => 'Edit only: literal replacement text, different from oldText. Empty string deletes.' ],
+					'replaceAll' => [ 'type' => 'boolean', 'description' => 'Edit only: replace all non-overlapping exact occurrences. Defaults to false.' ],
+					'parent_post_id' => [ 'type' => 'integer', 'description' => 'Edit only: current Custom CSS post ID from wp_get_custom_css.' ],
+					'expected_current_sha256' => [ 'type' => 'string', 'pattern' => '^[a-f0-9]{64}$', 'description' => 'Edit only: persisted_css_sha256 from the prior read. Best-effort conflict detection, not an atomic lock.' ],
+					'stylesheet' => [ 'type' => 'string', 'description' => 'Theme stylesheet slug. Required in edit mode, optional in replace mode. Must match the active stylesheet.' ],
 					'confirm'    => [ 'type' => 'boolean', 'description' => 'Must be true after the user approves changing persistent site CSS.' ],
 				],
-				'required'             => [ 'css', 'confirm' ],
+				'required'             => [ 'confirm' ],
 			],
 			[ $this, 'update_custom_css' ]
 		) );
@@ -335,6 +342,10 @@ class Frontman_Tool_Options {
 			throw new Frontman_Tool_Error( 'WordPress custom CSS API is unavailable.' );
 		}
 
+		$source = array_key_exists( 'source', $input ) ? $input['source'] : 'rendered';
+		if ( ! in_array( $source, [ 'rendered', 'persisted' ], true ) ) {
+			throw new Frontman_Tool_Error( 'source must be rendered or persisted.' );
+		}
 		$stylesheet   = $this->stylesheet_from_input( $input, false );
 		$post         = wp_get_custom_css_post( $stylesheet );
 		if ( null !== $post ) {
@@ -344,7 +355,7 @@ class Frontman_Tool_Options {
 
 		return [
 			'stylesheet'                  => $stylesheet,
-			'css'                         => wp_get_custom_css( $stylesheet ),
+			'css'                         => 'persisted' === $source ? $persisted_css : wp_get_custom_css( $stylesheet ),
 			'parent_post_id'              => null === $post ? null : (int) $post->ID,
 			'persisted_css_bytes'         => strlen( $persisted_css ),
 			'persisted_css_sha256'        => hash( 'sha256', $persisted_css ),
@@ -452,6 +463,18 @@ class Frontman_Tool_Options {
 			throw new Frontman_Tool_Error( 'WordPress custom CSS API is unavailable.' );
 		}
 
+		$mode = array_key_exists( 'mode', $input ) ? $input['mode'] : 'replace';
+		if ( ! in_array( $mode, [ 'replace', 'edit' ], true ) ) {
+			throw new Frontman_Tool_Error( 'mode must be replace or edit.' );
+		}
+		if ( 'edit' === $mode ) {
+			return $this->edit_custom_css( $input );
+		}
+		foreach ( [ 'oldText', 'newText', 'replaceAll', 'parent_post_id', 'expected_current_sha256' ] as $field ) {
+			if ( array_key_exists( $field, $input ) ) {
+				throw new Frontman_Tool_Error( "{$field} is only allowed in edit mode." );
+			}
+		}
 		if ( ! array_key_exists( 'css', $input ) || ! is_string( $input['css'] ) ) {
 			throw new Frontman_Tool_Error( 'css is required and must be a string.' );
 		}
@@ -470,6 +493,69 @@ class Frontman_Tool_Options {
 			'stylesheet' => $stylesheet,
 			'before'     => $before,
 			'after'      => wp_get_custom_css( $stylesheet ),
+		];
+	}
+
+	private function edit_custom_css( array $input ): array {
+		if ( array_key_exists( 'css', $input ) ) {
+			throw new Frontman_Tool_Error( 'css is not allowed in edit mode.' );
+		}
+		foreach ( [ 'oldText', 'newText' ] as $field ) {
+			if ( ! array_key_exists( $field, $input ) || ! is_string( $input[ $field ] ) ) {
+				throw new Frontman_Tool_Error( "{$field} is required and must be a string." );
+			}
+		}
+		if ( '' === $input['oldText'] || $input['oldText'] === $input['newText'] ) {
+			throw new Frontman_Tool_Error( 'oldText must be nonempty and different from newText.' );
+		}
+		$replace_all = array_key_exists( 'replaceAll', $input ) ? $input['replaceAll'] : false;
+		if ( ! is_bool( $replace_all ) ) {
+			throw new Frontman_Tool_Error( 'replaceAll must be a boolean.' );
+		}
+		if ( ! function_exists( 'clean_post_cache' ) || ! function_exists( 'get_post' ) ) {
+			throw new Frontman_Tool_Error( 'WordPress post API is unavailable.' );
+		}
+		[ $stylesheet, $post ] = $this->custom_css_post_from_expected_scope( $input, 'wp_update_custom_css' );
+		$before = $this->custom_css_post_metadata( $post );
+		$expected_hash = $input['expected_current_sha256'] ?? null;
+		if ( ! is_string( $expected_hash ) || 1 !== preg_match( '/\A[a-f0-9]{64}\z/', $expected_hash ) ) {
+			throw new Frontman_Tool_Error( 'expected_current_sha256 must be a lowercase SHA-256 fingerprint.' );
+		}
+		if ( $expected_hash !== $before['persisted_css_sha256'] ) {
+			throw new Frontman_Tool_Error( 'Current Additional CSS changed after inspection. Read current state again before editing.' );
+		}
+		if ( $before['preprocessor_source_present'] ) {
+			throw new Frontman_Tool_Error( 'Custom CSS editing does not support preprocessor-backed CSS.' );
+		}
+		$current = (string) $post->post_content;
+		$first = strpos( $current, $input['oldText'] );
+		if ( false === $first ) {
+			throw new Frontman_Tool_Error( 'oldText not found. Read wp_get_custom_css with source=persisted and copy exact text.' );
+		}
+		if ( ! $replace_all && $first !== strrpos( $current, $input['oldText'] ) ) {
+			throw new Frontman_Tool_Error( 'Multiple matches for oldText. Provide more context or use replaceAll=true.' );
+		}
+		$css = str_replace( $input['oldText'], $input['newText'], $current, $replacements );
+		$saved = wp_update_custom_css_post( $css, [ 'stylesheet' => $stylesheet ] );
+		if ( is_wp_error( $saved ) ) {
+			throw new Frontman_Tool_Error( $saved->get_error_message() );
+		}
+		clean_post_cache( $post->ID );
+		$observed = get_post( $post->ID );
+		if ( ! $saved || (int) $saved->ID !== (int) $post->ID || null === $observed || ! $this->is_custom_css_post_in_scope( $observed, $stylesheet ) ) {
+			throw new Frontman_Tool_Error( 'Custom CSS edit outcome is ambiguous. Read current state and do not retry automatically.' );
+		}
+		$after = $this->custom_css_post_metadata( $observed );
+		if ( $after['preprocessor_source_present'] ) {
+			throw new Frontman_Tool_Error( 'Custom CSS edit produced unsupported preprocessor state. Read current state and do not retry automatically.' );
+		}
+		return [
+			'updated'        => true,
+			'stylesheet'     => $stylesheet,
+			'parent_post_id' => (int) $post->ID,
+			'replacements'   => $replacements,
+			'before'         => $before,
+			'after'          => $after,
 		];
 	}
 

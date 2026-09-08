@@ -1323,6 +1323,79 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$registry_payload = json_decode( $registry_result['content'][0]['text'], true );
 		$this->assert_same( $registry_css, $registry_payload['after'], 'wp_update_custom_css preserves CSS through registry sanitization' );
 
+		$original = str_repeat( "/* unchanged padding */\r\n", 900 ) . '.target { color: red; }' . "\n" . $registry_css;
+		wp_update_custom_css_post( $original );
+		$GLOBALS['frontman_test_custom_css']['frontman-theme'] = '/* rendered filter output */';
+		$this->assert_same( '/* rendered filter output */', $tool->get_custom_css( [] )['css'], 'Default CSS reads preserve rendered output' );
+		$read = $tool->get_custom_css( [ 'source' => 'persisted' ] );
+		$this->assert_same( $original, $read['css'], 'Persisted CSS reads match fingerprint source' );
+		$edit = [
+			'mode' => 'edit', 'stylesheet' => $read['stylesheet'], 'parent_post_id' => $read['parent_post_id'],
+			'expected_current_sha256' => $read['persisted_css_sha256'], 'confirm' => true,
+			'oldText' => '.target { color: red; }', 'newText' => ".target {\n  color: blue;\n}",
+		];
+		$call_edit = static function( array $input ) use ( $registry ): array {
+			return $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', $input ) );
+		};
+		foreach ( [
+			[ [ 'mode' => 'append' ], 'mode must' ],
+			[ [ 'mode' => null ], 'mode must' ],
+			[ [ 'mode' => 'replace' ], 'only allowed' ],
+			[ [ 'css' => '' ], 'not allowed' ],
+			[ [ 'oldText' => '' ], 'nonempty' ],
+			[ [ 'newText' => $edit['oldText'] ], 'different' ],
+			[ [ 'oldText' => 'not present' ], 'not found' ],
+			[ [ 'oldText' => '/* unchanged padding */' ], 'Multiple matches' ],
+			[ [ 'oldText' => [] ], 'must be a string' ],
+			[ [ 'newText' => 42 ], 'must be a string' ],
+			[ [ 'replaceAll' => 'true' ], 'must be a boolean' ],
+			[ [ 'replaceAll' => null ], 'must be a boolean' ],
+			[ [ 'confirm' => 'true' ], 'confirm=true' ],
+			[ [ 'confirm' => false ], 'confirm=true' ],
+			[ [ 'parent_post_id' => '9001junk' ], 'positive integer' ],
+			[ [ 'parent_post_id' => 9999 ], 'does not match' ],
+			[ [ 'stylesheet' => 'inactive-theme' ], 'active stylesheet' ],
+			[ [ 'expected_current_sha256' => 'bad' ], 'SHA-256' ],
+			[ [ 'expected_current_sha256' => hash( 'sha256', 'stale' ) ], 'changed' ],
+		] as [ $overrides, $error ] ) {
+			$this->assert_tool_error_result_contains( $call_edit( array_merge( $edit, $overrides ) ), $error, 'CSS edit rejects ' . json_encode( $overrides ) );
+			$this->assert_same( $original, $tool->get_custom_css( [ 'source' => 'persisted' ] )['css'], 'Rejected edit leaves persisted CSS unchanged' );
+		}
+		foreach ( [ 'oldText', 'newText', 'stylesheet', 'parent_post_id', 'expected_current_sha256', 'confirm' ] as $field ) {
+			$missing = $edit;
+			unset( $missing[$field] );
+			$this->assert_same( true, $call_edit( $missing )['isError'], 'CSS edit requires ' . $field );
+		}
+		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme']->post_content_filtered = 'source';
+		$this->assert_tool_error_result_contains( $call_edit( $edit ), 'preprocessor', 'CSS edit rejects preprocessor state' );
+		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme']->post_content_filtered = '';
+		$result = $call_edit( $edit );
+		$this->assert_same( false, $result['isError'], 'Exact CSS edit succeeds through registry' );
+		$receipt = json_decode( $result['content'][0]['text'], true );
+		$expected = str_replace( $edit['oldText'], $edit['newText'], $original );
+		$this->assert_same( $expected, $tool->get_custom_css( [ 'source' => 'persisted' ] )['css'], 'Small edit preserves all other bytes in a 20KB stylesheet' );
+		$this->assert_same( 1, $receipt['replacements'], 'Edit receipt reports replacement count' );
+		$this->assert_same( hash( 'sha256', $expected ), $receipt['after']['persisted_css_sha256'], 'Edit receipt fingerprints persisted output' );
+		$this->assert_same( strlen( $expected ), $receipt['after']['persisted_css_bytes'], 'Edit receipt counts persisted bytes' );
+		$this->assert_true( strlen( $result['content'][0]['text'] ) < 1000, 'Edit receipt does not echo stylesheet' );
+		$this->assert_tool_error_result_contains( $call_edit( $edit ), 'changed', 'Replaying successful edit with old fingerprint fails' );
+		foreach ( [
+			[ 'oldText' => $registry_css, 'newText' => $registry_css . "\n" . '.inserted::after { content: "\\31 $1 $$ \\path"; }' ],
+			[ 'oldText' => '.inserted::after { content: "\\31 $1 $$ \\path"; }', 'newText' => '' ],
+			[ 'oldText' => 'unchanged padding', 'newText' => 'literal $1 \\replacement', 'replaceAll' => true ],
+		] as $change ) {
+			$input = array_merge( $edit, $change, [ 'expected_current_sha256' => hash( 'sha256', $expected ) ] );
+			$result = $call_edit( $input );
+			$this->assert_same( false, $result['isError'], 'Insertion, deletion and replaceAll succeed' );
+			$expected = str_replace( $input['oldText'], $input['newText'], $expected, $count );
+			$receipt = json_decode( $result['content'][0]['text'], true );
+			$this->assert_same( $count, $receipt['replacements'], 'Exact occurrence count is reported' );
+			$this->assert_same( $expected, $tool->get_custom_css( [ 'source' => 'persisted' ] )['css'], 'Replacement strings stay literal through registry' );
+		}
+		foreach ( [ null, [], 'invalid' ] as $source ) {
+			$this->assert_tool_error_result_contains( $registry->call( 'wp_get_custom_css', $registry->sanitize_input( 'wp_get_custom_css', [ 'source' => $source ] ) ), 'source must', 'CSS read rejects invalid source' );
+		}
+
 		$mods = $tool->list_theme_mods( [] );
 		$this->assert_same( 'https://example.com/header.jpg', $mods['mods']['header_image'], 'wp_list_theme_mods exposes theme header source state' );
 
