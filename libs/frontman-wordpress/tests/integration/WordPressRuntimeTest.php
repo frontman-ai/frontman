@@ -333,6 +333,54 @@ foreach ( [ 1, 2 ] as $position ) {
 $widget_call( 'wp_delete_widget', [ 'widget_id' => $text_input['widget_id'], 'confirm' => false ], true );
 $deleted_widget = $widget_call( 'wp_delete_widget', [ 'widget_id' => $text_input['widget_id'], 'confirm' => true ] );
 frontman_runtime_assert( $text_input['widget_id'] === $deleted_widget['widget_id'] && 'New Footer' === $deleted_widget['before']['widget']['settings']['title'] && 2 === $deleted_widget['after']['widget_count'], 'Widget deletion snapshot or placement changed.' );
+frontman_runtime_assert( is_plugin_active( 'megamenu/megamenu.php' ), 'Max Mega Menu must be active for widget integration coverage.' );
+register_nav_menu( 'frontman-mega', 'Runtime mega menu' );
+$mega_menu = wp_create_nav_menu( 'Runtime mega menu' );
+frontman_runtime_assert( ! is_wp_error( $mega_menu ), 'Could not create mega menu fixture.' );
+$mega_locations = get_theme_mod( 'nav_menu_locations', [] );
+$mega_settings = get_option( 'megamenu_settings', [] );
+set_theme_mod( 'nav_menu_locations', array_merge( $mega_locations, [ 'frontman-mega' => $mega_menu ] ) );
+update_option( 'megamenu_settings', array_merge( $mega_settings, [ 'frontman-mega' => [ 'enabled' => '1' ] ] ) );
+$mega_manager = new Mega_Menu_Widget_Manager();
+foreach ( [ 'megamenu', 'grid' ] as $layout ) {
+	$mega_parent = wp_update_nav_menu_item( $mega_menu, 0, [ 'menu-item-title' => $layout, 'menu-item-url' => home_url( '/' ), 'menu-item-status' => 'publish' ] );
+	frontman_runtime_assert( ! is_wp_error( $mega_parent ), 'Could not create mega menu parent.' );
+	$mega_widgets = (array) $mega_manager->get_mega_menu_sidebar_widgets();
+	$mega_manager->add_widget( 'custom_html', $mega_parent, 'Custom HTML', 'grid' === $layout );
+	$mega_added = array_values( array_diff( $mega_manager->get_mega_menu_sidebar_widgets(), $mega_widgets ) );
+	frontman_runtime_assert( 1 === count( $mega_added ), 'Max Mega Menu did not create exactly one widget.' );
+	$mega_widget_id = $mega_added[0];
+	$mega_meta = [ 'type' => $layout ];
+	if ( 'grid' === $layout ) {
+		$mega_meta['grid'] = [ [ 'columns' => [ [ 'meta' => [ 'span' => 12 ], 'items' => [ [ 'id' => $mega_widget_id, 'type' => 'widget' ] ] ] ] ] ];
+	}
+	update_post_meta( $mega_parent, '_megamenu', $mega_meta );
+	$GLOBALS['wp_widget_factory']->widgets['WP_Widget_Custom_HTML']->_register();
+	$mega_before = $widget_call( 'wp_read_widget', [ 'widget_id' => $mega_widget_id ] );
+	$mega_input = [ 'sidebar_id' => $mega_before['sidebar_id'], 'widget_id' => $mega_widget_id ];
+	$mega_placement = get_option( 'sidebars_widgets' );
+	$mega_expected = $mega_before['settings'];
+	foreach ( [ [ 'title' => 'Original ' . $layout, 'content' => '<a href="/old-' . $layout . '">Old link</a>' ], [ 'title' => 'Resources ' . $layout ], [ 'content' => '<a class="blog" href="/category/blog-' . $layout . '/">Reader\'s 日本 Blog</a>' ] ] as $patch ) {
+		$mega_siblings = get_option( 'widget_custom_html' );
+		$mega_updated = $widget_call( 'wp_update_widget', $mega_input + [ 'settings' => wp_json_encode( $patch ) ] );
+		frontman_runtime_assert( $mega_expected === $mega_updated['before'], 'Mega menu update lost its before snapshot.' );
+		$mega_expected = array_merge( $mega_expected, $patch );
+		$mega_read = $widget_call( 'wp_read_widget', [ 'widget_id' => $mega_widget_id ] );
+		frontman_runtime_assert( $mega_expected === $mega_updated['settings'] && $mega_expected === $mega_read['settings'], 'Mega menu update changed omitted content or plugin metadata.' );
+		$mega_siblings[ $mega_manager->get_widget_number_for_widget_id( $mega_widget_id ) ] = $mega_expected;
+		frontman_runtime_assert( $mega_siblings === get_option( 'widget_custom_html' ) && $mega_placement === get_option( 'sidebars_widgets' ) && $mega_meta === get_post_meta( $mega_parent, '_megamenu', true ), 'Mega menu update changed sibling widgets or placement.' );
+		$mega_rendered = wp_nav_menu( [ 'theme_location' => 'frontman-mega', 'echo' => false ] );
+		frontman_runtime_assert( false !== strpos( $mega_rendered, 'max-mega-menu' ) && 1 === substr_count( $mega_rendered, $mega_expected['content'] ) && false !== strpos( $mega_rendered, $mega_expected['title'] ), 'Max Mega Menu did not render the saved widget exactly once.' );
+		if ( isset( $patch['content'] ) && false !== strpos( $patch['content'], '/category/' ) ) {
+			frontman_runtime_assert( false === strpos( $mega_rendered, '/old-' . $layout ), 'Max Mega Menu still rendered stale widget content.' );
+		}
+	}
+}
+fwrite( STDOUT, 'Max Mega Menu ' . get_plugin_data( WP_PLUGIN_DIR . '/megamenu/megamenu.php', false, false )['Version'] . " standard/grid widget updates and rendering passed.\n" );
+wp_delete_nav_menu( $mega_menu );
+set_theme_mod( 'nav_menu_locations', $mega_locations );
+update_option( 'megamenu_settings', $mega_settings );
+unregister_nav_menu( 'frontman-mega' );
 update_option( 'sidebars_widgets', $widget_sidebars );
 wp_set_current_user( 0 );
 
