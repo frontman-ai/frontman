@@ -46,7 +46,7 @@ active_execution_count() {
     source "${DEPLOY_ROOT}/${ACTIVE_SLOT}/env"
     set +a
     "${DEPLOY_ROOT}/${ACTIVE_SLOT}/current/bin/${APP_NAME}" rpc \
-      "SwarmAi.active_count(FrontmanServer.AgentRuntime)" 2>&1
+      "IO.puts(SwarmAi.active_count(FrontmanServer.AgentRuntime))" 2>&1
   ); then
     echo "  WARNING: Could not read active execution count from ${ACTIVE_SLOT}: ${output}" >&2
     return 1
