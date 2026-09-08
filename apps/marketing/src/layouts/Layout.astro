@@ -1,5 +1,6 @@
 ---
 import NavigationBar from '../components/ui/NavigationBar.astro'
+import BlogViewTransitions from '../components/ui/blog/BlogViewTransitions.astro'
 import Main from '../components/ui/Main.astro'
 import Footer from '../components/ui/Footer.astro'
 import Header from '../components/blocks/head/Header.astro'
@@ -48,6 +49,7 @@ const {
 <html lang="en" class="relative">
 	<head>
 		<meta charset="UTF-8" />
+		{Astro.url.pathname.startsWith('/blog/') && <BlogViewTransitions />}
 		<Header title={title} description={description} ogImage={ogImage} ogImageWidth={ogImageWidth} ogImageHeight={ogImageHeight} ogImageAlt={ogImageAlt} canonical={canonical} noindex={noindex} article={article} breadcrumbs={breadcrumbs} />
 	</head>
 	<body class:list={[{ [`${classes}`]: classes }]}>

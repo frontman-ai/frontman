@@ -5,6 +5,7 @@ import Row from '../../../components/ui/Row.astro'
 import Col from '../../../components/ui/Col.astro'
 import Badge from '../../../components/ui/Badge.astro'
 import Breadcrumbs from '../../../components/ui/Breadcrumbs.astro'
+import { blogTransitionName } from '../../../utils/blogTransitionName'
 
 type Props = {
 	tags?: any
@@ -31,7 +32,7 @@ const updatedDateISO = updatedDate ? updatedDate.toISOString() : undefined
 		<Col span="12" align="center">
 			<header class="post-header">
 				<Breadcrumbs classes="mb-6" />
-				<h1 class="post-header__title">
+				<h1 class="post-header__title" style={{ viewTransitionName: blogTransitionName(Astro.url.pathname) }}>
 					{title}
 				</h1>
 			{
