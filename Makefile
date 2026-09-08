@@ -566,6 +566,10 @@ test-wordpress-sentry: build-wordpress-dependencies
 package-wordpress-plugin:
 	@VERSION=$(VERSION) bash ./scripts/package-wordpress-plugin.sh
 
+.PHONY: test-wordpress-plugin-export
+test-wordpress-plugin-export: package-wordpress-plugin
+	@bash ./scripts/test-wordpress-plugin-export.sh
+
 publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 

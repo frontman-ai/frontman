@@ -44,4 +44,9 @@ rm -rf "$SCOPED"
     rm vendor/scoper-autoload.php
   '
 mkdir -p "$PLUGIN/vendor"
-rsync -a --delete "$SCOPED/vendor/" "$PLUGIN/vendor/"
+rsync -a --delete --delete-excluded \
+  --exclude 'docs/' --exclude 'scripts/' \
+  --exclude 'README.md' --exclude 'CONTRIBUTING.md' \
+  --exclude 'UPGRADE*.md' --exclude 'UPGRADING.md' \
+  --exclude 'AGENTS.md' --exclude 'CLAUDE.md' --exclude '*.toml' \
+  "$SCOPED/vendor/" "$PLUGIN/vendor/"
