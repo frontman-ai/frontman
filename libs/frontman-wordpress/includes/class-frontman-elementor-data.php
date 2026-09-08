@@ -239,14 +239,26 @@ class Frontman_Elementor_Data {
     }
 
     public static function save_rollback( int $post_id, array $rollback ): array {
+        $rollback_id = (string) ( $rollback['rollback_id'] ?? '' );
+        if ( '' === $rollback_id ) {
+            throw new Frontman_Tool_Error( 'Elementor rollback snapshot requires a nonempty rollback ID. Elementor content was not saved.' );
+        }
+
         $rollbacks = self::get_rollbacks( $post_id );
         array_unshift( $rollbacks, $rollback );
         $rollbacks = array_slice( $rollbacks, 0, self::MAX_ROLLBACKS );
-        update_post_meta( $post_id, self::ROLLBACK_META_KEY, function_exists( 'wp_slash' ) ? wp_slash( $rollbacks ) : $rollbacks );
+        $json = wp_json_encode( $rollbacks, JSON_PRESERVE_ZERO_FRACTION );
+        if ( false === $json || json_decode( $json, true ) !== $rollbacks ) {
+            throw new Frontman_Tool_Error( 'Could not encode Elementor rollback snapshot without changing its contents. Elementor content was not saved.' );
+        }
 
-        $rollback_id = (string) ( $rollback['rollback_id'] ?? '' );
-        if ( '' === $rollback_id || ! self::rollback_exists( self::get_rollbacks( $post_id ), $rollback_id ) ) {
-            throw new Frontman_Tool_Error( 'Failed to persist Elementor rollback snapshot.' );
+        $written = update_post_meta( $post_id, self::ROLLBACK_META_KEY, wp_slash( $json ) );
+        if ( self::get_rollbacks( $post_id ) !== $rollbacks ) {
+            throw new Frontman_Tool_Error(
+                false === $written
+                    ? 'WordPress did not persist the Elementor rollback snapshot. Elementor content was not saved.'
+                    : 'Elementor rollback snapshot readback did not match. Elementor content was not saved.'
+            );
         }
 
         return $rollback;
@@ -587,16 +599,6 @@ class Frontman_Elementor_Data {
         }
 
         return $response;
-    }
-
-    private static function rollback_exists( array $rollbacks, string $rollback_id ): bool {
-        foreach ( $rollbacks as $rollback ) {
-            if ( $rollback_id === (string) ( $rollback['rollback_id'] ?? '' ) ) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static function is_element_list( array $elements ): bool {
