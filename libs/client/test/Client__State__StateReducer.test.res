@@ -12,12 +12,6 @@ module UserMessageId = Client__Message.UserMessageId
 let testUserMessageId = UserMessageId.make()
 let secondTestUserMessageId = UserMessageId.make()
 
-type domParser
-@new external makeDomParser: unit => domParser = "DOMParser"
-@send
-external parseHtml: (domParser, string, @as("text/html") _) => WebAPI.DomTypes.document =
-  "parseFromString"
-
 @schema
 type pageRoutingMeta = {astro_client_routing: option<string>}
 
@@ -30,8 +24,9 @@ module TestHelpers = {
   let activeAcpSession = (
     ~deleteSession=(_, ~onComplete as _) => (),
     ~requireAuthentication=() => (),
+    ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   ): Client__State__Types.acpSession => AcpSessionActive({
-    sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+    sendPrompt,
     sendSessionCommand: _ => (),
     loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
     deleteSession,
@@ -1818,8 +1813,14 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
   test("SendMessage includes fresh routing metadata only for Astro previews", t => {
     let enabledDocument =
-      makeDomParser()->parseHtml("<meta name=\"astro-view-transitions-enabled\" content=\"true\">")
-    let disabledDocument = makeDomParser()->parseHtml("<title>No client router</title>")
+      WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
+        ~title="",
+      )
+    enabledDocument.head.innerHTML = "<meta name=\"astro-view-transitions-enabled\" content=\"true\">"
+    let disabledDocument =
+      WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
+        ~title="",
+      )
     [
       ("astro", Some(enabledDocument), Some("enabled")),
       ("astro", Some(disabledDocument), Some("disabled")),
@@ -1844,15 +1845,10 @@ describe("Client State Reducer - Annotations on Messages", () => {
         )
         let state = {
           ...state,
-          acpSession: AcpSessionActive({
-            sendPrompt: (_, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
+          acpSession: TestHelpers.activeAcpSession(
+            ~sendPrompt=(_, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
               sentBlocks := additionalBlocks,
-            sendSessionCommand: _ => (),
-            loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-            deleteSession: (_, ~onComplete as _) => (),
-            requireAuthentication: () => (),
-            apiBaseUrl: "http://localhost:4000",
-          }),
+          ),
         }
         let (state, effects) = Reducer.next(
           state,

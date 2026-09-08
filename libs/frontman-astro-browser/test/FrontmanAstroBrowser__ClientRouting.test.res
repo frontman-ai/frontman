@@ -2,10 +2,12 @@ open Vitest
 
 module ClientRouting = FrontmanAstroBrowser__ClientRouting
 
-@module("jsdom") @new
-external makeDom: string => {"window": {"document": WebAPI.DomTypes.document}} = "JSDOM"
-
-let documentFromHtml = html => makeDom(html)["window"]["document"]
+let documentFromHtml = html => {
+  let document =
+    WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(~title="")
+  document.documentElement.innerHTML = html
+  document
+}
 
 describe("FrontmanAstroBrowser__ClientRouting", _t => {
   test("detects the ClientRouter marker", t => {

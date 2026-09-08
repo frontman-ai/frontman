@@ -210,26 +210,9 @@ defmodule FrontmanServer.Tasks.Interaction do
       |> validate_inclusion(:astro_client_routing, ["enabled", "disabled", "unavailable"])
     end
 
-    def attrs_from_acp_meta(meta) when is_map(meta) do
-      case CurrentPageContext.fields_from_current_page_meta(meta) do
-        %{url: url} = fields ->
-          %{
-            url: url,
-            viewport_width: fields.viewport_width,
-            viewport_height: fields.viewport_height,
-            device_pixel_ratio: fields.device_pixel_ratio,
-            title: fields.title,
-            color_scheme: fields.color_scheme,
-            scroll_y: fields.scroll_y,
-            astro_client_routing: fields.astro_client_routing
-          }
-
-        nil ->
-          nil
-      end
-    end
-
-    def attrs_from_acp_meta(_), do: nil
+    defdelegate attrs_from_acp_meta(meta),
+      to: CurrentPageContext,
+      as: :fields_from_current_page_meta
   end
 
   defmodule Annotation do
