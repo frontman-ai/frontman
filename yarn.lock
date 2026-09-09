@@ -2362,7 +2362,7 @@ __metadata:
     "@rescript/webapi": "workspace:*"
     "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
-    dom-element-to-component-source: "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb"
+    dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     lighthouse: "npm:^13.4.0"
     magic-string: "npm:^0.30.21"
     rescript: "catalog:"
@@ -2417,7 +2417,7 @@ __metadata:
     border-beam: "npm:^1.3.0"
     diff: "npm:^9.0.0"
     dom-accessibility-api: "npm:^0.7.1"
-    dom-element-to-component-source: "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb"
+    dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     lucide-react: "npm:^1.28.0"
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
@@ -2466,7 +2466,7 @@ __metadata:
     "@rescript/webapi": "workspace:*"
     "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
-    dom-element-to-component-source: "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb"
+    dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     lighthouse: "npm:^13.4.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
@@ -2526,7 +2526,7 @@ __metadata:
     "@sentry/nextjs": "npm:^10.69.0"
     "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
-    dom-element-to-component-source: "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb"
+    dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     lighthouse: "npm:^13.4.0"
     next: "npm:^16.2.10"
     react: "npm:^19.2.8"
@@ -2593,7 +2593,7 @@ __metadata:
     "@rescript/webapi": "workspace:*"
     "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
-    dom-element-to-component-source: "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb"
+    dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     lighthouse: "npm:^13.4.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
@@ -10039,14 +10039,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"dom-element-to-component-source@https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb":
+"dom-element-to-component-source@npm:@frontman-ai/dom-element-to-component-source@0.5.0":
   version: 0.5.0
-  resolution: "dom-element-to-component-source@https://github.com/frontman-ai/dom-element-to-component-source.git#commit=7f5fa7f3fecc65a23cc05a92345f1c556fb252bb"
+  resolution: "@frontman-ai/dom-element-to-component-source@npm:0.5.0"
   dependencies:
     error-stack-parser: "npm:^2.1.4"
     source-map: "npm:^0.7.6"
     stacktrace-gps: "npm:^3.1.2"
-  checksum: 10c0/49f21fe8798944d261a707e1d7e677b4d5d0c829d417e1530a43c3c052cf989d2306c7780ada3daa9d5fec8521eba3ebf4df4c0ceb36d6ccdb8849fda0c526a0
+  checksum: 10c0/47a598974093c0e96f4beb34e38eb8c9f4080b18a992bfbf7c0750df3c52ccc1fc9a408d6cccffb6a67506204c75dc49f368638c31217d2b27c5951345b9f018
   languageName: node
   linkType: hard
 
