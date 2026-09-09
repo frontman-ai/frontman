@@ -39,36 +39,41 @@ describe("ToolRegistry", _t => {
     t->expect(names->Array.includes("search_text"))->Expect.toBe(true)
   })
 
-  test("framework selection preserves the static core catalog and unrelated tools", t => {
-    let astro = ToolRegistry.forFramework(Client__RuntimeConfig.Astro)
-    let unrelated = (tool: ToolRegistry.tool) => {
-      module T = unpack(tool)
-      T.name != "get_dom" && T.name != "get_astro_audit"
-    }
-    t
-    ->expect(astro.tools->Array.filter(unrelated))
-    ->Expect.toEqual(ToolRegistry.coreBrowserTools->Array.filter(unrelated))
-    [Client__RuntimeConfig.Nextjs, Vite, Wordpress]->Array.forEach(
+  test("selects Astro tools without changing the core catalog", t => {
+    [Client__RuntimeConfig.Astro, Nextjs, Vite, Wordpress]->Array.forEach(
       framework => {
+        let registry = ToolRegistry.forFramework(framework)
+        let names = registry.tools->Array.map(
+          tool => {
+            module T = unpack(tool)
+            T.name
+          },
+        )
+        let isAstro = framework == Astro
+        t->expect(names->Array.filter(name => name == "get_dom")->Array.length)->Expect.toBe(1)
+        t->expect(names->Array.includes("get_astro_audit"))->Expect.toBe(isAstro)
+        switch isAstro {
+        | true => t->expect(names->Array.length)->Expect.toBe(9)
+        | false => t->expect(registry.tools)->Expect.toEqual(ToolRegistry.coreBrowserTools)
+        }
+        let (description, properties) =
+          toolByName(framework, "get_dom")
+          ->JSON.Encode.object
+          ->S.parseOrThrow(
+            ~to=S.object(
+              s => (
+                s.field("description", S.string),
+                s.field("outputSchema", S.object(s => s.field("properties", S.dict(S.json)))),
+              ),
+            ),
+          )
+        t->expect(description->String.includes("Astro"))->Expect.toBe(isAstro)
+        t->expect(properties->Dict.has("astro_client_routing"))->Expect.toBe(isAstro)
         t
-        ->expect(ToolRegistry.forFramework(framework).tools)
-        ->Expect.toEqual(ToolRegistry.coreBrowserTools)
+        ->expect(properties->Dict.has("success") || properties->Dict.has("error"))
+        ->Expect.toBe(false)
       },
     )
-    t->expect(ToolRegistry.coreBrowserTools->Array.length)->Expect.toBe(8)
-  })
-
-  test("adds Astro browser tools only for Astro", t => {
-    let astroNames = toolNames(Client__RuntimeConfig.Astro)
-    let viteNames = toolNames(Client__RuntimeConfig.Vite)
-    let wordpressNames = toolNames(Client__RuntimeConfig.Wordpress)
-
-    t->expect(astroNames->Array.length)->Expect.toBe(9)
-    t->expect(astroNames->Array.includes("get_astro_audit"))->Expect.toBe(true)
-    t->expect(viteNames->Array.length)->Expect.toBe(8)
-    t->expect(viteNames->Array.includes("get_astro_audit"))->Expect.toBe(false)
-    t->expect(wordpressNames->Array.length)->Expect.toBe(8)
-    t->expect(wordpressNames->Array.includes("get_astro_audit"))->Expect.toBe(false)
   })
   test("serializes browser tool access levels", t => {
     let metadata = name =>
