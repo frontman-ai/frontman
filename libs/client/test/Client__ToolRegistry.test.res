@@ -39,6 +39,25 @@ describe("ToolRegistry", _t => {
     t->expect(names->Array.includes("search_text"))->Expect.toBe(true)
   })
 
+  test("framework selection preserves the static core catalog and unrelated tools", t => {
+    let astro = ToolRegistry.forFramework(Client__RuntimeConfig.Astro)
+    let unrelated = (tool: ToolRegistry.tool) => {
+      module T = unpack(tool)
+      T.name != "get_dom" && T.name != "get_astro_audit"
+    }
+    t
+    ->expect(astro.tools->Array.filter(unrelated))
+    ->Expect.toEqual(ToolRegistry.coreBrowserTools->Array.filter(unrelated))
+    [Client__RuntimeConfig.Nextjs, Vite, Wordpress]->Array.forEach(
+      framework => {
+        t
+        ->expect(ToolRegistry.forFramework(framework).tools)
+        ->Expect.toEqual(ToolRegistry.coreBrowserTools)
+      },
+    )
+    t->expect(ToolRegistry.coreBrowserTools->Array.length)->Expect.toBe(8)
+  })
+
   test("adds Astro browser tools only for Astro", t => {
     let astroNames = toolNames(Client__RuntimeConfig.Astro)
     let viteNames = toolNames(Client__RuntimeConfig.Vite)

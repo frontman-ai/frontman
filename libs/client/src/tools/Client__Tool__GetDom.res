@@ -1,9 +1,10 @@
-module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
+module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
+module GetDom = FrontmanAiFrontmanProtocol.FrontmanProtocol__GetDom
 
 let name = Tool.ToolNames.getDom
-let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
+let access = Tool.Read
 let visibleToAgent = true
-let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
+let executionMode = Tool.Synchronous
 let description = `Inspect a specific section of the DOM in the web preview.
 
 **Always target the smallest subtree you need.** Do NOT request "body" or "html" unless you need a high-level page overview.
@@ -27,8 +28,6 @@ Examples:
 - Full HTML of a small component: {"selector": ".hero-section", "mode": "full"}
 - XPath: {"selector": "//form[@id='checkout']"}
 - Page skeleton (use sparingly): {"selector": "body", "maxDepth": 3}`
-
-module GetDom = FrontmanAiFrontmanProtocol.FrontmanProtocol__GetDom
 
 type input = GetDom.input
 let inputSchema = GetDom.inputSchema
@@ -100,7 +99,8 @@ let inspect = (input: input, preview: option<Client__Tool__PreviewContext.t>): o
         switch input.mode->Option.getOr(#simplified) {
         | #full =>
           let elementCount = countElements(el)
-          if elementCount > maxNodes {
+          switch elementCount > maxNodes {
+          | true =>
             errorResult(
               ~error=`Subtree too large for full mode (${Int.toString(
                   elementCount,
@@ -108,10 +108,11 @@ let inspect = (input: input, preview: option<Client__Tool__PreviewContext.t>): o
               ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
               ~nodeCount=elementCount,
             )
-          } else {
+          | false =>
             let raw = el.outerHTML
             let byteSize = Client__ElementInspector.utf8ByteSize(raw)
-            if byteSize > fullModeMaxBytes {
+            switch byteSize > fullModeMaxBytes {
+            | true =>
               errorResult(
                 ~error=`HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
                     fullModeMaxBytes,
@@ -119,8 +120,7 @@ let inspect = (input: input, preview: option<Client__Tool__PreviewContext.t>): o
                 ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
                 ~nodeCount=elementCount,
               )
-            } else {
-              successResult(~html=raw, ~nodeCount=elementCount)
+            | false => successResult(~html=raw, ~nodeCount=elementCount)
             }
           }
 
