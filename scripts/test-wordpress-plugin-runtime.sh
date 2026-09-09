@@ -128,3 +128,22 @@ if [[ "$MULTISITE_STATUS" -ne 0 || "$MULTISITE_OUTPUT" != *"OK (Multisite author
   printf 'Multisite author tests did not report successful completion.\n' >&2
   exit 1
 fi
+
+case "$WORDPRESS_VERSION" in
+  6.[0-6].*) printf 'Skipping Redirection 5.10.0: requires WordPress 6.7+.\n'; exit 0 ;;
+esac
+curl -fsSL 'https://downloads.wordpress.org/plugin/redirection.5.10.0.zip' -o "$BUILD_DIR/redirection.zip"
+printf '%s  %s\n' '966ac6267cd6a99f2d79ec05db1dee2e0aa0cddb6060b1c32cde2ffde739e333' "$BUILD_DIR/redirection.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/redirection.zip" -d "$BUILD_DIR/redirection"
+"$RUNTIME" cp "$BUILD_DIR/redirection/redirection" "$WORDPRESS:/var/www/html/wp-content/plugins/redirection"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/RedirectionRuntimeTest.php" "$WORDPRESS:/tmp/RedirectionRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RedirectionRuntimeTest.php --setup
+if REDIRECTION_OUTPUT="$("$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RedirectionRuntimeTest.php)"; then
+  REDIRECTION_STATUS=0
+else REDIRECTION_STATUS=$?
+fi
+printf '%s\n' "$REDIRECTION_OUTPUT"
+if [[ "$REDIRECTION_STATUS" -ne 0 || "$REDIRECTION_OUTPUT" != *"OK (Redirection 5.10.0, WordPress ${WORDPRESS_VERSION}, PHP "* ]]; then
+  printf 'Redirection runtime tests did not report successful completion.\n' >&2
+  exit 1
+fi
