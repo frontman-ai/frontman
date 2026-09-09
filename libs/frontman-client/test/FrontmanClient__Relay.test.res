@@ -2,35 +2,6 @@ open Vitest
 
 module Relay = FrontmanClient__Relay
 
-@module("vitest") @scope("vi") external stubGlobal: (string, 'a) => unit = "stubGlobal"
-@module("vitest") @scope("vi") external unstubAllGlobals: unit => unit = "unstubAllGlobals"
-afterEach(unstubAllGlobals)
-
-testAsync("only replays an authenticated nonce rejection once", async t => {
-  for i in 0 to 1 {
-    let code = ["frontman_invalid_nonce", "frontman_forbidden"]->Array.get(i)->Option.getOrThrow
-    let calls = ref(0)
-    let relay = Relay.make(
-      ~baseUrl="https://example.test",
-      ~requestHeaders=dict{"X-WP-Nonce": "old"},
-    )
-    relay.state := Relay.Connected({tools: [], serverInfo: {name: "wordpress", version: "5"}})
-    stubGlobal("fetch", async (_, _: WebAPI.FetchTypes.requestInit) => {
-      calls := calls.contents + 1
-      WebAPI.Response.fromString(
-        `{"code":"${code}","error":"Rejected"}`,
-        ~init={
-          status: 403,
-          headers: WebAPI.HeadersInit.fromDict(dict{"X-WP-Nonce": "fresh"}),
-        },
-      )
-    })
-    let result = await relay->Relay.executeTool(~name="wp_update_block")
-    t->expect(result)->Expect.toEqual(Error(`HTTP 403 [${code}]: Rejected`))
-    t->expect(calls.contents)->Expect.toBe([2, 1]->Array.get(i)->Option.getOrThrow)
-  }
-})
-
 describe("Relay.connect", _t => {
   test("accepts only the current relay protocol version", t => {
     let json = JSON.parseOrThrow(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"1.0"}`)

@@ -14,13 +14,19 @@ type relayState =
 type t = {
   baseUrl: string,
   requestHeaders: Dict.t<string>,
+  fetch: (string, WebAPI.FetchTypes.requestInit) => promise<WebAPI.Response.t>,
   state: ref<relayState>,
 }
 
 @@live
-let make = (~baseUrl: string, ~requestHeaders: Dict.t<string>=Dict.make()): t => {
+let make = (
+  ~baseUrl: string,
+  ~requestHeaders: Dict.t<string>=Dict.make(),
+  ~fetch=(url, init) => WebAPI.Fetch.fetch(url, ~init),
+): t => {
   baseUrl,
   requestHeaders,
+  fetch,
   state: ref(Disconnected),
 }
 
@@ -86,62 +92,42 @@ let parseToolsResponse = (json: JSON.t): result<Types.toolsResponse, string> => 
 @schema
 type httpError = {code: option<string>, error: string}
 
-let request = async (relay: t, ~path, ~body=?, ~signal=?, ~decode): result<'a, string> => {
-  let wordpress = relay.requestHeaders->Dict.get("X-WP-Nonce")->Option.isSome
-  let (mode, redirect): (
-    WebAPI.FetchTypes.requestMode,
-    WebAPI.FetchTypes.requestRedirect,
-  ) = switch wordpress {
-  | true => (SameOrigin, Error)
-  | false => (Cors, Follow)
+let readHttpError = async response => {
+  try {
+    S.parseOrThrow(await response->WebAPI.Response.json, ~to=httpErrorSchema)
+  } catch {
+  | _ => {code: None, error: "Request rejected without JSON error details."}
   }
-  let rec send = async (retry): result<'a, string> => {
+}
+
+let request = async (relay: t, ~path, ~body=?, ~signal=?, ~decode): result<'a, string> => {
+  let result: result<'a, string> = try {
     let (method, headers) = switch body {
     | Some(_) => ("POST", dict{"Content-Type": "application/json", "Accept": "text/event-stream"})
     | None => ("GET", Dict.make())
     }
     relay.requestHeaders->Dict.forEachWithKey((value, key) => headers->Dict.set(key, value))
-    let response = await WebAPI.Fetch.fetch(
+    let response = await relay.fetch(
       `${relay.baseUrl}/frontman/${path}`,
-      ~init={
+      {
         method,
         headers: WebAPI.HeadersInit.fromDict(headers),
         body: ?(body->Option.map(WebAPI.BodyInit.fromString)),
         signal: ?(signal->Option.map(Null.make)),
-        mode,
-        redirect,
-        cache: NoStore,
       },
     )
     switch response.ok {
     | true => await decode(response)
     | false =>
-      let failure = try {
-        S.parseOrThrow(await response->WebAPI.Response.json, ~to=httpErrorSchema)
-      } catch {
-      | _ => {code: None, error: "Request rejected without JSON error details."}
-      }
-      switch (
-        retry,
-        response.status,
-        failure.code,
-        response.headers->WebAPI.Headers.get("X-WP-Nonce")->Null.toOption,
-      ) {
-      | (true, 403, Some("frontman_missing_nonce" | "frontman_invalid_nonce"), Some(nonce))
-        if nonce->String.trim != "" =>
-        relay.requestHeaders->Dict.set("X-WP-Nonce", nonce)
-        await send(false)
-      | _ =>
-        let code =
-          failure.code
-          ->Option.map(code => ` [${code->String.slice(~start=0, ~end=80)}]`)
-          ->Option.getOr("")
-        let message = failure.error->String.slice(~start=0, ~end=500)
-        Error(`HTTP ${response.status->Int.toString}${code}: ${message}`)
-      }
+      let failure = await readHttpError(response)
+      let code =
+        failure.code
+        ->Option.map(code => ` [${code->String.slice(~start=0, ~end=80)}]`)
+        ->Option.getOr("")
+      let message = failure.error->String.slice(~start=0, ~end=500)
+      Error(`HTTP ${response.status->Int.toString}${code}: ${message}`)
     }
-  }
-  let result = try {await send(wordpress)} catch {
+  } catch {
   | exn =>
     Error(
       exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Relay request failed"),
