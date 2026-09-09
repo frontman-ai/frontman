@@ -408,7 +408,9 @@ let make = (~onConfigureProvider: unit => unit) => {
         | (true, _) => React.null
         | (false, Error(message)) =>
           <div role="alert" className="py-3 px-4 text-[13px] text-red-400">
-            {React.string(`Could not load project context: ${message}`)}
+            {React.string(message)}
+            {React.string(" ")}
+            <a href="" className="underline"> {React.string("Reload")} </a>
           </div>
         | (false, Connecting | LoggingOut | Connected | SessionActive(_) | Disconnected) =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
@@ -441,11 +443,13 @@ let make = (~onConfigureProvider: unit => unit) => {
         />
 
         {switch (retryStatus, turnError, currentTaskId) {
-        | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
+        | (Some(rs), _, _) if hasActiveACPSession => <Client__RetryBanner retryStatus=rs />
         | (None, Some({id, message, category, retryErrorId}), Some(taskId))
           if shouldRenderTurnError(messages, id) =>
           let onRetry =
-            retryErrorId->Option.map(retriedErrorId =>
+            retryErrorId
+            ->Option.filter(_ => hasActiveACPSession)
+            ->Option.map(retriedErrorId =>
               () => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId)
             )
           <ErrorBanner error=message category onConfigureProvider onRetry=?onRetry />
@@ -460,14 +464,16 @@ let make = (~onConfigureProvider: unit => unit) => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
-    <Client__QueuedMessagesDrawer
-      messages=queuedUserMessages
-      onUnqueue={messageId =>
-        switch currentTaskId {
-        | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
-        | None => ()
-        }}
-    />
+    <fieldset disabled={!hasActiveACPSession} className="contents">
+      <Client__QueuedMessagesDrawer
+        messages=queuedUserMessages
+        onUnqueue={messageId =>
+          switch currentTaskId {
+          | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
+          | None => ()
+          }}
+      />
+    </fieldset>
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {

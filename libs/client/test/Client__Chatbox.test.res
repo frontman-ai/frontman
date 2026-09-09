@@ -65,6 +65,18 @@ describe("selectGetStartedTask", () => {
   })
 })
 
+test("both stop and send respect the disconnected control's disabled state", t => {
+  [true, false]->Array.forEach(showStop => {
+    let html = renderToStaticMarkup(
+      <Client__PromptInput.SubmitButton
+        disabled=true showStop onClick={() => ()} onCancel={() => ()}
+      />,
+    )
+    t->expect(html->String.includes("disabled=\"\""))->Expect.toBe(true)
+    t->expect(html->String.includes("Stop generation"))->Expect.toBe(showStop)
+  })
+})
+
 describe("ExecutePlanAction", () => {
   test("hides execute action without a selected model", t => {
     let html = renderToStaticMarkup(

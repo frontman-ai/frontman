@@ -1792,14 +1792,10 @@ let next = (state: state, action) => {
   | ClearAcpSession =>
     let updatedTasks = state.tasks->Dict.copy
     updatedTasks->Dict.forEachWithKey((task, taskId) => {
-      switch TaskReducer.Selectors.pendingQuestion(task) {
-      | Some(_) =>
-        switch task {
-        | Task.Loaded(data) =>
-          updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
-        | _ => ()
-        }
-      | None => ()
+      switch task {
+      | Task.Loaded(data) =>
+        updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
+      | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => ()
       }
     })
     {

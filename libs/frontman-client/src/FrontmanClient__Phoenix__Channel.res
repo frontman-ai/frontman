@@ -12,6 +12,8 @@ type channelEvent = [
   | #delete_session
   | #title_updated
   | #config_options_updated
+  | #phx_error
+  | #phx_close
 ]
 
 type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) => pushResponse}
@@ -24,7 +26,8 @@ type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) =
 external push: (t, ~event: channelEvent, ~payload: JSON.t, ~timeout: int=?) => pushResponse = "push"
 
 @send external on: (t, ~event: channelEvent, ~callback: JSON.t => unit) => unit = "on"
+@send external onWithRef: (t, ~event: channelEvent, ~callback: JSON.t => unit) => int = "on"
 
-@send external off: (t, ~event: channelEvent) => unit = "off"
+@send external off: (t, ~event: channelEvent, ~ref: int=?) => unit = "off"
 
 @get external state: t => string = "state"

@@ -256,38 +256,31 @@ module SubmitButton = {
     ~onClick: unit => unit,
     ~onCancel: unit => unit,
   ) => {
-    if showStop {
-      <button
-        type_="button"
-        onClick={e => {
-          ReactEvent.Mouse.preventDefault(e)
-          onCancel()
-        }}
-        className="inline-flex items-center gap-2 h-8 px-4 rounded-full
-                   bg-[#985DF7] hover:bg-[#8247E5] text-white text-xs font-medium
-                   transition-all hover:scale-105 cursor-pointer"
-        title="Stop generation"
-      >
-        <StopIcon size=12 />
-        <span> {React.string("Stop")} </span>
-      </button>
-    } else {
-      <button
-        type_="submit"
-        disabled
-        onClick={e => {
-          ReactEvent.Mouse.preventDefault(e)
-          onClick()
-        }}
-        className="flex items-center justify-center w-8 h-8 rounded-full
-                   transition-all text-white cursor-pointer
-                   bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
-                   disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100"
-        title="Send (Enter)"
-      >
-        <Icons.SendArrowIcon size=14 />
-      </button>
-    }
+    <button
+      type_={showStop ? "button" : "submit"}
+      disabled
+      onClick={e => {
+        ReactEvent.Mouse.preventDefault(e)
+        switch showStop {
+        | true => onCancel()
+        | false => onClick()
+        }
+      }}
+      className={`inline-flex items-center justify-center gap-2 h-8 rounded-full
+        transition-all text-white cursor-pointer bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
+        disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100
+        ${showStop ? "px-4 text-xs font-medium" : "w-8"}`}
+      title={showStop ? "Stop generation" : "Send (Enter)"}
+    >
+      {switch showStop {
+      | true =>
+        <>
+          <StopIcon size=12 />
+          <span> {React.string("Stop")} </span>
+        </>
+      | false => <Icons.SendArrowIcon size=14 />
+      }}
+    </button>
   }
 }
 
@@ -411,8 +404,11 @@ let make = (
   let hasSubmittableContent = hasContent || hasAnnotations
   let noModelSelected = selectedModelValue->Option.isNone
   let isInputDisabled = !hasActiveACPSession || disabled || noModelsConfigured || noModelSelected
-  let isSubmitDisabled = isInputDisabled || !hasSubmittableContent || isEnrichingAnnotations
   let showStopButton = isAgentRunning && !hasSubmittableContent
+  let isSubmitDisabled = switch showStopButton {
+  | true => !hasActiveACPSession || disabled
+  | false => isInputDisabled || !hasSubmittableContent || isEnrichingAnnotations
+  }
 
   let currentPlaceholder = switch (
     noModelsConfigured,

@@ -129,7 +129,6 @@ type effect =
   | ScheduleAuthRetry({signal: WebAPI.EventTypes.abortSignal})
   | LogoutEffect({
       connection: ACP.connection,
-      session: option<ACP.session>,
       apiBaseUrl: string,
       signal: WebAPI.EventTypes.abortSignal,
     })
@@ -255,20 +254,11 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ],
     )
 
-  | ({acp: ACPConnecting}, ACPConnectSuccess(conn)) => (
-      {
-        ...state,
-        acp: ACPConnected(conn),
-        authRetryActive: false,
-        authRetryInFlight: false,
-      },
-      [FetchSessionsEffect(conn)],
-    )
-
+  | ({acp: ACPConnecting}, ACPConnectSuccess(conn))
   | (
-      {acp: ACPAuthRequired(_), authRetryActive: true, authRetryInFlight: true},
-      ACPConnectSuccess(conn),
-    ) => (
+    {acp: ACPAuthRequired(_), authRetryActive: true, authRetryInFlight: true},
+    ACPConnectSuccess(conn),
+  ) => (
       {
         ...state,
         acp: ACPConnected(conn),
@@ -324,31 +314,31 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         abortController: Some(signalController),
       },
       BeginLogout,
-    ) => {
-      let session = switch state.session {
-      | SessionActive(session) => Some(session)
-      | NoSession | SessionCreating(_) | SessionError(_) => None
-      }
-      {
-        ...state,
-        acp: ACPLoggingOut,
-        authRetryActive: false,
-        authRetryInFlight: false,
-        session: NoSession,
-      }->StateReducer.update(
-        ~sideEffect=LogoutEffect({
-          connection,
-          session,
-          apiBaseUrl: apiBaseUrlFromLoginUrl(config.loginUrl),
-          signal: signalController.signal,
-        }),
-      )
-    }
+    ) =>
+    {
+      ...state,
+      acp: ACPLoggingOut,
+      authRetryActive: false,
+      authRetryInFlight: false,
+      session: NoSession,
+    }->StateReducer.update(
+      ~sideEffect=LogoutEffect({
+        connection,
+        apiBaseUrl: apiBaseUrlFromLoginUrl(config.loginUrl),
+        signal: signalController.signal,
+      }),
+    )
 
   | (_, BeginLogout) => (state, [])
 
-  | ({acp: ACPConnecting}, ACPConnectError(msg)) => (
-      {...state, acp: ACPError(msg), authRetryActive: false, authRetryInFlight: false},
+  | ({acp: ACPConnecting | ACPConnected(_)}, ACPConnectError(msg)) => (
+      {
+        ...state,
+        acp: ACPError(msg),
+        session: NoSession,
+        authRetryActive: false,
+        authRetryInFlight: false,
+      },
       [LogError(`ACP connect failed: ${msg}`)],
     )
 
@@ -393,15 +383,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | ({session: SessionCreating(expectedSessionId)}, SessionCreateError({sessionId, error}))
-    if expectedSessionId == sessionId => (
-      {...state, session: SessionError(error)},
-      [LogError(`Session failed: ${error}`)],
-    )
-
   | (
-      {session: SessionActive({sessionId: expectedSessionId}) | SessionCreating(expectedSessionId)},
-      SessionFailed({sessionId, error}),
-    ) if expectedSessionId == sessionId => (
+    {session: SessionActive({sessionId: expectedSessionId}) | SessionCreating(expectedSessionId)},
+    SessionFailed({sessionId, error}),
+  ) if expectedSessionId == sessionId => (
       {...state, session: SessionError(error)},
       [LogError(`Session failed: ${error}`)],
     )
@@ -553,7 +538,10 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
   | ConnectACP({config, signal}) =>
     let connect = async () => {
-      let result = await ACP.connect(config, ~signal)
+      let result = await ACP.connect(config, ~signal, ~onError=error => {
+        Client__TextDeltaBuffer.flush()
+        dispatch(ACPConnectError(error))
+      })
       switch (signal.aborted, result) {
       | (true, Ok(conn)) =>
         ACP.disconnect(conn)
@@ -589,8 +577,8 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       | false => dispatch(RetryAuthentication)
       }
     })
-  | LogoutEffect({connection, session, apiBaseUrl, signal}) =>
-    ACP.disconnect(connection, ~session?)
+  | LogoutEffect({connection, apiBaseUrl, signal}) =>
+    ACP.disconnect(connection)
     revokeEmbeddedClientToken(~apiBaseUrl, ~signal)->ignore
   | ConnectRelay(relay, signal) =>
     let connect = async () => {
