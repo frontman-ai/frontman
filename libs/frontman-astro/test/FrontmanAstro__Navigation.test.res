@@ -3,9 +3,9 @@ open Vitest
 module Navigation = FrontmanAstro__Navigation
 
 type spy = {"mock": {"calls": array<unknown>}}
-external toHost: WebAPI.EventTypes.eventTarget => Navigation.host = "%identity"
-@set external setLocation: (Navigation.host, WebAPI.UrlTypes.url) => unit = "location"
-@set external setHistory: (Navigation.host, WebAPI.HistoryTypes.history) => unit = "history"
+external toHost: WebAPI.EventTypes.eventTarget => WebAPI.DomTypes.window = "%identity"
+@set external setLocation: (WebAPI.DomTypes.window, WebAPI.UrlTypes.url) => unit = "location"
+@set external setHistory: (WebAPI.DomTypes.window, WebAPI.HistoryTypes.history) => unit = "history"
 @obj
 external makeHistory: (
   ~pushState: Navigation.historyMethod,
@@ -15,14 +15,14 @@ external makeHistory: (
 external spyOnListeners: (WebAPI.EventTypes.eventTarget, @as("addEventListener") _) => spy = "spyOn"
 @set external setFrom: (WebAPI.EventTypes.event, WebAPI.UrlTypes.url) => unit = "from"
 @set external setTo: (WebAPI.EventTypes.event, WebAPI.UrlTypes.url) => unit = "to"
-@set external setSignal: (WebAPI.EventTypes.event, Navigation.signal) => unit = "signal"
+@set external setSignal: (WebAPI.EventTypes.event, WebAPI.EventTypes.abortSignal) => unit = "signal"
 
 let setup = () => {
   let host = WebAPI.EventTarget.make()->toHost
   setLocation(host, WebAPI.URL.make(~url="https://example.com/start?tab=one#intro"))
   let updateHistory = (_data, _unused, url) => {
     url->Option.forEach(url => {
-      setLocation(host, WebAPI.URL.make(~url, ~base=Navigation.location(host).href))
+      setLocation(host, WebAPI.URL.make(~url, ~base=WebAPI.Window.location(host).href))
     })
   }
   setHistory(host, makeHistory(~pushState=updateHistory, ~replaceState=updateHistory))
@@ -32,9 +32,9 @@ let setup = () => {
   (host, target, listeners)
 }
 
-let dispatch = (target, phase, ~from=?, ~to=?) => {
+let dispatch = (target, phase, ~from=?, ~to=?, ~controller=WebAPI.AbortController.make()) => {
   let event = WebAPI.Event.make(~type_=Navigation.eventName(phase))
-  setSignal(event, {aborted: false})
+  setSignal(event, controller.signal)
   from->Option.forEach(url => setFrom(event, WebAPI.URL.make(~url)))
   to->Option.forEach(url => setTo(event, WebAPI.URL.make(~url)))
   target->WebAPI.EventTarget.dispatchEvent(event)->ignore
@@ -140,7 +140,7 @@ describe("Astro navigation capture", () => {
 
   test("captures hash-only push, replace, traversal, and native hash changes once", t => {
     let (host, target, _) = setup()
-    let history = Navigation.history(host)
+    let history = WebAPI.Window.history(host)
     let originalPush = Navigation.pushState(history)
     Navigation.install(host, target)
     t->expect(Navigation.pushState(history))->Expect.toBe(originalPush)
@@ -151,18 +151,18 @@ describe("Astro navigation capture", () => {
     let third = "https://example.com/start?tab=one#three"
     t->expect(latest(host))->Expect.toEqual(Some({from: second, to: third, phase: HashChange}))
     setLocation(host, WebAPI.URL.make(~url=from))
-    Navigation.asTarget(host)
-    ->WebAPI.EventTarget.dispatchEvent(WebAPI.Event.make(~type_="popstate"))
+    host
+    ->WebAPI.Window.dispatchEvent(WebAPI.Event.make(~type_="popstate"))
     ->ignore
     let record = latest(host)
-    Navigation.asTarget(host)
-    ->WebAPI.EventTarget.dispatchEvent(WebAPI.Event.make(~type_="hashchange"))
+    host
+    ->WebAPI.Window.dispatchEvent(WebAPI.Event.make(~type_="hashchange"))
     ->ignore
     t->expect(latest(host))->Expect.toBe(record)
     t->expect(latest(host))->Expect.toEqual(Some({from: third, to: from, phase: HashChange}))
     setLocation(host, WebAPI.URL.make(~url=second))
-    Navigation.asTarget(host)
-    ->WebAPI.EventTarget.dispatchEvent(WebAPI.Event.make(~type_="hashchange"))
+    host
+    ->WebAPI.Window.dispatchEvent(WebAPI.Event.make(~type_="hashchange"))
     ->ignore
     t->expect(latest(host))->Expect.toEqual(Some({from, to: second, phase: HashChange}))
     WebAPI.History.replaceState(history, ~data=JSON.Encode.null, ~unused="")
@@ -171,7 +171,7 @@ describe("Astro navigation capture", () => {
 
   test("route history updates refresh the baseline without inventing hash navigations", t => {
     let (host, _, _) = setup()
-    let history = Navigation.history(host)
+    let history = WebAPI.Window.history(host)
     WebAPI.History.pushState(history, ~data=JSON.Encode.null, ~unused="", ~url=to)
     t->expect(latest(host))->Expect.toBe(None)
     WebAPI.History.pushState(history, ~data=JSON.Encode.null, ~unused="", ~url="#new")
@@ -188,7 +188,7 @@ describe("Astro navigation capture", () => {
     dispatch(target, BeforePreparation, ~from, ~to=destination)
     dispatch(target, BeforeSwap, ~from, ~to=destination)
     WebAPI.History.pushState(
-      Navigation.history(host),
+      WebAPI.Window.history(host),
       ~data=JSON.Encode.null,
       ~unused="",
       ~url=destination,
@@ -201,12 +201,13 @@ describe("Astro navigation capture", () => {
 
   test("hash navigation can supersede an aborted swap", t => {
     let (host, target, _) = setup()
+    let controller = WebAPI.AbortController.make()
     target->WebAPI.EventTarget.addEventListener(
       Custom("astro:before-swap"),
-      event => {
-        Navigation.signal(event).aborted = true
+      _ => {
+        WebAPI.AbortController.abort(controller)
         WebAPI.History.pushState(
-          Navigation.history(host),
+          WebAPI.Window.history(host),
           ~data=JSON.Encode.null,
           ~unused="",
           ~url="#new",
@@ -214,7 +215,7 @@ describe("Astro navigation capture", () => {
       },
     )
     dispatch(target, BeforePreparation, ~from, ~to)
-    dispatch(target, BeforeSwap, ~from, ~to)
+    dispatch(target, BeforeSwap, ~from, ~to, ~controller)
     dispatch(target, AfterSwap)
     dispatch(target, PageLoad)
     t
