@@ -8,8 +8,8 @@ external toHost: WebAPI.EventTypes.eventTarget => WebAPI.DomTypes.window = "%ide
 @set external setHistory: (WebAPI.DomTypes.window, WebAPI.HistoryTypes.history) => unit = "history"
 @obj
 external makeHistory: (
-  ~pushState: Navigation.historyMethod,
-  ~replaceState: Navigation.historyMethod,
+  ~pushState: WebAPI.History.stateMethod,
+  ~replaceState: WebAPI.History.stateMethod,
 ) => WebAPI.HistoryTypes.history = ""
 @module("vitest") @scope("vi")
 external spyOnListeners: (WebAPI.EventTypes.eventTarget, @as("addEventListener") _) => spy = "spyOn"
@@ -128,7 +128,7 @@ describe("Astro navigation capture", () => {
       Custom("astro:before-swap"),
       event => {
         setTo(event, WebAPI.URL.make(~url=finalUrl))
-        setLocation(host, Navigation.toUrl(event))
+        setLocation(host, FrontmanBindings.Astro.NavigationEvent.toUrl(event))
       },
     )
     dispatch(target, BeforePreparation, ~from, ~to)
@@ -141,9 +141,9 @@ describe("Astro navigation capture", () => {
   test("captures hash-only push, replace, traversal, and native hash changes once", t => {
     let (host, target, _) = setup()
     let history = WebAPI.Window.history(host)
-    let originalPush = Navigation.pushState(history)
+    let originalPush = WebAPI.History.getPushState(history)
     Navigation.install(host, target)
-    t->expect(Navigation.pushState(history))->Expect.toBe(originalPush)
+    t->expect(WebAPI.History.getPushState(history))->Expect.toBe(originalPush)
     WebAPI.History.pushState(history, ~data=JSON.Encode.null, ~unused="", ~url="#two")
     let second = "https://example.com/start?tab=one#two"
     t->expect(latest(host))->Expect.toEqual(Some({from, to: second, phase: HashChange}))

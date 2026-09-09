@@ -1,3 +1,5 @@
+module NavigationEvent = FrontmanBindings.Astro.NavigationEvent
+
 type phase =
   | @as("astro:before-preparation") BeforePreparation
   | @as("astro:after-preparation") AfterPreparation
@@ -9,26 +11,10 @@ type phase =
 @@live
 type navigation = {from: string, to: string, phase: phase}
 type state = {lastNavigation: option<navigation>}
-@get external signal: WebAPI.EventTypes.event => WebAPI.EventTypes.abortSignal = "signal"
 
 @get external read: WebAPI.DomTypes.window => option<state> = "__frontman_astro_navigation__"
 @set external store: (WebAPI.DomTypes.window, state) => unit = "__frontman_astro_navigation__"
-@get external fromUrl: WebAPI.EventTypes.event => WebAPI.UrlTypes.url = "from"
-@get external toUrl: WebAPI.EventTypes.event => WebAPI.UrlTypes.url = "to"
 external eventName: phase => string = "%identity"
-type historyMethod = (JSON.t, string, option<string>) => unit
-@get external pushState: WebAPI.HistoryTypes.history => historyMethod = "pushState"
-@get external replaceState: WebAPI.HistoryTypes.history => historyMethod = "replaceState"
-@set external setPushState: (WebAPI.HistoryTypes.history, historyMethod) => unit = "pushState"
-@set external setReplaceState: (WebAPI.HistoryTypes.history, historyMethod) => unit = "replaceState"
-@send
-external callHistory: (
-  historyMethod,
-  WebAPI.HistoryTypes.history,
-  JSON.t,
-  string,
-  option<string>,
-) => unit = "call"
 
 let install = (host, target: WebAPI.EventTypes.eventTarget) => {
   switch read(host) {
@@ -61,11 +47,17 @@ let install = (host, target: WebAPI.EventTypes.eventTarget) => {
     let browserHistory = WebAPI.Window.history(host)
     let observe = original =>
       (data, unused, url) => {
-        callHistory(original, browserHistory, data, unused, url)
+        WebAPI.History.callStateMethod(original, browserHistory, data, unused, url)
         recordHashChange()
       }
-    setPushState(browserHistory, observe(pushState(browserHistory)))
-    setReplaceState(browserHistory, observe(replaceState(browserHistory)))
+    WebAPI.History.setPushState(
+      browserHistory,
+      observe(WebAPI.History.getPushState(browserHistory)),
+    )
+    WebAPI.History.setReplaceState(
+      browserHistory,
+      observe(WebAPI.History.getReplaceState(browserHistory)),
+    )
     ["popstate", "hashchange"]->Array.forEach(name => {
       host->WebAPI.Window.addEventListener(Custom(name), _ => recordHashChange())
     })
@@ -73,10 +65,19 @@ let install = (host, target: WebAPI.EventTypes.eventTarget) => {
       target->WebAPI.EventTarget.addEventListener(Custom(eventName(phase)), event => {
         let {lastNavigation} = read(host)->Option.getOrThrow
         let next = switch (phase, lastNavigation) {
-        | (BeforePreparation, _) => Some({from: fromUrl(event).href, to: toUrl(event).href, phase})
+        | (BeforePreparation, _) =>
+          Some({
+            from: NavigationEvent.fromUrl(event).href,
+            to: NavigationEvent.toUrl(event).href,
+            phase,
+          })
         | (BeforeSwap, _) =>
-          swappingSignal := Some(signal(event))
-          Some({from: fromUrl(event).href, to: toUrl(event).href, phase})
+          swappingSignal := Some(NavigationEvent.signal(event))
+          Some({
+            from: NavigationEvent.fromUrl(event).href,
+            to: NavigationEvent.toUrl(event).href,
+            phase,
+          })
         | (AfterSwap, Some({phase: BeforeSwap} as navigation)) =>
           previousUrl := WebAPI.Window.location(host).href
           Some({...navigation, to: previousUrl.contents, phase})
