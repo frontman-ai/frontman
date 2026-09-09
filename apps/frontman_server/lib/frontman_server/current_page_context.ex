@@ -46,7 +46,8 @@ defmodule FrontmanServer.CurrentPageContext do
           device_pixel_ratio: device_pixel_ratio(meta["device_pixel_ratio"]),
           title: meta["title"],
           color_scheme: meta["color_scheme"],
-          scroll_y: meta["scroll_y"]
+          scroll_y: meta["scroll_y"],
+          astro_client_routing: astro_client_routing(meta["astro_client_routing"])
         }
 
       _ ->
@@ -55,6 +56,11 @@ defmodule FrontmanServer.CurrentPageContext do
   end
 
   def fields_from_meta(_), do: nil
+
+  defp astro_client_routing(nil), do: nil
+
+  defp astro_client_routing(status) when status in ["enabled", "disabled", "unavailable"],
+    do: status
 
   defp device_pixel_ratio(nil), do: nil
   defp device_pixel_ratio(value) when is_number(value), do: value / 1
@@ -148,7 +154,8 @@ defmodule FrontmanServer.CurrentPageContext do
       device_pixel_ratio_line(page),
       title_line(page),
       color_scheme_line(page),
-      scroll_line(page)
+      scroll_line(page),
+      astro_client_routing_line(page)
     ]
     |> Enum.reject(&is_nil/1)
   end
@@ -194,6 +201,27 @@ defmodule FrontmanServer.CurrentPageContext do
     end
   end
 
+  defp astro_client_routing_line(page) do
+    case page_value(page, :astro_client_routing) do
+      nil ->
+        nil
+
+      "enabled" ->
+        "Astro Client Routing: enabled (current-page opt-in, not proof of completed navigation). " <>
+          "For page scripts, use astro:page-load for initialization after client navigation and " <>
+          "astro:before-swap for cleanup. Avoid duplicate listeners and account for persisted elements. " <>
+          "Exercise the interaction after navigation to verify behavior."
+
+      "disabled" ->
+        "Astro Client Routing: disabled on the current page. " <>
+          "Use normal document-load initialization. Do not assume Astro navigation lifecycle events."
+
+      "unavailable" ->
+        "Astro Client Routing: unavailable because the preview document is unavailable. " <>
+          "Do not infer that client routing is disabled."
+    end
+  end
+
   defp to_meta(page) do
     %{
       @marker_key => true,
@@ -203,7 +231,8 @@ defmodule FrontmanServer.CurrentPageContext do
       "device_pixel_ratio" => page_value(page, :device_pixel_ratio),
       "title" => page_value(page, :title),
       "color_scheme" => page_value(page, :color_scheme),
-      "scroll_y" => page_value(page, :scroll_y)
+      "scroll_y" => page_value(page, :scroll_y),
+      "astro_client_routing" => page_value(page, :astro_client_routing)
     }
     |> reject_nils()
   end

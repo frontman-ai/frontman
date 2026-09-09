@@ -193,6 +193,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :title, :string
       field :color_scheme, :string
       field :scroll_y, :integer
+      field :astro_client_routing, :string
     end
 
     def changeset(%__MODULE__{} = current_page, attrs) do
@@ -203,29 +204,15 @@ defmodule FrontmanServer.Tasks.Interaction do
         :device_pixel_ratio,
         :title,
         :color_scheme,
-        :scroll_y
+        :scroll_y,
+        :astro_client_routing
       ])
+      |> validate_inclusion(:astro_client_routing, ["enabled", "disabled", "unavailable"])
     end
 
-    def attrs_from_acp_meta(meta) when is_map(meta) do
-      case CurrentPageContext.fields_from_current_page_meta(meta) do
-        %{url: url} = fields ->
-          %{
-            url: url,
-            viewport_width: fields.viewport_width,
-            viewport_height: fields.viewport_height,
-            device_pixel_ratio: fields.device_pixel_ratio,
-            title: fields.title,
-            color_scheme: fields.color_scheme,
-            scroll_y: fields.scroll_y
-          }
-
-        nil ->
-          nil
-      end
-    end
-
-    def attrs_from_acp_meta(_), do: nil
+    defdelegate attrs_from_acp_meta(meta),
+      to: CurrentPageContext,
+      as: :fields_from_current_page_meta
   end
 
   defmodule Annotation do

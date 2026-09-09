@@ -11,6 +11,7 @@
   "devDependencies": {
     "@frontman-ai/frontman-protocol": "workspace:*",
     "@rescript/webapi": "workspace:*",
+    "jsdom": "^30.0.1",
     "rescript": "catalog:",
     "rescript-vitest": "catalog:",
     "sury": "catalog:",

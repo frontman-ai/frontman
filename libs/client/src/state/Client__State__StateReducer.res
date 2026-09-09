@@ -608,10 +608,16 @@ let sendMessageToAPIImpl = (
 ) => {
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
+    let runtimeConfig = Client__RuntimeConfig.read()
     let pageContextBlocks =
       state.tasks
       ->Dict.get(taskId)
-      ->Option.mapOr([], Client__State__Types.taskToPageContextBlocks)
+      ->Option.mapOr([], task =>
+        Client__State__Types.taskToPageContextBlocks(
+          task,
+          ~isAstro=runtimeConfig.framework == Astro,
+        )
+      )
 
     let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
 
@@ -619,7 +625,6 @@ let sendMessageToAPIImpl = (
     let additionalBlocks =
       Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
 
-    let runtimeConfig = Client__RuntimeConfig.read()
     let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
     let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
     state.selectedModelValue->Option.forEach(modelValue =>
