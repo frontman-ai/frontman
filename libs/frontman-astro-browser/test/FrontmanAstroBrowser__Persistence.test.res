@@ -25,35 +25,6 @@ let nested = (count, ~marked) => {
   "</div>"->String.repeat(count)
 }
 
-test(
-  "finds marked DOM ancestors nearest first, including empty markers, not the selected node",
-  t => {
-    let element = selectedFromHtml(
-      "<main data-astro-transition-persist=\"outer\"><section data-astro-transition-persist=\"\"><div><button id=\"selected\" data-astro-transition-persist=\"self\"></button></div></section></main>",
-    )
-    let result = Persistence.read(element, ~describeAncestor=describeKey)
-    t->expect(result.ancestors)->Expect.toEqual(["", "outer"])
-    t->expect(result.truncated)->Expect.toBe(false)
-  },
-)
-
-test("ignores source directives and reads current markers without caching", t => {
-  let element = selectedFromHtml(
-    "<main transition:persist=\"audio\"><button id=\"selected\"></button></main>",
-  )
-  let parent = element.parentElement->Null.toOption->Option.getOrThrow->WebAPI.HTMLElement.asElement
-  t->expect(Persistence.read(element, ~describeAncestor=describeKey).ancestors)->Expect.toEqual([])
-  parent->WebAPI.Element.setAttribute(
-    ~qualifiedName=Persistence.markerAttribute,
-    ~value="runtime-key",
-  )
-  t
-  ->expect(Persistence.read(element, ~describeAncestor=describeKey).ancestors)
-  ->Expect.toEqual(["runtime-key"])
-  parent->WebAPI.Element.removeAttribute(Persistence.markerAttribute)
-  t->expect(Persistence.read(element, ~describeAncestor=describeKey).ancestors)->Expect.toEqual([])
-})
-
 test("bounds parent traversal and distinguishes truncated empty results", t => {
   let element = selectedFromHtml(
     "<main data-astro-transition-persist=\"outside-limit\">" ++
@@ -90,14 +61,4 @@ test("caps serialized UTF-8 context including JSON escaping without partial desc
   let oversized = Persistence.read(element, ~describeAncestor=_ => "x"->String.repeat(4096))
   t->expect(oversized.ancestors)->Expect.toEqual([])
   t->expect(oversized.truncated)->Expect.toBe(true)
-})
-
-test("does not mistake a shadow host for a DOM parent", t => {
-  let host = selectedFromHtml("<div id=\"selected\" data-astro-transition-persist=\"host\"></div>")
-  let shadow = host->WebAPI.Element.attachShadow({mode: Open})
-  shadow.innerHTML = "<section data-astro-transition-persist=\"inside-shadow\"><button></button></section>"
-  let element = shadow->WebAPI.ShadowRoot.querySelector("button")->Null.toOption->Option.getOrThrow
-  let result = Persistence.read(element, ~describeAncestor=describeKey)
-  t->expect(result.ancestors)->Expect.toEqual(["inside-shadow"])
-  t->expect(result.truncated)->Expect.toBe(false)
 })

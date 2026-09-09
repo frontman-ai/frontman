@@ -138,13 +138,32 @@ let input: GetDom.input = {
   })
 })
 
-testAsync("distinguishes an empty direct marker and does not invent a selected key", async t => {
-  showPage(false, ~html="<div id=\"page\" data-astro-transition-persist=\"\"></div>")
-  let response = await execute(Astro, input)
-  let page = response.structuredContent->Option.getOrThrow
-  t->expect(page.astro_client_routing)->Expect.toEqual(Some("disabled"))
-  t->expect(page.html->String.includes("data-astro-transition-persist=\"\""))->Expect.toBe(true)
-  t->expect((page.astro_persistence->Option.getOrThrow).ancestors)->Expect.toEqual([])
+testAsync("reads current runtime markers, including empty keys, not source directives", async t => {
+  showPage(
+    false,
+    ~html="<main id=\"boundary\" transition:persist=\"audio\"><div id=\"page\" data-astro-transition-persist=\"\"></div></main>",
+  )
+  let {doc} = Client__Tool__PreviewContext.get()->Option.getOrThrow
+  let boundary = doc->WebAPI.Document.querySelector("#boundary")->Null.toOption->Option.getOrThrow
+  for index in 0 to 2 {
+    switch index {
+    | 1 =>
+      boundary->WebAPI.Element.setAttribute(~qualifiedName=Persistence.markerAttribute, ~value="")
+    | _ => boundary->WebAPI.Element.removeAttribute(Persistence.markerAttribute)
+    }
+    let response = await execute(Astro, input)
+    let page = response.structuredContent->Option.getOrThrow
+    t->expect(page.astro_client_routing)->Expect.toEqual(Some("disabled"))
+    t->expect(page.html->String.includes("data-astro-transition-persist=\"\""))->Expect.toBe(true)
+    let persistence = page.astro_persistence->Option.getOrThrow
+    t->expect(persistence.truncated)->Expect.toBe(false)
+    t->expect(persistence.ancestors->Array.length)->Expect.toBe(index == 1 ? 1 : 0)
+    switch persistence.ancestors->Array.get(0) {
+    | Some(ancestor) =>
+      t->expect(ancestor->String.includes("data-astro-transition-persist=\"\""))->Expect.toBe(true)
+    | None => ()
+    }
+  }
 })
 
 testAsync(
