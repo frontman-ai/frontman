@@ -1148,18 +1148,33 @@ defmodule FrontmanServer.Tasks.Interaction do
   tool results) regardless of database insertion timing.
   """
   def to_swarm_messages(interactions) when is_list(interactions) do
-    Enum.flat_map(interactions, &to_swarm_message/1)
+    skills =
+      for %SkillUsed{} = skill <- interactions,
+          into: %{},
+          do: {skill.user_message_id, SwarmContentPart.text(active_skill_text(skill))}
+
+    Enum.flat_map(interactions, fn
+      %UserMessage{} = msg ->
+        [message] = to_swarm_message(msg)
+        [%{message | content: List.wrap(Map.get(skills, msg.id)) ++ message.content}]
+
+      interaction ->
+        to_swarm_message(interaction)
+    end)
   end
 
-  defp to_swarm_message(%SkillUsed{} = skill_used) do
-    [%SwarmMessage.User{content: [SwarmContentPart.text(active_skill_text(skill_used))]}]
-  end
+  defp to_swarm_message(%SkillUsed{}), do: []
 
   defp to_swarm_message(%UserMessage{} = msg) do
-    prompt_text = user_prompt_text(msg)
-    content_parts = build_user_content_parts(prompt_text, msg)
+    message =
+      msg
+      |> user_prompt_text()
+      |> text_parts()
+      |> append_annotation_screenshot_parts(msg.annotations)
+      |> append_user_attachment_parts(msg.images)
+      |> build_swarm_user_message()
 
-    [build_swarm_user_message(content_parts)]
+    [message]
   end
 
   defp to_swarm_message(
@@ -1219,13 +1234,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     |> CurrentPageContext.append_prompt_section(msg.current_page)
     |> append_annotation_context(msg.annotations)
     |> append_attachment_context(msg.images)
-  end
-
-  defp build_user_content_parts(prompt_text, %UserMessage{} = msg) do
-    prompt_text
-    |> text_parts()
-    |> append_annotation_screenshot_parts(msg.annotations)
-    |> append_user_attachment_parts(msg.images)
   end
 
   defp text_parts(""), do: []

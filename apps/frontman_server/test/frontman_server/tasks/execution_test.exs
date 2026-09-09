@@ -530,13 +530,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive {:provider_messages, messages}, 1_000
 
       user_messages = Enum.filter(messages, &(&1.role == :user))
-      assert [skill_message, prompt_message] = user_messages
-
-      assert [active_skill_part] = skill_message.content
+      assert [prompt_message] = user_messages
+      assert [active_skill_part, user_prompt_part] = prompt_message.content
       assert active_skill_part.text =~ "## Active Skill: design_polish"
       assert active_skill_part.text =~ "Use hierarchy."
-      assert [user_prompt_part] = prompt_message.content
       assert user_prompt_part.text == "Improve hero"
+      {:ok, _} = Skills.update(scope, skill, %{content: "Changed instructions."})
 
       expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
         send(parent, {:followup_provider_messages, messages})
@@ -550,14 +549,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       user_messages = Enum.filter(followup_messages, &(&1.role == :user))
 
-      assert [historical_skill_message, historical_prompt_message, current_user_message] =
-               user_messages
-
-      assert [historical_skill_part] = historical_skill_message.content
+      assert [historical_prompt_message, current_user_message] = user_messages
+      assert [historical_skill_part, historical_prompt_part] = historical_prompt_message.content
       assert historical_skill_part.text =~ "## Active Skill: design_polish"
       assert historical_skill_part.text =~ "Use hierarchy."
 
-      assert [historical_prompt_part] = historical_prompt_message.content
       assert historical_prompt_part.text == "Improve hero"
 
       assert [current_prompt_part] = current_user_message.content
@@ -603,11 +599,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive {:provider_messages, messages}, 1_000
 
       user_messages = Enum.filter(messages, &(&1.role == :user))
-      assert [skill_message, first_message, second_message] = user_messages
-
-      assert [skill_part] = skill_message.content
+      assert [first_message, second_message] = user_messages
+      assert [skill_part, first_part] = first_message.content
       assert skill_part.text =~ "## Active Skill: design_polish"
-      assert [first_part] = first_message.content
       assert first_part.text == "Improve hero"
       assert [second_part] = second_message.content
       assert second_part.text == "Now tighten copy"

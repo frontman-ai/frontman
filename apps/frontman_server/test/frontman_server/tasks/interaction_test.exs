@@ -332,27 +332,32 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert messages == []
     end
 
-    test "adds active skill as its own user context message" do
+    test "prepends the matching skill without changing prompt or attachments" do
+      msg = %{
+        user_msg("Improve hero")
+        | images: [%UserImage{blob: Base.encode64("image"), mime_type: "image/png"}]
+      }
+
+      [original] = Interaction.to_swarm_messages([msg])
+
       skill_used = %Interaction.SkillUsed{
         id: "skill-used-1",
         timestamp: DateTime.utc_now(),
-        user_message_id: Ecto.UUID.generate(),
+        user_message_id: msg.id,
         skill_id: Ecto.UUID.generate(),
         skill_name: "design_polish",
         skill_content: "Use hierarchy."
       }
 
-      messages = Interaction.to_swarm_messages([skill_used, user_msg("Improve hero")])
+      assert [%SwarmAi.Message.User{content: [skill_part | prompt_parts]}] =
+               Interaction.to_swarm_messages([msg, skill_used])
 
-      assert [
-               %SwarmAi.Message.User{content: [skill_part]},
-               %SwarmAi.Message.User{content: [prompt_part]}
-             ] = messages
+      assert Interaction.to_swarm_messages([skill_used]) == []
 
       assert skill_part.text ==
                "## Active Skill: design_polish\n\nUse this expert lens for this turn.\n\nUse hierarchy."
 
-      assert prompt_part.text == "Improve hero"
+      assert prompt_parts == original.content
     end
 
     test "handles mixed conversation in correct order" do
