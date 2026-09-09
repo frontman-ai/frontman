@@ -21,7 +21,7 @@ class Frontman_Tool_Templates {
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_get_site_info',
-			'Returns comprehensive site information including WordPress version, active theme, active plugins, registered post types, and taxonomies.',
+			'Returns comprehensive site information including WordPress version, active theme, active plugins, registered public post types with archive URLs and rewrite settings, and taxonomies. CPT archives are generated routes, not backing pages/posts.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -165,9 +165,13 @@ class Frontman_Tool_Templates {
 		$pt_list    = [];
 		foreach ( $post_types as $pt ) {
 			$pt_list[] = [
-				'name'  => $pt->name,
-				'label' => $pt->label,
-				'count' => (int) wp_count_posts( $pt->name )->publish,
+				'name'               => $pt->name,
+				'label'              => $pt->label,
+				'count'              => (int) wp_count_posts( $pt->name )->publish,
+				'has_archive'        => $pt->has_archive,
+				'archive_url'        => get_post_type_archive_link( $pt->name ) ?: null,
+				'rewrite'            => $pt->rewrite,
+				'publicly_queryable' => $pt->publicly_queryable,
 			];
 		}
 
