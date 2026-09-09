@@ -94,6 +94,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		dispatch = (action) => dispatched.push(action);
 		delegate = () => {};
 		vi.restoreAllMocks();
+		window.__frontmanRuntime = { framework: "nextjs" };
 
 		finder.mockImplementation(() => "button.submit");
 		snapdom.mockImplementation(() =>
@@ -111,6 +112,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 
 	afterEach(() => {
 		vi.useRealTimers();
+		delete window.__frontmanRuntime;
 	});
 
 	it("dispatches AnnotationDetailsResolved with Enriched when all promises succeed", async () => {
@@ -128,6 +130,25 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(action.elementContext.TAG).toBe("Ok");
 		expect(action.elementContext._0).toContain('selected tag="button"');
 	});
+
+	it.each(["astro", "nextjs", "vite", "wordpress"])(
+		"scopes persistence markers by framework when annotating %s",
+		async (framework) => {
+			window.__frontmanRuntime = { framework };
+			const effect = makeEffect();
+			effect.element.setAttribute(
+				"data-astro-transition-persist",
+				"submit-action",
+			);
+			handleEffect(effect, dispatch, delegate);
+			await waitForDispatch(dispatched);
+			const context = dispatched[0].elementContext;
+			expect(context.TAG).toBe("Ok");
+			expect(
+				context._0.includes('data-astro-transition-persist="submit-action"'),
+			).toBe(framework === "astro");
+		},
+	);
 
 	it("dispatches Ok(None) sourceLocation when contentWindow is None", async () => {
 		handleEffect(makeEffect({ contentWindow: undefined }), dispatch, delegate);
@@ -216,27 +237,29 @@ describe("FetchAnnotationDetails effect handler", () => {
 		expect(resolveSourceLocation).not.toHaveBeenCalled();
 	});
 
-	it.each([
-		"detection",
-		"resolution",
-	])("times out source %s after five seconds", async (stage) => {
-		vi.useFakeTimers();
-		if (stage === "detection") {
-			getElementSourceLocation.mockImplementation(() => new Promise(() => {}));
-		} else {
-			getElementSourceLocation.mockResolvedValue(virtualContext);
-			resolveSourceLocation.mockImplementation(() => new Promise(() => {}));
-		}
+	it.each(["detection", "resolution"])(
+		"times out source %s after five seconds",
+		async (stage) => {
+			vi.useFakeTimers();
+			if (stage === "detection") {
+				getElementSourceLocation.mockImplementation(
+					() => new Promise(() => {}),
+				);
+			} else {
+				getElementSourceLocation.mockResolvedValue(virtualContext);
+				resolveSourceLocation.mockImplementation(() => new Promise(() => {}));
+			}
 
-		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
-		await vi.advanceTimersByTimeAsync(5000);
+			handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+			await vi.advanceTimersByTimeAsync(5000);
 
-		expect(dispatched).toHaveLength(1);
-		expect(dispatched[0].sourceLocation).toEqual({
-			TAG: "Error",
-			_0: "Source location detection or resolution timed out",
-		});
-	});
+			expect(dispatched).toHaveLength(1);
+			expect(dispatched[0].sourceLocation).toEqual({
+				TAG: "Error",
+				_0: "Source location detection or resolution timed out",
+			});
+		},
+	);
 
 	it.each([
 		{
@@ -273,26 +296,24 @@ describe("FetchAnnotationDetails effect handler", () => {
 			error: "CORS blocked source map",
 			contentWindow: {},
 		},
-	])("preserves enrichment when $name fails", async ({
-		arrange,
-		field,
-		error,
-		contentWindow,
-	}) => {
-		arrange();
-		handleEffect(makeEffect({ contentWindow }), dispatch, delegate);
-		await waitForDispatch(dispatched);
+	])(
+		"preserves enrichment when $name fails",
+		async ({ arrange, field, error, contentWindow }) => {
+			arrange();
+			handleEffect(makeEffect({ contentWindow }), dispatch, delegate);
+			await waitForDispatch(dispatched);
 
-		expect(dispatched[0].enrichmentStatus).toBe("Enriched");
-		expect(dispatched[0][field]).toEqual({ TAG: "Error", _0: error });
-		for (const unaffected of [
-			"selector",
-			"screenshot",
-			"sourceLocation",
-		].filter((candidate) => candidate !== field)) {
-			expect(dispatched[0][unaffected].TAG).toBe("Ok");
-		}
-	});
+			expect(dispatched[0].enrichmentStatus).toBe("Enriched");
+			expect(dispatched[0][field]).toEqual({ TAG: "Error", _0: error });
+			for (const unaffected of [
+				"selector",
+				"screenshot",
+				"sourceLocation",
+			].filter((candidate) => candidate !== field)) {
+				expect(dispatched[0][unaffected].TAG).toBe("Ok");
+			}
+		},
+	);
 
 	it("isolates a synchronous source resolver failure", async () => {
 		const mockLoc = {

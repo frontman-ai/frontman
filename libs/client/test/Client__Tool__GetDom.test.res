@@ -2,6 +2,7 @@ open Vitest
 
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module GetDom = Client__Tool__GetDom
+module Persistence = FrontmanAiAstroBrowser.FrontmanAstroBrowser__Persistence
 
 type previewModule
 type spy
@@ -16,7 +17,12 @@ external createIframe: (
 ) => WebAPI.DomTypes.htmliFrameElement = "createElement"
 
 @schema
-type page = {url: string, html: string, astro_client_routing: option<string>}
+type page = {
+  url: string,
+  html: string,
+  astro_client_routing: option<string>,
+  astro_persistence: option<Persistence.t>,
+}
 @schema
 type textContent = {text: string}
 @schema
@@ -32,7 +38,7 @@ afterEach(() => {
   resetAllMocks()
 })
 
-let showPage = (enabled, ~text="Content") => {
+let showPage = (enabled, ~text="Content", ~html=?) => {
   let frame = WebAPI.DomGlobal.document->createIframe
   frame->WebAPI.HTMLIFrameElement.setAttribute(
     ~qualifiedName="src",
@@ -47,9 +53,8 @@ let showPage = (enabled, ~text="Content") => {
   | true => "<meta name=\"astro-view-transitions-enabled\">"
   | false => ""
   }
-  doc->WebAPI.Document.write(
-    `<html><head>${marker}</head><body><main id="page"><span>${text}</span></main></body></html>`,
-  )
+  let content = html->Option.getOr(`<main id="page"><span>${text}</span></main>`)
+  doc->WebAPI.Document.write(`<html><head>${marker}</head><body>${content}</body></html>`)
   doc->WebAPI.Document.close
   get->mockReturnValue(Some({doc, win}))
 }
@@ -94,6 +99,109 @@ let input: GetDom.input = {
       t->expect(page.html->String.includes("Content"))->Expect.toBe(true)
       t->expect(page.astro_client_routing)->Expect.toEqual(Some(routing))
     }
+  })
+})
+
+[#simplified, #full]->Array.forEach(mode => {
+  testAsync("shows direct markers and ancestors outside the inspected subtree", async t => {
+    showPage(
+      true,
+      ~html="<main id=\"layout\" data-astro-transition-persist=\"outer\"><section id=\"player\" data-astro-transition-persist=\"audio\"><div><button id=\"page\" data-astro-transition-persist=\"control\"><span data-astro-transition-persist=\"label\">Play</span></button></div></section></main>",
+    )
+    for index in 0 to 1 {
+      let selector = ["#page", "//button[@id='page']"]->Array.get(index)->Option.getOrThrow
+      let response = await execute(Astro, {...input, selector, mode: Some(mode)})
+      let page = response.structuredContent->Option.getOrThrow
+      t
+      ->expect(page.html->String.includes("data-astro-transition-persist=\"control\""))
+      ->Expect.toBe(true)
+      t
+      ->expect(page.html->String.includes("data-astro-transition-persist=\"label\""))
+      ->Expect.toBe(true)
+      let persistence = page.astro_persistence->Option.getOrThrow
+      t->expect(persistence.truncated)->Expect.toBe(false)
+      t->expect(persistence.ancestors->Array.length)->Expect.toBe(2)
+      let nearest = persistence.ancestors->Array.get(0)->Option.getOrThrow
+      let farthest = persistence.ancestors->Array.get(1)->Option.getOrThrow
+      t
+      ->expect(nearest->String.includes("data-astro-transition-persist=\"audio\""))
+      ->Expect.toBe(true)
+      t->expect(nearest->String.includes("selector=\"#player\""))->Expect.toBe(true)
+      t->expect(farthest->String.includes("selector=\"#layout\""))->Expect.toBe(true)
+    }
+    showPage(false)
+    let response = await execute(Astro, {...input, mode: Some(mode)})
+    let persistence =
+      (response.structuredContent->Option.getOrThrow).astro_persistence->Option.getOrThrow
+    t->expect(persistence.ancestors)->Expect.toEqual([])
+    t->expect(persistence.truncated)->Expect.toBe(false)
+  })
+})
+
+testAsync("reads current runtime markers, including empty keys, not source directives", async t => {
+  showPage(
+    false,
+    ~html="<main id=\"boundary\" transition:persist=\"audio\"><div id=\"page\" data-astro-transition-persist=\"\"></div></main>",
+  )
+  let {doc} = Client__Tool__PreviewContext.get()->Option.getOrThrow
+  let boundary = doc->WebAPI.Document.querySelector("#boundary")->Null.toOption->Option.getOrThrow
+  for index in 0 to 2 {
+    switch index {
+    | 1 =>
+      boundary->WebAPI.Element.setAttribute(~qualifiedName=Persistence.markerAttribute, ~value="")
+    | _ => boundary->WebAPI.Element.removeAttribute(Persistence.markerAttribute)
+    }
+    let response = await execute(Astro, input)
+    let page = response.structuredContent->Option.getOrThrow
+    t->expect(page.astro_client_routing)->Expect.toEqual(Some("disabled"))
+    t->expect(page.html->String.includes("data-astro-transition-persist=\"\""))->Expect.toBe(true)
+    let persistence = page.astro_persistence->Option.getOrThrow
+    t->expect(persistence.truncated)->Expect.toBe(false)
+    t->expect(persistence.ancestors->Array.length)->Expect.toBe(index == 1 ? 1 : 0)
+    switch persistence.ancestors->Array.get(0) {
+    | Some(ancestor) =>
+      t->expect(ancestor->String.includes("data-astro-transition-persist=\"\""))->Expect.toBe(true)
+    | None => ()
+    }
+  }
+})
+
+testAsync(
+  "reuses shadow-path resolution and scopes ancestor evidence to that DOM tree",
+  async t => {
+    showPage(true, ~html="<div id=\"page\" data-astro-transition-persist=\"host\"></div>")
+    let {doc} = Client__Tool__PreviewContext.get()->Option.getOrThrow
+    let host = doc->WebAPI.Document.querySelector("#page")->Null.toOption->Option.getOrThrow
+    let shadow = host->WebAPI.Element.attachShadow({mode: Open})
+    shadow.innerHTML = "<section data-astro-transition-persist=\"inside-shadow\"><button data-astro-transition-persist=\"button\">Play</button></section>"
+    let response = await execute(Astro, {...input, selector: "#page >>> 1/1"})
+    let page = response.structuredContent->Option.getOrThrow
+    t
+    ->expect(page.html->String.includes("data-astro-transition-persist=\"button\""))
+    ->Expect.toBe(true)
+    let ancestors = (page.astro_persistence->Option.getOrThrow).ancestors
+    t->expect(ancestors->Array.length)->Expect.toBe(1)
+    t
+    ->expect(
+      ancestors
+      ->Array.get(0)
+      ->Option.getOrThrow
+      ->String.includes("data-astro-transition-persist=\"inside-shadow\""),
+    )
+    ->Expect.toBe(true)
+  },
+)
+
+[Client__RuntimeConfig.Nextjs, Vite, Wordpress]->Array.forEach(framework => {
+  testAsync("keeps persistence enrichment out of non-Astro inspection", async t => {
+    showPage(
+      true,
+      ~html="<main data-astro-transition-persist=\"outer\"><div id=\"page\" data-astro-transition-persist=\"inner\"></div></main>",
+    )
+    let response = await execute(framework, input)
+    let page = response.structuredContent->Option.getOrThrow
+    t->expect(page.html->String.includes("data-astro-transition-persist"))->Expect.toBe(false)
+    t->expect(page.astro_persistence)->Expect.toEqual(None)
   })
 })
 

@@ -47,12 +47,22 @@ let countElements = (el: WebAPI.DomTypes.element): int =>
 let buildTooLargeHint = (
   ~el: WebAPI.DomTypes.element,
   ~document: WebAPI.DomTypes.document,
+  ~additionalAttributes: array<string>,
 ): string => {
-  let overview = Client__ElementInspector.inspect(~element=el, ~document, ~maxDepth=1, ~maxNodes=16)
+  let overview = Client__ElementInspector.inspect(
+    ~element=el,
+    ~document,
+    ~maxDepth=1,
+    ~maxNodes=16,
+    ~additionalAttributes,
+  )
   `Target a child selector from this overview instead:\n${overview.html}`
 }
 
-let inspect = (input: input, {doc, win}: Tool.previewContext): result<output, string> => {
+let inspect = (input: input, {doc, win}: Tool.previewContext, ~additionalAttributes=[]): result<
+  (output, WebAPI.DomTypes.element),
+  string,
+> => {
   let (element, _matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
     ~doc,
     ~selector=input.selector,
@@ -74,7 +84,7 @@ let inspect = (input: input, {doc, win}: Tool.previewContext): result<output, st
           `Subtree too large for full mode (${Int.toString(
               elementCount,
             )} elements, limit: ${Int.toString(maxNodes)}).\n` ++
-          buildTooLargeHint(~el, ~document=doc),
+          buildTooLargeHint(~el, ~document=doc, ~additionalAttributes),
         )
       | false =>
         let raw = el.outerHTML
@@ -85,7 +95,7 @@ let inspect = (input: input, {doc, win}: Tool.previewContext): result<output, st
             `HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
                 fullModeMaxBytes,
               )}). Use simplified mode for an overview, or target a smaller component.\n` ++
-            buildTooLargeHint(~el, ~document=doc),
+            buildTooLargeHint(~el, ~document=doc, ~additionalAttributes),
           )
         | false => Ok((raw, elementCount, None))
         }
@@ -106,6 +116,7 @@ let inspect = (input: input, {doc, win}: Tool.previewContext): result<output, st
         ~maxNodes,
         ~pierceShadowDom,
         ~selectedSelector?,
+        ~additionalAttributes,
       )
       let hint = switch inspection.truncated {
       | true =>
@@ -116,13 +127,16 @@ let inspect = (input: input, {doc, win}: Tool.previewContext): result<output, st
       }
       Ok((inspection.html, inspection.nodeCount, hint))
     }
-    content->Result.map(((html, nodeCount, hint)): output => {
-      url: (win->WebAPI.Window.location).href,
-      html,
-      nodeCount,
-      byteSize: Client__ElementInspector.utf8ByteSize(html),
-      hint,
-    })
+    content->Result.map(((html, nodeCount, hint)) => (
+      {
+        GetDom.url: (win->WebAPI.Window.location).href,
+        html,
+        nodeCount,
+        byteSize: Client__ElementInspector.utf8ByteSize(html),
+        hint,
+      },
+      el,
+    ))
   }
 }
 
@@ -135,7 +149,7 @@ let execute = async (
   | None => Tool.MCP.CallToolResult.makeError("Preview frame not available")
   | Some(preview) =>
     switch inspect(input, preview) {
-    | Ok(output) => Tool.structuredResult(output, outputSchema)
+    | Ok((output, _element)) => Tool.structuredResult(output, outputSchema)
     | Error(message) => Tool.MCP.CallToolResult.makeError(message)
     }
   }

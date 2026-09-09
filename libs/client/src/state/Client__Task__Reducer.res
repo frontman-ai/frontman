@@ -1381,7 +1381,19 @@ let fetchAnnotationDetails = (
   let inspection = switch document {
   | Some(document) =>
     try {
-      Ok(Client__ElementInspector.inspect(~element, ~document, ~maxDepth=1, ~maxNodes=200))
+      let additionalAttributes = switch Client__RuntimeConfig.read().framework {
+      | Astro => Some(FrontmanAiAstroBrowser.FrontmanAstroBrowser__Persistence.inspectionAttributes)
+      | Nextjs | Vite | Wordpress => None
+      }
+      Ok(
+        Client__ElementInspector.inspect(
+          ~element,
+          ~document,
+          ~maxDepth=1,
+          ~maxNodes=200,
+          ~additionalAttributes?,
+        ),
+      )
     } catch {
     | exn =>
       let message = formatError(exn)
