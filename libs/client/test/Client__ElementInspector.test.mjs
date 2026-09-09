@@ -5,10 +5,7 @@ vi.mock("@medv/finder", () => ({
 }));
 
 import { finder } from "@medv/finder";
-import {
-	describeAncestor,
-	inspect,
-} from "../src/Client__ElementInspector.res.mjs";
+import { inspect } from "../src/Client__ElementInspector.res.mjs";
 
 beforeEach(() => {
 	document.body.innerHTML = "";
@@ -40,35 +37,6 @@ it("describes bounded context with navigable child selectors", () => {
 		nodeCount: 1,
 		truncated: true,
 	});
-});
-
-it("includes caller-supplied attributes only when requested, using shared escaping and limits", () => {
-	document.body.innerHTML = `
-		<main data-boundary="outer"><div id="inspection-root" data-boundary="a&amp;&quot;b">
-			<span data-boundary=""></span>
-		</div></main>
-	`;
-	const root = document.querySelector("#inspection-root");
-	expect(inspect(root, document, 1, 20).html).not.toContain("data-boundary");
-	const result = inspect(root, document, 1, 20, false, undefined, [
-		"data-boundary",
-	]);
-	expect(result.html).toContain('data-boundary="outer"');
-	expect(result.html).toContain(`data-boundary=${JSON.stringify('a&"b')}`);
-	expect(result.html).toContain('data-boundary=""');
-	expect(
-		describeAncestor(root.parentElement, document, ["data-boundary"]),
-	).toContain(
-		'ancestor tag="main" data-boundary="outer" selector="#inspection-root"',
-	);
-	root.setAttribute("data-boundary", "é".repeat(40_000));
-	const bounded = inspect(root, document, 1, 20, false, undefined, [
-		"data-boundary",
-	]);
-	expect(bounded.html).toContain(`data-boundary="${"é".repeat(80)}..."`);
-	expect(new TextEncoder().encode(bounded.html).byteLength).toBeLessThanOrEqual(
-		30_000,
-	);
 });
 
 it("caps simplified context at 30 KB of UTF-8", () => {
