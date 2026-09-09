@@ -31,7 +31,18 @@ let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {
       [
         FrontmanAiAstroBrowser.FrontmanAstroBrowser__Tool__GetDom.make(
           ~getPreviewDoc,
-          ~inspect=Client__Tool__GetDom.inspect,
+          ~inspect=(input, preview) =>
+            Client__Tool__GetDom.inspect(
+              input,
+              preview,
+              ~additionalAttributes=FrontmanAiAstroBrowser.FrontmanAstroBrowser__Persistence.inspectionAttributes,
+            ),
+          ~describeAncestor=(element, preview) =>
+            Client__ElementInspector.describeAncestor(
+              ~element,
+              ~document=preview.doc,
+              ~additionalAttributes=FrontmanAiAstroBrowser.FrontmanAstroBrowser__Persistence.inspectionAttributes,
+            ),
           ~description=Client__Tool__GetDom.description,
         ),
       ],

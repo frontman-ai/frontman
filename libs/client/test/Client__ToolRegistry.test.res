@@ -69,6 +69,8 @@ describe("ToolRegistry", _t => {
           )
         t->expect(description->String.includes("Astro"))->Expect.toBe(isAstro)
         t->expect(properties->Dict.has("astro_client_routing"))->Expect.toBe(isAstro)
+        t->expect(properties->Dict.has("astro_persistence"))->Expect.toBe(isAstro)
+        t->expect(description->String.includes("not proof"))->Expect.toBe(isAstro)
         t
         ->expect(properties->Dict.has("success") || properties->Dict.has("error"))
         ->Expect.toBe(false)
