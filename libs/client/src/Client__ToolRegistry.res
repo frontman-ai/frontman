@@ -6,13 +6,13 @@ type tool = module(Tool.Tool)
 
 type t = {tools: array<tool>}
 
-let coreBrowserTools: array<tool> = [
+let coreBrowserTools = (~getDom: tool): array<tool> => [
   module(Client__Tool__TakeScreenshot),
   module(Client__Tool__ExecuteJs),
   module(Client__Tool__SetDeviceMode),
   module(Client__Tool__GetInteractiveElements),
   module(Client__Tool__InteractWithElement),
-  module(Client__Tool__GetDom),
+  getDom,
   module(Client__Tool__SearchText),
   module(Client__Tool__Question),
 ]
@@ -28,10 +28,10 @@ let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {
   | Astro =>
     let getPreviewDoc = Client__Tool__PreviewContext.get
     Array.concat(
-      coreBrowserTools,
+      coreBrowserTools(~getDom=module(Client__Tool__AstroGetDom)),
       FrontmanAiAstroBrowser.FrontmanAstroBrowser__Registry.browserTools(~getPreviewDoc),
     )
-  | Nextjs | Vite | Wordpress => coreBrowserTools
+  | Nextjs | Vite | Wordpress => coreBrowserTools(~getDom=module(Client__Tool__GetDom))
   }
   {tools: tools}
 }

@@ -1,5 +1,4 @@
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
-module ClientRouting = FrontmanAiAstroBrowser.FrontmanAstroBrowser__ClientRouting
 
 let name = Tool.ToolNames.getDom
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
@@ -18,7 +17,7 @@ Modes:
 - **simplified** (default): Line-oriented parent, selected, and child descriptors with selectors when resolvable, key attributes, accessibility role/name, component names, child counts, and escaped text. Script/style/SVG and form-control values stripped. Capped at 200 nodes and 30KB.
 - **full**: Raw outerHTML. Capped at 15KB. Use only when you need exact markup for a specific component.
 
-Results include the current preview URL and, for Astro, current-page client routing opt-in (enabled, disabled, or unavailable). Routing opt-in does not indicate completed navigation.
+Results include the current preview URL.
 
 Simplified mode stops at the node or output limit and returns selectors so you can continue with a narrower target. Full mode rejects oversized subtrees.
 
@@ -57,11 +56,6 @@ type input = {
 type output = {
   @s.describe("Current preview URL, absent when the preview is unavailable") @live
   url: option<string>,
-  @s.describe(
-    "Astro current-page routing opt-in, not navigation completion. Absent for other frameworks."
-  )
-  @live
-  astro_client_routing: option<ClientRouting.t>,
   @s.describe("Whether the DOM query succeeded") @live
   success: bool,
   @s.describe(
@@ -105,7 +99,6 @@ let buildTooLargeHint = (
 
 let errorResult = (~error: string, ~hint: option<string>=?, ~nodeCount: option<int>=?): output => {
   url: None,
-  astro_client_routing: None,
   success: false,
   html: None,
   nodeCount,
@@ -116,7 +109,6 @@ let errorResult = (~error: string, ~hint: option<string>=?, ~nodeCount: option<i
 
 let successResult = (~html: string, ~nodeCount: int, ~hint: option<string>=?): output => {
   url: None,
-  astro_client_routing: None,
   success: true,
   html: Some(html),
   nodeCount: Some(nodeCount),
@@ -125,17 +117,8 @@ let successResult = (~html: string, ~nodeCount: int, ~hint: option<string>=?): o
   error: None,
 }
 
-let execute = async (
-  input: input,
-  ~taskId as _taskId: string,
-  ~toolCallId as _toolCallId: string,
-): Tool.MCP.CallToolResult.t => {
-  let preview = Client__Tool__PreviewContext.get()
+let inspect = (input: input, preview: option<Client__Tool__PreviewContext.t>): output => {
   let url = preview->Option.map(({win}) => (win->WebAPI.Window.location).href)
-  let astro_client_routing = switch Client__RuntimeConfig.read().framework {
-  | Astro => Some(ClientRouting.read(preview->Option.map(({doc}) => doc)))
-  | Nextjs | Vite | Wordpress => None
-  }
   let result = switch preview {
   | None => errorResult(~error="Preview frame not available")
   | Some({doc}) =>
@@ -214,5 +197,12 @@ let execute = async (
     | exn => errorResult(~error=Client__Tool__PreviewContext.exnMessage(exn))
     }
   }
-  Tool.structuredResult({...result, url, astro_client_routing}, outputSchema)
+  {...result, url}
 }
+
+let execute = async (
+  input: input,
+  ~taskId as _taskId: string,
+  ~toolCallId as _toolCallId: string,
+): Tool.MCP.CallToolResult.t =>
+  Tool.structuredResult(inspect(input, Client__Tool__PreviewContext.get()), outputSchema)

@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { execute } from "../src/tools/Client__Tool__GetDom.res.mjs";
+import { forFramework } from "../src/Client__ToolRegistry.res.mjs";
 import { get } from "../src/tools/Client__Tool__PreviewContext.res.mjs";
 
 vi.mock(
@@ -10,8 +10,21 @@ vi.mock(
 	}),
 );
 
-const inspect = async (mode = "simplified", selector = "#page") =>
-	(await execute({ selector, mode }, "task", "call")).structuredContent;
+const getDom = (framework) => {
+	const tools = forFramework(framework).tools.filter(
+		(tool) => tool.name === "get_dom",
+	);
+	expect(tools).toHaveLength(1);
+	return tools[0];
+};
+
+const inspect = async (
+	mode = "simplified",
+	selector = "#page",
+	framework = "Astro",
+) =>
+	(await getDom(framework).execute({ selector, mode }, "task", "call"))
+		.structuredContent;
 
 const showPage = (path, enabled) => {
 	const frame = document.createElement("iframe");
@@ -32,13 +45,11 @@ const showPage = (path, enabled) => {
 afterEach(() => {
 	document.body.replaceChildren();
 	vi.resetAllMocks();
-	delete window.__frontmanRuntime;
 });
 
 it.each(["simplified", "full"])(
 	"reads fresh URL and routing after document replacement in %s mode",
 	async (mode) => {
-		window.__frontmanRuntime = { framework: "astro" };
 		showPage("/first", true);
 		const first = await inspect(mode);
 		expect(first.error).toBeUndefined();
@@ -61,7 +72,6 @@ it.each(["simplified", "full"])(
 );
 
 it("includes routing context on query failures and distinguishes unavailable from disabled", async () => {
-	window.__frontmanRuntime = { framework: "astro" };
 	showPage("/current", true);
 	expect(await inspect("full", "#missing")).toMatchObject({
 		success: false,
@@ -78,13 +88,36 @@ it("includes routing context on query failures and distinguishes unavailable fro
 	expect(result.url).toBeUndefined();
 });
 
-it.each(["nextjs", "vite", "wordpress"])(
-	"omits Astro routing for %s",
+it.each(["Nextjs", "Vite", "Wordpress"])(
+	"keeps %s results, schema, and description framework-neutral",
 	async (framework) => {
-		window.__frontmanRuntime = { framework };
-		showPage("/other", true);
-		const result = await inspect();
-		expect(result.url).toBe("https://preview.test/other");
-		expect(result).not.toHaveProperty("astro_client_routing");
+		const tool = getDom(framework);
+		expect(tool.description).not.toMatch(/astro/i);
+		expect(tool.outputJsonSchema.properties).toHaveProperty("url");
+		expect(tool.outputJsonSchema.properties).not.toHaveProperty(
+			"astro_client_routing",
+		);
+		for (const mode of ["simplified", "full"]) {
+			showPage("/other", true);
+			const result = await inspect(mode, "#page", framework);
+			expect(result.success).toBe(true);
+			expect(result.url).toBe("https://preview.test/other");
+			expect(result).not.toHaveProperty("astro_client_routing");
+		}
+		get.mockReturnValue(undefined);
+		const unavailable = await inspect("full", "#page", framework);
+		expect(unavailable.success).toBe(false);
+		expect(unavailable).not.toHaveProperty("astro_client_routing");
 	},
 );
+
+it("advertises routing only on the Astro wrapper and reads one preview per call", async () => {
+	const tool = getDom("Astro");
+	expect(tool.description).toContain("Astro");
+	expect(tool.outputJsonSchema.properties).toHaveProperty(
+		"astro_client_routing",
+	);
+	showPage("/current", true);
+	await inspect();
+	expect(get).toHaveBeenCalledTimes(1);
+});
