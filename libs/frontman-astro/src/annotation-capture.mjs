@@ -1,19 +1,5 @@
 
 export const annotationCaptureScript = `(function() {
-  if (window.__frontman_astro_navigation__) return;
-  var navigation = window.__frontman_astro_navigation__ = { lastNavigation: null };
-
-  ['astro:before-preparation', 'astro:after-preparation', 'astro:before-swap', 'astro:after-swap', 'astro:page-load'].forEach(function(phase) {
-    document.addEventListener(phase, function(event) {
-      if (phase === 'astro:before-preparation' || phase === 'astro:before-swap') {
-        navigation.lastNavigation = { from: event.from.href, to: event.to.href, phase: phase };
-      } else if (navigation.lastNavigation) {
-        if (phase === 'astro:page-load' && navigation.lastNavigation.phase !== 'astro:after-swap') return;
-        navigation.lastNavigation.phase = phase;
-      }
-    });
-  });
-
   var PROPS_PREFIX = '__frontman_props__:';
 
   function parsePropsPayload(text) {
