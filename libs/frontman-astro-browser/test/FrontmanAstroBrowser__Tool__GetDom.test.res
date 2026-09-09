@@ -7,36 +7,51 @@ module AstroGetDom = FrontmanAstroBrowser__Tool__GetDom
 @schema
 type result = {structuredContent: AstroGetDom.output}
 
+@schema
+type errorResponse = {isError: bool}
+
 describe("FrontmanAstroBrowser__Tool__GetDom", _t => {
+  testAsync("rejects unavailable previews before calling the inspector", async t => {
+    module T = unpack(
+      AstroGetDom.make(
+        ~getPreviewDoc=() => None,
+        ~inspect=(_, _) => JsExn.throw("Inspector must not run without a preview"),
+        ~description="Shared DOM inspection",
+      )
+    )
+    let input = S.parseOrThrow(JSON.parseOrThrow("{\"selector\":\"#page\"}"), ~to=T.inputSchema)
+    let response = await T.execute(input, ~taskId="task", ~toolCallId="call")
+    let json = response->S.decodeOrThrow(~from=Tool.MCP.CallToolResult.schema, ~to=S.json)
+    t->expect(S.parseOrThrow(json, ~to=errorResponseSchema).isError)->Expect.toBe(true)
+  })
+
   testAsync("uses the injected inspector and the same preview for routing", async t => {
     let doc =
       WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
         ~title="",
       )
     doc.head.innerHTML = "<meta name=\"astro-view-transitions-enabled\">"
-    let preview = Some(({doc, win: WebAPI.Window.current}: Tool.previewContext))
+    let preview: Tool.previewContext = {doc, win: WebAPI.Window.current}
     let previewReads = ref(0)
     let inspections = ref(0)
     let inspected: GetDom.output = {
-      url: Some("https://preview.test/page"),
-      success: true,
-      html: Some("<main id=\"page\">Page</main>"),
-      nodeCount: Some(1),
-      byteSize: Some(27),
+      url: "https://preview.test/page",
+      html: "<main id=\"page\">Page</main>",
+      nodeCount: 1,
+      byteSize: 27,
       hint: Some("Inspection hint"),
-      error: None,
     }
     module T = unpack(
       AstroGetDom.make(
         ~getPreviewDoc=() => {
           previewReads := previewReads.contents + 1
-          preview
+          Some(preview)
         },
         ~inspect=(input, context) => {
           inspections := inspections.contents + 1
           t->expect(input.selector)->Expect.toBe("#page")
           t->expect(context)->Expect.toBe(preview)
-          inspected
+          Ok(inspected)
         },
         ~description="Shared DOM inspection",
       )
@@ -50,11 +65,9 @@ describe("FrontmanAstroBrowser__Tool__GetDom", _t => {
     t->expect(inspections.contents)->Expect.toBe(1)
     t->expect(output.astro_client_routing)->Expect.toBe(FrontmanAstroBrowser__ClientRouting.Enabled)
     t->expect(output.url)->Expect.toEqual(inspected.url)
-    t->expect(output.success)->Expect.toBe(inspected.success)
     t->expect(output.html)->Expect.toEqual(inspected.html)
     t->expect(output.nodeCount)->Expect.toEqual(inspected.nodeCount)
     t->expect(output.byteSize)->Expect.toEqual(inspected.byteSize)
     t->expect(output.hint)->Expect.toEqual(inspected.hint)
-    t->expect(output.error)->Expect.toEqual(inspected.error)
   })
 })

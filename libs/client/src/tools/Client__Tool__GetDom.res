@@ -47,116 +47,83 @@ let countElements = (el: WebAPI.DomTypes.element): int =>
 let buildTooLargeHint = (
   ~el: WebAPI.DomTypes.element,
   ~document: WebAPI.DomTypes.document,
-  ~elementCount: int,
-  ~maxNodes: int,
 ): string => {
   let overview = Client__ElementInspector.inspect(~element=el, ~document, ~maxDepth=1, ~maxNodes=16)
-  `Subtree has ${elementCount->Int.toString} elements (limit: ${maxNodes->Int.toString}). ` ++
   `Target a child selector from this overview instead:\n${overview.html}`
 }
 
-let errorResult = (~error: string, ~hint: option<string>=?, ~nodeCount: option<int>=?): output => {
-  url: None,
-  success: false,
-  html: None,
-  nodeCount,
-  byteSize: None,
-  hint,
-  error: Some(error),
-}
-
-let successResult = (~html: string, ~nodeCount: int, ~hint: option<string>=?): output => {
-  url: None,
-  success: true,
-  html: Some(html),
-  nodeCount: Some(nodeCount),
-  byteSize: Some(Client__ElementInspector.utf8ByteSize(html)),
-  hint,
-  error: None,
-}
-
-let inspect = (input: input, preview: option<Client__Tool__PreviewContext.t>): output => {
-  let url = preview->Option.map(({win}) => (win->WebAPI.Window.location).href)
-  let result = switch preview {
-  | None => errorResult(~error="Preview frame not available")
-  | Some({doc}) =>
-    try {
-      let (element, _matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
-        ~doc,
-        ~selector=input.selector,
-      )
-
-      switch element {
-      | None => errorResult(~error=`No element found for selector: ${input.selector}`)
-
-      | Some(el) =>
-        let maxNodes =
-          input.maxNodes
-          ->Option.getOr(defaultMaxNodes)
-          ->Math.Int.min(hardMaxNodes)
-          ->Math.Int.max(1)
-
-        switch input.mode->Option.getOr(#simplified) {
-        | #full =>
-          let elementCount = countElements(el)
-          switch elementCount > maxNodes {
-          | true =>
-            errorResult(
-              ~error=`Subtree too large for full mode (${Int.toString(
-                  elementCount,
-                )} elements, limit: ${Int.toString(maxNodes)}).`,
-              ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
-              ~nodeCount=elementCount,
-            )
-          | false =>
-            let raw = el.outerHTML
-            let byteSize = Client__ElementInspector.utf8ByteSize(raw)
-            switch byteSize > fullModeMaxBytes {
-            | true =>
-              errorResult(
-                ~error=`HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
-                    fullModeMaxBytes,
-                  )}). Use simplified mode for an overview, or target a smaller component.`,
-                ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
-                ~nodeCount=elementCount,
-              )
-            | false => successResult(~html=raw, ~nodeCount=elementCount)
-            }
-          }
-
-        | #simplified =>
-          let maxDepth = input.maxDepth->Option.getOr(defaultMaxDepth)
-          let pierceShadowDom = input.pierceShadowDom->Option.getOr(false)
-          let selectedSelector = switch Client__Tool__SelectorResolver.classifySelector(
-            input.selector,
-          ) {
-          | CssSelector(_) => Some(input.selector)
-          | XPathExpression(_) => None
-          }
-          let inspection = Client__ElementInspector.inspect(
-            ~element=el,
-            ~document=doc,
-            ~maxDepth,
-            ~maxNodes,
-            ~pierceShadowDom,
-            ~selectedSelector?,
+let inspect = (input: input, {doc, win}: Tool.previewContext): result<output, string> => {
+  let (element, _matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
+    ~doc,
+    ~selector=input.selector,
+  )
+  switch element {
+  | None => Error(`No element found for selector: ${input.selector}`)
+  | Some(el) =>
+    let maxNodes =
+      input.maxNodes
+      ->Option.getOr(defaultMaxNodes)
+      ->Math.Int.min(hardMaxNodes)
+      ->Math.Int.max(1)
+    let content = switch input.mode->Option.getOr(#simplified) {
+    | #full =>
+      let elementCount = countElements(el)
+      switch elementCount > maxNodes {
+      | true =>
+        Error(
+          `Subtree too large for full mode (${Int.toString(
+              elementCount,
+            )} elements, limit: ${Int.toString(maxNodes)}).\n` ++
+          buildTooLargeHint(~el, ~document=doc),
+        )
+      | false =>
+        let raw = el.outerHTML
+        let byteSize = Client__ElementInspector.utf8ByteSize(raw)
+        switch byteSize > fullModeMaxBytes {
+        | true =>
+          Error(
+            `HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
+                fullModeMaxBytes,
+              )}). Use simplified mode for an overview, or target a smaller component.\n` ++
+            buildTooLargeHint(~el, ~document=doc),
           )
-
-          let hint = switch inspection.truncated {
-          | true =>
-            Some(
-              `Output stopped at the ${maxNodes->Int.toString}-node or ${Client__ElementInspector.maxOutputBytes->Int.toString}-byte limit. Narrow your selector for complete results.`,
-            )
-          | false => None
-          }
-          successResult(~html=inspection.html, ~nodeCount=inspection.nodeCount, ~hint?)
+        | false => Ok((raw, elementCount, None))
         }
       }
-    } catch {
-    | exn => errorResult(~error=Client__Tool__PreviewContext.exnMessage(exn))
+    | #simplified =>
+      let maxDepth = input.maxDepth->Option.getOr(defaultMaxDepth)
+      let pierceShadowDom = input.pierceShadowDom->Option.getOr(false)
+      let selectedSelector = switch Client__Tool__SelectorResolver.classifySelector(
+        input.selector,
+      ) {
+      | CssSelector(_) => Some(input.selector)
+      | XPathExpression(_) => None
+      }
+      let inspection = Client__ElementInspector.inspect(
+        ~element=el,
+        ~document=doc,
+        ~maxDepth,
+        ~maxNodes,
+        ~pierceShadowDom,
+        ~selectedSelector?,
+      )
+      let hint = switch inspection.truncated {
+      | true =>
+        Some(
+          `Output stopped at the ${maxNodes->Int.toString}-node or ${Client__ElementInspector.maxOutputBytes->Int.toString}-byte limit. Narrow your selector for complete results.`,
+        )
+      | false => None
+      }
+      Ok((inspection.html, inspection.nodeCount, hint))
     }
+    content->Result.map(((html, nodeCount, hint)): output => {
+      url: (win->WebAPI.Window.location).href,
+      html,
+      nodeCount,
+      byteSize: Client__ElementInspector.utf8ByteSize(html),
+      hint,
+    })
   }
-  {...result, url}
 }
 
 let execute = async (
@@ -164,4 +131,11 @@ let execute = async (
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
 ): Tool.MCP.CallToolResult.t =>
-  Tool.structuredResult(inspect(input, Client__Tool__PreviewContext.get()), outputSchema)
+  switch Client__Tool__PreviewContext.get() {
+  | None => Tool.MCP.CallToolResult.makeError("Preview frame not available")
+  | Some(preview) =>
+    switch inspect(input, preview) {
+    | Ok(output) => Tool.structuredResult(output, outputSchema)
+    | Error(message) => Tool.MCP.CallToolResult.makeError(message)
+    }
+  }

@@ -4,4 +4,6 @@
 "@frontman-ai/frontman-protocol": minor
 ---
 
-Include the current preview URL in `get_dom` results. Add an Astro-only wrapper in `astro-browser` that reports fresh client-routing status from the inspected document and distinguishes unavailable previews from disabled routing. Share DOM input and output types through the protocol package and inject the inspector from the client. Keep the shared tool, output schema, and description free of Astro-specific metadata for other frameworks.
+Include the current preview URL in `get_dom` results and fresh client-routing status for Astro only. Keep Astro-specific metadata in the `astro-browser` package, with shared DOM input and output types in the protocol package.
+
+Report unavailable previews and failed queries as MCP errors (`isError: true`), retaining narrowing guidance for size-limit errors. Remove payload-level `success` and `error` fields; successful results always contain the URL, DOM content, node count, and byte size.

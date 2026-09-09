@@ -11,7 +11,7 @@ type output = {
 
 let make = (
   ~getPreviewDoc: unit => option<Tool.previewContext>,
-  ~inspect: (GetDom.input, option<Tool.previewContext>) => GetDom.output,
+  ~inspect: (GetDom.input, Tool.previewContext) => result<GetDom.output, string>,
   ~description: string,
 ): module(Tool.BrowserTool) => {
   module(
@@ -21,27 +21,30 @@ let make = (
       let visibleToAgent = true
       let executionMode = Tool.Synchronous
       let description =
-        description ++ "\n\nResults also include Astro current-page client routing opt-in (enabled, disabled, or unavailable). Routing opt-in does not indicate completed navigation."
+        description ++ "\n\nResults also include Astro current-page client routing opt-in (enabled or disabled). Routing opt-in does not indicate completed navigation. An unavailable preview returns a tool error, not disabled routing."
       type input = GetDom.input
       let inputSchema = GetDom.inputSchema
       let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
-      let execute = async (input, ~taskId as _, ~toolCallId as _) => {
-        let preview = getPreviewDoc()
-        let result = inspect(input, preview)
-        Tool.structuredResult(
-          {
-            url: result.url,
-            success: result.success,
-            html: result.html,
-            nodeCount: result.nodeCount,
-            byteSize: result.byteSize,
-            hint: result.hint,
-            error: result.error,
-            astro_client_routing: ClientRouting.read(preview->Option.map(({doc}) => doc)),
-          },
-          outputSchema,
-        )
-      }
+      let execute = async (input, ~taskId as _, ~toolCallId as _) =>
+        switch getPreviewDoc() {
+        | None => Tool.MCP.CallToolResult.makeError("Preview frame not available")
+        | Some(preview) =>
+          switch inspect(input, preview) {
+          | Error(message) => Tool.MCP.CallToolResult.makeError(message)
+          | Ok(result) =>
+            Tool.structuredResult(
+              {
+                url: result.url,
+                html: result.html,
+                nodeCount: result.nodeCount,
+                byteSize: result.byteSize,
+                hint: result.hint,
+                astro_client_routing: ClientRouting.read(Some(preview.doc)),
+              },
+              outputSchema,
+            )
+          }
+        }
     }
   )
 }

@@ -24,24 +24,17 @@ type input = {
 
 @schema
 type output = {
-  @s.describe("Current preview URL, absent when the preview is unavailable") @live
-  url: option<string>,
-  @s.describe("Whether the DOM query succeeded") @live
-  success: bool,
+  @s.describe("Current preview URL") @live
+  url: string,
   @s.describe(
-    "The DOM content: line-oriented element descriptors in simplified mode, raw HTML in full mode. Absent when the subtree is too large."
+    "The DOM content: line-oriented element descriptors in simplified mode, raw HTML in full mode."
   )
   @live
-  html: option<string>,
+  html: string,
   @s.describe("Number of element nodes in the returned subtree") @live
-  nodeCount: option<int>,
+  nodeCount: int,
   @s.describe("Size of the returned content in bytes") @live
-  byteSize: option<int>,
-  @s.describe(
-    "Guidance for the next query: lists direct children when a request is rejected, or suggests narrower selectors."
-  )
-  @live
+  byteSize: int,
+  @s.describe("Guidance for narrowing the next query when simplified output is truncated.") @live
   hint: option<string>,
-  @s.describe("Error message if the query failed") @live
-  error: option<string>,
 }
