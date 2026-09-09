@@ -29,7 +29,7 @@ let make = (
       let visibleToAgent = true
       let executionMode = Tool.Synchronous
       let description =
-        description ++ "\n\nResults also include Astro current-page client routing opt-in (enabled or disabled). Routing opt-in does not indicate completed navigation. An unavailable preview returns a tool error, not disabled routing.\n\nAstro persistence keys appear as data-astro-transition-persist attributes on inspected elements. astro_persistence describes marked DOM ancestors outside the selected element, nearest first, in both modes. It follows parentElement only and does not cross shadow roots. Attribute values may be shortened with '...'. Ancestor context is capped at 50 parent steps, 10 boundaries, and 4 KB with explicit truncation. These are markers, not proof that nodes, component state, or props survived navigation; exercise navigation to verify behavior."
+        description ++ "\n\nAstro results include current-page client-routing opt-in, persistence keys on inspected elements, and marked ancestors in astro_persistence in both modes. Ancestor lookup does not cross shadow roots. Routing opt-in and persistence markers are not proof of completed navigation or preserved state. Exercise navigation to verify behavior."
       type input = GetDom.input
       let inputSchema = GetDom.inputSchema
       let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
