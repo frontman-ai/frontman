@@ -40,7 +40,7 @@ permissions:
 
 concurrency:
   group: e2e
-  cancel-in-progress: true
+  queue: max
 
 jobs:
   nextjs-compat:

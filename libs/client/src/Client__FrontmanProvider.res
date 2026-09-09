@@ -160,10 +160,10 @@ module Provider = {
 
       let runtimeConfig = RuntimeConfig.read()
       let _meta = RuntimeConfig.toMeta(runtimeConfig)
-      let relayHeaders = Dict.make()
-      runtimeConfig.wpNonce->Option.forEach(nonce => relayHeaders->Dict.set("X-WP-Nonce", nonce))
-
-      let relay = Relay.make(~baseUrl, ~requestHeaders=relayHeaders)
+      let relay = switch runtimeConfig.framework {
+      | Wordpress => Client__WordPressRelay.make(~baseUrl, ~nonce=runtimeConfig.wpNonce)
+      | Nextjs | Vite | Astro => Relay.make(~baseUrl)
+      }
       let toolRegistry = Client__ToolRegistry.forFramework(runtimeConfig.framework)
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)

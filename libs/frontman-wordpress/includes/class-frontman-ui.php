@@ -118,6 +118,7 @@ class Frontman_UI {
 		$this->enqueue_frontman_page_assets( $client_url, $client_css );
 
 		status_header( 200 );
+		nocache_headers();
 		header( 'Content-Type: text/html; charset=utf-8' );
 		?>
 <!DOCTYPE html>

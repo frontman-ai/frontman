@@ -18,8 +18,9 @@ defmodule SwarmAi.ParallelToolExecutionTest do
   def run_instant(tool_call), do: ToolResult.make(tool_call.id, "OK", false)
   def run_crash(_tool_call), do: raise("boom")
 
-  def start_await(test_pid, tool_call) do
-    send(test_pid, {:await_started, tool_call.id, self()})
+  def start_await(runtime, tool_call) do
+    assert SwarmAi.running?(runtime, "task-human")
+    Process.send_after(self(), {:tool_result, tool_call.id, "approved", false}, 50)
     :ok
   end
 
@@ -170,28 +171,30 @@ defmodule SwarmAi.ParallelToolExecutionTest do
   test "a delayed interactive answer continues the same loop to completion" do
     runtime = start_runtime!()
     test_pid = self()
+
     llm = tool_then_complete_llm([tool_call("approval", %{}, id: "human")], "done")
 
-    execute_tools = fn tool_calls, task_supervisor ->
-      Enum.map(tool_calls, fn tool_call ->
-        %ToolExecution.Await{
-          tool_call: tool_call,
-          timeout_ms: :infinity,
-          start: {__MODULE__, :start_await, [test_pid]},
-          on_error: {SwarmAi.Testing, :default_tool_error, []}
-        }
-      end)
-      |> SwarmAi.ParallelExecutor.run(task_supervisor)
+    execute_tools = fn [tool_call], task_supervisor ->
+      execution = %ToolExecution.Await{
+        tool_call: tool_call,
+        timeout_ms: :infinity,
+        start: {__MODULE__, :start_await, [runtime]},
+        on_error: {SwarmAi.Testing, :default_tool_error, []}
+      }
+
+      SwarmAi.ParallelExecutor.run([execution], task_supervisor)
+      |> tap(fn results -> send(test_pid, {:tool_results, self(), results}) end)
     end
 
-    {:ok, pid} = run_execution(runtime, "task-human", llm, execute_tools: execute_tools)
-    assert_receive {:await_started, "human", ^pid}
-    refute_receive {:test_event, "task-human", :completed}, 50
-    assert SwarmAi.running?(runtime, "task-human")
-    send(pid, {:tool_result, "human", "approved", false})
+    {:ok, pid} =
+      run_execution(runtime, "task-human", %{llm | delay_ms: 150}, execute_tools: execute_tools)
+
     await_exit(pid)
-    assert_receive {:test_event, "task-human", :completed}
-    refute_receive {:test_event, "task-human", {:failed, _}}, 0
+
+    expected = ToolResult.make("human", "approved", false)
+    assert_received {:tool_results, ^pid, {:ok, [^expected]}}
+    assert_received {:test_event, "task-human", :completed}
+    refute_received {:test_event, "task-human", {:failed, _}}
   end
 
   defp start_runtime! do

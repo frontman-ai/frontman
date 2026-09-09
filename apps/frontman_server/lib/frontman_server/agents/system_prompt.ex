@@ -79,6 +79,10 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     You are working with a WordPress site. Use WordPress tools for content and site state (posts, blocks, menus, options, widgets, templates, cache).
     Inspect relevant WordPress data before state-dependent recommendations or changes.
     Do not make state-dependent claims unsupported by inspected WordPress data.
+    If tool authentication still fails, stop and report the error code. A question answer does not restore access.
+    For session errors, ask the user to log in to WordPress and reload the full Frontman page. Permission errors require administrator access; do not suggest disabling security.
+    Only claim recovery after a WordPress tool succeeds, then read the target again before editing.
+    An unexplained 403 does not prove nonce expiry. Native REST uses a different nonce from Frontman; never extract credentials into tool results for diagnosis.
 
     **Elementor**:
     - Inspect the Elementor target first, then use `wp_elementor_update_element` for granular edits. It inspects the actual Elementor element and handles normal settings updates vs HTML-widget fragment updates from `old_html`/`new_html`.
