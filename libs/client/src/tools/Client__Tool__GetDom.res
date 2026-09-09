@@ -1,4 +1,5 @@
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
+module ClientRouting = FrontmanAiAstroBrowser.FrontmanAstroBrowser__ClientRouting
 
 let name = Tool.ToolNames.getDom
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
@@ -16,6 +17,8 @@ Workflow:
 Modes:
 - **simplified** (default): Line-oriented parent, selected, and child descriptors with selectors when resolvable, key attributes, accessibility role/name, component names, child counts, and escaped text. Script/style/SVG and form-control values stripped. Capped at 200 nodes and 30KB.
 - **full**: Raw outerHTML. Capped at 15KB. Use only when you need exact markup for a specific component.
+
+Results include the current preview URL and, for Astro, current-page client routing opt-in (enabled, disabled, or unavailable). Routing opt-in does not indicate completed navigation.
 
 Simplified mode stops at the node or output limit and returns selectors so you can continue with a narrower target. Full mode rejects oversized subtrees.
 
@@ -52,6 +55,13 @@ type input = {
 
 @schema
 type output = {
+  @s.describe("Current preview URL, absent when the preview is unavailable") @live
+  url: option<string>,
+  @s.describe(
+    "Astro current-page routing opt-in, not navigation completion. Absent for other frameworks."
+  )
+  @live
+  astro_client_routing: option<ClientRouting.t>,
   @s.describe("Whether the DOM query succeeded") @live
   success: bool,
   @s.describe(
@@ -93,122 +103,116 @@ let buildTooLargeHint = (
   `Target a child selector from this overview instead:\n${overview.html}`
 }
 
-let errorResult = (
-  ~error: string,
-  ~hint: option<string>=?,
-  ~nodeCount: option<int>=?,
-): Tool.MCP.CallToolResult.t =>
-  Tool.structuredResult(
-    {
-      success: false,
-      html: None,
-      nodeCount,
-      byteSize: None,
-      hint,
-      error: Some(error),
-    },
-    outputSchema,
-  )
+let errorResult = (~error: string, ~hint: option<string>=?, ~nodeCount: option<int>=?): output => {
+  url: None,
+  astro_client_routing: None,
+  success: false,
+  html: None,
+  nodeCount,
+  byteSize: None,
+  hint,
+  error: Some(error),
+}
 
-let successResult = (
-  ~html: string,
-  ~nodeCount: int,
-  ~hint: option<string>=?,
-): Tool.MCP.CallToolResult.t =>
-  Tool.structuredResult(
-    {
-      success: true,
-      html: Some(html),
-      nodeCount: Some(nodeCount),
-      byteSize: Some(Client__ElementInspector.utf8ByteSize(html)),
-      hint,
-      error: None,
-    },
-    outputSchema,
-  )
+let successResult = (~html: string, ~nodeCount: int, ~hint: option<string>=?): output => {
+  url: None,
+  astro_client_routing: None,
+  success: true,
+  html: Some(html),
+  nodeCount: Some(nodeCount),
+  byteSize: Some(Client__ElementInspector.utf8ByteSize(html)),
+  hint,
+  error: None,
+}
 
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
 ): Tool.MCP.CallToolResult.t => {
-  Client__Tool__PreviewContext.withPreview(
-    ~onUnavailable=() => errorResult(~error="Preview frame not available"),
-    ({doc, win: _}) => {
-      try {
-        let (element, _matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
-          ~doc,
-          ~selector=input.selector,
-        )
+  let preview = Client__Tool__PreviewContext.get()
+  let url = preview->Option.map(({win}) => (win->WebAPI.Window.location).href)
+  let astro_client_routing = switch Client__RuntimeConfig.read().framework {
+  | Astro => Some(ClientRouting.read(preview->Option.map(({doc}) => doc)))
+  | Nextjs | Vite | Wordpress => None
+  }
+  let result = switch preview {
+  | None => errorResult(~error="Preview frame not available")
+  | Some({doc}) =>
+    try {
+      let (element, _matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
+        ~doc,
+        ~selector=input.selector,
+      )
 
-        switch element {
-        | None => errorResult(~error=`No element found for selector: ${input.selector}`)
+      switch element {
+      | None => errorResult(~error=`No element found for selector: ${input.selector}`)
 
-        | Some(el) =>
-          let maxNodes =
-            input.maxNodes
-            ->Option.getOr(defaultMaxNodes)
-            ->Math.Int.min(hardMaxNodes)
-            ->Math.Int.max(1)
+      | Some(el) =>
+        let maxNodes =
+          input.maxNodes
+          ->Option.getOr(defaultMaxNodes)
+          ->Math.Int.min(hardMaxNodes)
+          ->Math.Int.max(1)
 
-          switch input.mode->Option.getOr(#simplified) {
-          | #full =>
-            let elementCount = countElements(el)
-            if elementCount > maxNodes {
+        switch input.mode->Option.getOr(#simplified) {
+        | #full =>
+          let elementCount = countElements(el)
+          if elementCount > maxNodes {
+            errorResult(
+              ~error=`Subtree too large for full mode (${Int.toString(
+                  elementCount,
+                )} elements, limit: ${Int.toString(maxNodes)}).`,
+              ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
+              ~nodeCount=elementCount,
+            )
+          } else {
+            let raw = el.outerHTML
+            let byteSize = Client__ElementInspector.utf8ByteSize(raw)
+            if byteSize > fullModeMaxBytes {
               errorResult(
-                ~error=`Subtree too large for full mode (${Int.toString(
-                    elementCount,
-                  )} elements, limit: ${Int.toString(maxNodes)}).`,
+                ~error=`HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
+                    fullModeMaxBytes,
+                  )}). Use simplified mode for an overview, or target a smaller component.`,
                 ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
                 ~nodeCount=elementCount,
               )
             } else {
-              let raw = el.outerHTML
-              let byteSize = Client__ElementInspector.utf8ByteSize(raw)
-              if byteSize > fullModeMaxBytes {
-                errorResult(
-                  ~error=`HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
-                      fullModeMaxBytes,
-                    )}). Use simplified mode for an overview, or target a smaller component.`,
-                  ~hint=buildTooLargeHint(~el, ~document=doc, ~elementCount, ~maxNodes),
-                  ~nodeCount=elementCount,
-                )
-              } else {
-                successResult(~html=raw, ~nodeCount=elementCount)
-              }
+              successResult(~html=raw, ~nodeCount=elementCount)
             }
-
-          | #simplified =>
-            let maxDepth = input.maxDepth->Option.getOr(defaultMaxDepth)
-            let pierceShadowDom = input.pierceShadowDom->Option.getOr(false)
-            let selectedSelector = switch Client__Tool__SelectorResolver.classifySelector(
-              input.selector,
-            ) {
-            | CssSelector(_) => Some(input.selector)
-            | XPathExpression(_) => None
-            }
-            let inspection = Client__ElementInspector.inspect(
-              ~element=el,
-              ~document=doc,
-              ~maxDepth,
-              ~maxNodes,
-              ~pierceShadowDom,
-              ~selectedSelector?,
-            )
-
-            let hint = switch inspection.truncated {
-            | true =>
-              Some(
-                `Output stopped at the ${maxNodes->Int.toString}-node or ${Client__ElementInspector.maxOutputBytes->Int.toString}-byte limit. Narrow your selector for complete results.`,
-              )
-            | false => None
-            }
-            successResult(~html=inspection.html, ~nodeCount=inspection.nodeCount, ~hint?)
           }
+
+        | #simplified =>
+          let maxDepth = input.maxDepth->Option.getOr(defaultMaxDepth)
+          let pierceShadowDom = input.pierceShadowDom->Option.getOr(false)
+          let selectedSelector = switch Client__Tool__SelectorResolver.classifySelector(
+            input.selector,
+          ) {
+          | CssSelector(_) => Some(input.selector)
+          | XPathExpression(_) => None
+          }
+          let inspection = Client__ElementInspector.inspect(
+            ~element=el,
+            ~document=doc,
+            ~maxDepth,
+            ~maxNodes,
+            ~pierceShadowDom,
+            ~selectedSelector?,
+          )
+
+          let hint = switch inspection.truncated {
+          | true =>
+            Some(
+              `Output stopped at the ${maxNodes->Int.toString}-node or ${Client__ElementInspector.maxOutputBytes->Int.toString}-byte limit. Narrow your selector for complete results.`,
+            )
+          | false => None
+          }
+          successResult(~html=inspection.html, ~nodeCount=inspection.nodeCount, ~hint?)
         }
-      } catch {
-      | exn => errorResult(~error=Client__Tool__PreviewContext.exnMessage(exn))
       }
-    },
-  )
+    } catch {
+    | exn => errorResult(~error=Client__Tool__PreviewContext.exnMessage(exn))
+    }
+  }
+  Tool.structuredResult({...result, url, astro_client_routing}, outputSchema)
 }
