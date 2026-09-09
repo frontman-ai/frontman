@@ -1,3 +1,9 @@
+module NavigationEvent = {
+  @get external signal: WebAPI.EventTypes.event => WebAPI.EventTypes.abortSignal = "signal"
+  @get external fromUrl: WebAPI.EventTypes.event => WebAPI.UrlTypes.url = "from"
+  @get external toUrl: WebAPI.EventTypes.event => WebAPI.UrlTypes.url = "to"
+}
+
 type devToolbarAppConfig = {
   id: string,
   name: string,

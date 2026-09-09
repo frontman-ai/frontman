@@ -68,7 +68,10 @@ export default defineConfig([
     treeshake: true,
   },
   {
-    entry: { 'toolbar': './src/FrontmanAstro__ToolbarApp.res.mjs' },
+    entry: {
+      'toolbar': './src/FrontmanAstro__ToolbarApp.res.mjs',
+      'navigation': './src/navigation.js',
+    },
     format: ['esm'],
     outDir: 'dist',
     clean: false,
