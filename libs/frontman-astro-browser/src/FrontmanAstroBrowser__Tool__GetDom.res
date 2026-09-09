@@ -9,6 +9,7 @@ type output = {
   astro_client_routing: ClientRouting.t,
 }
 
+@live
 let make = (
   ~getPreviewDoc: unit => option<Tool.previewContext>,
   ~inspect: (GetDom.input, Tool.previewContext) => result<GetDom.output, string>,
