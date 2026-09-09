@@ -28,7 +28,13 @@ let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {
   | Astro =>
     let getPreviewDoc = Client__Tool__PreviewContext.get
     Array.concat(
-      coreBrowserTools(~getDom=module(Client__Tool__AstroGetDom)),
+      coreBrowserTools(
+        ~getDom=FrontmanAiAstroBrowser.FrontmanAstroBrowser__Tool__GetDom.make(
+          ~getPreviewDoc,
+          ~inspect=Client__Tool__GetDom.inspect,
+          ~description=Client__Tool__GetDom.description,
+        ),
+      ),
       FrontmanAiAstroBrowser.FrontmanAstroBrowser__Registry.browserTools(~getPreviewDoc),
     )
   | Nextjs | Vite | Wordpress => coreBrowserTools(~getDom=module(Client__Tool__GetDom))
