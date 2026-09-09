@@ -2731,7 +2731,7 @@ __metadata:
     classnames: "npm:^2.5.1"
     date-fns: "npm:^4.1.0"
     gray-matter: "npm:^4.0.3"
-    next: "npm:16.3.3"
+    next: "npm:~16.2.11"
     postcss: "npm:^8.4.38"
     react: "npm:19.2.5"
     react-dom: "npm:19.2.5"
@@ -14298,7 +14298,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"next@npm:16.3.3, next@npm:^16.3.3":
+"next@npm:^16.3.3":
   version: 16.3.3
   resolution: "next@npm:16.3.3"
   dependencies:
@@ -14358,7 +14358,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"next@npm:~16.2.10":
+"next@npm:~16.2.10, next@npm:~16.2.11":
   version: 16.2.12
   resolution: "next@npm:16.2.12"
   dependencies:
