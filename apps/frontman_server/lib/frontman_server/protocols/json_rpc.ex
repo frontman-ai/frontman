@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule JsonRpc do
+defmodule FrontmanServer.Protocols.JsonRpc do
   @moduledoc """
   JSON-RPC 2.0 message parsing and construction.
 
@@ -28,7 +28,7 @@ defmodule JsonRpc do
   Domain logic should not depend on this module directly.
   """
 
-  use Boundary
+  use Boundary, top_level?: true
 
   @jsonrpc_version "2.0"
 
@@ -57,10 +57,10 @@ defmodule JsonRpc do
 
   ## Examples
 
-      iex> JsonRpc.parse(%{"jsonrpc" => "2.0", "id" => 1, "method" => "test", "params" => %{}})
+      iex> FrontmanServer.Protocols.JsonRpc.parse(%{"jsonrpc" => "2.0", "id" => 1, "method" => "test", "params" => %{}})
       {:ok, {:request, 1, "test", %{}}}
 
-      iex> JsonRpc.parse(%{"jsonrpc" => "2.0", "method" => "notify", "params" => %{}})
+      iex> FrontmanServer.Protocols.JsonRpc.parse(%{"jsonrpc" => "2.0", "method" => "notify", "params" => %{}})
       {:ok, {:notification, "notify", %{}}}
   """
   def parse(message) when is_map(message) do
@@ -87,10 +87,10 @@ defmodule JsonRpc do
 
   ## Examples
 
-      iex> JsonRpc.parse_response(%{"jsonrpc" => "2.0", "id" => 1, "result" => %{"data" => "value"}})
+      iex> FrontmanServer.Protocols.JsonRpc.parse_response(%{"jsonrpc" => "2.0", "id" => 1, "result" => %{"data" => "value"}})
       {:ok, {:success, 1, %{"data" => "value"}}}
 
-      iex> JsonRpc.parse_response(%{"jsonrpc" => "2.0", "id" => 1, "error" => %{"code" => -32601, "message" => "Not found"}})
+      iex> FrontmanServer.Protocols.JsonRpc.parse_response(%{"jsonrpc" => "2.0", "id" => 1, "error" => %{"code" => -32601, "message" => "Not found"}})
       {:ok, {:error, 1, %{"code" => -32601, "message" => "Not found"}}}
   """
   def parse_response(message) when is_map(message) do

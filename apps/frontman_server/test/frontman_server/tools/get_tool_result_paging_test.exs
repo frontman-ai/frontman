@@ -1,12 +1,12 @@
 defmodule FrontmanServer.Tools.GetToolResultPagingTest do
   use ExUnit.Case, async: true
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
   alias FrontmanServer.Tasks.Interaction.ToolResult
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.GetToolResult
-  alias ModelContextProtocol, as: MCP
   alias SwarmAi.Message
   alias SwarmAi.Message.ContentPart
 

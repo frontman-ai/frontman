@@ -1,7 +1,7 @@
-defmodule AgentClientProtocol.ContentTest do
+defmodule FrontmanServer.Protocols.ACP.ContentTest do
   use ExUnit.Case, async: true
 
-  alias AgentClientProtocol.Content
+  alias FrontmanServer.Protocols.{ACP, ACP.Content}
   alias FrontmanServer.ProtocolSchema
   alias FrontmanServer.Tasks.Interaction
 
@@ -60,7 +60,7 @@ defmodule AgentClientProtocol.ContentTest do
       blocks
       |> Enum.with_index()
       |> Enum.each(fn {content, index} ->
-        AgentClientProtocol.build_user_message_chunk_notification(
+        ACP.build_user_message_chunk_notification(
           "session-1",
           "resource-#{index}",
           content,

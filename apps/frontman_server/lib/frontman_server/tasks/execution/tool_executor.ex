@@ -11,10 +11,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend
-  alias ModelContextProtocol, as: MCP
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.ToolExecution
 

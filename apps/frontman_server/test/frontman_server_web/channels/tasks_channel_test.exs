@@ -5,7 +5,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   import FrontmanServer.Test.Fixtures.Tasks
   import ExUnit.CaptureLog
 
-  alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Protocols.ACP
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServerWeb.UserSocket

@@ -11,7 +11,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     UserMessage
   }
 
-  alias ModelContextProtocol, as: MCP
+  alias FrontmanServer.Protocols.MCP
 
   describe "SkillUsed.build/2" do
     test "snapshots skill content" do

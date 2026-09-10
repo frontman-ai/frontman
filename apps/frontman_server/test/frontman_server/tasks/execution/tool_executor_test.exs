@@ -4,6 +4,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Protocols
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
@@ -20,7 +21,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     def parameter_schema, do: %{"type" => "object", "properties" => %{}}
     def timeout_ms, do: 30_000
     def execute(%{"invalid" => true}, _context), do: %{"unexpected" => "shape"}
-    def execute(_args, _context), do: ModelContextProtocol.tool_result_text("done")
+    def execute(_args, _context), do: Protocols.MCP.tool_result_text("done")
   end
 
   setup do
@@ -62,7 +63,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         {:ok, task} = Tasks.get_task_with_history(scope, task_id)
         assert [stored] = tool_results(task, tc.id)
         assert stored.is_error == winner.is_error
-        assert ModelContextProtocol.extract_content_text(stored.result) == hd(winner.content).text
+
+        assert Protocols.MCP.extract_content_text(stored.result) == hd(winner.content).text
       end
     end
   end
@@ -123,7 +125,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         scope,
         task_id,
         call,
-        ModelContextProtocol.tool_result_text("committed"),
+        Protocols.MCP.tool_result_text("committed"),
         turn_number: turn_number
       )
 

@@ -15,12 +15,12 @@ defmodule FrontmanServer.TasksTest do
     ScrubToolResultMetadata
   }
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServer.Workers.GenerateTitle
-  alias ModelContextProtocol, as: MCP
 
   setup do
     scope = user_scope_fixture()

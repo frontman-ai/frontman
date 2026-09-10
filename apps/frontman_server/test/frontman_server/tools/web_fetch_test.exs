@@ -1,8 +1,8 @@
 defmodule FrontmanServer.Tools.WebFetchTest do
   use FrontmanServer.DataCase, async: false
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tools.WebFetch
-  alias ModelContextProtocol, as: MCP
 
   setup do
     context = %FrontmanServer.Tools.Backend.Context{

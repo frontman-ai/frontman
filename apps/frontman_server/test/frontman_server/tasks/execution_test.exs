@@ -32,6 +32,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Protocols
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Skills
@@ -44,7 +45,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias ReqLLM.Error.API.Request
 
   @endpoint FrontmanServerWeb.Endpoint
-  @acp_message AgentClientProtocol.event_acp_message()
+  @acp_message Protocols.ACP.event_acp_message()
 
   defp error_timeout_mcp_tool_defs do
     [
@@ -972,7 +973,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           scope,
           task_id,
           %{id: question_tc_id, name: "question"},
-          ModelContextProtocol.tool_result_json(%{"answers" => [%{"answer" => "A"}]})
+          Protocols.MCP.tool_result_json(%{"answers" => [%{"answer" => "A"}]})
         )
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
@@ -1140,7 +1141,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                  scope,
                  task_id,
                  approval,
-                 ModelContextProtocol.tool_result_text("yes")
+                 Protocols.MCP.tool_result_text("yes")
                )
 
       assert :ok =

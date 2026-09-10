@@ -11,9 +11,9 @@ defmodule FrontmanServer.Tools.AgentFeedback do
 
   @behaviour FrontmanServer.Tools.Backend
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Workers.SendAgentFeedbackToDiscord
-  alias ModelContextProtocol, as: MCP
 
   @outcomes ~w(completed stuck failed feature_request)
 

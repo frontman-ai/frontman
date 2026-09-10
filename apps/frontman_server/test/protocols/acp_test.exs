@@ -1,7 +1,7 @@
-defmodule AgentClientProtocolTest do
+defmodule FrontmanServer.Protocols.ACPTest do
   use ExUnit.Case, async: true
 
-  alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Protocols.ACP
 
   describe "plan_update/2" do
     test "builds valid plan update notification" do

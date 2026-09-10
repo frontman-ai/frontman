@@ -1,8 +1,7 @@
 defmodule FrontmanServer.Protocols.McpContractTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.ProtocolSchema
-  alias ModelContextProtocol, as: MCP
+  alias FrontmanServer.{Protocols.MCP, ProtocolSchema}
 
   test "discovery and tools/list params satisfy the shared contract" do
     ProtocolSchema.validate!(MCP.request_params(), "mcp/discoverParams")

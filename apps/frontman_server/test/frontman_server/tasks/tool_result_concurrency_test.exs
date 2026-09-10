@@ -6,12 +6,12 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.MCP, as: MCPTool
-  alias ModelContextProtocol, as: MCP
 
   test "two tasks with the same tool call id receive only their own result" do
     Sandbox.unboxed_run(Repo, fn ->

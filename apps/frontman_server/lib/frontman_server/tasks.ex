@@ -37,7 +37,7 @@ defmodule FrontmanServer.Tasks do
       FrontmanServer.Accounts,
       FrontmanServer.Providers,
       FrontmanServer.Skills,
-      ModelContextProtocol
+      FrontmanServer.Protocols.MCP
     ],
     exports: @exports
 
@@ -45,6 +45,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Repo
   alias FrontmanServer.Skills
 
@@ -429,7 +430,7 @@ defmodule FrontmanServer.Tasks do
                 task,
                 turn_number,
                 call,
-                ModelContextProtocol.tool_result_error(reason)
+                MCP.tool_result_error(reason)
               )
 
             row

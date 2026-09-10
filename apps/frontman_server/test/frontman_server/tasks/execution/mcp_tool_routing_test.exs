@@ -9,13 +9,13 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Protocols.JsonRpc
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.MCP
   alias FrontmanServerWeb.UserSocket
-  alias JsonRpc
 
   describe "ToolExecutor MCP tool routing" do
     setup %{scope: scope} do
