@@ -377,6 +377,8 @@ let getTrackedFiles = async (~cwd: string): result<option<array<string>>, string
   )
 
   switch result {
+  | Ok({stderr}) if stderr->String.includes("warning: could not open directory") =>
+    Error(`git ls-files failed: ${stderr}`)
   | Ok({stdout}) => Ok(Some(stdout->String.split("\x00")->Array.filter(line => line !== "")))
   | Error({stderr, message})
     if stderr->String.includes("not a git repository") || message->String.includes("ENOENT") =>
@@ -386,34 +388,25 @@ let getTrackedFiles = async (~cwd: string): result<option<array<string>>, string
 }
 
 let walkFiles = async (~cwd: string, ~maxDepth: int): array<string> => {
-  let files = []
   let rec walk = async (relativePath, depth) => {
     switch depth > maxDepth {
-    | true => ()
+    | true => []
     | false =>
-      let entries = await Fs.Promises.readdir(Path.join([cwd, relativePath]))
-      for i in 0 to Array.length(entries) - 1 {
-        let entry = entries->Array.getUnsafe(i)
-        switch isNoiseDir(entry) {
-        | true => ()
-        | false =>
-          let path = switch relativePath {
-          | "" => entry
-          | _ => relativePath ++ "/" ++ entry
-          }
-          let stats = await Fs.Promises.lstat(Path.join([cwd, path]))
-          switch Fs.isDirectory(stats) {
-          | true =>
-            files->Array.push(path ++ "/")
-            await walk(path, depth + 1)
-          | false => files->Array.push(path)
-          }
+      let paths = await (await Fs.Promises.readdir(Path.join([cwd, relativePath])))
+      ->Array.filter(entry => !isNoiseDir(entry))
+      ->Array.map(async entry => {
+        let path = [relativePath, entry]->Array.filter(part => part !== "")->Array.join("/")
+        let stats = await Fs.Promises.lstat(Path.join([cwd, path]))
+        switch Fs.isDirectory(stats) {
+        | true => [path ++ "/"]->Array.concat(await walk(path, depth + 1))
+        | false => [path]
         }
-      }
+      })
+      ->Promise.all
+      paths->Array.flat
     }
   }
   await walk("", 1)
-  files
 }
 
 let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<

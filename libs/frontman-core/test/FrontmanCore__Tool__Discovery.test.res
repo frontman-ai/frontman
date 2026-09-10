@@ -143,6 +143,36 @@ describe("Git-optional file discovery", _ => {
     await cleanup(ctx)
   })
 
+  testAsync("rejects Git scans that omit unreadable untracked directories", async t => {
+    switch getuid() == 0 {
+    | true => ()
+    | false =>
+      let ctx = await setup()
+      (await ChildProcess.spawnResult("git", ["init"], ~cwd=ctx.sourceRoot))
+      ->Result.getOrThrow
+      ->ignore
+      await chmod(ctx.sourceRoot ++ "/src", 0)
+      let result = try {
+        (await Tree.execute(ctx, {}))->Helpers.text
+      } catch {
+      | exn =>
+        await chmod(ctx.sourceRoot ++ "/src", 493)
+        await cleanup(ctx)
+        raise(exn)
+      }
+      await chmod(ctx.sourceRoot ++ "/src", 493)
+      await cleanup(ctx)
+      switch result {
+      | Ok(_) => failwith("Expected incomplete Git scan error")
+      | Error(msg) =>
+        t->expect(msg->String.includes("could not open directory"))->Expect.toBe(true)
+        t->expect(msg->String.includes("Permission denied"))->Expect.toBe(true)
+        t->expect(msg->String.includes("sourceRoot: " ++ ctx.sourceRoot))->Expect.toBe(true)
+        t->expect(msg->String.includes("[filesystem fallback]"))->Expect.toBe(false)
+      }
+    }
+  })
+
   testAsync("keeps permission failures visible", async t => {
     switch getuid() == 0 {
     | true => ()
