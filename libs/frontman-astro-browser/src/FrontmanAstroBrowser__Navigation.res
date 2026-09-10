@@ -17,7 +17,7 @@ type state = {lastNavigation: option<navigation>}
 type t =
   | @as("unavailable") Unavailable
   | @as("not_observed") NotObserved
-  | @as("observed") Observed({from: string, to: string, phase: phase})
+  | @as("observed") Observed({@live from: string, @live to: string, @live phase: phase})
 
 @get external readState: WebAPI.DomTypes.window => option<JSON.t> = "__frontman_astro_navigation__"
 
