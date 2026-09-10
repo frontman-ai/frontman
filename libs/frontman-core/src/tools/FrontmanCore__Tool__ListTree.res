@@ -72,45 +72,33 @@ let maxEntriesPerLevel = 15
 let showEntriesBeforeTruncation = 10
 
 type rec trieNode = {
-  @live
-  name: string,
-  children: ref<Dict.t<trieNode>>,
+  children: Dict.t<trieNode>,
   isFile: ref<bool>,
 }
 
-let makeTrieNode = (name: string): trieNode => {
-  name,
-  children: ref(Dict.make()),
+let makeTrieNode = (): trieNode => {
+  children: Dict.make(),
   isFile: ref(false),
 }
 
 let buildTrie = (files: array<string>): trieNode => {
-  let root = makeTrieNode(".")
+  let root = makeTrieNode()
 
   files->Array.forEach(filePath => {
-    let parts = filePath->String.split("/")->Array.filter(p => p !== "")
-    let current = ref(root)
-
-    parts->Array.forEachWithIndex((part, idx) => {
-      let isLast = idx == Array.length(parts) - 1
-
-      switch current.contents.children.contents->Dict.get(part) {
-      | Some(existing) =>
-        switch isLast {
-        | true => existing.isFile := !(filePath->String.endsWith("/"))
-        | false => ()
+    let leaf =
+      filePath
+      ->String.split("/")
+      ->Array.filter(part => part !== "")
+      ->Array.reduce(root, (parent, part) => {
+        switch parent.children->Dict.get(part) {
+        | Some(node) => node
+        | None =>
+          let node = makeTrieNode()
+          parent.children->Dict.set(part, node)
+          node
         }
-        current := existing
-      | None =>
-        let node = makeTrieNode(part)
-        switch isLast {
-        | true => node.isFile := !(filePath->String.endsWith("/"))
-        | false => ()
-        }
-        current.contents.children.contents->Dict.set(part, node)
-        current := node
-      }
-    })
+      })
+    leaf.isFile := !(filePath->String.endsWith("/"))
   })
 
   root
@@ -123,32 +111,25 @@ type sortedEntry = {
 }
 
 let getSortedChildren = (node: trieNode): array<sortedEntry> => {
-  let entries =
-    node.children.contents
-    ->Dict.toArray
-    ->Array.map(((entryName, child)) => {
-      let hasChildren = child.children.contents->Dict.keysToArray->Array.length > 0
-      let isDir = hasChildren || !child.isFile.contents
-      {entryName, node: child, isDir}
-    })
-    ->Array.filter(e => !isNoiseDir(e.entryName))
-
-  entries->Array.toSorted((a, b) => {
+  node.children
+  ->Dict.toArray
+  ->Array.filter(((entryName, _)) => !isNoiseDir(entryName))
+  ->Array.map(((entryName, child)) => {
+    let hasChildren = child.children->Dict.keysToArray->Array.length > 0
+    let isDir = hasChildren || !child.isFile.contents
+    {entryName, node: child, isDir}
+  })
+  ->Array.toSorted((a, b) => {
     switch (a.isDir, b.isDir) {
     | (true, false) => -1.0
     | (false, true) => 1.0
-    | _ =>
-      switch String.compare(a.entryName, b.entryName) {
-      | n if n < 0.0 => -1.0
-      | n if n > 0.0 => 1.0
-      | _ => 0.0
-      }
+    | _ => String.compare(a.entryName, b.entryName)
     }
   })
 }
 
 let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string>): string => {
-  let lines: array<string> = []
+  let lines = ["."]
 
   let rec walk = (
     node: trieNode,
@@ -170,13 +151,9 @@ let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string
 
       visibleChildren->Array.forEachWithIndex((entry, idx) => {
         let isLastVisible = idx == visibleCount - 1 && !truncated
-        let connector = switch isLastVisible {
-        | true => `└── `
-        | false => `├── `
-        }
-        let childPrefix = switch isLastVisible {
-        | true => prefix ++ "    "
-        | false => prefix ++ `│   `
+        let (connector, childPrefix) = switch isLastVisible {
+        | true => ("└── ", prefix ++ "    ")
+        | false => ("├── ", prefix ++ "│   ")
         }
 
         let suffix = switch entry.isDir {
@@ -189,13 +166,9 @@ let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string
         | Some(p) => p ++ "/" ++ entry.entryName
         }
 
-        let workspaceAnnotation = switch entry.isDir {
-        | true =>
-          switch workspacePaths->Dict.get(entryRelPath) {
-          | Some(wsName) => ` [workspace: ${wsName}]`
-          | None => ""
-          }
-        | false => ""
+        let workspaceAnnotation = switch (entry.isDir, workspacePaths->Dict.get(entryRelPath)) {
+        | (true, Some(wsName)) => ` [workspace: ${wsName}]`
+        | _ => ""
         }
 
         lines->Array.push(prefix ++ connector ++ entry.entryName ++ suffix ++ workspaceAnnotation)
@@ -221,18 +194,13 @@ let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string
     }
   }
 
-  lines->Array.push(".")
   walk(root, ~prefix="", ~currentDepth=1, ~parentPath=None)
 
   lines->Array.join("\n")
 }
 
 let buildWorkspacePathLookup = (workspaces: array<workspace>): Dict.t<string> => {
-  let lookup = Dict.make()
-  workspaces->Array.forEach(ws => {
-    lookup->Dict.set(ws.path, ws.name)
-  })
-  lookup
+  workspaces->Array.map(ws => (ws.path, ws.name))->Dict.fromArray
 }
 
 let readJsonFile = async (path: string): result<JSON.t, string> => {

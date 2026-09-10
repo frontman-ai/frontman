@@ -36,6 +36,29 @@ let makeCtx = (dir: string): Tool.serverExecutionContext => {
 }
 
 describe("ListTree Tool - execute (integration)", _t => {
+  test("preserves tree formatting, shared paths, workspace labels and truncation", t => {
+    let workspacePaths = ListTree.buildWorkspacePathLookup([
+      {name: "app", path: "src"},
+      {name: "not-a-directory", path: "z.ts"},
+    ])
+    let tree =
+      ["z.ts", "src/b.ts", "empty/", "src/a.ts", "src/", "src/a.ts", "node_modules/x.js"]
+      ->ListTree.buildTrie
+      ->ListTree.renderTree(~maxDepth=3, ~workspacePaths)
+    t
+    ->expect(tree)
+    ->Expect.toBe(
+      ".\n├── empty/\n├── src/ [workspace: app]\n│   ├── a.ts\n│   └── b.ts\n└── z.ts",
+    )
+
+    let truncated =
+      Array.fromInitializer(~length=16, i => `file${Int.toString(i)}.ts`)
+      ->ListTree.buildTrie
+      ->ListTree.renderTree(~maxDepth=1, ~workspacePaths)
+    t->expect(truncated->String.split("\n")->Array.length)->Expect.toBe(12)
+    t->expect(truncated->String.endsWith("└── ... and 6 more entries"))->Expect.toBe(true)
+  })
+
   testAsync("should return a text tree for a simple project", async t => {
     let dir = await makeTmpDir()
     await writeFile(dir, "src/index.ts", "")
