@@ -501,7 +501,7 @@ let loadSession = async (
     let loadResult = await Protocol.sendRequest(
       ~channel=session.channel,
       ~state=conn.state,
-      ~method="session/load",
+      ~method=#"session/load",
       ~params=Some(
         params->S.decodeOrThrow(
           ~from=Types.sessionLoadParamsSchema,

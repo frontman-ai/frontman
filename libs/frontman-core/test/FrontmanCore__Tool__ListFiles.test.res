@@ -205,7 +205,7 @@ describe("ListFiles Tool - execute (integration)", _t => {
     | exn =>
       Process.env->Dict.set("PATH", path)
       (await ChildProcess.spawnResult("rm", ["-rf", dir]))->Result.getOrThrow->ignore
-      raise(exn)
+      throw(exn)
     }
     Process.env->Dict.set("PATH", path)
     await Fs.Promises.writeFile(dir ++ "/.git", "invalid git metadata\n")

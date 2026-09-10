@@ -8,6 +8,8 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
+type requestMethod = [#initialize | #"session/new" | #"session/load" | #"session/prompt"]
+
 let requestTimeoutMs = 120000
 
 let pushReplyMessageSchema: S.t<JSON.t> = S.object(s => s.field("acp:message", S.json))
@@ -21,11 +23,12 @@ let parsePushReply = payload => {
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
-  ~method: string,
+  ~method: requestMethod,
   ~params: option<JSON.t>,
   ~timeoutMs: int=requestTimeoutMs,
   ~parseResult: JSON.t => result<'a, string>,
 ): promise<result<'a, string>> => {
+  let method = (method :> string)
   Promise.make((resolve, _) => {
     let id = state.contents.currentId + 1
     let idStr = Int.toString(id)
@@ -37,12 +40,7 @@ let sendRequest = (
     }
 
     let pending: Client.pendingRequest = {
-      resolve: json => {
-        switch parseResult(json) {
-        | Ok(result) => finish(Ok(result))
-        | Error(e) => finish(Error(e))
-        }
-      },
+      resolve: json => finish(parseResult(json)),
       reject: e => finish(Error(e)),
     }
 
@@ -78,7 +76,7 @@ let sendInitialize = (
   sendRequest(
     ~channel,
     ~state,
-    ~method="initialize",
+    ~method=#initialize,
     ~params=Some(params),
     ~parseResult=Client.parseInitializeResult,
   )
@@ -92,7 +90,7 @@ let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId
   sendRequest(
     ~channel,
     ~state,
-    ~method="session/new",
+    ~method=#"session/new",
     ~params=Some(JSON.Encode.object(params)),
     ~parseResult=Client.parseSessionNewResult,
   )
@@ -117,7 +115,7 @@ let sendPrompt = (
   sendRequest(
     ~channel,
     ~state,
-    ~method="session/prompt",
+    ~method=#"session/prompt",
     ~params=Some(promptParams),
     ~parseResult=Client.parsePromptResult,
   )

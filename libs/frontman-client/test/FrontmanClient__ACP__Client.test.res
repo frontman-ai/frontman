@@ -7,6 +7,7 @@ afterEach(() => {
 module Client = FrontmanClient__ACP__Client
 module ACP = FrontmanClient__ACP
 module Protocol = FrontmanClient__ACP__Protocol
+module Decoders = FrontmanClient__Decoders
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
@@ -373,33 +374,43 @@ describe("ACP Client parseInitializeResult", _t => {
 })
 
 describe("ACP Protocol sendRequest", _t => {
-  testAsync("resolves Phoenix push reply envelopes", async t => {
-    Vi.useFakeTimers()->ignore
-    let channel = %raw(`{
-      push(_event, payload) {
-        return {
-          receive(status, callback) {
-            if (status === "ok") {
-              callback({"acp:message": {jsonrpc: "2.0", id: payload.id, result: "accepted"}});
+  [
+    (#initialize, "initialize"),
+    (#"session/new", "session/new"),
+    (#"session/load", "session/load"),
+    (#"session/prompt", "session/prompt"),
+  ]->Array.forEach(((method, wireMethod)) => {
+    testAsync(
+      `sends ${wireMethod} and resolves Phoenix push reply envelopes`,
+      async t => {
+        Vi.useFakeTimers()->ignore
+        let channel = %raw(`{
+        push(_event, payload) {
+          return {
+            receive(status, callback) {
+              if (status === "ok") {
+                callback({"acp:message": {jsonrpc: "2.0", id: payload.id, result: payload.method}});
+              }
+              return this;
             }
-            return this;
-          }
-        };
-      }
-    }`)
-    let state = ref(Client.initialState)
-    let result = await Protocol.sendRequest(
-      ~channel,
-      ~state,
-      ~method="session/prompt",
-      ~params=None,
-      ~timeoutMs=10,
-      ~parseResult=json =>
-        json->JSON.Decode.string->Option.mapOr(Error("Expected string"), value => Ok(value)),
-    )
+          };
+        }
+      }`)
+        let state = ref(Client.initialState)
+        let result = await Protocol.sendRequest(
+          ~channel,
+          ~state,
+          ~method,
+          ~params=None,
+          ~timeoutMs=10,
+          ~parseResult=json => Decoders.parseSchema(json, S.string),
+        )
 
-    t->expect(result)->Expect.toEqual(Ok("accepted"))
-    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+        t->expect(result)->Expect.toEqual(Ok(wireMethod))
+        t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+        t->expect(Vi.getTimerCount())->Expect.toBe(0)
+      },
+    )
   })
 
   testAsync("rejects malformed Phoenix push reply envelopes immediately", async t => {
@@ -420,7 +431,7 @@ describe("ACP Protocol sendRequest", _t => {
     let result = await Protocol.sendRequest(
       ~channel,
       ~state,
-      ~method="session/prompt",
+      ~method=#"session/prompt",
       ~params=None,
       ~timeoutMs=10,
       ~parseResult=_ => Ok("unused"),
@@ -437,14 +448,10 @@ describe("ACP Protocol sendRequest", _t => {
     let promise = Protocol.sendRequest(
       ~channel=transport.channel,
       ~state,
-      ~method="test/method",
+      ~method=#"session/prompt",
       ~params=None,
       ~timeoutMs=10,
-      ~parseResult=json =>
-        switch json->JSON.Decode.string {
-        | Some(value) => Ok(value)
-        | None => Error("Expected string")
-        },
+      ~parseResult=json => Decoders.parseSchema(json, S.string),
     )
 
     t->expect(state.contents.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toBe(true)
@@ -453,7 +460,7 @@ describe("ACP Protocol sendRequest", _t => {
 
     t
     ->expect(result)
-    ->Expect.toEqual(Error("Request test/method timed out after 10ms"))
+    ->Expect.toEqual(Error("Request session/prompt timed out after 10ms"))
     t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
   })
 })
