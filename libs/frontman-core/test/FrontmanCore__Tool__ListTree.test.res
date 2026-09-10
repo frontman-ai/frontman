@@ -176,7 +176,7 @@ describe("ListTree Tool - execute (integration)", _t => {
     | exn =>
       Process.env->Dict.set("PATH", path)
       await cleanup(dir)
-      raise(exn)
+      throw(exn)
     }
     await cleanup(dir)
   })

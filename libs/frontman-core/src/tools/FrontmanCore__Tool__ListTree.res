@@ -398,7 +398,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
       | exn =>
         switch exn->JsExn.fromException->Option.flatMap(e => e->Fs.errorCode->Nullable.toOption) {
         | Some("ENOENT") => result.resolvedPath
-        | _ => raise(exn)
+        | _ => throw(exn)
         }
       }
 
