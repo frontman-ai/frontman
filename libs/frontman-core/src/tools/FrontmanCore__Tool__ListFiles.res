@@ -15,7 +15,7 @@ PARAMETERS:
 - path (optional): Directory to list (relative to source root or absolute). Defaults to "." (project root). If a file path is given, lists its parent directory.
 
 OUTPUT:
-Array of entries, each with name, path, isFile, and isDirectory. Respects .gitignore — ignored entries are excluded.`
+Array of entries, each with name, path, isFile, and isDirectory. Respects .gitignore when Git is available in a repository. Otherwise lists filesystem entries with a fallback notice; ignore filtering is not applied.`
 
 @schema
 type input = {path?: string}
@@ -33,23 +33,36 @@ type output = array<fileEntry>
 
 let (visibleToAgent, outputJsonSchema) = (true, None)
 
-let getIgnoredEntries = async (~cwd: string, entries: array<string>): result<
-  array<string>,
-  string,
-> => {
+let getIgnoredEntries = async (
+  ~cwd: string,
+  ~onFallback: string => unit=_ => (),
+  entries: array<string>,
+): result<array<string>, string> => {
   if Array.length(entries) == 0 {
     Ok([])
   } else {
     try {
-      let entriesArg = entries->Array.join("\n")
-      let command = `printf "%s" "${entriesArg}" | git check-ignore --stdin`
-      let result = await ChildProcess.execWithOptions(command, {cwd: cwd})
+      let args =
+        entries
+        ->Array.map(entry => "'" ++ entry->String.replaceAll("'", "'\\''") ++ "'")
+        ->Array.join(" ")
+      let result = await ChildProcess.execWithOptions(
+        `printf '%s\\0' ${args} | git check-ignore -z --stdin`,
+        {cwd: cwd},
+      )
 
       switch result {
-      | Ok({stdout}) => Ok(stdout->String.trim->String.split("\n")->Array.filter(s => s !== ""))
+      | Ok({stdout}) => Ok(stdout->String.split("\x00")->Array.filter(s => s !== ""))
       | Error({code: Some(1), _}) => Ok([])
-      | Error({code: Some(128), stderr}) => Error(`Not a git repository: ${stderr}`)
-      | Error({stderr}) => Error(`git check-ignore failed: ${stderr}`)
+      | Error({code, stderr, message})
+        if code == Some(127) ||
+        stderr->String.includes("not a git repository") ||
+        message->String.includes("ENOENT") =>
+        onFallback(
+          "[filesystem fallback] Git is unavailable or this directory is not a repository; .gitignore filtering was not applied.",
+        )
+        Ok([])
+      | Error({stderr, message}) => Error(`git check-ignore failed: ${stderr} ${message}`)
       }
     } catch {
     | exn =>
@@ -78,13 +91,17 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
       }
       let entries = await Fs.Promises.readdir(fullPath)
 
+      let notice = ref(None)
       let filteredEntriesResult =
-        (await getIgnoredEntries(~cwd=fullPath, entries))->Result.map(ignored =>
-          entries->Array.filter(name => !(ignored->Array.includes(name)))
-        )
+        (
+          await getIgnoredEntries(~cwd=fullPath, ~onFallback=msg => notice := Some(msg), entries)
+        )->Result.map(ignored => entries->Array.filter(name => !(ignored->Array.includes(name))))
 
       switch filteredEntriesResult {
-      | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
+      | Error(msg) =>
+        Tool.MCP.CallToolResult.makeError(
+          `${msg} (requested: ${path}, sourceRoot: ${ctx.sourceRoot}, resolved: ${fullPath})`,
+        )
       | Ok(filteredEntries) =>
         let entriesWithStats = await filteredEntries
         ->Array.map(async name => {
@@ -102,13 +119,25 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
 
         ToolPathHints.recordListAnchor(~sourceRoot=ctx.sourceRoot, ~path=relativePath)
 
-        Tool.unstructuredResult(entriesWithStats, outputSchema)
+        switch notice.contents {
+        | None => Tool.unstructuredResult(entriesWithStats, outputSchema)
+        | Some(msg) =>
+          Tool.textResult(
+            msg ++
+            "\n" ++
+            entriesWithStats
+            ->S.decodeOrThrow(~from=outputSchema, ~to=S.json->S.noValidation(true))
+            ->JSON.stringify,
+          )
+        }
       }
     } catch {
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Tool.MCP.CallToolResult.makeError(`Failed to list files in ${path}: ${msg}`)
+      Tool.MCP.CallToolResult.makeError(
+        `Failed to list files in ${path} (sourceRoot: ${ctx.sourceRoot}, resolved: ${result.resolvedPath}): ${msg}`,
+      )
     }
   }
 }

@@ -18,7 +18,7 @@ PARAMETERS:
 - depth (optional): Maximum directory depth to display. Defaults to 3.
 
 OUTPUT:
-Text tree with directories (ending in /) and files. Workspace roots are annotated with [workspace: name]. Respects .gitignore. Skips node_modules, .git, dist, build, etc.`
+Text tree with directories (ending in /) and files. Workspace roots are annotated with [workspace: name]. Includes tracked and non-ignored untracked files in Git repositories. Otherwise walks the filesystem with a fallback notice; .gitignore filtering is not applied. Skips node_modules, .git, dist, build, etc.`
 
 @schema
 type input = {
@@ -97,14 +97,14 @@ let buildTrie = (files: array<string>): trieNode => {
       switch current.contents.children.contents->Dict.get(part) {
       | Some(existing) =>
         switch isLast {
-        | true => existing.isFile := true
+        | true => existing.isFile := !(filePath->String.endsWith("/"))
         | false => ()
         }
         current := existing
       | None =>
         let node = makeTrieNode(part)
         switch isLast {
-        | true => node.isFile := true
+        | true => node.isFile := !(filePath->String.endsWith("/"))
         | false => ()
         }
         current.contents.children.contents->Dict.set(part, node)
@@ -369,16 +369,51 @@ let detectMonorepo = async (rootPath: string): monorepoInfo => {
   {monorepoType, workspaces}
 }
 
-let getTrackedFiles = async (~cwd: string): result<array<string>, string> => {
-  let result = await ChildProcess.spawnResult("git", ["ls-files"], ~cwd)
+let getTrackedFiles = async (~cwd: string): result<option<array<string>>, string> => {
+  let result = await ChildProcess.spawnResult(
+    "git",
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    ~cwd,
+  )
 
   switch result {
-  | Ok({stdout}) =>
-    let lines = stdout->String.trim->String.split("\n")->Array.filter(line => line !== "")
-    Ok(lines)
-  | Error({code: Some(128), stderr}) => Error(`Not a git repository: ${stderr}`)
-  | Error({stderr}) => Error(`git ls-files failed: ${stderr}`)
+  | Ok({stdout}) => Ok(Some(stdout->String.split("\x00")->Array.filter(line => line !== "")))
+  | Error({stderr, message})
+    if stderr->String.includes("not a git repository") || message->String.includes("ENOENT") =>
+    Ok(None)
+  | Error({stderr, message}) => Error(`git ls-files failed: ${stderr} ${message}`)
   }
+}
+
+let walkFiles = async (~cwd: string, ~maxDepth: int): array<string> => {
+  let files = []
+  let rec walk = async (relativePath, depth) => {
+    switch depth > maxDepth {
+    | true => ()
+    | false =>
+      let entries = await Fs.Promises.readdir(Path.join([cwd, relativePath]))
+      for i in 0 to Array.length(entries) - 1 {
+        let entry = entries->Array.getUnsafe(i)
+        switch isNoiseDir(entry) {
+        | true => ()
+        | false =>
+          let path = switch relativePath {
+          | "" => entry
+          | _ => relativePath ++ "/" ++ entry
+          }
+          let stats = await Fs.Promises.lstat(Path.join([cwd, path]))
+          switch Fs.isDirectory(stats) {
+          | true =>
+            files->Array.push(path ++ "/")
+            await walk(path, depth + 1)
+          | false => files->Array.push(path)
+          }
+        }
+      }
+    }
+  }
+  await walk("", 1)
+  files
 }
 
 let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<
@@ -399,7 +434,11 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
         | false => result.resolvedPath
         }
       } catch {
-      | _ => result.resolvedPath
+      | exn =>
+        switch exn->JsExn.fromException->Option.flatMap(e => e->Fs.errorCode->Nullable.toOption) {
+        | Some("ENOENT") => result.resolvedPath
+        | _ => raise(exn)
+        }
       }
 
       let nearestDir = await PathRecovery.nearestExistingDir(
@@ -408,7 +447,10 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
       )
 
       switch nearestDir {
-      | None => Error(`Failed to list tree for ${path}: no existing directory found`)
+      | None =>
+        Error(
+          `Failed to list tree for ${path} (sourceRoot: ${ctx.sourceRoot}, resolved: ${result.resolvedPath}): no existing directory found`,
+        )
       | Some(fullPath) =>
         let requestedRecovered = Path.normalize(fullPath) != Path.normalize(initialPath)
         let relativeFullPath = PathContext.toRelativePath(
@@ -418,12 +460,13 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
         let filesResult = await getTrackedFiles(~cwd=fullPath)
 
-        let files = switch filesResult {
-        | Ok(f) => f
-        | Error(errMsg) =>
-          Console.warn(`ListTree: ${errMsg}, falling back to readdir`)
-          let entries = await Fs.Promises.readdir(fullPath)
-          entries
+        let (files, notice) = switch filesResult {
+        | Ok(Some(f)) => (f, "")
+        | Ok(None) => (
+            await walkFiles(~cwd=fullPath, ~maxDepth),
+            "[filesystem fallback] Git is unavailable or this directory is not a repository; .gitignore filtering was not applied.\n",
+          )
+        | Error(msg) => JsError.throwWithMessage(msg)
         }
 
         let trie = buildTrie(files)
@@ -432,7 +475,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
         let workspacePaths = buildWorkspacePathLookup(monoInfo.workspaces)
 
-        let renderedTree = renderTree(trie, ~maxDepth, ~workspacePaths)
+        let renderedTree = notice ++ renderTree(trie, ~maxDepth, ~workspacePaths)
 
         let tree = switch requestedRecovered {
         | true =>
@@ -453,7 +496,9 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Error(`Failed to list tree for ${path}: ${msg}`)
+      Error(
+        `Failed to list tree for ${path} (sourceRoot: ${ctx.sourceRoot}, resolved: ${result.resolvedPath}): ${msg}`,
+      )
     }
   }
 }
