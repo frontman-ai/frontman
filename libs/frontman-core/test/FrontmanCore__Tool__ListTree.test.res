@@ -6,6 +6,11 @@ module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module ChildProcess = FrontmanCore__ChildProcess
 
+module Process = FrontmanBindings.Process
+
+@module("node:fs/promises") external chmod: (string, int) => promise<unit> = "chmod"
+@val @scope("process") external getuid: unit => int = "getuid"
+
 let tmpPrefix = "/tmp/listtree-test-"
 
 let makeTmpDir = async () => {
@@ -140,34 +145,43 @@ describe("ListTree Tool - execute (integration)", _t => {
     await cleanup(dir)
   })
 
-  testAsync("should respect depth parameter", async t => {
+  testAsync("respects depth with Git, without Git and outside repositories", async t => {
     let dir = await makeTmpDir()
     await writeFile(dir, "a/b/c/d/deep.ts", "")
     await writeFile(dir, "a/b/shallow.ts", "")
-    await initGitRepo(dir)
-
-    let result1 = await ListTree.executeOutput(makeCtx(dir), {depth: ?Some(1)})
-    switch result1 {
-    | Ok(output) => {
-        t->expect(output.tree->String.includes("a/"))->Expect.toBe(true)
-        t->expect(output.tree->String.includes("b/"))->Expect.toBe(false)
+    let _ = await Fs.Promises.mkdir(dir ++ "/empty", {recursive: true})
+    await writeFile(dir, "node_modules/hidden.js", "")
+    let path = Process.env->Dict.get("PATH")->Option.getOrThrow
+    try {
+      for mode in 0 to 2 {
+        switch mode {
+        | 1 => Process.env->Dict.set("PATH", dir)
+        | 2 =>
+          Process.env->Dict.set("PATH", path)
+          await initGitRepo(dir)
+        | _ => ()
+        }
+        let shallow = (await ListTree.executeOutput(makeCtx(dir), {depth: 1}))->Result.getOrThrow
+        let deep = (await ListTree.executeOutput(makeCtx(dir), {depth: 3}))->Result.getOrThrow
+        t->expect(shallow.tree->String.includes("a/"))->Expect.toBe(true)
+        t->expect(shallow.tree->String.includes("b/"))->Expect.toBe(false)
+        t->expect(deep.tree->String.includes("c/"))->Expect.toBe(true)
+        t->expect(deep.tree->String.includes("shallow.ts"))->Expect.toBe(true)
+        t->expect(deep.tree->String.includes("d/"))->Expect.toBe(false)
+        t->expect(deep.tree->String.includes("node_modules"))->Expect.toBe(false)
+        t->expect(deep.tree->String.includes("empty/"))->Expect.toBe(mode != 2)
+        t->expect(deep.tree->String.includes("[filesystem fallback]"))->Expect.toBe(mode != 2)
       }
-    | Error(msg) => failwith(`ListTree depth=1 failed: ${msg}`)
+    } catch {
+    | exn =>
+      Process.env->Dict.set("PATH", path)
+      await cleanup(dir)
+      raise(exn)
     }
-
-    let result3 = await ListTree.executeOutput(makeCtx(dir), {depth: ?Some(3)})
-    switch result3 {
-    | Ok(output) => {
-        t->expect(output.tree->String.includes("c/"))->Expect.toBe(true)
-        t->expect(output.tree->String.includes("d/"))->Expect.toBe(false)
-      }
-    | Error(msg) => failwith(`ListTree depth=3 failed: ${msg}`)
-    }
-
     await cleanup(dir)
   })
 
-  testAsync("should skip noise directories", async t => {
+  testAsync("includes untracked files but excludes ignored and noise paths", async t => {
     let dir = await makeTmpDir()
     await writeFile(dir, "src/index.ts", "")
     await writeFile(dir, "node_modules/foo/index.js", "")
@@ -176,10 +190,18 @@ describe("ListTree Tool - execute (integration)", _t => {
     let _ = await ChildProcess.execWithOptions("git init", {cwd: dir})
     let _ = await ChildProcess.execWithOptions("git add src/index.ts", {cwd: dir})
 
+    let unusual = "quote'$(touch INJECTED)\nfile.ts"
+    await writeFile(dir, unusual, "")
+    await writeFile(dir, ".gitignore", "ignored.ts\n")
+    await writeFile(dir, "ignored.ts", "")
+    let paths = (await ListTree.getTrackedFiles(~cwd=dir))->Result.getOrThrow->Option.getOrThrow
+    t->expect(paths->Array.includes(unusual))->Expect.toBe(true)
+    t->expect(paths->Array.includes("ignored.ts"))->Expect.toBe(false)
     let result = await ListTree.executeOutput(makeCtx(dir), {})
 
     switch result {
     | Ok(output) => {
+        t->expect(output.tree->String.includes("[filesystem fallback]"))->Expect.toBe(false)
         t->expect(output.tree->String.includes("src/"))->Expect.toBe(true)
         t->expect(output.tree->String.includes("node_modules"))->Expect.toBe(false)
         t->expect(output.tree->String.includes("dist"))->Expect.toBe(false)
@@ -255,6 +277,61 @@ describe("ListTree Tool - execute (integration)", _t => {
     }
 
     await cleanup(dir)
+  })
+
+  testAsync("reports missing roots and invalid Git metadata with path context", async t => {
+    let dir = await makeTmpDir()
+    await writeFile(dir, ".git", "invalid git metadata\n")
+    for i in 0 to 1 {
+      let root = switch i {
+      | 0 => dir
+      | _ => dir ++ "/missing"
+      }
+      switch await ListTree.executeOutput(makeCtx(root), {}) {
+      | Ok(_) => failwith("Expected discovery error")
+      | Error(msg) =>
+        t->expect(msg->String.includes("sourceRoot: " ++ root))->Expect.toBe(true)
+        t->expect(msg->String.includes("resolved: " ++ root))->Expect.toBe(true)
+        switch i {
+        | 0 => t->expect(msg->String.includes("invalid gitfile format"))->Expect.toBe(true)
+        | _ => ()
+        }
+      }
+    }
+    await cleanup(dir)
+  })
+
+  testAsync("rejects unreadable directories in filesystem and Git scans", async t => {
+    switch getuid() == 0 {
+    | true => ()
+    | false =>
+      let dir = await makeTmpDir()
+      await writeFile(dir, "src/hidden.ts", "")
+      for mode in 0 to 1 {
+        switch mode {
+        | 1 =>
+          (await ChildProcess.spawnResult("git", ["init"], ~cwd=dir))->Result.getOrThrow->ignore
+        | _ => ()
+        }
+        await chmod(dir ++ "/src", 0)
+        let result = await ListTree.executeOutput(makeCtx(dir), {})
+        await chmod(dir ++ "/src", 493)
+        switch result {
+        | Ok(_) => failwith("Expected permission error")
+        | Error(msg) =>
+          t
+          ->expect(msg->String.includes("EACCES") || msg->String.includes("Permission denied"))
+          ->Expect.toBe(true)
+          t->expect(msg->String.includes("sourceRoot: " ++ dir))->Expect.toBe(true)
+          t->expect(msg->String.includes("[filesystem fallback]"))->Expect.toBe(false)
+          switch mode {
+          | 1 => t->expect(msg->String.includes("could not open directory"))->Expect.toBe(true)
+          | _ => ()
+          }
+        }
+      }
+      await cleanup(dir)
+    }
   })
 
   testAsync("should detect pnpm workspaces", async t => {
