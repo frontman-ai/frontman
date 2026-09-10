@@ -5,6 +5,12 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module Path = FrontmanBindings.Path
 module ChildProcess = FrontmanCore__ChildProcess
 module Process = FrontmanBindings.Process
+module Fs = FrontmanBindings.Fs
+module Helpers = FrontmanCore__ToolTestHelpers
+
+@module("node:fs/promises") external mkdtemp: string => promise<string> = "mkdtemp"
+@module("node:fs/promises") external chmod: (string, int) => promise<unit> = "chmod"
+@val @scope("process") external getuid: unit => int = "getuid"
 
 let fixtureDir = Path.join([Process.cwd(), "test", "fixtures", "listfiles"])
 
@@ -171,7 +177,64 @@ describe("ListFiles Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(_) => failwith("Should have failed for non-existent directory")
-    | Error(msg) => t->expect(msg->String.includes("nonexistent"))->Expect.toBe(true)
+    | Error(msg) =>
+      t->expect(msg->String.includes("nonexistent"))->Expect.toBe(true)
+      t->expect(msg->String.includes("sourceRoot: " ++ fixtureDir))->Expect.toBe(true)
+      t
+      ->expect(msg->String.includes("resolved: " ++ fixtureDir ++ "/nonexistent"))
+      ->Expect.toBe(true)
+    }
+  })
+
+  testAsync("reports fallback notices without hiding Git failures", async t => {
+    let dir = await mkdtemp("/tmp/listfiles-test-")
+    let ctx: Tool.serverExecutionContext = {projectRoot: dir, sourceRoot: dir}
+    await Fs.Promises.writeFile(dir ++ "/file.ts", "")
+    let path = Process.env->Dict.get("PATH")->Option.getOrThrow
+    try {
+      for mode in 0 to 1 {
+        switch mode {
+        | 1 => Process.env->Dict.set("PATH", dir)
+        | _ => ()
+        }
+        let text = (await ListFiles.execute(ctx, {}))->Helpers.text->Result.getOrThrow
+        t->expect(text->String.includes("[filesystem fallback]"))->Expect.toBe(true)
+        t->expect(text->String.includes("file.ts"))->Expect.toBe(true)
+      }
+    } catch {
+    | exn =>
+      Process.env->Dict.set("PATH", path)
+      (await ChildProcess.spawnResult("rm", ["-rf", dir]))->Result.getOrThrow->ignore
+      raise(exn)
+    }
+    Process.env->Dict.set("PATH", path)
+    await Fs.Promises.writeFile(dir ++ "/.git", "invalid git metadata\n")
+    let result = (await ListFiles.execute(ctx, {}))->Helpers.text
+    (await ChildProcess.spawnResult("rm", ["-rf", dir]))->Result.getOrThrow->ignore
+    switch result {
+    | Ok(_) => failwith("Expected invalid Git metadata error")
+    | Error(msg) =>
+      t->expect(msg->String.includes("invalid gitfile format"))->Expect.toBe(true)
+      t->expect(msg->String.includes("sourceRoot: " ++ dir))->Expect.toBe(true)
+    }
+  })
+
+  testAsync("keeps permission failures visible", async t => {
+    switch getuid() == 0 {
+    | true => ()
+    | false =>
+      let dir = await mkdtemp("/tmp/listfiles-test-")
+      let ctx: Tool.serverExecutionContext = {projectRoot: dir, sourceRoot: dir}
+      await chmod(dir, 0)
+      let result = (await ListFiles.execute(ctx, {}))->Helpers.text
+      await chmod(dir, 493)
+      (await ChildProcess.spawnResult("rm", ["-rf", dir]))->Result.getOrThrow->ignore
+      switch result {
+      | Ok(_) => failwith("Expected permission error")
+      | Error(msg) =>
+        t->expect(msg->String.includes("EACCES"))->Expect.toBe(true)
+        t->expect(msg->String.includes("sourceRoot: " ++ dir))->Expect.toBe(true)
+      }
     }
   })
 
@@ -200,7 +263,8 @@ describe("ListFiles Tool - getIgnoredEntries", _t => {
   })
 
   testAsync("should return ignored entries from gitignore", async t => {
-    let entries = ["node_modules", "dist", "index.ts", "secrets.env"]
+    let unusual = "quote'$(touch INJECTED)\nfile.ts"
+    let entries = ["node_modules", "dist", "index.ts", "secrets.env", unusual]
     let result = await ListFiles.getIgnoredEntries(~cwd=fixtureDir, entries)
 
     switch result {
@@ -209,6 +273,10 @@ describe("ListFiles Tool - getIgnoredEntries", _t => {
         t->expect(ignored->Array.includes("dist"))->Expect.toBe(true)
         t->expect(ignored->Array.includes("secrets.env"))->Expect.toBe(true)
         t->expect(ignored->Array.includes("index.ts"))->Expect.toBe(false)
+        t->expect(ignored->Array.includes(unusual))->Expect.toBe(false)
+        t
+        ->expect((await Fs.Promises.readdir(fixtureDir))->Array.includes("INJECTED"))
+        ->Expect.toBe(false)
       }
     | Error(msg) => failwith(`getIgnoredEntries failed: ${msg}`)
     }

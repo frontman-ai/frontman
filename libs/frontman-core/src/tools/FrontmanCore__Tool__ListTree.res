@@ -18,7 +18,7 @@ PARAMETERS:
 - depth (optional): Maximum directory depth to display. Defaults to 3.
 
 OUTPUT:
-Text tree with directories (ending in /) and files. Workspace roots are annotated with [workspace: name]. Respects .gitignore. Skips node_modules, .git, dist, build, etc.`
+Text tree with directories (ending in /) and files. Workspace roots are annotated with [workspace: name]. Includes tracked and non-ignored untracked files in Git repositories. Otherwise walks the filesystem with a fallback notice; .gitignore filtering is not applied. Skips node_modules, .git, dist, build, etc.`
 
 @schema
 type input = {
@@ -72,45 +72,33 @@ let maxEntriesPerLevel = 15
 let showEntriesBeforeTruncation = 10
 
 type rec trieNode = {
-  @live
-  name: string,
-  children: ref<Dict.t<trieNode>>,
+  children: Dict.t<trieNode>,
   isFile: ref<bool>,
 }
 
-let makeTrieNode = (name: string): trieNode => {
-  name,
-  children: ref(Dict.make()),
+let makeTrieNode = (): trieNode => {
+  children: Dict.make(),
   isFile: ref(false),
 }
 
 let buildTrie = (files: array<string>): trieNode => {
-  let root = makeTrieNode(".")
+  let root = makeTrieNode()
 
   files->Array.forEach(filePath => {
-    let parts = filePath->String.split("/")->Array.filter(p => p !== "")
-    let current = ref(root)
-
-    parts->Array.forEachWithIndex((part, idx) => {
-      let isLast = idx == Array.length(parts) - 1
-
-      switch current.contents.children.contents->Dict.get(part) {
-      | Some(existing) =>
-        switch isLast {
-        | true => existing.isFile := true
-        | false => ()
+    let leaf =
+      filePath
+      ->String.split("/")
+      ->Array.filter(part => part !== "")
+      ->Array.reduce(root, (parent, part) => {
+        switch parent.children->Dict.get(part) {
+        | Some(node) => node
+        | None =>
+          let node = makeTrieNode()
+          parent.children->Dict.set(part, node)
+          node
         }
-        current := existing
-      | None =>
-        let node = makeTrieNode(part)
-        switch isLast {
-        | true => node.isFile := true
-        | false => ()
-        }
-        current.contents.children.contents->Dict.set(part, node)
-        current := node
-      }
-    })
+      })
+    leaf.isFile := !(filePath->String.endsWith("/"))
   })
 
   root
@@ -123,32 +111,25 @@ type sortedEntry = {
 }
 
 let getSortedChildren = (node: trieNode): array<sortedEntry> => {
-  let entries =
-    node.children.contents
-    ->Dict.toArray
-    ->Array.map(((entryName, child)) => {
-      let hasChildren = child.children.contents->Dict.keysToArray->Array.length > 0
-      let isDir = hasChildren || !child.isFile.contents
-      {entryName, node: child, isDir}
-    })
-    ->Array.filter(e => !isNoiseDir(e.entryName))
-
-  entries->Array.toSorted((a, b) => {
+  node.children
+  ->Dict.toArray
+  ->Array.filter(((entryName, _)) => !isNoiseDir(entryName))
+  ->Array.map(((entryName, child)) => {
+    let hasChildren = child.children->Dict.keysToArray->Array.length > 0
+    let isDir = hasChildren || !child.isFile.contents
+    {entryName, node: child, isDir}
+  })
+  ->Array.toSorted((a, b) => {
     switch (a.isDir, b.isDir) {
     | (true, false) => -1.0
     | (false, true) => 1.0
-    | _ =>
-      switch String.compare(a.entryName, b.entryName) {
-      | n if n < 0.0 => -1.0
-      | n if n > 0.0 => 1.0
-      | _ => 0.0
-      }
+    | _ => String.compare(a.entryName, b.entryName)
     }
   })
 }
 
 let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string>): string => {
-  let lines: array<string> = []
+  let lines = ["."]
 
   let rec walk = (
     node: trieNode,
@@ -170,13 +151,9 @@ let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string
 
       visibleChildren->Array.forEachWithIndex((entry, idx) => {
         let isLastVisible = idx == visibleCount - 1 && !truncated
-        let connector = switch isLastVisible {
-        | true => `└── `
-        | false => `├── `
-        }
-        let childPrefix = switch isLastVisible {
-        | true => prefix ++ "    "
-        | false => prefix ++ `│   `
+        let (connector, childPrefix) = switch isLastVisible {
+        | true => ("└── ", prefix ++ "    ")
+        | false => ("├── ", prefix ++ "│   ")
         }
 
         let suffix = switch entry.isDir {
@@ -189,13 +166,9 @@ let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string
         | Some(p) => p ++ "/" ++ entry.entryName
         }
 
-        let workspaceAnnotation = switch entry.isDir {
-        | true =>
-          switch workspacePaths->Dict.get(entryRelPath) {
-          | Some(wsName) => ` [workspace: ${wsName}]`
-          | None => ""
-          }
-        | false => ""
+        let workspaceAnnotation = switch (entry.isDir, workspacePaths->Dict.get(entryRelPath)) {
+        | (true, Some(wsName)) => ` [workspace: ${wsName}]`
+        | _ => ""
         }
 
         lines->Array.push(prefix ++ connector ++ entry.entryName ++ suffix ++ workspaceAnnotation)
@@ -221,18 +194,13 @@ let renderTree = (root: trieNode, ~maxDepth: int, ~workspacePaths: Dict.t<string
     }
   }
 
-  lines->Array.push(".")
   walk(root, ~prefix="", ~currentDepth=1, ~parentPath=None)
 
   lines->Array.join("\n")
 }
 
 let buildWorkspacePathLookup = (workspaces: array<workspace>): Dict.t<string> => {
-  let lookup = Dict.make()
-  workspaces->Array.forEach(ws => {
-    lookup->Dict.set(ws.path, ws.name)
-  })
-  lookup
+  workspaces->Array.map(ws => (ws.path, ws.name))->Dict.fromArray
 }
 
 let readJsonFile = async (path: string): result<JSON.t, string> => {
@@ -369,16 +337,44 @@ let detectMonorepo = async (rootPath: string): monorepoInfo => {
   {monorepoType, workspaces}
 }
 
-let getTrackedFiles = async (~cwd: string): result<array<string>, string> => {
-  let result = await ChildProcess.spawnResult("git", ["ls-files"], ~cwd)
+let getTrackedFiles = async (~cwd: string): result<option<array<string>>, string> => {
+  let result = await ChildProcess.spawnResult(
+    "git",
+    ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    ~cwd,
+  )
 
   switch result {
-  | Ok({stdout}) =>
-    let lines = stdout->String.trim->String.split("\n")->Array.filter(line => line !== "")
-    Ok(lines)
-  | Error({code: Some(128), stderr}) => Error(`Not a git repository: ${stderr}`)
-  | Error({stderr}) => Error(`git ls-files failed: ${stderr}`)
+  | Ok({stderr}) if stderr->String.includes("warning: could not open directory") =>
+    Error(`git ls-files failed: ${stderr}`)
+  | Ok({stdout}) => Ok(Some(stdout->String.split("\x00")->Array.filter(line => line !== "")))
+  | Error({stderr, message})
+    if stderr->String.includes("not a git repository") || message->String.includes("ENOENT") =>
+    Ok(None)
+  | Error({stderr, message}) => Error(`git ls-files failed: ${stderr} ${message}`)
   }
+}
+
+let walkFiles = async (~cwd: string, ~maxDepth: int): array<string> => {
+  let rec walk = async (relativePath, depth) => {
+    switch depth > maxDepth {
+    | true => []
+    | false =>
+      let paths = await (await Fs.Promises.readdir(Path.join([cwd, relativePath])))
+      ->Array.filter(entry => !isNoiseDir(entry))
+      ->Array.map(async entry => {
+        let path = [relativePath, entry]->Array.filter(part => part !== "")->Array.join("/")
+        let stats = await Fs.Promises.lstat(Path.join([cwd, path]))
+        switch Fs.isDirectory(stats) {
+        | true => [path ++ "/"]->Array.concat(await walk(path, depth + 1))
+        | false => [path]
+        }
+      })
+      ->Promise.all
+      paths->Array.flat
+    }
+  }
+  await walk("", 1)
 }
 
 let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): result<
@@ -399,7 +395,11 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
         | false => result.resolvedPath
         }
       } catch {
-      | _ => result.resolvedPath
+      | exn =>
+        switch exn->JsExn.fromException->Option.flatMap(e => e->Fs.errorCode->Nullable.toOption) {
+        | Some("ENOENT") => result.resolvedPath
+        | _ => raise(exn)
+        }
       }
 
       let nearestDir = await PathRecovery.nearestExistingDir(
@@ -408,7 +408,10 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
       )
 
       switch nearestDir {
-      | None => Error(`Failed to list tree for ${path}: no existing directory found`)
+      | None =>
+        Error(
+          `Failed to list tree for ${path} (sourceRoot: ${ctx.sourceRoot}, resolved: ${result.resolvedPath}): no existing directory found`,
+        )
       | Some(fullPath) =>
         let requestedRecovered = Path.normalize(fullPath) != Path.normalize(initialPath)
         let relativeFullPath = PathContext.toRelativePath(
@@ -418,12 +421,13 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
         let filesResult = await getTrackedFiles(~cwd=fullPath)
 
-        let files = switch filesResult {
-        | Ok(f) => f
-        | Error(errMsg) =>
-          Console.warn(`ListTree: ${errMsg}, falling back to readdir`)
-          let entries = await Fs.Promises.readdir(fullPath)
-          entries
+        let (files, notice) = switch filesResult {
+        | Ok(Some(f)) => (f, "")
+        | Ok(None) => (
+            await walkFiles(~cwd=fullPath, ~maxDepth),
+            "[filesystem fallback] Git is unavailable or this directory is not a repository; .gitignore filtering was not applied.\n",
+          )
+        | Error(msg) => JsError.throwWithMessage(msg)
         }
 
         let trie = buildTrie(files)
@@ -432,7 +436,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
         let workspacePaths = buildWorkspacePathLookup(monoInfo.workspaces)
 
-        let renderedTree = renderTree(trie, ~maxDepth, ~workspacePaths)
+        let renderedTree = notice ++ renderTree(trie, ~maxDepth, ~workspacePaths)
 
         let tree = switch requestedRecovered {
         | true =>
@@ -453,7 +457,9 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
     | exn =>
       let msg =
         exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-      Error(`Failed to list tree for ${path}: ${msg}`)
+      Error(
+        `Failed to list tree for ${path} (sourceRoot: ${ctx.sourceRoot}, resolved: ${result.resolvedPath}): ${msg}`,
+      )
     }
   }
 }
