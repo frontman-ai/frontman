@@ -45,5 +45,5 @@ defmodule FrontmanServer do
               _ -> @base_exports
             end)
 
-  use Boundary, deps: [ModelContextProtocol], exports: @exports
+  use Boundary, deps: [FrontmanServer.Protocols.MCP], exports: @exports
 end

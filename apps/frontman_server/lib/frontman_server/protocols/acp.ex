@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule AgentClientProtocol do
+defmodule FrontmanServer.Protocols.ACP do
   @moduledoc """
   ACP (Agent Client Protocol) translation layer.
 
@@ -17,10 +17,12 @@ defmodule AgentClientProtocol do
   """
 
   use Boundary,
-    deps: [JsonRpc, FrontmanServer],
+    top_level?: true,
+    deps: [FrontmanServer.Protocols.JsonRpc, FrontmanServer],
     exports: :all
 
   alias FrontmanServer.Agents.Agent
+  alias FrontmanServer.Protocols.JsonRpc
 
   @protocol_version 1
   @agent_attribution_version 1

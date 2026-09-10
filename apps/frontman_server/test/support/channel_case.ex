@@ -20,6 +20,7 @@ defmodule FrontmanServerWeb.ChannelCase do
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
   alias FrontmanServer.Providers
   alias FrontmanServer.Test.Fixtures.LLMProvider
 
@@ -30,7 +31,7 @@ defmodule FrontmanServerWeb.ChannelCase do
 
       @endpoint FrontmanServerWeb.Endpoint
 
-      @acp_message AgentClientProtocol.event_acp_message()
+      @acp_message ACP.event_acp_message()
     end
   end
 
@@ -38,7 +39,7 @@ defmodule FrontmanServerWeb.ChannelCase do
     Map.merge(
       %{
         "resultType" => "complete",
-        "supportedVersions" => [ModelContextProtocol.protocol_version()],
+        "supportedVersions" => [MCP.protocol_version()],
         "capabilities" => %{
           "tools" => %{"listChanged" => false},
           "extensions" => %{

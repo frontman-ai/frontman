@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Image
+  alias FrontmanServer.Protocols
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
@@ -269,7 +270,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   end
 
   defp mcp_image_result(binary, mime \\ "image/png"),
-    do: ModelContextProtocol.tool_result_image(Base.encode64(binary), mime)
+    do: Protocols.MCP.tool_result_image(Base.encode64(binary), mime)
 
   defp client_mcp_image_result(binary, mime \\ "image/png") do
     %{

@@ -15,11 +15,11 @@ defmodule FrontmanServerWeb.TaskChannel do
   use FrontmanServerWeb, :channel
   require Logger
 
-  alias AgentClientProtocol, as: ACP
-  alias AgentClientProtocol.History, as: ACPHistory
   alias FrontmanServer.Agents
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
+  alias FrontmanServer.Protocols.ACP.History, as: ACPHistory
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.History, as: TaskHistory
@@ -27,8 +27,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Tasks.Todos.Todo
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
-  alias ModelContextProtocol, as: MCP
-  alias ModelContextProtocol.Schema, as: MCPSchema
+  alias MCP.Schema, as: MCPSchema
 
   @acp_message ACP.event_acp_message()
   @acp_title_updated ACP.event_title_updated()
@@ -582,7 +581,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     Logger.error("MCP tool execution failed", metadata)
 
-    result = ModelContextProtocol.tool_result_error(error_message)
+    result = MCP.tool_result_error(error_message)
     {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end
 

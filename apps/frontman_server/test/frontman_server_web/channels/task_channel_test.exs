@@ -23,8 +23,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServer.Workers.GenerateTitle
   alias FrontmanServerWeb.UserSocket
 
+  alias FrontmanServer.Protocols.{JsonRpc, MCP}
   alias FrontmanServer.Tasks.Interaction
-  alias ModelContextProtocol, as: MCP
 
   @persisted_restart_model "openrouter:openai/gpt-5.5"
   @logged_output_schema %{
@@ -1033,7 +1033,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       assert :ok =
-               ModelContextProtocol.Schema.validate_call_tool_result(
+               MCP.Schema.validate_call_tool_result(
                  result,
                  @logged_output_schema
                )
@@ -1041,7 +1041,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert :error =
                result
                |> Map.put("structuredContent", %{})
-               |> ModelContextProtocol.Schema.validate_call_tool_result(@logged_output_schema)
+               |> MCP.Schema.validate_call_tool_result(@logged_output_schema)
     end
   end
 
@@ -1109,7 +1109,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "sends MCP discovery request on join", %{scope: scope} do
       {_socket, _task_id} = join_task_channel(scope)
 
-      expected_version = ModelContextProtocol.protocol_version()
+      expected_version = MCP.protocol_version()
 
       assert_push("mcp:message", %{
         "jsonrpc" => "2.0",

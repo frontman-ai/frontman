@@ -16,9 +16,9 @@ defmodule FrontmanServerWeb.TasksChannel do
   use FrontmanServerWeb, :verified_routes
   require Logger
 
-  alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Agents
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Protocols.{ACP, JsonRpc}
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
 

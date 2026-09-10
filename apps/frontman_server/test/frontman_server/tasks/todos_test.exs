@@ -4,9 +4,9 @@ defmodule FrontmanServer.Tasks.TodosTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Todos
-  alias ModelContextProtocol, as: MCP
 
   setup do
     scope = user_scope_fixture()

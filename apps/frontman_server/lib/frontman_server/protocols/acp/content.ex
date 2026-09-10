@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule AgentClientProtocol.Content do
+defmodule FrontmanServer.Protocols.ACP.Content do
   @moduledoc "Builders for ACP content blocks."
 
   alias FrontmanServer.CurrentPageContext

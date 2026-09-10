@@ -9,11 +9,10 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   require Logger
 
   alias FrontmanServer.Frameworks
+  alias FrontmanServer.Protocols.{JsonRpc, MCP}
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.MCP, as: MCPTools
-  alias JsonRpc
-  alias ModelContextProtocol, as: MCP
-  alias ModelContextProtocol.Schema, as: MCPSchema
+  alias MCP.Schema, as: MCPSchema
 
   @execution_context_extension "ai.frontman/execution-context"
   @tool_metadata_extension "ai.frontman/tool-metadata"

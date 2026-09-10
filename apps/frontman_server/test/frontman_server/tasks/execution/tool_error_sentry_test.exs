@@ -8,6 +8,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   import FrontmanServer.Test.Fixtures.Tasks
 
   alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
@@ -199,7 +200,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       assert tool_result != nil
       assert tool_result.is_error == true
-      assert ModelContextProtocol.extract_content_text(tool_result.result) =~ "timed out"
+      assert MCP.extract_content_text(tool_result.result) =~ "timed out"
 
       reports = Sentry.Test.pop_sentry_reports()
       timeout_reports = Enum.filter(reports, &(&1.tags[:error_type] == "tool_timeout"))

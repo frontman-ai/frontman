@@ -4,11 +4,11 @@
 # Licensed under the AGPL-3.0 - see LICENSE for details.
 # Additional terms apply - see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule AgentClientProtocol.History do
+defmodule FrontmanServer.Protocols.ACP.History do
   @moduledoc "Encodes projected task row contexts as ACP notifications."
 
-  alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Agents
+  alias FrontmanServer.Protocols.ACP
   alias FrontmanServer.Tasks.History, as: TaskHistory
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema

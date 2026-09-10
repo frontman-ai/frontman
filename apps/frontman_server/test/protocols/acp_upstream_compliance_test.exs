@@ -2,24 +2,24 @@ defmodule FrontmanServer.Protocols.AcpUpstreamComplianceTest do
   use ExUnit.Case, async: true
 
   alias FrontmanServer.Agents.Agent
-  alias FrontmanServer.ProtocolSchema
+  alias FrontmanServer.{Protocols.ACP, ProtocolSchema}
 
   @timestamp ~U[2026-07-15 10:00:00.000000Z]
 
   test "Frontman and generic ACP envelopes validate against pinned upstream v1 schema" do
     fixtures = [
       initialize_request(%{"frontman.dev" => %{"agentAttribution" => %{"version" => 1}}}),
-      response(2, AgentClientProtocol.build_initialize_result([agent()], "executor-id")),
-      response(3, AgentClientProtocol.build_session_new_result("session-1", [])),
-      response(4, AgentClientProtocol.build_session_load_result([])),
-      AgentClientProtocol.build_user_message_chunk_notification(
+      response(2, ACP.build_initialize_result([agent()], "executor-id")),
+      response(3, ACP.build_session_new_result("session-1", [])),
+      response(4, ACP.build_session_load_result([])),
+      ACP.build_user_message_chunk_notification(
         "session-1",
         "user-1",
         %{"type" => "text", "text" => "Hello"},
         "executor-id",
         @timestamp
       ),
-      AgentClientProtocol.build_agent_message_chunk_notification(
+      ACP.build_agent_message_chunk_notification(
         "session-1",
         "Hello back",
         @timestamp,

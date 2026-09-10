@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule ModelContextProtocol do
+defmodule FrontmanServer.Protocols.MCP do
   @moduledoc """
   MCP (Model Context Protocol) message builders and parsers.
 
@@ -20,8 +20,9 @@ defmodule ModelContextProtocol do
   Use with JsonRpc for complete message handling.
   """
 
-  use Boundary, deps: [JsonRpc], exports: :all
+  use Boundary, top_level?: true, deps: [FrontmanServer.Protocols.JsonRpc], exports: :all
 
+  alias FrontmanServer.Protocols.JsonRpc
   require Logger
 
   @protocol_version "2026-07-28"

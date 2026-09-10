@@ -15,8 +15,8 @@ defmodule FrontmanServer.Tools.TodoWrite do
 
   @behaviour FrontmanServer.Tools.Backend
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks.Todos.Todo
-  alias ModelContextProtocol, as: MCP
 
   @impl true
   def name, do: "todo_write"

@@ -4,6 +4,7 @@ defmodule FrontmanServer.ToolsTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction.ToolResult
   alias FrontmanServer.Tasks.InteractionSchema
@@ -13,7 +14,6 @@ defmodule FrontmanServer.ToolsTest do
   alias FrontmanServer.Tools.GetToolResult
   alias FrontmanServer.Tools.TodoWrite
   alias FrontmanServer.Tools.WebFetch
-  alias ModelContextProtocol, as: MCP
 
   setup do
     scope = user_scope_fixture()

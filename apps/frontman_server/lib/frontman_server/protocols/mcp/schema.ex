@@ -4,10 +4,10 @@
 # Licensed under the AGPL-3.0 - see LICENSE for details.
 # Additional terms apply - see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule ModelContextProtocol.Schema do
+defmodule FrontmanServer.Protocols.MCP.Schema do
   @moduledoc false
 
-  @schema_dir Path.expand("../../../../libs/frontman-protocol/schemas/mcp", __DIR__)
+  @schema_dir Path.expand("../../../../../../libs/frontman-protocol/schemas/mcp", __DIR__)
   @discover_result_path Path.join(@schema_dir, "discoverResult.json")
   @tools_list_result_path Path.join(@schema_dir, "toolsListResult.json")
   @call_tool_result_path Path.join(@schema_dir, "callToolResult.json")

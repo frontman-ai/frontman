@@ -1,9 +1,9 @@
-defmodule ModelContextProtocolTest do
+defmodule FrontmanServer.Protocols.MCPTest do
   use ExUnit.Case, async: true
 
   import ExUnit.CaptureLog
 
-  alias ModelContextProtocol, as: MCP
+  alias FrontmanServer.Protocols.MCP
 
   test "builds required MCP 2026 request metadata" do
     meta = MCP.request_params()["_meta"]
