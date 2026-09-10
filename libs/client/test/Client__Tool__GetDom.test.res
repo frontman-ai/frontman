@@ -3,6 +3,11 @@ open Vitest
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module GetDom = Client__Tool__GetDom
 module Persistence = FrontmanAiAstroBrowser.FrontmanAstroBrowser__Persistence
+module Navigation = FrontmanAiAstroBrowser.FrontmanAstroBrowser__Navigation
+
+@set
+external setNavigation: (WebAPI.DomTypes.window, option<Navigation.state>) => unit =
+  "__frontman_astro_navigation__"
 
 type previewModule
 type spy
@@ -22,6 +27,7 @@ type page = {
   html: string,
   astro_client_routing: option<string>,
   astro_persistence: option<Persistence.t>,
+  astro_navigation: option<Navigation.t>,
 }
 @schema
 type textContent = {text: string}
@@ -36,6 +42,7 @@ let get = spyOn(previewModule)
 afterEach(() => {
   WebAPI.DomGlobal.document.body.innerHTML = ""
   resetAllMocks()
+  setNavigation(WebAPI.DomGlobal.window, None)
 })
 
 let showPage = (enabled, ~text="Content", ~html=?) => {
@@ -99,6 +106,60 @@ let input: GetDom.input = {
       t->expect(page.html->String.includes("Content"))->Expect.toBe(true)
       t->expect(page.astro_client_routing)->Expect.toEqual(Some(routing))
     }
+  })
+})
+
+[#simplified, #full]->Array.forEach(mode => {
+  testAsync("reads fresh navigation evidence only from the preview window", async t => {
+    showPage(true)
+    let {win} = Client__Tool__PreviewContext.get()->Option.getOrThrow
+    let from = "https://preview.test/start"
+    let to = "https://preview.test/destination"
+    setNavigation(
+      WebAPI.DomGlobal.window,
+      Some({lastNavigation: Some({from, to, phase: PageLoad})}),
+    )
+    let absent = await execute(Astro, {...input, mode: Some(mode)})
+    let page = absent.structuredContent->Option.getOrThrow
+    t->expect(page.astro_client_routing)->Expect.toEqual(Some("enabled"))
+    t->expect(page.astro_navigation)->Expect.toEqual(Some(Navigation.Unavailable))
+
+    setNavigation(win, Some({lastNavigation: None}))
+    let empty = await execute(Astro, {...input, mode: Some(mode)})
+    t
+    ->expect((empty.structuredContent->Option.getOrThrow).astro_navigation)
+    ->Expect.toEqual(Some(Navigation.NotObserved))
+
+    let phases = [
+      Navigation.BeforePreparation,
+      AfterPreparation,
+      BeforeSwap,
+      AfterSwap,
+      PageLoad,
+      HashChange,
+    ]
+    for index in 0 to phases->Array.length - 1 {
+      let phase = phases->Array.get(index)->Option.getOrThrow
+      let destination = switch phase {
+      | HashChange => to ++ "#section"
+      | BeforePreparation | AfterPreparation | BeforeSwap | AfterSwap | PageLoad => to
+      }
+      setNavigation(win, Some({lastNavigation: Some({from, to: destination, phase})}))
+      let response = await execute(Astro, {...input, mode: Some(mode)})
+      let page = response.structuredContent->Option.getOrThrow
+      t
+      ->expect(page.astro_navigation)
+      ->Expect.toEqual(Some(Navigation.Observed({from, to: destination, phase})))
+      let text = (response.content->Array.get(0)->Option.getOrThrow).text
+      let textPage = S.decodeOrThrow(text, ~from=S.jsonString, ~to=pageSchema)
+      t->expect(textPage.astro_navigation)->Expect.toEqual(page.astro_navigation)
+    }
+
+    showPage(false)
+    let reloaded = await execute(Astro, {...input, mode: Some(mode)})
+    let page = reloaded.structuredContent->Option.getOrThrow
+    t->expect(page.astro_client_routing)->Expect.toEqual(Some("disabled"))
+    t->expect(page.astro_navigation)->Expect.toEqual(Some(Navigation.Unavailable))
   })
 })
 
@@ -202,6 +263,7 @@ testAsync(
     let page = response.structuredContent->Option.getOrThrow
     t->expect(page.html->String.includes("data-astro-transition-persist"))->Expect.toBe(false)
     t->expect(page.astro_persistence)->Expect.toEqual(None)
+    t->expect(page.astro_navigation)->Expect.toEqual(None)
   })
 })
 
