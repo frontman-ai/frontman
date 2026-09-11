@@ -13,7 +13,8 @@ Ready to run in production? Please [check our deployment guides](https://hexdocs
 
 Data migrations install official skills. The `design_polish` migration preserves an existing row with the same name.
 Future skill additions or content changes need a new migration with the data inline; do not read mutable files from migrations.
-Rollback retains skill data. Deployments do not run seed scripts or overwrite catalog content on every release.
+Rollback deletes only the migration's fixed UUID, leaving pre-existing same-name rows with different IDs untouched.
+Deployments do not run seed scripts or overwrite catalog content on every release.
 
 ## Architecture docs
 

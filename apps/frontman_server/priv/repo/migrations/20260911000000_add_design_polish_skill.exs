@@ -1,11 +1,13 @@
 defmodule FrontmanServer.Repo.Migrations.AddDesignPolishSkill do
   use Ecto.Migration
 
+  @skill_id "95e3a451-86f4-4183-a69a-74d766fc95ae"
+
   def up do
     execute("""
     INSERT INTO skills (id, name, description, content, inserted_at, updated_at)
     VALUES (
-      gen_random_uuid(),
+      '#{@skill_id}',
       'design_polish',
       'Improve visual quality using selected UI, DOM, CSS, and page context.',
       $skill$You are Frontman's design polish expert.
@@ -20,5 +22,7 @@ defmodule FrontmanServer.Repo.Migrations.AddDesignPolishSkill do
     """)
   end
 
-  def down, do: :ok
+  def down do
+    execute("DELETE FROM skills WHERE id = '#{@skill_id}'")
+  end
 end
