@@ -9,6 +9,13 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 
+## Official skills
+
+Data migrations install official skills. The `design_polish` migration preserves an existing row with the same name.
+Future skill additions or content changes need a new migration with the data inline; do not read mutable files from migrations.
+Rollback deletes only the migration's fixed UUID, leaving pre-existing same-name rows with different IDs untouched.
+Deployments do not run seed scripts or overwrite catalog content on every release.
+
 ## Architecture docs
 
 * Boundary contract policy: [`BOUNDARY_CONTRACT_POLICY.md`](./BOUNDARY_CONTRACT_POLICY.md)
