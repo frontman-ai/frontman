@@ -2,4 +2,4 @@
 "frontman": patch
 ---
 
-Seed bundled official skills after release migrations without creating development accounts. Deployments update matching skills while preserving their IDs, unrelated catalog entries, and historical task snapshots.
+Run the existing seed script after release migrations, with development-account creation restricted to development. Deployments update bundled skills while preserving their IDs, unrelated catalog entries, and historical task snapshots.
