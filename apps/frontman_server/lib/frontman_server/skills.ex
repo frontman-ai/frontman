@@ -14,6 +14,37 @@ defmodule FrontmanServer.Skills do
   alias FrontmanServer.Repo
   alias FrontmanServer.Skills.Skill
 
+  @doc "Upserts bundled official skills without changing IDs, unrelated skills, or task snapshots."
+  def seed_official!(directory \\ Application.app_dir(:frontman_server, "priv/official_skills")) do
+    directory
+    |> File.ls!()
+    |> Enum.filter(&String.ends_with?(&1, ".md"))
+    |> Enum.sort()
+    |> Enum.each(fn filename ->
+      content = File.read!(Path.join(directory, filename))
+      ["", frontmatter, body] = String.split(content, "---", parts: 3)
+
+      fields =
+        frontmatter
+        |> String.split("\n", trim: true)
+        |> Map.new(fn line ->
+          [key, value] = String.split(line, ":", parts: 2)
+          {String.trim(key), String.trim(value)}
+        end)
+
+      %Skill{}
+      |> Skill.changeset(%{
+        name: Map.fetch!(fields, "name"),
+        description: Map.fetch!(fields, "description"),
+        content: String.trim(body)
+      })
+      |> Repo.insert!(
+        on_conflict: {:replace, [:description, :content, :updated_at]},
+        conflict_target: [:name]
+      )
+    end)
+  end
+
   @doc "Returns all globally usable skills ordered by name."
   def catalog(_scope) do
     Skill

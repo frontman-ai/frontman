@@ -29,6 +29,7 @@ defmodule FrontmanServer.Skills.Skill do
     |> update_change(:name, &String.downcase/1)
     |> validate_required([:name, :description, :content])
     |> validate_format(:name, @name_format)
+    |> validate_length(:name, max: 255)
     |> validate_length(:description, min: 1, max: 200)
     |> validate_length(:content, min: 1)
     |> unique_constraint(:name)

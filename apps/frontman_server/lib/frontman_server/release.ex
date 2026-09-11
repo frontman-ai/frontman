@@ -17,6 +17,11 @@ defmodule FrontmanServer.Release do
     for repo <- repos() do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
     end
+
+    {:ok, :ok, _} =
+      Ecto.Migrator.with_repo(FrontmanServer.Repo, fn _repo ->
+        FrontmanServer.Skills.seed_official!()
+      end)
   end
 
   def rollback(repo, version) do

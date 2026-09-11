@@ -45,6 +45,23 @@ defmodule FrontmanServer.SkillsTest do
       assert "has invalid format" in errors_on(changeset).name
     end
 
+    test "accepts a 255-character name" do
+      scope = user_scope_fixture()
+      name = String.duplicate("a", 255)
+
+      assert {:ok, skill} = Skills.register(scope, valid_skill_attrs(%{name: name}))
+      assert skill.name == name
+    end
+
+    test "rejects a 256-character name" do
+      scope = user_scope_fixture()
+
+      assert {:error, changeset} =
+               Skills.register(scope, valid_skill_attrs(%{name: String.duplicate("a", 256)}))
+
+      assert "should be at most 255 character(s)" in errors_on(changeset).name
+    end
+
     test "validates description length" do
       scope = user_scope_fixture()
 
@@ -111,6 +128,17 @@ defmodule FrontmanServer.SkillsTest do
       assert {:ok, updated} = Skills.update(scope, skill, %{description: "Updated skill."})
 
       assert updated.description == "Updated skill."
+    end
+
+    test "rejects a 256-character name without changing the persisted skill" do
+      scope = user_scope_fixture()
+      {:ok, skill} = Skills.register(scope, valid_skill_attrs())
+
+      assert {:error, changeset} =
+               Skills.update(scope, skill, %{name: String.duplicate("a", 256)})
+
+      assert "should be at most 255 character(s)" in errors_on(changeset).name
+      assert Skills.get_by_id(scope, skill.id) == {:ok, skill}
     end
   end
 
