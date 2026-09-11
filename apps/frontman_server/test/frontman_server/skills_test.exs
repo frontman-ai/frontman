@@ -12,12 +12,12 @@ defmodule FrontmanServer.SkillsTest do
 
       assert {:ok, %Skill{} = skill} =
                Skills.register(scope, %{
-                 name: "Design_Polish",
+                 name: "Test_Design_Polish",
                  description: "Improve visual quality.",
                  content: "Use stronger hierarchy."
                })
 
-      assert skill.name == "design_polish"
+      assert skill.name == "test_design_polish"
       assert skill.description == "Improve visual quality."
       assert skill.content == "Use stronger hierarchy."
     end
@@ -86,11 +86,20 @@ defmodule FrontmanServer.SkillsTest do
   end
 
   describe "catalog/1" do
+    test "includes the official skill installed by migrations" do
+      assert %Skill{content: content, description: description} =
+               Repo.get_by!(Skill, name: "design_polish")
+
+      assert content =~ "You are Frontman's design polish expert."
+
+      assert description ==
+               "Improve visual quality using selected UI, DOM, CSS, and page context."
+    end
+
     test "returns globally usable skills ordered by name" do
       scope = user_scope_fixture()
 
       {:ok, _} = Skills.register(scope, valid_skill_attrs(%{name: "seo_auditor"}))
-      {:ok, _} = Skills.register(scope, valid_skill_attrs(%{name: "design_polish"}))
 
       assert [%Skill{name: "design_polish"}, %Skill{name: "seo_auditor"}] =
                Skills.catalog(scope)

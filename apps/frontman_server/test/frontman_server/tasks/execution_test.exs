@@ -189,7 +189,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
   defp register_skill(scope) do
     Skills.register(scope, %{
-      name: "design_polish",
+      name: "test_design_polish",
       description: "Improve visual quality.",
       content: "Use hierarchy."
     })
@@ -533,7 +533,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       user_messages = Enum.filter(messages, &(&1.role == :user))
       assert [prompt_message] = user_messages
       assert [active_skill_part, user_prompt_part] = prompt_message.content
-      assert active_skill_part.text =~ "## Active Skill: design_polish"
+      assert active_skill_part.text =~ "## Active Skill: test_design_polish"
       assert active_skill_part.text =~ "Use hierarchy."
       assert user_prompt_part.text == "Improve hero"
       {:ok, _} = Skills.update(scope, skill, %{content: "Changed instructions."})
@@ -552,7 +552,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert [historical_prompt_message, current_user_message] = user_messages
       assert [historical_skill_part, historical_prompt_part] = historical_prompt_message.content
-      assert historical_skill_part.text =~ "## Active Skill: design_polish"
+      assert historical_skill_part.text =~ "## Active Skill: test_design_polish"
       assert historical_skill_part.text =~ "Use hierarchy."
 
       assert historical_prompt_part.text == "Improve hero"
@@ -602,7 +602,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       user_messages = Enum.filter(messages, &(&1.role == :user))
       assert [first_message, second_message] = user_messages
       assert [skill_part, first_part] = first_message.content
-      assert skill_part.text =~ "## Active Skill: design_polish"
+      assert skill_part.text =~ "## Active Skill: test_design_polish"
       assert first_part.text == "Improve hero"
       assert [second_part] = second_message.content
       assert second_part.text == "Now tighten copy"

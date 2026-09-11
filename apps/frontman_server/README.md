@@ -9,18 +9,11 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 
-## Official skills in releases
+## Official skills
 
-`FrontmanServer.Release.migrate/0` runs migrations, then evaluates `priv/repo/seeds.exs` with the repository running.
-Railway and production `bin/migrate` use this path; it does not require Mix.
-Development setup runs the same seed script.
-The script creates the development account only when the existing `:frontman_server, :env` setting is `:dev`.
-
-Bundled files in `priv/official_skills` replace matching skills' descriptions and content on each deployment.
-Reruns preserve UUIDs and creation timestamps without creating duplicates.
-Unrelated catalog entries and task snapshots remain unchanged.
-Malformed input fails the release command; earlier migrations and seed updates can remain applied.
-Correct the input and rerun the command.
+Data migrations install official skills. The `design_polish` migration preserves an existing row with the same name.
+Future skill additions or content changes need a new migration with the data inline; do not read mutable files from migrations.
+Rollback retains skill data. Deployments do not run seed scripts or overwrite catalog content on every release.
 
 ## Architecture docs
 
