@@ -763,8 +763,8 @@ let messageAnnotationToBlockData = (
 @schema
 type deviceMetadata = {
   @live active: bool,
-  @live width: option<int>,
-  @live height: option<int>,
+  @live width: int,
+  @live height: int,
   name: string,
   orientation: string,
   @live dpr: option<float>,
@@ -790,14 +790,13 @@ let currentPageToContentBlock = (
   ~orientation: Client__DeviceMode.orientation,
   ~isAstro: bool,
 ): ContentBlock.t => {
-  let device = switch Client__DeviceMode.isActive(deviceMode) {
-  | false => None
-  | true =>
-    let dimensions = Client__DeviceMode.getEffectiveDimensions(deviceMode, orientation)
+  let device = switch Client__DeviceMode.getEffectiveDimensions(deviceMode, orientation) {
+  | None => None
+  | Some((width, height)) =>
     Some({
       active: true,
-      width: dimensions->Option.map(((width, _)) => width),
-      height: dimensions->Option.map(((_, height)) => height),
+      width,
+      height,
       name: Client__DeviceMode.getDeviceName(deviceMode),
       orientation: Client__DeviceMode.orientationToString(orientation),
       dpr: Client__DeviceMode.getDeviceDpr(deviceMode),
@@ -813,11 +812,7 @@ let currentPageToContentBlock = (
     | "" => None
     | title => Some(title)
     },
-    color_scheme: switch page.colorScheme {
-    | #dark => Some(#dark)
-    | #light => Some(#light)
-    | #unsupported => None
-    },
+    color_scheme: Some(page.colorScheme),
     scroll_y: page.scrollY,
     device_emulation: device,
     astro_client_routing: isAstro ? Some(page.astroClientRouting) : None,

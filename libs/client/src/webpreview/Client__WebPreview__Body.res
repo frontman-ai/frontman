@@ -28,7 +28,6 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
       } catch {
       | exn =>
         let ctx = {"src": src}
-        Console.error2("Preview bridge URL parameter injection failed", ctx)
         Log.error(
           ~ctx,
           ~error=JsExn.fromException(exn),
@@ -73,7 +72,6 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
       } catch {
       | exn =>
         let ctx = {"src": src}
-        Console.error2("Preview bridge origin resolution failed", ctx)
         Log.error(~ctx, ~error=JsExn.fromException(exn), "Preview bridge origin resolution failed")
         None
       }
@@ -91,20 +89,15 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
         let runtime = Client__PreviewRuntime.make(~iframe, ~targetOrigin, ~channel=taskId)
         let removeStatusListener = Client__PreviewRuntime.onStatus(runtime, status =>
           switch status {
-          | Runtime.Open => ()
-          | Runtime.Connecting => ()
-          | Runtime.Disconnected("Iframe reloaded") => ()
-          | Runtime.Disconnected(reason) => {
-              let ctx = {"taskId": taskId, "targetOrigin": targetOrigin, "reason": reason}
-              Console.error2("Preview bridge runtime disconnected", ctx)
-              Log.error(~ctx, "Preview bridge runtime disconnected")
-            }
+          | Runtime.Open
+          | Runtime.Connecting
+          | Runtime.Disconnected("Iframe reloaded")
           | Runtime.Closed("Runtime closed") => ()
-          | Runtime.Closed(reason) => {
-              let ctx = {"taskId": taskId, "targetOrigin": targetOrigin, "reason": reason}
-              Console.error2("Preview bridge runtime closed", ctx)
-              Log.error(~ctx, "Preview bridge runtime closed")
-            }
+          | Runtime.Disconnected(reason) | Runtime.Closed(reason) =>
+            Log.error(
+              ~ctx={"taskId": taskId, "targetOrigin": targetOrigin, "reason": reason},
+              "Preview bridge runtime failed",
+            )
           }
         )
         Client__PreviewRuntimeRegistry.register(~clientId=taskId, ~runtime)

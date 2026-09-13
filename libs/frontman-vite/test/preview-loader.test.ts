@@ -12,5 +12,6 @@ test("built Vite plugin wires the shared loader and resolves its bridge asset", 
   const response = { statusCode: 0, setHeader: vi.fn(), end: vi.fn() }
   await handler({}, response)
   expect(response.statusCode).toBe(200)
+  expect(response.setHeader).toHaveBeenCalledWith("Content-Type", "text/javascript; charset=utf-8")
   expect(response.end).toHaveBeenCalledWith(expect.stringContaining("FrontmanPreviewBridge"))
 })

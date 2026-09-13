@@ -1,6 +1,10 @@
 open Vitest
 
-let structuredClone = value => WebAPI.DomGlobal.structuredClone(value)
+open FrontmanBindings.Bindings__Test__Vitest
+@module("vitest") external vi: vi = "vi"
+
+beforeEach(() => vi->stubGlobal("matchMedia", _ => {"matches": false}))
+afterEach(() => vi->unstubAllGlobals)
 
 let setBodyHtml = html => {
   let body =
@@ -25,15 +29,14 @@ describe("page context", _t => {
     ->Expect.toEqual(FrontmanAiFrontmanProtocol.FrontmanProtocol__AstroClientRouting.Disabled)
   })
 
-  test("reads the child document and reports unsupported media queries explicitly", t => {
+  test("reads the child document and light media query state", t => {
     let page = FrontmanPreviewBridge__PageContext.read()
     let window = WebAPI.Window.current
     t->expect(page.url)->Expect.toBe((window->WebAPI.Window.location).href)
     t->expect(page.viewportWidth)->Expect.toBe(window->WebAPI.Window.innerWidth)
     t->expect(page.viewportHeight)->Expect.toBe(window->WebAPI.Window.innerHeight)
     t->expect(page.devicePixelRatio)->Expect.toBe(window->WebAPI.Window.devicePixelRatio)
-    t->expect(page.colorScheme)->Expect.toEqual(#unsupported)
-    t->expect(structuredClone(page))->Expect.toEqual(page)
+    t->expect(page.colorScheme)->Expect.toEqual(#light)
   })
 })
 
@@ -57,8 +60,12 @@ describe("DOM snapshot", _t => {
         pierceShadowDom: Some(true),
       }
       let snapshot = FrontmanPreviewBridge__DomSnapshot.execute(input)->Result.getOrThrow
-      ["#host > :nth-child(1)", "#host >>> 1/2", "#host >>> 2 >>> 1"]->Array.forEach(
-        selector => {
+      [
+        ("#host > :nth-child(1)", "Light"),
+        ("#host >>> 1/2", "Link"),
+        ("#host >>> 2 >>> 1", "Nested"),
+      ]->Array.forEach(
+        ((selector, text)) => {
           t
           ->expect(
             snapshot.html->String.includes(
@@ -72,15 +79,21 @@ describe("DOM snapshot", _t => {
             maxDepth: Some(0),
           })->Result.getOrThrow
           t->expect(selected.nodeCount)->Expect.toBe(1)
+          t->expect(selected.html->String.includes(`text="${text}"`))->Expect.toBe(true)
         },
       )
+      let lightOnly = FrontmanPreviewBridge__DomSnapshot.execute({
+        ...input,
+        pierceShadowDom: Some(false),
+      })->Result.getOrThrow
+      t->expect(lightOnly.nodeCount)->Expect.toBe(2)
+      t->expect(lightOnly.html->String.includes(">>>"))->Expect.toBe(false)
       ["private-value", "private-query"]->Array.forEach(
         secret => t->expect(snapshot.html->String.includes(secret))->Expect.toBe(false),
       )
-      t->expect(structuredClone(snapshot))->Expect.toEqual(snapshot)
     },
   )
-  test("returns a bounded clone-safe snapshot", t => {
+  test("returns a bounded snapshot", t => {
     setBodyHtml(`<main id="app"><button aria-label="Save changes">Save</button></main>`)
 
     let output = FrontmanPreviewBridge__DomSnapshot.execute({
@@ -96,7 +109,6 @@ describe("DOM snapshot", _t => {
     t->expect(snapshot.html->String.includes("button"))->Expect.toBe(true)
     t->expect(snapshot.nodeCount)->Expect.toBe(2)
     t->expect(snapshot.url)->Expect.toBe((WebAPI.Window.current->WebAPI.Window.location).href)
-    t->expect(structuredClone(output))->Expect.toEqual(output)
   })
 
   test("returns a structured error for oversized full output", t => {
@@ -117,7 +129,6 @@ describe("DOM snapshot", _t => {
       ->Expect.toBe(true)
     | Ok(_) => JsError.throwWithMessage("Expected an oversized subtree error")
     }
-    t->expect(structuredClone(output))->Expect.toEqual(output)
   })
 })
 

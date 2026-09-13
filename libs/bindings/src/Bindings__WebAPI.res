@@ -1,11 +1,6 @@
 external elementFromReact: Dom.element => WebAPI.DomTypes.element = "%identity"
 external elementToReact: WebAPI.DomTypes.element => Dom.element = "%identity"
 
-@get
-external matchMediaMethod: WebAPI.DomTypes.window => Nullable.t<
-  string => WebAPI.DomTypes.mediaQueryList,
-> = "matchMedia"
-
 external unsafeHTMLElementFromElement: WebAPI.DomTypes.element => WebAPI.DomTypes.htmlElement =
   "%identity"
 external unsafeInputElementFromElement: WebAPI.DomTypes.element => WebAPI.DomTypes.htmlInputElement =
