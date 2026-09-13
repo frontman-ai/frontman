@@ -76,12 +76,15 @@ let run = async (iframe: WebAPI.DomTypes.htmliFrameElement, childOrigin: string)
     check(page.astroClientRouting == Enabled, "Must read routing markers from the child document")
 
     let sent = ref([])
+    let promptSent = ref(() => JsError.throwWithMessage("Unexpected prompt submission"))
     let state = {
       ...Reducer.defaultState,
       selectedModelValue: Some("test:model"),
       acpSession: AcpSessionActive({
-        sendPrompt: (text, ~sessionId, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
-          sent := sent.contents->Array.concat([(text, sessionId, additionalBlocks)]),
+        sendPrompt: (text, ~sessionId, ~additionalBlocks, ~onComplete as _, ~_meta as _) => {
+          sent := sent.contents->Array.concat([(text, sessionId, additionalBlocks)])
+          promptSent.contents()
+        },
         sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
@@ -104,16 +107,23 @@ let run = async (iframe: WebAPI.DomTypes.htmliFrameElement, childOrigin: string)
     check(clientId !== "server-session", "Test must exercise distinct client/session IDs")
     Client__PreviewRuntimeRegistry.register(~clientId, ~runtime)
     let send = () =>
-      Reducer.sendMessageToAPIImpl(
-        state,
-        _ => (),
-        ~messageId,
-        ~message="Inspect this",
-        ~attachments=[],
-        ~annotations=[],
-        ~taskId="server-session",
-        ~agentId="planner",
-      )
+      Promise.make((resolve, _) => {
+        promptSent := (() => resolve())
+        Reducer.handleEffect(
+          TaskEffect({
+            target: ForTask("server-session"),
+            effect: SendMessage({
+              id: messageId,
+              text: "Inspect this",
+              attachments: [],
+              annotations: [],
+              agentId: "planner",
+            }),
+          }),
+          state,
+          _ => (),
+        )
+      })
 
     let pending = send()
     Client__PreviewRuntimeRegistry.register(~clientId="another-client", ~runtime)

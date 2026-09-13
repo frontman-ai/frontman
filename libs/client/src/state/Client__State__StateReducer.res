@@ -596,99 +596,54 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
   })
 }
 
-let sendMessageToAPIImpl = async (
+let sendMessageToAPIImpl = (
   state: state,
   dispatch,
+  ~sendPrompt: Client__State__Types.sendPromptFn,
+  ~runtimeConfig: Client__RuntimeConfig.t,
+  ~pageContextBlocks: array<Client__State__Types.ContentBlock.t>,
   ~messageId,
   ~message,
   ~attachments: array<Client__Message.fileAttachmentData>,
   ~annotations: array<Client__Message.MessageAnnotation.t>,
   ~taskId,
   ~agentId,
-) => {
-  switch state.acpSession {
-  | AcpSessionActive({sendPrompt}) =>
-    let runtimeConfig = Client__RuntimeConfig.read()
-    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-    let preview = Task.getPreviewFrame(task, ~defaultUrl="")
-    let runtime = Client__PreviewRuntimeRegistry.get(~clientId=Task.getClientId(task))
-    let pageContext = switch runtime {
-    | None => Error("Preview bridge runtime not available for this task")
-    | Some(runtime) =>
-      try {
-        Ok(await Client__PreviewRuntime.getPageContext(runtime))
-      } catch {
-      | exn =>
-        Error(
-          exn
-          ->JsExn.fromException
-          ->Option.flatMap(JsExn.message)
-          ->Option.getOr("Preview page context request failed"),
+): unit => {
+  let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
+
+  let attachmentBlocks = buildAttachmentContentBlocks(attachments)
+  let additionalBlocks =
+    Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
+
+  let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
+  let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
+  state.selectedModelValue->Option.forEach(modelValue =>
+    metadata->Dict.set("model", JSON.Encode.string(modelValue))
+  )
+  metadata->Dict.set(
+    "frontman.dev/messageId",
+    JSON.Encode.string(Message.UserMessageId.toString(messageId)),
+  )
+  metadata->Dict.set("agent", JSON.Encode.string(agentId))
+  let _meta = Some(JSON.Encode.object(metadata))
+
+  sendPrompt(
+    message,
+    ~sessionId=taskId,
+    ~additionalBlocks,
+    ~onComplete=result =>
+      switch result {
+      | Ok(_) => ()
+      | Error(error) =>
+        dispatch(
+          TaskAction({
+            target: ForTask(taskId),
+            action: UserMessageSendFailed({id: messageId, error}),
+          }),
         )
-      }
-    }
-    let pageContextBlocks = switch pageContext {
-    | Ok(page) => [
-        Client__State__Types.currentPageToContentBlock(
-          page,
-          ~deviceMode=preview.deviceMode,
-          ~orientation=preview.orientation,
-          ~isAstro=runtimeConfig.framework == Astro,
-        ),
-      ]
-    | Error(reason) =>
-      Log.warning(
-        ~ctx={"taskId": taskId, "reason": reason},
-        "Sending prompt without live preview context",
-      )
-      []
-    }
-
-    let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
-
-    let attachmentBlocks = buildAttachmentContentBlocks(attachments)
-    let additionalBlocks =
-      Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
-
-    let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
-    let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
-    state.selectedModelValue->Option.forEach(modelValue =>
-      metadata->Dict.set("model", JSON.Encode.string(modelValue))
-    )
-    metadata->Dict.set(
-      "frontman.dev/messageId",
-      JSON.Encode.string(Message.UserMessageId.toString(messageId)),
-    )
-    metadata->Dict.set("agent", JSON.Encode.string(agentId))
-    let _meta = Some(JSON.Encode.object(metadata))
-
-    sendPrompt(
-      message,
-      ~sessionId=taskId,
-      ~additionalBlocks,
-      ~onComplete=result =>
-        switch result {
-        | Ok(_) => ()
-        | Error(error) =>
-          dispatch(
-            TaskAction({
-              target: ForTask(taskId),
-              action: UserMessageSendFailed({id: messageId, error}),
-            }),
-          )
-        },
-      ~_meta,
-    )
-  | NoAcpSession =>
-    let error = "Cannot send message: no active ACP session"
-    Log.error(error)
-    dispatch(
-      TaskAction({
-        target: ForTask(taskId),
-        action: UserMessageSendFailed({id: messageId, error}),
-      }),
-    )
-  }
+      },
+    ~_meta,
+  )
 }
 
 let updateInfoForVersions = (~target, ~installedVersion, ~latestVersion): option<
@@ -1140,16 +1095,66 @@ let handleEffect = (effect, state: state, dispatch) => {
               failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
             }
           }
-          sendMessageToAPIImpl(
-            state,
-            dispatch,
-            ~messageId=id,
-            ~message=text,
-            ~attachments,
-            ~annotations,
-            ~taskId,
-            ~agentId,
-          )->ignore
+          switch state.acpSession {
+          | NoAcpSession =>
+            let error = "Cannot send message: no active ACP session"
+            Log.error(error)
+            dispatch(
+              TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}),
+            )
+          | AcpSessionActive({sendPrompt}) =>
+            let runtimeConfig = Client__RuntimeConfig.read()
+            let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+            let preview = Task.getPreviewFrame(task, ~defaultUrl="")
+            let runtime = Client__PreviewRuntimeRegistry.get(~clientId=Task.getClientId(task))
+            let send = async () => {
+              let pageContext = switch runtime {
+              | None => Error("Preview bridge runtime not available for this task")
+              | Some(runtime) =>
+                try {
+                  Ok(await Client__PreviewRuntime.getPageContext(runtime))
+                } catch {
+                | exn =>
+                  Error(
+                    exn
+                    ->JsExn.fromException
+                    ->Option.flatMap(JsExn.message)
+                    ->Option.getOr("Preview page context request failed"),
+                  )
+                }
+              }
+              let pageContextBlocks = switch pageContext {
+              | Ok(page) => [
+                  Client__State__Types.currentPageToContentBlock(
+                    page,
+                    ~deviceMode=preview.deviceMode,
+                    ~orientation=preview.orientation,
+                    ~isAstro=runtimeConfig.framework == Astro,
+                  ),
+                ]
+              | Error(reason) =>
+                Log.warning(
+                  ~ctx={"taskId": taskId, "reason": reason},
+                  "Sending prompt without live preview context",
+                )
+                []
+              }
+              sendMessageToAPIImpl(
+                state,
+                dispatch,
+                ~sendPrompt,
+                ~runtimeConfig,
+                ~pageContextBlocks,
+                ~messageId=id,
+                ~message=text,
+                ~attachments,
+                ~annotations,
+                ~taskId,
+                ~agentId,
+              )
+            }
+            send()->ignore
+          }
         | NeedSessionCommand(command) =>
           switch state.acpSession {
           | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)
