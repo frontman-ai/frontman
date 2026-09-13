@@ -1774,7 +1774,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ...Reducer.defaultState,
       selectedModelValue: Some("anthropic:claude-opus-4-6"),
       acpSession: AcpSessionActive({
-        sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta) => sentMetadata := _meta,
+        sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete as _, ~_meta) =>
+          sentMetadata := _meta,
         sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
@@ -1880,7 +1881,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ...Reducer.defaultState,
       selectedModelValue: Some("test:model"),
       acpSession: AcpSessionActive({
-        sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
+        sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
           completion := Some(onComplete),
         sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
@@ -1935,7 +1936,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     }
 
     let _setAcpSessionAction = (): Reducer.action => SetAcpSession({
-      sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+      sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
       sendSessionCommand: _ => (),
       loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
       deleteSession: (_, ~onComplete as _) => (),

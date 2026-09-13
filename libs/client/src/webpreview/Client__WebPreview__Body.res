@@ -106,7 +106,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
             }
           }
         )
-        Client__PreviewRuntimeRegistry.register(~runtime)
+        Client__PreviewRuntimeRegistry.register(~clientId=taskId, ~runtime)
         Some(
           () => {
             removeStatusListener()

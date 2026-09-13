@@ -8,4 +8,5 @@ let getDom: (
   t,
   FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.getDomInput,
 ) => Promise.t<FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.getDomOutput>
+let getPageContext: t => Promise.t<FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.pageContext>
 let close: t => unit

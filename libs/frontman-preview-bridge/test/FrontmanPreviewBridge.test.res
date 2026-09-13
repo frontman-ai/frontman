@@ -22,6 +22,19 @@ let makeWindow = () => {
   (Obj.magic(window): WebAPI.DomTypes.window)
 }
 
+describe("page context", _t => {
+  test("reads the child document and reports unsupported media queries explicitly", t => {
+    let page = FrontmanPreviewBridge__PageContext.read()
+    let window = WebAPI.Window.current
+    t->expect(page.url)->Expect.toBe((window->WebAPI.Window.location).href)
+    t->expect(page.viewportWidth)->Expect.toBe(window->WebAPI.Window.innerWidth)
+    t->expect(page.viewportHeight)->Expect.toBe(window->WebAPI.Window.innerHeight)
+    t->expect(page.devicePixelRatio)->Expect.toBe(window->WebAPI.Window.devicePixelRatio)
+    t->expect(page.colorScheme)->Expect.toEqual(#unsupported)
+    t->expect(structuredClone(page))->Expect.toEqual(page)
+  })
+})
+
 describe("DOM snapshot", _t => {
   test("returns a bounded clone-safe snapshot", t => {
     setBodyHtml(`<main id="app"><button aria-label="Save changes">Save</button></main>`)

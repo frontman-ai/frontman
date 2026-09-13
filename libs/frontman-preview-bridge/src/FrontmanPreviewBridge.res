@@ -22,6 +22,8 @@ let handler:
     switch message {
     | FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.GetDom(input) =>
       Response.now(FrontmanPreviewBridge__DomSnapshot.execute(input))
+    | FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.GetPageContext =>
+      Response.now(FrontmanPreviewBridge__PageContext.read())
     | _ => Response.none
     }
 

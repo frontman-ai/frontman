@@ -596,7 +596,7 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
   })
 }
 
-let sendMessageToAPIImpl = (
+let sendMessageToAPIImpl = async (
   state: state,
   dispatch,
   ~messageId,
@@ -609,15 +609,39 @@ let sendMessageToAPIImpl = (
   switch state.acpSession {
   | AcpSessionActive({sendPrompt}) =>
     let runtimeConfig = Client__RuntimeConfig.read()
-    let pageContextBlocks =
-      state.tasks
-      ->Dict.get(taskId)
-      ->Option.mapOr([], task =>
-        Client__State__Types.taskToPageContextBlocks(
-          task,
-          ~isAstro=runtimeConfig.framework == Astro,
+    let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+    let preview = Task.getPreviewFrame(task, ~defaultUrl="")
+    let runtime = Client__PreviewRuntimeRegistry.get(~clientId=Task.getClientId(task))
+    let pageContext = switch runtime {
+    | None => Error("Preview bridge runtime not available for this task")
+    | Some(runtime) =>
+      try {
+        Ok(await Client__PreviewRuntime.getPageContext(runtime))
+      } catch {
+      | exn =>
+        Error(
+          exn
+          ->JsExn.fromException
+          ->Option.flatMap(JsExn.message)
+          ->Option.getOr("Preview page context request failed"),
         )
+      }
+    }
+    let pageContextBlocks = switch pageContext {
+    | Ok(page) => [
+        Client__State__Types.currentPageToContentBlock(
+          page,
+          ~deviceMode=preview.deviceMode,
+          ~orientation=preview.orientation,
+        ),
+      ]
+    | Error(reason) =>
+      Log.warning(
+        ~ctx={"taskId": taskId, "reason": reason},
+        "Sending prompt without live preview context",
       )
+      []
+    }
 
     let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
 
@@ -639,6 +663,7 @@ let sendMessageToAPIImpl = (
 
     sendPrompt(
       message,
+      ~sessionId=taskId,
       ~additionalBlocks,
       ~onComplete=result =>
         switch result {
@@ -1123,7 +1148,7 @@ let handleEffect = (effect, state: state, dispatch) => {
             ~annotations,
             ~taskId,
             ~agentId,
-          )
+          )->ignore
         | NeedSessionCommand(command) =>
           switch state.acpSession {
           | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)

@@ -146,8 +146,24 @@ let execute = async (
   ~taskId: string,
   ~toolCallId as _toolCallId: string,
 ): Tool.MCP.CallToolResult.t => {
-  switch Client__PreviewRuntimeRegistry.get() {
-  | None => Tool.MCP.CallToolResult.makeError("Preview bridge runtime not available")
+  let state = StateStore.getState(Client__State__Store.store)
+  let runtime =
+    state.tasks
+    ->Dict.get(taskId)
+    ->Option.flatMap(task =>
+      Client__PreviewRuntimeRegistry.get(~clientId=Client__Task__Types.Task.getClientId(task))
+    )
+  switch runtime {
+  | None => {
+      let ctx = {
+        "taskId": taskId,
+        "selector": input.selector,
+        "runtime": Client__PreviewRuntimeRegistry.describe(),
+      }
+      Console.error2("Preview bridge runtime not available for get_dom", ctx)
+      Log.error(~ctx, "Preview bridge runtime not available for get_dom")
+      Tool.MCP.CallToolResult.makeError("Preview bridge runtime not available")
+    }
   | Some(runtime) =>
     try {
       switch await Client__PreviewRuntime.getDom(runtime, input) {
