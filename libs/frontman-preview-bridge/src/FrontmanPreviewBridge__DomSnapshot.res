@@ -308,8 +308,6 @@ let inspect = (
 let countElements = (el: WebAPI.DomTypes.element) =>
   (el->WebAPI.Element.querySelectorAll("*")).length + 1
 
-@get external documentUrl: WebAPI.DomTypes.document => string = "URL"
-
 let success = (~url, ~html, ~nodeCount, ~hint: option<string>=?): Preview.getDomOutput => Ok({
   url,
   html,
@@ -354,7 +352,7 @@ let executeWithDocument = (input: Preview.getDomInput, ~document: WebAPI.DomType
               ~hint=tooLargeHint(~el, ~elementCount, ~maxNodes),
             )
           } else {
-            success(~url=document->documentUrl, ~html=raw, ~nodeCount=elementCount)
+            success(~url=document.url, ~html=raw, ~nodeCount=elementCount)
           }
         }
       | #simplified =>
@@ -369,7 +367,7 @@ let executeWithDocument = (input: Preview.getDomInput, ~document: WebAPI.DomType
           ~pierceShadowDom=input.pierceShadowDom->Option.getOr(false),
         )
         success(
-          ~url=document->documentUrl,
+          ~url=document.url,
           ~html,
           ~nodeCount,
           ~hint=?switch truncated {

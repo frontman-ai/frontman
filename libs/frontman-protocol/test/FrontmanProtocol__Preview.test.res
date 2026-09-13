@@ -1,6 +1,6 @@
 open Vitest
 
-@val external structuredClone: 'a => 'a = "structuredClone"
+let structuredClone = value => WebAPI.DomGlobal.structuredClone(value)
 
 describe("lockstep preview protocol", _t => {
   test("page context survives clone and schema serialization; rejects malformed responses", t => {

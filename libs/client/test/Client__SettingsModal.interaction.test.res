@@ -1,5 +1,5 @@
 open Vitest
-open Test__Mocks
+open FrontmanBindings.Bindings__Test__Vitest
 module Dom = Test__Dom
 module R = Test__React
 module Types = Client__State__Types
@@ -65,15 +65,12 @@ let render = async component => {
 let rerender = component => R.act(async () => root.contents->Option.getOrThrow->R.render(component))
 let fill = (placeholder, value) => R.fill(input(placeholder), value)
 let click = text => R.act(async () => button(text)->Dom.click)
-@get external body: WebAPI.Request.requestInit => Nullable.t<string> = "body"
 let requests: ref<array<(string, WebAPI.Request.requestInit)>> = ref([])
 let respond: ref<unit => Promise.t<WebAPI.Response.t>> = ref(() => Promise.make((_, _) => ()))
-let updateRequest = index => {
+let updateRequest = async index => {
   let (_, init) = requests.contents->Array.get(index)->Option.getOrThrow
-  S.parseOrThrow(
-    init->body->Nullable.getOrThrow->JSON.parseOrThrow,
-    ~to=Reducer.customProviderUpdateRequestSchema,
-  )
+  let json = await WebAPI.Request.fromURL("https://settings.test/", ~init)->WebAPI.Request.json
+  S.parseOrThrow(json, ~to=Reducer.customProviderUpdateRequestSchema)
 }
 let confirmCalls = ref([])
 let confirmResult = ref(true)
@@ -123,7 +120,7 @@ describe("provider settings state integration", _ => {
     respond := (() => Promise.make((_, _) => ()))
     await fill("Provider name", "Saved provider again")
     await click("Save")
-    let (_, _, _, version, (action, _)) = updateRequest(1)
+    let (_, _, _, version, (action, _)) = await updateRequest(1)
     t->expect(version)->Expect.toBe(2)
     t->expect(action)->Expect.toBe("keep")
   })
@@ -185,7 +182,7 @@ describe("provider settings state integration", _ => {
     await R.fill(model, "renamed-model")
     t->expect(button("Save")->Dom.disabled)->Expect.toBe(false)
     await click("Save")
-    let (_, _, models, _, _) = updateRequest(0)
+    let (_, _, models, _, _) = await updateRequest(0)
     t->expect(models)->Expect.toEqual(["renamed-model"])
   })
 
@@ -199,7 +196,7 @@ describe("provider settings state integration", _ => {
     t->expect(requests.contents)->Expect.toEqual([])
     confirmResult := true
     await click("Overwrite latest")
-    let (name, _, _, version, _) = updateRequest(0)
+    let (name, _, _, version, _) = await updateRequest(0)
     t->expect((name, version))->Expect.toEqual((saved.name, 3))
     await R.act(async () => fail(DeletingCustomProvider(saved.id)))
     await click("Cancel delete")
@@ -214,7 +211,7 @@ describe("provider settings state integration", _ => {
     t->expect(input("Provider name")->Dom.value)->Expect.toBe(latest.name)
     t->expect(input("Optional API key")->Dom.value)->Expect.toBe("")
     await click("Save")
-    let (_, _, _, _, (action, _)) = updateRequest(2)
+    let (_, _, _, _, (action, _)) = await updateRequest(2)
     t->expect(action)->Expect.toBe("keep")
   })
 
