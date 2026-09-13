@@ -1,9 +1,5 @@
 type t = Runtime.t<unit>
 
-@get
-external contentWindow: WebAPI.DomTypes.htmliFrameElement => Nullable.t<WebAPI.DomTypes.window> =
-  "contentWindow"
-
 let limits: Runtime.limits = {
   requestTimeoutMs: 5000,
   maxMessageBytes: 32_000_000,
@@ -15,10 +11,7 @@ let handler:
   (_message, _sender, _context) => Response.none
 
 let make = (~iframe: WebAPI.DomTypes.htmliFrameElement, ~targetOrigin, ~channel) => {
-  let targetWindow =
-    iframe
-    ->contentWindow
-    ->Nullable.getOrThrow
+  let targetWindow = iframe.contentWindow->Null.getOrThrow
   let transport = WindowTransport.Parent.make({
     targetWindow,
     targetOrigin,

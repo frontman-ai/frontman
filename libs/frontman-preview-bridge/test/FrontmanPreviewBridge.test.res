@@ -1,8 +1,6 @@
 open Vitest
 
-@val external structuredClone: 'a => 'a = "structuredClone"
-
-@set external setInnerHTML: (WebAPI.DomTypes.element, string) => unit = "innerHTML"
+let structuredClone = value => WebAPI.DomGlobal.structuredClone(value)
 
 let setBodyHtml = html => {
   let body =
@@ -11,15 +9,7 @@ let setBodyHtml = html => {
     ->WebAPI.Document.body
     ->Null.toOption
     ->Option.getOrThrow(~message="Test document requires a body")
-  body->WebAPI.HTMLElement.asElement->setInnerHTML(html)
-}
-
-let makeWindow = () => {
-  let window = WebAPI.EventTarget.make()
-  let properties: Dict.t<Obj.t> = Obj.magic(window)
-  properties->Dict.set("parent", Obj.magic(window))
-  Object.set(globalThis, "window", window)
-  (Obj.magic(window): WebAPI.DomTypes.window)
+  body.innerHTML = html
 }
 
 describe("page context", _t => {
@@ -91,7 +81,6 @@ describe("DOM snapshot", _t => {
 
 describe("preview bridge installation", _t => {
   test("creates and disposes a runtime", _t => {
-    makeWindow()->ignore
     let installation = FrontmanPreviewBridge.install({
       parentOrigin: "https://parent.example.com",
       channel: "preview-task-id",
@@ -100,7 +89,6 @@ describe("preview bridge installation", _t => {
   })
 
   test("rejects invalid transport configuration", t => {
-    makeWindow()->ignore
     t
     ->expect(
       () =>
@@ -122,7 +110,6 @@ describe("preview bridge installation", _t => {
   })
 
   test("disposal is idempotent", _t => {
-    makeWindow()->ignore
     let config: FrontmanPreviewBridge.config = {
       parentOrigin: "https://parent.example.com",
       channel: "preview-task-id",

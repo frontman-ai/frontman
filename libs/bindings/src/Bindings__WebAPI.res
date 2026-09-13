@@ -1,4 +1,27 @@
 external elementFromReact: Dom.element => WebAPI.DomTypes.element = "%identity"
+external elementToReact: WebAPI.DomTypes.element => Dom.element = "%identity"
+
+@get
+external matchMediaMethod: WebAPI.DomTypes.window => Nullable.t<
+  string => WebAPI.DomTypes.mediaQueryList,
+> = "matchMedia"
+
+external unsafeHTMLElementFromElement: WebAPI.DomTypes.element => WebAPI.DomTypes.htmlElement =
+  "%identity"
+external unsafeInputElementFromElement: WebAPI.DomTypes.element => WebAPI.DomTypes.htmlInputElement =
+  "%identity"
+
+let htmlElementFromElement = (element: WebAPI.DomTypes.element) =>
+  switch element.namespaceURI->Null.toOption {
+  | Some("http://www.w3.org/1999/xhtml") => Some(element->unsafeHTMLElementFromElement)
+  | _ => None
+  }
+
+let inputElementFromElement = (element: WebAPI.DomTypes.element) =>
+  switch (element.namespaceURI->Null.toOption, element.tagName) {
+  | (Some("http://www.w3.org/1999/xhtml"), "INPUT") => Some(element->unsafeInputElementFromElement)
+  | _ => None
+  }
 
 @get external locationOrigin: WebAPI.DomTypes.location => string = "origin"
 

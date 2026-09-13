@@ -11,5 +11,8 @@ type captureResult = {
   toJpg: captureOptions => promise<snapshotImage>,
 }
 
+@module
+external exports: {"snapdom": WebAPI.DomTypes.element => promise<captureResult>} = "@zumer/snapdom"
+
 @module("@zumer/snapdom")
 external snapdom: WebAPI.DomTypes.element => promise<captureResult> = "snapdom"

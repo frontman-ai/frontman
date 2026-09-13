@@ -1,5 +1,5 @@
 open Vitest
-open Test__Mocks
+open FrontmanBindings.Bindings__Test__Vitest
 module Reducer = Client__Task__Reducer
 module Dom = Test__Dom
 module Source = Client__SourceContext
@@ -40,18 +40,8 @@ vi->mockModule("../src/Client__SourceLocationResolver.res.mjs", () =>
   }
 )
 
-@module
-external finderModule: {
-  "finder": (
-    ~element: WebAPI.DomTypes.element,
-    ~options: FrontmanBindings.Bindings__Finder.finderOptions,
-  ) => string,
-} = "@medv/finder"
-@module
-external captureModule: {"snapdom": WebAPI.DomTypes.element => Promise.t<Snapdom.captureResult>} =
-  "@zumer/snapdom"
-let finder = vi->mocked(finderModule["finder"])
-let capture = vi->mocked(captureModule["snapdom"])
+let finder = vi->mocked(FrontmanBindings.Bindings__Finder.exports["finder"])
+let capture = vi->mocked(Snapdom.exports["snapdom"])
 let detect = vi->mocked(Client__SourceDetection.getElementSourceLocation)
 let resolve = vi->mocked(Client__SourceLocationResolver.resolve)
 let calls = ref(0)

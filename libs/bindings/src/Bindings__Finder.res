@@ -9,5 +9,10 @@ type finderOptions = {
   optimizedMinLength?: int,
   maxNumberOfPathChecks?: int,
 }
+@module
+external exports: {
+  "finder": (~element: WebAPI.DomTypes.element, ~options: finderOptions) => string,
+} = "@medv/finder"
+
 @module("@medv/finder")
 external finder: (~element: WebAPI.DomTypes.element, ~options: finderOptions) => string = "finder"

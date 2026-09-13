@@ -25,6 +25,15 @@ type serverResponse
 @send external end: serverResponse => unit = "end"
 @send external endWithData: (serverResponse, string) => unit = "end"
 
+type server
+@module("node:http")
+external createServer: ((incomingMessage, serverResponse) => unit) => server = "createServer"
+@send external listen: (server, int, string, unit => unit) => unit = "listen"
+@unboxed
+type address = Tcp({port: int}) | Pipe(string)
+@send external address: server => Nullable.t<address> = "address"
+@send external close: (server, Nullable.t<JsExn.t> => unit) => unit = "close"
+
 type next = unit => unit
 
 type connectMiddleware = (incomingMessage, serverResponse, next) => unit
