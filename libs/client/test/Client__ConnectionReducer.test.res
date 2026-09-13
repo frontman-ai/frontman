@@ -15,6 +15,7 @@ let effectKinds = effects =>
     | Reducer.ConnectRelay(_) => #connectRelay
     | Reducer.CreateSessionEffect(_) => #createSession
     | Reducer.SendPromptEffect(_) => #sendPrompt
+    | Reducer.NotifyPromptRejected(_) => #promptRejected
     | Reducer.SessionCommandEffect(_) => #sessionCommand
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
     | Reducer.LoadTaskEffect(_) => #loadTask
@@ -431,6 +432,39 @@ describe("Connection Reducer", () => {
 
   describe("Prompt Sending", () => {
     test(
+      "rejects delayed prompts after the originating task loses its session",
+      t => {
+        let rejected = ref(None)
+        let request = Reducer.SendPrompt({
+          sessionId: "task-before-await",
+          text: "prepared prompt",
+          additionalBlocks: [],
+          onComplete: result => rejected := Some(result),
+          _meta: None,
+        })
+        let states = [
+          Reducer.initialState,
+          {...Reducer.initialState, session: SessionCreating("another-task")},
+          {...Reducer.initialState, session: SessionActive(mock({"sessionId": "another-task"}))},
+        ]
+        states->Array.forEach(
+          state => {
+            let (_, effects) = Reducer.reduce(state, request)
+            switch effects {
+            | [Reducer.NotifyPromptRejected({onComplete, reason})] => onComplete(Error(reason))
+            | _ => JsError.throwWithMessage("Delayed prompt must not reach a different session")
+            }
+            switch rejected.contents {
+            | Some(Error(_)) => ()
+            | _ => JsError.throwWithMessage("Prompt rejection must notify task cleanup")
+            }
+          },
+        )
+        t->expect(states->Array.length)->Expect.toBe(3)
+      },
+    )
+
+    test(
       "allows another prompt while previous prompt is still in flight",
       t => {
         let mockSession = Obj.magic({"sessionId": "task-1"})
@@ -440,6 +474,7 @@ describe("Connection Reducer", () => {
         let (nextPromptState, firstEffects) = Reducer.reduce(
           activeState,
           SendPrompt({
+            sessionId: "task-1",
             text: "first",
             additionalBlocks: emptyBlocks,
             onComplete: _ => (),
@@ -450,6 +485,7 @@ describe("Connection Reducer", () => {
         let (_, secondEffects) = Reducer.reduce(
           nextPromptState,
           SendPrompt({
+            sessionId: "task-1",
             text: "second",
             additionalBlocks: emptyBlocks,
             onComplete: _ => (),

@@ -1,7 +1,3 @@
-module Log = FrontmanLogs.Logs.Make({
-  let component = #TaskReducer
-})
-
 module UserContentPart = Client__Message.UserContentPart
 module AssistantContentPart = Client__Message.AssistantContentPart
 module Message = Client__Message
@@ -764,189 +760,85 @@ let messageAnnotationToBlockData = (
   }
 }
 
-let getDocumentTitle: WebAPI.DomTypes.document => string = %raw(`
-  function(doc) { return doc.title || ""; }
-`)
+@schema
+type deviceMetadata = {
+  active: bool,
+  width: option<int>,
+  height: option<int>,
+  name: string,
+  orientation: string,
+  dpr: option<float>,
+}
 
-let getColorScheme: WebAPI.DomTypes.window => string = %raw(`
-  function(win) {
-    try {
-      return win.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-    } catch(e) {
-      return "unknown";
-    }
-  }
-`)
+@schema
+type pageMetadata = {
+  current_page: bool,
+  url: string,
+  viewport_width: int,
+  viewport_height: int,
+  device_pixel_ratio: float,
+  title: option<string>,
+  color_scheme: option<[#dark | #light]>,
+  scroll_y: int,
+  device_emulation: option<deviceMetadata>,
+}
 
 let currentPageToContentBlock = (
-  previewFrame: Task.previewFrame,
-  ~isAstro: bool,
+  page: FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.pageContext,
+  ~deviceMode: Client__DeviceMode.deviceMode,
+  ~orientation: Client__DeviceMode.orientation,
 ): ContentBlock.t => {
-  let url = previewFrame.url
-
-  let (viewportWidth, viewportHeight, dpr, scrollY) = switch previewFrame.contentWindow {
-  | Some(win) =>
-    try {
-      (
-        Some(win->WebAPI.Window.innerWidth),
-        Some(win->WebAPI.Window.innerHeight),
-        Some(win->WebAPI.Window.devicePixelRatio),
-        Some(win->WebAPI.Window.scrollY->Float.toInt),
-      )
-    } catch {
-    | exn =>
-      Log.warning(
-        ~ctx={"error": exn, "url": previewFrame.url},
-        "Cross-origin SecurityError reading iframe viewport/display info",
-      )
-      (None, None, None, None)
-    }
-  | None => (None, None, None, None)
-  }
-
-  let title = switch previewFrame.contentDocument {
-  | Some(doc) =>
-    try {
-      let t = getDocumentTitle(doc)
-      switch t {
-      | "" => None
-      | value => Some(value)
-      }
-    } catch {
-    | exn =>
-      Log.warning(
-        ~ctx={"error": exn, "url": previewFrame.url},
-        "Cross-origin SecurityError reading iframe document title",
-      )
-      None
-    }
-  | None => None
-  }
-
-  let colorScheme = switch previewFrame.contentWindow {
-  | Some(win) =>
-    let scheme = getColorScheme(win)
-    switch scheme {
-    | "unknown" => None
-    | value => Some(value)
-    }
-  | None => None
-  }
-
-  let obj = Dict.make()
-  obj->Dict.set("current_page", JSON.Encode.bool(true))
-  obj->Dict.set("url", JSON.Encode.string(url))
-
-  switch isAstro {
+  let device = switch Client__DeviceMode.isActive(deviceMode) {
+  | false => None
   | true =>
-    module ClientRouting = FrontmanAiAstroBrowser.FrontmanAstroBrowser__ClientRouting
-    obj->Dict.set(
-      "astro_client_routing",
-      ClientRouting.read(previewFrame.contentDocument)->S.decodeOrThrow(
-        ~from=ClientRouting.schema,
-        ~to=S.json,
-      ),
-    )
-  | false => ()
+    let dimensions = Client__DeviceMode.getEffectiveDimensions(deviceMode, orientation)
+    Some({
+      active: true,
+      width: dimensions->Option.map(((width, _)) => width),
+      height: dimensions->Option.map(((_, height)) => height),
+      name: Client__DeviceMode.getDeviceName(deviceMode),
+      orientation: Client__DeviceMode.orientationToString(orientation),
+      dpr: Client__DeviceMode.getDeviceDpr(deviceMode),
+    })
   }
-
-  switch viewportWidth {
-  | Some(w) => obj->Dict.set("viewport_width", JSON.Encode.int(w))
-  | None => ()
+  let metadata: pageMetadata = {
+    current_page: true,
+    url: page.url,
+    viewport_width: page.viewportWidth,
+    viewport_height: page.viewportHeight,
+    device_pixel_ratio: page.devicePixelRatio,
+    title: switch page.title {
+    | "" => None
+    | title => Some(title)
+    },
+    color_scheme: switch page.colorScheme {
+    | #dark => Some(#dark)
+    | #light => Some(#light)
+    | #unsupported => None
+    },
+    scroll_y: page.scrollY,
+    device_emulation: device,
   }
-  switch viewportHeight {
-  | Some(h) => obj->Dict.set("viewport_height", JSON.Encode.int(h))
-  | None => ()
-  }
-  switch dpr {
-  | Some(d) => obj->Dict.set("device_pixel_ratio", JSON.Encode.float(d))
-  | None => ()
-  }
-  switch title {
-  | Some(t) => obj->Dict.set("title", JSON.Encode.string(t))
-  | None => ()
-  }
-  switch colorScheme {
-  | Some(s) => obj->Dict.set("color_scheme", JSON.Encode.string(s))
-  | None => ()
-  }
-  switch scrollY {
-  | Some(y) => obj->Dict.set("scroll_y", JSON.Encode.int(y))
-  | None => ()
-  }
-
-  if Client__DeviceMode.isActive(previewFrame.deviceMode) {
-    let emulationObj = Dict.make()
-    emulationObj->Dict.set("active", JSON.Encode.bool(true))
-    let effectiveDims = Client__DeviceMode.getEffectiveDimensions(
-      previewFrame.deviceMode,
-      previewFrame.orientation,
-    )
-    switch effectiveDims {
-    | Some((w, h)) =>
-      emulationObj->Dict.set("width", JSON.Encode.int(w))
-      emulationObj->Dict.set("height", JSON.Encode.int(h))
-    | None => ()
-    }
-    emulationObj->Dict.set(
-      "name",
-      JSON.Encode.string(Client__DeviceMode.getDeviceName(previewFrame.deviceMode)),
-    )
-    emulationObj->Dict.set(
-      "orientation",
-      JSON.Encode.string(Client__DeviceMode.orientationToString(previewFrame.orientation)),
-    )
-    switch Client__DeviceMode.getDeviceDpr(previewFrame.deviceMode) {
-    | Some(dpr) => emulationObj->Dict.set("dpr", JSON.Encode.float(dpr))
-    | None => ()
-    }
-    obj->Dict.set("device_emulation", JSON.Encode.object(emulationObj))
-  }
-
-  let _meta = JSON.Encode.object(obj)
-
-  let summaryParts = [Some(`URL: ${url}`)]
-  let summaryParts = switch (viewportWidth, viewportHeight) {
-  | (Some(w), Some(h)) =>
-    Array.concat(summaryParts, [Some(`Viewport: ${w->Int.toString}x${h->Int.toString}`)])
-  | _ => summaryParts
-  }
-  let summaryParts = switch dpr {
-  | Some(d) => Array.concat(summaryParts, [Some(`DPR: ${d->Float.toString}`)])
-  | None => summaryParts
-  }
-  let summaryParts = switch title {
-  | Some(t) => Array.concat(summaryParts, [Some(`Title: ${t}`)])
-  | None => summaryParts
-  }
-  let summaryParts = if Client__DeviceMode.isActive(previewFrame.deviceMode) {
-    let deviceName = Client__DeviceMode.getDeviceName(previewFrame.deviceMode)
-    let orientationStr = Client__DeviceMode.orientationToString(previewFrame.orientation)
-    Array.concat(summaryParts, [Some(`Device: ${deviceName} (${orientationStr})`)])
-  } else {
-    summaryParts
-  }
-
-  let summaryText = summaryParts->Array.filterMap(x => x)->Array.join(", ")
+  let summaryText =
+    [
+      Some(`URL: ${page.url}`),
+      Some(`Viewport: ${page.viewportWidth->Int.toString}x${page.viewportHeight->Int.toString}`),
+      Some(`DPR: ${page.devicePixelRatio->Float.toString}`),
+      metadata.title->Option.map(title => `Title: ${title}`),
+      device->Option.map(device => `Device: ${device.name} (${device.orientation})`),
+    ]
+    ->Array.filterMap(x => x)
+    ->Array.join(", ")
 
   ContentBlock.EmbeddedResource({
     resource: ContentBlock.TextResourceContents({
-      uri: `page://${url}`,
+      uri: `page://${page.url}`,
       mimeType: Some("text/plain"),
       text: `Current page: ${summaryText}`,
     }),
-    _meta: Some(_meta),
+    _meta: Some(S.decodeOrThrow(metadata, ~from=pageMetadataSchema, ~to=S.json)),
     annotations: None,
   })
-}
-
-let taskToPageContextBlocks = (task: Task.t, ~isAstro: bool): array<ContentBlock.t> => {
-  switch task {
-  | Task.Unloaded(_) => []
-  | Task.New({previewFrame})
-  | Task.Loading({previewFrame})
-  | Task.Loaded({previewFrame}) => [currentPageToContentBlock(previewFrame, ~isAstro)]
-  }
 }
 
 let annotationMetaToMessageAnnotation = (

@@ -1,5 +1,9 @@
 type t = Runtime.t<unit>
 
+@get
+external contentWindow: WebAPI.DomTypes.htmliFrameElement => Nullable.t<WebAPI.DomTypes.window> =
+  "contentWindow"
+
 let limits: Runtime.limits = {
   requestTimeoutMs: 5000,
   maxMessageBytes: 32_000_000,
@@ -13,8 +17,8 @@ let handler:
 let make = (~iframe: WebAPI.DomTypes.htmliFrameElement, ~targetOrigin, ~channel) => {
   let targetWindow =
     iframe
-    ->WebAPI.HTMLIFrameElement.contentWindow
-    ->Option.getOrThrow(~message="Preview iframe requires a contentWindow")
+    ->contentWindow
+    ->Nullable.getOrThrow
   let transport = WindowTransport.Parent.make({
     targetWindow,
     targetOrigin,
@@ -39,4 +43,15 @@ let getDom = (
   input: FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.getDomInput,
 ) =>
   Runtime.sendMessage(runtime, FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.GetDom(input))
+let getPageContext = async runtime => {
+  let context = await Runtime.sendMessage(
+    runtime,
+    FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.GetPageContext,
+  )
+  S.parseOrThrow(
+    context,
+    ~to=FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.pageContextSchema,
+  )
+}
+
 let close = Runtime.close
