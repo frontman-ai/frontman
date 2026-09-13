@@ -38,7 +38,7 @@ install-test-firefox:
 
 test-page-context-browser: build
 	$(MAKE) -C ../frontman-preview-bridge build
-	node test/page-context.browser.mjs
+	node test/Client__PageContextBrowserRunner.res.mjs
 
 test-coverage: build
 	yarn vitest run --coverage
