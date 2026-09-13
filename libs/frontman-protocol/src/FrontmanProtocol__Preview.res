@@ -20,6 +20,7 @@ type pageContext = {
   devicePixelRatio: float,
   scrollY: int,
   colorScheme: colorScheme,
+  astroClientRouting: FrontmanProtocol__AstroClientRouting.t,
 }
 
 type Types.message<_> +=
@@ -30,5 +31,5 @@ let getDomError = (~error: string, ~hint: option<string>=?): getDomOutput => Err
   switch hint {
   | None => error
   | Some(hint) => `${error}\n${hint}`
-  }
+  },
 )

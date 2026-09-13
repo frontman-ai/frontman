@@ -633,6 +633,7 @@ let sendMessageToAPIImpl = async (
           page,
           ~deviceMode=preview.deviceMode,
           ~orientation=preview.orientation,
+          ~isAstro=runtimeConfig.framework == Astro,
         ),
       ]
     | Error(reason) =>

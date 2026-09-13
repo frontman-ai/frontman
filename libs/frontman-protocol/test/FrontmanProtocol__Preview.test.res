@@ -13,6 +13,7 @@ describe("lockstep preview protocol", _t => {
       devicePixelRatio: 2.0,
       scrollY: 120,
       colorScheme: #dark,
+      astroClientRouting: Disabled,
     }
     let json = S.decodeOrThrow(page, ~from=Preview.pageContextSchema, ~to=S.json)
     t
@@ -46,14 +47,13 @@ describe("lockstep preview protocol", _t => {
       maxNodes: Some(20),
       pierceShadowDom: Some(false),
     }
-    let output: FrontmanProtocol.Preview.getDomOutput = {
-      success: true,
-      html: Some("selected tag=div id=\"app\" children=0"),
-      nodeCount: Some(1),
-      byteSize: Some(38),
+    let output: FrontmanProtocol.Preview.getDomOutput = Ok({
+      url: "https://preview.example/",
+      html: "selected tag=div id=\"app\" children=0",
+      nodeCount: 1,
+      byteSize: 38,
       hint: None,
-      error: None,
-    }
+    })
 
     t->expect(structuredClone(input))->Expect.toEqual(input)
     t->expect(structuredClone(output))->Expect.toEqual(output)

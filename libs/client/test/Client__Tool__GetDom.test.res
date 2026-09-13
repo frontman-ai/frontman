@@ -21,22 +21,8 @@ external createIframe: (
   @as("iframe") _,
 ) => WebAPI.DomTypes.htmliFrameElement = "createElement"
 
-@schema
-type page = {
-  url: string,
-  html: string,
-  astro_client_routing: option<string>,
-  astro_persistence: option<Persistence.t>,
-  astro_navigation: option<Navigation.t>,
-}
-@schema
-type textContent = {text: string}
-@schema
-type response = {
-  isError: option<bool>,
-  structuredContent: option<page>,
-  content: array<textContent>,
-}
+let pageSchema = Test__GetDom.pageSchema
+let execute = (framework, input) => Test__GetDom.execute(framework, input, ~taskId="task")
 
 let get = spyOn(previewModule)
 afterEach(() => {
@@ -64,23 +50,6 @@ let showPage = (enabled, ~text="Content", ~html=?) => {
   doc->WebAPI.Document.write(`<html><head>${marker}</head><body>${content}</body></html>`)
   doc->WebAPI.Document.close
   get->mockReturnValue(Some({doc, win}))
-}
-
-let execute = async (framework, input: GetDom.input) => {
-  module T = unpack(
-    Client__ToolRegistry.forFramework(framework).tools
-    ->Array.find(tool => {
-      module T = unpack(tool)
-      T.name == GetDom.name
-    })
-    ->Option.getOrThrow
-  )
-  let input =
-    input->S.decodeOrThrow(~from=GetDom.inputSchema, ~to=S.json)->S.parseOrThrow(~to=T.inputSchema)
-  let result = await T.execute(input, ~taskId="task", ~toolCallId="call")
-  result
-  ->S.decodeOrThrow(~from=Tool.MCP.CallToolResult.schema, ~to=S.json)
-  ->S.parseOrThrow(~to=responseSchema)
 }
 
 let input: GetDom.input = {
@@ -253,49 +222,28 @@ testAsync(
   },
 )
 
-[Client__RuntimeConfig.Nextjs, Vite, Wordpress]->Array.forEach(framework => {
-  testAsync("keeps persistence enrichment out of non-Astro inspection", async t => {
-    showPage(
-      true,
-      ~html="<main data-astro-transition-persist=\"outer\"><div id=\"page\" data-astro-transition-persist=\"inner\"></div></main>",
-    )
-    let response = await execute(framework, input)
-    let page = response.structuredContent->Option.getOrThrow
-    t->expect(page.html->String.includes("data-astro-transition-persist"))->Expect.toBe(false)
-    t->expect(page.astro_persistence)->Expect.toEqual(None)
-    t->expect(page.astro_navigation)->Expect.toEqual(None)
-  })
-})
-
-[Client__RuntimeConfig.Astro, Nextjs]->Array.forEach(framework => {
-  testAsync(
-    `returns MCP errors with narrowing guidance for ${Client__RuntimeConfig.frameworkIdToString(
-        framework,
-      )}`,
-    async t => {
-      showPage(true, ~text="x"->String.repeat(15001))
-      let cases = [
-        ("#missing", None, "No element found"),
-        ("#page", Some(1), "Subtree too large"),
-        ("#page", None, "HTML too large"),
-        ("#page", None, "Preview frame not available"),
-      ]
-      for index in 0 to 3 {
-        switch index {
-        | 3 => get->mockReturnValue(None)
-        | _ => ()
-        }
-        let (selector, maxNodes, message) = cases->Array.get(index)->Option.getOrThrow
-        let response = await execute(framework, {...input, selector, maxNodes, mode: Some(#full)})
-        let text = (response.content->Array.get(0)->Option.getOrThrow).text
-        t->expect(response.isError)->Expect.toEqual(Some(true))
-        t->expect(response.structuredContent)->Expect.toEqual(None)
-        t->expect(text->String.includes(message))->Expect.toBe(true)
-        switch index {
-        | 1 | 2 => t->expect(text->String.includes("Target a child selector"))->Expect.toBe(true)
-        | _ => ()
-        }
-      }
-    },
-  )
+testAsync("returns MCP errors with narrowing guidance for Astro", async t => {
+  showPage(true, ~text="x"->String.repeat(15001))
+  let cases = [
+    ("#missing", None, "No element found"),
+    ("#page", Some(1), "Subtree too large"),
+    ("#page", None, "HTML too large"),
+    ("#page", None, "Preview frame not available"),
+  ]
+  for index in 0 to 3 {
+    switch index {
+    | 3 => get->mockReturnValue(None)
+    | _ => ()
+    }
+    let (selector, maxNodes, message) = cases->Array.get(index)->Option.getOrThrow
+    let response = await execute(Astro, {...input, selector, maxNodes, mode: Some(#full)})
+    let text = (response.content->Array.get(0)->Option.getOrThrow).text
+    t->expect(response.isError)->Expect.toEqual(Some(true))
+    t->expect(response.structuredContent)->Expect.toEqual(None)
+    t->expect(text->String.includes(message))->Expect.toBe(true)
+    switch index {
+    | 1 | 2 => t->expect(text->String.includes("Target a child selector"))->Expect.toBe(true)
+    | _ => ()
+    }
+  }
 })

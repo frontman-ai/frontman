@@ -78,6 +78,7 @@ let resolved: Client__Types.SourceLocation.t = {
 }
 
 beforeEach(() => {
+  vi->stubGlobal("__frontmanRuntime", {"framework": "nextjs"})
   calls := 0
   Dom.html(`<div id="form-actions"><button id="submit" class="btn-submit primary">Submit "now"<span class="button-overlay"></span></button></div>`)
   finder->implementation((~element as _, ~options as _) => "#submit")
@@ -93,7 +94,10 @@ beforeEach(() => {
     Promise.resolve(Ok(resolved))
   })
 })
-afterEach(() => {Vi.useRealTimers()->ignore})
+afterEach(() => {
+  Vi.useRealTimers()->ignore
+  vi->unstubAllGlobals
+})
 
 let start = (~withWindow=false) => {
   let dispatched = ref([])
@@ -122,6 +126,36 @@ let wait = async dispatched => {
 type failure = Selector | Capture | Encoding | Detection
 
 describe("FetchAnnotationDetails", _ => {
+  [Client__RuntimeConfig.Astro, Nextjs, Vite, Wordpress]->Array.forEach(framework => {
+    testAsync(
+      `scopes persistence markers to Astro when annotating ${Client__RuntimeConfig.frameworkIdToString(
+          framework,
+        )}`,
+      async t => {
+        vi->stubGlobal(
+          "__frontmanRuntime",
+          {"framework": Client__RuntimeConfig.frameworkIdToString(framework)},
+        )
+        Dom.query("#submit")->WebAPI.Element.setAttribute(
+          ~qualifiedName="data-astro-transition-persist",
+          ~value="submit-action",
+        )
+        switch await start()->wait {
+        | AnnotationDetailsResolved({elementContext}) =>
+          t
+          ->expect(
+            elementContext
+            ->Result.getOrThrow
+            ->Option.getOrThrow
+            ->String.includes(`data-astro-transition-persist="submit-action"`),
+          )
+          ->Expect.toBe(framework == Astro)
+        | _ => JsError.throwWithMessage("Expected annotation details")
+        }
+      },
+    )
+  })
+
   testAsync("enriches context and screenshot without a source window", async t => {
     let action = await start()->wait
     switch action {

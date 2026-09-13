@@ -39,8 +39,7 @@ let setState = (~providers=[], ~mutation=Types.CustomProviderMutationIdle, ()) =
       acpSession: AcpSessionActive({
         sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) =>
           (),
-        cancelPrompt: () => (),
-        retryTurn: _ => (),
+        sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
         requireAuthentication: () => (),

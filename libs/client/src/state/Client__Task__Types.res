@@ -781,12 +781,14 @@ type pageMetadata = {
   color_scheme: option<[#dark | #light]>,
   scroll_y: int,
   device_emulation: option<deviceMetadata>,
+  astro_client_routing: option<FrontmanAiFrontmanProtocol.FrontmanProtocol__AstroClientRouting.t>,
 }
 
 let currentPageToContentBlock = (
   page: FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.pageContext,
   ~deviceMode: Client__DeviceMode.deviceMode,
   ~orientation: Client__DeviceMode.orientation,
+  ~isAstro: bool,
 ): ContentBlock.t => {
   let device = switch Client__DeviceMode.isActive(deviceMode) {
   | false => None
@@ -818,6 +820,7 @@ let currentPageToContentBlock = (
     },
     scroll_y: page.scrollY,
     device_emulation: device,
+    astro_client_routing: isAstro ? Some(page.astroClientRouting) : None,
   }
   let summaryText =
     [
