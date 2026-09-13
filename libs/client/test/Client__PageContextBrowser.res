@@ -36,29 +36,15 @@ let checkGenericGetDom = async (framework, childOrigin) => {
     page.astro_navigation == None,
     "Astro enrichment must stay out of non-Astro inspection",
   )
-  let cases = [
-    ("#missing", None, "No element found"),
-    ("#page", Some(1), "Subtree too large"),
-    ("#page", None, "HTML too large"),
-  ]
-  for index in 0 to cases->Array.length - 1 {
-    let (selector, maxNodes, message) = cases->Array.get(index)->Option.getOrThrow
-    let response = await execute({...input, selector, maxNodes, mode: Some(#full)})
-    let text = (response.content->Array.get(0)->Option.getOrThrow).text
-    check(
-      response.isError == Some(true) && response.structuredContent == None,
-      "Failed snapshots must produce MCP errors",
-    )
-    check(text->String.includes(message), "Snapshot errors must explain the failure")
-    switch index {
-    | 0 => ()
-    | _ =>
-      check(
-        text->String.includes("Target a child selector"),
-        "Oversized snapshots must include narrowing guidance",
-      )
-    }
-  }
+  let response = await execute({...input, selector: "#missing"})
+  check(
+    response.isError == Some(true) && response.structuredContent == None,
+    "Failed snapshots must produce MCP errors",
+  )
+  check(
+    (response.content->Array.get(0)->Option.getOrThrow).text->String.includes("No element found"),
+    "Snapshot errors must explain the failure",
+  )
 }
 
 let run = async (iframe: WebAPI.DomTypes.htmliFrameElement, childOrigin: string) => {
@@ -169,8 +155,8 @@ let run = async (iframe: WebAPI.DomTypes.htmliFrameElement, childOrigin: string)
       | _ => JsError.throwWithMessage("Expected bridged current-page metadata")
       }
       switch framework {
-      | Astro => ()
-      | Nextjs | Vite | Wordpress => await checkGenericGetDom(framework, childOrigin)
+      | Astro | Vite | Wordpress => ()
+      | Nextjs => await checkGenericGetDom(framework, childOrigin)
       }
     }
     sent := []

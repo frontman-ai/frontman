@@ -112,8 +112,8 @@ describe("pure page context formatting", _ => {
     ->Expect.toEqual(
       Some({
         active: true,
-        width: Some(844),
-        height: Some(390),
+        width: 844,
+        height: 390,
         name: "Test phone",
         orientation: "landscape",
         dpr: Some(2.0),
@@ -127,16 +127,16 @@ describe("pure page context formatting", _ => {
     }
   })
 
-  test("omits unsupported color scheme, empty title, and inactive emulation", t => {
+  test("emits light color scheme and omits empty title and inactive emulation", t => {
     let meta =
       TaskTypes.currentPageToContentBlock(
-        {...page, title: "", colorScheme: #unsupported},
+        {...page, title: "", colorScheme: #light},
         ~deviceMode=Responsive,
         ~orientation=Portrait,
         ~isAstro=false,
       )->metadata
     t->expect(meta.title)->Expect.toEqual(None)
-    t->expect(meta.color_scheme)->Expect.toEqual(None)
+    t->expect(meta.color_scheme)->Expect.toEqual(Some(#light))
     t->expect(meta.device_emulation)->Expect.toEqual(None)
     t->expect(meta.astro_client_routing)->Expect.toEqual(None)
   })

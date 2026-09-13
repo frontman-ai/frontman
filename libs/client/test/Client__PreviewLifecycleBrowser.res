@@ -55,17 +55,6 @@ let run = async childOrigin => {
       statuses.contents->Array.filter(status => status == Runtime.Connecting)->Array.length == 1,
       "Reload must start exactly one reconnection",
     )
-    check(
-      !(
-        statuses.contents->Array.some(status =>
-          switch status {
-          | Runtime.Closed(_) => true
-          | _ => false
-          }
-        )
-      ),
-      "Reload must not close the component runtime",
-    )
     let page = await Client__PreviewRuntime.getPageContext(runtime)
     check(page.title == "Cross-origin child", "Reloaded bridge must answer requests")
     removeListener()

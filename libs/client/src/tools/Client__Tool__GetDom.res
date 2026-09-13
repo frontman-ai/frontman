@@ -39,16 +39,13 @@ let outputSchema = GetDom.outputSchema
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
-let inspect = (input: input, {doc, win}: Tool.previewContext, ~additionalAttributes) =>
+let inspect = (input: input, {doc}: Tool.previewContext, ~additionalAttributes) =>
   FrontmanAiFrontmanCore.FrontmanCore__DomSnapshot.inspect(
     input,
     ~document=doc,
     ~additionalAttributes,
     ~componentForElement=Client__ElementInspector.componentForDocument(doc),
-  )->Result.map(((output, element)) => (
-    {...output, url: (win->WebAPI.Window.location).href},
-    element,
-  ))
+  )
 
 let execute = async (
   input: input,
@@ -69,7 +66,6 @@ let execute = async (
         "selector": input.selector,
         "runtime": Client__PreviewRuntimeRegistry.describe(),
       }
-      Console.error2("Preview bridge runtime not available for get_dom", ctx)
       Log.error(~ctx, "Preview bridge runtime not available for get_dom")
       Tool.MCP.CallToolResult.makeError("Preview bridge runtime not available")
     }

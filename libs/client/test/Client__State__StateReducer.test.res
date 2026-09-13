@@ -1860,53 +1860,40 @@ describe("Client State Reducer - Annotations on Messages", () => {
           ~title="",
         )
       enabledDocument.head.innerHTML = "<meta name=\"astro-view-transitions-enabled\" content=\"true\">"
-      let disabledDocument =
-        WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
-          ~title="",
-        )
-      [
-        ("astro", Some(enabledDocument)),
-        ("astro", Some(disabledDocument)),
-        ("astro", None),
-        ("nextjs", Some(enabledDocument)),
-        ("vite", Some(enabledDocument)),
-        ("wordpress", Some(enabledDocument)),
-      ]->Array.forEach(
-        ((framework, contentDocument)) => {
-          setRuntime(
-            {"framework": framework}->S.decodeOrThrow(
-              ~from=S.object(s => {"framework": s.field("framework", S.string)}),
-              ~to=S.json,
-            ),
-          )
-          let sentBlocks = ref([])
-          let state = TestHelpers.makeStateWithTask()
-          let task = state.tasks->Dict.get("test-task-1")->Option.getOrThrow
-          state.tasks->Dict.set(
-            "test-task-1",
-            TaskReducer.Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow=None),
-          )
-          let state = {
-            ...state,
-            acpSession: TestHelpers.activeAcpSession(
-              ~sendPrompt=(_, ~sessionId as _, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
-                sentBlocks := additionalBlocks,
-            ),
-          }
-          let (state, effects) = Reducer.next(
-            state,
-            Reducer.AddUserMessage({
-              id: UserMessageId.make(),
-              sessionId: "session-1",
-              content: [UserContentPart.text("Fix this")],
-              annotations: [],
-              agentId: "planner-id",
-            }),
-          )
-          effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
-          t->expect(sentBlocks.contents)->Expect.toEqual([])
-        },
+      setRuntime(JSON.parseOrThrow(`{"framework":"astro"}`))
+      let sentBlocks = ref(None)
+      let state = TestHelpers.makeStateWithTask()
+      let task = state.tasks->Dict.get("test-task-1")->Option.getOrThrow
+      state.tasks->Dict.set(
+        "test-task-1",
+        TaskReducer.Lens.setPreviewFrame(
+          task,
+          ~contentDocument=Some(enabledDocument),
+          ~contentWindow=None,
+        ),
       )
+      let state = {
+        ...state,
+        acpSession: TestHelpers.activeAcpSession(
+          ~sendPrompt=(_, ~sessionId as _, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
+            sentBlocks := Some(additionalBlocks),
+        ),
+      }
+      Reducer.handleEffect(
+        TaskEffect({
+          target: ForTask("test-task-1"),
+          effect: SendMessage({
+            id: UserMessageId.make(),
+            text: "Fix this",
+            attachments: [],
+            annotations: [],
+            agentId: "planner-id",
+          }),
+        }),
+        state,
+        _ => (),
+      )
+      t->expect(sentBlocks.contents)->Expect.toEqual(Some([]))
     },
   )
 

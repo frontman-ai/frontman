@@ -1,6 +1,10 @@
 type browser
 type page
 type locator
+type route
+@send external route: (page, string, route => Promise.t<unit>) => Promise.t<unit> = "route"
+@send
+external fulfill: (route, {"contentType": string, "body": string}) => Promise.t<unit> = "fulfill"
 type launchOptions = {"headless": bool}
 type pageOptions = {"colorScheme": [#dark | #light]}
 type waitOptions = {"timeout": int}

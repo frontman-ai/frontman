@@ -1,4 +1,3 @@
-module Http = FrontmanBindings.NodeHttp
 module Browser = FrontmanBindings.Playwright
 
 let run = async () => {
@@ -23,73 +22,29 @@ let run = async () => {
   let bridge = await FrontmanBindings.Fs.Promises.readFile(
     "../frontman-preview-bridge/dist/bridge.js",
   )
-  let servers = ref([])
-  let browser = ref(None)
-  let serve = async handler => {
-    let server = Http.createServer(handler)
-    servers := servers.contents->Array.concat([server])
-    await Promise.make((resolve, _) => server->Http.listen(0, "127.0.0.1", resolve))
-    let port = switch server->Http.address->Nullable.getOrThrow {
-    | Tcp({port}) => port
-    | Pipe(_) => JsError.throwWithMessage("Expected a TCP server address")
-    }
-    `http://127.0.0.1:${port->Int.toString}`
-  }
-  let cleanup = async () => {
-    switch browser.contents {
-    | Some(browser) => await browser->Browser.close
-    | None => ()
-    }
-    let _ = await servers.contents
-    ->Array.map(server =>
-      Promise.make((resolve, reject) =>
-        server->Http.close(
-          error =>
-            switch error {
-            | Value(error) => reject(error)
-            | Null | Undefined => resolve()
-            },
-        )
-      )
-    )
-    ->Promise.all
-  }
+  let launched = await Browser.launchFirefox({"headless": true})
   try {
-    let childOrigin = ref("")
-    let parentOrigin = await serve((req, res) => {
-      let url = req->Http.url
-      res->Http.setHeader("Content-Type", url === "/test.js" ? "text/javascript" : "text/html")
-      res->Http.endWithData(
-        switch url {
-        | "/test.js" => parentBundle
-        | _ =>
-          `<html data-child-origin="${childOrigin.contents}"><title>Parent shell</title><body><script>window.__frontmanRuntime={framework:"vite",basePath:"frontman"}</script><script type="module" src="/test.js"></script></body></html>`
-        },
-      )
-    })
-    childOrigin :=
-      (
-        await serve((req, res) => {
-          let url = req->Http.url
-          res->Http.setHeader(
-            "Content-Type",
-            url === "/bridge.js" ? "text/javascript" : "text/html",
-          )
-          res->Http.endWithData(
-            switch url {
-            | "/bridge.js" => bridge
-            | _ =>
-              `<title>Cross-origin child</title><meta name="astro-view-transitions-enabled"><main data-astro-transition-persist="outer"><div id="page" data-astro-transition-persist="inner"><span>${"x"->String.repeat(
-                  15001,
-                )}</span></div></main><script src="/bridge.js" data-frontman-parent-origin="${parentOrigin}" data-frontman-channel="browser-test"></script>`
-            },
-          )
-        })
-      )
-
-    let launched = await Browser.launchFirefox({"headless": true})
-    browser := Some(launched)
+    let parentOrigin = "http://127.0.0.1:43001"
+    let childOrigin = "http://127.0.0.1:43002"
     let page = await launched->Browser.newPage({"colorScheme": #dark})
+    await page->Browser.route(`${parentOrigin}/**`, route =>
+      route->Browser.fulfill({
+        "contentType": "text/html",
+        "body": `<html data-child-origin="${childOrigin}"><title>Parent shell</title><body><script>window.__frontmanRuntime={framework:"vite",basePath:"frontman"}</script><script type="module" src="/test.js"></script></body></html>`,
+      })
+    )
+    await page->Browser.route(`${parentOrigin}/test.js`, route =>
+      route->Browser.fulfill({"contentType": "text/javascript", "body": parentBundle})
+    )
+    await page->Browser.route(`${childOrigin}/**`, route =>
+      route->Browser.fulfill({
+        "contentType": "text/html",
+        "body": `<title>Cross-origin child</title><meta name="astro-view-transitions-enabled"><main data-astro-transition-persist="outer"><div id="page" data-astro-transition-persist="inner"><span>Child content</span></div></main><script src="/bridge.js" data-frontman-parent-origin="${parentOrigin}" data-frontman-channel="browser-test"></script>`,
+      })
+    )
+    await page->Browser.route(`${childOrigin}/bridge.js`, route =>
+      route->Browser.fulfill({"contentType": "text/javascript", "body": bridge})
+    )
     let errors = ref([])
     page->Browser.onPageError(error => errors := errors.contents->Array.concat([error]))
     await page->Browser.goto(parentOrigin)
@@ -109,10 +64,10 @@ let run = async () => {
     Console.log(
       "PASS: Firefox cross-origin bootstrap, typed context, task isolation, disconnected fallback, and component reload lifecycle",
     )
-    await cleanup()
+    await launched->Browser.close
   } catch {
   | exn =>
-    await cleanup()
+    await launched->Browser.close
     throw(exn)
   }
 }

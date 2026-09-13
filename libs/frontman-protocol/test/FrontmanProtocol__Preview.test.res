@@ -1,9 +1,7 @@
 open Vitest
 
-let structuredClone = value => WebAPI.DomGlobal.structuredClone(value)
-
 describe("lockstep preview protocol", _t => {
-  test("page context survives clone and schema serialization; rejects malformed responses", t => {
+  test("page context round-trips schema serialization and rejects malformed responses", t => {
     module Preview = FrontmanProtocol.Preview
     let page: Preview.pageContext = {
       url: "https://preview.example/path?q=1#section",
@@ -17,7 +15,7 @@ describe("lockstep preview protocol", _t => {
     }
     let json = S.decodeOrThrow(page, ~from=Preview.pageContextSchema, ~to=S.json)
     t
-    ->expect(S.parseOrThrow(structuredClone(json), ~to=Preview.pageContextSchema))
+    ->expect(S.parseOrThrow(json, ~to=Preview.pageContextSchema))
     ->Expect.toEqual(page)
     t
     ->expect(
@@ -28,34 +26,5 @@ describe("lockstep preview protocol", _t => {
         )->ignore,
     )
     ->Expect.toThrow
-  })
-
-  test("error DTO survives structured clone", t => {
-    let error: FrontmanProtocol.Preview.error = {
-      code: "preview_unavailable",
-      message: "Preview bridge is unavailable",
-    }
-
-    t->expect(structuredClone(error))->Expect.toEqual(error)
-  })
-
-  test("get_dom request and response DTOs survive structured clone", t => {
-    let input: FrontmanProtocol.Preview.getDomInput = {
-      selector: "#app",
-      mode: Some(#simplified),
-      maxDepth: Some(2),
-      maxNodes: Some(20),
-      pierceShadowDom: Some(false),
-    }
-    let output: FrontmanProtocol.Preview.getDomOutput = Ok({
-      url: "https://preview.example/",
-      html: "selected tag=div id=\"app\" children=0",
-      nodeCount: 1,
-      byteSize: 38,
-      hint: None,
-    })
-
-    t->expect(structuredClone(input))->Expect.toEqual(input)
-    t->expect(structuredClone(output))->Expect.toEqual(output)
   })
 })

@@ -433,7 +433,7 @@ describe("Connection Reducer", () => {
   describe("Prompt Sending", () => {
     test(
       "rejects delayed prompts after the originating task loses its session",
-      t => {
+      _t => {
         let rejected = ref(None)
         let request = Reducer.SendPrompt({
           sessionId: "task-before-await",
@@ -449,9 +449,10 @@ describe("Connection Reducer", () => {
         ]
         states->Array.forEach(
           state => {
+            rejected := None
             let (_, effects) = Reducer.reduce(state, request)
             switch effects {
-            | [Reducer.NotifyPromptRejected({onComplete, reason})] => onComplete(Error(reason))
+            | [NotifyPromptRejected(_) as effect] => Reducer.handleEffect(effect, state, _ => ())
             | _ => JsError.throwWithMessage("Delayed prompt must not reach a different session")
             }
             switch rejected.contents {
@@ -460,7 +461,6 @@ describe("Connection Reducer", () => {
             }
           },
         )
-        t->expect(states->Array.length)->Expect.toBe(3)
       },
     )
 

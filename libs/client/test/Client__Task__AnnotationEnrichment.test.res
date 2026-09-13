@@ -6,39 +6,10 @@ module Source = Client__SourceContext
 module Snapdom = FrontmanBindings.Bindings__Snapdom
 open Snapdom
 
-vi->mockModule("@medv/finder", () =>
-  {
-    "finder": vi->fn((
-      ~element as _: WebAPI.DomTypes.element,
-      ~options as _: FrontmanBindings.Bindings__Finder.finderOptions,
-    ) => "#submit"),
-  }
-)
-vi->mockModule("@zumer/snapdom", () =>
-  {
-    "snapdom": vi->fn((_element: WebAPI.DomTypes.element): Promise.t<Snapdom.captureResult> =>
-      Promise.resolve({
-        toCanvas: _ => JsError.throwWithMessage("Unexpected canvas request"),
-        toJpg: _ => Promise.resolve({src: "data:image/jpeg;base64,abc123"}),
-      })
-    ),
-  }
-)
-vi->mockModule("../src/Client__SourceDetection.res.mjs", () =>
-  {
-    "getElementSourceLocation": vi->fn((
-      ~element as _: WebAPI.DomTypes.element,
-      ~window as _: WebAPI.DomTypes.window,
-    ): Promise.t<option<Source.t>> => Promise.resolve(None)),
-  }
-)
-vi->mockModule("../src/Client__SourceLocationResolver.res.mjs", () =>
-  {
-    "resolve": vi->fn(async (_context: Source.t): result<Client__Types.SourceLocation.t, string> =>
-      JsError.throwWithMessage("Resolver not arranged")
-    ),
-  }
-)
+vi->automockModule("@medv/finder")
+vi->automockModule("@zumer/snapdom")
+vi->automockModule("../src/Client__SourceDetection.res.mjs")
+vi->automockModule("../src/Client__SourceLocationResolver.res.mjs")
 
 let finder = vi->mocked(FrontmanBindings.Bindings__Finder.exports["finder"])
 let capture = vi->mocked(Snapdom.exports["snapdom"])
