@@ -2521,6 +2521,7 @@ __metadata:
   resolution: "@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge"
   dependencies:
     "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
+    "@frontman-ai/astro-browser": "workspace:*"
     "@frontman-ai/frontman-protocol": "workspace:*"
     "@frontman/bindings": "workspace:*"
     "@rescript/runtime": "catalog:"

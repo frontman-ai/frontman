@@ -9,6 +9,58 @@ let check = (condition, message) =>
   | false => JsError.throwWithMessage(message)
   }
 
+@set
+external setRuntimeConfig: (WebAPI.DomTypes.window, {"framework": string}) => unit =
+  "__frontmanRuntime"
+
+let checkGenericGetDom = async (framework, childOrigin) => {
+  let input: Client__Tool__GetDom.input = {
+    selector: "#page",
+    mode: None,
+    maxDepth: None,
+    maxNodes: None,
+    pierceShadowDom: None,
+  }
+  let execute = input => Test__GetDom.execute(framework, input, ~taskId="server-session")
+  let response = await execute(input)
+  check(response.isError == None, "Generic inspection must succeed through the bridge")
+  let page = response.structuredContent->Option.getOrThrow
+  check(page.url->String.startsWith(childOrigin), "DOM snapshots must include the child URL")
+  check(
+    !(page.html->String.includes("data-astro-transition-persist")),
+    "Generic snapshots must not add Astro persistence attributes",
+  )
+  check(
+    page.astro_client_routing == None &&
+    page.astro_persistence == None &&
+    page.astro_navigation == None,
+    "Astro enrichment must stay out of non-Astro inspection",
+  )
+  let cases = [
+    ("#missing", None, "No element found"),
+    ("#page", Some(1), "Subtree too large"),
+    ("#page", None, "HTML too large"),
+  ]
+  for index in 0 to cases->Array.length - 1 {
+    let (selector, maxNodes, message) = cases->Array.get(index)->Option.getOrThrow
+    let response = await execute({...input, selector, maxNodes, mode: Some(#full)})
+    let text = (response.content->Array.get(0)->Option.getOrThrow).text
+    check(
+      response.isError == Some(true) && response.structuredContent == None,
+      "Failed snapshots must produce MCP errors",
+    )
+    check(text->String.includes(message), "Snapshot errors must explain the failure")
+    switch index {
+    | 0 => ()
+    | _ =>
+      check(
+        text->String.includes("Target a child selector"),
+        "Oversized snapshots must include narrowing guidance",
+      )
+    }
+  }
+}
+
 let run = async (iframe: WebAPI.DomTypes.htmliFrameElement, childOrigin: string) => {
   let runtime = Client__PreviewRuntime.make(
     ~iframe,
@@ -21,6 +73,7 @@ let run = async (iframe: WebAPI.DomTypes.htmliFrameElement, childOrigin: string)
     check(page.title === "Cross-origin child", "Must inspect the child, not the parent")
     check(page.url->String.startsWith(childOrigin), "Must report the child's URL")
     check(page.colorScheme === #dark, "Must read child media query state")
+    check(page.astroClientRouting == Enabled, "Must read routing markers from the child document")
 
     let sent = ref([])
     let state = {
@@ -29,8 +82,7 @@ let run = async (iframe: WebAPI.DomTypes.htmliFrameElement, childOrigin: string)
       acpSession: AcpSessionActive({
         sendPrompt: (text, ~sessionId, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
           sent := sent.contents->Array.concat([(text, sessionId, additionalBlocks)]),
-        cancelPrompt: () => (),
-        retryTurn: _ => (),
+        sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
         requireAuthentication: () => (),
@@ -77,14 +129,63 @@ let run = async (iframe: WebAPI.DomTypes.htmliFrameElement, childOrigin: string)
     }
 
     await send()
+    switch sent.contents {
+    | [_, (_, "server-session", [])] => ()
+    | _ => JsError.throwWithMessage("Other tasks' previews must not supply context")
+    }
     Client__PreviewRuntimeRegistry.register(~clientId, ~runtime)
+    StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+      Client__State__Store.store,
+      state,
+    )
+    let frameworks = [Client__RuntimeConfig.Astro, Nextjs, Vite, Wordpress]
+    for index in 0 to frameworks->Array.length - 1 {
+      let framework = frameworks->Array.get(index)->Option.getOrThrow
+      setRuntimeConfig(
+        WebAPI.Window.current,
+        {"framework": Client__RuntimeConfig.frameworkIdToString(framework)},
+      )
+      sent := []
+      await send()
+      switch sent.contents {
+      | [(_, "server-session", [EmbeddedResource({_meta: Some(meta)})])] =>
+        let metadata = S.parseOrThrow(meta, ~to=Client__Task__Types.pageMetadataSchema)
+        check(
+          metadata.astro_client_routing == (
+              framework == Astro ? Some(page.astroClientRouting) : None
+            ),
+          "Only Astro prompts must include the child's routing metadata",
+        )
+      | _ => JsError.throwWithMessage("Expected bridged current-page metadata")
+      }
+      switch framework {
+      | Astro => ()
+      | Nextjs | Vite | Wordpress => await checkGenericGetDom(framework, childOrigin)
+      }
+    }
+    sent := []
     Client__PreviewRuntime.close(runtime)
     await send()
     switch sent.contents {
-    | [_, (_, "server-session", []), (_, "server-session", [])] => ()
-    | _ => JsError.throwWithMessage("Unavailable previews must send without page context")
+    | [(_, "server-session", [])] => ()
+    | _ => JsError.throwWithMessage("Closed previews must send without page context")
     }
     Client__PreviewRuntimeRegistry.unregister(~runtime)
+    let unavailable = await Test__GetDom.execute(
+      Nextjs,
+      {selector: "#page", mode: None, maxDepth: None, maxNodes: None, pierceShadowDom: None},
+      ~taskId="server-session",
+    )
+    check(
+      unavailable.isError == Some(true) && unavailable.structuredContent == None,
+      "Missing runtimes must produce MCP errors",
+    )
+    check(
+      (unavailable.content->Array.get(0)->Option.getOrThrow).text->String.includes(
+        "Preview bridge runtime not available",
+      ),
+      "Missing runtime errors must identify the bridge",
+    )
   } catch {
   | exn =>
     Client__PreviewRuntimeRegistry.unregister(~runtime)

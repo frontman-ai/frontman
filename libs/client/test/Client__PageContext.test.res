@@ -11,6 +11,7 @@ let page: Preview.pageContext = {
   devicePixelRatio: 2.0,
   scrollY: 72,
   colorScheme: #dark,
+  astroClientRouting: Enabled,
 }
 
 let metadata = block =>
@@ -32,11 +33,13 @@ describe("pure page context formatting", _ => {
         dpr: 2.0,
       }),
       ~orientation=Landscape,
+      ~isAstro=true,
     )
     let meta = metadata(block)
     t->expect(meta.url)->Expect.toBe(page.url)
     t->expect(meta.title)->Expect.toEqual(Some("Child title"))
     t->expect(meta.scroll_y)->Expect.toBe(72)
+    t->expect(meta.astro_client_routing)->Expect.toEqual(Some(Enabled))
     t->expect(meta.color_scheme)->Expect.toEqual(Some(#dark))
     t->expect(meta.viewport_width)->Expect.toBe(844)
     t
@@ -65,9 +68,11 @@ describe("pure page context formatting", _ => {
         {...page, title: "", colorScheme: #unsupported},
         ~deviceMode=Responsive,
         ~orientation=Portrait,
+        ~isAstro=false,
       )->metadata
     t->expect(meta.title)->Expect.toEqual(None)
     t->expect(meta.color_scheme)->Expect.toEqual(None)
     t->expect(meta.device_emulation)->Expect.toEqual(None)
+    t->expect(meta.astro_client_routing)->Expect.toEqual(None)
   })
 })

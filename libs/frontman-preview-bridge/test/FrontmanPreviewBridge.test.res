@@ -23,6 +23,18 @@ let makeWindow = () => {
 }
 
 describe("page context", _t => {
+  test("reads fresh Astro routing markers from the child document", t => {
+    let document = WebAPI.Window.current->WebAPI.Window.document
+    document.head.innerHTML = `<meta name="astro-view-transitions-enabled">`
+    t
+    ->expect(FrontmanPreviewBridge__PageContext.read().astroClientRouting)
+    ->Expect.toEqual(FrontmanAiFrontmanProtocol.FrontmanProtocol__AstroClientRouting.Enabled)
+    document.head.innerHTML = ""
+    t
+    ->expect(FrontmanPreviewBridge__PageContext.read().astroClientRouting)
+    ->Expect.toEqual(FrontmanAiFrontmanProtocol.FrontmanProtocol__AstroClientRouting.Disabled)
+  })
+
   test("reads the child document and reports unsupported media queries explicitly", t => {
     let page = FrontmanPreviewBridge__PageContext.read()
     let window = WebAPI.Window.current
@@ -47,10 +59,11 @@ describe("DOM snapshot", _t => {
       pierceShadowDom: Some(false),
     })
 
-    t->expect(output.success)->Expect.toBe(true)
-    t->expect(output.html->Option.getOrThrow->String.includes("selected"))->Expect.toBe(true)
-    t->expect(output.html->Option.getOrThrow->String.includes("button"))->Expect.toBe(true)
-    t->expect(output.nodeCount)->Expect.toEqual(Some(2))
+    let snapshot = output->Result.getOrThrow
+    t->expect(snapshot.html->String.includes("selected"))->Expect.toBe(true)
+    t->expect(snapshot.html->String.includes("button"))->Expect.toBe(true)
+    t->expect(snapshot.nodeCount)->Expect.toBe(2)
+    t->expect(snapshot.url)->Expect.toBe((WebAPI.Window.current->WebAPI.Window.location).href)
     t->expect(structuredClone(output))->Expect.toEqual(output)
   })
 
@@ -65,12 +78,13 @@ describe("DOM snapshot", _t => {
       pierceShadowDom: None,
     })
 
-    t->expect(output.success)->Expect.toBe(false)
-    t->expect(output.html)->Expect.toEqual(None)
-    t->expect(output.nodeCount)->Expect.toEqual(Some(4))
-    t
-    ->expect(output.error->Option.getOrThrow->String.includes("Subtree too large"))
-    ->Expect.toBe(true)
+    switch output {
+    | Error(message) =>
+      t
+      ->expect(message->String.includes("Subtree too large for full mode (4 elements"))
+      ->Expect.toBe(true)
+    | Ok(_) => JsError.throwWithMessage("Expected an oversized subtree error")
+    }
     t->expect(structuredClone(output))->Expect.toEqual(output)
   })
 })

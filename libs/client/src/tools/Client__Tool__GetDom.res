@@ -1,6 +1,8 @@
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module GetDom = FrontmanAiFrontmanProtocol.FrontmanProtocol__GetDom
-module Log = FrontmanLogs.Logs.Make({let component = #MCP})
+module Log = FrontmanLogs.Logs.Make({
+  let component = #MCP
+})
 
 let name = Tool.ToolNames.getDom
 let access = Tool.Read
@@ -60,10 +62,11 @@ let buildTooLargeHint = (
   `Target a child selector from this overview instead:\n${overview.html}`
 }
 
-let inspect = (input: input, {doc, win}: Tool.previewContext, ~additionalAttributes=[]): result<
-  (output, WebAPI.DomTypes.element),
-  string,
-> => {
+let inspect = (
+  input: input,
+  {doc, win}: Tool.previewContext,
+  ~additionalAttributes: array<string>,
+): result<(output, WebAPI.DomTypes.element), string> => {
   let (element, _matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
     ~doc,
     ~selector=input.selector,
@@ -172,8 +175,16 @@ let execute = async (
       }
     } catch {
     | exn =>
-      let message = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Preview bridge request failed")
-      Log.error(~ctx={"taskId": taskId, "selector": input.selector}, ~error=JsExn.fromException(exn), "Preview bridge get_dom request failed")
+      let message =
+        exn
+        ->JsExn.fromException
+        ->Option.flatMap(JsExn.message)
+        ->Option.getOr("Preview bridge request failed")
+      Log.error(
+        ~ctx={"taskId": taskId, "selector": input.selector},
+        ~error=JsExn.fromException(exn),
+        "Preview bridge get_dom request failed",
+      )
       Tool.MCP.CallToolResult.makeError(message)
     }
   }

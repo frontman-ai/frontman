@@ -28,6 +28,7 @@
 	"dependencies": [
 		"@bluehotdog/reworker",
 		"@frontman-ai/frontman-protocol",
+		"@frontman-ai/astro-browser",
 		"@frontman/bindings",
 		"@rescript/webapi"
 	],

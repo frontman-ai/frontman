@@ -26,5 +26,8 @@ let read = (): Preview.pageContext => {
     devicePixelRatio: window->WebAPI.Window.devicePixelRatio,
     scrollY: window->WebAPI.Window.scrollY->Float.toInt,
     colorScheme,
+    astroClientRouting: FrontmanAiAstroBrowser.FrontmanAstroBrowser__ClientRouting.read(
+      Some(window->WebAPI.Window.document),
+    ),
   }
 }
