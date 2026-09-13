@@ -1,7 +1,8 @@
-import { createRequire } from "node:module"
-import { readFile } from "node:fs/promises"
+import { copyFile, readFile } from "node:fs/promises"
 
-const require = createRequire(import.meta.url)
+const bridgeAsset = new URL("../dist/bridge.js", import.meta.url)
+
+export const copyPreviewBridgeAsset = () => copyFile(bridgeAsset, "dist/bridge.js")
 
 const parentOriginParam = "__frontman_parent_origin"
 const channelParam = "__frontman_channel"
@@ -60,18 +61,16 @@ function shouldSkipHtmlTransform(html, ctx, basePath) {
   return normalizedPath === normalizedBase || normalizedPath.startsWith(`${normalizedBase}/`)
 }
 
-export function frontmanPreviewLoaderPlugin(options = {}) {
-  const basePath = options.basePath || "frontman"
-  const bridgeUrl = options.bridgeUrl || `/${basePath}/preview-bridge.js`
+export function frontmanPreviewLoaderPlugin({ basePath }) {
+  const bridgeUrl = `/${basePath}/preview-bridge.js`
 
   return {
     name: "frontman-preview-loader",
     apply: "serve",
     configureServer(server) {
-      server.middlewares.use(bridgeUrl, async (_req, res, next) => {
+      server.middlewares.use(bridgeUrl, async (_req, res) => {
         try {
-          const bridgePath = require.resolve("@frontman-ai/frontman-preview-bridge/dist/bridge.js")
-          const bridge = await readFile(bridgePath, "utf8")
+          const bridge = await readFile(bridgeAsset, "utf8")
           res.statusCode = 200
           res.setHeader("Content-Type", "text/javascript; charset=utf-8")
           res.end(bridge)

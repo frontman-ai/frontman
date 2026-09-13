@@ -37,10 +37,10 @@ external frontmanSourceAnnotationsPlugin: unit => Bindings.vitePlugin =
 @module("./annotation-capture.mjs")
 external annotationCaptureScript: string = "annotationCaptureScript"
 
-@module("./vite-plugin-preview-loader.mjs")
+@module("@frontman-ai/frontman-preview-bridge/src/vite-plugin-preview-loader.mjs")
 external frontmanPreviewLoaderPlugin: {..} => Bindings.vitePlugin = "frontmanPreviewLoaderPlugin"
 
-@module("./vite-plugin-preview-loader.mjs")
+@module("@frontman-ai/frontman-preview-bridge/src/vite-plugin-preview-loader.mjs")
 external makeFrontmanPreviewLoaderBody: {..} => string = "makeFrontmanPreviewLoaderBody"
 
 @module("./astro-route-rewrite.mjs")

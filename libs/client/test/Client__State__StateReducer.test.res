@@ -22,9 +22,10 @@ module TestHelpers = {
     ~deleteSession=(_, ~onComplete as _) => (),
     ~requireAuthentication=() => (),
     ~sendPrompt=(_, ~sessionId as _, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+    ~sendSessionCommand=_ => (),
   ): Client__State__Types.acpSession => AcpSessionActive({
     sendPrompt,
-    sendSessionCommand: _ => (),
+    sendSessionCommand,
     loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
     deleteSession,
     requireAuthentication,
@@ -124,6 +125,48 @@ module TestHelpers = {
     )->Pair.first
   }
 }
+
+describe("synchronous task delegation", () => {
+  test("session commands invoke callbacks and propagate errors before returning", t => {
+    let called = ref(false)
+    let state = {
+      ...Reducer.defaultState,
+      acpSession: TestHelpers.activeAcpSession(
+        ~sendSessionCommand=command => {
+          t->expect(command)->Expect.toEqual(FrontmanAiFrontmanClient.FrontmanClient__ACP.Cancel)
+          called := true
+          JsError.throwWithMessage("synchronous command failure")
+        },
+      ),
+    }
+    t
+    ->expect(
+      () =>
+        Reducer.handleEffect(
+          TaskEffect({
+            target: CurrentTask,
+            effect: SessionCommand(FrontmanAiFrontmanClient.FrontmanClient__ACP.Cancel),
+          }),
+          state,
+          _ => (),
+        ),
+    )
+    ->Expect.toThrow
+    t->expect(called.contents)->Expect.toBe(true)
+  })
+
+  test("browser URL effects stay synchronous and ignore non-originating tasks", t => {
+    let state = TestHelpers.makeStateWithTask()
+    let run = target =>
+      Reducer.handleEffect(
+        TaskEffect({target, effect: SyncBrowserUrl("not a URL")}),
+        state,
+        _ => (),
+      )
+    run(ForTask("other-task"))
+    t->expect(() => run(CurrentTask))->Expect.toThrow
+  })
+})
 
 describe("Client State Reducer - Integration Updates", () => {
   let wordpress = StateTypes.WordPressPlugin

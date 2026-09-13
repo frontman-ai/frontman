@@ -29,6 +29,7 @@
 	"dependencies": [
 		"@bluehotdog/reworker",
 		"@frontman/bindings",
+		"@frontman-ai/frontman-core",
 		"@frontman/logs",
 		"@rescript/react",
 		"@rescript/webapi",

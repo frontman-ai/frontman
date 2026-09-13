@@ -30,6 +30,7 @@
 		"@frontman-ai/frontman-protocol",
 		"@frontman-ai/astro-browser",
 		"@frontman/bindings",
+		"@frontman-ai/frontman-core",
 		"@rescript/webapi"
 	],
 	"dev-dependencies": ["rescript-vitest"]

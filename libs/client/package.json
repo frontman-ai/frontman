@@ -41,6 +41,7 @@
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
 		"@frontman-ai/astro-browser": "workspace:*",
 		"@frontman-ai/frontman-client": "workspace:*",
+		"@frontman-ai/frontman-core": "workspace:*",
 		"@frontman-ai/frontman-protocol": "workspace:*",
 		"@frontman-ai/react-statestore": "workspace:*",
 		"@frontman/bindings": "workspace:*",

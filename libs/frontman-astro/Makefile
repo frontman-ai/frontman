@@ -15,6 +15,7 @@ help:
 	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
 
 build:
+	$(MAKE) -C ../frontman-preview-bridge build
 	yarn build
 
 publish: build

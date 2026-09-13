@@ -53,10 +53,10 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
     ->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement)
     ->Option.map(iframeElement => {
-      (
-        WebAPI.HTMLIFrameElement.contentDocument(iframeElement),
-        WebAPI.HTMLIFrameElement.contentWindow(iframeElement),
-      )
+      switch WebAPI.HTMLIFrameElement.contentDocument(iframeElement) {
+      | None => (None, None)
+      | Some(document) => (Some(document), WebAPI.HTMLIFrameElement.contentWindow(iframeElement))
+      }
     })
 
   let previewOrigin = (src: string): option<string> =>
@@ -79,12 +79,13 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
       }
     }
 
+  let targetOrigin = previewOrigin(iframeSrc)
   React.useEffect(() => {
     switch (
       isActive,
       hasLoaded,
       iframeElement->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement),
-      previewOrigin(iframeSrc),
+      targetOrigin,
     ) {
     | (true, true, Some(iframe), Some(targetOrigin)) => {
         let runtime = Client__PreviewRuntime.make(~iframe, ~targetOrigin, ~channel=taskId)
@@ -121,7 +122,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     | (_, _, _, None) =>
       None
     }
-  }, (isActive, hasLoaded, attachmentKey, iframeElement, iframeSrc, taskId))
+  }, (isActive, hasLoaded, iframeElement, targetOrigin, taskId))
 
   React.useEffect(() => {
     switch hasLoaded {
