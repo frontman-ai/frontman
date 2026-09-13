@@ -762,21 +762,21 @@ let messageAnnotationToBlockData = (
 
 @schema
 type deviceMetadata = {
-  active: bool,
-  width: option<int>,
-  height: option<int>,
+  @live active: bool,
+  @live width: option<int>,
+  @live height: option<int>,
   name: string,
   orientation: string,
-  dpr: option<float>,
+  @live dpr: option<float>,
 }
 
 @schema
 type pageMetadata = {
-  current_page: bool,
+  @live current_page: bool,
   url: string,
   viewport_width: int,
-  viewport_height: int,
-  device_pixel_ratio: float,
+  @live viewport_height: int,
+  @live device_pixel_ratio: float,
   title: option<string>,
   color_scheme: option<[#dark | #light]>,
   scroll_y: int,

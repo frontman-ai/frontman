@@ -6,8 +6,8 @@ type t = {
   nearbyText: option<string>,
   boundingBox: Client__Annotation__Types.boundingBox,
   html: string,
-  nodeCount: int,
-  truncated: bool,
+  @live nodeCount: int,
+  @live truncated: bool,
 }
 
 type walkState = {
@@ -33,8 +33,6 @@ let maxOutputBytes = 30_000
 let truncationMarkerBytes = 32
 
 let keyAttributes = ["id", "class", "data-testid", "href", "src", "type", "placeholder", "alt"]
-
-let utf8ByteSize = WebStreams.utf8ByteSize
 
 let quote = value => JSON.stringifyAny(value)->Option.getOr(`""`)
 
@@ -308,6 +306,7 @@ let optionalTrimmed = (value: Null.t<string>): option<string> =>
   | value => value
   }
 
+@live
 let inspect = (
   ~element: WebAPI.DomTypes.element,
   ~document: WebAPI.DomTypes.document,
