@@ -1075,101 +1075,96 @@ let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request, ~requireAuthe
   run()->ignore
 }
 
+let handleTaskDelegate = async (
+  delegated: TaskReducer.delegated,
+  state: state,
+  dispatch,
+  ~target,
+) => {
+  switch delegated {
+  | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
+    let taskId = switch (target, state.currentTask) {
+    | (ForTask(id), _) | (CurrentTask, Task.Selected(id)) => id
+    | (CurrentTask, Task.New(_)) =>
+      failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
+    }
+    switch state.acpSession {
+    | NoAcpSession =>
+      let error = "Cannot send message: no active ACP session"
+      Log.error(error)
+      dispatch(TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}))
+    | AcpSessionActive({sendPrompt}) =>
+      let runtimeConfig = Client__RuntimeConfig.read()
+      let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
+      let preview = Task.getPreviewFrame(task, ~defaultUrl="")
+      let runtime = Client__PreviewRuntimeRegistry.get(~clientId=Task.getClientId(task))
+      let pageContext = switch runtime {
+      | None => Error("Preview bridge runtime not available for this task")
+      | Some(runtime) =>
+        try {
+          Ok(await Client__PreviewRuntime.getPageContext(runtime))
+        } catch {
+        | exn =>
+          Error(
+            exn
+            ->JsExn.fromException
+            ->Option.flatMap(JsExn.message)
+            ->Option.getOr("Preview page context request failed"),
+          )
+        }
+      }
+      let pageContextBlocks = switch pageContext {
+      | Ok(page) => [
+          Client__State__Types.currentPageToContentBlock(
+            page,
+            ~deviceMode=preview.deviceMode,
+            ~orientation=preview.orientation,
+            ~isAstro=runtimeConfig.framework == Astro,
+          ),
+        ]
+      | Error(reason) =>
+        Log.warning(
+          ~ctx={"taskId": taskId, "reason": reason},
+          "Sending prompt without live preview context",
+        )
+        []
+      }
+      sendMessageToAPIImpl(
+        state,
+        dispatch,
+        ~sendPrompt,
+        ~runtimeConfig,
+        ~pageContextBlocks,
+        ~messageId=id,
+        ~message=text,
+        ~attachments,
+        ~annotations,
+        ~taskId,
+        ~agentId,
+      )
+    }
+  | NeedSessionCommand(command) =>
+    switch state.acpSession {
+    | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)
+    | NoAcpSession => Log.error("Cannot send session command: no active ACP session")
+    }
+  | NeedSyncBrowserUrl(url) =>
+    switch targetIsCurrent(state, target) {
+    | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
+    | false => ()
+    }
+  }
+}
+
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
-  | TaskEffect({target, effect: taskEffect}) => {
-      let taskDispatch = (taskAction: TaskReducer.action) => {
-        dispatch(TaskAction({target, action: taskAction}))
-      }
-
-      let delegate = (delegated: TaskReducer.delegated) => {
-        switch delegated {
-        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
-          let taskId = switch target {
-          | ForTask(id) => id
-          | CurrentTask =>
-            switch state.currentTask {
-            | Task.Selected(id) => id
-            | Task.New(_) =>
-              failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
-            }
-          }
-          switch state.acpSession {
-          | NoAcpSession =>
-            let error = "Cannot send message: no active ACP session"
-            Log.error(error)
-            dispatch(
-              TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}),
-            )
-          | AcpSessionActive({sendPrompt}) =>
-            let runtimeConfig = Client__RuntimeConfig.read()
-            let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
-            let preview = Task.getPreviewFrame(task, ~defaultUrl="")
-            let runtime = Client__PreviewRuntimeRegistry.get(~clientId=Task.getClientId(task))
-            let send = async () => {
-              let pageContext = switch runtime {
-              | None => Error("Preview bridge runtime not available for this task")
-              | Some(runtime) =>
-                try {
-                  Ok(await Client__PreviewRuntime.getPageContext(runtime))
-                } catch {
-                | exn =>
-                  Error(
-                    exn
-                    ->JsExn.fromException
-                    ->Option.flatMap(JsExn.message)
-                    ->Option.getOr("Preview page context request failed"),
-                  )
-                }
-              }
-              let pageContextBlocks = switch pageContext {
-              | Ok(page) => [
-                  Client__State__Types.currentPageToContentBlock(
-                    page,
-                    ~deviceMode=preview.deviceMode,
-                    ~orientation=preview.orientation,
-                    ~isAstro=runtimeConfig.framework == Astro,
-                  ),
-                ]
-              | Error(reason) =>
-                Log.warning(
-                  ~ctx={"taskId": taskId, "reason": reason},
-                  "Sending prompt without live preview context",
-                )
-                []
-              }
-              sendMessageToAPIImpl(
-                state,
-                dispatch,
-                ~sendPrompt,
-                ~runtimeConfig,
-                ~pageContextBlocks,
-                ~messageId=id,
-                ~message=text,
-                ~attachments,
-                ~annotations,
-                ~taskId,
-                ~agentId,
-              )
-            }
-            send()->ignore
-          }
-        | NeedSessionCommand(command) =>
-          switch state.acpSession {
-          | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)
-          | NoAcpSession => Log.error("Cannot send session command: no active ACP session")
-          }
-        | NeedSyncBrowserUrl(url) =>
-          switch targetIsCurrent(state, target) {
-          | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
-          | false => ()
-          }
-        }
-      }
-
-      TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
-    }
+  | TaskEffect({target, effect: taskEffect}) =>
+    TaskReducer.handleEffect(
+      taskEffect,
+      ~dispatch=taskAction => dispatch(TaskAction({target, action: taskAction})),
+      ~delegate=delegated => handleTaskDelegate(delegated, state, dispatch, ~target)->ignore,
+    )
   | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
     saveApiKeyImpl(dispatch, ~apiBaseUrl, ~provider, ~key)
