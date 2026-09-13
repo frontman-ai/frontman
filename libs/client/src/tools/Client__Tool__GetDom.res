@@ -39,110 +39,16 @@ let outputSchema = GetDom.outputSchema
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
-let fullModeMaxBytes = 15_000
-let defaultMaxDepth = 1
-let defaultMaxNodes = 200
-let hardMaxNodes = 500
-
-let countElements = (el: WebAPI.DomTypes.element): int =>
-  (el->WebAPI.Element.querySelectorAll("*")).length + 1
-
-let buildTooLargeHint = (
-  ~el: WebAPI.DomTypes.element,
-  ~document: WebAPI.DomTypes.document,
-  ~additionalAttributes: array<string>,
-): string => {
-  let overview = Client__ElementInspector.inspect(
-    ~element=el,
-    ~document,
-    ~maxDepth=1,
-    ~maxNodes=16,
+let inspect = (input: input, {doc, win}: Tool.previewContext, ~additionalAttributes) =>
+  FrontmanAiFrontmanCore.FrontmanCore__DomSnapshot.inspect(
+    input,
+    ~document=doc,
     ~additionalAttributes,
-  )
-  `Target a child selector from this overview instead:\n${overview.html}`
-}
-
-let inspect = (
-  input: input,
-  {doc, win}: Tool.previewContext,
-  ~additionalAttributes: array<string>,
-): result<(output, WebAPI.DomTypes.element), string> => {
-  let (element, _matchCount) = Client__Tool__SelectorResolver.resolveBySelector(
-    ~doc,
-    ~selector=input.selector,
-  )
-  switch element {
-  | None => Error(`No element found for selector: ${input.selector}`)
-  | Some(el) =>
-    let maxNodes =
-      input.maxNodes
-      ->Option.getOr(defaultMaxNodes)
-      ->Math.Int.min(hardMaxNodes)
-      ->Math.Int.max(1)
-    let content = switch input.mode->Option.getOr(#simplified) {
-    | #full =>
-      let elementCount = countElements(el)
-      switch elementCount > maxNodes {
-      | true =>
-        Error(
-          `Subtree too large for full mode (${Int.toString(
-              elementCount,
-            )} elements, limit: ${Int.toString(maxNodes)}).\n` ++
-          buildTooLargeHint(~el, ~document=doc, ~additionalAttributes),
-        )
-      | false =>
-        let raw = el.outerHTML
-        let byteSize = Client__ElementInspector.utf8ByteSize(raw)
-        switch byteSize > fullModeMaxBytes {
-        | true =>
-          Error(
-            `HTML too large: ${Int.toString(byteSize)} bytes (limit: ${Int.toString(
-                fullModeMaxBytes,
-              )}). Use simplified mode for an overview, or target a smaller component.\n` ++
-            buildTooLargeHint(~el, ~document=doc, ~additionalAttributes),
-          )
-        | false => Ok((raw, elementCount, None))
-        }
-      }
-    | #simplified =>
-      let maxDepth = input.maxDepth->Option.getOr(defaultMaxDepth)
-      let pierceShadowDom = input.pierceShadowDom->Option.getOr(false)
-      let selectedSelector = switch Client__Tool__SelectorResolver.classifySelector(
-        input.selector,
-      ) {
-      | CssSelector(_) => Some(input.selector)
-      | XPathExpression(_) => None
-      }
-      let inspection = Client__ElementInspector.inspect(
-        ~element=el,
-        ~document=doc,
-        ~maxDepth,
-        ~maxNodes,
-        ~pierceShadowDom,
-        ~selectedSelector?,
-        ~additionalAttributes,
-      )
-      let hint = switch inspection.truncated {
-      | true =>
-        Some(
-          `Output stopped at the ${maxNodes->Int.toString}-node or ${Client__ElementInspector.maxOutputBytes->Int.toString}-byte limit. Narrow your selector for complete results.`,
-        )
-      | false => None
-      }
-      Ok((inspection.html, inspection.nodeCount, hint))
-    }
-    content->Result.map(((html, nodeCount, hint)) => (
-      {
-        GetDom.url: (win->WebAPI.Window.location).href,
-        html,
-        nodeCount,
-        byteSize: Client__ElementInspector.utf8ByteSize(html),
-        hint,
-      },
-      el,
-    ))
-  }
-}
+    ~componentForElement=Client__ElementInspector.componentForDocument(doc),
+  )->Result.map(((output, element)) => (
+    {...output, url: (win->WebAPI.Window.location).href},
+    element,
+  ))
 
 let execute = async (
   input: input,

@@ -38,6 +38,48 @@ describe("page context", _t => {
 })
 
 describe("DOM snapshot", _t => {
+  test(
+    "round-trips mixed light, shadow and nested shadow selectors through the child snapshot",
+    t => {
+      setBodyHtml(`<div id="host"><span id="light">Light</span></div>`)
+      let document = WebAPI.Window.current->WebAPI.Window.document
+      let host = document->WebAPI.Document.querySelector("#host")->Null.getOrThrow
+      let shadow = host->WebAPI.Element.attachShadow({mode: Open})
+      shadow.innerHTML = `<section><input value="private-value"><a href="/path?secret=private-query">Link</a></section><div id="nested-host">Save</div>`
+      let nested = shadow->WebAPI.ShadowRoot.querySelector("#nested-host")->Null.getOrThrow
+      let nestedShadow = nested->WebAPI.Element.attachShadow({mode: Open})
+      nestedShadow.innerHTML = `<span>Nested</span>`
+      let input: FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.getDomInput = {
+        selector: "#host",
+        mode: None,
+        maxDepth: Some(3),
+        maxNodes: Some(20),
+        pierceShadowDom: Some(true),
+      }
+      let snapshot = FrontmanPreviewBridge__DomSnapshot.execute(input)->Result.getOrThrow
+      ["#host > :nth-child(1)", "#host >>> 1/2", "#host >>> 2 >>> 1"]->Array.forEach(
+        selector => {
+          t
+          ->expect(
+            snapshot.html->String.includes(
+              `selector=${JSON.stringifyAny(selector)->Option.getOrThrow}`,
+            ),
+          )
+          ->Expect.toBe(true)
+          let selected = FrontmanPreviewBridge__DomSnapshot.execute({
+            ...input,
+            selector,
+            maxDepth: Some(0),
+          })->Result.getOrThrow
+          t->expect(selected.nodeCount)->Expect.toBe(1)
+        },
+      )
+      ["private-value", "private-query"]->Array.forEach(
+        secret => t->expect(snapshot.html->String.includes(secret))->Expect.toBe(false),
+      )
+      t->expect(structuredClone(snapshot))->Expect.toEqual(snapshot)
+    },
+  )
   test("returns a bounded clone-safe snapshot", t => {
     setBodyHtml(`<main id="app"><button aria-label="Save changes">Save</button></main>`)
 

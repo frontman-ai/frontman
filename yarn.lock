@@ -2392,6 +2392,7 @@ __metadata:
   dependencies:
     "@astrojs/compiler": "npm:^4.0.0"
     "@frontman-ai/frontman-core": "npm:*"
+    "@frontman-ai/frontman-preview-bridge": "workspace:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@frontman/bindings": "npm:*"
     "@rescript/runtime": "catalog:"
@@ -2427,6 +2428,7 @@ __metadata:
     "@floating-ui/dom": "npm:^1.8.0"
     "@frontman-ai/astro-browser": "workspace:*"
     "@frontman-ai/frontman-client": "workspace:*"
+    "@frontman-ai/frontman-core": "workspace:*"
     "@frontman-ai/frontman-protocol": "workspace:*"
     "@frontman-ai/react-statestore": "workspace:*"
     "@frontman/bindings": "workspace:*"
@@ -2493,16 +2495,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman-ai/frontman-core@npm:*, @frontman-ai/frontman-core@workspace:libs/frontman-core":
+"@frontman-ai/frontman-core@npm:*, @frontman-ai/frontman-core@workspace:*, @frontman-ai/frontman-core@workspace:libs/frontman-core":
   version: 0.0.0-use.local
   resolution: "@frontman-ai/frontman-core@workspace:libs/frontman-core"
   dependencies:
     "@frontman-ai/frontman-protocol": "npm:4.0.1"
     "@frontman/bindings": "npm:0.3.2"
+    "@medv/finder": "npm:^4.0.2"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
     "@vscode/ripgrep": "npm:^1.18.0"
     chrome-launcher: "npm:^1.1.2"
+    dom-accessibility-api: "npm:^0.7.1"
     dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     lighthouse: "npm:^13.4.0"
     rescript: "catalog:"
@@ -2516,17 +2520,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge":
+"@frontman-ai/frontman-preview-bridge@workspace:*, @frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge":
   version: 0.0.0-use.local
   resolution: "@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge"
   dependencies:
     "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
     "@frontman-ai/astro-browser": "workspace:*"
+    "@frontman-ai/frontman-core": "workspace:*"
     "@frontman-ai/frontman-protocol": "workspace:*"
     "@frontman/bindings": "workspace:*"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
-    dom-accessibility-api: "npm:^0.7.1"
     jsdom: "npm:^30.0.1"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
@@ -2628,6 +2632,7 @@ __metadata:
   resolution: "@frontman-ai/vite@workspace:libs/frontman-vite"
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
+    "@frontman-ai/frontman-preview-bridge": "workspace:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"

@@ -494,8 +494,7 @@ jobs:
         run: yarn rescript
 
       - name: Bundle astro integration
-        run: yarn build:bundle
-        working-directory: libs/frontman-astro
+        run: make -C libs/frontman-astro build
 
       - name: Build marketing site (fails on broken links)
         run: cd apps/marketing && yarn build

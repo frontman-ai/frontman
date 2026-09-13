@@ -35,8 +35,10 @@
 	"dependencies": {
 		"@frontman-ai/frontman-protocol": "4.0.1",
 		"@frontman/bindings": "0.3.2",
+		"@medv/finder": "^4.0.2",
 		"@rescript/runtime": "catalog:",
 		"chrome-launcher": "^1.1.2",
+		"dom-accessibility-api": "^0.7.1",
 		"dom-element-to-component-source": "npm:@frontman-ai/dom-element-to-component-source@0.5.0",
 		"lighthouse": "^13.4.0",
 		"sury": "catalog:"

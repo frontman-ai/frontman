@@ -4,12 +4,7 @@ type annotationMode =
   | Off
   | Selecting
 
-type boundingBox = {
-  x: float,
-  y: float,
-  width: float,
-  height: float,
-}
+type boundingBox = FrontmanAiFrontmanCore.FrontmanCore__ElementInspector.boundingBox
 
 type enrichmentStatus =
   | Enriching

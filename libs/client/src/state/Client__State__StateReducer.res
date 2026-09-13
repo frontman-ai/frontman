@@ -1075,12 +1075,7 @@ let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request, ~requireAuthe
   run()->ignore
 }
 
-let handleTaskDelegate = async (
-  delegated: TaskReducer.delegated,
-  state: state,
-  dispatch,
-  ~target,
-) => {
+let handleTaskDelegate = (delegated: TaskReducer.delegated, state: state, dispatch, ~target) => {
   switch delegated {
   | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
     let taskId = switch (target, state.currentTask) {
@@ -1098,50 +1093,53 @@ let handleTaskDelegate = async (
       let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
       let preview = Task.getPreviewFrame(task, ~defaultUrl="")
       let runtime = Client__PreviewRuntimeRegistry.get(~clientId=Task.getClientId(task))
-      let pageContext = switch runtime {
-      | None => Error("Preview bridge runtime not available for this task")
-      | Some(runtime) =>
-        try {
-          Ok(await Client__PreviewRuntime.getPageContext(runtime))
-        } catch {
-        | exn =>
-          Error(
-            exn
-            ->JsExn.fromException
-            ->Option.flatMap(JsExn.message)
-            ->Option.getOr("Preview page context request failed"),
-          )
+      let sendWithPageContext = async () => {
+        let pageContext = switch runtime {
+        | None => Error("Preview bridge runtime not available for this task")
+        | Some(runtime) =>
+          try {
+            Ok(await Client__PreviewRuntime.getPageContext(runtime))
+          } catch {
+          | exn =>
+            Error(
+              exn
+              ->JsExn.fromException
+              ->Option.flatMap(JsExn.message)
+              ->Option.getOr("Preview page context request failed"),
+            )
+          }
         }
-      }
-      let pageContextBlocks = switch pageContext {
-      | Ok(page) => [
-          Client__State__Types.currentPageToContentBlock(
-            page,
-            ~deviceMode=preview.deviceMode,
-            ~orientation=preview.orientation,
-            ~isAstro=runtimeConfig.framework == Astro,
-          ),
-        ]
-      | Error(reason) =>
-        Log.warning(
-          ~ctx={"taskId": taskId, "reason": reason},
-          "Sending prompt without live preview context",
+        let pageContextBlocks = switch pageContext {
+        | Ok(page) => [
+            Client__State__Types.currentPageToContentBlock(
+              page,
+              ~deviceMode=preview.deviceMode,
+              ~orientation=preview.orientation,
+              ~isAstro=runtimeConfig.framework == Astro,
+            ),
+          ]
+        | Error(reason) =>
+          Log.warning(
+            ~ctx={"taskId": taskId, "reason": reason},
+            "Sending prompt without live preview context",
+          )
+          []
+        }
+        sendMessageToAPIImpl(
+          state,
+          dispatch,
+          ~sendPrompt,
+          ~runtimeConfig,
+          ~pageContextBlocks,
+          ~messageId=id,
+          ~message=text,
+          ~attachments,
+          ~annotations,
+          ~taskId,
+          ~agentId,
         )
-        []
       }
-      sendMessageToAPIImpl(
-        state,
-        dispatch,
-        ~sendPrompt,
-        ~runtimeConfig,
-        ~pageContextBlocks,
-        ~messageId=id,
-        ~message=text,
-        ~attachments,
-        ~annotations,
-        ~taskId,
-        ~agentId,
-      )
+      sendWithPageContext()->ignore
     }
   | NeedSessionCommand(command) =>
     switch state.acpSession {
@@ -1163,7 +1161,7 @@ let handleEffect = (effect, state: state, dispatch) => {
     TaskReducer.handleEffect(
       taskEffect,
       ~dispatch=taskAction => dispatch(TaskAction({target, action: taskAction})),
-      ~delegate=delegated => handleTaskDelegate(delegated, state, dispatch, ~target)->ignore,
+      ~delegate=delegated => handleTaskDelegate(delegated, state, dispatch, ~target),
     )
   | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>

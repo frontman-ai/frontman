@@ -8,11 +8,11 @@
 	"dependencies": {
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
 		"@frontman-ai/astro-browser": "workspace:*",
+		"@frontman-ai/frontman-core": "workspace:*",
 		"@frontman-ai/frontman-protocol": "workspace:*",
 		"@frontman/bindings": "workspace:*",
 		"@rescript/runtime": "catalog:",
-		"@rescript/webapi": "workspace:*",
-		"dom-accessibility-api": "^0.7.1"
+		"@rescript/webapi": "workspace:*"
 	},
 	"devDependencies": {
 		"jsdom": "^30.0.1",

@@ -31,10 +31,14 @@ let main = async () => {
       "Expected Firefox to block the old option marker access",
     )
     await Client__PageContextBrowser.run(iframe, childOrigin)
+    await Client__PreviewLifecycleBrowser.run(childOrigin)
     "passed"
   } catch {
   | exn =>
-    exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Browser check failed")
+    exn
+    ->JsExn.fromException
+    ->Option.flatMap(JsExn.message)
+    ->Option.getOr(JSON.stringifyAny(exn)->Option.getOrThrow)
   }
   iframe->WebAPI.HTMLIFrameElement.remove
   result.textContent = Null.make(outcome)

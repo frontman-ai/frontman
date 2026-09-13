@@ -1,4 +1,5 @@
 import { defineConfig } from 'tsup';
+import { copyPreviewBridgeAsset } from '@frontman-ai/frontman-preview-bridge/src/vite-plugin-preview-loader.mjs';
 import { readFileSync } from 'fs';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
@@ -46,6 +47,7 @@ const sharedExternal = [
 export default defineConfig([
   {
     entry: { 'index': './index.mjs' },
+    onSuccess: copyPreviewBridgeAsset,
     format: ['esm'],
     outDir: 'dist',
     clean: true,

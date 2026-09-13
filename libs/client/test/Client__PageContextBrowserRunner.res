@@ -98,14 +98,16 @@ let run = async () => {
     let resultText = await result->Browser.textContent
     switch resultText->Nullable.getOrThrow {
     | "passed" => ()
-    | failure => JsError.throwWithMessage(failure)
+    | failure =>
+      errors.contents->Array.forEach(error => Console.error(error))
+      JsError.throwWithMessage(failure)
     }
     switch errors.contents->Array.get(0) {
     | Some(error) => JsError.throwWithMessage(error->JsExn.message->Option.getOr("Browser error"))
     | None => ()
     }
     Console.log(
-      "PASS: Firefox cross-origin bootstrap, typed context, task isolation, and disconnected fallback",
+      "PASS: Firefox cross-origin bootstrap, typed context, task isolation, disconnected fallback, and component reload lifecycle",
     )
     await cleanup()
   } catch {
