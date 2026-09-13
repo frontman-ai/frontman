@@ -21,6 +21,71 @@ let metadata = block =>
   | _ => JsError.throwWithMessage("Expected page metadata")
   }
 
+test("rejects a send effect without a session before collecting context", t => {
+  module Reducer = Client__State__StateReducer
+  let id = Client__Message.UserMessageId.make()
+  let actions = ref([])
+  Reducer.handleEffect(
+    TaskEffect({
+      target: ForTask("originating-session"),
+      effect: SendMessage({
+        id,
+        text: "Inspect this",
+        attachments: [],
+        annotations: [],
+        agentId: "planner",
+      }),
+    }),
+    Reducer.defaultState,
+    action => actions := actions.contents->Array.concat([action]),
+  )
+  t
+  ->expect(actions.contents)
+  ->Expect.toEqual([
+    Reducer.TaskAction({
+      target: ForTask("originating-session"),
+      action: UserMessageSendFailed({id, error: "Cannot send message: no active ACP session"}),
+    }),
+  ])
+})
+
+test("submits synchronously using caller-supplied page context", t => {
+  module Reducer = Client__State__StateReducer
+  let blocks = [
+    TaskTypes.currentPageToContentBlock(
+      page,
+      ~deviceMode=Responsive,
+      ~orientation=Portrait,
+      ~isAstro=true,
+    ),
+  ]
+  let sent = ref([])
+  let () = Reducer.sendMessageToAPIImpl(
+    Reducer.defaultState,
+    _ => JsError.throwWithMessage("Unexpected send failure"),
+    ~sendPrompt=(text, ~sessionId, ~additionalBlocks, ~onComplete as _, ~_meta as _) => {
+      sent := [(text, sessionId, additionalBlocks)]
+    },
+    ~runtimeConfig={
+      framework: Astro,
+      basePath: "frontman",
+      relayBaseUrl: None,
+      wpNonce: None,
+      wordpressPluginsUrl: None,
+      projectRoot: None,
+      traits: None,
+    },
+    ~pageContextBlocks=blocks,
+    ~messageId=Client__Message.UserMessageId.make(),
+    ~message="Inspect this",
+    ~attachments=[],
+    ~annotations=[],
+    ~taskId="originating-session",
+    ~agentId="planner",
+  )
+  t->expect(sent.contents)->Expect.toEqual([("Inspect this", "originating-session", blocks)])
+})
+
 describe("pure page context formatting", _ => {
   test("preserves child metadata and parent device emulation", t => {
     let block = TaskTypes.currentPageToContentBlock(
