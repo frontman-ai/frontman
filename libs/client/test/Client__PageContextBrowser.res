@@ -9,7 +9,6 @@ let check = (condition, message) =>
   | false => JsError.throwWithMessage(message)
   }
 
-@live
 let run = async (iframe: WebAPI.DomTypes.htmliFrameElement, childOrigin: string) => {
   let runtime = Client__PreviewRuntime.make(
     ~iframe,
