@@ -4,10 +4,12 @@
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
 
-HELP_TARGETS := help install test test-coverage lint format dev-build-watch dev-hot build build-lib build-standalone clean serve preview check
+HELP_TARGETS := help install test test-page-context-browser install-test-firefox test-coverage lint format dev-build-watch dev-hot build build-lib build-standalone clean serve preview check
 HELP_help := Display this help message
 HELP_install := Install project dependencies
 HELP_test := Run test suite
+HELP_test-page-context-browser := Check Reworker prompt context across real origins in Firefox
+HELP_install-test-firefox := Install Firefox for the cross-origin browser check
 HELP_test-coverage := Run tests with coverage
 HELP_lint := Run linters and code formatters
 HELP_format := Format code with biome
@@ -29,6 +31,14 @@ install:
 
 test: build
 	yarn vitest run
+
+.PHONY: test-page-context-browser install-test-firefox
+install-test-firefox:
+	yarn playwright install firefox
+
+test-page-context-browser: build
+	$(MAKE) -C ../frontman-preview-bridge build
+	node test/Client__PageContextBrowserRunner.res.mjs
 
 test-coverage: build
 	yarn vitest run --coverage

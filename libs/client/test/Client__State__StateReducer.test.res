@@ -12,9 +12,6 @@ module UserMessageId = Client__Message.UserMessageId
 let testUserMessageId = UserMessageId.make()
 let secondTestUserMessageId = UserMessageId.make()
 
-@schema
-type pageRoutingMeta = {astro_client_routing: option<string>}
-
 let setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
 
@@ -24,7 +21,7 @@ module TestHelpers = {
   let activeAcpSession = (
     ~deleteSession=(_, ~onComplete as _) => (),
     ~requireAuthentication=() => (),
-    ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+    ~sendPrompt=(_, ~sessionId as _, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   ): Client__State__Types.acpSession => AcpSessionActive({
     sendPrompt,
     sendSessionCommand: _ => (),
@@ -1774,7 +1771,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ...Reducer.defaultState,
       selectedModelValue: Some("anthropic:claude-opus-4-6"),
       acpSession: AcpSessionActive({
-        sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta) => sentMetadata := _meta,
+        sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete as _, ~_meta) =>
+          sentMetadata := _meta,
         sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
@@ -1811,7 +1809,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     ->Expect.toEqual(Some("anthropic:claude-opus-4-6"))
   })
 
-  test("SendMessage includes fresh routing metadata only for Astro previews", t => {
+  test("SendMessage does not fall back to parent-held documents without a bridge", t => {
     let enabledDocument =
       WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
         ~title="",
@@ -1822,21 +1820,21 @@ describe("Client State Reducer - Annotations on Messages", () => {
         ~title="",
       )
     [
-      ("astro", Some(enabledDocument), Some("enabled")),
-      ("astro", Some(disabledDocument), Some("disabled")),
-      ("astro", None, Some("unavailable")),
-      ("nextjs", Some(enabledDocument), None),
-      ("vite", Some(enabledDocument), None),
-      ("wordpress", Some(enabledDocument), None),
+      ("astro", Some(enabledDocument)),
+      ("astro", Some(disabledDocument)),
+      ("astro", None),
+      ("nextjs", Some(enabledDocument)),
+      ("vite", Some(enabledDocument)),
+      ("wordpress", Some(enabledDocument)),
     ]->Array.forEach(
-      ((framework, contentDocument, expected)) => {
+      ((framework, contentDocument)) => {
         setRuntime(
           {"framework": framework}->S.decodeOrThrow(
             ~from=S.object(s => {"framework": s.field("framework", S.string)}),
             ~to=S.json,
           ),
         )
-        let sentBlocks = ref([])
+        let sentBlocks = ref(None)
         let state = TestHelpers.makeStateWithTask()
         let task = state.tasks->Dict.get("test-task-1")->Option.getOrThrow
         state.tasks->Dict.set(
@@ -1846,8 +1844,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
         let state = {
           ...state,
           acpSession: TestHelpers.activeAcpSession(
-            ~sendPrompt=(_, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
-              sentBlocks := additionalBlocks,
+            ~sendPrompt=(_, ~sessionId as _, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
+              sentBlocks := Some(additionalBlocks),
           ),
         }
         let (state, effects) = Reducer.next(
@@ -1861,14 +1859,39 @@ describe("Client State Reducer - Annotations on Messages", () => {
           }),
         )
         effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
-        switch sentBlocks.contents->Array.get(0) {
-        | Some(ContentBlock.EmbeddedResource({_meta: Some(meta)})) =>
-          let metadata = S.parseOrThrow(meta, ~to=pageRoutingMetaSchema)
-          t->expect(metadata.astro_client_routing)->Expect.toEqual(expected)
-        | _ => JsExn.throw("Expected current-page metadata in the submitted prompt")
-        }
+        t->expect(sentBlocks.contents)->Expect.toEqual(Some([]))
       },
     )
+  })
+
+  test("SendMessage without a session cleans up before reading runtime or task", t => {
+    let id = UserMessageId.make()
+    let dispatched = ref([])
+    Reducer.handleEffect(
+      TaskEffect({
+        target: ForTask("missing-task"),
+        effect: SendMessage({
+          id,
+          text: "Inspect this",
+          attachments: [],
+          annotations: [],
+          agentId: "planner",
+        }),
+      }),
+      Reducer.defaultState,
+      action => dispatched := dispatched.contents->Array.concat([action]),
+    )
+    switch dispatched.contents {
+    | [
+        TaskAction({
+          target: ForTask("missing-task"),
+          action: UserMessageSendFailed({id: failedId, error}),
+        }),
+      ] =>
+      t->expect(failedId)->Expect.toBe(id)
+      t->expect(error)->Expect.toBe("Cannot send message: no active ACP session")
+    | _ => JsExn.throw("Expected originating-task cleanup")
+    }
   })
 
   test("SendMessage dispatches task cleanup when sendPrompt fails", t => {
@@ -1880,7 +1903,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ...Reducer.defaultState,
       selectedModelValue: Some("test:model"),
       acpSession: AcpSessionActive({
-        sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
+        sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
           completion := Some(onComplete),
         sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
@@ -1935,7 +1958,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     }
 
     let _setAcpSessionAction = (): Reducer.action => SetAcpSession({
-      sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+      sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
       sendSessionCommand: _ => (),
       loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
       deleteSession: (_, ~onComplete as _) => (),

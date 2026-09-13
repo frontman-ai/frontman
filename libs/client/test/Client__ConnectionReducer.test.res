@@ -15,6 +15,7 @@ let effectKinds = effects =>
     | Reducer.ConnectRelay(_) => #connectRelay
     | Reducer.CreateSessionEffect(_) => #createSession
     | Reducer.SendPromptEffect(_) => #sendPrompt
+    | Reducer.NotifyPromptRejected(_) => #promptRejected
     | Reducer.SessionCommandEffect(_) => #sessionCommand
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
     | Reducer.LoadTaskEffect(_) => #loadTask
@@ -440,6 +441,7 @@ describe("Connection Reducer", () => {
         let (nextPromptState, firstEffects) = Reducer.reduce(
           activeState,
           SendPrompt({
+            sessionId: "task-1",
             text: "first",
             additionalBlocks: emptyBlocks,
             onComplete: _ => (),
@@ -450,11 +452,39 @@ describe("Connection Reducer", () => {
         let (_, secondEffects) = Reducer.reduce(
           nextPromptState,
           SendPrompt({
+            sessionId: "task-1",
             text: "second",
             additionalBlocks: emptyBlocks,
             onComplete: _ => (),
             _meta: None,
           }),
+        )
+
+        [
+          activeState,
+          Reducer.initialState,
+          {...activeState, session: SessionCreating("other")},
+        ]->Array.forEach(
+          state => {
+            let completion = ref(None)
+            let (_, effects) = Reducer.reduce(
+              state,
+              SendPrompt({
+                sessionId: "stale-session",
+                text: "must not be sent",
+                additionalBlocks: [],
+                onComplete: result => completion := Some(result),
+                _meta: None,
+              }),
+            )
+            t->expect(effectKinds(effects))->Expect.toEqual([#promptRejected])
+            effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+            t
+            ->expect(completion.contents)
+            ->Expect.toEqual(
+              Some(Error("Cannot send prompt: the originating session is no longer active")),
+            )
+          },
         )
 
         switch (firstEffects, secondEffects) {

@@ -6,6 +6,7 @@ module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
 let _dummySendPrompt: Types.sendPromptFn = (
   _,
+  ~sessionId as _,
   ~additionalBlocks as _,
   ~onComplete as _,
   ~_meta as _,

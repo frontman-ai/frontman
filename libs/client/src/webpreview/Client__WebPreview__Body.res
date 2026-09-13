@@ -1,3 +1,7 @@
+module Log = FrontmanLogs.Logs.Make({
+  let component = #WebPreviewStage
+})
+
 @react.component
 let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
   let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
@@ -5,7 +9,36 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     None
   )
   let (attachmentKey, setAttachmentKey) = React.useState(() => 0)
-  let (iframeSrc, setIframeSrc) = React.useState(() => isActive ? url : "about:blank")
+  let parentOrigin = (WebAPI.Window.current->WebAPI.Window.location).origin
+  let withPreviewBridgeParams = (src: string): string =>
+    switch src {
+    | "about:blank" => src
+    | src =>
+      try {
+        let parsed = WebAPI.URL.make(
+          ~url=src,
+          ~base=(WebAPI.Window.current->WebAPI.Window.location).href,
+        )
+        parsed.searchParams->WebAPI.URLSearchParams.set(
+          ~name="__frontman_parent_origin",
+          ~value=parentOrigin,
+        )
+        parsed.searchParams->WebAPI.URLSearchParams.set(~name="__frontman_channel", ~value=taskId)
+        parsed.href
+      } catch {
+      | exn =>
+        let ctx = {"src": src}
+        Log.error(
+          ~ctx,
+          ~error=JsExn.fromException(exn),
+          "Preview bridge URL parameter injection failed",
+        )
+        src
+      }
+    }
+  let (iframeSrc, setIframeSrc) = React.useState(() =>
+    isActive ? url->withPreviewBridgeParams : "about:blank"
+  )
   let (hasLoaded, setHasLoaded) = React.useState(() => false)
   let lastLocationRef: React.ref<option<string>> = React.useRef(None)
   let trackedIframeElement = isActive ? iframeElement : None
@@ -19,11 +52,70 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
     ->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement)
     ->Option.map(iframeElement => {
-      (
-        WebAPI.HTMLIFrameElement.contentDocument(iframeElement),
-        WebAPI.HTMLIFrameElement.contentWindow(iframeElement),
-      )
+      switch WebAPI.HTMLIFrameElement.contentDocument(iframeElement) {
+      | None => (None, None)
+      | Some(document) => (Some(document), WebAPI.HTMLIFrameElement.contentWindow(iframeElement))
+      }
     })
+
+  let previewOrigin = (src: string): option<string> =>
+    switch src {
+    | "about:blank" => None
+    | src =>
+      try {
+        Some(
+          WebAPI.URL.make(
+            ~url=src,
+            ~base=(WebAPI.Window.current->WebAPI.Window.location).href,
+          ).origin,
+        )
+      } catch {
+      | exn =>
+        let ctx = {"src": src}
+        Log.error(~ctx, ~error=JsExn.fromException(exn), "Preview bridge origin resolution failed")
+        None
+      }
+    }
+
+  let targetOrigin = previewOrigin(iframeSrc)
+  React.useEffect(() => {
+    switch (
+      isActive,
+      hasLoaded,
+      iframeElement->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement),
+      targetOrigin,
+    ) {
+    | (true, true, Some(iframe), Some(targetOrigin)) => {
+        let runtime = Client__PreviewRuntime.make(~iframe, ~targetOrigin, ~channel=taskId)
+        let removeStatusListener = Client__PreviewRuntime.onStatus(runtime, status =>
+          switch status {
+          | Runtime.Open
+          | Runtime.Connecting
+          | Runtime.Disconnected("Iframe reloaded")
+          | Runtime.Closed("Runtime closed") => ()
+          | Runtime.Disconnected(reason) | Runtime.Closed(reason) =>
+            Log.error(
+              ~ctx={"taskId": taskId, "targetOrigin": targetOrigin, "reason": reason},
+              "Preview bridge runtime failed",
+            )
+          }
+        )
+        Client__PreviewRuntimeRegistry.register(~clientId=taskId, ~runtime)
+        Some(
+          () => {
+            removeStatusListener()
+            Client__PreviewRuntimeRegistry.unregister(~runtime)
+            Client__PreviewRuntime.close(runtime)
+          },
+        )
+      }
+    | (false, _, _, _)
+    | (_, false, _, _)
+    | (_, _, None, _)
+    | (_, _, _, None) =>
+      None
+    }
+  }, (isActive, hasLoaded, iframeElement, targetOrigin, taskId))
 
   React.useEffect(() => {
     switch hasLoaded {
@@ -36,7 +128,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
           Client__BrowserUrl.removeTrailingSlash(prev) ==
             Client__BrowserUrl.removeTrailingSlash(url)
             ? prev
-            : url
+            : url->withPreviewBridgeParams
         }
       )
     }
@@ -46,7 +138,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   React.useEffect(() => {
     switch isActive {
     | false => ()
-    | true => setIframeSrc(prev => prev == "about:blank" ? url : prev)
+    | true => setIframeSrc(prev => prev == "about:blank" ? url->withPreviewBridgeParams : prev)
     }
     None
   }, [isActive])

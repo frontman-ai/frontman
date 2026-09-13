@@ -1,4 +1,5 @@
 import { defineConfig } from 'tsup';
+import { copyPreviewBridgeAsset } from '@frontman-ai/frontman-preview-bridge/src/vite-plugin-preview-loader.mjs';
 import { readFileSync } from 'fs';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
@@ -50,11 +51,12 @@ const internalDeps = [
 export default defineConfig([
   {
     entry: { 'index': './src/FrontmanVite.res.mjs' },
+    onSuccess: copyPreviewBridgeAsset,
     format: ['esm'],
     outDir: 'dist',
     clean: true,
     dts: true,
-    noExternal: [...internalDeps, /vite-plugin-vue-source/],
+    noExternal: [...internalDeps, /vite-plugin-vue-source/, /vite-plugin-preview-loader/],
     external: ['vite', 'lighthouse', 'chrome-launcher', 'source-map', ...nodeBuiltins],
     platform: 'node',
     target: 'node18',
