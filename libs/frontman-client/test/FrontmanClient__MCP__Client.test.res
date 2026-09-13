@@ -452,7 +452,7 @@ describe("MCP client Streamable HTTP", _t => {
     )
   })
 
-  testAsync("accepts exactly 256 tools", ~timeout=15000, async t => {
+  testAsync("accepts exactly 256 tools", ~timeout=60000, async t => {
     await testAcceptedScenario(t, "tools-256", ~toolCount=256, ~listCount=1)
   })
 

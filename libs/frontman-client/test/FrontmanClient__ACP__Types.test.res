@@ -188,11 +188,11 @@ describe("ACP Types encoding/decoding", _t => {
   test("shared content blocks round trip every variant and reject invalid payloads", t => {
     [
       `{"type":"text","text":"hello"}`,
-      `{"type":"image","data":"base64-image","mimeType":"image/png"}`,
-      `{"type":"audio","data":"base64-audio","mimeType":"audio/wav"}`,
+      `{"type":"image","data":"aW1hZ2U=","mimeType":"image/png"}`,
+      `{"type":"audio","data":"YXVkaW8=","mimeType":"audio/wav"}`,
       `{"type":"resource_link","name":"docs","uri":"https://example.com"}`,
       `{"type":"resource","_meta":{"current_page":true},"resource":{"uri":"page://localhost","mimeType":"text/plain","text":"Current page"}}`,
-      `{"type":"resource","resource":{"uri":"annotation://a1/screenshot","mimeType":"image/png","blob":"base64-data"}}`,
+      `{"type":"resource","resource":{"uri":"annotation://a1/screenshot","mimeType":"image/png","blob":"ZGF0YQ=="}}`,
     ]->Array.forEach(
       source => {
         let json = JSON.parseOrThrow(source)
@@ -204,7 +204,13 @@ describe("ACP Types encoding/decoding", _t => {
         ->Expect.toEqual(json)
       },
     )
-    [`{"type":"video","data":"base64"}`, `{"type":"image","mimeType":"image/png"}`]->Array.forEach(
+    [
+      `{"type":"video","data":"base64"}`,
+      `{"type":"image","mimeType":"image/png"}`,
+      `{"type":"image","data":"base64-image","mimeType":"image/png"}`,
+      `{"type":"audio","data":"base64-audio","mimeType":"audio/wav"}`,
+      `{"type":"resource","resource":{"uri":"annotation://a1/screenshot","mimeType":"image/png","blob":"base64-data"}}`,
+    ]->Array.forEach(
       source =>
         t->expect(JSON.parseOrThrow(source)->parsesWith(ContentBlock.schema))->Expect.toBe(false),
     )

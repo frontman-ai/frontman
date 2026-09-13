@@ -27,16 +27,16 @@ clean:
 	yarn rescript clean
 
 export-schemas: build
-	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; node scripts/ExportSchemas.res.mjs "$$tmp/raw.json"; node scripts/CompactSchemas.mjs "$$tmp/raw.json" "$$tmp/schemas"; rm -rf schemas/mcp schemas/jsonrpc schemas/relay; find schemas/acp -mindepth 1 -maxdepth 1 ! -name upstream -exec rm -rf {} +; rm -f schemas/generated.json; cp "$$tmp/schemas/generated.json" schemas/generated.json; cp -R "$$tmp/schemas/mcp" schemas/mcp; cp -R "$$tmp/schemas/jsonrpc" schemas/jsonrpc; cp "$$tmp/schemas/acp/"*.json schemas/acp/
+	@set -e; tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; node scripts/ExportSchemas.res.mjs "$$tmp/raw.json"; node scripts/CompactSchemas.mjs "$$tmp/raw.json" "$$tmp/schemas"; rm -rf schemas/mcp schemas/jsonrpc schemas/relay; find schemas/acp -mindepth 1 -maxdepth 1 ! -name upstream -exec rm -rf {} +; rm -f schemas/generated.json; cp "$$tmp/schemas/generated.json" schemas/generated.json; cp -R "$$tmp/schemas/mcp" schemas/mcp; cp -R "$$tmp/schemas/jsonrpc" schemas/jsonrpc; cp "$$tmp/schemas/acp/"*.json schemas/acp/
 
 check-schemas: build
-	@tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; node scripts/ExportSchemas.res.mjs "$$tmp/raw.json"; node scripts/CompactSchemas.mjs "$$tmp/raw.json" "$$tmp/schemas"; diff -u "$$tmp/schemas/generated.json" schemas/generated.json; diff -ru --exclude=upstream "$$tmp/schemas/acp" schemas/acp; diff -ru "$$tmp/schemas/mcp" schemas/mcp; diff -ru "$$tmp/schemas/jsonrpc" schemas/jsonrpc
+	@set -e; tmp=$$(mktemp -d); trap 'rm -rf "$$tmp"' EXIT; node scripts/ExportSchemas.res.mjs "$$tmp/raw.json"; node scripts/CompactSchemas.mjs "$$tmp/raw.json" "$$tmp/schemas"; diff -ru --exclude=upstream "$$tmp/schemas" schemas
 
 schema-compatibility: schema-compatibility-test
 	node scripts/CheckSchemaCompatibility.mjs
 
 schema-compatibility-test: build
-	node --test test/CheckSchemaCompatibility.test.mjs test/CompactSchemas.test.mjs
+	node --test test/CheckSchemaCompatibility.test.mjs test/CompactSchemas.test.mjs test/SchemaMakefile.test.mjs
 
 mcp-verify:
 	node --test test/VerifyMcp*.test.mjs

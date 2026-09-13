@@ -38,7 +38,7 @@
 		"prepublishOnly": "make check-schemas"
 	},
 	"dependencies": {
-		"sury": "11.0.0-alpha.10"
+		"sury": "catalog:"
 	},
 	"devDependencies": {
 		"@rescript/webapi": "*",

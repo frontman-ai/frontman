@@ -2510,7 +2510,7 @@ __metadata:
     lighthouse: "npm:^13.4.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
-    sury: "npm:11.0.0-alpha.10"
+    sury: "catalog:"
     vite: "catalog:"
     vitest: "catalog:"
   dependenciesMeta:
@@ -2543,7 +2543,7 @@ __metadata:
     ajv: "npm:^8.17.1"
     ajv-formats: "npm:^3.0.1"
     rescript: "catalog:"
-    sury: "npm:11.0.0-alpha.10"
+    sury: "catalog:"
   languageName: unknown
   linkType: soft
 
@@ -19174,18 +19174,6 @@ __metadata:
   peerDependencies:
     sury: ^11.0.0-alpha.10
   checksum: 10c0/3f1b7e505b9b1ee9d652bb08a1140adf701ff0c2388bab7afc59159748055c6647074e2b55c92768fc90f4bd112e6bb84dbec5a350f36dfbcaf3f2224737678b
-  languageName: node
-  linkType: hard
-
-"sury@npm:11.0.0-alpha.10":
-  version: 11.0.0-alpha.10
-  resolution: "sury@npm:11.0.0-alpha.10"
-  peerDependencies:
-    rescript: 12.x
-  peerDependenciesMeta:
-    rescript:
-      optional: true
-  checksum: 10c0/50af88d8c801b35fbaa8f4faac14d16e5e48a57a71d3bc69a84475a2b85c3d8278dc1021202b6cfd49280918bcc67461fa2e1afbd93aad8b36ce4e36a63cff28
   languageName: node
   linkType: hard
 
