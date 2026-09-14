@@ -64,7 +64,7 @@ defmodule FrontmanServer.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_view, "~> 1.2.1"},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:phoenix_live_dashboard, "~> 0.9.0"},
       {:req_llm, github: "agentjido/req_llm", branch: "main", override: true},
       {:llm_db,
        github: "agentjido/llmdb", ref: "2cd54cc0773536a50a672f7753d48f3a845e6292", override: true},
