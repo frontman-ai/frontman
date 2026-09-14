@@ -239,8 +239,8 @@ jobs:
         if: steps.js-build-cache.outputs.cache-hit != 'true'
         run: |
           yarn workspace @frontman-ai/nextjs build
-          yarn workspace @frontman-ai/vite build
-          yarn workspace @frontman-ai/astro build
+          make -C libs/frontman-vite build
+          make -C libs/frontman-astro build
 
       - name: Generate mkcert certificates
         run: |

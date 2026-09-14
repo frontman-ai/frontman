@@ -111,6 +111,7 @@ type action =
   | SessionFailed({sessionId: string, error: string})
   | CreateSession(createSessionRequest)
   | SendPrompt({
+      sessionId: string,
       text: string,
       additionalBlocks: array<ContentBlock.t>,
       onComplete: result<ACPTypes.promptResult, string> => unit,
@@ -145,6 +146,10 @@ type effect =
       additionalBlocks: array<ContentBlock.t>,
       onComplete: result<ACPTypes.promptResult, string> => unit,
       _meta: option<JSON.t>,
+    })
+  | NotifyPromptRejected({
+      onComplete: result<ACPTypes.promptResult, string> => unit,
+      reason: string,
     })
   | SessionCommandEffect({session: ACP.session, command: ACP.sessionCommand})
   | FetchSessionsEffect(ACP.connection)
@@ -423,8 +428,21 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | (
       {session: SessionActive(session)},
-      SendPrompt({text, additionalBlocks, onComplete, _meta}),
-    ) => (state, [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})])
+      SendPrompt({sessionId, text, additionalBlocks, onComplete, _meta}),
+    ) if session.sessionId === sessionId => (
+      state,
+      [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})],
+    )
+
+  | (_, SendPrompt({onComplete})) => (
+      state,
+      [
+        NotifyPromptRejected({
+          onComplete,
+          reason: "Cannot send prompt: the originating session is no longer active",
+        }),
+      ],
+    )
 
   | ({session: SessionActive(session)}, SessionCommand(command)) => (
       state,
@@ -432,11 +450,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (_, SessionCommand(_)) => (state, [LogError("Cannot send session command: no active session")])
-
-  | ({session: NoSession | SessionCreating(_) | SessionError(_)}, SendPrompt(_)) => (
-      state,
-      [LogError("Cannot send prompt: no active session")],
-    )
 
   | (
       {acp: ACPConnected(conn), mcpServer: Some(mcpServer), session: SessionActive({sessionId})},
@@ -642,6 +655,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       }
     }
     create()->ignore
+  | NotifyPromptRejected({onComplete, reason}) => onComplete(Error(reason))
   | SendPromptEffect({session, text, additionalBlocks, onComplete, _meta}) =>
     let send = async () => {
       try {
