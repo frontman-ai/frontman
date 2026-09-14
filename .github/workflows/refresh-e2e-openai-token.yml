@@ -8,7 +8,7 @@ on:
         required: true
         default: "259200"
   schedule:
-    - cron: "17 9 * * *"
+    - cron: "17 * * * *"
 
 permissions:
   contents: read
