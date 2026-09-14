@@ -67,7 +67,7 @@
 		"chrome-launcher": "^1.1.2",
 		"dom-element-to-component-source": "npm:@frontman-ai/dom-element-to-component-source@0.5.0",
 		"lighthouse": "^13.4.0",
-		"source-map": "^0.7.6"
+		"source-map": "^0.8.0"
 	},
 	"optionalDependencies": {
 		"@vscode/ripgrep": "^1.18.0"
