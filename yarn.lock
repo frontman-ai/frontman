@@ -2487,7 +2487,7 @@ __metadata:
     rescript: "catalog:"
     rescript-base-ui: "npm:^1.6.1"
     rescript-vitest: "catalog:"
-    shadcn: "npm:^4.16.1"
+    shadcn: "npm:^4.18.0"
     streamdown: "npm:^2.5.0"
     sury: "catalog:"
     sury-ppx: "catalog:"
@@ -12382,6 +12382,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"ip-address@npm:^10.1.1":
+  version: 10.5.0
+  resolution: "ip-address@npm:10.5.0"
+  checksum: 10c0/c6616bc99c90b552dad2beb850ca697c1ea3e2b89662d652a4439cd72a549b0c9af100a54be0d25be86599e2b089db87ef5303157d142e5b4c21bd2a1301dfa7
+  languageName: node
+  linkType: hard
+
 "ipaddr.js@npm:1.9.1":
   version: 1.9.1
   resolution: "ipaddr.js@npm:1.9.1"
@@ -17305,9 +17312,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"shadcn@npm:^4.16.1":
-  version: 4.16.1
-  resolution: "shadcn@npm:4.16.1"
+"shadcn@npm:^4.18.0":
+  version: 4.18.0
+  resolution: "shadcn@npm:4.18.0"
   dependencies:
     "@babel/core": "npm:^7.28.0"
     "@babel/parser": "npm:^7.28.0"
@@ -17333,6 +17340,7 @@ __metadata:
     postcss-selector-parser: "npm:^7.1.0"
     prompts: "npm:^2.4.2"
     recast: "npm:^0.23.11"
+    socks: "npm:^2.8.8"
     stringify-object: "npm:^5.0.0"
     tailwind-merge: "npm:^3.0.1"
     ts-morph: "npm:^26.0.0"
@@ -17343,7 +17351,7 @@ __metadata:
     zod-to-json-schema: "npm:^3.24.6"
   bin:
     shadcn: dist/index.js
-  checksum: 10c0/58d35a6e1929c203e6c8979a4e5cd09b776438c4f3dccb876877a6f805c3a10ed953eedc031bad689dc5295d28411724c5e4d5fd5eecfea92e9e4e87273f6349
+  checksum: 10c0/731edda5736c4e8a463cb64f18089d2e5c00dca4bf527bd5cf0fe693f7af3924f2681f8876b9863df61a0294e81cf26ff4365283e3148764c3ac8b4ba64219af
   languageName: node
   linkType: hard
 
@@ -17804,6 +17812,16 @@ __metadata:
     ip-address: "npm:^10.0.1"
     smart-buffer: "npm:^4.2.0"
   checksum: 10c0/2805a43a1c4bcf9ebf6e018268d87b32b32b06fbbc1f9282573583acc155860dc361500f89c73bfbb157caa1b4ac78059eac0ef15d1811eb0ca75e0bdadbc9d2
+  languageName: node
+  linkType: hard
+
+"socks@npm:^2.8.8":
+  version: 2.8.9
+  resolution: "socks@npm:2.8.9"
+  dependencies:
+    ip-address: "npm:^10.1.1"
+    smart-buffer: "npm:^4.2.0"
+  checksum: 10c0/2d4350c31142b0931eb1758825b426bcbf4bfb5eed682ca48bc46dc9e7d1930ec366ea574ad49fc6c1fd9e9e17ce243be0ef13e31fc4b0319d9093f1fb19743c
   languageName: node
   linkType: hard
 
