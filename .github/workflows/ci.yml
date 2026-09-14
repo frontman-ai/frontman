@@ -104,7 +104,7 @@ jobs:
         run: make -C libs/frontman-client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/frontman-client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -143,7 +143,7 @@ jobs:
         run: make -C libs/frontman-core test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/frontman-core/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -182,7 +182,7 @@ jobs:
         run: make -C libs/frontman-nextjs test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/frontman-nextjs/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -221,7 +221,7 @@ jobs:
         run: make -C libs/react-statestore test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/react-statestore/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -260,7 +260,7 @@ jobs:
         run: make -C libs/client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -525,7 +525,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
         with:
           install: true
           cache: true
@@ -607,7 +607,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
         with:
           install: true
           cache: true
@@ -661,7 +661,7 @@ jobs:
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: apps/frontman_server/cover/cobertura.xml
           overall_coverage_fail_threshold: 0
@@ -701,7 +701,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
         with:
           install: true
           cache: true
