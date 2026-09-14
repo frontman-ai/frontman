@@ -2485,7 +2485,7 @@ __metadata:
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
     rescript: "catalog:"
-    rescript-base-ui: "npm:^1.2.5"
+    rescript-base-ui: "npm:^1.6.1"
     rescript-vitest: "catalog:"
     shadcn: "npm:^4.16.1"
     streamdown: "npm:^2.5.0"
@@ -16606,17 +16606,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rescript-base-ui@npm:^1.2.5":
-  version: 1.6.0
-  resolution: "rescript-base-ui@npm:1.6.0"
+"rescript-base-ui@npm:^1.6.1":
+  version: 1.6.1
+  resolution: "rescript-base-ui@npm:1.6.1"
   dependencies:
     react: "npm:19.2.4"
     react-dom: "npm:19.2.4"
-    rescript: "npm:^12.2.0"
+    rescript: "npm:^12.3.0"
   peerDependencies:
     "@base-ui/react": ^1.6.0
     "@rescript/react": ^0.15.0
-  checksum: 10c0/788a5215e713d3dda668d05ebd23a6008c6c3ddca06705902e981be1cb1edc1eba45caacd1b117d0c7f2d13136c274a5a9d806157dd7cb417b7ac850ff15c35a
+  checksum: 10c0/6567a3d86b2031d68154acdafa6409c6443dc061699534443c3c60a7a58cf12855c818b82a5b328092f95bdcb942a348f87f3ec061d459e873ec815488fdcde4
   languageName: node
   linkType: hard
 
@@ -16632,7 +16632,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rescript@npm:12.3.0, rescript@npm:^12.2.0":
+"rescript@npm:12.3.0, rescript@npm:^12.3.0":
   version: 12.3.0
   resolution: "rescript@npm:12.3.0"
   dependencies:

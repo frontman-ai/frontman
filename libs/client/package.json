@@ -61,7 +61,7 @@
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
 		"rescript": "catalog:",
-		"rescript-base-ui": "^1.2.5",
+		"rescript-base-ui": "^1.6.1",
 		"rescript-vitest": "catalog:",
 		"shadcn": "^4.16.1",
 		"streamdown": "^2.5.0",
