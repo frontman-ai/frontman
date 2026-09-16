@@ -41,12 +41,16 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
   end
 
   defp enabled? do
-    Application.get_env(:frontman_server, __MODULE__)[:enabled] == true
+    config()[:enabled] == true
   end
 
   defp post_to_discord(user, framework) do
-    webhook_url = Application.fetch_env!(:frontman_server, :discord_new_users_webhook_url)
+    with {:ok, webhook_url} <- webhook_url() do
+      post_to_discord(webhook_url, user, framework)
+    end
+  end
 
+  defp post_to_discord(webhook_url, user, framework) when is_binary(webhook_url) do
     body = %{
       embeds: [
         %{
@@ -77,8 +81,19 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUser do
     end
   end
 
+  defp webhook_url do
+    case config()[:webhook_url] do
+      webhook_url when is_binary(webhook_url) -> {:ok, webhook_url}
+      _missing -> {:error, "Discord new-user webhook URL is not configured"}
+    end
+  end
+
   defp req_options do
-    Application.get_env(:frontman_server, :notify_discord_req_options, [])
+    config()[:req_options] || []
+  end
+
+  defp config do
+    Application.get_env(:frontman_server, __MODULE__, [])
   end
 
   defp framework_display_name(nil), do: "—"

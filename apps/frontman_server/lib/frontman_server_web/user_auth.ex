@@ -24,7 +24,8 @@ defmodule FrontmanServerWeb.UserAuth do
   @remember_me_options [
     sign: true,
     max_age: @max_cookie_age_in_days * 24 * 60 * 60,
-    same_site: "Lax"
+    same_site: "Lax",
+    secure: true
   ]
 
   @session_reissue_age_in_days 7

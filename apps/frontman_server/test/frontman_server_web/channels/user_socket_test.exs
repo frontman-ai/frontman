@@ -13,7 +13,7 @@ defmodule FrontmanServerWeb.UserSocketTest do
              end)
 
     assert socket_opts[:auth_token] == true
-    assert socket_opts[:websocket] == true
+    assert socket_opts[:websocket] == [check_origin: false]
   end
 
   test "connects with valid embedded client auth token" do

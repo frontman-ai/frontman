@@ -7,13 +7,13 @@
   },
   "dependencies": {
     "@frontman-ai/vite": "workspace:*",
-    "@vitejs/plugin-react": "^6.0.3",
+    "@vitejs/plugin-react": "^6.0.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "vite": "catalog:"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",
-    "tailwindcss": "^4.3.2"
+    "tailwindcss": "^4.3.3"
   }
 }

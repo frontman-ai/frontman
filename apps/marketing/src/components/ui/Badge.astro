@@ -14,12 +14,12 @@ const { name, link, type = 'neutral', classes } = Astro.props
 	link ? (
 		<a
 			href={link}
-			class:list={['badge', { [`${classes}`]: classes }, { [`badge--${type}`]: type }]}
+			class:list={['badge', { [`${classes}`]: classes }, { [`badge--${type}`]: type, 'text-white': type === 'primary' }]}
 		>
 			{name}
 		</a>
 	) : (
-		<span class:list={['badge', { [`${classes}`]: classes }, { [`badge--${type}`]: type }]}>
+		<span class:list={['badge', { [`${classes}`]: classes }, { [`badge--${type}`]: type, 'text-white': type === 'primary' }]}>
 			{name}
 		</span>
 	)

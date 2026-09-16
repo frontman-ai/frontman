@@ -104,7 +104,7 @@ jobs:
         run: make -C libs/frontman-client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/frontman-client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -143,7 +143,7 @@ jobs:
         run: make -C libs/frontman-core test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/frontman-core/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -182,7 +182,7 @@ jobs:
         run: make -C libs/frontman-nextjs test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/frontman-nextjs/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -221,7 +221,7 @@ jobs:
         run: make -C libs/react-statestore test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/react-statestore/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -260,7 +260,7 @@ jobs:
         run: make -C libs/client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -280,7 +280,7 @@ jobs:
 
       - name: Check for changes in libs/client
         id: changes
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
         with:
           filters: |
             client:
@@ -326,7 +326,7 @@ jobs:
 
       - name: Check for changes in libs/frontman-protocol
         id: changes
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
         with:
           filters: |
             protocol:
@@ -388,7 +388,7 @@ jobs:
 
       - name: Check for preview bridge changes
         id: changes
-        uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
         with:
           filters: |
             bridge:
@@ -515,6 +515,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Free runner disk space
+        run: |
+          df -h
+          docker system prune --all --force --volumes || true
+          docker builder prune --all --force || true
+          sudo rm -rf /root/.yarn/berry/cache/* /root/.cache/yarn/* /tmp/runner/work/_temp/*
+          sudo apt-get clean
+          df -h
+
       - name: Install native build dependencies
         run: |
           sudo apt-get update -qq
@@ -525,7 +534,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
         with:
           install: true
           cache: true
@@ -584,6 +593,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
+      - name: Free runner disk space
+        run: |
+          df -h
+          docker system prune --all --force --volumes || true
+          docker builder prune --all --force || true
+          sudo rm -rf /root/.yarn/berry/cache/* /root/.cache/yarn/* /tmp/runner/work/_temp/*
+          sudo apt-get clean
+          df -h
+
       - name: Start PostgreSQL
         run: |
           container_name="frontman-postgres-${{ github.run_id }}"
@@ -607,7 +625,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
         with:
           install: true
           cache: true
@@ -661,7 +679,7 @@ jobs:
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@d984cfcdc872e09d68f50265b4037be931e5e4c1
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: apps/frontman_server/cover/cobertura.xml
           overall_coverage_fail_threshold: 0
@@ -701,7 +719,7 @@ jobs:
 
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
         with:
           install: true
           cache: true

@@ -107,6 +107,7 @@ class Frontman_UI {
 			'basePath'     => 'frontman',
 			'relayBaseUrl' => self::url( '' ),
 			'wpNonce'      => Frontman_Auth::create_nonce(),
+			'wordpressPluginsUrl' => network_admin_url( 'plugins.php' ),
 		];
 
 		$entrypoint_url = null;
@@ -117,6 +118,7 @@ class Frontman_UI {
 		$this->enqueue_frontman_page_assets( $client_url, $client_css );
 
 		status_header( 200 );
+		nocache_headers();
 		header( 'Content-Type: text/html; charset=utf-8' );
 		?>
 <!DOCTYPE html>
@@ -136,6 +138,7 @@ class Frontman_UI {
 		data-base-path="<?php echo esc_attr( $runtime['basePath'] ); ?>"
 		data-relay-base-url="<?php echo esc_attr( $runtime['relayBaseUrl'] ); ?>"
 		data-wp-nonce="<?php echo esc_attr( $runtime['wpNonce'] ); ?>"
+		data-wordpress-plugins-url="<?php echo esc_url( $runtime['wordpressPluginsUrl'] ); ?>"
 	></div>
 	<?php if ( $entrypoint_url ) : ?>
 	<span id="frontman-entrypoint-url" hidden><?php echo esc_url( $entrypoint_url ); ?></span>

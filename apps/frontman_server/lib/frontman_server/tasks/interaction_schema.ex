@@ -28,6 +28,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     agent_error: Interaction.AgentError,
     agent_paused: Interaction.AgentPaused,
     agent_retry: Interaction.AgentRetry,
+    skill_used: Interaction.SkillUsed,
     tool_call: Interaction.ToolCall,
     tool_result: Interaction.ToolResult,
     discovered_project_rule: Interaction.DiscoveredProjectRule,
@@ -98,25 +99,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   def limited_data_values(query, field, limit) do
     from(i in query, select: fragment("?->>?", i.data, ^field), limit: ^limit)
-  end
-
-  def duplicate_tool_result?(%Ecto.Changeset{} = changeset) do
-    Enum.any?(changeset.errors, fn {_field, {_message, metadata}} ->
-      case {Keyword.fetch(metadata, :constraint), Keyword.fetch(metadata, :constraint_name)} do
-        {{:ok, :unique}, {:ok, name}} -> name == Atom.to_string(@tool_result_unique_constraint)
-        _other_constraint -> false
-      end
-    end)
-  end
-
-  def unresolved_tool_calls(query \\ __MODULE__) do
-    from(i in query,
-      left_join: r in __MODULE__,
-      on:
-        r.task_id == i.task_id and r.turn_number == i.turn_number and r.type == :tool_result and
-          fragment("?->>'tool_call_id'", r.data) == fragment("?->>'tool_call_id'", i.data),
-      where: i.type == :tool_call and is_nil(r.id)
-    )
   end
 
   def to_json_map(%__MODULE__{type: type, data: data}) when is_struct(data) do

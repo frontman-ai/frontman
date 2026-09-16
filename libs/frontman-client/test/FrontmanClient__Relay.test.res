@@ -2,14 +2,43 @@ open Vitest
 
 module Relay = FrontmanClient__Relay
 
-let jsonString = json => JSON.stringify(json)
-
 describe("Relay.connect", _t => {
   test("accepts only the current relay protocol version", t => {
     let json = JSON.parseOrThrow(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"1.0"}`)
     t
     ->expect(() => json->S.parseOrThrow(~to=FrontmanClient__Relay__Types.toolsResponseSchema))
     ->Expect.toThrow
+  })
+
+  test("normalizes WordPress relay v1 responses", t => {
+    let json = JSON.parseOrThrow(`{
+      "tools":[{
+        "name":"wp_list_posts",
+        "description":"List posts",
+        "access":"read",
+        "inputSchema":{"type":"object"},
+        "visibleToAgent":true
+      }],
+      "serverInfo":{"name":"frontman-wordpress","version":"4.0.0"},
+      "protocolVersion":"1.0"
+    }`)
+    let response = json->Relay.parseToolsResponse->Result.getOrThrow
+
+    t->expect(response.protocolVersion)->Expect.toBe("2.0")
+    t
+    ->expect(response.tools->Array.get(0)->Option.map(json => JSON.stringify(json)))
+    ->Expect.toEqual(
+      Some(
+        JSON.stringify(
+          JSON.parseOrThrow(`{
+            "name":"wp_list_posts",
+            "description":"List posts",
+            "inputSchema":{"type":"object"},
+            "_meta":{"ai.frontman/tool-metadata":{"access":"read","visibleToAgent":true}}
+          }`),
+        ),
+      ),
+    )
   })
 
   test("requires relay v2 tool metadata shape", t => {
@@ -50,7 +79,7 @@ test("preserves relayed MCP tool metadata and parses legacy results", t => {
     })
 
   t
-  ->expect(relay->Relay.getToolsJson->Array.get(0)->Option.map(jsonString))
+  ->expect(relay->Relay.getToolsJson->Array.get(0)->Option.map(json => JSON.stringify(json)))
   ->Expect.toEqual(Some(JSON.stringify(tool)))
   t->expect(relay->Relay.hasTool("tool"))->Expect.toBe(true)
   JSON.parseOrThrow(`{"content":[]}`)

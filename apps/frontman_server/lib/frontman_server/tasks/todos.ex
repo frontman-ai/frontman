@@ -107,8 +107,8 @@ defmodule FrontmanServer.Tasks.Todos do
   """
   def list_todos(interactions) do
     interactions
-    |> Enum.filter(&todo_write_result?/1)
-    |> List.last()
+    |> Enum.reverse()
+    |> Enum.find(&todo_write_result?/1)
     |> case do
       nil ->
         %{}

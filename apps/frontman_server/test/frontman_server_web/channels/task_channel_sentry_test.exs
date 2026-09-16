@@ -14,7 +14,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias ModelContextProtocol, as: MCP
+  alias FrontmanServer.Protocols.{JsonRpc, MCP}
 
   setup %{scope: scope} do
     Sentry.Test.setup_sentry(dedup_events: false)

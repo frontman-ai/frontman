@@ -69,7 +69,7 @@ class Frontman_Tool_Widgets {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_widget',
-			'Updates a widget\'s settings in a sidebar. Currently supports text widgets only.',
+			'Updates an existing text or Custom HTML widget without moving it. For custom_html, send only title and/or content; omitted settings and plugin metadata are preserved. Read back and verify the rendered page after editing.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -80,7 +80,7 @@ class Frontman_Tool_Widgets {
 					],
 					'widget_id'  => [
 						'type'        => 'string',
-						'description' => 'The widget instance ID (e.g. "text-2", "categories-3").',
+						'description' => 'The persisted widget instance ID (e.g. "text-2", "custom_html-4"), not an editor preview ID.',
 					],
 					'settings'   => [
 						'type'        => 'string',
@@ -142,7 +142,7 @@ class Frontman_Tool_Widgets {
 	}
 
 	private function widget_sidebar_map(): array {
-		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$map = [];
 		foreach ( $sidebars_widgets as $sidebar_id => $widgets ) {
 			if ( ! is_array( $widgets ) ) {
@@ -173,20 +173,6 @@ class Frontman_Tool_Widgets {
 		return $this->sanitize_value_recursive( $settings );
 	}
 
-	/**
-	 * WordPress core stores widget instances in widget_{base} options.
-	 */
-	private function core_widget_option_name( string $widget_base ): string {
-		return 'widget_' . sanitize_key( $widget_base );
-	}
-
-	/**
-	 * WordPress core stores sidebar assignments in this built-in option.
-	 */
-	private function core_sidebars_widgets_option_name(): string {
-		return 'sidebars_widgets';
-	}
-
 	private function sanitize_value_recursive( $value ) {
 		if ( is_array( $value ) ) {
 			$result = [];
@@ -209,7 +195,7 @@ class Frontman_Tool_Widgets {
 	public function list_widget_areas( array $input ): array {
 		global $wp_registered_sidebars;
 
-		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$result           = [];
 
 		foreach ( $wp_registered_sidebars as $id => $sidebar ) {
@@ -233,7 +219,7 @@ class Frontman_Tool_Widgets {
 	public function read_widget( array $input ): array {
 		$widget_id = sanitize_text_field( $input['widget_id'] ?? '' );
 		$parts = $this->parse_widget_id( $widget_id );
-		$settings = get_option( $this->core_widget_option_name( $parts['base'] ), [] );
+		$settings = get_option( 'widget_' . sanitize_key( $parts['base'] ), [] );
 		if ( ! isset( $settings[ $parts['number'] ] ) ) {
 			throw new Frontman_Tool_Error( "Widget instance not found: {$widget_id}" );
 		}
@@ -258,7 +244,7 @@ class Frontman_Tool_Widgets {
 		$before      = $this->sidebar_snapshot( $sidebar_id );
 		$this->assert_mutation_supported( $widget_base );
 
-		$all_settings = get_option( $this->core_widget_option_name( $widget_base ), [] );
+		$all_settings = get_option( 'widget_' . $widget_base, [] );
 		$max_number   = 0;
 		foreach ( array_keys( $all_settings ) as $key ) {
 			if ( is_numeric( $key ) ) {
@@ -269,15 +255,15 @@ class Frontman_Tool_Widgets {
 		$widget_number = $max_number + 1;
 		$widget_id     = $widget_base . '-' . $widget_number;
 		$all_settings[ $widget_number ] = $settings;
-		update_option( $this->core_widget_option_name( $widget_base ), $all_settings );
+		update_option( 'widget_' . $widget_base, $all_settings );
 
-		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$widgets = $sidebars_widgets[ $sidebar_id ] ?? [];
 		$position = isset( $input['position'] ) ? max( 0, absint( $input['position'] ) - 1 ) : count( $widgets );
 		$position = min( $position, count( $widgets ) );
 		array_splice( $widgets, $position, 0, [ $widget_id ] );
 		$sidebars_widgets[ $sidebar_id ] = $widgets;
-		update_option( $this->core_sidebars_widgets_option_name(), $sidebars_widgets );
+		update_option( 'sidebars_widgets', $sidebars_widgets );
 
 		return [
 			'created'   => true,
@@ -294,34 +280,45 @@ class Frontman_Tool_Widgets {
 	public function update_widget( array $input ): array {
 		$sidebar_id = sanitize_key( $input['sidebar_id'] ?? '' );
 		$widget_id  = sanitize_text_field( $input['widget_id'] ?? '' );
-		$settings   = $this->sanitized_settings( $input['settings'] ?? '{}' );
-
-		if ( empty( $sidebar_id ) || empty( $widget_id ) ) {
-			throw new Frontman_Tool_Error( 'Missing sidebar_id or widget_id' );
+		$widget = $this->read_widget( [ 'widget_id' => $widget_id ] );
+		if ( '' === $sidebar_id || $sidebar_id !== $widget['sidebar_id'] ) {
+			throw new Frontman_Tool_Error( 'sidebar_id must match the widget\'s current placement. Read the widget before updating it.' );
 		}
 
 		$parts = $this->parse_widget_id( $widget_id );
-		$widget_base   = $parts['base'];
-		$widget_number = $parts['number'];
-		$this->assert_mutation_supported( $widget_base );
-
-		$all_settings = get_option( $this->core_widget_option_name( $widget_base ), [] );
-
-		if ( ! isset( $all_settings[ $widget_number ] ) ) {
-			throw new Frontman_Tool_Error( "Widget instance not found: {$widget_id}" );
+		if ( 'custom_html' === $parts['base'] ) {
+			if ( ! current_user_can( 'edit_theme_options' ) ) {
+				throw new Frontman_Tool_Error( 'Editing Custom HTML widgets requires edit_theme_options.' );
+			}
+			$raw = $input['settings'] ?? null;
+			$settings = is_string( $raw ) ? json_decode( $raw ) : null;
+			if ( ! $settings instanceof \stdClass ) {
+				throw new Frontman_Tool_Error( 'settings must be a JSON object containing title and/or content strings.' );
+			}
+			$settings = get_object_vars( $settings );
+			foreach ( $settings as $key => $value ) {
+				if ( ! in_array( $key, [ 'title', 'content' ], true ) || ! is_string( $value ) ) {
+					throw new Frontman_Tool_Error( 'Only title and content strings can be updated on Custom HTML widgets.' );
+				}
+				$settings[ $key ] = 'title' === $key ? sanitize_text_field( $value ) : ( current_user_can( 'unfiltered_html' ) ? $value : wp_kses_post( $value ) );
+			}
+		} else {
+			$this->assert_mutation_supported( $parts['base'] );
+			$settings = $this->sanitized_settings( $input['settings'] ?? '{}' );
 		}
 
-		$before = $all_settings[ $widget_number ];
-
-		$all_settings[ $widget_number ] = array_merge( $all_settings[ $widget_number ], $settings );
-
-		update_option( $this->core_widget_option_name( $widget_base ), $all_settings );
+		$option = 'widget_' . sanitize_key( $parts['base'] );
+		$all_settings = get_option( $option, [] );
+		$all_settings[ $parts['number'] ] = array_merge( $widget['settings'], $settings );
+		if ( ! update_option( $option, $all_settings ) && get_option( $option ) !== $all_settings ) {
+			throw new Frontman_Tool_Error( 'Widget settings could not be saved.' );
+		}
 
 		return [
-			'before'    => $before,
+			'before'    => $widget['settings'],
 			'updated'   => true,
 			'widget_id' => $widget_id,
-			'settings'  => $all_settings[ $widget_number ],
+			'settings'  => $this->read_widget( [ 'widget_id' => $widget_id ] )['settings'],
 		];
 	}
 
@@ -344,7 +341,7 @@ class Frontman_Tool_Widgets {
 			'to_sidebar'   => $this->sidebar_snapshot( $to_sidebar_id ),
 		];
 
-		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$from_widgets = array_values( array_filter( $sidebars_widgets[ $from_sidebar_id ] ?? [], static function( $id ) use ( $widget_id ) {
 			return $id !== $widget_id;
 		} ) );
@@ -356,7 +353,7 @@ class Frontman_Tool_Widgets {
 
 		$sidebars_widgets[ $from_sidebar_id ] = $from_widgets;
 		$sidebars_widgets[ $to_sidebar_id ]   = $to_widgets;
-		update_option( $this->core_sidebars_widgets_option_name(), $sidebars_widgets );
+		update_option( 'sidebars_widgets', $sidebars_widgets );
 
 		return [
 			'moved'  => true,
@@ -391,11 +388,11 @@ class Frontman_Tool_Widgets {
 			'sidebar' => $this->sidebar_snapshot( $sidebar_id ),
 		];
 
-		$sidebars_widgets = get_option( $this->core_sidebars_widgets_option_name(), [] );
+		$sidebars_widgets = get_option( 'sidebars_widgets', [] );
 		$sidebars_widgets[ $sidebar_id ] = array_values( array_filter( $sidebars_widgets[ $sidebar_id ] ?? [], static function( $id ) use ( $widget_id ) {
 			return $id !== $widget_id;
 		} ) );
-		update_option( $this->core_sidebars_widgets_option_name(), $sidebars_widgets );
+		update_option( 'sidebars_widgets', $sidebars_widgets );
 
 		return [
 			'deleted'   => true,

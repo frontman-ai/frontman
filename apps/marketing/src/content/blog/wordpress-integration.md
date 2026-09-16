@@ -86,6 +86,6 @@ That said, this is experimental software. If you choose to use it in production,
 
 Frontman is now available in the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/). Install it from **Plugins > Add New Plugin** in wp-admin.
 
-To evaluate the workflow before installing it on your site, [open the disposable WordPress Playground](https://playground.wordpress.net/?networking=yes&blueprint-url=https%3A%2F%2Ffrontman.sh%2Fwordpress-playground%2Fblueprint.json). It loads Frontman and a seeded page automatically; Frontman sign-in and your own supported AI provider are still required. You can also [watch one complete staging-safe task](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) from request through reviewed result.
+Before installing it on your site, [watch one complete staging-safe task](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) from request through reviewed result.
 
 We're excited to bring Frontman to the WordPress ecosystem. This is just the beginning, and with your help, it'll get a lot better.

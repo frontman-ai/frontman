@@ -87,7 +87,7 @@ The integration registers handlers at four Astro lifecycle points:
 
 **`astro:config:setup`** — Registers the Vite plugin chain (described below), injects the element annotation capture script into every page, and registers a Dev Toolbar app that provides element-to-source-file mapping.
 
-**`astro:config:done`** — Captures the final `trailingSlash` policy so Frontman routes follow `always`, `never`, and `ignore` consistently.
+**`astro:config:done`** — Captures sanitized resolved Astro config so Frontman can inspect build output, adapter, integrations, routing, image, Markdown, security, session, and server settings.
 
 **`astro:server:setup`** — Initializes the log capture buffer, registers the Frontman request handler on the Vite Connect server, and canonicalizes Frontman routes according to the final trailing-slash policy.
 
@@ -134,6 +134,7 @@ Keep `devToolbar.enabled: true` (the Astro default) for accurate source detectio
 | Tool | Description |
 |------|-------------|
 | `get_client_pages` | Returns all Astro pages with their file paths and URL route patterns from the resolved route manifest, including content collection and integration-injected routes. |
+| `get_resolved_astro_config` | Returns sanitized resolved Astro config from `astro:config:done`. Use before changing routing, SSR/static behavior, adapters, i18n, images, Markdown/MDX, redirects, sessions, security, or deployment behavior. |
 | `get_logs` | Queries the dev server log buffer. Parameters: `pattern` (regex string), `level` (`log`/`warn`/`error`/`info`/`debug`), `since` (ISO 8601 timestamp), `tail` (integer). |
 
 ### File system

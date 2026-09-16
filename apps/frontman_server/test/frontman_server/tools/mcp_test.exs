@@ -20,7 +20,7 @@ defmodule FrontmanServer.Tools.MCPTest do
       assert tool.access == :read_write
       assert tool.output_schema == output_schema
       assert tool.timeout_ms == 600_000
-      assert tool.on_timeout == :error
+      assert tool.execution_mode == :synchronous
     end
 
     test "parses access from wire format" do
@@ -42,7 +42,7 @@ defmodule FrontmanServer.Tools.MCPTest do
       end
     end
 
-    test "applies pause_agent policy for executionMode: Interactive" do
+    test "interactive tools have no deadline" do
       tool =
         MCP.from_map(%{
           "name" => "question",
@@ -53,8 +53,19 @@ defmodule FrontmanServer.Tools.MCPTest do
           }
         })
 
-      assert tool.timeout_ms == 120_000
-      assert tool.on_timeout == :pause_agent
+      assert tool.timeout_ms == :infinity
+      assert tool.execution_mode == :interactive
+    end
+  end
+
+  test "rejects unsupported declared execution modes" do
+    for mode <- ["interactive", "Unknown", 1, false] do
+      assert_raise FunctionClauseError, fn ->
+        MCP.from_map(%{
+          "name" => "approval",
+          "_meta" => %{"ai.frontman/tool-metadata" => %{"executionMode" => mode}}
+        })
+      end
     end
   end
 
@@ -73,7 +84,7 @@ defmodule FrontmanServer.Tools.MCPTest do
       assert swarm_tool.access == :read
     end
 
-    test "passes pause_agent policy through to swarm tool for interactive tools" do
+    test "model-facing tools carry no operational deadline" do
       mcp_tool =
         MCP.from_map(%{
           "name" => "question",
@@ -86,8 +97,8 @@ defmodule FrontmanServer.Tools.MCPTest do
 
       [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
 
-      assert swarm_tool.timeout_ms == 120_000
-      assert swarm_tool.on_timeout == :pause_agent
+      refute Map.has_key?(swarm_tool, :timeout_ms)
+      refute Map.has_key?(swarm_tool, :on_timeout)
     end
   end
 end

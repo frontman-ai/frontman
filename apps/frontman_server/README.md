@@ -9,9 +9,30 @@ Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
 Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 
+## Official skills
+
+Data migrations install official skills. The `design_polish` migration preserves an existing row with the same name.
+Future skill additions or content changes need a new migration with the data inline; do not read mutable files from migrations.
+Rollback deletes only the migration's fixed UUID, leaving pre-existing same-name rows with different IDs untouched.
+Deployments do not run seed scripts or overwrite catalog content on every release.
+
 ## Architecture docs
 
 * Boundary contract policy: [`BOUNDARY_CONTRACT_POLICY.md`](./BOUNDARY_CONTRACT_POLICY.md)
+
+## Interactive tool waits
+
+`Interactive` MCP tools have no execution deadline. The parked executor retains conversation history in memory and remains cancellable through the existing runtime.
+`Synchronous` tools keep finite deadlines. Transport, provider, and control-plane timeouts remain unchanged.
+
+Each dispatched call stores its execution mode. Supported shutdown preserves dispatched interactive calls and records interruption results for other unresolved declarations.
+This includes declared serial tools that did not run. Recovery still requires a connected browser for browser tools.
+Historical `AgentPaused` records remain terminal.
+
+Execution admission, retries, cancellation, and reconnect decisions retain their existing APIs.
+Cancellation without a live worker and concurrent continuation admission remain unresolved.
+Reconnect still redispatches unresolved synchronous calls. Abrupt process loss can therefore repeat external writes.
+The client still supports one pending question form.
 
 ## Learn more
 

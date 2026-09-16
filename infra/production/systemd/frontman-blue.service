@@ -15,7 +15,7 @@ Restart=on-failure
 RestartSec=5
 
 KillMode=process
-TimeoutStopSec=30
+TimeoutStopSec=45
 
 NoNewPrivileges=yes
 ProtectSystem=strict

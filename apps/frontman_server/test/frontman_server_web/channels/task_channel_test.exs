@@ -23,8 +23,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServer.Workers.GenerateTitle
   alias FrontmanServerWeb.UserSocket
 
+  alias FrontmanServer.Protocols.{JsonRpc, MCP}
   alias FrontmanServer.Tasks.Interaction
-  alias ModelContextProtocol, as: MCP
 
   @persisted_restart_model "openrouter:openai/gpt-5.5"
   @logged_output_schema %{
@@ -181,16 +181,36 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   defp assert_state_update_running(task_id) do
-    assert_push(
-      "acp:message",
-      %{
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "state_update", "state" => "running"}
+    receive do
+      %Phoenix.Socket.Message{
+        event: "acp:message",
+        payload: %{
+          "params" => %{
+            "sessionId" => ^task_id,
+            "update" => %{"sessionUpdate" => "state_update", "state" => "running"}
+          }
         }
-      },
-      1_000
-    )
+      } ->
+        :ok
+
+      {:interaction, %{task_id: ^task_id, type: :turn_started}} ->
+        receive do
+          %Phoenix.Socket.Message{
+            event: "acp:message",
+            payload: %{
+              "params" => %{
+                "sessionId" => ^task_id,
+                "update" => %{"sessionUpdate" => "state_update", "state" => "running"}
+              }
+            }
+          } ->
+            :ok
+        after
+          100 -> :ok
+        end
+    after
+      1_000 -> flunk("expected running state update or turn_started interaction")
+    end
   end
 
   defp assert_state_update_running_then_idle(task_id) do
@@ -240,7 +260,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     assert message =~
              "#{reason} for task #{task_id}, tool testTool, call #{tool_call.tool_call_id}"
 
-    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
     refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
   end
 
@@ -269,7 +289,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     assert_receive {:tool_result, ^tool_call_id,
                     [%SwarmAi.Message.ContentPart{type: :text, text: ^message}], true}
 
-    assert {:ok, task} = Tasks.get_task(scope, task_id)
+    assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
     assert Enum.any?(
              Tasks.interactions(task),
@@ -412,15 +432,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_reply(ref, :ok, %{"acp:message" => response})
       assert response["result"] == %{}
 
-      assert_enqueued(
-        worker: GenerateTitle,
-        args: %{
-          user_id: user.id,
-          task_id: task_id,
-          model: "openrouter:openai/gpt-5.5"
-        }
-      )
-
       assert_state_update_running(task_id)
 
       assert_push("acp:message", %{
@@ -440,7 +451,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_state_update_idle(task_id)
 
-      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert Enum.any?(all_enqueued(), fn %{args: args, worker: worker} ->
+               worker == "FrontmanServer.Workers.GenerateTitle" and args["user_id"] == user.id and
+                 args["task_id"] == task_id and args["model"] == "openrouter:openai/gpt-5.5" and
+                 args["user_prompt_text"] == "Hello"
+             end)
+
+      assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert Enum.any?(task.interaction_rows, &(&1.type == :user_message and &1.id == message_id))
       turn_row = Enum.find(task.interaction_rows, &(&1.type == :turn_started))
       response = Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentResponse{}, &1))
@@ -532,7 +549,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
 
-      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert [%Interaction.UserMessage{agent_id: "test-planner"}] = Tasks.interactions(task)
     end
 
@@ -557,7 +574,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert response["error"]["code"] == JsonRpc.error_invalid_params()
       assert response["error"]["message"] == "Unknown agent"
 
-      assert {:ok, task} = Tasks.get_task(scope, task_id)
+      assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert Tasks.interactions(task) == []
     end
 
@@ -610,7 +627,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         assert response["error"]["code"] == JsonRpc.error_invalid_params()
         assert response["error"]["message"] == unquote(expected_message)
 
-        assert {:ok, task} = Tasks.get_task(scope, task_id)
+        assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
         assert Tasks.interactions(task) == []
         assert all_enqueued(worker: GenerateTitle) == []
 
@@ -724,7 +741,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_state_update_idle(task_id)
       assert_state_update_running_then_idle(task_id)
 
-      assert {:ok, task} = Tasks.get_task(socket.assigns.scope, task_id)
+      assert {:ok, task} = Tasks.get_task_with_history(socket.assigns.scope, task_id)
 
       assert [^first_message_id, ^second_message_id] =
                task.interaction_rows
@@ -776,18 +793,36 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       {:ok, socket: socket, task_id: task_id}
     end
 
+    test "a delayed synchronous dispatch cannot execute after cancellation", %{
+      scope: scope,
+      task_id: task_id,
+      socket: socket
+    } do
+      :ok = :sys.suspend(socket.channel_pid)
+      turn_number = start_turn_fixture(scope, task_id)
+      call = tool_call("delayed_mutation", "write_file")
+      {:ok, _} = persist_tool_call_fixture(scope, task_id, turn_number, call)
+      assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user})
+      :ok = :sys.resume(socket.channel_pid)
+      :sys.get_state(socket.channel_pid)
+
+      refute_push("mcp:message", %{
+        "method" => "tools/call",
+        "params" => %{"name" => "write_file"}
+      })
+
+      assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+    end
+
     test "channel receives tool call interactions via PubSub broadcast", %{
       socket: _socket,
+      scope: scope,
       task_id: task_id
     } do
       tool_call =
         tool_call("call_pubsub_#{:rand.uniform(1_000_000)}", "testTool", %{"key" => "value"})
 
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        task_topic(task_id),
-        interaction_event(tool_call, 1)
-      )
+      persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
@@ -797,6 +832,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "channel does NOT receive broadcasts to different topics", %{
       socket: _socket,
+      scope: scope,
       task_id: task_id
     } do
       different_topic = "task:different_#{:rand.uniform(1_000_000)}"
@@ -818,11 +854,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           tool_name: "ownTool"
       }
 
-      Phoenix.PubSub.broadcast(
-        FrontmanServer.PubSub,
-        task_topic(task_id),
-        interaction_event(tool_call2, 1)
-      )
+      persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call2)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
@@ -1001,7 +1033,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       assert :ok =
-               ModelContextProtocol.Schema.validate_call_tool_result(
+               MCP.Schema.validate_call_tool_result(
                  result,
                  @logged_output_schema
                )
@@ -1009,7 +1041,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert :error =
                result
                |> Map.put("structuredContent", %{})
-               |> ModelContextProtocol.Schema.validate_call_tool_result(@logged_output_schema)
+               |> MCP.Schema.validate_call_tool_result(@logged_output_schema)
     end
   end
 
@@ -1077,7 +1109,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "sends MCP discovery request on join", %{scope: scope} do
       {_socket, _task_id} = join_task_channel(scope)
 
-      expected_version = ModelContextProtocol.protocol_version()
+      expected_version = MCP.protocol_version()
 
       assert_push("mcp:message", %{
         "jsonrpc" => "2.0",
@@ -1649,7 +1681,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  describe "session/cancel" do
+  describe "session/command" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
@@ -1683,7 +1715,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "deduplicates tool_call_create when interaction arrives after tool_call", %{
       socket: socket,
-      task_id: _task_id
+      scope: scope,
+      task_id: task_id
     } do
       tool_call_id = "call_dedup_#{:rand.uniform(1_000_000)}"
       activate_turn(socket, "turn-1")
@@ -1703,7 +1736,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tc =
         tool_call(tool_call_id, "write_file", %{"target_file" => "test.txt", "content" => "hello"})
 
-      send(socket.channel_pid, interaction_event(tc, 1))
+      persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tc)
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1731,13 +1764,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "sends tool_call_create for interactions without prior tool_call", %{
       socket: socket,
+      scope: scope,
       task_id: task_id
     } do
       tool_call_id = "call_no_start_#{:rand.uniform(1_000_000)}"
 
       tc = tool_call(tool_call_id, "take_screenshot")
 
-      send(socket.channel_pid, interaction_event(tc, 1))
+      persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tc)
       :sys.get_state(socket.channel_pid)
 
       assert_push("acp:message", %{
@@ -1771,7 +1805,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, _tool_call} =
-        persist_response_tool_call_fixture(scope, task_id, turn_number, "", tool_call)
+        persist_response_tool_call_fixture(
+          scope,
+          task_id,
+          turn_number,
+          "",
+          tool_call,
+          :interactive
+        )
 
       {:ok, task_id: task_id, scope: scope, tool_call_id: tool_call_id}
     end
@@ -1785,7 +1826,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       {:ok, _reply, socket} =
@@ -1831,7 +1872,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_receive {:resumed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}, 1_000
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_results =
         Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
@@ -1856,7 +1897,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, _tool_call} =
-        persist_response_tool_call_fixture(scope, task_id, turn_number, "", second_tool_call)
+        persist_response_tool_call_fixture(
+          scope,
+          task_id,
+          turn_number,
+          "",
+          second_tool_call,
+          :interactive
+        )
 
       Tasks.handle_swarm_event(scope, task_id, turn_number, {:terminated, :shutdown})
       expect_resumed_model()
@@ -1973,7 +2021,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       first_turn_number = latest_turn_number(task_id)
 
       {:ok, _tool_call} =
-        persist_response_tool_call_fixture(scope, task_id, first_turn_number, "", first_tc)
+        persist_response_tool_call_fixture(
+          scope,
+          task_id,
+          first_turn_number,
+          "",
+          first_tc,
+          :interactive
+        )
 
       Tasks.resolve_tool_request(
         scope,
@@ -1989,7 +2044,14 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       second_turn_number = latest_turn_number(task_id)
 
       {:ok, _tool_call} =
-        persist_response_tool_call_fixture(scope, task_id, second_turn_number, "", second_tc)
+        persist_response_tool_call_fixture(
+          scope,
+          task_id,
+          second_turn_number,
+          "",
+          second_tc,
+          :interactive
+        )
 
       {:ok, _reply, socket} =
         UserSocket
@@ -2079,7 +2141,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_results =
         Enum.filter(Tasks.interactions(task), &match?(%Tasks.Interaction.ToolResult{}, &1))
@@ -2193,7 +2255,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       retried_error_id = error_interaction.id
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       refute Enum.any?(
                Tasks.interactions(task),
@@ -2211,13 +2273,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       send(socket.channel_pid, {:fire_retry, make_ref()})
       :sys.get_state(socket.channel_pid)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentRetry{}, &1))
 
       send(socket.channel_pid, {:fire_retry, retry_state.timer_token})
       :sys.get_state(socket.channel_pid)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       assert Enum.any?(
                Tasks.interactions(task),
@@ -2228,6 +2290,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                  &1
                )
              )
+
+      assert_state_update_running_then_idle(task_id)
     end
 
     test "non-retryable error pushes error notification without retryAt", %{
@@ -2247,7 +2311,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "session/retry_turn notification creates AgentRetry interaction", %{
+    test "retry_turn command creates AgentRetry interaction", %{
       scope: scope,
       socket: socket,
       task_id: task_id
@@ -2263,15 +2327,16 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "acp:message",
-        build_acp_request("session/retry_turn", nil, %{
+        build_acp_request("session/command", nil, %{
           "sessionId" => task_id,
+          "command" => "retry_turn",
           "retriedErrorId" => retried_error_id
         })
       )
 
       :sys.get_state(socket.channel_pid)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       assert Enum.any?(
                Tasks.interactions(task),
@@ -2286,7 +2351,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_state_update_idle(task_id)
     end
 
-    test "session/retry_turn rejects client-generated error ids", %{
+    test "retry_turn command rejects client-generated error ids", %{
       scope: scope,
       socket: socket,
       task_id: task_id
@@ -2302,15 +2367,16 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "acp:message",
-        build_acp_request("session/retry_turn", nil, %{
+        build_acp_request("session/command", nil, %{
           "sessionId" => task_id,
+          "command" => "retry_turn",
           "retriedErrorId" => retried_error_id
         })
       )
 
       :sys.get_state(socket.channel_pid)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       refute Enum.any?(
                Tasks.interactions(task),
@@ -2327,6 +2393,94 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           }
         }
       })
+    end
+
+    test "unqueue broadcasts confirmation after deleting a queued message", %{
+      scope: scope,
+      socket: socket,
+      task_id: task_id
+    } do
+      message_id = Ecto.UUID.generate()
+
+      {:ok, _row} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: message_id,
+          message: [%{"type" => "text", "text" => "Remove me"}],
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{"sessionUpdate" => "user_message_chunk", "messageId" => ^message_id}
+        }
+      })
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/command", nil, %{
+          "sessionId" => task_id,
+          "command" => "unqueue_message",
+          "messageId" => message_id
+        })
+      )
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "sessionId" => ^task_id,
+          "update" => %{"sessionUpdate" => "message_unqueued", "messageId" => ^message_id}
+        }
+      })
+
+      assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+      refute Enum.any?(task.interaction_rows, &(&1.id == message_id))
+    end
+
+    test "unqueue cannot delete a message claimed by a turn", %{
+      scope: scope,
+      socket: socket,
+      task_id: task_id
+    } do
+      start_turn_fixture(scope, task_id, [%{"type" => "text", "text" => "Claimed"}])
+
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+      [%{id: message_id}] =
+        Enum.filter(task.interaction_rows, &(&1.type == :user_message))
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/command", nil, %{
+          "sessionId" => task_id,
+          "command" => "unqueue_message",
+          "messageId" => message_id
+        })
+      )
+
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "message_unqueued"}}
+      })
+
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+      assert Enum.any?(task.interaction_rows, &(&1.id == message_id))
+    end
+
+    test "malformed unqueue IDs leave the channel alive", %{socket: socket, task_id: task_id} do
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/command", nil, %{
+          "sessionId" => task_id,
+          "command" => "unqueue_message",
+          "messageId" => 1
+        })
+      )
+
+      :sys.get_state(socket.channel_pid)
+      assert Process.alive?(socket.channel_pid)
     end
 
     test "cancel during retry countdown clears pending retry without recording retry", %{
@@ -2360,7 +2514,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       })
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       refute Enum.any?(
                Tasks.interactions(task),

@@ -4,12 +4,19 @@ set -euo pipefail
 DEPLOY_ROOT="/opt/frontman-notifier"
 SERVICE_NAME="frontman-notifier"
 FRONTMAN_ENV="/opt/frontman/blue/env"
+SHARED_ENV="/opt/frontman/shared/discord.env"
 
 echo "=== Frontman Notifier Setup ==="
 echo "Deploy root: ${DEPLOY_ROOT}"
 echo ""
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ ! -f "${SHARED_ENV}" ]; then
+  install -d -o deploy -g deploy -m 0700 "$(dirname "${SHARED_ENV}")"
+  install -o deploy -g deploy -m 0600 "${SCRIPT_DIR}/../discord.env.template" "${SHARED_ENV}"
+  echo "Created ${SHARED_ENV}. Fill the task webhook URL before starting the notifier."
+fi
 
 frontman_database_url() {
   if [ -f "${FRONTMAN_ENV}" ]; then
@@ -58,7 +65,7 @@ if [ ! -f "${DEPLOY_ROOT}/env" ]; then
 
   chown deploy:deploy "${DEPLOY_ROOT}/env"
   chmod 600 "${DEPLOY_ROOT}/env"
-  echo "Created ${DEPLOY_ROOT}/env. Fill Discord webhook URLs and optional GITHUB_TOKEN."
+  echo "Created ${DEPLOY_ROOT}/env. Fill the stargazer webhook URL and optional GITHUB_TOKEN."
 else
   echo "${DEPLOY_ROOT}/env already exists; leaving it unchanged."
 fi
@@ -69,5 +76,6 @@ echo "  Frontman Notifier Setup Complete"
 echo "=============================================="
 echo ""
 echo "Next steps:"
-echo "1. Edit ${DEPLOY_ROOT}/env and fill Discord webhook URLs."
-echo "2. Run the deploy-notifier workflow or push a notifier path change to main."
+echo "1. Edit ${DEPLOY_ROOT}/env and fill the stargazer webhook URL."
+echo "2. Set the task webhook URL in ${SHARED_ENV}."
+echo "3. Run the deploy-notifier workflow or push a notifier path change to main."

@@ -3,9 +3,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
   import ExUnit.CaptureLog
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServerWeb.ChannelCase
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
-  alias ModelContextProtocol, as: MCP
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
@@ -59,7 +59,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       MCPInitializer.handle_response(state, state.discovery_request_id, result)
 
     assert tools_request["method"] == "tools/list"
-    assert tools_request["params"] == ModelContextProtocol.tools_list_params()
+    assert tools_request["params"] == MCP.tools_list_params()
   end
 
   describe "handle_timeout/1" do

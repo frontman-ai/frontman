@@ -60,18 +60,20 @@ let icon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewB
 @val @scope(("import", "meta"))
 external importMetaUrl: string = "url"
 
-let getToolbarAppPath = () => {
-  let url = WebAPI.URL.make(~url="./toolbar.js", ~base=importMetaUrl)
+let getBrowserScriptPath = filename => {
+  let url = WebAPI.URL.make(~url=filename, ~base=importMetaUrl)
   url.pathname
 }
 
 let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
   let config = Config.makeFromObject(configInput)
 
-  let astroMajorVersion = getAstroMajorVersion()
+  let astroVersion = getAstroVersion()
+  let astroMajorVersion = astroVersion->parseMajorVersion
   let useResolvedRoutes = astroMajorVersion >= 5
   let resolvedRoutes = ref([])
   let trailingSlash = ref(#ignore)
+  let resolvedAstroConfig = ref(None)
 
   let routeDiscovery: Middleware.routeDiscovery = switch useResolvedRoutes {
   | true => ResolvedRoutes({getRoutes: () => resolvedRoutes.contents})
@@ -104,6 +106,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
                     config,
                     ~routeDiscovery,
                     ~loadContentApi,
+                    ~getAstroConfig=() => resolvedAstroConfig.contents,
                   )
                   let connectMiddleware = ViteAdapter.adaptToConnect(
                     webMiddleware,
@@ -149,7 +152,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               id: "frontman:toolbar",
               name: "Frontman",
               icon,
-              entrypoint: getToolbarAppPath(),
+              entrypoint: getBrowserScriptPath("./toolbar.js"),
             })
 
             let safeBasePath = JSON.stringifyAny(config.basePath)->Option.getOr(`"frontman"`)
@@ -160,10 +163,21 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               document.head.appendChild(meta);
             }`
             ctx.injectScript("head-inline", basePathMeta ++ "\n" ++ annotationCaptureScript)
+            let navigationPath =
+              getBrowserScriptPath("./navigation.js")->S.decodeOrThrow(
+                ~from=S.string,
+                ~to=S.jsonString,
+              )
+            ctx.injectScript("page", `import ${navigationPath};`)
           }
         },
       ),
-      configDone: ?Some(({config}) => trailingSlash := config.trailingSlash),
+      configDone: ?Some(
+        ({config, buildOutput}) => {
+          trailingSlash := config.trailingSlash
+          resolvedAstroConfig := Some({astroVersion, buildOutput, config})
+        },
+      ),
       serverSetup: ?Some(
         ({server, toolbar}) => {
           FrontmanAiFrontmanCore.FrontmanCore__LogCapture.initialize()

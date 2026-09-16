@@ -78,7 +78,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
         let previousContent = await FsUtils.readFileIfExists(resolved.resolvedPath)
         let guardResult = switch previousContent {
         | None => Ok()
-        | Some(_) => await FileTracker.assertEditSafe(resolved.resolvedPath)
+        | Some(_) => await FileTracker.assertEditSafe(resolved.safePath)
         }
         switch guardResult {
         | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
@@ -87,7 +87,7 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
           await writeContent(resolved.resolvedPath, content, input.encoding)
           let stats = await Fs.Promises.stat(resolved.resolvedPath)
           FileTracker.recordWrite(
-            resolved.resolvedPath,
+            resolved.safePath,
             ~mtimeMs=Fs.mtimeMs(stats),
             ~size=Fs.size(stats),
           )

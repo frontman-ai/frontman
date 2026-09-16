@@ -21,6 +21,14 @@ $GLOBALS['frontman_test_cache_cleared'] = [];
 
 class WP_Post extends stdClass {}
 
+function current_user_can( string $capability, ...$args ): bool {
+	return true;
+}
+
+function get_post_type_object( string $type ) {
+	return (object) [ 'cap' => (object) [ 'create_posts' => 'edit_posts', 'publish_posts' => 'publish_posts', 'edit_others_posts' => 'edit_others_posts' ] ];
+}
+
 if ( ! function_exists( 'sanitize_text_field' ) ) {
 	function sanitize_text_field( $value ): string {
 		return trim( (string) $value );
@@ -564,12 +572,6 @@ if ( ! function_exists( 'wp_setup_nav_menu_item' ) ) {
 	}
 }
 
-if ( ! function_exists( 'wp_get_sidebars_widgets' ) ) {
-	function wp_get_sidebars_widgets(): array {
-		return $GLOBALS['frontman_test_options']['sidebars_widgets'] ?? [];
-	}
-}
-
 if ( ! function_exists( 'wp_get_theme' ) ) {
 	function wp_get_theme() {
 		return new class() {
@@ -632,7 +634,6 @@ require_once __DIR__ . '/../tools/class-tool-blocks.php';
 require_once __DIR__ . '/../tools/class-tool-menus.php';
 require_once __DIR__ . '/../tools/class-tool-options.php';
 require_once __DIR__ . '/../tools/class-tool-templates.php';
-require_once __DIR__ . '/../tools/class-tool-widgets.php';
 require_once __DIR__ . '/../tools/class-tool-cache.php';
 
 class Frontman_Mutation_Snapshots_Test_Runner {
@@ -648,10 +649,9 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->test_menu_management_snapshots();
 		$this->test_block_navigation_management();
 		$this->test_menu_item_creation_includes_before_snapshot();
-		$this->test_menu_option_and_widget_updates_include_before_snapshots();
+		$this->test_menu_and_option_updates_include_before_snapshots();
 		$this->test_theme_source_tools();
 		$this->test_post_backed_menu_items_preserve_metadata();
-		$this->test_widget_management_snapshots();
 		$this->test_template_update_snapshot();
 		$this->test_cache_tools();
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
@@ -762,20 +762,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			'page_title_enabled' => true,
 		];
 		$GLOBALS['frontman_test_options']['active_plugins'] = [ 'wp-rocket/wp-rocket.php' ];
-		$GLOBALS['frontman_test_options']['widget_text'] = [
-			2 => [ 'title' => 'Old Widget', 'text' => 'Old text' ],
-		];
-		$GLOBALS['frontman_test_options']['widget_categories'] = [
-			3 => [ 'title' => 'Categories Widget' ],
-		];
-		$GLOBALS['frontman_test_options']['sidebars_widgets'] = [
-			'sidebar-1' => [ 'text-2', 'categories-3' ],
-			'sidebar-2' => [],
-		];
-		$GLOBALS['wp_registered_sidebars'] = [
-			'sidebar-1' => [ 'name' => 'Primary Sidebar', 'description' => '' ],
-			'sidebar-2' => [ 'name' => 'Footer Sidebar', 'description' => '' ],
-		];
 		$GLOBALS['frontman_test_block_templates'][] = (object) [
 			'id' => 'frontman-theme//home',
 			'slug' => 'home',
@@ -820,6 +806,40 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		] );
 		$this->assert_same( 'Created', $created['after']['title'], 'wp_create_post returns created post snapshot as after' );
 		$this->assert_same( $created_content, $created['after']['content'], 'wp_create_post preserves backslashes through WordPress unslashing' );
+
+		$posts_before_slug_tests = serialize( $GLOBALS['frontman_test_posts'] );
+		$registry = new Frontman_Tools();
+		$tool->register( $registry );
+		foreach ( [ 'wp_create_post' => 'create_post', 'wp_update_post' => 'update_post' ] as $name => $handler ) {
+			$this->assert_same( 'string', $registry->get( $name )->input_schema['properties']['slug']['type'], "$name exposes a string slug" );
+			$this->assert_true( ! in_array( 'slug', $registry->get( $name )->input_schema['required'], true ), "$name keeps slug optional" );
+			$input = [ 'id' => 11, 'title' => 'Slug fixture', 'content' => 'Slug content', 'slug' => 'sample-%e6%97%a5-\\path' ];
+			$sanitized = $registry->sanitize_input( $name, $input );
+			$this->assert_same( $input['slug'], $sanitized['slug'], "$name preserves raw slug for core sanitization" );
+			$saved = $tool->$handler( $sanitized );
+			$this->assert_same( $input['slug'], $saved['after']['slug'], "$name passes post_name through the slashing boundary" );
+			$unchanged = $tool->update_post( [ 'id' => $saved['after']['id'], 'excerpt' => 'Metadata only' ] );
+			$this->assert_same( $input['slug'], $unchanged['after']['slug'], 'Omitted slug survives metadata-only edits' );
+			$input['slug'] = '';
+			$this->assert_same( '', $tool->$handler( $registry->sanitize_input( $name, $input ) )['after']['slug'], "$name passes explicit empty slug to core" );
+
+			foreach ( [ null, 123, 1.5, true, false, [], [ 'bad' ], (object) [ 'slug' => 'bad' ] ] as $invalid_slug ) {
+				$input['slug'] = $invalid_slug;
+				$before = serialize( $GLOBALS['frontman_test_posts'] );
+				$this->assert_error_contains(
+					static function() use ( $tool, $handler, $input ) { $tool->$handler( $input ); },
+					'slug must be a string',
+					"$name rejects invalid slugs in direct calls"
+				);
+				$this->assert_tool_error_result_contains(
+					$registry->call( $name, $registry->sanitize_input( $name, $input ) ),
+					'slug must be a string',
+					"$name rejects invalid slugs through the registry"
+				);
+				$this->assert_same( $before, serialize( $GLOBALS['frontman_test_posts'] ), "$name rejects invalid slugs before writes" );
+			}
+		}
+		$GLOBALS['frontman_test_posts'] = unserialize( $posts_before_slug_tests );
 
 		$this->assert_error_contains(
 			static function() use ( $tool ) {
@@ -1018,7 +1038,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_same( 'Footer Navigation', $deleted['before']['title'], 'wp_delete_navigation_menu returns deleted navigation snapshot' );
 	}
 
-	private function test_menu_option_and_widget_updates_include_before_snapshots(): void {
+	private function test_menu_and_option_updates_include_before_snapshots(): void {
 		$menu_tool = new Frontman_Tool_Menus();
 		$menu = $menu_tool->update_menu_item( [ 'menu_item_id' => 25, 'title' => 'New Label' ] );
 		$this->assert_same( 'Old Label', $menu['before']['title'], 'wp_update_menu_item returns previous menu item snapshot' );
@@ -1044,15 +1064,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			'Option not allowed',
 			'wp_update_option rejects complex widget/sidebar state writes'
 		);
-
-		$widget_tool = new Frontman_Tool_Widgets();
-		$widget = $widget_tool->update_widget( [
-			'sidebar_id' => 'sidebar-1',
-			'widget_id' => 'text-2',
-			'settings' => [ 'title' => 'New Widget' ],
-		] );
-		$this->assert_same( 'Old Widget', $widget['before']['title'], 'wp_update_widget returns previous widget settings' );
-		$this->assert_same( 'New Widget', $widget['settings']['title'], 'wp_update_widget returns updated widget settings' );
 
 		$this->assert_error_contains(
 			static function() use ( $menu_tool ) {
@@ -1289,6 +1300,79 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$registry_payload = json_decode( $registry_result['content'][0]['text'], true );
 		$this->assert_same( $registry_css, $registry_payload['after'], 'wp_update_custom_css preserves CSS through registry sanitization' );
 
+		$original = str_repeat( "/* unchanged padding */\r\n", 900 ) . '.target { color: red; }' . "\n" . $registry_css;
+		wp_update_custom_css_post( $original );
+		$GLOBALS['frontman_test_custom_css']['frontman-theme'] = '/* rendered filter output */';
+		$this->assert_same( '/* rendered filter output */', $tool->get_custom_css( [] )['css'], 'Default CSS reads preserve rendered output' );
+		$read = $tool->get_custom_css( [ 'source' => 'persisted' ] );
+		$this->assert_same( $original, $read['css'], 'Persisted CSS reads match fingerprint source' );
+		$edit = [
+			'mode' => 'edit', 'stylesheet' => $read['stylesheet'], 'parent_post_id' => $read['parent_post_id'],
+			'expected_current_sha256' => $read['persisted_css_sha256'], 'confirm' => true,
+			'oldText' => '.target { color: red; }', 'newText' => ".target {\n  color: blue;\n}",
+		];
+		$call_edit = static function( array $input ) use ( $registry ): array {
+			return $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', $input ) );
+		};
+		foreach ( [
+			[ [ 'mode' => 'append' ], 'mode must' ],
+			[ [ 'mode' => null ], 'mode must' ],
+			[ [ 'mode' => 'replace' ], 'only allowed' ],
+			[ [ 'css' => '' ], 'not allowed' ],
+			[ [ 'oldText' => '' ], 'nonempty' ],
+			[ [ 'newText' => $edit['oldText'] ], 'different' ],
+			[ [ 'oldText' => 'not present' ], 'not found' ],
+			[ [ 'oldText' => '/* unchanged padding */' ], 'Multiple matches' ],
+			[ [ 'oldText' => [] ], 'must be a string' ],
+			[ [ 'newText' => 42 ], 'must be a string' ],
+			[ [ 'replaceAll' => 'true' ], 'must be a boolean' ],
+			[ [ 'replaceAll' => null ], 'must be a boolean' ],
+			[ [ 'confirm' => 'true' ], 'confirm=true' ],
+			[ [ 'confirm' => false ], 'confirm=true' ],
+			[ [ 'parent_post_id' => '9001junk' ], 'positive integer' ],
+			[ [ 'parent_post_id' => 9999 ], 'does not match' ],
+			[ [ 'stylesheet' => 'inactive-theme' ], 'active stylesheet' ],
+			[ [ 'expected_current_sha256' => 'bad' ], 'SHA-256' ],
+			[ [ 'expected_current_sha256' => hash( 'sha256', 'stale' ) ], 'changed' ],
+		] as [ $overrides, $error ] ) {
+			$this->assert_tool_error_result_contains( $call_edit( array_merge( $edit, $overrides ) ), $error, 'CSS edit rejects ' . json_encode( $overrides ) );
+			$this->assert_same( $original, $tool->get_custom_css( [ 'source' => 'persisted' ] )['css'], 'Rejected edit leaves persisted CSS unchanged' );
+		}
+		foreach ( [ 'oldText', 'newText', 'stylesheet', 'parent_post_id', 'expected_current_sha256', 'confirm' ] as $field ) {
+			$missing = $edit;
+			unset( $missing[$field] );
+			$this->assert_same( true, $call_edit( $missing )['isError'], 'CSS edit requires ' . $field );
+		}
+		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme']->post_content_filtered = 'source';
+		$this->assert_tool_error_result_contains( $call_edit( $edit ), 'preprocessor', 'CSS edit rejects preprocessor state' );
+		$GLOBALS['frontman_test_custom_css_posts']['frontman-theme']->post_content_filtered = '';
+		$result = $call_edit( $edit );
+		$this->assert_same( false, $result['isError'], 'Exact CSS edit succeeds through registry' );
+		$receipt = json_decode( $result['content'][0]['text'], true );
+		$expected = str_replace( $edit['oldText'], $edit['newText'], $original );
+		$this->assert_same( $expected, $tool->get_custom_css( [ 'source' => 'persisted' ] )['css'], 'Small edit preserves all other bytes in a 20KB stylesheet' );
+		$this->assert_same( 1, $receipt['replacements'], 'Edit receipt reports replacement count' );
+		$this->assert_same( hash( 'sha256', $expected ), $receipt['after']['persisted_css_sha256'], 'Edit receipt fingerprints persisted output' );
+		$this->assert_same( strlen( $expected ), $receipt['after']['persisted_css_bytes'], 'Edit receipt counts persisted bytes' );
+		$this->assert_true( strlen( $result['content'][0]['text'] ) < 1000, 'Edit receipt does not echo stylesheet' );
+		$this->assert_tool_error_result_contains( $call_edit( $edit ), 'changed', 'Replaying successful edit with old fingerprint fails' );
+		foreach ( [
+			[ 'oldText' => $registry_css, 'newText' => $registry_css . "\n" . '.inserted::after { content: "\\31 $1 $$ \\path"; }' ],
+			[ 'oldText' => '.inserted::after { content: "\\31 $1 $$ \\path"; }', 'newText' => '' ],
+			[ 'oldText' => 'unchanged padding', 'newText' => 'literal $1 \\replacement', 'replaceAll' => true ],
+		] as $change ) {
+			$input = array_merge( $edit, $change, [ 'expected_current_sha256' => hash( 'sha256', $expected ) ] );
+			$result = $call_edit( $input );
+			$this->assert_same( false, $result['isError'], 'Insertion, deletion and replaceAll succeed' );
+			$expected = str_replace( $input['oldText'], $input['newText'], $expected, $count );
+			$receipt = json_decode( $result['content'][0]['text'], true );
+			$this->assert_same( $count, $receipt['replacements'], 'Exact occurrence count is reported' );
+			$this->assert_same( $expected, $tool->get_custom_css( [ 'source' => 'persisted' ] )['css'], 'Replacement strings stay literal through registry' );
+		}
+		foreach ( [ null, [], 'invalid' ] as $source ) {
+			$this->assert_tool_error_result_contains( $registry->call( 'wp_get_custom_css', $registry->sanitize_input( 'wp_get_custom_css', [ 'source' => $source ] ) ), 'source must', 'CSS read rejects invalid source' );
+		}
+
 		$mods = $tool->list_theme_mods( [] );
 		$this->assert_same( 'https://example.com/header.jpg', $mods['mods']['header_image'], 'wp_list_theme_mods exposes theme header source state' );
 
@@ -1338,82 +1422,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			'post-backed menu item',
 			'wp_update_menu_item rejects URL-only updates on post-backed menu items'
 		);
-	}
-
-	private function test_widget_management_snapshots(): void {
-		$tool = new Frontman_Tool_Widgets();
-
-		$this->assert_error_contains(
-			static function() use ( $tool ) {
-				$tool->create_widget( [
-					'sidebar_id' => 'sidebar-2',
-					'widget_base' => 'categories',
-					'settings' => [ 'title' => 'Categories' ],
-				] );
-			},
-			'text',
-			'wp_create_widget rejects unsupported widget bases'
-		);
-
-		$this->assert_error_contains(
-			static function() use ( $tool ) {
-				$tool->update_widget( [
-					'sidebar_id' => 'sidebar-1',
-					'widget_id' => 'categories-3',
-					'settings' => [ 'title' => 'Nope' ],
-				] );
-			},
-			'text',
-			'wp_update_widget rejects unsupported widget bases'
-		);
-
-		$this->assert_error_contains(
-			static function() use ( $tool ) {
-				$tool->delete_widget( [
-					'widget_id' => 'categories-3',
-					'confirm' => true,
-				] );
-			},
-			'text',
-			'wp_delete_widget rejects unsupported widget bases'
-		);
-
-		$created = $tool->create_widget( [
-			'sidebar_id' => 'sidebar-2',
-			'widget_base' => 'text',
-			'settings' => [ 'title' => 'Footer Widget', 'text' => 'Hello' ],
-		] );
-		$this->assert_same( 0, $created['before']['widget_count'], 'wp_create_widget captures sidebar state before creation' );
-		$this->assert_same( 1, $created['after']['widget_count'], 'wp_create_widget captures sidebar state after creation' );
-		$this->assert_same( 'Footer Widget', $tool->read_widget( [ 'widget_id' => $created['widget_id'] ] )['settings']['title'], 'wp_read_widget reads created widget settings' );
-
-		$moved = $tool->move_widget( [
-			'widget_id' => $created['widget_id'],
-			'to_sidebar_id' => 'sidebar-1',
-			'to_position' => 1,
-		] );
-		$this->assert_same( 'sidebar-2', $moved['before']['widget']['sidebar_id'], 'wp_move_widget captures original sidebar' );
-		$this->assert_same( 'sidebar-1', $moved['after']['widget']['sidebar_id'], 'wp_move_widget captures destination sidebar' );
-
-		$reordered = $tool->move_widget( [
-			'widget_id' => $created['widget_id'],
-			'to_sidebar_id' => 'sidebar-1',
-			'to_position' => 2,
-		] );
-		$this->assert_same( 2, $reordered['after']['widget']['position'], 'wp_move_widget can reorder within the same sidebar without duplicating the widget' );
-		$this->assert_same( $reordered['before']['from_sidebar']['widget_count'], $reordered['after']['from_sidebar']['widget_count'], 'same-sidebar widget move keeps the sidebar widget count stable' );
-
-		$this->assert_error_contains(
-			static function() use ( $tool, $created ) {
-				$tool->delete_widget( [ 'widget_id' => $created['widget_id'], 'confirm' => false ] );
-			},
-			'explicit confirmation',
-			'wp_delete_widget requires confirm=true'
-		);
-
-		$deleted = $tool->delete_widget( [ 'widget_id' => $created['widget_id'], 'confirm' => true ] );
-		$this->assert_same( $created['widget_id'], $deleted['widget_id'], 'wp_delete_widget reports deleted widget id' );
-		$this->assert_same( 'Footer Widget', $deleted['before']['widget']['settings']['title'], 'wp_delete_widget returns previous widget snapshot' );
 	}
 
 	private function test_template_update_snapshot(): void {

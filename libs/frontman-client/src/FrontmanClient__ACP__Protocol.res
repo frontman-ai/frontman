@@ -3,35 +3,67 @@ module Client = FrontmanClient__ACP__Client
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Constants = FrontmanClient__Transport__Constants
+module Decoders = FrontmanClient__Decoders
 module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
+type requestMethod = [#initialize | #"session/new" | #"session/load" | #"session/prompt"]
+
+let requestTimeoutMs = 120000
+
+let pushReplyMessageSchema: S.t<JSON.t> = S.object(s => s.field("acp:message", S.json))
+
+let parsePushReply = payload => {
+  payload
+  ->Decoders.parseSchema(pushReplyMessageSchema)
+  ->Result.mapError(error => `Invalid ACP push reply envelope: ${error}`)
+}
+
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
-  ~method: string,
+  ~method: requestMethod,
   ~params: option<JSON.t>,
+  ~timeoutMs: int=requestTimeoutMs,
   ~parseResult: JSON.t => result<'a, string>,
 ): promise<result<'a, string>> => {
+  let method = (method :> string)
   Promise.make((resolve, _) => {
     let id = state.contents.currentId + 1
+    let idStr = Int.toString(id)
     let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
+    let timer = ref(None)
+    let finish = result => {
+      timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
+      resolve(result)
+    }
 
     let pending: Client.pendingRequest = {
-      resolve: json => {
-        switch parseResult(json) {
-        | Ok(result) => resolve(Ok(result))
-        | Error(e) => resolve(Error(e))
-        }
-      },
-      reject: e => resolve(Error(e)),
+      resolve: json => finish(parseResult(json)),
+      reject: e => finish(Error(e)),
     }
 
     state := state.contents->Client.reduce(Client.RequestSent(id, pending))
+    timer :=
+      Some(
+        WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
+          state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
+          state := state.contents->Client.reduce(Client.ResponseReceived(id))
+          pending.reject(`Request ${method} timed out after ${Int.toString(timeoutMs)}ms`)
+        }),
+      )
 
     let payload = request->JsonRpc.Request.toJson
-    channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
+    let push = channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
+    push.receive(~status="ok", ~callback=reply => {
+      switch parsePushReply(reply) {
+      | Ok(message) => state := Client.handleResponse(state.contents, message)
+      | Error(error) =>
+        state := state.contents->Client.reduce(Client.ResponseReceived(id))
+        pending.reject(error)
+      }
+    })->ignore
   })
 }
 
@@ -44,7 +76,7 @@ let sendInitialize = (
   sendRequest(
     ~channel,
     ~state,
-    ~method="initialize",
+    ~method=#initialize,
     ~params=Some(params),
     ~parseResult=Client.parseInitializeResult,
   )
@@ -58,7 +90,7 @@ let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId
   sendRequest(
     ~channel,
     ~state,
-    ~method="session/new",
+    ~method=#"session/new",
     ~params=Some(JSON.Encode.object(params)),
     ~parseResult=Client.parseSessionNewResult,
   )
@@ -83,29 +115,37 @@ let sendPrompt = (
   sendRequest(
     ~channel,
     ~state,
-    ~method="session/prompt",
+    ~method=#"session/prompt",
     ~params=Some(promptParams),
     ~parseResult=Client.parsePromptResult,
   )
 }
 
 let sendCancel = (~channel: Channel.t, ~sessionId: string): unit => {
-  let cancelParams = JSON.Encode.object(
-    Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]),
-  )
-  let notification = JsonRpc.Notification.make(~method="session/cancel", ~params=Some(cancelParams))
+  let params = JSON.Encode.object(Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]))
+  let notification = JsonRpc.Notification.make(~method="session/cancel", ~params=Some(params))
   let payload = notification->JsonRpc.Notification.toJson
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
-let sendRetryTurn = (~channel: Channel.t, ~sessionId: string, ~retriedErrorId: string): unit => {
-  let params = JSON.Encode.object(
-    Dict.fromArray([
-      ("sessionId", JSON.Encode.string(sessionId)),
-      ("retriedErrorId", JSON.Encode.string(retriedErrorId)),
-    ]),
+let sendSessionCommand = (
+  ~channel: Channel.t,
+  ~sessionId: string,
+  ~command: string,
+  ~argument: option<(string, JSON.t)>,
+): unit => {
+  let params = [
+    ("sessionId", JSON.Encode.string(sessionId)),
+    ("command", JSON.Encode.string(command)),
+  ]
+  let params = switch argument {
+  | Some(argument) => Array.concat(params, [argument])
+  | None => params
+  }
+  let notification = JsonRpc.Notification.make(
+    ~method="session/command",
+    ~params=Some(JSON.Encode.object(Dict.fromArray(params))),
   )
-  let notification = JsonRpc.Notification.make(~method="session/retry_turn", ~params=Some(params))
   let payload = notification->JsonRpc.Notification.toJson
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }

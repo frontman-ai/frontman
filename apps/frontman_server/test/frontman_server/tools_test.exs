@@ -4,20 +4,21 @@ defmodule FrontmanServer.ToolsTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction.ToolResult
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools
+  alias FrontmanServer.Tools.AgentFeedback
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Tools.GetToolResult
   alias FrontmanServer.Tools.TodoWrite
   alias FrontmanServer.Tools.WebFetch
-  alias ModelContextProtocol, as: MCP
 
   setup do
     scope = user_scope_fixture()
     task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id
-    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
     {:ok, task_id: task_id, task: task, scope: scope, turn_number: latest_turn_number(task_id)}
   end
 
@@ -37,6 +38,7 @@ defmodule FrontmanServer.ToolsTest do
     test "tools expose expected access levels" do
       by_name = Map.new(Tools.backend_tools(), &{&1.name, &1.access})
 
+      assert by_name["agent_feedback"] == :read
       assert by_name["get_tool_result"] == :read
       assert by_name["web_fetch"] == :read
       assert by_name["todo_write"] == :write
@@ -46,6 +48,7 @@ defmodule FrontmanServer.ToolsTest do
   describe "find_tool/1" do
     test "finds registered tools" do
       for {tool_name, module} <- [
+            {"agent_feedback", AgentFeedback},
             {"todo_write", TodoWrite},
             {"get_tool_result", GetToolResult},
             {"web_fetch", WebFetch}
@@ -225,7 +228,7 @@ defmodule FrontmanServer.ToolsTest do
           turn_number: turn_number
         )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       context = build_context(task)
 
       result = GetToolResult.execute(%{"tool_call_id" => "tc-read"}, context)

@@ -1,5 +1,5 @@
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
-module SafePath = FrontmanCore__SafePath
+module PathContext = FrontmanCore__PathContext
 module FsUtils = FrontmanCore__FsUtils
 
 let name = Tool.ToolNames.fileExists
@@ -20,10 +20,10 @@ type output = bool
 let (visibleToAgent, outputJsonSchema) = (true, None)
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
-  switch SafePath.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
-  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
-  | Ok(safePath) =>
-    let exists = await FsUtils.pathExists(SafePath.toString(safePath))
+  switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
+  | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
+  | Ok(resolved) =>
+    let exists = await FsUtils.pathExists(resolved.resolvedPath)
     Tool.unstructuredResult(exists, outputSchema)
   }
 }

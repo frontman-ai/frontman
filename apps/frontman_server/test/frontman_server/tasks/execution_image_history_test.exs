@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Image
+  alias FrontmanServer.Protocols
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
@@ -101,7 +102,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     assert [%{type: :image, data: ^screenshot}] = image_parts([turn1_tool_message])
     refute content_text([turn1_tool_message]) =~ "data:image"
 
-    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
     persisted = tool_result!(Tasks.interactions(task), screenshot_tool_call_id)
     assert persisted.result == canonical_result
 
@@ -182,7 +183,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     assert [%{type: :image}] = image_parts([tool_message])
     refute content_text([tool_message]) =~ "data:image"
 
-    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
     persisted = tool_result!(Tasks.interactions(task), tool_call_id)
 
     assert persisted.result == %{
@@ -269,7 +270,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   end
 
   defp mcp_image_result(binary, mime \\ "image/png"),
-    do: ModelContextProtocol.tool_result_image(Base.encode64(binary), mime)
+    do: Protocols.MCP.tool_result_image(Base.encode64(binary), mime)
 
   defp client_mcp_image_result(binary, mime \\ "image/png") do
     %{

@@ -130,10 +130,12 @@ module ExecutePlanAction = {
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
-  let {session, createSession} = Client__FrontmanProvider.useFrontman()
+  let {session, createSession, connectionState} = Client__FrontmanProvider.useFrontman()
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
+  let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
+  let tasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
@@ -284,6 +286,16 @@ let make = (~onConfigureProvider: unit => unit) => {
   }
 
   let groupCacheRef: React.ref<Dict.t<ToolGroupTypes.toolGroup>> = React.useRef(Dict.make())
+  let recentTasks =
+    tasks
+    ->Array.filterMap(task =>
+      switch (Client__Task__Types.Task.getId(task), Client__Task__Types.Task.getTitle(task)) {
+      | (Some(id), Some(title)) => Some({Client__GetStartedTasks.id, title})
+      | _ => None
+      }
+    )
+    ->Array.slice(~start=0, ~end=5)
+
   let displayItems = React.useMemo1(() => {
     let items = groupMessages(messages)
     let prevCache = groupCacheRef.current
@@ -440,20 +452,27 @@ let make = (~onConfigureProvider: unit => unit) => {
   }
 
   <div className="relative flex flex-col h-full bg-[#130d20] text-zinc-200">
+    <Client__SupportBanner framework={Client__RuntimeConfig.read().framework} />
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
-        {switch hasActiveACPSession {
-        | true => React.null
-        | false =>
+        {switch (hasActiveACPSession, connectionState) {
+        | (true, _) => React.null
+        | (false, Error(message)) =>
+          <div role="alert" className="py-3 px-4 text-[13px] text-red-400">
+            {React.string(`Could not load project context: ${message}`)}
+          </div>
+        | (false, Connecting | LoggingOut | Connected | SessionActive(_) | Disconnected) =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
             <span className="shimmer-text"> {React.string("Loading project context...")} </span>
           </div>
         }}
 
-        {switch (hasActiveACPSession, totalItems) {
-        | (true, 0) =>
+        {switch (hasActiveACPSession, isNewTask, totalItems) {
+        | (true, true, 0) =>
           <Client__GetStartedTasks
+            recentTasks
+            onResume={taskId => Client__State.Actions.switchTask(~taskId)}
             onSelect={text =>
               selectGetStartedTask(
                 ~providerSetupRequired,
@@ -493,7 +512,14 @@ let make = (~onConfigureProvider: unit => unit) => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
-    <Client__QueuedMessagesDrawer messages=queuedUserMessages />
+    <Client__QueuedMessagesDrawer
+      messages=queuedUserMessages
+      onUnqueue={messageId =>
+        switch currentTaskId {
+        | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
+        | None => ()
+        }}
+    />
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {

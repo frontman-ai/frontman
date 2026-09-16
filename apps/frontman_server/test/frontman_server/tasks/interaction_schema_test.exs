@@ -150,11 +150,25 @@ defmodule FrontmanServer.Tasks.InteractionSchemaTest do
     end
   end
 
+  test "new dispatch writes require a supported execution mode", %{task: task} do
+    call = tool_call("mode_validation", "approval")
+    refute interaction_changeset(task, call, 1).valid?
+
+    for mode <- [:synchronous, :interactive] do
+      assert interaction_changeset(task, %{call | execution_mode: mode}, 1).valid?
+    end
+
+    refute interaction_changeset(task, %{call | execution_mode: :unsupported}, 1).valid?
+  end
+
   describe "JSON encoding" do
     test "encodes persisted interaction type from the row", %{task: task} do
       row =
         task
-        |> interaction_changeset(tool_call("call_1", "read_file"), 1)
+        |> interaction_changeset(
+          %{tool_call("call_1", "read_file") | execution_mode: :synchronous},
+          1
+        )
         |> Ecto.Changeset.apply_changes()
 
       decoded = row |> Jason.encode!() |> Jason.decode!()

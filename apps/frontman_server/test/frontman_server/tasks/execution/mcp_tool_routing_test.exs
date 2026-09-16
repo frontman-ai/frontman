@@ -9,13 +9,13 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Protocols.JsonRpc
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.MCP
   alias FrontmanServerWeb.UserSocket
-  alias JsonRpc
 
   describe "ToolExecutor MCP tool routing" do
     setup %{scope: scope} do
@@ -42,7 +42,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#main"}))
 
-      ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tool_call)
+      ToolExecutor.start_mcp_tool(scope, task_id, turn_number, :synchronous, tool_call)
 
       assert_push(
         "mcp:message",
@@ -71,7 +71,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
         name: "take_screenshot",
         description: "Take a screenshot",
         input_schema: %{},
-        on_timeout: :pause_agent,
+        execution_mode: :interactive,
         timeout_ms: 60_000
       }
 
@@ -115,7 +115,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       assert_receive_interaction(%Tasks.Interaction.AgentCompleted{}, _turn_number, 10_000)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       assert %Interaction.ToolResult{is_error: false} =
                Enum.find(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))

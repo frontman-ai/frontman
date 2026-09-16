@@ -44,7 +44,7 @@ defmodule FrontmanServer.Workers.SyncResendContact do
   end
 
   defp enabled? do
-    Application.get_env(:frontman_server, __MODULE__)[:enabled] == true
+    config()[:enabled] == true
   end
 
   defp post_contact(%User{email: email, name: name}) do
@@ -74,7 +74,11 @@ defmodule FrontmanServer.Workers.SyncResendContact do
   end
 
   defp req_options do
-    Application.get_env(:frontman_server, :sync_resend_contact_req_options, [])
+    config()[:req_options] || []
+  end
+
+  defp config do
+    Application.get_env(:frontman_server, __MODULE__, [])
   end
 
   defp first_name(nil), do: nil

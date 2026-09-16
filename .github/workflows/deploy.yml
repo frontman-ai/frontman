@@ -107,13 +107,17 @@ jobs:
             ./ \
             "deploy@${PROD_SERVER}:/opt/frontman/build/"
 
-      - name: Copy deploy script
+      - name: Copy deploy scripts
         run: |
           scp -i ~/.ssh/deploy_key \
             infra/production/build-and-deploy.sh \
             "deploy@${PROD_SERVER}:/opt/frontman/build-and-deploy.sh"
+          scp -i ~/.ssh/deploy_key \
+            infra/production/deploy.sh \
+            infra/production/rollback.sh \
+            "deploy@${PROD_SERVER}:/opt/frontman/"
           ssh -i ~/.ssh/deploy_key "deploy@${PROD_SERVER}" \
-            'chmod +x /opt/frontman/build-and-deploy.sh'
+            'chmod +x /opt/frontman/build-and-deploy.sh /opt/frontman/deploy.sh /opt/frontman/rollback.sh'
 
       - name: Build and deploy on server
         run: |

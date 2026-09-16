@@ -79,11 +79,24 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
       arguments: Jason.encode!(tool_call.arguments)
     }
 
-    Tasks.request_client_tool(scope, task_id, turn_number, swarm_tool_call)
+    Tasks.request_client_tool(
+      scope,
+      task_id,
+      turn_number,
+      swarm_tool_call,
+      Interaction.ToolCall.execution_mode(tool_call)
+    )
   end
 
   @doc "Persist an agent response and its matching client-handled tool call."
-  def persist_response_tool_call_fixture(scope, task_id, turn_number, content, tool_call) do
+  def persist_response_tool_call_fixture(
+        scope,
+        task_id,
+        turn_number,
+        content,
+        tool_call,
+        execution_mode \\ :synchronous
+      ) do
     metadata = %{
       "tool_calls" => [
         %{"id" => tool_call.id, "name" => tool_call.name, "arguments" => tool_call.arguments}
@@ -91,7 +104,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     }
 
     {:ok, _response} = Tasks.agent_replied(scope, task_id, turn_number, content, metadata)
-    Tasks.request_client_tool(scope, task_id, turn_number, tool_call)
+    Tasks.request_client_tool(scope, task_id, turn_number, tool_call, execution_mode)
   end
 
   @doc """

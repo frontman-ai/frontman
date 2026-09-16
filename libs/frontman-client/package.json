@@ -1,7 +1,7 @@
 {
 	"name": "@frontman-ai/frontman-client",
 	"private": true,
-	"version": "3.0.0",
+	"version": "4.0.1",
 	"description": "Browser-side client for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -30,11 +30,11 @@
 	},
 	"dependencies": {
 		"@frontman/logs": "workspace:*",
-		"@sentry/browser": "^10.63.0",
+		"@sentry/browser": "^10.70.0",
 		"phoenix": "^1.8.9"
 	},
 	"devDependencies": {
-		"@rescript/webapi": "catalog:",
+		"@rescript/webapi": "workspace:*",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",

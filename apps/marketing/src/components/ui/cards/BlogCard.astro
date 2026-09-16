@@ -4,6 +4,7 @@ import { Image } from 'astro:assets'
 import Card from './partials/Card.astro'
 import CardBody from './partials/CardBody.astro'
 import Badge from '../Badge.astro'
+import { blogTransitionName } from '../../../utils/blogTransitionName'
 
 type Props = {
 	title?: string
@@ -27,7 +28,7 @@ const {
 	{link && <a href={link} class="card-link" aria-label={title}><span class="sr-only">{title}</span></a>}
 	{image && <Image src={image} alt={title} width={600} height={400} class="blog-card-image" />}
 	<CardBody classes="flex-grow">
-		<h2 class="post-title">{title}</h2>
+		<h2 class="post-title" style={link ? { viewTransitionName: blogTransitionName(link) } : undefined}>{title}</h2>
 		<h4 class="post-subtitle">{subtitle}</h4>
 		<slot />
 	</CardBody>

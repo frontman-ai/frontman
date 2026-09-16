@@ -64,8 +64,10 @@ defmodule FrontmanServer.MixProject do
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_view, "~> 1.2.1"},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:phoenix_live_dashboard, "~> 0.9.0"},
       {:req_llm, github: "agentjido/req_llm", branch: "main", override: true},
+      {:llm_db,
+       github: "agentjido/llmdb", ref: "2cd54cc0773536a50a672f7753d48f3a845e6292", override: true},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.2.0",
@@ -77,7 +79,6 @@ defmodule FrontmanServer.MixProject do
       {:oban, "~> 2.20"},
       {:req, "~> 0.5"},
       {:html2markdown, "~> 0.3"},
-      {:uuidv7, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
@@ -97,8 +98,7 @@ defmodule FrontmanServer.MixProject do
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:bypass, "~> 2.1", only: :test},
-      {:mox, "~> 1.2", only: :test},
-      {:toml, github: "bitwalker/toml-elixir", branch: "main", override: true}
+      {:mox, "~> 1.2", only: :test}
     ]
   end
 end

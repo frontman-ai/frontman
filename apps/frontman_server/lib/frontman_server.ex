@@ -18,6 +18,7 @@ defmodule FrontmanServer do
     {Agents, []},
     {Organizations, []},
     {Providers, []},
+    {Skills, []},
     {Tasks, []},
     {Frameworks, []},
     BrandTokens,
@@ -34,6 +35,7 @@ defmodule FrontmanServer do
     Observability.SentryContext,
     Workers.GenerateTitle,
     Workers.NotifyDiscordNewUser,
+    Workers.SendAgentFeedbackToDiscord,
     Workers.SendWelcomeEmail,
     Workers.SyncResendContact
   ]
@@ -43,5 +45,5 @@ defmodule FrontmanServer do
               _ -> @base_exports
             end)
 
-  use Boundary, deps: [ModelContextProtocol], exports: @exports
+  use Boundary, deps: [FrontmanServer.Protocols.MCP], exports: @exports
 end

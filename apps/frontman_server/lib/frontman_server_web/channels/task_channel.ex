@@ -15,11 +15,11 @@ defmodule FrontmanServerWeb.TaskChannel do
   use FrontmanServerWeb, :channel
   require Logger
 
-  alias AgentClientProtocol, as: ACP
-  alias AgentClientProtocol.History, as: ACPHistory
   alias FrontmanServer.Agents
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
+  alias FrontmanServer.Protocols.ACP.History, as: ACPHistory
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.History, as: TaskHistory
@@ -27,20 +27,18 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Tasks.Todos.Todo
   alias FrontmanServer.Tools
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
-  alias ModelContextProtocol, as: MCP
-  alias ModelContextProtocol.Schema, as: MCPSchema
+  alias MCP.Schema, as: MCPSchema
 
   @acp_message ACP.event_acp_message()
   @acp_title_updated ACP.event_title_updated()
   @acp_method_session_prompt ACP.method_session_prompt()
-  @acp_method_session_cancel ACP.method_session_cancel()
   @acp_method_session_load ACP.method_session_load()
   @mcp_init_timeout_ms 30_000
   @impl true
   def join("task:" <> task_id, _params, socket) do
     scope = socket.assigns.scope
 
-    with {:ok, task} <- Tasks.get_task(scope, task_id),
+    with {:ok, task} <- Tasks.get_task_with_history(scope, task_id),
          {:ok, _owner} <-
            Registry.register(FrontmanServer.ProcessRegistry, {:task_channel, task_id}, nil) do
       {:ok, history} = TaskHistory.new(task.interaction_rows)
@@ -80,8 +78,11 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, {:request, id, @acp_method_session_prompt, params}} ->
         handle_prompt(id, params, socket)
 
-      {:ok, {:notification, @acp_method_session_cancel, params}} ->
-        handle_cancel(params, socket)
+      {:ok, {:notification, "session/cancel", _params}} ->
+        handle_cancel(socket)
+
+      {:ok, {:notification, "session/command", params}} ->
+        handle_session_command(params, socket)
 
       {:ok, {:request, id, @acp_method_session_load, params}} ->
         handle_session_load(id, params, socket)
@@ -93,9 +94,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           JsonRpc.error_method_not_found(),
           "Method not found: #{method}"
         )
-
-      {:ok, {:notification, "session/retry_turn", %{"retriedErrorId" => retried_error_id}}} ->
-        handle_retry_turn(retried_error_id, socket)
 
       {:ok, {:notification, _method, _params}} ->
         {:noreply, socket}
@@ -179,8 +177,36 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_turn_started(interaction, turn_started_id, turn_number, socket)
   end
 
+  def handle_info(
+        {:interaction, %{id: message_id, data: %Tasks.Interaction.UserMessage{} = message}},
+        socket
+      ) do
+    message
+    |> ACP.Content.from_user_message()
+    |> Enum.each(fn content ->
+      notification =
+        ACP.build_user_message_chunk_notification(
+          socket.assigns.task_id,
+          message_id,
+          content,
+          message.agent_id,
+          message.timestamp
+        )
+
+      push(socket, @acp_message, notification)
+    end)
+
+    {:noreply, socket}
+  end
+
   def handle_info({:interaction, %{data: interaction, turn_number: turn_number}}, socket) do
     handle_interaction(interaction, turn_number, socket)
+  end
+
+  def handle_info({:message_unqueued, message_id}, socket) when is_binary(message_id) do
+    notification = ACP.build_message_unqueued_notification(socket.assigns.task_id, message_id)
+    push(socket, @acp_message, notification)
+    {:noreply, socket}
   end
 
   def handle_info({:fire_retry, token}, socket) do
@@ -218,7 +244,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, assign(socket, :active_turn, context)}
   end
 
-  defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
+  defp dispatch_tool_call(tool_call, socket) do
     task_id = socket.assigns.task_id
 
     announced = socket.assigns[:announced_tool_calls] || MapSet.new()
@@ -254,6 +280,13 @@ defmodule FrontmanServerWeb.TaskChannel do
 
       :mcp ->
         route_to_mcp(tool_call, socket)
+    end
+  end
+
+  defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
+    case open_tool_call(socket, tool_call.tool_call_id) do
+      {:ok, pending} -> dispatch_tool_call(pending, socket)
+      :error -> {:noreply, socket}
     end
   end
 
@@ -326,7 +359,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp load_turn_context!(socket, turn_number) do
-    {:ok, task} = Tasks.get_task(socket.assigns.scope, socket.assigns.task_id)
+    {:ok, task} = Tasks.get_task_with_history(socket.assigns.scope, socket.assigns.task_id)
     {:ok, history} = TaskHistory.new(task.interaction_rows)
     TaskHistory.turn_context(history, turn_number)
   end
@@ -479,10 +512,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp resume_agent(socket, scope, task_id) do
-    Tasks.resume_execution(scope, task_id, %{
-      mcp_tools: socket.assigns.mcp_tools,
-      project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
-    })
+    Tasks.resume_execution(scope, task_id, execution_context(socket, nil))
 
     socket
   end
@@ -551,7 +581,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     Logger.error("MCP tool execution failed", metadata)
 
-    result = ModelContextProtocol.tool_result_error(error_message)
+    result = MCP.tool_result_error(error_message)
     {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end
 
@@ -568,7 +598,28 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp mcp_error_code(%{"code" => code}) when is_integer(code), do: code
   defp mcp_error_code(_error), do: :unknown
 
-  defp handle_cancel(_params, socket) do
+  defp handle_session_command(%{"command" => "cancel"}, socket), do: handle_cancel(socket)
+
+  defp handle_session_command(
+         %{"command" => "retry_turn", "retriedErrorId" => retried_error_id},
+         socket
+       )
+       when is_binary(retried_error_id),
+       do: handle_retry_turn(retried_error_id, socket)
+
+  defp handle_session_command(
+         %{"command" => "unqueue_message", "messageId" => message_id},
+         socket
+       )
+       when is_binary(message_id),
+       do: handle_unqueue_message(message_id, socket)
+
+  defp handle_session_command(params, socket) do
+    Logger.warning("Invalid session command: #{inspect(params)}")
+    {:noreply, socket}
+  end
+
+  defp handle_cancel(socket) do
     task_id = socket.assigns.task_id
     Logger.info("Cancel notification received for task #{task_id}")
 
@@ -599,7 +650,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
     Logger.info("ACP session/load request received on session channel for: #{task_id}")
 
-    case Tasks.get_task(scope, task_id) do
+    case Tasks.get_task_with_history(scope, task_id) do
       {:ok, task} ->
         {:ok, history} = TaskHistory.new(task.interaction_rows)
         {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
@@ -654,7 +705,6 @@ defmodule FrontmanServerWeb.TaskChannel do
                accept_prompt(scope, task_id, content_blocks, model, agent_id, meta) do
           push_rewind_if_edited(socket, task_id, meta["frontman.dev/replacesMessageId"])
           push_user_message_chunks(socket, task_id, row)
-
           wake_runner(socket, meta)
 
           Logger.info("User message accepted for task #{task_id}")
@@ -676,6 +726,9 @@ defmodule FrontmanServerWeb.TaskChannel do
           {:error, :unknown_agent} ->
             reply_invalid_params(socket, id, "Unknown agent")
 
+          {:error, :skill_not_found} ->
+            reply_invalid_params(socket, id, "Selected skill not found")
+
           {:error, {:invalid_content_block, message}} ->
             Logger.error("Failed to add user message: #{message}")
             reply_invalid_params(socket, id, message)
@@ -696,7 +749,8 @@ defmodule FrontmanServerWeb.TaskChannel do
       message_id: meta["frontman.dev/messageId"],
       message: content_blocks,
       model: model,
-      agent_id: agent_id
+      agent_id: agent_id,
+      selected_server_skill_id: meta["selectedServerSkillId"]
     }
 
     case meta["frontman.dev/replacesMessageId"] do
@@ -836,6 +890,18 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
+  defp handle_unqueue_message(message_id, socket) do
+    case Tasks.unqueue_user_message(socket.assigns.scope, socket.assigns.task_id, message_id) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.info("Unqueue skipped for #{message_id}: #{inspect(reason)}")
+    end
+
+    {:noreply, socket}
+  end
+
   defp handle_retry_turn(retried_error_id, socket) do
     retry_turn(socket, retried_error_id)
     {:noreply, socket}
@@ -846,11 +912,7 @@ defmodule FrontmanServerWeb.TaskChannel do
            socket.assigns.scope,
            socket.assigns.task_id,
            retried_error_id,
-           %{
-             model: nil,
-             mcp_tools: socket.assigns.mcp_tools,
-             project_traits: Frameworks.project_traits_from_meta(nil, socket.assigns.framework)
-           }
+           execution_context(socket, nil)
          ) do
       :ok ->
         notification = ACP.build_state_update_notification(socket.assigns.task_id, "running")

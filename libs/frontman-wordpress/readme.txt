@@ -4,7 +4,7 @@ Tags: ai editor, website editor, elementor, woocommerce, ai
 Requires at least: 6.0
 Tested up to: 7.0.2
 Requires PHP: 7.4
-Stable tag: 4.0.0
+Stable tag: 5.1.0
 License: GPL-2.0-or-later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -51,6 +51,7 @@ Use Frontman to:
 * Update WooCommerce products and other supported store data
 * Change navigation menus, templates, template parts, and supported widgets
 * Update Additional CSS and allowlisted site settings
+* Read or update supported SEO title and description overrides when a tested provider is available
 * Inspect a page and explain which supported WordPress structure can control it
 
 == How Frontman Works ==
@@ -61,6 +62,28 @@ Frontman then uses WordPress, Elementor, or WooCommerce tools that match the req
 
 Frontman works with WordPress content and structures that its current tools support. Custom themes, custom plugins, hosting controls, and unsupported page builders can require a different workflow.
 
+== Native Post Authors ==
+
+`wp_create_post` and `wp_update_post` accept an optional positive integer `author` account ID. Omission uses the current user on creation and preserves the existing author on update. These tools assign one native WordPress author, not guest authors or coauthors. They do not create accounts or change roles.
+
+The acting user needs the post type's create capability or permission to edit the existing post. A new published or private status requires the mapped publish capability. An explicit other account requires the mapped `edit_others_posts` capability, even when that author stays unchanged. Target accounts do not need a particular role. Frontman also requires author support and, on multisite, current-site membership. These are Frontman safeguards, not additional WordPress directory policy requirements.
+
+For a user-requested author task, `wp_find_users` searches either login or display name on the current site. It requires both `manage_options` and `list_users`. Each page contains at most 20 candidates in account-ID order, with total and pagination metadata. Results contain only account ID, login, and display name. They do not prove assignment eligibility.
+
+Search uses a literal substring of at most 100 Unicode characters after whitespace trimming. Empty input and input that starts or ends with `*` are rejected before any lookup. This restriction includes whitespace-wrapped boundary asterisks and asterisk-only input. Interior `*`, `%`, `_`, and quotes are literal. Case sensitivity depends on the database collation.
+
+Consider the remaining pages before selecting an account. If multiple accounts can match the requested identity, ask which account the user means. Never guess an ID or select the first ambiguous result. Read back successful assignment with `wp_read_post`.
+
+== Optional SEO Tools ==
+
+`wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. Yoast SEO Free 28.4 is an optional dependency that Frontman does not install.
+
+The route requires WordPress 6.9 or later. Tests cover WordPress 7.0.2 with PHP 7.4 and 8.4. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
+
+Supported objects are posts, pages, and editable non-attachment custom post types with an admin interface, including authorized drafts and private content. Revisions, autosaves, attachments, and internal WordPress object types are not supported.
+
+Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags. Results confirm stored overrides, not rendered HTML or search-engine indexing. Yoast expands variables on later requests. External full-page caches and CDNs have separate refresh behavior.
+
 == Safety, Limits, and Data ==
 
 Only WordPress administrators with the `manage_options` capability can access Frontman. The plugin uses WordPress nonces, sanitizes inputs, and restricts option changes to an allowlist.
@@ -70,6 +93,10 @@ Frontman is early-access software. It has not been tested across every theme, pa
 Start on a staging site. Keep a current backup. Review each change before you use it on a production site.
 
 When you submit a request, relevant site content can pass through Frontman AI to your configured model provider. The Third-Party Services section summarizes this data flow.
+
+During an active, user-requested chat task, SEO tool results can include overrides from authorized drafts and private content. Frontman sends these results to the selected AI provider as request context. Frontman also stores the results in task history. This process uses the existing chat request and consent flow.
+
+During a user-requested author task, lookup account IDs, logins, and display names can enter the selected AI provider's request context and stored task history. Names and logins can be personal data even though lookup excludes emails and private metadata. This feature uses the existing chat request and consent flow, not a new service.
 
 == Open Source and Support ==
 
@@ -114,7 +141,7 @@ The hosted service processes your prompts, relevant site or store content, tool 
 This plugin and the hosted Frontman service connect to these external services:
 
 **Frontman Client and API**
-The plugin loads its interface from `app.frontman.sh` and connects to `api.frontman.sh`. Frontman processes prompts, relevant site or store content, tool results, and stored task history to run the agent. Stored provider credentials use server-side encryption.
+The plugin loads its interface from `app.frontman.sh` and connects to `api.frontman.sh`. Frontman processes prompts, relevant site or store content, tool results, and stored task history to run the agent. SEO tool results can include stored title and description overrides from authorized drafts and private content. Author lookup results can include account IDs, logins, and display names in request context and task history. Stored provider credentials use server-side encryption.
 
 * Services: [Client](https://app.frontman.sh), [API](https://api.frontman.sh)
 * Provider: Frontman AI
@@ -136,6 +163,13 @@ Heap measures product use and onboarding. Sentry records errors and performance 
 * Heap: [Service](https://heap.io), [Privacy](https://www.heap.io/privacy)
 * Sentry: [Service](https://sentry.io), [Privacy](https://sentry.io/privacy/)
 
+**Optional PHP Error Reports**
+PHP error reports are off by default. An administrator can enable or disable them under Settings > Frontman. This setting controls PHP reports only, not diagnostics from the hosted browser client.
+
+When enabled, unexpected Frontman tool exceptions send reports directly to Sentry. Reports include exception types, sanitized stack traces, tool names, and Frontman, WordPress, and PHP versions. Stack traces retain function names, line numbers, and plugin-relative paths or external file names. Reports omit exception messages, source code, arguments, request bodies, cookies, nonces, site URLs, and user context. Sentry receives the server IP address through the network connection.
+
+Expected validation errors and unrelated WordPress errors do not produce PHP reports. Reporting requires the PHP cURL and mbstring extensions. Reporting failures do not replace tool results. Delivery has a two-second HTTP timeout.
+
 Loading the Frontman UI requests hosted client assets. Your site content is not sent to the Frontman API or model providers until you actively use the chat interface and submit a message.
 
 == Screenshots ==
@@ -146,6 +180,14 @@ Loading the Frontman UI requests hosted client assets. Your site content is not 
 4. Review the updated title in the refreshed page preview.
 
 == Changelog ==
+
+= 5.1.0 =
+* Sync the Frontman plugin release with Frontman v5.1.0
+* See the GitHub release notes for the full cross-product changelog
+
+= 5.0.0 =
+* Sync the Frontman plugin release with Frontman v5.0.0
+* See the GitHub release notes for the full cross-product changelog
 
 = 4.0.0 =
 * Sync the Frontman plugin release with Frontman v4.0.0

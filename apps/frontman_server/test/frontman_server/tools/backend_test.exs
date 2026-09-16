@@ -1,6 +1,7 @@
 defmodule FrontmanServer.Tools.BackendTest do
   use ExUnit.Case, async: true
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tools.Backend
 
   setup_all do
@@ -15,8 +16,7 @@ defmodule FrontmanServer.Tools.BackendTest do
     def access, do: :read
     def parameter_schema, do: %{}
     def timeout_ms, do: 45_000
-    def on_timeout, do: :error
-    def execute(_args, _ctx), do: ModelContextProtocol.tool_result_text("done")
+    def execute(_args, _ctx), do: MCP.tool_result_text("done")
   end
 
   describe "to_swarm_tool/1" do
@@ -27,8 +27,8 @@ defmodule FrontmanServer.Tools.BackendTest do
       assert tool.description == "A fake tool for testing"
       assert tool.access == :read
       assert tool.parameter_schema == %{}
-      assert tool.timeout_ms == 45_000
-      assert tool.on_timeout == :error
+      refute Map.has_key?(tool, :timeout_ms)
+      refute Map.has_key?(tool, :on_timeout)
     end
   end
 end

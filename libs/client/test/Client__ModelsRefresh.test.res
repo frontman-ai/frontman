@@ -10,8 +10,7 @@ let _dummySendPrompt: Types.sendPromptFn = (
   ~onComplete as _,
   ~_meta as _,
 ) => ()
-let _dummyCancelPrompt: Types.cancelPromptFn = () => ()
-let _dummyRetryTurn: Types.retryTurnFn = _ => ()
+let _dummySendSessionCommand: Types.sendSessionCommandFn = _ => ()
 let _dummyLoadTask: Types.loadTaskFn = (_, ~needsHistory as _, ~onComplete as _) => ()
 let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
 let _dummyRequireAuthentication: Types.requireAuthenticationFn = () => ()
@@ -22,8 +21,7 @@ let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Ty
   ...Reducer.defaultState,
   acpSession: AcpSessionActive({
     sendPrompt: _dummySendPrompt,
-    cancelPrompt: _dummyCancelPrompt,
-    retryTurn: _dummyRetryTurn,
+    sendSessionCommand: _dummySendSessionCommand,
     loadTask: _dummyLoadTask,
     deleteSession: _dummyDeleteSession,
     requireAuthentication: _dummyRequireAuthentication,

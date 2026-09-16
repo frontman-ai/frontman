@@ -71,17 +71,13 @@ let findAndReplace = async (
 ): result<execution, string> => {
   try {
     let content = await Fs.Promises.readFile(resolved.resolvedPath)
-    let coverageWarning = FileTracker.checkCoverage(resolved.resolvedPath, ~content, ~oldText)
+    let coverageWarning = FileTracker.checkCoverage(resolved.safePath, ~content, ~oldText)
 
     switch Matcher.applyEdit(~content, ~oldText, ~newText, ~replaceAll) {
     | Applied(newContent) =>
       await Fs.Promises.writeFile(resolved.resolvedPath, newContent)
       let stats = await Fs.Promises.stat(resolved.resolvedPath)
-      FileTracker.recordWrite(
-        resolved.resolvedPath,
-        ~mtimeMs=Fs.mtimeMs(stats),
-        ~size=Fs.size(stats),
-      )
+      FileTracker.recordWrite(resolved.safePath, ~mtimeMs=Fs.mtimeMs(stats), ~size=Fs.size(stats))
       let message = switch coverageWarning {
       | Some(warning) => `Edit applied successfully.\n\n${warning}`
       | None => "Edit applied successfully."
@@ -123,7 +119,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
       switch input.oldText {
       | "" => Error("oldText must not be empty; use write_file to create files")
       | oldText =>
-        switch await FileTracker.assertEditSafe(resolved.resolvedPath) {
+        switch await FileTracker.assertEditSafe(resolved.safePath) {
         | Error(msg) => Error(msg)
         | Ok() =>
           await findAndReplace(

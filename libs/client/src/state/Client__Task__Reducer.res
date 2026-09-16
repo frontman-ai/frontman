@@ -9,6 +9,7 @@ module UserContentPart = Types.UserContentPart
 module AssistantContentPart = Types.AssistantContentPart
 module Annotation = Types.Annotation
 module ACPTypes = Types.ACPTypes
+module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 
 module MessageStore = Client__MessageStore
 
@@ -375,6 +376,8 @@ type action =
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
+  | UnqueueMessage({messageId: string})
+  | MessageUnqueued({messageId: string})
   | ClearTurnError
   | LoadStarted({previewUrl: string})
   | LoadComplete
@@ -414,8 +417,7 @@ type effect =
       agentId: string,
       replacesMessageId: option<string>,
     })
-  | CancelPrompt
-  | RetryTurnEffect({retriedErrorId: string})
+  | SessionCommand(ACP.sessionCommand)
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
   | RejectQuestionToolEffect({resolveError: string => unit, message: string})
   | SyncBrowserUrl(string)
@@ -429,8 +431,7 @@ type delegated =
       agentId: string,
       replacesMessageId: option<string>,
     })
-  | NeedCancelPrompt
-  | NeedRetryTurn({retriedErrorId: string})
+  | NeedSessionCommand(ACP.sessionCommand)
   | NeedSyncBrowserUrl(string)
 
 let actionToString = (action: action): string =>
@@ -466,6 +467,8 @@ let actionToString = (action: action): string =>
   | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
+  | UnqueueMessage(_) => "UnqueueMessage"
+  | MessageUnqueued(_) => "MessageUnqueued"
   | ClearTurnError => "ClearTurnError"
   | LoadStarted(_) => "LoadStarted"
   | LoadComplete => "LoadComplete"
@@ -940,6 +943,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     (
       Task.Loaded({
         ...data,
+        updatedAt: Date.now(),
         turnError: None,
         retryStatus: None,
         imageAttachments: updatedImageAttachments,
@@ -1029,9 +1033,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
 
   | (Task.Loaded(data), CancelTurn) =>
-    if !data.isAgentRunning {
-      (task, [])
-    } else {
+    switch data.isAgentRunning || data.pendingQuestion->Option.isSome {
+    | false => (task, [])
+    | true =>
       let completed = Lens.completeStreamingMessage(task)
       let withCancelledTools = Lens.updateMessages(completed, store =>
         MessageStore.map(store, msg =>
@@ -1049,7 +1053,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         ]
       | None => []
       }
-      let allEffects = Array.concat([CancelPrompt], questionEffects)
+      let allEffects = Array.concat([SessionCommand(ACP.Cancel)], questionEffects)
       switch withCancelledTools {
       | Task.Loaded(d) => (
           Task.Loaded({
@@ -1099,9 +1103,30 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
+  | (Task.Loaded(data), UnqueueMessage({messageId})) =>
+    switch data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId) {
+    | false => (task, [])
+    | true => (task, [SessionCommand(ACP.UnqueueMessage(messageId))])
+    }
+
+  | (Task.Loaded(data), MessageUnqueued({messageId})) =>
+    switch data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId) {
+    | false => (task, [])
+    | true => (
+        Task.Loaded({
+          ...data,
+          queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
+            Message.getId(message) != messageId
+          ),
+          pendingUserMessageIds: data.pendingUserMessageIds->Array.filter(id => id != messageId),
+        }),
+        [],
+      )
+    }
+
   | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
       Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
-      [RetryTurnEffect({retriedErrorId: retriedErrorId})],
+      [SessionCommand(ACP.RetryTurn(retriedErrorId))],
     )
 
   | (Task.Unloaded({id, title, createdAt, updatedAt}), LoadStarted({previewUrl})) => (
@@ -1265,7 +1290,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
 
   | (Task.Loaded(_), QuestionCancelled) =>
     let (task, questionEffects) = resolveQuestion(task, ~skippedAll=false, ~cancelled=true)
-    (task, Array.concat(questionEffects, [CancelPrompt]))
+    (task, Array.concat(questionEffects, [SessionCommand(ACP.Cancel)]))
 
   | (
       Task.New(_) | Task.Unloaded(_),
@@ -1301,6 +1326,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | ClearTurnError
       | RetryingUpdate(_)
       | RetryTurn(_)
+      | UnqueueMessage(_)
+      | MessageUnqueued(_)
       | QuestionReceived(_)
       | QuestionStepChanged(_)
       | QuestionOptionToggled(_)
@@ -1365,7 +1392,19 @@ let fetchAnnotationDetails = (
   let inspection = switch document {
   | Some(document) =>
     try {
-      Ok(Client__ElementInspector.inspect(~element, ~document, ~maxDepth=1, ~maxNodes=200))
+      let additionalAttributes = switch Client__RuntimeConfig.read().framework {
+      | Astro => Some(FrontmanAiAstroBrowser.FrontmanAstroBrowser__Persistence.inspectionAttributes)
+      | Nextjs | Vite | Wordpress => None
+      }
+      Ok(
+        Client__ElementInspector.inspect(
+          ~element,
+          ~document,
+          ~maxDepth=1,
+          ~maxNodes=200,
+          ~additionalAttributes?,
+        ),
+      )
     } catch {
     | exn =>
       let message = formatError(exn)
@@ -1499,8 +1538,7 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
   | SendMessage({id, text, attachments, annotations, agentId, replacesMessageId}) =>
     delegate(NeedSendMessage({id, text, attachments, annotations, agentId, replacesMessageId}))
-  | CancelPrompt => delegate(NeedCancelPrompt)
-  | RetryTurnEffect({retriedErrorId}) => delegate(NeedRetryTurn({retriedErrorId: retriedErrorId}))
+  | SessionCommand(command) => delegate(NeedSessionCommand(command))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
   | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
   | SyncBrowserUrl(url) => delegate(NeedSyncBrowserUrl(url))

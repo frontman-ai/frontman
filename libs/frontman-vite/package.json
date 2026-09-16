@@ -3,7 +3,7 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"version": "1.0.6",
+	"version": "2.0.0",
 	"description": "Vite integration for Frontman - AI-powered development tools",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -56,7 +56,7 @@
 	"dependencies": {
 		"chrome-launcher": "^1.1.2",
 		"lighthouse": "^13.4.0",
-		"source-map": "^0.7.6"
+		"source-map": "^0.8.0"
 	},
 	"optionalDependencies": {
 		"@vscode/ripgrep": "^1.18.0"
@@ -68,8 +68,8 @@
 		"@frontman-ai/frontman-core": "*",
 		"@frontman-ai/frontman-protocol": "*",
 		"@rescript/runtime": "catalog:",
-		"@rescript/webapi": "catalog:",
-		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
+		"@rescript/webapi": "workspace:*",
+		"dom-element-to-component-source": "npm:@frontman-ai/dom-element-to-component-source@0.5.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",

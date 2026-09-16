@@ -1,6 +1,6 @@
 {
 	"name": "@frontman/bindings",
-	"version": "0.3.1",
+	"version": "0.3.2",
 	"license": "Apache-2.0",
 	"private": true,
 	"type": "module",
@@ -9,7 +9,7 @@
 	},
 	"dependencies": {
 		"@rescript/runtime": "catalog:",
-		"@rescript/webapi": "catalog:"
+		"@rescript/webapi": "workspace:*"
 	},
 	"devDependencies": {
 		"@rescript/react": "^0.15.0",

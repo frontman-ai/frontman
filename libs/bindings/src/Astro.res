@@ -1,3 +1,9 @@
+module NavigationEvent = {
+  @get external signal: WebAPI.EventTypes.event => WebAPI.EventTypes.abortSignal = "signal"
+  @get external fromUrl: WebAPI.EventTypes.event => WebAPI.UrlTypes.url = "from"
+  @get external toUrl: WebAPI.EventTypes.event => WebAPI.UrlTypes.url = "to"
+}
+
 type devToolbarAppConfig = {
   id: string,
   name: string,
@@ -18,11 +24,57 @@ type markdownConfig = {
   rehypePlugins: array<rehypePlugin>,
 }
 
+type unsafeConfigValue
+
+type namedConfig = {name?: string}
+
+type remotePattern = {
+  protocol?: string,
+  hostname?: string,
+  port?: string,
+  pathname?: string,
+}
+
+type imageConfig = {
+  endpoint?: unsafeConfigValue,
+  service?: unsafeConfigValue,
+  domains?: array<string>,
+  remotePatterns?: array<remotePattern>,
+}
+
+type securityConfig = {
+  checkOrigin?: bool,
+  allowedDomains?: array<remotePattern>,
+  actionBodySizeLimit?: int,
+  serverIslandBodySizeLimit?: int,
+  csp?: unsafeConfigValue,
+}
+
+type sessionConfig = {
+  driver?: string,
+  ttl?: int,
+  cookie?: unsafeConfigValue,
+  options?: unsafeConfigValue,
+}
+
+type serverConfig = {allowedHosts?: array<string>}
+
 type astroConfig = {
   root: string,
   devToolbar: devToolbarConfig,
   markdown: markdownConfig,
   trailingSlash: trailingSlash,
+  output?: string,
+  adapter?: namedConfig,
+  integrations?: array<namedConfig>,
+  site?: string,
+  base: string,
+  redirects?: unsafeConfigValue,
+  i18n?: unsafeConfigValue,
+  image?: imageConfig,
+  security?: securityConfig,
+  session?: sessionConfig,
+  server?: serverConfig,
 }
 
 type vitePlugin
@@ -57,7 +109,7 @@ type configSetupHookContext = {
   command: astroCommand,
 }
 
-type configDoneHookContext = {config: astroConfig}
+type configDoneHookContext = {config: astroConfig, buildOutput: string}
 
 type toolbarServerSide
 
@@ -85,7 +137,15 @@ type serverSetupHookContext = {
 type routeType = [#page | #endpoint | #redirect | #fallback]
 type routeOrigin = [#internal | #"external" | #project]
 
-type integrationResolvedRoute = {
+type routePart = {
+  content: string,
+  dynamic: bool,
+  spread: bool,
+}
+
+type patternRegex
+
+type rec integrationResolvedRoute = {
   pattern: string,
   entrypoint: string,
   @as("type")
@@ -93,7 +153,12 @@ type integrationResolvedRoute = {
   origin: routeOrigin,
   params: array<string>,
   pathname: option<string>,
+  segments?: array<array<routePart>>,
+  redirect?: JSON.t,
+  patternRegex?: patternRegex,
   isPrerendered: bool,
+  redirectRoute?: integrationResolvedRoute,
+  fallbackRoutes?: array<integrationResolvedRoute>,
 }
 
 type routesResolvedHookContext = {routes: array<integrationResolvedRoute>}

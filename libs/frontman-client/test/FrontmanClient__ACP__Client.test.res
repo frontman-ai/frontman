@@ -1,8 +1,13 @@
 open Vitest
 
+afterEach(() => {
+  Vi.useRealTimers()->ignore
+})
+
 module Client = FrontmanClient__ACP__Client
 module ACP = FrontmanClient__ACP
 module Protocol = FrontmanClient__ACP__Protocol
+module Decoders = FrontmanClient__Decoders
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
@@ -365,6 +370,98 @@ describe("ACP Client parseInitializeResult", _t => {
     }`)
 
     t->expect(Client.parseInitializeResult(json)->Result.isError)->Expect.toBe(true)
+  })
+})
+
+describe("ACP Protocol sendRequest", _t => {
+  [
+    (#initialize, "initialize"),
+    (#"session/new", "session/new"),
+    (#"session/load", "session/load"),
+    (#"session/prompt", "session/prompt"),
+  ]->Array.forEach(((method, wireMethod)) => {
+    testAsync(
+      `sends ${wireMethod} and resolves Phoenix push reply envelopes`,
+      async t => {
+        Vi.useFakeTimers()->ignore
+        let channel = %raw(`{
+        push(_event, payload) {
+          return {
+            receive(status, callback) {
+              if (status === "ok") {
+                callback({"acp:message": {jsonrpc: "2.0", id: payload.id, result: payload.method}});
+              }
+              return this;
+            }
+          };
+        }
+      }`)
+        let state = ref(Client.initialState)
+        let result = await Protocol.sendRequest(
+          ~channel,
+          ~state,
+          ~method,
+          ~params=None,
+          ~timeoutMs=10,
+          ~parseResult=json => Decoders.parseSchema(json, S.string),
+        )
+
+        t->expect(result)->Expect.toEqual(Ok(wireMethod))
+        t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+        t->expect(Vi.getTimerCount())->Expect.toBe(0)
+      },
+    )
+  })
+
+  testAsync("rejects malformed Phoenix push reply envelopes immediately", async t => {
+    Vi.useFakeTimers()->ignore
+    let channel = %raw(`{
+      push(_event, _payload) {
+        return {
+          receive(status, callback) {
+            if (status === "ok") {
+              callback({});
+            }
+            return this;
+          }
+        };
+      }
+    }`)
+    let state = ref(Client.initialState)
+    let result = await Protocol.sendRequest(
+      ~channel,
+      ~state,
+      ~method=#"session/prompt",
+      ~params=None,
+      ~timeoutMs=10,
+      ~parseResult=_ => Ok("unused"),
+    )
+
+    t->expect(result->Result.isError)->Expect.toEqual(true)
+    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+  })
+
+  testAsync("times out and removes pending request when no response arrives", async t => {
+    Vi.useFakeTimers()->ignore
+    let transport = makeLoadTransport([], loadResult)
+    let state = ref(Client.initialState)
+    let promise = Protocol.sendRequest(
+      ~channel=transport.channel,
+      ~state,
+      ~method=#"session/prompt",
+      ~params=None,
+      ~timeoutMs=10,
+      ~parseResult=json => Decoders.parseSchema(json, S.string),
+    )
+
+    t->expect(state.contents.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toBe(true)
+    let _ = await Vi.advanceTimersByTimeAsync(10)
+    let result = await promise
+
+    t
+    ->expect(result)
+    ->Expect.toEqual(Error("Request session/prompt timed out after 10ms"))
+    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
   })
 })
 

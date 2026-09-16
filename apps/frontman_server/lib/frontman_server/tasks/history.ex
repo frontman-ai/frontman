@@ -12,7 +12,7 @@ defmodule FrontmanServer.Tasks.History do
 
   @task_scoped_types InteractionSchema.task_scoped_types()
   @terminal_types [:agent_completed, :agent_error, :agent_paused]
-  @active_turn_types @terminal_types ++ [:agent_response, :tool_call, :tool_result]
+  @active_turn_types @terminal_types ++ [:agent_response, :skill_used, :tool_call, :tool_result]
 
   @enforce_keys ~w(rows ordered_rows users_by_id turns_by_number user_owners response_counts active_turn)a
   defstruct @enforce_keys
@@ -75,6 +75,36 @@ defmodule FrontmanServer.Tasks.History do
       _row ->
         false
     end)
+  end
+
+  @doc "Unresolved declarations paired with their dispatch snapshot, if dispatch occurred."
+  def unresolved_tool_calls(rows, turn_number) do
+    rows = Enum.filter(rows, &(&1.turn_number == turn_number))
+
+    dispatches =
+      for %{data: %Interaction.ToolCall{} = call} <- rows,
+          into: %{},
+          do: {call.tool_call_id, call}
+
+    resolved =
+      for %{data: %Interaction.ToolResult{} = result} <- rows,
+          into: MapSet.new(),
+          do: result.tool_call_id
+
+    rows
+    |> Enum.flat_map(fn
+      %{data: %Interaction.AgentResponse{metadata: metadata}} ->
+        Interaction.to_swarm_tool_calls(metadata["tool_calls"])
+
+      %{data: %Interaction.ToolCall{} = call} ->
+        [%{id: call.tool_call_id, name: call.tool_name}]
+
+      _row ->
+        []
+    end)
+    |> Enum.uniq_by(& &1.id)
+    |> Enum.reject(&MapSet.member?(resolved, &1.id))
+    |> Enum.map(&{&1, Map.get(dispatches, &1.id)})
   end
 
   def active_turn_number(%__MODULE__{active_turn: active_turn}), do: active_turn

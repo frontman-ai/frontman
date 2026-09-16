@@ -9,6 +9,7 @@
  *   GET  /frontman                        → Serve the UI (preview: homepage)
  *   GET  /about/frontman                  → Serve the UI (preview: /about)
  *   GET  /frontman/tools                  → Tool list
+ *   GET  /frontman/plugin-update          → Plugin update status
  *   POST /frontman/tools/call             → Dispatch tool call (SSE)
  *   POST /frontman/resolve-source-location → Not supported in WordPress PHP mode
  *
@@ -56,22 +57,30 @@ class Frontman_Router {
 		$request_uri = $this->get_request_path();
 		$method      = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_key( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
 		$route       = $this->classify_route( $request_uri, $method );
+		if ( 'none' === $route['type'] ) {
+			return;
+		}
+
+		$auth = Frontman_Auth::check();
+		if ( is_wp_error( $auth ) ) {
+			Frontman_Auth::send_error( $auth, 'prefix' === $route['type'] );
+		}
 
 		if ( 'prefix' === $route['type'] ) {
 			$sub_path = $route['subPath'];
-
-			$this->require_auth( true );
-			if ( $method === 'POST' ) {
-				$this->require_nonce();
-			}
+			$body = $method === 'POST' ? $this->read_json_body() : [];
 
 			switch ( true ) {
 				case $method === 'GET' && $sub_path === 'tools':
 					$this->handle_get_tools();
 					exit;
 
+				case $method === 'GET' && $sub_path === 'plugin-update':
+					$this->handle_get_update();
+					exit;
+
 				case $method === 'POST' && $sub_path === 'tools/call':
-					$this->handle_tool_call();
+					$this->handle_tool_call( $body );
 					exit;
 
 				case $method === 'POST' && $sub_path === 'resolve-source-location':
@@ -87,13 +96,7 @@ class Frontman_Router {
 			}
 		}
 
-		if ( 'suffix' !== $route['type'] ) {
-			return;
-		}
-
 		$suffix_prefix = $route['prefix'];
-
-		$this->require_auth( false );
 
 		$canonical = $this->get_canonical_redirect( $suffix_prefix );
 		if ( $canonical !== null ) {
@@ -130,26 +133,6 @@ class Frontman_Router {
 		}
 
 		return [ 'type' => 'none' ];
-	}
-
-	/**
-	 * Check auth and send error response if unauthorized.
-	 */
-	private function require_auth( bool $is_api ): void {
-		$auth = Frontman_Auth::check();
-		if ( is_wp_error( $auth ) ) {
-			Frontman_Auth::send_error( $auth, $is_api );
-		}
-	}
-
-	/**
-	 * Check nonce and send API error response if invalid.
-	 */
-	private function require_nonce(): void {
-		$nonce = Frontman_Auth::verify_nonce();
-		if ( is_wp_error( $nonce ) ) {
-			Frontman_Auth::send_error( $nonce, true );
-		}
 	}
 
 	/**
@@ -267,8 +250,8 @@ class Frontman_Router {
 		if ( '' === $nonce || ! wp_verify_nonce( $nonce, Frontman_Auth::nonce_action() ) ) {
 			Frontman_Auth::send_error(
 				new \WP_Error(
-					'frontman_invalid_nonce',
-					__( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
+					'' === $nonce ? 'frontman_missing_nonce' : 'frontman_invalid_nonce',
+					'' === $nonce ? __( 'Missing request nonce.', 'frontman-agentic-ai-editor' ) : __( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
 					[ 'status' => 403 ]
 				),
 				true
@@ -280,8 +263,15 @@ class Frontman_Router {
 			return [];
 		}
 
-		$raw  = wp_check_invalid_utf8( $raw, true );
 		$data = json_decode( $raw, true );
+		if ( ! is_array( $data ) ) {
+			$raw  = wp_check_invalid_utf8( $raw, true );
+			$data = json_decode( $raw, true );
+			if ( is_array( $data ) && isset( $data['name'] ) && is_string( $data['name'] )
+				&& in_array( sanitize_key( $data['name'] ), [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
+				return [];
+			}
+		}
 		return is_array( $data ) ? $this->sanitize_json_body( $data ) : [];
 	}
 
@@ -324,15 +314,34 @@ class Frontman_Router {
 	}
 
 	/**
+	 * GET /frontman/plugin-update — return WordPress's current plugin update status.
+	 */
+	private function handle_get_update(): void {
+		wp_update_plugins();
+		$updates = get_site_transient( 'update_plugins' );
+		$plugin  = plugin_basename( FRONTMAN_PLUGIN_FILE );
+		$latest  = isset( $updates->response[ $plugin ]->new_version )
+			? sanitize_text_field( $updates->response[ $plugin ]->new_version )
+			: FRONTMAN_VERSION;
+
+		wp_send_json(
+			[
+				'installedVersion' => FRONTMAN_VERSION,
+				'autoUpdateEnabled' => in_array( $plugin, (array) get_site_option( 'auto_update_plugins', [] ), true ),
+				'latestVersion'    => $latest,
+			],
+			200
+		);
+	}
+
+	/**
 	 * POST /frontman/tools/call — route by tool name.
 	 *
 	 * Tools are handled locally in the WordPress plugin.
 	 */
-	private function handle_tool_call(): void {
-		$body      = $this->read_json_body();
+	private function handle_tool_call( array $body ): void {
 		$name      = sanitize_key( $body['name'] ?? '' );
 		$raw_input = $body['arguments'] ?? $body['input'] ?? [];
-		$input     = is_array( $raw_input ) ? $this->tools->sanitize_input( $name, $raw_input ) : [];
 
 		if ( empty( $name ) ) {
 			$this->send_sse_tool_result( Frontman_Tools::error_result( 'Missing tool name' ) );
@@ -341,9 +350,11 @@ class Frontman_Router {
 
 		if ( $this->tools->is_wp_tool( $name ) ) {
 			try {
+				$input  = is_array( $raw_input ) ? $this->tools->sanitize_input( $name, $raw_input ) : [];
 				$result = $this->tools->call( $name, $input );
 				$this->send_sse_tool_result( $result );
 			} catch ( \Throwable $e ) {
+				Frontman_Sentry::capture( $e, $name );
 				$this->send_sse_tool_result( Frontman_Tools::error_result( $e->getMessage() ) );
 			}
 			return;

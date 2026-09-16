@@ -14,8 +14,8 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   @behaviour FrontmanServer.Tools.Backend
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.PublicURL
-  alias ModelContextProtocol, as: MCP
 
   @chrome_ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " <>
                "AppleWebKit/537.36 (KHTML, like Gecko) " <>
@@ -88,9 +88,6 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   @impl true
   def timeout_ms, do: 60_000
-
-  @impl true
-  def on_timeout, do: :error
 
   @impl true
   def execute(args, _context) do

@@ -57,7 +57,10 @@ WebAPI.Window.current
     root->ReactDOM.Client.Root.render(
       <React.StrictMode>
         <Client__FrontmanProvider.Provider
-          clientName={config.clientName} endpoint={config.endpoint} loginUrl={config.loginUrl}
+          clientName={config.clientName}
+          endpoint={config.endpoint}
+          loginUrl={config.loginUrl}
+          apiBaseUrl={config.apiBaseUrl}
         >
           <Client__App apiBaseUrl={config.apiBaseUrl} />
         </Client__FrontmanProvider.Provider>

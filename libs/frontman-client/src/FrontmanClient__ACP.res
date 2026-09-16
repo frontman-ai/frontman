@@ -67,6 +67,11 @@ type session = {
   onUpdate: (string, Types.sessionUpdate) => unit,
 }
 
+type sessionCommand =
+  | Cancel
+  | RetryTurn(string)
+  | UnqueueMessage(string)
+
 let cleanupChannel = channel => {
   channel->Channel.off(~event=#"acp:message")
   channel->Channel.off(~event=#"mcp:message")
@@ -208,6 +213,9 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       switch await Protocol.sendInitialize(~channel, ~state, ~clientConfig) {
       | Error(e) =>
         Log.error(`ACP initialize failed: ${e}`)
+        channel->Channel.off(~event=#config_options_updated)
+        cleanupChannel(channel)
+        Socket.disconnect(socket)
         Error(ConnectionFailed(e))
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
@@ -383,11 +391,24 @@ let sendPrompt = async (
   )
 }
 
-let cancelPrompt = (session: session): unit =>
-  Protocol.sendCancel(~channel=session.channel, ~sessionId=session.sessionId)
-
-let retryTurn = (session: session, ~retriedErrorId: string): unit => {
-  Protocol.sendRetryTurn(~channel=session.channel, ~sessionId=session.sessionId, ~retriedErrorId)
+let sendSessionCommand = (session: session, command: sessionCommand): unit => {
+  switch command {
+  | Cancel => Protocol.sendCancel(~channel=session.channel, ~sessionId=session.sessionId)
+  | RetryTurn(retriedErrorId) =>
+    Protocol.sendSessionCommand(
+      ~channel=session.channel,
+      ~sessionId=session.sessionId,
+      ~command="retry_turn",
+      ~argument=Some(("retriedErrorId", JSON.Encode.string(retriedErrorId))),
+    )
+  | UnqueueMessage(messageId) =>
+    Protocol.sendSessionCommand(
+      ~channel=session.channel,
+      ~sessionId=session.sessionId,
+      ~command="unqueue_message",
+      ~argument=Some(("messageId", JSON.Encode.string(messageId))),
+    )
+  }
 }
 
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
@@ -480,7 +501,7 @@ let loadSession = async (
     let loadResult = await Protocol.sendRequest(
       ~channel=session.channel,
       ~state=conn.state,
-      ~method="session/load",
+      ~method=#"session/load",
       ~params=Some(
         params->S.decodeOrThrow(
           ~from=Types.sessionLoadParamsSchema,

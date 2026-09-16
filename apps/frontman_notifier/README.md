@@ -13,7 +13,7 @@ Required:
 
 - `DATABASE_URL` or `FRONTMAN_NOTIFIER_DATABASE_URL` - local production Postgres URL.
 - `DISCORD_STARGAZERS_WEBHOOK_URL` - Discord webhook for stargazer alerts.
-- `DISCORD_TASK_SUMMARIES_WEBHOOK_URL` - Discord webhook for task summaries.
+- `DISCORD_TASK_SUMMARIES_WEBHOOK_URL` - Discord webhook for task summaries and agent feedback. Set in `/opt/frontman/shared/discord.env`.
 
 Optional:
 
@@ -37,4 +37,4 @@ The production deployment is independent from the web server deployment:
 - Server root: `/opt/frontman-notifier`.
 - Systemd unit: `frontman-notifier.service`.
 
-Run `infra/production/notifier/setup.sh` once on the production server, then fill `/opt/frontman-notifier/env` with real Discord webhook URLs and an optional GitHub token. Pushes to `main` that touch the notifier path deploy the release automatically.
+Run `infra/production/notifier/setup.sh` once on the production server, then fill `/opt/frontman-notifier/env` with the stargazer webhook URL and an optional GitHub token. The task webhook is shared with the web server through `/opt/frontman/shared/discord.env`. Pushes to `main` that touch the notifier path deploy the release automatically.

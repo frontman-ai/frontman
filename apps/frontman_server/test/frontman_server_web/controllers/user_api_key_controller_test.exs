@@ -31,7 +31,7 @@ defmodule FrontmanServerWeb.UserApiKeyControllerTest do
       scope = Scope.for_user(user)
 
       {:ok, {%LLMDB.Model{provider: :openrouter}, llm_opts}} =
-        Providers.resolve_model_access(scope, "openrouter:anthropic/claude-fable-5")
+        Providers.resolve_model_access(scope, "openrouter:anthropic/claude-fable-5.1")
 
       assert llm_opts[:api_key] == "sk-test-123"
     end

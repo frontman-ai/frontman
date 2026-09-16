@@ -92,6 +92,7 @@ type connectionState = Reducer.Selectors.connectionStatus
 @@live
 type contextValue = {
   connectionState: connectionState,
+  apiBaseUrl: string,
   session: option<ACP.session>,
   relay: option<Relay.t>,
   authRedirectUrl: option<string>,
@@ -106,14 +107,14 @@ type contextValue = {
     ~onComplete: result<Types.promptResult, string> => unit,
     ~_meta: option<JSON.t>,
   ) => unit,
-  cancelPrompt: unit => unit,
-  retryTurn: string => unit,
+  sendSessionCommand: ACP.sessionCommand => unit,
   loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
 
 let defaultContextValue: contextValue = {
   connectionState: Disconnected,
+  apiBaseUrl: "",
   session: None,
   relay: None,
   authRedirectUrl: None,
@@ -123,8 +124,7 @@ let defaultContextValue: contextValue = {
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-  cancelPrompt: () => (),
-  retryTurn: _ => (),
+  sendSessionCommand: _ => (),
   loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
 }
@@ -142,6 +142,7 @@ module Provider = {
   let make = (
     ~endpoint: string,
     ~loginUrl: string,
+    ~apiBaseUrl: string,
     ~clientName: string="frontman-client",
     ~clientVersion: string="1.0.0",
     ~children: React.element,
@@ -159,10 +160,10 @@ module Provider = {
 
       let runtimeConfig = RuntimeConfig.read()
       let _meta = RuntimeConfig.toMeta(runtimeConfig)
-      let relayHeaders = Dict.make()
-      runtimeConfig.wpNonce->Option.forEach(nonce => relayHeaders->Dict.set("X-WP-Nonce", nonce))
-
-      let relay = Relay.make(~baseUrl, ~requestHeaders=relayHeaders)
+      let relay = switch runtimeConfig.framework {
+      | Wordpress => Client__WordPressRelay.make(~baseUrl, ~nonce=runtimeConfig.wpNonce)
+      | Nextjs | Vite | Astro => Relay.make(~baseUrl)
+      }
       let toolRegistry = Client__ToolRegistry.forFramework(runtimeConfig.framework)
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
@@ -226,6 +227,7 @@ module Provider = {
         })
       | UserMessageChunk({messageId, content, _meta}) =>
         textDeltaBuffer.addUserBlock(~taskId, ~messageId, ~block=content, ~agentId=_meta.agentId)
+      | MessageUnqueued({messageId}) => Client__State.Actions.messageUnqueued(~taskId, ~messageId)
       | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
         failwith("Frontman UI requires negotiated agent attribution")
       | Unknown(_) => ()
@@ -357,12 +359,8 @@ module Provider = {
       dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta}))
     }, [dispatch])
 
-    let cancelPrompt = React.useCallback1(() => {
-      dispatch(CancelPrompt)
-    }, [dispatch])
-
-    let retryTurn = React.useCallback1((retriedErrorId: string) => {
-      dispatch(RetryTurn({retriedErrorId: retriedErrorId}))
+    let sendSessionCommand = React.useCallback1((command: ACP.sessionCommand) => {
+      dispatch(SessionCommand(command))
     }, [dispatch])
 
     let loadTask = React.useCallback1((taskId: string, ~needsHistory, ~onComplete) => {
@@ -393,6 +391,7 @@ module Provider = {
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
+      apiBaseUrl,
       session: Reducer.Selectors.getSession(state),
       relay: state.relayInstance,
       authRedirectUrl,
@@ -402,8 +401,7 @@ module Provider = {
       createSession,
       clearSession,
       sendPrompt,
-      cancelPrompt,
-      retryTurn,
+      sendSessionCommand,
       loadTask,
       deleteSession,
     }

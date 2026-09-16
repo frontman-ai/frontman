@@ -1,7 +1,7 @@
 defmodule FrontmanServer.Protocols.JsonRpcContractTest do
   use ExUnit.Case, async: true
 
-  alias FrontmanServer.ProtocolSchema
+  alias FrontmanServer.{Protocols.JsonRpc, ProtocolSchema}
 
   describe "JsonRpc.request/3" do
     test "validates against jsonrpc/request schema" do

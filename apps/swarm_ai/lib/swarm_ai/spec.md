@@ -31,18 +31,9 @@ The `swarm_ai` package implements a **functional core, imperative shell** archit
 
 ## Core Components
 
-### Agent Protocol (`agent.ex`)
+### Public Runtime API (`swarm_ai.ex`)
 
-Defines runnable agent data via the `SwarmAi.Agent` protocol:
-
-| Function | Purpose |
-|----------|---------|
-| `id/1` | Returns stable string identity for lifecycle operations |
-| `messages/1` | Returns input messages for this run |
-| `context/1` | Returns dispatcher-only app context |
-| `tool_executor/1` | Returns tool execution builder and mode |
-| `system_prompt/1` | Returns the system prompt string |
-| `llm/1` | Returns the LLM client configuration |
+`SwarmAi.run/2` accepts a `Loop` with task identity, messages, an LLM client, and tool and event callbacks.
 
 ### Loop State Machine (`loop.ex`, `loop/`)
 
@@ -51,8 +42,8 @@ The `SwarmAi.Loop` struct tracks execution state:
 | Field | Purpose |
 |-------|---------|
 | `id` | UUIDv7-based unique identifier |
-| `agent` | The agent being run |
-| `status` | `:ready`, `:running`, `:waiting_for_tools`, `:completed`, `:failed`, `:paused`, `:max_steps` |
+| `task_id`, `turn_number` | Task and turn identity |
+| `status` | `:ready`, `:running`, `:waiting_for_tools`, `:completed`, `{:failed, reason}` |
 | `steps` | History of all execution steps |
 
 **Status Transitions:**
@@ -66,7 +57,7 @@ The `SwarmAi.Loop` struct tracks execution state:
 Pure functional module that produces effects without performing side effects:
 
 ```elixir
-{loop, effects} = Runner.start(loop, messages)
+{loop, effects} = Loop.execute(loop)
 ```
 
 ### Effect System (`effect.ex`)
@@ -115,19 +106,26 @@ Tools are pure data structures describing interfaces:
 Tool.new(
   name: "search",
   description: "Search the web",
-  parameter_schema: %{"query" => %{"type" => "string"}},
-  timeout_ms: 30_000,
-  on_timeout: :error
+  access: :read,
+  parameter_schema: %{"query" => %{"type" => "string"}}
 )
 ```
 
-Agents return execution descriptors for SwarmAi to run:
-```elixir
-@type tool_executor :: %{
-  build: ([ToolCall.t()] -> [ToolExecution.t()]),
-  execution_mode: :parallel | :serial
-}
-```
+The loop's `execute_tools` callback accepts tool calls and a task supervisor. It builds descriptors and calls `ParallelExecutor.run/2` or `run_serial/2`.
+
+Both return `{:ok, results}` in original call order. Serial execution waits for each result before dispatching the next call.
+
+- `Sync` has a positive `timeout_ms`, a `run` MFA, and an `on_error` MFA.
+- `Await` has a positive `timeout_ms` or `:infinity`, a `start` MFA, and an `on_error` MFA.
+- The `run` and `start` MFAs receive one appended `tool_call` argument.
+- The `on_error` MFA receives appended arguments `[reason, tool_call]`. The reason is `:timeout` or `{:crashed, exit_reason}`.
+- The error callback returns the canonical `ToolResult` selected by application persistence. A stored success can win over a timeout or crash.
+- A finite Sync deadline kills and monitors the task before the error callback runs. No late task return can replace that callback result.
+- An infinite Await creates no timer. The executor waits for `{:tool_result, tool_call_id, content, is_error}` without polling.
+
+Interactive human input is an explicit exception to bounded execution. The parked worker retains loop history in memory. It remains registered and cancellable.
+
+Cancellation terminates the executor, not its existing Sync tasks under the runtime-global task supervisor. This pre-existing ownership limit is outside the timeout change.
 
 ### Telemetry (`telemetry.ex`, `telemetry/events.ex`)
 
@@ -143,7 +141,7 @@ Telemetry hierarchy:
 
 ## Execution Flow
 
-1. **Entry**: `SwarmAi.run/2` starts supervised execution; `SwarmAi.Executor.run/3` creates a loop and calls `Runner.start/2`
+1. **Entry**: `SwarmAi.run/2` starts supervised execution. `SwarmAi.Executor.run/2` calls `Loop.execute/1`.
 2. **LLM Call**: `{:call_llm, ...}` effect triggers actual API call
 3. **Response**: `Runner.handle_llm_response/2` produces effects based on tool calls
 4. **Tool Execution**: `{:execute_tool, ...}` effects invoke the tool executor
@@ -156,7 +154,6 @@ Telemetry hierarchy:
 
 | File | Purpose |
 |------|---------|
-| `agent.ex` | Agent protocol definition |
 | `executor.ex` | Runtime side-effect interpreter |
 | `loop.ex` | Loop struct and state transitions |
 | `loop/runner.ex` | Pure functional effect producer |
@@ -179,5 +176,4 @@ Telemetry hierarchy:
 
 From `loop/config.ex`:
 - `max_steps`: 400
-- `timeout_ms`: 300,000 (5 minutes)
 - `step_timeout_ms`: 60,000 (1 minute)

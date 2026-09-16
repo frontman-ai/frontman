@@ -78,33 +78,6 @@ class Frontman_Auth {
 	}
 
 	/**
-	 * Verify the request nonce sent by the browser client.
-	 *
-	 * @return true|\WP_Error
-	 */
-	public static function verify_nonce() {
-		$nonce = self::request_nonce();
-
-		if ( empty( $nonce ) ) {
-			return new \WP_Error(
-				'frontman_missing_nonce',
-				__( 'Missing request nonce.', 'frontman-agentic-ai-editor' ),
-				[ 'status' => 403 ],
-			);
-		}
-
-		if ( ! wp_verify_nonce( $nonce, self::NONCE_ACTION ) ) {
-			return new \WP_Error(
-				'frontman_invalid_nonce',
-				__( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
-				[ 'status' => 403 ],
-			);
-		}
-
-		return true;
-	}
-
-	/**
 	 * Send an error response and exit.
 	 *
 	 * Handles both JSON API errors and HTML redirects depending on context.
@@ -117,7 +90,12 @@ class Frontman_Auth {
 		$status     = is_array( $error_data ) && isset( $error_data['status'] ) ? (int) $error_data['status'] : 403;
 
 		if ( $is_api ) {
-			wp_send_json( [ 'error' => $error->get_error_message() ], $status );
+			nocache_headers();
+			$code = $error->get_error_code();
+			if ( in_array( $code, [ 'frontman_missing_nonce', 'frontman_invalid_nonce' ], true ) && true === self::check() ) {
+				header( 'X-WP-Nonce: ' . self::create_nonce() );
+			}
+			wp_send_json( [ 'code' => $code, 'error' => $error->get_error_message() ], $status );
 			return;
 		}
 

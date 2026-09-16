@@ -1,6 +1,7 @@
 defmodule FrontmanServer.Tasks.InteractionTest do
   use FrontmanServer.InteractionCase, async: true
 
+  alias FrontmanServer.Skills.Skill
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
 
@@ -10,7 +11,29 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     UserMessage
   }
 
-  alias ModelContextProtocol, as: MCP
+  alias FrontmanServer.Protocols.MCP
+
+  describe "SkillUsed.build/2" do
+    test "snapshots skill content" do
+      skill = %Skill{
+        id: Ecto.UUID.generate(),
+        name: "design_polish",
+        description: "Improve visual quality.",
+        content: "Use hierarchy."
+      }
+
+      user_message_id = Ecto.UUID.generate()
+
+      assert %Interaction.SkillUsed{
+               user_message_id: ^user_message_id,
+               skill_id: skill_id,
+               skill_name: "design_polish",
+               skill_content: "Use hierarchy."
+             } = Interaction.SkillUsed.build(skill, user_message_id)
+
+      assert skill_id == skill.id
+    end
+  end
 
   describe "UserMessage.attrs/1" do
     test "extracts non-empty text messages" do
@@ -309,6 +332,34 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert messages == []
     end
 
+    test "prepends the matching skill without changing prompt or attachments" do
+      msg = %{
+        user_msg("Improve hero")
+        | images: [%UserImage{blob: Base.encode64("image"), mime_type: "image/png"}]
+      }
+
+      [original] = Interaction.to_swarm_messages([msg])
+
+      skill_used = %Interaction.SkillUsed{
+        id: "skill-used-1",
+        timestamp: DateTime.utc_now(),
+        user_message_id: msg.id,
+        skill_id: Ecto.UUID.generate(),
+        skill_name: "design_polish",
+        skill_content: "Use hierarchy."
+      }
+
+      assert [%SwarmAi.Message.User{content: [skill_part | prompt_parts]}] =
+               Interaction.to_swarm_messages([msg, skill_used])
+
+      assert Interaction.to_swarm_messages([skill_used]) == []
+
+      assert skill_part.text ==
+               "## Active Skill: design_polish\n\nUse this expert lens for this turn.\n\nUse hierarchy."
+
+      assert prompt_parts == original.content
+    end
+
     test "handles mixed conversation in correct order" do
       interactions = [
         user_msg("Calculate 2+2"),
@@ -580,6 +631,48 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert %Interaction.UserMessage{current_page: %Interaction.CurrentPage{}, annotations: [_]} =
                row.data
     end
+
+    test "deserializes skill used data" do
+      skill_used = %Interaction.SkillUsed{
+        id: "skill-used-1",
+        timestamp: DateTime.utc_now(),
+        skill_id: Ecto.UUID.generate(),
+        skill_name: "design_polish",
+        skill_content: "Use hierarchy."
+      }
+
+      row = %InteractionSchema{
+        type: :skill_used,
+        data: skill_used
+      }
+
+      assert %Interaction.SkillUsed{skill_name: "design_polish", skill_content: "Use hierarchy."} =
+               row.data
+    end
+  end
+
+  describe "InteractionSchema.create_changeset/3" do
+    test "requires a turn number for SkillUsed" do
+      skill_used = %Interaction.SkillUsed{
+        id: "skill-used-1",
+        timestamp: DateTime.utc_now(),
+        skill_id: Ecto.UUID.generate(),
+        skill_name: "design_polish"
+      }
+
+      changeset =
+        %FrontmanServer.Tasks.TaskSchema{id: Ecto.UUID.generate()}
+        |> Ecto.build_assoc(:interaction_rows)
+        |> InteractionSchema.changeset(%{
+          id: Ecto.UUID.generate(),
+          type: :skill_used,
+          data: Map.from_struct(skill_used),
+          turn_number: nil
+        })
+
+      refute changeset.valid?
+      assert {"missing for skill_used", []} = changeset.errors[:turn_number]
+    end
   end
 
   describe "JSON encoding" do
@@ -622,7 +715,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                "device_pixel_ratio" => 2.0,
                "title" => "Settings",
                "color_scheme" => "dark",
-               "scroll_y" => 320
+               "scroll_y" => 320,
+               "astro_client_routing" => nil
              }
 
       assert [ann] = decoded["annotations"]

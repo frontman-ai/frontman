@@ -7,10 +7,9 @@ let make = () => {
   let open_ = Client__State.useSelector(Client__State.Selectors.showFirstTaskFeedbackDialog)
   let linkCopied = Client__State.useSelector(Client__State.Selectors.firstTaskFeedbackLinkCopied)
   let shareFailed = Client__State.useSelector(Client__State.Selectors.firstTaskFeedbackShareFailed)
-  let (ratingUrl, ratingLabel) = switch Client__RuntimeConfig.read().framework {
-  | Nextjs | Vite | Astro => ("https://github.com/frontman-ai/frontman", "Star us on GitHub")
-  | Wordpress => ("https://wordpress.org/plugins/frontman-agentic-ai-editor/", "Leave a review")
-  }
+  let (ratingUrl, ratingLabel) = Client__SupportBanner.ratingTarget(
+    Client__RuntimeConfig.read().framework,
+  )
 
   <Dialog
     open_

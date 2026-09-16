@@ -34,4 +34,19 @@ external replaceState: (
   ~url: string=?,
 ) => unit = "replaceState"
 
+type stateMethod = (JSON.t, string, option<string>) => unit
+
+@get external getPushState: HistoryTypes.history => stateMethod = "pushState"
+@get external getReplaceState: HistoryTypes.history => stateMethod = "replaceState"
+@set external setPushState: (HistoryTypes.history, stateMethod) => unit = "pushState"
+@set external setReplaceState: (HistoryTypes.history, stateMethod) => unit = "replaceState"
+@send
+external callStateMethod: (
+  stateMethod,
+  HistoryTypes.history,
+  JSON.t,
+  string,
+  option<string>,
+) => unit = "call"
+
 module Types = HistoryTypes

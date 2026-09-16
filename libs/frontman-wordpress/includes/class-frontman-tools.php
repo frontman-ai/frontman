@@ -156,7 +156,19 @@ class Frontman_Tools {
 			return $this->sanitize_untyped_array( $input, $name );
 		}
 
-		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $tool->preserve_input_strings );
+		if ( class_exists( 'Frontman_Tool_Seo' ) && in_array( $name, [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
+			return Frontman_Tool_Seo::validate_input( $name, $input );
+		}
+
+		if ( class_exists( 'Frontman_Tool_Posts' ) && in_array( $name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+			Frontman_Tool_Posts::validate_author_input( $input );
+		}
+		if ( 'wp_find_users' === $name && class_exists( 'Frontman_Tool_Users' ) ) {
+			return Frontman_Tool_Users::validate_input( $input );
+		}
+
+		$preserve_strings = $tool->preserve_input_strings || ( 'wp_update_custom_css' === $name && 'edit' === ( $input['mode'] ?? null ) );
+		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $preserve_strings );
 		return is_array( $sanitized ) ? $sanitized : [];
 	}
 
@@ -261,14 +273,18 @@ class Frontman_Tools {
 				return (float) $value;
 
 			case 'boolean':
-				if ( $preserve_input_strings && 'confirm' === $field_name && ! is_bool( $value ) ) {
+				if ( $preserve_input_strings && in_array( $field_name, [ 'confirm', 'replaceAll' ], true ) && ! is_bool( $value ) ) {
 					return $value;
 				}
 
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':
-				if ( 'css' === $field_name && 'wp_update_custom_css' === $tool_name && ! is_string( $value ) ) {
+				if ( 'slug' === $field_name && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+					return $value;
+				}
+
+				if ( in_array( $tool_name, [ 'wp_update_custom_css', 'wp_get_custom_css' ], true ) && ! is_string( $value ) ) {
 					return $value;
 				}
 
@@ -358,7 +374,7 @@ class Frontman_Tools {
 			return in_array( $tool_name, [ 'wp_update_template', 'wp_upload_media' ], true ) ? $value : wp_kses_post( $value );
 		}
 
-		if ( 'css' === $field_name && 'wp_update_custom_css' === $tool_name ) {
+		if ( in_array( $tool_name, [ 'wp_update_custom_css', 'wp_get_custom_css' ], true ) ) {
 			return $value;
 		}
 

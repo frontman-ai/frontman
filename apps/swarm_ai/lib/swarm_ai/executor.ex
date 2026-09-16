@@ -72,7 +72,7 @@ defmodule SwarmAi.Executor do
 
     Enum.each(tool_calls, &emit_tool_start(loop_id, step, &1))
 
-    executor_result =
+    {:ok, results} =
       try do
         loop.execute_tools.(tool_calls, task_supervisor)
       rescue
@@ -81,28 +81,16 @@ defmodule SwarmAi.Executor do
           reraise e, __STACKTRACE__
       end
 
-    case executor_result do
-      {:halt, halt_reason} ->
-        Telemetry.step_stop(loop.id, loop.current_step)
-        Loop.pause(loop, halt_reason)
+    Enum.zip(tool_calls, results)
+    |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result) end)
 
-      {:ok, results} ->
-        Enum.zip(tool_calls, results)
-        |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result) end)
+    {new_effects, updated_loop} =
+      Enum.flat_map_reduce(results, loop, fn result, loop_acc ->
+        {l, e} = Loop.handle_tool_result(loop_acc, result)
+        {e, l}
+      end)
 
-        {new_effects, updated_loop} =
-          Enum.flat_map_reduce(results, loop, fn result, loop_acc ->
-            {l, e} = Loop.handle_tool_result(loop_acc, result)
-            {e, l}
-          end)
-
-        run_effects(
-          updated_loop,
-          new_effects ++ rest,
-          task_supervisor,
-          steps_left
-        )
-    end
+    run_effects(updated_loop, new_effects ++ rest, task_supervisor, steps_left)
   end
 
   defp execute_llm_call(loop, llm, messages) do

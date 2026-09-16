@@ -19,6 +19,9 @@ external isAbsolute: string => bool = "isAbsolute"
 @module("node:path")
 external normalize: string => string = "normalize"
 
+@module("node:path")
+external relative: (string, string) => string = "relative"
+
 @module("node:path") @variadic
 external resolveMany: array<string> => string = "resolve"
 

@@ -177,10 +177,11 @@ let describe = (
   ~document: WebAPI.DomTypes.document,
   ~selector: option<string>,
   ~pierceShadowDom: bool,
+  ~additionalAttributes: array<string>,
 ): (string, array<walkChild>) => {
   let fields = [relation]
   pushField(fields, "tag", element.tagName->String.toLowerCase)
-  keyAttributes->Array.forEach(name =>
+  Array.concat(keyAttributes, additionalAttributes)->Array.forEach(name =>
     switch element->WebAPI.Element.getAttribute(name)->Null.toOption {
     | Some(value) =>
       pushField(
@@ -222,6 +223,26 @@ let describe = (
   (fields->Array.join(" "), children)
 }
 
+let describeAncestor = (
+  ~element: WebAPI.DomTypes.element,
+  ~document: WebAPI.DomTypes.document,
+  ~additionalAttributes: array<string>,
+): string => {
+  let selector = switch findSelector(~element, ~document) {
+  | Ok(selector) => Some(selector)
+  | Error(_) => None
+  }
+  let (description, _) = describe(
+    ~relation="ancestor",
+    ~element,
+    ~document,
+    ~selector,
+    ~pierceShadowDom=false,
+    ~additionalAttributes,
+  )
+  description
+}
+
 let rec walk = (
   ~element: WebAPI.DomTypes.element,
   ~document: WebAPI.DomTypes.document,
@@ -230,6 +251,7 @@ let rec walk = (
   ~maxDepth: int,
   ~pierceShadowDom: bool,
   ~insideShadowDom: bool,
+  ~additionalAttributes: array<string>,
   ~state: walkState,
 ): unit =>
   switch state.truncated || state.nodeCount >= state.maxNodes {
@@ -244,6 +266,7 @@ let rec walk = (
       ~document,
       ~selector,
       ~pierceShadowDom,
+      ~additionalAttributes,
     )
     let appended = appendLine(state, "  "->String.repeat(depth) ++ description)
     switch appended {
@@ -271,6 +294,7 @@ let rec walk = (
           | ShadowChild(_) => true
           | LightChild(_) => insideShadowDom
           },
+          ~additionalAttributes,
           ~state,
         )
       })
@@ -291,6 +315,7 @@ let inspect = (
   ~maxNodes: int,
   ~pierceShadowDom=false,
   ~selectedSelector: option<string>=?,
+  ~additionalAttributes=[],
 ): t => {
   let selector = switch selectedSelector {
   | Some(selector) => Ok(selector)
@@ -313,6 +338,7 @@ let inspect = (
       ~document,
       ~selector=parentSelector,
       ~pierceShadowDom=false,
+      ~additionalAttributes,
     )
     description
   | None => "parent none"
@@ -337,6 +363,7 @@ let inspect = (
     ~insideShadowDom=selectedSelector->Option.mapOr(false, selector =>
       selector->String.includes(" >>> ")
     ),
+    ~additionalAttributes,
     ~state,
   )
   switch state.truncated {

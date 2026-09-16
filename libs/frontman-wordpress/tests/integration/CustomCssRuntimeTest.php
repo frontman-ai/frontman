@@ -427,6 +427,87 @@ function frontman_test_custom_css_restore_tool(): void {
 	remove_filter( 'wp_insert_post_data', $change_scope );
 }
 
+function frontman_test_custom_css_edit_tool(): void {
+	$stylesheet = get_stylesheet();
+	$original = str_repeat( "/* unchanged */\r\n", 1400 ) . '.target::after { content: "\\31 $1 \\path"; }';
+	$post = frontman_custom_css_update( $stylesheet, $original );
+	$tool = new Frontman_Tool_Options();
+	$registry = new Frontman_Tools();
+	$tool->register( $registry );
+	$render = static function( string $css ): string {
+		return $css . ' /* render-only */';
+	};
+	add_filter( 'wp_get_custom_css', $render );
+	frontman_runtime_assert( $original . ' /* render-only */' === $tool->get_custom_css( [] )['css'], 'Default read lost rendered CSS behavior.' );
+	$read = $tool->get_custom_css( [ 'source' => 'persisted' ] );
+	frontman_runtime_assert( $original === $read['css'], 'Persisted read included render filter output.' );
+	frontman_runtime_assert( hash( 'sha256', $read['css'] ) === $read['persisted_css_sha256'], 'Persisted read did not match fingerprint.' );
+	$input = [
+		'mode' => 'edit', 'stylesheet' => $stylesheet, 'parent_post_id' => $post->ID,
+		'expected_current_sha256' => $read['persisted_css_sha256'], 'confirm' => true,
+		'oldText' => '.target::after { content: "\\31 $1 \\path"; }',
+		'newText' => ".target {\n  color: blue;\n}" . '\n.literal::after { content: "\\32 $$ \\new"; }',
+	];
+	foreach ( [
+		[ 'expected_current_sha256' => hash( 'sha256', 'stale' ) ],
+		[ 'parent_post_id' => $post->ID + 1 ],
+		[ 'parent_post_id' => $post->ID . 'junk' ],
+		[ 'stylesheet' => 'inactive-theme' ],
+		[ 'confirm' => 'true' ],
+		[ 'oldText' => '/* unchanged */' ],
+		[ 'oldText' => 'missing' ],
+		[ 'newText' => [] ],
+		[ 'replaceAll' => 'true' ],
+	] as $overrides ) {
+		$result = $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', array_merge( $input, $overrides ) ) );
+		frontman_runtime_assert( true === $result['isError'], 'Invalid edit was accepted: ' . json_encode( $overrides ) );
+		frontman_runtime_assert( $original === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Rejected edit changed persisted CSS.' );
+	}
+	frontman_custom_css_update( $stylesheet, $original, 'preprocessor-source' );
+	frontman_custom_css_assert_tool_error( static function() use ( $tool, $input ): void {
+		$tool->update_custom_css( $input );
+	}, 'preprocessor' );
+	frontman_runtime_assert( 'preprocessor-source' === frontman_custom_css_persisted_post( $post->ID )->post_content_filtered, 'Rejected edit changed preprocessor source.' );
+	frontman_custom_css_update( $stylesheet, $original );
+	$result = $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', $input ) );
+	frontman_runtime_assert( false === $result['isError'], 'Exact edit failed through registry.' );
+	$receipt = json_decode( $result['content'][0]['text'], true );
+	$expected = str_replace( $input['oldText'], $input['newText'], $original );
+	frontman_runtime_assert( $expected === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Edit changed unrelated bytes or escaped replacement text.' );
+	frontman_runtime_assert( hash( 'sha256', $expected ) === $receipt['after']['persisted_css_sha256'], 'Edit receipt did not fingerprint persisted output.' );
+	frontman_runtime_assert( strlen( $expected ) === $receipt['after']['persisted_css_bytes'], 'Edit receipt byte count is incorrect.' );
+	frontman_runtime_assert( 1 === $receipt['replacements'] && strlen( $result['content'][0]['text'] ) < 1000, 'Edit receipt is not compact.' );
+	remove_filter( 'wp_get_custom_css', $render );
+
+	foreach ( [
+		[ 'oldText' => '/* unchanged */', 'newText' => '/* replaced $1 \\literal */', 'replaceAll' => true ],
+		[ 'oldText' => $input['newText'], 'newText' => $input['newText'] . "\n.inserted { color: red; }" ],
+		[ 'oldText' => "\n.inserted { color: red; }", 'newText' => '' ],
+	] as $change ) {
+		$next = array_merge( $input, $change, [ 'expected_current_sha256' => hash( 'sha256', $expected ) ] );
+		$result = $registry->call( 'wp_update_custom_css', $registry->sanitize_input( 'wp_update_custom_css', $next ) );
+		frontman_runtime_assert( false === $result['isError'], 'Replace-all, insert, or delete failed.' );
+		$expected = str_replace( $next['oldText'], $next['newText'], $expected, $count );
+		$receipt = json_decode( $result['content'][0]['text'], true );
+		frontman_runtime_assert( $count === $receipt['replacements'], 'Wrong replacement count.' );
+		frontman_runtime_assert( $expected === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Literal replacement was not persisted.' );
+	}
+
+	frontman_custom_css_update( $stylesheet, $original );
+	$transform = static function( array $data ): array {
+		if ( 'custom_css' === $data['post_type'] ) {
+			$data['post_content'] .= ' /* save-filter */';
+		}
+		return $data;
+	};
+	add_filter( 'wp_insert_post_data', $transform );
+	$receipt = $tool->update_custom_css( $input );
+	remove_filter( 'wp_insert_post_data', $transform );
+	$expected = str_replace( $input['oldText'], $input['newText'], $original ) . ' /* save-filter */';
+	frontman_runtime_assert( $expected === frontman_custom_css_persisted_post( $post->ID )->post_content, 'Save filter fixture did not transform edit.' );
+	frontman_runtime_assert( hash( 'sha256', $expected ) === $receipt['after']['persisted_css_sha256'], 'Edit receipt reported intended rather than observed output.' );
+}
+
 frontman_characterize_custom_css_revision_history();
 frontman_characterize_custom_css_revision_availability();
 frontman_characterize_custom_css_revision_scope();
@@ -435,4 +516,5 @@ frontman_characterize_preprocessor_custom_css_restore();
 frontman_characterize_custom_css_save_transformation();
 frontman_characterize_custom_css_conflicts();
 frontman_test_custom_css_read_tools();
+frontman_test_custom_css_edit_tool();
 frontman_test_custom_css_restore_tool();

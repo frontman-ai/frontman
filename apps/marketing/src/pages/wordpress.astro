@@ -7,7 +7,7 @@ import videoPlaceholder from '../assets/video-placeholder.png'
 
 const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
 const taskDemoUrl = '/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo'
-const playgroundUrl = 'https://playground.wordpress.net/?networking=yes&blueprint-url=https%3A%2F%2Ffrontman.sh%2Fwordpress-playground%2Fblueprint.json'
+const setupGuideUrl = '/docs/integrations/wordpress/'
 const youtubeVideoId = '-4GD1GYwH8Y'
 
 const SEO = {
@@ -99,10 +99,10 @@ const pageJsonLd = {
 				</p>
 				<div class="wp-actions wp-hero__cta">
 					<Button size="lg" style="white" link={pluginUrl} classes="wp-primary-cta">Install from WordPress.org <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
-					<Button size="lg" style="white" variation="outline" link={playgroundUrl} target="_self">Open WordPress Playground <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
+					<Button size="lg" style="white" variation="outline" link={taskDemoUrl}>Watch real task demo <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
 				</div>
-				<a href="/docs/integrations/wordpress/" class="wp-secondary-link wp-hero__setup-link">Read setup guide</a>
-				<p class="wp-note">Try a real edit in disposable WordPress with Frontman installed and a seeded page. Frontman sign-in and your own supported AI provider are still required. WordPress 6.0+, PHP 7.4+, administrator access required. Beta: start on staging and keep backups.</p>
+				<a href={setupGuideUrl} class="wp-secondary-link wp-hero__setup-link">Read setup guide</a>
+				<p class="wp-note">Beta: start on staging, keep backups, and review changes before production use. WordPress 6.0+, PHP 7.4+, administrator access required.</p>
 			</div>
 			<div class="wp-video-wrapper">
 				<button

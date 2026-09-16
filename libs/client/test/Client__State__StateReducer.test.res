@@ -12,6 +12,9 @@ module UserMessageId = Client__Message.UserMessageId
 let testUserMessageId = UserMessageId.make()
 let secondTestUserMessageId = UserMessageId.make()
 
+@schema
+type pageRoutingMeta = {astro_client_routing: option<string>}
+
 let setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
 
@@ -21,10 +24,10 @@ module TestHelpers = {
   let activeAcpSession = (
     ~deleteSession=(_, ~onComplete as _) => (),
     ~requireAuthentication=() => (),
+    ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   ): Client__State__Types.acpSession => AcpSessionActive({
-    sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-    cancelPrompt: () => (),
-    retryTurn: _ => (),
+    sendPrompt,
+    sendSessionCommand: _ => (),
     loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
     deleteSession,
     requireAuthentication,
@@ -124,6 +127,84 @@ module TestHelpers = {
     )->Pair.first
   }
 }
+
+describe("Client State Reducer - Integration Updates", () => {
+  let wordpress = StateTypes.WordPressPlugin
+  let npm = StateTypes.NpmPackage("@frontman-ai/nextjs")
+
+  test("finds an outdated WordPress plugin", t => {
+    let result = Reducer.updateInfoForVersions(
+      ~target=wordpress,
+      ~installedVersion="1.2.0",
+      ~latestVersion="1.3.0",
+    )
+
+    t
+    ->expect(result)
+    ->Expect.toEqual(Some({target: wordpress, installedVersion: "1.2.0", latestVersion: "1.3.0"}))
+  })
+
+  test("ignores equal, newer, and invalid versions", t => {
+    [
+      ("1.3.0", "1.3.0"),
+      ("1.4.0", "1.3.0"),
+      ("invalid", "1.3.0"),
+      ("1.2.0", "invalid"),
+    ]->Array.forEach(
+      ((installedVersion, latestVersion)) =>
+        t
+        ->expect(
+          Reducer.updateInfoForVersions(~target=wordpress, ~installedVersion, ~latestVersion),
+        )
+        ->Expect.toEqual(None),
+    )
+  })
+
+  test("preserves npm version comparison", t => {
+    let result = Reducer.updateInfoForVersions(
+      ~target=npm,
+      ~installedVersion="1.2.0",
+      ~latestVersion="1.3.0",
+    )
+
+    t
+    ->expect(result)
+    ->Expect.toEqual(Some({target: npm, installedVersion: "1.2.0", latestVersion: "1.3.0"}))
+  })
+
+  test("refreshes updates without an ACP session and clears stale notices", t => {
+    let (_, effects) = Reducer.next(
+      Reducer.defaultState,
+      Reducer.CheckForUpdate({
+        apiBaseUrl: "https://api.frontman.sh",
+        installedVersion: "1.2.0",
+        target: wordpress,
+      }),
+    )
+    let staleInfo: StateTypes.updateInfo = {
+      target: wordpress,
+      installedVersion: "1.2.0",
+      latestVersion: "1.3.0",
+    }
+    let state = {...Reducer.defaultState, updateInfo: Some(staleInfo)}
+    let cleared = Reducer.next(
+      state,
+      Reducer.WordPressUpdatesChecked(
+        Some({
+          installedVersion: "1.3.0",
+          latestVersion: "1.3.0",
+          autoUpdateEnabled: true,
+        }),
+      ),
+    )->Pair.first
+
+    t->expect(effects->Array.length)->Expect.toEqual(1)
+    t->expect(cleared.updateInfo)->Expect.toEqual(None)
+    t
+    ->expect(cleared.wordpressUpdates)
+    ->Expect.toEqual(Client__WordPressUpdates.Available({autoUpdateEnabled: true}))
+  })
+})
 
 describe("Client State Reducer - Custom Providers", () => {
   let provider = (~name, ~models): StateTypes.customProvider => {
@@ -1709,8 +1790,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       selectedModelValue: Some("anthropic:claude-opus-4-6"),
       acpSession: AcpSessionActive({
         sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta) => sentMetadata := _meta,
-        cancelPrompt: () => (),
-        retryTurn: _ => (),
+        sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
         requireAuthentication: () => (),
@@ -1747,6 +1827,66 @@ describe("Client State Reducer - Annotations on Messages", () => {
     ->Expect.toEqual(Some("anthropic:claude-opus-4-6"))
   })
 
+  test("SendMessage includes fresh routing metadata only for Astro previews", t => {
+    let enabledDocument =
+      WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
+        ~title="",
+      )
+    enabledDocument.head.innerHTML = "<meta name=\"astro-view-transitions-enabled\" content=\"true\">"
+    let disabledDocument =
+      WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
+        ~title="",
+      )
+    [
+      ("astro", Some(enabledDocument), Some("enabled")),
+      ("astro", Some(disabledDocument), Some("disabled")),
+      ("astro", None, Some("unavailable")),
+      ("nextjs", Some(enabledDocument), None),
+      ("vite", Some(enabledDocument), None),
+      ("wordpress", Some(enabledDocument), None),
+    ]->Array.forEach(
+      ((framework, contentDocument, expected)) => {
+        setRuntime(
+          {"framework": framework}->S.decodeOrThrow(
+            ~from=S.object(s => {"framework": s.field("framework", S.string)}),
+            ~to=S.json,
+          ),
+        )
+        let sentBlocks = ref([])
+        let state = TestHelpers.makeStateWithTask()
+        let task = state.tasks->Dict.get("test-task-1")->Option.getOrThrow
+        state.tasks->Dict.set(
+          "test-task-1",
+          TaskReducer.Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow=None),
+        )
+        let state = {
+          ...state,
+          acpSession: TestHelpers.activeAcpSession(
+            ~sendPrompt=(_, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
+              sentBlocks := additionalBlocks,
+          ),
+        }
+        let (state, effects) = Reducer.next(
+          state,
+          Reducer.AddUserMessage({
+            id: UserMessageId.make(),
+            sessionId: "session-1",
+            content: [UserContentPart.text("Fix this")],
+            annotations: [],
+            agentId: "planner-id",
+          }),
+        )
+        effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+        switch sentBlocks.contents->Array.get(0) {
+        | Some(ContentBlock.EmbeddedResource({_meta: Some(meta)})) =>
+          let metadata = S.parseOrThrow(meta, ~to=pageRoutingMetaSchema)
+          t->expect(metadata.astro_client_routing)->Expect.toEqual(expected)
+        | _ => JsExn.throw("Expected current-page metadata in the submitted prompt")
+        }
+      },
+    )
+  })
+
   test("SendMessage dispatches task cleanup when sendPrompt fails", t => {
     setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
     let messageId = UserMessageId.make()
@@ -1758,8 +1898,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       acpSession: AcpSessionActive({
         sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
           completion := Some(onComplete),
-        cancelPrompt: () => (),
-        retryTurn: _ => (),
+        sendSessionCommand: _ => (),
         loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
         deleteSession: (_, ~onComplete as _) => (),
         requireAuthentication: () => (),
@@ -1814,8 +1953,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
 
     let _setAcpSessionAction = (): Reducer.action => SetAcpSession({
       sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-      cancelPrompt: () => (),
-      retryTurn: _ => (),
+      sendSessionCommand: _ => (),
       loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
       deleteSession: (_, ~onComplete as _) => (),
       requireAuthentication: () => (),

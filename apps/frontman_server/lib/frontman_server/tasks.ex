@@ -24,6 +24,7 @@ defmodule FrontmanServer.Tasks do
     Interaction.AgentError,
     Interaction.AgentPaused,
     Interaction.AgentRetry,
+    Interaction.SkillUsed,
     Interaction.ToolCall,
     Interaction.ToolResult,
     RetryCoordinator,
@@ -35,7 +36,8 @@ defmodule FrontmanServer.Tasks do
       FrontmanServer,
       FrontmanServer.Accounts,
       FrontmanServer.Providers,
-      ModelContextProtocol
+      FrontmanServer.Skills,
+      FrontmanServer.Protocols.MCP
     ],
     exports: @exports
 
@@ -43,7 +45,9 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Repo
+  alias FrontmanServer.Skills
 
   alias FrontmanServer.Tasks.{
     Execution,
@@ -58,7 +62,8 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Workers.GenerateTitle
   require Logger
 
-  defp get_task_by_id(scope, task_id) do
+  @doc "Gets task metadata by ID without loading its interaction history."
+  def get_task(scope, task_id) do
     case task_id
          |> TaskSchema.by_id_for_user(Accounts.scope_user_id(scope))
          |> Repo.one() do
@@ -94,14 +99,10 @@ defmodule FrontmanServer.Tasks do
     {:ok, tasks}
   end
 
-  @doc """
-  Gets a task by ID. Returns the task with interactions loaded.
-
-  Requires authorization - scope.user.id must match task.user_id.
-  """
-  def get_task(scope, task_id) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      {:ok, hydrate_task(schema)}
+  @doc "Gets a task by ID with its interaction history loaded."
+  def get_task_with_history(scope, task_id) do
+    with {:ok, task} <- get_task(scope, task_id) do
+      {:ok, %{task | interaction_rows: load_interaction_rows(task.id)}}
     end
   end
 
@@ -118,7 +119,7 @@ defmodule FrontmanServer.Tasks do
   Cascade deletes configured in migration handle interaction cleanup.
   """
   def delete_task(scope, task_id) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
+    with {:ok, schema} <- get_task(scope, task_id),
          {:ok, _} <- Repo.delete(schema) do
       :ok
     end
@@ -236,10 +237,6 @@ defmodule FrontmanServer.Tasks do
     |> Repo.insert()
   end
 
-  defp hydrate_task(%TaskSchema{} = task_schema) do
-    %{task_schema | interaction_rows: load_interaction_rows(task_schema.id)}
-  end
-
   defp load_interaction_rows(task_id) do
     InteractionSchema.for_task(task_id)
     |> InteractionSchema.ordered()
@@ -323,7 +320,7 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Stores the discovered project structure summary for a task."
   def add_discovered_project_structure(scope, task_id, summary) do
-    with {:ok, %TaskSchema{} = task} <- get_task_by_id(scope, task_id),
+    with {:ok, %TaskSchema{} = task} <- get_task(scope, task_id),
          false <-
            task.id
            |> InteractionSchema.for_task()
@@ -412,7 +409,7 @@ defmodule FrontmanServer.Tasks do
       |> Interaction.AgentResponse.attrs_from_llm_response()
       |> Map.put(:timestamp, metadata.timestamp)
 
-    with {:ok, task_schema} <- get_task_by_id(scope, task_id),
+    with {:ok, task_schema} <- get_task(scope, task_id),
          {:ok, _interaction} <-
            record_interaction(task_schema, :agent_response, attrs, turn_number) do
       :ok
@@ -457,59 +454,15 @@ defmodule FrontmanServer.Tasks do
     persist_execution_outcome(scope, task_id, turn_number, {:crashed, message})
   end
 
-  defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:cancelled, _}) do
-    persist_execution_outcome(scope, task_id, turn_number, :cancelled)
-  end
-
-  defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {:terminated, _}) do
-    Logger.info("Execution terminated by supervisor for task #{task_id}")
-
-    unresolved_tool_calls = unresolved_tool_calls_for_turn(task_id, turn_number)
-
-    {interactive_tool_calls, interrupted_tool_calls} =
-      Enum.split_with(unresolved_tool_calls, &keeps_turn_open_after_restart?/1)
-
-    Enum.each(interrupted_tool_calls, fn tool_call ->
-      resolve_tool_request(
-        scope,
-        task_id,
-        %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-        ModelContextProtocol.tool_result_error("Interrupted by restart"),
-        turn_number: turn_number
-      )
+  defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {kind, _})
+       when kind in [:cancelled, :terminated] do
+    Repo.transact(fn ->
+      case get_task_by_id_for_update(scope, task_id) do
+        %TaskSchema{} = task -> interrupt_turn(task, turn_number, kind)
+        nil -> {:error, :not_found}
+      end
     end)
-
-    case interactive_tool_calls do
-      [] ->
-        persist_execution_outcome(scope, task_id, turn_number, :terminated)
-
-      [_ | _] ->
-        :ok
-    end
-  end
-
-  defp persist_swarm_event(
-         %Scope{} = scope,
-         task_id,
-         turn_number,
-         {:paused, {:timeout, tool_call_id, tool_name, timeout_ms}}
-       ) do
-    reason = "Tool #{tool_name} timed out after #{timeout_ms}ms (on_timeout: :pause_agent)"
-
-    resolve_tool_request(
-      scope,
-      task_id,
-      %{id: tool_call_id, name: tool_name},
-      ModelContextProtocol.tool_result_error(reason),
-      turn_number: turn_number
-    )
-
-    persist_execution_outcome(
-      scope,
-      task_id,
-      turn_number,
-      {:paused_for_tool_timeout, tool_name, timeout_ms}
-    )
+    |> publish_interruption(task_id)
   end
 
   defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:chunk, _, _}), do: :ok
@@ -545,17 +498,77 @@ defmodule FrontmanServer.Tasks do
 
   defp broadcast_swarm_event(_task_id, _turn_number, _event), do: :ok
 
-  defp unresolved_tool_calls_for_turn(task_id, turn_number) do
-    InteractionSchema.for_task(task_id)
-    |> InteractionSchema.for_turn(turn_number)
-    |> InteractionSchema.unresolved_tool_calls()
-    |> InteractionSchema.ordered()
-    |> Repo.all()
-    |> Enum.map(& &1.data)
+  defp interrupt_turn(task, turn_number, kind) do
+    {:ok, history} = History.new(load_interaction_rows(task.id))
+
+    case History.active_turn_number(history) do
+      ^turn_number when is_integer(turn_number) ->
+        {preserved, interrupted} =
+          history.rows
+          |> History.unresolved_tool_calls(turn_number)
+          |> Enum.split_with(&(kind == :terminated and keeps_turn_open_after_restart?(&1)))
+
+        reason =
+          case kind do
+            :cancelled -> "Interrupted by user"
+            :terminated -> "Interrupted by restart"
+          end
+
+        results =
+          Enum.map(interrupted, fn {call, _dispatch} ->
+            {:ok, {row, true}} =
+              store_tool_result(
+                task,
+                turn_number,
+                call,
+                MCP.tool_result_error(reason)
+              )
+
+            row
+          end)
+
+        case preserved do
+          [] ->
+            {type, attrs} = build_execution_outcome(kind)
+
+            {:ok, terminal} =
+              insert_interaction_row(task, %{
+                id: Ecto.UUID.generate(),
+                type: type,
+                data: attrs,
+                turn_number: turn_number
+              })
+
+            {:ok, results ++ [terminal]}
+
+          [_ | _] ->
+            {:ok, results}
+        end
+
+      _inactive ->
+        {:ok, []}
+    end
   end
 
-  defp keeps_turn_open_after_restart?(%Interaction.ToolCall{tool_name: "question"}), do: true
-  defp keeps_turn_open_after_restart?(%Interaction.ToolCall{}), do: false
+  defp publish_interruption({:ok, rows}, task_id) do
+    Enum.each(rows, fn row ->
+      broadcast_task(task_id, {:interaction, row})
+
+      case row.data do
+        %Interaction.ToolResult{} = result -> Execution.notify_tool_result(task_id, result)
+        _terminal -> :ok
+      end
+    end)
+
+    :ok
+  end
+
+  defp publish_interruption({:error, reason}, _task_id), do: {:error, reason}
+
+  defp keeps_turn_open_after_restart?({_tool_call, nil}), do: false
+
+  defp keeps_turn_open_after_restart?({_tool_call, %Interaction.ToolCall{} = dispatch}),
+    do: Interaction.ToolCall.execution_mode(dispatch) == :interactive
 
   @doc """
   Accepts a user prompt into session history.
@@ -570,35 +583,26 @@ defmodule FrontmanServer.Tasks do
           message: [_ | _] = content_blocks,
           model: model,
           agent_id: agent_id
-        }
+        } = arguments
       )
       when is_binary(task_id) and is_binary(model) and model != "" and is_binary(agent_id) and
              agent_id != "" do
-    with {:ok, user_message_attrs} <-
-           Interaction.UserMessage.attrs(content_blocks, model, agent_id),
-         {:ok, task_schema} <- get_task_by_id(scope, task_id),
-         first_message? <- accepted_user_message_count(task_id) == 0,
-         {:ok, accepted_row} <-
-           record_interaction_row(
-             task_schema,
-             %{
-               id: message_id,
-               type: :user_message,
-               data: Map.put(user_message_attrs, :id, message_id),
-               turn_number: nil
-             }
-           ) do
-      if first_message? do
-        GenerateTitle.new(%{
-          user_id: scope.user.id,
-          task_id: task_id,
-          user_prompt_text: Interaction.user_prompt_text(accepted_row.data),
-          model: model
-        })
-        |> Oban.insert!()
-      end
+    selected_server_skill_id = Map.get(arguments, :selected_server_skill_id)
 
-      {:ok, accepted_row}
+    with {:ok, selected_skill} <- selected_skill(scope, selected_server_skill_id),
+         {:ok, user_message_attrs} <-
+           Interaction.UserMessage.attrs(content_blocks, model, agent_id),
+         user_message_attrs = put_selected_skill(user_message_attrs, selected_skill),
+         {:ok, task_schema} <- get_task(scope, task_id) do
+      record_interaction_row(
+        task_schema,
+        %{
+          id: message_id,
+          type: :user_message,
+          data: Map.put(user_message_attrs, :id, message_id),
+          turn_number: nil
+        }
+      )
     end
   end
 
@@ -611,16 +615,59 @@ defmodule FrontmanServer.Tasks do
     {:error, :missing_agent}
   end
 
-  defp accepted_user_message_count(task_id) do
-    task_id
-    |> load_interaction_rows()
-    |> Enum.count(&(&1.type == :user_message))
+  defp selected_skill(_scope, nil), do: {:ok, nil}
+
+  defp selected_skill(%Scope{} = scope, selected_server_skill_id) do
+    case Skills.get_by_id(scope, selected_server_skill_id) do
+      {:ok, selected_skill} -> {:ok, selected_skill}
+      {:error, :not_found} -> {:error, :skill_not_found}
+    end
+  end
+
+  defp put_selected_skill(attrs, nil), do: attrs
+
+  defp put_selected_skill(attrs, selected_skill) do
+    attrs
+    |> Map.put(:selected_server_skill_id, selected_skill.id)
+    |> Map.put(:selected_server_skill_name, selected_skill.name)
+    |> Map.put(:selected_server_skill_content, selected_skill.content)
+  end
+
+  @doc """
+  Removes a queued (not yet claimed by a turn) user message.
+
+  Returns `:ok` when the row is deleted, `{:error, :not_queued}` when the
+  message was already claimed by a turn or does not exist.
+  """
+  def unqueue_user_message(%Scope{} = scope, task_id, message_id)
+      when is_binary(task_id) and is_binary(message_id) do
+    Repo.transact(fn ->
+      with %TaskSchema{} <- get_task_by_id_for_update(scope, task_id),
+           {:ok, history} <- History.new(load_interaction_rows(task_id)),
+           %InteractionSchema{} = row <-
+             Enum.find(History.pending_accepted_messages(history), &(&1.id == message_id)),
+           {:ok, deleted} <- Repo.delete(row) do
+        {:ok, deleted}
+      else
+        nil -> {:error, :not_queued}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> case do
+      {:ok, %InteractionSchema{id: deleted_id}} ->
+        broadcast_task(task_id, {:message_unqueued, deleted_id})
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp start_next_turn(%Scope{} = scope, task_id) when is_binary(task_id) do
     case claim_next_turn(scope, task_id) do
-      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}} ->
+      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent, first_message}} ->
         broadcast_task(task_id, {:interaction, turn_started_row})
+        enqueue_title_generation(scope, task_id, first_message, turn_model, turn_number)
         {:ok, task_schema, turn_number, turn_model, agent}
 
       {:error, :already_running} ->
@@ -666,14 +713,35 @@ defmodule FrontmanServer.Tasks do
            user_message_ids: user_message_ids
          },
          {:ok, turn_started_row} <-
-           insert_turn_started(task_schema, turn_started_attrs, turn_number) do
-      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent}}
+           insert_turn_started(task_schema, turn_started_attrs, turn_number),
+         :ok <- insert_skill_used_rows(task_schema, accepted_messages, turn_number) do
+      {:ok,
+       {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message}}
     else
       {:error, reason} -> {:error, reason}
       {nil, []} -> {:error, :no_accepted_messages}
       {_turn_number, _accepted_messages} -> {:error, :already_running}
     end
   end
+
+  defp enqueue_title_generation(
+         %Scope{} = scope,
+         task_id,
+         %InteractionSchema{data: user_message},
+         model,
+         1
+       ) do
+    GenerateTitle.new(%{
+      user_id: scope.user.id,
+      task_id: task_id,
+      user_prompt_text: Interaction.user_prompt_text(user_message),
+      model: model
+    })
+    |> Oban.insert!()
+  end
+
+  defp enqueue_title_generation(%Scope{}, _task_id, %InteractionSchema{}, _model, _turn_number),
+    do: :ok
 
   defp accepted_message_model(%InteractionSchema{data: %Interaction.UserMessage{model: model}})
        when is_binary(model) and model != "",
@@ -695,6 +763,51 @@ defmodule FrontmanServer.Tasks do
        ) do
     default_agent_id
   end
+
+  defp insert_skill_used_rows(%TaskSchema{} = task_schema, accepted_messages, turn_number) do
+    accepted_messages
+    |> Enum.flat_map(&skill_used_attrs/1)
+    |> Enum.reduce_while(:ok, fn attrs, :ok ->
+      row_attrs = %{
+        id: attrs.id,
+        type: :skill_used,
+        data: attrs,
+        turn_number: turn_number
+      }
+
+      case task_schema
+           |> Ecto.build_assoc(:interaction_rows)
+           |> InteractionSchema.changeset(row_attrs)
+           |> Repo.insert() do
+        {:ok, _row} -> {:cont, :ok}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+  end
+
+  defp skill_used_attrs(%InteractionSchema{
+         id: user_message_id,
+         data: %Interaction.UserMessage{
+           selected_server_skill_id: skill_id,
+           selected_server_skill_name: skill_name,
+           selected_server_skill_content: skill_content
+         }
+       })
+       when is_binary(user_message_id) and is_binary(skill_id) and is_binary(skill_name) and
+              is_binary(skill_content) do
+    [
+      %{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        user_message_id: user_message_id,
+        skill_id: skill_id,
+        skill_name: skill_name,
+        skill_content: skill_content
+      }
+    ]
+  end
+
+  defp skill_used_attrs(%InteractionSchema{}), do: []
 
   defp insert_turn_started(%TaskSchema{} = task_schema, turn_started_attrs, turn_number) do
     attrs = %{
@@ -722,7 +835,7 @@ defmodule FrontmanServer.Tasks do
 
   def agent_replied(scope, task_id, turn_number, content, metadata \\ %{}, usage \\ nil)
       when is_integer(turn_number) and turn_number > 0 do
-    with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
+    with {:ok, task_schema} <- get_task(scope, task_id) do
       record_interaction(
         task_schema,
         :agent_response,
@@ -735,7 +848,7 @@ defmodule FrontmanServer.Tasks do
   @doc "Records how the given execution ended."
   def record_execution_outcome(scope, task_id, turn_number, outcome)
       when is_integer(turn_number) and turn_number > 0 do
-    with {:ok, task_schema} <- get_task_by_id(scope, task_id) do
+    with {:ok, task_schema} <- get_task(scope, task_id) do
       {type, attrs} = build_execution_outcome(outcome)
 
       record_interaction(task_schema, type, attrs, turn_number)
@@ -761,14 +874,6 @@ defmodule FrontmanServer.Tasks do
 
       {:crashed, error} ->
         turn_error(error, "crashed")
-
-      {:paused_for_tool_timeout, tool, timeout} ->
-        {:agent_paused,
-         %{
-           reason: "Tool #{tool} timed out after #{timeout}ms (on_timeout: :pause_agent)",
-           tool_name: tool,
-           timeout_ms: timeout
-         }}
     end
   end
 
@@ -783,10 +888,17 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Records a client-handled tool request in the given turn."
-  def request_client_tool(scope, task_id, turn_number, %SwarmAi.ToolCall{} = tool_call_data)
-      when is_integer(turn_number) and turn_number > 0 do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
-         {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data) do
+  def request_client_tool(
+        %Scope{} = scope,
+        task_id,
+        turn_number,
+        %SwarmAi.ToolCall{} = tool_call_data,
+        execution_mode
+      )
+      when is_integer(turn_number) and turn_number > 0 and
+             execution_mode in [:synchronous, :interactive] do
+    with {:ok, schema} <- get_task(scope, task_id),
+         {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
       record_interaction(schema, :tool_call, attrs, turn_number)
     end
   end
@@ -809,47 +921,65 @@ defmodule FrontmanServer.Tasks do
         opts \\ []
       )
       when is_list(opts) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id) do
-      turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
-      attrs = Interaction.ToolResult.attrs(tool_call_data, result)
+    Repo.transact(fn ->
+      case get_task_by_id_for_update(scope, task_id) do
+        %TaskSchema{} = task ->
+          turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
+          store_tool_result(task, turn_number, tool_call_data, result)
 
-      schema
-      |> record_interaction(:tool_result, attrs, turn_number)
-      |> resolve_recorded_tool_result(task_id, turn_number, tool_call_id)
+        nil ->
+          {:error, :not_found}
+      end
+    end)
+    |> case do
+      {:ok, {row, inserted?}} ->
+        status = publish_tool_result(task_id, row, inserted?)
+        {:ok, row.data, status}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
-  defp resolve_recorded_tool_result({:ok, interaction}, task_id, _turn_number, _tool_call_id) do
-    notify_recorded_tool_result(interaction, task_id)
-  end
+  defp store_tool_result(task, turn_number, tool_call, result) do
+    existing =
+      InteractionSchema.for_task(task.id)
+      |> InteractionSchema.for_turn(turn_number)
+      |> InteractionSchema.of_type(:tool_result)
+      |> InteractionSchema.data_equals("tool_call_id", tool_call.id)
+      |> Repo.one()
 
-  defp resolve_recorded_tool_result(
-         {:error, %Ecto.Changeset{} = changeset},
-         task_id,
-         turn_number,
-         tool_call_id
-       ) do
-    case InteractionSchema.duplicate_tool_result?(changeset) do
-      true ->
-        interaction =
-          InteractionSchema
-          |> InteractionSchema.for_task(task_id)
-          |> InteractionSchema.for_turn(turn_number)
-          |> InteractionSchema.of_type(:tool_result)
-          |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
-          |> Repo.one!()
-          |> Map.fetch!(:data)
+    case existing do
+      %InteractionSchema{} = row ->
+        {:ok, {row, false}}
 
-        notify_recorded_tool_result(interaction, task_id)
+      nil ->
+        {:ok, history} = History.new(load_interaction_rows(task.id))
 
-      false ->
-        {:error, changeset}
+        attrs = %{
+          id: Ecto.UUID.generate(),
+          type: :tool_result,
+          data: Interaction.ToolResult.attrs(tool_call, result),
+          turn_number: turn_number
+        }
+
+        with ^turn_number <- History.active_turn_number(history),
+             {:ok, row} <- insert_interaction_row(task, attrs) do
+          {:ok, {row, true}}
+        else
+          {:error, reason} -> {:error, reason}
+          _inactive -> {:error, :not_running}
+        end
     end
   end
 
-  defp notify_recorded_tool_result(interaction, task_id) do
-    {:ok, interaction, Execution.notify_tool_result(task_id, interaction)}
+  defp publish_tool_result(task_id, row, true) do
+    broadcast_task(task_id, {:interaction, row})
+    Execution.notify_tool_result(task_id, row.data)
   end
+
+  defp publish_tool_result(task_id, row, false),
+    do: Execution.notify_tool_result(task_id, row.data)
 
   defp tool_result_turn_number(task_id, tool_call_id, opts) do
     case Keyword.fetch(opts, :turn_number) do
@@ -876,7 +1006,7 @@ defmodule FrontmanServer.Tasks do
   in the same turn. Completion, error, and pause records stop execution.
   """
   def get_active_turn_unresolved_tool_calls(scope, task_id) do
-    with {:ok, _schema} <- get_task_by_id(scope, task_id),
+    with {:ok, _schema} <- get_task(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, history} <- History.new(rows) do
       case History.active_turn_number(history) do
@@ -884,13 +1014,13 @@ defmodule FrontmanServer.Tasks do
           {:ok, :no_active_turn}
 
         turn_number ->
+          dispatches = MapSet.new(History.unresolved_tool_calls(rows, turn_number), &elem(&1, 1))
+
           tool_calls =
-            InteractionSchema.for_task(task_id)
-            |> InteractionSchema.for_turn(turn_number)
-            |> InteractionSchema.unresolved_tool_calls()
-            |> InteractionSchema.ordered()
-            |> Repo.all()
+            rows
+            |> Enum.filter(&(&1.turn_number == turn_number))
             |> Enum.map(& &1.data)
+            |> Enum.filter(&MapSet.member?(dispatches, &1))
 
           {:ok, turn_number, tool_calls}
       end
@@ -899,7 +1029,7 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Records a retry request and starts execution."
   def retry_execution(scope, task_id, retried_error_id, execution) do
-    with {:ok, schema} <- get_task_by_id(scope, task_id),
+    with {:ok, schema} <- get_task(scope, task_id),
          rows = load_interaction_rows(task_id),
          {:ok, history} = History.new(rows),
          {:ok, turn_number} <- retry_turn_number(rows, retried_error_id),
@@ -966,7 +1096,7 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Resumes execution for the active turn."
   def resume_execution(scope, task_id, execution) do
-    with {:ok, task} <- get_task(scope, task_id),
+    with {:ok, task} <- get_task_with_history(scope, task_id),
          {:ok, history} <- History.new(task.interaction_rows),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
@@ -996,7 +1126,7 @@ defmodule FrontmanServer.Tasks do
   Verifies the task exists and belongs to the user before cancelling.
   """
   def cancel_execution(scope, task_id) do
-    with {:ok, _schema} <- get_task_by_id(scope, task_id) do
+    with {:ok, _schema} <- get_task(scope, task_id) do
       SwarmAi.cancel(FrontmanServer.AgentRuntime, task_id)
     end
   end
@@ -1080,7 +1210,7 @@ defmodule FrontmanServer.Tasks do
   def apply_title_suggestion(scope, task_id, title) do
     default_title = TaskSchema.default_title()
 
-    with {:ok, %TaskSchema{short_desc: ^default_title} = schema} <- get_task_by_id(scope, task_id),
+    with {:ok, %TaskSchema{short_desc: ^default_title} = schema} <- get_task(scope, task_id),
          {:ok, _updated} <-
            schema
            |> TaskSchema.update_changeset(%{short_desc: title})
@@ -1108,7 +1238,7 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Lists all todos for a task."
   def list_todos(scope, task_id) do
-    with {:ok, task} <- get_task(scope, task_id) do
+    with {:ok, task} <- get_task_with_history(scope, task_id) do
       {:ok, list_todos(task)}
     end
   end

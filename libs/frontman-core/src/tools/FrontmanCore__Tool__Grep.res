@@ -380,25 +380,15 @@ let executePlainGrep = async (
 }
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
-  let searchPath = PathContext.resolveSearchPath(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path)
-  let caseInsensitive = input.caseInsensitive->Option.getOr(false)
-  let literal = input.literal->Option.getOr(false)
-  let maxResults = input.maxResults->Option.getOr(20)
+  switch PathContext.resolveSearchPath(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
+  | Error(err) => Tool.MCP.CallToolResult.makeError(PathContext.formatError(err))
+  | Ok(searchPath) =>
+    let caseInsensitive = input.caseInsensitive->Option.getOr(false)
+    let literal = input.literal->Option.getOr(false)
+    let maxResults = input.maxResults->Option.getOr(20)
 
-  let gitGrepWithFallback = async () => {
-    let gitResult = await executeGitGrep(
-      ~pattern=input.pattern,
-      ~searchPath,
-      ~caseInsensitive,
-      ~literal,
-      ~maxResults,
-      ~glob=input.glob,
-      ~type_=input.type_,
-    )
-    switch gitResult {
-    | Ok(_) => gitResult
-    | Error(_) =>
-      await executePlainGrep(
+    let gitGrepWithFallback = async () => {
+      let gitResult = await executeGitGrep(
         ~pattern=input.pattern,
         ~searchPath,
         ~caseInsensitive,
@@ -407,31 +397,44 @@ let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.C
         ~glob=input.glob,
         ~type_=input.type_,
       )
+      switch gitResult {
+      | Ok(_) => gitResult
+      | Error(_) =>
+        await executePlainGrep(
+          ~pattern=input.pattern,
+          ~searchPath,
+          ~caseInsensitive,
+          ~literal,
+          ~maxResults,
+          ~glob=input.glob,
+          ~type_=input.type_,
+        )
+      }
     }
-  }
 
-  let result = switch await FrontmanBindings.Ripgrep.getRipgrepPath() {
-  | Some(rgPath) =>
-    let result = await executeRipgrep(
-      ~rgPath,
-      ~pattern=input.pattern,
-      ~searchPath,
-      ~type_=input.type_,
-      ~glob=input.glob,
-      ~caseInsensitive,
-      ~literal,
-      ~maxResults,
-    )
+    let result = switch await FrontmanBindings.Ripgrep.getRipgrepPath() {
+    | Some(rgPath) =>
+      let result = await executeRipgrep(
+        ~rgPath,
+        ~pattern=input.pattern,
+        ~searchPath,
+        ~type_=input.type_,
+        ~glob=input.glob,
+        ~caseInsensitive,
+        ~literal,
+        ~maxResults,
+      )
+
+      switch result {
+      | Ok(_) => result
+      | Error(_) => await gitGrepWithFallback()
+      }
+    | None => await gitGrepWithFallback()
+    }
 
     switch result {
-    | Ok(_) => result
-    | Error(_) => await gitGrepWithFallback()
+    | Ok(output) => Tool.structuredResult(output, outputSchema)
+    | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
     }
-  | None => await gitGrepWithFallback()
-  }
-
-  switch result {
-  | Ok(output) => Tool.structuredResult(output, outputSchema)
-  | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

@@ -10,6 +10,39 @@ function frontman_runtime_assert( bool $condition, string $message ): void {
 	}
 }
 
+function frontman_runtime_http( string $method, string $path, string $cookie = '', ?string $nonce = null, ?string $body = null, string $test = '' ): array {
+	$headers = [ 'Host: frontman-runtime.example.test' ];
+	$headers[] = '' === $test ? '' : 'X-Frontman-Seo-Test: ' . $test;
+	if ( '' !== $cookie ) {
+		$headers[] = 'Cookie: ' . LOGGED_IN_COOKIE . '=' . $cookie;
+	}
+	if ( null !== $nonce ) {
+		$headers[] = 'X-WP-Nonce: ' . $nonce;
+	}
+	$response = file_get_contents(
+		'http://127.0.0.1' . $path,
+		false,
+		stream_context_create( [ 'http' => [
+			'content' => $body ?? '',
+			'header' => implode( "\r\n", array_filter( $headers ) ) . "\r\nContent-Type: application/json\r\n",
+			'ignore_errors' => true, 'follow_location' => 0,
+			'method' => $method,
+		] ] )
+	);
+	preg_match_all( '/^HTTP\/\S+\s+(\d{3})/m', implode( "\n", $http_response_header ?? [] ), $status );
+	preg_match( '/<title[^>]*>(.*?)<\/title>/is', (string) $response, $title );
+	preg_match( "~<meta\\s+[^>]*name=[\"']description[\"'][^>]*content=([\"'])(.*?)\\1[^>]*>~is", (string) $response, $description );
+	return [ 'body' => (string) $response, 'status' => (int) ( end( $status[1] ) ?: 0 ), 'title' => isset( $title[1] ) ? html_entity_decode( trim( wp_strip_all_tags( $title[1] ) ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) : null, 'description' => isset( $description[2] ) ? html_entity_decode( $description[2], ENT_QUOTES | ENT_HTML5, 'UTF-8' ) : null ];
+}
+function frontman_runtime_tool( string $cookie, ?string $nonce, array $request, ?string $raw = null, string $test = '' ): array {
+	$response = frontman_runtime_http( 'POST', '/index.php/frontman/tools/call', $cookie, $nonce, $raw ?? wp_json_encode( $request ), $test );
+	if ( 200 !== $response['status'] ) {
+		return $response;
+	}
+	frontman_runtime_assert( 1 === preg_match( '/^data: (.+)$/m', $response['body'], $match ), 'Tool response contained no SSE data event.' );
+	return [ 'body' => json_decode( $match[1], true, 512, JSON_THROW_ON_ERROR ), 'status' => 200 ];
+}
+
 $expected_wordpress_version = getenv( 'EXPECTED_WORDPRESS_VERSION' );
 frontman_runtime_assert( false !== $expected_wordpress_version, 'Expected WordPress version was not provided.' );
 frontman_runtime_assert( $expected_wordpress_version === get_bloginfo( 'version' ), 'Runtime WordPress version does not match the requested version.' );
@@ -19,6 +52,31 @@ frontman_runtime_assert( home_url( '/index.php/frontman' ) === Frontman_UI::url(
 $http_context = stream_context_create( [ 'http' => [ 'ignore_errors' => true ] ] );
 file_get_contents( 'http://127.0.0.1/index.php/frontman/tools', false, $http_context );
 frontman_runtime_assert( false !== strpos( $http_response_header[0] ?? '', ' 401 ' ), 'Plain permalink API route did not reach Frontman.' );
+file_get_contents( 'http://127.0.0.1/index.php/frontman/plugin-update', false, $http_context );
+frontman_runtime_assert( false !== strpos( $http_response_header[0] ?? '', ' 401 ' ), 'Update status must require authentication.' );
+require_once ABSPATH . 'wp-admin/includes/plugin.php';
+$plugin = plugin_basename( FRONTMAN_PLUGIN_FILE );
+$admin = get_user_by( 'login', 'admin' );
+$cookie = wp_generate_auth_cookie( $admin->ID, time() + HOUR_IN_SECONDS, 'logged_in' );
+require __DIR__ . '/SentryRuntimeTest.php';
+$authenticated_context = stream_context_create( [ 'http' => [
+	'ignore_errors' => true,
+	'header' => 'Cookie: ' . LOGGED_IN_COOKIE . '=' . $cookie,
+] ] );
+foreach ( [ false, true, false ] as $enabled ) {
+	update_site_option( 'auto_update_plugins', $enabled ? [ $plugin ] : [] );
+	set_site_transient( 'update_plugins', (object) [
+		'last_checked' => time(),
+		'checked' => array_map( static fn( $data ) => $data['Version'], get_plugins() ),
+		'response' => $enabled ? [] : [ $plugin => (object) [ 'new_version' => '999.0.0' ] ],
+	] );
+	$response = file_get_contents( 'http://127.0.0.1/index.php/frontman/plugin-update', false, $authenticated_context );
+	frontman_runtime_assert( false !== strpos( $http_response_header[0] ?? '', ' 200 ' ), 'Authenticated update status request failed.' );
+	$status = json_decode( $response, true, 512, JSON_THROW_ON_ERROR );
+	frontman_runtime_assert( FRONTMAN_VERSION === $status['installedVersion'], 'Update endpoint reported the wrong installed version.' );
+	frontman_runtime_assert( ( $enabled ? FRONTMAN_VERSION : '999.0.0' ) === $status['latestVersion'], 'Update endpoint did not use native WordPress update status.' );
+	frontman_runtime_assert( $enabled === $status['autoUpdateEnabled'], 'Update endpoint did not reflect the saved auto-update setting.' );
+}
 update_option( 'permalink_structure', '/index.php/%postname%/' );
 frontman_runtime_assert( home_url( '/index.php/frontman' ) === Frontman_UI::url( '/frontman' ), 'PATHINFO permalink URL skipped the front controller.' );
 
@@ -101,3 +159,329 @@ frontman_runtime_assert( 1 <= count( $menu_tool->list_navigation_menus( [] ) ), 
 $deleted = $menu_tool->delete_navigation_menu( [ 'id' => $created['id'], 'confirm' => true ] );
 frontman_runtime_assert( 'Updated Runtime Navigation' === $deleted['before']['title'], 'Navigation deletion did not preserve its snapshot.' );
 frontman_runtime_assert( null === get_post( $created['id'] ), 'Navigation tool did not permanently delete the post.' );
+wp_set_current_user( $admin->ID );
+$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
+$slug_nonce = Frontman_Auth::create_nonce();
+unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
+wp_set_current_user( 0 );
+$slug_call = static function ( string $name, array $arguments ) use ( $cookie, $slug_nonce ): array {
+	$response = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $name, 'arguments' => $arguments ] );
+	frontman_runtime_assert( 200 === $response['status'] && false === $response['body']['isError'], 'Slug tool failed: ' . wp_json_encode( $response ) );
+	$data = json_decode( $response['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	if ( isset( $data['after'] ) ) {
+		clean_post_cache( $data['after']['id'] );
+		frontman_runtime_assert( get_post( $data['after']['id'] )->post_name === $data['after']['slug'], 'Slug snapshot differs from persisted post_name.' );
+	}
+	return $data;
+};
+$slug_fixture = [ 'title' => 'Runtime Slug Fixture', 'content' => 'Unchanged content', 'status' => 'draft', 'slug' => 'sample-delivery-guide' ];
+$slug_created = $slug_call( 'wp_create_post', $slug_fixture );
+$slug_id = $slug_created['id'];
+frontman_runtime_assert( 'sample-delivery-guide' === $slug_created['after']['slug'], 'Custom draft slug was not persisted.' );
+$slug_duplicate = $slug_call( 'wp_create_post', $slug_fixture );
+frontman_runtime_assert( 'sample-delivery-guide' === $slug_duplicate['after']['slug'], 'Draft slugs should not be made unique.' );
+$slug_published = $slug_call( 'wp_update_post', [ 'id' => $slug_id, 'status' => 'publish' ] );
+frontman_runtime_assert( 'sample-delivery-guide-2' === $slug_published['after']['slug'], 'Publication did not resolve the collision with the other draft.' );
+$slug_collision = $slug_call( 'wp_update_post', [ 'id' => $slug_duplicate['id'], 'status' => 'publish' ] );
+frontman_runtime_assert( 'sample-delivery-guide' === $slug_collision['after']['slug'], 'Publication changed the now-available draft slug.' );
+$slug_collision = $slug_call( 'wp_create_post', array_merge( $slug_fixture, [ 'status' => 'publish' ] ) );
+frontman_runtime_assert( 'sample-delivery-guide-3' === $slug_collision['after']['slug'], 'Published create did not return the unique slug.' );
+$slug_updated = $slug_call( 'wp_update_post', [ 'id' => $slug_id, 'slug' => 'updated-delivery-guide' ] );
+frontman_runtime_assert( 'sample-delivery-guide-2' === $slug_updated['before']['slug'] && 'updated-delivery-guide' === $slug_updated['after']['slug'], 'Slug update snapshots are inaccurate.' );
+$slug_omitted = $slug_call( 'wp_update_post', [ 'id' => $slug_id, 'title' => 'Changed title', 'excerpt' => 'Metadata only' ] );
+frontman_runtime_assert( 'updated-delivery-guide' === $slug_omitted['after']['slug'], 'Metadata-only edit regenerated the slug.' );
+$slug_read = $slug_call( 'wp_read_post', [ 'id' => $slug_id ] );
+frontman_runtime_assert( $slug_read === $slug_omitted['after'], 'Read result differs from the mutation snapshot.' );
+
+foreach ( [ 'draft', 'pending', 'publish' ] as $slug_status ) {
+	$empty_fixture = [ 'title' => 'Runtime Empty ' . $slug_status, 'content' => '', 'status' => $slug_status ];
+	$omitted_create = $slug_call( 'wp_create_post', $empty_fixture );
+	frontman_runtime_assert( ( 'publish' === $slug_status ? sanitize_title( $empty_fixture['title'] ) : '' ) === $omitted_create['after']['slug'], 'Omitted create slug changed core behavior.' );
+	$empty_fixture['title'] .= ' Explicit';
+	$empty_create = $slug_call( 'wp_create_post', array_merge( $empty_fixture, [ 'slug' => '' ] ) );
+	$expected_empty = 'publish' === $slug_status ? sanitize_title( $empty_fixture['title'] ) : '';
+	frontman_runtime_assert( $expected_empty === $empty_create['after']['slug'], 'Empty create slug changed core behavior.' );
+	$slug_call( 'wp_update_post', [ 'id' => $empty_create['id'], 'slug' => 'clear-me-' . $slug_status ] );
+	$empty_update = $slug_call( 'wp_update_post', [ 'id' => $empty_create['id'], 'slug' => '' ] );
+	frontman_runtime_assert( $expected_empty === $empty_update['after']['slug'], 'Empty update slug changed core behavior.' );
+}
+foreach ( [ 'Café — 日本! / Delivery', '%e6%97%a5%e6%9c%ac-guide', 'Quote\'s \\ path & punctuation?!' ] as $raw_slug ) {
+	$normalized = $slug_call( 'wp_create_post', array_merge( $slug_fixture, [ 'slug' => $raw_slug ] ) );
+	frontman_runtime_assert( sanitize_title( $raw_slug ) === $normalized['after']['slug'], 'Create slug normalization differs from core.' );
+	$normalized = $slug_call( 'wp_update_post', [ 'id' => $slug_duplicate['id'], 'status' => 'draft', 'slug' => $raw_slug ] );
+	frontman_runtime_assert( sanitize_title( $raw_slug ) === $normalized['after']['slug'], 'Update slug normalization differs from core.' );
+}
+$posts_before_invalid_slugs = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
+foreach ( [ 'wp_create_post', 'wp_update_post' ] as $slug_tool ) {
+	foreach ( [ null, 123, 1.5, true, false, [], [ 'bad' ], (object) [ 'slug' => 'bad' ] ] as $invalid_slug ) {
+		$invalid = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $slug_tool, 'arguments' => array_merge( $slug_fixture, [ 'id' => $slug_id, 'title' => 'Must not write', 'slug' => $invalid_slug ] ) ] );
+		frontman_runtime_assert( 200 === $invalid['status'] && true === $invalid['body']['isError'], 'Invalid slug type was accepted.' );
+	}
+	$request = [ 'name' => $slug_tool, 'arguments' => array_merge( $slug_fixture, [ 'id' => $slug_id ] ) ];
+	frontman_runtime_assert( 401 === frontman_runtime_tool( '', null, $request )['status'], 'Slug mutation bypassed authentication.' );
+	frontman_runtime_assert( 403 === frontman_runtime_tool( $cookie, null, $request )['status'], 'Slug mutation bypassed nonce validation.' );
+	frontman_runtime_assert( 403 === frontman_runtime_tool( $cookie, 'invalid', $request )['status'], 'Slug mutation accepted an invalid nonce.' );
+}
+frontman_runtime_assert( $posts_before_invalid_slugs === $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A ), 'Rejected slug requests changed posts.' );
+
+$listed_slug_ids = [];
+foreach ( [ [ 'draft', '' ], [ 'pending', '' ], [ 'draft', 'stored-list-slug' ], [ 'publish', 'unique-list-slug' ], [ 'publish', 'unique-list-slug' ] ] as $index => $fixture ) {
+	$created = $slug_call( 'wp_create_post', [
+		'title' => 'Runtime Listed Slug Fixture ' . $index,
+		'content' => '',
+		'status' => $fixture[0],
+	] + ( '' === $fixture[1] ? [] : [ 'slug' => $fixture[1] ] ) );
+	$listed_slug_ids[] = $created['id'];
+}
+$slug_call( 'wp_update_post', [ 'id' => $listed_slug_ids[2], 'excerpt' => 'Metadata-only list fixture update' ] );
+$expected_slugs = [ '', '', 'stored-list-slug', 'unique-list-slug', 'unique-list-slug-2' ];
+$posts_before_listing = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
+foreach ( [ 'any', 'draft', 'pending', 'publish' ] as $status ) {
+	$expected_ids = array_values( array_filter( $listed_slug_ids, static function ( int $id ) use ( $status ): bool {
+		return 'any' === $status || get_post_status( $id ) === $status;
+	} ) );
+	$total_pages = (int) ceil( count( $expected_ids ) / 2 );
+	for ( $page = 1; $page <= $total_pages; $page++ ) {
+		$listed = $slug_call( 'wp_list_posts', [ 'post_type' => 'post', 'status' => $status, 'search' => 'Runtime Listed Slug Fixture', 'per_page' => 2, 'page' => $page, 'orderby' => 'title', 'order' => 'ASC' ] );
+		frontman_runtime_assert( count( $expected_ids ) === $listed['total'] && $total_pages === $listed['total_pages'] && $page === $listed['page'], 'Slug listing changed pagination metadata.' );
+		frontman_runtime_assert( array_slice( $expected_ids, ( $page - 1 ) * 2, 2 ) === array_column( $listed['posts'], 'id' ), 'Slug listing changed filtering or pagination.' );
+		foreach ( $listed['posts'] as $listed_post ) {
+			$read = $slug_call( 'wp_read_post', [ 'id' => $listed_post['id'] ] );
+			$expected_slug = $expected_slugs[ array_search( $listed_post['id'], $listed_slug_ids, true ) ];
+			frontman_runtime_assert( array_key_exists( 'slug', $listed_post ), 'Post list omitted the persisted slug.' );
+			frontman_runtime_assert( $expected_slug === $listed_post['slug'] && $read['slug'] === $listed_post['slug'] && get_post( $listed_post['id'] )->post_name === $listed_post['slug'], 'List/read slugs differ from the stored slug.' );
+		}
+	}
+}
+frontman_runtime_assert( $posts_before_listing === $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A ), 'Listing or reading slugs mutated posts.' );
+
+wp_set_current_user( $admin->ID );
+register_sidebar( [ 'id' => 'frontman-widgets', 'name' => 'Widget runtime fixture' ] );
+register_sidebar( [ 'id' => 'frontman-footer', 'name' => 'Empty runtime footer' ] );
+$widget_sidebars = get_option( 'sidebars_widgets' );
+update_option( 'sidebars_widgets', [ 'frontman-widgets' => [ 'custom_html-4', 'categories-3' ], 'frontman-footer' => [] ] );
+update_option( 'widget_categories', [ 3 => [ 'title' => 'Categories' ] ] );
+$widget_call = static function ( string $name, array $input, bool $error = false ): array {
+	$tools = Frontman_Tools::instance();
+	$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+	frontman_runtime_assert( $error === $result['isError'], $name . ': ' . wp_json_encode( $result ) );
+	return $error ? [] : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+};
+$widget_input = [ 'sidebar_id' => 'frontman-widgets', 'widget_id' => 'custom_html-4' ];
+$widget_original = [ 'title' => 'Resources', 'content' => '<script>window.existing = true;</script>', 'mega_menu_is_grid_widget' => 'true', 'plugin_meta' => [ 'keep' => 'untouched' ] ];
+$widget_html = '<a class="blog" href="/category/blog/?a=1&amp;b=2" onclick="alert(1)">Reader\'s 日本 Blog \\ guide</a>' . "\n" . '<script>window.added = true;</script>';
+foreach ( [ true, false ] as $unfiltered ) {
+	$widget_caps = static fn( $caps ) => array_merge( $caps, [ 'unfiltered_html' => $unfiltered ] );
+	add_filter( 'user_has_cap', $widget_caps );
+	update_option( 'widget_custom_html', [ 4 => $widget_original, 6 => $widget_original, '_multiwidget' => 1 ] );
+	$title_update = $widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"title":"<b>Links</b>"}' ] );
+	frontman_runtime_assert( $widget_original === $title_update['before'] && array_merge( $widget_original, [ 'title' => 'Links' ] ) === $title_update['settings'], 'Title-only update changed omitted HTML or metadata.' );
+	$updated_widget = $widget_call( 'wp_update_widget', $widget_input + [ 'settings' => wp_json_encode( [ 'content' => $widget_html ] ) ] );
+	$expected_widget = array_merge( $title_update['settings'], [ 'content' => $unfiltered ? $widget_html : wp_kses_post( $widget_html ) ] );
+	frontman_runtime_assert( $title_update['settings'] === $updated_widget['before'] && $expected_widget === $updated_widget['settings'], 'HTML permissions or update snapshots differ from WordPress.' );
+	frontman_runtime_assert( [ 4 => $expected_widget, 6 => $widget_original, '_multiwidget' => 1 ] === get_option( 'widget_custom_html' ), 'Update changed sibling widgets or metadata.' );
+	$read_widget = $widget_call( 'wp_read_widget', [ 'widget_id' => 'custom_html-4' ] );
+	frontman_runtime_assert( $expected_widget === $read_widget['settings'] && 1 === $read_widget['position'], 'Readback differs from persisted settings or placement.' );
+	ob_start();
+	the_widget( 'WP_Widget_Custom_HTML', $read_widget['settings'] );
+	frontman_runtime_assert( false !== strpos( ob_get_clean(), $expected_widget['content'] ), 'Custom HTML widget did not render the saved link.' );
+	$widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"content":""}' ] );
+	$empty_widget = $widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"content":""}' ] );
+	frontman_runtime_assert( '' === $empty_widget['settings']['content'], 'Clearing content or saving an unchanged value failed.' );
+	remove_filter( 'user_has_cap', $widget_caps );
+}
+$widget_filter = static function ( $value ) {
+	$value[4]['title'] = 'Filtered by WordPress';
+	return $value;
+};
+add_filter( 'pre_update_option_widget_custom_html', $widget_filter );
+$filtered_widget = $widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"title":"Requested title"}' ] );
+frontman_runtime_assert( get_option( 'widget_custom_html' )[4] === $filtered_widget['settings'] && 'Filtered by WordPress' === $filtered_widget['settings']['title'], 'Update returned proposed rather than persisted settings.' );
+remove_filter( 'pre_update_option_widget_custom_html', $widget_filter );
+$widget_filter = static fn( $value, $old ) => $old;
+add_filter( 'pre_update_option_widget_custom_html', $widget_filter, 10, 2 );
+$widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"title":"Rejected save"}' ], true );
+remove_filter( 'pre_update_option_widget_custom_html', $widget_filter );
+$widget_saved = get_option( 'widget_custom_html' );
+$widget_placement = get_option( 'sidebars_widgets' );
+foreach ( [ '', '{broken', '[]', 'null', '42', '{"title":null}', '{"content":[]}', '{"content":false}', '{"title":"Must not save","mega_menu_is_grid_widget":"false"}' ] as $invalid_settings ) {
+	$widget_call( 'wp_update_widget', $widget_input + [ 'settings' => $invalid_settings ], true );
+}
+foreach ( [ [ 'sidebar_id' => 'frontman-footer' ], [ 'widget_id' => 'custom_html-999' ], [ 'widget_id' => 'preview' ] ] as $invalid_widget ) {
+	$widget_call( 'wp_update_widget', $invalid_widget + $widget_input + [ 'settings' => '{"content":"Must not save"}' ], true );
+}
+$widget_caps = static fn( $caps ) => array_merge( $caps, [ 'edit_theme_options' => false ] );
+add_filter( 'user_has_cap', $widget_caps );
+$widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"content":"Denied"}' ], true );
+remove_filter( 'user_has_cap', $widget_caps );
+foreach ( [ 'categories', 'custom_html' ] as $base ) {
+	$widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => $base, 'settings' => '{}' ], true );
+	$widget_call( 'wp_delete_widget', [ 'widget_id' => 'custom_html' === $base ? 'custom_html-4' : 'categories-3', 'confirm' => true ], true );
+}
+$widget_call( 'wp_update_widget', [ 'sidebar_id' => 'frontman-widgets', 'widget_id' => 'categories-3', 'settings' => '{}' ], true );
+frontman_runtime_assert( $widget_saved === get_option( 'widget_custom_html' ) && $widget_placement === get_option( 'sidebars_widgets' ), 'Rejected updates or content edits mutated widgets/sidebar placement.' );
+$created_widget = $widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => 'text', 'settings' => '{"title":"Footer","text":"Hello"}' ] );
+$text_input = [ 'sidebar_id' => 'frontman-footer', 'widget_id' => $created_widget['widget_id'] ];
+frontman_runtime_assert( 0 === $created_widget['before']['widget_count'] && 1 === $created_widget['after']['widget_count'] && 'Footer' === $created_widget['widget']['settings']['title'], 'Text widget creation snapshots changed.' );
+$text_updated = $widget_call( 'wp_update_widget', $text_input + [ 'settings' => '{"title":"New Footer"}' ] );
+frontman_runtime_assert( 'Footer' === $text_updated['before']['title'] && [ 'title' => 'New Footer', 'text' => 'Hello' ] === $text_updated['settings'], 'Text widget update behavior changed.' );
+foreach ( [ 1, 2 ] as $position ) {
+	$moved_widget = $widget_call( 'wp_move_widget', [ 'widget_id' => $text_input['widget_id'], 'to_sidebar_id' => 'frontman-widgets', 'to_position' => $position ] );
+	frontman_runtime_assert( ( 1 === $position ? 'frontman-footer' : 'frontman-widgets' ) === $moved_widget['before']['widget']['sidebar_id'] && 'frontman-widgets' === $moved_widget['after']['widget']['sidebar_id'] && $position === $moved_widget['after']['widget']['position'], 'Move/reorder snapshots changed.' );
+	frontman_runtime_assert( 3 === $moved_widget['after']['to_sidebar']['widget_count'], 'Move/reorder duplicated or lost a widget.' );
+}
+$widget_call( 'wp_delete_widget', [ 'widget_id' => $text_input['widget_id'], 'confirm' => false ], true );
+$deleted_widget = $widget_call( 'wp_delete_widget', [ 'widget_id' => $text_input['widget_id'], 'confirm' => true ] );
+frontman_runtime_assert( $text_input['widget_id'] === $deleted_widget['widget_id'] && 'New Footer' === $deleted_widget['before']['widget']['settings']['title'] && 2 === $deleted_widget['after']['widget_count'], 'Widget deletion snapshot or placement changed.' );
+frontman_runtime_assert( is_plugin_active( 'megamenu/megamenu.php' ), 'Max Mega Menu must be active for widget integration coverage.' );
+register_nav_menu( 'frontman-mega', 'Runtime mega menu' );
+$mega_menu = wp_create_nav_menu( 'Runtime mega menu' );
+frontman_runtime_assert( ! is_wp_error( $mega_menu ), 'Could not create mega menu fixture.' );
+$mega_locations = get_theme_mod( 'nav_menu_locations', [] );
+$mega_settings = get_option( 'megamenu_settings', [] );
+set_theme_mod( 'nav_menu_locations', array_merge( $mega_locations, [ 'frontman-mega' => $mega_menu ] ) );
+update_option( 'megamenu_settings', array_merge( $mega_settings, [ 'frontman-mega' => [ 'enabled' => '1' ] ] ) );
+$mega_manager = new Mega_Menu_Widget_Manager();
+foreach ( [ 'megamenu', 'grid' ] as $layout ) {
+	$mega_parent = wp_update_nav_menu_item( $mega_menu, 0, [ 'menu-item-title' => $layout, 'menu-item-url' => home_url( '/' ), 'menu-item-status' => 'publish' ] );
+	frontman_runtime_assert( ! is_wp_error( $mega_parent ), 'Could not create mega menu parent.' );
+	$mega_widgets = (array) $mega_manager->get_mega_menu_sidebar_widgets();
+	$mega_manager->add_widget( 'custom_html', $mega_parent, 'Custom HTML', 'grid' === $layout );
+	$mega_added = array_values( array_diff( $mega_manager->get_mega_menu_sidebar_widgets(), $mega_widgets ) );
+	frontman_runtime_assert( 1 === count( $mega_added ), 'Max Mega Menu did not create exactly one widget.' );
+	$mega_widget_id = $mega_added[0];
+	$mega_meta = [ 'type' => $layout ];
+	if ( 'grid' === $layout ) {
+		$mega_meta['grid'] = [ [ 'columns' => [ [ 'meta' => [ 'span' => 12 ], 'items' => [ [ 'id' => $mega_widget_id, 'type' => 'widget' ] ] ] ] ] ];
+	}
+	update_post_meta( $mega_parent, '_megamenu', $mega_meta );
+	$GLOBALS['wp_widget_factory']->widgets['WP_Widget_Custom_HTML']->_register();
+	$mega_before = $widget_call( 'wp_read_widget', [ 'widget_id' => $mega_widget_id ] );
+	$mega_input = [ 'sidebar_id' => $mega_before['sidebar_id'], 'widget_id' => $mega_widget_id ];
+	$mega_placement = get_option( 'sidebars_widgets' );
+	$mega_expected = $mega_before['settings'];
+	foreach ( [ [ 'title' => 'Original ' . $layout, 'content' => '<a href="/old-' . $layout . '">Old link</a>' ], [ 'title' => 'Resources ' . $layout ], [ 'content' => '<a class="blog" href="/category/blog-' . $layout . '/">Reader\'s 日本 Blog</a>' ] ] as $patch ) {
+		$mega_siblings = get_option( 'widget_custom_html' );
+		$mega_updated = $widget_call( 'wp_update_widget', $mega_input + [ 'settings' => wp_json_encode( $patch ) ] );
+		frontman_runtime_assert( $mega_expected === $mega_updated['before'], 'Mega menu update lost its before snapshot.' );
+		$mega_expected = array_merge( $mega_expected, $patch );
+		$mega_read = $widget_call( 'wp_read_widget', [ 'widget_id' => $mega_widget_id ] );
+		frontman_runtime_assert( $mega_expected === $mega_updated['settings'] && $mega_expected === $mega_read['settings'], 'Mega menu update changed omitted content or plugin metadata.' );
+		$mega_siblings[ $mega_manager->get_widget_number_for_widget_id( $mega_widget_id ) ] = $mega_expected;
+		frontman_runtime_assert( $mega_siblings === get_option( 'widget_custom_html' ) && $mega_placement === get_option( 'sidebars_widgets' ) && $mega_meta === get_post_meta( $mega_parent, '_megamenu', true ), 'Mega menu update changed sibling widgets or placement.' );
+		$mega_rendered = wp_nav_menu( [ 'theme_location' => 'frontman-mega', 'echo' => false ] );
+		frontman_runtime_assert( false !== strpos( $mega_rendered, 'max-mega-menu' ) && 1 === substr_count( $mega_rendered, $mega_expected['content'] ) && false !== strpos( $mega_rendered, $mega_expected['title'] ), 'Max Mega Menu did not render the saved widget exactly once.' );
+		if ( isset( $patch['content'] ) && false !== strpos( $patch['content'], '/category/' ) ) {
+			frontman_runtime_assert( false === strpos( $mega_rendered, '/old-' . $layout ), 'Max Mega Menu still rendered stale widget content.' );
+		}
+	}
+}
+fwrite( STDOUT, 'Max Mega Menu ' . get_plugin_data( WP_PLUGIN_DIR . '/megamenu/megamenu.php', false, false )['Version'] . " standard/grid widget updates and rendering passed.\n" );
+wp_delete_nav_menu( $mega_menu );
+set_theme_mod( 'nav_menu_locations', $mega_locations );
+update_option( 'megamenu_settings', $mega_settings );
+unregister_nav_menu( 'frontman-mega' );
+update_option( 'sidebars_widgets', $widget_sidebars );
+wp_set_current_user( 0 );
+
+$yoast = getenv( 'EXPECTED_YOAST_VERSION' );
+if ( false === $yoast || '' === $yoast ) {
+	frontman_runtime_assert( null === Frontman_Tools::instance()->get( 'wp_read_seo' ), 'SEO tools were registered without Yoast.' );
+	return;
+}
+frontman_runtime_assert( defined( 'WPSEO_VERSION' ) && $yoast === WPSEO_VERSION, 'Loaded Yoast version differs from the verified package.' );
+$runtime_permalink = get_option( 'permalink_structure' );
+$wp_rewrite->set_permalink_structure( '' );
+wp_set_current_user( $admin->ID );
+$_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
+$nonce = Frontman_Auth::create_nonce();
+unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
+wp_set_current_user( 0 );
+$catalog   = json_decode( frontman_runtime_http( 'GET', '/index.php/frontman/tools', $cookie )['body'], true, 512, JSON_THROW_ON_ERROR );
+$seo_names = array_values( array_filter( array_column( $catalog['tools'], 'name' ), static fn( string $name ): bool => false !== strpos( $name, 'seo' ) || false !== strpos( $name, 'yoast' ) ) );
+frontman_runtime_assert( [ 'wp_read_seo', 'wp_update_seo' ] === $seo_names, 'SEO catalog is not provider-neutral.' );
+$fixtures = [];
+foreach ( [ [ 'post', 'publish' ], [ 'page', 'publish' ], [ 'frontman_seo_item', 'publish' ], [ 'post', 'draft' ], [ 'post', 'private' ] ] as [ $type, $status ] ) {
+	$id = wp_insert_post( [ 'post_type' => $type, 'post_status' => $status, 'post_title' => "Runtime $type $status", 'post_content' => 'Unchanged body' ], true );
+	frontman_runtime_assert( ! is_wp_error( $id ), "Could not create $type/$status SEO fixture." );
+	update_post_meta( $id, '_frontman_runtime_unrelated', 'keep' );
+	$fixtures[] = [ 'id' => $id, 'status' => $status, 'title' => get_the_title( $id ), 'type' => $type ];
+}
+$snapshot = static function ( int $id ) use ( $wpdb ): array {
+	return [
+		'post' => $wpdb->get_row( $wpdb->prepare( "SELECT post_title, post_content, post_status, post_type FROM {$wpdb->posts} WHERE ID = %d", $id ), ARRAY_A ),
+		'unrelated' => $wpdb->get_var( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = '_frontman_runtime_unrelated'", $id ) ),
+		'options' => $wpdb->get_results( "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name IN ('blogname','blogdescription','wpseo_titles','wpseo_social') ORDER BY option_name", ARRAY_A ),
+		'title' => $wpdb->get_var( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = '_yoast_wpseo_title'", $id ) ),
+		'description' => $wpdb->get_var( $wpdb->prepare( "SELECT meta_value FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = '_yoast_wpseo_metadesc'", $id ) ),
+	];
+};
+$target = $fixtures[0]['id']; $unchanged = $snapshot( $target );
+$valid             = [ 'name' => 'wp_update_seo', 'arguments' => [ 'id' => $target, 'title' => 'Blocked' ] ];
+$subscriber_cookie = wp_generate_auth_cookie( wp_create_user( 'runtime-subscriber', wp_generate_password(), 'runtime-subscriber@example.test' ), time() + HOUR_IN_SECONDS, 'logged_in' );
+$invalid = [
+	frontman_runtime_tool( '', null, $valid ),
+	frontman_runtime_tool( $subscriber_cookie, null, $valid ),
+	frontman_runtime_tool( $cookie, null, $valid ),
+	frontman_runtime_tool( $cookie, 'invalid', $valid ),
+];
+frontman_runtime_assert( [ 401, 403, 403, 403 ] === array_column( $invalid, 'status' ), 'Authentication or nonce checks allowed an SEO mutation.' );
+foreach ( [ [ 'id' => (string) $target, 'title' => 'Bad type' ], [ 'id' => $target, 'title' => 'Bad key', 'meta_key' => '_private' ] ] as $arguments ) {
+	$result = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_update_seo', 'arguments' => $arguments ] );
+	frontman_runtime_assert( true === $result['body']['isError'], 'Invalid SEO arguments were accepted.' );
+}
+$malformed = frontman_runtime_tool( $cookie, $nonce, [], '{"name":"wp_update_seo","arguments":{"id":' . $target . ',"title":"bad' . "\xC3\x28" . '"}}' );
+frontman_runtime_assert( true === $malformed['body']['isError'], 'Malformed SEO JSON was accepted.' );
+frontman_runtime_assert( $unchanged === $snapshot( $target ), 'Rejected requests changed SQL state.' );
+$failure = [ 'name' => 'wp_update_seo', 'input' => [ 'id' => $target, 'title' => 'Partial', 'description' => 'Description' ] ];
+frontman_runtime_assert( true === frontman_runtime_tool( $cookie, $nonce, $failure, null, 'fail-sanitizer' )['body']['isError'] && $unchanged === $snapshot( $target ), 'Second-field preflight failure wrote state.' );
+$silent = frontman_runtime_tool( $cookie, $nonce, $failure, null, 'silent-title' )['body'];
+frontman_runtime_assert( true === $silent['isError'] && $unchanged === $snapshot( $target ), 'Silent first-write failure wrote state or allowed the next write.' );
+$partial = frontman_runtime_tool( $cookie, $nonce, $failure, null, 'fail-write' )['body']; $partial_state = $snapshot( $target );
+frontman_runtime_assert( true === $partial['isError'] && 'Partial [runtime-filter]' === $partial_state['title'] && null === $partial_state['description'], 'Second-field failure did not preserve only the first write.' );
+frontman_runtime_assert( false !== strpos( $partial['content'][0]['text'], '"before":{"title":"","description":""}' ) && false !== strpos( $partial['content'][0]['text'], '"actualAfter":{"title":"Partial [runtime-filter]","description":""}' ), 'Partial error snapshots are inaccurate.' );
+foreach ( [ 'deny-object', 'deny-meta' ] as $denial ) {
+	$denied = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_read_seo', 'arguments' => [ 'id' => $target ] ], null, $denial )['body'];
+	frontman_runtime_assert( true === $denied['isError'] && false === strpos( $denied['content'][0]['text'], 'Partial' ) && $partial_state === $snapshot( $target ), 'Denied read disclosed or changed SEO state.' );
+}
+frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_update_seo', 'input' => [ 'id' => $target, 'title' => '' ] ] );
+$read_failure = frontman_runtime_tool( $cookie, $nonce, $failure, null, 'fail-read' )['body']; $read_failure_state = $snapshot( $target );
+frontman_runtime_assert( true === $read_failure['isError'] && 'Partial [runtime-filter]' === $read_failure_state['title'] && null === $read_failure_state['description'], 'Failed first-field read-back allowed the next write: ' . wp_json_encode( $read_failure_state ) );
+frontman_runtime_assert( $unchanged['post'] === $read_failure_state['post'] && $unchanged['unrelated'] === $read_failure_state['unrelated'] && $unchanged['options'] === $read_failure_state['options'], 'Failure paths changed core, unrelated, or option state.' );
+frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_update_seo', 'input' => [ 'id' => $target, 'title' => '' ] ] );
+$safety = static fn( array $state ): array => [ $state['post'], $state['unrelated'], $state['options'] ];
+foreach ( $fixtures as $fixture ) {
+	$id      = $fixture['id'];
+	$request = static fn( array $arguments ): array => frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_update_seo', 'input' => $arguments ] )['body'];
+	$safe    = $safety( $snapshot( $id ) );
+	$read    = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_read_seo', 'arguments' => [ 'id' => $id ] ] )['body'];
+	$read    = json_decode( $read['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	frontman_runtime_assert( $id === $read['id'] && 'yoast' === $read['provider'] && '' === $read['title'] && '' === $read['description'], 'SEO read contract failed.' );
+	$default = 'publish' === $fixture['status'] ? frontman_runtime_http( 'GET', str_replace( home_url(), '', get_permalink( $id ) ), '', null, null, 'render' ) : null;
+	$updated = json_decode( $request( [ 'id' => $id, 'description' => 'Runtime “Café” \\ path' ] )['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	$updated = json_decode( $request( [ 'id' => $id, 'title' => 'SEO %%title%% — "Café" \\ path' ] )['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	frontman_runtime_assert( 'SEO %%title%% — "Café" \\ path [runtime-filter]' === $updated['after']['title'] && 'Runtime “Café” \\ path' === $updated['after']['description'], 'Title-only update changed the seeded description or skipped custom sanitization.' );
+	$readback = json_decode( frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_read_seo', 'arguments' => [ 'id' => $id ] ] )['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	frontman_runtime_assert( $updated['after'] === [ 'title' => $readback['title'], 'description' => $readback['description'] ], 'Quotes, slashes, or Unicode changed on persisted read-back.' );
+	frontman_runtime_assert( $safe === $safety( $snapshot( $id ) ), 'Successful SEO update changed core, unrelated, or option SQL state.' );
+	$repeat = json_decode( $request( [ 'id' => $id, 'title' => 'SEO %%title%% — "Café" \\ path', 'description' => 'Runtime “Café” \\ path' ] )['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	frontman_runtime_assert( false === $repeat['changed'], 'Repeated SEO update was not idempotent.' );
+	if ( 'publish' === $fixture['status'] ) {
+		$html = frontman_runtime_http( 'GET', str_replace( home_url(), '', get_permalink( $id ) ), '', null, null, 'render' );
+		frontman_runtime_assert( false !== strpos( $html['title'], 'SEO ' . $fixture['title'] . ' — "Café"' ), 'A later request did not render the SEO title tag for ' . $fixture['type'] . '/' . $fixture['status'] . ': ' . var_export( $html['title'], true ) );
+		frontman_runtime_assert( false !== strpos( $html['description'], 'Runtime “Café”' ), 'A later request did not render the SEO description meta tag.' );
+	} else {
+		$restricted = frontman_runtime_http( 'GET', str_replace( home_url(), '', get_permalink( $id ) ), '', null, null, 'render' );
+		frontman_runtime_assert( 404 === $restricted['status'] && false === strpos( $restricted['body'], 'Café' ) && false === strpos( $restricted['body'], '\\ path' ), 'Restricted SEO data rendered anonymously.' );
+	}
+	$cleared = json_decode( $request( [ 'id' => $id, 'title' => '', 'description' => '' ] )['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	$repeat  = json_decode( $request( [ 'id' => $id, 'title' => '', 'description' => '' ] )['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	frontman_runtime_assert( [ 'title' => '', 'description' => '' ] === $cleared['after'] && false === $repeat['changed'], 'SEO clear or repeated clear failed.' );
+	frontman_runtime_assert( $safe === $safety( $snapshot( $id ) ), 'SEO clear changed core, unrelated, or option SQL state.' );
+	if ( 'publish' === $fixture['status'] ) {
+		$default_after_clear = frontman_runtime_http( 'GET', str_replace( home_url(), '', get_permalink( $id ) ), '', null, null, 'render' );
+		frontman_runtime_assert( $default['title'] === $default_after_clear['title'] && null === $default_after_clear['description'], 'Clearing did not restore later rendered defaults: ' . wp_json_encode( [ 'before' => [ $default['title'], $default['description'] ], 'after' => [ $default_after_clear['title'], $default_after_clear['description'] ] ] ) );
+	}
+}
+$wp_rewrite->set_permalink_structure( $runtime_permalink );
+fwrite( STDOUT, "Yoast $yoast HTTP SEO checks passed.\n" );

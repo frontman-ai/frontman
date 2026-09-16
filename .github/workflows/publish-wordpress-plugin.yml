@@ -83,9 +83,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y rsync subversion zip
 
-      - name: Package WordPress plugin
+      - name: Package and validate WordPress plugin
         if: steps.verify.outputs.publish == 'true'
-        run: make package-wordpress-plugin VERSION="${{ steps.version.outputs.version }}"
+        run: make test-wordpress-plugin-export VERSION="${{ steps.version.outputs.version }}"
 
       - name: Publish to WordPress.org SVN
         if: steps.verify.outputs.publish == 'true'

@@ -135,8 +135,7 @@ module Actions = {
 
   let setAcpSession = (
     ~sendPrompt,
-    ~cancelPrompt,
-    ~retryTurn,
+    ~sendSessionCommand,
     ~loadTask,
     ~deleteSession,
     ~requireAuthentication,
@@ -145,8 +144,7 @@ module Actions = {
     Client__State__Store.dispatch(
       SetAcpSession({
         sendPrompt,
-        cancelPrompt,
-        retryTurn,
+        sendSessionCommand,
         loadTask,
         deleteSession,
         requireAuthentication,
@@ -196,6 +194,16 @@ module Actions = {
   ) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: RetryingUpdate({retryStatus: retryStatus})}),
+    )
+
+  let unqueueMessage = (~taskId: string, ~messageId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: UnqueueMessage({messageId: messageId})}),
+    )
+
+  let messageUnqueued = (~taskId: string, ~messageId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: MessageUnqueued({messageId: messageId})}),
     )
 
   let retryTurn = (~taskId: string, ~retriedErrorId: string) =>
@@ -288,8 +296,8 @@ module Actions = {
   let sessionsLoadError = (~error: string) =>
     Client__State__Store.dispatch(SessionsLoadError({error: error}))
 
-  let checkForUpdate = (~installedVersion, ~npmPackage) =>
-    Client__State__Store.dispatch(CheckForUpdate({installedVersion, npmPackage}))
+  let checkForUpdate = (~apiBaseUrl, ~installedVersion, ~target) =>
+    Client__State__Store.dispatch(CheckForUpdate({apiBaseUrl, installedVersion, target}))
 
   let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
 

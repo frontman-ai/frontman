@@ -2,7 +2,7 @@
 	function initNavigation() {
 		const menuItems = document.querySelectorAll('.header__menu-item')
 		menuItems.forEach((menuItem) => {
-			const submenu = menuItem.querySelector('.header__submenu')
+			const submenu = menuItem.querySelector('.header__submenu, .header__mega-menu')
 			const link = menuItem.querySelector('.header__menu-link')
 
 			if (submenu && link) {
@@ -28,7 +28,7 @@
 			const target = event.target
 
 			menuItems.forEach((menuItem) => {
-				const submenu = menuItem.querySelector('.header__submenu')
+				const submenu = menuItem.querySelector('.header__submenu, .header__mega-menu')
 				if (submenu && !menuItem.contains(target)) {
 					menuItem.classList.remove('open')
 					const link = menuItem.querySelector('.header__menu-link')
@@ -63,7 +63,7 @@
 					const isSubmenuParent =
 						window.matchMedia('(max-width: 1023px)').matches
 						&& link.classList.contains('header__menu-link')
-						&& parentMenuItem?.querySelector('.header__submenu')
+						&& parentMenuItem?.querySelector('.header__submenu, .header__mega-menu')
 
 					if (isSubmenuParent) return
 					closeMobileMenu()

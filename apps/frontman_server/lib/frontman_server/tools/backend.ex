@@ -29,7 +29,6 @@ defmodule FrontmanServer.Tools.Backend do
   @callback access() :: access()
   @callback parameter_schema() :: map()
   @callback timeout_ms() :: pos_integer()
-  @callback on_timeout() :: :error | :pause_agent
   @callback execute(args :: map(), context :: %Context{}) :: result()
 
   def to_swarm_tool(module) do
@@ -37,9 +36,7 @@ defmodule FrontmanServer.Tools.Backend do
       name: module.name(),
       description: module.description(),
       access: module.access(),
-      parameter_schema: module.parameter_schema(),
-      timeout_ms: module.timeout_ms(),
-      on_timeout: module.on_timeout()
+      parameter_schema: module.parameter_schema()
     )
   end
 end

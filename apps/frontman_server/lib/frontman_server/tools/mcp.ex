@@ -9,7 +9,7 @@ defmodule FrontmanServer.Tools.MCP do
   Utilities for MCP tools from external clients.
   """
 
-  @enforce_keys [:name, :description, :input_schema, :timeout_ms, :on_timeout]
+  @enforce_keys [:name, :description, :input_schema, :timeout_ms, :execution_mode]
   defstruct name: nil,
             description: nil,
             input_schema: nil,
@@ -17,15 +17,14 @@ defmodule FrontmanServer.Tools.MCP do
             access: :read_write,
             visible_to_agent: true,
             timeout_ms: nil,
-            on_timeout: nil
+            execution_mode: nil
 
   @default_timeout_ms 600_000
-  @default_on_timeout :error
   @tool_metadata_extension "ai.frontman/tool-metadata"
 
   def from_map(tool) when is_map(tool) do
     metadata = get_in(tool, ["_meta", @tool_metadata_extension]) || %{}
-    {timeout_ms, on_timeout} = timeout_policy(metadata["executionMode"])
+    execution_mode = parse_execution_mode(metadata["executionMode"])
 
     %__MODULE__{
       name: tool["name"],
@@ -34,13 +33,16 @@ defmodule FrontmanServer.Tools.MCP do
       output_schema: tool["outputSchema"],
       access: parse_access(metadata["access"]),
       visible_to_agent: Map.get(metadata, "visibleToAgent", true),
-      timeout_ms: timeout_ms,
-      on_timeout: on_timeout
+      timeout_ms: deadline(execution_mode),
+      execution_mode: execution_mode
     }
   end
 
-  defp timeout_policy("Interactive"), do: {120_000, :pause_agent}
-  defp timeout_policy(_), do: {@default_timeout_ms, @default_on_timeout}
+  defp parse_execution_mode("Interactive"), do: :interactive
+  defp parse_execution_mode(mode) when mode in [nil, "Synchronous"], do: :synchronous
+
+  defp deadline(:interactive), do: :infinity
+  defp deadline(:synchronous), do: @default_timeout_ms
 
   defp parse_access("read"), do: :read
   defp parse_access("write"), do: :write
@@ -62,9 +64,7 @@ defmodule FrontmanServer.Tools.MCP do
       name: tool.name,
       description: tool.description,
       access: tool.access,
-      parameter_schema: tool.input_schema,
-      timeout_ms: tool.timeout_ms,
-      on_timeout: tool.on_timeout
+      parameter_schema: tool.input_schema
     )
   end
 end

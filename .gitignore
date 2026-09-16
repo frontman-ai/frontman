@@ -11,6 +11,7 @@ lib/
 .compiler.log
 
 node_modules/
+libs/frontman-wordpress/vendor/
 
 .env.local
 test/e2e/.env
@@ -48,3 +49,5 @@ infra/local/Caddyfile
 .env.secrets.resolved
 
 lefthook-local.yml
+.tiqet/log/
+.tiqet/events/

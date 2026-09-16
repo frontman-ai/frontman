@@ -40,7 +40,7 @@ permissions:
 
 concurrency:
   group: e2e
-  cancel-in-progress: true
+  queue: max
 
 jobs:
   nextjs-compat:
@@ -137,7 +137,7 @@ jobs:
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654
+        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
         with:
           install: true
           cache: true
@@ -182,6 +182,40 @@ jobs:
         run: |
           mix deps.clean --unlock --unused
           mix deps.get
+
+      - name: Refresh E2E OpenAI token if needed
+        id: token
+        working-directory: apps/frontman_server
+        env:
+          E2E_OPENAI_TOKEN_MODE: refresh_if_needed
+          E2E_OPENAI_REFRESH_THRESHOLD_SECONDS: "1800"
+        run: mix run --no-start priv/scripts/e2e_openai_token.exs
+
+      - name: Use refreshed E2E OpenAI token for this run
+        run: |
+          echo "E2E_OPENAI_ACCESS_TOKEN=${{ steps.token.outputs.access_token }}" >> "$GITHUB_ENV"
+          echo "E2E_OPENAI_REFRESH_TOKEN=${{ steps.token.outputs.refresh_token }}" >> "$GITHUB_ENV"
+          echo "E2E_OPENAI_ACCOUNT_ID=${{ steps.token.outputs.account_id }}" >> "$GITHUB_ENV"
+
+      - name: Persist refreshed E2E OpenAI token
+        if: steps.token.outputs.rotated == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.E2E_SECRET_ROTATION_GH_TOKEN }}
+          REPO: ${{ github.repository }}
+          ACCESS_TOKEN: ${{ steps.token.outputs.access_token }}
+          REFRESH_TOKEN: ${{ steps.token.outputs.refresh_token }}
+          ACCOUNT_ID: ${{ steps.token.outputs.account_id }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "Missing E2E_SECRET_ROTATION_GH_TOKEN secret"
+            exit 1
+          fi
+
+          for APP in actions dependabot; do
+            gh secret set E2E_CHATGPT_ACCESS_TOKEN --app "$APP" --repo "$REPO" --body "$ACCESS_TOKEN"
+            gh secret set E2E_CHATGPT_REFRESH_TOKEN --app "$APP" --repo "$REPO" --body "$REFRESH_TOKEN"
+            gh secret set E2E_CHATGPT_ACCOUNT_ID --app "$APP" --repo "$REPO" --body "$ACCOUNT_ID"
+          done
 
       - name: Clean stale test databases
         run: bash scripts/ci/postgres-test-db-cleanup.sh stale

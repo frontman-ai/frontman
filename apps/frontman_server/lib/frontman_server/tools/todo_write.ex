@@ -15,8 +15,8 @@ defmodule FrontmanServer.Tools.TodoWrite do
 
   @behaviour FrontmanServer.Tools.Backend
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks.Todos.Todo
-  alias ModelContextProtocol, as: MCP
 
   @impl true
   def name, do: "todo_write"
@@ -101,9 +101,6 @@ defmodule FrontmanServer.Tools.TodoWrite do
 
   @impl true
   def timeout_ms, do: 30_000
-
-  @impl true
-  def on_timeout, do: :error
 
   @impl true
   def execute(args, _context) do

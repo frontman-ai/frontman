@@ -12,9 +12,21 @@ set_error_handler(
 require '/var/www/html/wp-load.php';
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 
-$result = activate_plugin( 'frontman-agentic-ai-editor/frontman.php' );
-if ( is_wp_error( $result ) ) {
-	throw new RuntimeException( $result->get_error_message() );
+$yoast = getenv( 'EXPECTED_YOAST_VERSION' );
+if ( false !== $yoast && '' !== $yoast ) {
+	if ( $yoast !== get_plugin_data( WP_PLUGIN_DIR . '/wordpress-seo/wp-seo.php', false, false )['Version'] ) {
+		throw new RuntimeException( 'Installed Yoast version does not match the verified package.' );
+	}
+	$result = activate_plugin( 'wordpress-seo/wp-seo.php' );
+	if ( is_wp_error( $result ) ) {
+		throw new RuntimeException( $result->get_error_message() );
+	}
+}
+foreach ( [ 'megamenu/megamenu.php', 'frontman-agentic-ai-editor/frontman.php' ] as $plugin ) {
+	$result = activate_plugin( $plugin );
+	if ( is_wp_error( $result ) ) {
+		throw new RuntimeException( $result->get_error_message() );
+	}
 }
 
 restore_error_handler();

@@ -20,6 +20,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     __MODULE__.AgentError,
     __MODULE__.AgentPaused,
     __MODULE__.AgentRetry,
+    __MODULE__.SkillUsed,
     __MODULE__.ToolCall,
     __MODULE__.ToolResult,
     __MODULE__.DiscoveredProjectRule,
@@ -192,6 +193,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :title, :string
       field :color_scheme, :string
       field :scroll_y, :integer
+      field :astro_client_routing, :string
     end
 
     def changeset(%__MODULE__{} = current_page, attrs) do
@@ -202,29 +204,15 @@ defmodule FrontmanServer.Tasks.Interaction do
         :device_pixel_ratio,
         :title,
         :color_scheme,
-        :scroll_y
+        :scroll_y,
+        :astro_client_routing
       ])
+      |> validate_inclusion(:astro_client_routing, ["enabled", "disabled", "unavailable"])
     end
 
-    def attrs_from_acp_meta(meta) when is_map(meta) do
-      case CurrentPageContext.fields_from_current_page_meta(meta) do
-        %{url: url} = fields ->
-          %{
-            url: url,
-            viewport_width: fields.viewport_width,
-            viewport_height: fields.viewport_height,
-            device_pixel_ratio: fields.device_pixel_ratio,
-            title: fields.title,
-            color_scheme: fields.color_scheme,
-            scroll_y: fields.scroll_y
-          }
-
-        nil ->
-          nil
-      end
-    end
-
-    def attrs_from_acp_meta(_), do: nil
+    defdelegate attrs_from_acp_meta(meta),
+      to: CurrentPageContext,
+      as: :fields_from_current_page_meta
   end
 
   defmodule Annotation do
@@ -360,6 +348,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :agent_id, :string
       field :model, :string
+      field :selected_server_skill_id, :binary_id
+      field :selected_server_skill_name, :string
+      field :selected_server_skill_content, :string
       field :messages, {:array, :string}, default: []
       embeds_many :annotations, Annotation
       embeds_one :selected_figma_node, FigmaNode
@@ -370,7 +361,16 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     def changeset(%__MODULE__{} = user_message, attrs) do
       user_message
-      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :agent_id, :model, :messages])
+      |> Interaction.cast_timestamped(attrs, [
+        :id,
+        :timestamp,
+        :agent_id,
+        :model,
+        :selected_server_skill_id,
+        :selected_server_skill_name,
+        :selected_server_skill_content,
+        :messages
+      ])
       |> cast_embed(:annotations, with: &Annotation.changeset/2)
       |> cast_embed(:selected_figma_node, with: &FigmaNode.changeset/2)
       |> cast_embed(:images, with: &UserImage.changeset/2)
@@ -796,9 +796,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defmodule AgentPaused do
     @moduledoc """
-    Recorded when the agent loop is paused due to a tool timeout with
-    `on_timeout: :pause_agent`. Stored as an interaction so reconnecting
-    clients and the debug-task tool can see why the agent stopped.
+    Historical terminal outcome for timeout-driven pauses.
+    Retained for replay; interactive waits no longer produce this event.
     """
 
     use Ecto.Schema
@@ -832,6 +831,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :tool_call_id, :string
       field :tool_name, :string
       field :arguments, :map
+      field :execution_mode, Ecto.Enum, values: [:synchronous, :interactive]
       field :timestamp, :utc_datetime_usec
     end
 
@@ -841,11 +841,19 @@ defmodule FrontmanServer.Tasks.Interaction do
         :tool_call_id,
         :tool_name,
         :arguments,
+        :execution_mode,
         :timestamp
       ])
+      |> Ecto.Changeset.validate_required([:execution_mode])
     end
 
-    def attrs(%SwarmAi.ToolCall{} = tc) do
+    @doc "Historical rows lack a mode snapshot. Only legacy question calls recover as interactive."
+    def execution_mode(%__MODULE__{execution_mode: nil, tool_name: "question"}), do: :interactive
+    def execution_mode(%__MODULE__{execution_mode: nil}), do: :synchronous
+    def execution_mode(%__MODULE__{execution_mode: mode}), do: mode
+
+    def attrs(%SwarmAi.ToolCall{} = tc, execution_mode)
+        when execution_mode in [:synchronous, :interactive] do
       tc = SwarmAi.ToolCall.strip_null_arguments(tc)
 
       case SwarmAi.ToolCall.parse_arguments(tc) do
@@ -854,7 +862,8 @@ defmodule FrontmanServer.Tasks.Interaction do
            %{
              tool_call_id: tc.id,
              tool_name: tc.name,
-             arguments: arguments
+             arguments: arguments,
+             execution_mode: execution_mode
            }}
 
         {:error, message} ->
@@ -939,6 +948,46 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     defp validate_result(:result, _result), do: []
+  end
+
+  defmodule SkillUsed do
+    @moduledoc "Records a skill explicitly selected for a task turn."
+
+    alias FrontmanServer.Skills.Skill
+
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :timestamp, :utc_datetime_usec
+      field :user_message_id, :binary_id
+      field :skill_id, :binary_id
+      field :skill_name, :string
+      field :skill_content, :string
+    end
+
+    def build(%Skill{} = skill, user_message_id) when is_binary(user_message_id) do
+      %__MODULE__{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        user_message_id: user_message_id,
+        skill_id: skill.id,
+        skill_name: skill.name,
+        skill_content: skill.content
+      }
+    end
+
+    def changeset(%__MODULE__{} = skill_used, attrs) do
+      Interaction.cast_timestamped(skill_used, attrs, [
+        :id,
+        :timestamp,
+        :user_message_id,
+        :skill_id,
+        :skill_name,
+        :skill_content
+      ])
+    end
   end
 
   defmodule DiscoveredProjectRule do
@@ -1099,14 +1148,33 @@ defmodule FrontmanServer.Tasks.Interaction do
   tool results) regardless of database insertion timing.
   """
   def to_swarm_messages(interactions) when is_list(interactions) do
-    Enum.flat_map(interactions, &to_swarm_message/1)
+    skills =
+      for %SkillUsed{} = skill <- interactions,
+          into: %{},
+          do: {skill.user_message_id, SwarmContentPart.text(active_skill_text(skill))}
+
+    Enum.flat_map(interactions, fn
+      %UserMessage{} = msg ->
+        [message] = to_swarm_message(msg)
+        [%{message | content: List.wrap(Map.get(skills, msg.id)) ++ message.content}]
+
+      interaction ->
+        to_swarm_message(interaction)
+    end)
   end
 
-  defp to_swarm_message(%UserMessage{} = msg) do
-    prompt_text = user_prompt_text(msg)
-    content_parts = build_user_content_parts(prompt_text, msg)
+  defp to_swarm_message(%SkillUsed{}), do: []
 
-    [build_swarm_user_message(content_parts)]
+  defp to_swarm_message(%UserMessage{} = msg) do
+    message =
+      msg
+      |> user_prompt_text()
+      |> text_parts()
+      |> append_annotation_screenshot_parts(msg.annotations)
+      |> append_user_attachment_parts(msg.images)
+      |> build_swarm_user_message()
+
+    [message]
   end
 
   defp to_swarm_message(
@@ -1156,19 +1224,16 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp to_swarm_message(%DiscoveredProjectRule{}), do: []
   defp to_swarm_message(%DiscoveredProjectStructure{}), do: []
 
+  defp active_skill_text(%SkillUsed{} = skill_used) do
+    "## Active Skill: #{skill_used.skill_name}\n\nUse this expert lens for this turn.\n\n#{skill_used.skill_content}"
+  end
+
   def user_prompt_text(%UserMessage{} = msg) do
     msg.messages
     |> Enum.join("\n\n")
     |> CurrentPageContext.append_prompt_section(msg.current_page)
     |> append_annotation_context(msg.annotations)
     |> append_attachment_context(msg.images)
-  end
-
-  defp build_user_content_parts(prompt_text, %UserMessage{} = msg) do
-    prompt_text
-    |> text_parts()
-    |> append_annotation_screenshot_parts(msg.annotations)
-    |> append_user_attachment_parts(msg.images)
   end
 
   defp text_parts(""), do: []

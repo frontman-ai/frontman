@@ -208,57 +208,56 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
   output,
   string,
 > => {
-  let requestedSearchPath = await PathContext.resolveSearchDir(
-    ~sourceRoot=ctx.sourceRoot,
-    ~inputPath=input.path,
-  )
+  switch await PathContext.resolveSearchDir(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
+  | Error(err) => Error(PathContext.formatError(err))
+  | Ok(requestedSearchPath) =>
+    let searchPath = switch await PathRecovery.nearestExistingDir(
+      ~sourceRoot=ctx.sourceRoot,
+      ~startPath=requestedSearchPath,
+    ) {
+    | Some(existingDir) => existingDir
+    | None => ctx.sourceRoot
+    }
 
-  let searchPath = switch await PathRecovery.nearestExistingDir(
-    ~sourceRoot=ctx.sourceRoot,
-    ~startPath=requestedSearchPath,
-  ) {
-  | Some(existingDir) => existingDir
-  | None => ctx.sourceRoot
-  }
+    let maxResults = input.maxResults->Option.getOr(20)
 
-  let maxResults = input.maxResults->Option.getOr(20)
+    let result = switch await FrontmanBindings.Ripgrep.getRipgrepPath() {
+    | Some(rgPath) =>
+      let ripgrepResult = await executeRipgrep(
+        ~rgPath,
+        ~pattern=input.pattern,
+        ~searchPath,
+        ~maxResults,
+      )
 
-  let result = switch await FrontmanBindings.Ripgrep.getRipgrepPath() {
-  | Some(rgPath) =>
-    let ripgrepResult = await executeRipgrep(
-      ~rgPath,
-      ~pattern=input.pattern,
-      ~searchPath,
-      ~maxResults,
-    )
-
-    switch ripgrepResult {
-    | Ok(output) => Ok(output)
-    | Error(ripgrepError) =>
+      switch ripgrepResult {
+      | Ok(output) => Ok(output)
+      | Error(ripgrepError) =>
+        switch await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults) {
+        | Ok(output) => Ok(output)
+        | Error(gitError) =>
+          Error(formatFallbackError(~firstError=ripgrepError, ~secondError=gitError))
+        }
+      }
+    | None =>
       switch await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults) {
       | Ok(output) => Ok(output)
-      | Error(gitError) =>
-        Error(formatFallbackError(~firstError=ripgrepError, ~secondError=gitError))
+      | Error(gitError) => Error(formatBackendError(gitError))
       }
     }
-  | None =>
-    switch await executeGitLsFiles(~pattern=input.pattern, ~searchPath, ~maxResults) {
-    | Ok(output) => Ok(output)
-    | Error(gitError) => Error(formatBackendError(gitError))
-    }
-  }
 
-  switch result {
-  | Ok(output) =>
-    ToolPathHints.recordSearch(
-      ~sourceRoot=ctx.sourceRoot,
-      ~searchPath,
-      ~pattern=input.pattern,
-      ~files=output.files,
-      ~totalResults=output.totalResults,
-    )
-    Ok(output)
-  | Error(_) as err => err
+    switch result {
+    | Ok(output) =>
+      ToolPathHints.recordSearch(
+        ~sourceRoot=ctx.sourceRoot,
+        ~searchPath,
+        ~pattern=input.pattern,
+        ~files=output.files,
+        ~totalResults=output.totalResults,
+      )
+      Ok(output)
+    | Error(_) as err => err
+    }
   }
 }
 
