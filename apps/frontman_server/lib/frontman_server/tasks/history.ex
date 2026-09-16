@@ -12,7 +12,7 @@ defmodule FrontmanServer.Tasks.History do
 
   @task_scoped_types InteractionSchema.task_scoped_types()
   @terminal_types [:agent_completed, :agent_error, :agent_paused]
-  @run_types @terminal_types ++ [:agent_response, :tool_call, :tool_result]
+  @active_turn_types @terminal_types ++ [:agent_response, :tool_call, :tool_result]
 
   @enforce_keys ~w(rows ordered_rows users_by_id turns_by_number user_owners response_counts active_turn)a
   defstruct @enforce_keys
@@ -77,7 +77,7 @@ defmodule FrontmanServer.Tasks.History do
     end)
   end
 
-  def active_run_turn_number(%__MODULE__{active_turn: active_turn}), do: active_turn
+  def active_turn_number(%__MODULE__{active_turn: active_turn}), do: active_turn
   def active_turn_context(%__MODULE__{} = history), do: turn_context(history, history.active_turn)
 
   def next_turn_number(%__MODULE__{turns_by_number: turns}) do
@@ -226,7 +226,7 @@ defmodule FrontmanServer.Tasks.History do
          %{active_turn: active_turn}
        )
        when is_integer(active_turn),
-       do: {:error, {:run_already_active, active_turn, turn_number}}
+       do: {:error, {:turn_already_active, active_turn, turn_number}}
 
   defp row_context(_history, %InteractionSchema{type: type, turn_number: nil} = row, state)
        when type in @task_scoped_types,
@@ -251,14 +251,14 @@ defmodule FrontmanServer.Tasks.History do
          %InteractionSchema{type: :agent_retry, turn_number: turn_number},
          %{active_turn: active_turn}
        ),
-       do: {:error, {:run_already_active, active_turn, turn_number}}
+       do: {:error, {:turn_already_active, active_turn, turn_number}}
 
   defp row_context(
          history,
          %InteractionSchema{type: type, turn_number: turn_number} = row,
          %{active_turn: turn_number} = state
        )
-       when type in @run_types do
+       when type in @active_turn_types do
     with {:ok, context, state} <- turn_context(history, row, state) do
       {:ok, context, %{state | active_turn: active_turn_after(type, turn_number)}}
     end
@@ -269,8 +269,8 @@ defmodule FrontmanServer.Tasks.History do
          %InteractionSchema{type: type, turn_number: turn_number},
          %{active_turn: active_turn}
        )
-       when type in @run_types,
-       do: {:error, {:inactive_run, type, turn_number, active_turn}}
+       when type in @active_turn_types,
+       do: {:error, {:inactive_turn, type, turn_number, active_turn}}
 
   defp active_turn_after(type, _turn_number) when type in @terminal_types, do: nil
   defp active_turn_after(_type, turn_number), do: turn_number

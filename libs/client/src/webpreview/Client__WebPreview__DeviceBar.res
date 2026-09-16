@@ -81,7 +81,7 @@ let make = (
           <DropdownMenu.Separator />
           {categories
           ->Array.mapWithIndex(((category, devices), idx) => {
-            <React.Fragment key={category}>
+            <DropdownMenu.Group key={category}>
               <DropdownMenu.Label> {React.string(category)} </DropdownMenu.Label>
               {devices
               ->Array.map(preset => {
@@ -108,7 +108,7 @@ let make = (
               })
               ->React.array}
               {idx < Array.length(categories) - 1 ? <DropdownMenu.Separator /> : React.null}
-            </React.Fragment>
+            </DropdownMenu.Group>
           })
           ->React.array}
         </DropdownMenu.Content>

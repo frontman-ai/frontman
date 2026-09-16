@@ -11,13 +11,20 @@ defmodule SwarmAiTest do
   def noop_timeout(_tool_call, _reason), do: :ok
 
   describe "run/2" do
-    test "runs without event dispatcher" do
-      runtime = start_runtime_without_dispatcher!()
+    test "unregisters before dispatching the terminal event" do
+      runtime = start_runtime!()
+      test_pid = self()
 
-      {:ok, pid} = run_agent(runtime, "task-no-dispatch", %MockLLM{response: "done"})
+      dispatch = fn event ->
+        send(test_pid, {event, SwarmAi.running?(runtime, "task-handoff")})
+        :ok
+      end
+
+      {:ok, pid} =
+        run_agent(runtime, "task-handoff", %MockLLM{response: "done"}, dispatch_event: dispatch)
+
       await_exit(pid)
-
-      refute SwarmAi.running?(runtime, "task-no-dispatch")
+      assert_receive {:completed, false}
     end
 
     test "prevents duplicate execution for same key" do
@@ -141,12 +148,6 @@ defmodule SwarmAiTest do
   end
 
   defp start_runtime! do
-    name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
-    start_supervised!({SwarmAi, name: name})
-    name
-  end
-
-  defp start_runtime_without_dispatcher! do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
     start_supervised!({SwarmAi, name: name})
     name

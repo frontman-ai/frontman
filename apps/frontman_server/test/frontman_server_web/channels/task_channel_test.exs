@@ -27,6 +27,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias ModelContextProtocol, as: MCP
 
   @persisted_restart_model "openrouter:openai/gpt-5.5"
+  @logged_output_schema %{
+    "type" => "object",
+    "properties" => %{"logged" => %{"type" => "boolean"}},
+    "required" => ["logged"]
+  }
 
   defp response_metadata(turn_started_id \\ "turn-1", ordinal \\ 0) do
     %{
@@ -63,7 +68,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     turn_number = latest_turn_number(task_id)
 
     {:ok, error_interaction} =
-      Tasks.record_agent_run_result(
+      Tasks.record_execution_outcome(
         scope,
         task_id,
         turn_number,
@@ -84,6 +89,80 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     after
       200 -> Enum.reverse(acc)
     end
+  end
+
+  defp next_mcp_initialization_request(socket, method) do
+    :sys.get_state(socket.channel_pid)
+    assert_push("mcp:message", %{"id" => request_id, "method" => ^method})
+    assert is_integer(request_id)
+
+    timer = mcp_initialization_timer(socket)
+    {request_id, timer}
+  end
+
+  defp mcp_initialization_timer(socket) do
+    %{assigns: %{mcp_init_timeout_ref: timeout_ref, mcp_init_timeout_token: token}} =
+      :sys.get_state(socket.channel_pid)
+
+    assert is_reference(timeout_ref)
+    assert is_reference(token)
+    %{ref: timeout_ref, token: token}
+  end
+
+  defp assert_mcp_initialization_timeout(socket, timer) do
+    send(socket.channel_pid, {:mcp_init_timeout, timer.token})
+
+    channel_socket = :sys.get_state(socket.channel_pid)
+
+    assert %{
+             assigns: %{
+               mcp_status: :failed,
+               mcp_init_timeout_ref: nil,
+               mcp_init_timeout_token: nil
+             }
+           } = channel_socket
+
+    assert channel_socket.assigns.mcp_init_state.status == :failed
+    assert Process.alive?(socket.channel_pid)
+    channel_socket
+  end
+
+  defp assert_mcp_timer_replaced(previous_timer, current_timer) do
+    assert previous_timer.ref != current_timer.ref
+    assert previous_timer.token != current_timer.token
+    assert Process.cancel_timer(previous_timer.ref) == false
+    assert current_timer.ref != nil
+    assert current_timer.token != nil
+  end
+
+  defp complete_mcp_discovery(socket, result \\ mcp_discovery_result()) do
+    {request_id, timer} = next_mcp_initialization_request(socket, "server/discover")
+    push(socket, "mcp:message", JsonRpc.success_response(request_id, result))
+    :sys.get_state(socket.channel_pid)
+    timer
+  end
+
+  defp complete_mcp_tools_list(socket, result \\ mcp_tools_result([])) do
+    {request_id, timer} = next_mcp_initialization_request(socket, "tools/list")
+    push(socket, "mcp:message", JsonRpc.success_response(request_id, result))
+    :sys.get_state(socket.channel_pid)
+    timer
+  end
+
+  defp complete_mcp_project_rules(socket, result \\ MCP.tool_result_text("")) do
+    {request_id, timer} = next_mcp_initialization_request(socket, "tools/call")
+    push(socket, "mcp:message", JsonRpc.success_response(request_id, result))
+    :sys.get_state(socket.channel_pid)
+    timer
+  end
+
+  defp assert_mcp_initialization_terminal(socket, status) do
+    channel_socket = :sys.get_state(socket.channel_pid)
+    assert channel_socket.assigns.mcp_status == status
+    assert channel_socket.assigns.mcp_init_state.status == status
+    assert channel_socket.assigns.mcp_init_timeout_ref == nil
+    assert channel_socket.assigns.mcp_init_timeout_token == nil
+    channel_socket
   end
 
   defp assert_state_update_idle(task_id) do
@@ -137,10 +216,65 @@ defmodule FrontmanServerWeb.TaskChannelTest do
            "Agent should not be running after completion"
   end
 
-  defp register_tool_receiver(tool_call_id) do
-    Registry.register(FrontmanServer.ToolCallRegistry, {:tool_call, tool_call_id}, %{
+  defp register_tool_receiver(task_id, tool_call_id) do
+    Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, task_id, tool_call_id}, %{
       caller_pid: self()
     })
+  end
+
+  defp assert_tool_result_crash(context, content, reason) do
+    %{socket: socket, task_id: task_id, scope: scope} = context
+    result = %{"resultType" => "complete", "content" => content}
+    result = Map.put(result, "structuredContent", %{"logged" => true})
+    tool_call = tool_call("call_invalid_result", "testTool")
+    register_tool_receiver(task_id, tool_call.tool_call_id)
+
+    persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
+
+    assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
+    channel_pid = socket.channel_pid
+    Process.flag(:trap_exit, true)
+    push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+    assert_receive {:EXIT, ^channel_pid, {%RuntimeError{message: message}, _stacktrace}}
+
+    assert message =~
+             "#{reason} for task #{task_id}, tool testTool, call #{tool_call.tool_call_id}"
+
+    {:ok, task} = Tasks.get_task(scope, task_id)
+    refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+  end
+
+  defp assert_unsupported_tool_result(context, content, content_type) do
+    %{socket: socket, task_id: task_id, scope: scope} = context
+    tool_call = tool_call("call_unsupported_result", "testTool")
+    tool_call_id = tool_call.tool_call_id
+    message = "Unsupported MCP tool result content type: #{content_type}"
+    register_tool_receiver(task_id, tool_call_id)
+
+    persist_tool_call_fixture(scope, task_id, start_turn_fixture(scope, task_id), tool_call)
+
+    assert_push("mcp:message", %{"method" => "tools/call", "id" => mcp_request_id})
+
+    result = %{
+      "resultType" => "complete",
+      "content" => content,
+      "structuredContent" => %{"logged" => true}
+    }
+
+    push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+    :sys.get_state(socket.channel_pid)
+
+    assert Process.alive?(socket.channel_pid)
+
+    assert_receive {:tool_result, ^tool_call_id,
+                    [%SwarmAi.Message.ContentPart{type: :text, text: ^message}], true}
+
+    assert {:ok, task} = Tasks.get_task(scope, task_id)
+
+    assert Enum.any?(
+             Tasks.interactions(task),
+             &match?(%Interaction.ToolResult{is_error: true}, &1)
+           )
   end
 
   defp question_tool_call(id, header, label) do
@@ -174,6 +308,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     result =
       Map.merge(
         %{
+          "resultType" => "complete",
           "content" => [
             %{
               "type" => "text",
@@ -197,16 +332,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "join task:<id>" do
-    test "succeeds when task exists", %{scope: scope} do
+    test "allows one connection per task", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      {:ok, reply, socket} =
+      {:ok, %{task_id: ^task_id}, _socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task_id}", %{})
 
-      assert reply == %{task_id: task_id}
-      assert socket.assigns.task_id == task_id
+      other = socket(UserSocket, "other_user_id", %{scope: scope})
+
+      assert {:error, %{reason: "task_already_joined"}} =
+               subscribe_and_join(other, "task:#{task_id}", %{})
     end
 
     test "fails when task does not exist", %{scope: scope} do
@@ -560,6 +697,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       assert_reply(first_ref, :ok, %{"acp:message" => %{"id" => 11, "result" => %{}}})
+      :sys.get_state(socket.channel_pid)
       assert_state_update_running(task_id)
 
       second_ref =
@@ -581,6 +719,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       assert_reply(second_ref, :ok, %{"acp:message" => %{"id" => 12, "result" => %{}}})
+      refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
 
       assert_state_update_idle(task_id)
       assert_state_update_running_then_idle(task_id)
@@ -807,19 +946,25 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         tool_call("call_123", "consoleLog", %{"message" => "hello"})
 
       turn_number = start_turn_fixture(scope, task_id)
-      register_tool_receiver(tool_call.tool_call_id)
+      register_tool_receiver(task_id, tool_call.tool_call_id)
 
       {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
         "id" => mcp_request_id,
-        "params" => %{"name" => "consoleLog", "callId" => "call_123"}
+        "params" => %{
+          "name" => "consoleLog",
+          "_meta" => %{
+            "ai.frontman/execution-context" => %{"callId" => "call_123"}
+          }
+        }
       })
 
       assert is_integer(mcp_request_id)
 
       mcp_tool_result = %{
+        "resultType" => "complete",
         "content" => [%{"type" => "text", "text" => "Logged: hello"}],
         "structuredContent" => %{"logged" => true}
       }
@@ -846,6 +991,25 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           }
         }
       })
+    end
+
+    test "validates structured content only when tool errors provide it" do
+      result = %{
+        "resultType" => "complete",
+        "content" => [%{"type" => "text", "text" => "tool failed"}],
+        "isError" => true
+      }
+
+      assert :ok =
+               ModelContextProtocol.Schema.validate_call_tool_result(
+                 result,
+                 @logged_output_schema
+               )
+
+      assert :error =
+               result
+               |> Map.put("structuredContent", %{})
+               |> ModelContextProtocol.Schema.validate_call_tool_result(@logged_output_schema)
     end
   end
 
@@ -910,7 +1074,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "MCP initialization" do
-    test "sends MCP initialize request on join", %{scope: scope} do
+    test "sends MCP discovery request on join", %{scope: scope} do
       {_socket, _task_id} = join_task_channel(scope)
 
       expected_version = ModelContextProtocol.protocol_version()
@@ -918,32 +1082,162 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_push("mcp:message", %{
         "jsonrpc" => "2.0",
         "id" => _id,
-        "method" => "initialize",
+        "method" => "server/discover",
         "params" => %{
-          "protocolVersion" => ^expected_version,
-          "clientInfo" => %{"name" => "frontman-server"}
+          "_meta" => %{
+            "io.modelcontextprotocol/protocolVersion" => ^expected_version,
+            "io.modelcontextprotocol/clientInfo" => %{"name" => "frontman-server"}
+          }
         }
       })
     end
 
-    test "completes handshake and sends initialized notification", %{scope: scope} do
+    test "fails initialization when discovery times out", %{scope: scope} do
       {socket, _task_id} = join_task_channel(scope)
+      {_request_id, timer} = next_mcp_initialization_request(socket, "server/discover")
 
-      assert_push("mcp:message", %{"id" => request_id})
+      assert_mcp_initialization_timeout(socket, timer)
+    end
 
-      init_result = %{
-        "protocolVersion" => ModelContextProtocol.protocol_version(),
-        "capabilities" => %{"tools" => %{}},
-        "serverInfo" => %{"name" => "browser-mcp", "version" => "1.0.0"}
-      }
+    test "fails initialization when the first tools/list request times out", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      discovery_timer = complete_mcp_discovery(socket)
+      {_tools_request_id, tools_timer} = next_mcp_initialization_request(socket, "tools/list")
 
-      push(socket, "mcp:message", JsonRpc.success_response(request_id, init_result))
+      assert_mcp_timer_replaced(discovery_timer, tools_timer)
+      assert_mcp_initialization_timeout(socket, tools_timer)
+    end
+
+    test "replaces the timer for tools/list pagination and ignores stale timeout tokens", %{
+      scope: scope
+    } do
+      {socket, _task_id} = join_task_channel(scope)
+      discovery_timer = complete_mcp_discovery(socket)
+      {tools_request_id, tools_timer} = next_mcp_initialization_request(socket, "tools/list")
+
+      assert_mcp_timer_replaced(discovery_timer, tools_timer)
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(
+          tools_request_id,
+          mcp_tools_result([], %{"nextCursor" => "page-2"})
+        )
+      )
+
       :sys.get_state(socket.channel_pid)
 
-      assert_push("mcp:message", %{
-        "jsonrpc" => "2.0",
-        "method" => "notifications/initialized"
-      })
+      {next_tools_request_id, next_tools_timer} =
+        next_mcp_initialization_request(socket, "tools/list")
+
+      assert_mcp_timer_replaced(tools_timer, next_tools_timer)
+
+      send(socket.channel_pid, {:mcp_init_timeout, tools_timer.token})
+      channel_socket = :sys.get_state(socket.channel_pid)
+
+      assert channel_socket.assigns.mcp_status == :pending
+      assert channel_socket.assigns.mcp_init_state.status == :loading_tools
+      assert channel_socket.assigns.mcp_init_state.tools_request_id == next_tools_request_id
+      assert channel_socket.assigns.mcp_init_timeout_ref == next_tools_timer.ref
+      assert channel_socket.assigns.mcp_init_timeout_token == next_tools_timer.token
+
+      assert_mcp_initialization_timeout(socket, next_tools_timer)
+    end
+
+    test "fails initialization when project rules time out", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      complete_mcp_discovery(socket)
+      complete_mcp_tools_list(socket)
+      {_rules_request_id, rules_timer} = next_mcp_initialization_request(socket, "tools/call")
+
+      assert_mcp_initialization_timeout(socket, rules_timer)
+    end
+
+    test "fails initialization when project structure times out", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+      complete_mcp_discovery(socket)
+      complete_mcp_tools_list(socket)
+      rules_timer = complete_mcp_project_rules(socket)
+
+      {_structure_request_id, structure_timer} =
+        next_mcp_initialization_request(socket, "tools/call")
+
+      assert_mcp_timer_replaced(rules_timer, structure_timer)
+      assert_mcp_initialization_timeout(socket, structure_timer)
+    end
+
+    test "preserves project context error transitions and clears the terminal timer", %{
+      scope: scope
+    } do
+      {socket, _task_id} = join_task_channel(scope)
+      complete_mcp_discovery(socket)
+      complete_mcp_tools_list(socket)
+      {rules_request_id, rules_timer} = next_mcp_initialization_request(socket, "tools/call")
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.error_response(rules_request_id, -32_000, "rules unavailable")
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      {structure_request_id, structure_timer} =
+        next_mcp_initialization_request(socket, "tools/call")
+
+      assert_mcp_timer_replaced(rules_timer, structure_timer)
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.error_response(structure_request_id, -32_000, "structure unavailable")
+      )
+
+      assert_mcp_initialization_terminal(socket, :ready)
+    end
+
+    test "clears the timer after an explicit initialization failure", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+
+      discovery_timer =
+        complete_mcp_discovery(
+          socket,
+          mcp_discovery_result(%{"supportedVersions" => ["unsupported"]})
+        )
+
+      assert_mcp_initialization_terminal(socket, :failed)
+      assert Process.cancel_timer(discovery_timer.ref) == false
+    end
+
+    test "does not revive initialization after a timeout", %{scope: scope} do
+      {socket, _task_id} = join_task_channel(scope)
+
+      {discovery_request_id, discovery_timer} =
+        next_mcp_initialization_request(socket, "server/discover")
+
+      assert_mcp_initialization_timeout(socket, discovery_timer)
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(discovery_request_id, mcp_discovery_result())
+      )
+
+      channel_socket = :sys.get_state(socket.channel_pid)
+
+      assert Process.alive?(socket.channel_pid)
+      assert channel_socket.assigns.mcp_status == :failed
+      assert channel_socket.assigns.mcp_init_timeout_ref == nil
+      assert channel_socket.assigns.mcp_init_timeout_token == nil
+
+      assert %{
+               status: :failed,
+               discovery_request_id: nil,
+               tools_request_id: nil,
+               project_rules_request_id: nil,
+               project_structure_request_id: nil
+             } = channel_socket.assigns.mcp_init_state
     end
 
     test "wordpress completes after tools/list without filesystem tool calls", %{scope: scope} do
@@ -955,13 +1249,25 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       channel_socket = :sys.get_state(socket.channel_pid)
       assert channel_socket.assigns.mcp_status == :ready
+      assert channel_socket.assigns.mcp_init_timeout_ref == nil
+      assert channel_socket.assigns.mcp_init_timeout_token == nil
     end
   end
 
   describe "MCP response validation" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
-      complete_mcp_handshake(socket)
+
+      complete_mcp_handshake(socket,
+        tools: [
+          %{
+            "name" => "testTool",
+            "inputSchema" => %{"type" => "object"},
+            "outputSchema" => @logged_output_schema
+          }
+        ]
+      )
+
       {:ok, socket: socket, task_id: task_id, scope: scope}
     end
 
@@ -1039,22 +1345,30 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tool_call = tool_call("call_valid_test", "testTool")
       tool_call_id = tool_call.tool_call_id
       turn_number = start_turn_fixture(scope, task_id)
-      register_tool_receiver(tool_call.tool_call_id)
+      register_tool_receiver(task_id, tool_call.tool_call_id)
 
       {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
 
       assert_push("mcp:message", %{
         "method" => "tools/call",
         "id" => mcp_request_id,
-        "params" => %{"callId" => ^tool_call_id}
+        "params" => %{
+          "_meta" => %{
+            "ai.frontman/execution-context" => %{"callId" => ^tool_call_id}
+          }
+        }
       })
 
       assert is_integer(mcp_request_id)
 
-      mcp_result = %{
-        "content" => [%{"type" => "text", "text" => "Success"}],
-        "_meta" => %{"envApiKey" => "sk-fake-valid-mcp-marker"}
-      }
+      image_data =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+
+      mcp_result =
+        image_data
+        |> MCP.tool_result_image("image/png")
+        |> Map.put("structuredContent", %{"logged" => true})
+        |> Map.put("_meta", %{"envApiKey" => "sk-fake-valid-mcp-marker"})
 
       log =
         capture_log([level: :info], fn ->
@@ -1065,6 +1379,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       refute log =~ "sk-fake-valid-mcp-marker"
       refute log =~ "envApiKey"
 
+      assert_receive {:tool_result, ^tool_call_id,
+                      [
+                        %SwarmAi.Message.ContentPart{
+                          type: :image,
+                          data: decoded_image_data,
+                          media_type: "image/png"
+                        }
+                      ], false}
+
+      assert decoded_image_data == Base.decode64!(image_data)
+
       assert_push("acp:message", %{
         "method" => "session/update",
         "params" => %{
@@ -1072,6 +1397,53 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{"status" => "completed"}
         }
       })
+    end
+
+    for {name, content, content_type} <- [
+          {"audio", [%{"type" => "audio", "data" => "YXVkaW8=", "mimeType" => "audio/wav"}],
+           "audio"},
+          {"resource link",
+           [%{"type" => "resource_link", "name" => "Example", "uri" => "https://example.com"}],
+           "resource_link"},
+          {"embedded text resource",
+           [
+             %{
+               "type" => "resource",
+               "resource" => %{"uri" => "file:///example.txt", "text" => "example"}
+             }
+           ], "resource"},
+          {"embedded blob resource",
+           [
+             %{
+               "type" => "resource",
+               "resource" => %{"uri" => "file:///example.bin", "blob" => "YmxvYg=="}
+             }
+           ], "resource"},
+          {"mixed supported and audio",
+           [
+             %{"type" => "text", "text" => "partial result"},
+             %{"type" => "audio", "data" => "YXVkaW8=", "mimeType" => "audio/wav"}
+           ], "audio"}
+        ] do
+      test "converts #{name} content to a tool error", context do
+        assert_unsupported_tool_result(
+          context,
+          unquote(Macro.escape(content)),
+          unquote(content_type)
+        )
+      end
+    end
+
+    test "crashes loudly for malformed MCP tool results", context do
+      assert_tool_result_crash(context, "invalid", "Invalid MCP tools/call result")
+    end
+
+    test "rejects invalid image data before persistence", context do
+      assert_tool_result_crash(
+        context,
+        [%{"type" => "image", "data" => "invalid", "mimeType" => "image/png"}],
+        "Failed to store MCP tools/call result"
+      )
     end
 
     test "ignores MCP responses with string IDs instead of crashing", %{socket: socket} do
@@ -1427,7 +1799,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       messages = collect_all_pushes()
 
-      assert {"mcp:message", %{"id" => mcp_request_id, "params" => %{"callId" => ^tool_call_id}}} =
+      assert {"mcp:message",
+              %{
+                "id" => mcp_request_id,
+                "params" => %{
+                  "_meta" => %{
+                    "ai.frontman/execution-context" => %{"callId" => ^tool_call_id}
+                  }
+                }
+              }} =
                Enum.find(messages, fn
                  {"mcp:message", %{"method" => "tools/call", "params" => %{"name" => "question"}}} ->
                    true
@@ -1496,7 +1876,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
            %{
              "id" => request_id,
              "method" => "tools/call",
-             "params" => %{"callId" => call_id, "name" => "question"}
+             "params" => %{
+               "name" => "question",
+               "_meta" => %{
+                 "ai.frontman/execution-context" => %{"callId" => call_id}
+               }
+             }
            }},
           acc ->
             Map.put(acc, call_id, request_id)
@@ -1514,7 +1899,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
 
       assert {:ok, ^turn_number, [_remaining_call]} =
-               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
 
       refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
@@ -1548,7 +1933,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       messages = collect_all_pushes()
 
-      assert {"mcp:message", %{"id" => mcp_request_id, "params" => %{"callId" => ^tool_call_id}}} =
+      assert {"mcp:message",
+              %{
+                "id" => mcp_request_id,
+                "params" => %{
+                  "_meta" => %{
+                    "ai.frontman/execution-context" => %{"callId" => ^tool_call_id}
+                  }
+                }
+              }} =
                Enum.find(messages, fn
                  {"mcp:message", %{"method" => "tools/call", "params" => %{"name" => "question"}}} ->
                    true
@@ -1590,7 +1983,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       )
 
       Tasks.agent_replied(scope, task_id, first_turn_number, "First done")
-      Tasks.record_agent_run_result(scope, task_id, first_turn_number, :completed)
+      Tasks.record_execution_outcome(scope, task_id, first_turn_number, :completed)
 
       user_message_fixture(scope, task_id, user_content("second turn"))
       second_turn_number = latest_turn_number(task_id)
@@ -1625,7 +2018,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         |> subscribe_and_join("task:#{task_id}", %{})
 
       :sys.get_state(socket.channel_pid)
-      assert_push("mcp:message", %{"id" => init_request_id, "method" => "initialize"})
+
+      assert_push("mcp:message", %{
+        "id" => discovery_request_id,
+        "method" => "server/discover"
+      })
 
       push(
         socket,
@@ -1640,17 +2037,18 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       push(
         socket,
         "mcp:message",
-        JsonRpc.success_response(init_request_id, %{
-          "protocolVersion" => ModelContextProtocol.protocol_version(),
-          "capabilities" => %{"tools" => %{}},
-          "serverInfo" => %{"name" => "test-mcp", "version" => "1.0.0"}
-        })
+        JsonRpc.success_response(discovery_request_id, mcp_discovery_result())
       )
 
       :sys.get_state(socket.channel_pid)
-      assert_push("mcp:message", %{"method" => "notifications/initialized"})
       assert_push("mcp:message", %{"id" => tools_id, "method" => "tools/list"})
-      push(socket, "mcp:message", JsonRpc.success_response(tools_id, %{"tools" => []}))
+
+      push(
+        socket,
+        "mcp:message",
+        JsonRpc.success_response(tools_id, mcp_tools_result([]))
+      )
+
       :sys.get_state(socket.channel_pid)
 
       assert_push("mcp:message", %{
@@ -1659,7 +2057,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"name" => "load_agent_instructions"}
       })
 
-      push(socket, "mcp:message", JsonRpc.success_response(rules_id, %{"content" => []}))
+      push(socket, "mcp:message", JsonRpc.success_response(rules_id, MCP.tool_result_text("")))
       :sys.get_state(socket.channel_pid)
 
       assert_push("mcp:message", %{
@@ -1668,10 +2066,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "params" => %{"name" => "list_tree"}
       })
 
-      push(socket, "mcp:message", JsonRpc.success_response(tree_id, %{"content" => []}))
+      push(socket, "mcp:message", JsonRpc.success_response(tree_id, MCP.tool_result_text("")))
       :sys.get_state(socket.channel_pid)
-
-      assert_push("acp:message", %{"method" => "mcp_initialization_complete"})
 
       assert_push(
         "mcp:message",
@@ -1860,7 +2256,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, error_interaction} =
-        Tasks.record_agent_run_result(scope, task_id, turn_number, {:failed, "Rate limited"})
+        Tasks.record_execution_outcome(scope, task_id, turn_number, {:failed, "Rate limited"})
 
       retried_error_id = error_interaction.id
 
@@ -1899,7 +2295,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, _error_interaction} =
-        Tasks.record_agent_run_result(scope, task_id, turn_number, {:failed, "Rate limited"})
+        Tasks.record_execution_outcome(scope, task_id, turn_number, {:failed, "Rate limited"})
 
       retried_error_id = "error-#{task_id}-2026-06-26T17:13:06.931002Z"
 

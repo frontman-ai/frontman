@@ -83,6 +83,10 @@ module Settings = {
   @module("lucide-react") external make: React.component<props> = "SettingsIcon"
 }
 
+module Send = {
+  @module("lucide-react") external make: React.component<props> = "SendIcon"
+}
+
 module Smartphone = {
   @module("lucide-react") external make: React.component<props> = "SmartphoneIcon"
 }
@@ -102,6 +106,7 @@ module ArrowLeftIcon = ArrowLeft
 module OpenInNewWindowIcon = ExternalLink
 module Cross2Icon = X
 module GearIcon = Settings
+module SendIcon = Send
 module CubeIcon = Box
 module ChevronUpIcon = ChevronUp
 module ChevronDownIcon = ChevronDown

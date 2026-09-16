@@ -13,9 +13,3 @@ let getInstance = (): state => getOrCreateInstance(~config=defaultConfig)
 let initialize = (~config: config=defaultConfig, ()): unit => {
   CoreLogCapture.initialize(~config, ())
 }
-
-%%raw(`
-if (typeof window === 'undefined') {
-  initialize();
-}
-`)

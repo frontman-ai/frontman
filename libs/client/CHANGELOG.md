@@ -1,5 +1,53 @@
 # @frontman-ai/client
 
+## 1.1.0
+
+### Minor Changes
+
+- [#1439](https://github.com/frontman-ai/frontman/pull/1439) [`c73f19f`](https://github.com/frontman-ai/frontman/commit/c73f19fcff40aa7bf28a4af72ca956d30e9cf360) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add an animated border beam to the idle chat composer.
+
+- [#1483](https://github.com/frontman-ai/frontman/pull/1483) [`e79958f`](https://github.com/frontman-ai/frontman/commit/e79958f170f89917cac72007a2bdf407ffc83fe1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Establish the typed Reworker parent runtime for preview iframes.
+
+- [#1522](https://github.com/frontman-ai/frontman/pull/1522) [`19d0059`](https://github.com/frontman-ai/frontman/commit/19d005992bdcd9215c5a086e1c51ead8d4fae786) Thanks [@uinstinct](https://github.com/uinstinct)! - Click an annotation chip in a sent user message to highlight and scroll to that element in the web preview. Click the chip again to clear the highlight.
+
+- [#1479](https://github.com/frontman-ai/frontman/pull/1479) [`434bbf1`](https://github.com/frontman-ai/frontman/commit/434bbf1b3c0aa10eeffd33848a603e4fa952cefb) Thanks [@uinstinct](https://github.com/uinstinct)! - Add a Changes view that shows file edits made during a conversation as diffs. File-editing tools now emit file change events over a new file change protocol message, and the client renders them with `@pierre/diffs`.
+
+- [#1432](https://github.com/frontman-ai/frontman/pull/1432) [`b3c6bb1`](https://github.com/frontman-ai/frontman/commit/b3c6bb1c7a60d3e142449b69976827250889cb3b) Thanks [@uinstinct](https://github.com/uinstinct)! - Add an "Execute plan" button after the planner agent finishes, which hands the plan off to the executor agent in the same conversation.
+
+- [#1498](https://github.com/frontman-ai/frontman/pull/1498) [`d9a58c6`](https://github.com/frontman-ai/frontman/commit/d9a58c653487dd9132c8ff16958f2356c6a6044f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Require `_meta["frontman.dev/messageId"]` on `session/prompt` requests and use it as the canonical persisted user-message UUID for live updates and history replay. Missing, malformed, and duplicate IDs now return invalid params; older clients that omit this metadata are incompatible.
+
+### Patch Changes
+
+- [#1507](https://github.com/frontman-ai/frontman/pull/1507) [`34022ed`](https://github.com/frontman-ai/frontman/commit/34022ed99de9284132e97c8729ffabe71a2307e0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Improve screenshot compatibility and return actionable guidance when browser image decoding fails.
+
+- [#1484](https://github.com/frontman-ai/frontman/pull/1484) [`aa8e5bb`](https://github.com/frontman-ai/frontman/commit/aa8e5bb830d2443508d69ab4bc4b696f46a75a5d) Thanks [@uinstinct](https://github.com/uinstinct)! - Focus the prompt editor after starting a new task.
+
+- [#1526](https://github.com/frontman-ai/frontman/pull/1526) [`5a0c81a`](https://github.com/frontman-ai/frontman/commit/5a0c81abdf9025bd90f8d2fa2ea99216021b1620) Thanks [@uinstinct](https://github.com/uinstinct)! - Show three starter task suggestions in an empty conversation. Clicking one sends it as a message.
+
+- [#1461](https://github.com/frontman-ai/frontman/pull/1461) [`143ece0`](https://github.com/frontman-ai/frontman/commit/143ece0b957d3045878908a6bddcc10476fe1904) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Stop creating a todo after every WordPress recommendation while continuing to require inspected evidence for state-dependent guidance.
+
+- [#1485](https://github.com/frontman-ai/frontman/pull/1485) [`3297b58`](https://github.com/frontman-ai/frontman/commit/3297b58d81cc74f6f92e567dc8b0a8f6c29188e0) Thanks [@uinstinct](https://github.com/uinstinct)! - Keep failed exploration tool calls inside their group and show the failure count in the group summary.
+
+- [#1529](https://github.com/frontman-ai/frontman/pull/1529) [`1e72d46`](https://github.com/frontman-ai/frontman/commit/1e72d46673ce19378050de0a7dff5fb97a688c41) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Celebrate a user's first completed task with framework-specific rating and sharing actions.
+
+- [#1505](https://github.com/frontman-ai/frontman/pull/1505) [`f4dcc2b`](https://github.com/frontman-ai/frontman/commit/f4dcc2b5d8734d3107977312f1046cfc0ddf7874) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore backend tool calls when loading existing task history.
+
+- [#1499](https://github.com/frontman-ai/frontman/pull/1499) [`02dc31a`](https://github.com/frontman-ai/frontman/commit/02dc31a9b84aab1c74ae7f84b96c80d3c13315bc) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore NVIDIA model execution through NVIDIA NIM and guard every advertised model with executable provider coverage.
+
+- [#1506](https://github.com/frontman-ai/frontman/pull/1506) [`f8dac8e`](https://github.com/frontman-ai/frontman/commit/f8dac8e8fcf91a229824183786a1e7a02c094f4a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Complete todo tool cards without breaking reconnecting sessions, restore the current todo plan when reopening a task, and hide the plan after every item is complete.
+
+- [#1536](https://github.com/frontman-ai/frontman/pull/1536) [`8cc17d5`](https://github.com/frontman-ai/frontman/commit/8cc17d55a17aa53b7c15d09a3a542022006d145a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep queued messages with different models in separate agent turns.
+
+- [#1504](https://github.com/frontman-ai/frontman/pull/1504) [`5b5f180`](https://github.com/frontman-ai/frontman/commit/5b5f1805e491e8803bc6c6f7da961c29c2cf6d9e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show submitted messages in the queued-message drawer while awaiting server acceptance.
+
+- [#1494](https://github.com/frontman-ai/frontman/pull/1494) [`84959cb`](https://github.com/frontman-ai/frontman/commit/84959cb57e446ee684bc8ac5ba447959597eee7f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Centralize browser URL synchronization and simplify iframe lifecycle handling.
+
+- [#1477](https://github.com/frontman-ai/frontman/pull/1477) [`ab663ad`](https://github.com/frontman-ai/frontman/commit/ab663adb2e580e84c4732ca3c36fce9e9919c1c9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Derive provider setup from ACP model availability and resolve each selected model once before request preflight and streaming.
+
+- [#1539](https://github.com/frontman-ai/frontman/pull/1539) [`817c623`](https://github.com/frontman-ai/frontman/commit/817c623bdcafc20c15bc25ea29070565064fd0ed) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent concurrent connections from owning the same task channel.
+
+- [#1517](https://github.com/frontman-ai/frontman/pull/1517) [`cff8e50`](https://github.com/frontman-ai/frontman/commit/cff8e503b702f2c7b7f47a1fe31ece84a1b9750b) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update diff to version 9.
+
 ## 1.0.5
 
 ### Patch Changes

@@ -80,7 +80,7 @@ defmodule FrontmanServerWeb.AnthropicOAuthController do
   Returns the current OAuth connection status.
   """
   def status(conn, _params) do
-    json(conn, Providers.oauth_connection_status(conn.assigns.current_scope, "anthropic"))
+    json(conn, Providers.resolve_oauth_connection_status(conn.assigns.current_scope, "anthropic"))
   end
 
   defp translate_errors(changeset) do

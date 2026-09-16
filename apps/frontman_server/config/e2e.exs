@@ -32,6 +32,10 @@ config :logger, level: :info
 
 config :frontman_server, dev_routes: true
 
+config :workos, WorkOS.Client,
+  api_key: "sk_test_workos_e2e",
+  client_id: "client_test_workos_e2e"
+
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id, :task_id, :pid, :reason]

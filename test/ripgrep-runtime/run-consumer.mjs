@@ -11,7 +11,7 @@ assert.ok(integration && tarball, "Usage: node run-consumer.mjs <nextjs|vite> <t
 const packageConfig = {
   nextjs: {
     packageName: "@frontman-ai/nextjs",
-    peers: {next: "13.2.0", react: "18.2.0", "react-dom": "18.2.0"},
+    peers: {next: "15.5.0", react: "18.2.0", "react-dom": "18.2.0"},
   },
   vite: {packageName: "@frontman-ai/vite", peers: {vite: "5.0.0"}},
 }[integration]
@@ -34,6 +34,8 @@ try {
   await writeFile(resolve(consumer, "package.json"), JSON.stringify(packageJson, null, 2) + "\n")
   await writeFile(resolve(consumer, "search-target.txt"), "packed ripgrep runtime\n")
   run("npm", ["install", "--strict-peer-deps", "--save-exact"])
+
+  if (integration === "nextjs") process.env.FRONTMAN_ENABLED = "1"
 
   const packageRoot = resolve(consumer, "node_modules", packageConfig.packageName)
   const frontman = await import(pathToFileURL(resolve(packageRoot, "dist", "index.js")))

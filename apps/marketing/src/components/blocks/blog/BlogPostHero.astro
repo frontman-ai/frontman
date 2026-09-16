@@ -52,6 +52,9 @@ const updatedDateISO = updatedDate ? updatedDate.toISOString() : undefined
 					</p>
 				)
 			}
+				<p class="page-header__policy">
+					<a href="/editorial-policy/">Editorial policy and corrections</a>
+				</p>
 			</header>
 			{
 				tags && (
@@ -76,6 +79,12 @@ const updatedDateISO = updatedDate ? updatedDate.toISOString() : undefined
 	}
 	.page-header__updated {
 		@apply text-base text-neutral-500 dark:text-neutral-400 mt-1;
+	}
+	.page-header__policy {
+		@apply mt-2 text-sm text-neutral-500 dark:text-neutral-400;
+	}
+	.page-header__policy a {
+		@apply underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-200;
 	}
 	.author-link {
 		@apply text-primary-600 dark:text-primary-400 no-underline hover:underline;

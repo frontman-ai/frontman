@@ -7,4 +7,15 @@ describe('countArticleWords', () => {
 
 		expect(countArticleWords(body)).toBe(2)
 	})
+
+	it('includes the rendered FAQ heading, questions, and answers', () => {
+		const faq = [
+			{
+				question: 'Can I maintain it?',
+				answer: 'Yes, carefully.'
+			}
+		]
+
+		expect(countArticleWords('Visible copy', faq)).toBe(9)
+	})
 })

@@ -71,7 +71,9 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
           "type" => "object",
           "properties" => %{"questions" => %{"type" => "array"}}
         },
-        "executionMode" => "interactive"
+        "_meta" => %{
+          "ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}
+        }
       }
     ])
   end

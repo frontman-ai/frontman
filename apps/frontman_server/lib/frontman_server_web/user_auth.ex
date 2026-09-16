@@ -16,6 +16,8 @@ defmodule FrontmanServerWeb.UserAuth do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServerWeb.EmbeddedClientAuth
+  alias FrontmanServerWeb.EmbeddedClientOrigin
 
   @max_cookie_age_in_days 14
   @remember_me_cookie "_frontman_server_web_user_remember_me"
@@ -36,8 +38,12 @@ defmodule FrontmanServerWeb.UserAuth do
   def log_in_user(conn, user, params \\ %{}) do
     user_return_to = get_session(conn, :user_return_to)
 
+    pending_embedded_client_auth_request =
+      get_session(conn, EmbeddedClientAuth.pending_session_key())
+
     conn
     |> create_or_extend_session(user, params)
+    |> maybe_restore_embedded_client_auth_request(pending_embedded_client_auth_request)
     |> redirect_to_return_path(user_return_to)
   end
 
@@ -56,10 +62,20 @@ defmodule FrontmanServerWeb.UserAuth do
     end
   end
 
+  defp maybe_restore_embedded_client_auth_request(conn, nil), do: conn
+
+  defp maybe_restore_embedded_client_auth_request(conn, %{"origin" => origin, "state" => state})
+       when is_binary(origin) and is_binary(state) do
+    put_session(conn, EmbeddedClientAuth.pending_session_key(), %{
+      "origin" => origin,
+      "state" => state
+    })
+  end
+
   defp safe_return_url?(url) do
     case URI.parse(url) do
       %URI{scheme: scheme, host: host} when scheme in ["http", "https"] and is_binary(host) ->
-        allowed_return_host?(host)
+        host |> String.downcase() |> allowed_return_host?()
 
       _ ->
         false
@@ -71,17 +87,11 @@ defmodule FrontmanServerWeb.UserAuth do
   end
 
   defp exact_return_host?(host) do
-    host in ["frontman.sh", "category-creation.com", "frontman.local", "localhost", "127.0.0.1"]
+    host == "frontman.sh"
   end
 
   defp subdomain_return_host?(host) do
-    String.ends_with?(host, ".com") or
-      String.ends_with?(host, ".com.au") or
-      String.ends_with?(host, ".net") or
-      String.ends_with?(host, ".org") or
-      String.ends_with?(host, ".frontman.sh") or
-      String.ends_with?(host, ".category-creation.com") or
-      String.ends_with?(host, ".frontman.local")
+    String.ends_with?(host, ".frontman.sh")
   end
 
   @doc """
@@ -315,11 +325,17 @@ defmodule FrontmanServerWeb.UserAuth do
   """
   def redirect_if_user_is_authenticated(conn, _opts) do
     if conn.assigns.current_scope do
-      return_to = conn.params["return_to"]
+      case EmbeddedClientAuth.put_pending_request(conn, conn.params) do
+        {:ok, conn} ->
+          return_to = conn.params["return_to"]
 
-      conn
-      |> redirect_to_return_path(return_to)
-      |> halt()
+          conn
+          |> redirect_to_return_path(return_to)
+          |> halt()
+
+        {:error, conn} ->
+          conn
+      end
     else
       conn
     end
@@ -343,18 +359,48 @@ defmodule FrontmanServerWeb.UserAuth do
   end
 
   @doc """
-  Plug for API routes that require the user to be authenticated.
-  Returns JSON error instead of redirect.
+  Plug for embedded client API routes that require an explicit bearer token.
   """
-  def require_authenticated_user_api(conn, _opts) do
-    if conn.assigns.current_scope && conn.assigns.current_scope.user do
+  def require_embedded_client_bearer_token(conn, _opts) do
+    with {:ok, token} <- embedded_client_bearer_token(conn),
+         {:ok, origin} <- embedded_client_origin(conn),
+         {%Scope{} = scope, token_id} <-
+           Accounts.get_scope_by_embedded_client_token(token, origin) do
+      :ok = Accounts.touch_embedded_client_token(scope, token_id)
+
       conn
+      |> assign(:current_scope, scope)
+      |> assign(:embedded_client_token_id, token_id)
     else
-      conn
-      |> put_status(:unauthorized)
-      |> Phoenix.Controller.json(%{error: "authentication_required"})
-      |> halt()
+      _ -> unauthorized_api(conn)
     end
+  end
+
+  defp embedded_client_origin(conn) do
+    case get_req_header(conn, "origin") do
+      [origin] -> EmbeddedClientOrigin.normalize(origin)
+      [] -> :error
+      _headers -> :error
+    end
+  end
+
+  defp embedded_client_bearer_token(conn) do
+    case get_req_header(conn, "authorization") do
+      ["Bearer " <> token] -> non_empty_bearer_token(token)
+      [_header] -> :error
+      [] -> :error
+      _headers -> :error
+    end
+  end
+
+  defp non_empty_bearer_token(token) when byte_size(token) > 0, do: {:ok, token}
+  defp non_empty_bearer_token(_token), do: :error
+
+  defp unauthorized_api(conn) do
+    conn
+    |> put_status(:unauthorized)
+    |> Phoenix.Controller.json(%{error: "authentication_required"})
+    |> halt()
   end
 
   defp maybe_store_return_to(%{method: "GET"} = conn) do

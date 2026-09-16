@@ -210,6 +210,66 @@ defmodule FrontmanServer.Accounts do
   end
 
   @doc """
+  Generates an embedded client bearer token for an approved origin.
+
+  The returned raw token is shown once. Only its hash is stored.
+  """
+  def generate_embedded_client_token(%User{} = user, approved_origin)
+      when is_binary(approved_origin) do
+    {token, user_token} = UserToken.build_embedded_client_token(user, approved_origin)
+    Repo.insert!(user_token)
+    token
+  end
+
+  @doc """
+  Gets the scope and token id for a valid embedded client bearer token issued for the origin.
+  """
+  def get_scope_by_embedded_client_token(token, approved_origin)
+      when is_binary(token) and is_binary(approved_origin) do
+    with {:ok, query} <- UserToken.verify_embedded_client_token_query(token, approved_origin),
+         {%User{} = user, %UserToken{id: token_id}} <- Repo.one(query) do
+      {Scope.for_user(user), token_id}
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Updates the last-used timestamp for one of the current user's embedded client tokens.
+  """
+  def touch_embedded_client_token(%Scope{} = scope, token_id) when is_binary(token_id) do
+    scope
+    |> scope_user_id()
+    |> then(&UserToken.by_embedded_client_id_and_user(token_id, &1))
+    |> Repo.update_all(set: [last_used_at: DateTime.utc_now(:second)])
+
+    :ok
+  end
+
+  @doc """
+  Revokes one of the current user's embedded client tokens.
+  """
+  def delete_embedded_client_token(%Scope{} = scope, token_id) when is_binary(token_id) do
+    scope
+    |> scope_user_id()
+    |> then(&UserToken.by_embedded_client_id_and_user(token_id, &1))
+    |> Repo.delete_all()
+
+    :ok
+  end
+
+  @doc """
+  Revokes all embedded client tokens for the given user.
+  """
+  def delete_all_embedded_client_tokens(%User{} = user) do
+    user.id
+    |> UserToken.by_embedded_client_user()
+    |> Repo.delete_all()
+
+    :ok
+  end
+
+  @doc """
   Gets the user with the given magic link token.
   """
   def get_user_by_magic_link_token(token) do

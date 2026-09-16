@@ -208,6 +208,7 @@ class Frontman_Tools {
 	public static function success_result( $data ): array {
 		$text = is_string( $data ) ? $data : wp_json_encode( $data );
 		return [
+			'resultType' => 'complete',
 			'content' => [ [ 'type' => 'text', 'text' => $text ] ],
 			'isError' => false,
 		];
@@ -218,6 +219,7 @@ class Frontman_Tools {
 	 */
 	public static function error_result( string $message ): array {
 		return [
+			'resultType' => 'complete',
 			'content' => [ [ 'type' => 'text', 'text' => $message ] ],
 			'isError' => true,
 		];

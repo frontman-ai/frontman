@@ -7,8 +7,6 @@ module ToolRegistry = FrontmanCore__ToolRegistry
 type executionContext = {
   projectRoot: string,
   sourceRoot: string,
-  @live
-  onProgress: option<string => unit>,
 }
 
 type executeResult =

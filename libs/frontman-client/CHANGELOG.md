@@ -1,5 +1,15 @@
 # @frontman-ai/frontman-client
 
+## 3.0.0
+
+### Major Changes
+
+- [#1490](https://github.com/frontman-ai/frontman/pull/1490) [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Migrate browser MCP discovery, tool listing, and tool calls to MCP 2026-07-28.
+
+### Patch Changes
+
+- [#1491](https://github.com/frontman-ai/frontman/pull/1491) [`65b195a`](https://github.com/frontman-ai/frontman/commit/65b195ac0ee61f89a16b99bd59c762f3e3227238) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep malformed tool arguments out of diagnostic reports while retaining safe tool failure context.
+
 ## 2.0.0
 
 ### Major Changes

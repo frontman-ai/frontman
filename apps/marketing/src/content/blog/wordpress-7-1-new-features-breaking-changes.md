@@ -156,6 +156,8 @@ If another WordPress 7.1 article still lists these as shipped features, check wh
 13. **Set rollback triggers.** Roll back for fatal errors, data corruption, failed payments, inaccessible administration, or critical publishing failures.
 14. **Monitor after deployment.** Review errors, scheduled jobs, email delivery, payments, webhooks, cache behavior, and editor activity for an agreed period.
 
+For recurring backups, update review, security checks, verification, and recovery outside this release window, use our [risk-based WordPress maintenance checklist](/blog/wordpress-maintenance-checklist/).
+
 After the upgrade passes, keep the first production change small and reviewable. Frontman's [WordPress workflow](/wordpress/) can help inspect supported site state and review rendered changes, but its current public demonstration pins WordPress 7.0.2 and is not evidence of WordPress 7.1 compatibility.
 
 ## Plugin and Theme Developer Checklist

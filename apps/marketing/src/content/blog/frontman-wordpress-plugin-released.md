@@ -62,6 +62,8 @@ Say:
 
 The agent can inspect the site, choose the right WordPress tool, make the edit, and refresh the preview. You still review the result. You still decide what is good enough. The difference is that the work happens in the same place you noticed the problem.
 
+That workflow has also been used beyond one focused edit. [AutonomyAI's Elementor redesign case study](/blog/autonomyai-wordpress-redesign-case-study/) documents a marketer-led site redesign, the evidence that can be checked publicly, and the limits of one customer result.
+
 This matters because WordPress work is rarely just "write some text." It is usually content plus layout plus navigation plus a plugin-specific storage format that someone chose three years ago. Frontman is built around that reality. It uses WordPress APIs and WordPress-specific tools instead of pretending every change is a generic code edit.
 
 ### Built for WordPress workflows

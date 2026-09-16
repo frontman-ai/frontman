@@ -11,6 +11,8 @@ let make = (
   ~style=?,
   ~onClick=?,
   ~onKeyDown=?,
+  ~onFocus=?,
+  ~onBlur=?,
   ~type_=?,
   ~placeholder=?,
   ~value=?,
@@ -25,6 +27,8 @@ let make = (
     ?style
     ?onClick
     ?onKeyDown
+    ?onFocus
+    ?onBlur
     ?children
     ?type_
     ?placeholder

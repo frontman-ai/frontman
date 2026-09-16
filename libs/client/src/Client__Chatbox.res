@@ -93,7 +93,6 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   result
 }
 
-/* Index of the last user message: only that one gets the edit affordance. */
 let lastUserMsgIndex = (items: array<displayItem>): int =>
   items->Array.reduceWithIndex(-1, (acc, item, idx) =>
     switch item {
@@ -116,6 +115,16 @@ let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSel
   switch providerSetupRequired {
   | true => onConfigureProvider()
   | false => onSelect(text)
+  }
+}
+
+module ExecutePlanAction = {
+  @react.component
+  let make = (~pendingPlanHandoff, ~selectedModelValue, ~onExecute) => {
+    switch (pendingPlanHandoff, selectedModelValue) {
+    | (Some(_), Some(_)) => <Client__ExecutePlanBanner onExecute />
+    | _ => React.null
+    }
   }
 }
 
@@ -191,9 +200,6 @@ let make = (~onConfigureProvider: unit => unit) => {
 
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
 
-  /* Editing a sent message loads its text back into the composer and remembers
-   which message it came from, so sending rewinds the conversation to that point
-   instead of appending. */
   let (composerDraft, setComposerDraft) = React.useState(() => (0, "", None))
   let (draftSignal, draftText, editedMessageId) = composerDraft
   let editUserMessage = (~messageId, ~content) =>
@@ -203,13 +209,11 @@ let make = (~onConfigureProvider: unit => unit) => {
       Some(messageId),
     ))
 
-  /* A pending edit belongs to the task it came from, so switching tasks drops
-   it — otherwise the send would target a message the new task has never seen. */
   React.useEffect1(() => {
     setComposerDraft(draft =>
       switch draft {
       | (_, _, None) => draft
-      | (signal, _, Some(_)) => (signal, "", None)
+      | (signal, _, Some(_)) => (signal + 1, "", None)
       }
     )
     None
@@ -230,7 +234,7 @@ let make = (~onConfigureProvider: unit => unit) => {
           ~agentId,
           ~replacesMessageId=editedMessageId,
         )
-        setComposerDraft(((signal, _, _)) => (signal, "", None))
+        setComposerDraft(((signal, _, _)) => (signal + 1, "", None))
       }
     }
 
@@ -465,11 +469,9 @@ let make = (~onConfigureProvider: unit => unit) => {
         ->Array.mapWithIndex((item, index) => renderDisplayItem(item, index))
         ->React.array}
 
-        {switch pendingPlanHandoff {
-        | Some(_) =>
-          <Client__ExecutePlanBanner onExecute={Client__State.Actions.executePendingPlan} />
-        | None => React.null
-        }}
+        <ExecutePlanAction
+          pendingPlanHandoff selectedModelValue onExecute={Client__State.Actions.executePendingPlan}
+        />
 
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />

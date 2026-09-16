@@ -43,14 +43,14 @@ Sites with pretty permalinks can also open Frontman while browsing any page: app
 
 ## What the Agent Can Do
 
-This inventory reflects Frontman WordPress plugin 2.0.0 source, verified July 30, 2026. WordPress uses dedicated `wp_*` tools, not the file and Lighthouse tools provided by Astro, Next.js, and Vite. For shared browser and backend tools, see [Frontman Agent Tool Capabilities](/docs/using/tool-capabilities/).
+This inventory reflects Frontman WordPress plugin 3.1.0 source, verified August 27, 2026. WordPress uses dedicated `wp_*` tools, not the file and Lighthouse tools provided by Astro, Next.js, and Vite. For shared browser and backend tools, see [Frontman Agent Tool Capabilities](/docs/using/tool-capabilities/).
 
 - **Posts, pages, and Gutenberg:** list, read, create, duplicate, update, and delete posts or pages; list, read, insert, update, move, and delete blocks.
 - **Elementor, when active:** inspect page data and widgets; add, update, duplicate, move, remove, or generate elements; replace complete page data; flush generated CSS; list and restore Frontman rollback snapshots.
 - **Navigation, templates, and widgets:** manage classic menus, menu items, menu locations, block-theme navigation menus, block templates, template parts, widget areas, and supported widget types.
 - **Site settings:** read and update allowlisted core options such as title, tagline, front-page selection, permalink structure, and comment settings. Arbitrary option access is not available.
 - **Additional CSS:** read and replace active-theme Additional CSS. Frontman can also list, inspect, and restore WordPress Custom CSS revisions for plain CSS.
-- **Theme settings:** list active-theme Customizer/theme mods or read one mod. Plugin 2.0.0 does not expose a generic theme-mod write tool.
+- **Theme settings:** list active-theme Customizer/theme mods or read one mod. Plugin 3.1.0 does not expose a generic theme-mod write tool.
 - **Media:** upload a user-attached image into Media Library with optional title, alt text, caption, description, and parent post. Maximum decoded upload size is 20 MB. Plugin does not expose general media browsing, editing, or deletion tools.
 - **WooCommerce, when active:** `wc_*` tools cover products, categories, tags, attributes and terms, variations, reviews, orders, notes, refunds, customers, shipping, taxes, coupons, payment gateways, reports, settings, system status, store data, and product/order/customer metadata.
 - **Cache:** inspect supported cache plugins and request cache clearing.
@@ -62,6 +62,8 @@ This inventory reflects Frontman WordPress plugin 2.0.0 source, verified July 30
 - Many mutation results include before/after state for review, but those snapshots are not a general undo system.
 - Elementor content mutation tools save private rollback snapshots and return rollback IDs. `wp_elementor_list_rollbacks` finds them; `wp_elementor_restore_rollback` restores one after separate confirmation.
 - No plugin-wide one-click rollback exists for Gutenberg, menus, templates, widgets, options, media, or WooCommerce. Use revisions or trash where applicable, and maintain site backups.
+
+Before production use, establish backup ownership, restore verification, recurring checks, and escalation rules with the [WordPress maintenance checklist](/blog/wordpress-maintenance-checklist/).
 
 ### Restore an Additional CSS revision
 

@@ -1,5 +1,17 @@
 # @frontman-ai/frontman-protocol
 
+## 3.0.0
+
+### Major Changes
+
+- [#1490](https://github.com/frontman-ai/frontman/pull/1490) [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Migrate browser MCP discovery, tool listing, and tool calls to MCP 2026-07-28.
+
+### Minor Changes
+
+- [#1479](https://github.com/frontman-ai/frontman/pull/1479) [`434bbf1`](https://github.com/frontman-ai/frontman/commit/434bbf1b3c0aa10eeffd33848a603e4fa952cefb) Thanks [@uinstinct](https://github.com/uinstinct)! - Add a Changes view that shows file edits made during a conversation as diffs. File-editing tools now emit file change events over a new file change protocol message, and the client renders them with `@pierre/diffs`.
+
+- [#1473](https://github.com/frontman-ai/frontman/pull/1473) [`df5cd88`](https://github.com/frontman-ai/frontman/commit/df5cd88060cefeaebb95e1e3d6b2edc4b432117f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Establish lockstep Reworker preview protocol types and structured errors.
+
 ## 2.0.0
 
 ### Major Changes

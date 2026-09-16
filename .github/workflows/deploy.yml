@@ -11,6 +11,7 @@ on:
       - 'rescript.json'
       - 'mise.toml'
       - '.github/workflows/deploy.yml'
+      - 'scripts/ci/production-smoke.sh'
       - 'infra/**'
       - '!infra/production/notifier/**'
   workflow_dispatch:
@@ -146,6 +147,9 @@ jobs:
             echo "Monitoring not installed — skipping config sync."
           fi
           EOF
+
+      - name: Smoke test production OAuth start routes
+        run: scripts/ci/production-smoke.sh
 
       - name: Cleanup SSH
         if: always()

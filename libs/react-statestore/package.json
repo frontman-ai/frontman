@@ -1,7 +1,7 @@
 {
 	"name": "@frontman-ai/react-statestore",
 	"license": "Apache-2.0",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"type": "module",
 	"description": "ReScript state management for React. Pure reducers with managed side effects and concurrent-safe selectors.",
 	"author": "Frontman AI",
@@ -48,7 +48,7 @@
 	"devDependencies": {
 		"@testing-library/dom": "^10.4.1",
 		"@testing-library/react": "^16.3.2",
-		"jsdom": "^29.1.1",
+		"jsdom": "^30.0.1",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
 		"rescript": "catalog:",

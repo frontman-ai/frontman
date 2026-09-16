@@ -1,5 +1,11 @@
 # @frontman-ai/vite
 
+## 1.0.6
+
+### Patch Changes
+
+- [#1482](https://github.com/frontman-ai/frontman/pull/1482) [`62e1cd5`](https://github.com/frontman-ai/frontman/commit/62e1cd5ca9647ef420006254e647988d0d904468) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pin the vendored WebAPI bindings to the newest upstream revision compatible with ReScript 12 and add the typed DOM operations required by Frontman.
+
 ## 1.0.5
 
 ### Patch Changes

@@ -136,6 +136,9 @@ defmodule FrontmanServerWeb.OpenAIOAuthController do
   GET /api/oauth/openai/status
   """
   def status(conn, _params) do
-    json(conn, Providers.oauth_connection_status(conn.assigns.current_scope, "openai_codex"))
+    json(
+      conn,
+      Providers.resolve_oauth_connection_status(conn.assigns.current_scope, "openai_codex")
+    )
   end
 end

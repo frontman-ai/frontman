@@ -66,50 +66,19 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     end
   end
 
-  describe "execute/2 — URL validation" do
-    test "rejects URLs without http/https scheme", %{context: ctx} do
-      msg = execute_error("ftp://example.com", ctx)
-      assert msg =~ "http:// or https://"
-
-      execute_error("not-a-url", ctx)
-      execute_error("", ctx)
-    end
-
-    test "rejects missing url", %{context: ctx} do
-      result = WebFetch.execute(%{}, ctx)
-      assert MCP.error?(result)
-      msg = MCP.extract_content_text(result)
-      assert msg =~ "url"
-    end
+  test "execute/2 rejects missing url", %{context: ctx} do
+    result = WebFetch.execute(%{}, ctx)
+    assert MCP.error?(result)
+    msg = MCP.extract_content_text(result)
+    assert msg =~ "url"
   end
 
   describe "execute/2 — SSRF protection" do
     @public_test_url "http://93.184.216.34"
 
-    @blocked_urls [
-      {"localhost", "http://localhost/secret"},
-      {"localhost with port", "http://localhost:8080/admin"},
-      {"loopback 127.0.0.1", "http://127.0.0.1/"},
-      {"loopback 127.x", "http://127.0.0.42:9200/"},
-      {"10.x private", "http://10.0.0.1/"},
-      {"172.16.x private", "http://172.16.0.1/"},
-      {"192.168.x private", "http://192.168.1.1/"},
-      {"link-local metadata", "http://169.254.169.254/latest/meta-data/"},
-      {"0.0.0.0", "http://0.0.0.0/"},
-      {"IPv6 loopback", "http://[::1]/"},
-      {"IPv4-mapped IPv6 loopback", "http://[::ffff:127.0.0.1]/"},
-      {"IPv4-mapped IPv6 metadata", "http://[::ffff:169.254.169.254]/"},
-      {"ULA fd01::1", "http://[fd01::1]/"},
-      {"ULA fdff::1", "http://[fdff::1]/"},
-      {"link-local fe90::1", "http://[fe90::1]/"},
-      {"link-local febf::1", "http://[febf::1]/"}
-    ]
-
-    for {label, url} <- @blocked_urls do
-      test "rejects #{label}: #{url}", %{context: ctx} do
-        msg = execute_error(unquote(url), ctx)
-        assert msg =~ "private"
-      end
+    test "rejects private initial URLs", %{context: ctx} do
+      msg = execute_error("http://127.0.0.1/", ctx)
+      assert msg =~ "private"
     end
 
     test "blocks redirect to private IP", %{context: ctx} do
@@ -120,28 +89,6 @@ defmodule FrontmanServer.Tools.WebFetchTest do
       end)
 
       msg = execute_error("#{@public_test_url}/redirect", ctx)
-      assert msg =~ "private"
-    end
-
-    test "blocks redirect to metadata IP", %{context: ctx} do
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_header("location", "http://169.254.169.254/latest/meta-data/")
-        |> Plug.Conn.send_resp(301, "")
-      end)
-
-      msg = execute_error("#{@public_test_url}/aws", ctx)
-      assert msg =~ "private"
-    end
-
-    test "blocks redirect to IPv4-mapped IPv6", %{context: ctx} do
-      Req.Test.stub(:web_fetch, fn conn ->
-        conn
-        |> Plug.Conn.put_resp_header("location", "http://[::ffff:127.0.0.1]/")
-        |> Plug.Conn.send_resp(302, "")
-      end)
-
-      msg = execute_error("#{@public_test_url}/mapped", ctx)
       assert msg =~ "private"
     end
 

@@ -345,7 +345,7 @@ describe("Task - Plan Entries", () => {
 })
 
 describe("Task - Editing a sent message", () => {
-  test("AddUserMessage with replacesMessageId rewinds the transcript to that message", t => {
+  test("AddUserMessage with replacesMessageId waits for server rewind before truncating", t => {
     let task =
       TestHelpers.makeLoadedTask()
       ->TestHelpers.acceptUserMessage(~id="user-1", ~text="first")
@@ -367,7 +367,7 @@ describe("Task - Editing a sent message", () => {
       }),
     )
 
-    t->expect(TestHelpers.getMessages(rewound))->Expect.toEqual([])
+    t->expect(TestHelpers.getMessages(rewound)->Array.length)->Expect.toBe(1)
     t
     ->expect(effects)
     ->Expect.toEqual([
@@ -380,6 +380,21 @@ describe("Task - Editing a sent message", () => {
         replacesMessageId: Some("user-1"),
       }),
     ])
+  })
+
+  test("TruncateFromMessage rewinds the transcript to that message", t => {
+    let task =
+      TestHelpers.makeLoadedTask()
+      ->TestHelpers.acceptUserMessage(~id="user-1", ~text="first")
+      ->TaskReducer.next(ExecutionStateRunning)
+      ->Pair.first
+      ->TaskReducer.next(ExecutionStateIdle)
+      ->Pair.first
+
+    let (rewound, effects) = TaskReducer.next(task, TruncateFromMessage({messageId: "user-1"}))
+
+    t->expect(TestHelpers.getMessages(rewound))->Expect.toEqual([])
+    t->expect(effects)->Expect.toEqual([])
   })
 
   test("AddUserMessage without replacesMessageId leaves earlier messages alone", t => {

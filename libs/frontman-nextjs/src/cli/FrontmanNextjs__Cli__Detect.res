@@ -195,6 +195,13 @@ let isNextJs16Plus = (info: projectInfo): bool => {
   info.nextVersion.major >= 16
 }
 
+let isSupportedNextJs = (info: projectInfo): bool => {
+  switch (info.nextVersion.major, info.nextVersion.minor) {
+  | (15, minor) => minor >= 5
+  | (major, _) => major >= 16
+  }
+}
+
 let getPackageManagerCommand = PackageManager.command
 
 let getDevCommand = PackageManager.devCommand

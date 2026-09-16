@@ -43,7 +43,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     task
   end
 
-  def task_with_active_run_fixture(scope, opts \\ []) do
+  def task_with_active_turn_fixture(scope, opts \\ []) do
     task = task_fixture(scope, opts)
     start_turn_fixture(scope, task.id)
     task

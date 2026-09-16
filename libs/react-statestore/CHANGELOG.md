@@ -1,5 +1,11 @@
 # @frontman-ai/react-statestore
 
+## 1.0.2
+
+### Patch Changes
+
+- [#1515](https://github.com/frontman-ai/frontman/pull/1515) [`9d6c858`](https://github.com/frontman-ai/frontman/commit/9d6c858d6aebc96a4d62b8358619292aa9bfa591) Thanks [@dependabot](https://github.com/apps/dependabot)! - Raise the minimum React peer version to 19.2.8 alongside React DOM.
+
 ## 1.0.1
 
 ### Patch Changes

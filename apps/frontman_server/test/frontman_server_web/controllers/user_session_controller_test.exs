@@ -3,6 +3,7 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   alias FrontmanServer.Accounts
+  alias FrontmanServerWeb.EmbeddedClientAuth
 
   setup do
     %{unconfirmed_user: unconfirmed_user_fixture(), user: user_fixture()}
@@ -92,12 +93,64 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
     end
   end
 
-  describe "GET /users/popup-complete" do
-    test "is public and loads its close script", %{conn: conn} do
-      response = conn |> get(~p"/users/popup-complete") |> html_response(200)
-      assert response =~ "/assets/js/popup-complete.js"
-      refute response =~ "data-close-window"
-      assert response =~ "You may close this tab"
+  describe "embedded authorization request" do
+    test "stores normalized pending embedded auth request", %{conn: conn} do
+      conn =
+        get(
+          conn,
+          ~p"/users/log-in?#{%{"embedded_state" => "state-123", "embedded_origin" => "https://Customer.Example:443"}}"
+        )
+
+      assert get_session(conn, EmbeddedClientAuth.pending_session_key()) == %{
+               "origin" => "https://customer.example",
+               "state" => "state-123"
+             }
+    end
+
+    test "rejects invalid pending embedded auth origin", %{conn: conn} do
+      conn =
+        get(
+          conn,
+          ~p"/users/log-in?#{%{"embedded_state" => "state-123", "embedded_origin" => "https://customer.example/path"}}"
+        )
+
+      assert text_response(conn, 400) == "Invalid embedded origin"
+      assert conn.halted
+    end
+
+    test "already-authenticated users keep embedded auth request before redirect", %{
+      conn: conn,
+      user: user
+    } do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get(
+          ~p"/users/log-in?#{%{"return_to" => "/users/popup-complete", "embedded_state" => "state-123", "embedded_origin" => "https://Customer.Example:443"}}"
+        )
+
+      assert redirected_to(conn) == ~p"/users/popup-complete"
+
+      assert get_session(conn, EmbeddedClientAuth.pending_session_key()) == %{
+               "origin" => "https://customer.example",
+               "state" => "state-123"
+             }
+    end
+
+    test "already-authenticated users get bad request for invalid embedded auth origin", %{
+      conn: conn,
+      user: user
+    } do
+      conn =
+        conn
+        |> log_in_user(user)
+        |> get(
+          ~p"/users/log-in?#{%{"return_to" => "/users/popup-complete", "embedded_state" => "state-123", "embedded_origin" => "https://customer.example/path"}}"
+        )
+
+      assert text_response(conn, 400) == "Invalid embedded origin"
+      assert conn.halted
+      refute get_session(conn, EmbeddedClientAuth.pending_session_key())
     end
   end
 
@@ -160,6 +213,26 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
       assert redirected_to(conn) == ~p"/users/popup-complete"
     end
 
+    test "preserves pending embedded auth request", %{conn: conn, user: user} do
+      user = set_password(user)
+
+      conn =
+        conn
+        |> get(
+          ~p"/users/log-in?#{%{"return_to" => "/users/popup-complete", "embedded_state" => "state-123", "embedded_origin" => "https://customer.example"}}"
+        )
+        |> post(~p"/users/log-in", %{
+          "user" => %{"email" => user.email, "password" => valid_user_password()}
+        })
+
+      assert redirected_to(conn) == ~p"/users/popup-complete"
+
+      assert get_session(conn, EmbeddedClientAuth.pending_session_key()) == %{
+               "origin" => "https://customer.example",
+               "state" => "state-123"
+             }
+    end
+
     test "emits error message with invalid credentials", %{conn: conn, user: user} do
       conn =
         post(conn, ~p"/users/log-in?mode=password", %{
@@ -195,6 +268,30 @@ defmodule FrontmanServerWeb.UserSessionControllerTest do
 
       assert get_session(conn, :user_token)
       assert redirected_to(conn) == ~p"/users/popup-complete"
+    end
+
+    test "preserves pending embedded auth request", %{conn: conn, user: user} do
+      {token, _hashed_token} = generate_user_magic_link_token(user)
+
+      conn =
+        conn
+        |> init_test_session(%{
+          :user_return_to => "/users/popup-complete",
+          EmbeddedClientAuth.pending_session_key() => %{
+            "origin" => "https://customer.example",
+            "state" => "state-123"
+          }
+        })
+        |> post(~p"/users/log-in", %{
+          "user" => %{"token" => token}
+        })
+
+      assert redirected_to(conn) == ~p"/users/popup-complete"
+
+      assert get_session(conn, EmbeddedClientAuth.pending_session_key()) == %{
+               "origin" => "https://customer.example",
+               "state" => "state-123"
+             }
     end
 
     test "confirms unconfirmed user", %{conn: conn, unconfirmed_user: user} do

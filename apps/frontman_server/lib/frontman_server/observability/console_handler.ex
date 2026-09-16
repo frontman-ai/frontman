@@ -16,7 +16,6 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
 
   require Logger
 
-  alias FrontmanServer.Providers
   alias SwarmAi.Telemetry.Events, as: SwarmEvents
 
   @table :frontman_console_timing
@@ -161,7 +160,8 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   defp short_id(id) when is_binary(id), do: String.slice(id, 0, 8)
   defp short_id(id), do: inspect(id)
 
-  defp format_model(model), do: Providers.display_model_name(model)
+  defp format_model(model) when is_binary(model), do: model
+  defp format_model(%{id: id}) when is_binary(id), do: id
 
   defp format_status(:ok), do: "✓"
   defp format_status(:completed), do: "✓"

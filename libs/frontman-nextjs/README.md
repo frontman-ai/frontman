@@ -16,7 +16,7 @@ npx @frontman-ai/nextjs install --server frontman.company.com
 ```
 
 The installer will:
-- Detect your Next.js version (15 or 16+)
+- Detect your Next.js version (15.x with a 15.5 minimum, or 16.x)
 - Create the appropriate middleware/proxy file
 - Set up OpenTelemetry instrumentation
 - Configure everything to connect to your Frontman server
@@ -56,9 +56,11 @@ Then open your browser to `http://localhost:3000/frontman` to access the Frontma
 
 With the default hosted setup, Frontman redirects you to `api.frontman.sh` to sign in with GitHub or Google, then returns you to the local `/frontman` URL. Before your first prompt, connect a supported AI provider with OAuth or add an API key. If you configured another Frontman server, sign in on that server instead.
 
+Frontman routes are enabled only when `process.env.NODE_ENV === 'development'` by default. Set `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1` to opt in outside development. Set `FRONTMAN_ENABLED=0` to force Frontman off in any environment.
+
 ## Manual Setup
 
-### Next.js 15 (middleware.ts)
+### Next.js 15.x (middleware.ts, 15.5 minimum)
 
 Create `middleware.ts` in your project root:
 
@@ -69,6 +71,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const frontman = createMiddleware({
   host: 'api.frontman.sh', // or 'frontman.local:4000' for local development
 });
+// Handles routes only when NODE_ENV === 'development' by default.
+// Set FRONTMAN_ENABLE_IN_PRODUCTION=1 or FRONTMAN_ENABLED=1 to opt in elsewhere.
 
 export async function middleware(req: NextRequest) {
   const response = await frontman(req);
@@ -81,7 +85,7 @@ export const config = {
 };
 ```
 
-### Next.js 16+ (proxy.ts)
+### Next.js 16.x (proxy.ts)
 
 Create `proxy.ts` in your project root:
 
@@ -92,6 +96,8 @@ import { NextRequest, NextResponse } from 'next/server';
 const frontman = createMiddleware({
   host: 'api.frontman.sh', // or 'frontman.local:4000' for local development
 });
+// Handles routes only when NODE_ENV === 'development' by default.
+// Set FRONTMAN_ENABLE_IN_PRODUCTION=1 or FRONTMAN_ENABLED=1 to opt in elsewhere.
 
 export function proxy(req: NextRequest): NextResponse | Promise<NextResponse> {
   if (req.nextUrl.pathname === '/frontman' || req.nextUrl.pathname.startsWith('/frontman/')) {
@@ -132,7 +138,7 @@ export async function register() {
 
 If you already have `middleware.ts`, `proxy.ts`, or `instrumentation.ts` files, the installer will show you manual integration steps. Here's how to add Frontman to existing files:
 
-### Existing middleware.ts (Next.js 15)
+### Existing middleware.ts (Next.js 15.x, 15.5 minimum)
 
 ```typescript
 import { createMiddleware } from '@frontman-ai/nextjs';
@@ -158,7 +164,7 @@ export const config = {
 };
 ```
 
-### Existing proxy.ts (Next.js 16+)
+### Existing proxy.ts (Next.js 16.x)
 
 ```typescript
 import { createMiddleware } from '@frontman-ai/nextjs';
@@ -286,7 +292,7 @@ The middleware itself doesn't connect to the Frontman server - it only passes th
 
 | Version | Middleware File | Status |
 |---------|----------------|--------|
-| Next.js 15.x | `middleware.ts` | Fully supported |
+| Next.js 15.x (15.5 minimum) | `middleware.ts` | Fully supported |
 | Next.js 16.x | `proxy.ts` | Fully supported |
 
 Both versions have built-in OpenTelemetry support with no additional configuration required.
@@ -322,7 +328,7 @@ Next.js App (Turbopack/Webpack)
 ### Key Technical Details
 
 **Cross-Context Buffer Sharing**
-- Next.js 15+ with Turbopack runs code in multiple isolated contexts
+- Supported Next.js versions with Turbopack run code in multiple isolated contexts
 - `globalThis.__FRONTMAN_INSTANCE__` stores the singleton buffer instance
 - All contexts read/write to the same circular buffer
 - Console patching happens only once (protected by `__FRONTMAN_CONSOLE_PATCHED__` flag)
@@ -415,7 +421,7 @@ console.log('Buffer contains', allLogs.length, 'logs');
 ```
 
 **Check 4: Multiple contexts**
-In Next.js 15+, code may run in different contexts. Verify all contexts share the same buffer:
+In supported Next.js versions, code may run in different contexts. Verify that all contexts share the same buffer:
 ```javascript
 console.log('Instance:', globalThis.__FRONTMAN_INSTANCE__);
 console.log('Buffer size:', globalThis.__FRONTMAN_INSTANCE__?.buffer.contents.items.length);

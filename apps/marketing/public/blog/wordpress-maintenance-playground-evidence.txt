@@ -1,0 +1,57 @@
+WordPress Maintenance Checklist Playground Evidence Record
+Run date: 2026-08-27
+Run window: 10:33-10:49 UTC
+Browser: Google Chrome 151.0.7922.71, isolated headless profile
+Environment: Public disposable WordPress Playground
+
+Resolved environment
+- WordPress: 7.0.4 (7.1 was available)
+- PHP: 8.3.32, 64-bit
+- Server: PHP.wasm on Emscripten 4.0.19 wasm32
+- Database extension: WP_MySQL_On_SQLite
+- Database compatibility version: 8.0.38-mysql-on-sqlite-3.0.0
+- Active theme: Twenty Twenty-Five 1.5
+
+Initial Site Health status
+- Overall: Should be improved
+- Critical issues: 1
+- Critical issue: Error logging was configured to use a potentially public file
+- Recommended improvements: 6
+- Recommendations: update to WordPress 7.1, remove inactive plugin, install recommended modules, investigate failed scheduled event, enable opcode cache, and add page cache
+
+Authorized task
+- Trigger: Default page title was "Sample Page"
+- Owner: Site administrator
+- Risk: Low
+- Included change: Page title only
+- Excluded changes: Slug, body, theme, plugins, and menus
+- Recovery point: Pre-change WordPress Playground ZIP export
+
+Observed procedure and result
+1. Opened Site Health Status and Info and recorded resolved environment values.
+2. Viewed the default Sample Page.
+3. Used the Playground Export tool to download a ZIP containing files, database, and edits.
+4. Used browser automation to change the page title to "Maintenance Loop Verified" in the WordPress block editor and selected Save.
+5. WordPress displayed "Page updated."
+6. Logged out and opened /sample-page/.
+7. Observed the changed H1, original visible body copy, unchanged path, and no administrator toolbar.
+8. Applied a 390 by 844 mobile viewport through Chrome DevTools Protocol.
+9. Measured document scrollWidth and clientWidth as 375 pixels each, for zero horizontal overflow.
+10. Selected New Playground > Import zip and imported the pre-change ZIP.
+11. Opened /sample-page/ in the imported Playground and logged out.
+12. Observed the original "Sample Page" H1, original visible body copy, unchanged path, and no administrator toolbar.
+
+Published evidence assets
+- wordpress-maintenance-playground-change-desktop.png
+  SHA-256: 52b82ff6078b8486e712fae81bf726c5cef51070ac57ef1ec5274b4383e06cba
+- wordpress-maintenance-playground-change-mobile.png
+  SHA-256: cb339a4ae77871c9d003a9611529d218ccb0985fcc3b7311a2af8792576c30a1
+- wordpress-maintenance-playground-restored.png
+  SHA-256: 4d24e4ab74ebb5ea28276f960b57a14e2f8640075f29cb8b8e8197fe74484b6d
+
+Evidence boundaries
+- Screenshots show visible changed and restored page states. They do not independently prove every recorded browser action.
+- ZIP export and import used Playground's native same-platform tools. The ZIP is not published or retained as a public artifact.
+- Test does not validate production backup completeness, cross-host portability, restore permissions, production recovery procedures, malware detection, real-device behavior, business transactions, or recovery time objectives.
+- Playground uses browser-hosted WebAssembly and SQLite. It does not reproduce a typical PHP and MySQL or MariaDB hosting stack.
+- Site Health findings describe this disposable environment. They are not a security or performance assessment of another WordPress site.

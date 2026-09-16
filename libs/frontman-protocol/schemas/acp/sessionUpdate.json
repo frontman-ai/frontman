@@ -27,6 +27,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -53,6 +70,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -80,6 +114,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -100,13 +151,44 @@
                 "name": {
                   "type": "string"
                 },
+                "title": {
+                  "type": "string"
+                },
                 "uri": {
                   "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "number",
+                  "multipleOf": 1,
+                  "minimum": 0
                 },
                 "_meta": {},
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -128,6 +210,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 },
@@ -144,7 +243,8 @@
                         },
                         "text": {
                           "type": "string"
-                        }
+                        },
+                        "_meta": {}
                       },
                       "required": [
                         "uri",
@@ -162,7 +262,8 @@
                         },
                         "blob": {
                           "type": "string"
-                        }
+                        },
+                        "_meta": {}
                       },
                       "required": [
                         "uri",
@@ -232,6 +333,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -258,6 +376,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -285,6 +420,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -305,13 +457,44 @@
                 "name": {
                   "type": "string"
                 },
+                "title": {
+                  "type": "string"
+                },
                 "uri": {
                   "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "number",
+                  "multipleOf": 1,
+                  "minimum": 0
                 },
                 "_meta": {},
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -333,6 +516,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 },
@@ -349,7 +549,8 @@
                         },
                         "text": {
                           "type": "string"
-                        }
+                        },
+                        "_meta": {}
                       },
                       "required": [
                         "uri",
@@ -367,7 +568,8 @@
                         },
                         "blob": {
                           "type": "string"
-                        }
+                        },
+                        "_meta": {}
                       },
                       "required": [
                         "uri",
@@ -408,6 +610,23 @@
         "messageId",
         "content",
         "_meta"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "frontman_task_rewound"
+        },
+        "messageId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "messageId"
       ]
     },
     {
@@ -460,6 +679,23 @@
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           }
@@ -486,6 +722,23 @@
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           }
@@ -513,6 +766,23 @@
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           }
@@ -533,13 +803,44 @@
                           "name": {
                             "type": "string"
                           },
+                          "title": {
+                            "type": "string"
+                          },
                           "uri": {
                             "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "mimeType": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "number",
+                            "multipleOf": 1,
+                            "minimum": 0
                           },
                           "_meta": {},
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           }
@@ -561,6 +862,23 @@
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           },
@@ -577,7 +895,8 @@
                                   },
                                   "text": {
                                     "type": "string"
-                                  }
+                                  },
+                                  "_meta": {}
                                 },
                                 "required": [
                                   "uri",
@@ -595,7 +914,8 @@
                                   },
                                   "blob": {
                                     "type": "string"
-                                  }
+                                  },
+                                  "_meta": {}
                                 },
                                 "required": [
                                   "uri",
@@ -734,6 +1054,23 @@
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           }
@@ -760,6 +1097,23 @@
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           }
@@ -787,6 +1141,23 @@
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           }
@@ -807,13 +1178,44 @@
                           "name": {
                             "type": "string"
                           },
+                          "title": {
+                            "type": "string"
+                          },
                           "uri": {
                             "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "mimeType": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "number",
+                            "multipleOf": 1,
+                            "minimum": 0
                           },
                           "_meta": {},
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           }
@@ -835,6 +1237,23 @@
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           },
@@ -851,7 +1270,8 @@
                                   },
                                   "text": {
                                     "type": "string"
-                                  }
+                                  },
+                                  "_meta": {}
                                 },
                                 "required": [
                                   "uri",
@@ -869,7 +1289,8 @@
                                   },
                                   "blob": {
                                     "type": "string"
-                                  }
+                                  },
+                                  "_meta": {}
                                 },
                                 "required": [
                                   "uri",

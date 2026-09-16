@@ -1,5 +1,17 @@
 # @frontman-ai/nextjs
 
+## 1.0.6
+
+### Patch Changes
+
+- [#1503](https://github.com/frontman-ai/frontman/pull/1503) [`ec2afdb`](https://github.com/frontman-ai/frontman/commit/ec2afdb9f2e7e1bf89d716e9f30d5caa31c5d760) Thanks [@mikemikimike](https://github.com/mikemikimike)! - Fail installation when dependencies cannot be installed or resolved.
+
+- [#1482](https://github.com/frontman-ai/frontman/pull/1482) [`62e1cd5`](https://github.com/frontman-ai/frontman/commit/62e1cd5ca9647ef420006254e647988d0d904468) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pin the vendored WebAPI bindings to the newest upstream revision compatible with ReScript 12 and add the typed DOM operations required by Frontman.
+
+- [#1530](https://github.com/frontman-ai/frontman/pull/1530) [`bc0ef3c`](https://github.com/frontman-ai/frontman/commit/bc0ef3ccffc617bc3b5992f89351ab397a46c8f4) Thanks [@uinstinct](https://github.com/uinstinct)! - Reject Next.js versions below 15.5 before installing dependencies or generating middleware, and align peer dependency metadata and documentation with that support range.
+
+- [#1515](https://github.com/frontman-ai/frontman/pull/1515) [`9d6c858`](https://github.com/frontman-ai/frontman/commit/9d6c858d6aebc96a4d62b8358619292aa9bfa591) Thanks [@dependabot](https://github.com/apps/dependabot)! - Raise the minimum React peer version to 19.2.8 alongside React DOM.
+
 ## 1.0.5
 
 ### Patch Changes

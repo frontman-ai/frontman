@@ -58,14 +58,20 @@ external jsonSchemaAsJson: JSONSchema.t => JSON.t = "%identity"
 
 let serializeTool = (m: tool): Relay.remoteTool => {
   module T = unpack(m)
-  {
-    name: T.name,
-    description: T.description,
-    access: Some(T.access),
-    inputSchema: T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
-    outputSchema: T.outputJsonSchema->Option.map(jsonSchemaAsJson),
-    visibleToAgent: T.visibleToAgent,
+  let metadata = dict{
+    "access": T.access->S.decodeOrThrow(~from=Tool.accessSchema, ~to=S.json->S.noValidation(true)),
+    "visibleToAgent": JSON.Encode.bool(T.visibleToAgent),
   }
+  let tool = dict{
+    "name": JSON.Encode.string(T.name),
+    "description": JSON.Encode.string(T.description),
+    "inputSchema": T.inputSchema->S.toJSONSchema->jsonSchemaAsJson,
+    "_meta": JSON.Encode.object(dict{"ai.frontman/tool-metadata": JSON.Encode.object(metadata)}),
+  }
+  T.outputJsonSchema->Option.forEach(outputSchema =>
+    tool->Dict.set("outputSchema", outputSchema->jsonSchemaAsJson)
+  )
+  JSON.Encode.object(tool)
 }
 
 let getToolDefinitions = (registry: t): array<Relay.remoteTool> => {

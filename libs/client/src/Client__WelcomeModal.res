@@ -4,10 +4,36 @@ module Button = Client__UI__Button
 @react.component
 let make = (~loginUrl: string, ~onSignIn: unit => unit) => {
   let (waiting, setWaiting) = React.useState(() => false)
+  let authorizationRef = React.useRef(None)
 
-  let handleSignIn = _ => {
+  React.useEffect0(() => {
+    Some(
+      () =>
+        authorizationRef.current->Option.forEach((
+          authorization: Client__EmbeddedAuthPopup.authorization,
+        ) => authorization.cancel()),
+    )
+  })
+
+  let handleSignIn = event => {
+    ReactEvent.Mouse.preventDefault(event)
+    authorizationRef.current->Option.forEach((
+      authorization: Client__EmbeddedAuthPopup.authorization,
+    ) => authorization.cancel())
     setWaiting(_ => true)
-    onSignIn()
+    authorizationRef.current = Some(
+      Client__EmbeddedAuthPopup.start(
+        ~loginUrl,
+        ~onSuccess=() => {
+          authorizationRef.current = None
+          onSignIn()
+        },
+        ~onError=_error => {
+          authorizationRef.current = None
+          setWaiting(_ => false)
+        },
+      ),
+    )
   }
 
   <Dialog open_={true} onOpenChange={(_, _) => ()}>
@@ -26,14 +52,13 @@ let make = (~loginUrl: string, ~onSignIn: unit => unit) => {
           {React.string(
             switch waiting {
             | true => "Waiting for sign-in to complete..."
-            | false => "Sign in in a new tab. Frontman will connect automatically."
+            | false => "Sign in in a secure popup. Frontman will connect automatically."
             },
           )}
         </p>
         <a
           href={loginUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+          target="frontman-embedded-auth"
           className={Button.buttonVariants(~variant=Button.Variant.Secondary)}
           onClick=handleSignIn
         >

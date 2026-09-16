@@ -8,7 +8,7 @@ let effectKinds = effects =>
     switch effect {
     | Reducer.LogError(_) => #logError
     | Reducer.LogInfo(_) => #logInfo
-    | Reducer.TrackRelay(_) => #trackRelay
+    | Reducer.TrackAnalytics(_) => #trackAnalytics
     | Reducer.ConnectACP(_) => #connectACP
     | Reducer.ScheduleAuthRetry(_) => #scheduleAuthRetry
     | Reducer.LogoutEffect(_) => #logout
@@ -24,10 +24,10 @@ let effectKinds = effects =>
     | Reducer.CleanupSessionEffect(_) => #cleanupSession
     }
   )
-let trackedOutcomes = effects =>
+let trackedRelayOutcomes = effects =>
   effects->Array.filterMap(e =>
     switch e {
-    | Reducer.TrackRelay(outcome) => Some(outcome)
+    | Reducer.TrackAnalytics(RelayConnectionCompleted(outcome)) => Some(outcome)
     | _ => None
     }
   )
@@ -36,11 +36,9 @@ let mock = value => Obj.magic(value)
 let loginUrl = "https://app.frontman.sh/users/log-in"
 let initConfig: Reducer.initConfig = {
   endpoint: "ws://test",
-  tokenUrl: "http://test/api/socket-token",
   loginUrl: "http://test/users/log-in",
   clientName: "test",
   clientVersion: "1.0.0",
-  onACPMessage: (_, _) => (),
   onTitleUpdated: None,
   _meta: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
 }
@@ -55,7 +53,6 @@ let loadTask = taskId => Reducer.LoadTask({
   needsHistory: true,
   onUpdate: (_, _) => (),
   onTitleUpdated: (_, _) => (),
-  onMcpMessage: (_, _) => (),
   onComplete: _ => (),
 })
 describe("Connection Reducer", () => {
@@ -283,8 +280,8 @@ describe("Connection Reducer", () => {
 
         t->expect(nextState.relay)->Expect.toBe(Reducer.RelayConnected)
         t
-        ->expect(trackedOutcomes(effects))
-        ->Expect.toEqual([Client__Heap.Success])
+        ->expect(trackedRelayOutcomes(effects))
+        ->Expect.toEqual([Client__Analytics.Success])
       },
     )
 
@@ -292,16 +289,18 @@ describe("Connection Reducer", () => {
       "RelayConnectError transitions to RelayError and classifies analytics",
       t => {
         [
-          ("HTTP 500: Error", Client__Heap.HttpError),
-          ("Invalid tools response: bad data", Client__Heap.InvalidResponse),
-          ("Connection refused", Client__Heap.NetworkError),
+          ("HTTP 500: Error", Client__Analytics.HttpError),
+          ("Invalid tools response: bad data", Client__Analytics.InvalidResponse),
+          ("Connection refused", Client__Analytics.NetworkError),
         ]->Array.forEach(
           ((message, reason)) => {
             let state = {...Reducer.initialState, relay: RelayConnecting}
             let (nextState, effects) = Reducer.reduce(state, RelayConnectError(message))
 
             t->expect(nextState.relay)->Expect.toEqual(Reducer.RelayError(message))
-            t->expect(trackedOutcomes(effects))->Expect.toEqual([Client__Heap.Failure(reason)])
+            t
+            ->expect(trackedRelayOutcomes(effects))
+            ->Expect.toEqual([Client__Analytics.Failure(reason)])
           },
         )
       },
@@ -318,7 +317,7 @@ describe("Connection Reducer", () => {
         actions->Array.forEach(
           action => {
             let (_, effects) = Reducer.reduce(state, action)
-            t->expect(trackedOutcomes(effects))->Expect.toEqual([])
+            t->expect(trackedRelayOutcomes(effects))->Expect.toEqual([])
           },
         )
       },
@@ -494,7 +493,6 @@ describe("Connection Reducer", () => {
             sessionId: "sess-1",
             onUpdate: (_, _) => (),
             onTitleUpdated: (_, _) => (),
-            onMcpMessage: (_, _) => (),
             onComplete: _ => (),
           }),
         )

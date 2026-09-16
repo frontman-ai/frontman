@@ -14,6 +14,7 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   @behaviour FrontmanServer.Tools.Backend
 
+  alias FrontmanServer.PublicURL
   alias ModelContextProtocol, as: MCP
 
   @chrome_ua "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " <>
@@ -133,7 +134,8 @@ defmodule FrontmanServer.Tools.WebFetch do
         retry_delay: &retry_delay/1,
         retry_log_level: :debug,
         decode_body: false,
-        redirect: false
+        redirect: false,
+        plugins: [PublicURL]
       ] ++ req_options()
 
     req_opts
@@ -212,9 +214,7 @@ defmodule FrontmanServer.Tools.WebFetch do
       [location | _] ->
         resolved = base_url |> URI.merge(location) |> URI.to_string()
 
-        with :ok <- validate_scheme(resolved),
-             {:ok, host} <- extract_host(resolved),
-             :ok <- validate_host(host) do
+        with :ok <- PublicURL.validate(resolved) do
           fetch(resolved, @user_agents, redirects + 1)
         end
 
@@ -273,125 +273,12 @@ defmodule FrontmanServer.Tools.WebFetch do
 
   defp validate_url(%{"url" => url})
        when is_binary(url) and byte_size(url) > 0 do
-    with :ok <- validate_scheme(url),
-         {:ok, host} <- extract_host(url),
-         :ok <- validate_host(host) do
+    with :ok <- PublicURL.validate(url) do
       {:ok, url}
     end
   end
 
   defp validate_url(_), do: {:error, "url is required"}
-
-  defp validate_scheme("http://" <> _), do: :ok
-  defp validate_scheme("https://" <> _), do: :ok
-
-  defp validate_scheme(_) do
-    {:error, "URL must start with http:// or https://"}
-  end
-
-  defp extract_host(url) do
-    case URI.parse(url) do
-      %URI{host: host} when is_binary(host) and byte_size(host) > 0 ->
-        {:ok, host}
-
-      _ ->
-        {:error, "Could not parse host from URL"}
-    end
-  end
-
-  defp validate_host(host) do
-    host
-    |> String.downcase()
-    |> do_validate_host()
-  end
-
-  defp do_validate_host("localhost"), do: ssrf_error()
-  defp do_validate_host("localhost" <> _), do: ssrf_error()
-
-  defp do_validate_host(host) do
-    case String.ends_with?(host, [".local", ".internal", ".localhost"]) do
-      true ->
-        ssrf_error()
-
-      false ->
-        host
-        |> String.to_charlist()
-        |> check_ip_or_resolve()
-    end
-  end
-
-  defp ssrf_error do
-    {:error,
-     "Requests to private/internal addresses are not allowed. For current app pages or local development URLs, use the available browser or framework-specific page inspection tools instead."}
-  end
-
-  defp check_ip_or_resolve(host_charlist) do
-    case :inet.parse_address(host_charlist) do
-      {:ok, ip} ->
-        check_ip(ip)
-
-      {:error, :einval} ->
-        resolve_and_check(host_charlist)
-    end
-  end
-
-  defp resolve_and_check(host_charlist) do
-    ipv4 =
-      case :inet.getaddrs(host_charlist, :inet) do
-        {:ok, addrs} -> addrs
-        {:error, _} -> []
-      end
-
-    ipv6 =
-      case :inet.getaddrs(host_charlist, :inet6) do
-        {:ok, addrs} -> addrs
-        {:error, _} -> []
-      end
-
-    case ipv4 ++ ipv6 do
-      [] -> {:error, "Could not resolve hostname"}
-      all_addrs -> check_all_addrs(all_addrs)
-    end
-  end
-
-  defp check_all_addrs(addrs) do
-    case Enum.any?(addrs, &private_ip?/1) do
-      true -> ssrf_error()
-      false -> :ok
-    end
-  end
-
-  defp check_ip(ip) do
-    case private_ip?(ip) do
-      true -> ssrf_error()
-      false -> :ok
-    end
-  end
-
-  defp private_ip?({0, _, _, _}), do: true
-  defp private_ip?({10, _, _, _}), do: true
-  defp private_ip?({127, _, _, _}), do: true
-  defp private_ip?({169, 254, _, _}), do: true
-  defp private_ip?({172, b, _, _}) when b >= 16 and b <= 31, do: true
-  defp private_ip?({192, 168, _, _}), do: true
-
-  defp private_ip?({0, 0, 0, 0, 0, 0xFFFF, hi, lo}) do
-    import Bitwise
-    private_ip?({hi >>> 8, hi &&& 0xFF, lo >>> 8, lo &&& 0xFF})
-  end
-
-  defp private_ip?({0, 0, 0, 0, 0, 0, 0, 0}), do: true
-  defp private_ip?({0, 0, 0, 0, 0, 0, 0, 1}), do: true
-
-  defp private_ip?({s, _, _, _, _, _, _, _})
-       when s >= 0xFC00 and s <= 0xFDFF,
-       do: true
-
-  defp private_ip?({s, _, _, _, _, _, _, _})
-       when s >= 0xFE80 and s <= 0xFEBF,
-       do: true
-
-  defp private_ip?(_), do: false
 
   defp clamp(val, min, :infinity) when is_integer(val) do
     max(val, min)

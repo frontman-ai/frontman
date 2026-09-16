@@ -84,42 +84,28 @@ let disconnect = (relay: t): unit => {
 
 let getToolsJson = (relay: t): array<JSON.t> => {
   switch relay.state.contents {
-  | Connected({tools}) =>
-    tools->Array.map(tool => {
-      let definition = dict{
-        "name": JSON.Encode.string(tool.name),
-        "description": JSON.Encode.string(tool.description),
-        "access": tool.access
-        ->Option.getOr(FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite)
-        ->S.decodeOrThrow(
-          ~from=FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.accessSchema,
-          ~to=S.json->S.noValidation(true),
-        ),
-        "inputSchema": tool.inputSchema,
-        "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
-      }
-      tool.outputSchema->Option.forEach(outputSchema =>
-        definition->Dict.set("outputSchema", outputSchema)
-      )
-      JSON.Encode.object(definition)
-    })
+  | Connected({tools}) => tools
   | Disconnected | Error(_) => []
   }
 }
 
+let toolName = tool =>
+  tool
+  ->JSON.Decode.object
+  ->Option.flatMap(tool => tool->Dict.get("name"))
+  ->Option.flatMap(JSON.Decode.string)
+
 let hasTool = (relay: t, name: string): bool => {
   switch relay.state.contents {
-  | Connected({tools}) => tools->Array.some(tool => tool.name == name)
+  | Connected({tools}) => tools->Array.some(tool => tool->toolName == Some(name))
   | Disconnected | Error(_) => false
   }
 }
 
-let executeTool = async (
-  relay: t,
-  ~name: string,
-  ~arguments: option<Dict.t<JSON.t>>=?,
-  ~onProgress: option<string => unit>=?,
-): result<MCPTypes.CallToolResult.t, string> => {
+let executeTool = async (relay: t, ~name: string, ~arguments: option<Dict.t<JSON.t>>=?): result<
+  MCPTypes.CallToolResult.t,
+  string,
+> => {
   switch relay->isConnected {
   | false => Error("Relay not connected")
   | true =>
@@ -150,7 +136,7 @@ let executeTool = async (
         Log.error(~ctx={"tool": name}, msg)
         Error(msg)
       | true =>
-        switch await SSE.readStream(response, ~onProgress?) {
+        switch await SSE.readStream(response) {
         | Ok(json) =>
           json
           ->Decoders.parseSchema(MCPTypes.callToolResultSchema)

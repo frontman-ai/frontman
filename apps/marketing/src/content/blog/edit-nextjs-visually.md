@@ -9,7 +9,7 @@ imageAlt: 'Next.js component selected for visual editing in the browser'
 tags: ['nextjs', 'tutorial', 'developer-tools']
 faq:
   - question: 'Do I need to eject from Next.js or change my build setup?'
-    answer: 'No. Frontman runs inside your existing Next.js dev server through middleware on Next.js 13-15 or proxy on Next.js 16+. You run your usual dev server and open the browser. Nothing is ejected. Nothing is replaced. Your production build is unaffected.'
+    answer: 'No. Frontman runs inside supported Next.js dev servers through middleware on Next.js 15.x (15.5 minimum) or proxy on Next.js 16.x. You run your usual dev server and open the browser. Nothing is ejected or replaced. The package runtime only handles routes in NODE_ENV=development by default.'
   - question: 'Does this work with the App Router?'
     answer: 'Yes. Frontman supports both the App Router and the Pages Router. It understands Server Components and Client Components and handles them appropriately — server-only components are edited in source, client components get live hot-reload verification.'
   - question: 'What happens when I click a shared component — does it change every instance?'
@@ -43,7 +43,7 @@ Describe what you want. Frontman edits the source file directly, and Next.js hot
 npx @frontman-ai/nextjs install
 ```
 
-This adds the package and creates the right Next.js entrypoint automatically: `middleware.ts` for Next.js 13-15 or `proxy.ts` for Next.js 16+. If your app uses `src/app` or `src/pages`, the file is created under `src/`.
+This adds the package and creates the correct Next.js entrypoint automatically: `middleware.ts` for Next.js 15.x (15.5 minimum) or `proxy.ts` for Next.js 16.x. If your app uses `src/app` or `src/pages`, the file is created under `src/`.
 
 **2. Run your dev server as usual:**
 
@@ -53,7 +53,7 @@ npm run dev
 
 Open your browser. The Frontman sidebar appears. Click anything.
 
-There is no step 3. Your production build is unaffected. Frontman is dev-only middleware/proxy wiring.
+There is no step 3 for development. The generated entrypoint can remain in production builds, but the package runtime only handles routes when `NODE_ENV=development` by default. Set `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1` to opt in outside development. Set `FRONTMAN_ENABLED=0` to force it off.
 
 ## The Workflow
 

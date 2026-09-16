@@ -124,6 +124,24 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       end
     end
 
+    test "raises when an MCP tool executor registration unexpectedly collides", %{
+      scope: scope,
+      task_id: task_id,
+      turn_number: turn_number
+    } do
+      tc = %SwarmAi.ToolCall{
+        id: "tc_collision_#{System.unique_integer([:positive])}",
+        name: "some_tool",
+        arguments: "{}"
+      }
+
+      assert :ok = ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tc)
+
+      assert_raise RuntimeError,
+                   ~r/Duplicate MCP tool executor registration/,
+                   fn -> ToolExecutor.start_mcp_tool(scope, task_id, turn_number, tc) end
+    end
+
     test "rejects a filtered backend tool even when an MCP tool has the same name", %{
       scope: scope,
       task_id: task_id,

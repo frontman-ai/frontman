@@ -1,5 +1,13 @@
 # @frontman-ai/frontman-wordpress
 
+## 3.1.1
+
+### Patch Changes
+
+- [#1472](https://github.com/frontman-ai/frontman/pull/1472) [`b79c611`](https://github.com/frontman-ai/frontman/commit/b79c611e32c07db04150e05bd7de0097e8140e5e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Stop exposing the administrator email through bulk WordPress option discovery while preserving explicit option reads.
+
+- [#1490](https://github.com/frontman-ai/frontman/pull/1490) [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Migrate browser MCP discovery, tool listing, and tool calls to MCP 2026-07-28.
+
 ## 3.0.1
 
 ### Patch Changes

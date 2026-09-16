@@ -23,6 +23,8 @@ type cancelPromptFn = unit => unit
 
 type retryTurnFn = string => unit
 
+type requireAuthenticationFn = unit => unit
+
 type acpSession =
   | NoAcpSession
   | AcpSessionActive({
@@ -31,6 +33,7 @@ type acpSession =
       retryTurn: retryTurnFn,
       loadTask: loadTaskFn,
       deleteSession: deleteSessionFn,
+      requireAuthentication: requireAuthenticationFn,
       apiBaseUrl: string,
     })
 
@@ -110,6 +113,64 @@ type openAIDeviceAuthPollResponse = {
   expiresAt: option<string>,
 }
 
+@schema
+type customProvider = {
+  id: string,
+  name: string,
+  @as("base_url")
+  baseUrl: string,
+  @as("has_api_key")
+  hasApiKey: bool,
+  models: array<string>,
+  @as("lock_version")
+  lockVersion: int,
+}
+
+@schema
+type customProvidersResponse = {
+  @as("data")
+  providers: array<customProvider>,
+}
+
+@schema
+type customProviderResponse = {
+  @as("data")
+  provider: customProvider,
+}
+
+type customProviderApiKeyChange =
+  | KeepCustomProviderApiKey
+  | ClearCustomProviderApiKey
+  | ReplaceCustomProviderApiKey(string)
+
+type customProviderDraft = {
+  id: option<string>,
+  name: string,
+  baseUrl: string,
+  apiKeyChange: customProviderApiKeyChange,
+  models: array<string>,
+  lockVersion: option<int>,
+}
+
+type customProviderMutationOperation =
+  | SavingCustomProvider(option<string>)
+  | DeletingCustomProvider(string)
+
+type customProviderMutationError =
+  | CustomProviderValidationError(Dict.t<array<string>>)
+  | CustomProviderNotFound
+  | CustomProviderConflict(customProvider)
+  | CustomProviderNetworkError(string)
+
+type customProviderMutation =
+  | CustomProviderMutationIdle
+  | CustomProviderMutationPending(customProviderMutationOperation)
+  | CustomProviderMutationSucceeded(customProviderMutationOperation)
+  | CustomProviderMutationFailed({
+      operation: customProviderMutationOperation,
+      error: customProviderMutationError,
+    })
+
 module ACPConfig = {
   type sessionConfigOption = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption
   type sessionConfigValueId = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId
@@ -163,6 +224,14 @@ type highlightedAnnotation = {
   selector: string,
 }
 
+type firstTaskFeedbackDialogState =
+  | Waiting
+  | AwaitingHistory
+  | Visible
+  | LinkCopied
+  | ShareFailed
+  | Dismissed
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
@@ -180,8 +249,11 @@ type state = {
   selectedAgentId: option<string>,
   pendingProviderAutoSelect: option<string>,
   sessionsLoadState: sessionsLoadState,
+  customProviders: option<array<customProvider>>,
+  customProviderMutation: customProviderMutation,
   updateInfo: option<updateInfo>,
   updateCheckStatus: updateCheckStatus,
   updateBannerDismissed: bool,
+  firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
   highlightedAnnotation: option<highlightedAnnotation>,
 }

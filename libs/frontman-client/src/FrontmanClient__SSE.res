@@ -38,50 +38,33 @@ let parseEventBlock = (block: string): option<sseEvent> => {
   }
 }
 
-let processEvent = (event: sseEvent, ~onProgress: option<string => unit>): option<
-  result<JSON.t, string>,
-> => {
-  switch event.eventType {
-  | #progress =>
-    onProgress->Option.forEach(cb => cb(event.data))
-    None
-  | #result =>
-    let parsed = try {
-      Ok(JSON.parseOrThrow(event.data))
-    } catch {
-    | exn =>
-      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("unknown")
-      Error(`Failed to parse result JSON: ${msg}`)
-    }
-    Some(parsed)
-  | #error => Some(Error(event.data))
-  | #unknown => None
-  }
-}
-
 let exnMessage = (exn: exn): string => {
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("unknown")
 }
 
-let processBlocks = (blocks: array<string>, ~onProgress: option<string => unit>): option<
-  result<JSON.t, string>,
-> => {
-  blocks->Array.reduceWithIndex(None, (acc, block, _i) => {
+let processBlocks = (blocks: array<string>): option<result<JSON.t, string>> => {
+  blocks->Array.reduce(None, (acc, block) => {
     switch acc {
     | Some(_) => acc
     | None =>
       switch parseEventBlock(block) {
       | None => None
-      | Some(event) => processEvent(event, ~onProgress)
+      | Some({eventType: #progress | #unknown}) => None
+      | Some({eventType: #error, data}) => Some(Error(data))
+      | Some({eventType: #result, data}) =>
+        Some(
+          try {
+            Ok(JSON.parseOrThrow(data))
+          } catch {
+          | exn => Error(`Failed to parse result JSON: ${exnMessage(exn)}`)
+          },
+        )
       }
     }
   })
 }
 
-let readStream = async (response: WebAPI.Response.t, ~onProgress: option<string => unit>=?): result<
-  JSON.t,
-  string,
-> => {
+let readStream = async (response: WebAPI.Response.t): result<JSON.t, string> => {
   switch response.body->Null.toOption {
   | None => Error("No response body")
   | Some(body) =>
@@ -108,7 +91,7 @@ let readStream = async (response: WebAPI.Response.t, ~onProgress: option<string 
             incompleteChunk := parts->Array.getUnsafe(partsCount - 1)
 
             let completeBlocks = parts->Array.slice(~start=0, ~end=partsCount - 1)
-            result := processBlocks(completeBlocks, ~onProgress)
+            result := processBlocks(completeBlocks)
           })
           ->Option.getOr()
         }

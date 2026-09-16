@@ -241,4 +241,3 @@ Safety > Performance > Developer Experience. All three matter.
 - 98-column line limit (Elixir formatter default). Use it up. Never exceed.
 - Run `mix format` on every save. Non-negotiable.
 - Run `mix credo --strict`. Treat warnings as errors.
-- Add `@spec` on all public functions.

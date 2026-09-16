@@ -59,29 +59,29 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "get_active_run_unresolved_tool_calls/2" do
-    test "returns unresolved tool calls only for active agent runs", %{scope: scope} do
+  describe "get_active_turn_unresolved_tool_calls/2" do
+    test "returns unresolved tool calls only for the active turn", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+      assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
 
       assert 1 = start_turn_fixture(scope, task_id)
       insert_interaction_row(task_id, Interaction.ToolCall, 1, %{"tool_call_id" => "call_1"})
 
       assert {:ok, 1, [%Interaction.ToolCall{tool_call_id: "call_1"}]} =
-               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
 
       insert_interaction_row(task_id, Interaction.ToolResult, 1, %{"tool_call_id" => "call_1"})
 
-      assert {:ok, 1, []} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+      assert {:ok, 1, []} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
     end
 
-    test "accepted user messages without turns do not create an active run", %{scope: scope} do
+    test "accepted user messages without turns do not create an active turn", %{scope: scope} do
       task = task_fixture(scope)
 
       insert_accepted_user_message!(task, "queued")
 
-      assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task.id)
+      assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task.id)
     end
 
     test "returns an error for task-scoped rows with turn numbers", %{scope: scope} do
@@ -90,7 +90,7 @@ defmodule FrontmanServer.TasksTest do
       insert_legacy_interaction_row(task_id, Interaction.DiscoveredProjectRule, 1, %{})
 
       assert {:error, {:unknown_interaction_type, :discovered_project_rule}} =
-               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
     end
   end
 
@@ -148,6 +148,51 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  describe "replace_user_message/3" do
+    test "drops the edited message and records its replacement atomically", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, _first} = user_message_fixture(scope, task_id, user_content("first"))
+      complete_turn(scope, task_id, "first answer")
+
+      {:ok, second} = user_message_fixture(scope, task_id, user_content("second"))
+      complete_turn(scope, task_id, "second answer")
+
+      replacement_id = Ecto.UUID.generate()
+
+      assert {:ok, %InteractionSchema{id: ^replacement_id}} =
+               Tasks.replace_user_message(scope, second.id, %{
+                 task_id: task_id,
+                 message_id: replacement_id,
+                 message: user_content("second edited"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
+      assert [:user_message, :turn_started, :agent_response, :agent_completed, :user_message] =
+               task_id |> db_rows() |> Enum.map(& &1.type)
+    end
+
+    test "keeps original history when replacement insert fails", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, first} = user_message_fixture(scope, task_id, user_content("first"))
+      complete_turn(scope, task_id, "first answer")
+
+      {:ok, second} = user_message_fixture(scope, task_id, user_content("second"))
+      complete_turn(scope, task_id, "second answer")
+
+      assert {:error, %Ecto.Changeset{}} =
+               Tasks.replace_user_message(scope, second.id, %{
+                 task_id: task_id,
+                 message_id: first.id,
+                 message: user_content("second edited"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
+      assert length(db_rows(task_id)) == 8
+    end
+  end
+
   describe "truncate_from_message/3" do
     test "drops the edited message and everything it produced", %{scope: scope} do
       task_id = task_fixture(scope).id
@@ -183,7 +228,7 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "run_next_turn/3 agent identity" do
+  describe "execute_next_turn/3 agent identity" do
     test "persists configured agent identity", %{scope: scope} do
       task = task_fixture(scope)
 
@@ -192,12 +237,12 @@ defmodule FrontmanServer.TasksTest do
                  task_id: task.id,
                  message_id: Ecto.UUID.generate(),
                  message: user_content("hello"),
-                 model: "openrouter:openai/gpt-5.5",
+                 model: "missing:test",
                  agent_id: "test-frontman"
                })
 
       assert :ok =
-               Tasks.run_next_turn(
+               Tasks.execute_next_turn(
                  scope,
                  task.id,
                  execution_request_fixture(model: "missing:test")
@@ -225,7 +270,7 @@ defmodule FrontmanServer.TasksTest do
                })
 
       assert {:error, :unknown_agent} =
-               Tasks.run_next_turn(scope, task.id, execution_request_fixture())
+               Tasks.execute_next_turn(scope, task.id, execution_request_fixture())
 
       refute Enum.any?(db_rows(task.id), &(&1.type == :turn_started))
     end
@@ -272,7 +317,7 @@ defmodule FrontmanServer.TasksTest do
              }
 
       assert {:ok, ^turn_number, [%Interaction.ToolCall{tool_call_id: "question_1"}]} =
-               Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
     end
   end
 
@@ -612,7 +657,7 @@ defmodule FrontmanServer.TasksTest do
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("failed"), "missing:test")
 
-      {:ok, error} = Tasks.record_agent_run_result(scope, task.id, 1, {:failed, "boom"})
+      {:ok, error} = Tasks.record_execution_outcome(scope, task.id, 1, {:failed, "boom"})
 
       assert :ok =
                Tasks.retry_execution(scope, task.id, error.id, %{
@@ -637,7 +682,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "resume_execution/3" do
-    test "returns not_running when no active agent run exists", %{scope: scope} do
+    test "returns not_running when no active turn exists", %{scope: scope} do
       task_id = task_fixture(scope).id
 
       assert {:error, :not_running} =
@@ -1114,49 +1159,85 @@ defmodule FrontmanServer.TasksTest do
     %SwarmAi.ToolCall{id: id, name: name, arguments: Jason.encode!(args)}
   end
 
-  describe "add_discovered_project_rule/4" do
-    test "adds rule to task", %{scope: scope} do
+  describe "add_discovered_project_rules/3" do
+    test "adds rules and deduplicates by path", %{scope: scope} do
       task_id = task_fixture(scope).id
 
-      {:ok, rule} =
-        Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules")
+      assert {:ok, [first, second]} =
+               Tasks.add_discovered_project_rules(scope, task_id, [
+                 {"/project/AGENTS.md", "# Rules"},
+                 {"/project/AGENTS.md", "# Ignored"},
+                 {"/project/CLAUDE.md", "# Claude"}
+               ])
 
-      assert rule.path == "/project/AGENTS.md"
-      assert rule.content == "# Rules"
+      assert {first.data.path, first.data.content} == {"/project/AGENTS.md", "# Rules"}
+      assert {second.data.path, second.data.content} == {"/project/CLAUDE.md", "# Claude"}
 
-      assert Repo.get_by!(InteractionSchema,
-               task_id: task_id,
-               type: :discovered_project_rule
-             ).turn_number ==
-               nil
+      assert {:ok, []} =
+               Tasks.add_discovered_project_rules(scope, task_id, [
+                 {"/project/AGENTS.md", "# Replacement"}
+               ])
+
+      assert_raise RuntimeError, ~r/project rule count 33 exceeded limit 32/, fn ->
+        Tasks.add_discovered_project_rules(
+          scope,
+          task_id,
+          Enum.map(1..31, &{"new-rule-#{&1}", "content"})
+        )
+      end
+
+      assert Repo.aggregate(
+               InteractionSchema.for_task(task_id),
+               :count
+             ) == 2
     end
 
-    test "deduplicates by path", %{scope: scope} do
+    test "rejects over-limit batches before writing", %{scope: scope} do
       task_id = task_fixture(scope).id
+      rules = Enum.map(1..33, &{"rule-#{&1}", "content"})
 
-      {:ok, _rule} =
-        Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v1")
+      assert_raise RuntimeError, ~r/project rule count 33 exceeded limit 32/, fn ->
+        Tasks.add_discovered_project_rules(scope, task_id, rules)
+      end
 
-      {:ok, :already_loaded} =
-        Tasks.add_discovered_project_rule(scope, task_id, "/project/AGENTS.md", "# Rules v2")
+      refute Repo.exists?(InteractionSchema.for_task(task_id))
+    end
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+    test "bounds queries for the largest accepted batch", %{scope: scope} do
+      task_id = task_fixture(scope).id
 
       rules =
-        Enum.filter(
-          Tasks.interactions(task),
-          &match?(%Tasks.Interaction.DiscoveredProjectRule{}, &1)
+        [{"rule-1", String.duplicate("x", 65_536)} | Enum.map(2..32, &{"rule-#{&1}", "content"})]
+
+      counter = :counters.new(1, [])
+      handler = {__MODULE__, make_ref()}
+
+      :ok =
+        :telemetry.attach(
+          handler,
+          [:frontman_server, :repo, :query],
+          fn _event, _measurements, _metadata, counter -> :counters.add(counter, 1, 1) end,
+          counter
         )
 
-      assert length(rules) == 1
-      assert hd(rules).content == "# Rules v1"
+      on_exit(fn -> :telemetry.detach(handler) end)
+
+      assert {:ok, inserted} = Tasks.add_discovered_project_rules(scope, task_id, rules)
+      assert length(inserted) == 32
+      assert :counters.get(counter, 1) <= 40
     end
 
-    test "returns error for non-existent task", %{scope: scope} do
-      nonexistent_id = Ecto.UUID.generate()
+    test "rolls back valid rules when one rule is too large", %{scope: scope} do
+      task_id = task_fixture(scope).id
 
-      assert {:error, :not_found} =
-               Tasks.add_discovered_project_rule(scope, nonexistent_id, "/path", "content")
+      assert_raise Ecto.InvalidChangesetError, fn ->
+        Tasks.add_discovered_project_rules(scope, task_id, [
+          {"valid", "content"},
+          {"oversized", String.duplicate("x", 65_537)}
+        ])
+      end
+
+      refute Repo.exists?(InteractionSchema.for_task(task_id))
     end
   end
 
@@ -1182,6 +1263,19 @@ defmodule FrontmanServer.TasksTest do
 
       assert {:error, :not_found} =
                Tasks.add_discovered_project_structure(scope, nonexistent_id, "summary")
+    end
+
+    test "rejects oversized structures", %{scope: scope} do
+      task_id = task_fixture(scope).id
+
+      assert {:error, %Ecto.Changeset{}} =
+               Tasks.add_discovered_project_structure(
+                 scope,
+                 task_id,
+                 String.duplicate("x", 512 * 1024 + 1)
+               )
+
+      refute Repo.exists?(InteractionSchema.for_task(task_id))
     end
   end
 
@@ -1275,14 +1369,14 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "record_agent_run_result/4 paused DB round-trip" do
+  describe "record_execution_outcome/4 paused DB round-trip" do
     test "persisted AgentPaused can be loaded back via get_task", %{scope: scope} do
       task_id = Ecto.UUID.generate()
       {:ok, %TaskSchema{id: ^task_id}} = Tasks.create_task(scope, task_id, "nextjs")
       turn_number = start_turn_fixture(scope, task_id)
 
       {:ok, _interaction} =
-        Tasks.record_agent_run_result(
+        Tasks.record_execution_outcome(
           scope,
           task_id,
           turn_number,
@@ -1307,7 +1401,7 @@ defmodule FrontmanServer.TasksTest do
       turn_number = latest_turn_number(task_id)
 
       {:ok, _} =
-        Tasks.record_agent_run_result(
+        Tasks.record_execution_outcome(
           scope,
           task_id,
           turn_number,
@@ -1326,7 +1420,7 @@ defmodule FrontmanServer.TasksTest do
   defp complete_turn(scope, task_id, response) do
     turn_number = latest_turn_number(task_id)
     {:ok, _response} = Tasks.agent_replied(scope, task_id, turn_number, response)
-    {:ok, _completed} = Tasks.record_agent_run_result(scope, task_id, turn_number, :completed)
+    {:ok, _completed} = Tasks.record_execution_outcome(scope, task_id, turn_number, :completed)
     turn_number
   end
 

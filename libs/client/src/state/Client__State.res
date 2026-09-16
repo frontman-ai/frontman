@@ -14,6 +14,11 @@ module Actions = {
     )
   }
 
+  let executeAnnotation = (~sessionId, ~annotationId, ~comment) => {
+    let id = Client__Message.UserMessageId.make()
+    Client__State__Store.dispatch(ExecuteAnnotation({id, sessionId, annotationId, comment}))
+  }
+
   let textDeltaReceived = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) =>
     Client__State__Store.dispatch(
       TaskAction({
@@ -134,10 +139,19 @@ module Actions = {
     ~retryTurn,
     ~loadTask,
     ~deleteSession,
+    ~requireAuthentication,
     ~apiBaseUrl,
   ) =>
     Client__State__Store.dispatch(
-      SetAcpSession({sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl}),
+      SetAcpSession({
+        sendPrompt,
+        cancelPrompt,
+        retryTurn,
+        loadTask,
+        deleteSession,
+        requireAuthentication,
+        apiBaseUrl,
+      }),
     )
 
   let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
@@ -150,8 +164,8 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
     )
 
-  let executionStateIdle = (~taskId: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}))
+  let executionStateIdle = (~taskId: string, ~stopReason) =>
+    Client__State__Store.dispatch(TaskExecutionStopped({taskId, stopReason}))
 
   let executionStateRequiresAction = (~taskId: string) =>
     Client__State__Store.dispatch(
@@ -169,6 +183,11 @@ module Actions = {
         target: ForTask(taskId),
         action: AgentError({id, error, category}),
       }),
+    )
+
+  let truncateTaskFromMessage = (~taskId: string, ~messageId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: TruncateFromMessage({messageId: messageId})}),
     )
 
   let retryingStatusReceived = (
@@ -273,6 +292,25 @@ module Actions = {
     Client__State__Store.dispatch(CheckForUpdate({installedVersion, npmPackage}))
 
   let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
+
+  let closeFirstTaskFeedbackDialog = () =>
+    Client__State__Store.dispatch(CloseFirstTaskFeedbackDialog)
+
+  let dismissFirstTaskFeedbackDialog = () =>
+    Client__State__Store.dispatch(DismissFirstTaskFeedbackDialog)
+
+  let shareFrontman = () => Client__State__Store.dispatch(ShareFrontman)
+
+  let fetchCustomProviders = () => Client__State__Store.dispatch(FetchCustomProviders)
+
+  let saveCustomProvider = (~draft: Client__State__Types.customProviderDraft) =>
+    Client__State__Store.dispatch(SaveCustomProvider(draft))
+
+  let deleteCustomProvider = (~id, ~lockVersion) =>
+    Client__State__Store.dispatch(DeleteCustomProvider(id, lockVersion))
+
+  let acknowledgeCustomProviderMutation = () =>
+    Client__State__Store.dispatch(AcknowledgeCustomProviderMutation)
 
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
     Client__State__Store.dispatch(

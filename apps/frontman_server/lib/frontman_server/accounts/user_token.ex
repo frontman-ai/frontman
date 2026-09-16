@@ -11,7 +11,7 @@ defmodule FrontmanServer.Accounts.UserToken do
 
   use Ecto.Schema
   import Ecto.Query
-  alias FrontmanServer.Accounts.UserToken
+  alias FrontmanServer.Accounts.{User, UserToken}
 
   @hash_algorithm :sha256
   @rand_size 32
@@ -19,6 +19,9 @@ defmodule FrontmanServer.Accounts.UserToken do
   @magic_link_validity_in_minutes 15
   @change_email_validity_in_days 7
   @session_validity_in_days 14
+  @embedded_client_validity_in_days 90
+  @seconds_per_day 86_400
+  @embedded_client_context "embedded_client"
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -27,6 +30,9 @@ defmodule FrontmanServer.Accounts.UserToken do
     field :context, :string
     field :sent_to, :string
     field :authenticated_at, :utc_datetime
+    field :approved_origin, :string
+    field :expires_at, :utc_datetime
+    field :last_used_at, :utc_datetime
     belongs_to :user, FrontmanServer.Accounts.User
 
     timestamps(type: :utc_datetime, updated_at: false)
@@ -90,6 +96,31 @@ defmodule FrontmanServer.Accounts.UserToken do
   """
   def build_email_token(user, context) do
     build_hashed_token(user, context, user.email)
+  end
+
+  @doc """
+  Builds an opaque bearer token for an embedded client origin.
+
+  The raw token is returned once and only its SHA-256 hash is stored.
+  """
+  def build_embedded_client_token(%User{} = user, approved_origin)
+      when is_binary(approved_origin) do
+    raw_token = :crypto.strong_rand_bytes(@rand_size)
+    hashed_token = :crypto.hash(@hash_algorithm, raw_token)
+
+    {Base.url_encode64(raw_token, padding: false),
+     %UserToken{
+       token: hashed_token,
+       context: @embedded_client_context,
+       user_id: user.id,
+       approved_origin: approved_origin,
+       expires_at:
+         DateTime.add(
+           DateTime.utc_now(:second),
+           @embedded_client_validity_in_days * @seconds_per_day,
+           :second
+         )
+     }}
   end
 
   defp build_hashed_token(user, context, sent_to) do
@@ -160,8 +191,47 @@ defmodule FrontmanServer.Accounts.UserToken do
     end
   end
 
+  @doc """
+  Checks if the embedded client token is valid and returns its lookup query.
+
+  If found, the query returns a tuple of the form `{user, token}`.
+  """
+  def verify_embedded_client_token_query(token, approved_origin)
+      when is_binary(token) and is_binary(approved_origin) do
+    case Base.url_decode64(token, padding: false) do
+      {:ok, decoded_token} ->
+        hashed_token = :crypto.hash(@hash_algorithm, decoded_token)
+
+        query =
+          from token in by_token_and_context_query(hashed_token, @embedded_client_context),
+            join: user in assoc(token, :user),
+            where: token.approved_origin == ^approved_origin,
+            where: token.expires_at > ^DateTime.utc_now(:second),
+            select: {user, token}
+
+        {:ok, query}
+
+      :error ->
+        :error
+    end
+  end
+
   def by_user_and_context(query \\ __MODULE__, user_id, context) do
     from(t in query, where: t.user_id == ^user_id and t.context == ^context)
+  end
+
+  def by_embedded_client_user(query \\ __MODULE__, user_id) do
+    by_user_and_context(query, user_id, @embedded_client_context)
+  end
+
+  def by_embedded_client_id(query \\ __MODULE__, id) do
+    from(t in query, where: t.id == ^id and t.context == @embedded_client_context)
+  end
+
+  def by_embedded_client_id_and_user(query \\ __MODULE__, id, user_id) do
+    query
+    |> by_embedded_client_id(id)
+    |> where([t], t.user_id == ^user_id)
   end
 
   def by_ids(query \\ __MODULE__, ids) when is_list(ids) do

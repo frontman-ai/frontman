@@ -30,6 +30,7 @@ external fileURLToPath: string => string = "fileURLToPath"
 let schemasDir = Path.join([Path.dirname(fileURLToPath(importMetaUrl)), "..", "schemas"])
 
 let schemasRelative = "libs/frontman-protocol/schemas"
+let protocolPackage = "\"@frontman-ai/frontman-protocol\": major"
 
 @val @scope("process")
 external exit: int => unit = "exit"
@@ -39,6 +40,31 @@ type changeKind = Added | Removed | Modified
 type change = {
   file: string,
   kind: changeKind,
+}
+
+let changesetDeclaresProtocolMajor = async () => {
+  let files = switch await exec(
+    "git diff --name-only --diff-filter=AM origin/main -- .changeset/",
+  ) {
+  | Ok({stdout}) => stdout->String.trim->String.split("\n")->Array.filter(path => path != "")
+  | Error({stderr}) =>
+    Console.error(`Failed to inspect changesets: ${stderr}`)
+    exit(1)
+    []
+  }
+  let declarations = await files
+  ->Array.map(async file => {
+    let content = await Fs.Promises.readFile(file)
+    content
+    ->String.split("---")
+    ->Array.get(1)
+    ->Option.getOr("")
+    ->String.split("\n")
+    ->Array.some(line => line->String.trim == protocolPackage)
+  })
+  ->Promise.all
+
+  declarations->Array.some(value => value)
 }
 
 let main = async () => {
@@ -122,14 +148,25 @@ let main = async () => {
     }
   }
 
-  if removed->Array.length > 0 {
+  let protocolMajorDeclared = switch removed->Array.length > 0 {
+  | true => await changesetDeclaresProtocolMajor()
+  | false => false
+  }
+
+  if removed->Array.length > 0 && !protocolMajorDeclared {
     Console.error(
       `\nBREAKING: ${removed
         ->Array.length
         ->Int.toString} schema(s) removed. This will break clients on older SDK versions.`,
     )
-    Console.error("If this is intentional, a reviewer must approve the PR.")
+    Console.error(
+      "Declare a major @frontman-ai/frontman-protocol changeset if this is intentional.",
+    )
     exit(1)
+  }
+
+  if removed->Array.length > 0 {
+    Console.log("Breaking schema removals accepted by major protocol changeset.")
   }
 
   if modified->Array.length > 0 {

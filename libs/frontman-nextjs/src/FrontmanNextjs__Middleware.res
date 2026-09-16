@@ -4,6 +4,7 @@ module CoreMiddlewareConfig = Core.FrontmanCore__MiddlewareConfig
 module Server = FrontmanNextjs__Server
 module Config = FrontmanNextjs__Config
 module LogCapture = FrontmanNextjs__LogCapture
+module RuntimeEnv = FrontmanNextjs__RuntimeEnv
 
 type config = Config.t
 
@@ -30,5 +31,15 @@ let createMiddleware = (configInput: Config.jsConfigInput) => {
     ~serverVersion=config.serverVersion,
   )
 
-  CoreMiddleware.createMiddleware(~config=middlewareConfig, ~registry=server.registry)
+  let middleware = CoreMiddleware.createMiddleware(
+    ~config=middlewareConfig,
+    ~registry=server.registry,
+  )
+
+  switch RuntimeEnv.isRuntimeEnabled() {
+  | true =>
+    LogCapture.initialize()
+    middleware
+  | false => async _req => None
+  }
 }

@@ -8,7 +8,7 @@ defmodule AgentClientProtocol do
   @moduledoc """
   ACP (Agent Client Protocol) translation layer.
 
-  Translates between domain events and ACP wire format (JSON-RPC 2.0).
+  Translates between task timeline records and ACP wire format (JSON-RPC 2.0).
   This is the boundary where domain concepts (Tasks) become transport
   concepts (Sessions).
 
@@ -169,7 +169,7 @@ defmodule AgentClientProtocol do
   @doc """
   Translates domain model config data into ACP SessionConfigOption format.
 
-  Receives the output of `Providers.model_config_data/1` — a domain DTO
+  Receives the output of `Providers.available_models/1` — a domain DTO
   containing model groups — and serializes it into the ACP wire format.
   This function has no knowledge of provider
   internals; all domain logic is encapsulated in the Providers context.
@@ -300,6 +300,16 @@ defmodule AgentClientProtocol do
       "messageId" => message_id,
       "content" => content,
       "_meta" => message_metadata(agent_id, timestamp)
+    })
+  end
+
+  @doc """
+  Builds a Frontman extension update that tells clients to drop history from a message.
+  """
+  def build_task_rewound_notification(session_id, message_id) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "frontman_task_rewound",
+      "messageId" => message_id
     })
   end
 

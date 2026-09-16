@@ -199,7 +199,6 @@ let handleToolCall = async (
     let ctx: CoreServer.executionContext = {
       projectRoot: config.projectRoot,
       sourceRoot: config.sourceRoot,
-      onProgress: None,
     }
 
     let resultPromise = CoreServer.executeTool(
@@ -215,13 +214,7 @@ let handleToolCall = async (
         let _ =
           resultPromise
           ->Promise.then(result => {
-            let eventData = switch result {
-            | CoreServer.Ok(mcpResult) => CoreSSE.resultEvent(mcpResult)
-            | CoreServer.ToolNotFound(_)
-            | CoreServer.InvalidInput(_)
-            | CoreServer.ExecutionError(_) =>
-              CoreSSE.errorEvent(CoreServer.resultToMCP(result))
-            }
+            let eventData = CoreSSE.resultEvent(CoreServer.resultToMCP(result))
             controller->WebStreams.enqueue(encoder->WebStreams.encode(eventData))
             controller->WebStreams.close
             Promise.resolve()
@@ -234,7 +227,7 @@ let handleToolCall = async (
               ->Option.getOr("Unknown error")
             let errorResult = MCP.CallToolResult.makeError(`Tool execution failed: ${msg}`)
             controller->WebStreams.enqueue(
-              encoder->WebStreams.encode(CoreSSE.errorEvent(errorResult)),
+              encoder->WebStreams.encode(CoreSSE.resultEvent(errorResult)),
             )
             controller->WebStreams.close
             Promise.resolve()

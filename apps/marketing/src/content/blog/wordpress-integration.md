@@ -58,6 +58,8 @@ Frontman takes a fundamentally different approach:
 
 The tradeoff: Frontman is newer and more experimental. AI Engine has 100k+ installs, a Pro tier, WooCommerce tools, embeddings, and years of polish. If you need a production-ready AI content pipeline today, AI Engine is solid. If you want an agent that can edit actual WordPress content, Elementor pages, menus, templates, widgets, and settings inside a live preview, that's what Frontman does. For the broader comparison, read [AI Agent Plugins for WordPress Compared](/blog/ai-agent-wordpress-plugin-comparison/).
 
+For one customer result, read how [AutonomyAI's marketing lead redesigned its Elementor site without an agency](/blog/autonomyai-wordpress-redesign-case-study/). The case study separates customer-reported project claims from facts confirmed through public sources and does not present the result as a universal benchmark.
+
 ## Architecture
 
 The integration now runs entirely inside the WordPress plugin.

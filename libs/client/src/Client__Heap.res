@@ -30,26 +30,10 @@ let init = () => {
 }
 
 type heapApi = {identify: string => unit, track: (string, JSON.t) => unit}
-@scope("window") @val external heap: heapApi = "heap"
+@scope("window") @val external heap: Nullable.t<heapApi> = "heap"
 
-type relayFailureReason = HttpError | InvalidResponse | NetworkError
-type relayOutcome = Success | Failure(relayFailureReason)
+let getHeap = () => heap->Nullable.toOption->Option.getOrThrow(~message="Heap is not initialized")
 
-let failureReasonToString = reason =>
-  switch reason {
-  | HttpError => "http_error"
-  | InvalidResponse => "invalid_response"
-  | NetworkError => "network_error"
-  }
+let identify = userId => getHeap().identify(userId)
 
-let trackRelayConnection = outcome => {
-  let framework = Client__RuntimeConfig.read().framework->Client__RuntimeConfig.frameworkIdToString
-  let properties = Dict.fromArray([("framework", JSON.Encode.string(framework))])
-  switch outcome {
-  | Success => properties->Dict.set("outcome", JSON.Encode.string("success"))
-  | Failure(reason) =>
-    properties->Dict.set("outcome", JSON.Encode.string("failure"))
-    properties->Dict.set("reason_code", JSON.Encode.string(failureReasonToString(reason)))
-  }
-  heap.track("relay_connection_completed", JSON.Encode.object(properties))
-}
+let track = (eventName, properties) => getHeap().track(eventName, properties)

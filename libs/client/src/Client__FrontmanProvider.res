@@ -96,6 +96,7 @@ type contextValue = {
   relay: option<Relay.t>,
   authRedirectUrl: option<string>,
   beginAuthenticationRetry: unit => unit,
+  requireAuthentication: unit => unit,
   beginLogout: unit => unit,
   createSession: (~onComplete: result<string, string> => unit) => unit,
   clearSession: unit => unit,
@@ -117,6 +118,7 @@ let defaultContextValue: contextValue = {
   relay: None,
   authRedirectUrl: None,
   beginAuthenticationRetry: () => (),
+  requireAuthentication: () => (),
   beginLogout: () => (),
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
@@ -139,22 +141,11 @@ module Provider = {
   @react.component
   let make = (
     ~endpoint: string,
-    ~tokenUrl: string,
     ~loginUrl: string,
     ~clientName: string="frontman-client",
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
-      let arrow = direction == Send ? `→` : `←`
-      Log.debug(~ctx={"payload": payload}, `ACP ${arrow}`)
-    })
-
-    let logMCPMessage = React.useCallback0((direction, payload) => {
-      let arrow = direction == FrontmanAiFrontmanClient.FrontmanClient__MCP.Send ? `→` : `←`
-      Log.debug(~ctx={"payload": payload}, `MCP ${arrow}`)
-    })
-
     let (state, dispatch) = StateReducer.useReducer(module(Reducer), Reducer.initialState)
     let connectionStateRef = React.useRef(state)
 
@@ -185,11 +176,9 @@ module Provider = {
 
       let config: Reducer.initConfig = {
         endpoint,
-        tokenUrl,
         loginUrl,
         clientName,
         clientVersion,
-        onACPMessage: logACPMessage,
         _meta,
         onTitleUpdated: Some(
           (taskId, title) => {
@@ -240,6 +229,9 @@ module Provider = {
       | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
         failwith("Frontman UI requires negotiated agent attribution")
       | Unknown(_) => ()
+      | FrontmanTaskRewound({messageId}) =>
+        Client__TextDeltaBuffer.discardTask(taskId)
+        Client__State.Actions.truncateTaskFromMessage(~taskId, ~messageId)
       | ToolCall({
           toolCallId,
           title,
@@ -314,11 +306,11 @@ module Provider = {
       | Plan({entries}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.planReceived(~taskId, ~entries)
-      | StateUpdate({state, stopReason: _}) =>
+      | StateUpdate({state, stopReason}) =>
         Client__TextDeltaBuffer.flush()
         switch state {
         | Running => Client__State.Actions.executionStateRunning(~taskId)
-        | Idle => Client__State.Actions.executionStateIdle(~taskId)
+        | Idle => Client__State.Actions.executionStateIdle(~taskId, ~stopReason)
         | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
         }
       | ConfigOptionUpdate({configOptions}) =>
@@ -354,7 +346,6 @@ module Provider = {
           sessionId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
-          onMcpMessage: logMCPMessage,
           onComplete,
         }),
       )
@@ -381,7 +372,6 @@ module Provider = {
           needsHistory,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
-          onMcpMessage: logMCPMessage,
           onComplete,
         }),
       )
@@ -395,6 +385,10 @@ module Provider = {
     let beginAuthenticationRetry = React.useCallback1(() => {
       dispatch(BeginAuthenticationRetry)
     }, [dispatch])
+    let requireAuthentication = React.useCallback1(
+      () => dispatch(RequireAuthentication),
+      [dispatch],
+    )
     let beginLogout = React.useCallback1(() => dispatch(BeginLogout), [dispatch])
 
     let contextValue: contextValue = {
@@ -403,6 +397,7 @@ module Provider = {
       relay: state.relayInstance,
       authRedirectUrl,
       beginAuthenticationRetry,
+      requireAuthentication,
       beginLogout,
       createSession,
       clearSession,

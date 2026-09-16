@@ -28,6 +28,7 @@ describe('blog metadata', () => {
 	it('uses canonical authors and explicit article sections', async () => {
 		const posts = await loadPosts()
 
+		expect(articleSections).toContain('Case Study')
 		expect(posts.map(({filename}) => filename)).toContain(
 			'wordpress-7-1-new-features-breaking-changes.md'
 		)

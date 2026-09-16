@@ -56,7 +56,7 @@ defmodule FrontmanServer.Test.Fixtures.Accounts do
 
   def user_scope_fixture(user) do
     scope = Scope.for_user(user)
-    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+    :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
     scope
   end
 

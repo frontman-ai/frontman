@@ -1,0 +1,19 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <section class="mx-auto max-w-lg space-y-4 text-center">
+    <h1 class="font-headings text-3xl font-bold tracking-tight text-base-content">
+      Authorization complete
+    </h1>
+    <p class="text-sm leading-6 text-base-content/70">
+      You may close this window.
+    </p>
+  </section>
+
+  <div
+    id="embedded-client-auth-completion"
+    data-origin={@origin}
+    data-state={@state}
+    data-token={@token}
+    hidden
+  >
+  </div>
+</Layouts.app>

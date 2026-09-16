@@ -22,8 +22,9 @@ defmodule FrontmanServerWeb.Endpoint do
   )
 
   socket("/socket", FrontmanServerWeb.UserSocket,
-    websocket: [connect_info: [session: @session_options]],
-    longpoll: false
+    websocket: true,
+    longpoll: false,
+    auth_token: true
   )
 
   plug(Plug.Static,

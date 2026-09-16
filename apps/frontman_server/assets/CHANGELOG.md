@@ -1,5 +1,12 @@
 # @frontman/frontman-server-assets
 
+## 0.1.14
+
+### Patch Changes
+
+- Updated dependencies [[`65b195a`](https://github.com/frontman-ai/frontman/commit/65b195ac0ee61f89a16b99bd59c762f3e3227238), [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3)]:
+  - @frontman-ai/frontman-client@3.0.0
+
 ## 0.1.13
 
 ### Patch Changes

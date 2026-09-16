@@ -122,6 +122,16 @@ let collectPendingAutoEdits = (~info: Detect.projectInfo, ~isNext16Plus: bool): 
   pending
 }
 
+let validateNextJsVersion = (info: Detect.projectInfo): result<unit, string> => {
+  switch Detect.isSupportedNextJs(info) {
+  | true => Ok()
+  | false =>
+    Error(
+      `Next.js ${info.nextVersion.raw} is unsupported. Frontman requires Next.js 15.5 or later.`,
+    )
+  }
+}
+
 let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): installResult => {
   let projectDir = options.prefix->Option.getOr(Process.cwd())
   let host = options.server
@@ -148,89 +158,95 @@ let run = async (options: installOptions, ~exec=ChildProcess.execWithOptions): i
     Console.log(`  ${Style.bullet} ${Style.bold("Detected:")} Next.js ${version}`)
     Console.log("")
 
-    let dependencyResult = switch options.skipDeps {
-    | true => Ok()
-    | false =>
-      await installDependencies(
-        ~projectDir,
-        ~packageManager=info.packageManager,
-        ~dryRun=options.dryRun,
-        ~exec,
-      )
-    }
-
-    switch dependencyResult {
+    switch validateNextJsVersion(info) {
     | Error(msg) =>
-      Console.error(`  ${Style.warn}  ${msg}`)
+      Console.error(`  ${Style.warn}  ${Style.bold("Error:")} ${msg}`)
       Failure(msg)
     | Ok() =>
-      Console.log("")
-
-      let pendingEdits = collectPendingAutoEdits(~info, ~isNext16Plus)
-      let shouldAutoEdit = switch (pendingEdits->Array.length > 0, options.dryRun) {
-      | (true, false) =>
-        let fileNames = pendingEdits->Array.map(p => p.fileName)
-        await AutoEdit.promptUserForAutoEdit(~fileNames)
-      | _ => false
-      }
-
-      let manualSteps = []
-
-      let middlewareResult = switch isNext16Plus {
-      | true =>
-        await Files.handleProxy(
-          ~projectDir,
-          ~hasSrcDir=info.hasSrcDir,
-          ~host,
-          ~existingFile=info.proxy,
-          ~dryRun=options.dryRun,
-          ~autoEdit=shouldAutoEdit,
-        )
+      let dependencyResult = switch options.skipDeps {
+      | true => Ok()
       | false =>
-        await Files.handleMiddleware(
+        await installDependencies(
           ~projectDir,
-          ~hasSrcDir=info.hasSrcDir,
-          ~host,
-          ~existingFile=info.middleware,
+          ~packageManager=info.packageManager,
           ~dryRun=options.dryRun,
-          ~autoEdit=shouldAutoEdit,
+          ~exec,
         )
       }
 
-      switch processFileResult(middlewareResult, manualSteps) {
-      | Error(msg) => Failure(msg)
+      switch dependencyResult {
+      | Error(msg) =>
+        Console.error(`  ${Style.warn}  ${msg}`)
+        Failure(msg)
       | Ok() =>
-        let instrumentationResult = await Files.handleInstrumentation(
-          ~projectDir,
-          ~host,
-          ~hasSrcDir=info.hasSrcDir,
-          ~existingFile=info.instrumentation,
-          ~dryRun=options.dryRun,
-          ~autoEdit=shouldAutoEdit,
-        )
+        Console.log("")
 
-        switch processFileResult(instrumentationResult, manualSteps) {
+        let pendingEdits = collectPendingAutoEdits(~info, ~isNext16Plus)
+        let shouldAutoEdit = switch (pendingEdits->Array.length > 0, options.dryRun) {
+        | (true, false) =>
+          let fileNames = pendingEdits->Array.map(p => p.fileName)
+          await AutoEdit.promptUserForAutoEdit(~fileNames)
+        | _ => false
+        }
+
+        let manualSteps = []
+
+        let middlewareResult = switch isNext16Plus {
+        | true =>
+          await Files.handleProxy(
+            ~projectDir,
+            ~hasSrcDir=info.hasSrcDir,
+            ~host,
+            ~existingFile=info.proxy,
+            ~dryRun=options.dryRun,
+            ~autoEdit=shouldAutoEdit,
+          )
+        | false =>
+          await Files.handleMiddleware(
+            ~projectDir,
+            ~hasSrcDir=info.hasSrcDir,
+            ~host,
+            ~existingFile=info.middleware,
+            ~dryRun=options.dryRun,
+            ~autoEdit=shouldAutoEdit,
+          )
+        }
+
+        switch processFileResult(middlewareResult, manualSteps) {
         | Error(msg) => Failure(msg)
         | Ok() =>
-          switch manualSteps->Array.length > 0 {
-          | true =>
-            Console.log("")
-            Console.log(`  ${Style.divider}`)
-            Console.log("")
-            Console.log(`  ${Style.yellowBold("Manual steps required:")}`)
-            Console.log("")
-            manualSteps->Array.forEach(step => Console.log(step))
-            Console.log("")
-            PartialSuccess({manualStepsRequired: manualSteps})
-          | false =>
-            switch options.dryRun {
-            | true => Success
-            | false =>
-              let devCommand = Detect.getDevCommand(info.packageManager)
+          let instrumentationResult = await Files.handleInstrumentation(
+            ~projectDir,
+            ~host,
+            ~hasSrcDir=info.hasSrcDir,
+            ~existingFile=info.instrumentation,
+            ~dryRun=options.dryRun,
+            ~autoEdit=shouldAutoEdit,
+          )
+
+          switch processFileResult(instrumentationResult, manualSteps) {
+          | Error(msg) => Failure(msg)
+          | Ok() =>
+            switch manualSteps->Array.length > 0 {
+            | true =>
               Console.log("")
               Console.log(`  ${Style.divider}`)
-              Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~server=host))
-              Success
+              Console.log("")
+              Console.log(`  ${Style.yellowBold("Manual steps required:")}`)
+              Console.log("")
+              manualSteps->Array.forEach(step => Console.log(step))
+              Console.log("")
+              PartialSuccess({manualStepsRequired: manualSteps})
+            | false =>
+              switch options.dryRun {
+              | true => Success
+              | false =>
+                let devCommand = Detect.getDevCommand(info.packageManager)
+                Console.log("")
+                Console.log(`  ${Style.divider}`)
+                Console.log(Templates.SuccessMessages.installComplete(~devCommand, ~server=host))
+                Success
+              }
             }
           }
         }

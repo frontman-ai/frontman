@@ -4,7 +4,7 @@
 
 
 .DEFAULT_GOAL := help
-.PHONY: help install test test-record test-coverage format lint dev dev-container build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit credo debug-task
+.PHONY: help install test test-record test-coverage format lint dev dev-container build clean check setup db-setup db-reset db-migrate db-seed assets-setup assets-build assets-deploy precommit strict-compile credo debug-task
 
 SHELL := /bin/bash
 
@@ -117,6 +117,10 @@ precommit:
 	mix format
 	mix credo --strict
 	mix test
+
+strict-compile:
+	mix compile --warnings-as-errors --all-warnings
+	MIX_ENV=test mix compile --warnings-as-errors --all-warnings
 
 credo:
 	mix credo --strict

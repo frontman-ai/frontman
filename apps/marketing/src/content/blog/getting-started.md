@@ -15,7 +15,7 @@ By the end of this tutorial, you will have installed Frontman, signed in, connec
 ### Prerequisites
 
 - A Node.js version supported by your framework
-- A project using Next.js 13.2-16, Vite 5 or later, or Astro 5-7 on Node.js 22.19 or newer
+- A project using Next.js 15.x (15.5 minimum) or 16.x, Vite 5 or later, or Astro 5-7 on Node.js 22.19 or newer
 - A running dev server (`npm run dev` or equivalent)
 - A Frontman account; sign-in uses GitHub or Google OAuth
 - An Anthropic or OpenAI account, or an API key for a supported provider
@@ -43,8 +43,8 @@ These commands install the framework-specific package and wire Frontman into the
 
 | Framework | Files added or updated |
 |---|---|
-| Next.js 16 | `package.json`, your lockfile, `proxy.ts` or `src/proxy.ts`, and `instrumentation.ts` or `src/instrumentation.ts` |
-| Next.js 13-15 | `package.json`, your lockfile, `middleware.ts` or `src/middleware.ts`, and `instrumentation.ts` or `src/instrumentation.ts` |
+| Next.js 16.x | `package.json`, your lockfile, `proxy.ts` or `src/proxy.ts`, and `instrumentation.ts` or `src/instrumentation.ts` |
+| Next.js 15.x (15.5 minimum) | `package.json`, your lockfile, `middleware.ts` or `src/middleware.ts`, and `instrumentation.ts` or `src/instrumentation.ts` |
 | Vite | `package.json`, your lockfile, and `vite.config.ts`, `.js`, `.mts`, or `.mjs` |
 | Astro | `package.json`, your lockfile, and `astro.config.mjs` or equivalent |
 

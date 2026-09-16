@@ -165,7 +165,11 @@ module Task = {
 
   let getCompletedFileChanges = (task: t): Client__FileChanges.snapshot =>
     switch task {
-    | Loaded({completedFileChanges}) => completedFileChanges
+    | Loaded(_) =>
+      task
+      ->FrontmanBindings.Bindings__Object.completedFileChanges
+      ->Nullable.toOption
+      ->Option.getOr(Client__FileChanges.empty)
     | New(_) | Unloaded(_) | Loading(_) => Client__FileChanges.empty
     }
 

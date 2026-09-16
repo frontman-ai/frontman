@@ -36,10 +36,10 @@ let buildSystemPrompt = (~fileType: fileType, ~host: string): string => {
       Templates.proxyTemplate(host),
       `- Add the import for '@frontman-ai/nextjs' at the top of the file
 - Create the frontman middleware instance with host: '${host}'
-- CRITICAL: The Frontman path check MUST be the very first thing that runs inside the proxy function body, before ANY other logic — before auth checks, redirects, rewrites, header modifications, or any other proxy behavior. If another handler intercepts the request first, Frontman routes will break.
+- CRITICAL: The Frontman handler MUST be the very first thing that runs inside the proxy function body. Place 'const response = await frontman(req); if (response) return response;' as the first two lines of the function, before ANY other logic — before auth checks, redirects, rewrites, header modifications, or any other proxy behavior. If another handler intercepts the request first, Frontman routes will break.
+- Do NOT wrap the Frontman handler inside any condition, if-block, or path check — it must run unconditionally on every request so it can handle its own routes
 - Include '/frontman' and '/frontman/:path*' in the matcher config alongside existing matchers
-- Preserve ALL existing functionality unchanged - do not remove or modify any existing code
-- Add runtime: 'nodejs' to the config export`,
+- Preserve ALL existing functionality unchanged - do not remove or modify any existing code`,
     )
   | Instrumentation => (
       "instrumentation.ts",

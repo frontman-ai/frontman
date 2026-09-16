@@ -11,6 +11,7 @@ let make = (~apiBaseUrl: string) => {
     deleteSession,
     authRedirectUrl,
     beginAuthenticationRetry,
+    requireAuthentication,
     _,
   } = Client__FrontmanProvider.useFrontman()
 
@@ -24,12 +25,22 @@ let make = (~apiBaseUrl: string) => {
         ~retryTurn,
         ~loadTask,
         ~deleteSession,
+        ~requireAuthentication,
         ~apiBaseUrl,
       )
     | LoggingOut | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
     }
     None
-  }, (connectionState, sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl))
+  }, (
+    connectionState,
+    sendPrompt,
+    cancelPrompt,
+    retryTurn,
+    loadTask,
+    deleteSession,
+    requireAuthentication,
+    apiBaseUrl,
+  ))
 
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 
@@ -81,6 +92,7 @@ let make = (~apiBaseUrl: string) => {
     <Client__ProviderSetupModal
       open_={showProviderSetupModal} onOpenSettings=openSettingsProviders
     />
+    <Client__FirstTaskFeedbackDialog />
     {switch authRedirectUrl {
     | Some(loginUrl) => <Client__WelcomeModal loginUrl onSignIn=beginAuthenticationRetry />
     | None => React.null

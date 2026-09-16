@@ -6,11 +6,10 @@
 
 defmodule FrontmanServer.Tasks.Interaction do
   @moduledoc """
-  Domain interaction types for the LLM agent system.
+  Persisted timeline record types for a task.
 
-  Interactions represent domain events that occur during a task's lifecycle.
-  These are stored as the source of truth, while streaming tokens are ephemeral
-  transport mechanisms for real-time UX.
+  The timeline stores user messages, execution state, agent responses, tool
+  activity, and project context. Streaming chunks are ephemeral.
   """
 
   @interaction_modules [
@@ -751,7 +750,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents an agent execution ending with an error (failed, crashed, or cancelled).
 
-    Persisted so that reconnecting clients see the terminal interaction for every agent run,
+    Persisted so that reconnecting clients see the terminal interaction for every execution,
     even when the channel process was dead when the error occurred.
     """
 
@@ -891,6 +890,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       ])
       |> scrub_result_metadata()
       |> derive_is_error()
+      |> validate_change(:result, &validate_result/2)
       |> validate_required([:tool_call_id, :tool_name, :result, :is_error])
     end
 
@@ -927,6 +927,18 @@ defmodule FrontmanServer.Tasks.Interaction do
         _missing_or_invalid -> changeset
       end
     end
+
+    defp validate_result(:result, %{"content" => content}) when is_list(content) do
+      case Enum.find(content, fn
+             %{"type" => "image", "data" => data} -> Base.decode64(data) == :error
+             _content -> false
+           end) do
+        nil -> []
+        _invalid_image -> [result: "contains invalid base64 image data"]
+      end
+    end
+
+    defp validate_result(:result, _result), do: []
   end
 
   defmodule DiscoveredProjectRule do
@@ -939,6 +951,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     use Ecto.Schema
 
+    @content_bytes_limit 64 * 1024
+
     @primary_key false
     embedded_schema do
       field :path, :string
@@ -947,7 +961,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = discovered_project_rule, attrs) do
-      Interaction.cast_timestamped(discovered_project_rule, attrs, [:path, :content, :timestamp])
+      discovered_project_rule
+      |> Interaction.cast_timestamped(attrs, [:path, :content, :timestamp])
+      |> Ecto.Changeset.validate_length(:path, count: :bytes, max: @content_bytes_limit)
+      |> Ecto.Changeset.validate_length(:content, count: :bytes, max: @content_bytes_limit)
     end
   end
 
@@ -961,6 +978,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     use Ecto.Schema
 
+    @summary_bytes_limit 512 * 1024
+
     @primary_key false
     embedded_schema do
       field :summary, :string
@@ -968,7 +987,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = discovered_project_structure, attrs) do
-      Interaction.cast_timestamped(discovered_project_structure, attrs, [:summary, :timestamp])
+      discovered_project_structure
+      |> Interaction.cast_timestamped(attrs, [:summary, :timestamp])
+      |> Ecto.Changeset.validate_length(:summary, count: :bytes, max: @summary_bytes_limit)
     end
   end
 
@@ -1115,7 +1136,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     ]
   end
 
-  defp to_swarm_message(%ToolResult{result: %{"content" => [_ | _] = content}} = result) do
+  defp to_swarm_message(%ToolResult{result: %{"content" => content}} = result)
+       when is_list(content) do
     [
       %SwarmMessage.Tool{
         content: Enum.map(content, &tool_result_content_part/1),

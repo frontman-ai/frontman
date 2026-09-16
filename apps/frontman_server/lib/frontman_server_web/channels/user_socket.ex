@@ -9,44 +9,34 @@ defmodule FrontmanServerWeb.UserSocket do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServerWeb.EmbeddedClientOrigin
 
   channel "tasks", FrontmanServerWeb.TasksChannel
   channel "task:*", FrontmanServerWeb.TaskChannel
 
-  @max_age 14 * 24 * 60 * 60
-
   @impl true
-  def connect(params, socket, connect_info) do
-    scope =
-      get_scope_from_token(params) ||
-        get_scope_from_session(connect_info)
+  def connect(%{"origin" => origin}, socket, %{auth_token: token})
+      when is_binary(origin) and is_binary(token) do
+    with {:ok, normalized_origin} <- EmbeddedClientOrigin.normalize(origin),
+         {%Scope{} = scope, token_id} <-
+           Accounts.get_scope_by_embedded_client_token(token, normalized_origin) do
+      Accounts.touch_embedded_client_token(scope, token_id)
 
-    case scope do
-      %Scope{} -> {:ok, assign(socket, :scope, scope)}
-      nil -> {:ok, socket}
-    end
-  end
-
-  defp get_scope_from_token(%{"token" => token}) do
-    case Phoenix.Token.verify(FrontmanServerWeb.Endpoint, "user socket", token, max_age: @max_age) do
-      {:ok, user_id} -> Accounts.get_user!(user_id) |> Scope.for_user()
-      _ -> nil
-    end
-  rescue
-    Ecto.NoResultsError -> nil
-  end
-
-  defp get_scope_from_token(_), do: nil
-
-  defp get_scope_from_session(connect_info) do
-    with %{"user_token" => token} <- connect_info[:session],
-         {user, _} <- Accounts.get_user_by_session_token(token) do
-      Scope.for_user(user)
+      {:ok,
+       socket
+       |> assign(:scope, scope)
+       |> assign(:embedded_client_token_id, token_id)}
     else
-      _ -> nil
+      _ -> :error
     end
   end
 
+  def connect(_params, _socket, _connect_info), do: :error
+
   @impl true
+  def id(%{assigns: %{embedded_client_token_id: token_id}}) when is_binary(token_id) do
+    "client_token:#{token_id}"
+  end
+
   def id(_socket), do: nil
 end
