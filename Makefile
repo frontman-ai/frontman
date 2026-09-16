@@ -560,7 +560,7 @@ test-wordpress-preview: build-wordpress-preview
 
 build-wordpress-preview:
 	$(MAKE) -C libs/frontman-preview-bridge build
-	cp libs/frontman-preview-bridge/dist/{bridge,preview-loader}.js libs/frontman-wordpress/assets/
+	cp libs/frontman-preview-bridge/dist/bridge.js libs/frontman-preview-bridge/dist/preview-loader.js libs/frontman-wordpress/assets/
 
 build-wordpress-dependencies:
 	@bash ./scripts/build-wordpress-dependencies.sh

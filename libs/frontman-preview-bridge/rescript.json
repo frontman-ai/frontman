@@ -1,6 +1,9 @@
 {
 	"name": "@frontman-ai/frontman-preview-bridge",
 	"namespace": true,
+	"jsx": {
+		"version": 4
+	},
 	"reanalyze": {
 		"analysis": ["dce"],
 		"suppress": [],
