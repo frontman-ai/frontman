@@ -93,14 +93,6 @@ let groupMessages = (messages: array<Message.t>): array<displayItem> => {
   result
 }
 
-let lastUserMsgIndex = (items: array<displayItem>): int =>
-  items->Array.reduceWithIndex(-1, (acc, item, idx) =>
-    switch item {
-    | UserMsg(_) => idx
-    | _ => acc
-    }
-  )
-
 let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): bool =>
   !(
     messages->Array.some(message =>
@@ -332,8 +324,6 @@ let make = (~onConfigureProvider: unit => unit) => {
     }
   })
 
-  let lastUserMsgIndex = lastUserMsgIndex(displayItems)
-
   let renderDisplayItem = (item: displayItem, itemIndex: int) => {
     let isLastItem = itemIndex == totalItems - 1
     let isLastToolGroup = itemIndex == lastToolGroupIndex
@@ -348,9 +338,11 @@ let make = (~onConfigureProvider: unit => unit) => {
         messageId
         agent={agentForId(agentId)}
         isNew={isLastItem}
-        onEdit=?{switch itemIndex == lastUserMsgIndex && !isAgentRunning {
-        | true => Some(() => editUserMessage(~messageId=id, ~content))
-        | false => None
+        // Any message can be edited — the server forks the task at whichever one
+        // the user picks. Only a running turn blocks it.
+        onEdit=?{switch isAgentRunning {
+        | false => Some(() => editUserMessage(~messageId=id, ~content))
+        | true => None
         }}
       />
 

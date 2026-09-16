@@ -545,7 +545,7 @@ type sessionUpdate =
       _meta: option<JSON.t>,
     })
   | Unknown({sessionUpdate: string})
-  | FrontmanTaskRewound({messageId: string})
+  | FrontmanTaskForked({forkedFromId: string})
   | ToolCall({
       toolCallId: string,
       title: string,
@@ -581,8 +581,8 @@ type sessionUpdate =
 
 let commonSessionUpdateSchema = S.union([
   S.object(s => {
-    s.tag("sessionUpdate", "frontman_task_rewound")
-    FrontmanTaskRewound({messageId: s.field("messageId", nonEmptyStringSchema)})
+    s.tag("sessionUpdate", "frontman_task_forked")
+    FrontmanTaskForked({forkedFromId: s.field("forkedFromId", nonEmptyStringSchema)})
   }),
   S.object(s => {
     s.tag("sessionUpdate", "message_unqueued")

@@ -203,6 +203,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     handle_interaction(interaction, turn_number, socket)
   end
 
+  def handle_info({:task_forked, forked_from_id}, socket) when is_binary(forked_from_id) do
+    notification = ACP.build_task_forked_notification(socket.assigns.task_id, forked_from_id)
+    push(socket, @acp_message, notification)
+    {:noreply, socket}
+  end
+
   def handle_info({:message_unqueued, message_id}, socket) when is_binary(message_id) do
     notification = ACP.build_message_unqueued_notification(socket.assigns.task_id, message_id)
     push(socket, @acp_message, notification)
@@ -701,10 +707,8 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
-             {:ok, row} <-
+             {:ok, _row} <-
                accept_prompt(scope, task_id, content_blocks, model, agent_id, meta) do
-          push_rewind_if_edited(socket, task_id, meta["frontman.dev/replacesMessageId"])
-          push_user_message_chunks(socket, task_id, row)
           wake_runner(socket, meta)
 
           Logger.info("User message accepted for task #{task_id}")
@@ -757,24 +761,12 @@ defmodule FrontmanServerWeb.TaskChannel do
       nil ->
         Tasks.submit_user_message(scope, attrs)
 
-      message_id when is_binary(message_id) ->
-        Tasks.replace_user_message(scope, message_id, attrs)
+      forked_from_id when is_binary(forked_from_id) ->
+        Tasks.fork_user_message(scope, forked_from_id, attrs)
 
       _invalid ->
         {:error, :message_not_found}
     end
-  end
-
-  defp push_rewind_if_edited(_socket, _task_id, nil), do: :ok
-
-  defp push_rewind_if_edited(socket, task_id, message_id) when is_binary(message_id) do
-    push(socket, @acp_message, ACP.build_task_rewound_notification(task_id, message_id))
-  end
-
-  defp push_user_message_chunks(socket, task_id, row) do
-    %{row: row, agent_id: row.data.agent_id}
-    |> ACPHistory.encode_row(task_id)
-    |> Enum.each(&push(socket, @acp_message, &1))
   end
 
   defp reply_acp_error(socket, id, code, message) do

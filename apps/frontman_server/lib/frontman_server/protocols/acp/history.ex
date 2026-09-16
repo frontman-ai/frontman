@@ -19,7 +19,8 @@ defmodule FrontmanServer.Protocols.ACP.History do
     :agent_completed,
     :agent_retry,
     :discovered_project_rule,
-    :discovered_project_structure
+    :discovered_project_structure,
+    :task_forked
   ]
 
   def build(%TaskHistory{} = history, session_id, active_agents)

@@ -372,7 +372,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
-  | TruncateFromMessage({messageId: string})
+  | ForkFromMessage({forkedFromId: string})
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
@@ -463,7 +463,7 @@ let actionToString = (action: action): string =>
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
   | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
-  | TruncateFromMessage(_) => "TruncateFromMessage"
+  | ForkFromMessage(_) => "ForkFromMessage"
   | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
@@ -956,8 +956,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [SendMessage({id, text, attachments, annotations, agentId, replacesMessageId})],
     )
 
-  | (Task.Loaded(data), TruncateFromMessage({messageId})) => (
-      Task.Loaded({...data, messages: MessageStore.truncateFrom(data.messages, messageId)}),
+  | (Task.Loaded(data), ForkFromMessage({forkedFromId})) => (
+      Task.Loaded({...data, messages: MessageStore.forkFrom(data.messages, forkedFromId)}),
       [],
     )
 
@@ -1316,7 +1316,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Unloaded(_),
       AddUserMessage(_)
-      | TruncateFromMessage(_)
+      | ForkFromMessage(_)
       | UserMessageSendFailed(_)
       | PlanReceived(_)
       | ExecutionStateRunning

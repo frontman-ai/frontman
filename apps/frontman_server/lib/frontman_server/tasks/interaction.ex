@@ -24,7 +24,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     __MODULE__.ToolCall,
     __MODULE__.ToolResult,
     __MODULE__.DiscoveredProjectRule,
-    __MODULE__.DiscoveredProjectStructure
+    __MODULE__.DiscoveredProjectStructure,
+    __MODULE__.TaskForked
   ]
 
   alias FrontmanServer.CurrentPageContext
@@ -1039,6 +1040,34 @@ defmodule FrontmanServer.Tasks.Interaction do
       discovered_project_structure
       |> Interaction.cast_timestamped(attrs, [:summary, :timestamp])
       |> Ecto.Changeset.validate_length(:summary, count: :bytes, max: @summary_bytes_limit)
+    end
+  end
+
+  defmodule TaskForked do
+    @moduledoc """
+    Marks the point where the task timeline forked off an earlier branch.
+
+    Recorded when the user edits an already-sent message. `forked_from_id` names
+    the user message the new branch replaces: everything from that message
+    onward is abandoned, and the edit is appended after this marker.
+
+    Nothing is deleted. Recording a fork is a single insert regardless of how
+    much history it abandons, and the abandoned rows stay queryable for
+    provenance. `History` is what stops projecting them.
+    """
+
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :forked_from_id, :binary_id
+      field :timestamp, :utc_datetime_usec
+    end
+
+    def changeset(%__MODULE__{} = task_forked, attrs) do
+      task_forked
+      |> Interaction.cast_timestamped(attrs, [:forked_from_id, :timestamp])
+      |> Ecto.Changeset.validate_required([:forked_from_id])
     end
   end
 

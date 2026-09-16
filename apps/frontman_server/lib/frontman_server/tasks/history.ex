@@ -14,24 +14,84 @@ defmodule FrontmanServer.Tasks.History do
   @terminal_types [:agent_completed, :agent_error, :agent_paused]
   @active_turn_types @terminal_types ++ [:agent_response, :skill_used, :tool_call, :tool_result]
 
-  @enforce_keys ~w(rows ordered_rows users_by_id turns_by_number user_owners response_counts active_turn)a
+  @enforce_keys ~w(rows ordered_rows users_by_id turns_by_number user_owners response_counts active_turn highest_turn_number)a
   defstruct @enforce_keys
 
-  def new(rows) when is_list(rows) do
-    history = %__MODULE__{
-      rows: rows,
-      ordered_rows: [],
-      users_by_id: %{},
-      turns_by_number: %{},
-      user_owners: %{},
-      response_counts: %{},
-      active_turn: nil
-    }
+  @doc """
+  Projects stored rows onto the live branch of the task.
 
+  `rows` must be every row for the task in sequence order. Branches abandoned by
+  a `task_forked` marker are dropped here, so callers that build on a `History`
+  — prompt assembly, ACP replay, turn claiming — only ever see the live
+  conversation without knowing forks exist.
+  """
+  def new(rows) when is_list(rows) do
+    with {:ok, live_rows} <- prune_forked_branches(rows) do
+      history = %__MODULE__{
+        rows: live_rows,
+        ordered_rows: [],
+        users_by_id: %{},
+        turns_by_number: %{},
+        user_owners: %{},
+        response_counts: %{},
+        active_turn: nil,
+        highest_turn_number: highest_turn_number(rows)
+      }
+
+      live_rows
+      |> Enum.reduce_while({:ok, history}, &index_row/2)
+      |> validate_user_links()
+      |> project_ordered_rows()
+    end
+  end
+
+  # Walks rows oldest-first carrying the live branch newest-first, so a fork
+  # marker only has to unwind back to the message it replaces.
+  defp prune_forked_branches(rows) do
     rows
-    |> Enum.reduce_while({:ok, history}, &index_row/2)
-    |> validate_user_links()
-    |> project_ordered_rows()
+    |> Enum.reduce_while({:ok, []}, fn
+      %InteractionSchema{
+        type: :task_forked,
+        data: %Interaction.TaskForked{forked_from_id: forked_from_id}
+      },
+      {:ok, live} ->
+        case unwind_to(live, forked_from_id, []) do
+          {:ok, live} -> {:cont, {:ok, live}}
+          :error -> {:halt, {:error, {:unknown_fork_origin, forked_from_id}}}
+        end
+
+      row, {:ok, live} ->
+        {:cont, {:ok, [row | live]}}
+    end)
+    |> case do
+      {:ok, live} -> {:ok, Enum.reverse(live)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp unwind_to([], _forked_from_id, _kept), do: :error
+
+  defp unwind_to(
+         [%InteractionSchema{id: id, type: :user_message} | older],
+         id,
+         kept
+       ),
+       do: {:ok, Enum.reverse(kept) ++ older}
+
+  # Project discoveries describe the codebase, not the conversation, so they
+  # outlive the branch they happened to be found on and never need re-running.
+  defp unwind_to([%InteractionSchema{type: type} = row | older], forked_from_id, kept)
+       when type in @task_scoped_types,
+       do: unwind_to(older, forked_from_id, [row | kept])
+
+  defp unwind_to([_abandoned | older], forked_from_id, kept),
+    do: unwind_to(older, forked_from_id, kept)
+
+  defp highest_turn_number(rows) do
+    rows
+    |> Enum.map(& &1.turn_number)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.max(fn -> 0 end)
   end
 
   def attributed_rows!(%__MODULE__{ordered_rows: rows}) do
@@ -110,11 +170,18 @@ defmodule FrontmanServer.Tasks.History do
   def active_turn_number(%__MODULE__{active_turn: active_turn}), do: active_turn
   def active_turn_context(%__MODULE__{} = history), do: turn_context(history, history.active_turn)
 
-  def next_turn_number(%__MODULE__{turns_by_number: turns}) do
-    turns |> Map.keys() |> Enum.max(fn -> 0 end) |> Kernel.+(1)
-  end
+  @doc """
+  The turn number to assign next.
 
-  def latest_turn_number(%__MODULE__{} = history), do: next_turn_number(history) - 1
+  Counts abandoned branches too. Turn numbers key rows in the database — the
+  tool-result uniqueness index among them — so a forked-away turn must never
+  have its number handed out again.
+  """
+  def next_turn_number(%__MODULE__{highest_turn_number: highest}), do: highest + 1
+
+  @doc "The most recent turn on the live branch, or 0 when none has run."
+  def latest_turn_number(%__MODULE__{turns_by_number: turns}),
+    do: turns |> Map.keys() |> Enum.max(fn -> 0 end)
 
   def turn_model(%__MODULE__{} = history, turn_number) do
     with {:ok, %InteractionSchema{data: %Interaction.TurnStarted{user_message_ids: ids}}} <-

@@ -11,7 +11,7 @@ module T: {
   let update: (t, string, Message.t => Message.t) => t
   let insert: (t, Message.t) => t
   let map: (t, Message.t => Message.t) => t
-  let truncateFrom: (t, string) => t
+  let forkFrom: (t, string) => t
 } = {
   type t = {
     list: array<Message.t>,
@@ -58,10 +58,12 @@ module T: {
     fromArray(newList)
   }
 
-  let truncateFrom = (store, id) => {
+  // Drops the forked-from message and everything after it: the server abandoned
+  // that branch and is about to replay the edit in its place.
+  let forkFrom = (store, id) => {
     switch store.byId->Dict.get(id) {
     | Some(idx) => fromArray(store.list->Array.slice(~start=0, ~end=idx))
-    | None => failwith(`[MessageStore.truncateFrom] Unknown message: ${id}`)
+    | None => failwith(`[MessageStore.forkFrom] Unknown message: ${id}`)
     }
   }
 }
@@ -73,4 +75,4 @@ let toArray = T.toArray
 let update = T.update
 let insert = T.insert
 let map = T.map
-let truncateFrom = T.truncateFrom
+let forkFrom = T.forkFrom

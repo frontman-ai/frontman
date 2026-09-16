@@ -304,12 +304,15 @@ defmodule FrontmanServer.Protocols.ACP do
   end
 
   @doc """
-  Builds a Frontman extension update that tells clients to drop history from a message.
+  Builds a Frontman extension update announcing that the task forked.
+
+  Clients drop everything from `forkedFromId` onward: that branch was abandoned
+  by an edit and the replacement message follows in the same push.
   """
-  def build_task_rewound_notification(session_id, message_id) do
+  def build_task_forked_notification(session_id, forked_from_id) do
     session_update_notification(session_id, %{
-      "sessionUpdate" => "frontman_task_rewound",
-      "messageId" => message_id
+      "sessionUpdate" => "frontman_task_forked",
+      "forkedFromId" => forked_from_id
     })
   end
 

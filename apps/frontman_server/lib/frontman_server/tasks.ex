@@ -126,61 +126,89 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
-  Drops a user message and every interaction recorded after it.
+  Forks the task at `forked_from_id` and lands an edited user message on the new branch.
 
-  Called when the user edits an already-sent message. The edit is submitted as a
-  fresh interaction, so the original and everything it produced must go —
-  otherwise the agent would answer both the old prompt and the new one. Refused
-  while a turn is running, because the runner would write into rows we are about
-  to delete.
+  This is how editing an already-sent message works: the original and everything
+  it produced are abandoned rather than deleted. Two rows are appended — a
+  `task_forked` marker naming the message being replaced, then the edit — so the
+  cost does not grow with how much history is left behind and the old branch
+  stays on record. `History` is what hides it from the agent.
+
+  Refused while a turn is running, because the runner would keep appending to a
+  branch the user just walked away from.
 
   Requires authorization - scope.user.id must match task.user_id.
   """
-  @spec truncate_from_message(Scope.t(), String.t(), String.t()) ::
-          {:ok, non_neg_integer()} | {:error, atom()}
-  def truncate_from_message(%Scope{} = scope, task_id, message_id)
-      when is_binary(task_id) and is_binary(message_id) do
-    Repo.transact(fn ->
-      with {:ok, task_schema} <- lock_task_by_id(scope, task_id),
-           {:ok, history} <- History.new(load_interaction_rows(task_id)),
-           :idle <- run_state(history),
-           {:ok, sequence} <- user_message_sequence(history, message_id) do
-        delete_interactions_from_sequence(task_schema.id, sequence)
-      else
-        {:error, reason} -> {:error, reason}
-      end
-    end)
-  end
-
-  @doc """
-  Atomically replaces a user message with a fresh accepted message.
-
-  The replacement content is validated before rows are deleted. The delete and
-  insert happen in one transaction, so a rejected replacement cannot leave the
-  task rewound without the new message.
-  """
-  @spec replace_user_message(Scope.t(), String.t(), map()) ::
+  @spec fork_user_message(Scope.t(), String.t(), map()) ::
           {:ok, InteractionSchema.t()} | {:error, term()}
-  def replace_user_message(%Scope{} = scope, replaced_message_id, attrs)
-      when is_binary(replaced_message_id) and is_map(attrs) do
+  def fork_user_message(%Scope{} = scope, forked_from_id, attrs)
+      when is_binary(forked_from_id) and is_map(attrs) do
     Repo.transact(fn ->
       with {:ok, user_message_attrs} <-
              Interaction.UserMessage.attrs(attrs.message, attrs.model, attrs.agent_id),
            {:ok, task_schema} <- lock_task_by_id(scope, attrs.task_id),
            {:ok, history} <- History.new(load_interaction_rows(attrs.task_id)),
            :idle <- run_state(history),
-           {:ok, sequence} <- user_message_sequence(history, replaced_message_id),
-           {:ok, _deleted_count} <- delete_interactions_from_sequence(task_schema.id, sequence),
-           {:ok, accepted_row} <-
-             insert_interaction_row(task_schema, %{
-               id: attrs.message_id,
-               type: :user_message,
-               data: Map.put(user_message_attrs, :id, attrs.message_id),
-               turn_number: nil
-             }) do
-        {:ok, accepted_row}
+           {:ok, forked_from} <- live_user_message(history, forked_from_id),
+           {:ok, _fork_row} <- insert_fork_marker(task_schema, forked_from_id) do
+        insert_interaction_row(task_schema, %{
+          id: attrs.message_id,
+          type: :user_message,
+          data:
+            user_message_attrs
+            |> inherit_attachments(forked_from.data)
+            |> Map.put(:id, attrs.message_id),
+          turn_number: nil
+        })
       else
         {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> case do
+      {:ok, %InteractionSchema{} = edit_row} ->
+        # Fork first: clients drop the abandoned branch before the edit lands on it.
+        broadcast_task(attrs.task_id, {:task_forked, forked_from_id})
+        broadcast_task(attrs.task_id, {:interaction, edit_row})
+        {:ok, edit_row}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp insert_fork_marker(%TaskSchema{} = task_schema, forked_from_id) do
+    insert_interaction_row(task_schema, %{
+      id: Ecto.UUID.generate(),
+      type: :task_forked,
+      data: %{forked_from_id: forked_from_id},
+      turn_number: nil
+    })
+  end
+
+  # Fields the composer cannot rebuild when it reopens a sent message: annotations
+  # are bound to live DOM elements, images and page context to a visit that is
+  # over. An edit therefore arrives as text alone, and inheriting the rest keeps
+  # the user from silently losing what they attached the first time. Anything the
+  # edit does carry wins, so replacing an attachment still works.
+  @inherited_user_message_fields [
+    :annotations,
+    :images,
+    :selected_figma_node,
+    :current_page,
+    :selected_server_skill_id,
+    :selected_server_skill_name,
+    :selected_server_skill_content
+  ]
+
+  defp inherit_attachments(attrs, %Interaction.UserMessage{} = forked_from) do
+    # Dumped rather than copied struct-first: these come back out as embeds and
+    # have to go through `cast_embed` again on the way in.
+    inherited = Ecto.embedded_dump(forked_from, :json)
+
+    Enum.reduce(@inherited_user_message_fields, attrs, fn field, attrs ->
+      case Map.get(attrs, field) do
+        empty when empty in [nil, []] -> Map.put(attrs, field, Map.get(inherited, field))
+        _present -> attrs
       end
     end)
   end
@@ -192,16 +220,6 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp delete_interactions_from_sequence(task_id, sequence) do
-    {deleted_count, _returned} =
-      task_id
-      |> InteractionSchema.for_task()
-      |> InteractionSchema.from_sequence(sequence)
-      |> Repo.delete_all()
-
-    {:ok, deleted_count}
-  end
-
   defp run_state(%History{} = history) do
     case History.active_turn_number(history) do
       nil -> :idle
@@ -209,9 +227,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp user_message_sequence(%History{rows: rows}, message_id) do
+  defp live_user_message(%History{rows: rows}, message_id) do
     case Enum.find(rows, &match?(%InteractionSchema{id: ^message_id, type: :user_message}, &1)) do
-      %InteractionSchema{sequence: sequence} -> {:ok, sequence}
+      %InteractionSchema{} = row -> {:ok, row}
       nil -> {:error, :message_not_found}
     end
   end
@@ -1007,13 +1025,13 @@ defmodule FrontmanServer.Tasks do
   """
   def get_active_turn_unresolved_tool_calls(scope, task_id) do
     with {:ok, _schema} <- get_task(scope, task_id),
-         rows = load_interaction_rows(task_id),
-         {:ok, history} <- History.new(rows) do
+         {:ok, history} <- History.new(load_interaction_rows(task_id)) do
       case History.active_turn_number(history) do
         nil ->
           {:ok, :no_active_turn}
 
         turn_number ->
+          rows = history.rows
           dispatches = MapSet.new(History.unresolved_tool_calls(rows, turn_number), &elem(&1, 1))
 
           tool_calls =
@@ -1133,8 +1151,9 @@ defmodule FrontmanServer.Tasks do
 
   defp start_execution(scope, task, turn_number, agent, execution)
        when is_integer(turn_number) and turn_number > 0 do
-    rows = load_interaction_rows(task.id)
-    {:ok, history} = History.new(rows)
+    {:ok, history} = History.new(load_interaction_rows(task.id))
+    # The live branch only — rows abandoned by a fork must not reach the agent.
+    rows = history.rows
     context = prompt_context(task, rows, execution)
     system_prompt = Agents.system_prompt(agent, context)
     tool_policy = Agents.tool_policy(agent)

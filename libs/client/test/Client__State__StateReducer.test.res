@@ -1874,6 +1874,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
             content: [UserContentPart.text("Fix this")],
             annotations: [],
             agentId: "planner-id",
+            replacesMessageId: None,
           }),
         )
         effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))

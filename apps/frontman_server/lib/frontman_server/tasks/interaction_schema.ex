@@ -32,13 +32,15 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     tool_call: Interaction.ToolCall,
     tool_result: Interaction.ToolResult,
     discovered_project_rule: Interaction.DiscoveredProjectRule,
-    discovered_project_structure: Interaction.DiscoveredProjectStructure
+    discovered_project_structure: Interaction.DiscoveredProjectStructure,
+    task_forked: Interaction.TaskForked
   ]
 
   @tool_result_unique_constraint :interactions_tool_result_turn_uniqueness
 
   @type_values Keyword.keys(@types)
   @task_scoped_types [:discovered_project_rule, :discovered_project_structure]
+  @fork_types [:task_forked]
 
   @primary_key {:id, Ecto.UUID, autogenerate: false}
   @foreign_key_type :binary_id
@@ -64,6 +66,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   def types, do: @types
   def task_scoped_types, do: @task_scoped_types
+  def fork_types, do: @fork_types
 
   def changeset(%__MODULE__{} = interaction, attrs) when is_map(attrs) do
     interaction
@@ -79,10 +82,6 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
 
   def for_turn(query \\ __MODULE__, turn_number) do
     from(i in query, where: i.turn_number == ^turn_number)
-  end
-
-  def from_sequence(query \\ __MODULE__, sequence) when is_integer(sequence) do
-    from(i in query, where: i.sequence >= ^sequence)
   end
 
   def ordered(query \\ __MODULE__) do
@@ -154,7 +153,7 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
   end
 
   defp empty_turn_number_type?(type),
-    do: type in @accepted_message_types or type in @task_scoped_types
+    do: type in @accepted_message_types or type in @task_scoped_types or type in @fork_types
 
   defp execution_turn_number?(type, turn_number) do
     !empty_turn_number_type?(type) and is_integer(turn_number) and turn_number > 0

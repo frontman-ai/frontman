@@ -403,7 +403,7 @@ describe("Task - Editing a sent message", () => {
     ])
   })
 
-  test("TruncateFromMessage rewinds the transcript to that message", t => {
+  test("ForkFromMessage drops the forked-from message and everything after it", t => {
     let task =
       TestHelpers.makeLoadedTask()
       ->TestHelpers.acceptUserMessage(~id="user-1", ~text="first")
@@ -412,10 +412,31 @@ describe("Task - Editing a sent message", () => {
       ->TaskReducer.next(ExecutionStateIdle)
       ->Pair.first
 
-    let (rewound, effects) = TaskReducer.next(task, TruncateFromMessage({messageId: "user-1"}))
+    let (forked, effects) = TaskReducer.next(task, ForkFromMessage({forkedFromId: "user-1"}))
 
-    t->expect(TestHelpers.getMessages(rewound))->Expect.toEqual([])
+    t->expect(TestHelpers.getMessages(forked))->Expect.toEqual([])
     t->expect(effects)->Expect.toEqual([])
+  })
+
+  test("ForkFromMessage keeps messages before the fork point", t => {
+    let task =
+      TestHelpers.makeLoadedTask()
+      ->TestHelpers.acceptUserMessage(~id="user-1", ~text="first")
+      ->TaskReducer.next(ExecutionStateRunning)
+      ->Pair.first
+      ->TaskReducer.next(ExecutionStateIdle)
+      ->Pair.first
+      ->TestHelpers.acceptUserMessage(~id="user-2", ~text="second")
+      ->TaskReducer.next(ExecutionStateRunning)
+      ->Pair.first
+      ->TaskReducer.next(ExecutionStateIdle)
+      ->Pair.first
+
+    let (forked, _) = TaskReducer.next(task, ForkFromMessage({forkedFromId: "user-2"}))
+
+    t
+    ->expect(TestHelpers.getMessages(forked)->Array.map(Message.getId))
+    ->Expect.toEqual(["user-1"])
   })
 
   test("AddUserMessage without replacesMessageId leaves earlier messages alone", t => {
@@ -1011,6 +1032,7 @@ describe("Task - Interactive wait contract", () => {
             content: [Client__Task__Types.UserContentPart.Text({text: "Next turn, not an answer"})],
             annotations: [],
             agentId: "executor-id",
+            replacesMessageId: None,
           }),
         )
         switch sendEffects->Array.get(0) {

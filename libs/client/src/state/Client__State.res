@@ -183,9 +183,9 @@ module Actions = {
       }),
     )
 
-  let truncateTaskFromMessage = (~taskId: string, ~messageId: string) =>
+  let forkTaskFromMessage = (~taskId: string, ~forkedFromId: string) =>
     Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: TruncateFromMessage({messageId: messageId})}),
+      TaskAction({target: ForTask(taskId), action: ForkFromMessage({forkedFromId: forkedFromId})}),
     )
 
   let retryingStatusReceived = (

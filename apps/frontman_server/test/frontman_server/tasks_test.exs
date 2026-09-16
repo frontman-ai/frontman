@@ -17,6 +17,7 @@ defmodule FrontmanServer.TasksTest do
 
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.History
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
@@ -159,8 +160,8 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
-  describe "replace_user_message/3" do
-    test "drops the edited message and records its replacement atomically", %{scope: scope} do
+  describe "fork_user_message/3" do
+    test "abandons the edited message and the turn it produced", %{scope: scope} do
       task_id = task_fixture(scope).id
       {:ok, _first} = user_message_fixture(scope, task_id, user_content("first"))
       complete_turn(scope, task_id, "first answer")
@@ -168,74 +169,166 @@ defmodule FrontmanServer.TasksTest do
       {:ok, second} = user_message_fixture(scope, task_id, user_content("second"))
       complete_turn(scope, task_id, "second answer")
 
-      replacement_id = Ecto.UUID.generate()
+      edit_id = Ecto.UUID.generate()
 
-      assert {:ok, %InteractionSchema{id: ^replacement_id}} =
-               Tasks.replace_user_message(scope, second.id, %{
+      assert {:ok, %InteractionSchema{id: ^edit_id}} =
+               Tasks.fork_user_message(scope, second.id, %{
                  task_id: task_id,
-                 message_id: replacement_id,
+                 message_id: edit_id,
                  message: user_content("second edited"),
                  model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
                })
 
       assert [:user_message, :turn_started, :agent_response, :agent_completed, :user_message] =
-               task_id |> db_rows() |> Enum.map(& &1.type)
+               live_types(task_id)
     end
 
-    test "keeps original history when replacement insert fails", %{scope: scope} do
+    test "keeps the abandoned branch on record", %{scope: scope} do
       task_id = task_fixture(scope).id
       {:ok, first} = user_message_fixture(scope, task_id, user_content("first"))
       complete_turn(scope, task_id, "first answer")
 
-      {:ok, second} = user_message_fixture(scope, task_id, user_content("second"))
-      complete_turn(scope, task_id, "second answer")
+      before_fork = db_rows(task_id)
 
-      assert {:error, %Ecto.Changeset{}} =
-               Tasks.replace_user_message(scope, second.id, %{
-                 task_id: task_id,
-                 message_id: first.id,
-                 message: user_content("second edited"),
-                 model: "openrouter:openai/gpt-5.5",
-                 agent_id: "test-frontman"
-               })
+      {:ok, _edit} =
+        Tasks.fork_user_message(scope, first.id, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("first edited"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
 
-      assert length(db_rows(task_id)) == 8
+      # Nothing deleted: the original rows survive, plus the marker and the edit.
+      assert Enum.map(before_fork, & &1.id) --
+               Enum.map(db_rows(task_id), & &1.id) == []
+
+      assert length(db_rows(task_id)) == length(before_fork) + 2
+      assert [%Interaction.UserMessage{messages: ["first edited"]}] = live_user_messages(task_id)
     end
-  end
 
-  describe "truncate_from_message/3" do
-    test "drops the edited message and everything it produced", %{scope: scope} do
+    test "forks from a message in the middle of the task", %{scope: scope} do
       task_id = task_fixture(scope).id
-      {:ok, _first} = user_message_fixture(scope, task_id, user_content("first"))
+      {:ok, first} = user_message_fixture(scope, task_id, user_content("first"))
       complete_turn(scope, task_id, "first answer")
 
-      {:ok, second} = user_message_fixture(scope, task_id, user_content("second"))
+      {:ok, _second} = user_message_fixture(scope, task_id, user_content("second"))
       complete_turn(scope, task_id, "second answer")
 
-      assert {:ok, 4} = Tasks.truncate_from_message(scope, task_id, second.id)
+      {:ok, _third} = user_message_fixture(scope, task_id, user_content("third"))
+      complete_turn(scope, task_id, "third answer")
 
-      assert [:user_message, :turn_started, :agent_response, :agent_completed] =
-               task_id |> db_rows() |> Enum.map(& &1.type)
+      {:ok, _edit} =
+        Tasks.fork_user_message(scope, first.id, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("first edited"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      assert [:user_message] = live_types(task_id)
+      assert [%Interaction.UserMessage{messages: ["first edited"]}] = live_user_messages(task_id)
+    end
+
+    test "never reuses a turn number an abandoned branch already took", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, first} = user_message_fixture(scope, task_id, user_content("first"))
+      complete_turn(scope, task_id, "first answer")
+
+      {:ok, _edit} =
+        Tasks.fork_user_message(scope, first.id, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("first edited"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      # Turn 1 is gone from the live branch but still keys rows in the database.
+      assert History.latest_turn_number(history(task_id)) == 0
+      assert History.next_turn_number(history(task_id)) == 2
+    end
+
+    test "inherits attachments the composer cannot restore", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, original} = user_message_fixture(scope, task_id, annotated_content("first"))
+      complete_turn(scope, task_id, "first answer")
+
+      assert [%Interaction.Annotation{comment: "make it blue"}] = original.annotations
+
+      {:ok, edit} =
+        Tasks.fork_user_message(scope, original.id, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("first edited"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      assert [%Interaction.Annotation{comment: "make it blue"}] = edit.data.annotations
+      assert edit.data.messages == ["first edited"]
     end
 
     test "refuses while a turn is running", %{scope: scope} do
       task_id = task_fixture(scope).id
       {:ok, message} = user_message_fixture(scope, task_id, user_content("first"))
 
-      assert {:error, :turn_running} = Tasks.truncate_from_message(scope, task_id, message.id)
+      assert {:error, :turn_running} =
+               Tasks.fork_user_message(scope, message.id, %{
+                 task_id: task_id,
+                 message_id: Ecto.UUID.generate(),
+                 message: user_content("edited"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
       assert length(db_rows(task_id)) == 2
     end
 
-    test "rejects a message that is not part of the task", %{scope: scope} do
+    test "rejects a message that is not on the live branch", %{scope: scope} do
       task_id = task_fixture(scope).id
-      {:ok, _message} = user_message_fixture(scope, task_id, user_content("first"))
+      {:ok, message} = user_message_fixture(scope, task_id, user_content("first"))
       complete_turn(scope, task_id, "answer")
 
+      {:ok, _edit} =
+        Tasks.fork_user_message(scope, message.id, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("edited"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      # Already abandoned by the fork above, so it can no longer be forked from.
       assert {:error, :message_not_found} =
-               Tasks.truncate_from_message(scope, task_id, Ecto.UUID.generate())
+               Tasks.fork_user_message(scope, message.id, %{
+                 task_id: task_id,
+                 message_id: Ecto.UUID.generate(),
+                 message: user_content("edited again"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+    end
+
+    test "leaves history untouched when the edit is rejected", %{scope: scope} do
+      task_id = task_fixture(scope).id
+      {:ok, first} = user_message_fixture(scope, task_id, user_content("first"))
+      complete_turn(scope, task_id, "first answer")
+
+      # Colliding with an existing row id fails the insert after the marker.
+      assert {:error, %Ecto.Changeset{}} =
+               Tasks.fork_user_message(scope, first.id, %{
+                 task_id: task_id,
+                 message_id: first.id,
+                 message: user_content("first edited"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
 
       assert length(db_rows(task_id)) == 4
+      assert [%Interaction.UserMessage{messages: ["first"]}] = live_user_messages(task_id)
     end
   end
 
@@ -1572,6 +1665,19 @@ defmodule FrontmanServer.TasksTest do
       assert length(messages) == 1
       assert SwarmAi.Message.role(hd(messages)) == :user
     end
+  end
+
+  defp history(task_id) do
+    {:ok, history} = History.new(db_rows(task_id))
+    history
+  end
+
+  defp live_types(task_id), do: history(task_id).rows |> Enum.map(& &1.type)
+
+  defp live_user_messages(task_id) do
+    history(task_id).rows
+    |> Enum.map(& &1.data)
+    |> Enum.filter(&match?(%Interaction.UserMessage{}, &1))
   end
 
   defp complete_turn(scope, task_id, response) do
