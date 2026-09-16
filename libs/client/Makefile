@@ -4,12 +4,15 @@
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
 
-HELP_TARGETS := help install test test-page-context-browser install-test-firefox test-coverage lint format dev-build-watch dev-hot build build-lib build-standalone clean serve preview check
+HELP_TARGETS := help install test test-page-context-browser test-page-context-browser-container install-test-browsers install-test-browser-deps install-test-firefox test-coverage lint format dev-build-watch dev-hot build build-lib build-standalone clean serve preview check
 HELP_help := Display this help message
 HELP_install := Install project dependencies
 HELP_test := Run test suite
-HELP_test-page-context-browser := Check Reworker prompt context across real origins in Firefox
-HELP_install-test-firefox := Install Firefox for the cross-origin browser check
+HELP_test-page-context-browser := Check Reworker prompt context across sites in Chromium, Firefox and WebKit
+HELP_test-page-context-browser-container := Run the browser matrix in a matching Playwright container (Podman)
+HELP_install-test-browsers := Install engines for the page-context browser checks
+HELP_install-test-browser-deps := Install system libraries for browser checks (requires privileges)
+HELP_install-test-firefox := Install Firefox for PAGE_CONTEXT_BROWSER=firefox
 HELP_test-coverage := Run tests with coverage
 HELP_lint := Run linters and code formatters
 HELP_format := Format code with biome
@@ -32,13 +35,28 @@ install:
 test: build
 	yarn vitest run
 
-.PHONY: test-page-context-browser install-test-firefox
+.PHONY: test-page-context-browser install-test-browsers install-test-browser-deps install-test-firefox
+install-test-browser-deps:
+	yarn playwright install-deps chromium firefox webkit
+
+install-test-browsers:
+	yarn playwright install chromium firefox webkit
+
 install-test-firefox:
 	yarn playwright install firefox
 
-test-page-context-browser: build
-	$(MAKE) -C ../frontman-preview-bridge build
+.PHONY: prepare-page-context-browser test-page-context-browser-container
+prepare-page-context-browser: build
+	$(MAKE) -C ../frontman-nextjs build
+	$(MAKE) -C ../.. build-wordpress-preview
+
+test-page-context-browser: prepare-page-context-browser
 	node test/Client__PageContextBrowserRunner.res.mjs
+
+test-page-context-browser-container: prepare-page-context-browser
+	podman run --rm --ipc=host -v "$(abspath ../..):/workspace:ro" -w /workspace/libs/client \
+		mcr.microsoft.com/playwright:v$$(node -p 'require("playwright/package.json").version')-noble \
+		node test/Client__PageContextBrowserRunner.res.mjs
 
 test-coverage: build
 	yarn vitest run --coverage

@@ -10,6 +10,10 @@ type pageOptions = {"colorScheme": [#dark | #light]}
 type waitOptions = {"timeout": int}
 @module("playwright") @scope("firefox")
 external launchFirefox: launchOptions => Promise.t<browser> = "launch"
+@module("playwright") @scope("chromium")
+external launchChromium: launchOptions => Promise.t<browser> = "launch"
+@module("playwright") @scope("webkit")
+external launchWebkit: launchOptions => Promise.t<browser> = "launch"
 @send external newPage: (browser, pageOptions) => Promise.t<page> = "newPage"
 @send external onPageError: (page, @as("pageerror") _, JsExn.t => unit) => unit = "on"
 @send external goto: (page, string) => Promise.t<unit> = "goto"

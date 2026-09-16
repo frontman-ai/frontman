@@ -214,6 +214,36 @@ let handleProxy = async (
   }
 }
 
+let handleInstrumentationClient = async (~projectDir, ~hasSrcDir, ~dryRun) => {
+  module FsUtils = FrontmanAiFrontmanCore.FrontmanCore__FsUtils
+  let prefix = hasSrcDir ? "src/" : ""
+  let jsFile = `${prefix}instrumentation-client.js`
+  let fileName = switch await FsUtils.pathExists(Path.join([projectDir, jsFile])) {
+  | true => jsFile
+  | false => `${prefix}instrumentation-client.ts`
+  }
+  let filePath = Path.join([projectDir, fileName])
+  let exists = await FsUtils.pathExists(filePath)
+  let content = switch exists {
+  | true => await Fs.Promises.readFile(filePath)
+  | false => ""
+  }
+  switch /import\s*['"]@frontman-ai\/nextjs\/preview-loader['"]/->RegExp.test(content) {
+  | true => Ok(Skipped(fileName))
+  | false =>
+    let outcome = exists ? AutoEdited(fileName) : Created(fileName)
+    switch dryRun {
+    | true => Ok(outcome)
+    | false =>
+      let updated = `${content}\n${Templates.instrumentationClientTemplate()}`
+      switch await writeFile(filePath, updated) {
+      | Ok() => Ok(outcome)
+      | Error(error) => Error(error)
+      }
+    }
+  }
+}
+
 let handleInstrumentation = async (
   ~projectDir: string,
   ~host: string,

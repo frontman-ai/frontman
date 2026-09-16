@@ -2586,6 +2586,7 @@ __metadata:
   resolution: "@frontman-ai/nextjs@workspace:libs/frontman-nextjs"
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
+    "@frontman-ai/frontman-preview-bridge": "workspace:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"

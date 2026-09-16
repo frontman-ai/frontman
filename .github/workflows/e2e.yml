@@ -204,7 +204,7 @@ jobs:
       - name: Build adapter dist packages
         if: steps.js-build-cache.outputs.cache-hit != 'true'
         run: |
-          yarn workspace @frontman-ai/nextjs build
+          make -C libs/frontman-nextjs build
           make -C libs/frontman-vite build
           make -C libs/frontman-astro build
 

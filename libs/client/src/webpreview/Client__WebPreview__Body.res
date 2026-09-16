@@ -10,35 +10,16 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   )
   let (attachmentKey, setAttachmentKey) = React.useState(() => 0)
   let parentOrigin = (WebAPI.Window.current->WebAPI.Window.location).origin
-  let withPreviewBridgeParams = (src: string): string =>
-    switch src {
-    | "about:blank" => src
-    | src =>
-      try {
-        let parsed = WebAPI.URL.make(
-          ~url=src,
-          ~base=(WebAPI.Window.current->WebAPI.Window.location).href,
-        )
-        parsed.searchParams->WebAPI.URLSearchParams.set(
-          ~name="__frontman_parent_origin",
-          ~value=parentOrigin,
-        )
-        parsed.searchParams->WebAPI.URLSearchParams.set(~name="__frontman_channel", ~value=taskId)
-        parsed.href
-      } catch {
-      | exn =>
-        let ctx = {"src": src}
-        Log.error(
-          ~ctx,
-          ~error=JsExn.fromException(exn),
-          "Preview bridge URL parameter injection failed",
-        )
-        src
-      }
-    }
-  let (iframeSrc, setIframeSrc) = React.useState(() =>
-    isActive ? url->withPreviewBridgeParams : "about:blank"
-  )
+  let frameName = {
+    let config = WebAPI.URL.make(~url=parentOrigin)
+    config.searchParams->WebAPI.URLSearchParams.set(~name="channel", ~value=taskId)
+    config.searchParams->WebAPI.URLSearchParams.set(
+      ~name="basePath",
+      ~value=Client__RuntimeConfig.read().basePath,
+    )
+    `frontman:${config.href}`
+  }
+  let (iframeSrc, setIframeSrc) = React.useState(() => isActive ? url : "about:blank")
   let (hasLoaded, setHasLoaded) = React.useState(() => false)
   let lastLocationRef: React.ref<option<string>> = React.useRef(None)
   let trackedIframeElement = isActive ? iframeElement : None
@@ -52,9 +33,19 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
     ->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement)
     ->Option.map(iframeElement => {
-      switch WebAPI.HTMLIFrameElement.contentDocument(iframeElement) {
-      | None => (None, None)
-      | Some(document) => (Some(document), WebAPI.HTMLIFrameElement.contentWindow(iframeElement))
+      try {
+        iframeElement.contentWindow
+        ->Null.map(window => {
+          let document = window->WebAPI.Window.document
+          (Some(document), Some(window))
+        })
+        ->Null.getOr((None, None))
+      } catch {
+      | exn if exn->JsExn.fromException->Option.flatMap(JsExn.name) == Some("SecurityError") => (
+          None,
+          None,
+        )
+      | exn => throw(exn)
       }
     })
 
@@ -128,7 +119,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
           Client__BrowserUrl.removeTrailingSlash(prev) ==
             Client__BrowserUrl.removeTrailingSlash(url)
             ? prev
-            : url->withPreviewBridgeParams
+            : url
         }
       )
     }
@@ -138,7 +129,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   React.useEffect(() => {
     switch isActive {
     | false => ()
-    | true => setIframeSrc(prev => prev == "about:blank" ? url->withPreviewBridgeParams : prev)
+    | true => setIframeSrc(prev => prev == "about:blank" ? url : prev)
     }
     None
   }, [isActive])
@@ -217,7 +208,12 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   })
   let iframe =
     <iframe
-      className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
+      className="size-full"
+      name={frameName}
+      src={iframeSrc}
+      title={`Preview - ${taskId}`}
+      onLoad
+      ref={refCallback}
     />
 
   switch (isActive, viewportStyle) {

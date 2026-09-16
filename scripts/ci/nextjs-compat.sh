@@ -108,6 +108,17 @@ fi
 
 log "generated $GENERATED_FILE"
 
+CLIENT_INSTRUMENTATION="$CONSUMER_DIR/instrumentation-client.ts"
+[ -f "$CLIENT_INSTRUMENTATION" ] || fail "client instrumentation was not installed"
+grep -q "import '@frontman-ai/nextjs/preview-loader'" "$CLIENT_INSTRUMENTATION" || fail "client instrumentation does not install the preview loader"
+printf '\n// consumer instrumentation must survive reinstall\n' >> "$CLIENT_INSTRUMENTATION"
+cp "$CLIENT_INSTRUMENTATION" "$WORK_ROOT/instrumentation-client.before.ts"
+(
+  cd "$CONSUMER_DIR"
+  node node_modules/@frontman-ai/nextjs/dist/cli.js install --skip-deps --server "$FRONTMAN_SERVER"
+) || fail "reinstall failed"
+cmp "$CLIENT_INSTRUMENTATION" "$WORK_ROOT/instrumentation-client.before.ts" || fail "reinstall modified existing client instrumentation"
+
 log "starting next dev smoke server"
 (
   cd "$CONSUMER_DIR"
@@ -130,7 +141,9 @@ done
 
 curl -fsS "http://127.0.0.1:$PORT/" | grep -q "Hello World" || fail "Next.js $INSTALLED_NEXT_VERSION home page did not render"
 curl -fsS "http://127.0.0.1:$PORT/frontman/" | grep -q "frontman" || fail "Next.js $INSTALLED_NEXT_VERSION did not exercise generated $GENERATED_FILE in dev"
-log "next dev smoke passed with $GENERATED_FILE"
+curl -fsS "http://127.0.0.1:$PORT/frontman/preview-bridge.js" > "$WORK_ROOT/served-bridge.js" || fail "packaged preview bridge was not served"
+cmp "$ROOT/libs/frontman-preview-bridge/dist/bridge.js" "$WORK_ROOT/served-bridge.js" || fail "served preview bridge differs from the built asset"
+log "next dev smoke passed with $GENERATED_FILE and the packaged preview bridge"
 
 cleanup
 unset DEV_PID

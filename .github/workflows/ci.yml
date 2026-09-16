@@ -394,6 +394,15 @@ jobs:
             bridge:
               - 'libs/frontman-preview-bridge/**'
               - 'libs/frontman-protocol/**'
+              - 'libs/client/**'
+              - 'libs/bindings/**'
+              - 'libs/frontman-astro/**'
+              - 'libs/frontman-astro-browser/**'
+              - 'libs/frontman-vite/**'
+              - 'libs/frontman-nextjs/**'
+              - 'libs/frontman-wordpress/**'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'package.json'
               - '.yarnrc.yml'
               - 'yarn.lock'
@@ -423,6 +432,14 @@ jobs:
       - name: Run focused bridge tests
         if: steps.changes.outputs.bridge == 'true'
         run: make -C libs/frontman-preview-bridge test
+
+      - name: Install page-context browser engines and system libraries
+        if: steps.changes.outputs.bridge == 'true'
+        run: make -C libs/client install-test-browser-deps install-test-browsers
+
+      - name: Check preview component and loader lifecycle across browser engines
+        if: steps.changes.outputs.bridge == 'true'
+        run: make -C libs/client test-page-context-browser
 
   dead-code:
     name: Dead code analysis

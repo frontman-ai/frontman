@@ -266,7 +266,7 @@ e2e-nextjs:
 e2e-nextjs-compat:
 	@printf "$(YELLOW)Running packed Next.js compatibility check...$(RESET)\n"
 	yarn rescript
-	yarn workspace @frontman-ai/nextjs build
+	$(MAKE) -C libs/frontman-nextjs build
 	NEXT_VERSION=$${NEXT_VERSION:-16} bash scripts/ci/nextjs-compat.sh
 
 e2e-astro:
@@ -554,6 +554,14 @@ release:
 
 .PHONY: build-wordpress-dependencies wordpress-composer-lock test-wordpress-sentry
 
+.PHONY: build-wordpress-preview test-wordpress-preview
+test-wordpress-preview: build-wordpress-preview
+	php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PreviewBridgeTest.php
+
+build-wordpress-preview:
+	$(MAKE) -C libs/frontman-preview-bridge build
+	cp libs/frontman-preview-bridge/dist/{bridge,preview-loader}.js libs/frontman-wordpress/assets/
+
 build-wordpress-dependencies:
 	@bash ./scripts/build-wordpress-dependencies.sh
 
@@ -573,7 +581,7 @@ test-wordpress-plugin-export: package-wordpress-plugin
 publish-wordpress-plugin-svn: package-wordpress-plugin
 	@VERSION=$(VERSION) bash ./scripts/publish-wordpress-plugin-svn.sh
 
-test-wordpress-core-tools: build-wordpress-dependencies
+test-wordpress-core-tools: build-wordpress-dependencies test-wordpress-preview
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PostAuthorsTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/NoFilesystemToolsTest.php
 	@php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/ElementorToolsTest.php

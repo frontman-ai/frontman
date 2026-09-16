@@ -66,7 +66,7 @@ describe("Astro E2E", () => {
     page = await context.newPage();
     await openFrontmanUI(page, PORT);
 
-    const preview = page.frameLocator(`iframe[title^="Preview -"][src="http://localhost:${PORT}/"]`);
+    const preview = page.frameLocator('iframe[title^="Preview -"][name^="frontman:"]:visible');
     await preview.getByRole("link", { name: "About" }).click();
 
     await page.waitForFunction(

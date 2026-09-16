@@ -113,6 +113,48 @@ beforeAllAsync(async () => {
   await setupFixtures()
 })
 
+describe("Preview loader installation", _t => {
+  testAsync("creates and migrates client instrumentation without overwriting it", async t => {
+    for index in 0 to 3 {
+      let hasSrcDir = index >= 2
+      let tempDir = await createTempFixture(hasSrcDir ? "nextjs16-with-src" : "nextjs15-clean")
+      let fileName = `${hasSrcDir ? "src/" : ""}instrumentation-client.${index == 0 || index == 2
+          ? "ts"
+          : "js"}`
+      let path = Path.join([tempDir, fileName])
+      let existing = "'use client';\nimport '@frontman-ai/nextjs/other';\n"
+      await Fs.Promises.writeFile(path, existing)
+      let _ = await Files.handleInstrumentationClient(~projectDir=tempDir, ~hasSrcDir, ~dryRun=true)
+      t->expect(await Fs.Promises.readFile(path))->Expect.toBe(existing)
+      let _ = await Files.handleInstrumentationClient(
+        ~projectDir=tempDir,
+        ~hasSrcDir,
+        ~dryRun=false,
+      )
+      let content = await Fs.Promises.readFile(path)
+      t->expect(content)->Expect.toBe(`${existing}\n${Templates.instrumentationClientTemplate()}`)
+      let result = await Files.handleInstrumentationClient(
+        ~projectDir=tempDir,
+        ~hasSrcDir,
+        ~dryRun=false,
+      )
+      t->expect(result)->Expect.toEqual(Ok(Files.Skipped(fileName)))
+      t->expect(await Fs.Promises.readFile(path))->Expect.toBe(content)
+      await cleanupTempFixture(tempDir)
+    }
+    let tempDir = await createTempFixture("nextjs15-clean")
+    let _ = await Install.run({
+      server: "test.frontman.dev",
+      prefix: Some(tempDir),
+      dryRun: false,
+      skipDeps: true,
+    })
+    let content = await readTempFile(tempDir, "instrumentation-client.ts")
+    t->expect(content)->Expect.toEqual(Some(`\n${Templates.instrumentationClientTemplate()}`))
+    await cleanupTempFixture(tempDir)
+  })
+})
+
 describe("Project Detection", _t => {
   describe("Next.js Version Detection", _t => {
     testAsync(
