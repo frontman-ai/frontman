@@ -45,8 +45,6 @@ defmodule FrontmanServer.Tasks.History do
     end
   end
 
-  # Walks rows oldest-first carrying the live branch newest-first, so a fork
-  # marker only has to unwind back to the message it replaces.
   defp prune_forked_branches(rows) do
     rows
     |> Enum.reduce_while({:ok, []}, fn
@@ -78,8 +76,6 @@ defmodule FrontmanServer.Tasks.History do
        ),
        do: {:ok, Enum.reverse(kept) ++ older}
 
-  # Project discoveries describe the codebase, not the conversation, so they
-  # outlive the branch they happened to be found on and never need re-running.
   defp unwind_to([%InteractionSchema{type: type} = row | older], forked_from_id, kept)
        when type in @task_scoped_types,
        do: unwind_to(older, forked_from_id, [row | kept])

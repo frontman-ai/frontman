@@ -166,7 +166,6 @@ defmodule FrontmanServer.Tasks do
     end)
     |> case do
       {:ok, %InteractionSchema{} = edit_row} ->
-        # Fork first: clients drop the abandoned branch before the edit lands on it.
         broadcast_task(attrs.task_id, {:task_forked, forked_from_id})
         broadcast_task(attrs.task_id, {:interaction, edit_row})
         {:ok, edit_row}
@@ -185,11 +184,6 @@ defmodule FrontmanServer.Tasks do
     })
   end
 
-  # Fields the composer cannot rebuild when it reopens a sent message: annotations
-  # are bound to live DOM elements, images and page context to a visit that is
-  # over. An edit therefore arrives as text alone, and inheriting the rest keeps
-  # the user from silently losing what they attached the first time. Anything the
-  # edit does carry wins, so replacing an attachment still works.
   @inherited_user_message_fields [
     :annotations,
     :images,
@@ -201,8 +195,6 @@ defmodule FrontmanServer.Tasks do
   ]
 
   defp inherit_attachments(attrs, %Interaction.UserMessage{} = forked_from) do
-    # Dumped rather than copied struct-first: these come back out as embeds and
-    # have to go through `cast_embed` again on the way in.
     inherited = Ecto.embedded_dump(forked_from, :json)
 
     Enum.reduce(@inherited_user_message_fields, attrs, fn field, attrs ->
@@ -1152,7 +1144,6 @@ defmodule FrontmanServer.Tasks do
   defp start_execution(scope, task, turn_number, agent, execution)
        when is_integer(turn_number) and turn_number > 0 do
     {:ok, history} = History.new(load_interaction_rows(task.id))
-    # The live branch only — rows abandoned by a fork must not reach the agent.
     rows = history.rows
     context = prompt_context(task, rows, execution)
     system_prompt = Agents.system_prompt(agent, context)

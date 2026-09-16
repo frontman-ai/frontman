@@ -537,7 +537,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert [%{"forkedFromId" => ^original_id}] = task_forked_updates(pushes)
       assert [%{"messageId" => ^edit_id} | _] = user_message_updates(pushes)
 
-      # A reload sees only the edit: the original was abandoned, not replayed.
       push(
         socket,
         "acp:message",

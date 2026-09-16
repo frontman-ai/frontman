@@ -200,7 +200,6 @@ defmodule FrontmanServer.TasksTest do
           agent_id: "test-frontman"
         })
 
-      # Nothing deleted: the original rows survive, plus the marker and the edit.
       assert Enum.map(before_fork, & &1.id) --
                Enum.map(db_rows(task_id), & &1.id) == []
 
@@ -246,7 +245,6 @@ defmodule FrontmanServer.TasksTest do
           agent_id: "test-frontman"
         })
 
-      # Turn 1 is gone from the live branch but still keys rows in the database.
       assert History.latest_turn_number(history(task_id)) == 0
       assert History.next_turn_number(history(task_id)) == 2
     end
@@ -301,7 +299,6 @@ defmodule FrontmanServer.TasksTest do
           agent_id: "test-frontman"
         })
 
-      # Already abandoned by the fork above, so it can no longer be forked from.
       assert {:error, :message_not_found} =
                Tasks.fork_user_message(scope, message.id, %{
                  task_id: task_id,
@@ -317,7 +314,6 @@ defmodule FrontmanServer.TasksTest do
       {:ok, first} = user_message_fixture(scope, task_id, user_content("first"))
       complete_turn(scope, task_id, "first answer")
 
-      # Colliding with an existing row id fails the insert after the marker.
       assert {:error, %Ecto.Changeset{}} =
                Tasks.fork_user_message(scope, first.id, %{
                  task_id: task_id,

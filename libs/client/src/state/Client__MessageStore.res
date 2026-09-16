@@ -58,8 +58,6 @@ module T: {
     fromArray(newList)
   }
 
-  // Drops the forked-from message and everything after it: the server abandoned
-  // that branch and is about to replay the edit in its place.
   let forkFrom = (store, id) => {
     switch store.byId->Dict.get(id) {
     | Some(idx) => fromArray(store.list->Array.slice(~start=0, ~end=idx))

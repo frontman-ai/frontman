@@ -338,8 +338,6 @@ let make = (~onConfigureProvider: unit => unit) => {
         messageId
         agent={agentForId(agentId)}
         isNew={isLastItem}
-        // Any message can be edited — the server forks the task at whichever one
-        // the user picks. Only a running turn blocks it.
         onEdit=?{switch isAgentRunning {
         | false => Some(() => editUserMessage(~messageId=id, ~content))
         | true => None
