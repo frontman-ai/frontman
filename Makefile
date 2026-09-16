@@ -51,7 +51,7 @@ endef
 
 define run_e2e
 	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
-	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run $(1)
+	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run --project integration $(1) $(E2E_ARGS)
 endef
 
 .PHONY: help
@@ -123,8 +123,11 @@ HELP_wordpress-composer-lock := Update PHP dependencies while preserving PHP 7.4
 HELP_test-wordpress-sentry := Test PHP diagnostics and SDK coexistence (PHP_VERSION=7.4 or 8.4)
 
 HELP_E2E_TITLE := E2E Tests
-HELP_E2E_TARGETS := e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start
-HELP_e2e := Run all e2e tests (loads secrets from test/e2e/.env)
+HELP_E2E_TARGETS := e2e e2e-browser e2e-install-browsers e2e-install-browser-deps e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start
+HELP_e2e := Run integration e2e tests (loads secrets from test/e2e/.env)
+HELP_e2e-browser := Run isolated browser tests without Phoenix, auth or LLM credentials
+HELP_e2e-install-browsers := Install Playwright engines (BROWSERS="chromium firefox webkit")
+HELP_e2e-install-browser-deps := Install Playwright system libraries (requires privileges)
 HELP_e2e-nextjs := Run Next.js e2e test
 HELP_e2e-nextjs-compat := Run packed Next.js dev/build compatibility check (NEXT_VERSION=16)
 HELP_e2e-astro := Run Astro e2e test
@@ -253,7 +256,19 @@ clean:
 
 
 
-.PHONY: e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start
+.PHONY: e2e e2e-browser e2e-install-browsers e2e-install-browser-deps e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start
+
+BROWSERS ?= chromium firefox webkit
+e2e-install-browsers:
+	cd test/e2e && yarn playwright install $(BROWSERS)
+
+e2e-install-browser-deps:
+	cd test/e2e && yarn playwright install-deps $(BROWSERS)
+
+e2e-browser: rescript-build
+	$(MAKE) -C libs/frontman-nextjs build
+	$(MAKE) build-wordpress-preview
+	cd test/e2e && yarn vitest run --project browser $(E2E_ARGS)
 
 e2e:
 	@printf "$(YELLOW)Running all e2e tests...$(RESET)\n"

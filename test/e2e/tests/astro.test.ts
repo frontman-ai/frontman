@@ -3,6 +3,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 import { startAstro, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
 import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installAstro } from "../helpers/installer.js";
+import { openPreview } from "../helpers/page-context.js";
 
 const PORT = 3011;
 
@@ -75,6 +76,16 @@ describe("Astro E2E", () => {
       `http://localhost:${PORT}/about/`,
     );
     await page.waitForURL(`http://localhost:${PORT}/about/frontman/`);
+    await page.close();
+  });
+
+  it("collects page context through the installed Astro loader", async () => {
+    page = await context.newPage();
+    await context.grantPermissions(["local-network-access"], { origin: "https://parent.test" });
+    await openPreview(page, `http://localhost:${PORT}/`);
+    expect(await page.evaluate(() => window.pageContext.context())).toMatchObject({
+      url: `http://localhost:${PORT}/`, astroClientRouting: "enabled",
+    });
     await page.close();
   });
 

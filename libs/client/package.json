@@ -58,7 +58,6 @@
 		"dom-accessibility-api": "^0.7.1",
 		"dom-element-to-component-source": "npm:@frontman-ai/dom-element-to-component-source@0.5.0",
 		"lucide-react": "^1.28.0",
-		"playwright": "^1.61.1",
 		"react": "^19.2.8",
 		"react-dom": "^19.2.8",
 		"rescript": "catalog:",

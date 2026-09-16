@@ -401,6 +401,7 @@ jobs:
               - 'libs/frontman-vite/**'
               - 'libs/frontman-nextjs/**'
               - 'libs/frontman-wordpress/**'
+              - 'test/e2e/**'
               - 'Makefile'
               - '.github/workflows/ci.yml'
               - 'package.json'
@@ -435,11 +436,11 @@ jobs:
 
       - name: Install page-context browser engines and system libraries
         if: steps.changes.outputs.bridge == 'true'
-        run: make -C libs/client install-test-browser-deps install-test-browsers
+        run: make e2e-install-browser-deps e2e-install-browsers
 
       - name: Check preview component and loader lifecycle across browser engines
         if: steps.changes.outputs.bridge == 'true'
-        run: make -C libs/client test-page-context-browser
+        run: make e2e-browser
 
   dead-code:
     name: Dead code analysis
