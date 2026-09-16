@@ -42,6 +42,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       runtime = start_runtime!()
       test_pid = self()
       total = 3
+      context = make_ref()
 
       llm =
         multi_turn_llm([
@@ -70,6 +71,8 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         end)
 
       execute_tools = fn tool_calls, task_supervisor ->
+        send(test_pid, {:captured_context, context})
+
         Enum.map(tool_calls, fn tc ->
           %ToolExecution.Sync{
             tool_call: tc,
@@ -84,6 +87,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       {:ok, pid} =
         run_execution(runtime, "task-parallel", llm, execute_tools: execute_tools)
 
+      assert_receive {:captured_context, ^context}, 5_000
       assert_receive :all_concurrent, 5_000
       await_exit(pid)
       assert_receive {:test_event, "task-parallel", :completed}, 2_000
@@ -212,7 +216,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         "TestBot",
         Keyword.merge(
           [
-            id: id,
             messages: [SwarmAi.Message.system("You are TestBot"), SwarmAi.Message.user("Do work")],
             dispatch_event: fn event ->
               send(test_pid, {:test_event, id, event})
@@ -223,7 +226,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         )
       )
 
-    SwarmAi.run(runtime, loop)
+    SwarmAi.run(runtime, id, loop)
   end
 
   defp await_exit(pid) do

@@ -7,7 +7,7 @@ defmodule SwarmAi.Runtime do
 
   @type state :: %{
           runtime: atom(),
-          monitors: %{reference() => SwarmAi.Loop.t()}
+          monitors: %{reference() => {String.t(), SwarmAi.Loop.t()}}
         }
 
   @doc false
@@ -18,11 +18,11 @@ defmodule SwarmAi.Runtime do
   end
 
   @doc false
-  @spec run(atom(), SwarmAi.Loop.t()) ::
+  @spec run(atom(), String.t(), SwarmAi.Loop.t()) ::
           {:ok, pid()} | {:error, :already_running | {:start_failed, term()}}
-  def run(runtime, %SwarmAi.Loop{} = loop) when is_atom(runtime) do
-    with :ok <- await_finishing_execution(runtime, loop.task_id) do
-      case GenServer.call(runtime, {:run, loop}, 5_000) do
+  def run(runtime, key, %SwarmAi.Loop{} = loop) when is_atom(runtime) and is_binary(key) do
+    with :ok <- await_finishing_execution(runtime, key) do
+      case GenServer.call(runtime, {:run, key, loop}, 5_000) do
         {:error, {:start_failed, {:exit, reason}}} -> exit(reason)
         result -> result
       end
@@ -31,16 +31,16 @@ defmodule SwarmAi.Runtime do
 
   @doc false
   @spec execution_finished(atom(), String.t()) :: :ok
-  def execution_finished(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
-    GenServer.call(runtime, {:execution_finished, task_id}, 5_000)
+  def execution_finished(runtime, key) when is_atom(runtime) and is_binary(key) do
+    GenServer.call(runtime, {:execution_finished, key}, 5_000)
   catch
     :exit, _reason -> :ok
   end
 
   @doc false
   @spec running?(atom(), String.t()) :: boolean()
-  def running?(runtime, task_id) when is_atom(runtime) and is_binary(task_id),
-    do: SwarmAi.Runtime.Registry.lookup(runtime, task_id) != []
+  def running?(runtime, key) when is_atom(runtime) and is_binary(key),
+    do: SwarmAi.Runtime.Registry.lookup(runtime, key) != []
 
   @doc false
   @spec active_count(atom()) :: non_neg_integer()
@@ -50,13 +50,13 @@ defmodule SwarmAi.Runtime do
 
   @doc false
   @spec cancel(atom(), String.t()) :: :ok | {:error, :not_running}
-  def cancel(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
-    case SwarmAi.Runtime.Registry.lookup(runtime, task_id) do
+  def cancel(runtime, key) when is_atom(runtime) and is_binary(key) do
+    case SwarmAi.Runtime.Registry.lookup(runtime, key) do
       [{_pid, :finishing}] ->
         :ok
 
       [{pid, _}] ->
-        Logger.info("Cancelling execution for #{inspect(task_id)}")
+        Logger.info("Cancelling execution for #{inspect(key)}")
         Process.exit(pid, :cancelled)
         :ok
 
@@ -81,10 +81,10 @@ defmodule SwarmAi.Runtime do
   end
 
   @impl true
-  def handle_call({:run, %SwarmAi.Loop{} = loop}, _from, %{runtime: runtime} = state) do
-    case start_execution(runtime, loop) do
+  def handle_call({:run, key, %SwarmAi.Loop{} = loop}, _from, %{runtime: runtime} = state) do
+    case start_execution(runtime, key, loop) do
       {:ok, pid, ref} ->
-        {:reply, {:ok, pid}, put_in(state.monitors[ref], loop)}
+        {:reply, {:ok, pid}, put_in(state.monitors[ref], {key, loop})}
 
       {:error, reason} ->
         {:reply, {:error, reason}, state}
@@ -92,10 +92,10 @@ defmodule SwarmAi.Runtime do
   end
 
   @impl true
-  def handle_call({:execution_finished, task_id}, _from, state) do
+  def handle_call({:execution_finished, key}, _from, state) do
     monitors =
       state.monitors
-      |> Enum.reject(fn {_ref, loop} -> loop.task_id == task_id end)
+      |> Enum.reject(fn {_ref, {registered_key, _loop}} -> registered_key == key end)
       |> Map.new()
 
     {:reply, :ok, %{state | monitors: monitors}}
@@ -112,7 +112,7 @@ defmodule SwarmAi.Runtime do
       {nil, monitors} ->
         {:noreply, %{state | monitors: monitors}}
 
-      {%SwarmAi.Loop{} = loop, monitors} ->
+      {{_key, %SwarmAi.Loop{} = loop}, monitors} ->
         SwarmAi.TerminalEvent.emit(loop, reason)
         {:noreply, %{state | monitors: monitors}}
     end
@@ -120,13 +120,13 @@ defmodule SwarmAi.Runtime do
 
   @impl true
   def terminate(reason, state) do
-    Enum.each(state.monitors, fn {_ref, loop} ->
+    Enum.each(state.monitors, fn {_ref, {_key, loop}} ->
       SwarmAi.TerminalEvent.emit(loop, reason)
     end)
   end
 
-  defp await_finishing_execution(runtime, task_id) do
-    case SwarmAi.Runtime.Registry.lookup(runtime, task_id) do
+  defp await_finishing_execution(runtime, key) do
+    case SwarmAi.Runtime.Registry.lookup(runtime, key) do
       [{pid, :finishing}] ->
         ref = Process.monitor(pid)
 
@@ -146,10 +146,10 @@ defmodule SwarmAi.Runtime do
     end
   end
 
-  defp start_execution(runtime, %SwarmAi.Loop{} = loop) do
+  defp start_execution(runtime, key, %SwarmAi.Loop{} = loop) do
     case DynamicSupervisor.start_child(
            execution_supervisor_name(runtime),
-           {SwarmAi.ExecutionWorker, {runtime, loop}}
+           {SwarmAi.ExecutionWorker, {runtime, key, loop}}
          ) do
       {:ok, pid} -> {:ok, pid, Process.monitor(pid)}
       {:error, {:already_started, _pid}} -> {:error, :already_running}

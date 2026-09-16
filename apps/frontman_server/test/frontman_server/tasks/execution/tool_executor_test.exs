@@ -8,6 +8,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend
   alias FrontmanServer.Tools.MCP
   alias SwarmAi.Message.ContentPart
@@ -132,7 +133,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     Process.exit(self(), :kill)
   end
 
-  describe "execute/2" do
+  describe "callback/5" do
     test "runs available and unavailable tools in serial and parallel", context do
       %{scope: scope, task_id: task_id, turn_number: turn_number} = context
 
@@ -150,16 +151,16 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
         }
 
         assert {:ok, results} =
-                 ToolExecutor.execute(scope, %{
-                   task_id: task_id,
-                   turn_number: turn_number,
-                   tool_calls: [available, unavailable],
-                   task_supervisor:
-                     SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
-                   backend_tool_modules: [FiniteTool],
-                   mcp_tool_defs: [],
-                   execution_mode: mode
-                 })
+                 ToolExecutor.callback(
+                   scope,
+                   %{FiniteTool.name() => FiniteTool},
+                   mode,
+                   task_id,
+                   turn_number
+                 ).(
+                   [available, unavailable],
+                   SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
+                 )
 
         assert [
                  %SwarmAi.ToolResult{is_error: false, content: [%ContentPart{text: "done"}]},
@@ -193,20 +194,21 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
 
     test "rejects a filtered backend even when an MCP tool has the same name", context do
       %{scope: scope, task_id: task_id, turn_number: turn_number} = context
-      tool = MCP.from_map(%{"name" => "todo_write"})
+
+      tool =
+        MCP.from_map(%{
+          "name" => "todo_write",
+          "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => "read"}}
+        })
+
+      tools = Tools.resolve(%{access: [:read]}, [tool])
       tc = %SwarmAi.ToolCall{id: "collision_backend", name: "todo_write", arguments: "{}"}
 
       assert {:ok, [%SwarmAi.ToolResult{is_error: true}]} =
-               ToolExecutor.execute(scope, %{
-                 task_id: task_id,
-                 turn_number: turn_number,
-                 tool_calls: [tc],
-                 task_supervisor:
-                   SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
-                 backend_tool_modules: [],
-                 mcp_tool_defs: [tool],
-                 execution_mode: :serial
-               })
+               ToolExecutor.callback(scope, tools, :serial, task_id, turn_number).(
+                 [tc],
+                 SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
+               )
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))

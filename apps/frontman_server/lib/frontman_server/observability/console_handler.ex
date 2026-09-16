@@ -45,27 +45,25 @@ defmodule FrontmanServer.Observability.ConsoleHandler do
   end
 
   def handle_swarm_run_start(_event, _measurements, metadata, _config) do
-    %{loop_id: loop_id, task_id: task_id, turn_number: turn_number} = metadata
+    %{loop_id: loop_id} = metadata
     start_time = System.monotonic_time(:millisecond)
-    :ets.insert(@table, {{:swarm_run, loop_id}, start_time, task_id, turn_number})
+    :ets.insert(@table, {{:swarm_run, loop_id}, start_time})
 
-    Logger.info(
-      "[swarm] run:start loop=#{short_id(loop_id)} task=#{short_id(task_id)} turn=#{turn_number}"
-    )
+    Logger.info("[swarm] run:start loop=#{short_id(loop_id)}")
   end
 
   def handle_swarm_run_stop(_event, _measurements, metadata, _config) do
     %{loop_id: loop_id, status: status, step_count: step_count} = metadata
 
     case :ets.lookup(@table, {:swarm_run, loop_id}) do
-      [{{:swarm_run, ^loop_id}, start_time, task_id, turn_number}] ->
+      [{{:swarm_run, ^loop_id}, start_time}] ->
         duration = System.monotonic_time(:millisecond) - start_time
         :ets.delete(@table, {:swarm_run, loop_id})
 
         status_str = format_status(status)
 
         Logger.info(
-          "[swarm] run:stop  loop=#{short_id(loop_id)} task=#{short_id(task_id)} turn=#{turn_number} " <>
+          "[swarm] run:stop  loop=#{short_id(loop_id)} " <>
             "#{status_str} steps=#{step_count} (#{duration}ms)"
         )
 

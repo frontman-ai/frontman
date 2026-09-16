@@ -13,7 +13,7 @@ Add the published package to `mix.exs`:
 {:swarm_ai, "~> 1.0"}
 ```
 
-The examples below describe the unreleased source API. The timeout changes break compatibility with previous releases. See [CHANGELOG.md](CHANGELOG.md).
+The examples below describe the unreleased source API. The timeout and tool-callback changes break compatibility with previous releases. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Quick Start
 
@@ -27,20 +27,22 @@ Create a loop with complete input messages, an LLM client, a tool callback, and 
 
 ```elixir
 loop = SwarmAi.Loop.new(%{
-  task_id: task_id,
-  turn_number: 1,
   messages: [SwarmAi.Message.user("Analyze this code")],
   llm: MyLLMClient.new("my-model"),
-  execute_tools: &MyTools.execute/2,
+  execute_tools: fn tool_calls, supervisor ->
+    MyTools.execute(request_id, tool_calls, supervisor)
+  end,
   dispatch_event: &MyEvents.dispatch/1
 })
 
-{:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, loop)
-SwarmAi.running?(MyApp.AgentRuntime, loop.task_id)
-SwarmAi.cancel(MyApp.AgentRuntime, loop.task_id)
+{:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, request_id, loop)
+SwarmAi.running?(MyApp.AgentRuntime, request_id)
+SwarmAi.cancel(MyApp.AgentRuntime, request_id)
 ```
 
-The LLM client implements `SwarmAi.LLM.stream/3`. The tool callback accepts tool calls and a task supervisor. It returns `{:ok, results}`.
+The LLM client implements `SwarmAi.LLM.stream/3`. The tool callback accepts `(tool_calls, task_supervisor)` and returns `{:ok, results}`. Callbacks capture application-specific state.
+
+`run/3` accepts a binary registration key, unique within the runtime. The key controls duplicate execution and cancellation. It is separate from the generated `loop.id` and is not part of the loop or its telemetry.
 
 ## Tool Execution
 

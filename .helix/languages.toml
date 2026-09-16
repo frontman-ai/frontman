@@ -9,6 +9,7 @@ workspace-lsp-roots = [
   "libs/frontman-client",
   "libs/frontman-core",
   "libs/frontman-nextjs",
+  "libs/frontman-preview-bridge",
   "libs/frontman-protocol",
   "libs/frontman-vite",
   "libs/logs",

@@ -19,15 +19,28 @@ defmodule SwarmAi.TelemetryTest do
     end
   end
 
+  test "executor telemetry contains loop identity without caller state" do
+    loop = test_execution(mock_llm("done"))
+
+    events = capture_telemetry(fn -> SwarmAi.Executor.run(loop, self()) end)
+
+    for event <- [[:swarm_ai, :run, :start], [:swarm_ai, :run, :stop]] do
+      assert_event(events, event, fn _measurements, metadata ->
+        assert metadata.loop_id == loop.id
+        refute Map.has_key?(metadata, :task_id)
+        refute Map.has_key?(metadata, :key)
+        refute Map.has_key?(metadata, :context)
+      end)
+    end
+  end
+
   describe "Telemetry span helpers" do
     test "run_span executes function and returns result" do
       result =
-        SwarmAi.Telemetry.run_span(%{loop_id: "test", task_id: "task_123", turn_number: 1}, fn ->
+        SwarmAi.Telemetry.run_span(%{loop_id: "test"}, fn ->
           {"my_result",
            %{
              loop_id: "test",
-             task_id: "task_123",
-             turn_number: 1,
              status: :completed,
              step_count: 1
            }}
@@ -40,12 +53,10 @@ defmodule SwarmAi.TelemetryTest do
       events =
         capture_telemetry(fn ->
           SwarmAi.Telemetry.run_span(
-            %{loop_id: "loop_123", task_id: "task_123", turn_number: 1},
+            %{loop_id: "loop_123"},
             fn ->
               {"result",
                %{
-                 task_id: "task_123",
-                 turn_number: 1,
                  loop_id: "loop_123",
                  status: :completed,
                  step_count: 3
@@ -57,8 +68,7 @@ defmodule SwarmAi.TelemetryTest do
       assert_event(events, [:swarm_ai, :run, :stop], fn _measurements, metadata ->
         assert Map.has_key?(metadata, :loop_id), "stop event must include loop_id"
         assert metadata.loop_id == "loop_123"
-        assert metadata.task_id == "task_123"
-        assert metadata.turn_number == 1
+        refute Map.has_key?(metadata, :task_id)
         assert metadata.status == :completed
         assert metadata.step_count == 3
       end)
@@ -90,14 +100,13 @@ defmodule SwarmAi.TelemetryTest do
     test "run_start emits correct event" do
       events =
         capture_telemetry(fn ->
-          SwarmAi.Telemetry.run_start("loop_123", "task_123", 1)
+          SwarmAi.Telemetry.run_start("loop_123")
         end)
 
       assert_event(events, [:swarm_ai, :run, :start], fn measurements, metadata ->
         assert is_integer(measurements.system_time)
         assert metadata.loop_id == "loop_123"
-        assert metadata.task_id == "task_123"
-        assert metadata.turn_number == 1
+        refute Map.has_key?(metadata, :task_id)
       end)
     end
 
@@ -105,8 +114,6 @@ defmodule SwarmAi.TelemetryTest do
       events =
         capture_telemetry(fn ->
           SwarmAi.Telemetry.run_stop("loop_123",
-            task_id: "task_123",
-            turn_number: 1,
             status: :completed,
             result: "done",
             step_count: 2
@@ -116,8 +123,7 @@ defmodule SwarmAi.TelemetryTest do
       assert_event(events, [:swarm_ai, :run, :stop], fn measurements, metadata ->
         assert is_integer(measurements.system_time)
         assert metadata.loop_id == "loop_123"
-        assert metadata.task_id == "task_123"
-        assert metadata.turn_number == 1
+        refute Map.has_key?(metadata, :task_id)
         assert metadata.status == :completed
         assert metadata.result == "done"
         assert metadata.step_count == 2

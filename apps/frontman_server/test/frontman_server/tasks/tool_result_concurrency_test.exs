@@ -3,6 +3,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 1]
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
@@ -171,27 +172,14 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
   defp start_executor(scope, task_id, turn_number, tool_call_id) do
     Task.async(fn ->
       Sandbox.unboxed_run(Repo, fn ->
-        ToolExecutor.execute(scope, %{
-          task_id: task_id,
-          turn_number: turn_number,
-          tool_calls: [%SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}],
-          task_supervisor: SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
-          backend_tool_modules: [],
-          mcp_tool_defs: [mcp_tool_def()],
-          execution_mode: :serial
-        })
+        tool = %{MCPTool.from_map(mcp_tool("some_tool")) | timeout_ms: 1_000}
+
+        ToolExecutor.callback(scope, %{tool.name => tool}, :serial, task_id, turn_number).(
+          [%SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}],
+          SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
+        )
       end)
     end)
-  end
-
-  defp mcp_tool_def do
-    %MCPTool{
-      name: "some_tool",
-      description: "Some client tool",
-      input_schema: %{},
-      timeout_ms: 1_000,
-      execution_mode: :synchronous
-    }
   end
 
   defp assert_tool_executor_registered(task_id, tool_call_id) do

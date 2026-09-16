@@ -10,12 +10,19 @@ defmodule FrontmanServer.Agents do
   """
 
   use Boundary,
-    deps: [FrontmanServer, FrontmanServer.Accounts, FrontmanServer.Frameworks],
+    deps: [
+      FrontmanServer,
+      FrontmanServer.Accounts,
+      FrontmanServer.Frameworks,
+      FrontmanServer.Skills
+    ],
     exports: [Agent]
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents.Agent
   alias FrontmanServer.Agents.SystemPrompt
+  alias FrontmanServer.Skills
+  alias FrontmanServer.Tools
 
   def list_agents(%Scope{}) do
     config()
@@ -57,8 +64,17 @@ defmodule FrontmanServer.Agents do
 
   def tool_policy(%Agent{} = agent), do: agent.tools
 
-  def system_prompt(%Agent{} = agent, context) when is_map(context) do
-    SystemPrompt.compose(agent, context)
+  def system_prompt(%Scope{} = scope, %Agent{} = agent, context, tools)
+      when is_map(context) and is_map(tools) do
+    skills =
+      case Tools.supports_skills?(tools) do
+        true -> Skills.available(scope)
+        false -> []
+      end
+
+    agent
+    |> SystemPrompt.compose(Map.put(context, :available_skills, skills))
+    |> SystemPrompt.to_text()
   end
 
   defp agent_ids!(agents) do

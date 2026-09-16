@@ -8,7 +8,7 @@ defmodule SwarmAiTest do
     :ok
   end
 
-  describe "run/2" do
+  describe "run/3" do
     test "remains running while dispatching the terminal event" do
       runtime = start_runtime!()
       test_pid = self()
@@ -38,7 +38,7 @@ defmodule SwarmAiTest do
 
       next_loop = agent("task-handoff", %MockLLM{response: "follow-up"}, [])
 
-      next_run = Task.async(fn -> SwarmAi.run(runtime, next_loop) end)
+      next_run = Task.async(fn -> SwarmAi.run(runtime, "task-handoff", next_loop) end)
 
       assert_waiting_for_execution(next_run.pid, pid)
       assert SwarmAi.running?(runtime, "task-handoff")
@@ -49,6 +49,29 @@ defmodule SwarmAiTest do
       await_exit(next_pid)
       assert_receive {:test_event, "task-handoff", :completed}, 2_000
       assert_unregistered(runtime, "task-handoff")
+    end
+
+    test "registration keys are independent of loop identity" do
+      runtime = start_runtime!()
+      loop = test_execution(blocked_llm())
+      refute Map.has_key?(loop, :task_id)
+      refute Map.has_key?(loop, :context)
+
+      {:ok, first} = SwarmAi.run(runtime, "first", loop)
+      await_worker_event(first, {:llm_started, first})
+      {:ok, second} = SwarmAi.run(runtime, "second", loop)
+      await_worker_event(second, {:llm_started, second})
+
+      assert SwarmAi.run(runtime, "first", test_execution(mock_llm("done"))) ==
+               {:error, :already_running}
+
+      assert :ok = SwarmAi.cancel(runtime, "first")
+      await_exit(first)
+      assert SwarmAi.running?(runtime, "second")
+      send(second, :finish_llm)
+      await_exit(second)
+      assert_unregistered(runtime, "first")
+      assert_unregistered(runtime, "second")
     end
 
     test "prevents duplicate execution for same key" do
@@ -203,7 +226,6 @@ defmodule SwarmAiTest do
       "TestBot",
       Keyword.merge(
         [
-          id: id,
           dispatch_event: fn event ->
             send(test_pid, {:test_event, id, event})
             :ok
@@ -215,7 +237,7 @@ defmodule SwarmAiTest do
   end
 
   defp run_agent(runtime, id, llm, opts \\ []) do
-    SwarmAi.run(runtime, agent(id, llm, opts))
+    SwarmAi.run(runtime, id, agent(id, llm, opts))
   end
 
   defp completion_dispatch(test_pid) do

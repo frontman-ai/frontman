@@ -49,6 +49,8 @@ defmodule FrontmanServer.Test.Fixtures.Accounts do
     user
   end
 
+  def setup_user(_context), do: %{scope: user_scope_fixture()}
+
   def user_scope_fixture do
     user = user_fixture()
     user_scope_fixture(user)

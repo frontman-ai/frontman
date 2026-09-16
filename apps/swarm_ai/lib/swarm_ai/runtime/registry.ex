@@ -7,17 +7,17 @@ defmodule SwarmAi.Runtime.Registry do
 
   def name(runtime) when is_atom(runtime), do: :"#{runtime}.Registry"
 
-  def via(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
-    {:via, Registry, {name(runtime), task_id}}
+  def via(runtime, key) when is_atom(runtime) and is_binary(key) do
+    {:via, Registry, {name(runtime), key}}
   end
 
-  def lookup(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
-    Registry.lookup(name(runtime), task_id)
+  def lookup(runtime, key) when is_atom(runtime) and is_binary(key) do
+    Registry.lookup(name(runtime), key)
   end
 
-  def mark_finishing(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
+  def mark_finishing(runtime, key) when is_atom(runtime) and is_binary(key) do
     {:finishing, _previous} =
-      Registry.update_value(name(runtime), task_id, fn _ -> :finishing end)
+      Registry.update_value(name(runtime), key, fn _ -> :finishing end)
 
     :ok
   end

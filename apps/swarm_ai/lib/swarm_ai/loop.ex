@@ -1,6 +1,6 @@
 defmodule SwarmAi.Loop do
   @moduledoc """
-  Runtime execution state for one task turn.
+  Runtime execution state for a supervised loop.
 
   A loop owns complete initial LLM input messages, executes LLM/tool steps,
   and reaches a terminal status. Each step stores the exact messages sent for
@@ -47,8 +47,6 @@ defmodule SwarmAi.Loop do
 
   typedstruct do
     field(:id, String.t(), enforce: true)
-    field(:task_id, String.t(), enforce: true)
-    field(:turn_number, pos_integer(), enforce: true)
 
     field(:messages, [Message.t()], enforce: true)
     field(:llm, LLM.t(), enforce: true)
@@ -64,13 +62,11 @@ defmodule SwarmAi.Loop do
   end
 
   @doc """
-  Creates a loop for one task turn.
+  Creates a loop. Callbacks capture any caller-specific state.
   """
   def new(attrs) do
     %__MODULE__{
       id: generate_id("loop"),
-      task_id: Map.fetch!(attrs, :task_id),
-      turn_number: Map.fetch!(attrs, :turn_number),
       messages: Map.fetch!(attrs, :messages),
       llm: Map.fetch!(attrs, :llm),
       execute_tools: Map.fetch!(attrs, :execute_tools),

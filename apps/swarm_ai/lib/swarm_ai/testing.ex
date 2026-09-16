@@ -12,8 +12,8 @@ defmodule SwarmAi.Testing do
       test "runs loop", %{echo_execution: loop} do
         runtime = MyRuntime
         start_supervised!({SwarmAi, name: runtime})
-        loop = %{loop | task_id: "task", messages: [SwarmAi.Message.user("Hello")]}
-        {:ok, pid} = SwarmAi.run(runtime, loop)
+        loop = %{loop | messages: [SwarmAi.Message.user("Hello")]}
+        {:ok, pid} = SwarmAi.run(runtime, "example", loop)
         assert is_pid(pid)
       end
 
@@ -294,23 +294,13 @@ defmodule SwarmAi.Testing do
   @spec test_execution(SwarmAi.LLM.t(), String.t(), keyword()) :: SwarmAi.Loop.t()
   def test_execution(llm, name \\ "TestBot", opts \\ []) do
     defaults = [
-      task_id: "task-#{:erlang.unique_integer([:positive])}",
-      turn_number: 1,
       llm: llm,
       messages: [SwarmAi.Message.system("You are #{name}"), SwarmAi.Message.user("Hello")],
       execute_tools: default_execute_tools(),
       dispatch_event: fn _event -> :ok end
     ]
 
-    attrs =
-      defaults
-      |> Keyword.merge(opts)
-      |> Keyword.new(fn
-        {:id, id} -> {:task_id, id}
-        entry -> entry
-      end)
-
-    SwarmAi.Loop.new(Map.new(attrs))
+    SwarmAi.Loop.new(Map.new(Keyword.merge(defaults, opts)))
   end
 
   @doc false

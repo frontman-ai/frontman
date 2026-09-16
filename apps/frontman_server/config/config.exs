@@ -17,12 +17,12 @@ config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
   stream_stall_timeout_ms: 60_000,
-  llm_max_tokens: 64_000,
   web_fetch_req_options: []
 
 config :frontman_server, :backend_tools, [
   FrontmanServer.Tools.AgentFeedback,
   FrontmanServer.Tools.GetToolResult,
+  FrontmanServer.Tools.Skill,
   FrontmanServer.Tools.TodoWrite,
   FrontmanServer.Tools.WebFetch
 ]

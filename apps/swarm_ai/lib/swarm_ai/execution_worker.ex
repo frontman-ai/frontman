@@ -6,20 +6,22 @@ defmodule SwarmAi.ExecutionWorker do
 
   typedstruct enforce: true do
     field(:runtime, atom())
+    field(:key, String.t())
     field(:loop, SwarmAi.Loop.t())
   end
 
-  @spec start_link({atom(), SwarmAi.Loop.t()}) :: GenServer.on_start()
-  def start_link({runtime, %SwarmAi.Loop{task_id: task_id} = loop}) do
-    GenServer.start_link(__MODULE__, {runtime, loop},
-      name: SwarmAi.Runtime.Registry.via(runtime, task_id)
+  @spec start_link({atom(), String.t(), SwarmAi.Loop.t()}) :: GenServer.on_start()
+  def start_link({runtime, key, %SwarmAi.Loop{} = loop}) when is_binary(key) do
+    GenServer.start_link(__MODULE__, {runtime, key, loop},
+      name: SwarmAi.Runtime.Registry.via(runtime, key)
     )
   end
 
   @impl true
-  def init({runtime, %SwarmAi.Loop{} = loop}) do
+  def init({runtime, key, %SwarmAi.Loop{} = loop}) do
     state = %__MODULE__{
       runtime: runtime,
+      key: key,
       loop: loop
     }
 
@@ -27,33 +29,36 @@ defmodule SwarmAi.ExecutionWorker do
   end
 
   @impl true
-  def handle_continue(:run, %__MODULE__{loop: loop, runtime: runtime} = state) do
+  def handle_continue(:run, %__MODULE__{loop: loop, runtime: runtime, key: key} = state) do
     task_supervisor = SwarmAi.Runtime.task_supervisor_name(runtime)
 
     final_loop = SwarmAi.Executor.run(loop, task_supervisor)
-    :ok = SwarmAi.Runtime.Registry.mark_finishing(runtime, loop.task_id)
+    :ok = SwarmAi.Runtime.Registry.mark_finishing(runtime, key)
 
     try do
       final_loop.dispatch_event.(final_loop.status)
     after
-      SwarmAi.Runtime.execution_finished(runtime, loop.task_id)
+      SwarmAi.Runtime.execution_finished(runtime, key)
     end
 
     {:stop, :normal, state}
   end
 
   @impl true
-  def terminate(:shutdown, %__MODULE__{runtime: runtime, loop: loop}),
-    do: dispatch_shutdown_terminal_event(runtime, loop, :shutdown)
+  def terminate(:shutdown, %__MODULE__{} = state),
+    do: dispatch_shutdown_terminal_event(state, :shutdown)
 
-  def terminate({:shutdown, _reason} = reason, %__MODULE__{runtime: runtime, loop: loop}),
-    do: dispatch_shutdown_terminal_event(runtime, loop, reason)
+  def terminate({:shutdown, _reason} = reason, %__MODULE__{} = state),
+    do: dispatch_shutdown_terminal_event(state, reason)
 
   def terminate(_reason, _state), do: :ok
 
-  defp dispatch_shutdown_terminal_event(runtime, loop, reason) do
+  defp dispatch_shutdown_terminal_event(
+         %__MODULE__{runtime: runtime, key: key, loop: loop},
+         reason
+       ) do
     SwarmAi.TerminalEvent.emit(loop, reason)
-    SwarmAi.Runtime.execution_finished(runtime, loop.task_id)
+    SwarmAi.Runtime.execution_finished(runtime, key)
     :ok
   end
 end

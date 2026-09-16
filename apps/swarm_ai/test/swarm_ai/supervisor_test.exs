@@ -247,7 +247,6 @@ defmodule SwarmAi.SupervisorTest do
     test_pid = self()
 
     test_execution(llm, "TestBot",
-      id: id,
       dispatch_event: fn event ->
         send(test_pid, {:test_event, id, event})
         :ok
@@ -256,11 +255,11 @@ defmodule SwarmAi.SupervisorTest do
   end
 
   defp run_agent(runtime, id, llm) do
-    SwarmAi.run(runtime, agent(runtime, id, llm))
+    SwarmAi.run(runtime, id, agent(runtime, id, llm))
   end
 
   defp run_agent(runtime, id, llm, opts) do
-    SwarmAi.run(runtime, agent(runtime, id, llm, opts))
+    SwarmAi.run(runtime, id, agent(runtime, id, llm, opts))
   end
 
   defp agent(_runtime, id, llm, opts) do
@@ -271,7 +270,6 @@ defmodule SwarmAi.SupervisorTest do
       "TestBot",
       Keyword.merge(
         [
-          id: id,
           dispatch_event: fn event ->
             send(test_pid, {:test_event, id, event})
             :ok

@@ -47,10 +47,7 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     model = Map.get(args, "model")
 
     with {:ok, {model_spec, llm_opts}} <-
-           Providers.resolve_model_access(scope, model,
-             max_tokens: 30,
-             reasoning_effort: :none
-           ),
+           Providers.resolve_model_access(scope, model),
          {:ok, raw_title} <- call_llm(model_spec, llm_opts, user_prompt_text),
          title = title_or_fallback(String.trim(raw_title), user_prompt_text),
          false <- title == "",
@@ -96,6 +93,8 @@ defmodule FrontmanServer.Workers.GenerateTitle do
       ReqLLM.Context.system([ContentPart.text(@system_prompt)]),
       ReqLLM.Context.user(user_prompt_text)
     ]
+
+    llm_opts = Keyword.merge(llm_opts, max_tokens: 30, reasoning_effort: :none)
 
     with {:ok, response} <- ReqLLM.generate_text(model_spec, messages, llm_opts) do
       {:ok, ReqLLM.Response.text(response)}

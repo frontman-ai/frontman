@@ -2,6 +2,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
   use ExUnit.Case, async: false
 
   import ExUnit.CaptureLog
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 1, mcp_tool: 2]
 
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServerWeb.ChannelCase
@@ -148,7 +149,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
       first_page =
         tools_result(
-          [%{"name" => "first", "inputSchema" => %{"type" => "object"}}],
+          [mcp_tool("first")],
           %{"nextCursor" => "page-2"}
         )
 
@@ -160,7 +161,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       assert request["params"]["cursor"] == "page-2"
 
       second_page =
-        tools_result([%{"name" => "second", "inputSchema" => %{"type" => "object"}}])
+        tools_result([mcp_tool("second")])
 
       assert {%{status: :loading_project_rules, tools: [second, first]}, [{:push_mcp, _}]} =
                MCPInitializer.handle_response(new_state, request["id"], second_page)
@@ -172,8 +173,8 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
       state = tools_state(1)
 
       duplicate_tools = [
-        %{"name" => "duplicate", "inputSchema" => %{"type" => "object"}},
-        %{"name" => "duplicate", "inputSchema" => %{"type" => "object"}}
+        mcp_tool("duplicate"),
+        mcp_tool("duplicate")
       ]
 
       assert {%{status: :failed, tools: []}, [{:initialization_failed, message}]} =
@@ -184,7 +185,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
 
     test "fails initialization when tools pages contain duplicate names" do
       state = tools_state(1)
-      tool = %{"name" => "duplicate", "inputSchema" => %{"type" => "object"}}
+      tool = mcp_tool("duplicate")
       first_page = tools_result([tool], %{"nextCursor" => "page-2"})
 
       assert {new_state, [{:push_mcp, request}]} =
@@ -245,11 +246,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     test "crashes when the accumulated catalog exceeds its memory bound" do
       state = tools_state(1)
 
-      tool = %{
-        "name" => "oversized",
-        "description" => String.duplicate("x", 8 * 1024 * 1024),
-        "inputSchema" => %{"type" => "object"}
-      }
+      tool = mcp_tool("oversized", %{"description" => String.duplicate("x", 8 * 1024 * 1024)})
 
       assert_raise RuntimeError, ~r/MCP tools\/list catalog exceeded/, fn ->
         MCPInitializer.handle_response(state, 1, tools_result([tool]))

@@ -8,32 +8,23 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 1]
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
-  alias Ecto.Adapters.SQL.Sandbox
+  import FrontmanServer.DataCase, only: [setup_sandbox: 1]
   alias FrontmanServer.Image
   alias FrontmanServer.Protocols
   alias FrontmanServer.Providers
-  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
 
-  setup :verify_on_exit!
+  setup [:verify_on_exit!, :setup_sandbox, :setup_user, :setup_task]
 
-  setup do
-    pid = Sandbox.start_owner!(Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
-
-    scope = user_scope_fixture()
+  setup %{scope: scope} do
     :ok = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
-    :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
-
-    task_id = task_with_pubsub_fixture(scope).id
-
-    {:ok, scope: scope, task_id: task_id}
   end
 
   test "client screenshot result decays on next turn and get_tool_result restores image", %{
@@ -43,7 +34,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     screenshot_tool_call_id = "tc_screenshot_#{System.unique_integer([:positive])}"
     get_tool_call_id = "tc_get_screenshot_#{System.unique_integer([:positive])}"
     screenshot = png_fixture(800, 600)
-    tool_defs = screenshot_tool_defs()
+    tool_defs = MCP.from_maps([mcp_tool("take_screenshot")])
     parent = self()
 
     client_result =
@@ -148,7 +139,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   } do
     tool_call_id = "tc_live_screenshot_#{System.unique_integer([:positive])}"
     screenshot = png_fixture(640, 480)
-    tool_defs = screenshot_tool_defs()
+    tool_defs = MCP.from_maps([mcp_tool("take_screenshot")])
     parent = self()
 
     expect(LLMProviderMock, :stream_text, fn _model, _messages, _opts ->
@@ -226,44 +217,11 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     execution_request =
       execution_request_fixture(Keyword.merge([model: "anthropic:claude-sonnet-4-6"], overrides))
 
-    case Tasks.submit_user_message(
-           scope,
-           Map.merge(execution_request, %{
-             task_id: task_id,
-             message_id: Ecto.UUID.generate(),
-             message: prompt_content(content)
-           })
-         ) do
-      {:ok, interaction} ->
-        case Tasks.execute_next_turn(scope, task_id, execution_request) do
-          :ok ->
-            {:ok, interaction, latest_turn_number(task_id)}
-
-          result when result in [:already_running, :no_accepted_messages] ->
-            {:error, result}
-
-          result ->
-            result
-        end
-
-      result ->
-        result
-    end
+    submit_user_message_and_run(scope, task_id, execution_request, prompt_content(content))
   end
 
   defp prompt_content(content) when is_binary(content), do: user_content(content)
   defp prompt_content(content) when is_list(content), do: content
-
-  defp screenshot_tool_defs do
-    MCP.from_maps([
-      %{
-        "name" => "take_screenshot",
-        "description" => "Take a screenshot",
-        "inputSchema" => %{"type" => "object", "properties" => %{}},
-        "executionMode" => "blocking"
-      }
-    ])
-  end
 
   defp llm_tool_call(id, name, arguments \\ %{}) do
     %SwarmAi.ToolCall{id: id, name: name, arguments: arguments}

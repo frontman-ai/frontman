@@ -8,23 +8,23 @@ defmodule SwarmAi.TerminalEvent do
   def emit(_loop, :normal), do: :ok
 
   def emit(%SwarmAi.Loop{} = loop, :cancelled) do
-    Logger.info("Execution cancelled for #{loop.task_id}")
+    Logger.info("Execution cancelled for #{loop.id}")
     loop.dispatch_event.({:cancelled, nil})
   end
 
   def emit(%SwarmAi.Loop{} = loop, :shutdown) do
-    Logger.info("Execution terminated by supervisor for #{loop.task_id}, reason: :shutdown")
+    Logger.info("Execution terminated by supervisor for #{loop.id}, reason: :shutdown")
     loop.dispatch_event.({:terminated, nil})
   end
 
   def emit(%SwarmAi.Loop{} = loop, :killed) do
-    Logger.info("Execution terminated by supervisor for #{loop.task_id}, reason: :killed")
+    Logger.info("Execution terminated by supervisor for #{loop.id}, reason: :killed")
     loop.dispatch_event.({:terminated, :killed})
   end
 
   def emit(%SwarmAi.Loop{} = loop, {:shutdown, reason}) do
     Logger.info(fn ->
-      "Execution terminated by supervisor for #{loop.task_id}, reason: #{inspect(reason)}"
+      "Execution terminated by supervisor for #{loop.id}, reason: #{inspect(reason)}"
     end)
 
     loop.dispatch_event.({:terminated, reason})
@@ -32,7 +32,7 @@ defmodule SwarmAi.TerminalEvent do
 
   def emit(%SwarmAi.Loop{} = loop, reason) do
     Logger.warning(fn ->
-      "Execution crashed for #{loop.task_id}, reason: #{inspect(reason)}"
+      "Execution crashed for #{loop.id}, reason: #{inspect(reason)}"
     end)
 
     loop.dispatch_event.({:crashed, %{message: Exception.format_exit(reason)}})

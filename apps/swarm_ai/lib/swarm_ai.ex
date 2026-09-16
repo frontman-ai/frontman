@@ -9,9 +9,9 @@ defmodule SwarmAi do
         {SwarmAi, name: MyApp.AgentRuntime}
       ]
 
-      {:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, loop)
-      SwarmAi.running?(MyApp.AgentRuntime, loop.task_id)
-      SwarmAi.cancel(MyApp.AgentRuntime, loop.task_id)
+      {:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, key, loop)
+      SwarmAi.running?(MyApp.AgentRuntime, key)
+      SwarmAi.cancel(MyApp.AgentRuntime, key)
 
   SwarmAi owns execution lifecycle, cancellation, telemetry, and execution
   events. Callers provide LLM messages, tool execution, and event dispatch on
@@ -32,14 +32,14 @@ defmodule SwarmAi do
     }
   end
 
-  @doc "Runs a loop in a supervised runtime."
-  @spec run(atom(), Loop.t()) ::
+  @doc "Runs a loop under a caller-provided key, unique within the runtime."
+  @spec run(atom(), String.t(), Loop.t()) ::
           {:ok, pid()} | {:error, :already_running | {:start_failed, term()}}
-  defdelegate run(runtime, loop), to: SwarmAi.Runtime
+  defdelegate run(runtime, key, loop), to: SwarmAi.Runtime
 
-  @doc "Returns true when a conversation/task id is running."
+  @doc "Returns true when an execution is registered under the key."
   @spec running?(atom(), String.t()) :: boolean()
-  defdelegate running?(runtime, task_id), to: SwarmAi.Runtime
+  defdelegate running?(runtime, key), to: SwarmAi.Runtime
 
   @doc "Returns the number of active executions owned by a supervised runtime."
   @spec active_count(atom()) :: non_neg_integer()
@@ -57,7 +57,7 @@ defmodule SwarmAi do
   @spec execution_supervisor_name(atom()) :: atom()
   defdelegate execution_supervisor_name(runtime), to: SwarmAi.Runtime
 
-  @doc "Cancels a running execution by conversation/task id."
+  @doc "Cancels a running execution by registration key."
   @spec cancel(atom(), String.t()) :: :ok | {:error, :not_running}
-  defdelegate cancel(runtime, task_id), to: SwarmAi.Runtime
+  defdelegate cancel(runtime, key), to: SwarmAi.Runtime
 end

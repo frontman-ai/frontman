@@ -13,43 +13,40 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
-  alias FrontmanServer.Tools
   alias FrontmanServer.Tools.Backend
+  alias FrontmanServer.Tools.MCP, as: MCPTool
   alias SwarmAi.Message.ContentPart
   alias SwarmAi.ToolExecution
 
-  def execute(%Scope{} = scope, %{
-        task_id: task_id,
-        turn_number: turn_number,
-        tool_calls: tool_calls,
-        task_supervisor: task_supervisor,
-        backend_tool_modules: backend_tool_modules,
-        mcp_tool_defs: mcp_tool_defs,
-        execution_mode: execution_mode
-      }) do
-    executions =
-      Enum.map(
-        tool_calls,
-        &build_execution(
-          &1,
-          scope,
-          task_id,
-          turn_number,
-          backend_tool_modules,
-          mcp_tool_defs
-        )
-      )
+  def callback(%Scope{} = scope, tools, execution_mode, task_id, turn_number)
+      when is_map(tools) and is_binary(task_id) and is_integer(turn_number) and turn_number > 0 do
+    turn_ref = %{task_id: task_id, turn_number: turn_number}
 
-    case execution_mode do
-      :serial -> SwarmAi.ParallelExecutor.run_serial(executions, task_supervisor)
-      :parallel -> SwarmAi.ParallelExecutor.run(executions, task_supervisor)
+    fn tool_calls, task_supervisor ->
+      executions = Enum.map(tool_calls, &build_execution(scope, turn_ref, &1, tools))
+
+      case execution_mode do
+        :serial -> SwarmAi.ParallelExecutor.run_serial(executions, task_supervisor)
+        :parallel -> SwarmAi.ParallelExecutor.run(executions, task_supervisor)
+      end
     end
   end
 
-  defp build_execution(tool_call, scope, task_id, turn_number, backend_modules, mcp_tools) do
-    case Enum.find(backend_modules, &(&1.name() == tool_call.name)) do
+  defp build_execution(scope, turn_ref, tool_call, tools) do
+    %{task_id: task_id, turn_number: turn_number} = turn_ref
+
+    case Map.get(tools, tool_call.name) do
       nil ->
-        build_external_execution(tool_call, scope, task_id, turn_number, mcp_tools)
+        build_rejected_execution(scope, turn_ref, tool_call)
+
+      %MCPTool{} = tool ->
+        %ToolExecution.Await{
+          tool_call: tool_call,
+          timeout_ms: tool.timeout_ms,
+          start:
+            {__MODULE__, :start_mcp_tool, [scope, task_id, turn_number, tool.execution_mode]},
+          on_error: {__MODULE__, :handle_error, [scope, task_id, turn_number]}
+        }
 
       module when is_atom(module) ->
         %ToolExecution.Sync{
@@ -61,28 +58,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     end
   end
 
-  defp build_external_execution(tool_call, scope, task_id, turn_number, mcp_tools) do
-    mcp_tool = Enum.find(mcp_tools, &(&1.name == tool_call.name))
+  defp build_rejected_execution(scope, turn_ref, tool_call) do
+    %{task_id: task_id, turn_number: turn_number} = turn_ref
 
-    case {Tools.find_tool(tool_call.name), mcp_tool} do
-      {{:ok, _filtered_backend_module}, _mcp_tool} ->
-        build_unavailable_execution(tool_call, scope, task_id, turn_number)
-
-      {:not_found, nil} ->
-        build_unavailable_execution(tool_call, scope, task_id, turn_number)
-
-      {:not_found, tool_def} ->
-        %ToolExecution.Await{
-          tool_call: tool_call,
-          timeout_ms: tool_def.timeout_ms,
-          start:
-            {__MODULE__, :start_mcp_tool, [scope, task_id, turn_number, tool_def.execution_mode]},
-          on_error: {__MODULE__, :handle_error, [scope, task_id, turn_number]}
-        }
-    end
-  end
-
-  defp build_unavailable_execution(tool_call, scope, task_id, turn_number) do
     %ToolExecution.Sync{
       tool_call: tool_call,
       timeout_ms: 5_000,
@@ -230,7 +208,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     tool_call = SwarmAi.ToolCall.strip_null_arguments(tool_call)
 
     context = %Backend.Context{
-      task: task
+      task: task,
+      scope: scope
     }
 
     case SwarmAi.ToolCall.parse_arguments(tool_call) do

@@ -28,13 +28,13 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   @doc """
   Structured question tool input for interactive tool tests.
   """
-  def question_args do
+  def question_args(header \\ "Test", label \\ "A") do
     %{
       "questions" => [
         %{
           "question" => "Pick one",
-          "header" => "Test",
-          "options" => [%{"label" => "A", "description" => "Option A"}]
+          "header" => header,
+          "options" => [%{"label" => label, "description" => "Option #{label}"}]
         }
       ]
     }
@@ -56,6 +56,14 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
     }
   end
 
+  @doc "Build a valid wire-format MCP tool; overrides remain explicit at the call site."
+  def mcp_tool(name, overrides \\ %{}) do
+    Map.merge(
+      %{"name" => name, "inputSchema" => %{"type" => "object", "properties" => %{}}},
+      overrides
+    )
+  end
+
   @doc """
   MCP tool definition list for the interactive `question` tool.
 
@@ -64,8 +72,7 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
   """
   def question_mcp_tool_defs do
     MCP.from_maps([
-      %{
-        "name" => "question",
+      mcp_tool("question", %{
         "description" => "Ask the user a question",
         "inputSchema" => %{
           "type" => "object",
@@ -74,7 +81,7 @@ defmodule FrontmanServer.Test.Fixtures.Tools do
         "_meta" => %{
           "ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}
         }
-      }
+      })
     ])
   end
 end

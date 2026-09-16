@@ -25,7 +25,7 @@ defmodule FrontmanServer.Providers.PrepareCustomProviderTest do
     end
   end
 
-  describe "resolve_model_access/3 with custom providers" do
+  describe "resolve_model_access/2 with custom providers" do
     test "resolves configured models with protected transport options", %{scope: scope} do
       provider = provider_fixture(scope, %{"models" => ["gpt-custom"]})
 

@@ -6,11 +6,7 @@ defmodule SwarmAi.Executor do
 
   def run(%Loop{} = loop, task_supervisor) do
     Telemetry.run_span(
-      %{
-        loop_id: loop.id,
-        task_id: loop.task_id,
-        turn_number: loop.turn_number
-      },
+      %{loop_id: loop.id},
       fn ->
         {loop, effects} = Loop.execute(loop)
         final_loop = run_effects(loop, effects, task_supervisor)
@@ -18,8 +14,6 @@ defmodule SwarmAi.Executor do
         {final_loop,
          %{
            loop_id: final_loop.id,
-           task_id: final_loop.task_id,
-           turn_number: final_loop.turn_number,
            status: final_loop.status,
            step_count: length(final_loop.steps),
            output: final_loop.result

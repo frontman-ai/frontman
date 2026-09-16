@@ -33,7 +33,7 @@ The `swarm_ai` package implements a **functional core, imperative shell** archit
 
 ### Public Runtime API (`swarm_ai.ex`)
 
-`SwarmAi.run/2` accepts a `Loop` with task identity, messages, an LLM client, and tool and event callbacks.
+`SwarmAi.run/3` accepts a runtime, a binary registration key, and a `Loop`. The loop contains messages, an LLM client, and tool and event callbacks. The runtime owns the key for duplicate-execution checks and cancellation.
 
 ### Loop State Machine (`loop.ex`, `loop/`)
 
@@ -42,7 +42,6 @@ The `SwarmAi.Loop` struct tracks execution state:
 | Field | Purpose |
 |-------|---------|
 | `id` | UUIDv7-based unique identifier |
-| `task_id`, `turn_number` | Task and turn identity |
 | `status` | `:ready`, `:running`, `:waiting_for_tools`, `:completed`, `{:failed, reason}` |
 | `steps` | History of all execution steps |
 
@@ -111,7 +110,7 @@ Tool.new(
 )
 ```
 
-The loop's `execute_tools` callback accepts tool calls and a task supervisor. It builds descriptors and calls `ParallelExecutor.run/2` or `run_serial/2`.
+The loop's `execute_tools` callback accepts `(tool_calls, task_supervisor)` and captures application-specific state. The callback builds descriptors and calls `ParallelExecutor.run/2` or `run_serial/2`.
 
 Both return `{:ok, results}` in original call order. Serial execution waits for each result before dispatching the next call.
 
@@ -141,7 +140,7 @@ Telemetry hierarchy:
 
 ## Execution Flow
 
-1. **Entry**: `SwarmAi.run/2` starts supervised execution. `SwarmAi.Executor.run/2` calls `Loop.execute/1`.
+1. **Entry**: `SwarmAi.run/3` starts supervised execution. `SwarmAi.Executor.run/2` calls `Loop.execute/1`.
 2. **LLM Call**: `{:call_llm, ...}` effect triggers actual API call
 3. **Response**: `Runner.handle_llm_response/2` produces effects based on tool calls
 4. **Tool Execution**: `{:execute_tool, ...}` effects invoke the tool executor

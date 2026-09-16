@@ -4,6 +4,7 @@ defmodule FrontmanServer.TasksTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import SwarmAi.Testing, only: [tool_call: 3]
 
   alias Ecto.Migration.Runner
 
@@ -248,7 +249,7 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("question_1", "approval"),
+          tool_call("approval", %{}, id: "question_1"),
           :interactive
         )
 
@@ -257,7 +258,7 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("read_1", "read_file"),
+          tool_call("read_file", %{}, id: "read_1"),
           :synchronous
         )
 
@@ -294,7 +295,7 @@ defmodule FrontmanServer.TasksTest do
         scope,
         task_id,
         turn_number,
-        named_swarm_tool_call("legacy_question", "question"),
+        tool_call("question", %{}, id: "legacy_question"),
         :interactive
       )
 
@@ -318,8 +319,8 @@ defmodule FrontmanServer.TasksTest do
        %{scope: scope} do
     task_id = task_fixture(scope).id
     turn_number = start_turn_fixture(scope, task_id)
-    approval = named_swarm_tool_call("approval_pending", "approval")
-    write = named_swarm_tool_call("write_not_dispatched", "write_file")
+    approval = tool_call("approval", %{}, id: "approval_pending")
+    write = tool_call("write_file", %{}, id: "write_not_dispatched")
 
     {:ok, _} =
       Tasks.agent_replied(scope, task_id, turn_number, nil, %{
@@ -356,7 +357,7 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("question_1", "question"),
+          tool_call("question", %{}, id: "question_1"),
           :interactive
         )
 
@@ -365,7 +366,7 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("read_1", "read_file"),
+          tool_call("read_file", %{}, id: "read_1"),
           :synchronous
         )
 
@@ -1126,23 +1127,6 @@ defmodule FrontmanServer.TasksTest do
     )
   end
 
-  defp insert_accepted_user_message!(
-         %TaskSchema{} = task,
-         text,
-         model \\ "openrouter:openai/gpt-5.5"
-       ) do
-    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
-    message_id = Ecto.UUID.generate()
-
-    interaction_changeset(task.id, %{
-      id: message_id,
-      type: :user_message,
-      data: Map.put(attrs, :id, message_id),
-      turn_number: nil
-    })
-    |> Repo.insert!()
-  end
-
   defp run_backfill_migration do
     Code.require_file("priv/repo/migrations/20260531130646_backfill_interaction_turn_numbers.exs")
 
@@ -1233,10 +1217,6 @@ defmodule FrontmanServer.TasksTest do
       )
 
     Enum.map(rows, fn [data] -> data end)
-  end
-
-  defp named_swarm_tool_call(id, name, args \\ %{}) do
-    %SwarmAi.ToolCall{id: id, name: name, arguments: Jason.encode!(args)}
   end
 
   describe "add_discovered_project_rules/3" do

@@ -8,9 +8,10 @@ defmodule FrontmanServer.Skills do
   @moduledoc "Catalogs globally usable Frontman skills."
 
   use Boundary,
-    deps: [FrontmanServer],
+    deps: [FrontmanServer, FrontmanServer.Accounts],
     exports: [Skill]
 
+  alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Repo
   alias FrontmanServer.Skills.Skill
 
@@ -20,6 +21,23 @@ defmodule FrontmanServer.Skills do
     |> Skill.ordered_by_name()
     |> Repo.all()
   end
+
+  @doc "Returns discovery summaries with qualified backend names, without instructions."
+  def available(%Scope{} = scope) do
+    Enum.map(catalog(scope), fn skill ->
+      %{name: "backend:#{skill.name}", description: skill.description}
+    end)
+  end
+
+  @doc "Loads the current skill by its exact qualified backend name."
+  def load(%Scope{}, "backend:" <> name) do
+    case Repo.get_by(Skill, name: name) do
+      %Skill{} = skill -> {:ok, skill}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  def load(%Scope{}, _reference), do: {:error, :not_found}
 
   @doc "Gets a skill by database id."
   def get_by_id(_scope, nil), do: {:ok, nil}

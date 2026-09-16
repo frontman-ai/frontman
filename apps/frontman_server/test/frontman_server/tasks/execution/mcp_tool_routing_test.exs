@@ -8,6 +8,7 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
     only: [assert_receive_interaction: 3, swarm_tool_call: 2]
 
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 2]
 
   alias FrontmanServer.Protocols.JsonRpc
   alias FrontmanServer.Providers
@@ -67,13 +68,14 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
     } do
       mcp_tool_call = swarm_tool_call("take_screenshot", ~s({"selector": "#content"}))
 
-      mcp_tool_def = %MCP{
-        name: "take_screenshot",
-        description: "Take a screenshot",
-        input_schema: %{},
-        execution_mode: :interactive,
-        timeout_ms: 60_000
-      }
+      mcp_tool_def =
+        MCP.from_map(
+          mcp_tool("take_screenshot", %{
+            "_meta" => %{"ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}}
+          })
+        )
+
+      mcp_tool_def = %{mcp_tool_def | timeout_ms: 60_000}
 
       expect_llm_responses([{:tool_calls, [mcp_tool_call], ""}, "Component implemented!"])
 
@@ -119,32 +121,6 @@ defmodule FrontmanServer.Tasks.Execution.McpToolRoutingTest do
 
       assert %Interaction.ToolResult{is_error: false} =
                Enum.find(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
-    end
-  end
-
-  defp submit_user_message_and_run(scope, task_id, execution_request, message) do
-    case Tasks.submit_user_message(
-           scope,
-           Map.merge(execution_request, %{
-             task_id: task_id,
-             message_id: Ecto.UUID.generate(),
-             message: message
-           })
-         ) do
-      {:ok, interaction} ->
-        case Tasks.execute_next_turn(scope, task_id, execution_request) do
-          :ok ->
-            {:ok, interaction, FrontmanServer.Test.Fixtures.Tasks.latest_turn_number(task_id)}
-
-          result when result in [:already_running, :no_accepted_messages] ->
-            {:error, result}
-
-          result ->
-            result
-        end
-
-      result ->
-        result
     end
   end
 end

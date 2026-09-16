@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Breaking changes
 
+- Replace `SwarmAi.run/2` with `run(runtime, key, loop)`. The runtime owns the binary registration key for duplicate-execution checks and cancellation.
+- Remove `Loop.task_id` and `Loop.context`. Tool callbacks accept `(tool_calls, task_supervisor)` and capture application-specific state.
+- Identify telemetry and terminal logs by `loop_id`, without task fields. Replace `Telemetry.run_start/2` with `run_start/1` and remove the options argument from `run_exception/5`.
 - Remove `timeout_ms` and `on_timeout` from `SwarmAi.Tool`. Put deadlines and error callbacks on execution descriptors instead.
 - Remove `on_timeout_policy` from `ToolExecution.Sync` and `ToolExecution.Await`.
 - Replace the descriptor `on_timeout` MFA with `on_error`. It receives appended arguments `[reason, tool_call]`, where `reason` is `:timeout` or `{:crashed, exit_reason}`. Return the canonical `SwarmAi.ToolResult`, not `:ok`.

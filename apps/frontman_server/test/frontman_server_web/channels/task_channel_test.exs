@@ -13,6 +13,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     ]
 
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 2, question_args: 2]
+  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 1]
   import ExUnit.CaptureLog
 
   alias FrontmanServer.InteractionCase.Helpers
@@ -218,24 +220,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     assert_state_update_idle(task_id)
   end
 
-  defp refute_running_eventually(task_id, attempts \\ 50)
-
-  defp refute_running_eventually(task_id, attempts) when attempts > 0 do
-    case SwarmAi.running?(FrontmanServer.AgentRuntime, task_id) do
-      false ->
-        :ok
-
-      true ->
-        Process.sleep(10)
-        refute_running_eventually(task_id, attempts - 1)
-    end
-  end
-
-  defp refute_running_eventually(task_id, 0) do
-    refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id),
-           "Agent should not be running after completion"
-  end
-
   defp register_tool_receiver(task_id, tool_call_id) do
     Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, task_id, tool_call_id}, %{
       caller_pid: self()
@@ -298,18 +282,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   defp question_tool_call(id, header, label) do
-    args =
-      Jason.encode!(%{
-        "questions" => [
-          %{
-            "question" => "Pick one",
-            "header" => header,
-            "options" => [%{"label" => label, "description" => "Option #{label}"}]
-          }
-        ]
-      })
-
-    %SwarmAi.ToolCall{id: id, name: "question", arguments: args}
+    SwarmAi.Testing.tool_call("question", question_args(header, label), id: id)
   end
 
   defp redispatched_question_header?(
@@ -1292,11 +1265,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       complete_mcp_handshake(socket,
         tools: [
-          %{
-            "name" => "testTool",
-            "inputSchema" => %{"type" => "object"},
-            "outputSchema" => @logged_output_schema
-          }
+          mcp_tool("testTool", %{"outputSchema" => @logged_output_schema})
         ]
       )
 

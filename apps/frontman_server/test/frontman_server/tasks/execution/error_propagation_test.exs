@@ -18,21 +18,11 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias Ecto.Adapters.SQL.Sandbox
-  alias FrontmanServer.Providers
-  alias FrontmanServer.Tasks
+  import FrontmanServer.DataCase, only: [setup_sandbox: 1]
   alias FrontmanServer.Tasks.Interaction
 
   describe "LLM stream error propagation" do
-    setup do
-      pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-      on_exit(fn -> Sandbox.stop_owner(pid) end)
-
-      scope = user_scope_fixture()
-      task_id = task_with_pubsub_fixture(scope, framework: "nextjs").id
-
-      {:ok, task_id: task_id, scope: scope}
-    end
+    setup [:setup_sandbox, :setup_user, :setup_task]
 
     @tag :capture_log
     test "LLM stream raise persists AgentError interaction via PubSub", %{
@@ -43,9 +33,13 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
         {:stream_raise, "LLM API error: image exceeds the maximum allowed size"}
       ])
 
-      :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
-
-      {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Take a screenshot"))
+      {:ok, _, _} =
+        submit_user_message_and_run(
+          scope,
+          task_id,
+          execution_request_fixture(),
+          user_content("Take a screenshot")
+        )
 
       assert_receive_interaction(%Interaction.AgentError{error: reason}, _turn_number)
 
@@ -59,39 +53,15 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
     } do
       expect_llm_responses([{:error, :llm_api_failure}])
 
-      :ok = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
-
-      {:ok, _, _} = submit_user_message_and_run(scope, task_id, user_content("Hello"))
+      {:ok, _, _} =
+        submit_user_message_and_run(
+          scope,
+          task_id,
+          execution_request_fixture(),
+          user_content("Hello")
+        )
 
       assert_receive_interaction(%Interaction.AgentError{kind: "failed"}, _turn_number)
-    end
-  end
-
-  defp submit_user_message_and_run(scope, task_id, message, overrides \\ []) do
-    execution_request = execution_request_fixture(overrides)
-
-    case Tasks.submit_user_message(
-           scope,
-           Map.merge(execution_request, %{
-             task_id: task_id,
-             message_id: Ecto.UUID.generate(),
-             message: message
-           })
-         ) do
-      {:ok, interaction} ->
-        case Tasks.execute_next_turn(scope, task_id, execution_request) do
-          :ok ->
-            {:ok, interaction, latest_turn_number(task_id)}
-
-          result when result in [:already_running, :no_accepted_messages] ->
-            {:error, result}
-
-          result ->
-            result
-        end
-
-      result ->
-        result
     end
   end
 end

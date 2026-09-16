@@ -1,6 +1,6 @@
 defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   @moduledoc """
-  Integration tests for the full `Providers.resolve_model_access/3` resolution chain.
+  Integration tests for the full `Providers.resolve_model_access/2` resolution chain.
 
   Tests the priority order: OAuth > user key.
   This is the primary entry point for all LLM key resolution in the system.
@@ -12,8 +12,6 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.{Providers, Repo}
   alias FrontmanServer.Providers.{Nvidia, OAuthToken}
-  alias ReqLLM.Context
-  alias ReqLLM.Providers.Anthropic
 
   setup {Req.Test, :set_req_test_from_context}
   setup {Req.Test, :verify_on_exit!}
@@ -24,7 +22,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     {:ok, scope: scope}
   end
 
-  describe "resolve_model_access/3 resolution priority" do
+  describe "resolve_model_access/2 resolution priority" do
     test "resolves OAuth token as highest priority for anthropic", %{scope: scope} do
       {:ok, _} = upsert_anthropic_oauth_token(scope, :valid)
       :ok = upsert_anthropic_api_key(scope)
@@ -50,32 +48,6 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert llm_opts[:api_key] == "user_key_456"
       assert llm_opts[:anthropic_prompt_cache] == true
       assert llm_opts[:anthropic_cache_messages] == -1
-    end
-
-    test "resolved Anthropic opts mark the last message for prompt caching", %{scope: scope} do
-      :ok = upsert_anthropic_api_key(scope)
-
-      {:ok, {model, llm_opts}} =
-        Providers.resolve_model_access(scope, "anthropic:claude-sonnet-4-6")
-
-      context =
-        Context.new([
-          Context.system("system prompt"),
-          Context.user("first user message"),
-          Context.assistant("assistant reply"),
-          Context.user("latest user message")
-        ])
-
-      {:ok, request} = Anthropic.prepare_request(:chat, model, context, llm_opts)
-      encoded_request = Anthropic.encode_body(request)
-      body = encoded_request.options[:json]
-
-      last_message = List.last(body[:messages])
-      [last_block] = last_message[:content]
-
-      assert last_message[:role] == "user"
-      assert last_block[:text] == "latest user message"
-      assert last_block[:cache_control] == %{type: "ephemeral"}
     end
 
     test "returns :no_api_key when no key source is available", %{scope: scope} do
@@ -144,13 +116,13 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       {:ok, _} = upsert_openai_oauth_token(scope, :valid)
 
       {:ok, {model, llm_opts}} =
-        Providers.resolve_model_access(scope, "openai_codex:gpt-5.6-sol", max_tokens: 16_384)
+        Providers.resolve_model_access(scope, "openai_codex:gpt-5.6-sol")
 
       assert %LLMDB.Model{provider: :openai_codex, id: "gpt-5.6-sol"} = model
       assert llm_opts[:access_token] == "openai_access"
       assert llm_opts[:auth_mode] == :oauth
       assert llm_opts[:chatgpt_account_id] == "acc-789"
-      assert llm_opts[:max_tokens] == 16_384
+      refute Keyword.has_key?(llm_opts, :max_tokens)
     end
 
     test "refreshes expired OpenAI OAuth token before resolving LLM args", %{scope: scope} do
@@ -323,9 +295,9 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       end)
 
       {:ok, {model, llm_opts}} =
-        Providers.resolve_model_access(scope, nvidia_model.value,
-          base_url: "http://localhost:#{bypass.port}/v1"
-        )
+        Providers.resolve_model_access(scope, nvidia_model.value)
+
+      llm_opts = Keyword.put(llm_opts, :base_url, "http://localhost:#{bypass.port}/v1")
 
       assert {:ok, stream_response} = ReqLLM.stream_text(model, "Hello", llm_opts)
       assert {:ok, response} = ReqLLM.StreamResponse.to_response(stream_response)
