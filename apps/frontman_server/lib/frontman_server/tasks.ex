@@ -1058,8 +1058,8 @@ defmodule FrontmanServer.Tasks do
     {:ok, history} = load_history(task.id)
     tools = Tools.resolve(Agents.tool_policy(agent), mcp_tools)
 
-    context = prompt_context(task, history.rows, execution)
-    system_prompt = Agents.system_prompt(scope, agent, context, tools)
+    project_context = project_context(task, history.rows, execution)
+    system_prompt = Agents.system_prompt(scope, agent, project_context, tools)
     response_context = History.response_context(history, turn_number, agent.id)
     execution_mode = Frameworks.tool_execution_mode(task.framework)
 
@@ -1192,7 +1192,7 @@ defmodule FrontmanServer.Tasks do
 
   defp decay_image_part(part, _tool_call_id), do: part
 
-  defp prompt_context(%TaskSchema{} = task, rows, execution) do
+  defp project_context(%TaskSchema{} = task, rows, execution) do
     interactions = Enum.map(rows, &Map.fetch!(&1, :data))
 
     %{
