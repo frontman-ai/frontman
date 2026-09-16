@@ -126,6 +126,107 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc """
+  Forks the task at `forked_from_id` and lands an edited user message on the new branch.
+
+  This is how editing an already-sent message works: the original and everything
+  it produced are abandoned rather than deleted. Two rows are appended — a
+  `task_forked` marker naming the message being replaced, then the edit — so the
+  cost does not grow with how much history is left behind and the old branch
+  stays on record. `History` is what hides it from the agent.
+
+  Refused while a turn is running, because the runner would keep appending to a
+  branch the user just walked away from.
+
+  Requires authorization - scope.user.id must match task.user_id.
+  """
+  @spec fork_user_message(Scope.t(), String.t(), map()) ::
+          {:ok, InteractionSchema.t()} | {:error, term()}
+  def fork_user_message(%Scope{} = scope, forked_from_id, attrs)
+      when is_binary(forked_from_id) and is_map(attrs) do
+    Repo.transact(fn ->
+      with {:ok, user_message_attrs} <-
+             Interaction.UserMessage.attrs(attrs.message, attrs.model, attrs.agent_id),
+           {:ok, task_schema} <- lock_task_by_id(scope, attrs.task_id),
+           {:ok, history} <- History.new(load_interaction_rows(attrs.task_id)),
+           :idle <- run_state(history),
+           {:ok, forked_from} <- live_user_message(history, forked_from_id),
+           {:ok, _fork_row} <- insert_fork_marker(task_schema, forked_from_id) do
+        insert_interaction_row(task_schema, %{
+          id: attrs.message_id,
+          type: :user_message,
+          data:
+            user_message_attrs
+            |> inherit_attachments(forked_from.data)
+            |> Map.put(:id, attrs.message_id),
+          turn_number: nil
+        })
+      else
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> case do
+      {:ok, %InteractionSchema{} = edit_row} ->
+        broadcast_task(attrs.task_id, {:task_forked, forked_from_id})
+        broadcast_task(attrs.task_id, {:interaction, edit_row})
+        {:ok, edit_row}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp insert_fork_marker(%TaskSchema{} = task_schema, forked_from_id) do
+    insert_interaction_row(task_schema, %{
+      id: Ecto.UUID.generate(),
+      type: :task_forked,
+      data: %{forked_from_id: forked_from_id},
+      turn_number: nil
+    })
+  end
+
+  @inherited_user_message_fields [
+    :annotations,
+    :images,
+    :selected_figma_node,
+    :current_page,
+    :selected_server_skill_id,
+    :selected_server_skill_name,
+    :selected_server_skill_content
+  ]
+
+  defp inherit_attachments(attrs, %Interaction.UserMessage{} = forked_from) do
+    inherited = Ecto.embedded_dump(forked_from, :json)
+
+    Enum.reduce(@inherited_user_message_fields, attrs, fn field, attrs ->
+      case Map.get(attrs, field) do
+        empty when empty in [nil, []] -> Map.put(attrs, field, Map.get(inherited, field))
+        _present -> attrs
+      end
+    end)
+  end
+
+  defp lock_task_by_id(scope, task_id) do
+    case get_task_by_id_for_update(scope, task_id) do
+      %TaskSchema{} = task_schema -> {:ok, task_schema}
+      nil -> {:error, :not_found}
+    end
+  end
+
+  defp run_state(%History{} = history) do
+    case History.active_turn_number(history) do
+      nil -> :idle
+      turn_number when is_integer(turn_number) -> {:error, :turn_running}
+    end
+  end
+
+  defp live_user_message(%History{rows: rows}, message_id) do
+    case Enum.find(rows, &match?(%InteractionSchema{id: ^message_id, type: :user_message}, &1)) do
+      %InteractionSchema{} = row -> {:ok, row}
+      nil -> {:error, :message_not_found}
+    end
+  end
+
+  @doc """
   Creates a new task and stores it.
 
   The task_id must be provided by the client.
@@ -267,7 +368,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp insert_interaction_row(task, attrs) do
+  defp insert_interaction_row(%TaskSchema{} = task, attrs) do
     with {:ok, schema} <-
            task
            |> Ecto.build_assoc(:interaction_rows)
@@ -916,13 +1017,13 @@ defmodule FrontmanServer.Tasks do
   """
   def get_active_turn_unresolved_tool_calls(scope, task_id) do
     with {:ok, _schema} <- get_task(scope, task_id),
-         rows = load_interaction_rows(task_id),
-         {:ok, history} <- History.new(rows) do
+         {:ok, history} <- History.new(load_interaction_rows(task_id)) do
       case History.active_turn_number(history) do
         nil ->
           {:ok, :no_active_turn}
 
         turn_number ->
+          rows = history.rows
           dispatches = MapSet.new(History.unresolved_tool_calls(rows, turn_number), &elem(&1, 1))
 
           tool_calls =
@@ -1042,8 +1143,8 @@ defmodule FrontmanServer.Tasks do
 
   defp start_execution(scope, task, turn_number, agent, execution)
        when is_integer(turn_number) and turn_number > 0 do
-    rows = load_interaction_rows(task.id)
-    {:ok, history} = History.new(rows)
+    {:ok, history} = History.new(load_interaction_rows(task.id))
+    rows = history.rows
     context = prompt_context(task, rows, execution)
     system_prompt = Agents.system_prompt(agent, context)
     tool_policy = Agents.tool_policy(agent)

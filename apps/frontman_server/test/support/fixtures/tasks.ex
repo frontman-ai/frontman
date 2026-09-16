@@ -180,6 +180,24 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   """
   def user_content(text), do: [%{"type" => "text", "text" => text}]
 
+  @doc "Builds user content carrying a single annotated element."
+  def annotated_content(text) do
+    user_content(text) ++
+      [
+        %{
+          "type" => "resource",
+          "_meta" => %{
+            "annotation" => true,
+            "annotation_id" => "annotation-1",
+            "annotation_index" => 1,
+            "tag_name" => "button",
+            "selector" => "#submit",
+            "comment" => "make it blue"
+          }
+        }
+      ]
+  end
+
   @doc "Returns the latest non-null turn number for a task."
   def latest_turn_number(task_id) do
     max_turn_number(task_id) || raise "No turn_number found for task #{task_id}"

@@ -634,6 +634,23 @@
               "properties": {
                 "sessionUpdate": {
                   "type": "string",
+                  "const": "frontman_task_forked"
+                },
+                "forkedFromId": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "sessionUpdate",
+                "forkedFromId"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "sessionUpdate": {
+                  "type": "string",
                   "const": "message_unqueued"
                 },
                 "messageId": {

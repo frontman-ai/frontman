@@ -521,6 +521,44 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert replayed_chunks == live_chunks
     end
 
+    test "editing a message announces the fork before the replacement", %{
+      socket: socket,
+      task_id: task_id
+    } do
+      original_id = Ecto.UUID.generate()
+      edit_id = Ecto.UUID.generate()
+
+      assert_reply(send_prompt(socket, 48, "original", original_id), :ok, %{})
+      collect_all_pushes()
+
+      assert_reply(send_prompt(socket, 49, "edited", edit_id, original_id), :ok, %{})
+      pushes = collect_all_pushes()
+
+      assert [%{"forkedFromId" => ^original_id}] = task_forked_updates(pushes)
+      assert [%{"messageId" => ^edit_id} | _] = user_message_updates(pushes)
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/load", 50, %{"sessionId" => task_id})
+      )
+
+      :sys.get_state(socket.channel_pid)
+
+      replayed = collect_all_pushes() |> user_message_updates()
+      assert Enum.map(replayed, & &1["messageId"]) == [edit_id]
+    end
+
+    test "rejects editing a message that is not part of the task", %{socket: socket} do
+      ref = send_prompt(socket, 51, "edited", Ecto.UUID.generate(), Ecto.UUID.generate())
+
+      assert_reply(ref, :ok, %{
+        "acp:message" => %{
+          "error" => %{"message" => "Edited message is not part of this task"}
+        }
+      })
+    end
+
     test "uses configured default agent when agent is missing", %{
       socket: socket,
       scope: scope,
@@ -748,6 +786,38 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                |> Enum.filter(&(&1.type == :turn_started))
                |> Enum.flat_map(& &1.data.user_message_ids)
     end
+  end
+
+  defp send_prompt(socket, request_id, text, message_id, replaces_message_id \\ nil) do
+    meta =
+      %{
+        "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
+        "agent" => "test-frontman",
+        "frontman.dev/messageId" => message_id
+      }
+      |> then(fn meta ->
+        case replaces_message_id do
+          nil -> meta
+          id -> Map.put(meta, "frontman.dev/replacesMessageId", id)
+        end
+      end)
+
+    push(
+      socket,
+      "acp:message",
+      build_acp_request("session/prompt", request_id, %{
+        "prompt" => [Helpers.text_block(text)],
+        "_meta" => meta
+      })
+    )
+  end
+
+  defp task_forked_updates(pushes) do
+    for {"acp:message",
+         %{
+           "params" => %{"update" => %{"sessionUpdate" => "frontman_task_forked"} = update}
+         }} <- pushes,
+        do: update
   end
 
   defp user_message_updates(pushes) do

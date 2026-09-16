@@ -335,6 +335,7 @@ type action =
       content: array<UserContentPart.t>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      replacesMessageId: option<string>,
     })
   | SetAnnotationMode({mode: Annotation.annotationMode})
   | ToggleAnnotationMode
@@ -371,6 +372,7 @@ type action =
   | ExecutionStateRequiresAction
   | CancelTurn
   | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
+  | ForkFromMessage({forkedFromId: string})
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
@@ -413,6 +415,7 @@ type effect =
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      replacesMessageId: option<string>,
     })
   | SessionCommand(ACP.sessionCommand)
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
@@ -426,6 +429,7 @@ type delegated =
       attachments: array<Message.fileAttachmentData>,
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
+      replacesMessageId: option<string>,
     })
   | NeedSessionCommand(ACP.sessionCommand)
   | NeedSyncBrowserUrl(string)
@@ -459,6 +463,7 @@ let actionToString = (action: action): string =>
   | ExecutionStateRequiresAction => "ExecutionStateRequiresAction"
   | CancelTurn => "CancelTurn"
   | AgentError(_) => "AgentError"
+  | ForkFromMessage(_) => "ForkFromMessage"
   | UserMessageSendFailed(_) => "UserMessageSendFailed"
   | RetryingUpdate(_) => "RetryingUpdate"
   | RetryTurn(_) => "RetryTurn"
@@ -918,7 +923,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       }
     }
 
-  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
+  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId, replacesMessageId})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
     let messageId = Message.UserMessageId.toString(id)
@@ -948,7 +953,12 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
       }),
-      [SendMessage({id, text, attachments, annotations, agentId})],
+      [SendMessage({id, text, attachments, annotations, agentId, replacesMessageId})],
+    )
+
+  | (Task.Loaded(data), ForkFromMessage({forkedFromId})) => (
+      Task.Loaded({...data, messages: MessageStore.forkFrom(data.messages, forkedFromId)}),
+      [],
     )
 
   | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
@@ -1306,6 +1316,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (
       Task.New(_) | Task.Unloaded(_),
       AddUserMessage(_)
+      | ForkFromMessage(_)
       | UserMessageSendFailed(_)
       | PlanReceived(_)
       | ExecutionStateRunning
@@ -1525,8 +1536,8 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) =>
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({id, text, attachments, annotations, agentId}) =>
-    delegate(NeedSendMessage({id, text, attachments, annotations, agentId}))
+  | SendMessage({id, text, attachments, annotations, agentId, replacesMessageId}) =>
+    delegate(NeedSendMessage({id, text, attachments, annotations, agentId, replacesMessageId}))
   | SessionCommand(command) => delegate(NeedSessionCommand(command))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
   | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)

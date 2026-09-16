@@ -7,9 +7,11 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
-  let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
+  let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId, ~replacesMessageId=?) => {
     let id = Client__Message.UserMessageId.make()
-    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
+    Client__State__Store.dispatch(
+      AddUserMessage({id, sessionId, content, annotations, agentId, replacesMessageId}),
+    )
   }
 
   let executeAnnotation = (~sessionId, ~annotationId, ~comment) => {
@@ -179,6 +181,11 @@ module Actions = {
         target: ForTask(taskId),
         action: AgentError({id, error, category}),
       }),
+    )
+
+  let forkTaskFromMessage = (~taskId: string, ~forkedFromId: string) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: ForkFromMessage({forkedFromId: forkedFromId})}),
     )
 
   let retryingStatusReceived = (

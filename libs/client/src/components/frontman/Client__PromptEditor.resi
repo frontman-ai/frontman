@@ -44,6 +44,8 @@ let make: (
   ~attachSignal: int,
   ~dropFilesSignal: int,
   ~droppedFiles: array<browserFile>,
+  ~setTextSignal: int,
+  ~textToSet: string,
   ~onHasContentChange: bool => unit,
   ~onSubmit: (string, array<editorFileAttachment>) => unit,
   ~onPreviewImage: string => unit,

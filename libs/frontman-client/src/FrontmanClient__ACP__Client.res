@@ -201,6 +201,7 @@ let knownSessionUpdate = name =>
   | "config_option_update"
   | "current_mode_update"
   | "state_update"
+  | "frontman_task_forked"
   | "error" => true
   | _ => false
   }

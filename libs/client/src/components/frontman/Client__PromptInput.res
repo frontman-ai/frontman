@@ -312,6 +312,8 @@ let make = (
   ~isSelecting: bool=false,
   ~hasAnnotations: bool=false,
   ~isEnrichingAnnotations: bool=false,
+  ~setTextSignal: int=0,
+  ~textToSet: string="",
 ) => {
   let (hasContent, setHasContent) = React.useState(() => false)
   let (hasComposerFocus, setHasComposerFocus) = React.useState(() => false)
@@ -503,6 +505,8 @@ let make = (
             attachSignal
             dropFilesSignal
             droppedFiles
+            setTextSignal
+            textToSet
             onHasContentChange={value => setHasContent(_ => value)}
             onSubmit={handleEditorSubmit}
             onPreviewImage={src => setPreviewSrc(_ => Some(src))}

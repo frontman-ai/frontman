@@ -185,6 +185,7 @@ describe("Task - Agent Running State", () => {
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -219,6 +220,7 @@ describe("Task - Agent Running State", () => {
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(false))
@@ -363,6 +365,104 @@ describe("Task - Plan Entries", () => {
   })
 })
 
+describe("Task - Editing a sent message", () => {
+  test("AddUserMessage with replacesMessageId waits for server rewind before truncating", t => {
+    let task =
+      TestHelpers.makeLoadedTask()
+      ->TestHelpers.acceptUserMessage(~id="user-1", ~text="first")
+      ->TaskReducer.next(ExecutionStateRunning)
+      ->Pair.first
+      ->TaskReducer.next(ExecutionStateIdle)
+      ->Pair.first
+
+    t->expect(TestHelpers.getMessages(task)->Array.length)->Expect.toBe(1)
+
+    let (rewound, effects) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "first, but edited"})],
+        annotations: [],
+        agentId: "executor-id",
+        replacesMessageId: Some("user-1"),
+      }),
+    )
+
+    t->expect(TestHelpers.getMessages(rewound)->Array.length)->Expect.toBe(1)
+    t
+    ->expect(effects)
+    ->Expect.toEqual([
+      TaskReducer.SendMessage({
+        id: testUserMessageId,
+        text: "first, but edited",
+        attachments: [],
+        annotations: [],
+        agentId: "executor-id",
+        replacesMessageId: Some("user-1"),
+      }),
+    ])
+  })
+
+  test("ForkFromMessage drops the forked-from message and everything after it", t => {
+    let task =
+      TestHelpers.makeLoadedTask()
+      ->TestHelpers.acceptUserMessage(~id="user-1", ~text="first")
+      ->TaskReducer.next(ExecutionStateRunning)
+      ->Pair.first
+      ->TaskReducer.next(ExecutionStateIdle)
+      ->Pair.first
+
+    let (forked, effects) = TaskReducer.next(task, ForkFromMessage({forkedFromId: "user-1"}))
+
+    t->expect(TestHelpers.getMessages(forked))->Expect.toEqual([])
+    t->expect(effects)->Expect.toEqual([])
+  })
+
+  test("ForkFromMessage keeps messages before the fork point", t => {
+    let task =
+      TestHelpers.makeLoadedTask()
+      ->TestHelpers.acceptUserMessage(~id="user-1", ~text="first")
+      ->TaskReducer.next(ExecutionStateRunning)
+      ->Pair.first
+      ->TaskReducer.next(ExecutionStateIdle)
+      ->Pair.first
+      ->TestHelpers.acceptUserMessage(~id="user-2", ~text="second")
+      ->TaskReducer.next(ExecutionStateRunning)
+      ->Pair.first
+      ->TaskReducer.next(ExecutionStateIdle)
+      ->Pair.first
+
+    let (forked, _) = TaskReducer.next(task, ForkFromMessage({forkedFromId: "user-2"}))
+
+    t
+    ->expect(TestHelpers.getMessages(forked)->Array.map(Message.getId))
+    ->Expect.toEqual(["user-1"])
+  })
+
+  test("AddUserMessage without replacesMessageId leaves earlier messages alone", t => {
+    let task =
+      TestHelpers.makeLoadedTask()
+      ->TestHelpers.acceptUserMessage(~id="user-1", ~text="first")
+      ->TaskReducer.next(ExecutionStateRunning)
+      ->Pair.first
+      ->TaskReducer.next(ExecutionStateIdle)
+      ->Pair.first
+
+    let (appended, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [Client__Task__Types.UserContentPart.Text({text: "second"})],
+        annotations: [],
+        agentId: "executor-id",
+        replacesMessageId: None,
+      }),
+    )
+
+    t->expect(TestHelpers.getMessages(appended)->Array.length)->Expect.toBe(1)
+  })
+})
+
 describe("Task - Error Handling", () => {
   test("UserMessageSendFailed removes a pending optimistic message and exposes the error", t => {
     let task = TestHelpers.makeLoadedTask()
@@ -373,6 +473,7 @@ describe("Task - Error Handling", () => {
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
     let messageId = testUserMessageId->UserMessageId.toString
@@ -399,6 +500,7 @@ describe("Task - Error Handling", () => {
         content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
     let accepted = TestHelpers.acceptUserMessage(
@@ -515,6 +617,7 @@ describe("Task - Error Handling", () => {
         content: [Client__Task__Types.UserContentPart.Text({text: "New message"})],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
     t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
@@ -598,6 +701,7 @@ describe("Task - CancelTurn", () => {
         content: [Client__Task__Types.UserContentPart.Text({text: "New question"})],
         annotations: [],
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
     let accepted = TestHelpers.acceptUserMessage(
@@ -745,6 +849,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
+        replacesMessageId: None,
       }),
     )
 
@@ -927,6 +1032,7 @@ describe("Task - Interactive wait contract", () => {
             content: [Client__Task__Types.UserContentPart.Text({text: "Next turn, not an answer"})],
             annotations: [],
             agentId: "executor-id",
+            replacesMessageId: None,
           }),
         )
         switch sendEffects->Array.get(0) {
