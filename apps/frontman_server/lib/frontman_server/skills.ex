@@ -23,7 +23,7 @@ defmodule FrontmanServer.Skills do
   end
 
   @doc "Returns discovery summaries with qualified backend names, without instructions."
-  def available(%Scope{} = scope) do
+  def list(%Scope{} = scope) do
     Enum.map(catalog(scope), fn skill ->
       %{name: "backend:#{skill.name}", description: skill.description}
     end)

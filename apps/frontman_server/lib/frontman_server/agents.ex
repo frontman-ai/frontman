@@ -68,7 +68,7 @@ defmodule FrontmanServer.Agents do
       when is_map(context) and is_map(tools) do
     skills =
       case Tools.supports_skills?(tools) do
-        true -> Skills.available(scope)
+        true -> Skills.list(scope)
         false -> []
       end
 

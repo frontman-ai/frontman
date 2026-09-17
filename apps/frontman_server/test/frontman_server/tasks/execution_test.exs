@@ -887,7 +887,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       skill: skill
     } do
       parent = self()
-      assert [%{name: qualified_name}] = Skills.available(scope)
+      assert [%{name: qualified_name}] = Skills.list(scope)
       call = tool_call("skill", %{"name" => qualified_name}, id: "load_skill")
 
       expect(LLMProviderMock, :stream_text, fn _model, messages, opts ->
@@ -943,7 +943,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
            skill: skill
          } do
       parent = self()
-      assert [%{name: qualified_name}] = Skills.available(scope)
+      assert [%{name: qualified_name}] = Skills.list(scope)
       loaded_content = "Loaded instruction revision."
       call = tool_call("skill", %{"name" => qualified_name}, id: "load_skill")
 
@@ -1042,7 +1042,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     } do
       parent = self()
 
-      assert [%{name: qualified_name}] = Skills.available(scope)
+      assert [%{name: qualified_name}] = Skills.list(scope)
 
       with_backend_tools(
         Application.fetch_env!(:frontman_server, :backend_tools)
