@@ -152,7 +152,7 @@ defmodule SwarmAiTest do
     assert :ok = SwarmAi.cancel(runtime, "task-wait")
     await_exit(pid)
     assert_receive {:test_event, "task-wait", {:cancelled, nil}}, 2_000
-    refute SwarmAi.running?(runtime, "task-wait")
+    assert_unregistered(runtime, "task-wait")
     assert SwarmAi.active_count(runtime) == 0
     send(pid, {:tool_result, "tc1", "late answer", false})
     refute_receive {:test_event, "task-wait", :completed}, 0
