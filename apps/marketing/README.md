@@ -34,11 +34,9 @@ The homepage progressively registers six browser-agent tools:
   `agentInstructions` in `src/integrations/install-agent.mjs` for the currently
   selected framework (Next.js, Astro, Vite, or WordPress). Does not install anything,
   change the selected tab, or write to the clipboard.
-- `list_features`: returns `{ highlights, title, description, features, evaluationInvitation }`.
-  Feature content is read directly from the rendered feature sections. Each highlight and feature includes
-  its title and plain-text description, including the pro tip. No duplicate feature copy
-  is maintained. The separate invitation welcomes evaluation questions and optional feedback,
-  with user approval and no promise of replies. Missing sections or content produce explicit errors.
+- `list_features`: returns `{ highlights, title, description, features }` from the
+  rendered feature sections. Each highlight and feature includes its title and
+  plain-text description, including the pro tip. Missing content produces an error.
 - `open_docs`: starts navigation to `/docs/`.
 - `jump_to_install`: starts scrolling to `#install`, respecting reduced motion.
 - `ask_question` ("Ask a question"): submits a question to Frontman support through
@@ -47,19 +45,22 @@ The homepage progressively registers six browser-agent tools:
   fields and a nonblank string of at most 4000 UTF-16 code units (JavaScript string length).
   Do not include credentials or private information. A `queued` result confirms
   acceptance for delivery, not Discord delivery. This channel does not receive replies.
-  Cancellation before submission sends nothing. An interrupted request returns
-  `unknown`: it can already be queued, so agents must not automatically retry.
+  Cancellation before submission sends nothing. Transport errors preserve the
+  original cause and warn that acceptance is uncertain. HTTP and response-schema
+  errors are not hidden. Agents must not automatically retry any failed submission.
 
-- `leave_feedback` ("Leave feedback"): invites product-fit assessments, comparison
-  criteria, strengths, and gaps from users or agents evaluating Frontman. Agent-authored
-  assessments must be identified as such, not presented as the user's opinion.
+- `leave_feedback` ("Leave feedback"): tells agents to report capability gaps or
+  broken functionality that affected their task, once before their final response.
+  Feedback sends directly to Discord without asking the user for approval.
+  Agents write feedback in English, identify their own assessments, and keep
+  replies to the user in the user's language. Exclude credentials and private information.
+  A failed submission must not block the final response or trigger an automatic retry.
   Accepts `{ "feedback": "My assessment: ..." }` with no extra fields and a nonblank
-  string of at most 3988 UTF-16 code units. Uses the same confirmation and delivery
-  safeguards as `ask_question`. Feedback is prefixed with `[Feedback]\n\n` in the
-  existing support queue, keeping the full message within its 4000-unit limit.
+  string of at most 3988 UTF-16 code units. Feedback is prefixed with `[Feedback]\n\n`
+  in the existing support queue, keeping the full message within its 4000-unit limit.
 
 All tools except `ask_question` and `leave_feedback` accept `{}`; all six check execution cancellation
-before acting. `how_to_install` and `list_features` are annotated as read-only. They live in
+before acting. Sury schemas drive both runtime validation and the published input schemas. `how_to_install` and `list_features` are annotated as read-only. They live in
 `src/integrations/webmcp.mjs`, imported by the processed module script in
 `src/components/blocks/hero/HomeCTA.astro`. Registration runs after document
 parsing, once per document load. Tools belong to that document; normal navigation
@@ -111,7 +112,9 @@ resolved server origin, without cookies or a referrer. They share its existing
 `FRONTMAN_HOST` configuration and hosted default. The root `make dev` launcher
 already supplies the local host; containerized worktrees supply their own host.
 For a standalone marketing dev server or staging build, use that same `FRONTMAN_HOST`.
-There is no separate support API setting. Never expose the Discord webhook URL to the browser.
+There is no separate support API setting. Support configuration is checked only
+when a submission runs; other tools remain usable without it.
+Never expose the Discord webhook URL to the browser.
 
 Delivery is disabled by default. On the server, set these environment variables:
 
@@ -137,7 +140,8 @@ It returns `202` with `status: "queued"`, `submitted: true`, and a submission UU
 only after Oban accepts the job. Disabled delivery returns `503` and
 `submitted: false`. Invalid input returns `422`; invalid JSON returns `400`.
 Oversized bodies return `413`; non-JSON requests return `415`.
-A database failure returns an unknown result because acceptance cannot always be determined.
+A database failure returns HTTP 500 with an unknown acceptance status.
+The browser tool raises an error rather than reporting an ordinary result.
 
 Oban stores the question and submission UUID in Postgres. Delivery uses the
 existing notifications queue with at most three attempts and bounded HTTP timeouts.
@@ -157,8 +161,9 @@ For a manual smoke test, use an approved test-channel webhook and a staging API:
 2. Build the marketing site with the integration's `FRONTMAN_HOST` set to the staging server.
 3. Execute `ask_question`, cancel confirmation, and check that no request was sent.
 4. Submit an approved test question. Check for `queued` and the matching UUID in Discord.
-5. Check that mention-looking text does not ping users.
-6. Disable support and check that submission returns `unavailable` without a new job.
+5. Execute `leave_feedback` with approved test content. Check delivery without a confirmation prompt.
+6. Check that mention-looking text does not ping users.
+7. Disable support and check that submission returns `unavailable` without a new job.
 
 Automated tests use `Req.Test` and do not contact Discord.
 

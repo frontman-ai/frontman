@@ -42,9 +42,21 @@ describe("homepage WebMCP tools", () => {
     },
   );
 
-  test("missing integration configuration fails rather than falling back to production", () => {
+  test("missing support configuration leaves other tools usable and fails before submission", async () => {
     vi.stubEnv("FRONTMAN_API_ORIGIN", undefined);
-    expect(() => createHomepageTools(createPage())).toThrow();
+    const document = createPage();
+    document.defaultView.confirm = vi.fn();
+    document.defaultView.fetch = vi.fn();
+    document.querySelector("#install").setAttribute("data-install-agent", "");
+    document.querySelector("#install").dataset.agentFramework = "astro";
+    const tools = createHomepageTools(document);
+    const options = { signal: new AbortController().signal };
+    await expect(tools.find(tool => tool.name === "how_to_install").execute({}, options))
+      .resolves.toBe(agentInstructions.astro);
+    await expect(tools.find(tool => tool.name === "ask_question").execute({ question: "Help?" }, options))
+      .rejects.toThrow(TypeError);
+    expect(document.defaultView.confirm).not.toHaveBeenCalled();
+    expect(document.defaultView.fetch).not.toHaveBeenCalled();
   });
 
   test("does nothing when WebMCP is unavailable", async () => {
@@ -60,7 +72,7 @@ describe("homepage WebMCP tools", () => {
     expect(tools.map(({ name }) => name)).toEqual(["ask_question", "leave_feedback", "how_to_install", "list_features", "open_docs", "jump_to_install"]);
     for (const tool of tools.filter(({ name }) => !["ask_question", "leave_feedback"].includes(name))) {
       expect(tool.description.length).toBeGreaterThan(0);
-      expect(tool.inputSchema).toEqual({
+      expect(tool.inputSchema).toMatchObject({
         type: "object",
         properties: {},
         additionalProperties: false,
@@ -74,7 +86,7 @@ describe("homepage WebMCP tools", () => {
       const document = createPage();
       for (const tool of createHomepageTools(document)) {
         await expect(tool.execute(input, { signal: new AbortController().signal }))
-          .rejects.toThrow(TypeError);
+          .rejects.toThrow();
       }
       expect(document.defaultView.location.href).toBe("https://frontman.sh/");
     },
@@ -164,30 +176,47 @@ describe("homepage WebMCP tools", () => {
     [202, '{"status":"queued","submitted":true}'],
     [202, '{"status":"unavailable","submitted":false}'],
     [503, "upstream unavailable"],
+    [404, "not found"],
     [500, "server error"],
-  ])("does not invent an outcome from an unexpected response (%s, %s)", async (status, body) => {
+  ])("rejects unexpected responses rather than returning an unknown result (%s, %s)", async (status, body) => {
     const document = createPage();
     document.defaultView.confirm = () => true;
     document.defaultView.fetch = vi.fn(async () => new Response(body, { status }));
     const tool = createHomepageTools(document).find(({ name }) => name === "ask_question");
-    const result = await tool.execute({ question: "Help?" }, { signal: new AbortController().signal });
-    expect(result).toMatchObject({ status: "unknown", submitted: null });
+    const result = tool.execute({ question: "Help?" }, { signal: new AbortController().signal });
+    await expect(result).rejects.toThrow(status === 404 || status === 500 ? `HTTP ${status}` : undefined);
+    await expect(result).rejects.not.toThrow("Submission could not be confirmed");
     expect(document.defaultView.fetch).toHaveBeenCalledTimes(1);
   });
 
-  test.each([false, true])("a network error or cancellation after dispatch has unknown delivery (%s)", async (cancel) => {
+  test.each([false, true])("transport errors preserve the cause and warn against retrying (%s)", async (cancel) => {
     const document = createPage();
     const controller = new AbortController();
     document.defaultView.confirm = () => true;
+    const cause = new Error("Connection interrupted");
     document.defaultView.fetch = vi.fn(async (_url, { signal }) => {
-      if (cancel) controller.abort();
+      if (cancel) controller.abort(cause);
       expect(signal.aborted).toBe(cancel);
-      throw new Error("Connection interrupted");
+      throw cause;
     });
     const tool = createHomepageTools(document).find(({ name }) => name === "ask_question");
-    const result = await tool.execute({ question: "Help?" }, { signal: controller.signal });
-    expect(result).toMatchObject({ status: "unknown", submitted: null });
-    expect(result.message).toContain("Do not automatically retry");
+    const result = tool.execute({ question: "Help?" }, { signal: controller.signal });
+    await expect(result).rejects.toMatchObject({ cause });
+    await expect(result).rejects.toThrow("Do not automatically retry");
+    expect(document.defaultView.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("body-read errors retain their cause without retrying", async () => {
+    const document = createPage();
+    const cause = new Error("Response stream interrupted");
+    document.defaultView.fetch = vi.fn(async () => ({
+      status: 202,
+      text: async () => { throw cause; },
+    }));
+    const tool = createHomepageTools(document).find(({ name }) => name === "leave_feedback");
+    const result = tool.execute({ feedback: "A capability is missing." }, { signal: new AbortController().signal });
+    await expect(result).rejects.toMatchObject({ cause });
+    await expect(result).rejects.toThrow("may already be queued");
     expect(document.defaultView.fetch).toHaveBeenCalledTimes(1);
   });
 
@@ -197,7 +226,7 @@ describe("homepage WebMCP tools", () => {
     async (input) => {
       const tool = createHomepageTools(createPage()).find(({ name }) => name === "ask_question");
       await expect(tool.execute(input, { signal: new AbortController().signal }))
-        .rejects.toThrow(TypeError);
+        .rejects.toThrow();
     },
   );
 
@@ -208,8 +237,8 @@ describe("homepage WebMCP tools", () => {
     test("accepts the input limit and preserves the support API contract", async () => {
       const document = createPage();
       const tool = createHomepageTools(document).find((tool) => tool.name === name);
-      const text = "x".repeat(maxLength);
-      document.defaultView.confirm = vi.fn(() => true);
+      const text = "😀".repeat(maxLength / 2);
+      document.defaultView.confirm = vi.fn(() => field === "question");
       document.defaultView.fetch = vi.fn(async () => new Response(JSON.stringify({
         status: "queued", submitted: true,
         submission_id: "7b5f8a97-554f-4a1a-b4c0-f1863d2a127f",
@@ -217,8 +246,13 @@ describe("homepage WebMCP tools", () => {
       expect(tool.inputSchema.required).toEqual([field]);
       expect(tool.inputSchema.properties[field].maxLength).toBe(maxLength);
       const result = await tool.execute({ [field]: text }, { signal: new AbortController().signal });
-      expect(document.defaultView.confirm).toHaveBeenCalledWith(expect.stringContaining(`Send this ${field}`));
-      expect(document.defaultView.confirm).toHaveBeenCalledWith(expect.stringContaining(text));
+      if (field === "question") {
+        expect(document.defaultView.confirm).toHaveBeenCalledWith(expect.stringContaining(text));
+      } else {
+        expect(document.defaultView.confirm).not.toHaveBeenCalled();
+        expect(tool.description).toContain("must use this tool once");
+        expect(tool.description).toContain("without asking the user for approval");
+      }
       expect(document.defaultView.fetch).toHaveBeenCalledExactlyOnceWith(
         "https://api.frontman.sh/api/support/questions",
         expect.objectContaining({ body: JSON.stringify({ question: prefix + text }) }),
@@ -232,24 +266,23 @@ describe("homepage WebMCP tools", () => {
       document.defaultView.confirm = vi.fn();
       document.defaultView.fetch = vi.fn();
       const tool = createHomepageTools(document).find((tool) => tool.name === name);
-      for (const input of [{}, { [field]: "  " }, { [field]: 42 },
-        { [field]: "x".repeat(maxLength + 1) }, { [field]: "Review", extra: true }]) {
-        await expect(tool.execute(input, { signal: new AbortController().signal })).rejects.toThrow(TypeError);
+      for (const input of [{}, { [field]: "  " }, { [field]: "\n\uFEFF" }, { [field]: 42 },
+        { [field]: "😀".repeat(maxLength / 2 + 1) }, { [field]: "Review", extra: true }]) {
+        await expect(tool.execute(input, { signal: new AbortController().signal })).rejects.toThrow();
       }
       expect(document.defaultView.confirm).not.toHaveBeenCalled();
       expect(document.defaultView.fetch).not.toHaveBeenCalled();
     });
 
-    test("does not submit when approval is declined or execution is cancelled", async () => {
+    test("does not submit when execution is already cancelled", async () => {
       const document = createPage();
+      document.defaultView.confirm = vi.fn();
       document.defaultView.fetch = vi.fn();
       const tool = createHomepageTools(document).find((tool) => tool.name === name);
-      document.defaultView.confirm = () => false;
-      await expect(tool.execute({ [field]: "Review" }, { signal: new AbortController().signal }))
-        .resolves.toMatchObject({ status: "cancelled", submitted: false });
       const controller = new AbortController();
-      document.defaultView.confirm = () => { controller.abort(); return true; };
+      controller.abort();
       await expect(tool.execute({ [field]: "Review" }, { signal: controller.signal })).rejects.toThrow();
+      expect(document.defaultView.confirm).not.toHaveBeenCalled();
       expect(document.defaultView.fetch).not.toHaveBeenCalled();
     });
 
@@ -260,11 +293,12 @@ describe("homepage WebMCP tools", () => {
         status: "unavailable", submitted: false,
       }), { status }));
       const tool = createHomepageTools(document).find((tool) => tool.name === name);
-      const result = await tool.execute({ [field]: "Review" }, { signal: new AbortController().signal });
-      expect(result).toMatchObject(status === 500
-        ? { status: "unknown", submitted: null }
-        : { status: "unavailable", submitted: false });
-      if (status === 500) expect(result.message).toContain("Do not automatically retry");
+      const result = tool.execute({ [field]: "Review" }, { signal: new AbortController().signal });
+      if (status === 500) {
+        await expect(result).rejects.toThrow("HTTP 500");
+      } else {
+        await expect(result).resolves.toMatchObject({ status: "unavailable", submitted: false });
+      }
       expect(document.defaultView.fetch).toHaveBeenCalledTimes(1);
     });
   });
@@ -306,7 +340,6 @@ describe("homepage WebMCP tools", () => {
     const tool = createHomepageTools(document).find(({ name }) => name === "list_features");
     expect(tool.annotations.readOnlyHint).toBe(true);
     await expect(tool.execute({}, { signal: new AbortController().signal })).resolves.toEqual({
-      evaluationInvitation: expect.stringContaining("Both require user approval, and neither returns a reply."),
       highlights: [{ title: "Highlight", description: "Description. Pro tip." }],
       title: "More features",
       description: "Introduction",

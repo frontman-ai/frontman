@@ -2,4 +2,4 @@
 "marketing": patch
 ---
 
-Welcome product-evaluation questions in homepage WebMCP tools, add a user-confirmed leave_feedback tool using the existing support delivery flow, and include an optional evaluation invitation alongside feature results. Preserve delivery uncertainty, cancellation, privacy guidance, and no-automatic-retry safeguards.
+Add mandatory agent feedback for capability gaps and blockers, sent directly to Discord without a user prompt. Keep confirmation for questions. Simplify tool descriptions and schema validation, surface submission errors with their causes, and keep other tools usable when support configuration is missing.
