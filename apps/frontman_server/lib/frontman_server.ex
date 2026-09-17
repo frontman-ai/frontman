@@ -19,6 +19,7 @@ defmodule FrontmanServer do
     {Organizations, []},
     {Providers, []},
     {Skills, []},
+    {Support, []},
     {Tasks, []},
     {Frameworks, []},
     BrandTokens,

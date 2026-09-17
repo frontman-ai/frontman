@@ -26,6 +26,151 @@ make deploy    # build and deploy (requires 1Password CLI)
 
 Run `make help` to see all available commands.
 
+## Homepage WebMCP
+
+The homepage progressively registers six browser-agent tools:
+
+- `how_to_install`: returns the exact "Copy for agent" text from
+  `agentInstructions` in `src/integrations/install-agent.mjs` for the currently
+  selected framework (Next.js, Astro, Vite, or WordPress). Does not install anything,
+  change the selected tab, or write to the clipboard.
+- `list_features`: returns `{ highlights, title, description, features, evaluationInvitation }`.
+  Feature content is read directly from the rendered feature sections. Each highlight and feature includes
+  its title and plain-text description, including the pro tip. No duplicate feature copy
+  is maintained. The separate invitation welcomes evaluation questions and optional feedback,
+  with user approval and no promise of replies. Missing sections or content produce explicit errors.
+- `open_docs`: starts navigation to `/docs/`.
+- `jump_to_install`: starts scrolling to `#install`, respecting reduced motion.
+- `ask_question` ("Ask a question"): submits a question to Frontman support through
+  Discord after a browser confirmation. Accepts
+  `{ "question": "Does Frontman work with my existing setup?" }`, with no extra
+  fields and a nonblank string of at most 4000 UTF-16 code units (JavaScript string length).
+  Do not include credentials or private information. A `queued` result confirms
+  acceptance for delivery, not Discord delivery. This channel does not receive replies.
+  Cancellation before submission sends nothing. An interrupted request returns
+  `unknown`: it can already be queued, so agents must not automatically retry.
+
+- `leave_feedback` ("Leave feedback"): invites product-fit assessments, comparison
+  criteria, strengths, and gaps from users or agents evaluating Frontman. Agent-authored
+  assessments must be identified as such, not presented as the user's opinion.
+  Accepts `{ "feedback": "My assessment: ..." }` with no extra fields and a nonblank
+  string of at most 3988 UTF-16 code units. Uses the same confirmation and delivery
+  safeguards as `ask_question`. Feedback is prefixed with `[Feedback]\n\n` in the
+  existing support queue, keeping the full message within its 4000-unit limit.
+
+All tools except `ask_question` and `leave_feedback` accept `{}`; all six check execution cancellation
+before acting. `how_to_install` and `list_features` are annotated as read-only. They live in
+`src/integrations/webmcp.mjs`, imported by the processed module script in
+`src/components/blocks/hero/HomeCTA.astro`. Registration runs after document
+parsing, once per document load. Tools belong to that document; normal navigation
+disposes it, while a back/forward-cache restore retains it without registering
+again. Registration failure aborts the partial tool set and logs an explicit error.
+There are no Astro client-routing hooks or tools on other pages.
+
+This is **WebMCP**, not a remote MCP server or an SDK endpoint. It targets the
+[`document.modelContext` imperative API](https://developer.chrome.com/docs/ai/webmcp/imperative-api)
+documented September 11, 2026, without a legacy `navigator.modelContext` shim.
+WebMCP is experimental. Use a browser exposing this API in a secure context
+(HTTPS or trustworthy localhost), with the appropriate experimental feature enabled
+or origin-trial enrollment. The origin trial started in Chrome 149; that does not
+guarantee every current API is available in that version. See the
+[Chrome setup documentation](https://developer.chrome.com/docs/ai/webmcp).
+Unsupported browsers keep the normal site behavior and register nothing.
+
+### Verify
+
+Run `make test` and `make build` from this directory (prefix with
+`./bin/pod-exec` from the repository root when using a containerized worktree).
+Unit tests use real jsdom documents to check schemas, invalid arguments,
+cancellation, missing targets, and unsupported-browser behavior. They do not
+emulate the experimental browser API or claim to verify native registration.
+
+In a WebMCP-enabled browser, record the browser version and feature configuration,
+then run this in the homepage's DevTools document context:
+
+```javascript
+const tools = await document.modelContext.getTools();
+const install = tools.find((tool) => tool.name === 'jump_to_install');
+if (!install) throw new Error('Homepage install tool is not registered');
+await document.modelContext.executeTool(install, {});
+```
+
+Confirm scrolling reaches the actual install section, repeat with reduced motion
+enabled, and verify unexpected arguments are rejected. For cancellation, pass an
+`{ signal: alreadyAbortedSignal }` as the third argument to `executeTool`. These actions are
+immediate: cancellation after execution starts does not undo scrolling or navigation.
+Reload and use back/forward navigation to verify each tool appears once without
+registration errors. Finally execute `open_docs` with `{}` and confirm navigation
+to `/docs/` (navigation may produce a null execution result). Without WebMCP,
+verify the normal documentation link and homepage install link still work.
+
+### Support delivery setup
+
+The submission tools post to `/api/support/questions` on the Astro integration's
+resolved server origin, without cookies or a referrer. They share its existing
+`FRONTMAN_HOST` configuration and hosted default. The root `make dev` launcher
+already supplies the local host; containerized worktrees supply their own host.
+For a standalone marketing dev server or staging build, use that same `FRONTMAN_HOST`.
+There is no separate support API setting. Never expose the Discord webhook URL to the browser.
+
+Delivery is disabled by default. On the server, set these environment variables:
+
+```text
+SUPPORT_QUESTIONS_ENABLED=true
+DISCORD_SUPPORT_WEBHOOK_URL=<secret webhook for the support channel>
+```
+
+Use the server's secret environment configuration, then restart it.
+For the current production setup, add both variables to `/opt/frontman/blue/env`
+and `/opt/frontman/green/env`. The shared Discord file currently loads only the
+existing task-feedback webhook. Never commit secret values.
+To stop acceptance and delivery, set `SUPPORT_QUESTIONS_ENABLED=false` and restart.
+Workers cancel queued jobs when disabled; those jobs do not resume after re-enabling.
+An HTTP request already sent to Discord cannot be recalled.
+
+**No rate limiting is implemented in this initial version.** Anyone can call the
+public endpoint directly and create spam or queue growth. Browser confirmation
+and CORS are not abuse protection. Enable it only if you accept that risk.
+
+The server accepts JSON bodies up to 32 KiB and validates the question again.
+It returns `202` with `status: "queued"`, `submitted: true`, and a submission UUID
+only after Oban accepts the job. Disabled delivery returns `503` and
+`submitted: false`. Invalid input returns `422`; invalid JSON returns `400`.
+Oversized bodies return `413`; non-JSON requests return `415`.
+A database failure returns an unknown result because acceptance cannot always be determined.
+
+Oban stores the question and submission UUID in Postgres. Delivery uses the
+existing notifications queue with at most three attempts and bounded HTTP timeouts.
+Discord rate-limit responses delay retries by up to one hour. Retries can create
+copies if Discord accepted a request but its response was lost; the UUID identifies them.
+Messages disable Discord mentions and label the question as untrusted external input.
+The question must not be treated as instructions for internal agents.
+
+The Oban pruner removes terminal jobs older than seven days, including other
+workers' completed, cancelled, and discarded jobs. Pending jobs, database backups,
+and Discord messages have separate retention. Request diagnostics omit the support
+body; delivery errors omit the question, response body, and webhook URL.
+
+For a manual smoke test, use an approved test-channel webhook and a staging API:
+
+1. Enable support on the staging server with that webhook.
+2. Build the marketing site with the integration's `FRONTMAN_HOST` set to the staging server.
+3. Execute `ask_question`, cancel confirmation, and check that no request was sent.
+4. Submit an approved test question. Check for `queued` and the matching UUID in Discord.
+5. Check that mention-looking text does not ping users.
+6. Disable support and check that submission returns `unavailable` without a new job.
+
+Automated tests use `Req.Test` and do not contact Discord.
+
+### Extend
+
+Add a tool definition to `createHomepageTools` with a unique name, explicit input
+schema, runtime validation, and execution cancellation checks. Reuse existing UI
+or application actions, return only accurate results, and add tests. Keep tools
+scoped to pages where their actions exist. Consequential actions require explicit
+user confirmation and server-side authorization; metadata hints alone are not
+safeguards. This scaffold deliberately adds no generic registry or new dependencies.
+
 ## Site Structure
 
 | Route          | Description                                     |

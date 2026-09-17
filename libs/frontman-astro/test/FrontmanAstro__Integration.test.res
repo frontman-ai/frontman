@@ -47,6 +47,55 @@ describe("browser instrumentation", () => {
   })
 })
 
+describe("resolved server origin", () => {
+  test("publishes the resolved host in both dev and production builds", t => {
+    let cases: array<(FrontmanAstro__Config.jsConfigInput, string)> = [
+      ({}, `https://${FrontmanAstro__Config.defaultHost}`),
+      ({host: "frontman.local:4000"}, "https://frontman.local:4000"),
+      ({host: "abcd.api.frontman.local"}, "https://abcd.api.frontman.local"),
+      ({host: "http://localhost:4567"}, "http://localhost:4567"),
+      ({host: "https://staging.example.com/"}, "https://staging.example.com"),
+    ]
+    cases->Array.forEach(
+      ((input, expected)) => {
+        [#dev, #build]->Array.forEach(
+          command => {
+            let updates = ref([])
+            let setup = Integration.make(input).hooks.configSetup->Option.getOrThrow
+            setup({
+              addDevToolbarApp: _ => (),
+              injectScript: (_, _) => (),
+              updateConfig: update => updates := updates.contents->Array.concat([update]),
+              config: {
+                root: "/project/",
+                base: "/",
+                devToolbar: {enabled: true},
+                markdown: {rehypePlugins: []},
+                trailingSlash: #ignore,
+              },
+              command,
+            })
+            let origin =
+              updates.contents
+              ->Array.filterMap(
+                update =>
+                  update.vite
+                  ->Option.flatMap(vite => vite.define)
+                  ->Option.flatMap(
+                    define => define->Dict.get("import.meta.env.FRONTMAN_API_ORIGIN"),
+                  ),
+              )
+              ->Array.get(0)
+              ->Option.getOrThrow
+              ->S.decodeOrThrow(~from=S.jsonString, ~to=S.string)
+            t->expect(origin)->Expect.toBe(expected)
+          },
+        )
+      },
+    )
+  })
+})
+
 describe("getAstroVersion", _t => {
   test("reads installed astro version", t => {
     let version = Integration.getAstroVersion()

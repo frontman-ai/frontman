@@ -44,6 +44,10 @@ end
 
 config :frontman_server, cloak_key: env!("CLOAK_KEY", :string!)
 
+config :frontman_server, FrontmanServer.Support,
+  enabled: env_boolean.("SUPPORT_QUESTIONS_ENABLED", false),
+  webhook_url: env!("DISCORD_SUPPORT_WEBHOOK_URL", :string?, nil)
+
 if config_env() in [:dev, :prod] do
   config :workos, WorkOS.Client,
     api_key: env!("WORKOS_API_KEY", :string!),

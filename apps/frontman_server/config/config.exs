@@ -172,8 +172,14 @@ config :frontman_server, FrontmanServer.Workers.SendAgentFeedbackToDiscord,
   webhook_url: nil,
   req_options: []
 
+config :frontman_server, FrontmanServer.Support,
+  enabled: false,
+  webhook_url: nil,
+  req_options: []
+
 config :frontman_server, Oban,
   repo: FrontmanServer.Repo,
+  plugins: [{Oban.Plugins.Pruner, max_age: 7 * 24 * 60 * 60}],
   queues: [default: 10, mailers: 5, notifications: 5]
 
 config :esbuild,
