@@ -27,7 +27,7 @@ export function createHomepageTools(document) {
       title,
       description: `${description} No replies. Exclude credentials and private information. Never automatically retry a failed submission.`,
       inputSchema,
-      execute: async (input, { signal }) => {
+      execute: async (input, { signal = new AbortController().signal } = {}) => {
         const text = parseWith(validate, input)[field];
         signal.throwIfAborted();
         const supportUrl = new URL("/api/support/questions", import.meta.env.FRONTMAN_API_ORIGIN);
@@ -99,7 +99,7 @@ export function createHomepageTools(document) {
         "Return installation instructions for the framework selected on the homepage. Does not install anything.",
       inputSchema,
       annotations: { readOnlyHint: true },
-      execute: async (input, { signal }) => {
+      execute: async (input, { signal = new AbortController().signal } = {}) => {
         parseWith(validateInput, input);
         signal.throwIfAborted();
         const framework = document.querySelector("[data-install-agent]")?.dataset.agentFramework;
@@ -116,7 +116,7 @@ export function createHomepageTools(document) {
         "Read feature titles, descriptions, and introductions from the homepage without changing it.",
       inputSchema,
       annotations: { readOnlyHint: true },
-      execute: async (input, { signal }) => {
+      execute: async (input, { signal = new AbortController().signal } = {}) => {
         parseWith(validateInput, input);
         signal.throwIfAborted();
         const highlights = [...document.querySelectorAll('.feature-section[id^="feature-highlight-"]')];
@@ -143,7 +143,7 @@ export function createHomepageTools(document) {
       name: "open_docs",
       description: "Navigate to /docs/. Does not return documentation content.",
       inputSchema,
-      execute: async (input, { signal }) => {
+      execute: async (input, { signal = new AbortController().signal } = {}) => {
         parseWith(validateInput, input);
         signal.throwIfAborted();
         window.location.assign("/docs/");
@@ -154,7 +154,7 @@ export function createHomepageTools(document) {
       name: "jump_to_install",
       description: "Scroll to the homepage installation section. Does not install anything.",
       inputSchema,
-      execute: async (input, { signal }) => {
+      execute: async (input, { signal = new AbortController().signal } = {}) => {
         parseWith(validateInput, input);
         signal.throwIfAborted();
         const target = document.querySelector("#install");

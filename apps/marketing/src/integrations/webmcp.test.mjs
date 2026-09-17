@@ -234,7 +234,7 @@ describe("homepage WebMCP tools", () => {
     ["ask_question", "question", "", 4000],
     ["leave_feedback", "feedback", "[Feedback]\n\n", 3988],
   ])("%s shared submission safeguards", (name, field, prefix, maxLength) => {
-    test("accepts the input limit and preserves the support API contract", async () => {
+    test.each([undefined, {}, { signal: new AbortController().signal }])("accepts the input limit and preserves the support API contract with context %j", async (context) => {
       const document = createPage();
       const tool = createHomepageTools(document).find((tool) => tool.name === name);
       const text = "😀".repeat(maxLength / 2);
@@ -245,7 +245,7 @@ describe("homepage WebMCP tools", () => {
       }), { status: 202 }));
       expect(tool.inputSchema.required).toEqual([field]);
       expect(tool.inputSchema.properties[field].maxLength).toBe(maxLength);
-      const result = await tool.execute({ [field]: text }, { signal: new AbortController().signal });
+      const result = await tool.execute({ [field]: text }, context);
       if (field === "question") {
         expect(document.defaultView.confirm).toHaveBeenCalledWith(expect.stringContaining(text));
       } else {

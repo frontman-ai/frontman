@@ -33,6 +33,6 @@ test("WebMCP works without dynamic code generation and CSP permits the support A
   expect(tools).toHaveLength(6);
   const options = { signal: new AbortController().signal };
   for (const tool of tools) await expect(tool.execute({ unexpected: true }, options)).rejects.toThrow();
-  await tools.find(tool => tool.name === "open_docs").execute({}, options);
+  await tools.find(tool => tool.name === "open_docs").execute({});
   expect(document.defaultView.location.assign).toHaveBeenCalledWith("/docs/");
 });
