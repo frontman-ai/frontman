@@ -766,11 +766,11 @@ let messageAnnotationToBlockData = (
 @schema
 type deviceMetadata = {
   @live active: bool,
-  width: int,
-  height: int,
+  @live width: int,
+  @live height: int,
   name: string,
   orientation: string,
-  dpr: option<float>,
+  @live dpr: option<float>,
 }
 
 @schema
@@ -783,7 +783,8 @@ type pageMetadata = {
   title: option<string>,
   @live color_scheme: option<[#dark | #light]>,
   @live scroll_y: int,
-  device_emulation: option<deviceMetadata>,
+  @live device_emulation: option<deviceMetadata>,
+  @live
   astro_client_routing: option<FrontmanAiFrontmanProtocol.FrontmanProtocol__AstroClientRouting.t>,
 }
 
