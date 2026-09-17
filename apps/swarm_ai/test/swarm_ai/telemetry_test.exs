@@ -19,10 +19,16 @@ defmodule SwarmAi.TelemetryTest do
     end
   end
 
-  test "executor telemetry contains loop identity without caller state" do
+  test "executor returns the completed loop and emits run metadata without caller state" do
     loop = test_execution(mock_llm("done"))
 
-    events = capture_telemetry(fn -> SwarmAi.Executor.run(loop, self()) end)
+    events =
+      capture_telemetry(fn ->
+        result = SwarmAi.Executor.run(loop, self())
+        assert result.id == loop.id
+        assert result.status == :completed
+        assert result.result == "done"
+      end)
 
     for event <- [[:swarm_ai, :run, :start], [:swarm_ai, :run, :stop]] do
       assert_event(events, event, fn _measurements, metadata ->
@@ -32,48 +38,15 @@ defmodule SwarmAi.TelemetryTest do
         refute Map.has_key?(metadata, :context)
       end)
     end
+
+    assert_event(events, [:swarm_ai, :run, :stop], fn _measurements, metadata ->
+      assert metadata.status == :completed
+      assert metadata.step_count == 1
+      assert metadata.output == "done"
+    end)
   end
 
   describe "Telemetry span helpers" do
-    test "run_span executes function and returns result" do
-      result =
-        SwarmAi.Telemetry.run_span(%{loop_id: "test"}, fn ->
-          {"my_result",
-           %{
-             loop_id: "test",
-             status: :completed,
-             step_count: 1
-           }}
-        end)
-
-      assert result == "my_result"
-    end
-
-    test "run_span stop event includes callback metadata" do
-      events =
-        capture_telemetry(fn ->
-          SwarmAi.Telemetry.run_span(
-            %{loop_id: "loop_123"},
-            fn ->
-              {"result",
-               %{
-                 loop_id: "loop_123",
-                 status: :completed,
-                 step_count: 3
-               }}
-            end
-          )
-        end)
-
-      assert_event(events, [:swarm_ai, :run, :stop], fn _measurements, metadata ->
-        assert Map.has_key?(metadata, :loop_id), "stop event must include loop_id"
-        assert metadata.loop_id == "loop_123"
-        refute Map.has_key?(metadata, :task_id)
-        assert metadata.status == :completed
-        assert metadata.step_count == 3
-      end)
-    end
-
     test "llm_span executes function and returns result" do
       result =
         SwarmAi.Telemetry.llm_span(%{loop_id: "test", step: 1, model: "claude"}, fn ->
