@@ -14,7 +14,7 @@ const feedbackPrefix = "[Feedback]\n\n";
 const schemas = {
   validateInput: S.strict(S.schema({})),
   validateQuestion: textInput("question", 4000, "Your question and relevant non-sensitive project context."),
-  validateFeedback: textInput("feedback", 4000 - feedbackPrefix.length, "The capability gap or blocker, its impact, and what would help."),
+  validateFeedback: textInput("feedback", 4000 - feedbackPrefix.length, "Your assessment: what worked, what was unclear, missing capabilities or blockers, and what you need to complete your task."),
   validateQueuedQuestion: S.schema({
     status: S.literal("queued"),
     submitted: S.literal(true),
