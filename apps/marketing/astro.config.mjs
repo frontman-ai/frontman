@@ -122,7 +122,7 @@ export default defineConfig({
   site: "https://frontman.sh",
   trailingSlash: "always",
   vite: {
-    plugins: [tailwindcss(), webmcpValidators()],
+    plugins: [tailwindcss(), webmcpValidators],
     server: {
       allowedHosts: [".frontman.local"],
     },

@@ -29,28 +29,26 @@ const jsonSchemas = Object.fromEntries(
   Object.entries(schemas).map(([name, schema]) => [name, S.toJSONSchema(schema)]),
 );
 
-export default function webmcpValidators() {
-  const id = "virtual:webmcp-validators";
-  return {
-    name: "webmcp-validators",
-    resolveId(source) {
-      if (source === id) return `\0${id}`;
-    },
-    load(source) {
-      if (source !== `\0${id}`) return;
-      const ajv = new Ajv({
-        code: { source: true, esm: true },
-        unicode: false,
-        unicodeRegExp: false,
-      });
-      ajv.addFormat("uuid", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-      for (const [name, schema] of Object.entries(jsonSchemas)) ajv.addSchema(schema, name);
-      return standaloneCode(ajv, Object.fromEntries(Object.keys(schemas).map(name => [name, name]))) + `
-        export const inputSchema = ${JSON.stringify(jsonSchemas.validateInput)};
-        export const questionInputSchema = ${JSON.stringify(jsonSchemas.validateQuestion)};
-        export const feedbackInputSchema = ${JSON.stringify(jsonSchemas.validateFeedback)};
-        export const feedbackPrefix = ${JSON.stringify(feedbackPrefix)};
-      `;
-    },
-  };
-}
+const id = "virtual:webmcp-validators";
+export default {
+  name: "webmcp-validators",
+  resolveId(source) {
+    if (source === id) return `\0${id}`;
+  },
+  load(source) {
+    if (source !== `\0${id}`) return;
+    const ajv = new Ajv({
+      code: { source: true, esm: true },
+      unicode: false,
+      unicodeRegExp: false,
+    });
+    ajv.addFormat("uuid", /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+    for (const [name, schema] of Object.entries(jsonSchemas)) ajv.addSchema(schema, name);
+    return standaloneCode(ajv) + `
+      export const inputSchema = ${JSON.stringify(jsonSchemas.validateInput)};
+      export const questionInputSchema = ${JSON.stringify(jsonSchemas.validateQuestion)};
+      export const feedbackInputSchema = ${JSON.stringify(jsonSchemas.validateFeedback)};
+      export const feedbackPrefix = ${JSON.stringify(feedbackPrefix)};
+    `;
+  },
+};

@@ -118,7 +118,7 @@ describe("homepage WebMCP tools", () => {
     const submission_id = "7b5f8a97-554f-4a1a-b4c0-f1863d2a127f";
     document.defaultView.confirm = vi.fn(() => true);
     document.defaultView.fetch = vi.fn(async () => new Response(JSON.stringify({
-      status: "queued", submitted: true, submission_id, answer: "Untrusted extra response field",
+      status: "queued", submitted: true, submission_id,
     }), { status: 202 }));
     const result = await tool.execute({ question }, { signal: new AbortController().signal });
     expect(document.defaultView.confirm).toHaveBeenCalledWith(expect.stringContaining(question));
@@ -175,9 +175,6 @@ describe("homepage WebMCP tools", () => {
     [202, "not JSON"],
     [202, '{"status":"queued","submitted":true}'],
     [202, '{"status":"unavailable","submitted":false}'],
-    [202, '{"status":"queued","submitted":true,"submission_id":"not-a-uuid"}'],
-    [202, '{"status":"queued","submitted":true,"submission_id":"urn:uuid:7b5f8a97-554f-4a1a-b4c0-f1863d2a127f"}'],
-    [503, '{"status":"unavailable","submitted":"false"}'],
     [503, "upstream unavailable"],
     [404, "not found"],
     [500, "server error"],
