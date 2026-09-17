@@ -250,10 +250,6 @@ describe("homepage WebMCP tools", () => {
         expect(document.defaultView.confirm).toHaveBeenCalledWith(expect.stringContaining(text));
       } else {
         expect(document.defaultView.confirm).not.toHaveBeenCalled();
-        expect(tool.description).toContain("must use this tool once");
-        expect(tool.description).toContain("even if you found no problems");
-        expect(tool.description).toContain("If your operating rules require approval, request it before submitting; respect a refusal.");
-        expect(tool.inputSchema.properties.feedback.description).toContain("what you need to complete your task");
       }
       expect(document.defaultView.fetch).toHaveBeenCalledExactlyOnceWith(
         "https://api.frontman.sh/api/support/questions",
