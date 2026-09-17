@@ -4,6 +4,7 @@ import sitemap from "@astrojs/sitemap";
 import frontman from "@frontman-ai/astro";
 import brokenLinksChecker from "astro-broken-links-checker";
 import consent from "./src/integrations/consent.mjs";
+import webmcpValidators from "./src/integrations/webmcp-validators.mjs";
 import path from "node:path";
 import fs from "node:fs";
 import hcStarlight from "hc-starlight";
@@ -121,7 +122,7 @@ export default defineConfig({
   site: "https://frontman.sh",
   trailingSlash: "always",
   vite: {
-    plugins: [tailwindcss()],
+    plugins: [tailwindcss(), webmcpValidators()],
     server: {
       allowedHosts: [".frontman.local"],
     },

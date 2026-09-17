@@ -39,6 +39,7 @@
   },
   "devDependencies": {
     "@frontman-ai/astro": "workspace:*",
+    "ajv": "^8.20.0",
     "jsdom": "^30.0.1"
   }
 }

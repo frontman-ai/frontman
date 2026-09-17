@@ -8300,7 +8300,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ajv@npm:^8.0.0, ajv@npm:^8.17.1, ajv@npm:^8.6.3":
+"ajv@npm:^8.0.0, ajv@npm:^8.17.1, ajv@npm:^8.20.0, ajv@npm:^8.6.3":
   version: 8.20.0
   resolution: "ajv@npm:8.20.0"
   dependencies:
@@ -13422,6 +13422,7 @@ __metadata:
     "@frontman-ai/astro": "workspace:*"
     "@tailwindcss/typography": "npm:^0.5.20"
     "@tailwindcss/vite": "npm:^4.3.3"
+    ajv: "npm:^8.20.0"
     astro: "npm:7.2.8"
     astro-broken-links-checker: "npm:^1.1.0"
     astro-icon: "npm:^1.1.5"
