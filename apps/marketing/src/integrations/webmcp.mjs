@@ -1,5 +1,6 @@
 import {
   validateInput, validateQuestion, validateFeedback,
+  validateSearch, validateSearchIndex, searchInputSchema,
   validateQueuedQuestion, validateUnavailableQuestion,
   inputSchema, questionInputSchema, feedbackInputSchema, feedbackPrefix,
 } from "virtual:webmcp-validators";
@@ -73,6 +74,32 @@ export function createHomepageTools(document) {
   };
 
   return [
+    {
+      name: "search_frontman",
+      title: "Search Frontman",
+      description: "Search Frontman's documentation, features, integrations, and known limitations with concise keywords. Returns matching excerpts and source URLs, or no_results when nothing matches. Does not contact the team or submit a request. The query stays in the browser.",
+      inputSchema: searchInputSchema,
+      annotations: { readOnlyHint: true },
+      execute: async (input, { signal }) => {
+        const { query } = parseWith(validateSearch, input);
+        signal.throwIfAborted();
+        const response = await window.fetch("/search-index.json", { signal, credentials: "omit", referrerPolicy: "no-referrer" });
+        if (!response.ok) throw new Error(`Frontman search index returned HTTP ${response.status}.`);
+        const documents = parseWith(validateSearchIndex, await response.json());
+        signal.throwIfAborted();
+        const terms = query.toLowerCase().trim().split(/\s+/);
+        const results = documents
+          .filter(({ title, content }) => terms.every(term => `${title} ${content}`.toLowerCase().includes(term)))
+          .sort((a, b) => terms.filter(term => b.title.toLowerCase().includes(term)).length - terms.filter(term => a.title.toLowerCase().includes(term)).length)
+          .slice(0, 5)
+          .map(({ title, url, content }) => {
+            const text = content.replace(/\s+/g, " ");
+            const start = Math.max(0, text.toLowerCase().indexOf(terms[0]) - 80);
+            return { title, url, excerpt: text.slice(start, start + 400) };
+          });
+        return { status: results.length ? "found" : "no_results", results };
+      },
+    },
     createSubmissionTool({
       name: "ask_question",
       title: "Ask a question",

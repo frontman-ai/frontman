@@ -30,7 +30,7 @@ test("WebMCP works without dynamic code generation and CSP permits the support A
   vm.runInContext(bundle.output.find(chunk => chunk.isEntry).code, context);
   await context.WebMCP.registerHomepageTools(document);
   const tools = document.modelContext.registerTool.mock.calls.map(([tool]) => tool);
-  expect(tools).toHaveLength(6);
+  expect(tools).toHaveLength(7);
   const options = { signal: new AbortController().signal };
   for (const tool of tools) await expect(tool.execute({ unexpected: true }, options)).rejects.toThrow();
   await tools.find(tool => tool.name === "open_docs").execute({}, options);

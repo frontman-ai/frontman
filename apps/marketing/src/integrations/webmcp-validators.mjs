@@ -10,8 +10,11 @@ const textInput = (field, maxLength, description) => S.strict(S.schema({
     .with(S.meta, { description }),
 }));
 
+export const searchIndexSchema = S.array(S.schema({ title: S.string, url: S.string, content: S.string }));
 const feedbackPrefix = "[Feedback]\n\n";
 const schemas = {
+  validateSearch: textInput("query", 500, "Keywords describing what you want to learn or accomplish with Frontman."),
+  validateSearchIndex: searchIndexSchema,
   validateInput: S.strict(S.schema({})),
   validateQuestion: textInput("question", 4000, "Your question and relevant non-sensitive project context."),
   validateFeedback: textInput("feedback", 4000 - feedbackPrefix.length, "Your assessment: what worked, what was unclear, missing capabilities or blockers, and what you need to complete your task."),
@@ -46,6 +49,7 @@ export default {
     for (const [name, schema] of Object.entries(jsonSchemas)) ajv.addSchema(schema, name);
     return standaloneCode(ajv) + `
       export const inputSchema = ${JSON.stringify(jsonSchemas.validateInput)};
+      export const searchInputSchema = ${JSON.stringify(jsonSchemas.validateSearch)};
       export const questionInputSchema = ${JSON.stringify(jsonSchemas.validateQuestion)};
       export const feedbackInputSchema = ${JSON.stringify(jsonSchemas.validateFeedback)};
       export const feedbackPrefix = ${JSON.stringify(feedbackPrefix)};

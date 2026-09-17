@@ -23,6 +23,35 @@ afterEach(() => {
 });
 
 describe("homepage WebMCP tools", () => {
+  test("searches public documentation locally with bounded results and no submissions", async () => {
+    const document = createPage();
+    const documents = [
+      ...Array.from({ length: 6 }, (_, i) => ({ title: `Guide ${i}`, url: `/docs/guide-${i}/`, content: "WordPress ".repeat(100) })),
+      { title: "WordPress", url: "/docs/integrations/wordpress/", content: "Supported WordPress workflows." },
+    ];
+    document.defaultView.fetch = vi.fn(async () => new Response(JSON.stringify(documents)));
+    document.defaultView.confirm = vi.fn();
+    const tool = createHomepageTools(document).find(tool => tool.name === "search_frontman");
+    const options = { signal: new AbortController().signal };
+    for (const query of ["  ", "x".repeat(501)]) {
+      await expect(tool.execute({ query }, options)).rejects.toThrow();
+    }
+    expect(document.defaultView.fetch).not.toHaveBeenCalled();
+    const result = await tool.execute({ query: "WORDPRESS" }, options);
+    expect(tool.annotations.readOnlyHint).toBe(true);
+    expect(result.status).toBe("found");
+    expect(result.results).toHaveLength(5);
+    expect(result.results[0]).toEqual({ title: "WordPress", url: "/docs/integrations/wordpress/", excerpt: "Supported WordPress workflows." });
+    expect(result.results.every(result => result.excerpt.length <= 400)).toBe(true);
+    await expect(tool.execute({ query: "nonexistent-capability" }, options)).resolves.toEqual({ status: "no_results", results: [] });
+    expect(document.defaultView.confirm).not.toHaveBeenCalled();
+    expect(document.defaultView.fetch).toHaveBeenCalledWith("/search-index.json", { ...options, credentials: "omit", referrerPolicy: "no-referrer" });
+    document.defaultView.fetch.mockResolvedValueOnce(new Response("unavailable", { status: 503 }));
+    await expect(tool.execute({ query: "WordPress" }, options)).rejects.toThrow("HTTP 503");
+    document.defaultView.fetch.mockResolvedValueOnce(new Response('[{"title":"Invalid"}]'));
+    await expect(tool.execute({ query: "WordPress" }, options)).rejects.toThrow();
+  });
+
   test.each(["https://frontman.local:4000", "https://abcd.api.frontman.local", "http://localhost:4567"])(
     "both submission tools use the integration's resolved origin: %s", async (origin) => {
       vi.stubEnv("FRONTMAN_API_ORIGIN", origin);
@@ -69,8 +98,8 @@ describe("homepage WebMCP tools", () => {
 
   test("exposes the existing actions with empty-object schemas", () => {
     const tools = createHomepageTools(createPage());
-    expect(tools.map(({ name }) => name)).toEqual(["ask_question", "leave_feedback", "how_to_install", "list_features", "open_docs", "jump_to_install"]);
-    for (const tool of tools.filter(({ name }) => !["ask_question", "leave_feedback"].includes(name))) {
+    expect(tools.map(({ name }) => name)).toEqual(["search_frontman", "ask_question", "leave_feedback", "how_to_install", "list_features", "open_docs", "jump_to_install"]);
+    for (const tool of tools.filter(({ name }) => !["search_frontman", "ask_question", "leave_feedback"].includes(name))) {
       expect(tool.description.length).toBeGreaterThan(0);
       expect(tool.inputSchema).toMatchObject({
         type: "object",
