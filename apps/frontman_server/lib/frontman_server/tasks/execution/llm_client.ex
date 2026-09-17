@@ -31,9 +31,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
   - `:tools` - List of SwarmAi.Tool structs
   - `:llm_opts` - Options for ReqLLM, including resolved provider auth
   """
-  def new(opts \\ []) do
-    struct!(__MODULE__, opts)
-  end
+  def new(opts \\ []), do: struct!(__MODULE__, opts)
 
   @doc """
   Converts SwarmAi.Tool to ReqLLM.Tool format.
@@ -217,8 +215,8 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     Map.get(map, key) || Map.get(map, string_key)
   end
 
-  defp to_reqllm_content_part(%ContentPart{type: :text, text: text}) do
-    ReqLLM.Message.ContentPart.text(text)
+  defp to_reqllm_content_part(%ContentPart{type: :text, text: text, metadata: metadata}) do
+    ReqLLM.Message.ContentPart.text(text, metadata)
   end
 
   defp to_reqllm_content_part(%ContentPart{type: :image, data: data, media_type: mt}) do

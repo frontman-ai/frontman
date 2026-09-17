@@ -9,6 +9,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   alias ReqLLM.Error.API.{Request, Stream}
   alias SwarmAi.Message.ContentPart
 
+  @client_opts [llm_opts: [api_key: "test-key"]]
+
   setup :set_mox_from_context
   setup :verify_on_exit!
 
@@ -73,11 +75,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.User{
@@ -100,11 +98,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.User{
@@ -129,11 +123,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.User{
@@ -159,11 +149,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.Assistant{
@@ -208,11 +194,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.Assistant{

@@ -12,8 +12,7 @@ defmodule FrontmanServer.Agents.SystemPrompt do
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Tools.TodoWrite
 
-  @enforce_keys [:instructions, :skills, :project_structure, :project_rules]
-  defstruct [:instructions, :skills, :project_structure, :project_rules]
+  alias SwarmAi.Message.ContentPart
 
   def compose(%Agent{system: system}, %{
         available_skills: skills,
@@ -23,22 +22,17 @@ defmodule FrontmanServer.Agents.SystemPrompt do
         project_traits: project_traits
       })
       when is_list(skills) and is_list(project_rules) do
-    %__MODULE__{
-      instructions: [
-        system | context_guidance(project_traits, framework, project_structure)
-      ],
-      skills: skills,
-      project_structure: project_structure,
-      project_rules: project_rules
-    }
-  end
+    prefix =
+      [system | context_guidance(project_traits, framework, project_structure)] ++
+        skill_sections(skills)
 
-  def to_text(%__MODULE__{} = prompt) do
-    prompt.instructions
-    |> Enum.join("\n")
-    |> append_available_skills(prompt.skills)
-    |> append_project_structure(prompt.project_structure)
-    |> append_project_rules(prompt.project_rules)
+    context =
+      project_structure_sections(project_structure) ++ project_rule_sections(project_rules)
+
+    for {sections, metadata} <- [{prefix, %{cache_control: %{type: "ephemeral"}}}, {context, %{}}],
+        sections != [] do
+      ContentPart.text(Enum.join(sections, "\n\n") <> "\n\n", metadata)
+    end
   end
 
   defp context_guidance(project_traits, framework, project_structure) do
@@ -131,36 +125,32 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     """
   end
 
-  defp append_project_structure(prompt, nil), do: prompt
-  defp append_project_structure(prompt, ""), do: prompt
+  defp project_structure_sections(nil), do: []
+  defp project_structure_sections(""), do: []
 
-  defp append_project_structure(prompt, summary) when is_binary(summary) do
-    prompt <> "\n\n## Project Structure\n\n" <> summary
+  defp project_structure_sections(summary) when is_binary(summary) do
+    ["## Project Structure\n\n" <> summary]
   end
 
-  defp append_project_rules(prompt, []), do: prompt
+  defp project_rule_sections([]), do: []
 
-  defp append_project_rules(prompt, rules) when is_list(rules) do
-    sections =
-      rules
-      |> Enum.sort_by(& &1.timestamp)
-      |> Enum.map(&format_rule/1)
-
-    prompt <> "\n" <> Enum.join(sections, "\n\n---\n\n")
+  defp project_rule_sections(rules) when is_list(rules) do
+    [rules |> Enum.sort_by(& &1.timestamp) |> Enum.map_join("\n\n---\n\n", &format_rule/1)]
   end
 
-  defp append_available_skills(prompt, []), do: prompt
+  defp skill_sections([]), do: []
 
-  defp append_available_skills(prompt, skills) do
+  defp skill_sections(skills) do
     summaries =
       Enum.map_join(skills, "\n", fn %{source: :backend, name: name, description: description} ->
         "- backend:#{name}: #{description}"
       end)
 
-    prompt <>
-      "\n\n## Available Skills\n\n" <>
-      "When a skill matches the task, call the skill tool with its exact qualified name " <>
-      "to load its instructions before applying it.\n\n" <> summaries
+    [
+      "## Available Skills\n\n" <>
+        "When a skill matches the task, call the skill tool with its exact qualified name " <>
+        "to load its instructions before applying it.\n\n" <> summaries
+    ]
   end
 
   defp format_rule(%{path: path, content: content}),

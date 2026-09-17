@@ -72,9 +72,7 @@ defmodule FrontmanServer.Agents do
         false -> []
       end
 
-    agent
-    |> SystemPrompt.compose(Map.put(context, :available_skills, skills))
-    |> SystemPrompt.to_text()
+    SystemPrompt.compose(agent, Map.put(context, :available_skills, skills))
   end
 
   defp agent_ids!(agents) do
