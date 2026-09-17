@@ -181,7 +181,7 @@ defmodule FrontmanServer.AgentsTest do
 
     test "composes separate instructions, skills and project data", %{scope: scope} do
       {:ok, agent} = Agents.get_agent(scope, @executor_id)
-      skills = [%{name: "backend:design", description: "Improve visual hierarchy."}]
+      skills = [%{source: :backend, name: "design", description: "Improve visual hierarchy."}]
 
       composed =
         SystemPrompt.compose(agent, %{

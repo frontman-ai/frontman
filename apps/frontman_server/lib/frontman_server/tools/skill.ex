@@ -42,12 +42,15 @@ defmodule FrontmanServer.Tools.Skill do
   def timeout_ms, do: 30_000
 
   @impl true
-  def execute(%{"name" => name}, %Context{scope: scope}) when is_binary(name) do
-    case Skills.load(scope, name) do
+  def execute(%{"name" => "backend:" <> name}, %Context{scope: scope}) do
+    case Skills.load(scope, %{source: :backend, name: name}) do
       {:ok, skill} -> MCP.tool_result_text(skill.content)
-      {:error, :not_found} -> MCP.tool_result_error("Skill not found: #{name}")
+      {:error, :not_found} -> MCP.tool_result_error("Skill not found: backend:#{name}")
     end
   end
+
+  def execute(%{"name" => name}, %Context{}) when is_binary(name),
+    do: MCP.tool_result_error("Skill not found: #{name}")
 
   def execute(_args, %Context{}), do: MCP.tool_result_error("name must be a string")
 end

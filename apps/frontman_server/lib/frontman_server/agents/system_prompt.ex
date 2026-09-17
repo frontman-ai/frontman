@@ -152,7 +152,10 @@ defmodule FrontmanServer.Agents.SystemPrompt do
   defp append_available_skills(prompt, []), do: prompt
 
   defp append_available_skills(prompt, skills) do
-    summaries = Enum.map_join(skills, "\n", &"- #{&1.name}: #{&1.description}")
+    summaries =
+      Enum.map_join(skills, "\n", fn %{source: :backend, name: name, description: description} ->
+        "- backend:#{name}: #{description}"
+      end)
 
     prompt <>
       "\n\n## Available Skills\n\n" <>

@@ -22,15 +22,15 @@ defmodule FrontmanServer.Skills do
     |> Repo.all()
   end
 
-  @doc "Returns discovery summaries with qualified backend names, without instructions."
+  @doc "Returns discovery summaries with explicit sources, without instructions."
   def list(%Scope{} = scope) do
     Enum.map(catalog(scope), fn skill ->
-      %{name: "backend:#{skill.name}", description: skill.description}
+      %{source: :backend, name: skill.name, description: skill.description}
     end)
   end
 
-  @doc "Loads the current skill by its exact qualified backend name."
-  def load(%Scope{}, "backend:" <> name) do
+  @doc "Loads the current skill by its source and name."
+  def load(%Scope{}, %{source: :backend, name: name}) when is_binary(name) do
     case Repo.get_by(Skill, name: name) do
       %Skill{} = skill -> {:ok, skill}
       nil -> {:error, :not_found}
