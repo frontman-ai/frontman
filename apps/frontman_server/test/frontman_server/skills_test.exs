@@ -97,13 +97,28 @@ defmodule FrontmanServer.SkillsTest do
                "Improve visual quality using selected UI, DOM, CSS, and page context."
     end
 
+    test "includes the WebMCP skill installed by migrations" do
+      scope = user_scope_fixture()
+
+      assert {:ok, %Skill{content: content, description: description}} =
+               Skills.load(scope, %{source: :backend, name: "webmcp"})
+
+      assert content =~ "# Implement WebMCP"
+      assert content =~ "await document.modelContext.registerTool"
+      assert content =~ "## Migration checklist"
+      assert String.length(description) <= 200
+    end
+
     test "returns globally usable skills ordered by name" do
       scope = user_scope_fixture()
 
       skill_fixture(scope, %{name: "seo_auditor"})
 
-      assert [%Skill{name: "design_polish"}, %Skill{name: "seo_auditor"}] =
-               Skills.catalog(scope)
+      assert [
+               %Skill{name: "design_polish"},
+               %Skill{name: "seo_auditor"},
+               %Skill{name: "webmcp"}
+             ] = Skills.catalog(scope)
     end
   end
 

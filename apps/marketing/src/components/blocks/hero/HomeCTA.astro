@@ -9,45 +9,20 @@ import videoPlaceholder from '../../../assets/video-placeholder.png'
 
 const youtubeVideoId = '-4GD1GYwH8Y'
 
-const webMcpScript = `
-if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext === 'function') {
-  navigator.modelContext.provideContext({
-    tools: [
-      {
-        name: 'open_docs',
-        description: 'Open Frontman documentation.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false,
-        },
-        execute: async () => {
-          window.location.href = '/docs/'
-          return { ok: true }
-        },
-      },
-      {
-        name: 'jump_to_install',
-        description: 'Scroll to the install section on the homepage.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false,
-        },
-			execute: async () => {
-				const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-				document.querySelector('#install')?.scrollIntoView({ behavior, block: 'start' })
-          return { ok: true }
-        },
-      },
-    ],
-  })
-}
-`
 ---
 
 <section id="intro" class="hero-section bg-primary-500">
-	<script is:inline set:html={webMcpScript} />
+	<script>
+		import { registerHomepageTools } from '../../../integrations/webmcp.mjs'
+
+		async function initializeWebMcp() {
+			await registerHomepageTools(document)
+		}
+
+		void initializeWebMcp().catch((error) => {
+			console.error('[WebMCP] Homepage tool registration failed.', error)
+		})
+	</script>
 	<div class="hero-section__bg">
 		<img src={gridNetBackground.src} alt="" aria-hidden="true" class="hero-section__bg-image" width="1440" height="900" loading="lazy" fetchpriority="low" />
 	</div>

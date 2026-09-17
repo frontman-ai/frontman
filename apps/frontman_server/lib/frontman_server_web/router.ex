@@ -87,6 +87,7 @@ defmodule FrontmanServerWeb.Router do
     pipe_through(:api)
 
     get("/integrations/latest-versions", IntegrationsController, :latest_versions)
+    post("/support/questions", SupportQuestionController, :create, log: false)
   end
 
   scope "/api", FrontmanServerWeb do

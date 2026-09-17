@@ -96,7 +96,7 @@ type vitePluginConfig = {
 
 external makeVitePlugin: vitePluginConfig => vitePlugin = "%identity"
 
-type partialViteConfig = {plugins?: array<vitePlugin>}
+type partialViteConfig = {plugins?: array<vitePlugin>, define?: dict<string>}
 
 type partialMarkdownConfig = {rehypePlugins?: array<rehypePlugin>}
 type partialAstroConfig = {vite?: partialViteConfig, markdown?: partialMarkdownConfig}

@@ -89,6 +89,22 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
       },
       configSetup: ?Some(
         ctx => {
+          let apiOrigin = WebAPI.URL.make(
+            ~url=switch config.host->String.includes("://") {
+            | true => config.host
+            | false => `https://${config.host}`
+            },
+          ).origin
+          ctx.updateConfig({
+            vite: {
+              define: dict{
+                "import.meta.env.FRONTMAN_API_ORIGIN": apiOrigin->S.decodeOrThrow(
+                  ~from=S.string,
+                  ~to=S.jsonString,
+                ),
+              },
+            },
+          })
           if ctx.command == #dev {
             if astroMajorVersion < 7 && !ctx.config.devToolbar.enabled {
               Console.warn(

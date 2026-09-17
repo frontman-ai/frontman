@@ -1,4 +1,8 @@
 [[language]]
+name = "javascript"
+file-types = ["js", "mjs", "cjs"]
+
+[[language]]
 name = "rescript"
 workspace-lsp-roots = [
   "libs/bindings",

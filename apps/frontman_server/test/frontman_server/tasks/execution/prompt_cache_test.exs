@@ -115,7 +115,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptCacheTest do
     assert [prefix, first_context] = String.split(first, "## Project Structure", parts: 2)
     assert [^prefix, next_context] = String.split(next, "## Project Structure", parts: 2)
     assert prefix =~ "backend:#{skill.name}: #{skill.description}"
-    assert first =~ skill.description <> "\n\n## Project Structure\n\n"
+    assert first =~ "\n\n## Project Structure\n\n"
 
     for system <- systems do
       assert system =~ "Test executor system."

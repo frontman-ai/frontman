@@ -80,7 +80,7 @@ assets-deploy:
 test:
 	MIX_ENV=test mix ecto.create --quiet
 	MIX_ENV=test mix ecto.migrate --quiet
-	mix test
+	mix test $(TEST_ARGS)
 
 test-record:
 	MIX_ENV=test mix ecto.create --quiet
@@ -93,7 +93,7 @@ test-coverage:
 	MIX_ENV=test mix coveralls.cobertura
 
 format:
-	mix format
+	mix format $(FORMAT_ARGS)
 
 lint:
 	mix format --check-formatted
