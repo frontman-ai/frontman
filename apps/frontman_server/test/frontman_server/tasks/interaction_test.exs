@@ -12,6 +12,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   }
 
   alias FrontmanServer.Protocols.MCP
+  alias SwarmAi.Message.ContentPart
 
   describe "SkillUsed.build/2" do
     test "snapshots skill content" do
@@ -253,6 +254,41 @@ defmodule FrontmanServer.Tasks.InteractionTest do
         ])
 
       assert msg.current_page == nil
+    end
+  end
+
+  describe "tool_result_content_parts/1" do
+    test "preserves mixed content order and decodes images for live results and replay" do
+      image = <<137, 80, 78, 71>>
+
+      result = %{
+        "content" => [
+          %{"type" => "text", "text" => "Screenshot"},
+          %{"type" => "image", "data" => Base.encode64(image), "mimeType" => "image/png"}
+        ]
+      }
+
+      parts = Interaction.tool_result_content_parts(result)
+
+      assert parts == [
+               ContentPart.text("Screenshot"),
+               ContentPart.image(image, "image/png")
+             ]
+
+      assert [%SwarmAi.Message.Tool{content: ^parts}] =
+               Interaction.to_swarm_messages([
+                 %Interaction.ToolResult{tool_call_id: "screenshot", result: result}
+               ])
+
+      assert Interaction.tool_result_content_parts(%{"content" => []}) == []
+    end
+
+    test "rejects invalid base64 rather than dropping image content" do
+      assert_raise ArgumentError, fn ->
+        Interaction.tool_result_content_parts(%{
+          "content" => [%{"type" => "image", "data" => "!", "mimeType" => "image/png"}]
+        })
+      end
     end
   end
 

@@ -1208,7 +1208,7 @@ defmodule FrontmanServer.Tasks.Interaction do
        when is_list(content) do
     [
       %SwarmMessage.Tool{
-        content: Enum.map(content, &tool_result_content_part/1),
+        content: tool_result_content_parts(result.result),
         tool_call_id: result.tool_call_id,
         name: result.tool_name
       }
@@ -1238,6 +1238,11 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp text_parts(""), do: []
   defp text_parts(text), do: [SwarmContentPart.text(text)]
+
+  @doc "Projects MCP tool-result content into Swarm content parts."
+  def tool_result_content_parts(%{"content" => content}) when is_list(content) do
+    Enum.map(content, &tool_result_content_part/1)
+  end
 
   defp tool_result_content_part(%{"type" => "text", "text" => text}),
     do: SwarmContentPart.text(text)

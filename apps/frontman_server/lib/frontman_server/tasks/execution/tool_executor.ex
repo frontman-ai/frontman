@@ -13,9 +13,9 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.Backend
   alias FrontmanServer.Tools.MCP, as: MCPTool
-  alias SwarmAi.Message.ContentPart
   alias SwarmAi.ToolExecution
 
   def callback(%Scope{} = scope, tools, execution_mode, task_id, turn_number)
@@ -143,21 +143,42 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
     to_swarm_tool_result(tool_call, result)
   end
 
-  defp to_swarm_tool_result(tool_call, %{"content" => content} = result) do
-    is_error = MCP.error?(result)
-
+  defp to_swarm_tool_result(tool_call, result) do
     SwarmAi.ToolResult.make(
       tool_call.id,
-      Enum.map(content, fn
-        %{"type" => "text", "text" => text} ->
-          ContentPart.text(text)
-
-        %{"type" => "image", "data" => data, "mimeType" => mime_type} ->
-          ContentPart.image(Base.decode64!(data), mime_type)
-      end),
-      is_error
+      Interaction.tool_result_content_parts(result),
+      MCP.error?(result)
     )
   end
+
+  @doc """
+  Notifies that a tool result has arrived.
+
+  Routes the result to the blocking executor via Registry metadata.
+  Returns `:notified` when the result was delivered to a live executor,
+  `:no_executor` when no executor was waiting (e.g., server restarted).
+  """
+  def notify_tool_result(task_id, %Interaction.ToolResult{
+        tool_call_id: tool_call_id,
+        result: %{"content" => content} = result,
+        is_error: is_error
+      })
+      when is_list(content) do
+    case Registry.lookup(
+           FrontmanServer.ProcessRegistry,
+           tool_registry_key(task_id, tool_call_id)
+         ) do
+      [{_pid, %{caller_pid: caller}}] ->
+        content_parts = Interaction.tool_result_content_parts(result)
+        send(caller, {:tool_result, tool_call_id, content_parts, is_error})
+        :notified
+
+      [] ->
+        :no_executor
+    end
+  end
+
+  def notify_tool_result(_task_id, %Interaction.ToolResult{}), do: :no_executor
 
   defp register_mcp_tool(task_id, tool_call) do
     case Registry.register(

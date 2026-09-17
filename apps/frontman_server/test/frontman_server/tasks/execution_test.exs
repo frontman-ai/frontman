@@ -734,7 +734,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       first = insert_accepted_user_message!(task, "first")
       second = insert_accepted_user_message!(task, "second")
-      {:ok, _turn} = turn_started_fixture(task_id, 1, [first.id, second.id])
+      {:ok, _turn} = turn_started_fixture(task_id, 1, [second.id, first.id])
 
       expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
         send(parent, {:provider_messages, messages})
@@ -744,7 +744,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
 
       assert_receive {:provider_messages, messages}, 1_000
-      assert provider_texts(messages, :user) == ["first", "second"]
+      assert provider_texts(messages, :user) == ["second", "first"]
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
 
