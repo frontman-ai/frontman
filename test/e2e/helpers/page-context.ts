@@ -47,7 +47,5 @@ export async function openPreview(
 	);
 	await page.goto("https://parent.test");
 	await page.evaluate((url) => window.pageContext.mount(url), url);
-	await page.waitForFunction(
-		() => window.pageContext.Registry.get("browser-test") !== undefined,
-	);
+	await page.waitForFunction(() => window.pageContext.runtime() !== undefined);
 }

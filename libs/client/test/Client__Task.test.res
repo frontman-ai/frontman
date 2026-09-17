@@ -364,7 +364,7 @@ describe("Task - Plan Entries", () => {
 })
 
 describe("Task - Error Handling", () => {
-  test("UserMessageSendFailed removes a pending optimistic message and exposes the error", t => {
+  test("UserMessageSendFailed preserves a retryable message that can be removed locally", t => {
     let task = TestHelpers.makeLoadedTask()
     let (pending, _) = TaskReducer.next(
       task,
@@ -381,12 +381,25 @@ describe("Task - Error Handling", () => {
       UserMessageSendFailed({id: testUserMessageId, error: "Connection lost"}),
     )
 
-    t->expect(TestHelpers.getQueuedUserMessages(failed))->Expect.toEqual([])
+    t
+    ->expect(TestHelpers.getQueuedUserMessages(failed))
+    ->Expect.toEqual(TestHelpers.getQueuedUserMessages(pending))
     t
     ->expect(TaskReducer.Selectors.turnError(failed))
     ->Expect.toEqual(
-      Some({id: messageId, message: "Connection lost", category: #unknown, retryErrorId: None}),
+      Some({
+        id: messageId,
+        message: "Connection lost",
+        category: #unknown,
+        retryErrorId: Some(messageId),
+      }),
     )
+    t->expect(effects)->Expect.toEqual([])
+    let (removed, effects) = TaskReducer.next(
+      failed,
+      TaskReducer.UnqueueMessage({messageId: messageId}),
+    )
+    t->expect(TestHelpers.getQueuedUserMessages(removed))->Expect.toEqual([])
     t->expect(effects)->Expect.toEqual([])
   })
 
@@ -444,6 +457,13 @@ describe("Task - Error Handling", () => {
     t->expect(TaskReducer.Selectors.isAgentRunning(failed))->Expect.toEqual(Some(false))
     t->expect(TaskReducer.Selectors.streamingMessage(failed))->Expect.toEqual(None)
     t->expect(effects)->Expect.toEqual([])
+    let (_, retryEffects) = TaskReducer.next(
+      failed,
+      TaskReducer.RetryTurn({retriedErrorId: "agent-error-1"}),
+    )
+    t
+    ->expect(retryEffects)
+    ->Expect.toEqual([TaskReducer.SessionCommand(ACP.RetryTurn("agent-error-1"))])
 
     let messages = TestHelpers.getMessages(failed)
     switch messages->Array.get(1) {
@@ -742,12 +762,32 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       task,
       AddUserMessage({
         id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
+        content: [
+          Client__Task__Types.UserContentPart.Text({text: "Fix this"}),
+          Image({
+            id: Some("image"),
+            image: "data:image/png;base64,YQ==",
+            mediaType: Some("image/png"),
+            name: Some("image.png"),
+          }),
+        ],
         annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
       }),
     )
 
+    let (failed, _) = TaskReducer.next(
+      updated,
+      UserMessageSendFailed({id: testUserMessageId, error: "Preview disconnected"}),
+    )
+    let (retried, retryEffects) = TaskReducer.next(
+      failed,
+      RetryTurn({retriedErrorId: testUserMessageId->UserMessageId.toString}),
+    )
+    t->expect(retryEffects)->Expect.toEqual(effects)
+    t
+    ->expect(TestHelpers.getQueuedUserMessages(retried))
+    ->Expect.toEqual(TestHelpers.getQueuedUserMessages(updated))
     t
     ->expect(TaskReducer.Selectors.annotations(updated)->Option.getOr([])->Array.length)
     ->Expect.toBe(0)

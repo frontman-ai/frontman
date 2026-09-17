@@ -22,6 +22,7 @@ module Task = {
   }
 
   type previewFrame = {
+    runtime: option<Client__PreviewRuntime.t>,
     url: string,
     contentDocument: option<WebAPI.DomTypes.document>,
     contentWindow: option<WebAPI.DomTypes.window>,
@@ -122,6 +123,7 @@ module Task = {
     switch task {
     | New({previewFrame}) => previewFrame
     | Unloaded(_) => {
+        runtime: None,
         url: defaultUrl,
         contentDocument: None,
         contentWindow: None,
@@ -215,6 +217,7 @@ module Task = {
     New({
       clientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
       previewFrame: {
+        runtime: None,
         url: previewUrl,
         contentDocument: None,
         contentWindow: None,

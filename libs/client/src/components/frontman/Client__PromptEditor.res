@@ -569,6 +569,7 @@ let make = (
       serialized.fileAttachments->Array.length == 0,
       hasAnnotationsRef.current,
     ) {
+    | _ if isInputBlocked() => false
     | (true, true, false) => false
     | _ =>
       onSubmitRef.current(serialized.text, serialized.fileAttachments)

@@ -134,9 +134,10 @@ module Lens = {
 
   let setPreviewFrame = (
     task: Task.t,
+    ~runtime: option<Client__PreviewRuntime.t>,
     ~contentDocument: option<WebAPI.DomTypes.document>,
     ~contentWindow: option<WebAPI.DomTypes.window>,
-  ): Task.t => updatePreviewFrame(task, pf => {...pf, contentDocument, contentWindow})
+  ): Task.t => updatePreviewFrame(task, pf => {...pf, runtime, contentDocument, contentWindow})
 
   let setDeviceMode = (task: Task.t, deviceMode: Client__DeviceMode.deviceMode): Task.t =>
     updatePreviewFrame(task, pf => {...pf, deviceMode})
@@ -296,6 +297,7 @@ module Selectors = {
           isAgentRunning: false,
           lastTurnCancelled: false,
           pendingQuestion: None,
+          queuedUserMessages: [],
         }),
         Some(Message.Assistant(Message.Completed({agentId, _}))),
       ) =>
@@ -359,6 +361,7 @@ type action =
   | SetActivePopupAnnotationId({id: option<string>})
   | SetPreviewUrl({url: string})
   | SetPreviewFrame({
+      runtime: option<Client__PreviewRuntime.t>,
       contentDocument: option<WebAPI.DomTypes.document>,
       contentWindow: option<WebAPI.DomTypes.window>,
     })
@@ -610,8 +613,8 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Unloaded(_), SetPreviewFrame(_)) => (task, [])
   | (
       Task.New(_) | Task.Loading(_) | Task.Loaded(_),
-      SetPreviewFrame({contentDocument, contentWindow}),
-    ) => (Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow), [])
+      SetPreviewFrame({runtime, contentDocument, contentWindow}),
+    ) => (Lens.setPreviewFrame(task, ~runtime, ~contentDocument, ~contentWindow), [])
 
   | (Task.Unloaded(_), SetDeviceMode(_) | SetOrientation(_) | ToggleDeviceMode) => (task, [])
   | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetDeviceMode({deviceMode})) =>
@@ -954,21 +957,14 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
       let messageId = Message.UserMessageId.toString(id)
       switch data.pendingUserMessageIds->Array.includes(messageId) {
-      | true =>
-        let queuedUserMessages =
-          data.queuedUserMessages->Array.filter(message => Message.getId(message) != messageId)
-        let pendingUserMessageIds =
-          data.pendingUserMessageIds->Array.filter(pendingId => pendingId != messageId)
-        (
+      | true => (
           Task.Loaded({
             ...data,
-            queuedUserMessages,
-            pendingUserMessageIds,
             turnError: Some({
               id: messageId,
               message: error,
               category: #unknown,
-              retryErrorId: None,
+              retryErrorId: Some(messageId),
             }),
           }),
           [],
@@ -1093,18 +1089,25 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.Loaded(data), UnqueueMessage({messageId})) =>
-    switch data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId) {
-    | false => (task, [])
-    | true => (task, [SessionCommand(ACP.UnqueueMessage(messageId))])
-    }
-
-  | (Task.Loaded(data), MessageUnqueued({messageId})) =>
-    switch data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId) {
-    | false => (task, [])
-    | true => (
+  | (Task.Loaded(data), UnqueueMessage({messageId}) | MessageUnqueued({messageId})) =>
+    switch action {
+    | _
+      if !(data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId)) => (
+        task,
+        [],
+      )
+    | UnqueueMessage(_)
+      if !(
+        data.pendingUserMessageIds->Array.includes(messageId) &&
+          data.turnError->Option.mapOr(false, error => error.id == messageId)
+      ) => (task, [SessionCommand(ACP.UnqueueMessage(messageId))])
+    | _ => (
         Task.Loaded({
           ...data,
+          turnError: switch data.turnError {
+          | Some(error) if error.id == messageId => None
+          | error => error
+          },
           queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
             Message.getId(message) != messageId
           ),
@@ -1114,10 +1117,33 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       )
     }
 
-  | (Task.Loaded(data), RetryTurn({retriedErrorId})) => (
-      Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
-      [SessionCommand(ACP.RetryTurn(retriedErrorId))],
-    )
+  | (Task.Loaded(data), RetryTurn({retriedErrorId})) =>
+    switch data.pendingUserMessageIds->Array.includes(retriedErrorId) {
+    | true =>
+      let message =
+        data.queuedUserMessages
+        ->Array.find(message => Message.getId(message) == retriedErrorId)
+        ->Option.getOrThrow
+      switch message {
+      | Message.User({content, annotations, agentId}) => (
+          Task.Loaded({...data, turnError: None}),
+          [
+            SendMessage({
+              id: Message.UserMessageId.fromString(retriedErrorId),
+              text: extractTextFromUserContent(content),
+              attachments: extractAttachmentsFromUserContent(content),
+              annotations,
+              agentId,
+            }),
+          ],
+        )
+      | _ => failwith("Pending message must be user-authored")
+      }
+    | false => (
+        Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
+        [SessionCommand(ACP.RetryTurn(retriedErrorId))],
+      )
+    }
 
   | (Task.Unloaded({id, title, createdAt, updatedAt}), LoadStarted({previewUrl})) => (
       Task.Loading({
@@ -1127,6 +1153,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         updatedAt,
         messages: MessageStore.make(),
         previewFrame: {
+          runtime: None,
           url: previewUrl,
           contentDocument: None,
           contentWindow: None,

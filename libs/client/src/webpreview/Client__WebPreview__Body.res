@@ -4,7 +4,6 @@ module Log = FrontmanLogs.Logs.Make({
 
 @react.component
 let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
-  let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let (iframeElement, setIframeElement): (option<WebAPI.DomTypes.element>, _) = React.useState(() =>
     None
   )
@@ -27,28 +26,6 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     ~iframeElement=trackedIframeElement,
     ~attachmentKey,
   )
-  let readPreviewFrame = () =>
-    iframeRef.current
-    ->Nullable.toOption
-    ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
-    ->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement)
-    ->Option.map(iframeElement => {
-      try {
-        iframeElement.contentWindow
-        ->Null.map(window => {
-          let document = window->WebAPI.Window.document
-          (Some(document), Some(window))
-        })
-        ->Null.getOr((None, None))
-      } catch {
-      | exn if exn->JsExn.fromException->Option.flatMap(JsExn.name) == Some("SecurityError") => (
-          None,
-          None,
-        )
-      | exn => throw(exn)
-      }
-    })
-
   let previewOrigin = (src: string): option<string> =>
     switch src {
     | "about:blank" => None
@@ -78,7 +55,30 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     ) {
     | (true, true, Some(iframe), Some(targetOrigin)) => {
         let runtime = Client__PreviewRuntime.make(~iframe, ~targetOrigin, ~channel=taskId)
-        let removeStatusListener = Client__PreviewRuntime.onStatus(runtime, status =>
+        let publish = status => {
+          let ready = status == Runtime.Open
+          let (contentDocument, contentWindow) = try {
+            switch ready {
+            | false => (None, None)
+            | true =>
+              iframe.contentWindow
+              ->Null.map(window => (Some(window->WebAPI.Window.document), Some(window)))
+              ->Null.getOr((None, None))
+            }
+          } catch {
+          | exn
+            if exn->JsExn.fromException->Option.flatMap(JsExn.name) == Some("SecurityError") => (
+              None,
+              None,
+            )
+          | exn => throw(exn)
+          }
+          Client__State.Actions.setPreviewFrame(
+            ~clientId=taskId,
+            ~runtime=ready ? Some(runtime) : None,
+            ~contentDocument,
+            ~contentWindow,
+          )
           switch status {
           | Runtime.Open
           | Runtime.Connecting
@@ -90,13 +90,13 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
               "Preview bridge runtime failed",
             )
           }
-        )
-        Client__PreviewRuntimeRegistry.register(~clientId=taskId, ~runtime)
+        }
+        let removeStatusListener = Client__PreviewRuntime.onStatus(runtime, publish)
+        publish(Client__PreviewRuntime.status(runtime))
         Some(
           () => {
-            removeStatusListener()
-            Client__PreviewRuntimeRegistry.unregister(~runtime)
             Client__PreviewRuntime.close(runtime)
+            removeStatusListener()
           },
         )
       }
@@ -167,32 +167,10 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     | _ =>
       setHasLoaded(_ => true)
       setAttachmentKey(prev => prev + 1)
-      switch isActive {
-      | false => ()
-      | true =>
-        readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) =>
-          Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
-        )
-      }
     }
   }
 
-  React.useEffect(() => {
-    switch isActive {
-    | false => ()
-    | true =>
-      readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) => {
-        switch contentDocument->Option.isSome {
-        | false => ()
-        | true => Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
-        }
-      })
-    }
-    None
-  }, [isActive])
-
   let refCallback = ReactDOM.Ref.callbackDomRef(iframe => {
-    iframeRef.current = iframe
     let nextIframeElement =
       iframe
       ->Nullable.toOption

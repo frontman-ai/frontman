@@ -52,7 +52,12 @@ describe.each([
 		async (_platform, html) => {
 			const page = await browser.newPage({ colorScheme: "dark" });
 			onTestFinished(() => page.close());
-			const context = () => page.evaluate(() => window.pageContext.context());
+			const context = async () => {
+				await page.waitForFunction(
+					() => window.pageContext.runtime() !== undefined,
+				);
+				return page.evaluate(() => window.pageContext.context());
+			};
 			const errors: Error[] = [];
 			page.on("pageerror", (error) => errors.push(error));
 			await page.route(`${childOrigin}/**`, (route) =>
@@ -152,23 +157,22 @@ describe.each([
 			}
 
 			const previousRuntime = await page.evaluateHandle(() =>
-				window.pageContext.Registry.get("browser-test"),
+				window.pageContext.runtime(),
 			);
 			await page.evaluate(
 				(url) => window.pageContext.mount(url, false),
 				childOrigin,
 			);
 			await page.waitForFunction(
-				() => window.pageContext.Registry.get("browser-test") === undefined,
+				() => window.pageContext.runtime() === undefined,
 			);
 			await page.evaluate((url) => window.pageContext.mount(url), childOrigin);
 			await page.waitForFunction(
-				() => window.pageContext.Registry.get("browser-test") !== undefined,
+				() => window.pageContext.runtime() !== undefined,
 			);
 			expect(
 				await page.evaluate(
-					(previous) =>
-						window.pageContext.Registry.get("browser-test") !== previous,
+					(previous) => window.pageContext.runtime() !== previous,
 					previousRuntime,
 				),
 			).toBe(true);

@@ -500,7 +500,7 @@ describe("Client State Reducer - Plan Handoff", () => {
     let (executing, effects) = Reducer.next(state, action)
 
     t->expect(executing.selectedAgentId)->Expect.toEqual(Some(executor.id))
-    t->expect(Reducer.Selectors.isAgentRunning(executing))->Expect.toBe(true)
+    t->expect(Reducer.Selectors.isAgentRunning(executing))->Expect.toBe(false)
 
     switch effects->Array.get(0) {
     | Some(Reducer.TaskEffect({
@@ -1763,52 +1763,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
     t->expect(effects)->Expect.toEqual([])
   })
 
-  test("SendMessage metadata carries message ID, submission agent, and selected model", t => {
-    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
-    let messageId = UserMessageId.make()
-    let sentMetadata = ref(None)
-    let state = {
-      ...Reducer.defaultState,
-      selectedModelValue: Some("anthropic:claude-opus-4-6"),
-      acpSession: AcpSessionActive({
-        sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete as _, ~_meta) =>
-          sentMetadata := _meta,
-        sendSessionCommand: _ => (),
-        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-        deleteSession: (_, ~onComplete as _) => (),
-        requireAuthentication: () => (),
-        apiBaseUrl: "http://localhost:4000",
-      }),
-    }
-    let (state, effects) = Reducer.next(
-      state,
-      Reducer.AddUserMessage({
-        id: messageId,
-        sessionId: "session-1",
-        content: [UserContentPart.text("Fix this")],
-        annotations: [],
-        agentId: "planner-id",
-      }),
-    )
-
-    effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
-    let metadata =
-      sentMetadata.contents
-      ->Option.getOrThrow
-      ->JSON.Decode.object
-      ->Option.getOrThrow
-
-    t
-    ->expect(metadata->Dict.get("frontman.dev/messageId")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some(messageId->UserMessageId.toString))
-    t
-    ->expect(metadata->Dict.get("agent")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("planner-id"))
-    t
-    ->expect(metadata->Dict.get("model")->Option.flatMap(JSON.Decode.string))
-    ->Expect.toEqual(Some("anthropic:claude-opus-4-6"))
-  })
-
   test("SendMessage does not fall back to parent-held documents without a bridge", t => {
     let enabledDocument =
       WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
@@ -1839,7 +1793,12 @@ describe("Client State Reducer - Annotations on Messages", () => {
         let task = state.tasks->Dict.get("test-task-1")->Option.getOrThrow
         state.tasks->Dict.set(
           "test-task-1",
-          TaskReducer.Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow=None),
+          TaskReducer.Lens.setPreviewFrame(
+            task,
+            ~runtime=None,
+            ~contentDocument,
+            ~contentWindow=None,
+          ),
         )
         let state = {
           ...state,
@@ -1859,7 +1818,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
           }),
         )
         effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
-        t->expect(sentBlocks.contents)->Expect.toEqual(Some([]))
+        t->expect(sentBlocks.contents)->Expect.toEqual(None)
       },
     )
   })
@@ -1891,60 +1850,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect(failedId)->Expect.toBe(id)
       t->expect(error)->Expect.toBe("Cannot send message: no active ACP session")
     | _ => JsExn.throw("Expected originating-task cleanup")
-    }
-  })
-
-  test("SendMessage dispatches task cleanup when sendPrompt fails", t => {
-    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
-    let messageId = UserMessageId.make()
-    let completion = ref(None)
-    let dispatched = ref([])
-    let state = {
-      ...Reducer.defaultState,
-      selectedModelValue: Some("test:model"),
-      acpSession: AcpSessionActive({
-        sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
-          completion := Some(onComplete),
-        sendSessionCommand: _ => (),
-        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-        deleteSession: (_, ~onComplete as _) => (),
-        requireAuthentication: () => (),
-        apiBaseUrl: "http://localhost:4000",
-      }),
-    }
-    let (state, effects) = Reducer.next(
-      state,
-      Reducer.AddUserMessage({
-        id: messageId,
-        sessionId: "session-1",
-        content: [UserContentPart.text("Fix this")],
-        annotations: [],
-        agentId: "executor-id",
-      }),
-    )
-
-    effects->Array.forEach(
-      effect =>
-        Reducer.handleEffect(
-          effect,
-          state,
-          action => dispatched := Array.concat(dispatched.contents, [action]),
-        ),
-    )
-    let onComplete = completion.contents->Option.getOrThrow
-    onComplete(Error("Connection lost"))
-
-    switch dispatched.contents {
-    | [
-        Reducer.TaskAction({
-          target: ForTask("session-1"),
-          action: UserMessageSendFailed({id, error}),
-        }),
-      ] => {
-        t->expect(id)->Expect.toEqual(messageId)
-        t->expect(error)->Expect.toBe("Connection lost")
-      }
-    | _ => JsExn.throw("Expected targeted UserMessageSendFailed action")
     }
   })
 

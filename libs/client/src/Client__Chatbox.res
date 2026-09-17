@@ -112,9 +112,9 @@ let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSel
 
 module ExecutePlanAction = {
   @react.component
-  let make = (~pendingPlanHandoff, ~selectedModelValue, ~onExecute) => {
+  let make = (~pendingPlanHandoff, ~selectedModelValue, ~previewReady, ~onExecute) => {
     switch (pendingPlanHandoff, selectedModelValue) {
-    | (Some(_), Some(_)) => <Client__ExecutePlanBanner onExecute />
+    | (Some(_), Some(_)) => <Client__ExecutePlanBanner onExecute disabled={!previewReady} />
     | _ => React.null
     }
   }
@@ -129,6 +129,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
   let tasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let hasActiveACPSession = Client__State.useSelector(Client__State.Selectors.hasActiveACPSession)
+  let previewReady = Client__State.useSelector(Client__State.Selectors.previewReady)
   let planEntries = Client__State.useSelector(Client__State.Selectors.currentPlanEntries)
   let queuedUserMessages = Client__State.useSelector(Client__State.Selectors.queuedUserMessages)
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
@@ -416,7 +417,7 @@ let make = (~onConfigureProvider: unit => unit) => {
           </div>
         }}
 
-        {switch (hasActiveACPSession, isNewTask, totalItems) {
+        {switch (hasActiveACPSession && previewReady, isNewTask, totalItems) {
         | (true, true, 0) =>
           <Client__GetStartedTasks
             recentTasks
@@ -437,7 +438,10 @@ let make = (~onConfigureProvider: unit => unit) => {
         ->React.array}
 
         <ExecutePlanAction
-          pendingPlanHandoff selectedModelValue onExecute={Client__State.Actions.executePendingPlan}
+          pendingPlanHandoff
+          selectedModelValue
+          previewReady
+          onExecute={Client__State.Actions.executePendingPlan}
         />
 
         {switch (retryStatus, turnError, currentTaskId) {
@@ -486,6 +490,8 @@ let make = (~onConfigureProvider: unit => unit) => {
           onConfigureProvider
           isAgentRunning
           hasActiveACPSession
+          disabled={!previewReady}
+          disabledPlaceholder="Waiting for the preview to connect…"
           onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
           isSelecting={webPreviewIsSelecting}
           hasAnnotations

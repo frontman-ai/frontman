@@ -7,7 +7,6 @@ import {
 } from "../src/state/Client__Task__Types.res.mjs";
 import { presets } from "../src/webpreview/Client__DeviceMode.res.mjs";
 import * as Runtime from "../src/webpreview/Client__PreviewRuntime.res.mjs";
-import * as Registry from "../src/webpreview/Client__PreviewRuntimeRegistry.res.mjs";
 
 const page = {
 	url: "https://preview.test/next",
@@ -21,7 +20,6 @@ const page = {
 };
 const runtime = {};
 afterEach(() => {
-	Registry.unregister(runtime);
 	vi.restoreAllMocks();
 	delete window.__frontmanRuntime;
 });
@@ -58,8 +56,45 @@ it.each([true, false])(
 	},
 );
 
-it.each(["captured", "missing", "failed"])(
-	"sends originating prompt with %s context",
+it("keeps preview ownership across promotion, switching and late cleanup", () => {
+	let state = { ...Reducer.defaultState, selectedModelValue: "test:model" };
+	const first = Reducer.Selectors.currentTaskClientId(state);
+	const publish = (clientId, runtime) => {
+		[state] = Reducer.next(state, {
+			TAG: "PreviewFrameChanged",
+			clientId,
+			runtime,
+		});
+	};
+	expect(Reducer.Selectors.previewReady(state)).toBe(false);
+	publish(first, runtime);
+	[state] = Reducer.next(state, {
+		TAG: "AddUserMessage",
+		id: "message-1",
+		sessionId: "server-session",
+		content: [UserContentPart.text("Hi")],
+		annotations: [],
+		agentId: "planner",
+	});
+	expect(Reducer.Selectors.previewFrame(state).runtime).toBe(runtime);
+	[state] = Reducer.next(state, "ClearCurrentTask");
+	expect(Reducer.Selectors.previewReady(state)).toBe(false);
+	const second = Reducer.Selectors.currentTaskClientId(state);
+	const replacement = {};
+	publish(second, replacement);
+	publish(first, undefined);
+	expect(state.tasks["server-session"].previewFrame.runtime).toBeUndefined();
+	expect(Reducer.Selectors.previewFrame(state).runtime).toBe(replacement);
+	[state] = Reducer.next(state, {
+		TAG: "DeleteTask",
+		taskId: "server-session",
+	});
+	publish(first, undefined);
+	expect(Reducer.Selectors.previewReady(state)).toBe(true);
+});
+
+it.each(["captured", "missing", "failed", "throws"])(
+	"requires originating preview context: %s",
 	async (mode) => {
 		window.__frontmanRuntime = { framework: "vite", basePath: "custom" };
 		const sendPrompt = vi.fn();
@@ -83,42 +118,71 @@ it.each(["captured", "missing", "failed"])(
 		);
 		const clientId = Task.getClientId(state.tasks["server-session"]);
 		expect(clientId).not.toBe("server-session");
-		Registry.register(
-			mode === "missing" ? "another-client" : clientId,
-			runtime,
-		);
+		const [readyState] = Reducer.next(state, {
+			TAG: "PreviewFrameChanged",
+			clientId,
+			runtime: mode === "missing" ? undefined : runtime,
+		});
+		expect(Reducer.Selectors.previewReady(readyState)).toBe(mode !== "missing");
 		let resolveContext;
 		const getContext = vi
 			.spyOn(Runtime, "getPageContext")
-			.mockImplementation(() =>
-				mode === "failed"
+			.mockImplementation(() => {
+				if (mode === "throws") throw new Error("Runtime closed");
+				return mode === "failed"
 					? Promise.reject(new Error("Runtime closed"))
 					: new Promise((resolve) => {
 							resolveContext = resolve;
-						}),
-			);
+						});
+			});
 		const dispatch = vi.fn();
-		effects.forEach((effect) => Reducer.handleEffect(effect, state, dispatch));
+		effects.forEach((effect) =>
+			Reducer.handleEffect(effect, readyState, dispatch),
+		);
+		const failure = (error) => ({
+			TAG: "TaskAction",
+			target: { TAG: "ForTask", _0: "server-session" },
+			action: { TAG: "UserMessageSendFailed", id: "message-1", error },
+		});
 		if (mode === "captured") {
 			expect(getContext).toHaveBeenCalledWith(runtime);
 			expect(sendPrompt).not.toHaveBeenCalled();
-			Registry.register("another-client", runtime);
+			Reducer.next(readyState, "ClearCurrentTask");
 			resolveContext(page);
 		}
-		await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledOnce());
-		const [text, sessionId, blocks] = sendPrompt.mock.calls[0];
-		expect([text, sessionId]).toEqual(["Inspect this", "server-session"]);
-		if (mode === "captured") {
-			expect(blocks).toHaveLength(1);
-			expect(blocks[0]._0._meta).toMatchObject({
-				title: page.title,
-				url: page.url,
-			});
-			expect(blocks[0]._0._meta.astro_client_routing).toBeUndefined();
-		} else {
-			expect(blocks).toEqual([]);
+		if (mode !== "captured") {
+			await vi.waitFor(() =>
+				expect(dispatch).toHaveBeenCalledWith(
+					failure(
+						mode === "missing" ? "Preview is not ready" : "Runtime closed",
+					),
+				),
+			);
+			expect(sendPrompt).not.toHaveBeenCalled();
+			const [failed] = Reducer.next(readyState, dispatch.mock.calls[0][0]);
+			expect(Reducer.Selectors.queuedUserMessages(failed)).toEqual(
+				Reducer.Selectors.queuedUserMessages(state),
+			);
+			if (mode === "missing") expect(getContext).not.toHaveBeenCalled();
+			return;
 		}
-		if (mode === "missing") expect(getContext).not.toHaveBeenCalled();
+		await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledOnce());
+		const [text, sessionId, blocks, onComplete, metadata] =
+			sendPrompt.mock.calls[0];
+		expect(metadata).toMatchObject({
+			"frontman.dev/messageId": "message-1",
+			agent: "planner",
+			model: "test:model",
+		});
+		expect([text, sessionId]).toEqual(["Inspect this", "server-session"]);
+		expect(blocks).toHaveLength(1);
+		expect(blocks[0]._0._meta).toMatchObject({
+			title: page.title,
+			url: page.url,
+		});
+		expect(blocks[0]._0._meta.astro_client_routing).toBeUndefined();
 		expect(dispatch).not.toHaveBeenCalled();
+		onComplete({ TAG: "Error", _0: "Connection lost" });
+		expect(dispatch).toHaveBeenCalledWith(failure("Connection lost"));
 	},
 );
