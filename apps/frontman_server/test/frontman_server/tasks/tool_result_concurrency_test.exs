@@ -63,7 +63,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
     end)
   end
 
-  test "concurrent tool results resolve to one canonical interaction" do
+  test "concurrent responses have unique sequences and tool results converge" do
     Sandbox.unboxed_run(Repo, fn ->
       scope = user_scope_fixture()
 
@@ -79,7 +79,9 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
                 send(parent, {:ready, self()})
 
                 receive do
-                  :resolve -> resolve(scope, task_id, turn_number, result)
+                  :resolve ->
+                    assert {:ok, _} = Tasks.agent_replied(scope, task_id, turn_number, result)
+                    resolve(scope, task_id, turn_number, result)
                 after
                   1_000 -> raise "timed out waiting to resolve tool result"
                 end
@@ -109,7 +111,12 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
         {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
-        assert [_result] =
+        sequences = Enum.map(task.interaction_rows, & &1.sequence)
+        assert length(sequences) == 5
+        assert sequences == Enum.sort(Enum.uniq(sequences))
+        assert Enum.all?(sequences, &(&1 > 0))
+
+        assert [^canonical] =
                  Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
       after
         Repo.delete!(Scope.user(scope))

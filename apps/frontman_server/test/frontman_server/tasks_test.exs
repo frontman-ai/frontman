@@ -980,27 +980,6 @@ defmodule FrontmanServer.TasksTest do
       assert sequences == Enum.uniq(sequences)
       assert Enum.all?(sequences, &(&1 > 0))
     end
-
-    test "concurrent inserts produce unique, sortable sequences", %{scope: scope} do
-      task_id = task_fixture(scope).id
-      turn_number = start_turn_fixture(scope, task_id)
-
-      1..20
-      |> Task.async_stream(
-        fn i ->
-          Tasks.agent_replied(scope, task_id, turn_number, "concurrent msg #{i}")
-        end,
-        max_concurrency: 20,
-        timeout: :infinity
-      )
-      |> Enum.each(fn {:ok, {:ok, _interaction}} -> :ok end)
-
-      results = db_sequences(task_id)
-
-      assert length(results) == 22
-      assert results == Enum.uniq(results), "sequences must be unique, got duplicates"
-      assert results == Enum.sort(results), "DB ordering must be sorted"
-    end
   end
 
   defp db_sequences(task_id) do
