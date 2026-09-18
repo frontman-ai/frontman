@@ -748,6 +748,27 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     task3
   }
 
+  test("repeated preview URLs preserve annotations until the page changes", t => {
+    let task = _taskWithAnnotations()
+    ["http://localhost:3000", "http://localhost:3000/"]->Array.forEach(
+      (url: string) => {
+        let (updated, effects) = TaskReducer.next(task, SetPreviewUrl({url: url}))
+        t->expect(Task.getAnnotations(updated))->Expect.toEqual(Task.getAnnotations(task))
+        t
+        ->expect(Task.getActivePopupAnnotationId(updated))
+        ->Expect.toEqual(Task.getActivePopupAnnotationId(task))
+        t->expect(effects)->Expect.toEqual([])
+      },
+    )
+    let (navigated, effects) = TaskReducer.next(
+      task,
+      SetPreviewUrl({url: "http://localhost:3000/next"}),
+    )
+    t->expect(Task.getAnnotations(navigated))->Expect.toEqual([])
+    t->expect(Task.getActivePopupAnnotationId(navigated))->Expect.toEqual(None)
+    t->expect(effects)->Expect.toEqual([SyncBrowserUrl("http://localhost:3000/next")])
+  })
+
   test("AddUserMessage clears annotation UI state and sends annotations", t => {
     let task = _taskWithAnnotations()
     t

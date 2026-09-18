@@ -20,7 +20,6 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   }
   let (iframeSrc, setIframeSrc) = React.useState(() => isActive ? url : "about:blank")
   let (hasLoaded, setHasLoaded) = React.useState(() => false)
-  let lastLocationRef: React.ref<option<string>> = React.useRef(None)
   let trackedIframeElement = isActive ? iframeElement : None
   let location = Client__Hooks.useIFrameLocation(
     ~iframeElement=trackedIframeElement,
@@ -100,11 +99,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
           },
         )
       }
-    | (false, _, _, _)
-    | (_, false, _, _)
-    | (_, _, None, _)
-    | (_, _, _, None) =>
-      None
+    | _ => None
     }
   }, (isActive, hasLoaded, iframeElement, targetOrigin, taskId))
 
@@ -135,28 +130,10 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   }, [isActive])
 
   React.useEffect(() => {
-    switch isActive {
-    | false => ()
-    | true =>
-      switch location {
-      | Some(location) =>
-        switch location->String.startsWith("http") {
-        | false => ()
-        | true =>
-          let locationChanged = switch lastLocationRef.current {
-          | None => true
-          | Some(lastLocation) => lastLocation != location
-          }
-
-          switch locationChanged {
-          | false => ()
-          | true =>
-            lastLocationRef.current = Some(location)
-            Client__State.Actions.observePreviewUrl(~url=location)
-          }
-        }
-      | None => ()
-      }
+    switch (isActive, location) {
+    | (true, Some(location)) if location->String.startsWith("http") =>
+      Client__State.Actions.observePreviewUrl(~url=location)
+    | _ => ()
     }
     None
   }, (location, isActive))
@@ -175,13 +152,7 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
       iframe
       ->Nullable.toOption
       ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
-    setIframeElement(prevIframeElement =>
-      switch (prevIframeElement, nextIframeElement) {
-      | (Some(prev), Some(next)) if prev == next => prevIframeElement
-      | (None, None) => prevIframeElement
-      | _ => nextIframeElement
-      }
-    )
+    setIframeElement(_ => nextIframeElement)
     None
   })
   let iframe =
