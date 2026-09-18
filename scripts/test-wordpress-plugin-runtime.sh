@@ -147,3 +147,21 @@ if [[ "$REDIRECTION_STATUS" -ne 0 || "$REDIRECTION_OUTPUT" != *"OK (Redirection 
   printf 'Redirection runtime tests did not report successful completion.\n' >&2
   exit 1
 fi
+
+case "$WORDPRESS_VERSION" in
+  6.[0-8].*) printf 'Skipping Angie 1.1.16: requires WordPress 6.9+.\n'; exit 0 ;;
+esac
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/AngieRuntimeTest.php" "$WORDPRESS:/tmp/AngieRuntimeTest.php"
+for ANGIE_VERSION in 1.1.0 1.1.16; do
+  case "$ANGIE_VERSION" in
+    1.1.0) ANGIE_SHA256=b2770a38efb3d79a638e12196aac75025218cde450a04e191bbc339ffa18bc85 ;;
+    1.1.16) ANGIE_SHA256=d91f13533c9190e2db6b18f53c6b74c4ba3badb62623d656cac2fac33bb12a95 ;;
+  esac
+  curl -fsSL "https://downloads.wordpress.org/plugin/angie.${ANGIE_VERSION}.zip" -o "$BUILD_DIR/angie.zip"
+  printf '%s  %s\n' "$ANGIE_SHA256" "$BUILD_DIR/angie.zip" | sha256sum --check --status
+  unzip -q "$BUILD_DIR/angie.zip" -d "$BUILD_DIR/angie-${ANGIE_VERSION}"
+  "$RUNTIME" exec "$WORDPRESS" rm -rf /var/www/html/wp-content/plugins/angie
+  "$RUNTIME" cp "$BUILD_DIR/angie-${ANGIE_VERSION}/angie" "$WORDPRESS:/var/www/html/wp-content/plugins/angie"
+  "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
+  "$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
+done

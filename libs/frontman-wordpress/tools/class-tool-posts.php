@@ -71,7 +71,7 @@ class Frontman_Tool_Posts {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_post',
-			'Reads a single post or page by ID, including its full content, metadata, and block markup.',
+			'Reads a single post by ID, returning stored post_content (including any block markup) and basic post fields. Does not return custom post metadata or plugin snippet source. Empty content does not mean a plugin-managed snippet has no code.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
