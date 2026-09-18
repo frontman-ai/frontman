@@ -42,20 +42,17 @@ let mergeUserMessage = (message, ~id, ~content, ~annotations, ~agentId) =>
 
 module Lens = {
   let updatePreviewFrame = (task: Task.t, fn: Task.previewFrame => Task.previewFrame): Task.t =>
-    switch task {
-    | Task.New(data) => Task.New({...data, previewFrame: fn(data.previewFrame)})
-    | Task.Loading(data) => Task.Loading({...data, previewFrame: fn(data.previewFrame)})
-    | Task.Loaded(data) => Task.Loaded({...data, previewFrame: fn(data.previewFrame)})
-    | Task.Unloaded(_) =>
+    switch task.session {
+    | New | Loading(_) | Loaded(_) => {...task, previewFrame: fn(task.previewFrame)}
+    | Unloaded(_) =>
       failwith("[Lens.updatePreviewFrame] Cannot update preview frame on Unloaded task")
     }
 
   let updateMessages = (task: Task.t, fn: MessageStore.t => MessageStore.t): Task.t => {
-    switch task {
-    | Task.New(_) | Task.Unloaded(_) =>
+    switch task.session {
+    | New | Unloaded(_) =>
       failwith("[Lens.updateMessages] Cannot update messages on New/Unloaded task")
-    | Task.Loading(data) => Task.Loading({...data, messages: fn(data.messages)})
-    | Task.Loaded(data) => Task.Loaded({...data, messages: fn(data.messages)})
+    | Loading(_) | Loaded(_) => {...task, messages: fn(task.messages)}
     }
   }
 
@@ -69,8 +66,8 @@ module Lens = {
 
   let drainQueuedUserMessages = (task: Task.t): Task.t =>
     switch task {
-    | Task.Loaded({queuedUserMessages: []}) => task
-    | Task.Loaded(data) =>
+    | {session: Task.Loaded(_), queuedUserMessages: []} => task
+    | {session: Task.Loaded(_)} as data =>
       let messageAgentId = message =>
         switch message {
         | Message.User({agentId, _}) => agentId
@@ -84,7 +81,7 @@ module Lens = {
       | -1 => data.queuedUserMessages->Array.length
       | index => index
       }
-      Task.Loaded({
+      {
         ...data,
         messages: MessageStore.fromArray(
           Array.concat(
@@ -96,7 +93,7 @@ module Lens = {
           ~start=prefixLength,
           ~end=data.queuedUserMessages->Array.length,
         ),
-      })
+      }
     | _ => task
     }
 
@@ -145,38 +142,30 @@ module Lens = {
   let setOrientation = (task: Task.t, orientation: Client__DeviceMode.orientation): Task.t =>
     updatePreviewFrame(task, pf => {...pf, orientation})
 
-  let updateTaskData = (task: Task.t, fn: Task.loadedData => Task.loadedData): Task.t =>
-    switch task {
-    | Task.Unloaded(_) => failwith("[Lens.updateTaskData] Cannot update Unloaded task")
-    | _ => Task.updateLoadedData(task, fn)
-    }
-
-  let setAnnotationMode = (task: Task.t, mode: Annotation.annotationMode): Task.t =>
-    updateTaskData(task, d => {...d, annotationMode: mode})
-
-  let setAnnotations = (task: Task.t, annotations: array<Annotation.t>): Task.t =>
-    updateTaskData(task, d => {...d, annotations})
-
-  let updateAnnotation = (task: Task.t, id: string, fn: Annotation.t => Annotation.t): Task.t => {
-    let annotations = Task.getAnnotations(task)
-    let updated = annotations->Array.map(a => a.id == id ? fn(a) : a)
-    setAnnotations(task, updated)
+  let setAnnotationMode = (task: Task.t, mode: Annotation.annotationMode): Task.t => {
+    ...task,
+    annotationMode: mode,
+    activePopupAnnotationId: switch mode {
+    | Off => None
+    | Selecting => task.activePopupAnnotationId
+    },
   }
 
-  let setActivePopupAnnotationId = (task: Task.t, id: option<string>): Task.t =>
-    updateTaskData(task, d => {...d, activePopupAnnotationId: id})
+  let updateAnnotation = (task: Task.t, id: string, fn: Annotation.t => Annotation.t): Task.t => {
+    ...task,
+    annotations: task.annotations->Array.map(a => a.id == id ? fn(a) : a),
+  }
 
   let refreshCompletedFileChanges = (task: Task.t): Task.t =>
     switch task {
-    | Task.Loaded(data) =>
-      Task.Loaded({
+    | {session: Task.Loaded(_)} as data => {
         ...data,
         completedFileChanges: Client__FileChanges.refresh(
           Task.getCompletedFileChanges(task),
           MessageStore.toArray(data.messages),
         ),
-      })
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) =>
+      }
+    | {session: Task.New | Task.Unloaded(_) | Task.Loading(_)} =>
       failwith("[Lens.refreshCompletedFileChanges] Expected a loaded task")
     }
 }
@@ -184,13 +173,11 @@ module Lens = {
 type completedIdleTurn = {taskId: string, agentId: string}
 
 module Selectors = {
-  let messages = (task: Task.t): option<array<Message.t>> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | Task.New(_) => Some([])
-    | Task.Loading({messages}) | Task.Loaded({messages}) => Some(MessageStore.toArray(messages))
+  let messages = (task: Task.t): option<array<Message.t>> =>
+    switch task.session {
+    | Unloaded(_) => None
+    | New | Loading(_) | Loaded(_) => Some(Task.getMessages(task))
     }
-  }
 
   let isStreaming = (task: Task.t): option<bool> => {
     messages(task)->Option.map(msgs =>
@@ -204,22 +191,17 @@ module Selectors = {
     )
   }
 
-  let annotations = (task: Task.t): option<array<Annotation.t>> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | Task.New({annotations})
-    | Task.Loading({annotations})
-    | Task.Loaded({annotations}) =>
-      Some(annotations)
+  let annotations = (task: Task.t): option<array<Annotation.t>> =>
+    switch task.session {
+    | Unloaded(_) => None
+    | New | Loading(_) | Loaded(_) => Some(task.annotations)
     }
-  }
 
-  let webPreviewIsSelecting = (task: Task.t): option<bool> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | _ => Some(Task.getWebPreviewIsSelecting(task))
+  let webPreviewIsSelecting = (task: Task.t): option<bool> =>
+    switch task.session {
+    | Unloaded(_) => None
+    | New | Loading(_) | Loaded(_) => Some(Task.getWebPreviewIsSelecting(task))
     }
-  }
 
   let hasEnrichingAnnotations = (task: Task.t): option<bool> => {
     annotations(task)->Option.map(anns =>
@@ -227,78 +209,53 @@ module Selectors = {
     )
   }
 
-  let activePopupAnnotationId = (task: Task.t): option<option<string>> => {
-    switch task {
-    | Task.Unloaded(_) => None
-    | _ => Some(Task.getActivePopupAnnotationId(task))
+  let activePopupAnnotationId = (task: Task.t): option<option<string>> =>
+    switch task.session {
+    | Unloaded(_) => None
+    | New | Loading(_) | Loaded(_) => Some(task.activePopupAnnotationId)
     }
-  }
 
-  let isAgentRunning = (task: Task.t): option<bool> => {
-    switch task {
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
-    | Task.Loaded({isAgentRunning}) => Some(isAgentRunning)
+  let isAgentRunning = (task: Task.t): option<bool> =>
+    switch task.session {
+    | New | Unloaded(_) | Loading(_) => None
+    | Loaded(_) => Some(task.isAgentRunning)
     }
-  }
 
-  let queuedUserMessages = (task: Task.t): option<array<Message.t>> => {
-    switch task {
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
-    | Task.Loaded({queuedUserMessages}) => Some(queuedUserMessages)
+  let queuedUserMessages = (task: Task.t): option<array<Message.t>> =>
+    switch task.session {
+    | New | Unloaded(_) | Loading(_) => None
+    | Loaded(_) => Some(task.queuedUserMessages)
     }
-  }
 
-  let planEntries = (task: Task.t): option<array<ACPTypes.planEntry>> => {
-    switch task {
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
-    | Task.Loaded({planEntries}) => Some(planEntries)
+  let planEntries = (task: Task.t): option<array<ACPTypes.planEntry>> =>
+    switch task.session {
+    | New | Unloaded(_) | Loading(_) => None
+    | Loaded(_) => Some(task.planEntries)
     }
-  }
 
-  let deviceMode = (task: Task.t): Client__DeviceMode.deviceMode => {
-    switch task {
-    | Task.Unloaded(_) => Client__DeviceMode.defaultDeviceMode
-    | Task.New({previewFrame}) | Task.Loading({previewFrame}) | Task.Loaded({previewFrame}) =>
-      previewFrame.deviceMode
-    }
-  }
+  let deviceMode = (task: Task.t): Client__DeviceMode.deviceMode => task.previewFrame.deviceMode
 
-  let orientation = (task: Task.t): Client__DeviceMode.orientation => {
-    switch task {
-    | Task.Unloaded(_) => Client__DeviceMode.defaultOrientation
-    | Task.New({previewFrame}) | Task.Loading({previewFrame}) | Task.Loaded({previewFrame}) =>
-      previewFrame.orientation
-    }
-  }
+  let orientation = (task: Task.t): Client__DeviceMode.orientation => task.previewFrame.orientation
 
-  let turnError = (task: Task.t): option<Task.turnErrorInfo> => {
-    switch task {
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => None
-    | Task.Loaded({turnError}) => turnError
-    }
-  }
+  let turnError = (task: Task.t): option<Task.turnErrorInfo> => task.turnError
 
   let streamingMessage = (task: Task.t): option<Message.assistantMessage> => {
     Lens.getStreamingMessage(task)
   }
 
-  let pendingQuestion = (task: Task.t): option<Client__Question__Types.pendingQuestion> => {
-    switch task {
-    | Task.Loaded({pendingQuestion}) => pendingQuestion
-    | _ => None
-    }
-  }
+  let pendingQuestion = (task: Task.t): option<Client__Question__Types.pendingQuestion> =>
+    task.pendingQuestion
 
   let completedIdleTurn = (task: Task.t): option<completedIdleTurn> => {
     switch (task, Task.getMessages(task)->Array.last) {
     | (
-        Task.Loaded({
-          id: taskId,
+        {
+          session: Task.Loaded({id: taskId}),
           isAgentRunning: false,
           lastTurnCancelled: false,
           pendingQuestion: None,
           queuedUserMessages: [],
-        }),
+        },
         Some(Message.Assistant(Message.Completed({agentId, _}))),
       ) =>
       Some({taskId, agentId})
@@ -306,11 +263,7 @@ module Selectors = {
     }
   }
 
-  let retryStatus = (task: Task.t): option<Types.Task.retryStatus> =>
-    switch task {
-    | Task.Loaded({retryStatus}) => retryStatus
-    | _ => None
-    }
+  let retryStatus = (task: Task.t): option<Types.Task.retryStatus> => task.retryStatus
 
   let completedFileChanges = (task: Task.t): Client__FileChanges.snapshot =>
     Task.getCompletedFileChanges(task)
@@ -515,8 +468,8 @@ let updatePendingQuestion = (
   fn: Client__Question__Types.pendingQuestion => Client__Question__Types.pendingQuestion,
 ): (Task.t, array<effect>) =>
   switch task {
-  | Task.Loaded({pendingQuestion: Some(pq)} as data) => (
-      Task.Loaded({...data, pendingQuestion: Some(fn(pq))}),
+  | {session: Task.Loaded(_), pendingQuestion: Some(pq)} as data => (
+      {...data, pendingQuestion: Some(fn(pq))},
       [],
     )
   | _ => (task, [])
@@ -557,20 +510,20 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
   array<effect>,
 ) =>
   switch task {
-  | Task.Loaded({pendingQuestion: Some(pq)} as data) =>
+  | {session: Task.Loaded(_), pendingQuestion: Some(pq)} as data =>
     switch cancelled {
     | true => (
-        Task.Loaded({
+        {
           ...data,
           pendingQuestion: None,
           isAgentRunning: false,
-        })->Lens.refreshCompletedFileChanges,
+        }->Lens.refreshCompletedFileChanges,
         [RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"})],
       )
     | false =>
       let answerJson = buildQuestionToolOutput(pq, ~skippedAll, ~cancelled)
       (
-        Task.Loaded({...data, pendingQuestion: None, isAgentRunning: true}),
+        {...data, pendingQuestion: None, isAgentRunning: true},
         [ResolveQuestionToolEffect({resolveOk: pq.resolveOk, answerJson})],
       )
     }
@@ -578,35 +531,32 @@ let resolveQuestion = (task: Task.t, ~skippedAll: bool, ~cancelled: bool): (
   }
 
 let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
-  switch (task, action) {
+  switch (task.session, action) {
   | (Task.Unloaded(_), SetPreviewUrl(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), SetPreviewUrl({url})) =>
     let currentUrl = Task.getPreviewFrame(task, ~defaultUrl="").url
     let urlChanged = normalizeUrl(currentUrl) != normalizeUrl(url)
     let updated = Lens.setPreviewUrl(task, url)
 
     switch urlChanged {
-    | true =>
-      let updated = Lens.setAnnotations(updated, [])
-      let updated = Lens.setActivePopupAnnotationId(updated, None)
-      (updated, [SyncBrowserUrl(url)])
+    | true => ({...updated, annotations: [], activePopupAnnotationId: None}, [SyncBrowserUrl(url)])
     | false => (updated, [])
     }
 
   | (Task.Unloaded(_), SetPreviewFrame(_)) => (task, [])
   | (
-      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
+      Task.New | Task.Loading(_) | Task.Loaded(_),
       SetPreviewFrame({runtime, contentDocument, contentWindow}),
     ) => (Lens.setPreviewFrame(task, ~runtime, ~contentDocument, ~contentWindow), [])
 
   | (Task.Unloaded(_), SetDeviceMode(_) | SetOrientation(_) | ToggleDeviceMode) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetDeviceMode({deviceMode})) =>
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), SetDeviceMode({deviceMode})) =>
     let updated = Lens.setDeviceMode(task, deviceMode)
     (updated, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetOrientation({orientation})) =>
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), SetOrientation({orientation})) =>
     let updated = Lens.setOrientation(task, orientation)
     (updated, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleDeviceMode) =>
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), ToggleDeviceMode) =>
     let currentDeviceMode = Selectors.deviceMode(task)
     let newDeviceMode = switch currentDeviceMode {
     | Client__DeviceMode.Responsive =>
@@ -616,36 +566,25 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     (Lens.setDeviceMode(task, newDeviceMode), [])
 
   | (Task.Unloaded(_), SetAnnotationMode(_) | ToggleAnnotationMode) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => {
-      let updated = Lens.setAnnotationMode(task, mode)
-      let updated = switch mode {
-      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
-      | _ => updated
-      }
-      (updated, [])
-    }
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotationMode) => {
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), SetAnnotationMode({mode})) => (
+      Lens.setAnnotationMode(task, mode),
+      [],
+    )
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), ToggleAnnotationMode) => {
       let newMode = switch Task.getAnnotationMode(task) {
       | Annotation.Off => Annotation.Selecting
       | _ => Annotation.Off
       }
-      let updated = Lens.setAnnotationMode(task, newMode)
-      let updated = switch newMode {
-      | Annotation.Off => updated->Lens.setActivePopupAnnotationId(None)
-      | _ => updated
-      }
-      (updated, [])
+      (Lens.setAnnotationMode(task, newMode), [])
     }
 
   | (Task.Unloaded(_), ToggleAnnotation(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ToggleAnnotation({element, tagName})) => {
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), ToggleAnnotation({element, tagName})) => {
       let existing = Annotation.findByElement(Task.getAnnotations(task), element)
       switch existing {
       | Some(ann) =>
         let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != ann.id)
-        let updated = Lens.setAnnotations(task, annotations)
-        let updated = Lens.setActivePopupAnnotationId(updated, None)
-        (updated, [])
+        ({...task, annotations, activePopupAnnotationId: None}, [])
       | None =>
         let annotation = Annotation.make(~element, ~tagName)
         let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
@@ -657,15 +596,19 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
             contentWindow: previewFrame.contentWindow,
           }),
         ]
-        let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-        let updated = Lens.setAnnotations(task, allAnnotations)
-        let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
-        (updated, effects)
+        (
+          {
+            ...task,
+            annotations: [...task.annotations, annotation],
+            activePopupAnnotationId: Some(annotation.id),
+          },
+          effects,
+        )
       }
     }
 
   | (Task.Unloaded(_), AddAnnotation(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, tagName})) => {
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), AddAnnotation({element, tagName})) => {
       let annotation = Annotation.make(~element, ~tagName)
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let effects = [
@@ -676,16 +619,20 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           contentWindow: previewFrame.contentWindow,
         }),
       ]
-      let allAnnotations = Array.concat(Task.getAnnotations(task), [annotation])
-      let updated = Lens.setAnnotations(task, allAnnotations)
-      let updated = Lens.setActivePopupAnnotationId(updated, Some(annotation.id))
-      (updated, effects)
+      (
+        {
+          ...task,
+          annotations: [...task.annotations, annotation],
+          activePopupAnnotationId: Some(annotation.id),
+        },
+        effects,
+      )
     }
 
   | (Task.Unloaded(_), AnnotationDetailsResolved(_)) => (task, [])
 
   | (
-      Task.New(_) | Task.Loading(_) | Task.Loaded(_),
+      Task.New | Task.Loading(_) | Task.Loaded(_),
       AnnotationDetailsResolved({
         id,
         selector,
@@ -714,7 +661,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       [],
     )
 
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), AddAnnotations({elements})) => {
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), AddAnnotations({elements})) => {
       let previewFrame = Task.getPreviewFrame(task, ~defaultUrl="")
       let newAnnotations =
         elements->Array.map(el => Annotation.make(~element=el.element, ~tagName=el.tagName))
@@ -724,34 +671,31 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         document: previewFrame.contentDocument,
         contentWindow: previewFrame.contentWindow,
       }))
-      let allAnnotations = Array.concat(Task.getAnnotations(task), newAnnotations)
-      (Lens.setAnnotations(task, allAnnotations), effects)
+      ({...task, annotations: Array.concat(task.annotations, newAnnotations)}, effects)
     }
 
   | (Task.Unloaded(_), RemoveAnnotation(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), RemoveAnnotation({id})) => {
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), RemoveAnnotation({id})) => {
       let annotations = Task.getAnnotations(task)->Array.filter(a => a.id != id)
-      let updated = Lens.setAnnotations(task, annotations)
-      let updated = switch Task.getActivePopupAnnotationId(task) {
-      | Some(activeId) if activeId == id => Lens.setActivePopupAnnotationId(updated, None)
-      | _ => updated
+      let activePopupAnnotationId = switch task.activePopupAnnotationId {
+      | Some(activeId) if activeId == id => None
+      | other => other
       }
-      (updated, [])
+      ({...task, annotations, activePopupAnnotationId}, [])
     }
   | (Task.Unloaded(_), ClearAnnotations) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), ClearAnnotations) => {
-      let updated = Lens.setAnnotations(task, [])
-      let updated = Lens.setActivePopupAnnotationId(updated, None)
-      (updated, [])
-    }
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), ClearAnnotations) => (
+      {...task, annotations: [], activePopupAnnotationId: None},
+      [],
+    )
   | (Task.Unloaded(_), SetActivePopupAnnotationId(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), SetActivePopupAnnotationId({id})) => (
-      Lens.setActivePopupAnnotationId(task, id),
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), SetActivePopupAnnotationId({id})) => (
+      {...task, activePopupAnnotationId: id},
       [],
     )
 
   | (Task.Unloaded(_), UpdateAnnotationComment(_)) => (task, [])
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), UpdateAnnotationComment({id, comment})) => {
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), UpdateAnnotationComment({id, comment})) => {
       let trimmed = comment->String.trim
       let commentValue = switch trimmed->String.length > 0 {
       | true => Some(trimmed)
@@ -862,13 +806,13 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       (task->Lens.completeStreamingMessage->Lens.insertMessage(userMessage), [])
     }
 
-  | (Task.Loaded(data), UserMessageReceived({id, content, annotations, agentId})) =>
-    let wasPending = data.pendingUserMessageIds->Array.includes(id)
+  | (Task.Loaded(_), UserMessageReceived({id, content, annotations, agentId})) =>
+    let wasPending = task.pendingUserMessageIds->Array.includes(id)
     let pendingUserMessageIds =
-      data.pendingUserMessageIds->Array.filter(pendingId => pendingId != id)
-    switch data.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
+      task.pendingUserMessageIds->Array.filter(pendingId => pendingId != id)
+    switch task.queuedUserMessages->Array.findIndex(message => Message.getId(message) == id) {
     | index if index >= 0 =>
-      let queuedUserMessages = data.queuedUserMessages->Array.copy
+      let queuedUserMessages = task.queuedUserMessages->Array.copy
       let existing = queuedUserMessages->Array.getUnsafe(index)
       let updated = switch wasPending {
       | true =>
@@ -885,26 +829,26 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | false => mergeUserMessage(existing, ~id, ~content, ~annotations, ~agentId)
       }
       queuedUserMessages->Array.setUnsafe(index, updated)
-      (Task.Loaded({...data, queuedUserMessages, pendingUserMessageIds}), [])
+      ({...task, queuedUserMessages, pendingUserMessageIds}, [])
     | _ =>
       switch Task.getMessages(task)->Array.find(message => Message.getId(message) == id) {
       | Some(message) =>
         let updated = mergeUserMessage(message, ~id, ~content, ~annotations, ~agentId)
-        (Lens.updateMessage(Task.Loaded({...data, pendingUserMessageIds}), id, _ => updated), [])
+        (Lens.updateMessage({...task, pendingUserMessageIds}, id, _ => updated), [])
       | None =>
         let userMessage = Message.User({id, content, annotations, agentId})
         (
-          Task.Loaded({
-            ...data,
-            queuedUserMessages: Array.concat(data.queuedUserMessages, [userMessage]),
+          {
+            ...task,
+            queuedUserMessages: Array.concat(task.queuedUserMessages, [userMessage]),
             pendingUserMessageIds,
-          }),
+          },
           [],
         )
       }
     }
 
-  | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
+  | (Task.Loaded(info), AddUserMessage({id, content, annotations, agentId})) =>
     let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
     let messageId = Message.UserMessageId.toString(id)
@@ -915,94 +859,77 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       agentId,
     })
 
-    let updatedImageAttachments = data.imageAttachments->Dict.copy
+    let updatedImageAttachments = task.imageAttachments->Dict.copy
     attachments->Array.forEach(att => {
       let uri = `attachment://${att.id}/${att.filename}`
       updatedImageAttachments->Dict.set(uri, att)
     })
 
     (
-      Task.Loaded({
-        ...data,
-        updatedAt: Date.now(),
+      {
+        ...task,
+        session: Task.Loaded({...info, updatedAt: Date.now()}),
         turnError: None,
         retryStatus: None,
         imageAttachments: updatedImageAttachments,
-        queuedUserMessages: Array.concat(data.queuedUserMessages, [pendingMessage]),
-        pendingUserMessageIds: Array.concat(data.pendingUserMessageIds, [messageId]),
+        queuedUserMessages: Array.concat(task.queuedUserMessages, [pendingMessage]),
+        pendingUserMessageIds: Array.concat(task.pendingUserMessageIds, [messageId]),
         annotations: [],
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
-      }),
-      [SendMessage({id, text, attachments, annotations, agentId, preview: data.previewFrame})],
+      },
+      [SendMessage({id, text, attachments, annotations, agentId, preview: task.previewFrame})],
     )
 
-  | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
+  | (Task.Loaded(_), UserMessageSendFailed({id, error})) => {
       let messageId = Message.UserMessageId.toString(id)
-      switch data.pendingUserMessageIds->Array.includes(messageId) {
+      switch task.pendingUserMessageIds->Array.includes(messageId) {
       | true => (
-          Task.Loaded({
-            ...data,
+          {
+            ...task,
             turnError: Some({
               id: messageId,
               message: error,
               category: #unknown,
               retryErrorId: Some(messageId),
             }),
-          }),
+          },
           [],
         )
       | false => (task, [])
       }
     }
 
-  | (Task.Loaded(data), PlanReceived({entries})) => (
-      Task.Loaded({...data, planEntries: entries}),
-      [],
-    )
+  | (Task.Loaded(_), PlanReceived({entries})) => ({...task, planEntries: entries}, [])
 
-  | (Task.Loaded(data), ExecutionStateRunning) =>
-    let task = Task.Loaded({
-      ...data,
+  | (Task.Loaded(_), ExecutionStateRunning) =>
+    let task = {
+      ...task,
       isAgentRunning: true,
       lastTurnCancelled: false,
       turnError: None,
       retryStatus: None,
-    })
+    }
     (Lens.drainQueuedUserMessages(task), [])
 
-  | (Task.Loaded(_data), ExecutionStateIdle) =>
+  | (Task.Loaded(_), ExecutionStateIdle) =>
     let completed = task->Lens.completeStreamingMessage
-    switch completed {
-    | Task.Loaded(d) => (
-        Task.Loaded({
-          ...d,
-          isAgentRunning: false,
-          retryStatus: None,
-        })->Lens.refreshCompletedFileChanges,
-        [],
-      )
-    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) =>
-      failwith("ExecutionStateIdle changed a loaded task into an invalid state")
-    }
+    ({...completed, isAgentRunning: false, retryStatus: None}->Lens.refreshCompletedFileChanges, [])
 
-  | (Task.Loaded(data), ExecutionStateRequiresAction) => (
-      Task.Loaded({...data, isAgentRunning: false, retryStatus: None}),
+  | (Task.Loaded(_), ExecutionStateRequiresAction) => (
+      {...task, isAgentRunning: false, retryStatus: None},
       [],
     )
 
-  | (Task.Loading(data), ExecutionStateRunning) => (
-      Task.Loading({...data, isAgentRunning: true}),
+  | (Task.Loading(_), ExecutionStateRunning) => ({...task, isAgentRunning: true}, [])
+
+  | (Task.Loading(_), ExecutionStateIdle | ExecutionStateRequiresAction) => (
+      {...task, isAgentRunning: false},
       [],
     )
 
-  | (Task.Loading(data), ExecutionStateIdle | ExecutionStateRequiresAction) => (
-      Task.Loading({...data, isAgentRunning: false}),
-      [],
-    )
-
-  | (Task.Loaded(data), CancelTurn) =>
-    switch data.isAgentRunning || data.pendingQuestion->Option.isSome {
+  | (Task.Loaded(_), CancelTurn) =>
+    switch task.isAgentRunning || task.pendingQuestion->Option.isSome {
     | false => (task, [])
     | true =>
       let completed = Lens.completeStreamingMessage(task)
@@ -1016,28 +943,24 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           }
         )
       )
-      let questionEffects = switch data.pendingQuestion {
+      let questionEffects = switch task.pendingQuestion {
       | Some(pq) => [
           RejectQuestionToolEffect({resolveError: pq.resolveError, message: "Cancelled by user"}),
         ]
       | None => []
       }
       let allEffects = Array.concat([SessionCommand(ACP.Cancel)], questionEffects)
-      switch withCancelledTools {
-      | Task.Loaded(d) => (
-          Task.Loaded({
-            ...d,
-            isAgentRunning: false,
-            lastTurnCancelled: true,
-            turnError: None,
-            retryStatus: None,
-            pendingQuestion: None,
-          })->Lens.refreshCompletedFileChanges,
-          allEffects,
-        )
-      | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) =>
-        failwith("CancelTurn changed a loaded task into an invalid state")
-      }
+      (
+        {
+          ...withCancelledTools,
+          isAgentRunning: false,
+          lastTurnCancelled: true,
+          turnError: None,
+          retryStatus: None,
+          pendingQuestion: None,
+        }->Lens.refreshCompletedFileChanges,
+        allEffects,
+      )
     }
 
   | (Task.Loading(_), AgentError({id, error, category})) =>
@@ -1047,69 +970,66 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loaded(_), AgentError({id, error, category})) =>
     let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
     let completed = task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg)
-    switch completed {
-    | Task.Loaded(data) => (
-        Task.Loaded({
-          ...data,
-          turnError: Some({id, message: error, category, retryErrorId: Some(id)}),
-          isAgentRunning: false,
-          retryStatus: None,
-        })->Lens.refreshCompletedFileChanges,
-        [],
-      )
-    | _ => failwith("AgentError changed a loaded task into an invalid state")
-    }
-
-  | (Task.Loaded(data), ClearTurnError) => (Task.Loaded({...data, turnError: None}), [])
-
-  | (Task.Loaded(data), RetryingUpdate({retryStatus})) => (
-      Task.Loaded({
-        ...data,
-        retryStatus: Some(retryStatus),
-        isAgentRunning: true,
-        lastTurnCancelled: false,
-      }),
+    (
+      {
+        ...completed,
+        turnError: Some({id, message: error, category, retryErrorId: Some(id)}),
+        isAgentRunning: false,
+        retryStatus: None,
+      }->Lens.refreshCompletedFileChanges,
       [],
     )
 
-  | (Task.Loaded(data), UnqueueMessage({messageId}) | MessageUnqueued({messageId})) =>
+  | (Task.Loaded(_), ClearTurnError) => ({...task, turnError: None}, [])
+
+  | (Task.Loaded(_), RetryingUpdate({retryStatus})) => (
+      {
+        ...task,
+        retryStatus: Some(retryStatus),
+        isAgentRunning: true,
+        lastTurnCancelled: false,
+      },
+      [],
+    )
+
+  | (Task.Loaded(_), UnqueueMessage({messageId}) | MessageUnqueued({messageId})) =>
     switch action {
     | _
-      if !(data.queuedUserMessages->Array.some(message => Message.getId(message) == messageId)) => (
+      if !(task.queuedUserMessages->Array.some(message => Message.getId(message) == messageId)) => (
         task,
         [],
       )
     | UnqueueMessage(_)
       if !(
-        data.pendingUserMessageIds->Array.includes(messageId) &&
-          data.turnError->Option.mapOr(false, error => error.id == messageId)
+        task.pendingUserMessageIds->Array.includes(messageId) &&
+          task.turnError->Option.mapOr(false, error => error.id == messageId)
       ) => (task, [SessionCommand(ACP.UnqueueMessage(messageId))])
     | _ => (
-        Task.Loaded({
-          ...data,
-          turnError: switch data.turnError {
+        {
+          ...task,
+          turnError: switch task.turnError {
           | Some(error) if error.id == messageId => None
           | error => error
           },
-          queuedUserMessages: data.queuedUserMessages->Array.filter(message =>
+          queuedUserMessages: task.queuedUserMessages->Array.filter(message =>
             Message.getId(message) != messageId
           ),
-          pendingUserMessageIds: data.pendingUserMessageIds->Array.filter(id => id != messageId),
-        }),
+          pendingUserMessageIds: task.pendingUserMessageIds->Array.filter(id => id != messageId),
+        },
         [],
       )
     }
 
-  | (Task.Loaded(data), RetryTurn({retriedErrorId})) =>
-    switch data.pendingUserMessageIds->Array.includes(retriedErrorId) {
+  | (Task.Loaded(_), RetryTurn({retriedErrorId})) =>
+    switch task.pendingUserMessageIds->Array.includes(retriedErrorId) {
     | true =>
       let message =
-        data.queuedUserMessages
+        task.queuedUserMessages
         ->Array.find(message => Message.getId(message) == retriedErrorId)
         ->Option.getOrThrow
       switch message {
       | Message.User({content, annotations, agentId}) => (
-          Task.Loaded({...data, turnError: None}),
+          {...task, turnError: None},
           [
             SendMessage({
               id: Message.UserMessageId.fromString(retriedErrorId),
@@ -1117,94 +1037,52 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
               attachments: extractAttachmentsFromUserContent(content),
               annotations,
               agentId,
-              preview: data.previewFrame,
+              preview: task.previewFrame,
             }),
           ],
         )
       | _ => failwith("Pending message must be user-authored")
       }
     | false => (
-        Task.Loaded({...data, turnError: None, isAgentRunning: true, lastTurnCancelled: false}),
+        {...task, turnError: None, isAgentRunning: true, lastTurnCancelled: false},
         [SessionCommand(ACP.RetryTurn(retriedErrorId))],
       )
     }
 
-  | (Task.Unloaded({id, title, createdAt, updatedAt}), LoadStarted({previewUrl})) => (
-      Task.Loading({
-        id,
-        title,
-        createdAt,
-        updatedAt,
-        messages: MessageStore.make(),
-        previewFrame: {
-          runtime: None,
-          url: previewUrl,
-          contentDocument: None,
-          contentWindow: None,
-          deviceMode: Client__DeviceMode.defaultDeviceMode,
-          orientation: Client__DeviceMode.defaultOrientation,
-        },
-        annotationMode: Annotation.Off,
-        annotations: [],
-        activePopupAnnotationId: None,
-        isAgentRunning: false,
-      }),
+  | (Task.Unloaded(info), LoadStarted({previewUrl})) => (
+      {...task, session: Task.Loading(info), previewFrame: {...task.previewFrame, url: previewUrl}},
       [],
     )
 
-  | (Task.Loading(_), LoadComplete) =>
-    switch task->Lens.completeStreamingMessage {
-    | Task.Loading({
-        id,
-        title,
-        createdAt,
-        updatedAt,
-        messages,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAgentRunning,
-      }) => (
-        Task.Loaded({
-          id,
-          clientId: None,
-          title,
-          createdAt,
-          updatedAt,
-          messages,
-          previewFrame,
-          annotationMode,
-          annotations,
-          activePopupAnnotationId,
-          isAgentRunning,
-          lastTurnCancelled: false,
-          planEntries: [],
-          queuedUserMessages: [],
-          pendingUserMessageIds: [],
-          turnError: None,
-          retryStatus: None,
-          imageAttachments: Dict.make(),
-          pendingQuestion: None,
-          completedFileChanges: Client__FileChanges.aggregateCompleted(
-            ~revision=1,
-            ~isAgentRunning,
-            MessageStore.toArray(messages),
-          ),
-        }),
-        [],
-      )
-    | _ =>
-      failwith("[TaskReducer] LoadComplete: unexpected task state after completeStreamingMessage")
-    }
+  | (Task.Loading(info), LoadComplete) =>
+    let completed = task->Lens.completeStreamingMessage
+    (
+      {
+        ...completed,
+        session: Task.Loaded(info),
+        completedFileChanges: Client__FileChanges.aggregateCompleted(
+          ~revision=1,
+          ~isAgentRunning=completed.isAgentRunning,
+          MessageStore.toArray(completed.messages),
+        ),
+      },
+      [],
+    )
 
-  | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) =>
+  | (Task.Loading(info), LoadError({error})) =>
     Log.error(~ctx={"error": error}, "Task load failed")
-    (Task.Unloaded({id, title, createdAt, updatedAt}), [])
+    (
+      Task.make(
+        ~clientId=task.clientId,
+        ~session=Task.Unloaded(info),
+        ~previewUrl=task.previewFrame.url,
+      ),
+      [],
+    )
 
-  | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
-      Task.Loaded({
-        ...data,
+  | (Task.Loaded(_), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
+      {
+        ...task,
         pendingQuestion: Some({
           Client__Question__Types.questions,
           answers: Dict.make(),
@@ -1213,7 +1091,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           resolveOk,
           resolveError,
         }),
-      }),
+      },
       [],
     )
 
@@ -1275,7 +1153,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       {...pq, answers, currentStep: nextStep}
     })
     switch task {
-    | Task.Loaded({pendingQuestion: Some(pq)})
+    | {session: Task.Loaded(_), pendingQuestion: Some(pq)}
       if questionIndex >= Array.length(pq.questions) - 1 => {
         let (task, resolveEffects) = resolveQuestion(task, ~skippedAll=false, ~cancelled=false)
         (task, Array.concat(effects, resolveEffects))
@@ -1294,82 +1172,38 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     (task, Array.concat(questionEffects, [SessionCommand(ACP.Cancel)]))
 
   | (
-      Task.New(_) | Task.Unloaded(_),
-      TextDeltaReceived(_)
-      | ToolCallReceived(_)
-      | ToolInputReceived(_)
-      | ToolResultReceived(_)
-      | ToolErrorReceived(_),
-    ) =>
-    failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
-          task,
-        )} task ${getTaskIdForError(task)}`,
-    )
-
-  | (Task.New(_) | Task.Unloaded(_), UserMessageReceived(_)) =>
-    failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
-          task,
-        )} task ${getTaskIdForError(task)}`,
-    )
-
-  | (
-      Task.New(_) | Task.Unloaded(_),
-      AddUserMessage(_)
-      | UserMessageSendFailed(_)
-      | PlanReceived(_)
-      | ExecutionStateRunning
-      | ExecutionStateIdle
-      | ExecutionStateRequiresAction
-      | CancelTurn
-      | ClearTurnError
-      | RetryingUpdate(_)
-      | RetryTurn(_)
-      | UnqueueMessage(_)
-      | MessageUnqueued(_)
-      | QuestionReceived(_)
-      | QuestionStepChanged(_)
-      | QuestionOptionToggled(_)
-      | QuestionCustomTextChanged(_)
-      | QuestionPerQuestionSkipped(_)
-      | QuestionSubmitted
-      | QuestionAllSkipped
-      | QuestionCancelled,
-    ) =>
-    failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
-          task,
-        )} task ${getTaskIdForError(task)}`,
-    )
-
-  | (Task.New(_) | Task.Unloaded(_), AgentError(_)) =>
-    failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
-          task,
-        )} task ${getTaskIdForError(task)}`,
-    )
-
-  | (Task.New(_) | Task.Loading(_) | Task.Loaded(_), LoadStarted(_)) =>
-    failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
-          task,
-        )} task ${getTaskIdForError(task)}`,
-    )
-  | (Task.New(_) | Task.Loaded(_) | Task.Unloaded(_), LoadComplete | LoadError(_)) =>
-    failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
-          task,
-        )} task ${getTaskIdForError(task)}`,
-    )
-
-  | (Task.Unloaded(_), AddAnnotations(_)) =>
-    failwith(
-      `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(
-          task,
-        )} task ${getTaskIdForError(task)}`,
-    )
-
+    Task.New | Task.Unloaded(_),
+    TextDeltaReceived(_)
+    | ToolCallReceived(_)
+    | ToolInputReceived(_)
+    | ToolResultReceived(_)
+    | ToolErrorReceived(_)
+    | UserMessageReceived(_)
+    | AgentError(_)
+    | AddUserMessage(_)
+    | UserMessageSendFailed(_)
+    | PlanReceived(_)
+    | ExecutionStateRunning
+    | ExecutionStateIdle
+    | ExecutionStateRequiresAction
+    | CancelTurn
+    | ClearTurnError
+    | RetryingUpdate(_)
+    | RetryTurn(_)
+    | UnqueueMessage(_)
+    | MessageUnqueued(_)
+    | QuestionReceived(_)
+    | QuestionStepChanged(_)
+    | QuestionOptionToggled(_)
+    | QuestionCustomTextChanged(_)
+    | QuestionPerQuestionSkipped(_)
+    | QuestionSubmitted
+    | QuestionAllSkipped
+    | QuestionCancelled,
+  )
+  | (Task.New | Task.Loading(_) | Task.Loaded(_), LoadStarted(_))
+  | (Task.New | Task.Loaded(_) | Task.Unloaded(_), LoadComplete | LoadError(_))
+  | (Task.Unloaded(_), AddAnnotations(_))
   | (Task.Loading(_), _) =>
     failwith(
       `[TaskReducer] ${actionToString(action)} on ${Task.stateToString(

@@ -7,12 +7,17 @@ export function installFrontmanPreviewLoader({ bridgeUrl } = {}) {
 	if (!channel || !["http:", "https:"].includes(config.protocol)) {
 		throw new Error("Invalid Frontman preview frame configuration");
 	}
+	const parentOrigin = window.location.origin;
+	if (config.origin !== parentOrigin) {
+		console.error("Frontman preview requires a same-origin parent");
+		return;
+	}
 	const script = document.createElement("script");
 	script.src =
 		bridgeUrl ?? new URL("bridge.js", document.currentScript.src).href;
 	script.async = false;
 	script.setAttribute("data-frontman-bridge", "true");
-	script.setAttribute("data-frontman-parent-origin", config.origin);
+	script.setAttribute("data-frontman-parent-origin", parentOrigin);
 	script.setAttribute("data-frontman-channel", channel);
 	script.onerror = () =>
 		console.error("Frontman preview bridge script failed to load", script.src);

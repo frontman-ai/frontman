@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
-import { build } from "vite";
 import type { Page } from "playwright";
+import { build } from "vite";
 
 declare global {
 	interface Window {
@@ -9,11 +9,7 @@ declare global {
 }
 
 let bundle: string;
-export async function openPreview(
-	page: Page,
-	url: string,
-	basePath = "frontman",
-) {
+export async function openPreview(page: Page, url: string) {
 	if (!bundle) {
 		const result = await build({
 			configFile: false,
@@ -36,16 +32,18 @@ export async function openPreview(
 			(chunk) => chunk.type === "chunk" && chunk.isEntry,
 		)!.code;
 	}
-	await page.route("https://parent.test/**", (route) =>
+	const parentUrl = new URL("/__frontman-preview-test", url).href;
+	const fixtureUrl = new URL("/__frontman-preview-fixture.js", url).href;
+	await page.route(parentUrl, (route) =>
 		route.fulfill({
 			contentType: "text/html",
-			body: `<!doctype html><title>Parent shell</title><body><script>window.__frontmanRuntime={framework:"vite",basePath:${JSON.stringify(basePath)}}</script><script src="/fixture.js"></script>`,
+			body: `<!doctype html><title>Parent shell</title><body><script>window.__frontmanRuntime={framework:"vite",basePath:"frontman"}</script><script src="${fixtureUrl}"></script>`,
 		}),
 	);
-	await page.route("https://parent.test/fixture.js", (route) =>
+	await page.route(fixtureUrl, (route) =>
 		route.fulfill({ contentType: "text/javascript", body: bundle }),
 	);
-	await page.goto("https://parent.test");
+	await page.goto(parentUrl);
 	await page.evaluate((url) => window.pageContext.mount(url), url);
 	await page.waitForFunction(() => window.pageContext.runtime() !== undefined);
 }

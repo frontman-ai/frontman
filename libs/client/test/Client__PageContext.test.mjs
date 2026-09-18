@@ -3,9 +3,7 @@ import { UserContentPart } from "../src/state/Client__Message.res.mjs";
 import * as Reducer from "../src/state/Client__State__StateReducer.res.mjs";
 import {
 	buildPrompt,
-	currentPageToContentBlock,
 	messageAnnotationsToContentBlocks,
-	Task,
 } from "../src/state/Client__Task__Types.res.mjs";
 import { presets } from "../src/webpreview/Client__DeviceMode.res.mjs";
 import * as Runtime from "../src/webpreview/Client__PreviewRuntime.res.mjs";
@@ -20,47 +18,37 @@ const page = {
 	scrollY: 42,
 	astroClientRouting: "enabled",
 };
-const runtime = {};
+const submission = {
+	TAG: "AddUserMessage",
+	id: "message-1",
+	sessionId: "server-session",
+	content: [UserContentPart.text("Inspect this")],
+	annotations: [],
+	agentId: "planner",
+};
+const publish = (
+	state,
+	runtime,
+	clientId = Reducer.Selectors.currentTaskClientId(state),
+) => Reducer.next(state, { TAG: "PreviewFrameChanged", clientId, runtime })[0];
+const failure = (error) => ({
+	TAG: "TaskAction",
+	target: { TAG: "ForTask", _0: submission.sessionId },
+	action: { TAG: "UserMessageSendFailed", id: submission.id, error },
+});
 afterEach(() => {
 	vi.restoreAllMocks();
 	delete window.__frontmanRuntime;
 });
 
-it.each([true, false])(
-	"converts child metadata and landscape emulation (Astro: %s)",
-	(isAstro) => {
-		const block = currentPageToContentBlock(
-			page,
-			{ TAG: "DevicePreset", _0: presets[0] },
-			"Landscape",
-			isAstro,
-		);
-		expect(block._0._meta).toMatchObject({
-			current_page: true,
-			url: page.url,
-			title: page.title,
-			color_scheme: "dark",
-			viewport_width: 1280,
-			viewport_height: 720,
-			device_pixel_ratio: 1,
-			scroll_y: 42,
-			device_emulation: {
-				active: true,
-				width: 667,
-				height: 375,
-				dpr: 2,
-				orientation: "landscape",
-			},
-		});
-		expect(block._0._meta.astro_client_routing).toBe(
-			isAstro ? "enabled" : undefined,
-		);
-	},
-);
-
-it.each([undefined, "test:model"])(
-	"builds prompt blocks and optional metadata: %s",
-	(model) => {
+it.each([
+	["astro", undefined],
+	["astro", "test:model"],
+	["vite", undefined],
+	["vite", "test:model"],
+])(
+	"serializes page, landscape, annotations, attachment and metadata: %s %s",
+	(framework, model) => {
 		const attachment = {
 			id: "image-1",
 			dataUrl: "data:image/png;base64,aGVsbG8=",
@@ -77,25 +65,48 @@ it.each([undefined, "test:model"])(
 		};
 		const [blocks, metadata] = buildPrompt(
 			{
-				id: "message-1",
+				id: submission.id,
 				text: "Inspect this",
-				agentId: "planner",
-				preview: Reducer.Selectors.previewFrame(Reducer.defaultState),
+				agentId: submission.agentId,
+				preview: {
+					...Reducer.Selectors.previewFrame(Reducer.defaultState),
+					deviceMode: { TAG: "DevicePreset", _0: presets[0] },
+					orientation: "Landscape",
+				},
 				attachments: [attachment],
 				annotations: [annotation],
 			},
 			page,
-			"astro",
+			framework,
 			undefined,
 			model,
 		);
 		expect(metadata).toEqual({
-			framework: "astro",
+			framework,
 			"frontman.dev/messageId": "message-1",
 			agent: "planner",
 			...(model ? { model } : {}),
 		});
-		expect(blocks[0]._0._meta.astro_client_routing).toBe("enabled");
+		expect(blocks[0]._0._meta).toMatchObject({
+			current_page: true,
+			url: page.url,
+			title: page.title,
+			color_scheme: "dark",
+			viewport_width: 1280,
+			viewport_height: 720,
+			device_pixel_ratio: 1,
+			scroll_y: 42,
+			device_emulation: {
+				active: true,
+				width: 667,
+				height: 375,
+				dpr: 2,
+				orientation: "landscape",
+			},
+		});
+		expect(blocks[0]._0._meta.astro_client_routing).toBe(
+			framework === "astro" ? "enabled" : undefined,
+		);
 		expect(blocks.slice(1, -1)).toEqual(
 			messageAnnotationsToContentBlocks([annotation]),
 		);
@@ -113,40 +124,32 @@ it.each([undefined, "test:model"])(
 );
 
 it("keeps preview ownership across promotion, switching and late cleanup", () => {
-	let state = { ...Reducer.defaultState, selectedModelValue: "test:model" };
-	const first = Reducer.Selectors.currentTaskClientId(state);
-	const publish = (clientId, runtime) => {
-		[state] = Reducer.next(state, {
-			TAG: "PreviewFrameChanged",
-			clientId,
+	const runtime = {};
+	const first = Reducer.Selectors.currentTaskClientId(Reducer.defaultState);
+	expect(Reducer.Selectors.previewReady(Reducer.defaultState)).toBe(false);
+	let [state] = Reducer.next(
+		publish(
+			{ ...Reducer.defaultState, selectedModelValue: "test:model" },
 			runtime,
-		});
-	};
-	expect(Reducer.Selectors.previewReady(state)).toBe(false);
-	publish(first, runtime);
-	[state] = Reducer.next(state, {
-		TAG: "AddUserMessage",
-		id: "message-1",
-		sessionId: "server-session",
-		content: [UserContentPart.text("Hi")],
-		annotations: [],
-		agentId: "planner",
-	});
+		),
+		submission,
+	);
 	expect(Reducer.Selectors.previewFrame(state).runtime).toBe(runtime);
 	[state] = Reducer.next(state, "ClearCurrentTask");
 	expect(Reducer.Selectors.previewReady(state)).toBe(false);
-	const second = Reducer.Selectors.currentTaskClientId(state);
 	const replacement = {};
-	publish(second, replacement);
-	publish(first, undefined);
-	expect(state.tasks["server-session"].previewFrame.runtime).toBeUndefined();
+	state = publish(publish(state, replacement), undefined, first);
+	expect(
+		state.tasks[submission.sessionId].previewFrame.runtime,
+	).toBeUndefined();
 	expect(Reducer.Selectors.previewFrame(state).runtime).toBe(replacement);
 	[state] = Reducer.next(state, {
 		TAG: "DeleteTask",
-		taskId: "server-session",
+		taskId: submission.sessionId,
 	});
-	publish(first, undefined);
-	expect(Reducer.Selectors.previewReady(state)).toBe(true);
+	expect(Reducer.Selectors.previewReady(publish(state, undefined, first))).toBe(
+		true,
+	);
 });
 
 it.each(["captured", "missing", "failed", "throws"])(
@@ -157,30 +160,21 @@ it.each(["captured", "missing", "failed", "throws"])(
 			basePath: "custom",
 			traits: ["test-trait"],
 		};
+		const runtime = mode === "missing" ? undefined : {};
 		const sendPrompt = vi.fn();
-		const [readyState] = Reducer.next(
+		const ready = publish(
 			{
 				...Reducer.defaultState,
 				selectedModelValue: "test:model",
 				acpSession: { TAG: "AcpSessionActive", sendPrompt },
 			},
-			{
-				TAG: "PreviewFrameChanged",
-				clientId: Reducer.Selectors.currentTaskClientId(Reducer.defaultState),
-				runtime: mode === "missing" ? undefined : runtime,
-			},
+			runtime,
 		);
-		const [state, effects] = Reducer.next(readyState, {
-			TAG: "AddUserMessage",
-			id: "message-1",
-			sessionId: "server-session",
-			content: [UserContentPart.text("Inspect this")],
-			annotations: [],
-			agentId: "planner",
-		});
-		const clientId = Task.getClientId(state.tasks["server-session"]);
-		expect(clientId).not.toBe("server-session");
-		expect(Reducer.Selectors.previewReady(readyState)).toBe(mode !== "missing");
+		const [state, effects] = Reducer.next(ready, submission);
+		expect(state.tasks[submission.sessionId].clientId).not.toBe(
+			submission.sessionId,
+		);
+		expect(Reducer.Selectors.previewReady(ready)).toBe(mode !== "missing");
 		let resolveContext;
 		const getContext = vi
 			.spyOn(Runtime, "getPageContext")
@@ -192,26 +186,18 @@ it.each(["captured", "missing", "failed", "throws"])(
 							resolveContext = resolve;
 						});
 			});
-		const dispatch = vi.fn();
 		const [switched] = Reducer.next(state, "ClearCurrentTask");
-		const laterState = {
+		const later = {
 			...switched,
 			selectedModelValue: "other:model",
 			acpSession: "NoAcpSession",
 		};
-		effects.forEach((effect) =>
-			Reducer.handleEffect(effect, laterState, dispatch),
-		);
-		const failure = (error) => ({
-			TAG: "TaskAction",
-			target: { TAG: "ForTask", _0: "server-session" },
-			action: { TAG: "UserMessageSendFailed", id: "message-1", error },
-		});
-		if (mode === "captured") {
-			expect(getContext).toHaveBeenCalledWith(runtime);
-			expect(sendPrompt).not.toHaveBeenCalled();
-			resolveContext(page);
-		}
+		const dispatch = vi.fn();
+		const run = (pending) =>
+			pending.forEach((effect) =>
+				Reducer.handleEffect(effect, later, dispatch),
+			);
+		run(effects);
 		if (mode !== "captured") {
 			await vi.waitFor(() =>
 				expect(dispatch).toHaveBeenCalledWith(
@@ -228,9 +214,13 @@ it.each(["captured", "missing", "failed", "throws"])(
 			if (mode === "missing") expect(getContext).not.toHaveBeenCalled();
 			return;
 		}
+		expect(getContext).toHaveBeenCalledWith(runtime);
+		expect(sendPrompt).not.toHaveBeenCalled();
+		resolveContext(page);
 		await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledOnce());
 		const [text, sessionId, blocks, onComplete, metadata] =
 			sendPrompt.mock.calls[0];
+		expect([text, sessionId]).toEqual(["Inspect this", "server-session"]);
 		expect(metadata).toMatchObject({
 			"frontman.dev/messageId": "message-1",
 			agent: "planner",
@@ -238,7 +228,6 @@ it.each(["captured", "missing", "failed", "throws"])(
 			framework: "vite",
 			traits: ["test-trait"],
 		});
-		expect([text, sessionId]).toEqual(["Inspect this", "server-session"]);
 		expect(blocks).toHaveLength(1);
 		expect(blocks[0]._0._meta).toMatchObject({
 			title: page.title,
@@ -251,14 +240,12 @@ it.each(["captured", "missing", "failed", "throws"])(
 		const [failed] = Reducer.next(state, dispatch.mock.calls[0][0]);
 		const [, retryEffects] = Reducer.next(failed, {
 			TAG: "TaskAction",
-			target: { TAG: "ForTask", _0: "server-session" },
-			action: { TAG: "RetryTurn", retriedErrorId: "message-1" },
+			target: { TAG: "ForTask", _0: sessionId },
+			action: { TAG: "RetryTurn", retriedErrorId: submission.id },
 		});
 		expect(retryEffects).toEqual(effects);
 		getContext.mockResolvedValue(page);
-		retryEffects.forEach((effect) =>
-			Reducer.handleEffect(effect, laterState, dispatch),
-		);
+		run(retryEffects);
 		await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledTimes(2));
 		expect(sendPrompt.mock.calls[1].slice(0, 3)).toEqual([
 			text,

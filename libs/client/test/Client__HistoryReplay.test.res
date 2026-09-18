@@ -7,7 +7,13 @@ module TaskReducer = Client__Task__Reducer
 module Buffer = Client__TextDeltaBuffer
 
 let makeLoadingTask = () =>
-  Task.makeUnloaded(~id="task-1", ~title="Test", ~createdAt=0.0, ~updatedAt=0.0)
+  Task.makeUnloaded(
+    ~id="task-1",
+    ~title="Test",
+    ~previewUrl="http://localhost:3000",
+    ~createdAt=0.0,
+    ~updatedAt=0.0,
+  )
   ->TaskReducer.next(LoadStarted({previewUrl: "http://localhost:3000"}))
   ->Pair.first
 

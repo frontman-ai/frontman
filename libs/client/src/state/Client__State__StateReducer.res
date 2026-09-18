@@ -1749,12 +1749,7 @@ let next = (state: state, action) => {
     let updatedTasks = state.tasks->Dict.copy
     updatedTasks->Dict.forEachWithKey((task, taskId) => {
       switch TaskReducer.Selectors.pendingQuestion(task) {
-      | Some(_) =>
-        switch task {
-        | Task.Loaded(data) =>
-          updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
-        | _ => ()
-        }
+      | Some(_) => updatedTasks->Dict.set(taskId, {...task, pendingQuestion: None})
       | None => ()
       }
     })
@@ -2110,7 +2105,7 @@ let next = (state: state, action) => {
         let createdAt = Date.fromString(session.createdAt)->Date.getTime
         let updatedAt = Date.fromString(session.updatedAt)->Date.getTime
 
-        let task = Task.makeWithId(
+        let task = Task.makeUnloaded(
           ~id=session.sessionId,
           ~title=session.title,
           ~previewUrl,

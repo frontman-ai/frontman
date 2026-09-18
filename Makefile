@@ -266,7 +266,6 @@ e2e-install-browser-deps:
 	cd test/e2e && yarn playwright install-deps $(BROWSERS)
 
 e2e-browser: rescript-build
-	$(MAKE) -C libs/frontman-nextjs build
 	$(MAKE) build-wordpress-preview
 	cd test/e2e && yarn vitest run --project browser $(E2E_ARGS)
 

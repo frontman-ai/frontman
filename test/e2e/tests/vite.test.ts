@@ -42,7 +42,6 @@ describe("Vite E2E", () => {
 
   it("collects page context through the installed Vite loader", async () => {
     page = await context.newPage();
-    await context.grantPermissions(["local-network-access"], { origin: "https://parent.test" });
     await openPreview(page, `http://localhost:${PORT}/`);
     expect(await page.evaluate(() => window.pageContext.context())).toMatchObject({
       url: `http://localhost:${PORT}/`, astroClientRouting: "disabled",

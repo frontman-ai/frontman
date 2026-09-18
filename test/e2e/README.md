@@ -3,10 +3,11 @@
 Both suites use Vitest and Playwright through `vitest.config.ts`.
 
 - `integration`: real framework fixtures, Phoenix, authentication, and AI prompt tests. Run with `make e2e`.
-- `browser`: cross-site preview tests in Chromium, Firefox, and WebKit. Run with `make e2e-browser`. No server credentials are required.
+- `browser`: same-origin preview lifecycle and cross-origin rejection in Chromium, Firefox, and WebKit. Run with `make e2e-browser`. No server credentials are required.
 
-The browser suite checks loader assets and preview lifecycle behavior with intercepted pages.
-The framework E2Es also check page context through real Astro, Vite, and Next.js installations.
+The browser suite runs shared scenarios once per browser through the production transport, with intercepted pages and packaged WordPress assets.
+It does not run WordPress. `make test-wordpress-preview` checks WordPress authorization and enqueue behavior with PHP stubs.
+The framework E2Es check page context through real Astro, Vite, and Next.js installations.
 Client unit tests cover metadata conversion, originating-task capture, and missing or failed context requests.
 
 Install the browser engines and system libraries before the first browser run:
