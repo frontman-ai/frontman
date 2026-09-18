@@ -1,13 +1,12 @@
 defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
   @moduledoc false
 
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.InteractionCase.Helpers, only: [swarm_tool_call: 2]
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
@@ -18,9 +17,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     Sentry.Test.setup_sentry(dedup_events: false)
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
-
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
     task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id

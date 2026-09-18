@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tools.WebFetchTest do
-  use FrontmanServer.DataCase, async: false
+  use ExUnit.Case, async: true
 
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tools.WebFetch
@@ -12,17 +12,11 @@ defmodule FrontmanServer.Tools.WebFetchTest do
     %{context: context}
   end
 
-  defp stub_resp(status, content_type, body) do
+  defp stub_resp(status, content_type \\ "text/plain", body) do
     Req.Test.stub(:web_fetch, fn conn ->
       conn
       |> Plug.Conn.put_resp_content_type(content_type)
       |> Plug.Conn.send_resp(status, body)
-    end)
-  end
-
-  defp stub_resp(status, body) do
-    Req.Test.stub(:web_fetch, fn conn ->
-      Plug.Conn.send_resp(conn, status, body)
     end)
   end
 

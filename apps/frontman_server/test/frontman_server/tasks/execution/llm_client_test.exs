@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import Mox
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
@@ -11,7 +11,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
 
   @client_opts [llm_opts: [api_key: "test-key"]]
 
-  setup :set_mox_from_context
   setup :verify_on_exit!
 
   describe "ReqLLM stream exception contract" do
