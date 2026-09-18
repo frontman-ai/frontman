@@ -1,6 +1,17 @@
 /** Integration tests for FetchAnnotationDetails effect orchestration. */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { handleEffect } from "../src/state/Client__Task__Reducer.res.mjs";
+import * as Reducer from "../src/state/Client__State__StateReducer.res.mjs";
+
+function handleEffect(effect, dispatch) {
+	Reducer.handleEffect(
+		{ TAG: "TaskEffect", target: { TAG: "ForTask", _0: "task-1" }, effect },
+		Reducer.defaultState,
+		({ target, action }) => {
+			expect(target).toEqual({ TAG: "ForTask", _0: "task-1" });
+			dispatch(action);
+		},
+	);
+}
 
 vi.mock("@medv/finder", () => ({
 	finder: vi.fn(() => "button.submit"),
@@ -87,12 +98,10 @@ async function waitForDispatch(dispatched, { timeout = 1000 } = {}) {
 describe("FetchAnnotationDetails effect handler", () => {
 	let dispatched;
 	let dispatch;
-	let delegate;
 
 	beforeEach(() => {
 		dispatched = [];
 		dispatch = (action) => dispatched.push(action);
-		delegate = () => {};
 		vi.restoreAllMocks();
 		window.__frontmanRuntime = { framework: "nextjs" };
 
@@ -116,7 +125,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 	});
 
 	it("dispatches AnnotationDetailsResolved with Enriched when all promises succeed", async () => {
-		handleEffect(makeEffect(), dispatch, delegate);
+		handleEffect(makeEffect(), dispatch);
 		await waitForDispatch(dispatched);
 
 		expect(dispatched).toHaveLength(1);
@@ -140,7 +149,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 				"data-astro-transition-persist",
 				"submit-action",
 			);
-			handleEffect(effect, dispatch, delegate);
+			handleEffect(effect, dispatch);
 			await waitForDispatch(dispatched);
 			const context = dispatched[0].elementContext;
 			expect(context.TAG).toBe("Ok");
@@ -151,7 +160,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 	);
 
 	it("dispatches Ok(None) sourceLocation when contentWindow is None", async () => {
-		handleEffect(makeEffect({ contentWindow: undefined }), dispatch, delegate);
+		handleEffect(makeEffect({ contentWindow: undefined }), dispatch);
 		await waitForDispatch(dispatched);
 
 		const action = dispatched[0];
@@ -183,7 +192,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 			Promise.resolve({ TAG: "Ok", _0: mockLoc }),
 		);
 
-		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch);
 		await waitForDispatch(dispatched);
 
 		const action = dispatched[0];
@@ -200,7 +209,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 			Promise.resolve({ TAG: "Error", _0: "HTTP 422: Unprocessable Entity" }),
 		);
 
-		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch);
 		await waitForDispatch(dispatched);
 
 		const action = dispatched[0];
@@ -223,7 +232,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		getElementSourceLocation.mockResolvedValue(mockContext);
 		resolveSourceLocation.mockClear();
 
-		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch);
 		await waitForDispatch(dispatched);
 
 		expect(dispatched[0].sourceLocation).toMatchObject({
@@ -250,7 +259,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 				resolveSourceLocation.mockImplementation(() => new Promise(() => {}));
 			}
 
-			handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+			handleEffect(makeEffect({ contentWindow: {} }), dispatch);
 			await vi.advanceTimersByTimeAsync(5000);
 
 			expect(dispatched).toHaveLength(1);
@@ -300,7 +309,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 		"preserves enrichment when $name fails",
 		async ({ arrange, field, error, contentWindow }) => {
 			arrange();
-			handleEffect(makeEffect({ contentWindow }), dispatch, delegate);
+			handleEffect(makeEffect({ contentWindow }), dispatch);
 			await waitForDispatch(dispatched);
 
 			expect(dispatched[0].enrichmentStatus).toBe("Enriched");
@@ -332,7 +341,7 @@ describe("FetchAnnotationDetails effect handler", () => {
 			throw new Error("Resolver exploded");
 		});
 
-		handleEffect(makeEffect({ contentWindow: {} }), dispatch, delegate);
+		handleEffect(makeEffect({ contentWindow: {} }), dispatch);
 		await waitForDispatch(dispatched);
 
 		const action = dispatched[0];

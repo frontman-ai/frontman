@@ -925,13 +925,17 @@ describe("Task - Interactive wait contract", () => {
     },
   ]
 
-  let runEffects = (effects, ~delegate=_ => failwith("Unexpected delegated effect")) =>
+  let runEffects = (effects, ~onCommand=_ => failwith("Unexpected session command")) =>
     effects->Array.forEach(effect =>
-      TaskReducer.handleEffect(
-        effect,
-        ~dispatch=_ => failwith("Unexpected dispatched action"),
-        ~delegate,
-      )
+      switch effect {
+      | TaskReducer.SessionCommand(command) => onCommand(command)
+      | effect =>
+        Client__State__StateReducer.handleEffect(
+          TaskEffect({target: ForTask("test-task-1"), effect}),
+          Client__State__StateReducer.defaultState,
+          _ => failwith("Unexpected dispatched action"),
+        )
+      }
     )
 
   [
@@ -1027,9 +1031,9 @@ describe("Task - Interactive wait contract", () => {
         let (cancelled, effects) = TaskReducer.next(waiting, action)
         runEffects(
           effects,
-          ~delegate=command => commands := Array.concat(commands.contents, [command]),
+          ~onCommand=command => commands := Array.concat(commands.contents, [command]),
         )
-        t->expect(commands.contents)->Expect.toEqual([TaskReducer.NeedSessionCommand(ACP.Cancel)])
+        t->expect(commands.contents)->Expect.toEqual([ACP.Cancel])
         t->expect(rejections.contents)->Expect.toEqual(["Cancelled by user"])
         t->expect(TaskReducer.Selectors.pendingQuestion(cancelled))->Expect.toEqual(None)
         t->expect(TaskReducer.Selectors.isAgentRunning(cancelled))->Expect.toEqual(Some(false))

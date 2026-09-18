@@ -5,7 +5,6 @@ module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
 module ContentBlock = Client__Task__Types.ContentBlock
 
-let currentPageToContentBlock = Client__Task__Types.currentPageToContentBlock
 let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsToContentBlocks
 
 type sendPromptFn = (

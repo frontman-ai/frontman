@@ -2,7 +2,9 @@ import { afterEach, expect, it, vi } from "vitest";
 import { UserContentPart } from "../src/state/Client__Message.res.mjs";
 import * as Reducer from "../src/state/Client__State__StateReducer.res.mjs";
 import {
+	buildPrompt,
 	currentPageToContentBlock,
+	messageAnnotationsToContentBlocks,
 	Task,
 } from "../src/state/Client__Task__Types.res.mjs";
 import { presets } from "../src/webpreview/Client__DeviceMode.res.mjs";
@@ -56,6 +58,60 @@ it.each([true, false])(
 	},
 );
 
+it.each([undefined, "test:model"])(
+	"builds prompt blocks and optional metadata: %s",
+	(model) => {
+		const attachment = {
+			id: "image-1",
+			dataUrl: "data:image/png;base64,aGVsbG8=",
+			mediaType: "image/png",
+			filename: "hello.png",
+		};
+		const annotation = {
+			id: "annotation-1",
+			tagName: "button",
+			selector: { TAG: "Ok", _0: "#save" },
+			elementContext: { TAG: "Ok", _0: "Save button" },
+			screenshot: { TAG: "Ok" },
+			sourceLocation: { TAG: "Ok" },
+		};
+		const [blocks, metadata] = buildPrompt(
+			{
+				id: "message-1",
+				text: "Inspect this",
+				agentId: "planner",
+				preview: Reducer.Selectors.previewFrame(Reducer.defaultState),
+				attachments: [attachment],
+				annotations: [annotation],
+			},
+			page,
+			"astro",
+			undefined,
+			model,
+		);
+		expect(metadata).toEqual({
+			framework: "astro",
+			"frontman.dev/messageId": "message-1",
+			agent: "planner",
+			...(model ? { model } : {}),
+		});
+		expect(blocks[0]._0._meta.astro_client_routing).toBe("enabled");
+		expect(blocks.slice(1, -1)).toEqual(
+			messageAnnotationsToContentBlocks([annotation]),
+		);
+		expect(blocks.at(-1)._0).toMatchObject({
+			resource: {
+				_0: {
+					uri: "attachment://image-1/hello.png",
+					mimeType: "image/png",
+					blob: "aGVsbG8=",
+				},
+			},
+			_meta: { user_image: true, filename: "hello.png" },
+		});
+	},
+);
+
 it("keeps preview ownership across promotion, switching and late cleanup", () => {
 	let state = { ...Reducer.defaultState, selectedModelValue: "test:model" };
 	const first = Reducer.Selectors.currentTaskClientId(state);
@@ -96,33 +152,34 @@ it("keeps preview ownership across promotion, switching and late cleanup", () =>
 it.each(["captured", "missing", "failed", "throws"])(
 	"requires originating preview context: %s",
 	async (mode) => {
-		window.__frontmanRuntime = { framework: "vite", basePath: "custom" };
+		window.__frontmanRuntime = {
+			framework: "vite",
+			basePath: "custom",
+			traits: ["test-trait"],
+		};
 		const sendPrompt = vi.fn();
-		const [state, effects] = Reducer.next(
+		const [readyState] = Reducer.next(
 			{
 				...Reducer.defaultState,
 				selectedModelValue: "test:model",
-				acpSession: {
-					TAG: "AcpSessionActive",
-					sendPrompt,
-				},
+				acpSession: { TAG: "AcpSessionActive", sendPrompt },
 			},
 			{
-				TAG: "AddUserMessage",
-				id: "message-1",
-				sessionId: "server-session",
-				content: [UserContentPart.text("Inspect this")],
-				annotations: [],
-				agentId: "planner",
+				TAG: "PreviewFrameChanged",
+				clientId: Reducer.Selectors.currentTaskClientId(Reducer.defaultState),
+				runtime: mode === "missing" ? undefined : runtime,
 			},
 		);
+		const [state, effects] = Reducer.next(readyState, {
+			TAG: "AddUserMessage",
+			id: "message-1",
+			sessionId: "server-session",
+			content: [UserContentPart.text("Inspect this")],
+			annotations: [],
+			agentId: "planner",
+		});
 		const clientId = Task.getClientId(state.tasks["server-session"]);
 		expect(clientId).not.toBe("server-session");
-		const [readyState] = Reducer.next(state, {
-			TAG: "PreviewFrameChanged",
-			clientId,
-			runtime: mode === "missing" ? undefined : runtime,
-		});
 		expect(Reducer.Selectors.previewReady(readyState)).toBe(mode !== "missing");
 		let resolveContext;
 		const getContext = vi
@@ -136,8 +193,14 @@ it.each(["captured", "missing", "failed", "throws"])(
 						});
 			});
 		const dispatch = vi.fn();
+		const [switched] = Reducer.next(state, "ClearCurrentTask");
+		const laterState = {
+			...switched,
+			selectedModelValue: "other:model",
+			acpSession: "NoAcpSession",
+		};
 		effects.forEach((effect) =>
-			Reducer.handleEffect(effect, readyState, dispatch),
+			Reducer.handleEffect(effect, laterState, dispatch),
 		);
 		const failure = (error) => ({
 			TAG: "TaskAction",
@@ -147,7 +210,6 @@ it.each(["captured", "missing", "failed", "throws"])(
 		if (mode === "captured") {
 			expect(getContext).toHaveBeenCalledWith(runtime);
 			expect(sendPrompt).not.toHaveBeenCalled();
-			Reducer.next(readyState, "ClearCurrentTask");
 			resolveContext(page);
 		}
 		if (mode !== "captured") {
@@ -159,7 +221,7 @@ it.each(["captured", "missing", "failed", "throws"])(
 				),
 			);
 			expect(sendPrompt).not.toHaveBeenCalled();
-			const [failed] = Reducer.next(readyState, dispatch.mock.calls[0][0]);
+			const [failed] = Reducer.next(state, dispatch.mock.calls[0][0]);
 			expect(Reducer.Selectors.queuedUserMessages(failed)).toEqual(
 				Reducer.Selectors.queuedUserMessages(state),
 			);
@@ -173,6 +235,8 @@ it.each(["captured", "missing", "failed", "throws"])(
 			"frontman.dev/messageId": "message-1",
 			agent: "planner",
 			model: "test:model",
+			framework: "vite",
+			traits: ["test-trait"],
 		});
 		expect([text, sessionId]).toEqual(["Inspect this", "server-session"]);
 		expect(blocks).toHaveLength(1);
@@ -184,5 +248,23 @@ it.each(["captured", "missing", "failed", "throws"])(
 		expect(dispatch).not.toHaveBeenCalled();
 		onComplete({ TAG: "Error", _0: "Connection lost" });
 		expect(dispatch).toHaveBeenCalledWith(failure("Connection lost"));
+		const [failed] = Reducer.next(state, dispatch.mock.calls[0][0]);
+		const [, retryEffects] = Reducer.next(failed, {
+			TAG: "TaskAction",
+			target: { TAG: "ForTask", _0: "server-session" },
+			action: { TAG: "RetryTurn", retriedErrorId: "message-1" },
+		});
+		expect(retryEffects).toEqual(effects);
+		getContext.mockResolvedValue(page);
+		retryEffects.forEach((effect) =>
+			Reducer.handleEffect(effect, laterState, dispatch),
+		);
+		await vi.waitFor(() => expect(sendPrompt).toHaveBeenCalledTimes(2));
+		expect(sendPrompt.mock.calls[1].slice(0, 3)).toEqual([
+			text,
+			sessionId,
+			blocks,
+		]);
+		expect(sendPrompt.mock.calls[1][4]).toEqual(metadata);
 	},
 );

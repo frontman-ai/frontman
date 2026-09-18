@@ -503,10 +503,7 @@ describe("Client State Reducer - Plan Handoff", () => {
     t->expect(Reducer.Selectors.isAgentRunning(executing))->Expect.toBe(false)
 
     switch effects->Array.get(0) {
-    | Some(Reducer.TaskEffect({
-        target: ForTask("test-task-1"),
-        effect: SendMessage({text, agentId, _}),
-      })) => {
+    | Some(Reducer.SendPromptEffect({taskId: "test-task-1", message: {text, agentId}})) => {
         t->expect(text)->Expect.toBe(Reducer.executePlanPrompt)
         t->expect(agentId)->Expect.toBe(executor.id)
       }
@@ -646,7 +643,7 @@ describe("Client State Reducer", () => {
     t->expect(messages->Array.length)->Expect.toBe(0)
 
     switch effects->Array.get(0) {
-    | Some(Reducer.TaskEffect({effect: SendMessage({agentId})})) =>
+    | Some(Reducer.SendPromptEffect({message: {agentId}})) =>
       t->expect(agentId)->Expect.toBe("executor-id")
     | _ => JsExn.throw("Expected SendMessage effect")
     }
@@ -1207,10 +1204,7 @@ describe("Client State Reducer - Task ID Continuity", () => {
     let taskIdInState = TestHelpers.getCurrentTaskId(state1)
 
     switch (effects1->Array.get(0), taskIdInState) {
-    | (
-        Some(Reducer.TaskEffect({target: ForTask(effectTaskId), effect: SendMessage(_)})),
-        Some(stateTaskId),
-      ) =>
+    | (Some(Reducer.SendPromptEffect({taskId: effectTaskId})), Some(stateTaskId)) =>
       t->expect(effectTaskId)->Expect.toBe(stateTaskId)
     | _ => t->expect("Effect and state should both have task ID")->Expect.toBe("Missing task IDs")
     }
@@ -1371,7 +1365,7 @@ describe("Client State Reducer - Task Management Actions", () => {
     t->expect(messages->Array.length)->Expect.toBe(0)
 
     switch effects->Array.get(0) {
-    | Some(Reducer.TaskEffect({target: ForTask(effectTaskId), effect: SendMessage(_)})) =>
+    | Some(Reducer.SendPromptEffect({taskId: effectTaskId})) =>
       t->expect(effectTaskId)->Expect.toBe(newTaskId)
     | _ => JsExn.throw("Expected SendMessage effect for new task")
     }
@@ -1413,8 +1407,8 @@ describe("Client State Reducer - Task Management Actions", () => {
 
     switch (effects1->Array.get(0), effects2->Array.get(0)) {
     | (
-        Some(Reducer.TaskEffect({target: ForTask(taskId1), effect: SendMessage(_)})),
-        Some(Reducer.TaskEffect({target: ForTask(taskId2), effect: SendMessage(_)})),
+        Some(Reducer.SendPromptEffect({taskId: taskId1})),
+        Some(Reducer.SendPromptEffect({taskId: taskId2})),
       ) =>
       t->expect(taskId1)->Expect.toBe(taskId2)
     | _ => t->expect("Both effects should have task IDs")->Expect.toBe("Missing task IDs")
@@ -1729,16 +1723,16 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let sendEffect = effects->Array.find(
       eff =>
         switch eff {
-        | Reducer.TaskEffect({effect: SendMessage(_)}) => true
+        | Reducer.SendPromptEffect(_) => true
         | _ => false
         },
     )
 
     switch sendEffect {
-    | Some(Reducer.TaskEffect({effect: SendMessage({annotations})})) =>
+    | Some(Reducer.SendPromptEffect({message: {annotations}})) =>
       t->expect(annotations->Array.length)->Expect.toBe(2)
       t->expect((annotations->Array.getUnsafe(0)).id)->Expect.toBe("ann-1")
-    | _ => JsExn.throw("Expected TaskEffect(SendMessage) with annotations")
+    | _ => JsExn.throw("Expected SendPromptEffect with annotations")
     }
   })
 
@@ -1823,19 +1817,22 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
   })
 
-  test("SendMessage without a session cleans up before reading runtime or task", t => {
+  test("SendPromptEffect reports a missing session without reading runtime or task state", t => {
     let id = UserMessageId.make()
     let dispatched = ref([])
     Reducer.handleEffect(
-      TaskEffect({
-        target: ForTask("missing-task"),
-        effect: SendMessage({
+      SendPromptEffect({
+        taskId: "missing-task",
+        sendPrompt: None,
+        model: None,
+        message: {
           id,
           text: "Inspect this",
           attachments: [],
           annotations: [],
           agentId: "planner",
-        }),
+          preview: Reducer.Selectors.previewFrame(Reducer.defaultState),
+        },
       }),
       Reducer.defaultState,
       action => dispatched := dispatched.contents->Array.concat([action]),

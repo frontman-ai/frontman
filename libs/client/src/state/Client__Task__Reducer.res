@@ -410,28 +410,11 @@ type effect =
       document: option<WebAPI.DomTypes.document>,
       contentWindow: option<WebAPI.DomTypes.window>,
     })
-  | SendMessage({
-      id: Message.UserMessageId.t,
-      text: string,
-      attachments: array<Message.fileAttachmentData>,
-      annotations: array<Message.MessageAnnotation.t>,
-      agentId: string,
-    })
+  | SendMessage(Client__Task__Types.promptMessage)
   | SessionCommand(ACP.sessionCommand)
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
   | RejectQuestionToolEffect({resolveError: string => unit, message: string})
   | SyncBrowserUrl(string)
-
-type delegated =
-  | NeedSendMessage({
-      id: Message.UserMessageId.t,
-      text: string,
-      attachments: array<Message.fileAttachmentData>,
-      annotations: array<Message.MessageAnnotation.t>,
-      agentId: string,
-    })
-  | NeedSessionCommand(ACP.sessionCommand)
-  | NeedSyncBrowserUrl(string)
 
 let actionToString = (action: action): string =>
   switch action {
@@ -951,7 +934,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
       }),
-      [SendMessage({id, text, attachments, annotations, agentId})],
+      [SendMessage({id, text, attachments, annotations, agentId, preview: data.previewFrame})],
     )
 
   | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
@@ -1134,6 +1117,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
               attachments: extractAttachmentsFromUserContent(content),
               annotations,
               agentId,
+              preview: data.previewFrame,
             }),
           ],
         )
@@ -1546,17 +1530,4 @@ let fetchAnnotationDetails = (
       )
       Promise.resolve()
     })
-}
-
-let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delegated => unit) => {
-  switch effect {
-  | FetchAnnotationDetails({id, element, document, contentWindow}) =>
-    fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({id, text, attachments, annotations, agentId}) =>
-    delegate(NeedSendMessage({id, text, attachments, annotations, agentId}))
-  | SessionCommand(command) => delegate(NeedSessionCommand(command))
-  | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
-  | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
-  | SyncBrowserUrl(url) => delegate(NeedSyncBrowserUrl(url))
-  }
 }

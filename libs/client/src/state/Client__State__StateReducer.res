@@ -135,6 +135,12 @@ type customProviderMutationRequest =
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
+  | SendPromptEffect({
+      taskId: string,
+      message: Client__Task__Types.promptMessage,
+      sendPrompt: option<Client__State__Types.sendPromptFn>,
+      model: option<string>,
+    })
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   | FetchAnthropicOAuthStatusEffect({
@@ -212,8 +218,21 @@ module Lens = {
   let delegateToTaskId = (state: state, taskId: string, taskAction: TaskReducer.action) => {
     let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
     let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-    let wrappedEffects =
-      taskEffects->Array.map(eff => TaskEffect({target: ForTask(taskId), effect: eff}))
+    let wrappedEffects = taskEffects->Array.map(effect =>
+      switch effect {
+      | SendMessage(message) =>
+        SendPromptEffect({
+          taskId,
+          message,
+          sendPrompt: switch state.acpSession {
+          | AcpSessionActive({sendPrompt}) => Some(sendPrompt)
+          | NoAcpSession => None
+          },
+          model: state.selectedModelValue,
+        })
+      | effect => TaskEffect({target: ForTask(taskId), effect})
+      }
+    )
     let tasks = state.tasks->Dict.copy
     tasks->Dict.set(taskId, updated)
     {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
@@ -576,32 +595,6 @@ module Selectors = {
     | _ => false
     }
   }
-}
-
-let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttachmentData>): array<
-  Client__State__Types.ContentBlock.t,
-> => {
-  attachments->Array.map(att => {
-    let base64Data = switch att.dataUrl->String.indexOf(";base64,") {
-    | -1 => att.dataUrl
-    | idx => att.dataUrl->String.slice(~start=idx + 8, ~end=String.length(att.dataUrl))
-    }
-
-    let metaObj = Dict.make()
-    metaObj->Dict.set("user_image", JSON.Encode.bool(true))
-    metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
-    let meta = JSON.Encode.object(metaObj)
-
-    Client__State__Types.ContentBlock.EmbeddedResource({
-      resource: Client__State__Types.ContentBlock.BlobResourceContents({
-        uri: `attachment://${att.id}/${att.filename}`,
-        mimeType: Some(att.mediaType),
-        blob: base64Data,
-      }),
-      _meta: Some(meta),
-      annotations: None,
-    })
-  })
 }
 
 let updateInfoForVersions = (~target, ~installedVersion, ~latestVersion): option<
@@ -1027,99 +1020,69 @@ let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request, ~requireAuthe
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
-  | TaskEffect({target, effect: taskEffect}) => {
-      let taskDispatch = (taskAction: TaskReducer.action) => {
-        dispatch(TaskAction({target, action: taskAction}))
-      }
-
-      let delegate = (delegated: TaskReducer.delegated) => {
-        switch delegated {
-        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
-          let taskId = switch target {
-          | ForTask(id) => id
-          | CurrentTask =>
-            switch state.currentTask {
-            | Task.Selected(id) => id
-            | Task.New(_) =>
-              failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
-            }
-          }
-          let fail = error =>
-            dispatch(
-              TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}),
-            )
-          let send = async () => {
-            try {
-              let sendPrompt = switch state.acpSession {
-              | NoAcpSession =>
-                JsError.throwWithMessage("Cannot send message: no active ACP session")
-              | AcpSessionActive({sendPrompt}) => sendPrompt
-              }
-              let config = Client__RuntimeConfig.read()
-              let preview = Task.getPreviewFrame(
-                state.tasks->Dict.get(taskId)->Option.getOrThrow,
-                ~defaultUrl="",
-              )
-              let runtime = switch preview.runtime {
-              | Some(runtime) => runtime
-              | None => JsError.throwWithMessage("Preview is not ready")
-              }
-              let page = await Client__PreviewRuntime.getPageContext(runtime)
-              let additionalBlocks =
-                Array.concat(
-                  [
-                    Client__State__Types.currentPageToContentBlock(
-                      page,
-                      ~deviceMode=preview.deviceMode,
-                      ~orientation=preview.orientation,
-                      ~isAstro=config.framework == Astro,
-                    ),
-                  ],
-                  Client__State__Types.messageAnnotationsToContentBlocks(annotations),
-                )->Array.concat(buildAttachmentContentBlocks(attachments))
-              let metadata =
-                Client__RuntimeConfig.toMeta(config)
-                ->JSON.Decode.object
-                ->Option.getOrThrow
-                ->Dict.copy
-              state.selectedModelValue->Option.forEach(model =>
-                metadata->Dict.set("model", JSON.Encode.string(model))
-              )
-              metadata->Dict.set(
-                "frontman.dev/messageId",
-                JSON.Encode.string(Message.UserMessageId.toString(id)),
-              )
-              metadata->Dict.set("agent", JSON.Encode.string(agentId))
-              sendPrompt(
-                text,
-                ~sessionId=taskId,
-                ~additionalBlocks,
-                ~_meta=Some(JSON.Encode.object(metadata)),
-                ~onComplete=result =>
-                  switch result {
-                  | Ok(_) => ()
-                  | Error(error) => fail(error)
-                  },
-              )
-            } catch {
-            | exn => fail(TaskReducer.formatError(exn))
-            }
-          }
-          send()->ignore
-        | NeedSessionCommand(command) =>
-          switch state.acpSession {
-          | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)
-          | NoAcpSession => Log.error("Cannot send session command: no active ACP session")
-          }
-        | NeedSyncBrowserUrl(url) =>
-          switch targetIsCurrent(state, target) {
-          | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
-          | false => ()
-          }
+  | SendPromptEffect({taskId, message, sendPrompt, model}) =>
+    let fail = error =>
+      dispatch(
+        TaskAction({
+          target: ForTask(taskId),
+          action: UserMessageSendFailed({id: message.id, error}),
+        }),
+      )
+    switch (sendPrompt, message.preview.runtime) {
+    | (None, _) => fail("Cannot send message: no active ACP session")
+    | (_, None) => fail("Preview is not ready")
+    | (Some(sendPrompt), Some(runtime)) =>
+      let send = async () => {
+        try {
+          let config = Client__RuntimeConfig.read()
+          let page = await Client__PreviewRuntime.getPageContext(runtime)
+          let (additionalBlocks, metadata) = Client__Task__Types.buildPrompt(
+            message,
+            page,
+            ~framework=Client__RuntimeConfig.frameworkIdToString(config.framework),
+            ~traits=config.traits,
+            ~model,
+          )
+          sendPrompt(
+            message.text,
+            ~sessionId=taskId,
+            ~additionalBlocks,
+            ~_meta=Some(metadata),
+            ~onComplete=result =>
+              switch result {
+              | Ok(_) => ()
+              | Error(error) => fail(error)
+              },
+          )
+        } catch {
+        | exn => fail(TaskReducer.formatError(exn))
         }
       }
-
-      TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
+      send()->ignore
+    }
+  | TaskEffect({target, effect: taskEffect}) =>
+    switch taskEffect {
+    | FetchAnnotationDetails({id, element, document, contentWindow}) =>
+      TaskReducer.fetchAnnotationDetails(
+        ~id,
+        ~element,
+        ~document,
+        ~contentWindow,
+        ~dispatch=action => dispatch(TaskAction({target, action})),
+      )
+    | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
+    | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
+    | SessionCommand(command) =>
+      switch state.acpSession {
+      | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)
+      | NoAcpSession => Log.error("Cannot send session command: no active ACP session")
+      }
+    | SyncBrowserUrl(url) =>
+      switch targetIsCurrent(state, target) {
+      | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
+      | false => ()
+      }
+    | SendMessage(_) => failwith("SendMessage must be bound to a loaded task")
     }
   | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>

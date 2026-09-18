@@ -763,6 +763,24 @@ let messageAnnotationToBlockData = (
   }
 }
 
+type promptMessage = {
+  id: Message.UserMessageId.t,
+  text: string,
+  attachments: array<Message.fileAttachmentData>,
+  annotations: array<Message.MessageAnnotation.t>,
+  agentId: string,
+  preview: Task.previewFrame,
+}
+
+@schema
+type promptMetadata = {
+  @live framework: string,
+  @live traits: option<array<string>>,
+  @live model: option<string>,
+  @live @as("frontman.dev/messageId") messageId: string,
+  @live agent: string,
+}
+
 @schema
 type deviceMetadata = {
   @live active: bool,
@@ -926,3 +944,48 @@ let messageAnnotationsToContentBlocks = (annotations: array<Message.MessageAnnot
     messageAnnotationToContentBlocks(annotation, ~index)
   )
 }
+
+@schema
+type attachmentMetadata = {@live user_image: bool, @live filename: string}
+
+let buildAttachmentContentBlocks = (attachments: array<Message.fileAttachmentData>) =>
+  attachments->Array.map(att => {
+    let meta = S.decodeOrThrow(
+      {user_image: true, filename: att.filename},
+      ~from=attachmentMetadataSchema,
+      ~to=S.json,
+    )
+    ContentBlock.EmbeddedResource({
+      resource: ContentBlock.BlobResourceContents({
+        uri: `attachment://${att.id}/${att.filename}`,
+        mimeType: Some(att.mediaType),
+        blob: Message.resolveAttachmentImage(att).base64,
+      }),
+      _meta: Some(meta),
+      annotations: None,
+    })
+  })
+
+let buildPrompt = (message: promptMessage, page, ~framework, ~traits, ~model) => (
+  [
+    currentPageToContentBlock(
+      page,
+      ~deviceMode=message.preview.deviceMode,
+      ~orientation=message.preview.orientation,
+      ~isAstro=framework == "astro",
+    ),
+    ...messageAnnotationsToContentBlocks(message.annotations),
+    ...buildAttachmentContentBlocks(message.attachments),
+  ],
+  S.decodeOrThrow(
+    {
+      framework,
+      traits,
+      model,
+      messageId: Message.UserMessageId.toString(message.id),
+      agent: message.agentId,
+    },
+    ~from=promptMetadataSchema,
+    ~to=S.json,
+  ),
+)
