@@ -2392,6 +2392,7 @@ __metadata:
   dependencies:
     "@astrojs/compiler": "npm:^4.0.0"
     "@frontman-ai/frontman-core": "npm:*"
+    "@frontman-ai/frontman-preview-bridge": "workspace:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@frontman/bindings": "npm:*"
     "@rescript/runtime": "catalog:"
@@ -2515,11 +2516,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge":
+"@frontman-ai/frontman-preview-bridge@workspace:*, @frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge":
   version: 0.0.0-use.local
   resolution: "@frontman-ai/frontman-preview-bridge@workspace:libs/frontman-preview-bridge"
   dependencies:
     "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
+    "@frontman-ai/astro-browser": "workspace:*"
     "@frontman-ai/frontman-protocol": "workspace:*"
     "@frontman/bindings": "workspace:*"
     "@rescript/runtime": "catalog:"
@@ -2556,6 +2558,7 @@ __metadata:
   resolution: "@frontman-ai/nextjs@workspace:libs/frontman-nextjs"
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
+    "@frontman-ai/frontman-preview-bridge": "workspace:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
@@ -2624,6 +2627,7 @@ __metadata:
   resolution: "@frontman-ai/vite@workspace:libs/frontman-vite"
   dependencies:
     "@frontman-ai/frontman-core": "npm:*"
+    "@frontman-ai/frontman-preview-bridge": "workspace:*"
     "@frontman-ai/frontman-protocol": "npm:*"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
@@ -2712,6 +2716,9 @@ __metadata:
   resolution: "@frontman/e2e@workspace:test/e2e"
   dependencies:
     playwright: "npm:^1.61.1"
+    react: "npm:^19.2.8"
+    react-dom: "npm:^19.2.8"
+    vite: "catalog:"
     vitest: "catalog:"
   languageName: unknown
   linkType: soft

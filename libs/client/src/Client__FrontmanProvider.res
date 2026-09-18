@@ -101,12 +101,7 @@ type contextValue = {
   beginLogout: unit => unit,
   createSession: (~onComplete: result<string, string> => unit) => unit,
   clearSession: unit => unit,
-  sendPrompt: (
-    string,
-    ~additionalBlocks: array<ContentBlock.t>,
-    ~onComplete: result<Types.promptResult, string> => unit,
-    ~_meta: option<JSON.t>,
-  ) => unit,
+  sendPrompt: Client__State__Types.sendPromptFn,
   sendSessionCommand: ACP.sessionCommand => unit,
   loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
@@ -123,7 +118,7 @@ let defaultContextValue: contextValue = {
   beginLogout: () => (),
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
-  sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+  sendPrompt: (_, ~sessionId as _, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   sendSessionCommand: _ => (),
   loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
@@ -352,9 +347,12 @@ module Provider = {
 
     let clearSession = React.useCallback1(() => dispatch(ClearSession), [dispatch])
 
-    let sendPrompt = React.useCallback1((text: string, ~additionalBlocks, ~onComplete, ~_meta) => {
-      dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta}))
-    }, [dispatch])
+    let sendPrompt = React.useCallback1(
+      (text: string, ~sessionId, ~additionalBlocks, ~onComplete, ~_meta) => {
+        dispatch(SendPrompt({sessionId, text, additionalBlocks, onComplete, _meta}))
+      },
+      [dispatch],
+    )
 
     let sendSessionCommand = React.useCallback1((command: ACP.sessionCommand) => {
       dispatch(SessionCommand(command))

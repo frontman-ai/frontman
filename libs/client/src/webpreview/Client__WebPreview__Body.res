@@ -1,29 +1,107 @@
+module Log = FrontmanLogs.Logs.Make({
+  let component = #WebPreviewStage
+})
+
 @react.component
 let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=?) => {
-  let iframeRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let (iframeElement, setIframeElement): (option<WebAPI.DomTypes.element>, _) = React.useState(() =>
     None
   )
   let (attachmentKey, setAttachmentKey) = React.useState(() => 0)
+  let parentOrigin = (WebAPI.Window.current->WebAPI.Window.location).origin
+  let frameName = {
+    let config = WebAPI.URL.make(~url=parentOrigin)
+    config.searchParams->WebAPI.URLSearchParams.set(~name="channel", ~value=taskId)
+    config.searchParams->WebAPI.URLSearchParams.set(
+      ~name="basePath",
+      ~value=Client__RuntimeConfig.read().basePath,
+    )
+    `frontman:${config.href}`
+  }
   let (iframeSrc, setIframeSrc) = React.useState(() => isActive ? url : "about:blank")
   let (hasLoaded, setHasLoaded) = React.useState(() => false)
-  let lastLocationRef: React.ref<option<string>> = React.useRef(None)
   let trackedIframeElement = isActive ? iframeElement : None
   let location = Client__Hooks.useIFrameLocation(
     ~iframeElement=trackedIframeElement,
     ~attachmentKey,
   )
-  let readPreviewFrame = () =>
-    iframeRef.current
-    ->Nullable.toOption
-    ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
-    ->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement)
-    ->Option.map(iframeElement => {
-      (
-        WebAPI.HTMLIFrameElement.contentDocument(iframeElement),
-        WebAPI.HTMLIFrameElement.contentWindow(iframeElement),
-      )
-    })
+  let previewOrigin = (src: string): option<string> =>
+    switch src {
+    | "about:blank" => None
+    | src =>
+      try {
+        Some(
+          WebAPI.URL.make(
+            ~url=src,
+            ~base=(WebAPI.Window.current->WebAPI.Window.location).href,
+          ).origin,
+        )
+      } catch {
+      | exn =>
+        let ctx = {"src": src}
+        Log.error(~ctx, ~error=JsExn.fromException(exn), "Preview bridge origin resolution failed")
+        None
+      }
+    }
+
+  let targetOrigin = previewOrigin(iframeSrc)
+  React.useEffect(() => {
+    switch (
+      isActive,
+      hasLoaded,
+      iframeElement->Option.flatMap(FrontmanBindings.Bindings__WebAPI.iframeElementFromElement),
+      targetOrigin,
+    ) {
+    | (true, true, Some(iframe), Some(targetOrigin)) => {
+        let runtime = Client__PreviewRuntime.make(~iframe, ~targetOrigin, ~channel=taskId)
+        let publish = status => {
+          let ready = status == Runtime.Open
+          let (contentDocument, contentWindow) = try {
+            switch ready {
+            | false => (None, None)
+            | true =>
+              iframe.contentWindow
+              ->Null.map(window => (Some(window->WebAPI.Window.document), Some(window)))
+              ->Null.getOr((None, None))
+            }
+          } catch {
+          | exn
+            if exn->JsExn.fromException->Option.flatMap(JsExn.name) == Some("SecurityError") => (
+              None,
+              None,
+            )
+          | exn => throw(exn)
+          }
+          Client__State.Actions.setPreviewFrame(
+            ~clientId=taskId,
+            ~runtime=ready ? Some(runtime) : None,
+            ~contentDocument,
+            ~contentWindow,
+          )
+          switch status {
+          | Runtime.Open
+          | Runtime.Connecting
+          | Runtime.Disconnected("Iframe reloaded")
+          | Runtime.Closed("Runtime closed") => ()
+          | Runtime.Disconnected(reason) | Runtime.Closed(reason) =>
+            Log.error(
+              ~ctx={"taskId": taskId, "targetOrigin": targetOrigin, "reason": reason},
+              "Preview bridge runtime failed",
+            )
+          }
+        }
+        let removeStatusListener = Client__PreviewRuntime.onStatus(runtime, publish)
+        publish(Client__PreviewRuntime.status(runtime))
+        Some(
+          () => {
+            Client__PreviewRuntime.close(runtime)
+            removeStatusListener()
+          },
+        )
+      }
+    | _ => None
+    }
+  }, (isActive, hasLoaded, iframeElement, targetOrigin, taskId))
 
   React.useEffect(() => {
     switch hasLoaded {
@@ -52,28 +130,10 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
   }, [isActive])
 
   React.useEffect(() => {
-    switch isActive {
-    | false => ()
-    | true =>
-      switch location {
-      | Some(location) =>
-        switch location->String.startsWith("http") {
-        | false => ()
-        | true =>
-          let locationChanged = switch lastLocationRef.current {
-          | None => true
-          | Some(lastLocation) => lastLocation != location
-          }
-
-          switch locationChanged {
-          | false => ()
-          | true =>
-            lastLocationRef.current = Some(location)
-            Client__State.Actions.observePreviewUrl(~url=location)
-          }
-        }
-      | None => ()
-      }
+    switch (isActive, location) {
+    | (true, Some(location)) if location->String.startsWith("http") =>
+      Client__State.Actions.observePreviewUrl(~url=location)
+    | _ => ()
     }
     None
   }, (location, isActive))
@@ -84,48 +144,25 @@ let make = (~taskId, ~url, ~isActive, ~viewportStyle: option<(int, int, float)>=
     | _ =>
       setHasLoaded(_ => true)
       setAttachmentKey(prev => prev + 1)
-      switch isActive {
-      | false => ()
-      | true =>
-        readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) =>
-          Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
-        )
-      }
     }
   }
 
-  React.useEffect(() => {
-    switch isActive {
-    | false => ()
-    | true =>
-      readPreviewFrame()->Option.forEach(((contentDocument, contentWindow)) => {
-        switch contentDocument->Option.isSome {
-        | false => ()
-        | true => Client__State.Actions.setPreviewFrame(~contentDocument, ~contentWindow)
-        }
-      })
-    }
-    None
-  }, [isActive])
-
   let refCallback = ReactDOM.Ref.callbackDomRef(iframe => {
-    iframeRef.current = iframe
     let nextIframeElement =
       iframe
       ->Nullable.toOption
       ->Option.map(FrontmanBindings.Bindings__WebAPI.elementFromReact)
-    setIframeElement(prevIframeElement =>
-      switch (prevIframeElement, nextIframeElement) {
-      | (Some(prev), Some(next)) if prev == next => prevIframeElement
-      | (None, None) => prevIframeElement
-      | _ => nextIframeElement
-      }
-    )
+    setIframeElement(_ => nextIframeElement)
     None
   })
   let iframe =
     <iframe
-      className="size-full" src={iframeSrc} title={`Preview - ${taskId}`} onLoad ref={refCallback}
+      className="size-full"
+      name={frameName}
+      src={iframeSrc}
+      title={`Preview - ${taskId}`}
+      onLoad
+      ref={refCallback}
     />
 
   switch (isActive, viewportStyle) {

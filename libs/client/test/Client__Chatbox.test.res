@@ -69,20 +69,24 @@ describe("ExecutePlanAction", () => {
   test("hides execute action without a selected model", t => {
     let html = renderToStaticMarkup(
       <Chatbox.ExecutePlanAction
-        pendingPlanHandoff={Some()} selectedModelValue=None onExecute={() => ()}
+        pendingPlanHandoff={Some()} selectedModelValue=None previewReady=true onExecute={() => ()}
       />,
     )
 
     t->expect(html->String.includes("Execute plan"))->Expect.toBe(false)
   })
 
-  test("shows execute action when a plan and model are available", t => {
+  test("disables execute action until the preview is ready", t => {
     let html = renderToStaticMarkup(
       <Chatbox.ExecutePlanAction
-        pendingPlanHandoff={Some()} selectedModelValue={Some("test:model")} onExecute={() => ()}
+        pendingPlanHandoff={Some()}
+        selectedModelValue={Some("test:model")}
+        previewReady=false
+        onExecute={() => ()}
       />,
     )
 
     t->expect(html->String.includes("Execute plan"))->Expect.toBe(true)
+    t->expect(html->String.includes("disabled"))->Expect.toBe(true)
   })
 })

@@ -19,7 +19,7 @@ if [ "$VERSION" != "$PLUGIN_VERSION" ]; then
   exit 1
 fi
 
-make -C "$ROOT_DIR" build-wordpress-dependencies
+make -C "$ROOT_DIR" build-wordpress-dependencies build-wordpress-preview
 
 ZIP_PATH="$DIST_DIR/frontman-wordpress-v${VERSION}.zip"
 WPORG_TARBALL_PATH="$DIST_DIR/frontman-wordpress-org-v${VERSION}.tar.gz"

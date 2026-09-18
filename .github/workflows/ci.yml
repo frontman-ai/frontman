@@ -394,6 +394,16 @@ jobs:
             bridge:
               - 'libs/frontman-preview-bridge/**'
               - 'libs/frontman-protocol/**'
+              - 'libs/client/**'
+              - 'libs/bindings/**'
+              - 'libs/frontman-astro/**'
+              - 'libs/frontman-astro-browser/**'
+              - 'libs/frontman-vite/**'
+              - 'libs/frontman-nextjs/**'
+              - 'libs/frontman-wordpress/**'
+              - 'test/e2e/**'
+              - 'Makefile'
+              - '.github/workflows/ci.yml'
               - 'package.json'
               - '.yarnrc.yml'
               - 'yarn.lock'
@@ -423,6 +433,14 @@ jobs:
       - name: Run focused bridge tests
         if: steps.changes.outputs.bridge == 'true'
         run: make -C libs/frontman-preview-bridge test
+
+      - name: Install page-context browser engines and system libraries
+        if: steps.changes.outputs.bridge == 'true'
+        run: make e2e-install-browser-deps e2e-install-browsers
+
+      - name: Check preview component and loader lifecycle across browser engines
+        if: steps.changes.outputs.bridge == 'true'
+        run: make e2e-browser
 
   dead-code:
     name: Dead code analysis
@@ -494,8 +512,7 @@ jobs:
         run: yarn rescript
 
       - name: Bundle astro integration
-        run: yarn build:bundle
-        working-directory: libs/frontman-astro
+        run: make -C libs/frontman-astro build
 
       - name: Build marketing site (fails on broken links)
         run: cd apps/marketing && yarn build

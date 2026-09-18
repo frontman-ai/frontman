@@ -9,10 +9,12 @@ module UserMessageId: {
   type t
   let make: unit => t
   let toString: t => string
+  let fromString: string => t
 } = {
   type t = string
   let make = () => WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
   let toString = id => id
+  let fromString = id => id
 }
 
 type resolvedImageData = {

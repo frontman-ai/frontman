@@ -3,6 +3,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 import { startVite, stopFramework, headingFileContains, type FrameworkServer } from "../helpers/framework.js";
 import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installVite } from "../helpers/installer.js";
+import { openPreview } from "../helpers/page-context.js";
 
 const PORT = 3012;
 
@@ -37,6 +38,15 @@ describe("Vite E2E", () => {
     await page
       .getByRole("heading", { name: "Hello World" })
       .waitFor({ state: "visible" });
+  });
+
+  it("collects page context through the installed Vite loader", async () => {
+    page = await context.newPage();
+    await openPreview(page, `http://localhost:${PORT}/`);
+    expect(await page.evaluate(() => window.pageContext.context())).toMatchObject({
+      url: `http://localhost:${PORT}/`, astroClientRouting: "disabled",
+    });
+    await page.close();
   });
 
   it("should make a text change via AI prompt", async () => {

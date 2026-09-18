@@ -5,11 +5,11 @@ module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
 module ContentBlock = Client__Task__Types.ContentBlock
 
-let taskToPageContextBlocks = Client__Task__Types.taskToPageContextBlocks
 let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsToContentBlocks
 
 type sendPromptFn = (
   string,
+  ~sessionId: string,
   ~additionalBlocks: array<ContentBlock.t>,
   ~onComplete: result<ACPTypes.promptResult, string> => unit,
   ~_meta: option<JSON.t>,

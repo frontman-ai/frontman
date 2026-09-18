@@ -4,7 +4,6 @@ type config = {
 }
 
 type t = {
-  runtime: Runtime.t<unit>,
   disposeInternal: unit => unit,
 }
 
@@ -18,7 +17,12 @@ let limits: Runtime.limits = {
 
 let handler:
   type response. (Types.message<response>, unit, Runtime.context) => Response.t<response> =
-  (_message, _sender, _context) => Response.none
+  (message, _sender, _context) =>
+    switch message {
+    | FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.GetPageContext =>
+      Response.now(FrontmanPreviewBridge__PageContext.read())
+    | _ => Response.none
+    }
 
 let install: config => t = config => {
   let window = WebAPI.Window.current
@@ -58,10 +62,7 @@ let install: config => t = config => {
     }
   }
 
-  {
-    runtime,
-    disposeInternal,
-  }
+  {disposeInternal: disposeInternal}
 }
 
 let dispose = installation => installation.disposeInternal()

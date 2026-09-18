@@ -1,6 +1,29 @@
 # Frontman E2E Environment Contract
 
-`test/e2e/global-setup.ts` always boots the Phoenix app with `MIX_ENV=e2e`.
+Both suites use Vitest and Playwright through `vitest.config.ts`.
+
+- `integration`: real framework fixtures, Phoenix, authentication, and AI prompt tests. Run with `make e2e`.
+- `browser`: same-origin preview lifecycle and cross-origin rejection in Chromium, Firefox, and WebKit. Run with `make e2e-browser`. No server credentials are required.
+
+The browser suite runs shared scenarios once per browser through the production transport, with intercepted pages and packaged WordPress assets.
+It does not run WordPress. `make test-wordpress-preview` checks WordPress authorization and enqueue behavior with PHP stubs.
+The framework E2Es check page context through real Astro, Vite, and Next.js installations.
+Client unit tests cover metadata conversion, originating-task capture, and missing or failed context requests.
+
+Install the browser engines and system libraries before the first browser run:
+
+```bash
+make e2e-install-browser-deps e2e-install-browsers
+make e2e-browser
+```
+
+To select an engine or test, use the Vitest filter:
+
+```bash
+make e2e-browser E2E_ARGS='-t Firefox'
+```
+
+The integration suite uses `global-setup.ts` to start Phoenix with `MIX_ENV=e2e`.
 
 ## Server environment
 

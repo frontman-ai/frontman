@@ -11,10 +11,7 @@ let handler:
   (_message, _sender, _context) => Response.none
 
 let make = (~iframe: WebAPI.DomTypes.htmliFrameElement, ~targetOrigin, ~channel) => {
-  let targetWindow =
-    iframe
-    ->WebAPI.HTMLIFrameElement.contentWindow
-    ->Option.getOrThrow(~message="Preview iframe requires a contentWindow")
+  let targetWindow = iframe.contentWindow->Null.getOrThrow
   let transport = WindowTransport.Parent.make({
     targetWindow,
     targetOrigin,
@@ -34,4 +31,14 @@ let make = (~iframe: WebAPI.DomTypes.htmliFrameElement, ~targetOrigin, ~channel)
 let status = Runtime.status
 let onStatus = Runtime.onStatus
 let whenOpen = Runtime.whenOpen
+let getPageContext = async runtime => {
+  let context = await Runtime.sendMessage(
+    runtime,
+    FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.GetPageContext,
+  )
+  S.parseOrThrow(
+    context,
+    ~to=FrontmanAiFrontmanProtocol.FrontmanProtocol__Preview.pageContextSchema,
+  )
+}
 let close = Runtime.close
