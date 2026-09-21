@@ -23,7 +23,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "astro": "7.2.8",
     "astro-broken-links-checker": "^1.1.0",
-    "astro-icon": "^1.1.5",
+    "astro-icon": "^1.2.0",
     "hc-starlight": "^0.0.8",
     "marked": "^18.0.6",
     "preact": "^10.29.7",
