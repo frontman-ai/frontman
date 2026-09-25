@@ -65,6 +65,9 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
+  let webPreviewIsTextEditing = Client__State.useSelector(
+    Client__State.Selectors.webPreviewIsTextEditing,
+  )
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasAnnotations = annotations->Array.length > 0
   let {session, createSession} = Client__FrontmanProvider.useFrontman()
@@ -382,7 +385,12 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     )
   }, [webPreviewIsSelecting])
 
-  let selectionModeIndicator = switch webPreviewIsSelecting {
+  let textEditorOverlay = switch (document, webPreviewIsTextEditing) {
+  | (Some(doc), true) => <Client__WebPreview__TextEditor document={doc} />
+  | _ => React.null
+  }
+
+  let selectionModeIndicator = switch webPreviewIsSelecting || webPreviewIsTextEditing {
   | true =>
     <div
       className="absolute inset-0 pointer-events-none"
@@ -394,7 +402,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   | false => React.null
   }
 
-  let hoverOverlay = switch (webPreviewIsSelecting, dragState) {
+  let hoverOverlay = switch (webPreviewIsSelecting || webPreviewIsTextEditing, dragState) {
   | (true, Idle) =>
     <Client__WebPreview__HoveredElement
       key="hover"
@@ -474,6 +482,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   switch viewportStyle {
   | None =>
     <div className="pointer-events-none flex-1 absolute top-0 left-0 w-full h-full isolate">
+      textEditorOverlay
       selectionModeIndicator
       hoverOverlay
       dragOverlay
@@ -500,6 +509,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           transformOrigin: "top center",
         }
       >
+        textEditorOverlay
         selectionModeIndicator
         hoverOverlay
         dragOverlay
