@@ -2505,7 +2505,7 @@ __metadata:
     "@frontman/logs": "workspace:*"
     "@rescript/webapi": "workspace:*"
     "@sentry/browser": "npm:^10.70.0"
-    phoenix: "npm:^1.8.9"
+    phoenix: "npm:^1.8.12"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     sury: "catalog:"
@@ -15241,10 +15241,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"phoenix@npm:^1.8.9":
-  version: 1.8.9
-  resolution: "phoenix@npm:1.8.9"
-  checksum: 10c0/9f661db2c0e3986ec3cce4969ec4906a02e15675bd9123fbb8ae7a8caf61213ce20420be505f52dc0a9de9117021a21e9b1344964400530e26474e45d7819c86
+"phoenix@npm:^1.8.12":
+  version: 1.8.12
+  resolution: "phoenix@npm:1.8.12"
+  checksum: 10c0/ac8b451def864f07c4f03206b55a1dc55b1e9794916a80bfa8342108c8fce3d3f8f3ab79c4d10300f6630648c0f6f349bb7e182fb4acccfbf8e8616294f330ca
   languageName: node
   linkType: hard
 
