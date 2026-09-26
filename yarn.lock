@@ -2675,7 +2675,7 @@ __metadata:
     "@frontman-ai/nextjs": "workspace:*"
     "@opentelemetry/api": "npm:^1.9.1"
     "@opentelemetry/sdk-node": "npm:^0.221.0"
-    next: "npm:~16.2.10"
+    next: "npm:~16.3.3"
     react: "npm:^19.2.8"
     react-dom: "npm:^19.2.8"
   languageName: unknown
@@ -14394,7 +14394,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"next@npm:^16.3.3":
+"next@npm:^16.3.3, next@npm:~16.3.3":
   version: 16.3.3
   resolution: "next@npm:16.3.3"
   dependencies:
@@ -14454,7 +14454,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"next@npm:~16.2.10, next@npm:~16.2.11":
+"next@npm:~16.2.11":
   version: 16.2.12
   resolution: "next@npm:16.2.12"
   dependencies:
