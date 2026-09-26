@@ -55,7 +55,7 @@
 	},
 	"dependencies": {
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^13.4.0",
+		"lighthouse": "^13.4.1",
 		"source-map": "^0.8.0"
 	},
 	"optionalDependencies": {

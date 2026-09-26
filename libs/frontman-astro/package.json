@@ -54,7 +54,7 @@
 	"dependencies": {
 		"@astrojs/compiler": "^4.0.0",
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^13.4.0",
+		"lighthouse": "^13.4.1",
 		"magic-string": "^0.30.21",
 		"source-map": "^0.8.0"
 	},
