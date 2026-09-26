@@ -67,6 +67,7 @@ echo ""
 
 install -m 0755 "${BUILD_DIR}/infra/production/deploy.sh" "${DEPLOY_ROOT}/deploy.sh"
 install -m 0755 "${BUILD_DIR}/infra/production/rollback.sh" "${DEPLOY_ROOT}/rollback.sh"
+install -m 0755 "${BUILD_DIR}/infra/production/backup-pg.sh" "${DEPLOY_ROOT}/backup-pg.sh"
 
 RELEASE_TAR="${BUILD_DIR}/apps/frontman_server/_build/prod/frontman_server-0.0.1.tar.gz"
 
