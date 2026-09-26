@@ -70,6 +70,8 @@ let instrumentationTemplate = () =>
 }
 `
 
+let instrumentationClientTemplate = () => `import '@frontman-ai/nextjs/preview-loader';\n`
+
 module ManualInstructions = {
   let middleware = (fileName: string, host: string) => {
     let h = Style.yellowBold
@@ -341,6 +343,7 @@ module SuccessMessages = {
 
   ${pb("Next steps:")}
     ${p("1.")} Start your dev server   ${d(devCommand)}
+    Restart an existing dev server to load instrumentation-client.ts.
     ${p("2.")} Open your browser to    ${d("http://localhost:3000/frontman")}
     ${p("3.")} Sign in on your Frontman server   ${d(server)}
     ${p("4.")} Production sign-in uses GitHub or Google

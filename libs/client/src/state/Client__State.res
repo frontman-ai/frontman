@@ -58,9 +58,9 @@ module Actions = {
       TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
     )
 
-  let setPreviewFrame = (~contentDocument, ~contentWindow) =>
+  let setPreviewFrame = (~clientId, ~runtime, ~contentDocument, ~contentWindow) =>
     Client__State__Store.dispatch(
-      TaskAction({target: CurrentTask, action: SetPreviewFrame({contentDocument, contentWindow})}),
+      PreviewFrameChanged({clientId, runtime, contentDocument, contentWindow}),
     )
 
   let setDeviceMode = (~deviceMode) =>

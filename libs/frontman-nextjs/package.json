@@ -13,6 +13,10 @@
 		"./Instrumentation": {
 			"types": "./types/instrumentation.d.ts",
 			"default": "./dist/instrumentation.js"
+		},
+		"./preview-loader": {
+			"types": "./types/preview-loader.d.ts",
+			"default": "./dist/preview-loader.js"
 		}
 	},
 	"typesVersions": {
@@ -96,6 +100,7 @@
 	},
 	"devDependencies": {
 		"@frontman-ai/frontman-core": "*",
+		"@frontman-ai/frontman-preview-bridge": "workspace:*",
 		"@frontman-ai/frontman-protocol": "*",
 		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "workspace:*",

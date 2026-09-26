@@ -17,6 +17,7 @@ compile:
 
 build: compile
 	yarn vite build
+	node --input-type=module -e 'import {writeFileSync} from "node:fs"; import {makeFrontmanPreviewLoaderBody} from "./src/preview-loader.mjs"; writeFileSync("dist/preview-loader.js", makeFrontmanPreviewLoaderBody({}));'
 
 test: build
 	yarn vitest run

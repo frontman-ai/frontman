@@ -5,7 +5,19 @@ const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 
 export default defineConfig([
   {
+    entry: { 'preview-loader': './src/preview-loader.mjs' },
+    format: ['esm'],
+    outDir: 'dist',
+    clean: false,
+    noExternal: [/frontman-preview-bridge/],
+    platform: 'browser',
+    target: 'es2020',
+  },
+  {
     entry: { 'index': './src/FrontmanNextjs.res.mjs' },
+    esbuildOptions(options) {
+      options.define = { ...options.define, '__PREVIEW_BRIDGE_SOURCE__': JSON.stringify(readFileSync('../frontman-preview-bridge/dist/bridge.js', 'utf-8')) };
+    },
     format: ['esm'],
     outDir: 'dist',
     clean: true,

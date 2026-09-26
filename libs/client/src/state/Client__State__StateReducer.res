@@ -26,6 +26,12 @@ type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 
 type action =
   | TaskAction({target: taskTarget, action: TaskReducer.action})
+  | PreviewFrameChanged({
+      clientId: string,
+      runtime: option<Client__PreviewRuntime.t>,
+      contentDocument: option<WebAPI.DomTypes.document>,
+      contentWindow: option<WebAPI.DomTypes.window>,
+    })
   | TaskExecutionStopped({taskId: string, stopReason: option<ACP.stopReason>})
   | AddUserMessage({
       id: Message.UserMessageId.t,
@@ -129,6 +135,12 @@ type customProviderMutationRequest =
 
 type effect =
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
+  | SendPromptEffect({
+      taskId: string,
+      message: Client__Task__Types.promptMessage,
+      sendPrompt: option<Client__State__Types.sendPromptFn>,
+      model: option<string>,
+    })
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
   | FetchAnthropicOAuthStatusEffect({
@@ -206,8 +218,21 @@ module Lens = {
   let delegateToTaskId = (state: state, taskId: string, taskAction: TaskReducer.action) => {
     let task = state.tasks->Dict.get(taskId)->Option.getOrThrow
     let (updated, taskEffects) = TaskReducer.next(task, taskAction)
-    let wrappedEffects =
-      taskEffects->Array.map(eff => TaskEffect({target: ForTask(taskId), effect: eff}))
+    let wrappedEffects = taskEffects->Array.map(effect =>
+      switch effect {
+      | SendMessage(message) =>
+        SendPromptEffect({
+          taskId,
+          message,
+          sendPrompt: switch state.acpSession {
+          | AcpSessionActive({sendPrompt}) => Some(sendPrompt)
+          | NoAcpSession => None
+          },
+          model: state.selectedModelValue,
+        })
+      | effect => TaskEffect({target: ForTask(taskId), effect})
+      }
+    )
     let tasks = state.tasks->Dict.copy
     tasks->Dict.set(taskId, updated)
     {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
@@ -365,6 +390,8 @@ module Selectors = {
   let previewFrame = (state: state): Task.previewFrame => {
     Task.getPreviewFrame(currentTask(state), ~defaultUrl=getInitialUrl())
   }
+
+  let previewReady = (state: state) => previewFrame(state).runtime->Option.isSome
 
   let annotations = (state: state): array<Client__Annotation__Types.t> => {
     Task.getAnnotations(currentTask(state))
@@ -570,101 +597,6 @@ module Selectors = {
   }
 }
 
-let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttachmentData>): array<
-  Client__State__Types.ContentBlock.t,
-> => {
-  attachments->Array.map(att => {
-    let base64Data = switch att.dataUrl->String.indexOf(";base64,") {
-    | -1 => att.dataUrl
-    | idx => att.dataUrl->String.slice(~start=idx + 8, ~end=String.length(att.dataUrl))
-    }
-
-    let metaObj = Dict.make()
-    metaObj->Dict.set("user_image", JSON.Encode.bool(true))
-    metaObj->Dict.set("filename", JSON.Encode.string(att.filename))
-    let meta = JSON.Encode.object(metaObj)
-
-    Client__State__Types.ContentBlock.EmbeddedResource({
-      resource: Client__State__Types.ContentBlock.BlobResourceContents({
-        uri: `attachment://${att.id}/${att.filename}`,
-        mimeType: Some(att.mediaType),
-        blob: base64Data,
-      }),
-      _meta: Some(meta),
-      annotations: None,
-    })
-  })
-}
-
-let sendMessageToAPIImpl = (
-  state: state,
-  dispatch,
-  ~messageId,
-  ~message,
-  ~attachments: array<Client__Message.fileAttachmentData>,
-  ~annotations: array<Client__Message.MessageAnnotation.t>,
-  ~taskId,
-  ~agentId,
-) => {
-  switch state.acpSession {
-  | AcpSessionActive({sendPrompt}) =>
-    let runtimeConfig = Client__RuntimeConfig.read()
-    let pageContextBlocks =
-      state.tasks
-      ->Dict.get(taskId)
-      ->Option.mapOr([], task =>
-        Client__State__Types.taskToPageContextBlocks(
-          task,
-          ~isAstro=runtimeConfig.framework == Astro,
-        )
-      )
-
-    let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
-
-    let attachmentBlocks = buildAttachmentContentBlocks(attachments)
-    let additionalBlocks =
-      Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
-
-    let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
-    let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
-    state.selectedModelValue->Option.forEach(modelValue =>
-      metadata->Dict.set("model", JSON.Encode.string(modelValue))
-    )
-    metadata->Dict.set(
-      "frontman.dev/messageId",
-      JSON.Encode.string(Message.UserMessageId.toString(messageId)),
-    )
-    metadata->Dict.set("agent", JSON.Encode.string(agentId))
-    let _meta = Some(JSON.Encode.object(metadata))
-
-    sendPrompt(
-      message,
-      ~additionalBlocks,
-      ~onComplete=result =>
-        switch result {
-        | Ok(_) => ()
-        | Error(error) =>
-          dispatch(
-            TaskAction({
-              target: ForTask(taskId),
-              action: UserMessageSendFailed({id: messageId, error}),
-            }),
-          )
-        },
-      ~_meta,
-    )
-  | NoAcpSession =>
-    let error = "Cannot send message: no active ACP session"
-    Log.error(error)
-    dispatch(
-      TaskAction({
-        target: ForTask(taskId),
-        action: UserMessageSendFailed({id: messageId, error}),
-      }),
-    )
-  }
-}
-
 let updateInfoForVersions = (~target, ~installedVersion, ~latestVersion): option<
   Client__State__Types.updateInfo,
 > =>
@@ -716,19 +648,10 @@ let addUserMessageToState = (state: state, ~id, ~sessionId, ~content, ~annotatio
           TaskReducer.AddUserMessage({id, content, annotations, agentId}),
         )
       | Task.Selected(taskId) =>
-        let pendingPlanHandoff = Selectors.pendingPlanHandoff(state)
-        let (updatedState, sendEffects) =
-          state->Lens.delegateToTask(
-            ForTask(taskId),
-            TaskReducer.AddUserMessage({id, content, annotations, agentId}),
-          )
-        switch pendingPlanHandoff {
-        | Some(_) =>
-          let (runningState, runningEffects) =
-            updatedState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
-          runningState->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
-        | None => updatedState->StateReducer.update(~sideEffects=sendEffects)
-        }
+        state->Lens.delegateToTask(
+          ForTask(taskId),
+          TaskReducer.AddUserMessage({id, content, annotations, agentId}),
+        )
       }
     }
   }
@@ -1097,47 +1020,69 @@ let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request, ~requireAuthe
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
-  | TaskEffect({target, effect: taskEffect}) => {
-      let taskDispatch = (taskAction: TaskReducer.action) => {
-        dispatch(TaskAction({target, action: taskAction}))
-      }
-
-      let delegate = (delegated: TaskReducer.delegated) => {
-        switch delegated {
-        | NeedSendMessage({id, text, attachments, annotations, agentId}) =>
-          let taskId = switch target {
-          | ForTask(id) => id
-          | CurrentTask =>
-            switch state.currentTask {
-            | Task.Selected(id) => id
-            | Task.New(_) =>
-              failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
-            }
-          }
-          sendMessageToAPIImpl(
-            state,
-            dispatch,
-            ~messageId=id,
-            ~message=text,
-            ~attachments,
-            ~annotations,
-            ~taskId,
-            ~agentId,
+  | SendPromptEffect({taskId, message, sendPrompt, model}) =>
+    let fail = error =>
+      dispatch(
+        TaskAction({
+          target: ForTask(taskId),
+          action: UserMessageSendFailed({id: message.id, error}),
+        }),
+      )
+    switch (sendPrompt, message.preview.runtime) {
+    | (None, _) => fail("Cannot send message: no active ACP session")
+    | (_, None) => fail("Preview is not ready")
+    | (Some(sendPrompt), Some(runtime)) =>
+      let send = async () => {
+        try {
+          let config = Client__RuntimeConfig.read()
+          let page = await Client__PreviewRuntime.getPageContext(runtime)
+          let (additionalBlocks, metadata) = Client__Task__Types.buildPrompt(
+            message,
+            page,
+            ~framework=Client__RuntimeConfig.frameworkIdToString(config.framework),
+            ~traits=config.traits,
+            ~model,
           )
-        | NeedSessionCommand(command) =>
-          switch state.acpSession {
-          | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)
-          | NoAcpSession => Log.error("Cannot send session command: no active ACP session")
-          }
-        | NeedSyncBrowserUrl(url) =>
-          switch targetIsCurrent(state, target) {
-          | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
-          | false => ()
-          }
+          sendPrompt(
+            message.text,
+            ~sessionId=taskId,
+            ~additionalBlocks,
+            ~_meta=Some(metadata),
+            ~onComplete=result =>
+              switch result {
+              | Ok(_) => ()
+              | Error(error) => fail(error)
+              },
+          )
+        } catch {
+        | exn => fail(TaskReducer.formatError(exn))
         }
       }
-
-      TaskReducer.handleEffect(taskEffect, ~dispatch=taskDispatch, ~delegate)
+      send()->ignore
+    }
+  | TaskEffect({target, effect: taskEffect}) =>
+    switch taskEffect {
+    | FetchAnnotationDetails({id, element, document, contentWindow}) =>
+      TaskReducer.fetchAnnotationDetails(
+        ~id,
+        ~element,
+        ~document,
+        ~contentWindow,
+        ~dispatch=action => dispatch(TaskAction({target, action})),
+      )
+    | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
+    | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
+    | SessionCommand(command) =>
+      switch state.acpSession {
+      | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)
+      | NoAcpSession => Log.error("Cannot send session command: no active ACP session")
+      }
+    | SyncBrowserUrl(url) =>
+      switch targetIsCurrent(state, target) {
+      | true => Client__BrowserUrl.syncBrowserUrl(~previewUrl=url)
+      | false => ()
+      }
+    | SendMessage(_) => failwith("SendMessage must be bound to a loaded task")
     }
   | FetchApiKeySettingsEffect({apiBaseUrl}) => fetchApiKeySettingsImpl(dispatch, ~apiBaseUrl)
   | SaveApiKeyEffect({apiBaseUrl, provider, key}) =>
@@ -1642,6 +1587,19 @@ let next = (state: state, action) => {
       )
     }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
+  | PreviewFrameChanged({clientId, runtime, contentDocument, contentWindow}) =>
+    let action = TaskReducer.SetPreviewFrame({runtime, contentDocument, contentWindow})
+    switch state.currentTask {
+    | Task.New(task) if Task.getClientId(task) == clientId =>
+      state->Lens.delegateToNewTask(task, action)
+    | _ =>
+      switch state.tasks
+      ->Dict.valuesToArray
+      ->Array.find(task => Task.getClientId(task) == clientId) {
+      | Some(task) => state->Lens.delegateToTaskId(Task.getId(task)->Option.getOrThrow, action)
+      | None => state->StateReducer.update
+      }
+    }
 
   | ExecuteAnnotation({id, sessionId, annotationId, comment}) =>
     let agentId = state.selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
@@ -1693,12 +1651,10 @@ let next = (state: state, action) => {
           agentId: executorAgentId,
         }),
       )
-      let (runningState, runningEffects) =
-        messageState->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
       {
-        ...runningState,
+        ...messageState,
         selectedAgentId: Some(executorAgentId),
-      }->StateReducer.update(~sideEffects=Array.concat(sendEffects, runningEffects))
+      }->StateReducer.update(~sideEffects=sendEffects)
     | _ => state->StateReducer.update
     }
 
@@ -1793,12 +1749,7 @@ let next = (state: state, action) => {
     let updatedTasks = state.tasks->Dict.copy
     updatedTasks->Dict.forEachWithKey((task, taskId) => {
       switch TaskReducer.Selectors.pendingQuestion(task) {
-      | Some(_) =>
-        switch task {
-        | Task.Loaded(data) =>
-          updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
-        | _ => ()
-        }
+      | Some(_) => updatedTasks->Dict.set(taskId, {...task, pendingQuestion: None})
       | None => ()
       }
     })
@@ -2154,7 +2105,7 @@ let next = (state: state, action) => {
         let createdAt = Date.fromString(session.createdAt)->Date.getTime
         let updatedAt = Date.fromString(session.updatedAt)->Date.getTime
 
-        let task = Task.makeWithId(
+        let task = Task.makeUnloaded(
           ~id=session.sessionId,
           ~title=session.title,
           ~previewUrl,

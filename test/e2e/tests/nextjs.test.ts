@@ -13,6 +13,7 @@ import {
 } from "../helpers/framework.js";
 import { openFrontmanUI, sendPrompt } from "../helpers/frontman-ui.js";
 import { installNextjs } from "../helpers/installer.js";
+import { openPreview } from "../helpers/page-context.js";
 
 const PORT = 3010;
 
@@ -109,6 +110,15 @@ describe("Next.js E2E", () => {
 		}
 
 		await selectorPage.close();
+	});
+
+	it("collects page context through the installed Next.js loader", async () => {
+		page = await context.newPage();
+		await openPreview(page, `http://localhost:${PORT}/`);
+		expect(await page.evaluate(() => window.pageContext.context())).toMatchObject({
+			url: `http://localhost:${PORT}/`, astroClientRouting: "disabled",
+		});
+		await page.close();
 	});
 
 	it("should make a text change via AI prompt", async () => {

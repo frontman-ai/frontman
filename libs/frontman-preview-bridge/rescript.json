@@ -1,6 +1,9 @@
 {
 	"name": "@frontman-ai/frontman-preview-bridge",
 	"namespace": true,
+	"jsx": {
+		"version": 4
+	},
 	"reanalyze": {
 		"analysis": ["dce"],
 		"suppress": [],
@@ -28,6 +31,7 @@
 	"dependencies": [
 		"@bluehotdog/reworker",
 		"@frontman-ai/frontman-protocol",
+		"@frontman-ai/astro-browser",
 		"@frontman/bindings",
 		"@rescript/webapi"
 	],

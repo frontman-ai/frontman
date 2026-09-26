@@ -31,6 +31,23 @@ class Frontman_UI {
 	public function register(): void {
 		add_action( 'admin_menu', [ $this, 'add_admin_menu_link' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
+		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_preview_bridge' ] );
+	}
+
+	/**
+	 * Install the preview loader on frontend pages for authorized editors.
+	 */
+	public function enqueue_preview_bridge(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		wp_enqueue_script(
+			'frontman-preview-loader',
+			FRONTMAN_PLUGIN_URL . 'assets/preview-loader.js',
+			[],
+			FRONTMAN_VERSION,
+			false
+		);
 	}
 
 	/**

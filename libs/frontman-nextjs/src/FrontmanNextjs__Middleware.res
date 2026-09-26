@@ -6,6 +6,8 @@ module Config = FrontmanNextjs__Config
 module LogCapture = FrontmanNextjs__LogCapture
 module RuntimeEnv = FrontmanNextjs__RuntimeEnv
 
+@val external previewBridgeSource: string = "__PREVIEW_BRIDGE_SOURCE__"
+
 type config = Config.t
 
 let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
@@ -31,7 +33,7 @@ let createMiddleware = (configInput: Config.jsConfigInput) => {
     ~serverVersion=config.serverVersion,
   )
 
-  let middleware = CoreMiddleware.createMiddleware(
+  let coreMiddleware = CoreMiddleware.createMiddleware(
     ~config=middlewareConfig,
     ~registry=server.registry,
   )
@@ -39,7 +41,24 @@ let createMiddleware = (configInput: Config.jsConfigInput) => {
   switch RuntimeEnv.isRuntimeEnabled() {
   | true =>
     LogCapture.initialize()
-    middleware
+    async (req: WebAPI.Request.t) =>
+      switch WebAPI.URL.make(~url=req.url).pathname == `/${config.basePath}/preview-bridge.js` {
+      | true =>
+        Some(
+          WebAPI.Response.fromString(
+            previewBridgeSource,
+            ~init={
+              headers: WebAPI.HeadersInit.fromDict(
+                Dict.fromArray([
+                  ("Content-Type", "text/javascript; charset=utf-8"),
+                  ("Cache-Control", "no-store"),
+                ]),
+              ),
+            },
+          ),
+        )
+      | false => await coreMiddleware(req)
+      }
   | false => async _req => None
   }
 }

@@ -66,6 +66,7 @@
 	},
 	"devDependencies": {
 		"@frontman-ai/frontman-core": "*",
+		"@frontman-ai/frontman-preview-bridge": "workspace:*",
 		"@frontman-ai/frontman-protocol": "*",
 		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "workspace:*",

@@ -69,6 +69,7 @@
 	},
 	"devDependencies": {
 		"@frontman-ai/frontman-core": "*",
+		"@frontman-ai/frontman-preview-bridge": "workspace:*",
 		"@frontman-ai/frontman-protocol": "*",
 		"@frontman/bindings": "*",
 		"@rescript/runtime": "catalog:",

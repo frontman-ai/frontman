@@ -238,9 +238,9 @@ jobs:
       - name: Build adapter dist packages
         if: steps.js-build-cache.outputs.cache-hit != 'true'
         run: |
-          yarn workspace @frontman-ai/nextjs build
-          yarn workspace @frontman-ai/vite build
-          yarn workspace @frontman-ai/astro build
+          make -C libs/frontman-nextjs build
+          make -C libs/frontman-vite build
+          make -C libs/frontman-astro build
 
       - name: Generate mkcert certificates
         run: |
@@ -260,22 +260,20 @@ jobs:
 
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium --with-deps 2>&1 | tail -5
-        working-directory: test/e2e
+        run: make e2e-install-browser-deps e2e-install-browsers BROWSERS=chromium
 
       - name: Install Playwright system dependencies
         if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium 2>&1 | tail -5
-        working-directory: test/e2e
+        run: make e2e-install-browser-deps BROWSERS=chromium
 
       - name: Determine test command
         id: test-cmd
         run: |
           SUITE="${{ github.event.inputs.test_suite }}"
           if [ "$SUITE" = "all" ] || [ -z "$SUITE" ]; then
-            echo "cmd=npx vitest run" >> "$GITHUB_OUTPUT"
+            echo "cmd=npx vitest run --project integration" >> "$GITHUB_OUTPUT"
           else
-            echo "cmd=npx vitest run tests/${SUITE}.test.ts" >> "$GITHUB_OUTPUT"
+            echo "cmd=npx vitest run --project integration tests/${SUITE}.test.ts" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Run E2E tests

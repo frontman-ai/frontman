@@ -3,6 +3,8 @@ name: WordPress Compatibility
 on:
   pull_request:
     paths:
+      - "libs/frontman-preview-bridge/**"
+      - "libs/frontman-protocol/**"
       - "libs/frontman-wordpress/**"
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
@@ -15,6 +17,8 @@ on:
     branches:
       - main
     paths:
+      - "libs/frontman-preview-bridge/**"
+      - "libs/frontman-protocol/**"
       - "libs/frontman-wordpress/**"
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
@@ -51,8 +55,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Build isolated PHP dependencies
-        run: make build-wordpress-dependencies
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.4.1'
+
+      - name: Install bridge build dependencies
+        run: corepack enable && corepack install && yarn install --immutable
+
+      - name: Build PHP dependencies and preview assets
+        run: make build-wordpress-dependencies build-wordpress-preview
 
       - name: Run isolated PHP tests
         run: |

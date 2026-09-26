@@ -17,10 +17,11 @@ module TestSetup = {
     let tasks = Dict.make()
     taskIds->Array.forEach(id => {
       let task =
-        Task.makeNew(~previewUrl="http://localhost:3000")
-        ->Task.newToLoaded(~id, ~title=`Task ${id}`)
-        ->Task.updateLoadedData(data => {...data, isAgentRunning})
-      tasks->Dict.set(id, task)
+        Task.makeNew(~previewUrl="http://localhost:3000")->Task.newToLoaded(
+          ~id,
+          ~title=`Task ${id}`,
+        )
+      tasks->Dict.set(id, {...task, isAgentRunning})
     })
 
     let currentTask = switch taskIds->Array.get(0) {
