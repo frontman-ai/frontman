@@ -18,9 +18,8 @@ defmodule SwarmAi.ParallelToolExecutionTest do
   def run_instant(tool_call), do: ToolResult.make(tool_call.id, "OK", false)
   def run_crash(_tool_call), do: raise("boom")
 
-  def start_await(runtime, tool_call) do
-    assert SwarmAi.running?(runtime, "task-human")
-    Process.send_after(self(), {:tool_result, tool_call.id, "approved", false}, 50)
+  def start_await(test_pid, tool_call) do
+    send(test_pid, {:await_started, tool_call.id, self()})
     :ok
   end
 
@@ -182,23 +181,100 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       execution = %ToolExecution.Await{
         tool_call: tool_call,
         timeout_ms: :infinity,
-        start: {__MODULE__, :start_await, [runtime]},
+        start: {__MODULE__, :start_await, [test_pid]},
         on_error: {SwarmAi.Testing, :default_tool_error, []}
       }
 
-      SwarmAi.ParallelExecutor.run([execution], task_supervisor)
+      SwarmAi.ParallelExecutor.run(
+        [execution],
+        task_supervisor,
+        wait_observer(runtime, "task-human", test_pid)
+      )
       |> tap(fn results -> send(test_pid, {:tool_results, self(), results}) end)
     end
 
     {:ok, pid} =
       run_execution(runtime, "task-human", %{llm | delay_ms: 150}, execute_tools: execute_tools)
 
+    assert_receive {:await_started, "human", ^pid}, 1_000
+    assert_receive {:waiting, true}, 1_000
+    assert SwarmAi.active_count(runtime) == 0
+    assert SwarmAi.running?(runtime, "task-human")
+    assert Process.alive?(pid)
+
+    send(pid, {:tool_result, "human", "approved", false})
     await_exit(pid)
 
     expected = ToolResult.make("human", "approved", false)
     assert_received {:tool_results, ^pid, {:ok, [^expected]}}
     assert_received {:test_event, "task-human", :completed}
     refute_received {:test_event, "task-human", {:failed, _}}
+  end
+
+  test "a mixed batch counts until only infinite-deadline tools remain" do
+    runtime = start_runtime!()
+    test_pid = self()
+    key = "mixed-waits"
+
+    calls =
+      Enum.map(["human1", "human2", "remote_write", "backend_write"], &tool_call(&1, %{}, id: &1))
+
+    llm = tool_then_complete_llm(calls, "done")
+
+    execute_tools = fn tool_calls, supervisor ->
+      executions = Enum.map(tool_calls, &mixed_execution(&1, test_pid))
+      SwarmAi.ParallelExecutor.run(executions, supervisor, wait_observer(runtime, key, test_pid))
+    end
+
+    {:ok, pid} = run_execution(runtime, key, llm, execute_tools: execute_tools)
+    assert_receive {:await_started, "remote_write", ^pid}, 1_000
+    assert_receive {:serial_started, "backend_write", backend}, 1_000
+    assert_receive {:waiting, false}, 1_000
+    assert SwarmAi.active_count(runtime) == 1
+
+    send(pid, {:tool_result, "remote_write", "saved", false})
+    refute_receive {:waiting, true}, 50
+    assert SwarmAi.active_count(runtime) == 1
+
+    send(backend, :go)
+    assert_receive {:waiting, true}, 1_000
+    assert SwarmAi.active_count(runtime) == 0
+    assert SwarmAi.running?(runtime, key)
+
+    send(pid, {:tool_result, "human1", "yes", false})
+    assert_receive {:waiting, true}, 1_000
+    assert SwarmAi.active_count(runtime) == 0
+
+    send(pid, {:tool_result, "human2", "yes", false})
+    await_exit(pid)
+    assert_receive {:test_event, ^key, :completed}, 1_000
+    assert SwarmAi.active_count(runtime) == 0
+  end
+
+  defp mixed_execution(%{name: "backend_write"} = call, test_pid) do
+    %ToolExecution.Sync{
+      tool_call: call,
+      timeout_ms: 5_000,
+      run: {__MODULE__, :run_serial_gate, [test_pid]},
+      on_error: {SwarmAi.Testing, :default_tool_error, []}
+    }
+  end
+
+  defp mixed_execution(call, test_pid) do
+    %ToolExecution.Await{
+      tool_call: call,
+      timeout_ms: if(call.name == "remote_write", do: 5_000, else: :infinity),
+      start: {__MODULE__, :start_await, [test_pid]},
+      on_error: {SwarmAi.Testing, :default_tool_error, []}
+    }
+  end
+
+  defp wait_observer(runtime, key, test_pid) do
+    fn waiting ->
+      :ok = SwarmAi.awaiting_input(runtime, key, waiting)
+      send(test_pid, {:waiting, waiting})
+      :ok
+    end
   end
 
   defp start_runtime! do

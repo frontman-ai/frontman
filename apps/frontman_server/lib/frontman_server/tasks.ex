@@ -1048,7 +1048,14 @@ defmodule FrontmanServer.Tasks do
               model: model_spec
             ),
           execute_tools:
-            ToolExecutor.callback(scope, tools, execution_mode, task.id, turn_number),
+            ToolExecutor.callback(
+              scope,
+              tools,
+              execution_mode,
+              task.id,
+              turn_number,
+              &SwarmAi.awaiting_input(FrontmanServer.AgentRuntime, task.id, &1)
+            ),
           dispatch_event:
             &dispatch_execution_event(scope, task.id, turn_number, response_context, &1)
         })

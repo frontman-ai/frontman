@@ -18,7 +18,14 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
   alias FrontmanServer.Tools.MCP, as: MCPTool
   alias SwarmAi.ToolExecution
 
-  def callback(%Scope{} = scope, tools, execution_mode, task_id, turn_number)
+  def callback(
+        %Scope{} = scope,
+        tools,
+        execution_mode,
+        task_id,
+        turn_number,
+        on_wait \\ fn _ -> :ok end
+      )
       when is_map(tools) and is_binary(task_id) and is_integer(turn_number) and turn_number > 0 do
     turn_ref = %{task_id: task_id, turn_number: turn_number}
 
@@ -26,8 +33,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutor do
       executions = Enum.map(tool_calls, &build_execution(scope, turn_ref, &1, tools))
 
       case execution_mode do
-        :serial -> SwarmAi.ParallelExecutor.run_serial(executions, task_supervisor)
-        :parallel -> SwarmAi.ParallelExecutor.run(executions, task_supervisor)
+        :serial -> SwarmAi.ParallelExecutor.run_serial(executions, task_supervisor, on_wait)
+        :parallel -> SwarmAi.ParallelExecutor.run(executions, task_supervisor, on_wait)
       end
     end
   end

@@ -141,12 +141,18 @@ defmodule SwarmAiTest do
           on_error: {SwarmAi.Testing, :default_tool_error, []}
         }
       end)
-      |> SwarmAi.ParallelExecutor.run(task_supervisor)
+      |> SwarmAi.ParallelExecutor.run(task_supervisor, fn waiting ->
+        :ok = SwarmAi.awaiting_input(runtime, "task-wait", waiting)
+        send(test_pid, {:waiting, waiting})
+        :ok
+      end)
     end
 
     llm = tool_then_complete_llm([tool_call("approval", %{}, id: "tc1")], "done")
     {:ok, pid} = run_agent(runtime, "task-wait", llm, execute_tools: execute_tools)
     await_worker_event(pid, {:await_started, "tc1", pid})
+    assert_receive {:waiting, true}, 1_000
+    assert SwarmAi.active_count(runtime) == 0
     assert SwarmAi.running?(runtime, "task-wait")
 
     assert :ok = SwarmAi.cancel(runtime, "task-wait")

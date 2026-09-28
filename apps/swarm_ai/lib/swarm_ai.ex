@@ -41,9 +41,15 @@ defmodule SwarmAi do
   @spec running?(atom(), String.t()) :: boolean()
   defdelegate running?(runtime, key), to: SwarmAi.Runtime
 
-  @doc "Returns the number of active executions owned by a supervised runtime."
+  @doc "Counts executions except those waiting exclusively for tools with infinite deadlines."
   @spec active_count(atom()) :: non_neg_integer()
   defdelegate active_count(runtime), to: SwarmAi.Runtime
+
+  @doc "Marks whether the calling execution is waiting exclusively for human input."
+  @spec awaiting_input(atom(), String.t(), boolean()) :: :ok
+  defdelegate awaiting_input(runtime, key, waiting),
+    to: SwarmAi.Runtime.Registry,
+    as: :mark_awaiting_input
 
   @doc false
   @spec registry_name(atom()) :: atom()

@@ -1020,7 +1020,18 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       question_tc_id = "tc_question_#{System.unique_integer([:positive])}"
       question_tc = tool_call("question", question_args(), id: question_tc_id)
 
-      expect_llm_responses([{:tool_calls, [question_tc], "Great choice!"}, "Great choice!"])
+      parent = self()
+      expect_llm_responses([{:tool_calls, [question_tc], "Great choice!"}])
+
+      expect(LLMProviderMock, :stream_text, fn _model, _messages, _opts ->
+        send(parent, {:resumed_llm, self()})
+
+        receive do
+          :continue -> ReqLLMResponses.response("Great choice!")
+        after
+          5_000 -> raise "resumed LLM was not released"
+        end
+      end)
 
       {:ok, _, _} =
         submit_user_message(scope, task_id, user_content("Ask me"),
@@ -1028,6 +1039,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         )
 
       assert_receive_interaction(%Interaction.ToolCall{tool_call_id: ^question_tc_id}, 1)
+      assert_active_count(0)
       assert SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
       {:ok, _interaction, _status} =
@@ -1038,7 +1050,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           Protocols.MCP.tool_result_json(%{"answers" => [%{"answer" => "A"}]})
         )
 
+      assert_receive {:resumed_llm, worker}, 1_000
+      assert SwarmAi.active_count(FrontmanServer.AgentRuntime) == 1
+      send(worker, :continue)
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
+      refute_running_eventually(task_id)
+      assert_active_count(0)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
@@ -1159,7 +1176,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       refute Enum.any?(Tasks.interactions(waiting), &match?(%Interaction.ToolResult{}, &1))
       refute Enum.any?(Tasks.interactions(waiting), &match?(%Interaction.AgentPaused{}, &1))
 
+      assert_active_count(0)
       [{worker, _}] = SwarmAi.Runtime.Registry.lookup(FrontmanServer.AgentRuntime, task_id)
+      assert Process.alive?(worker)
 
       assert :ok =
                DynamicSupervisor.terminate_child(
@@ -1199,6 +1218,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                  Protocols.MCP.tool_result_text("yes")
                )
 
+      refute_running_eventually(task_id)
+      assert_active_count(0)
+
       assert :ok =
                Tasks.resume_execution(
                  scope,
@@ -1219,6 +1241,23 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       assert length(turn_started_rows(task_id)) == 1
       refute_receive {:interaction, %{data: %Interaction.ToolCall{tool_name: "write_file"}}}, 50
+    end
+  end
+
+  defp assert_active_count(expected, attempts \\ 50)
+
+  defp assert_active_count(expected, 0) do
+    assert SwarmAi.active_count(FrontmanServer.AgentRuntime) == expected
+  end
+
+  defp assert_active_count(expected, attempts) do
+    case SwarmAi.active_count(FrontmanServer.AgentRuntime) do
+      ^expected ->
+        :ok
+
+      _count ->
+        Process.sleep(10)
+        assert_active_count(expected, attempts - 1)
     end
   end
 

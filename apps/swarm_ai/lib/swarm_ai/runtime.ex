@@ -103,7 +103,15 @@ defmodule SwarmAi.Runtime do
 
   @impl true
   def handle_call(:active_count, _from, state) do
-    {:reply, map_size(state.monitors), state}
+    count =
+      Enum.count(state.monitors, fn {_ref, {key, _loop}} ->
+        case SwarmAi.Runtime.Registry.lookup(state.runtime, key) do
+          [{_pid, :awaiting_input}] -> false
+          _running_or_finishing -> true
+        end
+      end)
+
+    {:reply, count, state}
   end
 
   @impl true
