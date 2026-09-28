@@ -436,9 +436,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/starlight@npm:0.41.7":
-  version: 0.41.7
-  resolution: "@astrojs/starlight@npm:0.41.7"
+"@astrojs/starlight@npm:0.41.10":
+  version: 0.41.10
+  resolution: "@astrojs/starlight@npm:0.41.10"
   dependencies:
     "@astrojs/markdown-satteri": "npm:^0.3.5"
     "@astrojs/mdx": "npm:^7.0.5"
@@ -475,7 +475,7 @@ __metadata:
   peerDependenciesMeta:
     "@astrojs/markdown-remark":
       optional: true
-  checksum: 10c0/7a5b1bb712d2b08c60cb6af3536b6bf1c2dfb879b6929f8f1154d40d1e60a135b49c03dd5305150680d0e681a8d8145aee3bc138b656948e28fcfc8a1db83ba2
+  checksum: 10c0/e9d11c86358636c04e95d7d7204c7bc3f4d0abb8fbcb589585f7eeb287184c2d0b0ca30fd3ff6842c66f675df0993f7b225eb7cf8903e00d00ae523b46d38fbf
   languageName: node
   linkType: hard
 
@@ -12570,7 +12570,7 @@ __metadata:
     "@astrojs/preact": "npm:6.0.4"
     "@astrojs/rss": "npm:4.0.19"
     "@astrojs/sitemap": "npm:^3.7.3"
-    "@astrojs/starlight": "npm:0.41.7"
+    "@astrojs/starlight": "npm:0.41.10"
     "@astrojs/starlight-tailwind": "npm:^5.0.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
     "@fontsource-variable/outfit": "npm:^5.3.0"
