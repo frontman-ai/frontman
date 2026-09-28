@@ -42,6 +42,7 @@
 	},
 	"resolutions_comment": "Minimal security overrides for transitive deps whose upstream ranges still resolve vulnerable versions.",
 	"resolutions": {
+		"satori/fflate": "0.7.5",
 		"qs": ">=6.15.2",
 		"glob": ">=13.0.5",
 		"yaml": ">=2.8.3",
