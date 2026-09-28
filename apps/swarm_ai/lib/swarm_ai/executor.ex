@@ -2,14 +2,14 @@ defmodule SwarmAi.Executor do
   @moduledoc false
 
   alias SwarmAi.LLM.Response
-  alias SwarmAi.{Loop, Telemetry}
+  alias SwarmAi.{Loop, ParallelExecutor, Telemetry}
 
-  def run(%Loop{} = loop, task_supervisor) do
+  def run(%Loop{} = loop, task_supervisor, on_wait) do
     Telemetry.run_span(
       %{loop_id: loop.id},
       fn ->
         {loop, effects} = Loop.execute(loop)
-        final_loop = run_effects(loop, effects, task_supervisor)
+        final_loop = run_effects(loop, effects, task_supervisor, loop.config.max_steps, on_wait)
 
         {final_loop,
          %{
@@ -22,11 +22,7 @@ defmodule SwarmAi.Executor do
     )
   end
 
-  defp run_effects(loop, effects, task_supervisor) do
-    run_effects(loop, effects, task_supervisor, loop.config.max_steps)
-  end
-
-  defp run_effects(loop, effects, task_supervisor, steps_left) do
+  defp run_effects(loop, effects, task_supervisor, steps_left, on_wait) do
     case effects do
       [] ->
         loop
@@ -36,14 +32,14 @@ defmodule SwarmAi.Executor do
 
       [{:call_llm, llm, messages} | rest] when steps_left > 0 ->
         {updated_loop, new_effects} = execute_llm_call(loop, llm, messages)
-        run_effects(updated_loop, new_effects ++ rest, task_supervisor, steps_left - 1)
+        run_effects(updated_loop, new_effects ++ rest, task_supervisor, steps_left - 1, on_wait)
 
       [{:execute_tool, _} | _] ->
-        execute_tool_effects(loop, effects, task_supervisor, steps_left)
+        execute_tool_effects(loop, effects, task_supervisor, steps_left, on_wait)
 
       [{:step_ended, step} | rest] ->
         Telemetry.step_stop(loop.id, step)
-        run_effects(loop, rest, task_supervisor, steps_left)
+        run_effects(loop, rest, task_supervisor, steps_left, on_wait)
 
       [{:complete, _result} | _rest] ->
         Telemetry.step_stop(loop.id, loop.current_step)
@@ -55,7 +51,7 @@ defmodule SwarmAi.Executor do
     end
   end
 
-  defp execute_tool_effects(loop, effects, task_supervisor, steps_left) do
+  defp execute_tool_effects(loop, effects, task_supervisor, steps_left, on_wait) do
     {tool_effects, rest} = split_tool_effects(effects)
     tool_calls = Enum.map(tool_effects, fn {:execute_tool, tc} -> tc end)
 
@@ -68,7 +64,13 @@ defmodule SwarmAi.Executor do
 
     {:ok, results} =
       try do
-        loop.execute_tools.(tool_calls, task_supervisor)
+        case loop.prepare_tools.(tool_calls) do
+          {:serial, executions} ->
+            ParallelExecutor.run_serial(executions, task_supervisor, on_wait)
+
+          {:parallel, executions} ->
+            ParallelExecutor.run(executions, task_supervisor, on_wait)
+        end
       rescue
         e ->
           Enum.each(tool_calls, &emit_tool_exception(loop_id, step, &1, e))
@@ -84,7 +86,7 @@ defmodule SwarmAi.Executor do
         {e, l}
       end)
 
-    run_effects(updated_loop, new_effects ++ rest, task_supervisor, steps_left)
+    run_effects(updated_loop, new_effects ++ rest, task_supervisor, steps_left, on_wait)
   end
 
   defp execute_llm_call(loop, llm, messages) do

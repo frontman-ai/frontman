@@ -110,9 +110,11 @@ Tool.new(
 )
 ```
 
-The loop's `execute_tools` callback accepts `(tool_calls, task_supervisor)` and captures application-specific state. The callback builds descriptors and calls `ParallelExecutor.run/2` or `run_serial/2`.
+The loop's `prepare_tools` callback accepts `tool_calls` and returns `{mode, execution_descriptors}`. The application supplies tool implementations, persistence callbacks, and the `:serial` or `:parallel` scheduling policy.
 
-Both return `{:ok, results}` in original call order. Serial execution waits for each result before dispatching the next call.
+`SwarmAi.Executor` runs the descriptors through `ParallelExecutor`. Both modes return results in original call order. Serial execution waits for each result before dispatching the next call.
+
+`ExecutionWorker` supplies wait tracking internally. An execution is excluded from `active_count/1` only while all pending tools have infinite deadlines. Swarm counts it again before processing a result or continuing execution. Applications do not maintain registry status.
 
 - `Sync` has a positive `timeout_ms`, a `run` MFA, and an `on_error` MFA.
 - `Await` has a positive `timeout_ms` or `:infinity`, a `start` MFA, and an `on_error` MFA.
@@ -140,7 +142,7 @@ Telemetry hierarchy:
 
 ## Execution Flow
 
-1. **Entry**: `SwarmAi.run/3` starts supervised execution. `SwarmAi.Executor.run/2` calls `Loop.execute/1`.
+1. **Entry**: `SwarmAi.run/3` starts supervised execution. The worker supplies internal wait tracking to `SwarmAi.Executor.run/3`, which calls `Loop.execute/1`.
 2. **LLM Call**: `{:call_llm, ...}` effect triggers actual API call
 3. **Response**: `Runner.handle_llm_response/2` produces effects based on tool calls
 4. **Tool Execution**: `{:execute_tool, ...}` effects invoke the tool executor

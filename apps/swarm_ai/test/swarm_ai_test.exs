@@ -132,27 +132,24 @@ defmodule SwarmAiTest do
     runtime = start_runtime!()
     test_pid = self()
 
-    execute_tools = fn tool_calls, task_supervisor ->
-      Enum.map(tool_calls, fn tool_call ->
-        %ToolExecution.Await{
-          tool_call: tool_call,
-          timeout_ms: :infinity,
-          start: {__MODULE__, :start_await, [test_pid]},
-          on_error: {SwarmAi.Testing, :default_tool_error, []}
-        }
-      end)
-      |> SwarmAi.ParallelExecutor.run(task_supervisor, fn waiting ->
-        :ok = SwarmAi.awaiting_input(runtime, "task-wait", waiting)
-        send(test_pid, {:waiting, waiting})
-        :ok
-      end)
+    prepare_tools = fn tool_calls ->
+      executions =
+        Enum.map(tool_calls, fn tool_call ->
+          %ToolExecution.Await{
+            tool_call: tool_call,
+            timeout_ms: :infinity,
+            start: {__MODULE__, :start_await, [test_pid]},
+            on_error: {SwarmAi.Testing, :default_tool_error, []}
+          }
+        end)
+
+      {:parallel, executions}
     end
 
     llm = tool_then_complete_llm([tool_call("approval", %{}, id: "tc1")], "done")
-    {:ok, pid} = run_agent(runtime, "task-wait", llm, execute_tools: execute_tools)
+    {:ok, pid} = run_agent(runtime, "task-wait", llm, prepare_tools: prepare_tools)
     await_worker_event(pid, {:await_started, "tc1", pid})
-    assert_receive {:waiting, true}, 1_000
-    assert SwarmAi.active_count(runtime) == 0
+    assert_inactive(runtime)
     assert SwarmAi.running?(runtime, "task-wait")
 
     assert :ok = SwarmAi.cancel(runtime, "task-wait")
@@ -298,6 +295,21 @@ defmodule SwarmAiTest do
 
         :erlang.yield()
         assert_unregistered(runtime, task_id, deadline)
+    end
+  end
+
+  defp assert_inactive(runtime, attempts \\ 50)
+
+  defp assert_inactive(runtime, 0), do: assert(SwarmAi.active_count(runtime) == 0)
+
+  defp assert_inactive(runtime, attempts) do
+    case SwarmAi.active_count(runtime) do
+      0 ->
+        :ok
+
+      _count ->
+        Process.sleep(10)
+        assert_inactive(runtime, attempts - 1)
     end
   end
 

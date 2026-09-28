@@ -296,7 +296,7 @@ defmodule SwarmAi.Testing do
     defaults = [
       llm: llm,
       messages: [SwarmAi.Message.system("You are #{name}"), SwarmAi.Message.user("Hello")],
-      execute_tools: default_execute_tools(),
+      prepare_tools: default_prepare_tools(),
       dispatch_event: fn _event -> :ok end
     ]
 
@@ -304,9 +304,9 @@ defmodule SwarmAi.Testing do
   end
 
   @doc false
-  @spec default_execute_tools() :: SwarmAi.Loop.execute_tools()
-  def default_execute_tools do
-    fn tool_calls, task_supervisor ->
+  @spec default_prepare_tools() :: SwarmAi.Loop.prepare_tools()
+  def default_prepare_tools do
+    fn tool_calls ->
       executions =
         Enum.map(tool_calls, fn tc ->
           %SwarmAi.ToolExecution.Sync{
@@ -317,7 +317,7 @@ defmodule SwarmAi.Testing do
           }
         end)
 
-      SwarmAi.ParallelExecutor.run(executions, task_supervisor)
+      {:parallel, executions}
     end
   end
 

@@ -24,7 +24,7 @@ defmodule SwarmAi.TelemetryTest do
 
     events =
       capture_telemetry(fn ->
-        result = SwarmAi.Executor.run(loop, self())
+        result = SwarmAi.Executor.run(loop, self(), fn _waiting -> :ok end)
         assert result.id == loop.id
         assert result.status == :completed
         assert result.result == "done"
