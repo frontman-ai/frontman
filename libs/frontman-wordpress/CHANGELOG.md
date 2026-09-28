@@ -1,5 +1,21 @@
 # @frontman-ai/frontman-wordpress
 
+## 5.2.0
+
+### Minor Changes
+
+- [#1687](https://github.com/frontman-ai/frontman/pull/1687) [`5670a5b`](https://github.com/frontman-ai/frontman/commit/5670a5b3a701f6e75d598c169e647cce1ff34f78) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose custom post type archive URLs and registration metadata in site information. Add permission-checked Redirection tools to list rules, create literal-path 301/302 redirects or 404/410 responses, and delete individual rules with confirmation. Keep CPT registration and PHP files unchanged.
+
+### Patch Changes
+
+- [#1726](https://github.com/frontman-ai/frontman/pull/1726) [`745fdcc`](https://github.com/frontman-ai/frontman/commit/745fdccf2748f97bd6422269d27ffdeedf675ed6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read-only Angie snippet inspection through its native REST API, including legacy slug-based routes. Clarify that ordinary post reads exclude snippet metadata. Snippet editing and publishing remain unsupported.
+
+- [#1676](https://github.com/frontman-ai/frontman/pull/1676) [`f95c040`](https://github.com/frontman-ai/frontman/commit/f95c040e9c4e64359bd320e127de74f308f41830) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover authenticated nonce rejections in the WordPress integration, preserve access errors, and consolidate request authorization without weakening permission checks.
+
+- [#1665](https://github.com/frontman-ai/frontman/pull/1665) [`f0281a5`](https://github.com/frontman-ai/frontman/commit/f0281a5f9b602e909a9a2a6020bb45c0524fc60d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix WordPress.org publishing by excluding bundled dependency documentation and development tools. Preserve PHP runtime files, licenses, and author attribution, and validate the export before publishing. Keep older SVN release tags when publishing a new version.
+
+- [#1666](https://github.com/frontman-ai/frontman/pull/1666) [`949d59f`](https://github.com/frontman-ai/frontman/commit/949d59f1d91cc0d6f05a6923ff98ec7ba0989a3e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support editing existing Custom HTML widgets while preserving omitted content, plugin metadata, and sidebar placement. Apply WordPress HTML permissions to submitted content and reject invalid settings.
+
 ## 5.1.0
 
 ### Minor Changes

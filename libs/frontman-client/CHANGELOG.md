@@ -1,5 +1,15 @@
 # @frontman-ai/frontman-client
 
+## 4.0.2
+
+### Patch Changes
+
+- [#1676](https://github.com/frontman-ai/frontman/pull/1676) [`f95c040`](https://github.com/frontman-ai/frontman/commit/f95c040e9c4e64359bd320e127de74f308f41830) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover authenticated nonce rejections in the WordPress integration, preserve access errors, and consolidate request authorization without weakening permission checks.
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add billing settings management with plan status, new-tab Stripe checkout, Customer Portal handoff, live channel billing activation after Stripe webhooks, and a chat-panel billing-required alert.
+
+- [#1695](https://github.com/frontman-ai/frontman/pull/1695) [`5409e4f`](https://github.com/frontman-ai/frontman/commit/5409e4f97328b947fbc21c858276b16f86194e4c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject invalid ACP request method names at compile time without changing wire messages.
+
 ## 4.0.1
 
 ### Patch Changes

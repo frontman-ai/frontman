@@ -1,5 +1,13 @@
 # @frontman-ai/frontman-core
 
+## 2.0.2
+
+### Patch Changes
+
+- [#1693](https://github.com/frontman-ai/frontman/pull/1693) [`e247310`](https://github.com/frontman-ai/frontman/commit/e247310dd1b7eb58c8ad1942e44f2acdfc25e9ec) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix file discovery in projects without Git. Preserve nested directories in filesystem trees, include non-ignored untracked files in Git trees, and report fallback notices and source-root context. Report unreadable directories instead of returning partial Git trees.
+- Updated dependencies [[`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be), [`1a93c75`](https://github.com/frontman-ai/frontman/commit/1a93c753949c6c4ee39336c7f552eeb4d455581e)]:
+  - @frontman-ai/frontman-protocol@4.1.0
+
 ## 2.0.1
 
 ### Patch Changes

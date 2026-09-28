@@ -1,5 +1,35 @@
 # @frontman-ai/client
 
+## 1.3.0
+
+### Minor Changes
+
+- [#1677](https://github.com/frontman-ai/frontman/pull/1677) [`20c6c34`](https://github.com/frontman-ai/frontman/commit/20c6c342bb4199d5cc88cc865e072449da5f861f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include Astro client-routing status in automatic page context. Detect enabled, disabled, and unavailable states from the preview document, and preserve the status in server storage and conversation history. Add conditional lifecycle guidance to agent prompts.
+
+- [#1679](https://github.com/frontman-ai/frontman/pull/1679) [`1a93c75`](https://github.com/frontman-ai/frontman/commit/1a93c753949c6c4ee39336c7f552eeb4d455581e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the current preview URL in `get_dom` results and fresh client-routing status for Astro only. Keep Astro-specific metadata in the `astro-browser` package, with shared DOM input and output types in the protocol package.
+
+  Report unavailable previews and failed queries as MCP errors (`isError: true`), retaining narrowing guidance for size-limit errors. Remove payload-level `success` and `error` fields; successful results always contain the URL, DOM content, node count, and byte size.
+
+- [#1689](https://github.com/frontman-ai/frontman/pull/1689) [`5a40cf1`](https://github.com/frontman-ai/frontman/commit/5a40cf1de9e15f5612d729093bf575e5621aacf9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show Astro persistence keys in DOM inspection and element annotations. Astro `get_dom` also describes marked DOM ancestors outside the selected subtree in both output modes.
+
+  Ancestor inspection stops at 50 parent steps, 10 marked ancestors, or 4 KB of context, with explicit truncation. It does not cross shadow roots. These markers do not prove that elements or state survived navigation. Inspection for other frameworks remains unchanged.
+
+### Patch Changes
+
+- [#1676](https://github.com/frontman-ai/frontman/pull/1676) [`f95c040`](https://github.com/frontman-ai/frontman/commit/f95c040e9c4e64359bd320e127de74f308f41830) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover authenticated nonce rejections in the WordPress integration, preserve access errors, and consolidate request authorization without weakening permission checks.
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix provider settings console warnings by marking anchor-rendered buttons as non-native buttons, and suppress Frontman Sentry reporting in internal browser dev builds.
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add billing settings management with plan status, new-tab Stripe checkout, Customer Portal handoff, live channel billing activation after Stripe webhooks, and a chat-panel billing-required alert.
+
+- [#1667](https://github.com/frontman-ai/frontman/pull/1667) [`7c2b289`](https://github.com/frontman-ai/frontman/commit/7c2b289b6ffb0ae179be972848638cd9d9895f3a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add GPT-6 Astra to the OpenAI model picker through Codex OAuth. Update ReqLLM for experimental Astra Responses support and pin LLMDB to the upstream commit with Astra metadata until a Hex release includes it.
+
+- [#1767](https://github.com/frontman-ai/frontman/pull/1767) [`74663e9`](https://github.com/frontman-ai/frontman/commit/74663e96d5c9703fd19ac3be8e102f94ff4de992) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove the first-task feedback dialog, review banner, sharing flow, and related state and analytics. Remove the marketing feedback tool and feedback requests. Replace GitHub-star requests with source links. Keep support, bug reporting, and agent diagnostics available.
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace Radix-backed TSX UI wrappers with ReScript-native Base UI shadcn primitives and remove direct Radix wrapper dependencies.
+
+- [#1678](https://github.com/frontman-ai/frontman/pull/1678) [`448ef90`](https://github.com/frontman-ai/frontman/commit/448ef90131bee3ac243c54b4e9a89be7945566b3) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Tiptap editor dependencies to 3.30.5 and keep their required peer versions aligned.
+
 ## 1.2.1
 
 ### Patch Changes
