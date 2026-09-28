@@ -4,8 +4,8 @@ set -euo pipefail
 DEPLOY_ROOT="/opt/frontman"
 BUILD_DIR="${DEPLOY_ROOT}/build"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REBAR_URL="https://s3.amazonaws.com/rebar3/rebar3"
-REBAR_SHA512="0d00494d849fdc521a55142278d1f6ba552954fbd65b80d40df8022f594f05d6c99ed1d731bc263691a04176e11d4c6e126c56ba20dca19c5e42d4ffab2e7e36"
+REBAR_URL="https://github.com/erlang/rebar3/releases/download/3.27.1/rebar3"
+REBAR_SHA512="cd9a88e42a1d804b9b01581ea24aacf4563f2746a2bf4900215331c36400fc8f1f19a8272632e83a2da3206e42f1f46425966d4dee51bf16f19538a0b5e0632a"
 
 export PATH="/home/deploy/.local/bin:${PATH}"
 if ! command -v mise >/dev/null 2>&1; then
