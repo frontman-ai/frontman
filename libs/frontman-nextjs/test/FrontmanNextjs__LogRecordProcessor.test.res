@@ -4,7 +4,6 @@ module Bindings = FrontmanNextjs__OpenTelemetry__Bindings
 module LogRecordProcessor = FrontmanNextjs__LogRecordProcessor
 module LogCapture = FrontmanNextjs__LogCapture
 
-// External bindings to call processor methods from tests
 type processor
 @send
 external onEmit: (processor, Bindings.Logs.sdkLogRecord, option<Bindings.context>) => unit =
@@ -22,7 +21,6 @@ describe("LogRecordProcessor", _t => {
       "make creates processor without errors",
       t => {
         let _: processor = LogRecordProcessor.make()->Obj.magic
-        // If we get here without throwing, the processor was created successfully
         t->expect(true)->Expect.toBe(true)
       },
     )
@@ -189,7 +187,6 @@ describe("LogRecordProcessor", _t => {
 
         let afterCount = LogCapture.getLogs()->Array.length
 
-        // Empty body should not create log entry (stripped by LogCapture)
         t->expect(afterCount)->Expect.toBe(beforeCount)
       },
     )

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+  "meta": {
+    "title": "Frontman WordPress Playground",
+    "description": "Try one real Frontman edit in a disposable WordPress site.",
+    "author": "frontman-ai"
+  },
+  "preferredVersions": {
+    "php": "8.4",
+    "wp": "7.0.2"
+  },
+  "features": {
+    "networking": true
+  },
+  "landingPage": "/demo/frontman",
+  "login": true,
+  "steps": [
+    {
+      "step": "installPlugin",
+      "pluginData": {
+        "resource": "wordpress.org/plugins",
+        "slug": "frontman-agentic-ai-editor"
+      },
+      "options": {
+        "activate": true,
+        "onError": "throw"
+      }
+    },
+    {
+      "step": "setSiteOptions",
+      "options": {
+        "blogname": "Frontman WordPress Playground",
+        "permalink_structure": "/%postname%/"
+      }
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php\nrequire '/wordpress/wp-load.php';\n$page = get_page_by_path('demo', OBJECT, 'page');\n$data = [\n  'post_title' => 'Frontman WordPress Playground',\n  'post_name' => 'demo',\n  'post_status' => 'publish',\n  'post_type' => 'page',\n  'post_content' => '<!-- wp:group {\"layout\":{\"type\":\"constrained\"}} --><div class=\"wp-block-group\"><!-- wp:heading {\"level\":1} --><h1 class=\"wp-block-heading\">Frequently ask questions</h1><!-- /wp:heading --><!-- wp:paragraph --><p>This disposable site contains one intentional heading error. Ask Frontman to change it to “Frequently Asked Questions”.</p><!-- /wp:paragraph --></div><!-- /wp:group -->'\n];\nif ($page) {\n  $data['ID'] = $page->ID;\n  wp_update_post($data);\n} else {\n  wp_insert_post($data);\n}\nflush_rewrite_rules();"
+    }
+  ]
+}

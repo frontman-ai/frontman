@@ -1,33 +1,22 @@
 ---
-// Hero Section for Blog Posts
-// ------------
-// Description: A hero section (page header) for the post pages.
-// Properties:
-// - tags: An array of tags for the post
-// - title: The title of the section (usually the title of the post)
-// - author: The author of the post
-// - pubDate: The publish date of the post (Date object)
-// - updatedDate: Optional last-updated date (Date object)
 
-// Components
-// - Layout
 import Section from '../../../components/ui/Section.astro'
 import Row from '../../../components/ui/Row.astro'
 import Col from '../../../components/ui/Col.astro'
-// - UI
 import Badge from '../../../components/ui/Badge.astro'
 import Breadcrumbs from '../../../components/ui/Breadcrumbs.astro'
+import { blogTransitionName } from '../../../utils/blogTransitionName'
 
-// Props
 type Props = {
 	tags?: any
 	title: string
 	author?: string
 	authorRole?: string
+	authorUrl?: string
 	pubDate?: Date
 	updatedDate?: Date
 }
-const { tags, title, author, authorRole, pubDate, updatedDate } = Astro.props
+const { tags, title, author, authorRole, authorUrl, pubDate, updatedDate } = Astro.props
 
 const formatDate = (date: Date) =>
 	date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -43,15 +32,13 @@ const updatedDateISO = updatedDate ? updatedDate.toISOString() : undefined
 		<Col span="12" align="center">
 			<header class="post-header">
 				<Breadcrumbs classes="mb-6" />
-				<h1 class="post-header__title">
+				<h1 class="post-header__title" style={{ viewTransitionName: blogTransitionName(Astro.url.pathname) }}>
 					{title}
 				</h1>
 			{
-				author ? (
+				author && authorRole && authorUrl ? (
 					<p class="page-header__text">
-						Written by <a href="/about/" class="author-link">{author}</a>{authorRole && (
-							<>, {authorRole}</>
-						)}{publishDateISO && (
+						Written by <a href={authorUrl} class="author-link">{author}</a>, {authorRole}{publishDateISO && (
 							<> on <time datetime={publishDateISO}>{publishDateFormatted}</time></>
 						)}
 					</p>
@@ -66,6 +53,9 @@ const updatedDateISO = updatedDate ? updatedDate.toISOString() : undefined
 					</p>
 				)
 			}
+				<p class="page-header__policy">
+					<a href="/editorial-policy/">Editorial policy and corrections</a>
+				</p>
 			</header>
 			{
 				tags && (
@@ -90,6 +80,12 @@ const updatedDateISO = updatedDate ? updatedDate.toISOString() : undefined
 	}
 	.page-header__updated {
 		@apply text-base text-neutral-500 dark:text-neutral-400 mt-1;
+	}
+	.page-header__policy {
+		@apply mt-2 text-sm text-neutral-500 dark:text-neutral-400;
+	}
+	.page-header__policy a {
+		@apply underline underline-offset-4 hover:text-neutral-700 dark:hover:text-neutral-200;
 	}
 	.author-link {
 		@apply text-primary-600 dark:text-primary-400 no-underline hover:underline;

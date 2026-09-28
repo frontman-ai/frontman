@@ -1,9 +1,11 @@
 ---
 title: 'Frontman Launch: UI Fixes From Browser'
 pubDate: 2026-02-23T05:00:00Z
-description: 'Frontman is an open-source AI agent that connects to your browser and your dev server. Click any element, describe a change in plain English, and see it applied to your actual source code. Runs locally, code never leaves your machine.'
+description: 'Frontman is a source-available AI agent that connects your browser, local framework integration, and orchestration server. Click any element, describe a change in plain English, and see it applied to your actual source code.'
 author: 'Danni Friedland'
+articleSection: 'Product Announcement'
 image: '/blog/frontman-launch-cover.png'
+imageAlt: 'Frontman browser interface for selecting and editing live UI elements'
 tags: ['announcement', 'open-source', 'ai', 'design-systems', 'collaboration']
 updatedDate: 2026-04-14T00:00:00Z
 ---
@@ -12,7 +14,7 @@ AI coding agents [cannot see your frontend](/blog/introducing-frontman/). They r
 
 ### What Frontman Does
 
-[Frontman](https://frontman.sh) is an open-source AI agent that runs inside your browser alongside your dev server. Click any element in your running app and describe what you want changed in plain English. Frontman traces that element back to the exact source file and line number, applies the edit, and hot-reload shows you the result immediately.
+[Frontman](https://frontman.sh) is a source-available AI agent with browser-side tools, a local framework integration, and a hosted or self-hosted orchestration server. Click any element in your running app and describe what you want changed in plain English. Frontman traces that element back to the exact source file and line number, applies the edit locally through the framework integration, and hot-reload shows you the result immediately.
 
 **What you see when you click an element:**
 
@@ -42,7 +44,7 @@ This means you can use Frontman to audit live UI against your design system. Cli
 
 Frontman installs as a plugin in your framework's dev server - one line in the config file. It supports Next.js, Vite (React, Vue, Svelte), and Astro. Your engineering team sets it up once; it takes about five minutes. This [browser-aware](/blog/what-are-browser-aware-ai-coding-tools/) approach means Frontman understands your component structure, not just raw files.
 
-Once running, anyone on the team can open the app in their browser and access Frontman. It runs entirely on your machine. Your code and your conversations with the AI never leave your local environment — there are no external servers involved.
+Once running, anyone on the team can open the app in their browser and access Frontman. Browser tools run in the browser and filesystem tools run on your machine through the framework integration. The hosted or self-hosted server orchestrates the agent loop and persists task history, while relevant context passes through it to your selected LLM provider.
 
 ### What Changes for Your Team
 
@@ -68,11 +70,11 @@ This matters most for teams that are scaling. When you have multiple squads ship
 - Large refactors — runtime context helps with surgical edits, not architectural changes.
 - Some frameworks are not supported yet — Angular, Remix, and SvelteKit standalone do not have adapters.
 
-### Why Open Source
+### Why Source Availability
 
-Frontman is Apache 2.0 (client libraries) and AGPL-3.0 (server). It uses a bring-your-own-key model — your code and AI interactions stay between you and your AI provider. Nothing routes through our servers. There is nothing to route through — there are no servers.
+Frontman's browser client and JavaScript framework integrations are Apache-2.0, and its WordPress plugin is GPL-2.0-or-later. Frontman Server is AGPL-3.0-only with [AI Supplementary Terms](https://github.com/frontman-ai/frontman/blob/main/AI-SUPPLEMENTARY-TERMS.md) restricting AI training and AI-assisted competitive reproduction, making the combined product source-available. With hosted Frontman, relevant context routes through Frontman's orchestration server to your selected AI provider; self-hosting moves orchestration and task-history persistence to infrastructure you control.
 
-This is not altruism. A tool that sits inside your dev server and sees your source code has to be open source. If your security team cannot read every line of code that touches your codebase, they should not sign off on it. We would not either. Read more about our [security model](/blog/security/).
+This is not altruism. A tool that integrates with your dev server and works with source code has to be auditable. If your security team cannot read every line of code that touches your codebase, they should not sign off on it. We would not either. Read more about our [security model](/blog/security/).
 
 ### Get Started
 

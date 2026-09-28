@@ -17,7 +17,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 
   alias SwarmAi.SchemaTransformer
 
-  # Provider auth options are resolved at the domain layer.
   @enforce_keys [:model]
   defstruct model: nil,
             tools: [],
@@ -28,13 +27,11 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 
   ## Options
 
-  - `:model` - Required ReqLLM model spec from `Providers.prepare_llm_args/3`
+  - `:model` - Required ReqLLM model spec from `Providers.resolve_model_access/2`
   - `:tools` - List of SwarmAi.Tool structs
   - `:llm_opts` - Options for ReqLLM, including resolved provider auth
   """
-  def new(opts \\ []) do
-    struct!(__MODULE__, opts)
-  end
+  def new(opts \\ []), do: struct!(__MODULE__, opts)
 
   @doc """
   Converts SwarmAi.Tool to ReqLLM.Tool format.
@@ -56,7 +53,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClient do
 end
 
 defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
-  alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMProvider
   alias FrontmanServer.Tasks.Execution.LLMRequestPreflight
@@ -70,7 +66,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     reqllm_tools =
       Enum.map(client.tools, &LLMClient.to_reqllm_tool(&1, client.model, client.llm_opts))
 
-    # Provider auth must be provided via llm_opts (resolved at domain layer)
     llm_opts =
       client.llm_opts
       |> Keyword.put_new(:tools, reqllm_tools)
@@ -80,21 +75,9 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
         {_key, value} -> value == []
       end)
 
-    provider = Providers.model_provider_name(client.model)
-
-    preflight_opts = [
-      images_supported: images_supported?(client.model),
-      llm_vendor: Providers.model_llm_vendor_name(client.model),
-      max_image_dimension: Providers.max_image_dimension(provider)
-    ]
-
-    # Run request preflight here (not just at task startup) so that tool results
-    # accumulated inside the swarm loop are also truncated. Without this, long
-    # tool-calling chains accumulate dozens of full-size tool results and the
-    # request body grows until Anthropic closes the connection.
     reqllm_messages =
       messages
-      |> LLMRequestPreflight.run(preflight_opts)
+      |> LLMRequestPreflight.run(model: client.model)
       |> Enum.map(&to_reqllm_message/1)
 
     case LLMProvider.stream_text(
@@ -158,13 +141,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     chunk
   end
 
-  defp images_supported?(model) do
-    case ReqLLM.model(model) do
-      {:ok, %{modalities: %{input: input}}} when is_list(input) -> :image in input
-      _ -> true
-    end
-  end
-
   defp normalize_index(index) when is_integer(index), do: index
 
   defp normalize_index(index) when is_binary(index) do
@@ -175,8 +151,6 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
   end
 
   defp normalize_index(_index), do: 0
-
-  # --- SwarmAi.Message -> ReqLLM.Message conversion ---
 
   defp to_reqllm_message(%Message.System{} = msg) do
     %ReqLLM.Message{role: :system, content: Enum.map(msg.content, &to_reqllm_content_part/1)}
@@ -241,8 +215,8 @@ defimpl SwarmAi.LLM, for: FrontmanServer.Tasks.Execution.LLMClient do
     Map.get(map, key) || Map.get(map, string_key)
   end
 
-  defp to_reqllm_content_part(%ContentPart{type: :text, text: text}) do
-    ReqLLM.Message.ContentPart.text(text)
+  defp to_reqllm_content_part(%ContentPart{type: :text, text: text, metadata: metadata}) do
+    ReqLLM.Message.ContentPart.text(text, metadata)
   end
 
   defp to_reqllm_content_part(%ContentPart{type: :image, data: data, media_type: mt}) do

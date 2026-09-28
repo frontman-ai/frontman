@@ -8,33 +8,24 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
-  import FrontmanServer.BillingFixtures, only: [allow_access_for_scope_fixture: 1]
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 1]
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
 
-  alias Ecto.Adapters.SQL.Sandbox
+  import FrontmanServer.DataCase, only: [setup_sandbox: 1]
   alias FrontmanServer.Image
+  alias FrontmanServer.Protocols
   alias FrontmanServer.Providers
-  alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
 
-  setup :verify_on_exit!
+  @moduletag billing: :active
+  setup [:verify_on_exit!, :setup_sandbox, :setup_user, :setup_task]
 
-  setup do
-    pid = Sandbox.start_owner!(Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
-
-    scope = user_scope_fixture()
-    allow_access_for_scope_fixture(scope)
-    {:ok, _api_key} = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
-    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
-
-    task_id = task_with_pubsub_fixture(scope).id
-
-    {:ok, scope: scope, task_id: task_id}
+  setup %{scope: scope} do
+    :ok = Providers.upsert_api_key(scope, "anthropic", "sk-ant-test")
   end
 
   test "client screenshot result decays on next turn and get_tool_result restores image", %{
@@ -44,10 +35,31 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     screenshot_tool_call_id = "tc_screenshot_#{System.unique_integer([:positive])}"
     get_tool_call_id = "tc_get_screenshot_#{System.unique_integer([:positive])}"
     screenshot = png_fixture(800, 600)
-    tool_defs = screenshot_tool_defs()
+    tool_defs = MCP.from_maps([mcp_tool("take_screenshot")])
     parent = self()
 
-    client_result = client_mcp_image_result(screenshot)
+    client_result =
+      screenshot
+      |> client_mcp_image_result()
+      |> Map.put("unknownTopLevel", "drop me")
+      |> Map.put("_meta", %{
+        "envApiKey" => "sk-fake-image-key",
+        "model" => %{"provider" => "openrouter", "value" => "fake/model"}
+      })
+      |> update_in(["content", Access.at(0)], &Map.put(&1, "unknown", "drop me"))
+
+    canonical_result = %{
+      "content" => [
+        %{
+          "type" => "image",
+          "data" => Base.encode64(screenshot),
+          "mimeType" => "image/png",
+          "unknown" => "drop me"
+        }
+      ],
+      "isError" => false,
+      "_meta" => %{}
+    }
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
       send(parent, {:provider_messages, :turn1_before_screenshot, messages})
@@ -72,8 +84,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
         scope,
         task_id,
         %{id: screenshot_tool_call_id, name: "take_screenshot"},
-        client_result,
-        false
+        client_result
       )
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
@@ -83,9 +94,9 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     assert [%{type: :image, data: ^screenshot}] = image_parts([turn1_tool_message])
     refute content_text([turn1_tool_message]) =~ "data:image"
 
-    {:ok, task} = Tasks.get_task(scope, task_id)
-    persisted = tool_result!(task.interactions, screenshot_tool_call_id)
-    assert persisted.result == client_result
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+    persisted = tool_result!(Tasks.interactions(task), screenshot_tool_call_id)
+    assert persisted.result == canonical_result
 
     expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
       send(parent, {:provider_messages, :turn2_before_get_tool_result, messages})
@@ -123,13 +134,13 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     refute content_text([tool_message]) =~ "data:image"
   end
 
-  test "current turn screenshot reaches next LLM call as image and stays raw in DB", %{
+  test "current turn screenshot reaches next LLM call as image and stays lossless in DB", %{
     scope: scope,
     task_id: task_id
   } do
     tool_call_id = "tc_live_screenshot_#{System.unique_integer([:positive])}"
     screenshot = png_fixture(640, 480)
-    tool_defs = screenshot_tool_defs()
+    tool_defs = MCP.from_maps([mcp_tool("take_screenshot")])
     parent = self()
 
     expect(LLMProviderMock, :stream_text, fn _model, _messages, _opts ->
@@ -153,8 +164,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
         scope,
         task_id,
         %{id: tool_call_id, name: "take_screenshot"},
-        mcp_image_result(screenshot),
-        false
+        mcp_image_result(screenshot)
       )
 
     assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
@@ -165,10 +175,20 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
     assert [%{type: :image}] = image_parts([tool_message])
     refute content_text([tool_message]) =~ "data:image"
 
-    {:ok, task} = Tasks.get_task(scope, task_id)
-    persisted = tool_result!(task.interactions, tool_call_id)
+    {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+    persisted = tool_result!(Tasks.interactions(task), tool_call_id)
 
-    assert persisted.result == mcp_image_result(screenshot)
+    assert persisted.result == %{
+             "content" => [
+               %{
+                 "type" => "image",
+                 "data" => Base.encode64(screenshot),
+                 "mimeType" => "image/png"
+               }
+             ],
+             "isError" => false,
+             "_meta" => %{}
+           }
   end
 
   test "Anthropic many-image requests do not include live images over 2000px", %{
@@ -196,49 +216,20 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
 
   defp submit_anthropic_message(scope, task_id, content, overrides \\ []) do
     execution_request =
-      execution_request_fixture(Keyword.merge([model: "anthropic:claude-sonnet-4-5"], overrides))
+      execution_request_fixture(Keyword.merge([model: "anthropic:claude-sonnet-4-6"], overrides))
 
-    case Tasks.submit_user_message(
-           scope,
-           Map.merge(execution_request, %{task_id: task_id, message: prompt_content(content)})
-         ) do
-      {:ok, interaction} ->
-        case Tasks.run_next_turn(scope, task_id, execution_request) do
-          :ok ->
-            {:ok, interaction, latest_turn_number(task_id)}
-
-          result when result in [:already_running, :no_accepted_messages] ->
-            {:error, result}
-
-          result ->
-            result
-        end
-
-      result ->
-        result
-    end
+    submit_user_message_and_run(scope, task_id, execution_request, prompt_content(content))
   end
 
   defp prompt_content(content) when is_binary(content), do: user_content(content)
   defp prompt_content(content) when is_list(content), do: content
-
-  defp screenshot_tool_defs do
-    MCP.from_maps([
-      %{
-        "name" => "take_screenshot",
-        "description" => "Take a screenshot",
-        "inputSchema" => %{"type" => "object", "properties" => %{}},
-        "executionMode" => "blocking"
-      }
-    ])
-  end
 
   defp llm_tool_call(id, name, arguments \\ %{}) do
     %SwarmAi.ToolCall{id: id, name: name, arguments: arguments}
   end
 
   defp mcp_image_result(binary, mime \\ "image/png"),
-    do: ModelContextProtocol.tool_result_image(Base.encode64(binary), mime)
+    do: Protocols.MCP.tool_result_image(Base.encode64(binary), mime)
 
   defp client_mcp_image_result(binary, mime \\ "image/png") do
     %{
@@ -250,13 +241,11 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   defp user_image_block(binary, mime \\ "image/png") do
     %{
       "type" => "resource",
+      "_meta" => %{"user_image" => true, "filename" => "image.png"},
       "resource" => %{
-        "_meta" => %{"user_image" => true, "filename" => "image.png"},
-        "resource" => %{
-          "uri" => "attachment://#{System.unique_integer([:positive])}/image.png",
-          "mimeType" => mime,
-          "blob" => Base.encode64(binary)
-        }
+        "uri" => "attachment://#{System.unique_integer([:positive])}/image.png",
+        "mimeType" => mime,
+        "blob" => Base.encode64(binary)
       }
     }
   end

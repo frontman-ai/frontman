@@ -13,7 +13,6 @@ export function getPostSlugs() {
 }
 
 function parseFrontmatter(fileContents: string) {
-	// Match frontmatter between --- delimiters
 	const match = fileContents.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
 	if (!match) {
 		return { data: {}, content: fileContents };
@@ -43,7 +42,6 @@ export function getAllPosts(): Post[] {
 	const slugs = getPostSlugs();
 	const posts = slugs
 		.map((slug) => getPostBySlug(slug))
-		// sort posts by date in descending order
 		.sort((post1, post2) => (post1.date > post2.date ? -1 : 1));
 	return posts;
 }

@@ -9,6 +9,7 @@
  *   GET  /frontman                        → Serve the UI (preview: homepage)
  *   GET  /about/frontman                  → Serve the UI (preview: /about)
  *   GET  /frontman/tools                  → Tool list
+ *   GET  /frontman/plugin-update          → Plugin update status
  *   POST /frontman/tools/call             → Dispatch tool call (SSE)
  *   POST /frontman/resolve-source-location → Not supported in WordPress PHP mode
  *
@@ -56,22 +57,30 @@ class Frontman_Router {
 		$request_uri = $this->get_request_path();
 		$method      = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_key( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
 		$route       = $this->classify_route( $request_uri, $method );
+		if ( 'none' === $route['type'] ) {
+			return;
+		}
+
+		$auth = Frontman_Auth::check();
+		if ( is_wp_error( $auth ) ) {
+			Frontman_Auth::send_error( $auth, 'prefix' === $route['type'] );
+		}
 
 		if ( 'prefix' === $route['type'] ) {
 			$sub_path = $route['subPath'];
-
-			$this->require_auth( true );
-			if ( $method === 'POST' ) {
-				$this->require_nonce();
-			}
+			$body = $method === 'POST' ? $this->read_json_body() : [];
 
 			switch ( true ) {
 				case $method === 'GET' && $sub_path === 'tools':
 					$this->handle_get_tools();
 					exit;
 
+				case $method === 'GET' && $sub_path === 'plugin-update':
+					$this->handle_get_update();
+					exit;
+
 				case $method === 'POST' && $sub_path === 'tools/call':
-					$this->handle_tool_call();
+					$this->handle_tool_call( $body );
 					exit;
 
 				case $method === 'POST' && $sub_path === 'resolve-source-location':
@@ -87,22 +96,14 @@ class Frontman_Router {
 			}
 		}
 
-		if ( 'suffix' !== $route['type'] ) {
-			return;
-		}
-
 		$suffix_prefix = $route['prefix'];
 
-		$this->require_auth( false );
-
-		// Canonical redirect: strip nested /frontman/frontman segments.
 		$canonical = $this->get_canonical_redirect( $suffix_prefix );
 		if ( $canonical !== null ) {
-			wp_safe_redirect( home_url( $canonical ), 302 );
+			wp_safe_redirect( Frontman_UI::url( $canonical ), 302 );
 			exit;
 		}
 
-		// Build the preview path from the suffix prefix.
 		$preview_path = ( $suffix_prefix === '' ) ? '/' : '/' . $suffix_prefix;
 		$this->ui->render_page( $preview_path );
 		exit;
@@ -135,26 +136,6 @@ class Frontman_Router {
 	}
 
 	/**
-	 * Check auth and send error response if unauthorized.
-	 */
-	private function require_auth( bool $is_api ): void {
-		$auth = Frontman_Auth::check();
-		if ( is_wp_error( $auth ) ) {
-			Frontman_Auth::send_error( $auth, $is_api );
-		}
-	}
-
-	/**
-	 * Check nonce and send API error response if invalid.
-	 */
-	private function require_nonce(): void {
-		$nonce = Frontman_Auth::verify_nonce();
-		if ( is_wp_error( $nonce ) ) {
-			Frontman_Auth::send_error( $nonce, true );
-		}
-	}
-
-	/**
 	 * Extract the prefix path from a suffix-based UI route.
 	 *
 	 * Mirrors FrontmanCore__Middleware.getSuffixRoutePrefix().
@@ -169,15 +150,12 @@ class Frontman_Router {
 	private function get_suffix_prefix( string $path ): ?string {
 		$base = 'frontman';
 
-		// Bare /frontman route.
 		if ( $path === '/' . $base ) {
 			return '';
 		}
 
-		// Suffix route: /anything/frontman.
 		$suffix = '/' . $base;
 		if ( substr( $path, -strlen( $suffix ) ) === $suffix ) {
-			// Strip leading slash and trailing /frontman.
 			$prefix = substr( $path, 1, strlen( $path ) - 1 - strlen( $suffix ) );
 			return $prefix;
 		}
@@ -198,18 +176,15 @@ class Frontman_Router {
 		$base   = 'frontman';
 		$suffix = '/' . $base;
 
-		// Exact: prefix IS "frontman" (from /frontman/frontman).
 		if ( $prefix_path === $base ) {
 			return '/' . $base;
 		}
 
-		// Trailing nested: prefix ends with /frontman.
 		if ( substr( $prefix_path, -strlen( $suffix ) ) === $suffix ) {
 			$stripped = substr( $prefix_path, 0, strlen( $prefix_path ) - strlen( $suffix ) );
 			return ( $stripped === '' ) ? '/' . $base : '/' . $stripped . '/' . $base;
 		}
 
-		// Leading nested: prefix starts with frontman/.
 		if ( strpos( $prefix_path, $base . '/' ) === 0 ) {
 			$rest = substr( $prefix_path, strlen( $base ) + 1 );
 			return ( $rest === '' ) ? '/' . $base : '/' . $rest . '/' . $base;
@@ -224,16 +199,13 @@ class Frontman_Router {
 	 * Handles WordPress installed in a subdirectory (e.g. /blog/frontman).
 	 */
 	private function get_request_path(): string {
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- REQUEST_URI is parsed as a URL path below; text sanitization would strip valid percent-encoded path bytes.
 		$request_uri = isset( $_SERVER['REQUEST_URI'] ) ? wp_unslash( $_SERVER['REQUEST_URI'] ) : '/';
 
-		// Strip query string.
 		$path = strtok( $request_uri, '?' );
 		if ( false === $path ) {
 			$path = '/';
 		}
 
-		// Strip the site's home path prefix if WP is in a subdirectory.
 		$home_url_parts = wp_parse_url( home_url() );
 		$home_path      = is_array( $home_url_parts ) ? ( $home_url_parts['path'] ?? '' ) : '';
 		if ( $home_path !== '' && $home_path !== '/' ) {
@@ -243,10 +215,14 @@ class Frontman_Router {
 			}
 		}
 
-		// Strip trailing slash (WordPress adds one, but our routes don't expect it).
+		if ( '/index.php' === $path ) {
+			$path = '/';
+		} elseif ( 0 === strpos( $path, '/index.php/' ) ) {
+			$path = substr( $path, strlen( '/index.php' ) );
+		}
+
 		$path = rtrim( $path, '/' );
 
-		// Ensure leading slash.
 		if ( $path === '' || $path[0] !== '/' ) {
 			$path = '/' . $path;
 		}
@@ -274,22 +250,28 @@ class Frontman_Router {
 		if ( '' === $nonce || ! wp_verify_nonce( $nonce, Frontman_Auth::nonce_action() ) ) {
 			Frontman_Auth::send_error(
 				new \WP_Error(
-					'frontman_invalid_nonce',
-					__( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
+					'' === $nonce ? 'frontman_missing_nonce' : 'frontman_invalid_nonce',
+					'' === $nonce ? __( 'Missing request nonce.', 'frontman-agentic-ai-editor' ) : __( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
 					[ 'status' => 403 ]
 				),
 				true
 			);
 		}
 
-		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- php://input is the JSON request body stream.
 		$raw = file_get_contents( 'php://input' );
 		if ( ! is_string( $raw ) || '' === $raw ) {
 			return [];
 		}
 
-		$raw  = wp_check_invalid_utf8( $raw, true );
 		$data = json_decode( $raw, true );
+		if ( ! is_array( $data ) ) {
+			$raw  = wp_check_invalid_utf8( $raw, true );
+			$data = json_decode( $raw, true );
+			if ( is_array( $data ) && isset( $data['name'] ) && is_string( $data['name'] )
+				&& in_array( sanitize_key( $data['name'] ), [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
+				return [];
+			}
+		}
 		return is_array( $data ) ? $this->sanitize_json_body( $data ) : [];
 	}
 
@@ -332,28 +314,47 @@ class Frontman_Router {
 	}
 
 	/**
+	 * GET /frontman/plugin-update — return WordPress's current plugin update status.
+	 */
+	private function handle_get_update(): void {
+		wp_update_plugins();
+		$updates = get_site_transient( 'update_plugins' );
+		$plugin  = plugin_basename( FRONTMAN_PLUGIN_FILE );
+		$latest  = isset( $updates->response[ $plugin ]->new_version )
+			? sanitize_text_field( $updates->response[ $plugin ]->new_version )
+			: FRONTMAN_VERSION;
+
+		wp_send_json(
+			[
+				'installedVersion' => FRONTMAN_VERSION,
+				'autoUpdateEnabled' => in_array( $plugin, (array) get_site_option( 'auto_update_plugins', [] ), true ),
+				'latestVersion'    => $latest,
+			],
+			200
+		);
+	}
+
+	/**
 	 * POST /frontman/tools/call — route by tool name.
 	 *
 	 * Tools are handled locally in the WordPress plugin.
 	 */
-	private function handle_tool_call(): void {
-		$body      = $this->read_json_body();
+	private function handle_tool_call( array $body ): void {
 		$name      = sanitize_key( $body['name'] ?? '' );
 		$raw_input = $body['arguments'] ?? $body['input'] ?? [];
-		$input     = is_array( $raw_input ) ? $this->tools->sanitize_input( $name, $raw_input ) : [];
 
 		if ( empty( $name ) ) {
 			$this->send_sse_tool_result( Frontman_Tools::error_result( 'Missing tool name' ) );
 			return;
 		}
 
-		// WP tools — handle locally.
 		if ( $this->tools->is_wp_tool( $name ) ) {
 			try {
-				// call() returns MCP-compliant callToolResult with _meta.
+				$input  = is_array( $raw_input ) ? $this->tools->sanitize_input( $name, $raw_input ) : [];
 				$result = $this->tools->call( $name, $input );
 				$this->send_sse_tool_result( $result );
 			} catch ( \Throwable $e ) {
+				Frontman_Sentry::capture( $e, $name );
 				$this->send_sse_tool_result( Frontman_Tools::error_result( $e->getMessage() ) );
 			}
 			return;
@@ -375,7 +376,6 @@ class Frontman_Router {
 			$payload = '{}';
 		}
 
-		// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- SSE sends machine-readable JSON encoded by wp_json_encode().
 		echo "event: result\ndata: " . $payload . "\n\n";
 	}
 

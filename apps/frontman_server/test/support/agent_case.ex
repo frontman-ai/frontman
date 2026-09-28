@@ -38,12 +38,10 @@ defmodule FrontmanServer.AgentCase do
 
   use ExUnit.CaseTemplate
 
-  alias FrontmanServer.Test.Fixtures.Agents, as: AgentFixtures
   alias ReqLLM.Test.FixturePath
 
   using do
     quote do
-      import FrontmanServer.Test.Fixtures.Agents
     end
   end
 
@@ -54,14 +52,7 @@ defmodule FrontmanServer.AgentCase do
     if Enum.empty?(fixtures) do
       {:ok, fixture_path: fixture_path}
     else
-      context_with_fixture = Map.put(context, :fixture_path, fixture_path)
-      ctx = AgentFixtures.build_fixtures(fixtures, context_with_fixture)
-
-      on_exit(fn ->
-        AgentFixtures.cleanup_agents(ctx)
-      end)
-
-      {:ok, Map.put(ctx, :fixture_path, fixture_path)}
+      {:ok, fixtures_context(fixtures, fixture_path)}
     end
   end
 
@@ -87,5 +78,10 @@ defmodule FrontmanServer.AgentCase do
 
   defp compute_fixture_path(%{module: module, test: test_name}) do
     FixturePath.for_test(module, test_name)
+  end
+
+  defp fixtures_context([:event_collector], fixture_path) do
+    test_pid = self()
+    %{fixture_path: fixture_path, on_event: fn event -> send(test_pid, {:event, event}) end}
   end
 end

@@ -1,0 +1,11 @@
+<script src="https://frontman.sh/client.js" />
+<style data-source="https://frontman.sh/theme.css" />
+<p>Visit https://frontman.sh/frontman for the workspace.</p>
+<script type="template">http://localhost:5173/frontman</script>
+<script>
+const marker = "// string"
+const endpoint = "https://frontman.sh/api" // actual script comment
+</script>
+<style>
+.hero { background: url("https://frontman.sh/image.png"); /* actual style comment */ }
+</style>

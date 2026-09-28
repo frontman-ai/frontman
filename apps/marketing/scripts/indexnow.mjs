@@ -6,11 +6,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const distDir = join(__dirname, "..", "dist");
 const siteUrl = "https://frontman.sh";
-// Bing-issued verification token — also served as a static file in public/
 const verificationFileName = "b93ec302-3eda-4805-a374-3d5e0d5d4fa3.txt";
 const key = verificationFileName.replace(".txt", "");
 
-// Function to extract URLs from sitemap XML using regex
 function extractUrlsFromSitemap(xml) {
   const urlRegex = /<loc>(.*?)<\/loc>/g;
   const urls = [];
@@ -25,7 +23,6 @@ function extractUrlsFromSitemap(xml) {
   return urls;
 }
 
-// Function to read sitemap index and get list of sitemap files
 function getSitemapFiles() {
   const sitemapIndexPath = join(distDir, "sitemap-index.xml");
   if (!existsSync(sitemapIndexPath)) {
@@ -36,13 +33,10 @@ function getSitemapFiles() {
   return extractUrlsFromSitemap(sitemapIndex);
 }
 
-// Function to convert a sitemap URL to a file path in dist
 function sitemapUrlToFilePath(sitemapUrl) {
   try {
     const urlObj = new URL(sitemapUrl);
-    // Remove the site origin and leading slash
     let path = urlObj.pathname.replace(/^\//, "");
-    // If the path is empty, it's the root sitemap (shouldn't happen for chunks)
     if (!path) {
       return null;
     }
@@ -53,7 +47,6 @@ function sitemapUrlToFilePath(sitemapUrl) {
   }
 }
 
-// Function to submit URLs to Bing IndexNow
 async function submitToIndexNow(urls) {
   if (urls.length === 0) {
     console.log("No URLs to submit.");
@@ -85,13 +78,11 @@ async function submitToIndexNow(urls) {
   );
 }
 
-// Main function
 async function main() {
   console.log("Starting IndexNow submission...");
   console.log(`Site: ${siteUrl}`);
   console.log(`Key: ${key}`);
 
-  // Check if verification file exists in public
   const verificationFilePath = join(
     __dirname,
     "..",
@@ -106,7 +97,6 @@ async function main() {
     process.exit(1);
   }
 
-  // Get sitemap files from the sitemap index
   const sitemapUrls = getSitemapFiles();
   if (sitemapUrls.length === 0) {
     console.error("No sitemap URLs found in sitemap index.");
@@ -115,7 +105,6 @@ async function main() {
 
   console.log(`Found ${sitemapUrls.length} sitemap(s) in index.`);
 
-  // Collect all URLs from all sitemap files
   let allUrls = [];
   for (const sitemapUrl of sitemapUrls) {
     const filePath = sitemapUrlToFilePath(sitemapUrl);
@@ -130,11 +119,9 @@ async function main() {
     allUrls = allUrls.concat(urls);
   }
 
-  // Remove duplicates (though sitemap should not have duplicates)
   allUrls = [...new Set(allUrls)];
   console.log(`Total unique URLs to submit: ${allUrls.length}`);
 
-  // Submit to Bing IndexNow
   try {
     await submitToIndexNow(allUrls);
     console.log("IndexNow submission completed successfully.");

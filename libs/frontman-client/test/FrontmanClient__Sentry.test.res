@@ -9,22 +9,18 @@ describe("FrontmanClient Sentry", () => {
   let testkit = ref(None)
   let transport = ref(None)
 
-  // Set up testkit once - Sentry SDK only allows one init per process
   beforeAll(() => {
     let (tk, t) = SentryTestkit.setup()
     testkit := Some(tk)
     transport := Some(t)
   })
 
-  // Reset state before each test
   beforeEach(() => {
-    // Clear testkit reports
     switch testkit.contents {
     | Some(tk) => tk.reset()
     | None => ()
     }
 
-    // Reset initialized flag and reinitialize with testkit transport
     Sentry.initialized.contents = false
     switch transport.contents {
     | Some(t) => Sentry.initialize(~transport=t)
@@ -36,20 +32,16 @@ describe("FrontmanClient Sentry", () => {
     test(
       "initializes only once",
       t => {
-        // Already initialized in beforeEach
         let initialReportCount = switch testkit.contents {
         | Some(tk) => tk.reports()->Array.length
         | None => 0
         }
 
-        // Try to initialize again
         Sentry.initialize()
         Sentry.initialize()
 
-        // Should still work, no errors
         t->expect(Sentry.isEnabled())->Expect.toBe(true)
 
-        // Report count shouldn't change from double init
         switch testkit.contents {
         | Some(tk) => t->expect(tk.reports()->Array.length)->Expect.toBe(initialReportCount)
         | None => ()
@@ -84,7 +76,6 @@ describe("FrontmanClient Sentry", () => {
                 t->expect(report.message)->Expect.toBe(Some("Socket connection failed"))
                 t->expect(report.level)->Expect.toBe(Some("error"))
 
-                // Verify tags are attached via withScope
                 switch report.tags {
                 | Some(tags) => {
                     t
@@ -122,7 +113,6 @@ describe("FrontmanClient Sentry", () => {
                 t->expect(report.message)->Expect.toBe(Some("Initialize failed"))
                 t->expect(report.level)->Expect.toBe(Some("error"))
 
-                // Verify protocol-specific tags
                 switch report.tags {
                 | Some(tags) => {
                     t
@@ -178,7 +168,6 @@ describe("FrontmanClient Sentry", () => {
     test(
       "captures exception with operation tag",
       t => {
-        // Create and capture an exception
         try {
           JsError.throwWithMessage("Test error")
         } catch {
@@ -218,7 +207,6 @@ describe("FrontmanClient Sentry", () => {
       t => {
         Sentry.addBreadcrumb(~category=#connection, ~message="Socket connected")
 
-        // Breadcrumbs are attached to subsequent events
         Sentry.captureConnectionError("Later error", ~endpoint="wss://example.com")
 
         switch testkit.contents {
@@ -231,7 +219,7 @@ describe("FrontmanClient Sentry", () => {
               switch report.breadcrumbs {
               | Some(breadcrumbs) =>
                 t->expect(breadcrumbs->Array.length)->Expect.Int.toBeGreaterThanOrEqual(1)
-              | None => () // Breadcrumbs may not be present in all report formats
+              | None => ()
               }
             | None => ()
             }
@@ -249,7 +237,6 @@ describe("FrontmanClient Sentry", () => {
         Sentry.addBreadcrumb(~category=#mcp, ~message="mcp event")
         Sentry.addBreadcrumb(~category=#session, ~message="session event")
 
-        // If we get here without errors, all categories work
         t->expect(true)->Expect.toBe(true)
       },
     )

@@ -1,27 +1,8 @@
-// EditFile Matcher - Pure matching engine for find-and-replace edits
-//
-// Implements 9 matching strategies of increasing flexibility to handle
-// common LLM edit mistakes (wrong indentation, extra whitespace, escaped
-// characters, etc.). Each strategy returns an array of candidate substrings
-// found in the original content.
-//
-// Strategies are tried in priority order. The first strategy that produces
-// a unique match wins. If multiple matches are found and replaceAll is
-// not set, we move to the next strategy.
-//
-// Inspired by approaches from cline's diff-apply and gemini-cli's editCorrector.
-
-// ============================================
-// Levenshtein Distance
-// ============================================
-
-// Classic dynamic programming edit distance between two strings
 let levenshtein = (a: string, b: string): int => {
   switch (a->String.length, b->String.length) {
   | (0, _) => b->String.length
   | (_, 0) => a->String.length
   | (lenA, lenB) =>
-    // Build (lenA+1) x (lenB+1) matrix
     let matrix = Array.fromInitializer(~length=lenA + 1, i =>
       Array.fromInitializer(~length=lenB + 1, j =>
         switch (i, j) {
@@ -49,11 +30,6 @@ let levenshtein = (a: string, b: string): int => {
   }
 }
 
-// ============================================
-// Helpers
-// ============================================
-
-// Get the character offset of line `lineIndex` in text split by \n
 let lineOffset = (lines: array<string>, lineIndex: int): int => {
   let offset = ref(0)
   for k in 0 to lineIndex - 1 {
@@ -62,7 +38,6 @@ let lineOffset = (lines: array<string>, lineIndex: int): int => {
   offset.contents
 }
 
-// Extract the original substring spanning lines [startLine..endLine] (inclusive)
 let extractBlock = (
   content: string,
   lines: array<string>,
@@ -74,15 +49,10 @@ let extractBlock = (
   content->String.slice(~start=startIdx, ~end=endIdx)
 }
 
-// Escape special regex characters in a string
 let escapeRegex = (str: string): string => {
   str->String.replaceRegExp(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")
 }
 
-// ============================================
-// Strategy 1: Exact Match
-// ============================================
-// Direct substring match — the simplest and most precise.
 let exactMatch = (content: string, find: string): array<string> => {
   switch content->String.includes(find) {
   | true => [find]
@@ -90,16 +60,10 @@ let exactMatch = (content: string, find: string): array<string> => {
   }
 }
 
-// ============================================
-// Strategy 2: Line-Trimmed Match
-// ============================================
-// Compares lines with .trim(), but returns the actual original content
-// so the replacement preserves original indentation.
 let lineTrimMatch = (content: string, find: string): array<string> => {
   let contentLines = content->String.split("\n")
   let searchLines = find->String.split("\n")
 
-  // Drop trailing empty line from search (common LLM artifact)
   let searchLines = switch searchLines[searchLines->Array.length - 1] {
   | Some(last) if last == "" =>
     searchLines->Array.slice(~start=0, ~end=searchLines->Array.length - 1)
@@ -132,16 +96,6 @@ let lineTrimMatch = (content: string, find: string): array<string> => {
   results
 }
 
-// ============================================
-// Strategy 3: Block Anchor Match
-// ============================================
-// Matches first and last lines exactly (trimmed), then uses Levenshtein
-// distance to score middle lines. Good for when the LLM gets the structure
-// right but mangles interior content slightly.
-//
-// Similarity thresholds:
-// - Single candidate: 0.0 (very permissive, anchors already constrain)
-// - Multiple candidates: 0.3 (need some middle similarity to disambiguate)
 let singleCandidateThreshold = 0.0
 let multipleCandidateThreshold = 0.3
 
@@ -151,7 +105,6 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
   let contentLines = content->String.split("\n")
   let searchLines = find->String.split("\n")
 
-  // Need at least 3 lines for meaningful anchor matching
   let searchLines = switch searchLines[searchLines->Array.length - 1] {
   | Some(last) if last == "" =>
     searchLines->Array.slice(~start=0, ~end=searchLines->Array.length - 1)
@@ -165,13 +118,11 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
     let lastLineSearch = searchLines[searchLines->Array.length - 1]->Option.getOrThrow->String.trim
     let searchBlockSize = searchLines->Array.length
 
-    // Collect candidate positions where both anchors match
     let candidates = []
     for i in 0 to contentLines->Array.length - 1 {
       switch contentLines[i]->Option.getOrThrow->String.trim == firstLineSearch {
       | false => ()
       | true =>
-        // Find all matching last lines after this first line
         let j = ref(i + 2)
         while j.contents < contentLines->Array.length {
           switch contentLines[j.contents]->Option.getOrThrow->String.trim == lastLineSearch {
@@ -187,13 +138,12 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
     switch candidates->Array.length {
     | 0 => []
     | 1 =>
-      // Single candidate: use relaxed threshold
       let {startLine, endLine} = candidates[0]->Option.getOrThrow
       let actualBlockSize = endLine - startLine + 1
       let linesToCheck = min(searchBlockSize - 2, actualBlockSize - 2)
 
       let similarity = switch linesToCheck > 0 {
-      | false => 1.0 // No middle lines, accept on anchors alone
+      | false => 1.0
       | true =>
         let sim = ref(0.0)
         let j = ref(1)
@@ -207,9 +157,8 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
             let distance = levenshtein(origLine, searchLine)->Int.toFloat
             sim := sim.contents +. (1.0 -. distance /. maxLen) /. linesToCheck->Int.toFloat
           }
-          // Early exit when threshold is already met
           switch sim.contents >= singleCandidateThreshold {
-          | true => j := searchBlockSize // break
+          | true => j := searchBlockSize
           | false => j := j.contents + 1
           }
         }
@@ -221,7 +170,6 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
       | false => []
       }
     | _ =>
-      // Multiple candidates: score each and pick the best
       let bestMatch = ref(None)
       let maxSim = ref(-1.0)
 
@@ -266,11 +214,6 @@ let anchoredBlockMatch = (content: string, find: string): array<string> => {
   }
 }
 
-// ============================================
-// Strategy 4: Whitespace Normalized Match
-// ============================================
-// Collapses all whitespace runs to a single space, then matches.
-// Returns the original content substring, not the normalized version.
 let normalizedWhitespaceMatch = (content: string, find: string): array<string> => {
   let normalize = (text: string): string => text->String.replaceRegExp(/\s+/g, " ")->String.trim
 
@@ -278,7 +221,6 @@ let normalizedWhitespaceMatch = (content: string, find: string): array<string> =
   let contentLines = content->String.split("\n")
   let results = []
 
-  // Single-line matches
   contentLines->Array.forEach(line => {
     switch normalize(line) == normalizedFind {
     | true => results->Array.push(line)
@@ -287,7 +229,6 @@ let normalizedWhitespaceMatch = (content: string, find: string): array<string> =
       switch normalizedLine->String.includes(normalizedFind) {
       | false => ()
       | true =>
-        // Build a regex from the search words to find the original substring
         let words =
           find
           ->String.trim
@@ -308,14 +249,13 @@ let normalizedWhitespaceMatch = (content: string, find: string): array<string> =
             | None => ()
             }
           } catch {
-          | _ => () // Invalid regex, skip
+          | _ => ()
           }
         }
       }
     }
   })
 
-  // Multi-line matches
   let findLines = find->String.split("\n")
   switch findLines->Array.length > 1 {
   | false => ()
@@ -335,12 +275,6 @@ let normalizedWhitespaceMatch = (content: string, find: string): array<string> =
   results
 }
 
-// ============================================
-// Strategy 5: Flexible Indentation Match
-// ============================================
-// Strips the minimum indentation from both search and content blocks,
-// then compares. Handles cases where the LLM outputs code with different
-// base indentation than the file.
 let flexibleIndentMatch = (content: string, find: string): array<string> => {
   let removeIndent = (text: string): string => {
     let lines = text->String.split("\n")
@@ -388,15 +322,7 @@ let flexibleIndentMatch = (content: string, find: string): array<string> => {
   results
 }
 
-// ============================================
-// Strategy 6: Escape Normalized Match
-// ============================================
-// Unescapes common escape sequences (\n, \t, \\, etc.) in the search
-// text before matching. Handles LLMs that produce escaped versions of
-// characters that appear literally in the file.
 let escapeNormalizedMatch = (content: string, find: string): array<string> => {
-  // Unescape common escape sequences. Uses raw JS for the callback-based
-  // String.replace which ReScript's String.replaceRegExp doesn't support.
   let unescape: string => string = %raw(`
     function(str) {
       return str.replace(/\\([ntr'"\\/$])/g, function(_m, c) {
@@ -411,13 +337,11 @@ let escapeNormalizedMatch = (content: string, find: string): array<string> => {
   let unescapedFind = unescape(find)
   let results = []
 
-  // Direct match with unescaped find
   switch content->String.includes(unescapedFind) {
   | true => results->Array.push(unescapedFind)
   | false => ()
   }
 
-  // Also try: unescape both sides and match
   let contentLines = content->String.split("\n")
   let findLines = unescapedFind->String.split("\n")
 
@@ -436,27 +360,19 @@ let escapeNormalizedMatch = (content: string, find: string): array<string> => {
   results
 }
 
-// ============================================
-// Strategy 7: Trimmed Boundary Match
-// ============================================
-// Trims leading/trailing whitespace from the entire search block.
-// Catches cases where the LLM adds extra blank lines before/after.
 let trimmedBoundaryMatch = (content: string, find: string): array<string> => {
   let trimmedFind = find->String.trim
 
-  // Skip if already trimmed (no point trying)
   switch trimmedFind == find {
   | true => []
   | false =>
     let results = []
 
-    // Direct substring match with trimmed version
     switch content->String.includes(trimmedFind) {
     | true => results->Array.push(trimmedFind)
     | false => ()
     }
 
-    // Also try block-level trimming
     let contentLines = content->String.split("\n")
     let findLines = find->String.split("\n")
 
@@ -475,23 +391,16 @@ let trimmedBoundaryMatch = (content: string, find: string): array<string> => {
   }
 }
 
-// ============================================
-// Strategy 8: Context Anchor Match
-// ============================================
-// Like Block Anchor, but with a different heuristic: requires >=50%
-// of non-empty middle lines to match exactly (trimmed). More conservative
-// than Levenshtein but catches different failure modes.
 let contextAnchorMatch = (content: string, find: string): array<string> => {
   let findLines = find->String.split("\n")
 
-  // Drop trailing empty line
   let findLines = switch findLines[findLines->Array.length - 1] {
   | Some(last) if last == "" => findLines->Array.slice(~start=0, ~end=findLines->Array.length - 1)
   | _ => findLines
   }
 
   switch findLines->Array.length < 3 {
-  | true => [] // Need at least 3 lines for context
+  | true => []
   | false =>
     let contentLines = content->String.split("\n")
     let firstLine = findLines[0]->Option.getOrThrow->String.trim
@@ -502,7 +411,6 @@ let contextAnchorMatch = (content: string, find: string): array<string> => {
       switch contentLines[i]->Option.getOrThrow->String.trim == firstLine {
       | false => ()
       | true =>
-        // Look for all matching last lines
         let j = ref(i + 2)
         while j.contents < contentLines->Array.length {
           switch contentLines[j.contents]->Option.getOrThrow->String.trim == lastLine {
@@ -510,11 +418,9 @@ let contextAnchorMatch = (content: string, find: string): array<string> => {
           | true =>
             let blockLines = contentLines->Array.slice(~start=i, ~end=j.contents + 1)
 
-            // Check if block has same number of lines
             switch blockLines->Array.length == findLines->Array.length {
             | false => ()
             | true =>
-              // Count matching middle lines (at least 50%)
               let matchingLines = ref(0)
               let totalNonEmpty = ref(0)
 
@@ -534,7 +440,7 @@ let contextAnchorMatch = (content: string, find: string): array<string> => {
               }
 
               let passes = switch totalNonEmpty.contents {
-              | 0 => true // No middle content, accept
+              | 0 => true
               | total => matchingLines.contents->Int.toFloat /. total->Int.toFloat >= 0.5
               }
 
@@ -553,11 +459,6 @@ let contextAnchorMatch = (content: string, find: string): array<string> => {
   }
 }
 
-// ============================================
-// Strategy 9: Multi-Occurrence Match
-// ============================================
-// Returns ALL exact occurrences of the search text. Only used when
-// replaceAll is true, to replace every instance at once.
 let multiOccurrenceMatch = (content: string, find: string): array<string> => {
   let results = []
   let startIndex = ref(0)
@@ -578,16 +479,11 @@ let multiOccurrenceMatch = (content: string, find: string): array<string> => {
   results
 }
 
-// ============================================
-// Orchestrator
-// ============================================
-
 type editResult =
-  | Applied(string) // New content after replacement
-  | NotFound // oldText not found by any strategy
-  | Ambiguous // Multiple matches found (and replaceAll is false)
+  | Applied(string)
+  | NotFound
+  | Ambiguous
 
-// All strategies in priority order
 let strategies = [
   exactMatch,
   lineTrimMatch,
@@ -600,7 +496,6 @@ let strategies = [
   multiOccurrenceMatch,
 ]
 
-// Try all strategies in order and apply the first unique match
 let applyEdit = (
   ~content: string,
   ~oldText: string,
@@ -616,14 +511,9 @@ let applyEdit = (
     let strategy = strategies[strategyIdx.contents]->Option.getOrThrow
     let candidates = strategy(content, oldText)
 
-    // When replaceAll is false and the strategy found multiple candidates,
-    // that means multiple match locations — treat as ambiguous, skip strategy
     switch (!replaceAll && candidates->Array.length > 1, replaceAll) {
-    | (true, _) =>
-      // Multiple candidates = ambiguous match locations
-      notFound := false
+    | (true, _) => notFound := false
     | (_, true) =>
-      // replaceAll: replace all candidates
       candidates->Array.forEach(candidate => {
         switch result.contents {
         | Some(_) => ()
@@ -633,14 +523,11 @@ let applyEdit = (
           | false => ()
           | true =>
             notFound := false
-            // Use split/join instead of String.replaceAll to avoid JS $-pattern
-            // interpretation in the replacement string ($$ -> $, $& -> match, etc.)
             result := Some(Applied(content->String.split(candidate)->Array.join(newText)))
           }
         }
       })
     | (false, false) =>
-      // Single candidate: verify it's unique in the content
       switch candidates[0] {
       | None => ()
       | Some(candidate) =>
@@ -651,7 +538,7 @@ let applyEdit = (
           notFound := false
           let lastIdx = content->String.lastIndexOf(candidate)
           switch idx == lastIdx {
-          | false => () // Same text appears multiple times, try next strategy
+          | false => ()
           | true =>
             let before = content->String.slice(~start=0, ~end=idx)
             let after =

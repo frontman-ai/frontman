@@ -1,18 +1,21 @@
 @@live
-type getElementSourceLocationResult = {
+type getElementSourceContextResult = {
   success: bool,
-  data: Client__Types.SourceLocation.t,
+  data: option<Client__SourceContext.t>,
   error: option<string>,
 }
-@module("dom-element-to-component-source")
-external getElementSourceLocation: (
-  ~element: WebAPI.DOMAPI.element,
-) => promise<getElementSourceLocationResult> = "getElementSourceLocation"
 
-let getElementSourceLocation = async (~element: WebAPI.DOMAPI.element) => {
-  let result = await getElementSourceLocation(~element)
+@module("dom-element-to-component-source")
+external getElementSourceContextRaw: (
+  ~element: WebAPI.DomTypes.element,
+) => promise<getElementSourceContextResult> = "getElementSourceContext"
+
+let getElementSourceContext = async (~element: WebAPI.DomTypes.element): option<
+  Client__SourceContext.t,
+> => {
+  let result = await getElementSourceContextRaw(~element)
   switch result.success {
-  | true => Some(result.data)
+  | true => result.data
   | false => None
   }
 }

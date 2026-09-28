@@ -1,0 +1,14 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "dockerfilePath": "apps/frontman_server/Dockerfile"
+  },
+  "deploy": {
+    "preDeployCommand": [
+      "/app/bin/frontman_server eval \"FrontmanServer.Release.migrate()\""
+    ],
+    "healthcheckPath": "/health",
+    "healthcheckTimeout": 30,
+    "restartPolicyType": "ON_FAILURE"
+  }
+}

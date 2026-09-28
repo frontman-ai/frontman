@@ -3,8 +3,9 @@ title: "WordPress 7 Breaking Changes and Fixes"
 pubDate: 2026-04-25T05:00:00Z
 description: "WordPress 7 breaking changes: developer audit with what actually breaks, migration code for each issue, and rollback strategies nobody else covers."
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
+articleSection: 'Operational Audit'
 image: '/blog/wordpress-7-breaking-changes-cover.png'
+imageAlt: 'WordPress 7 breaking changes and fixes cover'
 tags: ['wordpress', 'tutorial']
 updatedDate: 2026-04-25T00:00:00Z
 faq:
@@ -32,6 +33,8 @@ WordPress 7 is the largest core release since Gutenberg landed in WordPress 5.0.
 
 This post covers each breaking change, the fix for it, and what to do if the fix isn't feasible for your site right now.
 
+Looking for the next release? Read the separate [WordPress 7.1 new features, breaking changes, and upgrade checklist](/blog/wordpress-7-1-new-features-breaking-changes/). It tracks the August 19 release without replacing this WordPress 7 audit.
+
 ## What's actually changing in WordPress 7
 
 Before getting into the individual breaking changes, here's the scope. WordPress 7 touches:
@@ -44,6 +47,8 @@ Before getting into the individual breaking changes, here's the scope. WordPress
 - **Collaboration infrastructure** (real-time editing, new database table)
 
 Each of these affects a different audience. If you maintain custom blocks, the iframed editor is your biggest concern. If you run WooCommerce, plugin compatibility matters more than any single API change. If you manage client sites on shared hosting, the real-time collaboration overhead is worth understanding before it surprises you.
+
+Once the compatibility audit passes, keep the first post-upgrade change bounded and visible. [Watch one complete WordPress edit from request through reviewed result](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) before trying Frontman on a staging site. The demo is not proof that your production theme and plugin stack are compatible.
 
 ## Breaking change #1: The iframed editor and Block API Version 3
 
@@ -391,6 +396,8 @@ Use this to audit your site before upgrading. Each item maps to a breaking chang
 - Staging environment mirrors production (same plugins, theme, PHP version)
 - Rollback process tested on staging before production upgrade
 - Plugin developers contacted for any extension without a WP7 compatibility statement
+
+After the release-specific audit passes, use the [WordPress maintenance checklist by frequency](/blog/wordpress-maintenance-checklist/) to schedule ongoing backups, update review, critical-flow tests, and restore checks.
 
 ## What this means for the WordPress ecosystem
 

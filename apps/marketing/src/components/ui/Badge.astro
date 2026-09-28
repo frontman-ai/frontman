@@ -1,16 +1,6 @@
 ---
-// Badge
-// ------------
-// Description: A badge is a visual indicator that draws attention to an interface element. It enhances the component to which it is attached with additional information.
-// Properties:
-// - Name: the text of the badge
-// - Link: the link of the badge (optional)
-// - Type: the type of the badge (neutral, primary)
-// - Classes: additional classes
 
-// Reference: https://wind-ui.com/components/badges/
 
-// Props
 type Props = {
 	name: string
 	link?: string
@@ -24,12 +14,12 @@ const { name, link, type = 'neutral', classes } = Astro.props
 	link ? (
 		<a
 			href={link}
-			class:list={['badge', { [`${classes}`]: classes }, { [`badge--${type}`]: type }]}
+			class:list={['badge', { [`${classes}`]: classes }, { [`badge--${type}`]: type, 'text-white': type === 'primary' }]}
 		>
 			{name}
 		</a>
 	) : (
-		<span class:list={['badge', { [`${classes}`]: classes }, { [`badge--${type}`]: type }]}>
+		<span class:list={['badge', { [`${classes}`]: classes }, { [`badge--${type}`]: type, 'text-white': type === 'primary' }]}>
 			{name}
 		</span>
 	)

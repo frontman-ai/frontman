@@ -28,6 +28,7 @@ class Frontman_Tool_Error extends \RuntimeException {}
 class Frontman_Tool_Definition {
 	public string $name;
 	public string $description;
+	public string $access;
 	public array  $input_schema;
 	public bool   $visible_to_agent;
 	public bool   $preserve_input_strings;
@@ -39,6 +40,7 @@ class Frontman_Tool_Definition {
 	 * @param string   $description      Human-readable description.
 	 * @param array    $input_schema     JSON Schema for input (as PHP array).
 	 * @param callable $handler          fn(array $input): array — returns plain data (JSON-serializable).
+	 * @param string|null $access              Tool access level: read, write, or read-write. Inferred from name when omitted.
 	 * @param bool     $visible_to_agent       Whether the agent can see this tool.
 	 * @param bool     $preserve_input_strings Whether schema sanitization should preserve raw string values for downstream API validation.
 	 */
@@ -47,11 +49,13 @@ class Frontman_Tool_Definition {
 		string $description,
 		array $input_schema,
 		callable $handler,
+		?string $access = null,
 		bool $visible_to_agent = true,
 		bool $preserve_input_strings = false
 	) {
 		$this->name                   = $name;
 		$this->description            = $description;
+		$this->access                 = $this->normalize_access( $access ?? self::infer_access( $name ) );
 		$this->input_schema           = $input_schema;
 		$this->handler                = $handler;
 		$this->visible_to_agent       = $visible_to_agent;
@@ -65,9 +69,34 @@ class Frontman_Tool_Definition {
 		return [
 			'name'           => $this->name,
 			'description'    => $this->description,
+			'access'         => $this->access,
 			'inputSchema'    => $this->input_schema,
 			'visibleToAgent' => $this->visible_to_agent,
 		];
+	}
+
+	private function normalize_access( string $access ): string {
+		if ( in_array( $access, [ 'read', 'write', 'read-write' ], true ) ) {
+			return $access;
+		}
+
+		return 'read-write';
+	}
+
+	private static function infer_access( string $name ): string {
+		foreach ( [ 'wp_list_', 'wp_read_', 'wp_get_', 'wc_get_', 'wc_list_' ] as $prefix ) {
+			if ( 0 === strpos( $name, $prefix ) ) {
+				return 'read';
+			}
+		}
+
+		foreach ( [ 'wp_create_', 'wp_duplicate_', 'wp_insert_', 'wp_upload_', 'wc_create_' ] as $prefix ) {
+			if ( 0 === strpos( $name, $prefix ) ) {
+				return 'write';
+			}
+		}
+
+		return 'read-write';
 	}
 }
 
@@ -127,7 +156,19 @@ class Frontman_Tools {
 			return $this->sanitize_untyped_array( $input, $name );
 		}
 
-		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $tool->preserve_input_strings );
+		if ( class_exists( 'Frontman_Tool_Seo' ) && in_array( $name, [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
+			return Frontman_Tool_Seo::validate_input( $name, $input );
+		}
+
+		if ( class_exists( 'Frontman_Tool_Posts' ) && in_array( $name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+			Frontman_Tool_Posts::validate_author_input( $input );
+		}
+		if ( 'wp_find_users' === $name && class_exists( 'Frontman_Tool_Users' ) ) {
+			return Frontman_Tool_Users::validate_input( $input );
+		}
+
+		$preserve_strings = $tool->preserve_input_strings || ( 'wp_update_custom_css' === $name && 'edit' === ( $input['mode'] ?? null ) );
+		$sanitized = $this->sanitize_value_for_schema( $input, $tool->input_schema, $name, '', $preserve_strings );
 		return is_array( $sanitized ) ? $sanitized : [];
 	}
 
@@ -150,7 +191,6 @@ class Frontman_Tools {
 
 			throw new \RuntimeException(
 				sprintf(
-					/* translators: %s: tool name */
 					esc_html__( 'Unknown tool: %s', 'frontman-agentic-ai-editor' ),
 					esc_html( $tool_name ),
 				)
@@ -180,8 +220,9 @@ class Frontman_Tools {
 	public static function success_result( $data ): array {
 		$text = is_string( $data ) ? $data : wp_json_encode( $data );
 		return [
+			'resultType' => 'complete',
 			'content' => [ [ 'type' => 'text', 'text' => $text ] ],
-			'_meta'   => self::meta(),
+			'isError' => false,
 		];
 	}
 
@@ -190,19 +231,10 @@ class Frontman_Tools {
 	 */
 	public static function error_result( string $message ): array {
 		return [
+			'resultType' => 'complete',
 			'content' => [ [ 'type' => 'text', 'text' => $message ] ],
 			'isError' => true,
-			'_meta'   => self::meta(),
 		];
-	}
-
-	/**
-	 * Build the _meta object for callToolResult.
-	 *
-	 * Uses stdClass for envApiKey so json_encode produces {} not [].
-	 */
-	private static function meta(): array {
-		return [ 'envApiKey' => new \stdClass() ];
 	}
 
 	/**
@@ -231,16 +263,28 @@ class Frontman_Tools {
 				);
 
 			case 'integer':
+				if ( $preserve_input_strings && ! is_int( $value ) ) {
+					return $value;
+				}
+
 				return (int) $value;
 
 			case 'number':
 				return (float) $value;
 
 			case 'boolean':
+				if ( $preserve_input_strings && in_array( $field_name, [ 'confirm', 'replaceAll' ], true ) && ! is_bool( $value ) ) {
+					return $value;
+				}
+
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':
-				if ( 'css' === $field_name && 'wp_update_custom_css' === $tool_name && ! is_string( $value ) ) {
+				if ( 'slug' === $field_name && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+					return $value;
+				}
+
+				if ( in_array( $tool_name, [ 'wp_update_custom_css', 'wp_get_custom_css' ], true ) && ! is_string( $value ) ) {
 					return $value;
 				}
 
@@ -330,7 +374,7 @@ class Frontman_Tools {
 			return in_array( $tool_name, [ 'wp_update_template', 'wp_upload_media' ], true ) ? $value : wp_kses_post( $value );
 		}
 
-		if ( 'css' === $field_name && 'wp_update_custom_css' === $tool_name ) {
+		if ( in_array( $tool_name, [ 'wp_update_custom_css', 'wp_get_custom_css' ], true ) ) {
 			return $value;
 		}
 

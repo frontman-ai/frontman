@@ -4,6 +4,7 @@
  * Appears near a newly-annotated element. The annotation already exists in state;
  * this popup is purely an optional comment-entry convenience.
  * - Typing updates the annotation's comment via UpdateAnnotationComment
+ * - Ctrl/Cmd+Enter executes the annotation through the chatbox path
  * - Enter closes the popup (comment is already saved)
  * - Escape closes the popup (annotation remains, no comment)
  * - Clicking another element auto-closes this popup (handled by parent)
@@ -19,19 +20,18 @@ let make = (
   ~mutationTimestamp: float,
   ~onCommentChange: string => unit,
   ~onClose: unit => unit,
+  ~onExecute: string => unit,
 ) => {
   let (comment, setComment) = React.useState(() => annotation.comment->Option.getOr(""))
   let inputRef = React.useRef(Nullable.null)
   let (rect, setRect) = React.useState(() => None)
 
-  // Position popup relative to the annotated element
   React.useEffect(() => {
     let boundingRect = WebAPI.Element.getBoundingClientRect(annotation.element)
     setRect(_ => Some(boundingRect))
     None
   }, (annotation.element, scrollTimestamp, mutationTimestamp))
 
-  // Auto-focus the input once it renders (rect must be Some for the input to exist)
   React.useEffect(() => {
     switch (rect, inputRef.current->Nullable.toOption) {
     | (Some(_), Some(input)) => (input->Obj.magic)["focus"]()
@@ -40,8 +40,17 @@ let make = (
     None
   }, [rect->Option.isSome])
 
+  let execute = () => {
+    onCommentChange(comment)
+    onExecute(comment)
+  }
+
   let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
+    let event: WebAPI.UiEventsTypes.keyboardEvent = e->Obj.magic
     switch ReactEvent.Keyboard.key(e) {
+    | "Enter" if event.ctrlKey || event.metaKey =>
+      ReactEvent.Keyboard.preventDefault(e)
+      execute()
     | "Enter" =>
       ReactEvent.Keyboard.preventDefault(e)
       onClose()
@@ -70,12 +79,10 @@ let make = (
           left: `clamp(8px, ${Float.toString(left)}px, calc(100vw - 328px))`,
         }
       >
-        // Popup card
         <div
           className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 min-w-[240px] max-w-[320px]"
         >
           <div className="flex items-center gap-1.5 mb-1">
-            // Number badge
             <div
               className="flex items-center justify-center w-4 h-4 rounded-full bg-violet-600 text-white text-[9px] font-bold"
             >
@@ -97,6 +104,15 @@ let make = (
                          text-gray-700 placeholder-gray-400
                          focus:outline-none focus:ring-1 focus:ring-violet-500/50 focus:border-violet-500/50"
             />
+            <button
+              type_="button"
+              onClick={_ => execute()}
+              className="flex items-center justify-center w-7 h-7 rounded
+                         text-violet-500 hover:text-violet-700 hover:bg-violet-50 transition-colors"
+              title="execute (cmd (or ctrl) + enter)"
+            >
+              <Icons.SendIcon className="size-3" />
+            </button>
             <button
               type_="button"
               onClick={_ => onClose()}

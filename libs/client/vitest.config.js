@@ -6,7 +6,6 @@ export default defineConfig({
 		globals: true,
 		include: ["test/**/*.test.res.mjs", "test/**/*.test.mjs"],
 
-		// Coverage configuration
 		coverage: {
 			provider: "v8",
 			reporter: ["text", "json-summary", "cobertura"],

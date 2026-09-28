@@ -44,7 +44,6 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
   The verifier is also used as the `state` parameter in the OAuth flow.
   """
   def build_authorize_url(challenge, verifier) do
-    # Use the verifier as the state parameter (as per Anthropic's OAuth flow)
     params =
       URI.encode_query(%{
         "code" => "true",
@@ -69,7 +68,6 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
   Returns `{:ok, %{access_token: ..., refresh_token: ..., expires_in: ...}}` or `{:error, reason}`.
   """
   def exchange_code(code_with_state, verifier) do
-    # Split code on # to separate code and state parts
     {code, state} =
       case String.split(code_with_state, "#", parts: 2) do
         [code_part, state_part] -> {code_part, state_part}
@@ -151,8 +149,6 @@ defmodule FrontmanServer.Providers.AnthropicOAuth do
         {:error, {:request_failed, reason}}
     end
   end
-
-  # Private helpers
 
   defp add_state(body, nil), do: body
   defp add_state(body, state), do: Map.put(body, "state", state)

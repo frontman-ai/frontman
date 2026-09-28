@@ -1,5 +1,3 @@
-// Tests for the SearchFiles tool
-
 open Vitest
 
 module SearchFiles = FrontmanCore__Tool__SearchFiles
@@ -9,22 +7,18 @@ module Fs = FrontmanBindings.Fs
 module Os = FrontmanBindings.Os
 module ChildProcess = FrontmanCore__ChildProcess
 
-// Helper to create directory recursively
 let mkdirRecursive = async (dir: string) => {
   let _ = await Fs.Promises.mkdir(dir, {recursive: true})
 }
 
-// Helper to remove directory recursively
 let rmRecursive = async (dir: string) => {
   let _ = await ChildProcess.exec(`rm -rf ${dir}`)
 }
 
-// Helper to create a temporary test directory with files
 let createTestFixture = async () => {
   let tempDir = Path.join([Os.tmpdir(), `searchfiles-test-${Date.now()->Float.toString}`])
   await mkdirRecursive(tempDir)
 
-  // Create test files with various extensions
   await Fs.Promises.writeFile(Path.join([tempDir, "config.json"]), `{"name": "test"}`)
 
   await Fs.Promises.writeFile(Path.join([tempDir, "app.config.ts"]), `export const config = {};`)
@@ -35,7 +29,6 @@ let createTestFixture = async () => {
 
   await Fs.Promises.writeFile(Path.join([tempDir, "utils.test.js"]), `test("utils", () => {});`)
 
-  // Create subdirectories
   let srcDir = Path.join([tempDir, "src"])
   await mkdirRecursive(srcDir)
 
@@ -56,7 +49,6 @@ let createTestFixture = async () => {
     `export const Input = () => {};`,
   )
 
-  // Create a config directory
   let configDir = Path.join([tempDir, "config"])
   await mkdirRecursive(configDir)
 
@@ -65,7 +57,6 @@ let createTestFixture = async () => {
   tempDir
 }
 
-// Helper to clean up test directory
 let cleanupTestFixture = async (dir: string) => {
   await rmRecursive(dir)
 }
@@ -160,7 +151,6 @@ describe("SearchFiles Tool - filterAndPaginate", _t => {
 
     let result = SearchFiles.filterAndPaginate(lines, ~pattern="*.config.*", ~maxResults=100)
 
-    // Should match app.config.ts and test.config.js
     t->expect(result.totalResults >= 2)->Expect.toBe(true)
   })
 
@@ -206,7 +196,6 @@ describe("SearchFiles Tool - execute (integration)", _t => {
           t->expect(output.totalResults > 0)->Expect.toBe(true)
           t->expect(Array.length(output.files) > 0)->Expect.toBe(true)
 
-          // Verify we found config files
           let hasConfig =
             output.files->Array.some(file => file->String.toLowerCase->String.includes("config"))
           t->expect(hasConfig)->Expect.toBe(true)
@@ -244,7 +233,6 @@ describe("SearchFiles Tool - execute (integration)", _t => {
           Console.log2("Test file results:", output)
           t->expect(output.totalResults > 0)->Expect.toBe(true)
 
-          // All results should contain ".test."
           let allTestFiles = output.files->Array.every(file => file->String.includes(".test."))
           t->expect(allTestFiles)->Expect.toBe(true)
         }
@@ -281,7 +269,6 @@ describe("SearchFiles Tool - execute (integration)", _t => {
           Console.log2("Subdirectory search results:", output)
           t->expect(output.totalResults > 0)->Expect.toBe(true)
 
-          // Should find Button.tsx in components directory
           let foundButton = output.files->Array.some(file => file->String.includes("Button.tsx"))
           t->expect(foundButton)->Expect.toBe(true)
         }
@@ -340,8 +327,6 @@ describe("SearchFiles Tool - execute (integration)", _t => {
         sourceRoot: tempDir,
       }
 
-      // Pass a file path instead of a directory — the tool should search the
-      // parent directory without crashing with ENOTDIR.
       let input: SearchFiles.input = {
         pattern: "config",
         path: "config.json",
@@ -350,9 +335,7 @@ describe("SearchFiles Tool - execute (integration)", _t => {
       let result = await SearchFiles.executeOutput(ctx, input)
 
       switch result {
-      | Ok(output) =>
-        // Should find config files in the root (parent dir of config.json)
-        t->expect(output.totalResults > 0)->Expect.toBe(true)
+      | Ok(output) => t->expect(output.totalResults > 0)->Expect.toBe(true)
       | Error(msg) => failwith(`SearchFiles should not fail on file paths: ${msg}`)
       }
     } catch {
@@ -376,7 +359,7 @@ describe("SearchFiles Tool - execute (integration)", _t => {
       }
 
       let input: SearchFiles.input = {
-        pattern: ".", // Match anything
+        pattern: ".",
         maxResults: 3,
       }
 

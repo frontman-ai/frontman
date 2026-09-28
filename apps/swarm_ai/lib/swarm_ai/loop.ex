@@ -1,6 +1,6 @@
 defmodule SwarmAi.Loop do
   @moduledoc """
-  Runtime execution state for one task turn.
+  Runtime execution state for a supervised loop.
 
   A loop owns complete initial LLM input messages, executes LLM/tool steps,
   and reaches a terminal status. Each step stores the exact messages sent for
@@ -10,7 +10,6 @@ defmodule SwarmAi.Loop do
   - No more tool calls (LLM responds without requesting tools)
   - Max steps reached
   - LLM returns an error
-  - Tool execution pauses the loop
   """
 
   alias SwarmAi.Effect
@@ -30,28 +29,25 @@ defmodule SwarmAi.Loop do
           | :waiting_for_tools
           | :completed
           | {:failed, term()}
-          | {:paused, term()}
+
+  @type response_event_metadata :: %{ordinal: non_neg_integer(), timestamp: DateTime.t()}
 
   @type event ::
-          {:chunk, term()}
-          | {:response, LLM.Response.t()}
+          {:chunk, response_event_metadata(), term()}
+          | {:response, response_event_metadata(), LLM.Response.t()}
           | {:tool_call, ToolCall.t()}
           | :completed
           | {:failed, term()}
-          | {:paused, term()}
           | {:cancelled, nil}
           | {:terminated, term()}
           | {:crashed, %{message: String.t()}}
 
   @type execute_tools ::
-          ([ToolCall.t()], pid() | atom() -> {:ok, [ToolResult.t()]} | {:halt, term()})
+          ([ToolCall.t()], pid() | atom() -> {:ok, [ToolResult.t()]})
 
   typedstruct do
     field(:id, String.t(), enforce: true)
-    field(:task_id, String.t(), enforce: true)
-    field(:turn_number, pos_integer(), enforce: true)
 
-    # Complete initial LLM request messages for this loop, including system.
     field(:messages, [Message.t()], enforce: true)
     field(:llm, LLM.t(), enforce: true)
 
@@ -66,13 +62,11 @@ defmodule SwarmAi.Loop do
   end
 
   @doc """
-  Creates a loop for one task turn.
+  Creates a loop. Callbacks capture any caller-specific state.
   """
   def new(attrs) do
     %__MODULE__{
       id: generate_id("loop"),
-      task_id: Map.fetch!(attrs, :task_id),
-      turn_number: Map.fetch!(attrs, :turn_number),
       messages: Map.fetch!(attrs, :messages),
       llm: Map.fetch!(attrs, :llm),
       execute_tools: Map.fetch!(attrs, :execute_tools),
@@ -105,13 +99,6 @@ defmodule SwarmAi.Loop do
   """
   def fail(%__MODULE__{} = loop, reason) do
     %{loop | status: {:failed, reason}}
-  end
-
-  @doc """
-  Pauses the loop with the given reason.
-  """
-  def pause(%__MODULE__{} = loop, reason) do
-    %{loop | status: {:paused, reason}}
   end
 
   @doc """
@@ -149,8 +136,6 @@ defmodule SwarmAi.Loop do
   """
   def current_step(%__MODULE__{steps: []}), do: nil
   def current_step(%__MODULE__{steps: steps}), do: List.last(steps)
-
-  # --- Public API for Execution ---
 
   @doc """
   Starts execution and returns initial effects.

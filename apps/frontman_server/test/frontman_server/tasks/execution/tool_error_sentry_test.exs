@@ -1,20 +1,13 @@
 defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
-  @moduledoc """
-  Integration tests verifying Sentry error reporting for tool execution failures.
+  @moduledoc false
 
-  Tests the following gaps identified in issue #474:
-  - Gap 2: Soft tool errors ({:error, reason}) reported to Sentry
-  - Gap 4: MCP tool timeouts reported to Sentry
-  - Gap 5: JSON argument parse failures reported to Sentry
-  """
-
-  use SwarmAi.Testing, async: false
+  use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.InteractionCase.Helpers, only: [swarm_tool_call: 2]
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
@@ -25,11 +18,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
 
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
-
     scope = user_scope_fixture()
-    task_id = task_with_active_run_fixture(scope, framework: "nextjs").id
+    task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id
 
     {:ok, task_id: task_id, scope: scope, turn_number: latest_turn_number(task_id)}
   end
@@ -41,7 +31,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       scope: scope,
       turn_number: turn_number
     } do
-      # Sending an invalid status triggers an {:error, reason} return
       tool_call =
         swarm_tool_call(
           "todo_write",
@@ -65,7 +54,6 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
 
       assert %SwarmAi.ToolResult{is_error: true} = result
 
-      # Verify Sentry captured the tool error
       reports = Sentry.Test.pop_sentry_reports()
 
       tool_error_reports =
@@ -85,7 +73,7 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       assert metadata[:tool_call_id] == tool_call.id
       assert metadata[:task_id] == task_id
       assert metadata[:user_id] == scope.user.id
-      assert is_binary(metadata[:reason])
+      refute Map.has_key?(metadata, :reason)
     end
   end
 
@@ -96,8 +84,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       scope: scope,
       turn_number: turn_number
     } do
-      # Intentionally malformed JSON
-      tool_call = swarm_tool_call("todo_write", "{invalid json!!!}")
+      secret = "frontman-secret-1445"
+      tool_call = swarm_tool_call("todo_write", ~s({"secret":"#{secret}"))
 
       todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
 
@@ -128,10 +116,8 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       assert metadata[:tool_name] == "todo_write"
       assert metadata[:user_id] == scope.user.id
       assert metadata[:task_id] == task_id
-      assert metadata[:raw_arguments] == "{invalid json!!!}"
-      assert is_binary(metadata[:decode_error])
+      refute inspect(report) =~ secret
 
-      # No duplicate "tool execution failed" report — parse_arguments handles its own reporting
       soft_error_reports =
         Enum.filter(reports, fn event ->
           event.tags[:error_type] == "tool_soft_error"
@@ -170,49 +156,27 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
     end
 
     @tag :capture_log
-    test "truncates long raw arguments in Sentry report", %{
+    test "reports malformed MCP arguments without their content", %{
       task_id: task_id,
       scope: scope,
       turn_number: turn_number
     } do
-      # Create a long malformed string (> 500 chars) to verify truncation
-      long_invalid_json = String.duplicate("x", 1000)
+      secret = "frontman-mcp-secret-1445"
+      tool_call = swarm_tool_call("take_screenshot", ~s(["#{secret}"]))
 
-      tool_call = swarm_tool_call("todo_write", long_invalid_json)
+      assert :ok =
+               ToolExecutor.start_mcp_tool(scope, task_id, turn_number, :synchronous, tool_call)
 
-      todo_write_module = Enum.find(Tools.backend_tool_modules(), &(&1.name() == "todo_write"))
+      assert_receive {:tool_result, _, [%{text: "Failed to parse arguments for tool"}], true}
 
-      result =
-        ToolExecutor.run_backend_tool(
-          scope,
-          todo_write_module,
-          task_id,
-          turn_number,
-          tool_call
-        )
-
-      assert %SwarmAi.ToolResult{is_error: true} = result
-
-      reports = Sentry.Test.pop_sentry_reports()
-
-      parse_error_reports =
-        Enum.filter(reports, fn event ->
-          event.tags[:error_type] == "tool_parse_error"
-        end)
-
-      assert [report] = parse_error_reports
-
-      # Verify raw_arguments is truncated to 500 chars
-      assert String.length(report.extra[:logger_metadata][:raw_arguments]) == 500
+      assert [report] = Sentry.Test.pop_sentry_reports()
+      assert report.tags[:error_type] == "tool_parse_error"
+      assert report.tags[:tool_name] == "take_screenshot"
+      refute inspect(report) =~ secret
     end
   end
 
-  # MCP tool timeouts are now handled by SwarmAi.ParallelExecutor via per-tool
-  # deadlines (timeout_ms/on_timeout fields on ToolExecution.Await). When on_timeout is
-  # :pause_agent, the Runtime dispatches {:paused, {:timeout, ...}} which Tasks
-  # persists as an AgentPaused interaction — not a Sentry error.
-
-  describe "handle_timeout/5 — :error policy Sentry reporting" do
+  describe "handle_error/5 — finite deadline Sentry reporting" do
     @tag :capture_log
     test "persists error ToolResult and reports to Sentry", %{
       task_id: task_id,
@@ -220,44 +184,25 @@ defmodule FrontmanServer.Tasks.Execution.ToolErrorSentryTest do
       turn_number: turn_number
     } do
       tc = %SwarmAi.ToolCall{id: "tc-deadline-1", name: "todo_write", arguments: "{}"}
-      ToolExecutor.handle_timeout(scope, task_id, turn_number, :error, tc, :triggered)
+      ToolExecutor.handle_error(scope, task_id, turn_number, :timeout, tc)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       tool_result =
-        Enum.find(task.interactions, fn
+        Enum.find(Tasks.interactions(task), fn
           %Interaction.ToolResult{tool_call_id: "tc-deadline-1"} -> true
           _ -> false
         end)
 
       assert tool_result != nil
       assert tool_result.is_error == true
-      assert ModelContextProtocol.extract_content_text(tool_result.result) =~ "timed out"
+      assert MCP.extract_content_text(tool_result.result) =~ "timed out"
 
       reports = Sentry.Test.pop_sentry_reports()
       timeout_reports = Enum.filter(reports, &(&1.tags[:error_type] == "tool_timeout"))
       assert [report] = timeout_reports
       assert report.tags[:user_id] == scope.user.id
       assert report.tags[:task_id] == task_id
-    end
-
-    test "handle_timeout(:triggered) is a no-op for :pause_agent policy", %{
-      task_id: task_id,
-      scope: scope,
-      turn_number: turn_number
-    } do
-      tc = %SwarmAi.ToolCall{id: "tc-pause-1", name: "some_mcp_tool", arguments: "{}"}
-      ToolExecutor.handle_timeout(scope, task_id, turn_number, :pause_agent, tc, :triggered)
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      tool_result =
-        Enum.find(task.interactions, fn
-          %Interaction.ToolResult{tool_call_id: "tc-pause-1"} -> true
-          _ -> false
-        end)
-
-      assert tool_result == nil
     end
   end
 end

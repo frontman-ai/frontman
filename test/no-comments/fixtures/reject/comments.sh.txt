@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+value=1 # shell
+# shellcheck disable=SC2034

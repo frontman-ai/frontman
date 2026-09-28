@@ -46,9 +46,10 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     scope = Scope.for_user(user)
     model = Map.get(args, "model")
 
-    with {:ok, {model_spec, llm_opts}} <- Providers.prepare_llm_args(scope, model, max_tokens: 30),
+    with {:ok, {model_spec, llm_opts}} <-
+           Providers.resolve_model_access(scope, model),
          {:ok, raw_title} <- call_llm(model_spec, llm_opts, user_prompt_text),
-         title = String.trim(raw_title),
+         title = title_or_fallback(String.trim(raw_title), user_prompt_text),
          false <- title == "",
          :ok <- Tasks.apply_title_suggestion(scope, task_id, title) do
       :ok
@@ -74,11 +75,26 @@ defmodule FrontmanServer.Workers.GenerateTitle do
     end
   end
 
+  defp title_or_fallback("", user_prompt_text) do
+    fallback_title_length = 60
+
+    user_prompt_text
+    |> String.trim()
+    |> String.split("\n", parts: 2)
+    |> hd()
+    |> String.trim()
+    |> String.slice(0, fallback_title_length)
+  end
+
+  defp title_or_fallback(title, _user_prompt_text), do: title
+
   defp call_llm(model_spec, llm_opts, user_prompt_text) do
     messages = [
       ReqLLM.Context.system([ContentPart.text(@system_prompt)]),
       ReqLLM.Context.user(user_prompt_text)
     ]
+
+    llm_opts = Keyword.merge(llm_opts, max_tokens: 30, reasoning_effort: :none)
 
     with {:ok, response} <- ReqLLM.generate_text(model_spec, messages, llm_opts) do
       {:ok, ReqLLM.Response.text(response)}

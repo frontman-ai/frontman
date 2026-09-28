@@ -16,13 +16,18 @@ and add `@rescript/webapi` to your `rescript.json`:
 
 ```json
 {
-  "bs-dependencies": [
-+    "@rescript/webapi",
-  ],
-  "bsc-flags": [
-+    "-open WebAPI.Global"
+  "dependencies": [
+    "@rescript/webapi"
   ]
 }
+```
+
+## Usage
+
+```rescript
+let location = WebAPI.Window.current->WebAPI.Window.location
+let href = location.href
+location->WebAPI.Location.reload
 ```
 
 ## Documentation

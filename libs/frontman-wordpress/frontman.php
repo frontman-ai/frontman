@@ -3,7 +3,7 @@
  * Plugin Name:       Frontman - AI Website Editor
  * Plugin URI:        https://frontman.sh
  * Description:       Edit WordPress with AI beside a live preview. Update pages, posts, Elementor layouts, WooCommerce data, menus, and settings faster.
- * Version:           1.3.0
+ * Version:           5.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Frontman AI
@@ -13,7 +13,6 @@
  * Text Domain:       frontman-agentic-ai-editor
  */
 
-// Abort if called directly.
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
@@ -44,20 +43,20 @@ if ( ! function_exists( 'frontman_plugin_dir_url' ) ) {
 	}
 }
 
-define( 'FRONTMAN_VERSION', '1.3.0' );
+define( 'FRONTMAN_VERSION', '5.1.0' );
 define( 'FRONTMAN_PLUGIN_DIR', frontman_plugin_dir_path( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_URL', frontman_plugin_dir_url( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
 
-// Autoload plugin classes.
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-auth.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-plugin-dependencies.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
+require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-router.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
 
-// Load tool implementations.
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-posts.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-users.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-blocks.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-media.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-menus.php';
@@ -65,14 +64,17 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-options.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-templates.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-widgets.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-redirection.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-angie.php';
 
 /**
  * Main plugin bootstrap.
  */
 function frontman_init(): void {
-	// Register all WP tools.
 	$tools = Frontman_Tools::instance();
 	( new Frontman_Tool_Posts() )->register( $tools );
+	( new Frontman_Tool_Users() )->register( $tools );
 	( new Frontman_Tool_Blocks() )->register( $tools );
 	( new Frontman_Tool_Media() )->register( $tools );
 	( new Frontman_Tool_Menus() )->register( $tools );
@@ -80,6 +82,18 @@ function frontman_init(): void {
 	( new Frontman_Tool_Templates() )->register( $tools );
 	( new Frontman_Tool_Widgets() )->register( $tools );
 	( new Frontman_Tool_Cache() )->register( $tools );
+
+	if ( Frontman_Tool_Angie::is_available() ) {
+		( new Frontman_Tool_Angie() )->register( $tools );
+	}
+
+	if ( Frontman_Tool_Redirection::is_available() ) {
+		( new Frontman_Tool_Redirection() )->register( $tools );
+	}
+
+	if ( Frontman_Tool_Seo::is_available() ) {
+		( new Frontman_Tool_Seo() )->register( $tools );
+	}
 
 	if ( Frontman_Plugin_Dependencies::is_available( 'elementor/elementor.php', '\Elementor\Plugin' ) ) {
 		require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-elementor-data.php';
@@ -92,13 +106,12 @@ function frontman_init(): void {
 		( new Frontman_Tool_WooCommerce() )->register( $tools );
 	}
 
-	// Build the UI renderer and router.
 	$ui     = new Frontman_UI();
 	$router = new Frontman_Router( $tools, $ui );
 
-	// Register request interception (parse_request) and admin menu link.
 	$router->register();
 	$ui->register();
+	Frontman_Sentry::register();
 }
 add_action( 'init', 'frontman_init' );
 

@@ -41,9 +41,6 @@ defmodule FrontmanServer.MixProject do
     ]
   end
 
-  # Configuration for the OTP application.
-  #
-  # Type `mix help compile.app` for more information.
   def application do
     [
       mod: {FrontmanServer.Application, []},
@@ -51,13 +48,9 @@ defmodule FrontmanServer.MixProject do
     ]
   end
 
-  # Specifies which paths to compile per environment.
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Specifies your project dependencies.
-  #
-  # Type `mix help deps` for examples and options.
   defp deps do
     [
       {:swarm_ai, path: "../swarm_ai"},
@@ -70,9 +63,11 @@ defmodule FrontmanServer.MixProject do
       {:polymorphic_embed, "~> 5.0"},
       {:postgrex, ">= 0.0.0"},
       {:phoenix_html, "~> 4.1"},
-      {:phoenix_live_view, "~> 1.1.0"},
-      {:phoenix_live_dashboard, "~> 0.8.3"},
+      {:phoenix_live_view, "~> 1.2.1"},
+      {:phoenix_live_dashboard, "~> 0.9.0"},
       {:req_llm, github: "agentjido/req_llm", branch: "main", override: true},
+      {:llm_db,
+       github: "agentjido/llmdb", ref: "2cd54cc0773536a50a672f7753d48f3a845e6292", override: true},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.2.0",
@@ -84,20 +79,17 @@ defmodule FrontmanServer.MixProject do
       {:oban, "~> 2.20"},
       {:req, "~> 0.5"},
       {:html2markdown, "~> 0.3"},
-      {:uuidv7, "~> 1.0"},
       {:telemetry_metrics, "~> 1.0"},
       {:telemetry_poller, "~> 1.0"},
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
-      {:dns_cluster, "~> 0.2.0"},
+      {:jsv, "~> 0.22"},
+      {:dns_cluster, "~> 0.3.0"},
       {:bandit, "~> 1.5"},
       {:zoi, "~> 0.14"},
       {:dotenvy, "~> 1.1"},
-      # Sentry error tracking
       {:sentry, "~> 13.0"},
-      # WorkOS for OAuth (GitHub, Google)
-      {:workos, "~> 1.1"},
-      # ==================DEV/Test=========================
+      {:workos, "~> 3.0"},
       {:paper_tiger, "~> 1.0", only: [:test]},
       {:phoenix_live_reload, "~> 1.2", only: :dev},
       {:tailwind, "~> 0.3", runtime: Mix.env() == :dev},
@@ -106,11 +98,8 @@ defmodule FrontmanServer.MixProject do
       {:lazy_html, ">= 0.1.0", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      {:ex_json_schema, "~> 0.10", only: :test},
       {:bypass, "~> 2.1", only: :test},
-      {:mox, "~> 1.2", only: :test},
-      # Override transitive dep to pick up charlist deprecation fix (not yet released to Hex)
-      {:toml, github: "bitwalker/toml-elixir", branch: "main", override: true}
+      {:mox, "~> 1.2", only: :test}
     ]
   end
 end

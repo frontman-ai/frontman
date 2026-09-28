@@ -1,13 +1,7 @@
 ---
-// Blog Post Page
-// ------------
-// Description: The blog post page.
 
-// Components
-// - Layout
 import Layout from '../../layouts/PostLayout.astro'
 
-// Data
 import { getCollection, render  } from 'astro:content'
 export async function getStaticPaths() {
 	const blogEntries = await getCollection('blog')

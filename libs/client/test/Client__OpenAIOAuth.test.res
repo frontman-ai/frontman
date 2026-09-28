@@ -3,42 +3,10 @@ open Vitest
 module Reducer = Client__State__StateReducer
 module Types = Client__State__Types
 
-// Helper to build a state with a specific openaiOAuthStatus
 let _makeState = (~openaiOAuthStatus: Types.openaiOAuthStatus): Types.state => {
-  {
-    tasks: Dict.make(),
-    currentTask: Types.Task.New(Types.Task.makeNew(~previewUrl="http://localhost:3000")),
-    acpSession: NoAcpSession,
-    sessionInitialized: false,
-    userProfile: None,
-    settingsModalTab: None,
-    billingStatus: Client__Billing.NotLoaded,
-    openrouterKeySettings: {
-      source: Types.None,
-      saveStatus: Types.Idle,
-    },
-    anthropicKeySettings: {
-      source: Types.None,
-      saveStatus: Types.Idle,
-    },
-    fireworksKeySettings: {
-      source: Types.None,
-      saveStatus: Types.Idle,
-    },
-    nvidiaKeySettings: {
-      source: Types.None,
-      saveStatus: Types.Idle,
-    },
-    anthropicOAuthStatus: Types.NotConnected,
-    openaiOAuthStatus,
-    configOptions: None,
-    selectedModelValue: None,
-    pendingProviderAutoSelect: None,
-    sessionsLoadState: Types.SessionsNotLoaded,
-    updateInfo: None,
-    updateCheckStatus: UpdateNotChecked,
-    updateBannerDismissed: false,
-  }
+  ...Reducer.defaultState,
+  openaiOAuthStatus,
+  selectedModelValue: None,
 }
 
 let _makeShowingCodeState = (~deviceAuthId: string): Types.state => {
@@ -108,8 +76,6 @@ describe("OpenAI OAuth - Stale Poll Rejection", () => {
   })
 
   test("OpenAIOAuthError with None deviceAuthId applies unconditionally", t => {
-    // Errors from status fetch / initiate / disconnect don't carry a deviceAuthId.
-    // They should apply regardless of current state.
     let state = _makeState(~openaiOAuthStatus=Types.OpenAIWaitingForCode)
 
     let (nextState, _effects) = Reducer.next(
@@ -124,7 +90,6 @@ describe("OpenAI OAuth - Stale Poll Rejection", () => {
   })
 
   test("OpenAIOAuthError with Some(id) is ignored when state is already Connected", t => {
-    // Simulate: user completed auth (Connected), but an old poll loop dispatches an error.
     let state = _makeState(~openaiOAuthStatus=Types.OpenAIConnected({expiresAt: 99999.0}))
 
     let (nextState, _effects) = Reducer.next(
@@ -137,7 +102,6 @@ describe("OpenAI OAuth - Stale Poll Rejection", () => {
   })
 
   test("OpenAIOAuthConnected is ignored when state is not ShowingCode", t => {
-    // Simulate: user disconnected while old poll was running, then old poll returns "connected"
     let state = _makeState(~openaiOAuthStatus=Types.OpenAINotConnected)
 
     let (nextState, _effects) = Reducer.next(
@@ -152,13 +116,8 @@ describe("OpenAI OAuth - Stale Poll Rejection", () => {
 
 describe("OpenAI OAuth - Retry Flow", () => {
   test("full retry scenario: old poll cannot corrupt new flow", t => {
-    // 1. Start first auth flow
     let state = _makeShowingCodeState(~deviceAuthId="first-device")
 
-    // 2. Simulate "Try again": user restarts flow, server returns new device code.
-    //    We skip InitiateOpenAIOAuth (requires AcpSession) and jump straight to
-    //    the new device code arriving — the important part is that the reducer
-    //    correctly rejects stale results from the first flow.
     let (state, _) = Reducer.next(
       state,
       OpenAIDeviceCodeReceived({
@@ -174,7 +133,6 @@ describe("OpenAI OAuth - Retry Flow", () => {
     | _ => JsExn.throw("Expected OpenAIShowingCode with second-device")
     }
 
-    // 4. Old poll loop times out and dispatches error with first device's ID
     let (state, _) = Reducer.next(
       state,
       OpenAIOAuthError({
@@ -183,7 +141,6 @@ describe("OpenAI OAuth - Retry Flow", () => {
       }),
     )
 
-    // 5. State must STILL be ShowingCode with second-device — NOT Error
     switch state.openaiOAuthStatus {
     | Types.OpenAIShowingCode({deviceAuthId, userCode}) => {
         t->expect(deviceAuthId)->Expect.toBe("second-device")
@@ -195,7 +152,6 @@ describe("OpenAI OAuth - Retry Flow", () => {
       ->Expect.toBe("stale error from first flow overwrote state")
     }
 
-    // 6. New poll succeeds with correct deviceAuthId
     let (state, _) = Reducer.next(
       state,
       OpenAIOAuthConnected({deviceAuthId: "second-device", expiresAt: "2026-12-31T00:00:00Z"}),

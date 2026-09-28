@@ -1,3 +1,1 @@
-open WebAPI
-
-URL.make(~url="/foo", ~base="https://bar.com")->ignore
+let url = URL.make(~url="/foo", ~base="https://bar.com")

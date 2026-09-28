@@ -6,11 +6,10 @@
 
 defmodule FrontmanServer.Tasks.Interaction do
   @moduledoc """
-  Domain interaction types for the LLM agent system.
+  Persisted timeline record types for a task.
 
-  Interactions represent domain events that occur during a task's lifecycle.
-  These are stored as the source of truth, while streaming tokens are ephemeral
-  transport mechanisms for real-time UX.
+  The timeline stores user messages, execution state, agent responses, tool
+  activity, and project context. Streaming chunks are ephemeral.
   """
 
   @interaction_modules [
@@ -21,6 +20,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     __MODULE__.AgentError,
     __MODULE__.AgentPaused,
     __MODULE__.AgentRetry,
+    __MODULE__.SkillUsed,
     __MODULE__.ToolCall,
     __MODULE__.ToolResult,
     __MODULE__.DiscoveredProjectRule,
@@ -193,6 +193,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :title, :string
       field :color_scheme, :string
       field :scroll_y, :integer
+      field :astro_client_routing, :string
     end
 
     def changeset(%__MODULE__{} = current_page, attrs) do
@@ -203,29 +204,15 @@ defmodule FrontmanServer.Tasks.Interaction do
         :device_pixel_ratio,
         :title,
         :color_scheme,
-        :scroll_y
+        :scroll_y,
+        :astro_client_routing
       ])
+      |> validate_inclusion(:astro_client_routing, ["enabled", "disabled", "unavailable"])
     end
 
-    def attrs_from_acp_meta(meta) when is_map(meta) do
-      case CurrentPageContext.fields_from_current_page_meta(meta) do
-        %{url: url} = fields ->
-          %{
-            url: url,
-            viewport_width: fields.viewport_width,
-            viewport_height: fields.viewport_height,
-            device_pixel_ratio: fields.device_pixel_ratio,
-            title: fields.title,
-            color_scheme: fields.color_scheme,
-            scroll_y: fields.scroll_y
-          }
-
-        nil ->
-          nil
-      end
-    end
-
-    def attrs_from_acp_meta(_), do: nil
+    defdelegate attrs_from_acp_meta(meta),
+      to: CurrentPageContext,
+      as: :fields_from_current_page_meta
   end
 
   defmodule Annotation do
@@ -252,8 +239,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :component_name, :string
       field :component_props, :map
       embeds_one :parent, ParentLocation
-      field :css_classes, :string
-      field :nearby_text, :string
       field :metadata, :map, default: %{}
       embeds_one :bounding_box, BoundingBox
       embeds_one :screenshot, Screenshot
@@ -272,8 +257,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         :column,
         :component_name,
         :component_props,
-        :css_classes,
-        :nearby_text,
         :metadata
       ])
       |> cast_embed(:parent, with: &ParentLocation.changeset/2)
@@ -291,11 +274,9 @@ defmodule FrontmanServer.Tasks.Interaction do
       comment
       component_name
       component_props
-      css_classes
       file
       line
       metadata
-      nearby_text
       parent
       screenshot
       selector
@@ -315,8 +296,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         component_name: data["component_name"],
         component_props: data["component_props"],
         parent: data["parent"],
-        css_classes: data["css_classes"],
-        nearby_text: data["nearby_text"],
         metadata: metadata_from_map(data),
         bounding_box: data["bounding_box"],
         screenshot: data["screenshot"]
@@ -357,6 +336,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     Represents a message sent by the user.
 
     All fields are extracted from content blocks at creation time:
+    - `agent_id` - selected product agent id
     - `messages` - array of text messages from the user
     - `annotations` - list of annotated elements (replaces selected_component)
     - `current_page` - page context (URL, viewport, DPR, title, color scheme, scroll)
@@ -366,7 +346,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     import Ecto.Changeset
 
     embedded_schema do
+      field :agent_id, :string
       field :model, :string
+      field :selected_server_skill_id, :binary_id
+      field :selected_server_skill_name, :string
+      field :selected_server_skill_content, :string
       field :messages, {:array, :string}, default: []
       embeds_many :annotations, Annotation
       embeds_one :selected_figma_node, FigmaNode
@@ -377,17 +361,27 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     def changeset(%__MODULE__{} = user_message, attrs) do
       user_message
-      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :model, :messages])
+      |> Interaction.cast_timestamped(attrs, [
+        :id,
+        :timestamp,
+        :agent_id,
+        :model,
+        :selected_server_skill_id,
+        :selected_server_skill_name,
+        :selected_server_skill_content,
+        :messages
+      ])
       |> cast_embed(:annotations, with: &Annotation.changeset/2)
       |> cast_embed(:selected_figma_node, with: &FigmaNode.changeset/2)
       |> cast_embed(:images, with: &UserImage.changeset/2)
       |> cast_embed(:current_page, with: &CurrentPage.changeset/2)
     end
 
-    def attrs(content_blocks, model \\ nil) do
+    def attrs(content_blocks, model \\ nil, agent_id \\ nil) do
       with {:ok, messages} <- extract_messages(content_blocks) do
         {:ok,
          %{
+           agent_id: agent_id,
            model: model,
            messages: messages,
            annotations: extract_annotations(content_blocks),
@@ -398,7 +392,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    # Extract text messages from content blocks
     defp extract_messages(content_blocks) do
       content_blocks
       |> Enum.reduce_while({:ok, []}, fn
@@ -420,15 +413,12 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    # Extract annotations from content blocks.
-    # Annotations are resource blocks with _meta.annotation: true.
-    # Screenshots are paired by annotation_id via _meta.annotation_screenshot: true.
     defp extract_annotations(content_blocks) do
       screenshot_map = extract_screenshot_map(content_blocks)
 
       content_blocks
       |> Enum.filter(&annotation_block?/1)
-      |> Enum.map(fn %{"type" => "resource", "resource" => %{"_meta" => meta}} ->
+      |> Enum.map(fn %{"type" => "resource", "_meta" => meta} ->
         Annotation.from_meta(meta, screenshot_map)
       end)
       |> Enum.sort_by(& &1.annotation_index)
@@ -436,25 +426,26 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp annotation_block?(%{
            "type" => "resource",
-           "resource" => %{"_meta" => %{"annotation" => true}}
+           "_meta" => %{"annotation" => true}
          }),
          do: true
 
     defp annotation_block?(_), do: false
 
-    # Collect screenshot blobs indexed by annotation_id
     defp extract_screenshot_map(content_blocks) do
       content_blocks
       |> Enum.filter(&annotation_screenshot_block?/1)
-      |> Enum.reduce(%{}, fn %{"type" => "resource", "resource" => resource}, acc ->
-        annotation_id = get_in(resource, ["_meta", "annotation_id"])
-        inner = Map.get(resource, "resource", %{})
-
-        case {annotation_id, inner["blob"]} do
+      |> Enum.reduce(%{}, fn %{
+                               "type" => "resource",
+                               "_meta" => meta,
+                               "resource" => resource
+                             },
+                             acc ->
+        case {meta["annotation_id"], resource["blob"]} do
           {annotation_id, blob} when is_binary(annotation_id) and is_binary(blob) ->
             Map.put(acc, annotation_id, %{
               "blob" => blob,
-              "mime_type" => inner["mimeType"] || "image/jpeg"
+              "mime_type" => resource["mimeType"] || "image/jpeg"
             })
 
           {_annotation_id, _blob} ->
@@ -465,7 +456,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp annotation_screenshot_block?(%{
            "type" => "resource",
-           "resource" => %{"_meta" => %{"annotation_screenshot" => true}}
+           "_meta" => %{"annotation_screenshot" => true}
          }),
          do: true
 
@@ -475,10 +466,8 @@ defmodule FrontmanServer.Tasks.Interaction do
       Enum.find_value(content_blocks, fn
         %{
           "type" => "resource",
-          "resource" => %{
-            "_meta" => %{"figma_node" => true, "node_id" => node_id} = meta,
-            "resource" => %{"text" => text}
-          }
+          "_meta" => %{"figma_node" => true, "node_id" => node_id} = meta,
+          "resource" => %{"text" => text}
         }
         when is_binary(text) and is_binary(node_id) ->
           is_dsl = Map.get(meta, "is_dsl", true)
@@ -495,18 +484,15 @@ defmodule FrontmanServer.Tasks.Interaction do
       end)
     end
 
-    # Extract Figma image blob from content blocks
     defp extract_figma_image_blob(content_blocks) do
       Enum.find_value(content_blocks, fn
-        %{"type" => "resource", "resource" => resource} ->
-          case resource do
-            %{"_meta" => %{"figma_image" => true}, "resource" => %{"blob" => blob}}
-            when is_binary(blob) ->
-              blob
-
-            _ ->
-              nil
-          end
+        %{
+          "type" => "resource",
+          "_meta" => %{"figma_image" => true},
+          "resource" => %{"blob" => blob}
+        }
+        when is_binary(blob) ->
+          blob
 
         _ ->
           nil
@@ -515,7 +501,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp extract_current_page(content_blocks) do
       Enum.find_value(content_blocks, fn
-        %{"type" => "resource", "resource" => %{"_meta" => meta}} ->
+        %{"type" => "resource", "_meta" => meta} ->
           CurrentPage.attrs_from_acp_meta(meta)
 
         _ ->
@@ -526,24 +512,19 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp extract_user_images(content_blocks) do
       content_blocks
       |> Enum.filter(&user_image_block?/1)
-      |> Enum.map(fn %{"type" => "resource", "resource" => resource} ->
-        inner = Map.get(resource, "resource", %{})
-        meta = Map.get(resource, "_meta", %{})
-
-        # UserImage fields come from both _meta (filename) and inner resource (blob, mimeType, uri).
-        # Merge into the embedded schema attrs.
+      |> Enum.map(fn %{"type" => "resource", "_meta" => meta, "resource" => resource} ->
         %{
-          "blob" => inner["blob"] || "",
-          "mime_type" => inner["mimeType"] || "image/png",
+          "blob" => resource["blob"] || "",
+          "mime_type" => resource["mimeType"] || "image/png",
           "filename" => meta["filename"] || "attachment",
-          "uri" => inner["uri"]
+          "uri" => resource["uri"]
         }
       end)
     end
 
     defp user_image_block?(%{
            "type" => "resource",
-           "resource" => %{"_meta" => %{"user_image" => true}}
+           "_meta" => %{"user_image" => true}
          }),
          do: true
 
@@ -602,7 +583,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
       case usage do
         nil -> attrs
-        usage -> Map.put(attrs, :usage, usage_params(usage))
+        usage -> Map.put(attrs, :usage, usage)
       end
     end
 
@@ -641,7 +622,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     defp usage_changeset(%__MODULE__.Usage{} = usage, attrs) do
-      changeset = cast(usage, attrs, @usage_fields)
+      changeset = cast(usage, usage_params(attrs), @usage_fields)
 
       Enum.reduce(@usage_fields, changeset, fn field, acc ->
         validate_number(acc, field, greater_than_or_equal_to: 0)
@@ -675,9 +656,26 @@ defmodule FrontmanServer.Tasks.Interaction do
       end
     end
 
-    defp usage_params(%__MODULE__.Usage{} = usage), do: Map.from_struct(usage)
-    defp usage_params(usage) when is_map(usage), do: usage
+    defp usage_params(%__MODULE__.Usage{} = usage),
+      do: usage |> Map.from_struct() |> usage_params()
+
+    defp usage_params(usage) when is_map(usage) do
+      Enum.reduce(@usage_fields, %{}, fn field, acc ->
+        case usage_value(usage, field) do
+          {:ok, value} -> Map.put(acc, field, value)
+          :error -> acc
+        end
+      end)
+    end
+
     defp usage_params(usage), do: usage
+
+    defp usage_value(usage, field) do
+      case Map.fetch(usage, field) do
+        {:ok, value} -> {:ok, value}
+        :error -> Map.fetch(usage, Atom.to_string(field))
+      end
+    end
 
     defp llm_response_metadata(response) do
       meta = response.metadata || %{}
@@ -715,15 +713,18 @@ defmodule FrontmanServer.Tasks.Interaction do
     use Ecto.Schema
     import Ecto.Changeset
 
+    @fields [:agent_id, :user_message_ids]
+
     embedded_schema do
+      field :agent_id, :string
       field :user_message_ids, {:array, :string}
       field :timestamp, :utc_datetime_usec
     end
 
     def changeset(%__MODULE__{} = turn_started, attrs) do
       turn_started
-      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :user_message_ids])
-      |> validate_required([:user_message_ids])
+      |> Interaction.cast_timestamped(attrs, [:id, :timestamp | @fields])
+      |> validate_required(@fields)
       |> validate_length(:user_message_ids, min: 1)
     end
   end
@@ -749,7 +750,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Represents an agent execution ending with an error (failed, crashed, or cancelled).
 
-    Persisted so that reconnecting clients see the terminal interaction for every agent run,
+    Persisted so that reconnecting clients see the terminal interaction for every execution,
     even when the channel process was dead when the error occurred.
     """
 
@@ -795,9 +796,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defmodule AgentPaused do
     @moduledoc """
-    Recorded when the agent loop is paused due to a tool timeout with
-    `on_timeout: :pause_agent`. Stored as an interaction so reconnecting
-    clients and the debug-task tool can see why the agent stopped.
+    Historical terminal outcome for timeout-driven pauses.
+    Retained for replay; interactive waits no longer produce this event.
     """
 
     use Ecto.Schema
@@ -831,6 +831,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :tool_call_id, :string
       field :tool_name, :string
       field :arguments, :map
+      field :execution_mode, Ecto.Enum, values: [:synchronous, :interactive]
       field :timestamp, :utc_datetime_usec
     end
 
@@ -840,18 +841,29 @@ defmodule FrontmanServer.Tasks.Interaction do
         :tool_call_id,
         :tool_name,
         :arguments,
+        :execution_mode,
         :timestamp
       ])
+      |> Ecto.Changeset.validate_required([:execution_mode])
     end
 
-    def attrs(%SwarmAi.ToolCall{} = tc) do
+    @doc "Historical rows lack a mode snapshot. Only legacy question calls recover as interactive."
+    def execution_mode(%__MODULE__{execution_mode: nil, tool_name: "question"}), do: :interactive
+    def execution_mode(%__MODULE__{execution_mode: nil}), do: :synchronous
+    def execution_mode(%__MODULE__{execution_mode: mode}), do: mode
+
+    def attrs(%SwarmAi.ToolCall{} = tc, execution_mode)
+        when execution_mode in [:synchronous, :interactive] do
+      tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+
       case SwarmAi.ToolCall.parse_arguments(tc) do
         {:ok, arguments} ->
           {:ok,
            %{
              tool_call_id: tc.id,
              tool_name: tc.name,
-             arguments: SwarmAi.SchemaTransformer.strip_nulls(arguments)
+             arguments: arguments,
+             execution_mode: execution_mode
            }}
 
         {:error, message} ->
@@ -866,6 +878,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     """
 
     use Ecto.Schema
+    import Ecto.Changeset
 
     embedded_schema do
       field :tool_call_id, :string
@@ -876,23 +889,104 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = tool_result, attrs) do
-      Interaction.cast_timestamped(tool_result, attrs, [
+      tool_result
+      |> Interaction.cast_timestamped(attrs, [
         :id,
         :tool_call_id,
         :tool_name,
         :result,
-        :is_error,
         :timestamp
       ])
+      |> scrub_result_metadata()
+      |> derive_is_error()
+      |> validate_change(:result, &validate_result/2)
+      |> validate_required([:tool_call_id, :tool_name, :result, :is_error])
     end
 
-    def attrs(tool_call_data, result, is_error \\ false) do
+    @spec attrs(map(), term()) :: map()
+    def attrs(tool_call_data, result) do
       %{
         tool_call_id: tool_call_data.id,
         tool_name: tool_call_data.name,
-        result: result,
-        is_error: is_error
+        result: result
       }
+    end
+
+    defp scrub_result_metadata(changeset) do
+      case get_change(changeset, :result) do
+        %{} = result ->
+          put_change(changeset, :result, scrub_result_metadata_value(result))
+
+        _missing_or_invalid ->
+          changeset
+      end
+    end
+
+    defp scrub_result_metadata_value(result) do
+      result
+      |> Map.take(["content", "structuredContent", "isError"])
+      |> Map.put_new("isError", false)
+      |> Map.put("_meta", %{})
+    end
+
+    defp derive_is_error(changeset) do
+      case get_field(changeset, :result) do
+        %{"isError" => true} -> put_change(changeset, :is_error, true)
+        %{} -> put_change(changeset, :is_error, false)
+        _missing_or_invalid -> changeset
+      end
+    end
+
+    defp validate_result(:result, %{"content" => content}) when is_list(content) do
+      case Enum.find(content, fn
+             %{"type" => "image", "data" => data} -> Base.decode64(data) == :error
+             _content -> false
+           end) do
+        nil -> []
+        _invalid_image -> [result: "contains invalid base64 image data"]
+      end
+    end
+
+    defp validate_result(:result, _result), do: []
+  end
+
+  defmodule SkillUsed do
+    @moduledoc "Records a skill explicitly selected for a task turn."
+
+    alias FrontmanServer.Skills.Skill
+
+    use Ecto.Schema
+
+    @primary_key false
+    embedded_schema do
+      field :id, :string
+      field :timestamp, :utc_datetime_usec
+      field :user_message_id, :binary_id
+      field :skill_id, :binary_id
+      field :skill_name, :string
+      field :skill_content, :string
+    end
+
+    def build(%Skill{} = skill, user_message_id) when is_binary(user_message_id) do
+      %__MODULE__{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        user_message_id: user_message_id,
+        skill_id: skill.id,
+        skill_name: skill.name,
+        skill_content: skill.content
+      }
+    end
+
+    def changeset(%__MODULE__{} = skill_used, attrs) do
+      Interaction.cast_timestamped(skill_used, attrs, [
+        :id,
+        :timestamp,
+        :user_message_id,
+        :skill_id,
+        :skill_name,
+        :skill_content
+      ])
     end
   end
 
@@ -906,6 +1000,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     use Ecto.Schema
 
+    @content_bytes_limit 64 * 1024
+
     @primary_key false
     embedded_schema do
       field :path, :string
@@ -914,7 +1010,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = discovered_project_rule, attrs) do
-      Interaction.cast_timestamped(discovered_project_rule, attrs, [:path, :content, :timestamp])
+      discovered_project_rule
+      |> Interaction.cast_timestamped(attrs, [:path, :content, :timestamp])
+      |> Ecto.Changeset.validate_length(:path, count: :bytes, max: @content_bytes_limit)
+      |> Ecto.Changeset.validate_length(:content, count: :bytes, max: @content_bytes_limit)
     end
   end
 
@@ -928,6 +1027,8 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     use Ecto.Schema
 
+    @summary_bytes_limit 512 * 1024
+
     @primary_key false
     embedded_schema do
       field :summary, :string
@@ -935,7 +1036,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = discovered_project_structure, attrs) do
-      Interaction.cast_timestamped(discovered_project_structure, attrs, [:summary, :timestamp])
+      discovered_project_structure
+      |> Interaction.cast_timestamped(attrs, [:summary, :timestamp])
+      |> Ecto.Changeset.validate_length(:summary, count: :bytes, max: @summary_bytes_limit)
     end
   end
 
@@ -963,6 +1066,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       messages: value.messages,
       timestamp: timestamp_json(value.timestamp),
       annotations: Enum.map(value.annotations, &annotation_json_map/1),
+      current_page: value.current_page,
       selected_figma_node: selected_figma_node_json_map(value.selected_figma_node),
       images: Enum.map(value.images, &user_image_json_map/1)
     }
@@ -987,8 +1091,6 @@ defmodule FrontmanServer.Tasks.Interaction do
       component_name: ann.component_name,
       component_props: ann.component_props,
       parent: ann.parent,
-      css_classes: ann.css_classes,
-      nearby_text: ann.nearby_text,
       bounding_box: ann.bounding_box,
       screenshot: ann.screenshot
     }
@@ -1046,14 +1148,33 @@ defmodule FrontmanServer.Tasks.Interaction do
   tool results) regardless of database insertion timing.
   """
   def to_swarm_messages(interactions) when is_list(interactions) do
-    Enum.flat_map(interactions, &to_swarm_message/1)
+    skills =
+      for %SkillUsed{} = skill <- interactions,
+          into: %{},
+          do: {skill.user_message_id, SwarmContentPart.text(active_skill_text(skill))}
+
+    Enum.flat_map(interactions, fn
+      %UserMessage{} = msg ->
+        [message] = to_swarm_message(msg)
+        [%{message | content: List.wrap(Map.get(skills, msg.id)) ++ message.content}]
+
+      interaction ->
+        to_swarm_message(interaction)
+    end)
   end
 
-  defp to_swarm_message(%UserMessage{} = msg) do
-    prompt_text = user_prompt_text(msg)
-    content_parts = build_user_content_parts(prompt_text, msg)
+  defp to_swarm_message(%SkillUsed{}), do: []
 
-    [build_swarm_user_message(content_parts)]
+  defp to_swarm_message(%UserMessage{} = msg) do
+    message =
+      msg
+      |> user_prompt_text()
+      |> text_parts()
+      |> append_annotation_screenshot_parts(msg.annotations)
+      |> append_user_attachment_parts(msg.images)
+      |> build_swarm_user_message()
+
+    [message]
   end
 
   defp to_swarm_message(
@@ -1062,7 +1183,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       %SwarmMessage.Assistant{
         content: [],
-        tool_calls: swarm_tool_calls(meta["tool_calls"]),
+        tool_calls: to_swarm_tool_calls(meta["tool_calls"]),
         metadata: swarm_metadata(msg),
         reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
       }
@@ -1076,17 +1197,18 @@ defmodule FrontmanServer.Tasks.Interaction do
     [
       %SwarmMessage.Assistant{
         content: [SwarmContentPart.text(content)],
-        tool_calls: swarm_tool_calls(meta["tool_calls"]),
+        tool_calls: to_swarm_tool_calls(meta["tool_calls"]),
         metadata: swarm_metadata(msg),
         reasoning_details: filter_encrypted_reasoning(meta["reasoning_details"])
       }
     ]
   end
 
-  defp to_swarm_message(%ToolResult{result: %{"content" => [_ | _] = content}} = result) do
+  defp to_swarm_message(%ToolResult{result: %{"content" => content}} = result)
+       when is_list(content) do
     [
       %SwarmMessage.Tool{
-        content: Enum.map(content, &tool_result_content_part/1),
+        content: tool_result_content_parts(result.result),
         tool_call_id: result.tool_call_id,
         name: result.tool_name
       }
@@ -1102,6 +1224,10 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp to_swarm_message(%DiscoveredProjectRule{}), do: []
   defp to_swarm_message(%DiscoveredProjectStructure{}), do: []
 
+  defp active_skill_text(%SkillUsed{} = skill_used) do
+    "## Active Skill: #{skill_used.skill_name}\n\nUse this expert lens for this turn.\n\n#{skill_used.skill_content}"
+  end
+
   def user_prompt_text(%UserMessage{} = msg) do
     msg.messages
     |> Enum.join("\n\n")
@@ -1110,15 +1236,13 @@ defmodule FrontmanServer.Tasks.Interaction do
     |> append_attachment_context(msg.images)
   end
 
-  defp build_user_content_parts(prompt_text, %UserMessage{} = msg) do
-    prompt_text
-    |> text_parts()
-    |> append_annotation_screenshot_parts(msg.annotations)
-    |> append_user_attachment_parts(msg.images)
-  end
-
   defp text_parts(""), do: []
   defp text_parts(text), do: [SwarmContentPart.text(text)]
+
+  @doc "Projects MCP tool-result content into Swarm content parts."
+  def tool_result_content_parts(%{"content" => content}) when is_list(content) do
+    Enum.map(content, &tool_result_content_part/1)
+  end
 
   defp tool_result_content_part(%{"type" => "text", "text" => text}),
     do: SwarmContentPart.text(text)
@@ -1215,10 +1339,10 @@ defmodule FrontmanServer.Tasks.Interaction do
       annotation_string_field(ann.component_name, "Component"),
       annotation_string_field(ann.comment, "Comment"),
       annotation_string_field(ann.selector, "CSS Selector"),
-      annotation_string_field(ann.css_classes, "CSS Classes"),
-      annotation_string_field(ann.nearby_text, "Nearby Text"),
+      annotation_metadata_field(ann.metadata, "element_context", "Element Context"),
       annotation_bbox_field(ann.bounding_box),
       annotation_props_field(ann.component_props),
+      annotation_metadata_field(ann.metadata, "source_location_error", "Source Location Error"),
       annotation_parent_field(ann.parent)
     ]
     |> Enum.join()
@@ -1236,6 +1360,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     do: "\n  Props: #{Jason.encode!(props, pretty: false)}"
 
   defp annotation_props_field(_), do: ""
+
+  defp annotation_metadata_field(metadata, key, label) when is_map(metadata),
+    do: annotation_string_field(metadata[key], label)
+
+  defp annotation_metadata_field(_, _, _), do: ""
 
   defp annotation_parent_field(nil), do: ""
   defp annotation_parent_field(parent), do: "\n  Parent: #{format_parent_chain(parent, 1)}"
@@ -1292,10 +1421,10 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defp append_attachment_context(text, _), do: text
 
-  defp swarm_tool_calls(nil), do: []
-  defp swarm_tool_calls([]), do: []
+  @doc "Converts persisted tool-call records into Swarm tool calls."
+  def to_swarm_tool_calls(nil), do: []
 
-  defp swarm_tool_calls(tool_calls) when is_list(tool_calls) do
+  def to_swarm_tool_calls(tool_calls) when is_list(tool_calls) do
     Enum.map(tool_calls, &swarm_tool_call/1)
   end
 

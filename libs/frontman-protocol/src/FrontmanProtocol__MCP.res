@@ -1,172 +1,399 @@
-// MCP Protocol Types
+let protocolVersion = "2026-07-28"
 
-// Protocol version constant
-let protocolVersion = "2025-11-25"
+let ttlMsSchema = S.int->S.min(0)
 
-// Capabilities
-@schema
-type capabilities = {
-  tools: option<Dict.t<JSON.t>>,
-  resources: option<Dict.t<JSON.t>>,
-  prompts: option<Dict.t<JSON.t>>,
-}
+@scope("Number") @val
+external numberIsInteger: float => bool = "isInteger"
 
-// Client/Server info
+let ttlMsWireSchema =
+  S.float
+  ->S.refine(
+    value => value >= 0. && numberIsInteger(value),
+    ~error="Expected a nonnegative integer",
+  )
+  ->S.extendJSONSchema({minimum: 0., multipleOf: 1.})
+
+let jsonObjectShapeSchema = S.object(s => s.flatten(S.dict(S.json))->JSON.Encode.object)
+let extensionIdentifierPattern = /^[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*\/(?:[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)?$/
+let extensionsSchema =
+  S.dict(S.json)
+  ->S.refine(extensions =>
+    extensions
+    ->Dict.keysToArray
+    ->Array.every(key => extensionIdentifierPattern->RegExp.test(key)) &&
+      extensions
+      ->Dict.valuesToArray
+      ->Array.every(value => value->JSON.Decode.object->Option.isSome)
+  , ~error="Expected valid extension identifiers")
+  ->S.extendJSONSchema({
+    additionalProperties: JSONSchema.Schema(jsonObjectShapeSchema->S.toJSONSchema),
+    propertyNames: JSONSchema.Schema(
+      S.string->S.pattern(extensionIdentifierPattern)->S.toJSONSchema,
+    ),
+  })
+
 @schema
 type info = {
   name: string,
+  title?: string,
   version: string,
+  description?: string,
 }
 
-// Initialize params (sent by client/agent)
 @schema
-type initializeParams = {
-  protocolVersion: string,
-  capabilities: capabilities,
-  clientInfo: info,
-}
+type extension = {version: @s.matches(S.literal(1)) int}
 
-// Initialize result (sent by server/browser)
 @schema
-type initializeResult = {
-  protocolVersion: string,
-  capabilities: capabilities,
-  serverInfo: info,
+type frontmanExtensions = {
+  @as("ai.frontman/execution-context") executionContext: extension,
+  @as("ai.frontman/tool-metadata") toolMetadata: extension,
 }
 
-// Tool call params
+@schema
+type requiredFrontmanExtensions = {
+  @as("ai.frontman/execution-context") executionContext: extension,
+}
+
+@schema
+type clientCapabilities = {
+  extensions: option<@s.matches(extensionsSchema) Dict.t<JSON.t>>,
+}
+
+@schema
+type executionContext = {
+  taskId: @s.matches(S.string->S.min(1)) string,
+  callId: @s.matches(S.string->S.min(1)) string,
+}
+
+@schema
+type requestMeta = {
+  @as("io.modelcontextprotocol/protocolVersion")
+  protocolVersion: string,
+  @as("io.modelcontextprotocol/clientCapabilities")
+  clientCapabilities: clientCapabilities,
+  @as("io.modelcontextprotocol/clientInfo")
+  clientInfo: option<info>,
+  @as("ai.frontman/execution-context")
+  executionContext: option<executionContext>,
+}
+
+@schema
+type discoverParams = {_meta: requestMeta}
+
+@schema
+type toolsCapability = {listChanged: bool}
+
+@schema
+type serverCapabilities = {
+  tools: toolsCapability,
+  extensions: frontmanExtensions,
+}
+
+@schema
+type resultMeta = {
+  @as("io.modelcontextprotocol/serverInfo") serverInfo: info,
+}
+
+@schema
+type discoverResult = {
+  resultType: @s.matches(S.literal("complete")) string,
+  supportedVersions: array<@s.matches(S.literal("2026-07-28")) string>,
+  capabilities: serverCapabilities,
+  ttlMs: @s.matches(ttlMsSchema) int,
+  cacheScope: @s.matches(S.literal("private")) string,
+  _meta: resultMeta,
+}
+
+let toolsCapabilityWireSchema = S.object(s => {
+  s.field("listChanged", S.option(S.bool))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let serverCapabilitiesWireSchema = S.object(s => {
+  s.field("tools", S.option(toolsCapabilityWireSchema))->ignore
+  s.field("extensions", S.option(extensionsSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let resultMetaWireSchema = S.object(s => {
+  s.field("io.modelcontextprotocol/serverInfo", S.option(infoSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let cacheScopeWireSchema = S.union([S.literal("public"), S.literal("private")])
+
+let preservingJson = schema =>
+  S.json
+  ->S.transform(_ => {
+    parser: json => {
+      json->S.parseOrThrow(~to=schema)->ignore
+      json
+    },
+    serializer: json => {
+      json->S.parseOrThrow(~to=schema)->ignore
+      json
+    },
+  })
+  ->S.extendJSONSchema(schema->S.toJSONSchema)
+
+let discoverResultWireShapeSchema = S.object(s => {
+  s.field("resultType", S.literal("complete"))->ignore
+  s.field("supportedVersions", S.array(S.string))->ignore
+  s.field("capabilities", serverCapabilitiesWireSchema)->ignore
+  s.field("instructions", S.option(S.string))->ignore
+  s.field("ttlMs", ttlMsWireSchema)->ignore
+  s.field("cacheScope", cacheScopeWireSchema)->ignore
+  s.field("_meta", S.option(resultMetaWireSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+let discoverResultWireSchema = preservingJson(discoverResultWireShapeSchema)
+
+@schema
+type toolsListParams = {_meta: requestMeta, cursor: option<string>}
+
 @schema
 type toolCallParams = {
-  callId: string,
+  _meta: requestMeta,
   name: string,
   arguments: option<Dict.t<JSON.t>>,
 }
 
-// Tool result content
-type textContent = {text: string}
-type imageContent = {data: string, mimeType: string}
+type metadataError = UnsupportedProtocolVersion(string)
 
-type toolResultContent =
-  | TextContent(textContent)
-  | ImageContent(imageContent)
+let validateRequestMeta = meta =>
+  switch meta.protocolVersion == protocolVersion {
+  | true => Ok()
+  | false => Error(UnsupportedProtocolVersion(meta.protocolVersion))
+  }
 
-let toolResultContentSchema = S.union([
-  S.object(s => {
-    s.tag("type", "text")
-    TextContent({text: s.field("text", S.string)})
-  }),
-  S.object(s => {
-    s.tag("type", "image")
-    ImageContent({data: s.field("data", S.string), mimeType: s.field("mimeType", S.string)})
-  }),
-])
+type toolCallValidationError =
+  | ToolCallMetadata(metadataError)
+  | MissingExecutionContextCapability
+  | MissingExecutionContext
+  | WrongTask
 
-// Tool error
-@schema
-type toolError = {
-  code: int,
-  message: string,
+module AuthorizedToolCall: {
+  type t
+  let authorize: (toolCallParams, ~sessionId: string) => result<t, toolCallValidationError>
+  let name: t => string
+  let arguments: t => option<Dict.t<JSON.t>>
+  let taskId: t => string
+  let callId: t => string
+} = {
+  type t = {
+    name: string,
+    arguments: option<Dict.t<JSON.t>>,
+    taskId: string,
+    callId: string,
+  }
+
+  let hasExecutionContextCapability = (capabilities: clientCapabilities) =>
+    switch capabilities.extensions->Option.flatMap(extensions =>
+      extensions->Dict.get("ai.frontman/execution-context")
+    ) {
+    | Some(settings) =>
+      try {
+        settings->S.parseOrThrow(~to=extensionSchema)->ignore
+        true
+      } catch {
+      | _ => false
+      }
+    | None => false
+    }
+
+  let authorize = ({_meta, name, arguments}, ~sessionId) =>
+    switch validateRequestMeta(_meta) {
+    | Error(error) => Error(ToolCallMetadata(error))
+    | Ok() if !hasExecutionContextCapability(_meta.clientCapabilities) =>
+      Error(MissingExecutionContextCapability)
+    | Ok() =>
+      switch _meta.executionContext {
+      | None => Error(MissingExecutionContext)
+      | Some({taskId}) if taskId != sessionId => Error(WrongTask)
+      | Some({callId}) => Ok({name, arguments, taskId: sessionId, callId})
+      }
+    }
+
+  let name = toolCall => toolCall.name
+  let arguments = toolCall => toolCall.arguments
+  let taskId = toolCall => toolCall.taskId
+  let callId = toolCall => toolCall.callId
 }
 
-// Runtime context carried with tool results so the server can resume
-// agent execution with the correct provider after a server restart.
-// Serialized under MCP's _meta field (spec-compliant extension point).
 @schema
-type callToolResultMeta = {
-  model: option<FrontmanProtocol__Types.modelSelection>,
-  @as("envApiKey")
-  envApiKey: Dict.t<string>,
-}
+type unsupportedProtocolVersionData = {supported: array<string>, requested: string}
 
-let emptyMeta: callToolResultMeta = {model: None, envApiKey: Dict.make()}
+@schema
+type requiredClientCapabilities = {extensions: requiredFrontmanExtensions}
 
-// Tool call result (MCP CallToolResult spec)
+@schema
+type missingRequiredClientCapabilityData = {requiredCapabilities: requiredClientCapabilities}
+
+let unsupportedProtocolVersionDataToJson = requested =>
+  {requested, supported: [protocolVersion]}->S.decodeOrThrow(
+    ~from=unsupportedProtocolVersionDataSchema,
+    ~to=S.json->S.noValidation(true),
+  )
+
+let missingExecutionContextCapabilityDataToJson = () =>
+  {
+    requiredCapabilities: {extensions: {executionContext: {version: 1}}},
+  }->S.decodeOrThrow(
+    ~from=missingRequiredClientCapabilityDataSchema,
+    ~to=S.json->S.noValidation(true),
+  )
+
 module CallToolResult: {
   type t
   let schema: S.t<t>
+  let jsonSchema: S.t<t>
   let makeText: string => t
+  let makeTextWithStructured: (string, Dict.t<JSON.t>) => t
+  let makeStructured: Dict.t<JSON.t> => t
   let makeImage: (~data: string, ~mimeType: string) => t
   let makeError: string => t
-  let withMeta: (t, callToolResultMeta) => t
 } = {
+  @schema
   type t = {
-    content: array<toolResultContent>,
+    resultType: @s.default("complete") @s.matches(S.literal("complete")) string,
+    content: @s.matches(FrontmanProtocol__ContentBlock.arraySchema)
+    array<FrontmanProtocol__ContentBlock.t>,
     structuredContent?: JSON.t,
     isError?: bool,
-    _meta: callToolResultMeta,
+    _meta?: Dict.t<JSON.t>,
   }
 
-  let schema = S.object(s => {
-    content: s.field("content", S.array(toolResultContentSchema)),
+  let jsonSchema = S.object(s => {
+    resultType: s.field("resultType", S.literal("complete")),
+    content: s.field("content", S.array(FrontmanProtocol__ContentBlock.schema)),
     structuredContent: ?s.field("structuredContent", S.option(S.json)),
     isError: ?s.field("isError", S.option(S.bool)),
-    _meta: s.field("_meta", callToolResultMetaSchema),
+    _meta: ?s.field("_meta", S.option(S.dict(S.json))),
   })
 
   let makeText = text => {
-    content: [TextContent({text: text})],
-    _meta: emptyMeta,
+    resultType: "complete",
+    content: [TextContent({text, _meta: None, annotations: None})],
+  }
+
+  let makeStructured = json => {
+    resultType: "complete",
+    content: [
+      TextContent({text: JSON.stringify(JSON.Encode.object(json)), _meta: None, annotations: None}),
+    ],
+    structuredContent: JSON.Encode.object(json),
+  }
+
+  let makeTextWithStructured = (text, structuredContent) => {
+    resultType: "complete",
+    content: [TextContent({text, _meta: None, annotations: None})],
+    structuredContent: JSON.Encode.object(structuredContent),
   }
 
   let makeImage = (~data, ~mimeType) => {
-    content: [ImageContent({data, mimeType})],
-    _meta: emptyMeta,
+    resultType: "complete",
+    content: [ImageContent({data, mimeType, _meta: None, annotations: None})],
   }
 
   let makeError = text => {
-    content: [TextContent({text: text})],
+    resultType: "complete",
+    content: [TextContent({text, _meta: None, annotations: None})],
     isError: true,
-    _meta: emptyMeta,
   }
-
-  let withMeta = (result, meta) => {...result, _meta: meta}
 }
 
 let callToolResultSchema = CallToolResult.schema
 
-// Tools list result
-@schema
-type toolsListResult = {tools: array<JSON.t>}
+let toolMetadataSchema = S.object(s => {
+  s.field("visibleToAgent", S.option(S.bool))->ignore
+  s.field(
+    "executionMode",
+    S.option(S.union([S.literal("Synchronous"), S.literal("Interactive")])),
+  )->ignore
+  s.field(
+    "access",
+    S.option(S.union([S.literal("read"), S.literal("write"), S.literal("read-write")])),
+  )->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
 
-// Result of executing a tool — either completed immediately or suspended
-// waiting for external input (e.g. interactive tool awaiting user response).
+let toolMetaSchema = S.object(s => {
+  s.field("ai.frontman/tool-metadata", S.option(toolMetadataSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let toolInputSchema = S.object(s => {
+  s.field("type", S.literal("object"))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let iconSchema = S.object(s => {
+  s.field("src", S.string)->ignore
+  s.field("mimeType", S.option(S.string))->ignore
+  s.field("sizes", S.option(S.array(S.string)))->ignore
+  s.field("theme", S.option(S.union([S.literal("light"), S.literal("dark")])))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let toolAnnotationsSchema = S.object(s => {
+  s.field("title", S.option(S.string))->ignore
+  s.field("readOnlyHint", S.option(S.bool))->ignore
+  s.field("destructiveHint", S.option(S.bool))->ignore
+  s.field("idempotentHint", S.option(S.bool))->ignore
+  s.field("openWorldHint", S.option(S.bool))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+
+let toolJsonShapeSchema = S.object(s => {
+  s.field("name", S.string->S.min(1))->ignore
+  s.field("title", S.option(S.string))->ignore
+  s.field("description", S.option(S.string))->ignore
+  s.field("icons", S.option(S.array(iconSchema)))->ignore
+  s.field("inputSchema", toolInputSchema)->ignore
+  s.field("outputSchema", S.option(S.dict(S.json)))->ignore
+  s.field("annotations", S.option(toolAnnotationsSchema))->ignore
+  s.field("_meta", S.option(toolMetaSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+let toolJsonSchema = preservingJson(toolJsonShapeSchema)
+
+@schema
+type toolsListResult = {
+  resultType: @s.matches(S.literal("complete")) string,
+  tools: array<JSON.t>,
+  ttlMs: @s.matches(ttlMsSchema) int,
+  cacheScope: @s.matches(S.literal("private")) string,
+  _meta: resultMeta,
+}
+
+let toolsListResultWireShapeSchema = S.object(s => {
+  s.field("resultType", S.literal("complete"))->ignore
+  s.field("tools", S.array(toolJsonSchema))->ignore
+  s.field("nextCursor", S.option(S.string))->ignore
+  s.field("ttlMs", ttlMsWireSchema)->ignore
+  s.field("cacheScope", cacheScopeWireSchema)->ignore
+  s.field("_meta", S.option(resultMetaWireSchema))->ignore
+  s.flatten(S.dict(S.json))->JSON.Encode.object
+})
+let toolsListResultWireSchema = preservingJson(toolsListResultWireShapeSchema)
+
 type executeToolResult =
   | Completed(CallToolResult.t)
   | Suspended
+  | ProtocolError({code: int, message: string})
 
-// MCP Error codes
 module ErrorCode = {
+  let invalidRequest = -32600
   let invalidParams = -32602
-  let serverError = -32000
+  let serverError = -32603
   let methodNotFound = -32601
+  let missingRequiredClientCapability = -32021
+  let unsupportedProtocolVersion = -32022
 }
 
-// Server interface - runtime-compatible record for generic MCP handlers
 type serverInterface<'server> = {
   server: 'server,
-  buildInitializeResult: 'server => initializeResult,
+  buildDiscoverResult: 'server => discoverResult,
   buildToolsListResult: 'server => toolsListResult,
-  executeTool: (
-    'server,
-    ~name: string,
-    ~arguments: option<Dict.t<JSON.t>>,
-    ~taskId: string,
-    ~callId: string,
-    ~onProgress: option<string => unit>,
-  ) => promise<executeToolResult>,
-}
-
-// Server module type - implement this to create an MCP server
-module type Server = {
-  type t
-  let buildInitializeResult: t => initializeResult
-  let buildToolsListResult: t => toolsListResult
-  let executeTool: (
-    t,
-    ~name: string,
-    ~arguments: option<Dict.t<JSON.t>>=?,
-    ~taskId: string,
-    ~callId: string,
-    ~onProgress: option<string => unit>=?,
-  ) => promise<executeToolResult>
+  executeTool: ('server, AuthorizedToolCall.t) => promise<executeToolResult>,
 }

@@ -1,37 +1,50 @@
 {
   "name": "@rescript/webapi",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Experimental successor to [rescript-webapi](https://github.com/TheSpyder/rescript-webapi)",
+  "keywords": [
+    "dom",
+    "fetch",
+    "mdn",
+    "rescript",
+    "webapi"
+  ],
   "homepage": "https://rescript-lang.github.io/experimental-rescript-webapi/",
   "bugs": "https://github.com/rescript-lang/experimental-rescript-webapi/issues",
+  "license": "MIT",
+  "author": {
+    "name": "ReScript"
+  },
+  "maintainers": [
+    "Bernardo Gurgel (https://github.com/brnrdog)",
+    "Josh Vlk (https://github.com/jderochervlk)",
+    "Paul Tsnobiladzé (https://github.com/tsnobip)"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/rescript-lang/experimental-rescript-webapi.git"
   },
-  "author": {
-    "name": "Florian Verdonck"
-  },
-  "maintainers": [
-    "Florian Verdonck (https://github.com/nojaf)"
-  ],
-  "keywords": [
-    "rescript",
-    "webapi",
-    "mdn",
-    "dom",
-    "fetch"
-  ],
   "files": [
     "rescript.json",
-    "src/**/*.res"
+    "src/**/*.res",
+    "src/**/*.resi",
+    "README.md"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "test": "node tests/index.js",
-    "build": "rescript --dev"
+    "build": "rescript",
+    "format": "rescript format",
+    "format:check": "rescript format --check"
   },
-  "license": "MIT",
-  "dependencies": {
-    "rescript": "^12.3.0"
+  "devDependencies": {
+    "rescript": "catalog:"
+  },
+  "peerDependencies": {
+    "rescript": ">=12.0.0 <13"
   }
 }

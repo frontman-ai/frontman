@@ -1,5 +1,88 @@
 # @frontman-ai/frontman-client
 
+## 4.0.1
+
+### Patch Changes
+
+- [#1626](https://github.com/frontman-ai/frontman/pull/1626) [`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep WordPress v4 installations working with the hosted client by normalizing relay protocol 1.0 tool catalogs. Report project-context connection failures to Sentry and show the failure instead of an endless loading state.
+
+## 4.0.0
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Patch Changes
+
+- [#1622](https://github.com/frontman-ai/frontman/pull/1622) [`0bc42d9`](https://github.com/frontman-ai/frontman/commit/0bc42d9ce3a0cfd8d29e0bcbd758f7bf53a35ec8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Handle ACP Phoenix push replies and clean up failed initialize connections after request timeouts.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Complete embedded bearer-token authentication for client sockets, remove the legacy socket-token path, and disable credentialed API CORS.
+
+- [#1619](https://github.com/frontman-ai/frontman/pull/1619) [`e2cd5a0`](https://github.com/frontman-ai/frontman/commit/e2cd5a0099cdfbc8dd7f1d43bb29ff2cdf72c2f7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject ACP client requests after a timeout instead of leaving the UI stuck when the server never responds.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- [#1557](https://github.com/frontman-ai/frontman/pull/1557) [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve integral JSON-RPC numeric IDs above signed 32-bit range.
+
+## 3.0.0
+
+### Major Changes
+
+- [#1490](https://github.com/frontman-ai/frontman/pull/1490) [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Migrate browser MCP discovery, tool listing, and tool calls to MCP 2026-07-28.
+
+### Patch Changes
+
+- [#1491](https://github.com/frontman-ai/frontman/pull/1491) [`65b195a`](https://github.com/frontman-ai/frontman/commit/65b195ac0ee61f89a16b99bd59c762f3e3227238) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep malformed tool arguments out of diagnostic reports while retaining safe tool failure context.
+
+## 2.0.0
+
+### Major Changes
+
+- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
+
+### Patch Changes
+
+- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
+
+- [#1318](https://github.com/frontman-ai/frontman/pull/1318) [`45139a1`](https://github.com/frontman-ai/frontman/commit/45139a10873190798ada2af674f49ba4f837836f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Advertise output schemas only for browser tools that return structured content.
+
+- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
+
+- [#1393](https://github.com/frontman-ai/frontman/pull/1393) [`fe076d1`](https://github.com/frontman-ai/frontman/commit/fe076d146d405ac287fc226d11a9668bff3b1f0d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Instrument typed OAuth activation events without sending prompt or relay error details to analytics.
+
+- [#1311](https://github.com/frontman-ai/frontman/pull/1311) [`3589e66`](https://github.com/frontman-ai/frontman/commit/3589e666cd9726fd559f6a6113d1d036436861e4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unsupported provider-key injection from framework runtime HTML, client settings, ACP metadata, and MCP tool-result metadata. Tool-result persistence now strips result metadata, while account-saved BYOK and provider OAuth remain unchanged.
+
+  Make MCP tool-result `_meta` optional and generic, align WordPress results with that contract, and stop exposing the unused absolute source root to browser runtime configuration.
+
+- [#1314](https://github.com/frontman-ai/frontman/pull/1314) [`59604b7`](https://github.com/frontman-ai/frontman/commit/59604b75efebd4a11d93c9496b152ab26ab4ba83) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Share typed text, image, audio, link, and resource content across MCP and ACP.
+
+- [#1317](https://github.com/frontman-ai/frontman/pull/1317) [`5c25668`](https://github.com/frontman-ai/frontman/commit/5c25668ddf5f708b81ea19ab2dd7eb811c1f4b5a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve and generically render typed multipart MCP tool content through ACP.
+
+- [#1315](https://github.com/frontman-ai/frontman/pull/1315) [`41f323a`](https://github.com/frontman-ai/frontman/commit/41f323ae561dc0d6192aeb4bb56356efd24896d2) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured tool arguments through ACP `rawInput`.
+
+## 1.0.4
+
+### Patch Changes
+
+- [#1303](https://github.com/frontman-ai/frontman/pull/1303) [`1e04b55`](https://github.com/frontman-ai/frontman/commit/1e04b553677ed045415dde90b89cadd682860b2d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover when an agent requests a tool unavailable under its current access policy instead of crashing the task or leaving unresolved tool history.
+
+## 1.0.3
+
+### Patch Changes
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reopened tasks now show accepted follow-up prompts as normal user messages, preserving the full conversation history.
+
+- [#1189](https://github.com/frontman-ai/frontman/pull/1189) [`b3451f2`](https://github.com/frontman-ai/frontman/commit/b3451f26d47104af6f5673e4f2fcad4f81344ef9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Avoid sending empty text content blocks for attachment-only prompts.
+
+- [#1262](https://github.com/frontman-ai/frontman/pull/1262) [`f081562`](https://github.com/frontman-ai/frontman/commit/f081562d24f17c09b2ae8bfe20467980e224ce81) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add prompt-level Executor and Planner selection, negotiated connection agent catalogs, stable
+  message IDs, explicit agent colors, and migration of persisted session history.
+
+- [#1192](https://github.com/frontman-ai/frontman/pull/1192) [`c7848c6`](https://github.com/frontman-ai/frontman/commit/c7848c6cd137afdb8df9298789dded95675ac5e1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Carry stable agent error IDs through retry error updates.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Saved tasks now restore their interaction history more reliably, including prompts, tool activity, and agent responses.
+
 ## 1.0.2
 
 ### Patch Changes

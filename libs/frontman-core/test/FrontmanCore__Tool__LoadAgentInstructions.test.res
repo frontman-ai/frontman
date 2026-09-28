@@ -11,10 +11,6 @@ let fixturesPath = Bindings.Path.join([
   "load-agent-instructions",
 ])
 
-// ============================================
-// Test Helpers
-// ============================================
-
 let fixture = name => Bindings.Path.join([fixturesPath, name])
 
 let makeCtx = (sourceRoot: string): Protocol.serverExecutionContext => {
@@ -55,9 +51,6 @@ let hasPathWith = (files: array<Tool.instructionFile>, ~containing, ~excluding) 
   )
 
 describe("LoadAgentInstructions", () => {
-  // ===========================================
-  // Priority Logic
-  // ===========================================
   describe("priority logic", () => {
     testAsync(
       "Agents.md wins over CLAUDE.md at same level",
@@ -123,9 +116,6 @@ describe("LoadAgentInstructions", () => {
     )
   })
 
-  // ===========================================
-  // Multiple Files Same Level
-  // ===========================================
   describe("multiple files at same level", () => {
     testAsync(
       "multiple Agents variants coexist",
@@ -179,9 +169,6 @@ describe("LoadAgentInstructions", () => {
     )
   })
 
-  // ===========================================
-  // Upward Traversal
-  // ===========================================
   describe("upward traversal", () => {
     testAsync(
       "finds file in parent when none in startPath",
@@ -260,9 +247,6 @@ describe("LoadAgentInstructions", () => {
     )
   })
 
-  // ===========================================
-  // startPath Parameter
-  // ===========================================
   describe("startPath parameter", () => {
     testAsync(
       "default startPath uses sourceRoot",
@@ -297,9 +281,6 @@ describe("LoadAgentInstructions", () => {
     )
   })
 
-  // ===========================================
-  // Edge Cases
-  // ===========================================
   describe("edge cases", () => {
     testAsync(
       "returns empty array when no instruction files in fixture",
@@ -349,9 +330,6 @@ describe("LoadAgentInstructions", () => {
     )
   })
 
-  // ===========================================
-  // Content Loading
-  // ===========================================
   describe("content loading", () => {
     testAsync(
       "content is correctly loaded",
@@ -399,9 +377,6 @@ describe("LoadAgentInstructions", () => {
     )
   })
 
-  // ===========================================
-  // Case-Insensitive Discovery (Issue #114)
-  // ===========================================
   describe("case-insensitive discovery", () => {
     testAsync(
       "discovers lowercase agents.md file",
@@ -468,16 +443,10 @@ describe("LoadAgentInstructions", () => {
     )
   })
 
-  // ===========================================
-  // Root Detection / Termination (Issue #432)
-  // ===========================================
   describe("root detection and termination", () => {
     testAsync(
       "walkUpDirectories terminates at filesystem root",
       async t => {
-        // walkUpDirectories should terminate when Path.dirname(current) == current
-        // On Unix: path.dirname("/") === "/" → stops
-        // On Windows: path.dirname("C:\\") === "C:\\" → stops
         let results = await Tool.walkUpDirectories("/", [])
         t->expect(Array.length(results))->Expect.toBe(0)
       },
@@ -486,9 +455,7 @@ describe("LoadAgentInstructions", () => {
     testAsync(
       "walkUpDirectories terminates from a shallow path near root",
       async t => {
-        // Starting from /tmp (2 levels from root) should not hang
         let results = await Tool.walkUpDirectories("/tmp", [])
-        // Just verify it terminates and returns an array — we don't care about specific files
         t->expect(Array.length(results))->Expect.Int.toBeGreaterThanOrEqual(0)
       },
     )
@@ -496,7 +463,6 @@ describe("LoadAgentInstructions", () => {
     testAsync(
       "execute terminates from deep nested fixture path",
       async t => {
-        // This exercises the full walk-up from a deep path to root
         let deepPath = Bindings.Path.join([
           fixture("deeply-nested"),
           "a",
@@ -512,7 +478,6 @@ describe("LoadAgentInstructions", () => {
         ])
         let ctx = makeCtx(deepPath)
         let result = await execute(ctx, {})
-        // Verify it terminates and returns Ok
         switch result {
         | Ok(_) => t->expect(true)->Expect.toBe(true)
         | Error(msg) => t->expect(msg)->Expect.toBe("should not fail")
@@ -521,9 +486,6 @@ describe("LoadAgentInstructions", () => {
     )
   })
 
-  // ===========================================
-  // Path Handling
-  // ===========================================
   describe("path handling", () => {
     testAsync(
       "fullPath is absolute",

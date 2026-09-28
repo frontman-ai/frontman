@@ -11,6 +11,11 @@ defmodule FrontmanServerWeb.Plugs.CORS do
   When used at the endpoint level, handles OPTIONS preflight requests
   before they reach the router.
 
+  Protected API routes must remain bearer-token-only and must validate the
+  request Origin against the bearer token. This plug deliberately does not set
+  Access-Control-Allow-Credentials, so browser cookies are not exposed through
+  credentialed cross-origin requests.
+
   ## Options
 
     * `:path_prefix` - Only apply CORS to paths starting with this prefix.
@@ -23,25 +28,19 @@ defmodule FrontmanServerWeb.Plugs.CORS do
   def call(conn, opts) do
     path_prefix = Keyword.get(opts, :path_prefix, "/api")
 
-    if String.starts_with?(conn.request_path, path_prefix) do
-      origin = get_origin(conn)
+    case String.starts_with?(conn.request_path, path_prefix) do
+      true ->
+        conn
+        |> put_resp_header("access-control-allow-origin", "*")
+        |> put_resp_header(
+          "access-control-allow-methods",
+          "GET, POST, PATCH, PUT, DELETE, OPTIONS"
+        )
+        |> put_resp_header("access-control-allow-headers", "authorization, content-type")
+        |> handle_preflight()
 
-      conn
-      |> put_resp_header("vary", "origin")
-      |> put_resp_header("access-control-allow-origin", origin)
-      |> put_resp_header("access-control-allow-credentials", "true")
-      |> put_resp_header("access-control-allow-methods", "GET, POST, DELETE, OPTIONS")
-      |> put_resp_header("access-control-allow-headers", "content-type")
-      |> handle_preflight()
-    else
-      conn
-    end
-  end
-
-  defp get_origin(conn) do
-    case get_req_header(conn, "origin") do
-      [origin] -> origin
-      _ -> "*"
+      false ->
+        conn
     end
   end
 

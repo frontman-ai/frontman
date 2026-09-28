@@ -1,5 +1,3 @@
-// Max 7680px per dimension (Anthropic hard-rejects >8000; server gate enforces 7680 for all providers).
-
 type limits = {
   maxDimension: int,
   quality: float,
@@ -7,15 +5,13 @@ type limits = {
 
 let conservative: limits = {maxDimension: 7680, quality: 0.8}
 
-let forProvider = (_provider: option<string>): limits => conservative
+@new external makeImage: unit => WebAPI.DomTypes.htmlImageElement = "Image"
 
-@new external makeImage: unit => WebAPI.DOMAPI.htmlImageElement = "Image"
-
-let computeScale = (element: WebAPI.DOMAPI.element, maxDimension: int): float => {
+let computeScale = (element: WebAPI.DomTypes.element, maxDimension: int): float => {
   switch maxDimension <= 0 {
   | true => 1.0
   | false =>
-    let dpr = WebAPI.Global.devicePixelRatio
+    let dpr = WebAPI.Window.current->WebAPI.Window.devicePixelRatio
     let rect = element->WebAPI.Element.getBoundingClientRect
     let maxSide = Math.max(rect.width *. dpr, rect.height *. dpr)
     switch maxSide <= 0.0 || maxSide <= maxDimension->Int.toFloat {
@@ -52,10 +48,11 @@ let constrainDataUrl = async (dataUrl: string, limits: limits): string => {
         )
         let nw = Math.round(w->Int.toFloat *. scale)->Float.toInt
         let nh = Math.round(h->Int.toFloat *. scale)->Float.toInt
-        let canvas = WebAPI.Global.document->WebAPI.Document.createCanvasElement
+        let canvas =
+          WebAPI.Window.current->WebAPI.Window.document->WebAPI.Document.createCanvasElement
         canvas.width = nw
         canvas.height = nh
-        let ctx = canvas->WebAPI.HTMLCanvasElement.getContext_2D
+        let ctx = canvas->WebAPI.HTMLCanvasElement.getContext2D
         ctx->WebAPI.CanvasRenderingContext2D.drawImageWithDimensions(
           ~image=img,
           ~dx=0.0,

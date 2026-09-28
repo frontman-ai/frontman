@@ -8,7 +8,9 @@ if (typeof process === "undefined") {
 	window.__frontmanRuntime = {
 		framework: config ? config.getAttribute("data-framework") || "wordpress" : "wordpress",
 		basePath: config ? config.getAttribute("data-base-path") || "frontman" : "frontman",
+		relayBaseUrl: config ? config.getAttribute("data-relay-base-url") || null : null,
 		wpNonce: config ? config.getAttribute("data-wp-nonce") || "" : "",
+		wordpressPluginsUrl: config ? config.getAttribute("data-wordpress-plugins-url") || null : null,
 		traits: []
 	};
 })();

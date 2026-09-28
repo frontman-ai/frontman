@@ -67,7 +67,6 @@ defmodule FrontmanServer.Billing.Webhooks do
   defp insert_event(repo, event_id, type, event) do
     %StripeEvent{}
     |> StripeEvent.changeset(%{stripe_event_id: event_id, type: type, payload: event})
-    # Unique constraint violations abort PostgreSQL transactions without a savepoint.
     |> repo.insert(mode: :savepoint)
     |> case do
       {:ok, _stripe_event} ->

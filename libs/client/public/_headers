@@ -1,0 +1,5 @@
+/frontman.es.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/frontman.css
+  Cache-Control: public, max-age=0, must-revalidate

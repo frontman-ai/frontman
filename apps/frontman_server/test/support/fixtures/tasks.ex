@@ -10,7 +10,6 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     top_level?: true,
     check: [in: false, out: false]
 
-  alias FrontmanServer.Accounts
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   import Ecto.Query, only: [from: 2]
@@ -22,6 +21,29 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   }
 
   @default_test_model "openrouter:openai/gpt-5.5"
+
+  @doc "Creates an empty task and subscribes the test process to its interactions."
+  def setup_task(%{scope: scope}) do
+    %{task_id: task_with_pubsub_fixture(scope).id}
+  end
+
+  def insert_accepted_user_message!(%TaskSchema{} = task, text, model \\ @default_test_model) do
+    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
+    message_id = Ecto.UUID.generate()
+
+    interaction_changeset(task.id, %{
+      id: message_id,
+      type: :user_message,
+      data: Map.put(attrs, :id, message_id),
+      turn_number: nil
+    })
+    |> Repo.insert!()
+  end
+
+  def interaction_changeset(task_id, attrs) do
+    %InteractionSchema{task_id: task_id}
+    |> InteractionSchema.changeset(attrs)
+  end
 
   @doc """
   Create a task and return its schema.
@@ -38,7 +60,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     task
   end
 
-  def task_with_active_run_fixture(scope, opts \\ []) do
+  def task_with_active_turn_fixture(scope, opts \\ []) do
     task = task_fixture(scope, opts)
     start_turn_fixture(scope, task.id)
     task
@@ -48,6 +70,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   def execution_request_fixture(overrides \\ []) do
     %{
       model: @default_test_model,
+      agent_id: "test-frontman",
       project_traits: [],
       mcp_tools: []
     }
@@ -73,42 +96,69 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
       arguments: Jason.encode!(tool_call.arguments)
     }
 
-    Tasks.request_client_tool(scope, task_id, turn_number, swarm_tool_call)
+    Tasks.request_client_tool(
+      scope,
+      task_id,
+      turn_number,
+      swarm_tool_call,
+      Interaction.ToolCall.execution_mode(tool_call)
+    )
+  end
+
+  @doc "Persist an agent response and its matching client-handled tool call."
+  def persist_response_tool_call_fixture(
+        scope,
+        task_id,
+        turn_number,
+        content,
+        tool_call,
+        execution_mode \\ :synchronous
+      ) do
+    metadata = %{
+      "tool_calls" => [
+        %{"id" => tool_call.id, "name" => tool_call.name, "arguments" => tool_call.arguments}
+      ]
+    }
+
+    {:ok, _response} = Tasks.agent_replied(scope, task_id, turn_number, content, metadata)
+    Tasks.request_client_tool(scope, task_id, turn_number, tool_call, execution_mode)
   end
 
   @doc """
   Persist a user message for tests without invoking the production execution API.
   """
   def user_message_fixture(scope, task_id, content_blocks, model \\ @default_test_model) do
-    task = task_schema!(scope, task_id)
-    {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model)
+    {:ok, task} = Tasks.get_task(scope, task_id)
+    {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model, "test-frontman")
+    message_id = Ecto.UUID.generate()
 
     with {:ok, row} <-
-           InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
+           interaction_changeset(task.id, %{
+             id: message_id,
+             type: :user_message,
+             data: Map.put(attrs, :id, message_id),
+             turn_number: nil
+           })
            |> Repo.insert(),
          {:ok, _turn_started} <-
-           InteractionSchema.create_changeset(
-             task.id,
-             :turn_started,
-             %{
-               id: Ecto.UUID.generate(),
-               timestamp: Interaction.now(),
-               user_message_ids: [row.id]
-             },
-             next_turn_number(task_id)
-           )
-           |> Repo.insert() do
+           turn_started_fixture(task.id, next_turn_number(task_id), [row.id]) do
       {:ok, row.data}
     end
   end
 
-  defp task_schema!(scope, task_id) do
-    user_id = Accounts.scope_user_id(scope)
-
-    TaskSchema
-    |> TaskSchema.by_id(task_id)
-    |> TaskSchema.for_user(user_id)
-    |> Repo.one!()
+  def turn_started_fixture(task_id, turn_number, user_message_ids, agent_id \\ "test-frontman") do
+    interaction_changeset(task_id, %{
+      id: Ecto.UUID.generate(),
+      type: :turn_started,
+      data: %{
+        id: Ecto.UUID.generate(),
+        timestamp: Interaction.now(),
+        agent_id: agent_id,
+        user_message_ids: user_message_ids
+      },
+      turn_number: turn_number
+    })
+    |> Repo.insert()
   end
 
   defp next_turn_number(task_id) do

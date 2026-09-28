@@ -18,7 +18,6 @@ fi
 for env_file in "$ENV_DIR/.dev.env" "$ENV_DIR/.dev.overrides.env"; do
   if [[ -f "$env_file" ]]; then
     set -a
-    # shellcheck disable=SC1090
     source "$env_file"
     set +a
   fi

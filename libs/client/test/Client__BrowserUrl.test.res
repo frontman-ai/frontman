@@ -1,11 +1,6 @@
 open Vitest
 
-// _getBasePath() falls back to "frontman" in test environments (no window.__frontmanRuntime).
-// All cases below use "frontman" as the basePath.
-
 module BrowserUrl = Client__BrowserUrl
-
-// ── hasSuffix ────────────────────────────────────────────────────────────
 
 describe("hasSuffix", () => {
   test("detects exact suffix", t => {
@@ -49,11 +44,7 @@ describe("hasSuffix", () => {
   })
 })
 
-// ── stripSuffix ──────────────────────────────────────────────────────────
-
 describe("stripSuffix", () => {
-  // When suffix is present — should strip and add trailing slash
-
   test("strips exact suffix to root", t => {
     t->expect(BrowserUrl.stripSuffix("/frontman"))->Expect.toBe("/")
   })
@@ -73,8 +64,6 @@ describe("stripSuffix", () => {
   test("strips double suffix", t => {
     t->expect(BrowserUrl.stripSuffix("/frontman/frontman"))->Expect.toBe("/")
   })
-
-  // When no suffix present — must return original pathname unchanged (the bug fix)
 
   test("returns locale path unchanged — no trailing slash added", t => {
     t->expect(BrowserUrl.stripSuffix("/en"))->Expect.toBe("/en")
@@ -96,8 +85,6 @@ describe("stripSuffix", () => {
     t->expect(BrowserUrl.stripSuffix("/notfrontman"))->Expect.toBe("/notfrontman")
   })
 })
-
-// ── removeTrailingSlash ──────────────────────────────────────────────────
 
 describe("removeTrailingSlash", () => {
   test("removes trailing slash from path", t => {

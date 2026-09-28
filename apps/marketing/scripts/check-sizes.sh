@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Check file sizes for image optimization comparison
 
 PUBLIC_DIR="apps/marketing/public"
 
@@ -8,7 +7,6 @@ echo "📊 File Size Comparison"
 echo "======================="
 echo ""
 
-# Function to get human-readable size
 get_size() {
     if [ -f "$1" ]; then
         ls -lh "$1" | awk '{print $5}'
@@ -17,7 +15,6 @@ get_size() {
     fi
 }
 
-# GIF vs MP4
 echo "🎬 Animation Files:"
 echo "-------------------"
 echo "select-element.gif: $(get_size "$PUBLIC_DIR/select-element.gif")"
@@ -27,7 +24,6 @@ echo "code-change.gif: $(get_size "$PUBLIC_DIR/code-change.gif")"
 echo "code-change.mp4: $(get_size "$PUBLIC_DIR/code-change.mp4")"
 echo ""
 
-# Calculate savings if both exist
 if [ -f "$PUBLIC_DIR/select-element.gif" ] && [ -f "$PUBLIC_DIR/select-element.mp4" ]; then
     gif_size=$(stat -f%z "$PUBLIC_DIR/select-element.gif" 2>/dev/null || stat -c%s "$PUBLIC_DIR/select-element.gif")
     mp4_size=$(stat -f%z "$PUBLIC_DIR/select-element.mp4" 2>/dev/null || stat -c%s "$PUBLIC_DIR/select-element.mp4")
@@ -43,7 +39,6 @@ if [ -f "$PUBLIC_DIR/code-change.gif" ] && [ -f "$PUBLIC_DIR/code-change.mp4" ];
 fi
 echo ""
 
-# PNG vs WebP (if WebP exists)
 echo "🖼️  Blog Images (sample):"
 echo "------------------------"
 if [ -d "$PUBLIC_DIR/blog" ]; then
@@ -64,7 +59,6 @@ if [ -d "$PUBLIC_DIR/blog" ]; then
     done
 fi
 
-# OG images
 echo "📱 OG Images:"
 echo "-------------"
 echo "og.png: $(get_size "$PUBLIC_DIR/og.png")"

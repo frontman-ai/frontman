@@ -4,7 +4,7 @@
  *
  * Tools: wp_list_menus, wp_list_menu_locations, wp_read_menu, wp_create_menu,
  * wp_delete_menu, wp_assign_menu_location, wp_create_menu_item,
- * wp_update_menu_item, wp_delete_menu_item
+ * wp_update_menu_item, wp_delete_menu_item, and block-theme wp_navigation tools
  *
  * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
  *
@@ -15,7 +15,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_Menus {
 	/**
@@ -206,6 +205,159 @@ class Frontman_Tool_Menus {
 			],
 			[ $this, 'delete_menu_item' ]
 		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_list_navigation_menus',
+			'Lists block-theme navigation menus stored as wp_navigation posts.',
+			[ 'type' => 'object', 'additionalProperties' => false, 'properties' => new \stdClass() ],
+			[ $this, 'list_navigation_menus' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_read_navigation_menu',
+			'Reads a block-theme navigation menu and its complete block markup.',
+			[
+				'type' => 'object',
+				'additionalProperties' => false,
+				'properties' => [ 'id' => [ 'type' => 'integer', 'description' => 'The wp_navigation post ID.' ] ],
+				'required' => [ 'id' ],
+			],
+			[ $this, 'read_navigation_menu' ]
+		) );
+
+		$navigation_write_properties = [
+			'title' => [ 'type' => 'string', 'description' => 'Navigation menu title.' ],
+			'content' => [ 'type' => 'string', 'description' => 'Navigation block markup.' ],
+		];
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_create_navigation_menu',
+			'Creates a block-theme navigation menu stored as a wp_navigation post.',
+			[
+				'type' => 'object',
+				'additionalProperties' => false,
+				'properties' => $navigation_write_properties,
+				'required' => [ 'title', 'content' ],
+			],
+			[ $this, 'create_navigation_menu' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_update_navigation_menu',
+			'Updates a block-theme navigation menu title or block markup.',
+			[
+				'type' => 'object',
+				'additionalProperties' => false,
+				'properties' => array_merge( [ 'id' => [ 'type' => 'integer', 'description' => 'The wp_navigation post ID.' ] ], $navigation_write_properties ),
+				'required' => [ 'id' ],
+			],
+			[ $this, 'update_navigation_menu' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_delete_navigation_menu',
+			'Deletes a block-theme navigation menu. Ask the user for confirmation first and only call with confirm=true after approval.',
+			[
+				'type' => 'object',
+				'additionalProperties' => false,
+				'properties' => [
+					'id' => [ 'type' => 'integer', 'description' => 'The wp_navigation post ID.' ],
+					'confirm' => [ 'type' => 'boolean', 'description' => 'Must be true only after explicit confirmation.' ],
+				],
+				'required' => [ 'id', 'confirm' ],
+			],
+			[ $this, 'delete_navigation_menu' ]
+		) );
+	}
+
+	private function serialize_navigation_menu( \WP_Post $navigation ): array {
+		return [
+			'id' => (int) $navigation->ID,
+			'title' => (string) $navigation->post_title,
+			'slug' => (string) $navigation->post_name,
+			'content' => (string) $navigation->post_content,
+			'status' => (string) $navigation->post_status,
+		];
+	}
+
+	private function get_navigation_menu( int $id ): \WP_Post {
+		$navigation = get_post( $id );
+		if ( ! $navigation || 'wp_navigation' !== $navigation->post_type ) {
+			throw new Frontman_Tool_Error( "Block navigation menu not found: {$id}" );
+		}
+
+		return $navigation;
+	}
+
+	public function list_navigation_menus( array $input ): array {
+		unset( $input );
+		$posts = get_posts( [
+			'post_type' => 'wp_navigation',
+			'post_status' => 'any',
+			'posts_per_page' => -1,
+			'orderby' => 'title',
+			'order' => 'ASC',
+		] );
+
+		return array_map( [ $this, 'serialize_navigation_menu' ], $posts );
+	}
+
+	public function read_navigation_menu( array $input ): array {
+		return $this->serialize_navigation_menu( $this->get_navigation_menu( absint( $input['id'] ?? 0 ) ) );
+	}
+
+	public function create_navigation_menu( array $input ): array {
+		$title = sanitize_text_field( $input['title'] ?? '' );
+		$content = (string) ( $input['content'] ?? '' );
+		if ( '' === $title || '' === $content ) {
+			throw new Frontman_Tool_Error( 'Navigation title and content are required' );
+		}
+
+		$id = wp_insert_post( wp_slash( [
+			'post_type' => 'wp_navigation',
+			'post_status' => 'publish',
+			'post_title' => $title,
+			'post_content' => $content,
+		] ), true );
+		if ( is_wp_error( $id ) ) {
+			throw new Frontman_Tool_Error( $id->get_error_message() );
+		}
+
+		return [ 'created' => true, 'id' => (int) $id, 'after' => $this->read_navigation_menu( [ 'id' => $id ] ) ];
+	}
+
+	public function update_navigation_menu( array $input ): array {
+		$id = absint( $input['id'] ?? 0 );
+		$before = $this->read_navigation_menu( [ 'id' => $id ] );
+		$post_data = [ 'ID' => $id ];
+		if ( isset( $input['title'] ) ) {
+			$post_data['post_title'] = sanitize_text_field( $input['title'] );
+		}
+		if ( isset( $input['content'] ) ) {
+			$post_data['post_content'] = (string) $input['content'];
+		}
+		if ( 1 === count( $post_data ) ) {
+			throw new Frontman_Tool_Error( 'Provide title or content to update a navigation menu' );
+		}
+
+		$result = wp_update_post( wp_slash( $post_data ), true );
+		if ( is_wp_error( $result ) ) {
+			throw new Frontman_Tool_Error( $result->get_error_message() );
+		}
+
+		return [ 'updated' => true, 'before' => $before, 'after' => $this->read_navigation_menu( [ 'id' => $id ] ) ];
+	}
+
+	public function delete_navigation_menu( array $input ): array {
+		$id = absint( $input['id'] ?? 0 );
+		if ( empty( $input['confirm'] ) ) {
+			throw new Frontman_Tool_Error( 'Deletion requires explicit confirmation. Ask the user first, then call again with confirm=true.' );
+		}
+		$before = $this->read_navigation_menu( [ 'id' => $id ] );
+		if ( ! wp_delete_post( $id, true ) ) {
+			throw new Frontman_Tool_Error( "Failed to delete block navigation menu: {$id}" );
+		}
+
+		return [ 'deleted' => true, 'id' => $id, 'before' => $before ];
 	}
 
 	private function get_menu_locations_snapshot(): array {
@@ -519,7 +671,6 @@ class Frontman_Tool_Menus {
 			throw new Frontman_Tool_Error( 'Provide title, url, or position to update a menu item.' );
 		}
 
-		// Get the menu this item belongs to.
 		$menus = wp_get_object_terms( $menu_item_id, 'nav_menu' );
 		if ( empty( $menus ) ) {
 			throw new Frontman_Tool_Error( "Menu item {$menu_item_id} is not assigned to any menu" );
@@ -579,5 +730,3 @@ class Frontman_Tool_Menus {
 		];
 	}
 }
-
-// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

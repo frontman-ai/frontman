@@ -1,5 +1,3 @@
-// Tests for the ChildProcess high-level wrappers
-
 open Vitest
 
 module ChildProcess = FrontmanCore__ChildProcess
@@ -22,14 +20,11 @@ describe("ChildProcess - spawnResult", _t => {
 
     switch result {
     | Ok(_) => failwith("Expected Error for invalid flag")
-    | Error({code}) =>
-      // ls should exit non-zero for an invalid flag
-      t->expect(code->Option.isSome)->Expect.toBe(true)
+    | Error({code}) => t->expect(code->Option.isSome)->Expect.toBe(true)
     }
   })
 
   testAsync("should return Error (not throw) when cwd is a file path (ENOTDIR)", async t => {
-    // Create a temporary file to use as an invalid cwd
     let tempDir = Path.join([Os.tmpdir(), `cp-test-${Date.now()->Float.toString}`])
     let _ = await Fs.Promises.mkdir(tempDir, {recursive: true})
     let filePath = Path.join([tempDir, "not-a-directory.txt"])
@@ -39,12 +34,9 @@ describe("ChildProcess - spawnResult", _t => {
 
     switch result {
     | Ok(_) => failwith("Expected Error when cwd is a file, got Ok")
-    | Error({message}) =>
-      // Should get an error message about the invalid cwd, not an unhandled throw
-      t->expect(message->String.length > 0)->Expect.toBe(true)
+    | Error({message}) => t->expect(message->String.length > 0)->Expect.toBe(true)
     }
 
-    // Cleanup
     let _ = await ChildProcess.exec(`rm -rf ${tempDir}`)
   })
 

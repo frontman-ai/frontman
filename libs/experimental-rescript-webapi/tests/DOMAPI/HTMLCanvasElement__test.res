@@ -1,24 +1,36 @@
-open WebAPI.Global
+external toHTMLCanvasElement: null<DomTypes.element> => DomTypes.htmlCanvasElement = "%identity"
+@set
+external setFillStyle: (DomTypes.canvasRenderingContext2D, CanvasTypes.fillStyle) => unit =
+  "fillStyle"
+@get
+external getFillStyle: DomTypes.canvasRenderingContext2D => CanvasTypes.fillStyle = "fillStyle"
+@set
+external setFont: (DomTypes.canvasRenderingContext2D, string) => unit = "font"
+@set
+external setTextBaseline: (
+  DomTypes.canvasRenderingContext2D,
+  CanvasTypes.canvasTextBaseline,
+) => unit = "textBaseline"
 
-let myCanvas: DOMAPI.htmlCanvasElement =
-  document->Document.getElementById("myCanvas")->Prelude.unsafeConversation
-let ctx = myCanvas->HTMLCanvasElement.getContext_2D
+let myCanvas: DomTypes.htmlCanvasElement =
+  DomGlobal.document->Document.getElementById("myCanvas")->toHTMLCanvasElement
+let ctx = myCanvas->HTMLCanvasElement.getContext2D
 
-ctx.fillStyle = FillStyle.fromString("red")
+ctx->setFillStyle(FillStyle.fromString("red"))
 ctx->CanvasRenderingContext2D.fillRect(~x=50., ~y=50., ~w=200., ~h=200.)
 
-ctx.fillStyle = FillStyle.fromString("black")
-ctx.font = "2px Tahoma"
-ctx.textBaseline = CanvasAPI.Top
+ctx->setFillStyle(FillStyle.fromString("black"))
+ctx->setFont("2px Tahoma")
+ctx->setTextBaseline(CanvasTypes.Top)
 ctx->CanvasRenderingContext2D.fillText(~text="MY TEXT", ~x=60., ~y=60.)
 
-switch ctx.fillStyle->FillStyle.decode {
+switch ctx->getFillStyle->FillStyle.decode {
 | FillStyle.String(color) => Console.log(`Color: ${color}`)
 | FillStyle.CanvasGradient(_) => Console.log("CanvasGradient")
 | FillStyle.CanvasPattern(_) => Console.log("CanvasPattern")
 }
 
-let img: DOMAPI.htmlImageElement = document->Document.createElement("img")->Obj.magic
+let img: DomTypes.htmlImageElement = DomGlobal.document->Document.createElement("img")->Obj.magic
 ctx->CanvasRenderingContext2D.drawImageWithDimensions(
   ~image=img,
   ~dx=0.,

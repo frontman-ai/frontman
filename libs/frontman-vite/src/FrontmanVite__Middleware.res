@@ -1,6 +1,3 @@
-// Middleware factory for Vite
-// Thin wrapper around shared core middleware
-
 module Core = FrontmanAiFrontmanCore
 module CoreMiddleware = Core.FrontmanCore__Middleware
 module CoreMiddlewareConfig = Core.FrontmanCore__MiddlewareConfig
@@ -9,7 +6,6 @@ module ToolRegistry = FrontmanVite__ToolRegistry
 
 type config = Config.t
 
-// Convert Vite config to core middleware config
 let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   projectRoot: config.projectRoot,
   sourceRoot: config.sourceRoot,
@@ -23,9 +19,6 @@ let toMiddlewareConfig = (config: Config.t): CoreMiddlewareConfig.t => {
   traits: [],
 }
 
-// Create middleware from a config
-// Returns request => promise<option<response>>
-// None means "not handled, pass through to next middleware"
 let createMiddleware = (config: Config.t) => {
   let registry = ToolRegistry.make()
   let middlewareConfig = toMiddlewareConfig(config)

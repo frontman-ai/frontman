@@ -1,90 +1,102 @@
-// ACP Protocol helpers
-// Centralizes JSON-RPC request/response pattern and message handling
-
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module Client = FrontmanClient__ACP__Client
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Constants = FrontmanClient__Transport__Constants
+module Decoders = FrontmanClient__Decoders
 module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
-type messageDirection = Send | Receive
+type requestMethod = [#initialize | #"session/new" | #"session/load" | #"session/prompt"]
 
-let sessionIdFromParams = (params: option<JSON.t>): option<string> =>
-  params
-  ->Option.flatMap(JSON.Decode.object)
-  ->Option.flatMap(obj => obj->Dict.get("sessionId"))
-  ->Option.flatMap(JSON.Decode.string)
+let requestTimeoutMs = 120000
 
-// Generic request sender - eliminates duplication across sendInitialize, createSession, sendPrompt
+let pushReplyMessageSchema: S.t<JSON.t> = S.object(s => s.field("acp:message", S.json))
+
+let parsePushReply = payload => {
+  payload
+  ->Decoders.parseSchema(pushReplyMessageSchema)
+  ->Result.mapError(error => `Invalid ACP push reply envelope: ${error}`)
+}
+
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
-  ~method: string,
+  ~method: requestMethod,
   ~params: option<JSON.t>,
+  ~timeoutMs: int=requestTimeoutMs,
   ~parseResult: JSON.t => result<'a, string>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
 ): promise<result<'a, Client.requestError>> => {
+  let method = (method :> string)
   Promise.make((resolve, _) => {
     let id = state.contents.currentId + 1
-    let request = JsonRpc.Request.make(~id, ~method, ~params)
+    let idStr = Int.toString(id)
+    let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
+    let timer = ref(None)
+    let finish = result => {
+      timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
+      resolve(result)
+    }
 
     let pending: Client.pendingRequest = {
-      method,
-      sessionId: sessionIdFromParams(params),
-      resolve: json => {
-        switch parseResult(json) {
-        | Ok(result) => resolve(Ok(result))
-        | Error(e) => resolve(Error(Client.requestErrorFromMessage(e)))
-        }
-      },
-      reject: e => resolve(Error(e)),
+      resolve: json => finish(parseResult(json)->Result.mapError(Client.requestErrorFromMessage)),
+      reject: e => finish(Error(e)),
     }
 
     state := state.contents->Client.reduce(Client.RequestSent(id, pending))
+    timer :=
+      Some(
+        WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
+          state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
+          state := state.contents->Client.reduce(Client.ResponseReceived(id))
+          pending.reject(
+            Client.requestErrorFromMessage(
+              `Request ${method} timed out after ${Int.toString(timeoutMs)}ms`,
+            ),
+          )
+        }),
+      )
 
     let payload = request->JsonRpc.Request.toJson
-    onMessage->Option.forEach(cb => cb(Send, payload))
-    channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
+    let push = channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
+    push.receive(~status="ok", ~callback=reply => {
+      switch parsePushReply(reply) {
+      | Ok(message) => state := Client.handleResponse(state.contents, message)
+      | Error(error) =>
+        state := state.contents->Client.reduce(Client.ResponseReceived(id))
+        pending.reject(Client.requestErrorFromMessage(error))
+      }
+    })->ignore
   })
 }
-
-// Typed wrappers for specific ACP methods
 
 let sendInitialize = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
   ~clientConfig: Client.config,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
 ): promise<result<Types.initializeResult, Client.requestError>> => {
   let params = Client.buildInitializeParams(clientConfig)
   sendRequest(
     ~channel,
     ~state,
-    ~method="initialize",
+    ~method=#initialize,
     ~params=Some(params),
     ~parseResult=Client.parseInitializeResult,
-    ~onMessage,
   )
 }
 
-let sendSessionNew = (
-  ~channel: Channel.t,
-  ~state: ref<Client.state>,
-  ~sessionId: string,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
-): promise<result<Types.sessionNewResult, Client.requestError>> => {
+let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId: string): promise<
+  result<Types.sessionNewResult, Client.requestError>,
+> => {
   let params = Dict.make()
   params->Dict.set("sessionId", JSON.Encode.string(sessionId))
   sendRequest(
     ~channel,
     ~state,
-    ~method="session/new",
+    ~method=#"session/new",
     ~params=Some(JSON.Encode.object(params)),
     ~parseResult=Client.parseSessionNewResult,
-    ~onMessage,
   )
 }
 
@@ -94,13 +106,11 @@ let sendPrompt = (
   ~sessionId: string,
   ~prompt: array<JSON.t>,
   ~_meta: option<JSON.t>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
 ): promise<result<Types.promptResult, Client.requestError>> => {
   let entries = [
     ("sessionId", JSON.Encode.string(sessionId)),
     ("prompt", JSON.Encode.array(prompt)),
   ]
-  // Add _meta if provided
   let entries = switch _meta {
   | Some(meta) => Array.concat(entries, [("_meta", meta)])
   | None => entries
@@ -109,49 +119,41 @@ let sendPrompt = (
   sendRequest(
     ~channel,
     ~state,
-    ~method="session/prompt",
+    ~method=#"session/prompt",
     ~params=Some(promptParams),
     ~parseResult=Client.parsePromptResult,
-    ~onMessage,
   )
 }
 
-// ACP spec: session/cancel is a NOTIFICATION (no id, no response expected).
-let sendCancel = (
-  ~channel: Channel.t,
-  ~sessionId: string,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
-): unit => {
-  let cancelParams = JSON.Encode.object(
-    Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]),
-  )
-  let notification = JsonRpc.Notification.make(~method="session/cancel", ~params=Some(cancelParams))
+let sendCancel = (~channel: Channel.t, ~sessionId: string): unit => {
+  let params = JSON.Encode.object(Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]))
+  let notification = JsonRpc.Notification.make(~method="session/cancel", ~params=Some(params))
   let payload = notification->JsonRpc.Notification.toJson
-  onMessage->Option.forEach(cb => cb(Send, payload))
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
-// Frontman extension: session/retry_turn is a notification (no response expected).
-// Signals the server to retry the failed turn identified by retriedErrorId.
-let sendRetryTurn = (
+let sendSessionCommand = (
   ~channel: Channel.t,
   ~sessionId: string,
-  ~retriedErrorId: string,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
+  ~command: string,
+  ~argument: option<(string, JSON.t)>,
 ): unit => {
-  let params = JSON.Encode.object(
-    Dict.fromArray([
-      ("sessionId", JSON.Encode.string(sessionId)),
-      ("retriedErrorId", JSON.Encode.string(retriedErrorId)),
-    ]),
+  let params = [
+    ("sessionId", JSON.Encode.string(sessionId)),
+    ("command", JSON.Encode.string(command)),
+  ]
+  let params = switch argument {
+  | Some(argument) => Array.concat(params, [argument])
+  | None => params
+  }
+  let notification = JsonRpc.Notification.make(
+    ~method="session/command",
+    ~params=Some(JSON.Encode.object(Dict.fromArray(params))),
   )
-  let notification = JsonRpc.Notification.make(~method="session/retry_turn", ~params=Some(params))
   let payload = notification->JsonRpc.Notification.toJson
-  onMessage->Option.forEach(cb => cb(Send, payload))
   channel->Channel.push(~event=Constants.acpMessageEvent, ~payload)->ignore
 }
 
-// Extract method from JSON-RPC message (notifications have method, responses have id)
 let getMethod = (payload: JSON.t): option<string> => {
   payload
   ->JSON.Decode.object
@@ -159,43 +161,44 @@ let getMethod = (payload: JSON.t): option<string> => {
   ->Option.flatMap(JSON.Decode.string)
 }
 
-// Message handler with proper error reporting (no silent swallowing)
-// onUpdate receives (sessionId, update) per ACP session/update notification params
 let handleIncomingMessage = (
   ~state: ref<Client.state>,
   ~onUpdate: option<(string, Types.sessionUpdate) => unit>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
   ~onParseError: option<string => unit>,
   payload: JSON.t,
 ): unit => {
-  onMessage->Option.forEach(cb => cb(Receive, payload))
-
-  // Dispatch based on message type
   switch getMethod(payload) {
   | Some("session/update") =>
-    // Session update notification - parse and dispatch with sessionId
-    switch Client.parseSessionUpdateNotification(payload) {
+    switch Client.parseSessionUpdateNotification(state.contents, payload) {
     | Ok(notification) =>
-      onUpdate->Option.forEach(cb => cb(notification.params.sessionId, notification.params.update))
+      onUpdate->Option.forEach(cb => {
+        try {
+          cb(notification.params.sessionId, notification.params.update)
+        } catch {
+        | Failure(error) => onParseError->Option.forEach(cb => cb(error))
+        | exn =>
+          let error =
+            exn
+            ->JsExn.fromException
+            ->Option.flatMap(JsExn.message)
+            ->Option.getOr("Session update handler failed")
+          onParseError->Option.forEach(cb => cb(error))
+        }
+      })
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
-  | Some("mcp_initialization_complete") => () // Known notification from MCP init handshake
   | Some(method) => Log.warning(`Received unhandled ACP notification: ${method}`)
-  | None =>
-    // No method field - must be a response
-    state := Client.handleResponse(state.contents, payload)
+  | None => state := Client.handleResponse(state.contents, payload)
   }
 }
 
-// Setup channel listener for ACP messages
 let attachMessageHandler = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
   ~onUpdate: option<(string, Types.sessionUpdate) => unit>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>,
   ~onParseError: option<string => unit>,
 ): unit => {
   channel->Channel.on(~event=Constants.acpMessageEvent, ~callback=payload =>
-    handleIncomingMessage(~state, ~onUpdate, ~onMessage, ~onParseError, payload)
+    handleIncomingMessage(~state, ~onUpdate, ~onParseError, payload)
   )
 }

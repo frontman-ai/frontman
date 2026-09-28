@@ -1,5 +1,3 @@
-// Read file tool - reads file content with optional offset/limit
-
 module Fs = FrontmanBindings.Fs
 module Path = FrontmanBindings.Path
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -11,13 +9,13 @@ module PathRecovery = FrontmanCore__PathRecovery
 module ToolPathHints = FrontmanCore__ToolPathHints
 
 let name = Tool.ToolNames.readFile
-let visibleToAgent = true
+let access = Tool.Read
 let description = `Reads a file from the filesystem.
 
 Parameters:
 - path (required): Path to file - either relative to source root or absolute (must be under source root)
 - offset (optional): Line number to start from (0-indexed, default: 0). Pass null or 0 to start from beginning.
-- limit (optional): Maximum lines to read (default: 500). Pass null or 500 for default.
+- limit (optional): Maximum lines to read (default: 500, capped at 1000). Pass null or 500 for default.
 
 Returns file content with metadata about total lines and whether more content exists.
 The _context field provides path resolution details for debugging.
@@ -56,6 +54,8 @@ type output = {
   _context?: pathContext,
 }
 
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
+
 let sortStrings = (items: array<string>): array<string> => {
   items->Array.toSorted((a, b) => {
     switch String.compare(a, b) {
@@ -93,9 +93,8 @@ let readResolvedFile = async (
     let selectedContent = selectedLines->Array.join("\n")
     let hasMore = offset + limit < totalLines
 
-    // Track that this file was read (for edit_file safety)
     FrontmanCore__FileTracker.recordRead(
-      resolved.resolvedPath,
+      resolved.safePath,
       ~offset,
       ~limit,
       ~totalLines,
@@ -225,7 +224,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
   string,
 > => {
   let offset = input.offset->Option.getOr(0)
-  let limit = input.limit->Option.getOr(500)
+  let limit = min(input.limit->Option.getOr(500), 1000)
 
   switch PathContext.resolve(~sourceRoot=ctx.sourceRoot, ~inputPath=input.path) {
   | Error(err) => Error(PathContext.formatError(err))
@@ -239,7 +238,7 @@ let executeOutput = async (ctx: Tool.serverExecutionContext, input: input): resu
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   switch await executeOutput(ctx, input) {
-  | Ok(output) => Tool.jsonResult(output, outputSchema)
+  | Ok(output) => Tool.structuredResult(output, outputSchema)
   | Error(msg) => Tool.MCP.CallToolResult.makeError(msg)
   }
 }

@@ -4,7 +4,13 @@
     "name": {
       "type": "string"
     },
+    "title": {
+      "type": "string"
+    },
     "version": {
+      "type": "string"
+    },
+    "description": {
       "type": "string"
     }
   },

@@ -1,13 +1,5 @@
-// Minimal semver utilities for version comparison.
-// Supports "X.Y.Z" and "X.Y.Z-prerelease" formats.
-// Per semver spec, a pre-release version has lower precedence than
-// the same version without a pre-release suffix (1.0.0-beta.1 < 1.0.0).
-
 type t = {major: int, minor: int, patch: int, prerelease: bool}
 
-// Parse a version string like "1.2.3" or "1.2.3-beta.1" into a semver value.
-// Pre-release suffixes are stripped from the triple but tracked via the
-// `prerelease` flag. Returns None for malformed input.
 let parse = (version: string): option<t> => {
   let parts = version->String.split("-")
   let hasPrerelease = parts->Array.length > 1
@@ -24,9 +16,6 @@ let parse = (version: string): option<t> => {
   }
 }
 
-// Returns true when `a` is strictly less than `b`.
-// Compares major → minor → patch, then pre-release flag:
-// when the triple is equal, a pre-release is behind a release (1.0.0-beta < 1.0.0).
 let isBehind = (a: t, b: t): bool =>
   switch (a.major - b.major, a.minor - b.minor) {
   | (n, _) if n < 0 => true

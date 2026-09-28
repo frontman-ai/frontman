@@ -23,7 +23,6 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     |> Phoenix.HTML.safe_to_string()
   end
 
-  # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
     email =
       new()
@@ -123,8 +122,6 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     ==============================
     """)
   end
-
-  # -- Welcome email templates ------------------------------------------------
 
   defp welcome_text(name) do
     """

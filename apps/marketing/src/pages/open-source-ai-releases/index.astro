@@ -21,7 +21,6 @@ const sortedReleases = [...allReleases].sort((a, b) => {
 	return new Date(b.data.pubDate).getTime() - new Date(a.data.pubDate).getTime()
 })
 
-// CollectionPage + ItemList JSON-LD
 const collectionJsonLd = {
 	"@context": "https://schema.org",
 	"@type": "CollectionPage",

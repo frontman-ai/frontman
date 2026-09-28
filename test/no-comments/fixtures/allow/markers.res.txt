@@ -1,0 +1,3 @@
+let url = "https://frontman.sh/a/*b*/"
+let raw = {js|// generated protocol example
+/* immutable template */|js}

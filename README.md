@@ -88,25 +88,26 @@ The framework integration turns your local dev server into an [MCP server](https
 
 ```bash
 npx @frontman-ai/nextjs install
+# If your project uses src/: mv proxy.ts src/proxy.ts
 npm run dev
 # Open http://localhost:3000/frontman
 ```
 
 Works with App Router and Pages Router. Compatible with Turbopack.
 
-See the [Next.js integration guide](https://frontman.sh/integrations/nextjs/) for details.
+See the [Next.js integration guide](https://frontman.sh/docs/integrations/nextjs/) for details.
 
 ### Astro
 
 ```bash
-astro add @frontman-ai/astro
-astro dev
+npx astro add @frontman-ai/astro
+npm run dev
 # Open http://localhost:4321/frontman
 ```
 
-Listed on the [Astro integration registry](https://astro.build/integrations/?search=frontman). Understands Islands architecture, content collections, and SSR/hybrid modes.
+Compatible with Astro 5, 6, and 7 on Node.js 22.19 or newer. Listed on the [Astro integration registry](https://astro.build/integrations/?search=frontman). Understands Islands architecture, content collections, and SSR/hybrid modes.
 
-See the [Astro integration guide](https://frontman.sh/integrations/astro/) for details.
+See the [Astro integration guide](https://frontman.sh/docs/integrations/astro/) for details.
 
 ### Vite (React, Vue, Svelte)
 
@@ -118,7 +119,7 @@ npm run dev
 
 Auto-detects your framework from `vite.config`. Works with React, Vue, and Svelte — including SvelteKit.
 
-See the [Vite integration guide](https://frontman.sh/integrations/vite/) for details.
+See the [Vite integration guide](https://frontman.sh/docs/integrations/vite/) for details.
 
 Need setup help? Join the [Discord](https://discord.gg/xk8uXJSvhC) or open a [GitHub issue](https://github.com/frontman-ai/frontman/issues).
 
@@ -200,11 +201,11 @@ See [Self-Hosting and License](#self-hosting-and-license) above, plus the respec
 
 ## Star History
 
-<a href="https://www.star-history.com/?repos=frontman-ai%2Ffrontman&type=date&legend=top-left">
+<a href="https://star-history.dera.page/#frontman-ai/frontman&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=frontman-ai/frontman&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=frontman-ai/frontman&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=frontman-ai/frontman&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://star-history.dera.page/svg?repos=frontman-ai/frontman&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://star-history.dera.page/svg?repos=frontman-ai/frontman&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://star-history.dera.page/svg?repos=frontman-ai/frontman&type=date&legend=top-left" />
  </picture>
 </a>
 

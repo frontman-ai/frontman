@@ -1,17 +1,51 @@
-# E2E test seed script.
-#
-# Creates a confirmed test user and inserts an OpenAI OAuth token for it.
-# Reads token values from environment variables (set them in CI or locally).
-#
-# Usage:
-#   MIX_ENV=e2e mix run priv/repo/e2e_seeds.exs
+defmodule FrontmanServer.E2ESeeds do
+  @moduledoc false
+
+  def access_token_expires_at!(access_token) when is_binary(access_token) do
+    case decode_jwt_claims(access_token) do
+      {:ok, %{"exp" => exp}} when is_integer(exp) ->
+        exp
+        |> DateTime.from_unix!()
+        |> require_unexpired_access_token!()
+
+      {:ok, _claims} ->
+        raise "E2E_OPENAI_ACCESS_TOKEN is missing an exp claim; refresh the E2E OpenAI token secret"
+
+      {:error, reason} ->
+        raise "E2E_OPENAI_ACCESS_TOKEN is not a valid JWT: #{inspect(reason)}"
+    end
+  end
+
+  defp require_unexpired_access_token!(expires_at) do
+    minimum_expires_at = DateTime.add(DateTime.utc_now(), 300, :second)
+
+    case DateTime.compare(expires_at, minimum_expires_at) do
+      :gt ->
+        expires_at
+
+      _ ->
+        raise "E2E_OPENAI_ACCESS_TOKEN expires too soon; refresh the E2E OpenAI token secret"
+    end
+  end
+
+  defp decode_jwt_claims(access_token) do
+    with [_header, payload, _signature] <- String.split(access_token, "."),
+         {:ok, json} <- Base.url_decode64(payload, padding: false),
+         {:ok, claims} <- Jason.decode(json) do
+      {:ok, claims}
+    else
+      [_header, _payload | _extra] -> {:error, :invalid_segment_count}
+      [_header | _extra] -> {:error, :invalid_segment_count}
+      _ -> {:error, :invalid_jwt}
+    end
+  end
+end
 
 alias FrontmanServer.Accounts
 alias FrontmanServer.Billing.Webhooks
+alias FrontmanServer.E2ESeeds
 alias FrontmanServer.Providers.OAuthToken
 alias FrontmanServer.Repo
-
-# ── 1. Create (or find) the e2e test user ──────────────────────────────────────
 
 e2e_email = "e2e@frontman.local"
 e2e_password = "e2epassword123!"
@@ -26,7 +60,6 @@ user =
           password: e2e_password
         })
 
-      # Auto-confirm the user so they can log in immediately
       user
       |> Accounts.User.confirm_changeset()
       |> Repo.update!()
@@ -37,7 +70,6 @@ user =
 
 IO.puts("E2E user: #{user.email} (id: #{user.id})")
 
-# Grant the test user access without a Stripe request. A stable event ID makes re-seeding safe.
 {:ok, _result} =
   Webhooks.process_event(%{
     "id" => "evt_e2e_subscription_#{user.id}",
@@ -57,29 +89,21 @@ IO.puts("E2E user: #{user.email} (id: #{user.id})")
     }
   })
 
-# ── 2. Insert OpenAI OAuth token (from env vars) ───────────────────────────────
-
 access_token = System.get_env("E2E_OPENAI_ACCESS_TOKEN")
 refresh_token = System.get_env("E2E_OPENAI_REFRESH_TOKEN")
 account_id = System.get_env("E2E_OPENAI_ACCOUNT_ID")
 token_present? = fn value -> is_binary(value) and value != "" end
 
 if token_present?.(access_token) and token_present?.(refresh_token) do
-  # Delete any existing token for this user+provider to allow re-seeding
   OAuthToken.for_user_and_provider(user.id, "openai_codex")
   |> Repo.delete_all()
 
-  # Cloak encrypts the tokens transparently via the Ecto type
   %OAuthToken{user_id: user.id}
   |> OAuthToken.changeset(%{
     provider: "openai_codex",
     access_token: access_token,
     refresh_token: refresh_token,
-    # Set expires_at far in the future so the server uses the access_token
-    # directly without attempting a refresh_token exchange (which burns the
-    # single-use refresh token and causes "refresh_token_reused" errors on
-    # subsequent CI runs).
-    expires_at: DateTime.add(DateTime.utc_now(), 86_400, :second),
+    expires_at: E2ESeeds.access_token_expires_at!(access_token),
     metadata: %{"account_id" => account_id || "e2e-account"}
   })
   |> Repo.insert!()

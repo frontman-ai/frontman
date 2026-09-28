@@ -6,7 +6,11 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientParallelTest do
   alias FrontmanServer.Tasks.Execution.LLMClient
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
 
-  @model "openrouter:openai/gpt-5.5"
+  @model %LLMDB.Model{
+    provider: :openrouter,
+    id: "openai/gpt-5.5",
+    modalities: %{input: [:text, :image], output: [:text]}
+  }
 
   setup :verify_on_exit!
 

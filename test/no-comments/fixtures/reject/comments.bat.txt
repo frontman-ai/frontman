@@ -1,0 +1,3 @@
+@echo off
+REM disabled command
+:: another disabled command

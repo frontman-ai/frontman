@@ -9,16 +9,14 @@ defmodule SwarmAi do
         {SwarmAi, name: MyApp.AgentRuntime}
       ]
 
-      {:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, loop)
-      SwarmAi.running?(MyApp.AgentRuntime, loop.task_id)
-      SwarmAi.cancel(MyApp.AgentRuntime, loop.task_id)
+      {:ok, pid} = SwarmAi.run(MyApp.AgentRuntime, key, loop)
+      SwarmAi.running?(MyApp.AgentRuntime, key)
+      SwarmAi.cancel(MyApp.AgentRuntime, key)
 
   SwarmAi owns execution lifecycle, cancellation, telemetry, and execution
   events. Callers provide LLM messages, tool execution, and event dispatch on
   the loop.
   """
-
-  require Logger
 
   alias SwarmAi.Loop
 
@@ -34,56 +32,32 @@ defmodule SwarmAi do
     }
   end
 
-  @doc "Runs a loop in a supervised runtime."
-  @spec run(atom(), Loop.t()) ::
+  @doc "Runs a loop under a caller-provided key, unique within the runtime."
+  @spec run(atom(), String.t(), Loop.t()) ::
           {:ok, pid()} | {:error, :already_running | {:start_failed, term()}}
-  def run(runtime, %Loop{} = loop) when is_atom(runtime) do
-    case DynamicSupervisor.start_child(
-           execution_supervisor_name(runtime),
-           {SwarmAi.ExecutionWorker, {runtime, loop}}
-         ) do
-      {:ok, pid} -> {:ok, pid}
-      {:error, {:already_started, _pid}} -> {:error, :already_running}
-      {:error, reason} -> {:error, {:start_failed, reason}}
-    end
-  end
+  defdelegate run(runtime, key, loop), to: SwarmAi.Runtime
 
-  @doc "Returns true when a conversation/task id is running."
+  @doc "Returns true when an execution is registered under the key."
   @spec running?(atom(), String.t()) :: boolean()
-  def running?(runtime, task_id) when is_atom(runtime) and is_binary(task_id),
-    do: running_lookup(runtime, task_id) != []
+  defdelegate running?(runtime, key), to: SwarmAi.Runtime
 
-  @doc "Cancels a running execution by conversation/task id."
-  @spec cancel(atom(), String.t()) :: :ok | {:error, :not_running}
-  def cancel(runtime, task_id) when is_atom(runtime) and is_binary(task_id) do
-    case running_lookup(runtime, task_id) do
-      [{pid, _}] ->
-        Logger.info("Cancelling execution for #{inspect(task_id)}")
-        Process.exit(pid, :cancelled)
-        :ok
-
-      [] ->
-        {:error, :not_running}
-    end
-  end
+  @doc "Returns the number of active executions owned by a supervised runtime."
+  @spec active_count(atom()) :: non_neg_integer()
+  defdelegate active_count(runtime), to: SwarmAi.Runtime
 
   @doc false
   @spec registry_name(atom()) :: atom()
-  def registry_name(runtime), do: :"#{runtime}.Registry"
+  defdelegate registry_name(runtime), to: SwarmAi.Runtime.Registry, as: :name
 
   @doc false
   @spec task_supervisor_name(atom()) :: atom()
-  def task_supervisor_name(runtime), do: :"#{runtime}.TaskSupervisor"
+  defdelegate task_supervisor_name(runtime), to: SwarmAi.Runtime
 
   @doc false
   @spec execution_supervisor_name(atom()) :: atom()
-  def execution_supervisor_name(runtime), do: :"#{runtime}.ExecutionSupervisor"
+  defdelegate execution_supervisor_name(runtime), to: SwarmAi.Runtime
 
-  @doc false
-  defp running_lookup(runtime, task_id) do
-    Registry.lookup(
-      registry_name(runtime),
-      task_id
-    )
-  end
+  @doc "Cancels a running execution by registration key."
+  @spec cancel(atom(), String.t()) :: :ok | {:error, :not_running}
+  defdelegate cancel(runtime, key), to: SwarmAi.Runtime
 end

@@ -2,8 +2,6 @@ open Vitest
 
 module SourcePath = Client__SourcePath
 
-// ── extractFilename ────────────────────────────────────────────────────
-
 describe("extractFilename", () => {
   test("extracts filename from Unix path", t => {
     t->expect(SourcePath.extractFilename("/src/components/Hero.vue"))->Expect.toBe("Hero.vue")
@@ -41,8 +39,6 @@ describe("extractFilename", () => {
     ->Expect.toBe("Leaf.vue")
   })
 })
-
-// ── isNodeModulesPath ──────────────────────────────────────────────────
 
 describe("isNodeModulesPath", () => {
   test("detects node_modules paths", t => {

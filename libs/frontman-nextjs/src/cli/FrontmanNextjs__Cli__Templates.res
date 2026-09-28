@@ -1,11 +1,8 @@
-// Templates for generated files
 module Style = FrontmanNextjs__Cli__Style
 
-// ASCII art banner for the installer
 let banner = () => {
   let l1 = Style.purpleBold("   ___              _                       ")
   let l2 = Style.purpleBold("  | __| _ ___ _ _ | |_ _ __  __ _ _ _  ")
-  // Use double-quoted string for the backtick line
   let l3 = Style.purpleBold("  | _| '_/ _ \\ ' \\|  _| '  \\/ _` | ' \\ ")
   let l4 = Style.purpleBold("  |_||_| \\___/_||_|\\__|_|_|_\\__,_|_||_|")
   let tagline = Style.purpleDim("  AI that sees your DOM and edits your frontend")
@@ -20,7 +17,6 @@ ${tagline}
 `
 }
 
-// middleware.ts template for Next.js 15 and earlier
 let middlewareTemplate = (host: string) =>
   `import { createMiddleware } from '@frontman-ai/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
@@ -41,7 +37,6 @@ export const config = {
 };
 `
 
-// proxy.ts template for Next.js 16+
 let proxyTemplate = (host: string) =>
   `import { createMiddleware } from '@frontman-ai/nextjs';
 import { NextRequest, NextResponse } from 'next/server';
@@ -61,7 +56,6 @@ export const config = {
 };
 `
 
-// instrumentation.ts template
 let instrumentationTemplate = () =>
   `export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
@@ -76,7 +70,6 @@ let instrumentationTemplate = () =>
 }
 `
 
-// Manual setup instructions (shown in summary when auto-edit is skipped)
 module ManualInstructions = {
   let middleware = (fileName: string, host: string) => {
     let h = Style.yellowBold
@@ -98,6 +91,10 @@ module ManualInstructions = {
   ${bar}
   ${bar}  ${s("3.")} In your middleware function, add as the ${b("very first lines")}:
   ${bar}
+  ${bar}     ${d("// Handles routes only when NODE_ENV === 'development' by default")}
+  ${bar}     ${d(
+        "// Set FRONTMAN_ENABLE_IN_PRODUCTION=1 or FRONTMAN_ENABLED=1 to opt in elsewhere",
+      )}
   ${bar}     ${d("const response = await frontman(req);")}
   ${bar}     ${d("if (response) return response;")}
   ${bar}
@@ -136,6 +133,10 @@ module ManualInstructions = {
   ${bar}
   ${bar}  ${s("3.")} In your proxy function, add Frontman handler as the ${b("very first lines")}:
   ${bar}
+  ${bar}     ${d("// Handles routes only when NODE_ENV === 'development' by default")}
+  ${bar}     ${d(
+        "// Set FRONTMAN_ENABLE_IN_PRODUCTION=1 or FRONTMAN_ENABLED=1 to opt in elsewhere",
+      )}
   ${bar}     ${d("const response = await frontman(req);")}
   ${bar}     ${d("if (response) return response;")}
   ${bar}
@@ -183,7 +184,6 @@ module ManualInstructions = {
   }
 }
 
-// Keep plain-text versions for the LLM system prompt (no ANSI codes)
 module ErrorMessages = {
   let middlewareManualSetup = (fileName: string, host: string) =>
     `
@@ -307,7 +307,6 @@ For full documentation, see: https://frontman.sh/docs/nextjs
 `
 }
 
-// Success messages
 module SuccessMessages = {
   let fileCreated = (fileName: string) => `  ${Style.check} Created ${Style.bold(fileName)}`
 
@@ -332,7 +331,7 @@ module SuccessMessages = {
         "(see details below)",
       )}`
 
-  let installComplete = (~devCommand: string) => {
+  let installComplete = (~devCommand: string, ~server: string) => {
     let p = Style.purple
     let pb = Style.purpleBold
     let d = Style.dim
@@ -343,6 +342,9 @@ module SuccessMessages = {
   ${pb("Next steps:")}
     ${p("1.")} Start your dev server   ${d(devCommand)}
     ${p("2.")} Open your browser to    ${d("http://localhost:3000/frontman")}
+    ${p("3.")} Sign in on your Frontman server   ${d(server)}
+    ${p("4.")} Production sign-in uses GitHub or Google
+    ${p("5.")} After returning, connect an AI provider or add an API key
 
   ${p(
         "┌───────────────────────────────────────────────┐",

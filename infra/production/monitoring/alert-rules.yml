@@ -1,12 +1,5 @@
-# =============================================================================
-# Prometheus Alert Rules - Frontman Production
-# Deployed to /etc/prometheus/alert-rules.yml
-# =============================================================================
 
 groups:
-  # ===========================================================================
-  # Disk Space
-  # ===========================================================================
   - name: disk
     rules:
       - alert: DiskSpaceWarning
@@ -33,9 +26,6 @@ groups:
           summary: "Disk space above 95% - CRITICAL"
           description: "Partition {{ $labels.mountpoint }} is {{ printf \"%.1f\" $value }}% full. Immediate action required."
 
-  # ===========================================================================
-  # Memory
-  # ===========================================================================
   - name: memory
     rules:
       - alert: HighMemoryUsage
@@ -50,9 +40,6 @@ groups:
           summary: "Memory usage above 90%"
           description: "Server memory usage is {{ printf \"%.1f\" $value }}%."
 
-  # ===========================================================================
-  # CPU
-  # ===========================================================================
   - name: cpu
     rules:
       - alert: HighCPUUsage
@@ -65,9 +52,6 @@ groups:
           summary: "CPU usage above 90% for 5+ minutes"
           description: "Average CPU usage is {{ printf \"%.1f\" $value }}%."
 
-  # ===========================================================================
-  # Frontman Service Health
-  # ===========================================================================
   - name: service
     rules:
       - alert: FrontmanServiceDown
@@ -82,9 +66,6 @@ groups:
           summary: "Frontman service is down"
           description: "The active frontman slot ({{ $labels.name }}) is not running."
 
-  # ===========================================================================
-  # Health Endpoint
-  # ===========================================================================
   - name: health-endpoint
     rules:
       - alert: HealthEndpointDown
@@ -96,9 +77,6 @@ groups:
           summary: "Health endpoint is failing"
           description: "{{ $labels.instance }} has been unreachable for over 2 minutes."
 
-  # ===========================================================================
-  # Database Backup Staleness
-  # ===========================================================================
   - name: backup
     rules:
       - alert: BackupStale
@@ -111,9 +89,6 @@ groups:
           summary: "Database backup is stale"
           description: "No successful PostgreSQL backup in over 25 hours."
 
-  # ===========================================================================
-  # PostgreSQL Connections
-  # ===========================================================================
   - name: postgres
     rules:
       - alert: HighDBConnections

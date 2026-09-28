@@ -1,5 +1,3 @@
-// Regression coverage for tool-call path recovery guardrails (issue #887).
-
 open Vitest
 
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
@@ -191,6 +189,27 @@ describe("Tool path guardrails", _t => {
 
     await cleanup(dir)
   })
+
+  testAsync(
+    "nearestExistingDir keeps relative roots comparable to absolute start paths",
+    async t => {
+      let relativeDir = ".tmp-path-recovery-" ++ Float.toString(Date.now())
+      await writeFile(relativeDir, "src/components/Button.res", "let button = () => ()")
+
+      let expected = Path.resolve(Path.join([relativeDir, "src", "components"]))
+      let actual = await PathRecovery.nearestExistingDir(
+        ~sourceRoot=relativeDir,
+        ~startPath=expected,
+      )
+
+      switch actual {
+      | Some(path) => t->expect(path)->Expect.toBe(expected)
+      | None => failwith("Expected nearest existing directory")
+      }
+
+      await cleanup(relativeDir)
+    },
+  )
 
   testAsync("regression replay: 3addabc6-like sequence avoids avoidable ENOENTs", async t => {
     ToolPathHints.clear()

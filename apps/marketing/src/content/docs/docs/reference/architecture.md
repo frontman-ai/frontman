@@ -132,7 +132,7 @@ The Phoenix application is responsible for orchestration, persistence, session m
 | `SwarmAi` | Runs the agent loop and coordinates LLM interactions |
 | `TaskChannel` | Handles per-task prompt traffic, tool routing, and streamed updates |
 | `TasksChannel` | Handles task listing, creation, deletion, and session initialization |
-| `ToolCallRegistry` | Tracks pending client-executed tool calls and resolves waiting processes |
+| `ProcessRegistry` | Owns task channels and tracks pending client-executed tool calls |
 | `SwarmDispatcher` | Persists interactions and broadcasts them through PubSub |
 | `Providers` | Resolves API keys, OAuth tokens, and model catalog data |
 | `Repo` | Stores tasks, interactions, credentials, identities, and organizations |

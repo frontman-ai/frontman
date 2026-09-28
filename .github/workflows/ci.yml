@@ -7,33 +7,48 @@ on:
       - main
   workflow_call:
 
-# Restrict default GITHUB_TOKEN permissions to read-only.
-# Jobs that need more (e.g. pull-requests: write for coverage reports)
-# escalate per-job below.
+
+
+
 permissions:
   contents: read
 
-# Cancel in-progress runs for the same PR/branch to free up runners
+
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # ============================================================================
-  # Node.js jobs — run on GitHub-hosted runners (free for public repos)
-  # No setup job needed: each runner is ephemeral with clean state.
-  # All Node.js jobs run fully in parallel with no serial bottleneck.
-  # ============================================================================
+  source-comments:
+    name: Check source comments
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.4.1'
+
+      - name: Check source comments
+        run: make check-source-comments
+
+
+
+
+
+
 
   build:
     name: Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -41,7 +56,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -65,10 +80,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -76,7 +91,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -89,7 +104,7 @@ jobs:
         run: make -C libs/frontman-client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/frontman-client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -104,10 +119,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -115,7 +130,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -128,7 +143,7 @@ jobs:
         run: make -C libs/frontman-core test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/frontman-core/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -143,10 +158,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -154,7 +169,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -167,7 +182,7 @@ jobs:
         run: make -C libs/frontman-nextjs test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/frontman-nextjs/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -182,10 +197,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -193,7 +208,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -206,7 +221,7 @@ jobs:
         run: make -C libs/react-statestore test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/react-statestore/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -221,10 +236,10 @@ jobs:
       checks: write
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -232,7 +247,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -245,7 +260,7 @@ jobs:
         run: make -C libs/client test-coverage
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: libs/client/coverage/cobertura-coverage.xml
           overall_coverage_fail_threshold: 0
@@ -259,13 +274,13 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
 
       - name: Check for changes in libs/client
         id: changes
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
         with:
           filters: |
             client:
@@ -273,7 +288,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.changes.outputs.client == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -283,7 +298,7 @@ jobs:
 
       - name: Cache dependencies
         if: steps.changes.outputs.client == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -305,13 +320,13 @@ jobs:
       pull-requests: read
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
 
       - name: Check for changes in libs/frontman-protocol
         id: changes
-        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
         with:
           filters: |
             protocol:
@@ -319,7 +334,7 @@ jobs:
 
       - name: Setup Node.js
         if: steps.changes.outputs.protocol == 'true'
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -329,7 +344,7 @@ jobs:
 
       - name: Cache dependencies
         if: steps.changes.outputs.protocol == 'true'
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -343,6 +358,10 @@ jobs:
         if: steps.changes.outputs.protocol == 'true'
         run: make build
 
+      - name: Test preview protocol
+        if: steps.changes.outputs.protocol == 'true'
+        run: make -C libs/frontman-protocol test
+
       - name: Check schemas are up to date
         if: steps.changes.outputs.protocol == 'true'
         run: make -C libs/frontman-protocol check-schemas
@@ -355,15 +374,65 @@ jobs:
         if: steps.changes.outputs.protocol == 'true'
         run: node libs/frontman-protocol/scripts/CheckBreakingChanges.res.mjs
 
+  preview-bridge-check:
+    name: Preview bridge check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+
+      - name: Check for preview bridge changes
+        id: changes
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        with:
+          filters: |
+            bridge:
+              - 'libs/frontman-preview-bridge/**'
+              - 'libs/frontman-protocol/**'
+              - 'package.json'
+              - '.yarnrc.yml'
+              - 'yarn.lock'
+
+      - name: Setup Node.js
+        if: steps.changes.outputs.bridge == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.4.1'
+
+      - name: Enable Corepack
+        if: steps.changes.outputs.bridge == 'true'
+        run: corepack enable && corepack install
+
+      - name: Cache dependencies
+        if: steps.changes.outputs.bridge == 'true'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-berry-${{ runner.os }}-
+
+      - name: Install dependencies
+        if: steps.changes.outputs.bridge == 'true'
+        run: yarn install --immutable
+
+      - name: Run focused bridge tests
+        if: steps.changes.outputs.bridge == 'true'
+        run: make -C libs/frontman-preview-bridge test
+
   dead-code:
     name: Dead code analysis
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -371,7 +440,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -398,10 +467,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Setup Node.js
-        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: '24.4.1'
 
@@ -409,7 +478,7 @@ jobs:
         run: corepack enable && corepack install
 
       - name: Cache dependencies
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: ~/.yarn/berry/cache
           key: yarn-berry-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
@@ -417,6 +486,9 @@ jobs:
 
       - name: Install dependencies
         run: yarn install --immutable
+
+      - name: Test marketing site
+        run: make -C apps/marketing test
 
       - name: Build ReScript packages
         run: yarn rescript
@@ -428,20 +500,29 @@ jobs:
       - name: Build marketing site (fails on broken links)
         run: cd apps/marketing && yarn build
 
-  # ============================================================================
-  # Elixir jobs — stay on self-hosted runners (need PostgreSQL on Docker host,
-  # cached mise/Erlang/Elixir toolchain)
-  #
-  # lint no longer depends on test-frontman-server — jobs run in parallel for
-  # faster feedback.
-  # ============================================================================
+
+
+
+
+
+
+
 
   test-swarm-ai:
     name: Test swarm_ai
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Free runner disk space
+        run: |
+          df -h
+          docker system prune --all --force --volumes || true
+          docker builder prune --all --force || true
+          sudo rm -rf /root/.yarn/berry/cache/* /root/.cache/yarn/* /tmp/runner/work/_temp/*
+          sudo apt-get clean
+          df -h
 
       - name: Install native build dependencies
         run: |
@@ -451,9 +532,9 @@ jobs:
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
 
-      # Uses mise.toml as single source of truth for Erlang/Elixir versions
+
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
         with:
           install: true
           cache: true
@@ -462,14 +543,14 @@ jobs:
         run: make setup-elixir-tools
 
       - name: Cache deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/swarm_ai/deps
           key: ${{ runner.os }}-swarm-mix-${{ hashFiles('apps/swarm_ai/mix.lock') }}
           restore-keys: ${{ runner.os }}-swarm-mix-
 
       - name: Cache _build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/swarm_ai/_build
           key: ${{ runner.os }}-swarm-build-test-${{ hashFiles('apps/swarm_ai/mix.lock') }}
@@ -509,42 +590,42 @@ jobs:
       pull-requests: write
       checks: write
     steps:
-      - name: Resolve Docker host gateway IP for PostgreSQL
-        # The self-hosted runner runs inside a Docker container.
-        # PostgreSQL runs on the Docker host, so we need the gateway IP.
-        run: |
-          # Try multiple methods to find the Docker host gateway
-          if command -v ip &>/dev/null; then
-            DB_HOST=$(ip route | awk '/default/ { print $3 }')
-          fi
-          if [ -z "$DB_HOST" ] && [ -f /proc/net/route ]; then
-            # Parse gateway from /proc/net/route (hex-encoded, little-endian)
-            HEX=$(awk '$2 == "00000000" { print $3; exit }' /proc/net/route)
-            if [ -n "$HEX" ]; then
-              DB_HOST=$(printf '%d.%d.%d.%d' 0x${HEX:6:2} 0x${HEX:4:2} 0x${HEX:2:2} 0x${HEX:0:2})
-            fi
-          fi
-          if [ -z "$DB_HOST" ]; then
-            # Last resort: typical Docker bridge gateway
-            DB_HOST="172.17.0.1"
-          fi
-          echo "DB_HOST=${DB_HOST}" >> "$GITHUB_ENV"
-          echo "Resolved DB_HOST=${DB_HOST}"
-
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Free runner disk space
+        run: |
+          df -h
+          docker system prune --all --force --volumes || true
+          docker builder prune --all --force || true
+          sudo rm -rf /root/.yarn/berry/cache/* /root/.cache/yarn/* /tmp/runner/work/_temp/*
+          sudo apt-get clean
+          df -h
+
+      - name: Start PostgreSQL
+        run: |
+          container_name="frontman-postgres-${{ github.run_id }}"
+          docker rm --force "$container_name" 2>/dev/null || true
+          docker run --detach --rm \
+            --name "$container_name" \
+            --network "container:$(hostname)" \
+            --env POSTGRES_USER=postgres \
+            --env POSTGRES_PASSWORD=postgres \
+            --env POSTGRES_DB=postgres \
+            postgres:16
+          timeout 60 bash -c "until docker exec '$container_name' pg_isready -h 127.0.0.1 -U postgres; do sleep 1; done"
 
       - name: Install native build dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq cmake libssl-dev libncurses5-dev
+          sudo apt-get install -y -qq cmake libssl-dev libncurses5-dev postgresql-client
 
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
 
-      # Uses mise.toml as single source of truth for Erlang/Elixir versions
+
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
         with:
           install: true
           cache: true
@@ -556,18 +637,18 @@ jobs:
         run: make setup-elixir-tools
 
       - name: Cache deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
-      # test job compiles with MIX_ENV=test (code_reloader: false) — use
-      # separate cache key so dev-env jobs don't restore
-      # stale _build/dev artifacts with the wrong compile-time config.
-      # v2: bust stale caches after E2E cache key split (build-e2e- vs build-dev-)
+
+
+
+
       - name: Cache _build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-test-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}
@@ -580,6 +661,9 @@ jobs:
         run: |
           mix deps.clean --unlock --unused
           mix deps.get
+
+      - name: Clean stale test databases
+        run: bash scripts/ci/postgres-test-db-cleanup.sh stale
 
       - name: Compile test with warnings as errors
         working-directory: apps/frontman_server
@@ -595,7 +679,7 @@ jobs:
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
 
       - name: Coverage report
-        uses: clearlyip/code-coverage-report-action@c0b9864e7e332c40ab7482c7605b764341f067d8 # main (node24)
+        uses: clearlyip/code-coverage-report-action@d3c3f0eeb4b3e032ae32082c42c8f9d94dfcc7bc
         with:
           filename: apps/frontman_server/cover/cobertura.xml
           overall_coverage_fail_threshold: 0
@@ -603,22 +687,27 @@ jobs:
 
       - name: Drop per-run test database
         if: always()
-        working-directory: apps/frontman_server
         env:
           MIX_TEST_DB_SUFFIX: "_run_${{ github.run_id }}"
-        run: MIX_ENV=test mix ecto.drop --quiet 2>/dev/null || true
+        run: |
+          bash scripts/ci/postgres-test-db-cleanup.sh current-test || true
+          bash scripts/ci/postgres-test-db-cleanup.sh stale || true
 
       - name: Cleanup workspace
         if: always()
         run: |
           rm -rf apps/frontman_server/_build apps/frontman_server/deps
 
+      - name: Stop PostgreSQL
+        if: always()
+        run: docker rm --force "frontman-postgres-${{ github.run_id }}" 2>/dev/null || true
+
   lint-frontman-server:
     name: Lint frontman-server
     runs-on: self-hosted
     steps:
       - name: Checkout code
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Install native build dependencies
         run: |
@@ -628,9 +717,9 @@ jobs:
       - name: Fix mise binary permissions
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
 
-      # Uses mise.toml as single source of truth for Erlang/Elixir versions
+
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@dba19683ed58901619b14f395a24841710cb4925 # v4.1.0
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
         with:
           install: true
           cache: true
@@ -639,15 +728,15 @@ jobs:
         run: make setup-elixir-tools
 
       - name: Cache deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/frontman_server/deps
           key: ${{ runner.os }}-mix-${{ hashFiles('apps/frontman_server/mix.lock') }}
           restore-keys: ${{ runner.os }}-mix-
 
-      # v2: bust stale caches after E2E cache key split (build-e2e- vs build-dev-)
+
       - name: Cache _build
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: apps/frontman_server/_build
           key: ${{ runner.os }}-build-dev-v2-${{ hashFiles('apps/frontman_server/mix.lock', 'apps/swarm_ai/mix.lock', 'apps/swarm_ai/lib/**') }}

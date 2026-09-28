@@ -72,7 +72,6 @@ class Frontman_Elementor_Data {
             update_post_meta( $post_id, '_elementor_edit_mode', 'builder' );
             update_post_meta( $post_id, '_elementor_template_type', self::template_type_for_post( $post ) );
 
-            // Save only the element tree; Elementor document saves also sync page-level templates.
             $json = wp_json_encode( $data );
             if ( ! is_string( $json ) || '' === $json ) {
                 throw new \RuntimeException( 'Failed to encode Elementor data.' );
@@ -100,6 +99,32 @@ class Frontman_Elementor_Data {
     public static function get_page_structure( int $post_id ): ?array {
         $data = self::get_page_data( $post_id );
         return null === $data ? null : array_map( [ self::class, 'summarize_element' ], $data );
+    }
+
+    public static function query_widgets( array $elements, string $type, array $keys, int $offset, int $limit ): array {
+        $widgets = [];
+        $total = 0;
+        $wanted = array_fill_keys( $keys, true );
+        $visit = static function ( array $elements ) use ( &$visit, &$widgets, &$total, $type, $wanted, $offset, $limit ): void {
+            foreach ( $elements as $element ) {
+                if ( 'widget' === ( $element['elType'] ?? '' ) && $type === ( $element['widgetType'] ?? '' ) ) {
+                    if ( $total >= $offset && count( $widgets ) < $limit ) {
+                        $widgets[] = [
+                            'id' => $element['id'],
+                            'widgetType' => $type,
+                            'settings' => (object) array_intersect_key( $element['settings'] ?? [], $wanted ),
+                        ];
+                    }
+                    ++$total;
+                }
+                if ( ! empty( $element['elements'] ) ) {
+                    $visit( $element['elements'] );
+                }
+            }
+        };
+        $visit( $elements );
+        $next = $offset + count( $widgets );
+        return [ 'widgets' => $widgets, 'total' => $total, 'next_offset' => $next < $total ? $next : null ];
     }
 
     public static function get_element( array $elements, string $element_id ): ?array {
@@ -240,14 +265,35 @@ class Frontman_Elementor_Data {
     }
 
     public static function save_rollback( int $post_id, array $rollback ): array {
+        $rollback_id = (string) ( $rollback['rollback_id'] ?? '' );
+        if ( '' === $rollback_id ) {
+            throw new Frontman_Tool_Error( 'Elementor rollback snapshot requires a nonempty rollback ID. Elementor content was not saved.' );
+        }
+
         $rollbacks = self::get_rollbacks( $post_id );
         array_unshift( $rollbacks, $rollback );
         $rollbacks = array_slice( $rollbacks, 0, self::MAX_ROLLBACKS );
-        update_post_meta( $post_id, self::ROLLBACK_META_KEY, function_exists( 'wp_slash' ) ? wp_slash( $rollbacks ) : $rollbacks );
+        $json = wp_json_encode( $rollbacks, JSON_PRESERVE_ZERO_FRACTION );
+        if ( false === $json || json_decode( $json, true ) !== $rollbacks ) {
+            throw new Frontman_Tool_Error( 'Could not encode Elementor rollback snapshot without changing its contents. Elementor content was not saved.' );
+        }
 
-        $rollback_id = (string) ( $rollback['rollback_id'] ?? '' );
-        if ( '' === $rollback_id || ! self::rollback_exists( self::get_rollbacks( $post_id ), $rollback_id ) ) {
-            throw new Frontman_Tool_Error( 'Failed to persist Elementor rollback snapshot.' );
+        global $wpdb;
+        $written = update_post_meta( $post_id, self::ROLLBACK_META_KEY, wp_slash( $json ) );
+        $database_error = $wpdb->last_error ?? '';
+        if ( self::get_rollbacks( $post_id ) !== $rollbacks ) {
+            $reference = self::generate_id();
+            error_log( 'Frontman rollback persistence: ' . wp_json_encode( [
+                'reference' => $reference,
+                'post_id' => $post_id,
+                'write_result' => $written,
+                'database_error' => $database_error,
+                'reason' => false === $written ? 'metadata_write_failed' : 'metadata_readback_mismatch',
+            ] ) );
+            $message = false === $written
+                ? 'WordPress did not persist the Elementor rollback snapshot. Elementor content was not saved.'
+                : 'Elementor rollback snapshot readback did not match. Elementor content was not saved.';
+            throw new Frontman_Tool_Error( $message . ' Reference: ' . $reference . '. Ask the site administrator to inspect the server log; full-page replacement uses the same snapshot storage.' );
         }
 
         return $rollback;
@@ -588,16 +634,6 @@ class Frontman_Elementor_Data {
         }
 
         return $response;
-    }
-
-    private static function rollback_exists( array $rollbacks, string $rollback_id ): bool {
-        foreach ( $rollbacks as $rollback ) {
-            if ( $rollback_id === (string) ( $rollback['rollback_id'] ?? '' ) ) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static function is_element_list( array $elements ): bool {

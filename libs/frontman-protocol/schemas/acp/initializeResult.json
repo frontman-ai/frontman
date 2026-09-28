@@ -39,7 +39,8 @@
               "type": "boolean"
             }
           }
-        }
+        },
+        "_meta": {}
       }
     },
     "agentInfo": {

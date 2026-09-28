@@ -1,7 +1,3 @@
-# =============================================================================
-# Prometheus Configuration - Frontman Production
-# Deployed to /etc/prometheus/prometheus.yml
-# =============================================================================
 
 global:
   scrape_interval: 15s
@@ -12,38 +8,31 @@ global:
     environment: production
     server: frontman-prod
 
-# Alert rules
 rule_files:
   - /etc/prometheus/alert-rules.yml
 
-# Send alerts to Alertmanager
 alerting:
   alertmanagers:
     - static_configs:
         - targets:
             - 127.0.0.1:9093
 
-# Scrape targets
 scrape_configs:
-  # ---- Prometheus self-monitoring ----
   - job_name: prometheus
     static_configs:
       - targets:
           - 127.0.0.1:9090
 
-  # ---- System metrics (CPU, memory, disk, network) ----
   - job_name: node
     static_configs:
       - targets:
           - 127.0.0.1:9100
 
-  # ---- PostgreSQL metrics ----
   - job_name: postgres
     static_configs:
       - targets:
           - 127.0.0.1:9187
 
-  # ---- Health endpoint probes (via blackbox exporter) ----
   - job_name: blackbox-health
     metrics_path: /probe
     params:

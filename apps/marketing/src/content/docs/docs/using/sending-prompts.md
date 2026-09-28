@@ -16,8 +16,9 @@ The chat input bar sits at the bottom of the Frontman panel. It supports:
 - **PDF attachments** — design specs or documents
 - **Pasted text** — long code snippets or specs collapse into inline chips
 - **Annotations** — element selections from the live preview (see [Annotations](/docs/using/annotations/))
+- **Agent selection** — choose whether each prompt should plan or execute
 
-![The prompt input bar showing the text field, model selector, and action buttons](../../../../assets/docs/sending-prompts/prompt-input-bar.png)
+![The prompt input bar showing agent and model selectors alongside action buttons](../../../../assets/docs/sending-prompts/prompt-input-bar.png)
 
 ### Attaching images
 
@@ -36,6 +37,17 @@ Images are sent as base64-encoded data directly to the LLM, so the agent sees ex
 When you paste text that's 3+ lines or over 150 characters, Frontman collapses it into an inline chip instead of flooding the input. This keeps the input readable while still sending the full text to the agent.
 
 ![A collapsed text chip in the input bar — showing how long pastes become compact inline chips](../../../../assets/docs/sending-prompts/pasted-text-chip.png)
+
+### Choosing an agent
+
+When multiple agents are available, use the **Agent** selector before sending a prompt:
+
+- **Executor** can inspect, edit, and verify your project.
+- **Planner** analyzes your request and produces a plan without making changes.
+
+Agent choice applies to the prompt you submit. You can switch agents between follow-ups without changing conversations. Frontman keeps your choice while you move between conversations in the current browser session; reloading resets it to the server default.
+
+Agent and model choices are independent. Agent controls how Frontman approaches the work, while model controls which AI model powers it.
 
 ### Choosing a model
 
@@ -107,7 +119,7 @@ See [Annotations](/docs/using/annotations/) for the full guide.
 
 When you hit send, here's what happens:
 
-1. Your text, images, and annotations are packaged together
+1. Your text, images, annotations, and selected agent are packaged together
 2. The server sends everything to the LLM along with conversation history
 3. The agent typically starts by **taking a screenshot** to see the current state
 4. Then it reads the DOM or source files as needed

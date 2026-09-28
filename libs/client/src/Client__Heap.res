@@ -1,7 +1,3 @@
-// Heap Analytics initialization
-// Dev env ID: 349428408
-// Prod env ID: 218974947
-
 @@live
 let envId = if Client__Env.isDev {
   "349428408"
@@ -33,18 +29,11 @@ let init = () => {
   `)
 }
 
-let identify: string => unit = %raw(`
-  function(userId) {
-    if (typeof window !== 'undefined' && window.heap && window.heap.identify) {
-      window.heap.identify(userId);
-    }
-  }
-`)
+type heapApi = {identify: string => unit, track: (string, JSON.t) => unit}
+@scope("window") @val external heap: Nullable.t<heapApi> = "heap"
 
-let addUserProperties: {..} => unit = %raw(`
-  function(properties) {
-    if (typeof window !== 'undefined' && window.heap && window.heap.addUserProperties) {
-      window.heap.addUserProperties(properties);
-    }
-  }
-`)
+let getHeap = () => heap->Nullable.toOption->Option.getOrThrow(~message="Heap is not initialized")
+
+let identify = userId => getHeap().identify(userId)
+
+let track = (eventName, properties) => getHeap().track(eventName, properties)

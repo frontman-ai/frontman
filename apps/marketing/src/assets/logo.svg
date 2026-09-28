@@ -1,12 +1,33 @@
 <svg width="63" height="63" viewBox="0 0 700 700" fill="none" xmlns="http://www.w3.org/2000/svg">
+<style>
+@media (color-gamut: p3) {
+  @supports (fill: color(display-p3 0 0 0)) {
+    .brand-teal { fill: color(display-p3 0.48 0.84 0.82); }
+    .brand-orange { fill: color(display-p3 1 0.22 0.05); }
+    .brand-cyan { fill: color(display-p3 0 0.72 1); }
+    .brand-purple { fill: color(display-p3 0.64 0.28 1); }
+    .brand-yellow { fill: color(display-p3 1 0.82 0.42); }
+  }
+}
+@media (dynamic-range: high) {
+  @supports (fill: color(rec2100-linear 0 0 0)) {
+    :root { dynamic-range-limit: constrained; }
+    .brand-teal { fill: color(rec2100-linear 0.4991 1.0425 1.0231); }
+    .brand-orange { fill: color(rec2100-linear 1.2190 0.1331 0.0054); }
+    .brand-cyan { fill: color(rec2100-linear 0.2277 0.7387 1.5872); }
+    .brand-purple { fill: color(rec2100-linear 0.5393 0.1429 1.5749); }
+    .brand-yellow { fill: color(rec2100-linear 1.4202 1.0379 0.2479); }
+  }
+}
+</style>
 <g clip-path="url(#clip0_2_110)">
 <g clip-path="url(#clip1_2_110)">
 <path d="M81.4815 191.262L327.698 49.1088C369.626 24.9021 403.615 44.5257 403.615 92.9393L403.615 377.246C403.615 425.66 369.626 484.531 327.698 508.738L81.4815 650.891C39.554 675.098 5.56489 655.474 5.56476 607.06L5.56476 322.754C5.56482 274.34 39.554 215.469 81.4815 191.262Z" fill="black" stroke="white" stroke-width="14.2153"/>
-<rect width="73.4458" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 133.98 277.044)" fill="#94D0CD"/>
-<rect width="103.061" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 133.803 277.146)" fill="#F24E1E"/>
-<rect width="66.3381" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 133.803 445.361)" fill="#1ABCFE"/>
-<rect width="158.738" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 133.803 361.254)" fill="#A259FF"/>
-<rect width="52.1228" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 235.367 218.508)" fill="#EFCF81"/>
+<rect class="brand-teal" width="73.4458" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 133.98 277.044)" fill="#94D0CD"/>
+<rect class="brand-orange" width="103.061" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 133.803 277.146)" fill="#F24E1E"/>
+<rect class="brand-cyan" width="66.3381" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 133.803 445.361)" fill="#1ABCFE"/>
+<rect class="brand-purple" width="158.738" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 133.803 361.254)" fill="#A259FF"/>
+<rect class="brand-yellow" width="52.1228" height="49.7536" rx="24.8768" transform="matrix(0.866025 -0.5 2.20305e-08 1 235.367 218.508)" fill="#EFCF81"/>
 </g>
 <g clip-path="url(#clip2_2_110)">
 <rect x="6.15541" y="3.55383" width="459.628" height="459.628" rx="87.6611" transform="matrix(0.866025 -0.5 2.20305e-08 1 290.463 234.617)" fill="white" stroke="black" stroke-width="14.2153"/>

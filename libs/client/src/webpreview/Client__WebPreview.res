@@ -3,18 +3,18 @@
  *
  * Renders the iframe viewport. Nav controls have moved to Client__TopBar.
  */
-let // Hook to measure the available space in the viewport container
-useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
+let useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
   let (size, setSize) = React.useState(() => (0, 0))
 
   React.useEffect(() => {
     switch ref.current->Nullable.toOption {
     | None => None
     | Some(element) =>
-      let rect = WebAPI.Element.getBoundingClientRect(element->Obj.magic)
+      let webElement = element->FrontmanBindings.Bindings__WebAPI.elementFromReact
+      let rect = webElement->WebAPI.Element.getBoundingClientRect
       setSize(_ => (rect.width->Float.toInt, rect.height->Float.toInt))
 
-      let observer = FrontmanBindings.ResizeObserver.make(entries => {
+      let observer = WebAPI.ResizeObserver.make((entries, _observer) => {
         entries
         ->Array.get(0)
         ->Option.forEach(
@@ -24,8 +24,8 @@ useContainerSize = (ref: React.ref<Nullable.t<Dom.element>>): (int, int) => {
           },
         )
       })
-      observer->FrontmanBindings.ResizeObserver.observe(element)
-      Some(() => observer->FrontmanBindings.ResizeObserver.disconnect)
+      observer->WebAPI.ResizeObserver.observe(~target=webElement)
+      Some(() => observer->WebAPI.ResizeObserver.disconnect)
     }
   }, [])
 
@@ -43,11 +43,6 @@ let make = () => {
 
   let containerRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let (availableWidth, availableHeight) = useContainerSize(containerRef)
-
-  React.useEffect(() => {
-    Client__DeviceMode.persist(deviceMode, deviceOrientation)
-    None
-  }, (deviceMode, deviceOrientation))
 
   let effectiveDims = Client__DeviceMode.getEffectiveDimensions(deviceMode, deviceOrientation)
 

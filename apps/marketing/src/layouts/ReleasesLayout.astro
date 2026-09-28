@@ -1,56 +1,64 @@
 ---
-const { frontmatter, body } = Astro.props
+const { frontmatter, body, relatedReleases = [] } = Astro.props
 
 import Layout from './Layout.astro'
 import BlogPostHero from '../components/blocks/blog/BlogPostHero.astro'
+import { getWebPageId } from '../utils/structuredData.mjs'
 
 const SEO = {
 	title: `${frontmatter.title} | Frontman`,
 	description: frontmatter.description
 }
 
-const pubDateISO = frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate
-const updatedDateISO = frontmatter.updatedDate instanceof Date ? frontmatter.updatedDate.toISOString() : frontmatter.updatedDate
+const pubDateISO =
+	frontmatter.pubDate instanceof Date ? frontmatter.pubDate.toISOString() : frontmatter.pubDate
+const updatedDateISO =
+	frontmatter.updatedDate instanceof Date
+		? frontmatter.updatedDate.toISOString()
+		: frontmatter.updatedDate
 
 const wordCount = body
-	? body.replace(/```[\s\S]*?```/g, '').replace(/[#*_\[\]()>|`~-]/g, '').split(/\s+/).filter(Boolean).length
+	? body
+			.replace(/```[\s\S]*?```/g, '')
+			.replace(/[#*_\[\]()>|`~-]/g, '')
+			.split(/\s+/)
+			.filter(Boolean).length
 	: undefined
 
-// WebPage JSON-LD with dateModified for freshness signals
 const webPageJsonLd = {
-	"@context": "https://schema.org",
-	"@type": "WebPage",
-	"name": frontmatter.title,
-	"description": frontmatter.description,
-	"url": Astro.url.href,
-	"datePublished": pubDateISO,
-	...(updatedDateISO ? { "dateModified": updatedDateISO } : { "dateModified": pubDateISO }),
-	...(wordCount ? { "wordCount": wordCount } : {}),
-	"publisher": {
-		"@type": "Organization",
-		"name": "Frontman",
-		"logo": {
-			"@type": "ImageObject",
-			"url": "https://frontman.sh/logo.svg"
+	'@context': 'https://schema.org',
+	'@type': 'WebPage',
+	'@id': getWebPageId(Astro.url.href),
+	name: frontmatter.title,
+	description: frontmatter.description,
+	url: Astro.url.href,
+	datePublished: pubDateISO,
+	...(updatedDateISO ? { dateModified: updatedDateISO } : { dateModified: pubDateISO }),
+	...(wordCount ? { wordCount: wordCount } : {}),
+	publisher: {
+		'@type': 'Organization',
+		name: 'Frontman',
+		logo: {
+			'@type': 'ImageObject',
+			url: 'https://frontman.sh/logo.svg'
 		}
 	},
-	"mainEntityOfPage": {
-		"@type": "WebPage",
-		"@id": Astro.url.href
+	mainEntityOfPage: {
+		'@type': 'WebPage',
+		'@id': getWebPageId(Astro.url.href)
 	}
 }
 
-// FAQPage JSON-LD (optional)
 const faqJsonLd = frontmatter.faq?.length
 	? {
-			"@context": "https://schema.org",
-			"@type": "FAQPage",
-			"mainEntity": frontmatter.faq.map((item: { question: string; answer: string }) => ({
-				"@type": "Question",
-				"name": item.question,
-				"acceptedAnswer": {
-					"@type": "Answer",
-					"text": item.answer
+			'@context': 'https://schema.org',
+			'@type': 'FAQPage',
+			mainEntity: frontmatter.faq.map((item: { question: string; answer: string }) => ({
+				'@type': 'Question',
+				name: item.question,
+				acceptedAnswer: {
+					'@type': 'Answer',
+					text: item.answer
 				}
 			}))
 		}
@@ -63,11 +71,15 @@ const faqJsonLd = frontmatter.faq?.length
 	ogImage={frontmatter.image}
 	article={{
 		publishedTime: pubDateISO,
-		modifiedTime: updatedDateISO || pubDateISO,
+		modifiedTime: updatedDateISO || pubDateISO
 	}}
 >
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(webPageJsonLd)} />
-	{faqJsonLd && <script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />}
+	{
+		faqJsonLd && (
+			<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+		)
+	}
 	<BlogPostHero
 		title={frontmatter.title}
 		pubDate={frontmatter.pubDate}
@@ -78,32 +90,49 @@ const faqJsonLd = frontmatter.faq?.length
 		<slot />
 	</div>
 
-	{frontmatter.faq?.length && (
-		<section class="post-faq">
-			<div class="post-faq__container">
-				<h2 class="post-faq__title">Frequently Asked Questions</h2>
-				<div class="post-faq__list">
-					{frontmatter.faq.map((item: { question: string; answer: string }) => (
-						<details class="post-faq__item group">
-							<summary class="post-faq__question">
-								<span>{item.question}</span>
-								<span class="post-faq__icon">+</span>
-							</summary>
-							<div class="post-faq__answer">
-								<p>{item.answer}</p>
-							</div>
-						</details>
-					))}
+	<nav class="release-navigation" aria-label="Release archive navigation">
+		<a href="/open-source-ai-releases/">All open-source AI releases</a>
+		{
+			relatedReleases.map((release: { id: string; title: string }) => (
+				<a href={`/open-source-ai-releases/${release.id}/`}>{release.title}</a>
+			))
+		}
+	</nav>
+
+	{
+		frontmatter.faq?.length && (
+			<section class="post-faq">
+				<div class="post-faq__container">
+					<h2 class="post-faq__title">Frequently Asked Questions</h2>
+					<div class="post-faq__list">
+						{frontmatter.faq.map((item: { question: string; answer: string }) => (
+							<details class="post-faq__item group">
+								<summary class="post-faq__question">
+									<span>{item.question}</span>
+									<span class="post-faq__icon">+</span>
+								</summary>
+								<div class="post-faq__answer">
+									<p>{item.answer}</p>
+								</div>
+							</details>
+						))}
+					</div>
 				</div>
-			</div>
-		</section>
-	)}
+			</section>
+		)
+	}
 </Layout>
 
 <style>
 	@reference "../styles/global.css";
 	.post-body {
 		@apply mx-auto max-w-3xl px-6 py-12 lg:py-24;
+	}
+	.release-navigation {
+		@apply mx-auto flex max-w-3xl flex-col gap-3 border-t border-neutral-800 px-6 pt-8 pb-12 text-sm lg:pb-20;
+	}
+	.release-navigation a {
+		@apply text-primary-400 hover:text-primary-300 underline underline-offset-4;
 	}
 
 	.post-faq {
@@ -144,9 +173,15 @@ const faqJsonLd = frontmatter.faq?.length
 		list-style: none;
 		transition: color 0.2s;
 	}
-	.post-faq__question::-webkit-details-marker { display: none; }
-	.post-faq__question:hover { color: #fff; }
-	.post-faq__question span:first-child { padding-right: 24px; }
+	.post-faq__question::-webkit-details-marker {
+		display: none;
+	}
+	.post-faq__question:hover {
+		color: #fff;
+	}
+	.post-faq__question span:first-child {
+		padding-right: 24px;
+	}
 	.post-faq__icon {
 		flex-shrink: 0;
 		width: 28px;
@@ -175,7 +210,11 @@ const faqJsonLd = frontmatter.faq?.length
 	}
 
 	@media (max-width: 768px) {
-		.post-faq { padding: 40px 20px; }
-		.post-faq__title { font-size: 24px; }
+		.post-faq {
+			padding: 40px 20px;
+		}
+		.post-faq__title {
+			font-size: 24px;
+		}
 	}
 </style>

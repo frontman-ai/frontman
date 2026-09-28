@@ -6,17 +6,14 @@
 
 defmodule FrontmanServer.Tasks.Todos do
   @moduledoc """
-  Atomic todo projection module.
+  Projects the current todo list from the most recent `todo_write` result.
 
-  Rebuilds current todos from the last `todo_write` ToolResult interaction.
-  No incremental mutations — the LLM sends the complete list every time,
-  eliminating hallucinated IDs and todo drift between turns.
-
-  This is a subcontext under Tasks — it accepts interactions as parameters
-  and never calls back to the parent Tasks context.
+  The LLM sends the complete list each time. This prevents ID and state drift
+  between turns.
   """
 
   alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools.TodoWrite
 
   defmodule Todo do
@@ -52,6 +49,16 @@ defmodule FrontmanServer.Tasks.Todos do
               priority: nil,
               created_at: nil,
               updated_at: nil
+
+    @type t :: %__MODULE__{
+            id: Ecto.UUID.t(),
+            content: String.t(),
+            active_form: String.t(),
+            status: :pending | :in_progress | :completed,
+            priority: :high | :medium | :low,
+            created_at: DateTime.t(),
+            updated_at: DateTime.t()
+          }
 
     def schema do
       @schema
@@ -100,16 +107,21 @@ defmodule FrontmanServer.Tasks.Todos do
   """
   def list_todos(interactions) do
     interactions
-    |> Enum.filter(&todo_write_result?/1)
-    |> List.last()
+    |> Enum.reverse()
+    |> Enum.find(&todo_write_result?/1)
     |> case do
-      nil -> %{}
-      %Interaction.ToolResult{result: result} -> parse_write_result(result)
+      nil ->
+        %{}
+
+      %InteractionSchema{data: %Interaction.ToolResult{result: result}} ->
+        parse_write_result(result)
     end
   end
 
-  defp todo_write_result?(%Interaction.ToolResult{tool_name: name, is_error: false}),
-    do: name == TodoWrite.name()
+  defp todo_write_result?(%InteractionSchema{
+         data: %Interaction.ToolResult{tool_name: name, is_error: false}
+       }),
+       do: name == TodoWrite.name()
 
   defp todo_write_result?(_), do: false
 

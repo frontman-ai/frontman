@@ -1,13 +1,7 @@
-// Compare protocol schemas against the main branch to detect breaking changes.
-// Run: node scripts/CheckBreakingChanges.res.mjs
-
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module CP = FrontmanBindings.ChildProcess
 
-// Minimal exec wrapper for this dev script — wraps nodeExec in a Promise.
-// Inlined here to avoid circular dependency: frontman-core depends on
-// frontman-protocol, so we can't import FrontmanCore__ChildProcess.
 let exec = async (command: string): result<CP.execResult, CP.execError> => {
   await Promise.make((resolve, _reject) => {
     CP.nodeExec(command, {encoding: "utf8", maxBuffer: 50 * 1024 * 1024}, (err, stdout, stderr) => {
@@ -35,8 +29,8 @@ external fileURLToPath: string => string = "fileURLToPath"
 
 let schemasDir = Path.join([Path.dirname(fileURLToPath(importMetaUrl)), "..", "schemas"])
 
-// Relative path from repo root to schemas dir
 let schemasRelative = "libs/frontman-protocol/schemas"
+let protocolPackage = "\"@frontman-ai/frontman-protocol\": major"
 
 @val @scope("process")
 external exit: int => unit = "exit"
@@ -48,14 +42,37 @@ type change = {
   kind: changeKind,
 }
 
+let changesetDeclaresProtocolMajor = async () => {
+  let files = switch await exec(
+    "git diff --name-only --diff-filter=AM origin/main -- .changeset/",
+  ) {
+  | Ok({stdout}) => stdout->String.trim->String.split("\n")->Array.filter(path => path != "")
+  | Error({stderr}) =>
+    Console.error(`Failed to inspect changesets: ${stderr}`)
+    exit(1)
+    []
+  }
+  let declarations = await files
+  ->Array.map(async file => {
+    let content = await Fs.Promises.readFile(file)
+    content
+    ->String.split("---")
+    ->Array.get(1)
+    ->Option.getOr("")
+    ->String.split("\n")
+    ->Array.some(line => line->String.trim == protocolPackage)
+  })
+  ->Promise.all
+
+  declarations->Array.some(value => value)
+}
+
 let main = async () => {
-  // Get list of schema files changed vs main
   let diffResult = await exec(`git diff --name-status origin/main -- ${schemasRelative}/`)
 
   let diffOutput = switch diffResult {
   | Ok({stdout}) => stdout
   | Error({code, stderr}) =>
-    // Exit code 1 with empty stderr means no diff (clean)
     if code == Some(1) && stderr == "" {
       ""
     } else {
@@ -70,7 +87,6 @@ let main = async () => {
     exit(0)
   }
 
-  // Parse git diff output: "A\tpath", "D\tpath", "M\tpath", "R100\told\tnew"
   let changes =
     diffOutput
     ->String.trim
@@ -79,11 +95,10 @@ let main = async () => {
       let parts = line->String.split("\t")
       switch parts {
       | [status, oldFile, newFile]
-        if status->String.startsWith("R") ||
-          status->String.startsWith(
-            "C",
-          ) => // Renames/copies are a removal of the old path + addition of the new path
-        [{file: oldFile, kind: Removed}, {file: newFile, kind: Added}]
+        if status->String.startsWith("R") || status->String.startsWith("C") => [
+          {file: oldFile, kind: Removed},
+          {file: newFile, kind: Added},
+        ]
       | [status, file] =>
         let kind = switch status {
         | "A" => Added
@@ -120,7 +135,6 @@ let main = async () => {
     Console.log("")
   }
 
-  // Show detailed diff for modified schemas
   if modified->Array.length > 0 {
     Console.log("=== Detailed Changes ===\n")
     for i in 0 to modified->Array.length - 1 {
@@ -134,18 +148,27 @@ let main = async () => {
     }
   }
 
-  // Fail CI on removed schemas (definitively breaking)
-  if removed->Array.length > 0 {
+  let protocolMajorDeclared = switch removed->Array.length > 0 {
+  | true => await changesetDeclaresProtocolMajor()
+  | false => false
+  }
+
+  if removed->Array.length > 0 && !protocolMajorDeclared {
     Console.error(
       `\nBREAKING: ${removed
         ->Array.length
         ->Int.toString} schema(s) removed. This will break clients on older SDK versions.`,
     )
-    Console.error("If this is intentional, a reviewer must approve the PR.")
+    Console.error(
+      "Declare a major @frontman-ai/frontman-protocol changeset if this is intentional.",
+    )
     exit(1)
   }
 
-  // Warn on modifications (potentially breaking, needs human review)
+  if removed->Array.length > 0 {
+    Console.log("Breaking schema removals accepted by major protocol changeset.")
+  }
+
   if modified->Array.length > 0 {
     Console.log(
       `\nWARNING: ${modified

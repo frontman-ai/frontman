@@ -87,6 +87,14 @@ frontman/
 - Test files are named `*.test.res.mjs`.
 - Assertion style: `t->expect(value)->Expect.toEqual(expected)`.
 
+Run the packed `@frontman-ai/astro` consumer against a supported Astro version with:
+
+```bash
+make -C test/astro-compat ASTRO_VERSION=7
+```
+
+Use `5`, `6`, or `7` to test another supported major. This installs the packed package with strict peer dependency validation before building and testing the fixture.
+
 ## Pull Request Process
 
 1. Fill out the PR template (description, related issues, testing checklist).
@@ -125,13 +133,13 @@ npm publishing is done manually after the release PR merges:
 ```bash
 git checkout main && git pull
 
-# Publish @frontman-ai/astro
-make publish-astro
+# Publish all public npm packages
+make publish
 ```
 
-This builds the package from scratch (ReScript + tsup bundle) and runs `npm publish`. The version in `package.json` was already bumped by changesets in step 2.
+This builds and publishes `@frontman-ai/astro`, `@frontman-ai/vite`, `@frontman-ai/nextjs`, and `@frontman-ai/react-statestore`. Packages whose versions already exist on npm are skipped, so the command can be retried safely. Package versions were already bumped by Changesets in step 2.
 
-> **Note:** Only `@frontman-ai/astro` has a publish target currently. To add more, create a `publish` target in the package's Makefile and a corresponding `publish-<name>` target in the root Makefile.
+The core, protocol, browser client, and UI workspaces are internal build inputs. Their code is bundled into the public framework packages or deployed browser assets, so they are not published separately.
 
 ## License
 

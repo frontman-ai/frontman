@@ -1,6 +1,6 @@
 /**
  * Client__FrontmanLogo - Frontman "F" logo component
- * 
+ *
  * Renders the Frontman logo SVG at the specified size.
  * The logo features two isometric panels - one dark with colorful code lines,
  * and one white with the "F" letter.

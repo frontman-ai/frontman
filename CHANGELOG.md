@@ -3,6 +3,711 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [5.1.0] - 2026-09-08
+
+
+#### @frontman-ai/client
+
+
+### Patch Changes
+
+- [#1633](https://github.com/frontman-ai/frontman/pull/1633) [`a34bd7a`](https://github.com/frontman-ai/frontman/commit/a34bd7adf51544f068ab5ef06ee1479d76163afd) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow cancellation of a pending question even when the client shows the agent as idle.
+
+- [#1632](https://github.com/frontman-ai/frontman/pull/1632) [`85f2a88`](https://github.com/frontman-ai/frontman/commit/85f2a8873b6f64b8bde492b20fbab994c71cbd6e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add an always-visible chat banner linking to GitHub stars or WordPress reviews, matching the first-task dialog.
+
+- [#1626](https://github.com/frontman-ai/frontman/pull/1626) [`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep WordPress v4 installations working with the hosted client by normalizing relay protocol 1.0 tool catalogs. Report project-context connection failures to Sentry and show the failure instead of an endless loading state.
+
+- [#1628](https://github.com/frontman-ai/frontman/pull/1628) [`c4d3212`](https://github.com/frontman-ai/frontman/commit/c4d3212b925371b14c70fbdd1ef99011bf1f23a7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Warn WordPress users when their installed Frontman plugin is behind WordPress.org and direct them to update through WordPress administration. Show a persistent reminder inside Frontman when plugin auto-updates are disabled in WordPress settings, with a link to enable them.
+
+#### @frontman-ai/astro
+
+
+### Patch Changes
+
+- [#1639](https://github.com/frontman-ai/frontman/pull/1639) [`b07ba72`](https://github.com/frontman-ai/frontman/commit/b07ba7293a69a37bf804e015cbbb76114ac7a14e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Redact session driver credentials from the resolved Astro config tool output.
+
+#### @frontman-ai/frontman-client
+
+
+### Patch Changes
+
+- [#1626](https://github.com/frontman-ai/frontman/pull/1626) [`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep WordPress v4 installations working with the hosted client by normalizing relay protocol 1.0 tool catalogs. Report project-context connection failures to Sentry and show the failure instead of an endless loading state.
+
+#### @frontman-ai/frontman-core
+
+
+### Patch Changes
+
+- Updated dependencies [[`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0)]:
+  - @frontman-ai/frontman-protocol@4.0.1
+
+#### @frontman-ai/frontman-preview-bridge
+
+
+### Patch Changes
+
+- Updated dependencies [[`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0)]:
+  - @frontman-ai/frontman-protocol@4.0.1
+
+#### @frontman-ai/frontman-protocol
+
+
+### Patch Changes
+
+- [#1626](https://github.com/frontman-ai/frontman/pull/1626) [`d4896ac`](https://github.com/frontman-ai/frontman/commit/d4896acaf1e700e4db913103db074a099835ecb0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep WordPress v4 installations working with the hosted client by normalizing relay protocol 1.0 tool catalogs. Report project-context connection failures to Sentry and show the failure instead of an endless loading state.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Minor Changes
+
+- [#1654](https://github.com/frontman-ai/frontman/pull/1654) [`ef80a78`](https://github.com/frontman-ai/frontman/commit/ef80a7840e7cdd8c03da62df460a18d0f067232a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add two provider-neutral WordPress SEO tools for reading and updating Yoast SEO Free 28.4 title and description overrides. Limit the route to tested versions, supported content types, permissions, and installations without detected SEO-plugin conflicts.
+
+- [#1662](https://github.com/frontman-ai/frontman/pull/1662) [`fa9ff56`](https://github.com/frontman-ai/frontman/commit/fa9ff564936f692c03f9cfa1dec56155a11ed15f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add paged Elementor widget inspection with selected settings. Add server-side rollback diagnostics with reference IDs while keeping snapshot verification mandatory. Return the persisted timeout warning to the active agent so it knows tools can still execute, without changing existing server deadlines or question-tool pause behavior. Add UTF-8-safe pages to stored tool-result retrieval so agents can recover truncated text without repeating the full request.
+
+- [#1658](https://github.com/frontman-ai/frontman/pull/1658) [`12b62f8`](https://github.com/frontman-ai/frontman/commit/12b62f806810920afac731134a074ed3c39f0f0d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add exact-text editing to `wp_update_custom_css` with `oldText`, `newText`, and optional `replaceAll`. Agents can change small sections without sending the complete stylesheet. Existing full-replacement calls remain supported.
+
+  Add persisted-source reads, scope checks, best-effort conflict detection, and compact edit receipts. Reject edits to preprocessor-backed CSS.
+
+- [#1663](https://github.com/frontman-ai/frontman/pull/1663) [`a7f7c4f`](https://github.com/frontman-ai/frontman/commit/a7f7c4fcb835a359eac94d444e91901f66a476f0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add permission-checked native WordPress author assignment and bounded current-site account lookup for user-requested author tasks. Validate raw IDs and lookup inputs before coercion. Reject boundary-asterisk searches while preserving literal interior asterisks, percent signs, underscores, and quotes. Document account-identifier disclosure to the selected AI provider and task history.
+
+- [#1657](https://github.com/frontman-ai/frontman/pull/1657) [`6097c5f`](https://github.com/frontman-ai/frontman/commit/6097c5f4b7ff390bb6b22976150060b4625306de) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add opt-in Sentry reports for unexpected WordPress PHP tool exceptions under Settings > Frontman. Bundle an isolated PHP SDK and remove sensitive data from reports. Keep expected tool errors out of Sentry and preserve tool responses if reporting fails.
+
+- [#1656](https://github.com/frontman-ai/frontman/pull/1656) [`5238277`](https://github.com/frontman-ai/frontman/commit/52382772d70208c3ee3bf25424830ff91565d093) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support optional custom slugs when creating or updating WordPress posts and pages. Use WordPress core sanitization and uniqueness rules, reject non-string slugs before writes, and return the persisted slug in post snapshots.
+
+### Patch Changes
+
+- [#1660](https://github.com/frontman-ai/frontman/pull/1660) [`43e458b`](https://github.com/frontman-ai/frontman/commit/43e458bdc3f15b67536aec87e4218c93ecfd5087) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Store Elementor undo snapshots as Unicode-escaped JSON so emoji can be saved on legacy WordPress metadata charsets. Verify snapshot contents before saving edits, preserve existing rollback history, and report rejected writes separately from readback mismatches.
+
+- [#1628](https://github.com/frontman-ai/frontman/pull/1628) [`c4d3212`](https://github.com/frontman-ai/frontman/commit/c4d3212b925371b14c70fbdd1ef99011bf1f23a7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Warn WordPress users when their installed Frontman plugin is behind WordPress.org and direct them to update through WordPress administration. Show a persistent reminder inside Frontman when plugin auto-updates are disabled in WordPress settings, with a link to enable them.
+
+- [#1661](https://github.com/frontman-ai/frontman/pull/1661) [`55430e4`](https://github.com/frontman-ai/frontman/commit/55430e4dd957889e7882fa10b8db36ff16ffa254) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the stored slug in WordPress post list results, consistent with single-post reads. Draft and pending slugs can be empty; publication applies WordPress core slug rules.
+
+## [Unreleased]
+
+### Added
+
+- Add the WebMCP skill to the server catalog through a reversible data migration. Include current browser APIs, confirmation safeguards, and migration guidance.
+- Add WebMCP tools for website support questions and agent feedback, with delivery to Discord through a dedicated server queue. Questions require user confirmation. Agent feedback does not. Submission results distinguish queued requests from unconfirmed delivery and do not promise replies.
+- Use the Astro integration's resolved server host for support submissions. Reuse the existing agent-feedback Discord webhook without a separate enablement flag. Submissions are unavailable when that webhook is absent. Validate requests and disable Discord mentions.
+- Use ten best-effort slots to limit unfinished support submissions. Return HTTP 503 when all slots are occupied. This does not provide rate limiting. Prune terminal background jobs after seven days.
+
+### Fixed
+
+- Instruct agents to write Frontman feedback in English regardless of the session language.
+- Interactive tools now wait without a deadline. Finite tool failures return the same result that the server stores. Supported shutdown preserves dispatched interactive calls and interrupts other unresolved declarations, including tools that did not run. Historical timeout pauses remain terminal. Execution admission and reconnect behavior remain unchanged. This change does not guarantee cancellation without a worker or prevent synchronous replay after abrupt process loss.
+- Report pending agent terminations when the runtime shuts down after supervisor restart failures. This prevents the loss of termination events during registry crash recovery.
+- Print the active execution count during deployment so the old server can stop when its work finishes instead of always waiting five minutes.
+- Allow agent feedback in read-only sessions. Reject blank messages and enforce the 2,000-character limit. Preserve the full feedback message in Discord.
+- Keep agent executions registered until terminal events finish so completion checks cannot race persistence. Queued turns wait for the previous worker to exit before they start. Ignore cancellation requests for finishing workers so terminal persistence can complete.
+
+### Changed
+
+- Separate lightweight task metadata lookup from explicit task history loading.
+
+## [5.0.0] - 2026-09-04
+
+
+#### @frontman/bindings
+
+
+### Patch Changes
+
+- [#1620](https://github.com/frontman-ai/frontman/pull/1620) [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use Node path.relative for relative path display and reject out-of-root search paths instead of falling back to the source root.
+
+#### @frontman-ai/client
+
+
+### Minor Changes
+
+- [#1496](https://github.com/frontman-ai/frontman/pull/1496) [`f5f2b9b`](https://github.com/frontman-ai/frontman/commit/f5f2b9b5f4c21a28283663fb009d637b1c8970e8) Thanks [@kevin-ho](https://github.com/kevin-ho)! - Add Custom Providers to Settings so users can configure per-user, publicly reachable OpenAI-compatible providers. Providers save their model IDs atomically, support optional API keys, reject stale updates, and appear as model-picker groups once configured. Outbound requests resolve and pin public destinations before connecting.
+
+- [#1559](https://github.com/frontman-ai/frontman/pull/1559) [`d64a09c`](https://github.com/frontman-ai/frontman/commit/d64a09c81349e446ec73aed02e284998ef13db3f) Thanks [@uinstinct](https://github.com/uinstinct)! - Add an execute control to element annotations: Ctrl/Cmd+Enter or the send button sends the selected elements and comments through the chatbox flow.
+
+- [#1538](https://github.com/frontman-ai/frontman/pull/1538) [`76efaeb`](https://github.com/frontman-ai/frontman/commit/76efaeb1bb90633cbeb6793c2b40e945f67ddcf6) Thanks [@uinstinct](https://github.com/uinstinct)! - Add the ability to remove a queued message before the agent picks it up. Each row in the queued-messages drawer now has a remove button, which deletes the pending message server-side.
+
+### Patch Changes
+
+- [#1564](https://github.com/frontman-ai/frontman/pull/1564) [`2424a52`](https://github.com/frontman-ai/frontman/commit/2424a52d1a60773292605d85df9e1c7ff4048c36) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Require every final agent response to include a concise TL;DR covering outcomes and relevant next steps.
+
+- [#1598](https://github.com/frontman-ai/frontman/pull/1598) [`1516deb`](https://github.com/frontman-ai/frontman/commit/1516deb61a02186d52f072d2c8a435618f916dfb) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show the five most recent tasks in the empty chat starter so users can resume previous work.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make the embedded Frontman approval popup clearer for non-technical users by explaining why it appears, what access is granted, and when to allow it.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Complete embedded bearer-token authentication for client sockets, remove the legacy socket-token path, and disable credentialed API CORS.
+
+- [#1573](https://github.com/frontman-ai/frontman/pull/1573) [`0e7830c`](https://github.com/frontman-ai/frontman/commit/0e7830c482032ba57501865b3af476535cfafef7) Thanks [@uinstinct](https://github.com/uinstinct)! - Pressing Escape while the element inspector is active now closes the open comment popup, then clears all selected elements, and finally exits selection mode when nothing is selected.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent the app from crashing when an existing loaded task was created before completed file-change snapshots were added.
+
+- [#1562](https://github.com/frontman-ai/frontman/pull/1562) [`35726d0`](https://github.com/frontman-ai/frontman/commit/35726d07f7ee2e540e2a2d489d8734cf69ff2928) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep task channels alive when MCP tools return audio, resource links, or embedded resources by reporting unsupported content as tool errors.
+
+- [#1561](https://github.com/frontman-ai/frontman/pull/1561) [`e0fc341`](https://github.com/frontman-ai/frontman/commit/e0fc34139a40b21235547932c36618fddcf60528) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject MCP catalogs containing duplicate tool names before publishing any discovered tools.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- [#1556](https://github.com/frontman-ai/frontman/pull/1556) [`45b62c4`](https://github.com/frontman-ai/frontman/commit/45b62c48e31d7c5bda9852120ea56313bc5d0bc4) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent message submission until a model is selected.
+
+- [#1594](https://github.com/frontman-ai/frontman/pull/1594) [`033e90f`](https://github.com/frontman-ai/frontman/commit/033e90f1f36a223ba66cb9413f85feb6c91e939d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Track first-task feedback dialog impressions, closes, share clicks, and Discord clicks in Heap.
+
+- [#1599](https://github.com/frontman-ai/frontman/pull/1599) [`991732d`](https://github.com/frontman-ai/frontman/commit/991732da8d93384e186759bbff9524d1c173c8f9) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Tiptap core to 3.30.4.
+
+#### @frontman-ai/astro
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Minor Changes
+
+- [#1617](https://github.com/frontman-ai/frontman/pull/1617) [`5782bd7`](https://github.com/frontman-ai/frontman/commit/5782bd77a59f105ffd34bb3093a1f64d8b8e5c38) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Enrich `get_client_pages` with Astro route pathname, segments, redirect metadata, fallback routes, and serialized route regex details.
+
+### Patch Changes
+
+- [#1601](https://github.com/frontman-ai/frontman/pull/1601) [`b447a4a`](https://github.com/frontman-ai/frontman/commit/b447a4ad2cb8aedb3c62e2f7a8df803eba7b5ee7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add `get_resolved_astro_config` so Astro agents can inspect sanitized resolved config before routing, rendering, adapter, i18n, image, Markdown, redirect, session, security, or deployment changes.
+
+#### @frontman-ai/frontman-client
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Patch Changes
+
+- [#1622](https://github.com/frontman-ai/frontman/pull/1622) [`0bc42d9`](https://github.com/frontman-ai/frontman/commit/0bc42d9ce3a0cfd8d29e0bcbd758f7bf53a35ec8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Handle ACP Phoenix push replies and clean up failed initialize connections after request timeouts.
+
+- [#1589](https://github.com/frontman-ai/frontman/pull/1589) [`373d94e`](https://github.com/frontman-ai/frontman/commit/373d94e1575d7c99368f7ac8dfa0086dfab1f7f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Complete embedded bearer-token authentication for client sockets, remove the legacy socket-token path, and disable credentialed API CORS.
+
+- [#1619](https://github.com/frontman-ai/frontman/pull/1619) [`e2cd5a0`](https://github.com/frontman-ai/frontman/commit/e2cd5a0099cdfbc8dd7f1d43bb29ff2cdf72c2f7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject ACP client requests after a timeout instead of leaving the UI stuck when the server never responds.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- [#1557](https://github.com/frontman-ai/frontman/pull/1557) [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve integral JSON-RPC numeric IDs above signed 32-bit range.
+
+#### @frontman-ai/frontman-core
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Patch Changes
+
+- [#1621](https://github.com/frontman-ai/frontman/pull/1621) [`361d5c9`](https://github.com/frontman-ai/frontman/commit/361d5c9e45e9f3c1c0039290d1e37ff23740b18b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep path recovery scoped when source roots are relative.
+
+- [#1620](https://github.com/frontman-ai/frontman/pull/1620) [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use Node path.relative for relative path display and reject out-of-root search paths instead of falling back to the source root.
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- Updated dependencies [[`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8), [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551), [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3), [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9)]:
+  - @frontman-ai/frontman-protocol@4.0.0
+  - @frontman/bindings@0.3.2
+
+#### @frontman-ai/nextjs
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Minor Changes
+
+- [#1496](https://github.com/frontman-ai/frontman/pull/1496) [`f5f2b9b`](https://github.com/frontman-ai/frontman/commit/f5f2b9b5f4c21a28283663fb009d637b1c8970e8) Thanks [@kevin-ho](https://github.com/kevin-ho)! - Add Custom Providers to Settings so users can configure per-user, publicly reachable OpenAI-compatible providers. Providers save their model IDs atomically, support optional API keys, reject stale updates, and appear as model-picker groups once configured. Outbound requests resolve and pin public destinations before connecting.
+
+### Patch Changes
+
+- [#1572](https://github.com/frontman-ai/frontman/pull/1572) [`45c9872`](https://github.com/frontman-ai/frontman/commit/45c9872e4f11c0eb06380176c3a2e8cc3539e3de) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fail closed for Next.js Frontman routes outside development unless explicitly enabled with `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`.
+
+- [#1574](https://github.com/frontman-ai/frontman/pull/1574) [`7a2776a`](https://github.com/frontman-ai/frontman/commit/7a2776ab9d556a7cccf37ad7c30ccd59112f86b6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix generated instrumentation type resolution during Next.js production builds and add a CI compatibility matrix for packed Next.js consumers.
+
+#### @frontman-ai/frontman-preview-bridge
+
+
+### Patch Changes
+
+- Updated dependencies [[`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8), [`17ca764`](https://github.com/frontman-ai/frontman/commit/17ca7644677ad2c96c4fb0d3d0c9bb8364b93551), [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3), [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9)]:
+  - @frontman-ai/frontman-protocol@4.0.0
+  - @frontman/bindings@0.3.2
+
+#### @frontman-ai/frontman-protocol
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Patch Changes
+
+- [#1566](https://github.com/frontman-ai/frontman/pull/1566) [`efb4fbf`](https://github.com/frontman-ai/frontman/commit/efb4fbf27f6485c8ed0321ab8f794ed38e108df3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unused ACP, MCP, and relay progress observers so diagnostic callbacks cannot interrupt protocol delivery.
+
+- [#1557](https://github.com/frontman-ai/frontman/pull/1557) [`0c813c5`](https://github.com/frontman-ai/frontman/commit/0c813c5ee7fd90be929eb81a44dba7b9254761e9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve integral JSON-RPC numeric IDs above signed 32-bit range.
+
+#### @frontman-ai/vite
+
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+## [Unreleased]
+
+### Added
+
+- Add an `agent_feedback` backend tool that lets agents send Frontman product feedback and feature requests to Discord.
+
+### Changed
+
+- Share the Discord task-summary webhook between the server and notifier production services.
+
+### Fixed
+
+- Fix hosted Google/GitHub sign-in redirects after the WorkOS v3 SDK upgrade and add automatic OAuth-start smoke coverage.
+- Replace generic HTML error pages with support guidance that links to `support@frontman.sh` and Discord.
+
+## [4.0.0] - 2026-08-27
+
+
+#### @frontman-ai/client
+
+
+### Minor Changes
+
+- [#1439](https://github.com/frontman-ai/frontman/pull/1439) [`c73f19f`](https://github.com/frontman-ai/frontman/commit/c73f19fcff40aa7bf28a4af72ca956d30e9cf360) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add an animated border beam to the idle chat composer.
+
+- [#1483](https://github.com/frontman-ai/frontman/pull/1483) [`e79958f`](https://github.com/frontman-ai/frontman/commit/e79958f170f89917cac72007a2bdf407ffc83fe1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Establish the typed Reworker parent runtime for preview iframes.
+
+- [#1522](https://github.com/frontman-ai/frontman/pull/1522) [`19d0059`](https://github.com/frontman-ai/frontman/commit/19d005992bdcd9215c5a086e1c51ead8d4fae786) Thanks [@uinstinct](https://github.com/uinstinct)! - Click an annotation chip in a sent user message to highlight and scroll to that element in the web preview. Click the chip again to clear the highlight.
+
+- [#1479](https://github.com/frontman-ai/frontman/pull/1479) [`434bbf1`](https://github.com/frontman-ai/frontman/commit/434bbf1b3c0aa10eeffd33848a603e4fa952cefb) Thanks [@uinstinct](https://github.com/uinstinct)! - Add a Changes view that shows file edits made during a conversation as diffs. File-editing tools now emit file change events over a new file change protocol message, and the client renders them with `@pierre/diffs`.
+
+- [#1432](https://github.com/frontman-ai/frontman/pull/1432) [`b3c6bb1`](https://github.com/frontman-ai/frontman/commit/b3c6bb1c7a60d3e142449b69976827250889cb3b) Thanks [@uinstinct](https://github.com/uinstinct)! - Add an "Execute plan" button after the planner agent finishes, which hands the plan off to the executor agent in the same conversation.
+
+- [#1498](https://github.com/frontman-ai/frontman/pull/1498) [`d9a58c6`](https://github.com/frontman-ai/frontman/commit/d9a58c653487dd9132c8ff16958f2356c6a6044f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Require `_meta["frontman.dev/messageId"]` on `session/prompt` requests and use it as the canonical persisted user-message UUID for live updates and history replay. Missing, malformed, and duplicate IDs now return invalid params; older clients that omit this metadata are incompatible.
+
+### Patch Changes
+
+- [#1507](https://github.com/frontman-ai/frontman/pull/1507) [`34022ed`](https://github.com/frontman-ai/frontman/commit/34022ed99de9284132e97c8729ffabe71a2307e0) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Improve screenshot compatibility and return actionable guidance when browser image decoding fails.
+
+- [#1484](https://github.com/frontman-ai/frontman/pull/1484) [`aa8e5bb`](https://github.com/frontman-ai/frontman/commit/aa8e5bb830d2443508d69ab4bc4b696f46a75a5d) Thanks [@uinstinct](https://github.com/uinstinct)! - Focus the prompt editor after starting a new task.
+
+- [#1526](https://github.com/frontman-ai/frontman/pull/1526) [`5a0c81a`](https://github.com/frontman-ai/frontman/commit/5a0c81abdf9025bd90f8d2fa2ea99216021b1620) Thanks [@uinstinct](https://github.com/uinstinct)! - Show three starter task suggestions in an empty conversation. Clicking one sends it as a message.
+
+- [#1461](https://github.com/frontman-ai/frontman/pull/1461) [`143ece0`](https://github.com/frontman-ai/frontman/commit/143ece0b957d3045878908a6bddcc10476fe1904) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Stop creating a todo after every WordPress recommendation while continuing to require inspected evidence for state-dependent guidance.
+
+- [#1485](https://github.com/frontman-ai/frontman/pull/1485) [`3297b58`](https://github.com/frontman-ai/frontman/commit/3297b58d81cc74f6f92e567dc8b0a8f6c29188e0) Thanks [@uinstinct](https://github.com/uinstinct)! - Keep failed exploration tool calls inside their group and show the failure count in the group summary.
+
+- [#1529](https://github.com/frontman-ai/frontman/pull/1529) [`1e72d46`](https://github.com/frontman-ai/frontman/commit/1e72d46673ce19378050de0a7dff5fb97a688c41) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Celebrate a user's first completed task with framework-specific rating and sharing actions.
+
+- [#1505](https://github.com/frontman-ai/frontman/pull/1505) [`f4dcc2b`](https://github.com/frontman-ai/frontman/commit/f4dcc2b5d8734d3107977312f1046cfc0ddf7874) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore backend tool calls when loading existing task history.
+
+- [#1499](https://github.com/frontman-ai/frontman/pull/1499) [`02dc31a`](https://github.com/frontman-ai/frontman/commit/02dc31a9b84aab1c74ae7f84b96c80d3c13315bc) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore NVIDIA model execution through NVIDIA NIM and guard every advertised model with executable provider coverage.
+
+- [#1506](https://github.com/frontman-ai/frontman/pull/1506) [`f8dac8e`](https://github.com/frontman-ai/frontman/commit/f8dac8e8fcf91a229824183786a1e7a02c094f4a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Complete todo tool cards without breaking reconnecting sessions, restore the current todo plan when reopening a task, and hide the plan after every item is complete.
+
+- [#1536](https://github.com/frontman-ai/frontman/pull/1536) [`8cc17d5`](https://github.com/frontman-ai/frontman/commit/8cc17d55a17aa53b7c15d09a3a542022006d145a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep queued messages with different models in separate agent turns.
+
+- [#1504](https://github.com/frontman-ai/frontman/pull/1504) [`5b5f180`](https://github.com/frontman-ai/frontman/commit/5b5f1805e491e8803bc6c6f7da961c29c2cf6d9e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show submitted messages in the queued-message drawer while awaiting server acceptance.
+
+- [#1494](https://github.com/frontman-ai/frontman/pull/1494) [`84959cb`](https://github.com/frontman-ai/frontman/commit/84959cb57e446ee684bc8ac5ba447959597eee7f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Centralize browser URL synchronization and simplify iframe lifecycle handling.
+
+- [#1477](https://github.com/frontman-ai/frontman/pull/1477) [`ab663ad`](https://github.com/frontman-ai/frontman/commit/ab663adb2e580e84c4732ca3c36fce9e9919c1c9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Derive provider setup from ACP model availability and resolve each selected model once before request preflight and streaming.
+
+- [#1539](https://github.com/frontman-ai/frontman/pull/1539) [`817c623`](https://github.com/frontman-ai/frontman/commit/817c623bdcafc20c15bc25ea29070565064fd0ed) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent concurrent connections from owning the same task channel.
+
+- [#1517](https://github.com/frontman-ai/frontman/pull/1517) [`cff8e50`](https://github.com/frontman-ai/frontman/commit/cff8e503b702f2c7b7f47a1fe31ece84a1b9750b) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update diff to version 9.
+
+#### @rescript/webapi
+
+
+### Patch Changes
+
+- [#1482](https://github.com/frontman-ai/frontman/pull/1482) [`62e1cd5`](https://github.com/frontman-ai/frontman/commit/62e1cd5ca9647ef420006254e647988d0d904468) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pin the vendored WebAPI bindings to the newest upstream revision compatible with ReScript 12 and add the typed DOM operations required by Frontman.
+
+#### @frontman-ai/astro
+
+
+### Patch Changes
+
+- [#1482](https://github.com/frontman-ai/frontman/pull/1482) [`62e1cd5`](https://github.com/frontman-ai/frontman/commit/62e1cd5ca9647ef420006254e647988d0d904468) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pin the vendored WebAPI bindings to the newest upstream revision compatible with ReScript 12 and add the typed DOM operations required by Frontman.
+
+#### @frontman-ai/frontman-client
+
+
+### Major Changes
+
+- [#1490](https://github.com/frontman-ai/frontman/pull/1490) [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Migrate browser MCP discovery, tool listing, and tool calls to MCP 2026-07-28.
+
+### Patch Changes
+
+- [#1491](https://github.com/frontman-ai/frontman/pull/1491) [`65b195a`](https://github.com/frontman-ai/frontman/commit/65b195ac0ee61f89a16b99bd59c762f3e3227238) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep malformed tool arguments out of diagnostic reports while retaining safe tool failure context.
+
+#### @frontman-ai/frontman-core
+
+
+### Minor Changes
+
+- [#1479](https://github.com/frontman-ai/frontman/pull/1479) [`434bbf1`](https://github.com/frontman-ai/frontman/commit/434bbf1b3c0aa10eeffd33848a603e4fa952cefb) Thanks [@uinstinct](https://github.com/uinstinct)! - Add a Changes view that shows file edits made during a conversation as diffs. File-editing tools now emit file change events over a new file change protocol message, and the client renders them with `@pierre/diffs`.
+
+### Patch Changes
+
+- [#1280](https://github.com/frontman-ai/frontman/pull/1280) [`7ba266e`](https://github.com/frontman-ai/frontman/commit/7ba266e997996c549c132022aebba7371cca69c3) Thanks [@ntheanh201](https://github.com/ntheanh201)! - Cap `read_file` requests at 1,000 lines.
+
+- Updated dependencies [[`434bbf1`](https://github.com/frontman-ai/frontman/commit/434bbf1b3c0aa10eeffd33848a603e4fa952cefb), [`df5cd88`](https://github.com/frontman-ai/frontman/commit/df5cd88060cefeaebb95e1e3d6b2edc4b432117f), [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3)]:
+  - @frontman-ai/frontman-protocol@3.0.0
+
+#### @frontman-ai/nextjs
+
+
+### Patch Changes
+
+- [#1503](https://github.com/frontman-ai/frontman/pull/1503) [`ec2afdb`](https://github.com/frontman-ai/frontman/commit/ec2afdb9f2e7e1bf89d716e9f30d5caa31c5d760) Thanks [@mikemikimike](https://github.com/mikemikimike)! - Fail installation when dependencies cannot be installed or resolved.
+
+- [#1482](https://github.com/frontman-ai/frontman/pull/1482) [`62e1cd5`](https://github.com/frontman-ai/frontman/commit/62e1cd5ca9647ef420006254e647988d0d904468) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pin the vendored WebAPI bindings to the newest upstream revision compatible with ReScript 12 and add the typed DOM operations required by Frontman.
+
+- [#1530](https://github.com/frontman-ai/frontman/pull/1530) [`bc0ef3c`](https://github.com/frontman-ai/frontman/commit/bc0ef3ccffc617bc3b5992f89351ab397a46c8f4) Thanks [@uinstinct](https://github.com/uinstinct)! - Reject Next.js versions below 15.5 before installing dependencies or generating middleware, and align peer dependency metadata and documentation with that support range.
+
+- [#1515](https://github.com/frontman-ai/frontman/pull/1515) [`9d6c858`](https://github.com/frontman-ai/frontman/commit/9d6c858d6aebc96a4d62b8358619292aa9bfa591) Thanks [@dependabot](https://github.com/apps/dependabot)! - Raise the minimum React peer version to 19.2.8 alongside React DOM.
+
+#### @frontman-ai/frontman-preview-bridge
+
+
+### Minor Changes
+
+- [#1478](https://github.com/frontman-ai/frontman/pull/1478) [`15887fb`](https://github.com/frontman-ai/frontman/commit/15887fb252312bdb77e6c386a98db5e2adfc8b4d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Establish the capsule-ready Reworker child runtime and classic preview bridge bundle.
+
+### Patch Changes
+
+- Updated dependencies [[`434bbf1`](https://github.com/frontman-ai/frontman/commit/434bbf1b3c0aa10eeffd33848a603e4fa952cefb), [`df5cd88`](https://github.com/frontman-ai/frontman/commit/df5cd88060cefeaebb95e1e3d6b2edc4b432117f), [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3)]:
+  - @frontman-ai/frontman-protocol@3.0.0
+
+#### @frontman-ai/frontman-protocol
+
+
+### Major Changes
+
+- [#1490](https://github.com/frontman-ai/frontman/pull/1490) [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Migrate browser MCP discovery, tool listing, and tool calls to MCP 2026-07-28.
+
+### Minor Changes
+
+- [#1479](https://github.com/frontman-ai/frontman/pull/1479) [`434bbf1`](https://github.com/frontman-ai/frontman/commit/434bbf1b3c0aa10eeffd33848a603e4fa952cefb) Thanks [@uinstinct](https://github.com/uinstinct)! - Add a Changes view that shows file edits made during a conversation as diffs. File-editing tools now emit file change events over a new file change protocol message, and the client renders them with `@pierre/diffs`.
+
+- [#1473](https://github.com/frontman-ai/frontman/pull/1473) [`df5cd88`](https://github.com/frontman-ai/frontman/commit/df5cd88060cefeaebb95e1e3d6b2edc4b432117f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Establish lockstep Reworker preview protocol types and structured errors.
+
+#### @frontman-ai/vite
+
+
+### Patch Changes
+
+- [#1482](https://github.com/frontman-ai/frontman/pull/1482) [`62e1cd5`](https://github.com/frontman-ai/frontman/commit/62e1cd5ca9647ef420006254e647988d0d904468) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pin the vendored WebAPI bindings to the newest upstream revision compatible with ReScript 12 and add the typed DOM operations required by Frontman.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Patch Changes
+
+- [#1472](https://github.com/frontman-ai/frontman/pull/1472) [`b79c611`](https://github.com/frontman-ai/frontman/commit/b79c611e32c07db04150e05bd7de0097e8140e5e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Stop exposing the administrator email through bulk WordPress option discovery while preserving explicit option reads.
+
+- [#1490](https://github.com/frontman-ai/frontman/pull/1490) [`0b65076`](https://github.com/frontman-ai/frontman/commit/0b650768e35f354950ebb991c11985cfcd04f7e3) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Migrate browser MCP discovery, tool listing, and tool calls to MCP 2026-07-28.
+
+#### @frontman-ai/react-statestore
+
+
+### Patch Changes
+
+- [#1515](https://github.com/frontman-ai/frontman/pull/1515) [`9d6c858`](https://github.com/frontman-ai/frontman/commit/9d6c858d6aebc96a4d62b8358619292aa9bfa591) Thanks [@dependabot](https://github.com/apps/dependabot)! - Raise the minimum React peer version to 19.2.8 alongside React DOM.
+
+## [3.1.0] - 2026-08-18
+
+
+#### @frontman-ai/client
+
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
+- [#1416](https://github.com/frontman-ai/frontman/pull/1416) [`f8c6c52`](https://github.com/frontman-ai/frontman/commit/f8c6c52a79a148168e061db6f3aec36839519d80) Thanks [@uinstinct](https://github.com/uinstinct)! - Allow a second paste within five seconds to expand a pasted-text chip in place.
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Prevent task failures from rendering duplicate error banners and reconnect cleanly after React Strict Mode lifecycle cleanup.
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Stop reporting Astro DOM ancestors as component invocation callsites, attach React component props instead of selected host-element props when ownership matches, and preserve current-page context in task diagnostics.
+
+- [#1402](https://github.com/frontman-ai/frontman/pull/1402) [`c30f33e`](https://github.com/frontman-ai/frontman/commit/c30f33ea32ecb3d50c4e8aef41c42c54a8274277) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make Frontman work immediately on WordPress sites using Plain permalinks.
+
+- [#1410](https://github.com/frontman-ai/frontman/pull/1410) [`f0868c4`](https://github.com/frontman-ai/frontman/commit/f0868c487e4f1d8cbf42d3b75c583921d657bbe4) Thanks [@uinstinct](https://github.com/uinstinct)! - Keep the thinking indicator visible for the whole AI turn, including while text is streaming.
+
+- [#1436](https://github.com/frontman-ai/frontman/pull/1436) [`0224d40`](https://github.com/frontman-ai/frontman/commit/0224d40b3b6b61800553e6833ca90ea8f68b0096) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Align Tiptap packages on version 3.30.1 and upgrade the repository to Yarn 4.18.
+
+- [#1409](https://github.com/frontman-ai/frontman/pull/1409) [`6732667`](https://github.com/frontman-ai/frontman/commit/673266773033f17eb9b6a7ad6929a753b18fdd75) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use explicit new-tab sign-in and sign-out flows in top-level and embedded Frontman clients. Ensure WordPress installations receive the updated hosted client instead of a browser-cached bundle.
+
+#### @rescript/webapi
+
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
+#### @frontman-ai/astro
+
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
+- [#1430](https://github.com/frontman-ai/frontman/pull/1430) [`2646d4c`](https://github.com/frontman-ai/frontman/commit/2646d4cb4c9aaae0973d597b6f0df81b33fce75c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Load packaged ripgrep binaries at runtime so grep and file search work from bundled integrations.
+
+#### @frontman-ai/frontman-core
+
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
+#### @frontman-ai/nextjs
+
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
+- [#1430](https://github.com/frontman-ai/frontman/pull/1430) [`2646d4c`](https://github.com/frontman-ai/frontman/commit/2646d4cb4c9aaae0973d597b6f0df81b33fce75c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Load packaged ripgrep binaries at runtime so grep and file search work from bundled integrations.
+
+#### @frontman-ai/vite
+
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
+- [#1430](https://github.com/frontman-ai/frontman/pull/1430) [`2646d4c`](https://github.com/frontman-ai/frontman/commit/2646d4cb4c9aaae0973d597b6f0df81b33fce75c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Load packaged ripgrep binaries at runtime so grep and file search work from bundled integrations.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Patch Changes
+
+- [#1402](https://github.com/frontman-ai/frontman/pull/1402) [`c30f33e`](https://github.com/frontman-ai/frontman/commit/c30f33ea32ecb3d50c4e8aef41c42c54a8274277) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Make Frontman work immediately on WordPress sites using Plain permalinks.
+
+- [#1409](https://github.com/frontman-ai/frontman/pull/1409) [`6732667`](https://github.com/frontman-ai/frontman/commit/673266773033f17eb9b6a7ad6929a753b18fdd75) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use explicit new-tab sign-in and sign-out flows in top-level and embedded Frontman clients. Ensure WordPress installations receive the updated hosted client instead of a browser-cached bundle.
+
+## [3.0.0] - 2026-08-11
+
+### Added
+
+- Structured tool results now stay intact from MCP calls through ACP, live UI updates, and restored session history.
+- Frontman can display typed tool content, including text, images, audio, links, and resources.
+- Review and restore WordPress Additional CSS revisions with theme-aware history, conflict checks, and clear before-and-after details.
+- New TypeScript declarations improve autocomplete and type safety for Next.js package exports.
+
+### Changed
+
+- Output schemas now appear only for tools that return structured data, keeping tool contracts accurate.
+- Next.js setup now installs middleware and proxy files correctly for both root and `src/` project layouts.
+- The WordPress.org listing now explains setup requirements, compatibility, and a complete editing workflow before installation.
+- **Breaking:** `@frontman-ai/frontman-protocol` and `@frontman-ai/frontman-client` now use structured tool-result contracts. Integrations that import `jsonResult` must migrate to `structuredResult` or `unstructuredResult`.
+
+### Security
+
+- Browser runtime configuration no longer includes unsupported provider keys or unused source paths. Stored tool results now strip metadata.
+- Server dependency updates address denial-of-service, cross-site scripting, and SQL injection vulnerabilities.
+- OAuth activation analytics exclude prompts and relay error details.
+
+## [2.0.0] - 2026-07-20
+
+
+#### @frontman-ai/client
+
+
+### Patch Changes
+
+- [#1292](https://github.com/frontman-ai/frontman/pull/1292) [`6097f0b`](https://github.com/frontman-ai/frontman/commit/6097f0be83ab3ff3a79f06306fd63fae21534481) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Astro 7 support while preserving Astro 5 and 6 compatibility. Raise the minimum Node.js version to 22.19, support Sätteri and unified Markdown processors, restore source annotations under Astro's Rust compiler, harden component prop capture, honor Astro's trailing-slash policy, and keep preview URLs synchronized during client-side navigation.
+
+#### @frontman-ai/astro
+
+
+### Major Changes
+
+- [#1292](https://github.com/frontman-ai/frontman/pull/1292) [`6097f0b`](https://github.com/frontman-ai/frontman/commit/6097f0be83ab3ff3a79f06306fd63fae21534481) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Astro 7 support while preserving Astro 5 and 6 compatibility. Raise the minimum Node.js version to 22.19, support Sätteri and unified Markdown processors, restore source annotations under Astro's Rust compiler, harden component prop capture, honor Astro's trailing-slash policy, and keep preview URLs synchronized during client-side navigation.
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
+#### @frontman-ai/frontman-client
+
+
+### Patch Changes
+
+- [#1303](https://github.com/frontman-ai/frontman/pull/1303) [`1e04b55`](https://github.com/frontman-ai/frontman/commit/1e04b553677ed045415dde90b89cadd682860b2d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover when an agent requests a tool unavailable under its current access policy instead of crashing the task or leaving unresolved tool history.
+
+#### @frontman-ai/nextjs
+
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
+#### @frontman-ai/vite
+
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Minor Changes
+
+- [#1306](https://github.com/frontman-ai/frontman/pull/1306) [`84d9997`](https://github.com/frontman-ai/frontman/commit/84d9997834cdf0d77f42f744458e056b81602260) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add verified WordPress 7 support, including nested Gutenberg block paths, block-theme navigation tools, and WordPress 7.0.2 runtime coverage on PHP 7.4 and 8.4.
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
+## [1.4.0] - 2026-07-18
+
+
+#### @frontman-ai/client
+
+
+### Patch Changes
+
+- [#1287](https://github.com/frontman-ai/frontman/pull/1287) [`89a4d04`](https://github.com/frontman-ai/frontman/commit/89a4d04fc756630e1b20882af1db32480b53b8c5) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add supported GPT-5.6 variants and Claude 5 models through native providers and OpenRouter, with GPT-5.6 Terra and Claude Sonnet 5 as provider defaults.
+
+- [#1239](https://github.com/frontman-ai/frontman/pull/1239) [`be420bc`](https://github.com/frontman-ai/frontman/commit/be420bc7df28ca0955f18440e38ea20c30ec9470) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add Railway deploy configuration and self-hosting docs for publishing Frontman as a one-click Railway template.
+
+- [#1230](https://github.com/frontman-ai/frontman/pull/1230) [`6d04707`](https://github.com/frontman-ai/frontman/commit/6d047076a003b8a6de359cd6f3dabcce4523b808) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align React peer dependencies with React DOM 19.2.7.
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reopened tasks now show accepted follow-up prompts as normal user messages, preserving the full conversation history.
+
+- [#1261](https://github.com/frontman-ai/frontman/pull/1261) [`27d6ac6`](https://github.com/frontman-ai/frontman/commit/27d6ac66f410f0023b8315715754fead45aa6c3e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Align development dependencies with supported Vite, React, Tiptap, and Astro peer ranges.
+
+- [#1259](https://github.com/frontman-ai/frontman/pull/1259) [`e7bdadf`](https://github.com/frontman-ai/frontman/commit/e7bdadf286d8a8a8c69342d169d266e54db40d59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace prompt editor internals with a Tiptap-based composer while preserving file, paste, drop, and annotation submit behavior.
+
+- [#1286](https://github.com/frontman-ai/frontman/pull/1286) [`a557acf`](https://github.com/frontman-ai/frontman/commit/a557acfb2a8ec3422cd24e8d146bbf5b8a863746) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace misleading post-signup celebration with a required provider setup modal where chat is unavailable.
+
+- [#1282](https://github.com/frontman-ai/frontman/pull/1282) [`80369df`](https://github.com/frontman-ai/frontman/commit/80369df055f984d17ddf279d124e79c67aa8278a) Thanks [@ntheanh201](https://github.com/ntheanh201)! - Allow the chat panel to collapse into a compact Frontman logo control, giving the browser preview the full workspace.
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Follow-up prompts sent while an agent is busy now appear in a queue drawer, making it clear what will run next.
+
+- [#1236](https://github.com/frontman-ai/frontman/pull/1236) [`a5f8945`](https://github.com/frontman-ai/frontman/commit/a5f8945cb58f6ac598d37785fdc4c543fa334578) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace Radix-backed TSX UI wrappers with ReScript-native Base UI shadcn primitives and remove direct Radix wrapper dependencies.
+
+- [#1262](https://github.com/frontman-ai/frontman/pull/1262) [`f081562`](https://github.com/frontman-ai/frontman/commit/f081562d24f17c09b2ae8bfe20467980e224ce81) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add prompt-level Executor and Planner selection, negotiated connection agent catalogs, stable
+  message IDs, explicit agent colors, and migration of persisted session history.
+
+- [#1192](https://github.com/frontman-ai/frontman/pull/1192) [`c7848c6`](https://github.com/frontman-ai/frontman/commit/c7848c6cd137afdb8df9298789dded95675ac5e1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Carry stable agent error IDs through retry error updates.
+
+- [#1288](https://github.com/frontman-ai/frontman/pull/1288) [`945cde1`](https://github.com/frontman-ai/frontman/commit/945cde14a3e5ec66e725b5be4305a940b2dc14fb) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix Fireworks API-key setup so saved keys expose Fireworks models and use the provider ID expected by the server.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+#### @rescript/webapi
+
+
+### Patch Changes
+
+- [#1261](https://github.com/frontman-ai/frontman/pull/1261) [`27d6ac6`](https://github.com/frontman-ai/frontman/commit/27d6ac66f410f0023b8315715754fead45aa6c3e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Align development dependencies with supported Vite, React, Tiptap, and Astro peer ranges.
+
+- [#1259](https://github.com/frontman-ai/frontman/pull/1259) [`e7bdadf`](https://github.com/frontman-ai/frontman/commit/e7bdadf286d8a8a8c69342d169d266e54db40d59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update vendored experimental ReScript WebAPI bindings from upstream.
+
+#### @frontman-ai/astro
+
+
+### Patch Changes
+
+- [#1252](https://github.com/frontman-ai/frontman/pull/1252) [`5ff6278`](https://github.com/frontman-ai/frontman/commit/5ff6278294b1aba5bfd422eeaccdd69cff81ad49) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Lighthouse to 13.4.0 across framework integrations.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+#### @frontman-ai/frontman-client
+
+
+### Patch Changes
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reopened tasks now show accepted follow-up prompts as normal user messages, preserving the full conversation history.
+
+- [#1189](https://github.com/frontman-ai/frontman/pull/1189) [`b3451f2`](https://github.com/frontman-ai/frontman/commit/b3451f26d47104af6f5673e4f2fcad4f81344ef9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Avoid sending empty text content blocks for attachment-only prompts.
+
+- [#1262](https://github.com/frontman-ai/frontman/pull/1262) [`f081562`](https://github.com/frontman-ai/frontman/commit/f081562d24f17c09b2ae8bfe20467980e224ce81) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add prompt-level Executor and Planner selection, negotiated connection agent catalogs, stable
+  message IDs, explicit agent colors, and migration of persisted session history.
+
+- [#1192](https://github.com/frontman-ai/frontman/pull/1192) [`c7848c6`](https://github.com/frontman-ai/frontman/commit/c7848c6cd137afdb8df9298789dded95675ac5e1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Carry stable agent error IDs through retry error updates.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Saved tasks now restore their interaction history more reliably, including prompts, tool activity, and agent responses.
+
+#### @frontman-ai/frontman-core
+
+
+### Patch Changes
+
+- [#1259](https://github.com/frontman-ai/frontman/pull/1259) [`e7bdadf`](https://github.com/frontman-ai/frontman/commit/e7bdadf286d8a8a8c69342d169d266e54db40d59) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace prompt editor internals with a Tiptap-based composer while preserving file, paste, drop, and annotation submit behavior.
+
+- [#1252](https://github.com/frontman-ai/frontman/pull/1252) [`5ff6278`](https://github.com/frontman-ai/frontman/commit/5ff6278294b1aba5bfd422eeaccdd69cff81ad49) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Lighthouse to 13.4.0 across framework integrations.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+- Updated dependencies [[`f081562`](https://github.com/frontman-ai/frontman/commit/f081562d24f17c09b2ae8bfe20467980e224ce81), [`c7848c6`](https://github.com/frontman-ai/frontman/commit/c7848c6cd137afdb8df9298789dded95675ac5e1), [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391), [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48)]:
+  - @frontman-ai/frontman-protocol@1.0.2
+
+#### @frontman-ai/nextjs
+
+
+### Patch Changes
+
+- [#1235](https://github.com/frontman-ai/frontman/pull/1235) [`5a5a284`](https://github.com/frontman-ai/frontman/commit/5a5a284ce87b839a12824eec8f8d05ef0ff0e54a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix dependency metadata so Yarn installs without peer warnings.
+
+- [#1252](https://github.com/frontman-ai/frontman/pull/1252) [`5ff6278`](https://github.com/frontman-ai/frontman/commit/5ff6278294b1aba5bfd422eeaccdd69cff81ad49) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Lighthouse to 13.4.0 across framework integrations.
+
+- [#1233](https://github.com/frontman-ai/frontman/pull/1233) [`2bedc65`](https://github.com/frontman-ai/frontman/commit/2bedc656b4c2b1497e528bbeb704afb39bdce410) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update @sentry/nextjs to 10.56.0.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+#### @frontman-ai/frontman-protocol
+
+
+### Patch Changes
+
+- [#1262](https://github.com/frontman-ai/frontman/pull/1262) [`f081562`](https://github.com/frontman-ai/frontman/commit/f081562d24f17c09b2ae8bfe20467980e224ce81) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add prompt-level Executor and Planner selection, negotiated connection agent catalogs, stable
+  message IDs, explicit agent colors, and migration of persisted session history.
+
+- [#1192](https://github.com/frontman-ai/frontman/pull/1192) [`c7848c6`](https://github.com/frontman-ai/frontman/commit/c7848c6cd137afdb8df9298789dded95675ac5e1) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Carry stable agent error IDs through retry error updates.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+- [#1209](https://github.com/frontman-ai/frontman/pull/1209) [`a363505`](https://github.com/frontman-ai/frontman/commit/a363505c228aeafd2ea6186c8004d25ccc983c48) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Saved tasks now restore their interaction history more reliably, including prompts, tool activity, and agent responses.
+
+#### @frontman-ai/vite
+
+
+### Patch Changes
+
+- [#1252](https://github.com/frontman-ai/frontman/pull/1252) [`5ff6278`](https://github.com/frontman-ai/frontman/commit/5ff6278294b1aba5bfd422eeaccdd69cff81ad49) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Lighthouse to 13.4.0 across framework integrations.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Patch Changes
+
+- [#1211](https://github.com/frontman-ai/frontman/pull/1211) [`114ec48`](https://github.com/frontman-ai/frontman/commit/114ec487cc76fd30dfdf9cfac5512bd10ce7be20) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Optimize the WordPress.org readme for plugin-directory search and conversion.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
+#### @frontman-ai/react-statestore
+
+
+### Patch Changes
+
+- [#1230](https://github.com/frontman-ai/frontman/pull/1230) [`6d04707`](https://github.com/frontman-ai/frontman/commit/6d047076a003b8a6de359cd6f3dabcce4523b808) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align React peer dependencies with React DOM 19.2.7.
+
+- [#1235](https://github.com/frontman-ai/frontman/pull/1235) [`5a5a284`](https://github.com/frontman-ai/frontman/commit/5a5a284ce87b839a12824eec8f8d05ef0ff0e54a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix dependency metadata so Yarn installs without peer warnings.
+
 ## [1.3.0] - 2026-06-25
 
 

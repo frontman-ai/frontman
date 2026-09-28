@@ -1,7 +1,4 @@
 ---
-// Testimonials Gallery
-// ------------
-// Description: An infinite scrolling horizontal gallery of testimonials with pause on hover
 
 type Testimonial = {
 	quote: string
@@ -61,7 +58,6 @@ const testimonials: Testimonial[] = [
 	</div>
 	<div class="testimonials-container">
 		<div class="testimonials-track">
-			<!-- First set of testimonials -->
 			{testimonials.map((testimonial) => (
 				<div class="testimonial-card" style={`border-color: ${testimonial.color}; box-shadow: 9px 9px 0px 0px ${testimonial.color};`}>
 					<p class="testimonial-quote" style={`color: ${testimonial.color}`}>"{testimonial.quote}"</p>
@@ -71,7 +67,6 @@ const testimonials: Testimonial[] = [
 					</div>
 				</div>
 			))}
-			<!-- Duplicate set for infinite loop (desktop only) -->
 			<div class="testimonial-duplicate">
 				{testimonials.map((testimonial) => (
 					<div class="testimonial-card" style={`border-color: ${testimonial.color}; box-shadow: 9px 9px 0px 0px ${testimonial.color};`}>
@@ -166,7 +161,6 @@ const testimonials: Testimonial[] = [
 		@apply flex gap-8;
 	}
 
-	/* Tablet responsive - smaller cards for mid-range */
 	@media (max-width: 767px) {
 		.testimonials-track {
 			@apply gap-6 flex-col items-center;
@@ -201,7 +195,6 @@ const testimonials: Testimonial[] = [
 		}
 	}
 
-	/* Small mobile */
 	@media (max-width: 480px) {
 		.testimonial-card {
 			max-width: 340px;

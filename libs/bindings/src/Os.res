@@ -1,4 +1,3 @@
-// Node.js os module bindings
 @module("node:os")
 external homedir: unit => string = "homedir"
 

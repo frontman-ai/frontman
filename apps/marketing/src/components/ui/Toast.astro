@@ -1,19 +1,10 @@
 ---
-// Toast
-// ------------
-// Description: The toast component is a user interface element that displays brief,
-// informative messages to users. It is typically used to provide feedback or
-// toasts about the status of an action or to display important information.
-// Reference: https://wind-ui.com/components/notifications/
 ---
 
 <div id="frontman-toast" class="toast" style="display: none">
 	<div class="toast__container" role="status">
-		<!-- Heading with close button -->
 		<div class="toast__heading">
-			<!-- Headline -->
 			<h3 class="toast__headline">Ready to go bigger?</h3>
-			<!-- Close button -->
 			<button aria-label="Close" class="toast__close-button" id="frontman-toast-close">
 				<span class="toast__close-button-icon">
 					<svg
@@ -29,14 +20,12 @@
 				</span>
 			</button>
 		</div>
-		<!-- Body -->
 		<div class="toast__body">
 			<p>
 				Unlock <a href="https://astro.build/themes/details/frontman-pro/" target="_blank">Frontman Pro</a> —
 				CMS, multilingual, animations, and advanced UI. View all available themes from <a href="https://oxygenna.com/themes" target="_blank">Oxygenna</a>.
 			</p>
 		</div>
-		<!-- Actions -->
 		<div class="toast__actions"></div>
 	</div>
 </div>
@@ -74,22 +63,19 @@
 		const toast = document.getElementById('frontman-toast')
 		const closeButton = document.getElementById('frontman-toast-close')
 
-		if (!toast) return // Don't run if toast isn't present
+		if (!toast) return
 
-		// Function to show the toast
 		function showToast() {
 			toast.style.display = 'block'
 			toast.classList.add('toast--show')
 		}
 
-		// Function to hide the toast and store dismissal time
 		function hideToast() {
 			toast.style.display = 'none'
 			localStorage.setItem('frontmanToastDismissed', Date.now())
 			toast.classList.remove('toast--show')
 		}
 
-		// Check if toast should be shown
 		function checkToastEligibility() {
 			const lastDismissed = localStorage.getItem('frontmanToastDismissed')
 
@@ -106,19 +92,15 @@
 			}
 		}
 
-		// Initialize
 		checkToastEligibility()
 
-		// Close button click handler
 		if (closeButton) {
 			closeButton.addEventListener('click', hideToast)
 		}
 	}
 
-	// Run once on initial page load
 	document.addEventListener('DOMContentLoaded', initializeToast)
 
-	// Run again on Astro SPA-style page loads
 	document.addEventListener('astro:page-loaded', initializeToast)
 	document.addEventListener('astro:after-swap', initializeToast)
 </script>

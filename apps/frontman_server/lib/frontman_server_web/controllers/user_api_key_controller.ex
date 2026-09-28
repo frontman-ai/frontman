@@ -25,21 +25,13 @@ defmodule FrontmanServerWeb.UserApiKeyController do
     scope = conn.assigns.current_scope
 
     case Providers.upsert_api_key(scope, provider, key) do
-      {:ok, _record} ->
+      :ok ->
         json(conn, %{status: "ok", provider: provider})
 
-      {:error, changeset} ->
+      {:error, errors} ->
         conn
         |> put_status(:unprocessable_entity)
-        |> json(%{status: "error", errors: translate_errors(changeset)})
+        |> json(%{status: "error", errors: errors})
     end
-  end
-
-  defp translate_errors(changeset) do
-    Ecto.Changeset.traverse_errors(changeset, fn {msg, opts} ->
-      Enum.reduce(opts, msg, fn {key, value}, acc ->
-        String.replace(acc, "%{#{key}}", to_string(value))
-      end)
-    end)
   end
 end

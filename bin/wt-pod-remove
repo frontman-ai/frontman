@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Full cleanup: remove pod, volumes, secrets, and git worktree.
-# Called by: make wt-rm
-#
-# Required env: BRANCH, MD5CMD
 
 set -euo pipefail
 
@@ -17,13 +13,11 @@ WT_DIR="$(pwd)/.worktrees/${BRANCH}"
 printf "${YELLOW}Removing containerized worktree: %s (%s)${RESET}\n" "$BRANCH" "$HASH"
 echo ""
 
-# ── Pod ─────────────────────────────────────────────────
 if podman pod inspect "$POD_NAME" &>/dev/null; then
   printf "  Removing pod: %s...\n" "$POD_NAME"
   podman pod rm -f "$POD_NAME" 2>/dev/null || true
 fi
 
-# ── Volumes ─────────────────────────────────────────────
 printf "  Removing volumes...\n"
 podman volume rm -f \
   "worktree-${HASH}-pgdata" \
@@ -32,12 +26,10 @@ podman volume rm -f \
   "worktree-${HASH}-mix-deps" \
   2>/dev/null || true
 
-# ── Secrets ─────────────────────────────────────────────
 if [ -f "$WT_DIR/.env.secrets.resolved" ]; then
   rm -f "$WT_DIR/.env.secrets.resolved"
 fi
 
-# ── Git worktree ────────────────────────────────────────
 if [ -d "$WT_DIR" ]; then
   printf "  Removing git worktree...\n"
   if git -C "$WT_DIR" diff --quiet 2>/dev/null &&
@@ -50,7 +42,6 @@ if [ -d "$WT_DIR" ]; then
   fi
 fi
 
-# ── Caddy ───────────────────────────────────────────────
 bash ./infra/local/caddy-regen.sh
 echo ""
 printf "${GREEN}Cleanup complete${RESET}\n"

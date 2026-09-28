@@ -16,23 +16,21 @@ defmodule FrontmanServerWeb.TasksChannel do
   use FrontmanServerWeb, :verified_routes
   require Logger
 
-  alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Agents
   alias FrontmanServer.Billing
-  alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Protocols.{ACP, JsonRpc}
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
-  alias FrontmanServerWeb.ACPHistory
 
+  @billing_status_updated "billing_status_updated"
   @acp_protocol_version ACP.protocol_version()
   @acp_message ACP.event_acp_message()
   @acp_config_updated ACP.event_config_options_updated()
   @acp_list_sessions ACP.event_list_sessions()
   @acp_delete_session ACP.event_delete_session()
-  @billing_status_updated "billing_status_updated"
   @acp_method_initialize ACP.method_initialize()
   @acp_method_session_new ACP.method_session_new()
-  @acp_method_session_load ACP.method_session_load()
 
   @impl true
   def join("tasks", _params, socket) do
@@ -43,18 +41,13 @@ defmodule FrontmanServerWeb.TasksChannel do
 
       user_id = socket.assigns.scope.user.id
 
-      # Subscribe to config option updates (triggered by key saves/OAuth)
       Phoenix.PubSub.subscribe(
         FrontmanServer.PubSub,
         Providers.config_pubsub_topic(user_id)
       )
 
-      Phoenix.PubSub.subscribe(
-        FrontmanServer.PubSub,
-        Billing.status_topic(user_id)
-      )
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(user_id))
 
-      socket = assign(socket, :acp_initialized, false)
       {:ok, %{status: "connected"}, socket}
     else
       Logger.info("Client joining tasks channel (unauthenticated)")
@@ -64,7 +57,7 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   @impl true
   def handle_in(@acp_message, payload, socket) do
-    Logger.info(fn -> "Got ACP message: #{inspect(payload)}" end)
+    Logger.info("Received ACP message")
 
     case JsonRpc.parse(payload) do
       {:ok, message} -> handle_message(message, socket)
@@ -72,7 +65,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     end
   end
 
-  # Non-ACP channel event for listing sessions
   @impl true
   def handle_in(@acp_list_sessions, _payload, socket) do
     scope = socket.assigns.scope
@@ -81,7 +73,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:reply, {:ok, %{"sessions" => sessions}}, socket}
   end
 
-  # Non-ACP channel event for deleting a session
   @impl true
   def handle_in(@acp_delete_session, %{"sessionId" => session_id}, socket) do
     case Tasks.delete_task(socket.assigns.scope, session_id) do
@@ -90,33 +81,35 @@ defmodule FrontmanServerWeb.TasksChannel do
     end
   end
 
-  # No catch-all handler - let it crash on malformed requests (zero silent failures)
-
-  # Initialize with correct protocol version
   defp handle_message(
          {:request, id, @acp_method_initialize,
           %{"protocolVersion" => @acp_protocol_version} = params},
          socket
        ) do
-    Logger.info("ACP initialize from #{inspect(params["clientInfo"])}")
+    Logger.info("ACP initialize received")
 
-    socket =
-      socket
-      |> assign(:acp_initialized, true)
-      |> assign(:acp_client_info, params["clientInfo"])
-      |> assign(:acp_client_capabilities, params["clientCapabilities"])
+    case ACP.negotiate_agent_attribution_version(params["clientCapabilities"]) do
+      {:ok, _version} ->
+        socket = assign(socket, :acp_client_info, params["clientInfo"])
 
-    # Push config options immediately so the model selector is populated
-    # before any session is created.
-    push(
-      socket,
-      @acp_config_updated,
-      ACP.build_config_options_updated_payload(current_config_options(socket))
-    )
+        push(
+          socket,
+          @acp_config_updated,
+          ACP.build_config_options_updated_payload(current_config_options(socket))
+        )
 
-    push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
+        push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
+        agents = Agents.list_agents(socket.assigns.scope)
 
-    push_response(socket, id, ACP.build_initialize_result())
+        push_response(
+          socket,
+          id,
+          ACP.build_initialize_result(agents, Agents.default_agent_id(socket.assigns.scope))
+        )
+
+      {:error, message} ->
+        push_error(socket, id, JsonRpc.error_invalid_params(), message)
+    end
   end
 
   defp handle_message({:request, id, @acp_method_initialize, %{"protocolVersion" => _}}, socket) do
@@ -132,7 +125,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     )
   end
 
-  # Create new session (client provides sessionId)
   defp handle_message(
          {:request, id, @acp_method_session_new, %{"sessionId" => session_id}},
          socket
@@ -143,8 +135,7 @@ defmodule FrontmanServerWeb.TasksChannel do
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
-         _fw = Frameworks.from_string(raw_framework),
-         :ok <- guard_billing_access(socket.assigns.scope),
+         true <- Billing.allow_access?(socket.assigns.scope),
          {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
            Tasks.create_task(
              socket.assigns.scope,
@@ -154,9 +145,22 @@ defmodule FrontmanServerWeb.TasksChannel do
       push_response(
         socket,
         id,
-        ACP.build_session_new_result(session_id, current_config_options(socket))
+        ACP.build_session_new_result(
+          session_id,
+          current_config_options(socket)
+        )
       )
     else
+      false ->
+        push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
+
+        push_error(
+          socket,
+          id,
+          JsonRpc.error_billing_inactive(),
+          Tasks.billing_inactive_message(socket.assigns.scope)
+        )
+
       :error ->
         push_error(
           socket,
@@ -168,14 +172,6 @@ defmodule FrontmanServerWeb.TasksChannel do
       nil ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
 
-      {:error, :billing_inactive} ->
-        push_error(
-          socket,
-          id,
-          JsonRpc.error_billing_inactive(),
-          Tasks.billing_inactive_message(socket.assigns.scope)
-        )
-
       {:error, _changeset} ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
     end
@@ -185,31 +181,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     push_error(socket, id, JsonRpc.error_invalid_params(), "Missing required field: sessionId")
   end
 
-  # ACP session/load - streams history via session/update notifications
-  defp handle_message(
-         {:request, id, @acp_method_session_load, %{"sessionId" => session_id} = _params},
-         socket
-       ) do
-    Logger.info("ACP session/load request received for session: #{session_id}")
-    scope = socket.assigns.scope
-
-    case Tasks.get_task(scope, session_id) do
-      {:ok, task} ->
-        # Stream history via session/update notifications
-        stream_session_history(socket, task)
-
-        push_response(socket, id, ACP.build_session_load_result(current_config_options(socket)))
-
-      {:error, :not_found} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
-    end
-  end
-
-  defp handle_message({:request, id, @acp_method_session_load, _params}, socket) do
-    push_error(socket, id, JsonRpc.error_invalid_params(), "Missing sessionId parameter")
-  end
-
-  # Unknown method
   defp handle_message({:request, id, method, _params}, socket) do
     Logger.info("ACP unknown method: #{method}")
     push_error(socket, id, JsonRpc.error_method_not_found(), "Method not found")
@@ -219,7 +190,6 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  # Handle config option updates (triggered by key saves/OAuth)
   @impl true
   def handle_info(:config_options_changed, socket) do
     push(
@@ -233,20 +203,20 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   def handle_info(:billing_status_changed, socket) do
     push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
-
     {:noreply, socket}
   end
 
   defp current_config_options(socket) do
     socket.assigns.scope
-    |> Providers.model_config_data()
+    |> Providers.available_models()
     |> ACP.build_model_config_options()
   end
 
-  # UUID v4 format: 8-4-4-4-12 hex digits with dashes
-  @uuid_regex ~r/\A[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/i
   defp validate_uuid_format(string) do
-    if Regex.match?(@uuid_regex, string), do: :ok, else: :error
+    case Ecto.UUID.cast(string) do
+      {:ok, uuid} -> if uuid == String.downcase(string), do: :ok, else: :error
+      :error -> :error
+    end
   end
 
   defp extract_framework(%{"_meta" => %{"framework" => framework}}) when is_binary(framework),
@@ -254,18 +224,13 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp extract_framework(_), do: nil
 
-  defp guard_billing_access(scope) do
-    if Billing.allow_access?(scope), do: :ok, else: {:error, :billing_inactive}
-  end
-
-  # Parse errors
-  defp handle_parse_error(reason, %{"id" => id}, socket) do
-    Logger.error("Invalid ACP message: #{inspect(reason)}")
+  defp handle_parse_error(_reason, %{"id" => id}, socket) do
+    Logger.error("Invalid ACP message")
     push_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
   end
 
-  defp handle_parse_error(reason, payload, socket) do
-    Logger.error("Invalid ACP message: #{inspect(reason)}, payload: #{inspect(payload)}")
+  defp handle_parse_error(_reason, _payload, socket) do
+    Logger.error("Invalid ACP message")
     {:noreply, socket}
   end
 
@@ -277,14 +242,5 @@ defmodule FrontmanServerWeb.TasksChannel do
   defp push_error(socket, id, code, message) do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
     {:noreply, socket}
-  end
-
-  # Streams session history as ACP session/update notifications
-  defp stream_session_history(socket, task) do
-    task.interactions
-    |> Enum.flat_map(&ACPHistory.to_history_items(&1, task.id))
-    |> Enum.each(fn notification ->
-      push(socket, @acp_message, notification)
-    end)
   end
 end

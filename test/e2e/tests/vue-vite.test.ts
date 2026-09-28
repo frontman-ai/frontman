@@ -13,7 +13,6 @@ describe("Vue + Vite E2E", () => {
   let server: FrameworkServer;
 
   beforeAll(async () => {
-    // Run the Frontman installer to inject frontmanPlugin into vite.config.ts
     installVueVite();
 
     browser = await chromium.launch({ headless: true });
@@ -43,13 +42,10 @@ describe("Vue + Vite E2E", () => {
   it("should make a text change via AI prompt", async () => {
     page = await context.newPage();
 
-    // Navigate to the Frontman UI (handles login redirect)
     await openFrontmanUI(page, PORT);
 
-    // Send a prompt to change the heading text
     await sendPrompt(page, 'Change the h1 heading text in src/App.vue to say "Hello Frontman"');
 
-    // Verify the source file was actually modified
     expect(headingFileContains(server, "Hello Frontman")).toBe(true);
   });
 });

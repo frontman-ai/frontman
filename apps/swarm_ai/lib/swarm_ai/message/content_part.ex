@@ -13,15 +13,16 @@ defmodule SwarmAi.Message.ContentPart do
   typedstruct do
     field(:type, content_type(), enforce: true)
     field(:text, String.t())
+    field(:metadata, map(), default: %{})
     field(:data, binary())
     field(:media_type, String.t())
     field(:url, String.t())
   end
 
   @doc "Creates a text content part"
-  @spec text(String.t()) :: t()
-  def text(text) when is_binary(text) do
-    %__MODULE__{type: :text, text: text}
+  @spec text(String.t(), map()) :: t()
+  def text(text, metadata \\ %{}) when is_binary(text) and is_map(metadata) do
+    %__MODULE__{type: :text, text: text, metadata: metadata}
   end
 
   @doc "Creates an image content part from binary data"

@@ -23,7 +23,6 @@ defmodule ReqLLM.Test.Transcript do
             events: nil
 
   @sensitive_headers ~w(authorization x-api-key api-key)
-  # Use exact matches to avoid false positives (e.g., max_tokens matching "token")
   @sensitive_json_keys ~w(api_key apiKey authorization access_token auth_token bearer_token)
 
   def new(attrs), do: struct!(__MODULE__, attrs)
@@ -262,11 +261,9 @@ defmodule ReqLLM.Test.Transcript do
       Enum.map(chunks, fn chunk ->
         binary =
           cond do
-            # New format: {"b64": "base64data"}
             is_map(chunk) && Map.has_key?(chunk, "b64") ->
               Base.decode64!(chunk["b64"])
 
-            # Legacy format: plain string
             is_binary(chunk) ->
               chunk
 

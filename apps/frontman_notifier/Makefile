@@ -1,38 +1,49 @@
-# Task runner Makefile with auto-generated help.
+
 
 .DEFAULT_GOAL := help
 .PHONY: help install test format lint build release precommit clean
 
 SHELL := /bin/bash
 
-help: ## Display this help message
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-15s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help install test format lint build release precommit clean
+HELP_help := Display this help message
+HELP_install := Install project dependencies
+HELP_test := Run test suite
+HELP_format := Auto-format Elixir files
+HELP_lint := Run formatter and static analysis
+HELP_build := Compile for production
+HELP_release := Build production release tarball
+HELP_precommit := Run precommit checks
+HELP_clean := Clean build artifacts and dependencies
 
-install: ## Install project dependencies
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-15s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+install:
 	mix deps.get
 
-test: ## Run test suite
+test:
 	mix test
 
-format: ## Auto-format Elixir files
+format:
 	mix format
 
-lint: ## Run formatter and static analysis
+lint:
 	mix format --check-formatted
-	mix credo --strict
+	mix credo --strict --ignore-checks ModuleDoc
 
-build: ## Compile for production
+build:
 	MIX_ENV=prod mix compile --warnings-as-errors --all-warnings
 
-release: build ## Build production release tarball
+release: build
 	MIX_ENV=prod mix release --overwrite
 
-precommit: ## Run precommit checks
+precommit:
 	mix compile --warnings-as-errors --all-warnings
 	mix deps.unlock --unused
 	mix format
-	mix credo --strict
+	mix credo --strict --ignore-checks ModuleDoc
 	mix test
 
-clean: ## Clean build artifacts and dependencies
+clean:
 	rm -rf _build deps

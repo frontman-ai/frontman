@@ -1,57 +1,36 @@
-// State type definitions - extracted to avoid circular dependencies
-
-// Re-export Task domain types for backward compatibility
 module UserContentPart = Client__Task__Types.UserContentPart
 module AssistantContentPart = Client__Task__Types.AssistantContentPart
 module Message = Client__Task__Types.Message
 module Task = Client__Task__Types.Task
 module ACPTypes = Client__Task__Types.ACPTypes
-module ACPClient = FrontmanAiFrontmanClient.FrontmanClient__ACP
+module ContentBlock = Client__Task__Types.ContentBlock
 
-// Re-export content block builders
-let annotationToContentBlocks = Client__Task__Types.annotationToContentBlocks
 let taskToPageContextBlocks = Client__Task__Types.taskToPageContextBlocks
 let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsToContentBlocks
 
 type sendPromptFn = (
   string,
-  ~additionalBlocks: array<ACPTypes.contentBlock>,
-  ~onComplete: result<ACPTypes.promptResult, ACPClient.requestError> => unit,
+  ~additionalBlocks: array<ContentBlock.t>,
+  ~onComplete: result<ACPTypes.promptResult, string> => unit,
   ~_meta: option<JSON.t>,
 ) => unit
 
-// Callback for loading a persisted task's messages
-// taskId: the task to load (maps to sessionId at protocol level)
-// needsHistory: true = load full history (task not loaded), false = just activate channel (task already loaded)
-// onComplete: called when loading finishes (success or error)
-// Note: onUpdate is baked in when the callback is created (uses handleSessionUpdate)
 type loadTaskFn = (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit
 
-// Callback for deleting a persisted session
-// taskId: the task/session to delete
-// onComplete: called when deletion finishes (success or error)
 type deleteSessionFn = (string, ~onComplete: result<unit, string> => unit) => unit
 
-// Callback for cancelling the current prompt turn
-// Fire-and-forget: sends ACP session/cancel notification
-type cancelPromptFn = unit => unit
+type sendSessionCommandFn = FrontmanAiFrontmanClient.FrontmanClient__ACP.sessionCommand => unit
 
-// Callback for retrying a failed turn
-// Fire-and-forget: sends ACP retry_turn notification with the error ID that triggered the retry
-type retryTurnFn = string => unit
+type requireAuthenticationFn = unit => unit
 
-// ACP session state - stores callbacks for API operations when session is active
-// Note: sessionId is NOT stored here - it's managed by ConnectionReducer (ACP layer)
-// Tasks store their own ID which equals the ACP session ID
-// apiBaseUrl is co-located with AcpSessionActive to make illegal state (active + no apiBaseUrl) unrepresentable
 type acpSession =
   | NoAcpSession
   | AcpSessionActive({
       sendPrompt: sendPromptFn,
-      cancelPrompt: cancelPromptFn,
-      retryTurn: retryTurnFn,
+      sendSessionCommand: sendSessionCommandFn,
       loadTask: loadTaskFn,
       deleteSession: deleteSessionFn,
+      requireAuthentication: requireAuthenticationFn,
       apiBaseUrl: string,
     })
 
@@ -68,38 +47,132 @@ type userApiKeySaveRequest = {
   key: string,
 }
 
-// API key source status for settings display
 type apiKeySource =
-  | Loading //Still loading
-  | None // No key configured
-  | FromEnv // Key loaded from environment variable
-  | UserOverride // User has saved their own key (stored in DB)
+  | Loading
+  | None
+  | UserOverride
 
-// API key save operation status
 type apiKeySaveStatus =
   | Idle
   | Saving
   | Saved
   | SaveError(string)
 
-// API key settings for a provider
 type apiKeySettings = {
   source: apiKeySource,
   saveStatus: apiKeySaveStatus,
 }
 
-type settingsTab =
-  | General
-  | Providers
-  | Billing
+@schema
+type oauthStatusResponse = {
+  connected: bool,
+  @as("expires_at")
+  expiresAt: option<string>,
+}
 
-// Re-export ACP session config types used by the client state layer.
+@schema
+type anthropicOAuthAuthorizeUrlResponse = {
+  @as("authorize_url")
+  authorizeUrl: string,
+  verifier: string,
+}
+
+@schema
+type anthropicOAuthExchangeResponse = {
+  @as("expires_at")
+  expiresAt: string,
+}
+
+@schema
+type anthropicOAuthErrorResponse = {
+  error: string,
+}
+
+@schema
+type openAIDeviceAuthResponse = {
+  @as("device_auth_id")
+  deviceAuthId: string,
+  @as("user_code")
+  userCode: string,
+  @as("verification_url")
+  verificationUrl: string,
+}
+
+@schema
+type openAIDeviceAuthPollStatus =
+  | @as("connected") DeviceAuthConnected
+  | @as("pending") DeviceAuthPending
+
+@schema
+type openAIDeviceAuthPollResponse = {
+  status: openAIDeviceAuthPollStatus,
+  @as("expires_at")
+  expiresAt: option<string>,
+}
+
+@schema
+type customProvider = {
+  id: string,
+  name: string,
+  @as("base_url")
+  baseUrl: string,
+  @as("has_api_key")
+  hasApiKey: bool,
+  models: array<string>,
+  @as("lock_version")
+  lockVersion: int,
+}
+
+@schema
+type customProvidersResponse = {
+  @as("data")
+  providers: array<customProvider>,
+}
+
+@schema
+type customProviderResponse = {
+  @as("data")
+  provider: customProvider,
+}
+
+type customProviderApiKeyChange =
+  | KeepCustomProviderApiKey
+  | ClearCustomProviderApiKey
+  | ReplaceCustomProviderApiKey(string)
+
+type customProviderDraft = {
+  id: option<string>,
+  name: string,
+  baseUrl: string,
+  apiKeyChange: customProviderApiKeyChange,
+  models: array<string>,
+  lockVersion: option<int>,
+}
+
+type customProviderMutationOperation =
+  | SavingCustomProvider(option<string>)
+  | DeletingCustomProvider(string)
+
+type customProviderMutationError =
+  | CustomProviderValidationError(Dict.t<array<string>>)
+  | CustomProviderNotFound
+  | CustomProviderConflict(customProvider)
+  | CustomProviderNetworkError(string)
+
+type customProviderMutation =
+  | CustomProviderMutationIdle
+  | CustomProviderMutationPending(customProviderMutationOperation)
+  | CustomProviderMutationSucceeded(customProviderMutationOperation)
+  | CustomProviderMutationFailed({
+      operation: customProviderMutationOperation,
+      error: customProviderMutationError,
+    })
+
 module ACPConfig = {
   type sessionConfigOption = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigOption
   type sessionConfigValueId = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.sessionConfigValueId
 }
 
-// Anthropic OAuth connection status
 type anthropicOAuthStatus =
   | NotConnected
   | FetchingStatus
@@ -108,23 +181,20 @@ type anthropicOAuthStatus =
   | Connected({expiresAt: float})
   | Error(string)
 
-// OpenAI OAuth connection status (device auth flow)
 type openaiOAuthStatus =
   | OpenAINotConnected
   | OpenAIFetchingStatus
-  | OpenAIWaitingForCode // Requesting device code from OpenAI
-  | OpenAIShowingCode({deviceAuthId: string, userCode: string, verificationUrl: string}) // User needs to enter code
+  | OpenAIWaitingForCode
+  | OpenAIShowingCode({deviceAuthId: string, userCode: string, verificationUrl: string})
   | OpenAIConnected({expiresAt: float})
   | OpenAIError(string)
 
-// Sessions load state for persisted sessions
 type sessionsLoadState =
   | SessionsNotLoaded
   | SessionsLoading
   | SessionsLoaded
   | SessionsLoadError(string)
 
-// User profile from /api/user/me
 @schema
 type userProfile = {
   id: string,
@@ -132,27 +202,39 @@ type userProfile = {
   name: option<string>,
 }
 
-// Integration package update info
+type updateTarget =
+  | NpmPackage(string)
+  | WordPressPlugin
+
 type updateInfo = {
-  npmPackage: string,
+  target: updateTarget,
   installedVersion: string,
   latestVersion: string,
 }
 
-// API response from /api/integrations/latest-versions
 @schema
 type latestVersionsResponse = {versions: Dict.t<option<string>>}
 
-// Update check lifecycle — prevents duplicate fetches
-type updateCheckStatus =
-  | UpdateNotChecked
-  | UpdateChecked
+type highlightedAnnotation = {
+  taskId: string,
+  annotationId: string,
+  selector: string,
+}
+
+type firstTaskFeedbackDialogState =
+  | Waiting
+  | AwaitingHistory
+  | Visible
+  | LinkCopied
+  | ShareFailed
+  | Dismissed
+
+type settingsTab = General | Providers | Billing
 
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   acpSession: acpSession,
-  sessionInitialized: bool,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
   billingStatus: Client__Billing.state,
@@ -162,19 +244,17 @@ type state = {
   nvidiaKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
   openaiOAuthStatus: openaiOAuthStatus,
-  // ACP session config options (replaces bespoke modelsConfig/selectedModel).
-  // Populated from session/new and session/load responses.
-  // Model selection is a SessionConfigOption with category=Model.
   configOptions: option<array<ACPConfig.sessionConfigOption>>,
-  // Currently selected model value (ACP sessionConfigValueId, e.g. "anthropic:claude-sonnet-4-5").
-  // Persisted to localStorage. Derives from configOptions where category=Model.
   selectedModelValue: option<ACPConfig.sessionConfigValueId>,
-  // When a provider is freshly connected, this holds its id (e.g. "anthropic")
-  // so the next config options refresh auto-selects its first model.
+  agentCatalog: option<array<ACPTypes.agentCatalogEntry>>,
+  selectedAgentId: option<string>,
   pendingProviderAutoSelect: option<string>,
   sessionsLoadState: sessionsLoadState,
-  // Update banner: set when a newer integration package version is available
+  customProviders: option<array<customProvider>>,
+  customProviderMutation: customProviderMutation,
   updateInfo: option<updateInfo>,
-  updateCheckStatus: updateCheckStatus,
+  wordpressUpdates: Client__WordPressUpdates.t,
   updateBannerDismissed: bool,
+  firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
+  highlightedAnnotation: option<highlightedAnnotation>,
 }

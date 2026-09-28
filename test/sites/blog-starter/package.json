@@ -11,26 +11,26 @@
 	"dependencies": {
 		"@frontman-ai/nextjs": "workspace:*",
 		"@opentelemetry/api": "^1.9.1",
-		"@opentelemetry/sdk-logs": "^0.215.0",
-		"@opentelemetry/sdk-node": "^0.215.0",
+		"@opentelemetry/sdk-logs": "^0.220.0",
+		"@opentelemetry/sdk-node": "^0.220.0",
 		"@opentelemetry/sdk-trace-base": "^2.6.1",
 		"classnames": "^2.5.1",
 		"date-fns": "^4.1.0",
 		"gray-matter": "^4.0.3",
-		"next": "~16.2.4",
+		"next": "~16.2.11",
 		"react": "19.2.5",
 		"react-dom": "19.2.5",
 		"remark": "^15.0.1",
 		"remark-html": "^16.0.1"
 	},
 	"devDependencies": {
-		"@tailwindcss/postcss": "4.2.4",
+		"@tailwindcss/postcss": "4.3.2",
 		"@types/node": "^25.6.0",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.2",
 		"autoprefixer": "^10.5.0",
 		"postcss": "^8.4.38",
-		"tailwindcss": "^4.2.4",
+		"tailwindcss": "^4.3.2",
 		"typescript": "6.0.3"
 	}
 }

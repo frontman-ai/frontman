@@ -1,8 +1,4 @@
 ---
-// ComparisonStructuredData
-// ------------------------
-// Emits JSON-LD structured data for a /vs/ comparison page.
-// Blocks: FAQPage and WebPage. Software-app rich results require real ratings or reviews, so avoid emitting incomplete SoftwareApplication markup.
 
 type FAQ = {
   question: string
@@ -29,12 +25,12 @@ type Props = {
   competitor: CompetitorInfo
   faqs: FAQ[]
   seo: SEOInfo
+  checkedAt: string
 }
 
-const { faqs, seo } = Astro.props
+const { faqs, seo, checkedAt } = Astro.props
 const pageUrl = Astro.url.href
 
-// FAQPage
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -48,13 +44,13 @@ const faqJsonLd = {
   })),
 }
 
-// WebPage
 const webPageJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebPage",
   "name": seo.title,
   "description": seo.description,
   "url": pageUrl,
+  "dateModified": `${checkedAt}T00:00:00.000Z`,
   "reviewedBy": {
     "@type": "Organization",
     "name": "Frontman",

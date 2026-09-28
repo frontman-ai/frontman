@@ -31,11 +31,9 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       assert notification.category == "rate_limit"
       assert %DateTime{} = notification.retry_at
 
-      # Timer fires in the calling process
       assert_receive {:fire_retry, token}, 500
       assert token == state.timer_token
 
-      # Clean up
       RetryCoordinator.clear(state)
     end
 
@@ -91,9 +89,7 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       {:retry_scheduled, state2, _} =
         RetryCoordinator.handle_error(state1, @retryable_error)
 
-      # Old timer was cancelled
       assert Process.cancel_timer(old_ref) == false
-      # New timer is active
       assert is_integer(Process.cancel_timer(state2.timer_ref))
       RetryCoordinator.clear(state2)
     end
@@ -111,7 +107,6 @@ defmodule FrontmanServer.Tasks.RetryCoordinatorTest do
       assert is_reference(state.timer_ref)
       assert RetryCoordinator.clear(state) == nil
 
-      # Timer should no longer fire
       refute_receive {:fire_retry, _token}, 100
     end
   end

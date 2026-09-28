@@ -26,14 +26,8 @@ defmodule FrontmanServer.Organizations do
     deps: [FrontmanServer],
     exports: [Organization]
 
-  import Ecto.Query, warn: false
-
   alias FrontmanServer.Organizations.{Membership, Organization}
   alias FrontmanServer.Repo
-
-  # ==============================================================================
-  # Organization Queries
-  # ==============================================================================
 
   @doc """
   Returns the list of organizations the scoped user belongs to.
@@ -97,10 +91,6 @@ defmodule FrontmanServer.Organizations do
     |> Organization.by_slug(slug)
     |> Repo.one()
   end
-
-  # ==============================================================================
-  # Organization Commands
-  # ==============================================================================
 
   @doc """
   Creates an organization with the scoped user as owner.
@@ -206,10 +196,6 @@ defmodule FrontmanServer.Organizations do
     end
   end
 
-  # ==============================================================================
-  # Membership Queries
-  # ==============================================================================
-
   @doc """
   Returns the list of members for the organization in scope.
   """
@@ -254,10 +240,6 @@ defmodule FrontmanServer.Organizations do
     |> Membership.for_user(user_id)
     |> Repo.exists?()
   end
-
-  # ==============================================================================
-  # Membership Commands
-  # ==============================================================================
 
   @doc """
   Adds a user to the organization in scope with the given role.
@@ -310,10 +292,6 @@ defmodule FrontmanServer.Organizations do
       {:ok, membership}
     end
   end
-
-  # ==============================================================================
-  # PubSub
-  # ==============================================================================
 
   @doc """
   Subscribes to scoped notifications about any organization changes.

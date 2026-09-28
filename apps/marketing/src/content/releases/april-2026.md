@@ -33,4 +33,4 @@ Stagewise added Windsurf and Roo Code to its IDE agent bridge, joining Cursor an
 
 ---
 
-For a detailed comparison of all major open-source AI coding tools, see our [full comparison guide](/blog/best-open-source-ai-coding-tools-2026/).
+For a detailed comparison of all major open-source AI coding agents, see our [open-source AI coding agents comparison guide](/blog/best-open-source-ai-coding-tools-2026/).

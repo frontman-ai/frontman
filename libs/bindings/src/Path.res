@@ -1,4 +1,3 @@
-// Path module bindings using node: prefix
 @module("node:path") @variadic
 external join: array<string> => string = "join"
 
@@ -19,6 +18,9 @@ external isAbsolute: string => bool = "isAbsolute"
 
 @module("node:path")
 external normalize: string => string = "normalize"
+
+@module("node:path")
+external relative: (string, string) => string = "relative"
 
 @module("node:path") @variadic
 external resolveMany: array<string> => string = "resolve"

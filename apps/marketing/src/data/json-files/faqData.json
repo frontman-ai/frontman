@@ -19,7 +19,7 @@
 	},
 	{
 		"question": "Is it open source?",
-		"reply": "Yes. Frontman is open source on GitHub at github.com/frontman-ai/frontman. Every prompt, every tool call, and every piece of context the agent uses is visible in the source. Licenses vary by package and integration, and are declared in the repository and release artifacts.",
+		"reply": "Frontman is source-available on GitHub at github.com/frontman-ai/frontman. The browser client and JavaScript framework integrations are open source under Apache-2.0, and the WordPress plugin is GPL-2.0-or-later. Frontman Server is AGPL-3.0-only with AI Supplementary Terms restricting AI training and AI-assisted competitive reproduction.",
 		"category": "general",
 		"open": false
 	},

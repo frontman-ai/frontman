@@ -13,7 +13,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_Templates {
 	/**
@@ -22,7 +21,7 @@ class Frontman_Tool_Templates {
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_get_site_info',
-			'Returns comprehensive site information including WordPress version, active theme, active plugins, registered post types, and taxonomies.',
+			'Returns comprehensive site information including WordPress version, active theme, active plugins, registered public post types with archive URLs and rewrite settings, and taxonomies. CPT archives are generated routes, not backing pages/posts.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -157,24 +156,25 @@ class Frontman_Tool_Templates {
 	public function get_site_info( array $input ): array {
 		$theme = wp_get_theme();
 
-		// Get plugin names from WordPress' validated active plugin paths.
 		$plugin_info = [];
 		foreach ( $this->get_active_plugin_paths() as $plugin_path ) {
 			$plugin_info[] = $this->get_active_plugin_info( $plugin_path );
 		}
 
-		// Get post types.
 		$post_types = get_post_types( [ 'public' => true ], 'objects' );
 		$pt_list    = [];
 		foreach ( $post_types as $pt ) {
 			$pt_list[] = [
-				'name'  => $pt->name,
-				'label' => $pt->label,
-				'count' => (int) wp_count_posts( $pt->name )->publish,
+				'name'               => $pt->name,
+				'label'              => $pt->label,
+				'count'              => (int) wp_count_posts( $pt->name )->publish,
+				'has_archive'        => $pt->has_archive,
+				'archive_url'        => get_post_type_archive_link( $pt->name ) ?: null,
+				'rewrite'            => $pt->rewrite,
+				'publicly_queryable' => $pt->publicly_queryable,
 			];
 		}
 
-		// Get taxonomies.
 		$taxonomies = get_taxonomies( [ 'public' => true ], 'objects' );
 		$tax_list   = [];
 		foreach ( $taxonomies as $tax ) {
@@ -299,5 +299,3 @@ class Frontman_Tool_Templates {
 		];
 	}
 }
-
-// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

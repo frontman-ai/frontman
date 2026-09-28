@@ -3,6 +3,8 @@ import { z } from 'astro/zod'
 import { glob } from 'astro/loaders'
 import { docsLoader } from '@astrojs/starlight/loaders'
 import { docsSchema } from '@astrojs/starlight/schema'
+import { articleSections, authorNames } from './content/authors'
+import { blogImageHeight, blogImageWidth } from './content/frontmanFacts'
 
 const blog = defineCollection({
 	loader: glob({ pattern: '**/*.md', base: './src/content/blog' }),
@@ -13,11 +15,11 @@ const blog = defineCollection({
 			description: z.string(),
 			pubDate: z.date(),
 			image: z.string(),
-			imageWidth: z.number().optional(),
-			imageHeight: z.number().optional(),
-			imageAlt: z.string().optional(),
-			author: z.string(),
-			authorRole: z.string().optional(),
+			imageWidth: z.number().default(blogImageWidth),
+			imageHeight: z.number().default(blogImageHeight),
+			imageAlt: z.string(),
+			author: z.enum(authorNames),
+			articleSection: z.enum(articleSections),
 			tags: z.array(z.string()),
 			updatedDate: z.date().optional(),
 			faq: z

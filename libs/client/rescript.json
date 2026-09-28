@@ -27,6 +27,7 @@
 	},
 	"ppx-flags": ["sury-ppx/bin"],
 	"dependencies": [
+		"@bluehotdog/reworker",
 		"@frontman/bindings",
 		"@frontman/logs",
 		"@rescript/react",

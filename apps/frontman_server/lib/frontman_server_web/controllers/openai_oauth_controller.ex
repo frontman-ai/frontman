@@ -126,7 +126,6 @@ defmodule FrontmanServerWeb.OpenAIOAuthController do
         json(conn, %{status: "ok"})
 
       {:error, :not_found} ->
-        # Token didn't exist, but that's fine - user is disconnected either way
         json(conn, %{status: "ok"})
     end
   end
@@ -137,6 +136,9 @@ defmodule FrontmanServerWeb.OpenAIOAuthController do
   GET /api/oauth/openai/status
   """
   def status(conn, _params) do
-    json(conn, Providers.oauth_connection_status(conn.assigns.current_scope, "openai_codex"))
+    json(
+      conn,
+      Providers.resolve_oauth_connection_status(conn.assigns.current_scope, "openai_codex")
+    )
   end
 end

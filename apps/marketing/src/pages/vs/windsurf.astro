@@ -1,12 +1,12 @@
 ---
-// /vs/windsurf — Frontman vs Windsurf Comparison Page
-// Targets "windsurf alternative open source" and "windsurf vs" queries
 
 import Button from '../../components/ui/Button.astro'
 import ComparisonLayout from '../../layouts/ComparisonLayout.astro'
+import { createComparisonReview, frontmanLicenseShort } from '../../content/frontmanFacts'
 import type {
   Alternative,
   ComparisonFeature,
+  ComparisonReview,
   CompetitorInfo,
   FAQ,
   SEOInfo,
@@ -15,16 +15,26 @@ import type {
 const seo: SEOInfo = {
   title: 'Frontman vs Windsurf: Browser vs IDE Preview',
   description:
-    'Frontman is browser middleware that sees your running app. Windsurf is a VS Code fork with preview. Compare features and architecture.',
+    'Frontman is browser middleware that sees your running app. Windsurf is now Devin Desktop, a command center for local and cloud coding agents with a full IDE.',
+}
+
+const review: ComparisonReview = {
+  ...createComparisonReview([
+    { label: 'Windsurf official website', url: 'https://windsurf.com' },
+    {
+      label: 'Windsurf is now Devin Desktop announcement',
+      url: 'https://windsurf.com/blog/windsurf-is-now-devin-desktop',
+    },
+  ]),
 }
 
 const competitor: CompetitorInfo = {
-  name: 'Windsurf',
+  name: 'Windsurf (now Devin Desktop)',
   slug: 'windsurf',
   url: 'https://windsurf.com',
   category: 'DeveloperApplication',
   description:
-    'AI-powered IDE by Cognition with Cascade agent, autocomplete, embedded browser preview, terminal integration, and MCP support.',
+    'Cognition renamed Windsurf to Devin Desktop, a command center for local and cloud coding agents that retains the full IDE foundation, extensions, workflows, settings, and JetBrains support.',
   pricing: {
     cost: '$0–$30/mo',
     model: 'Freemium, proprietary',
@@ -44,15 +54,15 @@ const features: ComparisonFeature[] = [
   { name: 'Click-to-select elements', frontman: 'yes', competitor: 'yes', frontmanNote: 'Visual component selection in your browser', competitorNote: 'Click elements in embedded preview panel' },
   { name: 'Hot reload feedback loop', frontman: 'yes', competitor: 'partial', frontmanNote: 'Instant in browser via HMR', competitorNote: 'Edits files; preview refreshes on rebuild' },
   { name: 'Inline autocomplete', frontman: 'no', competitor: 'yes', competitorNote: 'Tab, Supercomplete, Tab-to-Jump, Tab-to-Import' },
-  { name: 'Agent mode', frontman: 'yes', competitor: 'yes', frontmanNote: 'Browser-context agent', competitorNote: 'Cascade — Code and Chat modes with flow awareness' },
-  { name: 'Multi-file refactoring', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can edit multiple files, not primary workflow', competitorNote: 'Vibe and Replace — mass refactoring across hundreds of files' },
-  { name: 'Terminal integration', frontman: 'no', competitor: 'yes', competitorNote: 'Built-in terminal, Turbo Mode auto-executes commands' },
+  { name: 'Agent mode', frontman: 'yes', competitor: 'yes', frontmanNote: 'Browser-context agent', competitorNote: 'Devin and other ACP agents in local or cloud sessions' },
+  { name: 'Multi-file refactoring', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can edit multiple files, not primary workflow', competitorNote: 'Agents work across isolated Spaces and worktrees' },
+  { name: 'Terminal integration', frontman: 'no', competitor: 'yes', competitorNote: 'Full IDE with integrated terminals and agent command execution' },
   { name: 'Framework-aware', frontman: 'yes', competitor: 'no', frontmanNote: 'Deep plugin for Next.js, Astro, Vite — sees component tree', competitorNote: 'IDE-level file context, no framework runtime integration' },
   { name: 'Designer/PM friendly', frontman: 'yes', competitor: 'no', frontmanNote: 'No IDE needed — works in the browser', competitorNote: 'Requires IDE proficiency' },
-  { name: 'Open source', frontman: 'yes', competitor: 'no', frontmanNote: 'Apache 2.0 (client) / AGPL-3.0 (server)', competitorNote: 'Proprietary (VS Code fork, closed-source AI features)' },
-  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'no', frontmanNote: 'Any LLM provider directly', competitorNote: 'Uses Windsurf\'s model pool (GPT, Claude, Gemini, SWE-1.5)' },
-  { name: 'Self-hostable', frontman: 'yes', competitor: 'no', frontmanNote: 'Everything runs locally', competitorNote: 'Cloud service; enterprise on-prem available' },
-  { name: 'Works in the browser', frontman: 'yes', competitor: 'no', frontmanNote: 'No IDE required', competitorNote: 'Standalone VS Code fork' },
+  { name: 'Source availability', frontman: 'yes', competitor: 'no', frontmanNote: frontmanLicenseShort, competitorNote: 'Proprietary (VS Code fork, closed-source AI features)' },
+  { name: 'BYOK (bring your own key)', frontman: 'yes', competitor: 'no', frontmanNote: 'Any LLM provider directly', competitorNote: 'Uses Devin Desktop\'s managed model access' },
+  { name: 'Self-hostable', frontman: 'yes', competitor: 'no', frontmanNote: 'Server runs on your infrastructure; local integration owns filesystem access', competitorNote: 'Cloud service; enterprise on-prem available' },
+  { name: 'Works in the browser', frontman: 'yes', competitor: 'no', frontmanNote: 'No IDE required', competitorNote: 'Devin Desktop is a desktop command center with a full IDE' },
   { name: 'Backend coding', frontman: 'partial', competitor: 'yes', frontmanNote: 'Can read/write any file, but frontend-focused', competitorNote: 'Any language, any framework' },
   { name: 'MCP support', frontman: 'yes', competitor: 'yes', frontmanNote: 'Browser-side MCP server', competitorNote: 'Plugin Store with curated MCP servers' },
   { name: 'Proprietary models', frontman: 'no', competitor: 'yes', competitorNote: 'SWE-1.5 (claimed 13x faster than Sonnet 4.5)' },
@@ -62,94 +72,86 @@ const faqs: FAQ[] = [
   {
     question: 'Is Frontman an alternative to Windsurf?',
     answer:
-      'They solve different problems. Windsurf is a VS Code fork with an AI agent (Cascade), autocomplete, and an embedded browser preview panel. It\'s a full IDE replacement. Frontman is browser middleware that integrates with your dev server (Next.js, Astro, Vite) and lets you click elements in your actual browser to edit code. For visual frontend editing where runtime context matters, Frontman is the open-source option. For general-purpose AI-assisted coding with a dedicated IDE, Windsurf is the more complete tool.',
+      'They solve different problems. Windsurf is now named Devin Desktop. It retains Windsurf\'s full IDE foundation while adding a command center for local and cloud coding agents, including Devin and other ACP agents. Frontman is browser middleware that integrates with your dev server (Next.js, Astro, Vite) and lets you click elements in your actual browser to edit code. For visual frontend editing where runtime context matters, Frontman is the source-available option. For general-purpose agent work with a dedicated IDE, Devin Desktop is the more complete tool.',
   },
   {
     question: 'How does Windsurf\'s browser preview compare to Frontman?',
     answer:
-      'Windsurf has an embedded browser panel inside the IDE where you can click elements and send them to the Cascade agent. Frontman runs in your actual browser as framework middleware. The practical difference: Windsurf\'s preview shows the rendered DOM but doesn\'t know your React/Vue/Svelte component tree, props, state, or server-side context. Frontman\'s middleware integration sees the full component hierarchy, computed CSS, routes, and logs because it hooks into the framework itself.',
+      'Devin Desktop retains the Windsurf IDE foundation and its established workflows, including the embedded preview workflow. Frontman runs in your actual browser as framework middleware. The practical difference: an IDE preview shows rendered output, while Frontman\'s middleware integration maps the page to framework component hierarchy, computed CSS, routes, and logs.',
   },
   {
     question: 'Can I use Frontman and Windsurf together?',
     answer:
-      'Yes. Use Windsurf as your IDE for general coding, refactoring, and backend work. Use Frontman in the browser for visual frontend editing where you want to click UI elements and make changes with full runtime context. They edit the same source files and don\'t conflict.',
+      'Yes. Use Devin Desktop, formerly Windsurf, for general coding, parallel agent sessions, refactoring, and backend work. Use Frontman in the browser for visual frontend editing where you want to click UI elements and make changes with full runtime context. They edit the same source files and don\'t conflict.',
   },
 	{
 		question: 'How does Frontman pricing compare to Windsurf?',
 		answer:
-			'Windsurf Free gives you 25 Cascade credits per month. Pro is $15/month for 500 credits. Frontman remains free to self-host under its open-source licenses, while hosted Frontman plans are moving to paid subscriptions. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly.',
+			'Windsurf Free gives you 25 Cascade credits per month. Pro is $15/month for 500 credits. Frontman remains free to self-host under its source-available licensing terms. Hosted Frontman Pro is available now. You bring your own API keys to Claude, ChatGPT, or OpenRouter and pay those providers directly.',
 	},
   {
-    question: 'What happened to Codeium / who owns Windsurf now?',
+    question: 'What happened to Windsurf?',
     answer:
-      'Windsurf was originally built by Codeium. In mid-2025, Google acquihired the founders and key research staff. Cognition (the company behind Devin, the AI coding agent) then acquired the Windsurf product, IP, and remaining team. As of 2026, Windsurf is owned and operated by Cognition, Inc.',
+      'Cognition renamed Windsurf to Devin Desktop. The standard update preserves the Windsurf IDE foundation, extensions, workflows, settings, and JetBrains support, then adds a command center for local and cloud agents. The /vs/windsurf/ URL and Windsurf wording remain here so people searching for the former product name can find the current comparison.',
   },
 ]
 
 const alternatives: Alternative[] = [
-  { name: 'Frontman', slug: '', oneLiner: 'Open-source AI agent in your browser with runtime DOM/CSS awareness and click-to-edit workflows.' },
+  { name: 'Frontman', slug: '', oneLiner: 'Source-available AI agent with browser DOM/CSS awareness and click-to-edit workflows.' },
   { name: 'Cursor', slug: 'cursor', oneLiner: 'AI IDE with strong autocomplete and agent mode for full-stack workflows.' },
   { name: 'Claude Code', slug: 'claude-code', oneLiner: 'Terminal-native agent for multi-file coding, shell execution, and PR workflows.' },
   { name: 'GitHub Copilot', slug: 'copilot', oneLiner: 'IDE-native assistant with autocomplete, chat, and GitHub integration.' },
-  { name: 'Stagewise', slug: 'stagewise', oneLiner: 'Browser overlay for visual context, especially useful with existing IDE agents.' },
+  { name: 'Stagewise', slug: 'stagewise', oneLiner: 'Open-source agentic desktop IDE with filesystem agents, a browser engine, terminals, skills, and plugins.' },
 ]
 
-const frontmanPricingFeatures = [
-  'Unlimited usage, no caps',
-  'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
-  'Or sign in with Claude/ChatGPT subscription via OAuth',
-  'Apache 2.0 (client) / AGPL-3.0 (server)',
-  'You pay your LLM provider directly',
-]
 ---
 
 <ComparisonLayout
   seo={seo}
   competitor={competitor}
+  review={review}
   heroTitle="Frontman vs Windsurf"
   heroSubtitle="Browser Middleware vs AI IDE"
   features={features}
   faqs={faqs}
   alternatives={alternatives}
-  frontmanPricing={{ features: frontmanPricingFeatures }}
 >
   <Fragment slot="hero-summary">
     <p>
-      <a href="https://frontman.sh" class="text-link">Frontman</a> is an open-source AI coding agent that lives in your browser. It integrates with your framework (Next.js, Astro, or Vite) as a plugin that serves an overlay UI at <code>/frontman</code>. A browser-side MCP server handles DOM inspection, screenshots, computed CSS, and element selection. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload.
+      <a href="https://frontman.sh" class="text-link">Frontman</a> is a source-available AI coding agent with a distributed architecture. Its browser tools handle DOM inspection, screenshots, computed CSS, and element selection; its framework integration (Next.js, Astro, or Vite) owns local filesystem access; and its server orchestrates the agent loop and persists task history. You click elements in your running app, describe changes in plain English, and Frontman edits the actual source files with hot reload.
     </p>
     <p>
-      <a href="https://windsurf.com" class="text-link" rel="nofollow">Windsurf</a> is a proprietary AI-powered IDE, a VS Code fork with a built-in agent called Cascade. It includes autocomplete (Tab), an embedded browser preview panel, MCP server support, and terminal integration. Originally built by Codeium, now owned by Cognition (the company behind Devin). Windsurf works across any language and framework through file-level context.
+      <a href="https://windsurf.com" class="text-link" rel="nofollow">Windsurf is now named Devin Desktop</a>. Cognition's desktop app retains Windsurf's full IDE foundation, extensions, workflows, settings, autocomplete, and JetBrains support. It expands that foundation into a command center for Devin and other ACP agents, with local and cloud sessions, isolated Spaces and worktrees, code review, terminals, and extensions.
     </p>
     <p class="summary-emphasis">
-      The key distinction: Windsurf brings a preview browser into the IDE. Frontman puts the AI agent into your real browser. One adds browser context to an IDE workflow; the other works entirely from the browser.
+      The key distinction: Devin Desktop coordinates coding agents around a full IDE. Frontman puts browser runtime context at the center of the workflow. One is a desktop command center for local and cloud agents; the other works from your real browser with framework integration.
     </p>
   </Fragment>
 
   <Fragment slot="competitor-strengths">
-    <p>Windsurf has grown into a capable AI IDE with features worth understanding before you compare it to anything else.</p>
-    <p>Windsurf's agent mode, Cascade, monitors your file edits, terminal commands, and clipboard activity to infer what you're working on. This "flow awareness" means less manual context-providing compared to tools where you have to select files or explain your situation. It often picks up on your intent before you describe it.</p>
-    <p>Tab autocomplete goes beyond standard inline predictions. Supercomplete predicts your next action beyond single-token completion. Tab-to-Jump moves your cursor where you'll likely edit next. Tab-to-Import handles dependency imports automatically. For developers who rely on autocomplete, this is faster than most competitors.</p>
-    <p>The embedded browser panel lets you see your running app, click an element, and send it to Cascade. You can also forward console errors directly to the agent. This is closer to visual editing than any other IDE offers, though it works on raw DOM rather than the framework component tree.</p>
-    <p>Windsurf built its own coding model, SWE-1.5, which they claim runs 13x faster than Sonnet 4.5. Whether the claim holds in all scenarios, having a purpose-built model means some operations (like codebase search via Fast Context) are quicker than routing through general-purpose LLMs.</p>
-    <p>Windsurf also runs beyond VS Code. JetBrains gets native Cascade integration, and plugins exist for 40+ other editors. Cursor, by comparison, is VS Code-only.</p>
-    <p>On the enterprise side: SOC 2, HIPAA, FedRAMP/DOD, RBAC, SCIM. If your company has strict compliance requirements, Windsurf has certifications that most competitors lack.</p>
+    <p>Devin Desktop builds on Windsurf rather than replacing its IDE foundation. Existing extensions, workflows, settings, and familiar editing environment carry into the standard update.</p>
+    <p><strong>Local and cloud agent sessions.</strong> Developers can run Devin or other ACP-compatible agents locally or in the cloud and move between sessions from one command center.</p>
+    <p><strong>Parallel work in isolation.</strong> Spaces and worktrees let agents tackle separate tasks without colliding in one working directory.</p>
+    <p><strong>Full IDE and review workflow.</strong> Code editing, autocomplete, terminals, extensions, and code review remain together instead of splitting agent orchestration from implementation and verification.</p>
+    <p><strong>Editor continuity.</strong> The standard update retains JetBrains support alongside the Devin Desktop experience, so the renamed product is not limited to a new standalone agent UI.</p>
   </Fragment>
 
   <Fragment slot="frontman-differentiators">
     <p>Windsurf's embedded browser preview is a step toward visual editing. But there's a structural difference between putting a browser inside an IDE and putting an AI agent inside the browser.</p>
-    <p>Frontman installs as a plugin for Next.js, Astro, or Vite. It runs inside your dev server rather than alongside it. This means it has access to the component tree (React, Vue, Svelte), server-side routes and logs, compilation errors, and source maps that trace rendered elements back to exact file and line numbers. Windsurf's preview panel sees the rendered DOM, but it doesn't know that a particular <code>&lt;div&gt;</code> is a <code>&lt;ProductCard&gt;</code> component at line 47 of <code>ProductCard.tsx</code>.</p>
+    <p>Frontman installs as a plugin for Next.js, Astro, or Vite. The local framework integration provides component-tree metadata (React, Vue, Svelte), server-side routes and logs, compilation errors, source maps, and filesystem tools, while the Frontman server orchestrates the agent loop. Windsurf's preview panel sees the rendered DOM, but it doesn't know that a particular <code>&lt;div&gt;</code> is a <code>&lt;ProductCard&gt;</code> component at line 47 of <code>ProductCard.tsx</code>.</p>
     <p>Frontman also runs in your real browser, not an IDE panel. It serves at <code>/frontman</code> in Chrome, Firefox, or whatever you test with. You see the same page your users will see, at the same viewport width, with the same extensions and dev tools you always use. Windsurf's preview panel is a controlled embedded browser inside the IDE.</p>
-    <p>When you click an element in Frontman, the MCP server reads actual computed style values: real pixel dimensions, resolved colors, cascaded font sizes. It doesn't guess from class names. Windsurf's Cascade agent reads your source files and the preview's rendered output, but doesn't have direct access to the CSS cascade or computed values at the level Frontman's browser-side MCP server does.</p>
-    <p>On licensing: Frontman's client libraries are Apache 2.0, the server is AGPL-3.0, and you bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. Windsurf is proprietary, uses its own model pool, and charges per-credit. You can't use your own LLM provider or self-host the AI features.</p>
+    <p>When you click an element in Frontman, the MCP server reads actual computed style values: real pixel dimensions, resolved colors, cascaded font sizes. It doesn't guess from class names. Devin Desktop agents read your source files and the IDE preview's rendered output, but don't have direct access to the CSS cascade or computed values at the level Frontman's browser-side MCP server does.</p>
+    <p>On licensing: Frontman's browser client and JavaScript framework integrations are Apache-2.0, and its WordPress plugin is GPL-2.0-or-later. The server is AGPL-3.0-only with AI Supplementary Terms, making the combined product source-available. You bring your own API keys to Claude, ChatGPT, OpenRouter, or any OpenAI-compatible provider. Windsurf is proprietary, uses its own model pool, and charges per-credit. You can't use your own LLM provider or self-host the AI features.</p>
     <p>Frontman also doesn't require an IDE. Designers and product managers can open the app in a browser, click elements, and describe changes in plain English. The output is real source code edits for developer review. With Windsurf, you need the IDE installed and you need to know how to use it.</p>
   </Fragment>
 
   <Fragment slot="who-should-use-competitor">
-    <p>Windsurf is the better choice when you want a full AI IDE that handles everything in one place:</p>
+    <p>Devin Desktop is the better choice when you want a full AI IDE and agent command center in one place:</p>
     <ul>
-      <li><strong>Developers who want autocomplete, agent mode, and terminal in one tool.</strong> Cascade + Tab + terminal is a complete coding environment.</li>
+      <li><strong>Developers who want autocomplete, agents, and terminals in one tool.</strong> The retained IDE foundation and local/cloud sessions form a complete coding environment.</li>
       <li><strong>Full-stack and backend developers.</strong> Any language, any framework, with purpose-built code search and refactoring.</li>
-      <li><strong>Teams on JetBrains IDEs.</strong> Windsurf has native JetBrains integration where Cursor does not.</li>
+      <li><strong>Teams on JetBrains IDEs.</strong> Devin Desktop retains Windsurf's JetBrains support.</li>
+      <li><strong>Teams coordinating parallel agent work.</strong> ACP agents, Spaces, worktrees, and code review keep local and cloud tasks organized.</li>
       <li><strong>Enterprises with compliance requirements.</strong> SOC 2, HIPAA, FedRAMP certifications.</li>
       <li><strong>Developers who want visual context without leaving the IDE.</strong> The embedded browser preview is a pragmatic middle ground.</li>
     </ul>
@@ -161,10 +163,10 @@ const frontmanPricingFeatures = [
       <li><strong>Frontend developers who want the AI to see the actual rendered page.</strong> Computed styles, component tree, responsive behavior, and server logs in addition to source files.</li>
       <li><strong>Teams where designers or PMs make UI changes.</strong> Click elements in the browser, describe changes, review code diffs. No IDE required.</li>
       <li><strong>Next.js, Astro, or Vite projects</strong> where framework middleware gives the AI agent more context than file reading alone.</li>
-		<li><strong>Open-source and BYOK.</strong> Apache 2.0 client libs, AGPL-3.0 server, any LLM provider, self-hostable.</li>
+		<li><strong>Source-available and BYOK.</strong> Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms; any LLM provider; self-hostable.</li>
       <li><strong>Developers who don't want to switch IDEs.</strong> Frontman works with whatever editor you already use. It only needs the browser.</li>
     </ul>
-    <p>Many developers will use both. Windsurf (or Cursor, or your preferred IDE) for general coding, and Frontman in the browser for visual frontend work where the AI needs to see what's rendered.</p>
+    <p>Many developers will use both. Devin Desktop (formerly Windsurf), Cursor, or another IDE can handle general coding and agent orchestration, while Frontman handles visual frontend work where the AI needs to see what's rendered.</p>
     <p>See also: <a href="/vs/cursor/" class="text-link">Frontman vs Cursor</a>, <a href="/vs/copilot/" class="text-link">Frontman vs GitHub Copilot</a>, <a href="/vs/stagewise/" class="text-link">Frontman vs Stagewise</a>.</p>
   </Fragment>
 
@@ -172,7 +174,7 @@ const frontmanPricingFeatures = [
     <section class="flex justify-center border-t border-zinc-800 bg-zinc-950 px-6 py-20 max-md:px-5 max-md:py-12">
       <div class="w-full max-w-[720px]">
         <h2 class="mb-2 text-4xl font-bold tracking-tight text-zinc-50 max-md:text-[28px]">Try Frontman</h2>
-		<p class="mb-8 text-[17px] text-zinc-300">One command for self-hosted local development. Hosted plans are coming soon.</p>
+		<p class="mb-8 text-[17px] text-zinc-300">Self-host in one command or use hosted Frontman Pro now.</p>
         <div class="mb-8 flex flex-col gap-3">
           <div class="flex items-center justify-between rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-3 max-md:flex-col max-md:items-start max-md:gap-1">
             <code class="font-mono text-sm text-zinc-50"><span class="mr-2 text-primary-500">$</span> npx @frontman-ai/nextjs install</code>

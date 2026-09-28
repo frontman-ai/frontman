@@ -1,25 +1,11 @@
 ---
-// Blog Card
-// ------------
-// Description: The blog card component
-// Properties:
-// - Title: the title of the card
-// - Subtitle: the subtitle of the card
-// - Image: the main image of the card
-// - Icon: the icon of the card
-// - Link: The link to the blog post
-// - classes: extra classes
-// - Tags: the tags of the blog post
-// Reference: https://wind-ui.com/components/cards/
 
-// Components
-// - UI
 import { Image } from 'astro:assets'
 import Card from './partials/Card.astro'
 import CardBody from './partials/CardBody.astro'
 import Badge from '../Badge.astro'
+import { blogTransitionName } from '../../../utils/blogTransitionName'
 
-// Props
 type Props = {
 	title?: string
 	subtitle?: string
@@ -42,7 +28,7 @@ const {
 	{link && <a href={link} class="card-link" aria-label={title}><span class="sr-only">{title}</span></a>}
 	{image && <Image src={image} alt={title} width={600} height={400} class="blog-card-image" />}
 	<CardBody classes="flex-grow">
-		<h2 class="post-title">{title}</h2>
+		<h2 class="post-title" style={link ? { viewTransitionName: blogTransitionName(link) } : undefined}>{title}</h2>
 		<h4 class="post-subtitle">{subtitle}</h4>
 		<slot />
 	</CardBody>

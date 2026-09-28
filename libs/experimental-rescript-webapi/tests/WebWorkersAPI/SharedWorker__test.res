@@ -1,23 +1,17 @@
-open WebAPI.WebWorkersAPI
+let shared1: SharedWorker.t = SharedWorker.make("sharedworker.js")
 
-let shared1: sharedWorker = SharedWorker.make("sharedworker.js")
+let shared2: SharedWorker.t = SharedWorker.makeWithName("sharedworker.js", "name")
 
-(SharedWorker.makeWithName("sharedworker.js", "name"): sharedWorker)->ignore
+let shared3: SharedWorker.t = SharedWorker.makeWithOptions(
+  "sharedworker.js",
+  {
+    name: "workerName",
+    type_: WebWorkersTypes.Module,
+  },
+)
 
-(
-  SharedWorker.makeWithOptions(
-    "sharedworker.js",
-    {
-      name: "workerName",
-      type_: Module,
-    },
-  ): sharedWorker
-)->ignore
+let port: MessagePort.t = SharedWorker.port(shared1)
 
-(SharedWorker.port(shared1): WebAPI.ChannelMessagingAPI.messagePort)->ignore
+let self = SharedWorkerScope.current
 
-external getSelf: unit => sharedWorkerGlobalScope = "self"
-
-let self = getSelf()
-
-self->SharedWorkerGlobalScope.close
+self->SharedWorkerScope.close

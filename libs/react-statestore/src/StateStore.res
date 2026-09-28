@@ -71,15 +71,6 @@ external useSyncExternalStoreWithSelector: (
   option<('selection, 'selection) => bool>,
 ) => 'selection = "useSyncExternalStoreWithSelector"
 
-// this is a copy of the caml_equal function from the ReScript runtime
-// the part that is removed is the deep equal comparison of object values
-// which is expensive. We can assume that in reducers objects are immutable
-// so the references are the same if they are equal.
-//
-// it also doesn't throw an exception when comparing functions, which the
-// rescript function does. This was a big downside of using `==` here.
-//
-// we kept the the comparison for arrays, so you can select and compare arrays
 let isEqual: ('a, 'a) => bool = %raw(`
   function equal(a, b) {
     if (a === b) {
@@ -91,7 +82,6 @@ let isEqual: ('a, 'a) => bool = %raw(`
     }
     var b_type = typeof b;
     if (a_type === "function" || b_type === "function") {
-      // different functions
       return false;
     }
     if (b_type === "number" || b_type === "bigint" || b_type === "undefined" || b === null) {
@@ -130,7 +120,6 @@ let isEqual: ('a, 'a) => bool = %raw(`
       } else if ((a instanceof Date && b instanceof Date)) {
         return !(a > b || a < b);
       } else {
-        // assume objects are immutable
         return false
       }
     } else {
@@ -141,27 +130,6 @@ let isEqual: ('a, 'a) => bool = %raw(`
 
 let compareFn = Some(isEqual)
 
-// the selector above is performant and works perfectly when the React renderer is
-// running synchronously. However this all falls apart in concurrent mode. With
-// concurrent mode we can have a high priority event that runs WHILE React is rendering
-// (with double buffering). The renderer will yield time using the scheduler to handle
-// the event. If this event triggers a state change, the app will continue rendering with
-// different state than the state it started with. This is called "tearing", and will have
-// all sorts of bad effects including inconsistent components, but also exceptions can be
-// thrown.
-//
-// In React 18 they added a new hook to deal with this when you have state outside of
-// React, called `useSyncExternalStore`, including a version that implements efficient
-// selectors published as a separate package by the React team. This makes sure tearing
-// cannot happen anymore, and has the same performance characteristics as the implementation
-// above.
-//
-// The cool thing is that this reduces our selector implementation to almost a one-liner
-// all the heavy lifting is done inside of React. The same approach is being taken
-// in the latest version of Redux. And the implemenation of React-Redux is now similarly
-// small. This allows us to have at least the same performance as redux with a very
-// minimal implementation (and maintenance) overhead, and have a rescript friendly
-// interface.
 @@live
 let useSelector:
   type selection. (

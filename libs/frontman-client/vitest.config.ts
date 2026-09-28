@@ -7,7 +7,6 @@ export default defineConfig({
     globals: true,
     passWithNoTests: true,
 
-    // Coverage configuration
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary', 'cobertura'],

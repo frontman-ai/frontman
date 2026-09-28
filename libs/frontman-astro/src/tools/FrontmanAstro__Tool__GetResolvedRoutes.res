@@ -1,21 +1,8 @@
-// Get client pages tool (v5) — backed by Astro's astro:routes:resolved hook.
-//
-// Unlike the v4 GetPages tool which scans the filesystem, this tool reads
-// routes directly from Astro's router. This catches routes that don't exist
-// as files in src/pages/: content collections, config redirects, API endpoints,
-// integration-injected routes, and internal fallbacks.
-//
-// Uses a factory pattern: make(~getRoutes) => module(ServerTool).
-// The ServerTool interface only passes (serverExecutionContext, input) to
-// execute, so there's no way to thread the routes ref through the standard
-// interface. The factory closes over getRoutes at construction time, allowing
-// execute to read it without global state or protocol changes.
-
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module Bindings = FrontmanBindings.Astro
 
 let name = "get_client_pages"
-let visibleToAgent = true
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 
 let description = `Lists all routes resolved by Astro's router.
 
@@ -24,7 +11,9 @@ Parameters: None
 Returns routes from Astro's astro:routes:resolved hook, including pages,
 API endpoints, redirects, content collection routes, and integration-injected
 routes. Each route includes its pattern, entrypoint, type, origin, params,
-and prerender status.`
+pathname, segments, redirects, i18n fallback routes, serialized route regex, captured order, and prerender status.
+Endpoint HTTP methods are not returned because Astro does not expose them via
+astro:routes:resolved.`
 
 @schema
 type input = {
@@ -33,7 +22,39 @@ type input = {
 }
 
 @schema
+type segmentPart = {
+  @live
+  content: string,
+  @live
+  dynamic: bool,
+  @live
+  spread: bool,
+}
+
+@schema
+type regexInfo = {
+  @live
+  source: string,
+  @live
+  flags: string,
+}
+
+@schema
+type routeRef = {
+  @live
+  path: string,
+  @live
+  file: string,
+  @as("type") @live
+  type_: string,
+  @live
+  origin: string,
+}
+
+@schema
 type routeEntry = {
+  @live
+  order: int,
   @live
   path: string,
   @live
@@ -42,6 +63,18 @@ type routeEntry = {
   isDynamic: bool,
   @live
   params: array<string>,
+  @live
+  pathname?: string,
+  @live
+  segments?: array<array<segmentPart>>,
+  @live
+  redirect?: JSON.t,
+  @live
+  redirectRoute?: routeRef,
+  @live
+  fallbackRoutes: array<routeRef>,
+  @live
+  patternRegex?: regexInfo,
   @as("type") @live
   type_: string,
   @live
@@ -53,15 +86,40 @@ type routeEntry = {
 @schema
 type output = array<routeEntry>
 
-// Poly variants are strings at runtime
 external routeTypeToString: Bindings.routeType => string = "%identity"
 external routeOriginToString: Bindings.routeOrigin => string = "%identity"
+@get external regexSource: Bindings.patternRegex => string = "source"
+@get external regexFlags: Bindings.patternRegex => string = "flags"
 
-let toRouteEntry = (route: Bindings.integrationResolvedRoute): routeEntry => {
+let toRouteRef = (route: Bindings.integrationResolvedRoute): routeRef => {
+  path: route.pattern,
+  file: route.entrypoint,
+  type_: route.type_->routeTypeToString,
+  origin: route.origin->routeOriginToString,
+}
+
+let toRegexInfo = regex => {source: regex->regexSource, flags: regex->regexFlags}
+
+let toSegmentPart = (part: Bindings.routePart): segmentPart => {
+  content: part.content,
+  dynamic: part.dynamic,
+  spread: part.spread,
+}
+
+let toSegments = segments => segments->Array.map(segment => segment->Array.map(toSegmentPart))
+
+let toRouteEntry = (route: Bindings.integrationResolvedRoute, order): routeEntry => {
+  order,
   path: route.pattern,
   file: route.entrypoint,
   isDynamic: route.params->Array.length > 0,
   params: route.params,
+  pathname: ?route.pathname,
+  segments: ?(route.segments->Option.map(toSegments)),
+  redirect: ?route.redirect,
+  redirectRoute: ?(route.redirectRoute->Option.map(toRouteRef)),
+  fallbackRoutes: route.fallbackRoutes->Option.getOr([])->Array.map(toRouteRef),
+  patternRegex: ?(route.patternRegex->Option.map(toRegexInfo)),
   type_: route.type_->routeTypeToString,
   origin: route.origin->routeOriginToString,
   isPrerendered: route.isPrerendered,
@@ -73,14 +131,16 @@ let make = (
   module(
     {
       let name = name
-      let visibleToAgent = visibleToAgent
+      let access = access
+      let (visibleToAgent, outputJsonSchema) = (true, None)
       let description = description
       type input = input
-      type output = output
       let inputSchema = inputSchema
-      let outputSchema = outputSchema
       let execute = async (_ctx, _input) =>
-        Tool.jsonResult(getRoutes()->Array.map(toRouteEntry), outputSchema)
+        Tool.unstructuredResult(
+          getRoutes()->Array.mapWithIndex((route, order) => toRouteEntry(route, order)),
+          outputSchema,
+        )
     }
   )
 }

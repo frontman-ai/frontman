@@ -1,5 +1,3 @@
-// Path-recovery helpers for resilient tool execution on missing paths.
-
 module Path = FrontmanBindings.Path
 module Fs = FrontmanBindings.Fs
 module FsUtils = FrontmanCore__FsUtils
@@ -11,7 +9,7 @@ type recovery = {
   siblingEntries: array<string>,
 }
 
-let normalize = (path: string): string => Path.normalize(path)
+let normalize = (path: string): string => Path.resolve(path)
 
 let isUnderSourceRoot = (~candidate: string, ~sourceRoot: string): bool => {
   switch sourceRoot {

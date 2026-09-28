@@ -40,9 +40,17 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   end
 
   defp strip_unsupported_images(messages, opts) do
-    case Keyword.get(opts, :images_supported, true) do
+    case images_supported?(opts) do
       false -> Enum.map(messages, &strip_message_images/1)
       _ -> messages
+    end
+  end
+
+  defp images_supported?(opts) do
+    case Keyword.fetch(opts, :model) do
+      {:ok, %LLMDB.Model{modalities: %{input: input}}} when is_list(input) -> :image in input
+      {:ok, %LLMDB.Model{}} -> true
+      :error -> true
     end
   end
 
@@ -59,17 +67,36 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
   defp strip_image_part(part), do: part
 
   defp constrain_image_dimensions(messages, opts) do
-    max =
-      case {Keyword.get(opts, :llm_vendor), image_count(messages)} do
-        {"anthropic", count} when count > 20 -> 2000
-        _ -> Keyword.get(opts, :max_image_dimension)
-      end
+    max = max_image_dimension(opts, image_count(messages))
 
     case max do
       max when is_integer(max) -> Enum.map(messages, &constrain_message_images(&1, max))
       _ -> messages
     end
   end
+
+  defp max_image_dimension(opts, image_count) do
+    case Keyword.fetch(opts, :model) do
+      {:ok, %LLMDB.Model{} = model} -> model_max_image_dimension(model, image_count)
+      :error -> nil
+    end
+  end
+
+  defp model_max_image_dimension(%LLMDB.Model{provider: :anthropic}, image_count)
+       when image_count > 20,
+       do: 2000
+
+  defp model_max_image_dimension(
+         %LLMDB.Model{provider: :openrouter, id: "anthropic/" <> _},
+         image_count
+       )
+       when image_count > 20,
+       do: 2000
+
+  defp model_max_image_dimension(%LLMDB.Model{provider: :anthropic}, _image_count),
+    do: Image.max_dimension()
+
+  defp model_max_image_dimension(%LLMDB.Model{}, _image_count), do: nil
 
   defp image_count(messages) do
     Enum.reduce(messages, 0, fn
@@ -148,7 +175,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
 
   defp truncated_suffix(total, max_bytes, tool_call_id) when is_binary(tool_call_id) do
     "\n\n[Output truncated: #{total} bytes total, showing first #{max_bytes}. " <>
-      "For the full output, use get_tool_result with tool_call_id #{tool_call_id}.]"
+      "Read text in pages using get_tool_result with tool_call_id #{tool_call_id}, offset=0, " <>
+      "then follow next_offset until null. Use content_index to select other content parts.]"
   end
 
   defp truncated_suffix(total, max_bytes, _tool_call_id) do

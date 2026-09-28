@@ -1,18 +1,10 @@
-// Shared Sentry event filter for all Frontman libraries
-// Drops error events that don't originate from Frontman code, preventing
-// third-party errors (e.g. Next.js/Turbopack internals) from polluting our Sentry project.
-
-// Patterns that identify Frontman frames in stacktraces
 let frontmanFramePatterns = ["frontman", "@frontman-ai"]
 
-// Check if a filename belongs to Frontman code
 let isFrontmanFrame = (filename: string): bool =>
   frontmanFramePatterns->Array.some(pattern =>
     filename->String.toLowerCase->String.includes(pattern)
   )
 
-// Check if an event has at least one Frontman frame in any exception stacktrace.
-// Events without exception data (e.g. captureMessage) are always kept.
 let hasFrontmanFrames = (event: Sentry__Types.sentryEvent): bool =>
   switch event.exception_ {
   | None => true
@@ -33,9 +25,6 @@ let hasFrontmanFrames = (event: Sentry__Types.sentryEvent): bool =>
     )
   }
 
-// beforeSend filter: drop events that don't originate from Frontman code.
-// This prevents third-party errors caught by Sentry's global handlers from
-// polluting our project.
 let beforeSend = (event: Sentry__Types.sentryEvent, _hint: Sentry__Types.eventHint): Nullable.t<
   Sentry__Types.sentryEvent,
 > =>

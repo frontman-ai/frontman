@@ -2,8 +2,6 @@ open Vitest
 
 module Semver = FrontmanCore__Semver
 
-// -- parse --------------------------------------------------------------------
-
 describe("parse", () => {
   test("parses a valid semver string", t => {
     t
@@ -49,8 +47,6 @@ describe("parse", () => {
     t->expect(Semver.parse("a.b.c"))->Expect.toBeNone
   })
 })
-
-// -- isBehind -----------------------------------------------------------------
 
 describe("isBehind", () => {
   test("returns false for equal versions", t => {

@@ -1,0 +1,6 @@
+const value = `literal // text ${loadValue(
+  input // executable interpolation
+)} literal /* text */`
+const nested = `${condition ? `inner ${loadOther(
+  input // nested executable interpolation
+)}` : value}`

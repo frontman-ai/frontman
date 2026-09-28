@@ -5,108 +5,100 @@ defmodule FrontmanServer.Tools.MCPTest do
 
   describe "from_map/1" do
     test "parses standard MCP tool fields" do
+      output_schema = %{"type" => "object"}
+
       tool =
         MCP.from_map(%{
           "name" => "navigate",
           "description" => "Navigate to a URL",
-          "inputSchema" => %{}
+          "inputSchema" => %{},
+          "outputSchema" => output_schema
         })
 
       assert tool.name == "navigate"
       assert tool.description == "Navigate to a URL"
-    end
-
-    test "applies server-side timeout defaults" do
-      tool =
-        MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate to a URL",
-          "inputSchema" => %{}
-        })
-
+      assert tool.access == :read_write
+      assert tool.output_schema == output_schema
       assert tool.timeout_ms == 600_000
-      assert tool.on_timeout == :error
+      assert tool.execution_mode == :synchronous
     end
 
-    test "does not require or read timeoutMs / onTimeout from wire" do
-      # Tools from external MCP servers don't include these fields — they
-      # must not be required.
-      assert %MCP{} =
-               MCP.from_map(%{
-                 "name" => "take_screenshot",
-                 "description" => "Screenshot",
-                 "inputSchema" => %{}
-               })
+    test "parses access from wire format" do
+      for {wire, expected} <- [
+            {"read", :read},
+            {"write", :write},
+            {"read-write", :read_write},
+            {"bogus", :read_write}
+          ] do
+        tool =
+          MCP.from_map(%{
+            "name" => "test_tool",
+            "description" => "Test tool",
+            "inputSchema" => %{},
+            "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => wire}}
+          })
+
+        assert tool.access == expected
+      end
     end
 
-    test "applies pause_agent policy for executionMode: interactive" do
+    test "interactive tools have no deadline" do
       tool =
         MCP.from_map(%{
           "name" => "question",
           "description" => "Ask user a question",
           "inputSchema" => %{},
-          "executionMode" => "interactive"
+          "_meta" => %{
+            "ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}
+          }
         })
 
-      assert tool.timeout_ms == 120_000
-      assert tool.on_timeout == :pause_agent
-    end
-
-    test "keeps default timeout policy for executionMode: synchronous" do
-      tool =
-        MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate to a URL",
-          "inputSchema" => %{},
-          "executionMode" => "synchronous"
-        })
-
-      assert tool.timeout_ms == 600_000
-      assert tool.on_timeout == :error
-    end
-
-    test "keeps default timeout policy when executionMode is absent" do
-      tool =
-        MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate to a URL",
-          "inputSchema" => %{}
-        })
-
-      assert tool.timeout_ms == 600_000
-      assert tool.on_timeout == :error
+      assert tool.timeout_ms == :infinity
+      assert tool.execution_mode == :interactive
     end
   end
 
-  describe "to_swarm_tools/1" do
-    test "passes default timeout policy through to swarm tool" do
+  test "rejects unsupported declared execution modes" do
+    for mode <- ["interactive", "Unknown", 1, false] do
+      assert_raise FunctionClauseError, fn ->
+        MCP.from_map(%{
+          "name" => "approval",
+          "_meta" => %{"ai.frontman/tool-metadata" => %{"executionMode" => mode}}
+        })
+      end
+    end
+  end
+
+  describe "to_swarm_tool/1" do
+    test "passes access through to swarm tool" do
       mcp_tool =
         MCP.from_map(%{
-          "name" => "navigate",
-          "description" => "Navigate to a URL",
+          "name" => "read_file",
+          "description" => "Read file",
           "inputSchema" => %{},
-          "visibleToAgent" => true
+          "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => "read"}}
         })
 
-      [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
+      swarm_tool = MCP.to_swarm_tool(mcp_tool)
 
-      assert swarm_tool.timeout_ms == 600_000
-      assert swarm_tool.on_timeout == :error
+      assert swarm_tool.access == :read
     end
 
-    test "passes pause_agent policy through to swarm tool for interactive tools" do
+    test "model-facing tools carry no operational deadline" do
       mcp_tool =
         MCP.from_map(%{
           "name" => "question",
           "description" => "Ask user",
           "inputSchema" => %{},
-          "executionMode" => "interactive"
+          "_meta" => %{
+            "ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}
+          }
         })
 
-      [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
+      swarm_tool = MCP.to_swarm_tool(mcp_tool)
 
-      assert swarm_tool.timeout_ms == 120_000
-      assert swarm_tool.on_timeout == :pause_agent
+      refute Map.has_key?(swarm_tool, :timeout_ms)
+      refute Map.has_key?(swarm_tool, :on_timeout)
     end
   end
 end

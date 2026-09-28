@@ -4,21 +4,26 @@ module ToolRegistry = Client__ToolRegistry
 module FrontmanClient = FrontmanAiFrontmanClient
 module Relay = FrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanClient.FrontmanClient__MCP__Server
+module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
-let toolNames = (framework): array<string> => {
+let toolDefinitions = framework => {
   let registry = ToolRegistry.forFramework(framework)
   let relay = Relay.make(~baseUrl="http://localhost:3000")
   let server = ToolRegistry.registerAll(registry, MCPServer.make(~relay))
-
   server
   ->MCPServer.getToolsJson
-  ->Array.filterMap(json =>
-    json
-    ->JSON.Decode.object
-    ->Option.flatMap(obj => obj->Dict.get("name"))
-    ->Option.flatMap(JSON.Decode.string)
-  )
+  ->Array.map(json => json->JSON.Decode.object->Option.getOrThrow)
 }
+
+let toolNames = framework =>
+  toolDefinitions(framework)->Array.map(obj =>
+    obj->Dict.get("name")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
+  )
+
+let toolByName = (framework, name) =>
+  toolDefinitions(framework)
+  ->Array.find(obj => obj->Dict.get("name") == Some(JSON.Encode.string(name)))
+  ->Option.getOrThrow
 
 describe("ToolRegistry", _t => {
   test("registers core browser tools for non-Astro frameworks", t => {
@@ -34,16 +39,100 @@ describe("ToolRegistry", _t => {
     t->expect(names->Array.includes("search_text"))->Expect.toBe(true)
   })
 
-  test("adds Astro browser tools only for Astro", t => {
-    let astroNames = toolNames(Client__RuntimeConfig.Astro)
-    let viteNames = toolNames(Client__RuntimeConfig.Vite)
-    let wordpressNames = toolNames(Client__RuntimeConfig.Wordpress)
+  test("selects Astro tools without changing the core catalog", t => {
+    [Client__RuntimeConfig.Astro, Nextjs, Vite, Wordpress]->Array.forEach(
+      framework => {
+        let registry = ToolRegistry.forFramework(framework)
+        let names = registry.tools->Array.map(
+          tool => {
+            module T = unpack(tool)
+            T.name
+          },
+        )
+        let isAstro = framework == Astro
+        t->expect(names->Array.filter(name => name == "get_dom")->Array.length)->Expect.toBe(1)
+        t->expect(names->Array.includes("get_astro_audit"))->Expect.toBe(isAstro)
+        switch isAstro {
+        | true => t->expect(names->Array.length)->Expect.toBe(9)
+        | false => t->expect(registry.tools)->Expect.toEqual(ToolRegistry.coreBrowserTools)
+        }
+        let (description, properties) =
+          toolByName(framework, "get_dom")
+          ->JSON.Encode.object
+          ->S.parseOrThrow(
+            ~to=S.object(
+              s => (
+                s.field("description", S.string),
+                s.field("outputSchema", S.object(s => s.field("properties", S.dict(S.json)))),
+              ),
+            ),
+          )
+        t->expect(description->String.includes("Astro"))->Expect.toBe(isAstro)
+        t->expect(properties->Dict.has("astro_client_routing"))->Expect.toBe(isAstro)
+        t->expect(properties->Dict.has("astro_persistence"))->Expect.toBe(isAstro)
+        t->expect(description->String.includes("not proof"))->Expect.toBe(isAstro)
+        t
+        ->expect(properties->Dict.has("success") || properties->Dict.has("error"))
+        ->Expect.toBe(false)
+      },
+    )
+  })
+  test("serializes browser tool access levels", t => {
+    let metadata = name =>
+      toolByName(Client__RuntimeConfig.Nextjs, name)
+      ->Dict.get("_meta")
+      ->Option.flatMap(JSON.Decode.object)
+      ->Option.flatMap(meta => meta->Dict.get("ai.frontman/tool-metadata"))
+      ->Option.flatMap(JSON.Decode.object)
+      ->Option.getOrThrow
+    let access = name => metadata(name)->Dict.get("access")
 
-    t->expect(astroNames->Array.length)->Expect.toBe(9)
-    t->expect(astroNames->Array.includes("get_astro_audit"))->Expect.toBe(true)
-    t->expect(viteNames->Array.length)->Expect.toBe(8)
-    t->expect(viteNames->Array.includes("get_astro_audit"))->Expect.toBe(false)
-    t->expect(wordpressNames->Array.length)->Expect.toBe(8)
-    t->expect(wordpressNames->Array.includes("get_astro_audit"))->Expect.toBe(false)
+    t->expect(access("take_screenshot"))->Expect.toEqual(Some(JSON.Encode.string("read")))
+    t->expect(access("execute_js"))->Expect.toEqual(Some(JSON.Encode.string("read-write")))
+    t->expect(access("set_device_mode"))->Expect.toEqual(Some(JSON.Encode.string("write")))
+    t
+    ->expect(metadata("take_screenshot")->Dict.get("executionMode"))
+    ->Expect.toEqual(Some(JSON.Encode.string("Synchronous")))
+  })
+  test("advertises only structured browser output schemas", t => {
+    toolDefinitions(Client__RuntimeConfig.Astro)->Array.forEach(
+      tool => {
+        let isScreenshot = tool->Dict.get("name") == Some(JSON.Encode.string("take_screenshot"))
+        t->expect(tool->Dict.has("outputSchema"))->Expect.toBe(!isScreenshot)
+      },
+    )
+  })
+
+  test("screenshot data becomes image content", t => {
+    let result = Client__Tool__TakeScreenshot.imageResultFromDataUrl(
+      "data:image/jpeg;base64,image-data",
+    )
+
+    let json = result->S.decodeOrThrow(~from=MCP.CallToolResult.schema, ~to=S.json)
+    t
+    ->expect(JSON.stringify(json))
+    ->Expect.toBe(`{"resultType":"complete","content":[{"type":"image","data":"image-data","mimeType":"image/jpeg"}]}`)
+  })
+
+  test("explains generated image decode failures", t => {
+    let message = Client__Tool__TakeScreenshot.captureErrorMessage(
+      "The source image cannot be decoded.",
+    )
+    let alternateMessage = Client__Tool__TakeScreenshot.captureErrorMessage(
+      "Invalid encoded image data",
+    )
+
+    t->expect(message->String.includes("generated page image"))->Expect.toBe(true)
+    t
+    ->expect(message->String.includes("capture a smaller element with the selector option"))
+    ->Expect.toBe(true)
+    t->expect(alternateMessage)->Expect.toBe(message)
+  })
+
+  test("keeps unrelated screenshot errors unchanged", t => {
+    let message = "Canvas dimensions must be positive"
+    t
+    ->expect(Client__Tool__TakeScreenshot.captureErrorMessage(message))
+    ->Expect.toBe(message)
   })
 })

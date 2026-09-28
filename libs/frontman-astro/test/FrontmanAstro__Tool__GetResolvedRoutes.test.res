@@ -1,16 +1,3 @@
-// Integration tests for get_client_pages (v5 resolved routes) via the full HTTP middleware stack.
-//
-// Tests the complete production path:
-//   Integration.make() creates a ref + getRoutes closure
-//   → astro:routes:resolved hook populates the ref
-//   → ToolRegistry.makeWithResolvedRoutes(~getRoutes) wires the v5 tool
-//   → POST /frontman/tools/call { name: "get_client_pages" }
-//   → SSE response body contains resolved route data
-//
-// These tests focus on route types that the v4 filesystem scanner misses:
-// content collections, config redirects, API endpoints, integration-injected
-// routes, internal/fallback routes, and multi-param dynamics.
-
 open Vitest
 
 module Helpers = FrontmanAstro__TestHelpers
@@ -18,8 +5,6 @@ module Bindings = FrontmanBindings.Astro
 module ToolRegistry = FrontmanAstro__ToolRegistry
 
 module Fixtures = {
-  // --- Standard page routes (v4 can find these too) ---
-
   let homePage: Bindings.integrationResolvedRoute = {
     pattern: "/",
     entrypoint: "src/pages/index.astro",
@@ -28,6 +13,7 @@ module Fixtures = {
     params: [],
     pathname: Some("/"),
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
   let aboutPage: Bindings.integrationResolvedRoute = {
@@ -38,11 +24,9 @@ module Fixtures = {
     params: [],
     pathname: Some("/about"),
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
-  // --- Routes that v4 filesystem scanning CANNOT discover ---
-
-  // Content collection route: generated from src/content/, no file in src/pages/
   let blogPost: Bindings.integrationResolvedRoute = {
     pattern: "/blog/[slug]",
     entrypoint: "src/pages/blog/[slug].astro",
@@ -51,9 +35,9 @@ module Fixtures = {
     params: ["slug"],
     pathname: None,
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
-  // Content collection with nested params
   let docsSection: Bindings.integrationResolvedRoute = {
     pattern: "/docs/[...path]",
     entrypoint: "src/pages/docs/[...path].astro",
@@ -61,10 +45,14 @@ module Fixtures = {
     origin: #project,
     params: ["path"],
     pathname: None,
+    segments: ?Some([
+      [{content: "docs", dynamic: false, spread: false}],
+      [{content: "...path", dynamic: true, spread: true}],
+    ]),
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
-  // API endpoint: v4 explicitly excludes src/pages/api/
   let apiHealth: Bindings.integrationResolvedRoute = {
     pattern: "/api/health",
     entrypoint: "src/pages/api/health.ts",
@@ -73,9 +61,9 @@ module Fixtures = {
     params: [],
     pathname: Some("/api/health"),
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
-  // API endpoint with dynamic param
   let apiUserById: Bindings.integrationResolvedRoute = {
     pattern: "/api/users/[id]",
     entrypoint: "src/pages/api/users/[id].ts",
@@ -84,9 +72,9 @@ module Fixtures = {
     params: ["id"],
     pathname: None,
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
-  // Config-defined redirect: declared in astro.config.mjs, no file on disk
   let redirectOldBlog: Bindings.integrationResolvedRoute = {
     pattern: "/old-blog",
     entrypoint: "",
@@ -94,10 +82,12 @@ module Fixtures = {
     origin: #project,
     params: [],
     pathname: Some("/old-blog"),
+    redirect: ?Some(JSON.Encode.string("/blog")),
+    redirectRoute: ?Some(aboutPage),
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
-  // Redirect with a dynamic segment (e.g. redirects: { "/posts/[slug]": "/blog/[slug]" })
   let redirectDynamic: Bindings.integrationResolvedRoute = {
     pattern: "/posts/[slug]",
     entrypoint: "",
@@ -106,9 +96,9 @@ module Fixtures = {
     params: ["slug"],
     pathname: None,
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
-  // Integration-injected route: added by a third-party integration (e.g. @astrojs/sitemap)
   let sitemapXml: Bindings.integrationResolvedRoute = {
     pattern: "/sitemap.xml",
     entrypoint: "node_modules/@astrojs/sitemap/dist/endpoint.js",
@@ -117,9 +107,9 @@ module Fixtures = {
     params: [],
     pathname: Some("/sitemap.xml"),
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
-  // Internal fallback route: Astro's built-in image optimization endpoint
   let imageEndpoint: Bindings.integrationResolvedRoute = {
     pattern: "/_image",
     entrypoint: "node_modules/astro/dist/assets/endpoint.js",
@@ -128,9 +118,9 @@ module Fixtures = {
     params: [],
     pathname: Some("/_image"),
     isPrerendered: false,
+    fallbackRoutes: [],
   }
 
-  // Astro's built-in 404 fallback
   let fallback404: Bindings.integrationResolvedRoute = {
     pattern: "/404",
     entrypoint: "src/pages/404.astro",
@@ -139,9 +129,9 @@ module Fixtures = {
     params: [],
     pathname: Some("/404"),
     isPrerendered: true,
+    fallbackRoutes: [],
   }
 
-  // Multi-param dynamic route: e.g. i18n pattern /[lang]/blog/[slug]
   let i18nBlogPost: Bindings.integrationResolvedRoute = {
     pattern: "/[lang]/blog/[slug]",
     entrypoint: "src/pages/[lang]/blog/[slug].astro",
@@ -150,6 +140,7 @@ module Fixtures = {
     params: ["lang", "slug"],
     pathname: None,
     isPrerendered: false,
+    fallbackRoutes: [blogPost],
   }
 }
 
@@ -190,7 +181,6 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
 
         t->expect(sseBody->String.includes("/old-blog"))->Expect.toBe(true)
         t->expect(sseBody->String.includes("redirect"))->Expect.toBe(true)
-        // Dynamic redirect should report its param
         t->expect(sseBody->String.includes("/posts/[slug]"))->Expect.toBe(true)
       },
     )
@@ -230,10 +220,6 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
   })
 
   describe("route metadata from hook data", _t => {
-    // SSE body is double-encoded: tool output is JSON.stringify'd into a text
-    // field, then the MCP envelope is JSON.stringify'd again. So JSON keys/values
-    // with quotes appear escaped: "isDynamic":true → \"isDynamic\":true
-
     testAsync(
       "populates params from hook data",
       async t => {
@@ -293,9 +279,88 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
           ~arguments=JSON.Encode.object(Dict.fromArray([])),
         )
 
-        // homePage is SSR (false), aboutPage is prerendered (true)
         t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":true`))->Expect.toBe(true)
         t->expect(sseBody->String.includes(`\\\"isPrerendered\\\":false`))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes pathname for static routes",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.aboutPage])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"pathname\\\":\\\"/about\\\"`))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes segments for dynamic and spread routes",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.docsSection])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"content\\\":\\\"...path\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"spread\\\":true`))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes redirect metadata",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.redirectOldBlog])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"redirect\\\":\\\"/blog\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"redirectRoute\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/about"))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes i18n fallback routes",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.i18nBlogPost])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"fallbackRoutes\\\"`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes("/blog/[slug]"))->Expect.toBe(true)
+      },
+    )
+
+    testAsync(
+      "includes captured route order",
+      async t => {
+        let middleware = makeMiddleware(~routes=[Fixtures.homePage, Fixtures.aboutPage])
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes(`\\\"order\\\":0`))->Expect.toBe(true)
+        t->expect(sseBody->String.includes(`\\\"order\\\":1`))->Expect.toBe(true)
       },
     )
 
@@ -321,6 +386,34 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
   })
 
   describe("edge cases", _t => {
+    testAsync(
+      "handles Astro routes without fallbackRoutes",
+      async t => {
+        let middleware = makeMiddleware(
+          ~routes=[
+            {
+              pattern: "/legacy",
+              entrypoint: "src/pages/legacy.astro",
+              type_: #page,
+              origin: #project,
+              params: [],
+              pathname: Some("/legacy"),
+              isPrerendered: false,
+            },
+          ],
+        )
+
+        let sseBody = await Helpers.callTool(
+          middleware,
+          ~name="get_client_pages",
+          ~arguments=JSON.Encode.object(Dict.fromArray([])),
+        )
+
+        t->expect(sseBody->String.includes("Execution error"))->Expect.toBe(false)
+        t->expect(sseBody->String.includes(`\\\"fallbackRoutes\\\":[]`))->Expect.toBe(true)
+      },
+    )
+
     testAsync(
       "returns empty array when no routes resolved",
       async t => {
@@ -362,7 +455,6 @@ describe("get_client_pages (resolved routes) via HTTP middleware", _t => {
           ~arguments=JSON.Encode.object(Dict.fromArray([])),
         )
 
-        // All 12 routes should be present
         t->expect(sseBody->String.includes("/blog/[slug]"))->Expect.toBe(true)
         t->expect(sseBody->String.includes("/docs/[...path]"))->Expect.toBe(true)
         t->expect(sseBody->String.includes("/api/health"))->Expect.toBe(true)

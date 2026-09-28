@@ -9,10 +9,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// phpcs:disable WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Exception messages are internal tool errors, not rendered HTML output.
 
 class Frontman_Tool_Media {
-	private const MAX_UPLOAD_BYTES = 20971520; // 20 MB.
+	private const MAX_UPLOAD_BYTES = 20971520;
 
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
@@ -283,5 +282,3 @@ class Frontman_Tool_Media {
 		return '';
 	}
 }
-
-// phpcs:enable WordPress.Security.EscapeOutput.ExceptionNotEscaped

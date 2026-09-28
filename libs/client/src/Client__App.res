@@ -5,11 +5,12 @@ let make = (~apiBaseUrl: string) => {
   let {
     connectionState,
     sendPrompt,
-    cancelPrompt,
-    retryTurn,
+    sendSessionCommand,
     loadTask,
     deleteSession,
     authRedirectUrl,
+    beginAuthenticationRetry,
+    requireAuthentication,
     _,
   } = Client__FrontmanProvider.useFrontman()
 
@@ -19,138 +20,130 @@ let make = (~apiBaseUrl: string) => {
     | Connected | SessionActive(_) =>
       Client__State.Actions.setAcpSession(
         ~sendPrompt,
-        ~cancelPrompt,
-        ~retryTurn,
+        ~sendSessionCommand,
         ~loadTask,
         ~deleteSession,
+        ~requireAuthentication,
         ~apiBaseUrl,
       )
-    | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
+    | LoggingOut | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
     }
     None
-  }, (connectionState, sendPrompt, cancelPrompt, retryTurn, loadTask, deleteSession, apiBaseUrl))
+  }, (
+    connectionState,
+    sendPrompt,
+    sendSessionCommand,
+    loadTask,
+    deleteSession,
+    requireAuthentication,
+    apiBaseUrl,
+  ))
 
-  // Get resizable width for chatbox panel
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 
-  // FTUE state
-  let (ftueState, setFtueState) = React.useState(() => Client__FtueState.get())
-  let (showCelebration, setShowCelebration) = React.useState(() => false)
-  let (providerNudgeDismissed, setProviderNudgeDismissed) = React.useState(() => false)
-  let (nudgeBubbleDismissed, setNudgeBubbleDismissed) = React.useState(() => false)
-  let hasProviderConfigured = Client__State.useSelector(
-    Client__State.Selectors.hasAnyProviderConfigured,
+  let (chatOpen, setChatOpen) = React.useState(() => true)
+  let (selectedWorkspaceView, setSelectedWorkspaceView) = React.useState(() =>
+    Client__WorkspacePanel.Preview
+  )
+  let completedFileChanges = Client__State.useSelector(Client__State.Selectors.completedFileChanges)
+  let fileChangeCount = Array.length(completedFileChanges.files)
+  let workspaceView = Client__WorkspacePanel.availableView(
+    ~view=selectedWorkspaceView,
+    ~fileChangeCount,
+  )
+
+  React.useEffect(() => {
+    switch fileChangeCount {
+    | 0 => setSelectedWorkspaceView(_ => Client__WorkspacePanel.Preview)
+    | _ => ()
+    }
+    None
+  }, [fileChangeCount])
+
+  let settingsTab = Client__State.useSelector(Client__State.Selectors.settingsModalTab)
+  let settingsOpen = settingsTab->Option.isSome
+  let settingsInitialTab = settingsTab->Option.map(tab =>
+    switch tab {
+    | General => "general"
+    | Providers => "providers"
+    | Billing => "billing"
+    }
   )
   let billingStatus = Client__State.useSelector(Client__State.Selectors.billingStatus)
-  let appAccessAllowed = Client__State.useSelector(Client__State.Selectors.billingAccessAllowed)
+  let billingAccessAllowed = Client__State.useSelector(Client__State.Selectors.billingAccessAllowed)
 
-  React.useEffect1(() => {
+  React.useEffect(() => {
     switch billingStatus {
-    | Client__Billing.Loaded(status) =>
-      switch Client__Billing.isAccessAllowed(status) {
-      | true => ()
-      | false => Client__State.Actions.openSettingsModalOnBilling()
-      }
-    | Client__Billing.NotLoaded | Client__Billing.Error(_) => ()
+    | Client__Billing.Loaded(status) if !Client__Billing.isAccessAllowed(status) =>
+      Client__State.Actions.openSettingsModalOnBilling()
+    | _ => ()
     }
     None
   }, [billingStatus])
 
-  // Trigger post-signup celebration only after billing allows app access.
-  React.useEffect3(() => {
-    switch (connectionState, ftueState, appAccessAllowed) {
-    | (Connected | SessionActive(_), Client__FtueState.WelcomeShown, true) =>
-      setShowCelebration(_ => true)
-      Client__FtueState.setCompleted()
-      setFtueState(_ => Client__FtueState.Completed)
-    | _ => ()
-    }
-    None
-  }, (connectionState, ftueState, appAccessAllowed))
-
-  let handleCelebrationDismiss = () => {
-    setShowCelebration(_ => false)
-  }
-
-  let handleCelebrationConnectProvider = () => {
-    setShowCelebration(_ => false)
-    Client__State.Actions.openSettingsModalOnProviders()
-  }
+  let providerSetupRequired = Client__State.useSelector(
+    Client__State.Selectors.providerSetupRequired,
+  )
 
   let openSettingsProviders = () => Client__State.Actions.openSettingsModalOnProviders()
 
-  // Provider nudge: show when FTUE is completed, no provider configured, and not dismissed this session.
-  let showNudge = switch (
-    ftueState,
-    hasProviderConfigured,
-    providerNudgeDismissed,
-    appAccessAllowed,
-  ) {
-  | (Client__FtueState.Completed, false, false, true) => true
-  | _ => false
-  }
-  let showProviderNudgeBubble = showNudge && !nudgeBubbleDismissed
-  let showProviderNudgeBadge = showNudge && nudgeBubbleDismissed
+  let showProviderSetupModal = providerSetupRequired && !settingsOpen && billingAccessAllowed
 
-  let handleProviderNudgeDismiss = () => {
-    setNudgeBubbleDismissed(_ => true)
-  }
-
-  let handleProviderNudgeCta = () => {
-    setProviderNudgeDismissed(_ => true)
-    Client__State.Actions.openSettingsModalOnProviders()
+  let handleSettingsOpenChange = (value: bool) => {
+    switch value {
+    | false => Client__State.Actions.closeSettingsModal()
+    | true => Client__State.Actions.openSettingsModal()
+    }
   }
 
   <div className="flex flex-col h-screen w-screen bg-background text-foreground">
-    <SettingsModal />
-    // FTUE: Welcome modal for first-time unauthenticated users
-    {switch (authRedirectUrl, ftueState) {
-    | (Some(loginUrl), Client__FtueState.New) => <Client__WelcomeModal loginUrl />
-    | _ => React.null
+    <SettingsModal
+      open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
+    />
+    <Client__ProviderSetupModal
+      open_={showProviderSetupModal} onOpenSettings=openSettingsProviders
+    />
+    <Client__FirstTaskFeedbackDialog />
+    {switch authRedirectUrl {
+    | Some(loginUrl) => <Client__WelcomeModal loginUrl onSignIn=beginAuthenticationRetry />
+    | None => React.null
     }}
-    // FTUE: Post-signup celebration overlay
-    {switch showCelebration {
-    | true =>
-      <Client__PostSignupCelebration
-        onDismiss=handleCelebrationDismiss onConnectProvider=handleCelebrationConnectProvider
-      />
-    | false => React.null
-    }}
-    // Top bar (sits above the panel split)
     <Client__TopBar
       chatboxWidth
+      chatOpen
+      workspaceView
+      onWorkspaceViewChange={view => setSelectedWorkspaceView(_ => view)}
+      onToggleChat={() => setChatOpen(prev => !prev)}
       onSettingsClick={() => Client__State.Actions.openSettingsModal()}
-      showProviderNudgeBubble
-      showProviderNudgeBadge
-      onProviderNudgeDismiss=handleProviderNudgeDismiss
-      onProviderNudgeCta=handleProviderNudgeCta
     />
-    // Main content area: flex row of chat + preview panels.
     <div className="flex flex-1 min-h-0 w-full">
-      // Transparent overlay during resize to prevent iframe from stealing mouse events
       {switch isResizing {
       | true => <div className="fixed inset-0 z-50 cursor-col-resize" />
       | false => React.null
       }}
-      <div
-        style={{width: `${Int.toString(chatboxWidth)}px`}}
-        className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
-      >
-        <Client__Chatbox onConfigureProvider=openSettingsProviders />
-        // Resize handle on right edge
-        <div
-          className={[
-            "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
-            switch isResizing {
-            | true => "bg-zinc-500"
-            | false => "hover:bg-zinc-600"
-            },
-          ]->Array.join(" ")}
-          onMouseDown={handleResizeMouseDown}
-        />
-      </div>
+      {chatOpen
+        ? <div
+            id="chat-panel"
+            style={{width: `${Int.toString(chatboxWidth)}px`}}
+            className="h-full border-r flex flex-col overflow-hidden relative shrink-0"
+          >
+            <Client__ConversationPanel onConfigureProvider=openSettingsProviders />
+            <div
+              className={[
+                "absolute top-0 right-0 w-1 h-full cursor-col-resize transition-colors",
+                switch isResizing {
+                | true => "bg-zinc-500"
+                | false => "hover:bg-zinc-600"
+                },
+              ]->Array.join(" ")}
+              onMouseDown={handleResizeMouseDown}
+            />
+          </div>
+        : React.null}
       <div className="grow h-full min-w-0">
-        <Client__WebPreview />
+        <Client__WorkspacePanel
+          view=workspaceView preview={<Client__WebPreview />} changes={<Client__ChangesView />}
+        />
       </div>
     </div>
   </div>

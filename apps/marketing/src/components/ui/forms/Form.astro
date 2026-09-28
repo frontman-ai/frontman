@@ -1,12 +1,4 @@
 ---
-// Form
-// ------------
-// Description: The form component
-// Properties:
-// - method: The method of the form (post, get, dialog)
-// - classes: Additional classes to be added to the form
-// - id: To set the specific ID of the form
-// - name: sets the form's name
 
 type Props = {
   method?: 'post' | 'get' | 'dialog'
@@ -17,7 +9,6 @@ type Props = {
 
 const { method = 'post', classes, id, name } = Astro.props
 
-// Use id as name if name is not set but id is set
 const formName = name || id || undefined;
 ---
 

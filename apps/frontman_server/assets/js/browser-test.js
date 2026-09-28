@@ -1,4 +1,3 @@
-// Re-export frontman-client modules for browser-test page
 export * as ACP from '@frontman-ai/frontman-client/src/FrontmanClient__ACP.res.mjs';
 export * as MCP from '@frontman-ai/frontman-client/src/FrontmanClient__MCP.res.mjs';
 export * as MCPServer from '@frontman-ai/frontman-client/src/FrontmanClient__MCP__Server.res.mjs';

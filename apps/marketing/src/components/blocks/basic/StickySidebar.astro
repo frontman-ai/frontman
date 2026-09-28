@@ -1,19 +1,9 @@
 ---
-// Sticky sidebar Section
-// ------------
-// Description: A section with a sticky sidebar. The sticky sidebar content is using the "sidebar" slot
-// Properties:
-// - id: The id of the section
-// - type: determines the position of the sticky sidebar (left or right)
-// - classes: Additional classes to be added to the section
 
-// Components
-// - Layout
 import Section from '../../ui/Section.astro'
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 
-// Props
 type Props = {
 	id?: string
 	type?: 'left' | 'right'

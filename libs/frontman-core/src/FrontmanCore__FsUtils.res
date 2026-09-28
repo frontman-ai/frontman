@@ -1,13 +1,18 @@
-// Shared async filesystem existence checks.
-//
-// Centralises the try-access-catch pattern that was duplicated across tools
-// and CLI detect modules. Three flavours cover every use-case:
-//
-//   pathExists  – does *something* exist at this path? (file, dir, symlink …)
-//   fileExists  – exists AND is a regular file
-//   dirExists   – exists AND is a directory
-
 module Fs = FrontmanBindings.Fs
+
+let readFileIfExists = async (path: string): option<string> => {
+  try {
+    Some(await Fs.Promises.readFile(path))
+  } catch {
+  | exn =>
+    switch exn
+    ->JsExn.fromException
+    ->Option.flatMap(error => error->Fs.errorCode->Nullable.toOption) {
+    | Some("ENOENT") => None
+    | Some(_) | None => throw(exn)
+    }
+  }
+}
 
 let pathExists = async (path: string): bool => {
   try {

@@ -1,10 +1,5 @@
 ---
-// Full Context Section
-// ------------
-// Description: A section explaining how Frontman understands your design system
 
-// Components
-// - Layout
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 ---
@@ -12,11 +7,9 @@ import Col from '../../ui/Col.astro'
 <section id="full-context" class="full-context-section">
 	<div class="container">
 		<Row classes="gap-12">
-			<!-- Left side: Visual — Design-to-Code illustration -->
 			<Col spanMobile="12" span="6">
 				<div class="context-visual">
 					<div class="design-system-diagram">
-						<!-- Design mockup card -->
 						<div class="ds-card ds-card--design">
 							<div class="ds-card__header">
 								<div class="ds-card__dots">
@@ -38,13 +31,12 @@ import Col from '../../ui/Col.astro'
 									<span class="ds-type-sample ds-type-sample--body">Aa</span>
 								</div>
 								<div class="ds-component-row">
-									<span class="ds-btn-sample">Button</span>
+									<span class="ds-btn-sample" style="background:#7736c9;">Button</span>
 									<span class="ds-input-sample"></span>
 								</div>
 							</div>
 						</div>
 
-						<!-- Arrow / connection -->
 						<div class="ds-arrow">
 							<img src="/logo.svg" alt="Frontman" class="ds-arrow__logo" width="48" height="48" loading="lazy" />
 							<svg class="ds-arrow__svg" viewBox="0 0 24 80" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -52,7 +44,6 @@ import Col from '../../ui/Col.astro'
 							</svg>
 						</div>
 
-						<!-- Live code card -->
 						<div class="ds-card ds-card--code">
 							<div class="ds-card__header">
 								<div class="ds-card__dots">
@@ -63,10 +54,10 @@ import Col from '../../ui/Col.astro'
 								<span class="ds-card__label">Your Code</span>
 							</div>
 							<div class="ds-card__body ds-card__body--code">
-								<code class="ds-code-line"><span class="ds-tok-keyword">const</span> <span class="ds-tok-var">theme</span> = {</code>
+								<code class="ds-code-line"><span class="ds-tok-keyword">const</span> <span class="ds-tok-var">theme</span> = &#123;</code>
 								<code class="ds-code-line ds-code-indent"><span class="ds-tok-prop">primary</span>: <span class="ds-tok-string">"#A259FF"</span>,</code>
 								<code class="ds-code-line ds-code-indent"><span class="ds-tok-prop">radius</span>: <span class="ds-tok-string">"8px"</span>,</code>
-								<code class="ds-code-line">}</code>
+								<code class="ds-code-line">&#125;</code>
 							</div>
 						</div>
 
@@ -75,7 +66,6 @@ import Col from '../../ui/Col.astro'
 				</div>
 			</Col>
 
-			<!-- Right side: Content -->
 			<Col spanMobile="12" span="6">
 			<div class="context-content">
 				<h2 class="context-title">
@@ -123,13 +113,11 @@ import Col from '../../ui/Col.astro'
 		@apply relative mx-auto px-6 max-w-7xl;
 	}
 
-	/* Visual Side */
 	.context-visual {
 		@apply relative flex items-center justify-center;
 		min-height: 400px;
 	}
 
-	/* Design System Diagram */
 	.design-system-diagram {
 		@apply relative flex flex-col items-center;
 		width: 100%;
@@ -137,7 +125,6 @@ import Col from '../../ui/Col.astro'
 		gap: 0;
 	}
 
-	/* Cards */
 	.ds-card {
 		width: 100%;
 		border-radius: 12px;
@@ -174,7 +161,7 @@ import Col from '../../ui/Col.astro'
 		font-family: 'SF Pro Display', system-ui, sans-serif;
 		font-size: 12px;
 		font-weight: 600;
-		color: rgba(255, 255, 255, 0.5);
+		color: rgba(255, 255, 255, 0.56);
 		text-transform: uppercase;
 		letter-spacing: 0.08em;
 	}
@@ -185,7 +172,6 @@ import Col from '../../ui/Col.astro'
 		gap: 14px;
 	}
 
-	/* Swatches */
 	.ds-swatch-row {
 		display: flex;
 		gap: 10px;
@@ -197,7 +183,6 @@ import Col from '../../ui/Col.astro'
 		box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 	}
 
-	/* Typography samples */
 	.ds-type-row {
 		display: flex;
 		align-items: baseline;
@@ -217,7 +202,6 @@ import Col from '../../ui/Col.astro'
 		opacity: 0.6;
 	}
 
-	/* Component samples */
 	.ds-component-row {
 		display: flex;
 		align-items: center;
@@ -226,7 +210,7 @@ import Col from '../../ui/Col.astro'
 	.ds-btn-sample {
 		display: inline-block;
 		padding: 6px 18px;
-		background: #A259FF;
+		background: #7736c9;
 		color: white;
 		border-radius: 6px;
 		font-size: 13px;
@@ -241,7 +225,6 @@ import Col from '../../ui/Col.astro'
 		background: rgba(255, 255, 255, 0.05);
 	}
 
-	/* Arrow connector */
 	.ds-arrow {
 		display: flex;
 		flex-direction: column;
@@ -261,7 +244,6 @@ import Col from '../../ui/Col.astro'
 		height: 48px;
 	}
 
-	/* Code block */
 	.ds-card__body--code {
 		gap: 4px;
 		font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
@@ -280,7 +262,6 @@ import Col from '../../ui/Col.astro'
 	.ds-tok-prop { color: #56b6c2; }
 	.ds-tok-string { color: #98c379; }
 
-	/* Scanning animation overlay */
 	.ds-scan-line {
 		@apply absolute left-0 right-0;
 		height: 2px;
@@ -305,7 +286,6 @@ import Col from '../../ui/Col.astro'
 		}
 	}
 
-	/* Content Side */
 	.context-content {
 		@apply flex flex-col justify-center h-full py-8 lg:py-0;
 	}
@@ -325,7 +305,6 @@ import Col from '../../ui/Col.astro'
 		color: rgba(255, 255, 255, 0.9);
 	}
 
-	/* Responsive adjustments */
 	@media (max-width: 1024px) {
 		.context-visual {
 			min-height: auto;

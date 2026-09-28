@@ -3,8 +3,9 @@ title: 'Case Study: Frontman vs OpenCode vs Claude Code'
 pubDate: 2026-05-05T05:00:00Z
 description: 'A single-task case study comparing Frontman, OpenCode, and Claude Code on the same Astro consent-banner integration. Same final code quality, very different iteration and token profiles.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
+articleSection: 'Comparison or Buyer Guide'
 image: '/blog/frontman-vs-opencode-claude-code-case-study-cover.png'
+imageAlt: 'Frontman, OpenCode, and Claude Code agent efficiency comparison'
 tags: ['case-study', 'ai-agents', 'developer-tools', 'astro']
 faq:
   - question: 'Did Frontman produce better code than OpenCode or Claude Code in this case study?'

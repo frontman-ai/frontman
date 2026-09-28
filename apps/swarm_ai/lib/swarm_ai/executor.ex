@@ -6,22 +6,14 @@ defmodule SwarmAi.Executor do
 
   def run(%Loop{} = loop, task_supervisor) do
     Telemetry.run_span(
-      %{
-        loop_id: loop.id,
-        task_id: loop.task_id,
-        turn_number: loop.turn_number
-      },
+      %{loop_id: loop.id},
       fn ->
-        # QUESTION(Danni) - why do we need both loop.execute which does almost
-        # nothing compared to make, then we've run_effects
         {loop, effects} = Loop.execute(loop)
         final_loop = run_effects(loop, effects, task_supervisor)
 
         {final_loop,
          %{
            loop_id: final_loop.id,
-           task_id: final_loop.task_id,
-           turn_number: final_loop.turn_number,
            status: final_loop.status,
            step_count: length(final_loop.steps),
            output: final_loop.result
@@ -74,7 +66,7 @@ defmodule SwarmAi.Executor do
 
     Enum.each(tool_calls, &emit_tool_start(loop_id, step, &1))
 
-    executor_result =
+    {:ok, results} =
       try do
         loop.execute_tools.(tool_calls, task_supervisor)
       rescue
@@ -83,33 +75,22 @@ defmodule SwarmAi.Executor do
           reraise e, __STACKTRACE__
       end
 
-    case executor_result do
-      {:halt, halt_reason} ->
-        Telemetry.step_stop(loop.id, loop.current_step)
-        Loop.pause(loop, halt_reason)
+    Enum.zip(tool_calls, results)
+    |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result) end)
 
-      {:ok, results} ->
-        Enum.zip(tool_calls, results)
-        |> Enum.each(fn {tc, result} -> emit_tool_stop(loop_id, step, tc, result) end)
+    {new_effects, updated_loop} =
+      Enum.flat_map_reduce(results, loop, fn result, loop_acc ->
+        {l, e} = Loop.handle_tool_result(loop_acc, result)
+        {e, l}
+      end)
 
-        {new_effects, updated_loop} =
-          Enum.flat_map_reduce(results, loop, fn result, loop_acc ->
-            {l, e} = Loop.handle_tool_result(loop_acc, result)
-            {e, l}
-          end)
-
-        run_effects(
-          updated_loop,
-          new_effects ++ rest,
-          task_supervisor,
-          steps_left
-        )
-    end
+    run_effects(updated_loop, new_effects ++ rest, task_supervisor, steps_left)
   end
 
   defp execute_llm_call(loop, llm, messages) do
     loop_id = loop.id
     current_step = loop.current_step
+    response_event_metadata = %{ordinal: current_step - 1, timestamp: DateTime.utc_now()}
 
     Telemetry.step_start(loop_id, current_step)
 
@@ -125,10 +106,12 @@ defmodule SwarmAi.Executor do
           {:ok, stream} ->
             try do
               stream_with_events =
-                Stream.each(stream, fn chunk -> loop.dispatch_event.({:chunk, chunk}) end)
+                Stream.each(stream, fn chunk ->
+                  loop.dispatch_event.({:chunk, response_event_metadata, chunk})
+                end)
 
               response = Response.from_stream(stream_with_events)
-              :ok = loop.dispatch_event.({:response, response})
+              :ok = loop.dispatch_event.({:response, response_event_metadata, response})
 
               {loop, new_effects} = Loop.handle_response(loop, response)
               usage = response.usage || %{}

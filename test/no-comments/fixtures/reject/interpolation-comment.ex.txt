@@ -1,0 +1,3 @@
+title = "#{bold(
+  "Recent #{length(tasks)}" # actual interpolation comment
+)}"

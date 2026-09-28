@@ -1,11 +1,9 @@
-// Exposes Astro content collection entries through Astro's runtime API.
-
 module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module Path = FrontmanBindings.Path
 module PathContext = FrontmanAiFrontmanCore.FrontmanCore__PathContext
 
 let name = "get_content_collections"
-let visibleToAgent = true
+let access = Tool.Read
 
 let description = `Queries Astro content collections through astro:content.
 
@@ -57,6 +55,8 @@ type output = {
   @live
   entries: array<contentEntry>,
 }
+
+let (visibleToAgent, outputJsonSchema) = (true, Some(outputSchema->S.toJSONSchema))
 
 type runtimeEntry = {
   id: string,
@@ -122,7 +122,7 @@ let executeWith = async (
     | None => allEntries->Array.slice(~start=offset, ~end=offset + limit)
     }
 
-    Tool.jsonResult(
+    Tool.structuredResult(
       {
         collection: input.collection,
         totalEntries: allEntries->Array.length,
@@ -154,12 +154,12 @@ let make = (~loadContentApi: unit => promise<contentApi>): module(Tool.ServerToo
   module(
     {
       let name = name
+      let access = access
       let visibleToAgent = visibleToAgent
       let description = description
       type input = input
-      type output = output
       let inputSchema = inputSchema
-      let outputSchema = outputSchema
+      let outputJsonSchema = outputJsonSchema
 
       let execute = (ctx, input) => executeWith(~loadContentApi, ctx, input)
     }

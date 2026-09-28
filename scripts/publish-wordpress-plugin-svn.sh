@@ -79,7 +79,7 @@ scan_export_paths() {
     fi
 
     case "$name" in
-      LICENSE|*.php|*.js|*.css|*.svg|*.txt|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|*.json|*.pot|*.po|*.mo|*.woff|*.woff2|*.ttf|*.eot) ;;
+      LICENSE|AUTHORS|*.php|*.js|*.css|*.svg|*.txt|*.png|*.jpg|*.jpeg|*.gif|*.webp|*.ico|*.json|*.pot|*.po|*.mo|*.woff|*.woff2|*.ttf|*.eot) ;;
       *)
         printf 'Unexpected file type in WordPress.org export: %s\n' "$rel" >&2
         found=1
@@ -175,7 +175,10 @@ trap 'unset svn_password; rm -rf "$SVN_WC"' EXIT
 
 "$svn_bin" checkout --depth infinity "$svn_url" "$SVN_WC"
 
-rsync -a --delete --exclude '.svn/' "$EXPORT_DIR/" "$SVN_WC/"
+for directory in trunk assets "tags/$VERSION"; do
+  mkdir -p "$SVN_WC/$directory"
+  rsync -a --delete --exclude '.svn/' "$EXPORT_DIR/$directory/" "$SVN_WC/$directory/"
+done
 
 while IFS= read -r deleted_path; do
   [ -n "$deleted_path" ] || continue

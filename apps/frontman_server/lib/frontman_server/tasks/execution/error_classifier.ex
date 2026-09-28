@@ -9,22 +9,20 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   @doc """
   Classifies an error reason into `{message, category, retryable}`.
 
-  `category` is one of: "auth", "billing", "rate_limit", "overload",
+  `category` is one of: "auth", "billing", "quota", "rate_limit", "overload",
   "payload_too_large", "output_truncated", "unknown".
   """
   def classify_error(%LLMError{message: msg, category: cat, retryable: r}), do: {msg, cat, r}
 
   def classify_error(%ReqLLM.Error.API.Stream{cause: %ReqLLM.Error.API.Request{} = cause}) do
-    classify_reqllm_request(cause.status, cause.reason)
+    classify_reqllm_request(cause)
   end
 
   def classify_error(%ReqLLM.Error.API.Stream{reason: reason}) when is_binary(reason) do
     classify_reqllm_request(nil, reason)
   end
 
-  def classify_error(%ReqLLM.Error.API.Request{status: status, reason: reason}) do
-    classify_reqllm_request(status, reason)
-  end
+  def classify_error(%ReqLLM.Error.API.Request{} = request), do: classify_reqllm_request(request)
 
   def classify_error({:exception, reason}), do: classify_error(reason)
 
@@ -69,6 +67,21 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   def classify_error(reason) when is_binary(reason), do: {reason, "unknown", false}
   def classify_error(reason), do: {inspect(reason), "unknown", false}
 
+  defp classify_reqllm_request(%ReqLLM.Error.API.Request{status: 429} = request) do
+    case quota_limited?(request) do
+      true ->
+        {"Provider quota reached. Try again later or configure a different provider.", "quota",
+         false}
+
+      false ->
+        classify_reqllm_request(429, request.reason)
+    end
+  end
+
+  defp classify_reqllm_request(%ReqLLM.Error.API.Request{status: status, reason: reason}) do
+    classify_reqllm_request(status, reason)
+  end
+
   defp classify_reqllm_request(status, _reason) when status in [401, 403] do
     {"Authentication failed — your API key may be invalid or expired (HTTP #{status})", "auth",
      false}
@@ -111,7 +124,30 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
     {"LLM stream error: #{reason}", "unknown", false}
   end
 
-  defp classify_reqllm_request(_status, _reason) do
-    {"LLM stream error", "unknown", false}
+  defp classify_reqllm_request(_status, _reason), do: {"LLM stream error", "unknown", false}
+
+  defp quota_limited?(%ReqLLM.Error.API.Request{} = request) do
+    quota_body?(request.response_body) || quota_headers?(request.headers)
   end
+
+  defp quota_body?(%{"error" => error}) when is_map(error) do
+    error["type"] in ["usage_limit_reached", "insufficient_quota"] ||
+      error["code"] == "insufficient_quota" || quota_message?(error["message"])
+  end
+
+  defp quota_body?(_response_body), do: false
+
+  defp quota_message?(message) when is_binary(message),
+    do: message |> String.downcase() |> String.contains?("usage limit")
+
+  defp quota_message?(_message), do: false
+
+  defp quota_headers?(headers) when is_list(headers) do
+    Enum.any?(headers, fn {name, value} ->
+      String.ends_with?(String.downcase(to_string(name)), "-used-percent") and
+        to_string(value) == "100"
+    end)
+  end
+
+  defp quota_headers?(_headers), do: false
 end

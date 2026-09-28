@@ -315,18 +315,22 @@ let make = () => {
   React.useEffect(() => {
     switch stripeFlowStage {
     | StripeFlowOpen =>
-      let intervalId = WebAPI.Global.setInterval2(~handler=() => {
-        switch stripeTabRef.current {
-        | Some(tab) =>
-          switch HostNavigation.tabClosed(tab) {
-          | true => markStripeTabClosed()
-          | false => ()
+      let intervalId = WebAPI.Window.setInterval2(
+        WebAPI.Window.current,
+        ~handler=() => {
+          switch stripeTabRef.current {
+          | Some(tab) =>
+            switch HostNavigation.tabClosed(tab) {
+            | true => markStripeTabClosed()
+            | false => ()
+            }
+          | None => ()
           }
-        | None => ()
-        }
-      }, ~timeout=1000)
+        },
+        ~timeout=1000,
+      )
 
-      Some(() => WebAPI.Global.clearInterval(intervalId))
+      Some(() => WebAPI.Window.clearInterval(WebAPI.Window.current, intervalId))
     | StripeFlowInactive | StripeFlowClosed | StripeFlowBlocked(_) => None
     }
   }, [stripeFlowStage])

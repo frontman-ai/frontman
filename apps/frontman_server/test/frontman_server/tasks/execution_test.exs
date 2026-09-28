@@ -9,8 +9,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   use FrontmanServer.ExecutionCase
   use Oban.Testing, repo: FrontmanServer.Repo
 
-  @moduletag :capture_log
-
   import Mox
   import Phoenix.ChannelTest
 
@@ -26,16 +24,18 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       text_block: 1
     ]
 
-  import FrontmanServer.BillingFixtures
+  import FrontmanServer.DataCase, only: [setup_sandbox: 1]
+  import FrontmanServer.Test.Fixtures.Skills
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
   import FrontmanServer.Test.Fixtures.Tools,
-    only: [question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
+    only: [mcp_tool: 1, mcp_tool: 2, question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
 
-  alias Ecto.Adapters.SQL.Sandbox
-  alias FrontmanServer.Providers
+  alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Protocols
   alias FrontmanServer.Repo
+  alias FrontmanServer.Skills
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.LLMProviderMock
   alias FrontmanServer.Tasks.{Interaction, InteractionSchema}
@@ -44,85 +44,39 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias FrontmanServer.Workers.GenerateTitle
   alias ReqLLM.Error.API.Request
 
+  @moduletag billing: :active
   @endpoint FrontmanServerWeb.Endpoint
-  @acp_message AgentClientProtocol.event_acp_message()
+  @acp_message Protocols.ACP.event_acp_message()
 
-  defp short_timeout_question_mcp_tool_defs do
-    [
-      %MCP{
-        name: "question",
-        description: "Ask the user a question",
-        input_schema: %{
-          "type" => "object",
-          "properties" => %{"questions" => %{"type" => "array"}}
-        },
-        visible_to_agent: true,
-        timeout_ms: 200,
-        on_timeout: :pause_agent
-      }
-    ]
-  end
-
-  defp error_timeout_mcp_tool_defs do
-    [
-      %MCP{
-        name: "question",
-        description: "Ask the user a question",
-        input_schema: %{
-          "type" => "object",
-          "properties" => %{"questions" => %{"type" => "array"}}
-        },
-        visible_to_agent: true,
-        timeout_ms: 100,
-        on_timeout: :error
-      }
-    ]
+  defp mixed_access_mcp_tool_defs do
+    MCP.from_maps([
+      mcp_tool("read_mcp", %{
+        "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => "read"}}
+      }),
+      mcp_tool("write_mcp", %{
+        "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => "write"}}
+      }),
+      mcp_tool("read_write_mcp"),
+      mcp_tool("hidden_read_mcp", %{
+        "_meta" => %{
+          "ai.frontman/tool-metadata" => %{"access" => "read", "visibleToAgent" => false}
+        }
+      })
+    ])
   end
 
   defp submit_user_message(scope, task_id, content, overrides \\ []) do
     execution = execution_request_fixture(overrides)
 
-    case Tasks.submit_user_message(
-           scope,
-           Map.merge(execution, %{task_id: task_id, message: content})
-         ) do
-      {:ok, interaction} ->
-        case Tasks.run_next_turn(scope, task_id, execution) do
-          result when result in [:ok, :already_running] ->
-            {:ok, interaction, latest_turn_number_or_nil(task_id)}
-
-          result ->
-            result
-        end
-
-      result ->
-        result
-    end
+    submit_user_message_and_run(scope, task_id, execution, content)
   end
 
-  defp latest_turn_number_or_nil(task_id) do
-    case Repo.aggregate(InteractionSchema.for_task(task_id), :max, :turn_number) do
-      nil -> nil
-      turn_number -> turn_number
-    end
-  end
-
-  defp setup_sandbox(_context) do
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
-
-    :ok
-  end
-
-  defp setup_user(_context) do
-    scope = user_scope_fixture()
-    subscription_for_scope_fixture(scope)
-    {:ok, _api_key} = Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
-    {:ok, scope: scope}
-  end
-
-  defp setup_task(%{scope: scope}) do
-    {:ok, task_id: task_with_pubsub_fixture(scope).id}
+  defp turn_started_rows(task_id) do
+    task_id
+    |> InteractionSchema.for_task()
+    |> InteractionSchema.of_type(:turn_started)
+    |> InteractionSchema.ordered()
+    |> Repo.all()
   end
 
   defp setup_task_only(%{scope: scope}) do
@@ -138,24 +92,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     {:ok, socket: socket}
   end
 
-  defp refute_running_eventually(task_id, attempts \\ 50)
-
-  defp refute_running_eventually(task_id, attempts) when attempts > 0 do
-    case SwarmAi.running?(FrontmanServer.AgentRuntime, task_id) do
-      false ->
-        :ok
-
-      true ->
-        Process.sleep(10)
-        refute_running_eventually(task_id, attempts - 1)
-    end
-  end
-
-  defp refute_running_eventually(task_id, 0) do
-    refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id),
-           "Agent should not be running after completion"
-  end
-
   defp with_backend_tools(modules) do
     previous = Application.fetch_env!(:frontman_server, :backend_tools)
     Application.put_env(:frontman_server, :backend_tools, modules)
@@ -169,11 +105,17 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       task_id: task_id,
       scope: scope
     } do
-      expect_llm_responses([{:delay, "slow", 5000}])
+      parent = self()
+      verify_on_exit!()
+
+      expect(LLMProviderMock, :stream_text, fn _model, _messages, _opts ->
+        send(parent, :provider_started)
+        ReqLLMResponses.response({:delay, "slow", 5000})
+      end)
 
       {:ok, _, _} = submit_user_message(scope, task_id, user_content("Hello"))
 
-      Process.sleep(100)
+      assert_receive :provider_started, 1_000
       assert SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
       assert :ok = Tasks.cancel_execution(scope, task_id)
@@ -202,13 +144,208 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       {:ok, _} =
         Tasks.submit_user_message(scope, %{
           task_id: task_id,
+          message_id: Ecto.UUID.generate(),
           message: user_content("Hello"),
-          model: "openrouter:openai/gpt-5.5"
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
         })
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
 
-      assert_receive_interaction(%Interaction.TurnStarted{}, 1)
+      assert_receive {:interaction,
+                      %{
+                        id: turn_started_id,
+                        data: %Interaction.TurnStarted{agent_id: "test-frontman"},
+                        turn_number: 1
+                      }},
+                     5_000
+
+      assert_receive {:execution_chunk, 1,
+                      %{
+                        turn_started_id: ^turn_started_id,
+                        agent_id: "test-frontman",
+                        ordinal: 0,
+                        timestamp: timestamp
+                      }, _chunk},
+                     5_000
+
+      assert_receive_interaction(
+        %Interaction.AgentResponse{content: "Response", timestamp: ^timestamp},
+        1
+      )
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      refute_running_eventually(task_id)
+    end
+
+    test "claims and executes only the first same-agent model", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      verify_on_exit!()
+
+      expect(LLMProviderMock, :stream_text, fn model, _messages, _opts ->
+        send(parent, {:executed_model, model})
+        ReqLLMResponses.response("Response")
+      end)
+
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      insert_accepted_user_message!(task, "first model")
+      insert_accepted_user_message!(task, "second model", "openrouter:anthropic/claude-fable-5.1")
+
+      assert :ok =
+               Tasks.execute_next_turn(
+                 scope,
+                 task_id,
+                 execution_request_fixture(model: "openrouter:anthropic/claude-fable-5.1")
+               )
+
+      assert_receive {:executed_model, %LLMDB.Model{id: "openai/gpt-5.5"}}
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      refute_running_eventually(task_id)
+
+      assert [%{data: %{user_message_ids: [_first_message_id]}}] = turn_started_rows(task_id)
+    end
+
+    test "claims only pending message prefix with the same agent and model", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      expect_llm_responses(["First response", "Second response"])
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("frontman one"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("frontman two"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("planner"),
+          model: "openrouter:anthropic/claude-fable-5.1",
+          agent_id: "test-planner"
+        })
+
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+
+      assert [first_turn] = turn_started_rows(task_id)
+      assert first_turn.data.agent_id == "test-frontman"
+      assert length(first_turn.data.user_message_ids) == 2
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      refute_running_eventually(task_id)
+
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+
+      assert [_first_turn, second_turn] = turn_started_rows(task_id)
+      assert second_turn.data.agent_id == "test-planner"
+      assert length(second_turn.data.user_message_ids) == 1
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
+      refute_running_eventually(task_id)
+    end
+
+    test "groups only contiguous messages with the same agent and model", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      expect_llm_responses(["First response", "Second response", "Third response"])
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("frontman one"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("planner"),
+          model: "openrouter:anthropic/claude-fable-5.1",
+          agent_id: "test-planner"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("frontman two"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      {:ok, _} =
+        Tasks.submit_user_message(scope, %{
+          task_id: task_id,
+          message_id: Ecto.UUID.generate(),
+          message: user_content("frontman three"),
+          model: "openrouter:openai/gpt-5.5",
+          agent_id: "test-frontman"
+        })
+
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      refute_running_eventually(task_id)
+
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
+      refute_running_eventually(task_id)
+
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 3)
+      refute_running_eventually(task_id)
+
+      assert [first_turn, second_turn, third_turn] = turn_started_rows(task_id)
+      assert first_turn.data.agent_id == "test-frontman"
+      assert length(first_turn.data.user_message_ids) == 1
+      assert second_turn.data.agent_id == "test-planner"
+      assert length(second_turn.data.user_message_ids) == 1
+      assert third_turn.data.agent_id == "test-frontman"
+      assert length(third_turn.data.user_message_ids) == 2
+    end
+
+    test "uses default agent for historical user messages without agent id", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      expect_llm_responses(["Response"])
+
+      {:ok, attrs} =
+        Interaction.UserMessage.attrs(user_content("historical"), "openrouter:openai/gpt-5.5")
+
+      message_id = Ecto.UUID.generate()
+
+      interaction_changeset(task_id, %{
+        id: message_id,
+        type: :user_message,
+        data: Map.put(attrs, :id, message_id),
+        turn_number: nil
+      })
+      |> Repo.insert!()
+
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+
+      assert [turn_started] = turn_started_rows(task_id)
+      assert turn_started.data.agent_id == "test-planner"
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       refute_running_eventually(task_id)
     end
@@ -217,38 +354,53 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       task_id: task_id,
       scope: scope
     } do
-      expect_llm_responses([{:delay, "First response", 500}, "Second response"])
+      parent = self()
+
+      expect(LLMProviderMock, :stream_text, fn _model, _messages, _opts ->
+        send(parent, {:provider_waiting, self()})
+        assert_receive :finish_response, 1_000
+        ReqLLMResponses.response("First response")
+      end)
+
+      expect_llm_responses(["Second response"])
 
       {:ok, _, 1} = submit_user_message(scope, task_id, user_content("First message"))
+      assert_receive {:provider_waiting, provider}, 1_000
 
-      Process.sleep(100)
-
-      assert {:ok, %Interaction.UserMessage{}} =
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task_id,
+                 message_id: Ecto.UUID.generate(),
                  message: user_content("Queued follow-up"),
-                 model: "openrouter:openai/gpt-5.5"
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
                })
 
+      assert :already_running =
+               Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
+
+      send(provider, :finish_response)
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
       refute_running_eventually(task_id)
 
-      assert :ok = Tasks.run_next_turn(scope, task_id, execution_request_fixture())
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution_request_fixture())
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
       refute_running_eventually(task_id)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       agent_responses =
-        Enum.filter(task.interactions, &match?(%Interaction.AgentResponse{}, &1))
+        Enum.filter(Tasks.interactions(task), &match?(%Interaction.AgentResponse{}, &1))
 
       assert length(agent_responses) == 2,
              "Expected 2 agent responses, got #{length(agent_responses)}"
 
-      assert task.interactions |> Enum.filter(&match?(%Interaction.UserMessage{}, &1)) |> length() ==
+      assert Tasks.interactions(task)
+             |> Enum.filter(&match?(%Interaction.UserMessage{}, &1))
+             |> length() ==
                2
     end
 
@@ -259,6 +411,21 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert {:error,
               {:invalid_content_block, "text content block must include non-empty string text"}} =
                submit_user_message(scope, task_id, [%{"type" => "text", "text" => ""}])
+    end
+
+    test "returns selected skill errors instead of raising", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      assert {:error, :skill_not_found} =
+               submit_user_message(scope, task_id, user_content("Improve hero"),
+                 selected_server_skill_id: "not-a-uuid"
+               )
+
+      assert {:error, :skill_not_found} =
+               submit_user_message(scope, task_id, user_content("Improve hero"),
+                 selected_server_skill_id: 123
+               )
     end
 
     test "uses resource context for attachment-only first turn title text", %{
@@ -284,13 +451,113 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
     end
 
+    test "sends selected skill content with scoped user turn", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      skill = skill_fixture(scope)
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("Response")
+      end)
+
+      {:ok, _, 1} =
+        submit_user_message(scope, task_id, user_content("Improve hero"),
+          selected_server_skill_id: skill.id
+        )
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert_receive {:provider_messages, messages}, 1_000
+
+      user_messages = Enum.filter(messages, &(&1.role == :user))
+      assert [prompt_message] = user_messages
+      assert [active_skill_part, user_prompt_part] = prompt_message.content
+      assert active_skill_part.text =~ "## Active Skill: test_design_polish"
+      assert active_skill_part.text =~ "Use hierarchy."
+      assert user_prompt_part.text == "Improve hero"
+      {:ok, _} = Skills.update(scope, skill, %{content: "Changed instructions."})
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:followup_provider_messages, messages})
+        ReqLLMResponses.response("Follow-up response")
+      end)
+
+      {:ok, _, 2} = submit_user_message(scope, task_id, user_content("Now tighten copy"))
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
+      assert_receive {:followup_provider_messages, followup_messages}, 1_000
+
+      user_messages = Enum.filter(followup_messages, &(&1.role == :user))
+
+      assert [historical_prompt_message, current_user_message] = user_messages
+      assert [historical_skill_part, historical_prompt_part] = historical_prompt_message.content
+      assert historical_skill_part.text =~ "## Active Skill: test_design_polish"
+      assert historical_skill_part.text =~ "Use hierarchy."
+
+      assert historical_prompt_part.text == "Improve hero"
+
+      assert [current_prompt_part] = current_user_message.content
+      assert current_prompt_part.text == "Now tighten copy"
+    end
+
+    test "keeps selected skill attached to its user message in batched turns", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      skill = skill_fixture(scope)
+      execution = execution_request_fixture()
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("Response")
+      end)
+
+      {:ok, _first} =
+        Tasks.submit_user_message(
+          scope,
+          Map.merge(execution, %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: user_content("Improve hero"),
+            selected_server_skill_id: skill.id
+          })
+        )
+
+      {:ok, _second} =
+        Tasks.submit_user_message(
+          scope,
+          Map.merge(execution, %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: user_content("Now tighten copy")
+          })
+        )
+
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert_receive {:provider_messages, messages}, 1_000
+
+      user_messages = Enum.filter(messages, &(&1.role == :user))
+      assert [first_message, second_message] = user_messages
+      assert [skill_part, first_part] = first_message.content
+      assert skill_part.text =~ "## Active Skill: test_design_polish"
+      assert first_part.text == "Improve hero"
+      assert [second_part] = second_message.content
+      assert second_part.text == "Now tighten copy"
+    end
+
     test "startup failure persists terminal error on the same turn" do
-      scope = user_scope_fixture()
-      subscription_for_scope_fixture(scope)
+      scope = Scope.for_user(user_fixture())
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task_id = task_with_pubsub_fixture(scope).id
 
       {:ok, _, 1} =
-        submit_user_message(scope, task_id, user_content("Hello"), model: "missing:test")
+        submit_user_message(scope, task_id, user_content("Hello"),
+          model: "openrouter:openai/gpt-5.5"
+        )
 
       assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
 
@@ -300,12 +567,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                  type: :agent_error
                )
 
-      assert {:ok, :no_active_run} = Tasks.get_active_run_unresolved_tool_calls(scope, task_id)
+      assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
     end
 
     test "submits browser context prompt through production recording path" do
-      scope = user_scope_fixture()
-      subscription_for_scope_fixture(scope)
+      scope = Scope.for_user(user_fixture())
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task_id = task_with_pubsub_fixture(scope).id
 
       content_blocks = [
@@ -316,7 +583,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           "device_pixel_ratio" => 2,
           "title" => "Frontman: Visual AI Frontend Editing",
           "color_scheme" => "dark",
-          "scroll_y" => 0
+          "scroll_y" => 0,
+          "astro_client_routing" => "enabled"
         }),
         annotation_block("ann-hero", "H1", "apps/marketing/src/components/Hero.astro", 65, 36,
           comment: "change this text to Danni",
@@ -337,12 +605,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       ]
 
       {:ok, returned, 1} =
-        submit_user_message(scope, task_id, content_blocks, model: "missing:test")
+        submit_user_message(scope, task_id, content_blocks, model: "openrouter:openai/gpt-5.5")
 
-      assert %Interaction.CurrentPage{url: "http://localhost:4321/"} = returned.current_page
+      assert %Interaction.CurrentPage{url: "http://localhost:4321/"} = returned.data.current_page
 
       assert [%Interaction.Annotation{parent: %Interaction.ParentLocation{}}] =
-               returned.annotations
+               returned.data.annotations
 
       assert_receive_interaction(%Interaction.UserMessage{} = broadcast_message, nil)
 
@@ -351,11 +619,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      assert [%Interaction.UserMessage{} = persisted_message | _] = task.interactions
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+      assert [%Interaction.UserMessage{} = persisted_message | _] = Tasks.interactions(task)
 
-      assert %Interaction.CurrentPage{title: "Frontman: Visual AI Frontend Editing"} =
-               persisted_message.current_page
+      assert %Interaction.CurrentPage{
+               title: "Frontman: Visual AI Frontend Editing",
+               astro_client_routing: "enabled"
+             } = persisted_message.current_page
 
       assert [%Interaction.Annotation{bounding_box: %Interaction.BoundingBox{}}] =
                persisted_message.annotations
@@ -366,6 +636,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert text =~ "[Current Page Context]"
       assert text =~ "[Annotated Elements]"
       assert text =~ "apps/marketing/src/components/Hero.astro"
+      assert text =~ "Astro Client Routing: enabled"
+      assert text =~ "astro:page-load"
       assert Enum.any?(swarm_message.content, &match?(%{type: :image}, &1))
     end
 
@@ -389,8 +661,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
-      completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+      completions =
+        Enum.filter(Tasks.interactions(task), &match?(%Interaction.AgentCompleted{}, &1))
+
       assert length(completions) == 2
     end
 
@@ -402,11 +677,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       turn_one = latest_turn_number(task_id)
 
       {:ok, error} =
-        Tasks.record_agent_run_result(scope, task_id, turn_one, {:failed, "Rate limited"})
+        Tasks.record_execution_outcome(scope, task_id, turn_one, {:failed, "Rate limited"})
 
       {:ok, _message} = user_message_fixture(scope, task_id, user_content("turn two"))
       turn_two = latest_turn_number(task_id)
-      {:ok, _done} = Tasks.record_agent_run_result(scope, task_id, turn_two, :completed)
+      {:ok, _done} = Tasks.record_execution_outcome(scope, task_id, turn_two, :completed)
 
       assert {:error, :stale_turn} =
                Tasks.retry_execution(
@@ -416,9 +691,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                  execution_request_fixture()
                )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
-      refute Enum.any?(task.interactions, &match?(%Interaction.AgentRetry{}, &1))
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.AgentRetry{}, &1))
     end
   end
 
@@ -430,22 +705,23 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       scope: scope
     } do
       parent = self()
-      task = task_schema!(task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
       start_turn_fixture(scope, task_id, user_content("included"))
 
       insert_accepted_user_message!(task, "queued for next turn")
 
-      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
-        send(parent, {:provider_messages, messages})
+      expect(LLMProviderMock, :stream_text, fn model, messages, _opts ->
+        send(parent, {:provider_request, model, messages})
         ReqLLMResponses.response("done")
       end)
 
-      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+      execution = execution_request_fixture(model: "missing:test")
+      assert :ok = Tasks.resume_execution(scope, task_id, execution)
 
-      assert_receive {:provider_messages, messages}, 1_000
-      assert [user_text] = provider_user_texts(messages)
+      assert_receive {:provider_request, %LLMDB.Model{id: "openai/gpt-5.5"}, messages}, 1_000
+      assert [user_text] = provider_texts(messages, :user)
       assert user_text =~ "included"
       refute user_text =~ "queued for next turn"
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
@@ -456,12 +732,12 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       scope: scope
     } do
       parent = self()
-      task = task_schema!(task_id)
+      {:ok, task} = Tasks.get_task(scope, task_id)
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
 
-      insert_accepted_user_message!(task, "first")
-      insert_accepted_user_message!(task, "second")
-      insert_turn_started_for_messages!(task_id, 1)
+      first = insert_accepted_user_message!(task, "first")
+      second = insert_accepted_user_message!(task, "second")
+      {:ok, _turn} = turn_started_fixture(task_id, 1, [second.id, first.id])
 
       expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
         send(parent, {:provider_messages, messages})
@@ -471,8 +747,269 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
 
       assert_receive {:provider_messages, messages}, 1_000
-      assert provider_user_texts(messages) == ["first", "second"]
+      assert provider_texts(messages, :user) == ["second", "first"]
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
+    test "uses persisted turn agent as the base system prompt", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      {:ok, task} = Tasks.get_task(scope, task_id)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+
+      message = insert_accepted_user_message!(task, "inspect only")
+      {:ok, _turn} = turn_started_fixture(task_id, 1, [message.id], "test-planner")
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("done")
+      end)
+
+      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+
+      assert_receive {:provider_messages, messages}, 1_000
+      assert [system_text] = provider_texts(messages, :system)
+      assert system_text =~ "Test planner system."
+      assert system_text =~ "## Next.js"
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+    end
+
+    for {agent_id, available, unavailable} <- [
+          {"test-planner", ~w(web_fetch read_mcp),
+           ~w(todo_write write_mcp read_write_mcp hidden_read_mcp)},
+          {"test-frontman",
+           ~w(get_tool_result todo_write web_fetch read_mcp write_mcp read_write_mcp),
+           ~w(hidden_read_mcp)}
+        ] do
+      test "persisted #{agent_id} filters available tools", %{task_id: task_id, scope: scope} do
+        parent = self()
+        {:ok, task} = Tasks.get_task(scope, task_id)
+        Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+        message = insert_accepted_user_message!(task, "inspect tools")
+        {:ok, _turn} = turn_started_fixture(task_id, 1, [message.id], unquote(agent_id))
+
+        expect(LLMProviderMock, :stream_text, fn _model, _messages, opts ->
+          send(parent, {:provider_tool_names, Enum.map(opts[:tools], & &1.name)})
+          ReqLLMResponses.response("done")
+        end)
+
+        assert :ok =
+                 Tasks.resume_execution(
+                   scope,
+                   task_id,
+                   execution_request_fixture(mcp_tools: mixed_access_mcp_tool_defs())
+                 )
+
+        assert_receive {:provider_tool_names, tool_names}, 1_000
+        for name <- unquote(available), do: assert(name in tool_names)
+        for name <- unquote(unavailable), do: refute(name in tool_names)
+        assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      end
+    end
+  end
+
+  describe "skill discovery and loading" do
+    setup [:setup_sandbox, :setup_user, :setup_task, :verify_on_exit!]
+
+    setup %{scope: scope} do
+      Repo.delete_all(Skills.Skill)
+      %{skill: skill_fixture(scope)}
+    end
+
+    test "advertises only the summary and returns and persists requested instructions", %{
+      task_id: task_id,
+      scope: scope,
+      skill: skill
+    } do
+      parent = self()
+      assert [%{source: :backend, name: name}] = Skills.list(scope)
+      qualified_name = "backend:#{name}"
+      call = tool_call("skill", %{"name" => qualified_name}, id: "load_skill")
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, opts ->
+        send(parent, {:initial_request, messages, opts[:tools]})
+        ReqLLMResponses.response({:tool_calls, [call], "Loading instructions"})
+      end)
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:after_load, messages})
+        ReqLLMResponses.response("Done")
+      end)
+
+      {:ok, _, 1} =
+        submit_user_message(scope, task_id, user_content("Improve the hero"),
+          agent_id: "test-planner"
+        )
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert_receive {:initial_request, initial_messages, tools}
+      assert Enum.any?(tools, &(&1.name == "skill"))
+      assert [system] = provider_texts(initial_messages, :system)
+      assert system =~ qualified_name
+      assert system =~ skill.description
+
+      for message <- initial_messages do
+        refute extract_content_text(message.content) =~ skill.content
+      end
+
+      for tool <- tools do
+        refute tool.description =~ skill.content
+      end
+
+      assert_receive {:after_load, messages}
+
+      assert [%{tool_call_id: "load_skill", content: content}] =
+               Enum.filter(messages, &(&1.role == :tool))
+
+      loaded_text = extract_content_text(content)
+      assert loaded_text =~ skill.content
+
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+      assert [%Interaction.ToolResult{is_error: false, result: result}] =
+               Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+
+      assert Protocols.MCP.extract_content_text(result) == loaded_text
+    end
+
+    test "loads edits made after discovery without rewriting the prompt or historical instructions",
+         %{
+           task_id: task_id,
+           scope: scope,
+           skill: skill
+         } do
+      parent = self()
+      assert [%{source: :backend, name: name}] = Skills.list(scope)
+      qualified_name = "backend:#{name}"
+      loaded_content = "Loaded instruction revision."
+      call = tool_call("skill", %{"name" => qualified_name}, id: "load_skill")
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:original_system, provider_texts(messages, :system)})
+
+        {:ok, _} =
+          Skills.update(scope, skill, %{
+            description: "Updated discovery description.",
+            content: loaded_content
+          })
+
+        ReqLLMResponses.response({:tool_calls, [call], "Loading instructions"})
+      end)
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:after_load, messages})
+        ReqLLMResponses.response("Done")
+      end)
+
+      {:ok, _, 1} = submit_user_message(scope, task_id, user_content("Improve the hero"))
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert_receive {:original_system, [system]}
+      assert_receive {:after_load, messages}
+      assert system =~ skill.description
+      assert provider_texts(messages, :system) == [system]
+
+      assert [%{tool_call_id: "load_skill", content: content}] =
+               Enum.filter(messages, &(&1.role == :tool))
+
+      loaded_text = extract_content_text(content)
+      assert loaded_text =~ loaded_content
+      refute loaded_text =~ skill.content
+
+      {:ok, _} = Skills.update(scope, skill, %{content: "Unloaded later revision."})
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:next_turn, messages})
+        ReqLLMResponses.response("Still done")
+      end)
+
+      refute_running_eventually(task_id)
+      {:ok, _, 2} = submit_user_message(scope, task_id, user_content("Continue"))
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 2)
+      assert_receive {:next_turn, messages}
+      assert [next_system] = provider_texts(messages, :system)
+      assert next_system =~ "Updated discovery description."
+      refute next_system =~ skill.description
+      refute next_system =~ "Unloaded later revision."
+
+      assert [%{tool_call_id: "load_skill", content: historical_content}] =
+               Enum.filter(messages, &(&1.role == :tool))
+
+      assert extract_content_text(historical_content) == loaded_text
+    end
+
+    test "rejects unqualified, wrong-source, and missing references without falling back", %{
+      task_id: task_id,
+      scope: scope,
+      skill: skill
+    } do
+      parent = self()
+      references = [skill.name, "client:#{skill.name}", "backend:missing_skill"]
+      calls = Enum.map(references, &tool_call("skill", %{"name" => &1}, id: &1))
+
+      expect_llm_responses([{:tool_calls, calls, "Loading skills"}])
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:rejected_skills, Enum.filter(messages, &(&1.role == :tool))})
+        ReqLLMResponses.response("Continued without skills")
+      end)
+
+      {:ok, _, 1} = submit_user_message(scope, task_id, user_content("Load skills"))
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert_receive {:rejected_skills, messages}
+      assert Enum.sort(Enum.map(messages, & &1.tool_call_id)) == Enum.sort(references)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+      results = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+      assert length(results) == length(references)
+
+      for reference <- references do
+        assert %Interaction.ToolResult{is_error: true, result: %{"isError" => true}} =
+                 Enum.find(results, &(&1.tool_call_id == reference))
+
+        message = Enum.find(messages, &(&1.tool_call_id == reference))
+        error_text = extract_content_text(message.content)
+        assert error_text =~ reference
+        refute error_text =~ skill.content
+      end
+    end
+
+    test "does not advertise or load skills when the tool is unavailable", %{
+      task_id: task_id,
+      scope: scope,
+      skill: skill
+    } do
+      parent = self()
+
+      assert [%{source: :backend, name: name}] = Skills.list(scope)
+      qualified_name = "backend:#{name}"
+
+      with_backend_tools(
+        Application.fetch_env!(:frontman_server, :backend_tools)
+        |> Enum.reject(&(&1.name() == "skill"))
+      )
+
+      call = tool_call("skill", %{"name" => qualified_name}, id: "unavailable_skill")
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, opts ->
+        send(parent, {:without_skill_tool, messages, Enum.map(opts[:tools], & &1.name)})
+        ReqLLMResponses.response({:tool_calls, [call], "Trying unavailable skill"})
+      end)
+
+      expect_llm_responses(["Continued without the unavailable tool"])
+
+      {:ok, _, 1} = submit_user_message(scope, task_id, user_content("Improve the hero"))
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert_receive {:without_skill_tool, messages, tools}
+      refute "skill" in tools
+      assert [system] = provider_texts(messages, :system)
+      refute system =~ qualified_name
+      refute system =~ skill.description
+      refute system =~ skill.content
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+      assert [%Interaction.ToolResult{tool_call_id: "unavailable_skill", is_error: true}] =
+               Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
     end
   end
 
@@ -493,7 +1030,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           mcp_tools: question_mcp_tool_defs()
         )
 
-      Process.sleep(200)
+      assert_receive_interaction(%Interaction.ToolCall{tool_call_id: ^question_tc_id}, 1)
       assert SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
       {:ok, _interaction, _status} =
@@ -501,24 +1038,18 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
           scope,
           task_id,
           %{id: question_tc_id, name: "question"},
-          ModelContextProtocol.tool_result_json(%{"answers" => [%{"answer" => "A"}]}),
-          false
+          Protocols.MCP.tool_result_json(%{"answers" => [%{"answer" => "A"}]})
         )
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
-      tool_results =
-        Enum.filter(task.interactions, fn
-          %Interaction.ToolResult{tool_name: "question"} -> true
-          _ -> false
-        end)
+      assert [%Interaction.ToolResult{tool_call_id: ^question_tc_id, is_error: false}] =
+               Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
 
-      assert [_ | _] = tool_results
-
-      completions = Enum.filter(task.interactions, &match?(%Interaction.AgentCompleted{}, &1))
-      assert [_ | _] = completions
+      assert [%Interaction.AgentCompleted{}] =
+               Enum.filter(Tasks.interactions(task), &match?(%Interaction.AgentCompleted{}, &1))
     end
   end
 
@@ -536,6 +1067,37 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
       assert_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
+    end
+
+    test "first claimed message generates the title after an earlier queued message is removed",
+         %{
+           task_id: task_id,
+           scope: scope
+         } do
+      first_message_id = Ecto.UUID.generate()
+
+      assert {:ok, _row} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task_id,
+                 message_id: first_message_id,
+                 message: user_content("Remove this prompt"),
+                 model: "openrouter:openai/gpt-5.5",
+                 agent_id: "test-frontman"
+               })
+
+      assert :ok = Tasks.unqueue_user_message(scope, task_id, first_message_id)
+      assert all_enqueued(worker: GenerateTitle) == []
+
+      expect_llm_responses(["Response"])
+      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Use this prompt"))
+
+      assert_enqueued(
+        worker: GenerateTitle,
+        args: %{task_id: task_id, user_prompt_text: "Use this prompt"}
+      )
+
+      assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
+      refute_running_eventually(task_id)
     end
 
     test "second message does not enqueue an additional title generation job", %{
@@ -561,93 +1123,150 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
-  describe "interactive tool timeout — ToolResult DB persistence" do
-    setup [:setup_sandbox, :setup_user, :setup_task]
+  describe "interactive waits and serial recovery" do
+    setup [:setup_sandbox, :setup_user]
 
-    test "ToolResult is persisted in DB when question tool times out", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      question_tc_id = "tc_timeout_#{System.unique_integer([:positive])}"
-      question_tc = tool_call("question", question_args(), id: question_tc_id)
+    test "shutdown preserves approval, interrupts the undispatched write, and resumes the same turn",
+         %{scope: scope} do
+      task_id = task_with_pubsub_fixture(scope, framework: "wordpress").id
+      approval = tool_call("approval", %{}, id: "approval_serial")
+      write = tool_call("write_file", %{}, id: "write_serial")
 
-      expect_llm_responses([{:tool_calls, [question_tc], "done"}])
+      tools =
+        MCP.from_maps([
+          %{
+            "name" => "approval",
+            "_meta" => %{"ai.frontman/tool-metadata" => %{"executionMode" => "Interactive"}}
+          },
+          %{"name" => "write_file"}
+        ])
 
-      {:ok, _, _} =
-        submit_user_message(scope, task_id, user_content("Ask me"),
-          mcp_tools: short_timeout_question_mcp_tool_defs()
+      parent = self()
+      expect_llm_responses([{:tool_calls, [approval, write], "Approve first"}])
+
+      expect(LLMProviderMock, :stream_text, fn model, messages, _opts ->
+        send(parent, {:resumed_messages, model, messages})
+        ReqLLMResponses.response("Recovered")
+      end)
+
+      {:ok, _, 1} =
+        submit_user_message(scope, task_id, user_content("Do the change"), mcp_tools: tools)
+
+      assert_receive_interaction(
+        %Interaction.ToolCall{tool_name: "approval", execution_mode: :interactive},
+        1
+      )
+
+      refute_receive {:interaction, %{data: %Interaction.ToolCall{tool_name: "write_file"}}}, 250
+      {:ok, waiting} = Tasks.get_task_with_history(scope, task_id)
+      refute Enum.any?(Tasks.interactions(waiting), &match?(%Interaction.ToolResult{}, &1))
+      refute Enum.any?(Tasks.interactions(waiting), &match?(%Interaction.AgentPaused{}, &1))
+
+      [{worker, _}] = SwarmAi.Runtime.Registry.lookup(FrontmanServer.AgentRuntime, task_id)
+
+      assert :ok =
+               DynamicSupervisor.terminate_child(
+                 SwarmAi.Runtime.execution_supervisor_name(FrontmanServer.AgentRuntime),
+                 worker
+               )
+
+      assert_receive_interaction(
+        %Interaction.ToolResult{tool_name: "write_file", is_error: true},
+        1
+      )
+
+      refute_receive {:interaction, %{data: %Interaction.AgentError{}}}, 50
+      {:ok, pending} = Tasks.get_task_with_history(scope, task_id)
+
+      assert [%Interaction.ToolCall{tool_name: "approval"}] =
+               Enum.filter(Tasks.interactions(pending), &match?(%Interaction.ToolCall{}, &1))
+
+      assert {:ok, 1, [%Interaction.ToolCall{tool_name: "approval"}]} =
+               Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+
+      {:ok, _} =
+        Tasks.submit_user_message(
+          scope,
+          Map.merge(execution_request_fixture(), %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: user_content("Queued next turn")
+          })
         )
 
-      assert_receive_interaction(%Interaction.AgentPaused{}, _turn_number)
+      assert {:ok, _, _} =
+               Tasks.resolve_tool_request(
+                 scope,
+                 task_id,
+                 approval,
+                 Protocols.MCP.tool_result_text("yes")
+               )
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      assert :ok =
+               Tasks.resume_execution(
+                 scope,
+                 task_id,
+                 execution_request_fixture(model: "missing:connection-model", mcp_tools: tools)
+               )
 
-      tool_results =
-        Enum.filter(task.interactions, fn
-          %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
-          _ -> false
-        end)
+      assert_receive {:resumed_messages, %LLMDB.Model{id: "openai/gpt-5.5"}, messages}, 1_000
+      results = Enum.filter(messages, &(&1.role == :tool))
+      assert Enum.map(results, & &1.tool_call_id) == [write.id, approval.id]
 
-      assert length(tool_results) == 1,
-             "Expected exactly 1 ToolResult for the timed-out ToolCall, got #{length(tool_results)} — double-persist bug"
+      assert Enum.map(results, &extract_content_text(&1.content)) == [
+               "Interrupted by restart",
+               "yes"
+             ]
 
-      [tool_result] = tool_results
-      %{"content" => [%{"text" => result_text}], "isError" => true} = tool_result.result
-      assert tool_result.is_error == true
-
-      assert result_text =~ "on_timeout: :pause_agent",
-             "Expected ToolResult message to come from loop pause handling (includes policy name), got: #{inspect(tool_result.result)}"
+      refute Enum.any?(messages, &(extract_content_text(&1.content) =~ "Queued next turn"))
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert length(turn_started_rows(task_id)) == 1
+      refute_receive {:interaction, %{data: %Interaction.ToolCall{tool_name: "write_file"}}}, 50
     end
   end
 
-  describe "MCP tool timeout with on_timeout: :error" do
+  describe "finite synchronous MCP deadline" do
     setup [:setup_sandbox, :setup_user, :setup_task]
 
-    test "ToolResult is persisted in DB when MCP tool times out (on_timeout: :error)", %{
+    test "ToolResult is persisted in DB when a synchronous MCP tool times out", %{
       task_id: task_id,
       scope: scope
     } do
       question_tc_id = "tc_error_timeout_#{System.unique_integer([:positive])}"
       question_tc = tool_call("question", question_args(), id: question_tc_id)
 
-      expect_llm_responses([
-        {:tool_calls, [question_tc], "Calling question"},
-        "Understood, the tool timed out."
-      ])
+      expect_llm_responses([{:tool_calls, [question_tc], "Calling question"}])
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        %{content: [%{text: text}]} = Enum.find(messages, &(&1.role == :tool))
+        assert text =~ "Execution may still be in progress"
+        assert text =~ "do not blindly retry mutations"
+        ReqLLMResponses.response("Understood, the tool timed out.")
+      end)
 
       {:ok, _, _} =
         submit_user_message(scope, task_id, user_content("Ask me"),
-          mcp_tools: error_timeout_mcp_tool_defs()
+          mcp_tools: [%{MCP.from_map(mcp_tool("question")) | timeout_ms: 100}]
         )
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
-      tool_call_interaction =
-        Enum.find(task.interactions, fn
-          %Interaction.ToolCall{tool_call_id: ^question_tc_id} -> true
-          _ -> false
-        end)
+      assert [%Interaction.ToolCall{}, %Interaction.ToolResult{is_error: true} = tool_result] =
+               Enum.filter(Tasks.interactions(task), fn
+                 %Interaction.ToolCall{tool_call_id: ^question_tc_id} -> true
+                 %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
+                 _ -> false
+               end)
 
-      assert tool_call_interaction != nil,
-             "Expected a ToolCall interaction to be persisted"
-
-      tool_result =
-        Enum.find(task.interactions, fn
-          %Interaction.ToolResult{tool_call_id: ^question_tc_id} -> true
-          _ -> false
-        end)
-
-      assert tool_result != nil,
-             "Expected a ToolResult for the timed-out ToolCall — " <>
-               "every persisted ToolCall must have a matching ToolResult"
-
-      assert tool_result.is_error == true
+      %{"content" => [%{"text" => result_text}]} = tool_result.result
+      assert result_text =~ "Execution may still be in progress"
+      assert result_text =~ "do not blindly retry mutations"
     end
   end
 
-  describe "interactive tool timeout — client notification" do
+  describe "historical pause — client notification" do
     setup [:setup_sandbox, :setup_user, :setup_task_only, :setup_channel]
 
     test "session/update is pushed to client when agent pauses", %{
@@ -693,8 +1312,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
 
-      # The telemetry stop event fires only after the backend tool actually runs.
-      # The missing tool_defs regression skipped execution before producing this event.
       assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, meta}
       assert meta.tool_name == "todo_write"
 
@@ -703,54 +1320,42 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                "backend tool was rejected as unavailable. " <>
                "Got: #{inspect(meta.output)}"
     end
-  end
 
-  describe "backend tool execution — channel level" do
-    setup [
-      :setup_sandbox,
-      :setup_user,
-      :setup_task_only,
-      :setup_channel
-    ]
-
-    test "todo_write executes through the full channel → executor pipeline", %{
+    test "read-only agent rejects hidden backend write tools without executing them", %{
       task_id: task_id,
-      scope: scope,
-      socket: socket
+      scope: scope
     } do
-      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+      {:ok, task} = Tasks.get_task(scope, task_id)
 
       ref =
         :telemetry_test.attach_event_handlers(self(), [[:swarm_ai, :tool, :execute, :stop]])
 
       on_exit(fn -> :telemetry.detach(ref) end)
 
-      tc_id = "tc_todo_ch_#{System.unique_integer([:positive])}"
-      todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
-      expect_llm_responses([{:tool_calls, [todo_tc], "Writing todos"}, "Todos written."])
+      message = insert_accepted_user_message!(task, "Do not write todos")
+      {:ok, _turn} = turn_started_fixture(task_id, 1, [message.id], "test-planner")
 
-      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Write todos"))
+      tc_id = "tc_todo_read_only_#{System.unique_integer([:positive])}"
+      todo_tc = tool_call("todo_write", todo_args(), id: tc_id)
+
+      expect_llm_responses([
+        {:tool_calls, [todo_tc], "Writing todos"},
+        "Continued without the unavailable tool."
+      ])
+
+      assert :ok = Tasks.resume_execution(scope, task_id, execution_request_fixture())
+
+      assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, metadata}
+      assert metadata.tool_name == "todo_write"
+      assert metadata.is_error == true
 
       assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
+      assert {:ok, []} = Tasks.list_todos(scope, task_id)
 
-      :sys.get_state(socket.channel_pid)
-
-      assert_push(@acp_message, %{
-        "jsonrpc" => "2.0",
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
-        }
-      })
-
-      assert_receive {[:swarm_ai, :tool, :execute, :stop], ^ref, _measurements, meta}
-      assert meta.tool_name == "todo_write"
-
-      assert meta.is_error == false,
-             "todo_write returned an error through the channel pipeline — " <>
-               "backend tool was rejected as unavailable. " <>
-               "Got: #{inspect(meta.output)}"
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+      interactions = Tasks.interactions(task)
+      refute Enum.any?(interactions, &match?(%Interaction.ToolCall{tool_call_id: ^tc_id}, &1))
+      assert Enum.any?(interactions, &match?(%Interaction.ToolResult{tool_call_id: ^tc_id}, &1))
     end
   end
 
@@ -759,9 +1364,9 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     @behaviour FrontmanServer.Tools.Backend
     def name, do: "crash_tool"
     def description, do: "always crashes"
+    def access, do: :write
     def parameter_schema, do: %{"type" => "object", "properties" => %{}}
     def timeout_ms, do: 5_000
-    def on_timeout, do: :error
     def execute(_args, _ctx), do: raise("boom")
   end
 
@@ -770,79 +1375,46 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     @behaviour FrontmanServer.Tools.Backend
     def name, do: "hang_tool"
     def description, do: "hangs forever"
+    def access, do: :write
     def parameter_schema, do: %{"type" => "object", "properties" => %{}}
     def timeout_ms, do: 100
-    def on_timeout, do: :error
     def execute(_args, _ctx), do: Process.sleep(:infinity)
   end
 
-  describe "backend tool crash — channel notification" do
-    setup [
-      :setup_sandbox,
-      :setup_user,
-      :setup_task_only,
-      :setup_channel
-    ]
+  describe "backend failures — persistence and channel notification" do
+    setup [:setup_sandbox, :setup_user, :setup_task, :setup_channel]
 
-    test "session/update idle state is pushed when backend tool raises", %{
-      task_id: task_id,
-      scope: scope,
-      socket: socket
-    } do
-      tc_id = "tc_crash_ch_#{System.unique_integer([:positive])}"
-      crash_tc = tool_call("crash_tool", %{}, id: tc_id)
-      with_backend_tools([CrashTool])
-      expect_llm_responses([{:tool_calls, [crash_tc], "Calling crash tool"}, "Handled."])
+    for {failure, module} <- [{"crash", CrashTool}, {"timeout", HangTool}] do
+      test "#{failure} persists one error result and pushes idle", %{
+        task_id: task_id,
+        scope: scope,
+        socket: socket
+      } do
+        module = unquote(module)
+        call = tool_call(module.name())
+        with_backend_tools([module])
+        expect_llm_responses([{:tool_calls, [call], "Calling tool"}, "Handled."])
 
-      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
+        {:ok, _, 1} = submit_user_message(scope, task_id, user_content("Do a thing"))
+        assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+        :sys.get_state(socket.channel_pid)
 
-      assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
+        assert_push(@acp_message, %{
+          "jsonrpc" => "2.0",
+          "method" => "session/update",
+          "params" => %{
+            "sessionId" => ^task_id,
+            "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
+          }
+        })
 
-      :sys.get_state(socket.channel_pid)
+        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
-      assert_push(@acp_message, %{
-        "jsonrpc" => "2.0",
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
-        }
-      })
-    end
-  end
+        assert [%Interaction.ToolResult{is_error: true, tool_call_id: call_id}] =
+                 Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
 
-  describe "backend tool timeout (ParallelExecutor) — channel notification" do
-    setup [
-      :setup_sandbox,
-      :setup_user,
-      :setup_task_only,
-      :setup_channel
-    ]
-
-    test "session/update idle state is pushed when ParallelExecutor deadline fires", %{
-      task_id: task_id,
-      scope: scope,
-      socket: socket
-    } do
-      tc_id = "tc_hang_ch_#{System.unique_integer([:positive])}"
-      hang_tc = tool_call("hang_tool", %{}, id: tc_id)
-      with_backend_tools([HangTool])
-      expect_llm_responses([{:tool_calls, [hang_tc], "Calling hang tool"}, "Handled."])
-
-      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
-
-      assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
-
-      :sys.get_state(socket.channel_pid)
-
-      assert_push(@acp_message, %{
-        "jsonrpc" => "2.0",
-        "method" => "session/update",
-        "params" => %{
-          "sessionId" => ^task_id,
-          "update" => %{"sessionUpdate" => "state_update", "state" => "idle"}
-        }
-      })
+        assert call_id == call.id
+      end
     end
   end
 
@@ -866,11 +1438,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
 
       assert_receive_interaction(%Interaction.AgentError{kind: "terminated"}, _turn_number)
 
-      # Verify DB persistence
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       agent_error =
-        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+        Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       assert agent_error != nil
       assert agent_error.kind == "terminated"
@@ -914,10 +1485,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         }
       })
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       agent_error =
-        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+        Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       assert agent_error != nil
       assert agent_error.kind == "crashed"
@@ -961,10 +1532,10 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         }
       })
 
-      {:ok, task} = Tasks.get_task(scope, task_id)
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
       agent_error =
-        Enum.find(task.interactions, &match?(%Interaction.AgentError{}, &1))
+        Enum.find(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
       assert agent_error != nil
       assert agent_error.kind == "failed"
@@ -1026,112 +1597,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
   end
 
-  describe "backend tool crash — ToolResult DB persistence" do
-    setup [:setup_sandbox, :setup_user, :setup_task]
-
-    test "ToolResult is persisted when backend tool raises", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      tc_id = "tc_crash_#{System.unique_integer([:positive])}"
-      crash_tc = tool_call("crash_tool", %{}, id: tc_id)
-      with_backend_tools([CrashTool])
-
-      expect_llm_responses([
-        {:tool_calls, [crash_tc], "Calling crash tool"},
-        "Handled the crash."
-      ])
-
-      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
-
-      assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      tool_result =
-        Enum.find(task.interactions, fn
-          %Interaction.ToolResult{tool_call_id: ^tc_id} -> true
-          _ -> false
-        end)
-
-      assert tool_result != nil,
-             "Expected a ToolResult for the crashed backend tool — " <>
-               "every dispatched ToolCall must have a matching ToolResult in DB"
-
-      assert tool_result.is_error == true
-    end
-  end
-
-  describe "backend tool timeout (ParallelExecutor) — ToolResult DB persistence" do
-    setup [:setup_sandbox, :setup_user, :setup_task]
-
-    test "ToolResult is persisted when ParallelExecutor deadline fires before tool returns", %{
-      task_id: task_id,
-      scope: scope
-    } do
-      tc_id = "tc_hang_#{System.unique_integer([:positive])}"
-      hang_tc = tool_call("hang_tool", %{}, id: tc_id)
-      with_backend_tools([HangTool])
-
-      expect_llm_responses([
-        {:tool_calls, [hang_tc], "Calling hang tool"},
-        "Handled the timeout."
-      ])
-
-      {:ok, _, _} = submit_user_message(scope, task_id, user_content("Do a thing"))
-
-      assert_receive_interaction(%Interaction.AgentCompleted{}, _turn_number)
-
-      {:ok, task} = Tasks.get_task(scope, task_id)
-
-      tool_result =
-        Enum.find(task.interactions, fn
-          %Interaction.ToolResult{tool_call_id: ^tc_id} -> true
-          _ -> false
-        end)
-
-      assert tool_result != nil,
-             "Expected a ToolResult for the timed-out backend tool — " <>
-               "ParallelExecutor fires before await_backend_tool, bypassing persistence"
-
-      assert tool_result.is_error == true
-    end
-  end
-
-  defp task_schema!(task_id), do: Repo.get!(FrontmanServer.Tasks.TaskSchema, task_id)
-
-  defp insert_accepted_user_message!(task, text) do
-    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), "openrouter:openai/gpt-5.5")
-
-    InteractionSchema.create_changeset(task.id, :user_message, attrs, nil)
-    |> Repo.insert!()
-  end
-
-  defp insert_turn_started_for_messages!(task_id, turn_number) do
-    user_message_ids =
-      InteractionSchema
-      |> InteractionSchema.for_task(task_id)
-      |> InteractionSchema.of_type(:user_message)
-      |> InteractionSchema.ordered()
-      |> Repo.all()
-      |> Enum.map(& &1.id)
-
-    InteractionSchema.create_changeset(
-      task_id,
-      :turn_started,
-      %{
-        id: Ecto.UUID.generate(),
-        timestamp: Interaction.now(),
-        user_message_ids: user_message_ids
-      },
-      turn_number
-    )
-    |> Repo.insert!()
-  end
-
-  defp provider_user_texts(messages) do
-    messages
-    |> Enum.filter(&match?(%{role: :user}, &1))
-    |> Enum.map(&extract_content_text(&1.content))
+  defp provider_texts(messages, role) do
+    for %{role: ^role, content: content} <- messages, do: extract_content_text(content)
   end
 end

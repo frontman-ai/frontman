@@ -15,8 +15,8 @@ defmodule FrontmanServer.Tools.TodoWrite do
 
   @behaviour FrontmanServer.Tools.Backend
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks.Todos.Todo
-  alias ModelContextProtocol, as: MCP
 
   @impl true
   def name, do: "todo_write"
@@ -54,6 +54,9 @@ defmodule FrontmanServer.Tools.TodoWrite do
     - Content: "Run tests and fix failures", Active Form: "Running tests and fixing failures"
     """
   end
+
+  @impl true
+  def access, do: :write
 
   @impl true
   def parameter_schema do
@@ -100,15 +103,16 @@ defmodule FrontmanServer.Tools.TodoWrite do
   def timeout_ms, do: 30_000
 
   @impl true
-  def on_timeout, do: :error
-
-  @impl true
   def execute(args, _context) do
     raw_todos = Map.get(args, "todos", [])
 
     case validate_and_build_todos(raw_todos) do
       {:ok, todos} ->
-        MCP.tool_result_structured(%{"todos" => Enum.map(todos, &serialize_todo/1)})
+        structured_content = %{"todos" => Enum.map(todos, &serialize_todo/1)}
+
+        structured_content
+        |> MCP.tool_result_json()
+        |> Map.put("structuredContent", structured_content)
 
       {:error, reason} ->
         MCP.tool_result_error(reason)

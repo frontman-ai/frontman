@@ -2,9 +2,11 @@
 title: 'AI Code Reviews Hallucinate Without Evidence'
 pubDate: 2026-03-25T05:00:00Z
 description: 'AI code reviews pattern-match the genre of analysis without doing the work. A structured reasoning template fixes this — here is the one we use.'
-author: 'Danni Friedland'
 image: '/blog/ai-code-review-hallucination-cover.png'
 tags: ['ai', 'developer-tools']
+author: 'Danni Friedland'
+articleSection: 'Problem Diagnosis'
+imageAlt: 'AI code review report highlighting hallucinated findings without source evidence'
 ---
 
 Last month I asked my AI assistant to review a function that parsed webhook payloads from three different providers. Each provider sent timestamps differently. One used Unix epoch seconds, another ISO 8601. The third embedded the timezone in the field name rather than the value. The function normalized all three into UTC before storing them.

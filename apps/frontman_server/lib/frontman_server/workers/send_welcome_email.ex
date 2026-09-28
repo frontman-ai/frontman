@@ -34,7 +34,6 @@ defmodule FrontmanServer.Workers.SendWelcomeEmail do
           :ok
 
         nil ->
-          # User was deleted between enqueue and execution — nothing to do.
           :discard
       end
     else

@@ -1,25 +1,91 @@
 ---
-// Blog Tags Page
-// ------------
-// Description: The blog tags page.
 
-// Components
-// - Layout
 import Layout from '../../../layouts/Layout.astro'
-// - UI
 import Hero from '../../../components/blocks/hero/PageHeader.astro'
-import BlogPosts from '../../../components/blocks/blog/BlogPosts.astro'
+import Section from '../../../components/ui/Section.astro'
+import Row from '../../../components/ui/Row.astro'
+import Col from '../../../components/ui/Col.astro'
 
-// Data
 import { getCollection } from 'astro:content'
 const allPosts = await getCollection('blog')
+
+const tagDisplayNames: Record<string, string> = {
+	ai: 'AI',
+	'ai-agents': 'AI Agents',
+	astro: 'Astro',
+	'claude-code': 'Claude Code',
+	cline: 'Cline',
+	cursor: 'Cursor',
+	'github-copilot': 'GitHub Copilot',
+	nextjs: 'Next.js',
+	openclaw: 'OpenClaw',
+	windsurf: 'Windsurf',
+	wordpress: 'WordPress'
+}
+
+const formatTag = (tag: string) => tagDisplayNames[tag] ?? tag
+	.split('-')
+	.map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+	.join(' ')
+
+const tagCounts = allPosts.reduce((counts, post) => {
+	for (const tag of post.data.tags) {
+		counts.set(tag, (counts.get(tag) ?? 0) + 1)
+	}
+	return counts
+}, new Map<string, number>())
+
+const tags = [...tagCounts.entries()]
+	.map(([tag, count]) => ({
+		tag,
+		count,
+		name: formatTag(tag),
+		href: `/blog/tags/${tag}/`
+	}))
+	.sort((a, b) => a.name.localeCompare(b.name))
 ---
 
 <Layout
 	title="Frontman | Blog Tags"
 	description="Browse all blog post tags on the Frontman blog. Find articles by topic — AI coding, browser tools, frontend development, and more."
-	noindex={true}
 >
 	<Hero title="Tags" />
-	<BlogPosts data={allPosts} />
+	<Section id="tag-directory">
+		<Row>
+			<Col span="10" classes="lg:col-start-2">
+				<ul class="tag-directory" aria-label="Blog tags">
+					{tags.map((tag) => (
+						<li>
+							<a href={tag.href} class="tag-card">
+								<span class="tag-card__name">{tag.name}</span>
+								<span class="tag-card__count">
+									{tag.count === 1 ? '1 post' : `${tag.count} posts`}
+								</span>
+							</a>
+						</li>
+					))}
+				</ul>
+			</Col>
+		</Row>
+	</Section>
 </Layout>
+
+<style>
+	@reference "../../../styles/global.css";
+
+	.tag-directory {
+		@apply grid list-none gap-4 p-0 sm:grid-cols-2 lg:grid-cols-3;
+	}
+
+	.tag-card {
+		@apply flex h-full items-center justify-between gap-4 rounded-2xl border border-neutral-200 bg-white p-5 no-underline shadow-sm transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-primary-600;
+	}
+
+	.tag-card__name {
+		@apply text-lg font-semibold text-neutral-950 dark:text-white;
+	}
+
+	.tag-card__count {
+		@apply shrink-0 rounded-full bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700 dark:bg-primary-950/40 dark:text-primary-200;
+	}
+</style>

@@ -4,14 +4,13 @@ module CoreEditFile = Core.FrontmanCore__Tool__EditFile
 module EditFileWithLogCheck = Core.FrontmanCore__Tool__EditFileWithLogCheck
 
 let name = "edit_file"
-let visibleToAgent = true
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite
 let description = CoreEditFile.description
 
 type input = CoreEditFile.input
-type output = CoreEditFile.output
 
 let inputSchema = CoreEditFile.inputSchema
-let outputSchema = CoreEditFile.outputSchema
+let (visibleToAgent, outputJsonSchema) = (true, CoreEditFile.outputJsonSchema)
 
 let execute = async (ctx: Tool.serverExecutionContext, input: input): Tool.MCP.CallToolResult.t => {
   await EditFileWithLogCheck.execute(

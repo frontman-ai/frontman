@@ -1,6 +1,3 @@
-// Config
-// ------------
-// Description: The configuration file for the website.
 
 export interface Logo {
 	src: string

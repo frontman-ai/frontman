@@ -1,6 +1,6 @@
 /**
  * ThinkingIndicator - Minimal shimmer "Thinking" indicator
- * 
+ *
  * Shows a simple inline indicator while the AI is thinking.
  */
 type displayState = Hidden | Showing | FadingOut

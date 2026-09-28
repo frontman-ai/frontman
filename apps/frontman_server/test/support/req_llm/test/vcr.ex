@@ -295,13 +295,11 @@ defmodule ReqLLM.Test.VCR do
         model: model
       )
 
-    # Feed transcript events to server
     Task.async(fn ->
       Process.sleep(10)
       feed_transcript_to_server(server, transcript)
     end)
 
-    # Return stream from server
     Stream.resource(
       fn -> server end,
       fn server ->

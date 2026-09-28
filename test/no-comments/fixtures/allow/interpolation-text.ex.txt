@@ -1,0 +1,8 @@
+title = "#{bold("Recent #{length(tasks)}")}"
+heredoc = """
+#{format("Nested #{inspect(%{key: "value # literal"})}")}
+"""
+charlist = '#{bold("Recent #{length(tasks)}")}'
+regex = ~r/#{Regex.escape("https://frontman.sh/path#fragment")}/
+string_sigil = ~s|#{format("Nested #{length(tasks)}")}| <> ""
+opaque_sigil = ~S|#{not_interpolated("# still literal")}| <> ""

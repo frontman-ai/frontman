@@ -31,6 +31,7 @@ let checkDir = async (dir: string): option<t> => {
   }
 }
 
+@@live
 let detect = async (projectDir: string): t => {
   switch await checkDir(projectDir) {
   | Some(pm) => pm
@@ -56,6 +57,7 @@ let detect = async (projectDir: string): t => {
   }
 }
 
+@@live
 let command = (pm: t): string => {
   switch pm {
   | Npm => "npm"
@@ -66,6 +68,7 @@ let command = (pm: t): string => {
   }
 }
 
+@@live
 let devCommand = (pm: t): string => {
   switch pm {
   | Npm => "npm run dev"
@@ -76,6 +79,7 @@ let devCommand = (pm: t): string => {
   }
 }
 
+@@live
 let devInstallArgs = (pm: t): array<string> => {
   switch pm {
   | Npm => ["install", "-D"]
@@ -86,6 +90,7 @@ let devInstallArgs = (pm: t): array<string> => {
   }
 }
 
+@@live
 let npmPackages = (pm: t, packages: array<string>): array<string> => {
   switch pm {
   | Deno => packages->Array.map(packageName => "npm:" ++ packageName)

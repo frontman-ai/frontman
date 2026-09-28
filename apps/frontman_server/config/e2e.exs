@@ -1,9 +1,7 @@
 import Config
 
-# Mark environment for runtime checks
 config :frontman_server, env: :e2e
 
-# Configure your database
 config :frontman_server, FrontmanServer.Repo,
   username: "postgres",
   password: "postgres",
@@ -30,13 +28,10 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
   watchers: [],
   live_reload: false
 
-# Suppress debug-level noise in E2E (SQL queries, route errors, etc.)
 config :logger, level: :info
 
-# Keep dev routes available in E2E to match local development behavior.
 config :frontman_server, dev_routes: true
 
-# E2E seeds grant access locally; accidental Stripe requests must not reach the live API.
 config :frontman_server, :stripe,
   api_base_url: "http://127.0.0.1:1/v1",
   secret_key: "e2e-unused-key",
@@ -45,15 +40,16 @@ config :frontman_server, :stripe,
   yearly_price_id: "price_e2e_yearly",
   trial_days: 14
 
-# Include metadata and timestamps in logs.
+config :workos, WorkOS.Client,
+  api_key: "sk_test_workos_e2e",
+  client_id: "client_test_workos_e2e"
+
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
   metadata: [:request_id, :task_id, :pid, :reason, :user_id, :user_name]
 
-# Keep a higher stacktrace depth for easier local debugging.
 config :phoenix, :stacktrace_depth, 20
 
-# Initialize plugs at runtime for faster compilation.
 config :phoenix, :plug_init_mode, :runtime
 
 config :phoenix_live_view,
@@ -61,8 +57,6 @@ config :phoenix_live_view,
   debug_attributes: true,
   enable_expensive_runtime_checks: true
 
-# Disable swoosh api client as it is only required for production adapters.
 config :swoosh, :api_client, false
 
-# Placeholder Resend API key for E2E.
 config :frontman_server, FrontmanServer.Mailer, api_key: "re_dev_placeholder"

@@ -13,7 +13,7 @@ Shared protocol definitions and type schemas for communication between clients a
 ### MCP (Model Context Protocol)
 
 Types for AI agent communication:
-- `initialize` - Connection initialization
+- `server/discover` - Capability and version discovery
 - `tools/list` - List available tools
 - `tools/call` - Execute a tool
 

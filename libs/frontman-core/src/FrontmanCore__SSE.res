@@ -1,20 +1,15 @@
-// SSE (Server-Sent Events) response helpers
-
 module Protocol = FrontmanAiFrontmanProtocol
 module MCP = Protocol.FrontmanProtocol__MCP
 
-// Format SSE event
 let formatEvent = (~eventType: string, ~data: string): string => {
   `event: ${eventType}\ndata: ${data}\n\n`
 }
 
-// Send progress event
 let progressEvent = (~progress: string): string => {
   let data = `{"progress":${JSON.stringify(String(progress))}}`
   formatEvent(~eventType="progress", ~data)
 }
 
-// Send result event
 let resultEvent = (result: MCP.CallToolResult.t): string => {
   let data =
     result
@@ -23,16 +18,6 @@ let resultEvent = (result: MCP.CallToolResult.t): string => {
   formatEvent(~eventType="result", ~data)
 }
 
-// Send error event
-let errorEvent = (result: MCP.CallToolResult.t): string => {
-  let data =
-    result
-    ->S.decodeOrThrow(~from=MCP.callToolResultSchema, ~to=S.json->S.noValidation(true))
-    ->JSON.stringify
-  formatEvent(~eventType="error", ~data)
-}
-
-// Create SSE response headers
 let headers = () => {
   WebAPI.HeadersInit.fromDict(
     Dict.fromArray([

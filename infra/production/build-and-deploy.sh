@@ -1,27 +1,12 @@
 #!/usr/bin/env bash
-# =============================================================================
-# Frontman Build & Deploy Script (runs on production server)
-#
-# CI rsyncs the source code to /opt/frontman/build, then invokes this script.
-# It builds the Elixir release natively, then does a blue-green deploy.
-#
-# Usage: build-and-deploy.sh
-# =============================================================================
 set -euo pipefail
 
-# --- Configuration ---
-APP_NAME="frontman_server"
 DEPLOY_ROOT="/opt/frontman"
 BUILD_DIR="${DEPLOY_ROOT}/build"
-DOMAIN="api.frontman.sh"
-HEALTH_PATH="/health"
-HEALTH_TIMEOUT=30
-HEALTH_INTERVAL=2
-KEEP_RELEASES=3
-REBAR_URL="https://s3.amazonaws.com/rebar3/rebar3"
-REBAR_SHA512="0d00494d849fdc521a55142278d1f6ba552954fbd65b80d40df8022f594f05d6c99ed1d731bc263691a04176e11d4c6e126c56ba20dca19c5e42d4ffab2e7e36"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REBAR_URL="https://github.com/erlang/rebar3/releases/download/3.27.1/rebar3"
+REBAR_SHA512="cd9a88e42a1d804b9b01581ea24aacf4563f2746a2bf4900215331c36400fc8f1f19a8272632e83a2da3206e42f1f46425966d4dee51bf16f19538a0b5e0632a"
 
-# --- Activate mise ---
 export PATH="/home/deploy/.local/bin:${PATH}"
 if ! command -v mise >/dev/null 2>&1; then
   curl https://mise.run | sh
@@ -35,6 +20,8 @@ echo "=== Frontman Build & Deploy ==="
 echo "Build dir: ${BUILD_DIR}"
 echo ""
 
+bash "${BUILD_DIR}/infra/production/ensure-shared-discord-env.sh"
+
 ensure_elixir_build_tools() {
   echo "Installing Hex..."
   mix local.hex --force
@@ -47,9 +34,6 @@ ensure_elixir_build_tools() {
   rm -f "${REBAR_TMP}"
 }
 
-# =============================================================================
-# Phase 1: Build (Elixir only — no JS/ReScript needed for server)
-# =============================================================================
 cd "${BUILD_DIR}/apps/frontman_server"
 export MIX_ENV=prod
 
@@ -81,28 +65,10 @@ echo ""
 echo "=== Build Complete ==="
 echo ""
 
-# =============================================================================
-# Phase 2: Blue-Green Deploy
-# =============================================================================
+install -m 0755 "${BUILD_DIR}/infra/production/deploy.sh" "${DEPLOY_ROOT}/deploy.sh"
+install -m 0755 "${BUILD_DIR}/infra/production/rollback.sh" "${DEPLOY_ROOT}/rollback.sh"
+install -m 0755 "${BUILD_DIR}/infra/production/backup-pg.sh" "${DEPLOY_ROOT}/backup-pg.sh"
 
-# --- Determine active/inactive slots ---
-ACTIVE_SLOT=$(cat "${DEPLOY_ROOT}/active_slot" 2>/dev/null || echo "blue")
-
-if [ "${ACTIVE_SLOT}" = "blue" ]; then
-  INACTIVE_SLOT="green"
-  INACTIVE_PORT=4001
-else
-  INACTIVE_SLOT="blue"
-  INACTIVE_PORT=4000
-fi
-
-echo "Active slot:   ${ACTIVE_SLOT}"
-echo "Deploying to:  ${INACTIVE_SLOT} (port ${INACTIVE_PORT})"
-echo ""
-
-# --- Copy release to inactive slot ---
-TIMESTAMP=$(date +%Y%m%d%H%M%S)
-RELEASE_DIR="${DEPLOY_ROOT}/${INACTIVE_SLOT}/releases/${TIMESTAMP}"
 RELEASE_TAR="${BUILD_DIR}/apps/frontman_server/_build/prod/frontman_server-0.0.1.tar.gz"
 
 if [ ! -f "${RELEASE_TAR}" ]; then
@@ -110,98 +76,6 @@ if [ ! -f "${RELEASE_TAR}" ]; then
   exit 1
 fi
 
-echo ">>> Extracting release to ${RELEASE_DIR}..."
-mkdir -p "${RELEASE_DIR}"
-tar -xzf "${RELEASE_TAR}" -C "${RELEASE_DIR}"
-
-# --- Atomic symlink swap ---
-echo ">>> Swapping symlink to new release..."
-ln -sfn "${RELEASE_DIR}" "${DEPLOY_ROOT}/${INACTIVE_SLOT}/current.tmp"
-mv -T "${DEPLOY_ROOT}/${INACTIVE_SLOT}/current.tmp" "${DEPLOY_ROOT}/${INACTIVE_SLOT}/current"
-
-# --- Run database migrations ---
-echo ">>> Running database migrations..."
-set -a
-source "${DEPLOY_ROOT}/${INACTIVE_SLOT}/env"
-set +a
-"${DEPLOY_ROOT}/${INACTIVE_SLOT}/current/bin/migrate"
-echo "Migrations complete."
-
-# --- Restart inactive slot ---
-echo ">>> Starting ${INACTIVE_SLOT} slot..."
-sudo /bin/systemctl restart "frontman-${INACTIVE_SLOT}"
-
-# --- Health check loop ---
-echo ">>> Waiting for ${INACTIVE_SLOT} to become healthy (port ${INACTIVE_PORT})..."
-ELAPSED=0
-HEALTHY=false
-
-while [ "${ELAPSED}" -lt "${HEALTH_TIMEOUT}" ]; do
-  if curl -sf "http://localhost:${INACTIVE_PORT}${HEALTH_PATH}" > /dev/null 2>&1; then
-    HEALTHY=true
-    break
-  fi
-  sleep "${HEALTH_INTERVAL}"
-  ELAPSED=$((ELAPSED + HEALTH_INTERVAL))
-  echo "  Waiting... (${ELAPSED}s / ${HEALTH_TIMEOUT}s)"
-done
-
-if [ "${HEALTHY}" = false ]; then
-  echo ""
-  echo "FATAL: ${INACTIVE_SLOT} failed health check after ${HEALTH_TIMEOUT}s!"
-  echo "Stopping ${INACTIVE_SLOT}, keeping ${ACTIVE_SLOT} active."
-  echo ""
-  echo "Check logs: journalctl -u frontman-${INACTIVE_SLOT} -n 50"
-  sudo /bin/systemctl stop "frontman-${INACTIVE_SLOT}"
-  exit 1
-fi
-
-echo "${INACTIVE_SLOT} is healthy!"
 echo ""
-
-# --- Switch Caddy to new slot ---
-echo ">>> Switching Caddy to ${INACTIVE_SLOT} (port ${INACTIVE_PORT})..."
-cat > /tmp/Caddyfile.new <<EOF
-${DOMAIN} {
-    reverse_proxy localhost:${INACTIVE_PORT}
-}
-EOF
-cp /tmp/Caddyfile.new /etc/caddy/Caddyfile && rm /tmp/Caddyfile.new
-sudo /bin/systemctl reload caddy
-echo "Caddy reloaded. Traffic now routed to ${INACTIVE_SLOT}."
-
-# --- Update active slot marker + monitoring metric ---
-echo "${INACTIVE_SLOT}" > "${DEPLOY_ROOT}/active_slot"
-"${DEPLOY_ROOT}/monitoring/update-active-slot.sh" || true
-
-# --- Stop old slot (after brief drain period) ---
-echo ">>> Draining old slot (${ACTIVE_SLOT})..."
-sleep 5
-sudo /bin/systemctl stop "frontman-${ACTIVE_SLOT}" 2>/dev/null || true
-echo "Old slot stopped."
-
-# --- Clean up old releases (keep last N) ---
-echo ">>> Cleaning old releases..."
-for SLOT in blue green; do
-  RELEASES_DIR="${DEPLOY_ROOT}/${SLOT}/releases"
-  if [ -d "${RELEASES_DIR}" ]; then
-    RELEASES=$(find "${RELEASES_DIR}" -mindepth 1 -maxdepth 1 -type d | sort)
-    RELEASE_COUNT=$(echo "${RELEASES}" | grep -c . || true)
-    if [ "${RELEASE_COUNT}" -gt "${KEEP_RELEASES}" ]; then
-      REMOVE_COUNT=$((RELEASE_COUNT - KEEP_RELEASES))
-      CURRENT_TARGET=$(readlink -f "${DEPLOY_ROOT}/${SLOT}/current" 2>/dev/null || echo "")
-      echo "${RELEASES}" | head -n "${REMOVE_COUNT}" | while read -r OLD_RELEASE; do
-        if [ -n "${OLD_RELEASE}" ] && [ "${OLD_RELEASE}" != "${CURRENT_TARGET}" ]; then
-          echo "  Removing old release: ${OLD_RELEASE}"
-          rm -rf "${OLD_RELEASE}"
-        fi
-      done
-    fi
-  fi
-done
-
-echo ""
-echo "=== Deploy Complete ==="
-echo "Active slot: ${INACTIVE_SLOT} (port ${INACTIVE_PORT})"
-echo "Previous slot (${ACTIVE_SLOT}) stopped."
-echo ""
+echo "=== Starting Deploy ==="
+"${SCRIPT_DIR}/deploy.sh" "${RELEASE_TAR}"

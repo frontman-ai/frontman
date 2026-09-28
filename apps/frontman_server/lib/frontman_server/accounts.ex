@@ -13,7 +13,6 @@ defmodule FrontmanServer.Accounts do
     deps: [FrontmanServer, FrontmanServer.Organizations],
     exports: [Scope, User, WorkOS.AuthError]
 
-  import Ecto.Query, warn: false
   alias FrontmanServer.Repo
 
   alias FrontmanServer.Accounts.{Scope, User, UserNotifier, UserToken, WorkOS}
@@ -31,8 +30,6 @@ defmodule FrontmanServer.Accounts do
     |> scope_user()
     |> Map.fetch!(:id)
   end
-
-  ## Database getters
 
   @doc """
   Gets a user by email.
@@ -90,8 +87,6 @@ defmodule FrontmanServer.Accounts do
   Sends the welcome email for a user.
   """
   def deliver_welcome_email(%User{} = user), do: UserNotifier.deliver_welcome(user)
-
-  ## User registration
 
   @doc """
   Registers a user.
@@ -152,8 +147,7 @@ defmodule FrontmanServer.Accounts do
       with {:ok, query} <- UserToken.verify_change_email_token_query(token, context),
            %UserToken{sent_to: email} <- Repo.one(query),
            {:ok, user} <- Repo.update(User.email_changeset(user, %{email: email})),
-           {_count, _result} <-
-             Repo.delete_all(from(UserToken, where: [user_id: ^user.id, context: ^context])) do
+           {_count, _result} <- Repo.delete_all(UserToken.by_user_and_context(user.id, context)) do
         {:ok, user}
       else
         _ -> {:error, :transaction_aborted}
@@ -196,8 +190,6 @@ defmodule FrontmanServer.Accounts do
     |> update_user_and_delete_all_tokens()
   end
 
-  ## Session
-
   @doc """
   Generates a session token.
   """
@@ -215,6 +207,66 @@ defmodule FrontmanServer.Accounts do
   def get_user_by_session_token(token) do
     {:ok, query} = UserToken.verify_session_token_query(token)
     Repo.one(query)
+  end
+
+  @doc """
+  Generates an embedded client bearer token for an approved origin.
+
+  The returned raw token is shown once. Only its hash is stored.
+  """
+  def generate_embedded_client_token(%User{} = user, approved_origin)
+      when is_binary(approved_origin) do
+    {token, user_token} = UserToken.build_embedded_client_token(user, approved_origin)
+    Repo.insert!(user_token)
+    token
+  end
+
+  @doc """
+  Gets the scope and token id for a valid embedded client bearer token issued for the origin.
+  """
+  def get_scope_by_embedded_client_token(token, approved_origin)
+      when is_binary(token) and is_binary(approved_origin) do
+    with {:ok, query} <- UserToken.verify_embedded_client_token_query(token, approved_origin),
+         {%User{} = user, %UserToken{id: token_id}} <- Repo.one(query) do
+      {Scope.for_user(user), token_id}
+    else
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Updates the last-used timestamp for one of the current user's embedded client tokens.
+  """
+  def touch_embedded_client_token(%Scope{} = scope, token_id) when is_binary(token_id) do
+    scope
+    |> scope_user_id()
+    |> then(&UserToken.by_embedded_client_id_and_user(token_id, &1))
+    |> Repo.update_all(set: [last_used_at: DateTime.utc_now(:second)])
+
+    :ok
+  end
+
+  @doc """
+  Revokes one of the current user's embedded client tokens.
+  """
+  def delete_embedded_client_token(%Scope{} = scope, token_id) when is_binary(token_id) do
+    scope
+    |> scope_user_id()
+    |> then(&UserToken.by_embedded_client_id_and_user(token_id, &1))
+    |> Repo.delete_all()
+
+    :ok
+  end
+
+  @doc """
+  Revokes all embedded client tokens for the given user.
+  """
+  def delete_all_embedded_client_tokens(%User{} = user) do
+    user.id
+    |> UserToken.by_embedded_client_user()
+    |> Repo.delete_all()
+
+    :ok
   end
 
   @doc """
@@ -251,7 +303,6 @@ defmodule FrontmanServer.Accounts do
     {:ok, query} = UserToken.verify_magic_link_token_query(token)
 
     case Repo.one(query) do
-      # Prevent session fixation attacks by disallowing magic links for unconfirmed users with password
       {%User{confirmed_at: nil, hashed_password: hash}, _token} when not is_nil(hash) ->
         raise """
         magic link log in is not allowed for unconfirmed users with a password set!
@@ -306,25 +357,27 @@ defmodule FrontmanServer.Accounts do
   Deletes the signed token with the given context.
   """
   def delete_user_session_token(token) do
-    Repo.delete_all(from(UserToken, where: [token: ^token, context: "session"]))
+    token
+    |> UserToken.by_token_and_context("session")
+    |> Repo.delete_all()
+
     :ok
   end
-
-  ## Token helper
 
   defp update_user_and_delete_all_tokens(changeset) do
     Repo.transact(fn ->
       with {:ok, user} <- Repo.update(changeset) do
         tokens_to_expire = Repo.all_by(UserToken, user_id: user.id)
 
-        Repo.delete_all(from(t in UserToken, where: t.id in ^Enum.map(tokens_to_expire, & &1.id)))
+        tokens_to_expire
+        |> Enum.map(& &1.id)
+        |> UserToken.by_ids()
+        |> Repo.delete_all()
 
         {:ok, {user, tokens_to_expire}}
       end
     end)
   end
-
-  ## OAuth
 
   defdelegate get_oauth_authorization_url(provider, redirect_uri, state \\ nil),
     to: WorkOS,

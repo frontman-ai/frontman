@@ -1,0 +1,3 @@
+example.test {
+	reverse_proxy localhost:4000 # server
+}

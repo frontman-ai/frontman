@@ -1,0 +1,4 @@
+<template><!-- template --><p>Hello</p></template>
+<script setup lang="ts">const value = 1 // script
+</script>
+<style>.thing { /* css */ color: red; }</style>

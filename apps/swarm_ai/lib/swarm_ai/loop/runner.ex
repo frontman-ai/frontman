@@ -37,8 +37,6 @@ defmodule SwarmAi.Loop.Runner do
   def handle_llm_response(%Loop{status: :running} = loop, %LLM.Response{} = response) do
     cond do
       truncated_tool_calls?(response) ->
-        # Model hit max_tokens mid-tool-use — tool call JSON is truncated.
-        # Fail immediately rather than executing a malformed tool call.
         handle_truncation_error(loop)
 
       LLM.Response.has_tool_calls?(response) ->
@@ -135,7 +133,6 @@ defmodule SwarmAi.Loop.Runner do
     new_step = Loop.Step.new(length(steps) + 1, messages)
     loop = %{loop | status: :running, steps: steps ++ [new_step], current_step: new_step.number}
 
-    # Emit step_ended before starting the new LLM call
     {loop, [Effect.step_ended(completed_step), Effect.call_llm(llm, messages)]}
   end
 

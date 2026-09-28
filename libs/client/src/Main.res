@@ -13,11 +13,11 @@ FrontmanLogs.Logs.addHandler(FrontmanAiFrontmanClient.FrontmanClient__Sentry__Lo
 Client__Heap.init()
 
 @val external importMetaUrl: string = "import.meta.url"
+external asReactElement: WebAPI.DomTypes.element => Dom.element = "%identity"
 
 type clientConfig = {
   clientName: string,
   endpoint: string,
-  tokenUrl: string,
   loginUrl: string,
   apiBaseUrl: string,
 }
@@ -27,7 +27,7 @@ let getConfig = (): clientConfig => {
   let params = url.searchParams
   let get = name =>
     if params->WebAPI.URLSearchParams.has(~name) {
-      Some(params->WebAPI.URLSearchParams.get(name))
+      params->WebAPI.URLSearchParams.get(name)->Null.toOption
     } else {
       None
     }
@@ -38,28 +38,29 @@ let getConfig = (): clientConfig => {
   {
     clientName: get("clientName")->Option.getOr("unknown"),
     endpoint: `wss://${host}/socket`,
-    tokenUrl: `https://${host}/api/socket-token`,
     loginUrl: `https://${host}/users/log-in`,
     apiBaseUrl: `https://${host}`,
   }
 }
 
-WebAPI.Global.document->WebAPI.Document.addEventListener(Custom("DOMContentLoaded"), _event => {
-  let rootElement = WebAPI.Global.document->WebAPI.Document.querySelector("#root")
-  // Task is now created when session is established (in Connect action handler)
-  // to ensure task ID matches sessionId for proper update routing
+WebAPI.Window.current
+->WebAPI.Window.document
+->WebAPI.Document.addEventListener(Custom("DOMContentLoaded"), _event => {
+  let rootElement =
+    WebAPI.Window.current->WebAPI.Window.document->WebAPI.Document.querySelector("#root")
 
   switch rootElement->Null.toOption {
   | Some(rootElement) =>
-    let root = ReactDOM.Client.createRoot(rootElement->WebAPI.Element.asRescriptElement)
+    let root = ReactDOM.Client.createRoot(rootElement->asReactElement)
     let config = getConfig()
+    Client__State.Actions.fetchUserProfile(~apiBaseUrl=config.apiBaseUrl)
     root->ReactDOM.Client.Root.render(
       <React.StrictMode>
         <Client__FrontmanProvider.Provider
           clientName={config.clientName}
           endpoint={config.endpoint}
-          tokenUrl={config.tokenUrl}
           loginUrl={config.loginUrl}
+          apiBaseUrl={config.apiBaseUrl}
         >
           <Client__App apiBaseUrl={config.apiBaseUrl} />
         </Client__FrontmanProvider.Provider>

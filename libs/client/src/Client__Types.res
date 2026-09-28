@@ -1,5 +1,3 @@
-// Type definitions for ChatMessages and related components
-
 module SourceLocation = {
   type rec t = {
     componentName: option<string>,

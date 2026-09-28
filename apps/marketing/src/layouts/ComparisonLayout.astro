@@ -1,8 +1,4 @@
 ---
-// ComparisonLayout
-// ----------------
-// Shared layout for /vs/ comparison pages.
-// Composes all comparison components and accepts named slots for per-page prose.
 
 import Layout from './Layout.astro'
 import ComparisonHero from '../components/blocks/comparison/ComparisonHero.astro'
@@ -46,7 +42,17 @@ type FAQ = {
   answer: string
 }
 
-export type { ComparisonFeature, Alternative, CompetitorInfo, SEOInfo, FAQ }
+type ComparisonSource = {
+  label: string
+  url: string
+}
+
+type ComparisonReview = {
+  checkedAt: string
+  sources: ComparisonSource[]
+}
+
+export type { ComparisonFeature, Alternative, CompetitorInfo, SEOInfo, FAQ, ComparisonReview, ComparisonSource }
 
 type Props = {
   seo: SEOInfo
@@ -55,6 +61,7 @@ type Props = {
   heroSubtitle: string
   features: ComparisonFeature[]
   faqs: FAQ[]
+  review: ComparisonReview
   alternatives?: Alternative[]
   showArchitectureDiagram?: boolean
   showAlternatives?: boolean
@@ -72,11 +79,20 @@ const {
   heroSubtitle,
   features,
   faqs,
+  review,
   alternatives = [],
   showArchitectureDiagram,
   showAlternatives = true,
   frontmanPricing,
 } = Astro.props
+
+if (!/^\d{4}-\d{2}-\d{2}$/.test(review.checkedAt)) {
+  throw new Error(`Invalid comparison checkedAt date: ${review.checkedAt}`)
+}
+
+if (review.sources.length === 0) {
+  throw new Error(`Comparison for ${competitor.name} requires at least one source`)
+}
 
 const shouldShowArchitectureDiagram =
 	showArchitectureDiagram === undefined
@@ -97,6 +113,7 @@ const comparisonBreadcrumbs = [
     competitor={{ name: competitor.name, url: competitor.url, category: competitor.category, description: competitor.description, pricing: { cost: competitor.pricing.cost, model: competitor.pricing.model } }}
     faqs={faqs}
     seo={seo}
+    checkedAt={review.checkedAt}
   />
 
   <nav aria-label="Breadcrumb" class="mx-auto mt-28 flex w-full max-w-[900px] px-6 text-sm text-zinc-300 max-md:mt-24">
@@ -109,43 +126,35 @@ const comparisonBreadcrumbs = [
     </ol>
   </nav>
 
-  <!-- Hero -->
   <ComparisonHero title={heroTitle} subtitle={heroSubtitle}>
     <slot name="hero-summary" />
-    <ComparisonDisclosure competitor={competitor.name} />
+    <ComparisonDisclosure competitor={competitor.name} checkedAt={review.checkedAt} sources={review.sources} />
   </ComparisonHero>
 
-  <!-- Architecture Diagram -->
   {shouldShowArchitectureDiagram && (
     <ComparisonArchitectureDiagram competitorName={competitor.name}>
       <slot name="architecture-diagram" />
     </ComparisonArchitectureDiagram>
   )}
 
-  <!-- Feature Comparison Table -->
   <ComparisonFeatureTable competitorName={competitor.name} features={features} />
 
-  <!-- What [Competitor] Does Well -->
   <ComparisonContentSection title={`What ${competitor.name} Does Well`} variant="light">
     <slot name="competitor-strengths" />
   </ComparisonContentSection>
 
-  <!-- Where Frontman Is Different -->
   <ComparisonContentSection title="Where Frontman Is Different">
     <slot name="frontman-differentiators" />
   </ComparisonContentSection>
 
-  <!-- Who Should Use [Competitor] -->
   <ComparisonContentSection title={`Who Should Use ${competitor.name}`} variant="light">
     <slot name="who-should-use-competitor" />
   </ComparisonContentSection>
 
-  <!-- Who Should Use Frontman -->
   <ComparisonContentSection title="Who Should Use Frontman">
     <slot name="who-should-use-frontman" />
   </ComparisonContentSection>
 
-  <!-- Pricing -->
   <ComparisonPricing
     competitorName={competitor.name}
     competitorCost={competitor.pricing.cost}
@@ -156,17 +165,13 @@ const comparisonBreadcrumbs = [
     frontmanFeatures={frontmanPricing?.features}
   />
 
-  <!-- Alternatives -->
   {shouldShowAlternatives && (
     <ComparisonAlternatives competitorName={competitor.name} alternatives={alternatives} />
   )}
 
-  <!-- FAQ -->
   <ComparisonFAQ faqs={faqs} />
 
-  <!-- Optional post-FAQ section -->
   {Astro.slots.has('post-faq') && <slot name="post-faq" />}
 
-  <!-- CTA -->
   {Astro.slots.has('cta') ? <slot name="cta" /> : <ComparisonCTA />}
 </Layout>

@@ -12,8 +12,8 @@ defmodule SwarmAi.Testing do
       test "runs loop", %{echo_execution: loop} do
         runtime = MyRuntime
         start_supervised!({SwarmAi, name: runtime})
-        loop = %{loop | task_id: "task", messages: [SwarmAi.Message.user("Hello")]}
-        {:ok, pid} = SwarmAi.run(runtime, loop)
+        loop = %{loop | messages: [SwarmAi.Message.user("Hello")]}
+        {:ok, pid} = SwarmAi.run(runtime, "example", loop)
         assert is_pid(pid)
       end
 
@@ -162,7 +162,6 @@ defmodule SwarmAi.Testing do
 
   defimpl SwarmAi.LLM, for: SwarmAi.Testing.StreamErrorLLM do
     def stream(%{error_message: message}, _messages, _opts) do
-      # Return a lazy stream that raises when consumed.
       error_stream =
         Stream.resource(
           fn -> :init end,
@@ -196,7 +195,6 @@ defmodule SwarmAi.Testing do
               {[StreamChunk.text("chunk-#{count}")], count + 1}
 
             _count ->
-              # Hang forever to simulate a stalled provider.
               Process.sleep(:infinity)
               {:halt, nil}
           end,
@@ -296,23 +294,13 @@ defmodule SwarmAi.Testing do
   @spec test_execution(SwarmAi.LLM.t(), String.t(), keyword()) :: SwarmAi.Loop.t()
   def test_execution(llm, name \\ "TestBot", opts \\ []) do
     defaults = [
-      task_id: "task-#{:erlang.unique_integer([:positive])}",
-      turn_number: 1,
       llm: llm,
       messages: [SwarmAi.Message.system("You are #{name}"), SwarmAi.Message.user("Hello")],
       execute_tools: default_execute_tools(),
       dispatch_event: fn _event -> :ok end
     ]
 
-    attrs =
-      defaults
-      |> Keyword.merge(opts)
-      |> Keyword.new(fn
-        {:id, id} -> {:task_id, id}
-        entry -> entry
-      end)
-
-    SwarmAi.Loop.new(Map.new(attrs))
+    SwarmAi.Loop.new(Map.new(Keyword.merge(defaults, opts)))
   end
 
   @doc false
@@ -324,9 +312,8 @@ defmodule SwarmAi.Testing do
           %SwarmAi.ToolExecution.Sync{
             tool_call: tc,
             timeout_ms: 5_000,
-            on_timeout_policy: :error,
             run: {__MODULE__, :default_tool_run, []},
-            on_timeout: {__MODULE__, :default_tool_timeout, []}
+            on_error: {__MODULE__, :default_tool_error, []}
           }
         end)
 
@@ -339,8 +326,13 @@ defmodule SwarmAi.Testing do
   def default_tool_run(tool_call), do: SwarmAi.ToolResult.make(tool_call.id, "done", false)
 
   @doc false
-  @spec default_tool_timeout(SwarmAi.ToolCall.t(), term()) :: :ok
-  def default_tool_timeout(_tool_call, _reason), do: :ok
+  @spec default_tool_error(:timeout | {:crashed, term()}, SwarmAi.ToolCall.t()) ::
+          SwarmAi.ToolResult.t()
+  def default_tool_error(:timeout, tool_call),
+    do: SwarmAi.ToolResult.make(tool_call.id, "Tool timed out", true)
+
+  def default_tool_error({:crashed, reason}, tool_call),
+    do: SwarmAi.ToolResult.make(tool_call.id, "Tool crashed: #{inspect(reason)}", true)
 
   @doc """
   Creates a mock LLM with the given response.

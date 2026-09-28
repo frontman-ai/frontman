@@ -1,8 +1,6 @@
-open WebAPI.ServiceWorkerAPI
+let self = ServiceWorkerScope.current
 
-external self: serviceWorkerGlobalScope = "self"
-
-self->ServiceWorkerGlobalScope.addEventListener(EventAPI.Push, (event: PushAPI.pushEvent) => {
+self->ServiceWorkerScope.addEventListener(EventTypes.Push, (event: PushEvent.t) => {
   Console.log("received push event")
 
   // Extract data
@@ -16,7 +14,7 @@ self->ServiceWorkerGlobalScope.addEventListener(EventAPI.Push, (event: PushAPI.p
   }
 
   // Handle some data sync
-  event->PushEvent.waitUntil(self->ServiceWorkerGlobalScope.fetch("https://rescript-lang.org"))
+  event->PushEvent.waitUntil(self->ServiceWorkerScope.fetch("https://rescript-lang.org"))
 
   // Show notification
   self.registration
@@ -34,8 +32,8 @@ self->ServiceWorkerGlobalScope.addEventListener(EventAPI.Push, (event: PushAPI.p
   ->Promise.ignore
 })
 
-self->ServiceWorkerGlobalScope.addEventListener(EventAPI.NotificationClick, (
-  event: NotificationAPI.notificationEvent,
+self->ServiceWorkerScope.addEventListener(EventTypes.NotificationClick, (
+  event: Notification.notificationEvent,
 ) => {
   Console.log(`notification clicked: ${event.action}`)
   // Close the notification

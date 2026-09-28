@@ -1,16 +1,11 @@
 ---
-// Components
-// - Layout
 import Layout from '../layouts/Layout.astro'
-// - UI
 import SimpleFeed from '../components/blocks/feeds/BasicFeed.astro'
 import CTA from '../components/blocks/CTA/FinalCTA.astro'
 
-// Data
 import { parseChangelog } from '../utils/parseChangelog'
 const feedData = parseChangelog()
 
-// Content
 const SEO = {
 	title: 'Changelog | Frontman',
 	description:

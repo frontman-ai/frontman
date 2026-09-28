@@ -1,31 +1,11 @@
 ---
-// Pricing table
-// ------------
-// Description: The pricing table component allows users to get an overview of what pricing plans are offered and how they differ, on a product or service.
-// Properties:
-// - Title: the title of the pricing plan
-// - Subtitle: the subtitle of the pricing plan
-// - Currency: the currency of the pricing plan
-// - Price: the anual (default)price of the pricing plan
-// - PriceLabel: the label of the anual price
-// - PriceMontly: the monthly price of the pricing plan
-// - PriceLabelMontly: the monthly label
-// - ButtonName: the name of the button
-// - ButtonLink: the link of the button
-// - Type: the type of the pricing plan (basic, featured)
-// - classes: additional classes
-// Reference: https://wind-ui.com/components/pricing/
 
-// Components
-// - UI
 import Button from '../Button.astro'
 import List from '../List.astro'
-// -- Partials
 import Header from './partials/Header.astro'
 import Body from './partials/Body.astro'
 import Footer from './partials/Footer.astro'
 
-// Props
 type PricingTableProps = {
 	type:'basic' | 'featured'
 	header: {

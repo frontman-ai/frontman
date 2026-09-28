@@ -1,10 +1,5 @@
 ---
-// Comparison Table Section
-// ------------
-// Description: Feature comparison table showing Frontman vs competitors
 
-// Components
-// - Layout
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
 
@@ -48,7 +43,7 @@ const features: Feature[] = [
 		copilot: 'partial'
 	},
 	{
-		name: 'Open source',
+		name: 'Source-available',
 		frontman: 'yes',
 		claudeDesktop: 'no',
 		cursor: 'no',
@@ -108,7 +103,6 @@ function toolKey(tool: string): keyof Feature {
 			</Col>
 		</Row>
 
-		<!-- Desktop table (hidden on mobile) -->
 		<div class="table-wrapper" id="comparison-table">
 			<table class="comparison-table">
 				<caption class="sr-only">Feature comparison across Frontman, Claude Desktop, Cursor, and Copilot</caption>
@@ -159,7 +153,6 @@ function toolKey(tool: string): keyof Feature {
 			</table>
 		</div>
 
-		<!-- Mobile cards (hidden on desktop) -->
 		<div class="mobile-cards" id="comparison-cards">
 			{features.map((feature) => (
 				<div class="mobile-card">
@@ -197,7 +190,6 @@ function toolKey(tool: string): keyof Feature {
 			))}
 		</div>
 
-		<!-- Detailed comparison links -->
 		<Row>
 			<Col span="12" align="center" classes="mt-10 lg:mt-14">
 				<div class="comparison-links">
@@ -235,7 +227,6 @@ function toolKey(tool: string): keyof Feature {
 		color: rgba(255, 255, 255, 0.6);
 	}
 
-	/* Desktop table — visible by default for crawlers that don't run JS */
 	.table-wrapper {
 		@apply hidden md:block;
 	}
@@ -312,7 +303,6 @@ function toolKey(tool: string): keyof Feature {
 		color: #f59e0b;
 	}
 
-	/* Mobile cards — visible by default for crawlers that don't run JS */
 	.mobile-cards {
 		@apply flex flex-col gap-4 md:hidden;
 	}
@@ -365,7 +355,6 @@ function toolKey(tool: string): keyof Feature {
 		font-weight: 600;
 	}
 
-	/* Comparison links */
 	.comparison-links {
 		@apply flex flex-wrap items-center justify-center gap-6;
 	}
@@ -383,7 +372,6 @@ function toolKey(tool: string): keyof Feature {
 		text-underline-offset: 3px;
 	}
 
-	/* Responsive */
 	@media (max-width: 640px) {
 		.comparison-section {
 			padding-top: 2rem;
@@ -408,7 +396,6 @@ function toolKey(tool: string): keyof Feature {
 
 		if (targets.length === 0) return
 
-		// Add animate class via JS so content stays visible for non-JS crawlers
 		targets.forEach((el) => el.classList.add('animate'))
 
 		const observer = new IntersectionObserver(

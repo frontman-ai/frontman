@@ -1,11 +1,7 @@
-// CLI entry point for @frontman-ai/vite
-// Usage: npx @frontman-ai/vite install --server <host>
-
 module Process = FrontmanBindings.Process
 module Hosts = FrontmanAiFrontmanCore.FrontmanCore__Hosts
 module Install = FrontmanVite__Cli__Install
 
-// Parse command line arguments
 type parsedArgs = {
   command: option<string>,
   server: option<string>,
@@ -37,7 +33,6 @@ Examples:
   npx @frontman-ai/vite install --dry-run
 `
 
-// Simple argument parser
 let parseArgs = (argv: array<string>): parsedArgs => {
   let args = argv->Array.slice(~start=2, ~end=Array.length(argv))
 
@@ -78,7 +73,6 @@ let parseArgs = (argv: array<string>): parsedArgs => {
   )
 }
 
-// Main entry point
 let main = async () => {
   let args = parseArgs(Process.argv)
 
@@ -116,5 +110,4 @@ let main = async () => {
   }
 }
 
-// Run main
 main()->ignore

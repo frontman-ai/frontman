@@ -1,75 +1,111 @@
 ---
 title: 'Design System Collaboration Without Tickets'
 pubDate: 2026-02-16T05:00:00Z
-description: 'You built the system. You maintain it across teams. But every token tweak still routes through a developer. Frontman changes that.'
+description: 'A design-system governance model for classifying local and shared changes, assigning accountable owners, and escalating changes with broad impact.'
 author: 'Danni Friedland'
+articleSection: 'Problem Diagnosis'
 image: '/blog/team-collaboration-cover.png'
+imageAlt: 'Design system collaboration without tickets cover'
 tags: ['collaboration', 'workflow', 'design-systems']
-updatedDate: 2026-03-20T00:00:00Z
+updatedDate: 2026-07-30T00:00:00Z
 ---
 
-You spent months building your design system. Tokens, components, spacing scales, the whole thing. Two product teams use it now. It works. Mostly.
+Design-system collaboration fails when ownership is implicit. A designer may own visual intent, a product manager may own content, and an engineer may own implementation, but nobody knows who decides whether a token change is local or system-wide.
 
-Then someone on the growth team notices the card component has 24px padding and it should be 16px to match the updated token. Here is what happens next:
+Removing a ticket does not resolve that ambiguity. It only makes a faster path to an unclear decision.
 
-1. You file a ticket: "Update card padding to match spacing-4 token"
-2. It sits in the backlog. The engineers are shipping the new onboarding flow
-3. Two days later a developer picks it up, asks which card variant you mean
-4. You send a Figma link and a screenshot with a red circle
-5. The developer makes the change, opens a PR
-6. You review it — close, but they used a hardcoded value instead of the token
-7. Another round. Another day
-8. Merged. Four days for a token alignment
+**Quick answer:** define who may propose each change, who is accountable for its outcome, who must be consulted, and who approves the source diff. Use one review process for ticket-originated, engineer-authored, and tool-assisted changes.
 
-Four days. For a change you could describe in one sentence. Not because the developers are slow — they are doing real work. Your design system update just cannot compete with the onboarding deadline.
+## Classify the Change Before Assigning It
 
-This is the part that stings: you _own_ this system. You know exactly what the change should be. But you cannot make it yourself, because only developers can touch the code.
+Design-system work falls into different risk classes:
 
-### The Real Cost
+| Change class              | Example                                       | Default owner                  |
+| ------------------------- | --------------------------------------------- | ------------------------------ |
+| Content instance          | Label on one page                             | Product owner                  |
+| Component instance        | Existing `size` or `variant` prop             | Product team                   |
+| Token usage correction    | Replace arbitrary spacing with approved token | Design-system owner            |
+| Shared component behavior | Change default padding for every card         | Component code owner           |
+| New token or variant      | Add a new semantic color or button state      | Design-system governance group |
+| Application logic         | Change state, data, permissions, or routing   | Engineering owner              |
 
-You have felt this. Every designer and PM at a growing startup has. The system drifts. Not because anyone decided to let it drift, but because the queue of trivial visual fixes never reaches the top of the sprint. There is always something more urgent.
+The key distinction is blast radius. A local instance correction and a shared default change may look identical in one browser view but require different reviewers.
 
-So the card padding stays wrong for three weeks. Then another team copies that card into a new feature. Now the wrong padding is in two places. Then someone notices the button tokens are stale too. The system you built to create consistency is _losing_ consistency because you cannot maintain it at the speed it needs.
+## A Lightweight RACI
 
-The problem is not tooling. The problem is access. The people who care most about the design system — who built it, who maintain it, who notice when it drifts — are locked out of the one place where it actually lives: the code.
+RACI means Responsible, Accountable, Consulted, and Informed. Use it to prevent review from becoming a group decision with no clear owner.
 
-### What It Looks Like When You Can Just Fix It
+| Activity                        | Designer / system owner | Product manager | Product engineer | Code owner |
+| ------------------------------- | ----------------------- | --------------- | ---------------- | ---------- |
+| Define visual standard          | A/R                     | C               | C                | I          |
+| Define page-specific content    | C                       | A/R             | I                | I          |
+| Propose local visual correction | R                       | C               | C                | A          |
+| Assess shared-component impact  | C                       | I               | R                | A          |
+| Run implementation checks       | I                       | I               | R                | A          |
+| Approve source change           | C                       | C               | R                | A          |
+| Approve release                 | I                       | I               | R                | A          |
 
-With Frontman, you open the app in your browser. You click the card. You type: "Use spacing-4 token for padding." Frontman edits the source file and hot-reloads. You see the result. If it looks right, you commit. The engineer reviews a clean one-line diff in the PR.
+This table is a starting point. A team with dedicated accessibility, content-design, security, or release roles should add them where their approval is required.
 
-Five minutes. No ticket. No waiting for sprint capacity. The engineer still reviews the code — nothing ships without their sign-off. But they review a _finished change_ instead of spending three days playing telephone about which card variant you meant. This [framework-aware AI approach](/blog/ai-coding-agents-blind-to-ui/) means the tool sees what you see.
+Two rules keep the model useful:
 
-Your PM can do this too. That CTA copy that has said "Get Started" since launch even though you repositioned the product two months ago? They open the page, click the button, type the new copy, commit. Done before the next standup.
+1. Give each activity one accountable owner.
+2. Do not make the change author its only approver.
 
-### How This Works at Your Scale
+## Govern the Design-System Decision
 
-You have two, maybe three product teams now. You are past the stage where one designer and one developer sit next to each other and just talk. But you are not so big that you need a platform team or a formal RFC process for spacing changes. You are in the middle — big enough that coordination hurts, small enough that adding process feels wrong.
+This article governs classification, ownership, and escalation for design-system work. It does not define a second approval process. Once a change has an owner and scope, use [How Teams Review UI Changes From Non-Engineers](/blog/review-ui-changes-from-non-engineers/) as the canonical branch, evidence, CI, and approval workflow regardless of who authored it.
 
-Frontman fits this stage. Here is what each role gets:
+Before implementation, the accountable owner determines blast radius:
 
-- **You (design)** maintain the system directly. Token updates, spacing fixes, component tweaks — you make them in the browser, describe what you want, and commit. No IDE. No file paths. No asking someone else to translate your Figma redlines into code.
-- **Your PM** fixes copy, updates CTAs, and adjusts content without filing tickets. The landing page actually reflects the positioning you agreed on last week, not the positioning from three sprints ago.
-- **Your engineers** review PRs instead of making trivial visual changes. They focus on the onboarding flow, the API integration, the performance work — the problems that actually need engineering judgment.
+- Is selected element an instance or shared component?
+- Does existing token or variant already express intended design?
+- Which usages may change?
+- Does request touch logic, accessibility behavior, or data?
 
-Every change still goes through code review. Every change is a standard Git diff. Your branch protection rules apply. Nothing bypasses the process — only the routing changes.
+Shared defaults, new variants, and uncertain impact move to engineer-led work. A visual editing tool does not remove that escalation path.
 
-### The Objections You Are Already Thinking
+Design-system governance contributes decisions that general review cannot infer: whether existing standard already covers request, whether change belongs at instance or shared layer, and which consumers form blast radius. Record those decisions with proposal so reviewers can evaluate implementation against intended system rule.
 
-**"What if someone breaks something?"**
-Every change is a Git commit on a branch. It goes through the same PR process as engineering work. If the diff is bad, it does not get merged. Frontman shows you the result via hot-reload before you commit — if the layout breaks, you see it immediately and undo it. The code review gate catches everything else.
+## Example Decision Path
 
-**"We tried giving non-devs access to the repo before."**
-Giving people VS Code access is not the same thing. Frontman [differs from general-purpose agents](/blog/what-are-browser-aware-ai-coding-tools/) - it's a constrained tool. You click an element, describe a change in plain English, and Frontman edits the source file. You cannot accidentally refactor the state management. You can update the padding. That is the right level of access for the right people.
+This example is illustrative.
 
-**"Our engineers will push back on this."**
-Show them their PR queue. Count the tickets that say "update spacing," "fix typo," "change button color." Ask them if those are the problems they want to spend their week on. Every designer-authored PR is a PR the engineer did not have to write. They still review it — they just did not have to context-switch to create it.
+A reviewer sees `24px` padding on one card where system guidance specifies `spacing-4`.
 
-### What Changes
+1. Designer identifies mismatch and links rule.
+2. Author determines whether value lives on page instance or shared card component.
+3. If local, author proposes token replacement and captures relevant viewports.
+4. If shared, code owner checks all usages before deciding whether default should change.
+5. CI validates code; design reviews rendered result; code owner approves or requests revision.
 
-Right now your design system is a shared asset that only one discipline can touch. That constraint made sense when the codebase was new and the team was three people. It does not make sense now — and understanding [how Frontman actually sees the browser](/blog/frontman-launch/) shows why. You have a real system, real tokens, real components — and the people who built them should be able to maintain them.
+No elapsed-time promise is implied. Shared impact can make a visually small request technically substantial.
 
-Move the visual maintenance to the people who own it. Your engineers get their sprint capacity back. Your design system stays consistent across teams. Your PM stops waiting three days to fix a typo. Nobody is blocked on anyone else for changes that take thirty seconds to make and thirty seconds to review.
+## Use Tickets for Coordination, Not Translation
 
-That is not a workflow hack. That is your team actually working the way it already should.
+"Without tickets" should mean that a ticket is not mandatory when author can produce a complete, reviewable change. Tickets remain useful for prioritization, cross-team dependencies, risky migrations, and work that cannot proceed immediately.
 
-[Try Frontman](https://frontman.sh) — [one install command](/blog/getting-started/), works with your existing project. Read about [how Frontman keeps every change safe and reviewable](/blog/security/).
+Avoid two extremes:
+
+- Requiring engineering to translate every visual observation into code
+- Letting tool-assisted changes bypass ownership and review
+
+Pull requests can become intake artifact for narrow changes because they combine intent, implementation, evidence, and approval in one place. Larger changes still benefit from an issue or design proposal before code exists.
+
+## Operating Rules
+
+Adopt concise rules:
+
+1. Classify local versus shared impact before editing.
+2. Keep one accountable owner per decision.
+3. Require code-owner approval for shared components and tokens.
+4. Require visual evidence for visual changes.
+5. Keep auth, data, billing, permissions, and infrastructure engineer-owned.
+6. Use same CI and branch protection regardless of author.
+7. Escalate uncertain scope instead of guessing.
+
+This model makes collaboration explicit. Designers own standards. Product managers own product intent. Engineers own technical integrity. Code owners control shared-system changes. Tools can reduce translation work, but responsibility stays with people.
+
+For PM self-service eligibility and rollout, read [How PMs Can Edit a Website Without Developers](/blog/edit-website-without-developer/). For approval, use the canonical [review workflow for UI changes from non-engineers](/blog/review-ui-changes-from-non-engineers/).
+
+[Try Frontman](https://frontman.sh) for browser-to-source editing inside this review model, and read the [security boundaries](/blog/security/) before team rollout.

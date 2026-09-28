@@ -1,5 +1,3 @@
-// Tests for shared case-insensitive filename pattern matching.
-
 open Vitest
 
 module FilenamePattern = FrontmanCore__FilenamePattern

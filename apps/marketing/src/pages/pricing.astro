@@ -150,16 +150,22 @@ const pricingJsonLd = {
 			url: 'https://frontman.sh/pricing/'
 		},
 		{
-			'@type': 'OfferCatalog',
-			name: 'Frontman Pro pricing',
+			'@type': 'Service',
+			name: 'Frontman Pro',
+			serviceType: 'AI frontend editing subscription',
+			provider: {
+				'@type': 'Organization',
+				name: 'Frontman',
+				url: 'https://frontman.sh/'
+			},
 			url: 'https://frontman.sh/pricing/',
-			itemListElement: [
+			offers: [
 				{
 					'@type': 'Offer',
 					name: 'Frontman Pro monthly seat',
 					price: '15',
 					priceCurrency: 'EUR',
-					availability: 'https://schema.org/PreOrder',
+					availability: 'https://schema.org/InStock',
 					url: 'https://frontman.sh/pricing/',
 					category: 'subscription',
 					description: 'Hosted Frontman Pro seat billed monthly. AI provider usage is billed separately.'
@@ -169,7 +175,7 @@ const pricingJsonLd = {
 					name: 'Frontman Pro yearly seat',
 					price: '150',
 					priceCurrency: 'EUR',
-					availability: 'https://schema.org/PreOrder',
+					availability: 'https://schema.org/InStock',
 					url: 'https://frontman.sh/pricing/',
 					category: 'subscription',
 					description: 'Hosted Frontman Pro seat billed yearly. AI provider usage is billed separately.'
@@ -200,7 +206,7 @@ const panelClass = 'rounded-[1.5rem] border-white/10 bg-white/[0.04] shadow-none
 const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow-neutral-950/20 hover:!bg-primary-50 hover:!text-primary-800 focus:!bg-primary-50 sm:w-auto'
 ---
 
-<Layout title={SEO.title} description={SEO.description} noindex={true}>
+<Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(pricingJsonLd)} />
 	<script is:inline>
 			document.addEventListener('DOMContentLoaded', () => {
@@ -252,7 +258,7 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 
 	<Section classes="z-10 bg-primary-500 pt-20 text-white before:pointer-events-none before:absolute before:inset-x-0 before:bottom-0 before:h-40 before:bg-gradient-to-b before:from-transparent before:to-neutral-950 before:content-[''] lg:pt-32" padding="both">
 		<div aria-hidden="true" class="pointer-events-none absolute inset-0 opacity-25">
-			<img src={gridNetBackground.src} alt="" class="h-full w-full object-cover object-center" width="1440" height="900" />
+			<img src={gridNetBackground.src} alt="Decorative grid background" aria-hidden="true" class="h-full w-full object-cover object-center" width="1440" height="900" />
 		</div>
 		<Row classes="relative z-10">
 			<Col span="10" classes="lg:col-start-2">
@@ -455,7 +461,7 @@ const ctaButtonClass = 'mt-8 w-full !bg-white !text-primary-700 shadow-lg shadow
 		<Row>
 			<Col span="10" classes="lg:col-start-2">
 				<div class="relative overflow-hidden rounded-[1.5rem] border border-white/20 bg-primary-500 p-8 text-center shadow-2xl shadow-primary-950/30 md:p-12">
-					<img src={gridNetBackground.src} alt="" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20" width="1440" height="900" />
+					<img src={gridNetBackground.src} alt="Decorative grid background" aria-hidden="true" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-20" width="1440" height="900" />
 					<div class="relative">
 						<p class="mb-4 text-sm font-bold uppercase tracking-[0.18em] text-white/75">Start visually editing your frontend</p>
 						<h2 class="mx-auto max-w-3xl text-white">One simple hosted plan. 14-day free trial.</h2>

@@ -9,56 +9,56 @@ defmodule FrontmanServer.Tools.MCP do
   Utilities for MCP tools from external clients.
   """
 
-  @enforce_keys [:name, :description, :input_schema, :timeout_ms, :on_timeout]
+  @enforce_keys [:name, :description, :input_schema, :timeout_ms, :execution_mode]
   defstruct name: nil,
             description: nil,
             input_schema: nil,
+            output_schema: nil,
+            access: :read_write,
             visible_to_agent: true,
             timeout_ms: nil,
-            on_timeout: nil
+            execution_mode: nil
 
-  # The MCP spec has no timeout fields in tools/list — timeout policy is a
-  # client-side concern (frontman server is the MCP client here). These
-  # defaults are applied to all tools discovered from external MCP servers.
   @default_timeout_ms 600_000
-  @default_on_timeout :error
+  @tool_metadata_extension "ai.frontman/tool-metadata"
 
   def from_map(tool) when is_map(tool) do
-    {timeout_ms, on_timeout} = timeout_policy(tool["executionMode"])
+    metadata = get_in(tool, ["_meta", @tool_metadata_extension]) || %{}
+    execution_mode = parse_execution_mode(metadata["executionMode"])
 
     %__MODULE__{
       name: tool["name"],
       description: tool["description"] || "",
       input_schema: tool["inputSchema"] || %{"type" => "object", "properties" => %{}},
-      visible_to_agent: Map.get(tool, "visibleToAgent", true),
-      timeout_ms: timeout_ms,
-      on_timeout: on_timeout
+      output_schema: tool["outputSchema"],
+      access: parse_access(metadata["access"]),
+      visible_to_agent: Map.get(metadata, "visibleToAgent", true),
+      timeout_ms: deadline(execution_mode),
+      execution_mode: execution_mode
     }
   end
 
-  # Interactive tools pause the agent and wait for user input; they need a
-  # shorter timeout (2 min) so the agent isn't blocked indefinitely if the
-  # user never responds. All other tools use the default long timeout.
-  defp timeout_policy("interactive"), do: {120_000, :pause_agent}
-  defp timeout_policy(_), do: {@default_timeout_ms, @default_on_timeout}
+  defp parse_execution_mode("Interactive"), do: :interactive
+  defp parse_execution_mode(mode) when mode in [nil, "Synchronous"], do: :synchronous
+
+  defp deadline(:interactive), do: :infinity
+  defp deadline(:synchronous), do: @default_timeout_ms
+
+  defp parse_access("read"), do: :read
+  defp parse_access("write"), do: :write
+  defp parse_access("read-write"), do: :read_write
+  defp parse_access(_), do: :read_write
 
   def from_maps(tools) when is_list(tools) do
     Enum.map(tools, &from_map/1)
   end
 
-  def to_swarm_tools(mcp_tools) when is_list(mcp_tools) do
-    mcp_tools
-    |> Enum.filter(& &1.visible_to_agent)
-    |> Enum.map(&to_swarm_tool/1)
-  end
-
-  defp to_swarm_tool(%__MODULE__{} = tool) do
+  def to_swarm_tool(%__MODULE__{} = tool) do
     SwarmAi.Tool.new(
       name: tool.name,
       description: tool.description,
-      parameter_schema: tool.input_schema,
-      timeout_ms: tool.timeout_ms,
-      on_timeout: tool.on_timeout
+      access: tool.access,
+      parameter_schema: tool.input_schema
     )
   end
 end

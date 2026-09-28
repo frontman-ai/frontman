@@ -38,7 +38,6 @@ defmodule SwarmAi.MixProject do
       {:uuidv7, "~> 1.0"},
       {:telemetry, "~> 1.4"},
       {:req_llm, "~> 1.11"},
-      # Dev/Test
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]

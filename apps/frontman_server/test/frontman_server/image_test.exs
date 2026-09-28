@@ -3,11 +3,7 @@ defmodule FrontmanServer.ImageTest do
 
   alias FrontmanServer.Image
 
-  # ── parse_dimensions/1 ──────────────────────────────────────────────
-
   describe "parse_dimensions/1" do
-    # PNG -------------------------------------------------------------------
-
     test "parses PNG dimensions from IHDR chunk" do
       png =
         <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
@@ -23,8 +19,6 @@ defmodule FrontmanServer.ImageTest do
 
       assert {:ok, 9000, 6000} = Image.parse_dimensions(png)
     end
-
-    # JPEG ------------------------------------------------------------------
 
     test "parses JPEG dimensions from SOF0 marker" do
       jpeg =
@@ -43,8 +37,6 @@ defmodule FrontmanServer.ImageTest do
       assert {:ok, 3000, 4000} = Image.parse_dimensions(jpeg)
     end
 
-    # GIF -------------------------------------------------------------------
-
     test "parses GIF89a dimensions" do
       gif = "GIF89a" <> <<320::16-little, 240::16-little>> <> <<0::8>>
       assert {:ok, 320, 240} = Image.parse_dimensions(gif)
@@ -58,8 +50,6 @@ defmodule FrontmanServer.ImageTest do
     test "returns :unknown for truncated GIF" do
       assert :unknown = Image.parse_dimensions("GIF89a" <> <<0>>)
     end
-
-    # WebP ------------------------------------------------------------------
 
     test "parses WebP VP8X (extended) dimensions" do
       width = 1920
@@ -123,8 +113,6 @@ defmodule FrontmanServer.ImageTest do
       assert :unknown = Image.parse_dimensions("RIFF" <> <<0::32-little>> <> "WEBP")
     end
 
-    # Unknown ---------------------------------------------------------------
-
     test "returns :unknown for non-image binary" do
       assert :unknown = Image.parse_dimensions("not an image")
     end
@@ -141,8 +129,6 @@ defmodule FrontmanServer.ImageTest do
       assert :unknown = Image.parse_dimensions(<<0xFF, 0xD8>>)
     end
   end
-
-  # ── check_dimensions/1,2 ─────────────────────────────────────────────
 
   describe "check_dimensions/1 (default max)" do
     test "returns :ok for image within limits" do
@@ -184,7 +170,6 @@ defmodule FrontmanServer.ImageTest do
 
   describe "check_dimensions/2 (custom max)" do
     test "respects a smaller custom max" do
-      # 1920x1080 is fine for the default 7680 but too big for a 1000px limit
       png =
         <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
           <<0::32>> <> "IHDR" <> <<1920::32, 1080::32>> <> <<0::8>>
@@ -193,7 +178,6 @@ defmodule FrontmanServer.ImageTest do
     end
 
     test "respects a larger custom max" do
-      # 9000px wide exceeds the default 7680 but fits within a 10_000 limit
       png =
         <<0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A>> <>
           <<0::32>> <> "IHDR" <> <<9000::32, 1080::32>> <> <<0::8>>
@@ -221,8 +205,6 @@ defmodule FrontmanServer.ImageTest do
       assert :ok = Image.check_dimensions("not an image", 100)
     end
   end
-
-  # ── decode_data_url/1 ───────────────────────────────────────────────
 
   describe "decode_data_url/1" do
     test "decodes a valid data URL" do
@@ -252,7 +234,6 @@ defmodule FrontmanServer.ImageTest do
     end
 
     test "handles multiline base64 payload" do
-      # The /s flag in the regex should handle newlines in the base64 portion
       payload = Base.encode64(String.duplicate("x", 100))
       data_url = "data:image/jpeg;base64,#{payload}"
 

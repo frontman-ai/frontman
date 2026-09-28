@@ -1,24 +1,3 @@
-// FrontmanProvider - React context provider for FrontmanClient ACP connection
-// Uses ConnectionReducer for centralized state management
-
-module Log = FrontmanLogs.Logs.Make({
-  let component = #FrontmanProvider
-})
-
-module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
-module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
-module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
-module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
-module Reducer = Client__ConnectionReducer
-module RuntimeConfig = Client__RuntimeConfig
-
-// Create the text delta buffer instance and register it as active.
-// The onFlush callback breaks the circular dep: TextDeltaBuffer doesn't import Client__State.
-let textDeltaBuffer = Client__TextDeltaBuffer.make(~onFlush=(~taskId, ~text, ~timestamp) => {
-  Client__State.Actions.textDeltaReceived(~taskId, ~text, ~timestamp)
-})
-let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
-
 let openBillingSettingsForErrorCategory = category => {
   switch category {
   | Some("billing") => Client__State.Actions.openSettingsModalOnBilling()
@@ -26,8 +5,60 @@ let openBillingSettingsForErrorCategory = category => {
   }
 }
 
-// Extract text from a contentBlock (returns Some for TextContent, None for other variants)
-let getContentBlockText = (block: Types.contentBlock): option<string> =>
+module Log = FrontmanLogs.Logs.Make({
+  let component = #FrontmanProvider
+})
+
+module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
+module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
+module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
+module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
+module Reducer = Client__ConnectionReducer
+module RuntimeConfig = Client__RuntimeConfig
+module Message = Client__State__Types.Message
+
+let makeToolResult = (~rawOutput, ~content): Message.toolResult => {rawOutput, content}
+
+let toolCallState = (
+  ~status: option<Types.toolCallStatus>,
+  ~rawInput: option<JSON.t>,
+): Message.toolCallState =>
+  switch status {
+  | Some(Completed) => Message.OutputAvailable
+  | Some(Failed) => Message.OutputError
+  | Some(Pending | InProgress) | None =>
+    rawInput->Option.mapOr(Message.InputStreaming, _ => Message.InputAvailable)
+  }
+
+let makeToolCall = (
+  ~id,
+  ~title,
+  ~status,
+  ~content,
+  ~rawInput,
+  ~rawOutput,
+  ~parentAgentId,
+  ~spawningToolName,
+): Message.toolCall => {
+  let result = switch (rawOutput, content) {
+  | (None, None) => None
+  | _ => Some(makeToolResult(~rawOutput, ~content=content->Option.getOr([])))
+  }
+  {
+    id,
+    toolName: title,
+    inputBuffer: "",
+    input: rawInput,
+    result,
+    errorText: status == Some(Failed) ? Some("Unknown error") : None,
+    state: toolCallState(~status, ~rawInput),
+    parentAgentId,
+    spawningToolName,
+  }
+}
+
+let getContentBlockText = (block: ContentBlock.t): option<string> =>
   switch block {
   | TextContent({text}) => Some(text)
   | ImageContent(_) | AudioContent(_) | ResourceLink(_) | EmbeddedResource(_) => None
@@ -47,153 +78,83 @@ let agentErrorId = meta => {
   S.parseOrThrow(json, ~to=frontmanErrorMetaSchema).agentErrorId
 }
 
-// Parse accepted user_message content blocks into (content, annotations).
-// Inverse of messageAnnotationsToContentBlocks + buildAttachmentContentBlocks on the send path.
-let parseUserMessageBlocks = (blocks: array<Types.contentBlock>): (
-  array<Client__Message.UserContentPart.t>,
-  array<Client__Message.MessageAnnotation.t>,
-) => {
-  // First pass: collect screenshot data URLs keyed by annotation_id
-  let screenshotMap = Dict.make()
-  blocks->Array.forEach(block =>
-    switch block {
-    | EmbeddedResource({
-        resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})},
-      })
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation_screenshot")) !=
-        None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.screenshotMetaSchema)
-      if parsed.annotationScreenshot {
-        screenshotMap->Dict.set(
-          parsed.annotationId,
-          `data:${mimeType->Option.getOrThrow};base64,${blob}`,
-        )
-      }
-    | _ => ()
-    }
-  )
+let textDeltaBuffer = Client__TextDeltaBuffer.make(
+  ~onFlush=(~taskId, ~messageId, ~text, ~agentId) =>
+    Client__State.Actions.textDeltaReceived(~taskId, ~messageId, ~text, ~agentId),
+  ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) => {
+    let (content, annotations) = Client__ACP__MessageCodec.parseUserMessageBlocks(blocks)
+    Client__State.Actions.userMessageReceived(
+      ~taskId,
+      ~id=messageId,
+      ~content,
+      ~annotations,
+      ~agentId,
+    )
+  },
+)
+let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
 
-  // Second pass: build content parts and annotations
-  let content = []
-  let annotations = []
-  blocks->Array.forEach(block =>
-    switch block {
-    | TextContent({text}) =>
-      content->Array.push(Client__Message.UserContentPart.Text({text: text}))->ignore
-    | EmbeddedResource({resource: {_meta: Some(meta), resource: TextResourceContents(_)}})
-      if meta->JSON.Decode.object->Option.flatMap(d => d->Dict.get("annotation")) != None =>
-      let parsed = S.parseOrThrow(meta, ~to=Client__Task__Types.annotationMetaSchema)
-      if parsed.annotation {
-        let screenshot = screenshotMap->Dict.get(parsed.annotationId)
-        annotations
-        ->Array.push(Client__Task__Types.annotationMetaToMessageAnnotation(parsed, ~screenshot))
-        ->ignore
-      }
-    | EmbeddedResource({
-        resource: {_meta: Some(meta), resource: BlobResourceContents({blob, mimeType})},
-      }) =>
-      // User images (screenshots already handled in first pass)
-      switch meta->JSON.Decode.object {
-      | Some(d) if d->Dict.get("user_image") == Some(JSON.Encode.bool(true)) =>
-        let filename =
-          d->Dict.get("filename")->Option.flatMap(JSON.Decode.string)->Option.getOrThrow
-        let mime = mimeType->Option.getOrThrow
-        content
-        ->Array.push(
-          Client__Message.UserContentPart.Image({
-            id: None,
-            image: `data:${mime};base64,${blob}`,
-            mediaType: Some(mime),
-            name: Some(filename),
-          }),
-        )
-        ->ignore
-      | _ => ()
-      }
-    | _ => ()
-    }
-  )
-  (content, annotations)
-}
-
-// Re-export status types for consumers
 type connectionState = Reducer.Selectors.connectionStatus
 
-// Context value type
 @@live
 type contextValue = {
   connectionState: connectionState,
+  apiBaseUrl: string,
   session: option<ACP.session>,
   relay: option<Relay.t>,
   authRedirectUrl: option<string>,
-  createSession: (~onComplete: result<string, ACP.requestError> => unit) => unit,
+  beginAuthenticationRetry: unit => unit,
+  requireAuthentication: unit => unit,
+  beginLogout: unit => unit,
+  createSession: (~onComplete: result<string, string> => unit) => unit,
   clearSession: unit => unit,
   sendPrompt: (
     string,
-    ~additionalBlocks: array<Types.contentBlock>,
-    ~onComplete: result<Types.promptResult, ACP.requestError> => unit,
+    ~additionalBlocks: array<ContentBlock.t>,
+    ~onComplete: result<Types.promptResult, string> => unit,
     ~_meta: option<JSON.t>,
   ) => unit,
-  cancelPrompt: unit => unit,
-  retryTurn: string => unit,
+  sendSessionCommand: ACP.sessionCommand => unit,
   loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
   deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
 
-// Default context value
 let defaultContextValue: contextValue = {
   connectionState: Disconnected,
+  apiBaseUrl: "",
   session: None,
   relay: None,
   authRedirectUrl: None,
+  beginAuthenticationRetry: () => (),
+  requireAuthentication: () => (),
+  beginLogout: () => (),
   createSession: (~onComplete as _) => (),
   clearSession: () => (),
   sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-  cancelPrompt: () => (),
-  retryTurn: _ => (),
+  sendSessionCommand: _ => (),
   loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
   deleteSession: (_, ~onComplete as _) => (),
 }
 
-// Create the React context
 let context = React.createContext(defaultContextValue)
 
-// Make the context provider component
 module ContextProvider = {
   let make = React.Context.provider(context)
 }
 
-// Custom hook to use the Frontman context
 let useFrontman = () => React.useContext(context)
 
-// Provider component
 module Provider = {
   @react.component
   let make = (
     ~endpoint: string,
-    ~tokenUrl: string,
     ~loginUrl: string,
+    ~apiBaseUrl: string,
     ~clientName: string="frontman-client",
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    // Log message handlers
-    let logACPMessage = React.useCallback0((direction: ACP.messageDirection, payload: JSON.t) => {
-      let arrow = direction == Send ? `→` : `←`
-      Log.debug(~ctx={"payload": payload}, `ACP ${arrow}`)
-    })
-
-    let logMCPMessage = React.useCallback0((direction, payload) => {
-      let arrow = direction == FrontmanAiFrontmanClient.FrontmanClient__MCP.Send ? `→` : `←`
-      Log.debug(~ctx={"payload": payload}, `MCP ${arrow}`)
-    })
-
-    // Use StateReducer - effects are executed in useEffect, not during dispatch
-    let initialConnectionState = {
-      ...Reducer.initialState,
-      initialAuthBehavior: Client__FtueState.getAuthBehavior(),
-    }
-    let (state, dispatch) = StateReducer.useReducer(module(Reducer), initialConnectionState)
+    let (state, dispatch) = StateReducer.useReducer(module(Reducer), Reducer.initialState)
     let connectionStateRef = React.useRef(state)
 
     React.useEffect(() => {
@@ -201,35 +162,19 @@ module Provider = {
       None
     }, [state])
 
-    // Single initialization effect
     React.useEffect0(() => {
       let baseUrl = Client__RelayBaseUrl.current()
 
-      // Read runtime config from window.__frontmanRuntime (injected by framework middleware)
       let runtimeConfig = RuntimeConfig.read()
       let _meta = RuntimeConfig.toMeta(runtimeConfig)
-      let relayHeaders = Dict.make()
-      runtimeConfig.wpNonce->Option.forEach(nonce => relayHeaders->Dict.set("X-WP-Nonce", nonce))
-
-      let relay = Relay.make(~baseUrl, ~requestHeaders=relayHeaders)
+      let relay = switch runtimeConfig.framework {
+      | Wordpress => Client__WordPressRelay.make(~baseUrl, ~nonce=runtimeConfig.wpNonce)
+      | Nextjs | Vite | Astro => Relay.make(~baseUrl)
+      }
       let toolRegistry = Client__ToolRegistry.forFramework(runtimeConfig.framework)
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
 
-      // Wire up tool result metadata so the server can resume agent execution
-      // with the correct provider context (env API keys + model) after a restart.
-      MCPServer.setToolResultMetaProvider(mcpServer, () => {
-        let config = Client__RuntimeConfig.read()
-        let envApiKey = Client__RuntimeConfig.toEnvApiKeyDict(config)
-        let state = StateStore.getState(Client__State__Store.store)
-        let model =
-          Client__State.Selectors.selectedModelValue(state)->Option.flatMap(
-            FrontmanAiFrontmanProtocol.FrontmanProtocol__Types.modelSelectionFromValueId,
-          )
-        {model, envApiKey}
-      })
-
-      // Wire up image ref resolver so write_file can save user-attached images.
       MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
         let state = StateStore.getState(Client__State__Store.store)
         Client__State.Selectors.resolveImageRef(state, ~taskId, ~uri)->Option.map(
@@ -239,11 +184,9 @@ module Provider = {
 
       let config: Reducer.initConfig = {
         endpoint,
-        tokenUrl,
         loginUrl,
         clientName,
         clientVersion,
-        onACPMessage: logACPMessage,
         _meta,
         onTitleUpdated: Some(
           (taskId, title) => {
@@ -264,12 +207,13 @@ module Provider = {
           state.relayInstance->Option.forEach(relay => Relay.disconnect(relay))
           let activeSession = switch state.session {
           | SessionActive(session) => Some(session)
-          | NoSession | SessionCreating | SessionError(_) => None
+          | NoSession | SessionCreating(_) | SessionError(_) => None
           }
           switch state.acp {
           | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
-          | ACPDisconnected | ACPConnecting | ACPAuthRequired(_) | ACPError(_) => ()
+          | ACPDisconnected | ACPConnecting | ACPLoggingOut | ACPAuthRequired(_) | ACPError(_) => ()
           }
+          dispatch(Dispose)
         },
       )
     })
@@ -284,84 +228,104 @@ module Provider = {
     ) => {
       let taskId = sessionId
       switch update {
-      | AgentMessageChunk({content, timestamp}) =>
-        // Per ACP spec: first agent_message_chunk implicitly signals message start.
-        // Buffer text deltas and flush once per animation frame to avoid
-        // dozens of full state rebuilds per second during fast streaming.
+      | AgentMessageChunk({messageId, content, _meta: {agentId}}) =>
         getContentBlockText(content)->Option.forEach(text => {
-          textDeltaBuffer.add(~taskId, ~text, ~timestamp)
+          textDeltaBuffer.add(~taskId, ~messageId, ~text, ~agentId)
         })
-      | UserMessage({messageId, content}) =>
-        Client__TextDeltaBuffer.flush()
-        let (content, annotations) = parseUserMessageBlocks(content)
-        Client__State.Actions.userMessageReceived(~taskId, ~id=messageId, ~content, ~annotations)
-      | ToolCall({toolCallId, title, parentAgentId, spawningToolName, _}) =>
+      | UserMessageChunk({messageId, content, _meta}) =>
+        textDeltaBuffer.addUserBlock(~taskId, ~messageId, ~block=content, ~agentId=_meta.agentId)
+      | MessageUnqueued({messageId}) => Client__State.Actions.messageUnqueued(~taskId, ~messageId)
+      | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
+        failwith("Frontman UI requires negotiated agent attribution")
+      | Unknown(_) => ()
+      | ToolCall({
+          toolCallId,
+          title,
+          status,
+          content,
+          rawInput,
+          rawOutput,
+          parentAgentId,
+          spawningToolName,
+          _,
+        }) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.toolCallReceived(
           ~taskId,
-          ~toolCall={
-            id: toolCallId,
-            toolName: title,
-            inputBuffer: "",
-            input: None,
-            result: None,
-            errorText: None,
-            state: Client__State__Types.Message.InputStreaming,
-            parentAgentId,
-            spawningToolName,
-          },
+          ~toolCall=makeToolCall(
+            ~id=toolCallId,
+            ~title,
+            ~status,
+            ~content,
+            ~rawInput,
+            ~rawOutput,
+            ~parentAgentId,
+            ~spawningToolName,
+          ),
         )
-      | ToolCallUpdate({toolCallId, status, content}) =>
-        let text =
-          content
-          ->Option.flatMap(c => c->Array.get(0))
-          ->Option.flatMap(i => i.content)
-          ->Option.flatMap(getContentBlockText)
+      | ToolCallUpdate({toolCallId, status, content, rawInput, rawOutput}) =>
+        Client__TextDeltaBuffer.flush()
+        let text = () =>
+          content->Option.flatMap(c =>
+            c->Array.findMap(
+              item =>
+                switch item {
+                | Content({content: TextContent({text})}) => Some(text)
+                | _ => None
+                },
+            )
+          )
+        rawInput->Option.forEach(input => {
+          Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
+        })
+        switch (rawOutput, content, status) {
+        | (None, None, Some(Completed)) =>
+          Client__State.Actions.toolResultReceived(
+            ~taskId,
+            ~id=toolCallId,
+            ~rawOutput,
+            ~content,
+            ~complete=true,
+          )
+        | (None, None, _) => ()
+        | _ =>
+          Client__State.Actions.toolResultReceived(
+            ~taskId,
+            ~id=toolCallId,
+            ~rawOutput,
+            ~content,
+            ~complete=status == Some(Completed),
+          )
+        }
         switch status {
-        | Some(Pending) =>
-          text
-          ->Option.flatMap(t =>
-            try {Some(JSON.parseOrThrow(t))} catch {
-            | _ => None
-            }
-          )
-          ->Option.forEach(input => {
-            Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
-          })
-        | Some(Completed) =>
-          let result = text->Option.mapOr(JSON.Encode.null, t =>
-            try {JSON.parseOrThrow(t)} catch {
-            | _ => JSON.Encode.string(t)
-            }
-          )
-          Client__State.Actions.toolResultReceived(~taskId, ~id=toolCallId, ~result)
+        | Some(Pending) => ()
+        | Some(Completed) => ()
         | Some(Failed) =>
           Client__State.Actions.toolErrorReceived(
             ~taskId,
             ~id=toolCallId,
-            ~error=text->Option.getOr("Unknown error"),
+            ~error=text()->Option.getOr("Unknown error"),
           )
-        | Some(InProgress) => () // Normal transitional status for MCP tools
+        | Some(InProgress) => ()
         | None => ()
         }
-      | Plan({entries}) => Client__State.Actions.planReceived(~taskId, ~entries)
-      | StateUpdate({state, stopReason: _}) =>
+      | Plan({entries}) =>
+        Client__TextDeltaBuffer.flush()
+        Client__State.Actions.planReceived(~taskId, ~entries)
+      | StateUpdate({state, stopReason}) =>
+        Client__TextDeltaBuffer.flush()
         switch state {
         | Running => Client__State.Actions.executionStateRunning(~taskId)
-        | Idle =>
-          Client__TextDeltaBuffer.flush()
-          Client__State.Actions.executionStateIdle(~taskId)
-        | RequiresAction =>
-          Client__TextDeltaBuffer.flush()
-          Client__State.Actions.executionStateRequiresAction(~taskId)
+        | Idle => Client__State.Actions.executionStateIdle(~taskId, ~stopReason)
+        | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
         }
       | ConfigOptionUpdate({configOptions}) =>
-        Client__State.Actions.configOptionsReceived(~configOptions)
-      | CurrentModeUpdate(_) => () // TODO: dispatch mode change when modes are supported in UI
-      | Error({_meta, message, timestamp, retryAt, attempt, maxAttempts, category}) =>
         Client__TextDeltaBuffer.flush()
+        Client__State.Actions.configOptionsReceived(~configOptions)
+      | CurrentModeUpdate(_) => Client__TextDeltaBuffer.flush()
+      | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
         openBillingSettingsForErrorCategory(category)
-        let category = category->Option.getOr("unknown")
+        Client__TextDeltaBuffer.flush()
         switch retryAt {
         | Some(retryAtStr) =>
           let retryAtMs = Date.fromString(retryAtStr)->Date.getTime
@@ -377,27 +341,22 @@ module Provider = {
             ~taskId,
             ~id=agentErrorId(_meta),
             ~error=message,
-            ~timestamp,
-            ~category,
+            ~category=Client__ErrorCategory.fromAcpCategory(category),
           )
         }
-      | Unknown(_) => ()
       }
     })
 
-    let createSession = React.useCallback1(
-      (~onComplete: result<string, ACP.requestError> => unit) => {
-        dispatch(
-          CreateSession({
-            onUpdate: handleSessionUpdate,
-            onTitleUpdated: handleTitleUpdated,
-            onMcpMessage: logMCPMessage,
-            onComplete,
-          }),
-        )
-      },
-      [dispatch],
-    )
+    let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
+      dispatch(
+        CreateSession({
+          sessionId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
+          onUpdate: handleSessionUpdate,
+          onTitleUpdated: handleTitleUpdated,
+          onComplete,
+        }),
+      )
+    }, [dispatch])
 
     let clearSession = React.useCallback1(() => dispatch(ClearSession), [dispatch])
 
@@ -405,12 +364,8 @@ module Provider = {
       dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta}))
     }, [dispatch])
 
-    let cancelPrompt = React.useCallback1(() => {
-      dispatch(CancelPrompt)
-    }, [dispatch])
-
-    let retryTurn = React.useCallback1((retriedErrorId: string) => {
-      dispatch(RetryTurn({retriedErrorId: retriedErrorId}))
+    let sendSessionCommand = React.useCallback1((command: ACP.sessionCommand) => {
+      dispatch(SessionCommand(command))
     }, [dispatch])
 
     let loadTask = React.useCallback1((taskId: string, ~needsHistory, ~onComplete) => {
@@ -420,7 +375,6 @@ module Provider = {
           needsHistory,
           onUpdate: handleSessionUpdate,
           onTitleUpdated: handleTitleUpdated,
-          onMcpMessage: logMCPMessage,
           onComplete,
         }),
       )
@@ -431,17 +385,28 @@ module Provider = {
     }, [dispatch])
 
     let authRedirectUrl = Reducer.Selectors.getAuthRedirectUrl(state)
+    let beginAuthenticationRetry = React.useCallback1(() => {
+      dispatch(BeginAuthenticationRetry)
+    }, [dispatch])
+    let requireAuthentication = React.useCallback1(
+      () => dispatch(RequireAuthentication),
+      [dispatch],
+    )
+    let beginLogout = React.useCallback1(() => dispatch(BeginLogout), [dispatch])
 
     let contextValue: contextValue = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
+      apiBaseUrl,
       session: Reducer.Selectors.getSession(state),
       relay: state.relayInstance,
       authRedirectUrl,
+      beginAuthenticationRetry,
+      requireAuthentication,
+      beginLogout,
       createSession,
       clearSession,
       sendPrompt,
-      cancelPrompt,
-      retryTurn,
+      sendSessionCommand,
       loadTask,
       deleteSession,
     }

@@ -1,9 +1,3 @@
-// Shared test helpers for frontman-astro integration tests.
-//
-// Each test file builds its own registry (v4 vs v5, with/without specific tools)
-// and passes it here to get a middleware + callTool helper that exercises the
-// full HTTP production path.
-
 module CoreMiddlewareConfig = FrontmanAiFrontmanCore.FrontmanCore__MiddlewareConfig
 module CoreMiddleware = FrontmanAiFrontmanCore.FrontmanCore__Middleware
 module ToolRegistry = FrontmanAiFrontmanCore.FrontmanCore__ToolRegistry
@@ -21,11 +15,9 @@ let defaultConfig: CoreMiddlewareConfig.t = {
   traits: [],
 }
 
-// Build middleware from a registry (caller decides which tools are active).
 let makeMiddleware = (~registry: ToolRegistry.t) =>
   CoreMiddleware.createMiddleware(~config=defaultConfig, ~registry)
 
-// POST /frontman/tools/call with a JSON body and return the full SSE response text.
 let callTool = async (middleware, ~name: string, ~arguments: JSON.t): string => {
   let body = JSON.Encode.object(
     Dict.fromArray([("name", JSON.Encode.string(name)), ("arguments", arguments)]),
@@ -46,7 +38,6 @@ let callTool = async (middleware, ~name: string, ~arguments: JSON.t): string => 
   }
 }
 
-// GET a frontman endpoint and return the response text.
 let getEndpoint = async (middleware, ~path: string): string => {
   let req = WebAPI.Request.fromURL(`http://localhost/frontman/${path}`)
   let result = await middleware(req)

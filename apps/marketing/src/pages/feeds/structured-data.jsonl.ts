@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro'
+import { legalInfo } from '../../data/legalInfo'
 
 const origin = new URL(import.meta.env.SITE).origin
 
@@ -11,16 +12,9 @@ const records = [
 		logo: `${origin}/logo.svg`,
 		contactPoint: {
 			'@type': 'ContactPoint',
-			email: 'hello@frontman.sh',
+			email: legalInfo.supportEmail,
 			contactType: 'customer support',
 		},
-	},
-	{
-		'@context': 'https://schema.org',
-		'@type': 'SoftwareApplication',
-		name: 'Frontman',
-		applicationCategory: 'DeveloperApplication',
-		operatingSystem: 'Web, macOS, Windows, Linux',
 	},
 	{
 		'@context': 'https://schema.org',

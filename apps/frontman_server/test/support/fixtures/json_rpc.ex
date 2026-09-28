@@ -23,16 +23,11 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
 
   @jsonrpc_version "2.0"
 
-  # Standard JSON-RPC 2.0 error codes
   @error_parse -32_700
   @error_invalid_request -32_600
   @error_method_not_found -32_601
   @error_invalid_params -32_602
   @error_internal -32_603
-
-  # ---------------------------------------------------------------------------
-  # Request Messages
-  # ---------------------------------------------------------------------------
 
   @doc """
   Builds a valid JSON-RPC 2.0 request message.
@@ -69,10 +64,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
     }
   end
 
-  # ---------------------------------------------------------------------------
-  # Notification Messages
-  # ---------------------------------------------------------------------------
-
   @doc """
   Builds a valid JSON-RPC 2.0 notification message (no id).
 
@@ -103,10 +94,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
       "method" => Keyword.get(overrides, :method, "ping")
     }
   end
-
-  # ---------------------------------------------------------------------------
-  # Response Messages
-  # ---------------------------------------------------------------------------
 
   @doc """
   Builds a valid JSON-RPC 2.0 success response message.
@@ -161,10 +148,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
 
   defp maybe_add_error_data(error, nil), do: error
   defp maybe_add_error_data(error, data), do: Map.put(error, "data", data)
-
-  # ---------------------------------------------------------------------------
-  # Invalid Messages (for error case testing)
-  # ---------------------------------------------------------------------------
 
   @doc "Message with wrong JSON-RPC version"
   def invalid_version_message(overrides \\ []) do
@@ -235,10 +218,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
     }
   end
 
-  # ---------------------------------------------------------------------------
-  # Error Code Helpers
-  # ---------------------------------------------------------------------------
-
   @doc "Standard JSON-RPC parse error code (-32700)"
   def error_code_parse, do: @error_parse
 
@@ -253,10 +232,6 @@ defmodule FrontmanServer.Test.Fixtures.JsonRpc do
 
   @doc "Standard JSON-RPC internal error code (-32603)"
   def error_code_internal, do: @error_internal
-
-  # ---------------------------------------------------------------------------
-  # Private Helpers
-  # ---------------------------------------------------------------------------
 
   defp unique_id do
     System.unique_integer([:positive])

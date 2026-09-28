@@ -3,11 +3,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
 
   alias SwarmAi.{ToolExecution, ToolResult}
 
-  # --- MFA callbacks ---
-
-  # Sends :ready to coordinator, then blocks until coordinator sends :go.
-  # All N tasks must be alive simultaneously for the coordinator to release them.
-  # Sequential execution deadlocks (coordinator never sees N :ready signals).
   def run_rendezvous(coordinator, tool_call) do
     send(coordinator, {:ready, self()})
 
@@ -22,7 +17,12 @@ defmodule SwarmAi.ParallelToolExecutionTest do
 
   def run_instant(tool_call), do: ToolResult.make(tool_call.id, "OK", false)
   def run_crash(_tool_call), do: raise("boom")
-  def noop_timeout(_tool_call, _reason), do: :ok
+
+  def start_await(runtime, tool_call) do
+    assert SwarmAi.running?(runtime, "task-human")
+    Process.send_after(self(), {:tool_result, tool_call.id, "approved", false}, 50)
+    :ok
+  end
 
   def run_serial_gate(test_pid, tool_call) do
     send(test_pid, {:serial_started, tool_call.name, self()})
@@ -42,6 +42,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       runtime = start_runtime!()
       test_pid = self()
       total = 3
+      context = make_ref()
 
       llm =
         multi_turn_llm([
@@ -54,9 +55,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           {:complete, "All done"}
         ])
 
-      # Collects :ready from all `total` tasks before releasing any.
-      # If tools run sequentially, task 1 blocks on receive :go forever,
-      # task 2 never starts, coordinator never gets total signals → timeout.
       coordinator =
         spawn(fn ->
           pids =
@@ -73,13 +71,14 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         end)
 
       execute_tools = fn tool_calls, task_supervisor ->
+        send(test_pid, {:captured_context, context})
+
         Enum.map(tool_calls, fn tc ->
           %ToolExecution.Sync{
             tool_call: tc,
             timeout_ms: 5_000,
-            on_timeout_policy: :error,
             run: {__MODULE__, :run_rendezvous, [coordinator]},
-            on_timeout: {__MODULE__, :noop_timeout, []}
+            on_error: {SwarmAi.Testing, :default_tool_error, []}
           }
         end)
         |> SwarmAi.ParallelExecutor.run(task_supervisor)
@@ -88,6 +87,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       {:ok, pid} =
         run_execution(runtime, "task-parallel", llm, execute_tools: execute_tools)
 
+      assert_receive {:captured_context, ^context}, 5_000
       assert_receive :all_concurrent, 5_000
       await_exit(pid)
       assert_receive {:test_event, "task-parallel", :completed}, 2_000
@@ -117,9 +117,8 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           %ToolExecution.Sync{
             tool_call: tc,
             timeout_ms: 5_000,
-            on_timeout_policy: :error,
             run: run_mfa,
-            on_timeout: {__MODULE__, :noop_timeout, []}
+            on_error: {SwarmAi.Testing, :default_tool_error, []}
           }
         end)
         |> SwarmAi.ParallelExecutor.run(task_supervisor)
@@ -151,9 +150,8 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           %ToolExecution.Sync{
             tool_call: tc,
             timeout_ms: 5_000,
-            on_timeout_policy: :error,
             run: {__MODULE__, :run_serial_gate, [test_pid]},
-            on_timeout: {__MODULE__, :noop_timeout, []}
+            on_error: {SwarmAi.Testing, :default_tool_error, []}
           }
         end)
         |> SwarmAi.ParallelExecutor.run_serial(task_supervisor)
@@ -174,7 +172,34 @@ defmodule SwarmAi.ParallelToolExecutionTest do
     end
   end
 
-  # --- Helpers ---
+  test "a delayed interactive answer continues the same loop to completion" do
+    runtime = start_runtime!()
+    test_pid = self()
+
+    llm = tool_then_complete_llm([tool_call("approval", %{}, id: "human")], "done")
+
+    execute_tools = fn [tool_call], task_supervisor ->
+      execution = %ToolExecution.Await{
+        tool_call: tool_call,
+        timeout_ms: :infinity,
+        start: {__MODULE__, :start_await, [runtime]},
+        on_error: {SwarmAi.Testing, :default_tool_error, []}
+      }
+
+      SwarmAi.ParallelExecutor.run([execution], task_supervisor)
+      |> tap(fn results -> send(test_pid, {:tool_results, self(), results}) end)
+    end
+
+    {:ok, pid} =
+      run_execution(runtime, "task-human", %{llm | delay_ms: 150}, execute_tools: execute_tools)
+
+    await_exit(pid)
+
+    expected = ToolResult.make("human", "approved", false)
+    assert_received {:tool_results, ^pid, {:ok, [^expected]}}
+    assert_received {:test_event, "task-human", :completed}
+    refute_received {:test_event, "task-human", {:failed, _}}
+  end
 
   defp start_runtime! do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
@@ -191,7 +216,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         "TestBot",
         Keyword.merge(
           [
-            id: id,
             messages: [SwarmAi.Message.system("You are TestBot"), SwarmAi.Message.user("Do work")],
             dispatch_event: fn event ->
               send(test_pid, {:test_event, id, event})
@@ -202,7 +226,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         )
       )
 
-    SwarmAi.run(runtime, loop)
+    SwarmAi.run(runtime, id, loop)
   end
 
   defp await_exit(pid) do

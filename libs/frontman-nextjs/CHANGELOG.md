@@ -1,5 +1,73 @@
 # @frontman-ai/nextjs
 
+## 2.0.0
+
+### Major Changes
+
+- [#1590](https://github.com/frontman-ai/frontman/pull/1590) [`77fb937`](https://github.com/frontman-ai/frontman/commit/77fb937a7630553e4cdbd5de2635b74435be20b8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve official MCP tool, content annotation, and implementation metadata through relay boundaries. Relay tools now require protocol version 2.0 and the MCP `_meta["ai.frontman/tool-metadata"]` shape instead of legacy top-level metadata fields.
+
+### Minor Changes
+
+- [#1496](https://github.com/frontman-ai/frontman/pull/1496) [`f5f2b9b`](https://github.com/frontman-ai/frontman/commit/f5f2b9b5f4c21a28283663fb009d637b1c8970e8) Thanks [@kevin-ho](https://github.com/kevin-ho)! - Add Custom Providers to Settings so users can configure per-user, publicly reachable OpenAI-compatible providers. Providers save their model IDs atomically, support optional API keys, reject stale updates, and appear as model-picker groups once configured. Outbound requests resolve and pin public destinations before connecting.
+
+### Patch Changes
+
+- [#1572](https://github.com/frontman-ai/frontman/pull/1572) [`45c9872`](https://github.com/frontman-ai/frontman/commit/45c9872e4f11c0eb06380176c3a2e8cc3539e3de) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fail closed for Next.js Frontman routes outside development unless explicitly enabled with `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1`.
+
+- [#1574](https://github.com/frontman-ai/frontman/pull/1574) [`7a2776a`](https://github.com/frontman-ai/frontman/commit/7a2776ab9d556a7cccf37ad7c30ccd59112f86b6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix generated instrumentation type resolution during Next.js production builds and add a CI compatibility matrix for packed Next.js consumers.
+
+## 1.0.6
+
+### Patch Changes
+
+- [#1503](https://github.com/frontman-ai/frontman/pull/1503) [`ec2afdb`](https://github.com/frontman-ai/frontman/commit/ec2afdb9f2e7e1bf89d716e9f30d5caa31c5d760) Thanks [@mikemikimike](https://github.com/mikemikimike)! - Fail installation when dependencies cannot be installed or resolved.
+
+- [#1482](https://github.com/frontman-ai/frontman/pull/1482) [`62e1cd5`](https://github.com/frontman-ai/frontman/commit/62e1cd5ca9647ef420006254e647988d0d904468) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Pin the vendored WebAPI bindings to the newest upstream revision compatible with ReScript 12 and add the typed DOM operations required by Frontman.
+
+- [#1530](https://github.com/frontman-ai/frontman/pull/1530) [`bc0ef3c`](https://github.com/frontman-ai/frontman/commit/bc0ef3ccffc617bc3b5992f89351ab397a46c8f4) Thanks [@uinstinct](https://github.com/uinstinct)! - Reject Next.js versions below 15.5 before installing dependencies or generating middleware, and align peer dependency metadata and documentation with that support range.
+
+- [#1515](https://github.com/frontman-ai/frontman/pull/1515) [`9d6c858`](https://github.com/frontman-ai/frontman/commit/9d6c858d6aebc96a4d62b8358619292aa9bfa591) Thanks [@dependabot](https://github.com/apps/dependabot)! - Raise the minimum React peer version to 19.2.8 alongside React DOM.
+
+## 1.0.5
+
+### Patch Changes
+
+- [#1415](https://github.com/frontman-ai/frontman/pull/1415) [`3ab55f5`](https://github.com/frontman-ai/frontman/commit/3ab55f5efc38b66f3ee380a9dae6e1580c63efa7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Give annotated elements the same bounded DOM context as `get_dom`, including their parent and direct children, so agents can follow selectors instead of broadly searching source files. Keep `get_dom` shadow traversal compatible with navigable indexed `>>>` paths. Resolve Next.js React Server Component annotations through server-side source maps without issuing invalid browser requests for React's virtual source URLs, while preserving client-component source locations beneath server components.
+
+- [#1430](https://github.com/frontman-ai/frontman/pull/1430) [`2646d4c`](https://github.com/frontman-ai/frontman/commit/2646d4cb4c9aaae0973d597b6f0df81b33fce75c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Load packaged ripgrep binaries at runtime so grep and file search work from bundled integrations.
+
+## 1.0.4
+
+### Patch Changes
+
+- [#1336](https://github.com/frontman-ai/frontman/pull/1336) [`01667f2`](https://github.com/frontman-ai/frontman/commit/01667f23231e9d63a6ff201a82ed1581bea8f85a) Thanks [@dependabot](https://github.com/apps/dependabot)! - Align the Sury runtime and PPX on `sury@11.0.0-alpha.10`.
+
+- [#1313](https://github.com/frontman-ai/frontman/pull/1313) [`37515a4`](https://github.com/frontman-ai/frontman/commit/37515a483796a5faeed2ada29273ba371cfdc208) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix Next.js CLI entrypoint detection so projects with a root router and unrelated src directory keep middleware or proxy files at the repository root.
+
+- [#1329](https://github.com/frontman-ai/frontman/pull/1329) [`4f61a67`](https://github.com/frontman-ai/frontman/commit/4f61a671b15563359126931a5db3b5d4fa54183f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve honest optional output schemas across framework server tool relays.
+
+- [#1313](https://github.com/frontman-ai/frontman/pull/1313) [`37515a4`](https://github.com/frontman-ai/frontman/commit/37515a483796a5faeed2ada29273ba371cfdc208) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add TypeScript declarations for the Next.js package exports and install Next.js middleware/proxy files under `src/` when the app uses a `src` directory.
+
+- [#1316](https://github.com/frontman-ai/frontman/pull/1316) [`9402b2e`](https://github.com/frontman-ai/frontman/commit/9402b2e91b4133b56db5448ad818bd1e82ba4c85) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve structured MCP tool results through ACP `rawOutput`.
+
+## 1.0.3
+
+### Patch Changes
+
+- [#1305](https://github.com/frontman-ai/frontman/pull/1305) [`a5e12f0`](https://github.com/frontman-ai/frontman/commit/a5e12f035a3fe485661e82014d0dacf5d4f6a61c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain required Frontman sign-in and AI provider setup in package guidance and installer completion output.
+
+## 1.0.2
+
+### Patch Changes
+
+- [#1235](https://github.com/frontman-ai/frontman/pull/1235) [`5a5a284`](https://github.com/frontman-ai/frontman/commit/5a5a284ce87b839a12824eec8f8d05ef0ff0e54a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix dependency metadata so Yarn installs without peer warnings.
+
+- [#1252](https://github.com/frontman-ai/frontman/pull/1252) [`5ff6278`](https://github.com/frontman-ai/frontman/commit/5ff6278294b1aba5bfd422eeaccdd69cff81ad49) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Lighthouse to 13.4.0 across framework integrations.
+
+- [#1233](https://github.com/frontman-ai/frontman/pull/1233) [`2bedc65`](https://github.com/frontman-ai/frontman/commit/2bedc656b4c2b1497e528bbeb704afb39bdce410) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update @sentry/nextjs to 10.56.0.
+
+- [#1237](https://github.com/frontman-ai/frontman/pull/1237) [`7ebe6be`](https://github.com/frontman-ai/frontman/commit/7ebe6be9c1d5bfc8a80b38b2be7ef57351777391) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read/write access metadata to browser, backend, framework, and WordPress tool definitions.
+
 ## 1.0.1
 
 ### Patch Changes

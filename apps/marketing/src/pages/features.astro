@@ -1,6 +1,4 @@
 ---
-// Features page — targeted at designers and PMs at Series A+ startups
-// managing design systems across multiple teams.
 
 import Layout from '../layouts/Layout.astro'
 import Button from '../components/ui/Button.astro'
@@ -30,7 +28,7 @@ const faqs = [
 	},
 	{
 		question: 'Is it free?',
-		answer: 'Self-hosting remains free under the open-source licenses. Hosted Frontman plans are moving to paid subscriptions.'
+		answer: 'Self-hosting remains free under the repository terms. The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. Hosted Frontman Pro is available now.'
 	},
 	{
 		question: 'Can everyone on my team use it?',
@@ -55,7 +53,6 @@ const faqJsonLd = {
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<!-- Hero -->
 	<section class="hero-section">
 		<div class="hero-container">
 			<p class="hero-label">Features</p>
@@ -66,7 +63,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- The Problem -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">Every pixel fix costs a round trip.</h2>
@@ -78,7 +74,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Feature 1: Point and Speak -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<div class="feature-block">
@@ -100,7 +95,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Feature 2: Instant Feedback -->
 	<section class="content-section">
 		<div class="content-container">
 			<div class="feature-block">
@@ -114,7 +108,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Feature 3: Respects Your System -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<div class="feature-block">
@@ -139,7 +132,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Feature 4: It Sees What You See -->
 	<section class="content-section">
 		<div class="content-container">
 			<div class="feature-block">
@@ -147,7 +139,7 @@ const faqJsonLd = {
 				<h2 class="section-title">It sees what you see.</h2>
 				<div class="prose-content">
 					<p>Most AI tools only read code files. They can guess what the page looks like, but they've never actually seen it.</p>
-					<p>Frontman runs inside your browser. When you click an element, it sees the actual rendered result — sizes in pixels, real colors, how things overlap, what's visible at your current screen size. That <a href="/blog/introducing-frontman/" class="feature-link">browser-aware AI context</a> is why the edits land accurately.</p>
+					<p>Frontman's browser tools inspect the actual rendered result — sizes in pixels, real colors, how things overlap, and what's visible at your current screen size. Local integrations handle source-file operations, while the hosted or self-hosted server orchestrates the agent, persists task history, and sends relevant context to your selected LLM provider. That <a href="/blog/introducing-frontman/" class="feature-link">browser-aware AI context</a> is why the edits land accurately.</p>
 				</div>
 				<div class="context-grid">
 					<div class="context-card">
@@ -171,7 +163,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Feature 5: Safe by Default -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<div class="feature-block">
@@ -185,7 +176,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- Who it's for -->
 	<section class="content-section">
 		<div class="content-container">
 			<h2 class="section-title">Who uses Frontman.</h2>
@@ -206,7 +196,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- FAQ -->
 	<section class="content-section content-section--light">
 		<div class="content-container">
 			<h2 class="section-title section-title--dark">Common Questions</h2>
@@ -226,7 +215,6 @@ const faqJsonLd = {
 		</div>
 	</section>
 
-	<!-- CTA -->
 	<section class="cta-section">
 		<div class="cta-container">
 			<h2 class="cta-title">Ready to try it?</h2>
@@ -242,7 +230,6 @@ const faqJsonLd = {
 
 <style>
 	@reference "../styles/global.css";
-	/* Hero */
 	.hero-section {
 		background: #09090b;
 		color: #fafafa;
@@ -273,7 +260,6 @@ const faqJsonLd = {
 		color: #a1a1aa;
 	}
 
-	/* Content sections */
 	.content-section {
 		background: #09090b;
 		color: #fafafa;
@@ -308,7 +294,6 @@ const faqJsonLd = {
 	.feature-link--dark { color: #7c3aed; }
 	.feature-link--dark:hover { color: #5b21b6; }
 
-	/* Feature blocks */
 	.feature-block { position: relative; }
 	.feature-number {
 		font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
@@ -319,7 +304,6 @@ const faqJsonLd = {
 		letter-spacing: 0.05em;
 	}
 
-	/* Feature highlights */
 	.feature-highlights {
 		display: flex;
 		flex-direction: column;
@@ -344,7 +328,6 @@ const faqJsonLd = {
 		margin: 0;
 	}
 
-	/* Context grid */
 	.context-grid {
 		display: grid;
 		grid-template-columns: repeat(2, 1fr);
@@ -371,7 +354,6 @@ const faqJsonLd = {
 		color: #a1a1aa;
 	}
 
-	/* Persona cards */
 	.persona-grid {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
@@ -396,7 +378,6 @@ const faqJsonLd = {
 		color: #a1a1aa;
 	}
 
-	/* FAQ */
 	.faq-list { border-top: 1px solid #e4e4e7; }
 	.faq-item { border-bottom: 1px solid #e4e4e7; cursor: pointer; }
 	.faq-question {
@@ -439,7 +420,6 @@ const faqJsonLd = {
 		max-width: 620px;
 	}
 
-	/* CTA */
 	.cta-section {
 		background: #09090b;
 		padding: 80px 24px;
@@ -470,7 +450,6 @@ const faqJsonLd = {
 	}
 	.cta-secondary:hover { color: #fafafa; }
 
-	/* Responsive */
 	@media (max-width: 768px) {
 		.hero-section { padding: 48px 20px 32px; }
 		.hero-title { font-size: 32px; }

@@ -1,6 +1,3 @@
-// SSE (Server-Sent Events) Parser
-// Parses SSE stream from fetch response, returns first result event or error.
-
 module WebStreams = FrontmanBindings.WebStreams
 
 type eventType = [#progress | #result | #error | #unknown]
@@ -19,7 +16,6 @@ let parseEventType = (s: string): eventType => {
   }
 }
 
-// SSE spec: multiple data: lines concatenate with newlines
 let parseEventBlock = (block: string): option<sseEvent> => {
   let lines = block->String.split("\n")
 
@@ -42,54 +38,33 @@ let parseEventBlock = (block: string): option<sseEvent> => {
   }
 }
 
-// Process a single SSE event, returns Some(result) if terminal (result/error)
-let processEvent = (event: sseEvent, ~onProgress: option<string => unit>): option<
-  result<JSON.t, string>,
-> => {
-  switch event.eventType {
-  | #progress =>
-    onProgress->Option.forEach(cb => cb(event.data))
-    None
-  | #result =>
-    let parsed = try {
-      Ok(JSON.parseOrThrow(event.data))
-    } catch {
-    | exn =>
-      let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("unknown")
-      Error(`Failed to parse result JSON: ${msg}`)
-    }
-    Some(parsed)
-  | #error => Some(Error(event.data))
-  | #unknown => None
-  }
-}
-
-// Extract error message from exception
 let exnMessage = (exn: exn): string => {
   exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("unknown")
 }
 
-// Process complete blocks, return first terminal result or None
-let processBlocks = (blocks: array<string>, ~onProgress: option<string => unit>): option<
-  result<JSON.t, string>,
-> => {
-  blocks->Array.reduceWithIndex(None, (acc, block, _i) => {
+let processBlocks = (blocks: array<string>): option<result<JSON.t, string>> => {
+  blocks->Array.reduce(None, (acc, block) => {
     switch acc {
     | Some(_) => acc
     | None =>
       switch parseEventBlock(block) {
       | None => None
-      | Some(event) => processEvent(event, ~onProgress)
+      | Some({eventType: #progress | #unknown}) => None
+      | Some({eventType: #error, data}) => Some(Error(data))
+      | Some({eventType: #result, data}) =>
+        Some(
+          try {
+            Ok(JSON.parseOrThrow(data))
+          } catch {
+          | exn => Error(`Failed to parse result JSON: ${exnMessage(exn)}`)
+          },
+        )
       }
     }
   })
 }
 
-// Read SSE stream, return first result or error
-let readStream = async (
-  response: WebAPI.FetchAPI.response,
-  ~onProgress: option<string => unit>=?,
-): result<JSON.t, string> => {
+let readStream = async (response: WebAPI.Response.t): result<JSON.t, string> => {
   switch response.body->Null.toOption {
   | None => Error("No response body")
   | Some(body) =>
@@ -116,7 +91,7 @@ let readStream = async (
             incompleteChunk := parts->Array.getUnsafe(partsCount - 1)
 
             let completeBlocks = parts->Array.slice(~start=0, ~end=partsCount - 1)
-            result := processBlocks(completeBlocks, ~onProgress)
+            result := processBlocks(completeBlocks)
           })
           ->Option.getOr()
         }

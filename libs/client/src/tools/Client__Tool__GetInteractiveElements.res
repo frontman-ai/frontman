@@ -1,10 +1,7 @@
-// Client tool that discovers interactive elements on the current page.
-// Returns a snapshot of clickable/interactive elements with their roles,
-// accessible names, and CSS selectors for use by interact_with_element.
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.getInteractiveElements
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Read
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Discover interactive elements on the current web preview page. Returns a list of clickable/interactive elements with their ARIA roles, accessible names, CSS selectors, and visible text.
@@ -67,14 +64,16 @@ type output = {
   error: option<string>,
 }
 
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
 ): Tool.MCP.CallToolResult.t => {
-  Client__Tool__ElementResolver.withPreviewDoc(
+  Client__Tool__PreviewContext.withPreview(
     ~onUnavailable=() =>
-      Tool.jsonResult(
+      Tool.structuredResult(
         {
           success: false,
           elements: None,
@@ -86,19 +85,22 @@ let execute = async (
       ),
     ({doc, win}) => {
       try {
-        let resolved = Client__Tool__ElementResolver.collectInteractiveElements(
+        let resolved = Client__Tool__ElementQuery.queryInteractiveElements(
           ~document=doc,
           ~contentWindow=win,
-          ~roleFilter=?input.role,
-          ~nameFilter=?input.name,
-          ~maxElements,
+          ~roleFilter=input.role,
+          ~nameFilter=input.name,
+          ~limit=Some(maxElements),
         )
 
         let elements = resolved->Array.mapWithIndex((el, idx) => {
-          let selector = Client__Tool__ElementResolver.generateSelector(
+          let selector = switch Client__ElementInspector.findSelector(
             ~element=el.element,
-            ~document=Some(doc),
-          )
+            ~document=doc,
+          ) {
+          | Ok(selector) => Some(selector)
+          | Error(_) => None
+          }
 
           {
             index: idx,
@@ -106,15 +108,13 @@ let execute = async (
             name: el.name,
             tag: el.tag,
             selector,
-            detectionMethod: Client__Tool__ElementResolver.detectionMethodToString(
-              el.detectionMethod,
-            ),
+            detectionMethod: Client__Tool__ElementQuery.detectionMethodToString(el.detectionMethod),
             visibleText: el.visibleText,
           }
         })
 
         let count = elements->Array.length
-        Tool.jsonResult(
+        Tool.structuredResult(
           {
             success: true,
             elements: Some(elements),
@@ -126,13 +126,13 @@ let execute = async (
         )
       } catch {
       | exn =>
-        Tool.jsonResult(
+        Tool.structuredResult(
           {
             success: false,
             elements: None,
             totalCount: None,
             truncated: None,
-            error: Some(Client__Tool__ElementResolver.exnMessage(exn)),
+            error: Some(Client__Tool__PreviewContext.exnMessage(exn)),
           },
           outputSchema,
         )

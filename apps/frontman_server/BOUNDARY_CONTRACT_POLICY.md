@@ -30,7 +30,7 @@ Our default is:
 - If a struct/type must be reused across boundaries:
   - Export it from the owner boundary.
   - Add a one-way dependency from consumer boundary to owner boundary.
-  - Keep function specs and pattern matches explicit.
+  - Keep pattern matches explicit.
 
 4. No dependency cycles
 - Never create two-way boundary deps.
@@ -48,7 +48,7 @@ Our default is:
 - `FrontmanServer.Providers.ApiKey`
 
 Consume these via top-level context APIs (for example `Accounts.scope_user_id/1`,
-`Accounts.get_user/1`, `Providers.prepare_llm_args/3`) until they are
+`Accounts.get_user/1`, `Providers.resolve_model_access/3`) until they are
 intentionally published.
 
 ## PR checklist

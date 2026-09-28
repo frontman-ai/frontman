@@ -1,20 +1,13 @@
 ---
-// Coming Soon Section
-// ------------
-// Description: A section showcasing upcoming features
 
-// Components
-// - Layout
 import Row from '../../ui/Row.astro'
 import Col from '../../ui/Col.astro'
-// - Image
 import figmaImage from '../../../assets/coming-soon/figma.svg'
 ---
 
 <section id="coming-soon" class="coming-soon-section">
 	<div class="container">
 		<Row classes="gap-12">
-			<!-- Left side: Content -->
 			<Col spanMobile="12" span="6">
 				<div class="coming-soon-content">
 					<h2 class="coming-soon-title">
@@ -26,7 +19,6 @@ import figmaImage from '../../../assets/coming-soon/figma.svg'
 				</div>
 			</Col>
 
-			<!-- Right side: Image -->
 			<Col spanMobile="12" span="6">
 				<div class="coming-soon-image-wrapper">
 					<img src={figmaImage.src} alt="Figma Integration" class="coming-soon-image" loading="lazy" width="600" height="400" />
@@ -47,7 +39,6 @@ import figmaImage from '../../../assets/coming-soon/figma.svg'
 		@apply relative mx-auto px-6 max-w-7xl;
 	}
 
-	/* Content Side */
 	.coming-soon-content {
 		@apply flex flex-col justify-center h-full py-8 lg:py-0;
 	}
@@ -62,7 +53,6 @@ import figmaImage from '../../../assets/coming-soon/figma.svg'
 		line-height: 1.7;
 	}
 
-	/* Image Side */
 	.coming-soon-image-wrapper {
 		@apply relative flex items-center justify-center;
 		min-height: 400px;
@@ -74,7 +64,6 @@ import figmaImage from '../../../assets/coming-soon/figma.svg'
 		max-width: 600px;
 	}
 
-	/* Responsive adjustments */
 	@media (max-width: 1024px) {
 		.coming-soon-image-wrapper {
 			min-height: 300px;

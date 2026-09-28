@@ -4,57 +4,70 @@
 SHELL := /bin/bash
 PATH := ./node_modules/.bin:$(PATH)
 
-help: ## Display this help message
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ { printf "  %-20s %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+HELP_TARGETS := help install test test-coverage lint format dev-build-watch dev-hot build build-lib build-standalone clean serve preview check
+HELP_help := Display this help message
+HELP_install := Install project dependencies
+HELP_test := Run test suite
+HELP_test-coverage := Run tests with coverage
+HELP_lint := Run linters and code formatters
+HELP_format := Format code with biome
+HELP_dev-build-watch := Watch and build in development mode
+HELP_dev-hot := Start development server with hot reload
+HELP_build := Build the project for production
+HELP_build-lib := Build the project as a library
+HELP_build-standalone := Build standalone bundle (React bundled) for Cloudflare Pages
+HELP_clean := Clean build artifacts and temporary files
+HELP_serve := Serve production build
+HELP_preview := Preview production build
+HELP_check := Run all checks (lint + test)
 
-install: ## Install project dependencies
+help:
+	@$(foreach target,$(HELP_TARGETS),printf "  %-20s  %s\n" "$(target)" '$(HELP_$(target))';)
+
+install:
 	npm install
 
-test: build ## Run test suite
+test: build
 	yarn vitest run
 
-test-coverage: build ## Run tests with coverage
+test-coverage: build
 	yarn vitest run --coverage
 
-lint: ## Run linters and code formatters
+lint:
 	yarn biome check .
 
-format: ## Format code with biome
+format:
 	yarn biome check --write .
 
-dev: 
+dev:
 	yarn vite
 
-dev-build-watch: ## Watch and build in development mode
+dev-build-watch:
 	yarn vite build --mode development --watch
 
-dev-hot: ## Start development server with hot reload
+dev-hot:
 	yarn vite --mode development
 
-build: ## Build the project for production
+build:
 	$(MAKE) clean
 	yarn rescript build
 
-build-lib: ## Build the project as a library
+build-lib:
 	$(MAKE) clean
 	yarn vite build --mode library
 
-build-standalone: ## Build standalone bundle (React bundled) for Cloudflare Pages
+build-standalone:
 	$(MAKE) clean
 	yarn rescript build
 	yarn vite build --config vite.config.standalone.ts
 
-clean: ## Clean build artifacts and temporary files
+clean:
 	rm -rf dist
 
-serve: ## Serve production build
+serve:
 	yarn vite preview --port 5173 --host
 
-preview: ## Preview production build
+preview:
 	yarn vite preview
 
-publish:
-	$(MAKE) build-lib
-	npm publish
-
-check: lint ## Run all checks (lint + test)
+check: lint

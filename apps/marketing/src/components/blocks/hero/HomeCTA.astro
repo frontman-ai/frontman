@@ -1,63 +1,30 @@
 ---
-// Home page CTA Section
-// ------------
-// Description: A centered hero section with clear positioning, social proof, and a demo video.
 
-// Components
-// - UI
 import { Image } from 'astro:assets'
 import Button from '../../ui/Button.astro'
+import UsedInWild from '../socialproof/UsedInWild.astro'
 
-// Content
-// - Background Pattern
 import gridNetBackground from '../../../assets/grid-net-background.svg'
-// - Video Placeholder (product screenshot used as video thumbnail)
 import videoPlaceholder from '../../../assets/video-placeholder.png'
 
-// YouTube video
 const youtubeVideoId = '-4GD1GYwH8Y'
 
-const webMcpScript = `
-if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext === 'function') {
-  navigator.modelContext.provideContext({
-    tools: [
-      {
-        name: 'open_docs',
-        description: 'Open Frontman documentation.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false,
-        },
-        execute: async () => {
-          window.location.href = '/docs/'
-          return { ok: true }
-        },
-      },
-      {
-        name: 'jump_to_install',
-        description: 'Scroll to the install section on the homepage.',
-        inputSchema: {
-          type: 'object',
-          properties: {},
-          additionalProperties: false,
-        },
-			execute: async () => {
-				const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-				document.querySelector('#install')?.scrollIntoView({ behavior, block: 'start' })
-          return { ok: true }
-        },
-      },
-    ],
-  })
-}
-`
 ---
 
 <section id="intro" class="hero-section bg-primary-500">
-	<script is:inline set:html={webMcpScript} />
+	<script>
+		import { registerHomepageTools } from '../../../integrations/webmcp.mjs'
+
+		async function initializeWebMcp() {
+			await registerHomepageTools(document)
+		}
+
+		void initializeWebMcp().catch((error) => {
+			console.error('[WebMCP] Homepage tool registration failed.', error)
+		})
+	</script>
 	<div class="hero-section__bg">
-		<img src={gridNetBackground.src} alt="" aria-hidden="true" class="hero-section__bg-image" width="1440" height="900" fetchpriority="high" />
+		<img src={gridNetBackground.src} alt="" aria-hidden="true" class="hero-section__bg-image" width="1440" height="900" loading="lazy" fetchpriority="low" />
 	</div>
 	<div class="hero-section__container">
 		<div class="hero-section__top">
@@ -65,8 +32,8 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 				<span class="hero-section__traction-number">1,000+</span>
 				<span class="hero-section__traction-copy">tasks run across Vite, WordPress, Next.js, and Astro projects</span>
 			</div>
-			<h1 class="hero-section__title">Frontman: click your website. Tell AI what to change.</h1>
-			<p class="hero-section__subtitle">Frontman helps WordPress site owners, marketers, and designers update real websites without rebuilding, digging through admin screens, or waiting on developer tickets.</p>
+			<h1 class="hero-section__title">Click your website. Tell AI what to change.</h1>
+			<p class="hero-section__subtitle">Frontman helps marketing teams, designers, and site owners update any website—including WordPress—without rebuilding or waiting on developer tickets.</p>
 			<div class="hero-section__cta">
 				<Button size="lg" style="white" link="#install" classes="hero-section__primary-cta" data-ga-event="click_start_building" data-ga-category="conversion" data-ga-label="hero">Try it now <span class="hero-section__cta-arrow" aria-hidden="true">→</span></Button>
 				<div class="hero-section__secondary-links">
@@ -76,10 +43,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 					<span class="hero-section__link-divider" aria-hidden="true">·</span>
 					<a href="/marketing-teams/" class="hero-section__text-link" data-ga-event="click_marketing_teams" data-ga-category="conversion" data-ga-label="hero">
 						Marketing or design team?
-					</a>
-					<span class="hero-section__link-divider" aria-hidden="true">·</span>
-					<a href="https://github.com/frontman-ai/frontman" target="_blank" rel="noopener noreferrer" class="hero-section__text-link" data-ga-event="click_star_github" data-ga-category="conversion" data-ga-label="hero">
-						Frontman GitHub
 					</a>
 				</div>
 			</div>
@@ -129,8 +92,8 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 				Changes happen in seconds
 			</span>
 		</div>
-		<!-- SEO-targeted detail text, visually de-emphasized -->
-		<p class="hero-section__geo-lead">Frontman is an AI website editor for existing WordPress, Next.js, Astro, and Vite sites. It runs inside WordPress as a plugin or inside your framework dev server as middleware, sees the live page, CMS or component context, CSS styles, routes, and logs, then turns visual requests into reviewable site updates. Open-source core with BYOK model support.</p>
+		<UsedInWild />
+		<p class="hero-section__geo-lead">Frontman is a source-available AI website editor for existing WordPress, Next.js, Astro, and Vite sites. Browser tools inspect the live page, local integrations handle CMS or filesystem operations, and a hosted or self-hosted server orchestrates the agent and persists task history. Relevant context is sent to your selected LLM provider to produce reviewable site updates.</p>
 	</div>
 </section>
 
@@ -143,7 +106,8 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		position: absolute;
 		inset: 0;
 		z-index: 0;
-		opacity: 0.3;
+		opacity: 0.12;
+		pointer-events: none;
 	}
 	.hero-section__bg-image {
 		width: 100%;
@@ -168,7 +132,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		}
 	}
 
-	/* -- Top block: badge + headline + subtitle + CTAs (centered) -- */
 	.hero-section__top {
 		text-align: center;
 		max-width: 780px;
@@ -180,17 +143,17 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 	}
 	.hero-section__title {
 		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
-		font-size: 34px;
-		line-height: 40px;
+		font-size: clamp(36px, 5.2vw, 60px);
+		line-height: 1.08;
+		letter-spacing: -0.04em;
+		text-wrap: balance;
 		font-weight: 700;
 		color: white;
 		margin: 16px 0 12px;
 	}
 	@media (min-width: 1024px) {
 		.hero-section__title {
-			font-size: 56px;
-			line-height: 62px;
-			margin: 20px 0 16px;
+			margin: 24px 0 20px;
 		}
 	}
 	.hero-section__subtitle {
@@ -217,7 +180,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		}
 	}
 
-	/* -- CTAs row -- */
 	.hero-section__cta {
 		display: flex;
 		flex-direction: column;
@@ -246,7 +208,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		position: relative;
 		overflow: hidden;
 	}
-	/* Subtle shimmer — white light sweep, barely visible, just enough to catch the eye */
 	.hero-section__primary-cta::after {
 		content: '';
 		position: absolute;
@@ -281,7 +242,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		100% { left: 125%; }
 	}
 	.hero-section__primary-cta:hover {
-		/* Let the Button.astro :hover handle it */
 	}
 	.hero-section__secondary-links {
 		display: flex;
@@ -323,30 +283,13 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 	}
 	@media (min-width: 640px) {
 		.hero-section__text-link {
-			color: rgba(255, 255, 255, 0.95);
-			font-size: 15px;
+			font-size: 14px;
 			line-height: 22px;
-			gap: 7px;
-			padding: 9px 18px;
-			border-radius: 12px;
-			border: 1px solid rgba(255, 255, 255, 0.15);
-			background: rgba(255, 255, 255, 0.06);
-			backdrop-filter: blur(8px);
-			-webkit-backdrop-filter: blur(8px);
-			transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-			box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 		}
-		.hero-section__text-link:hover {
-			color: white;
-			background: rgba(255, 255, 255, 0.12);
-			border-color: rgba(255, 255, 255, 0.3);
-			transform: translateY(-2px);
-			box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 8px 24px rgba(162, 89, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-		}
-		.hero-section__text-link:active {
-			transform: translateY(0);
-			background: rgba(255, 255, 255, 0.08);
-		}
+	}
+	.hero-section__text-link:hover {
+		text-decoration: underline;
+		text-underline-offset: 4px;
 	}
 	.hero-section__text-link:focus-visible {
 		outline: 2px solid rgba(255, 255, 255, 0.9);
@@ -359,21 +302,21 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		opacity: 0.9;
 	}
 	.hero-section__link-divider {
-		color: rgba(255, 255, 255, 0.35);
+		color: rgba(255, 255, 255, 0.68);
 		font-size: 16px;
 		user-select: none;
 	}
 
-	/* -- Video (full width below text, hero centerpiece) -- */
 	.hero-section__video-wrapper {
 		width: 100%;
 		max-width: 960px;
 		aspect-ratio: 16 / 9;
 		position: relative;
 		margin: 28px auto 0;
-		border-radius: 12px;
+		border-radius: 16px;
+		border: 1px solid rgba(255, 255, 255, 0.22);
 		overflow: hidden;
-		box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
+		box-shadow: 0 24px 64px -20px rgba(9, 3, 22, 0.65), 0 0 0 6px rgba(255, 255, 255, 0.04);
 	}
 	@media (min-width: 1024px) {
 		.hero-section__video-wrapper {
@@ -398,7 +341,7 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 	}
 	.hero-section__video-trigger:focus-visible {
 		outline: 3px solid white;
-		outline-offset: 3px;
+		outline-offset: -5px;
 	}
 	.hero-section__video-trigger[data-playing] {
 		display: none;
@@ -428,7 +371,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		border: none;
 	}
 
-	/* -- Badge -- */
 	.hero-section__badge {
 		display: inline-block;
 		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
@@ -443,7 +385,6 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		}
 	}
 
-	/* -- Proof strip (benefit-driven, not tech-driven) -- */
 	.hero-section__proof {
 		display: flex;
 		flex-direction: column;
@@ -528,11 +469,10 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		}
 	}
 
-	/* -- Geo-lead SEO text (visually de-emphasized) -- */
 	.hero-section__geo-lead {
 		font-size: 12px;
 		line-height: 17px;
-		color: rgba(255, 255, 255, 0.35);
+		color: rgba(255, 255, 255, 0.68);
 		text-align: center;
 		max-width: 700px;
 		margin: 24px auto 0;
@@ -541,6 +481,15 @@ if ('modelContext' in navigator && typeof navigator.modelContext?.provideContext
 		.hero-section__geo-lead {
 			font-size: 13px;
 			line-height: 18px;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.hero-section__primary-cta::after {
+			animation: none;
+		}
+		.hero-section__cta-arrow,
+		.hero-section__play-button {
+			transition: none;
 		}
 	}
 </style>

@@ -1,11 +1,3 @@
-// Serializes arbitrary JS values into bounded JSON strings.
-// Handles DOM nodes, NodeList, Map, Set, circular refs, and depth/breadth limits.
-// Extracted into its own module so it can be tested independently.
-
-// Recursive serializer that walks the value graph with cycle detection (WeakSet),
-// depth cap (5), and breadth cap (50 keys/items per level). DOM elements are
-// reduced to {__type, tag, id, className, textContent}. Returns a JSON string
-// truncated to maxBytes.
 let serialize: ('a, int) => string = %raw(`
   function smartSerialize(value, maxBytes) {
     var seen = typeof WeakSet !== 'undefined' ? new WeakSet() : { add: function(){}, has: function(){ return false } };

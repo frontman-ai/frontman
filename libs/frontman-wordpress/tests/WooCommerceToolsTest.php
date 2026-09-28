@@ -196,6 +196,7 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 		$this->test_string_path_ids_are_allowed();
 		$this->test_product_reviews_use_global_reviews_endpoint();
 		$this->test_delete_product_requires_confirmation();
+		$this->test_delete_product_string_false_is_not_forced();
 		$this->test_product_meta_upsert_uses_meta_data_array();
 		$this->test_product_meta_delete_uses_woocommerce_crud();
 
@@ -466,6 +467,14 @@ class Frontman_WooCommerce_Tools_Test_Runner {
 
 		$error = $this->call_error( 'wc_delete_product', [ 'productId' => 10, 'force' => true, 'confirm' => false ] );
 		$this->assert_true( false !== strpos( $error, 'explicit confirmation' ), 'wc_delete_product requires confirm=true' );
+	}
+
+	private function test_delete_product_string_false_is_not_forced(): void {
+		$this->reset_rest();
+		$input = $this->tools->sanitize_input( 'wc_delete_product', [ 'productId' => 10, 'force' => 'false', 'confirm' => true ] );
+		$this->call_success( 'wc_delete_product', $input );
+
+		$this->assert_same( false, $GLOBALS['frontman_wc_rest_requests'][1]->params['force'], 'wc_delete_product does not convert string false into forced deletion' );
 	}
 
 	private function test_product_meta_upsert_uses_meta_data_array(): void {

@@ -1,7 +1,3 @@
-// MCP Client entry point
-// Handles MCP message routing for browser-as-server pattern
-// Generic over server type - can be used with any MCP server implementation
-
 module Types = FrontmanClient__MCP__Types
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
@@ -10,24 +6,17 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #MCP
 })
 
-type messageDirection = Send | Receive
-
-// Generic handler type - parameterized over server type
-// sessionId identifies the task this handler is bound to
 type mcpHandler<'server> = {
   serverInterface: Types.serverInterface<'server>,
   channel: Channel.t,
   sessionId: string,
-  onMessage: option<(messageDirection, JSON.t) => unit>,
 }
 
-// Incoming message variants
 @@live
 type mcpMessage =
   | Request({id: JsonRpc.Id.t, method: string, params: option<JSON.t>})
   | Notification({method: string, params: option<JSON.t>})
 
-// Schema for requests (has id field)
 let requestSchema = S.object(s => {
   s.field("jsonrpc", S.literal("2.0"))->ignore
   let id = s.field("id", JsonRpc.Id.schema)
@@ -36,7 +25,6 @@ let requestSchema = S.object(s => {
   Request({id, method, params})
 })
 
-// Schema for notifications (no id field)
 let notificationSchema = S.object(s => {
   s.field("jsonrpc", S.literal("2.0"))->ignore
   let method = s.field("method", S.string)
@@ -44,109 +32,137 @@ let notificationSchema = S.object(s => {
   Notification({method, params})
 })
 
-// Check if JSON object has an "id" field
-let hasIdField = (json: JSON.t): bool => {
-  switch json->JSON.Decode.object {
-  | Some(obj) => obj->Dict.get("id")->Option.isSome
-  | None => false
-  }
-}
+let idFieldSchema = S.object(s => s.field("id", S.json))
+let idValue = json => json->Decoders.parseSchema(idFieldSchema)->Result.mapOr(None, id => Some(id))
+let hasIdField = json => json->idValue->Option.isSome
+let readableId = json =>
+  json
+  ->idValue
+  ->Option.flatMap(id =>
+    id->Decoders.parseSchema(JsonRpc.Id.schema)->Result.mapOr(None, id => Some(id))
+  )
 
-// Parse incoming MCP message
-// Discriminates by presence of 'id' field
-let parse = (json: JSON.t): result<mcpMessage, string> => {
-  let schema = if hasIdField(json) {
-    requestSchema
-  } else {
-    notificationSchema
-  }
-  json->Decoders.parseSchema(schema)
-}
+let parse = json =>
+  json->Decoders.parseSchema(hasIdField(json) ? requestSchema : notificationSchema)
 
-// Send a JSON-RPC response
+let parseParams = (params, schema, missingMessage) =>
+  switch params {
+  | Some(params) => params->Decoders.parseSchema(schema)
+  | None => Error(missingMessage)
+  }
+
 let sendResponse = (handler: mcpHandler<'server>, id: JsonRpc.Id.t, result: JSON.t): unit => {
-  let payload = JsonRpc.Response.makeSuccessPayloadWithId(~id, ~result)
-  handler.onMessage->Option.forEach(cb => cb(Send, payload))
+  let payload = JsonRpc.Response.makeSuccess(~id, ~result)->JsonRpc.Response.toJson
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
-// Send a JSON-RPC error response
 let sendError = (
   handler: mcpHandler<'server>,
   id: JsonRpc.Id.t,
   code: int,
   message: string,
+  ~data: option<JSON.t>=?,
 ): unit => {
-  let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
-  let payload = JsonRpc.Response.makeErrorPayloadWithId(~id, ~error)
-  handler.onMessage->Option.forEach(cb => cb(Send, payload))
+  let error = JsonRpc.RpcError.make(~code, ~message, ~data)
+  let payload = JsonRpc.Response.makeError(~id, ~error)->JsonRpc.Response.toJson
   handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
-// Handle initialize request
-let handleInitialize = (
+let sendErrorWithoutId = (handler: mcpHandler<'server>, code: int, message: string): unit => {
+  let error = JsonRpc.RpcError.make(~code, ~message, ~data=None)
+  let payload = JsonRpc.Response.makeErrorWithoutId(~error)->JsonRpc.Response.toJson
+  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
+}
+
+let sendMetadataError = (handler, id, error: Types.metadataError) =>
+  switch error {
+  | UnsupportedProtocolVersion(requested) =>
+    sendError(
+      handler,
+      id,
+      Types.ErrorCode.unsupportedProtocolVersion,
+      "Unsupported protocol version",
+      ~data=Types.unsupportedProtocolVersionDataToJson(requested),
+    )
+  }
+
+let sendBuiltResponse = (handler, id, operation, build) =>
+  try {
+    sendResponse(handler, id, build())
+  } catch {
+  | exn =>
+    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
+    Log.error(~error=exn->JsExn.fromException, `${operation} failed: ${msg}`)
+    sendError(handler, id, Types.ErrorCode.serverError, `${operation} failed: ${msg}`)
+  }
+
+let handleDiscover = (
   handler: mcpHandler<'server>,
   id: JsonRpc.Id.t,
-  _params: option<JSON.t>,
+  params: option<JSON.t>,
 ): unit => {
-  try {
-    let {serverInterface} = handler
-    let result = serverInterface.buildInitializeResult(serverInterface.server)
-    let resultJson =
-      result->S.decodeOrThrow(~from=Types.initializeResultSchema, ~to=S.json->S.noValidation(true))
-    sendResponse(handler, id, resultJson)
-  } catch {
-  | exn =>
-    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Log.error(~error=exn->JsExn.fromException, `Initialize failed: ${msg}`)
-    sendError(handler, id, Types.ErrorCode.serverError, `Initialize failed: ${msg}`)
+  let parsed = parseParams(params, Types.discoverParamsSchema, "Missing params for server/discover")
+
+  switch parsed {
+  | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+  | Ok(_) =>
+    sendBuiltResponse(handler, id, "Discovery", () => {
+      let {serverInterface} = handler
+      serverInterface.buildDiscoverResult(serverInterface.server)->S.decodeOrThrow(
+        ~from=Types.discoverResultSchema,
+        ~to=S.json->S.noValidation(true),
+      )
+    })
   }
 }
 
-// Handle tools/list request
-let handleToolsList = (handler: mcpHandler<'server>, id: JsonRpc.Id.t): unit => {
-  try {
-    let {serverInterface} = handler
-    let result = serverInterface.buildToolsListResult(serverInterface.server)
-    let resultJson =
-      result->S.decodeOrThrow(~from=Types.toolsListResultSchema, ~to=S.json->S.noValidation(true))
-    sendResponse(handler, id, resultJson)
-  } catch {
-  | exn =>
-    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Log.error(~error=exn->JsExn.fromException, `Tools list failed: ${msg}`)
-    sendError(handler, id, Types.ErrorCode.serverError, `Tools list failed: ${msg}`)
+let handleToolsList = (
+  handler: mcpHandler<'server>,
+  id: JsonRpc.Id.t,
+  params: option<JSON.t>,
+): unit => {
+  switch parseParams(params, Types.toolsListParamsSchema, "Missing params for tools/list") {
+  | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+  | Ok({cursor: Some(_)}) =>
+    sendError(handler, id, Types.ErrorCode.invalidParams, "Invalid or expired cursor")
+  | Ok({cursor: None}) =>
+    sendBuiltResponse(handler, id, "Tools list", () => {
+      let {serverInterface} = handler
+      let result = serverInterface.buildToolsListResult(serverInterface.server)
+      let json =
+        result->S.decodeOrThrow(~from=Types.toolsListResultSchema, ~to=S.json->S.noValidation(true))
+      json->S.parseOrThrow(~to=Types.toolsListResultWireSchema)->ignore
+      json
+    })
   }
 }
 
-// Handle tools/call request
 let handleToolsCall = async (
   handler: mcpHandler<'server>,
   id: JsonRpc.Id.t,
   params: option<JSON.t>,
 ): unit => {
-  switch params {
-  | Some(paramsJson) =>
-    let paramsResult = try {
-      Ok(paramsJson->S.parseOrThrow(~to=Types.toolCallParamsSchema))
-    } catch {
-    | exn =>
-      Error(exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Invalid params"))
-    }
-
-    switch paramsResult {
-    | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
-    | Ok({callId, name, arguments}) =>
+  switch parseParams(params, Types.toolCallParamsSchema, "Missing params for tools/call") {
+  | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+  | Ok(params) =>
+    switch Types.AuthorizedToolCall.authorize(params, ~sessionId=handler.sessionId) {
+    | Error(ToolCallMetadata(error)) => sendMetadataError(handler, id, error)
+    | Error(MissingExecutionContextCapability) =>
+      sendError(
+        handler,
+        id,
+        Types.ErrorCode.missingRequiredClientCapability,
+        "Missing required client capability",
+        ~data=Types.missingExecutionContextCapabilityDataToJson(),
+      )
+    | Error(MissingExecutionContext) =>
+      sendError(handler, id, Types.ErrorCode.invalidParams, "Missing execution context")
+    | Error(WrongTask) =>
+      sendError(handler, id, Types.ErrorCode.invalidParams, "Tool taskId does not match session")
+    | Ok(authorizedToolCall) =>
       try {
         let {serverInterface} = handler
-        let result = await serverInterface.executeTool(
-          serverInterface.server,
-          ~name,
-          ~arguments,
-          ~taskId=handler.sessionId,
-          ~callId,
-          ~onProgress=None,
-        )
+        let result = await serverInterface.executeTool(serverInterface.server, authorizedToolCall)
         switch result {
         | Completed(callToolResult) =>
           let resultJson =
@@ -155,7 +171,8 @@ let handleToolsCall = async (
               ~to=S.json->S.noValidation(true),
             )
           sendResponse(handler, id, resultJson)
-        | Suspended => () // Interactive tool — result will be delivered separately
+        | Suspended => ()
+        | ProtocolError({code, message}) => sendError(handler, id, code, message)
         }
       } catch {
       | exn =>
@@ -165,32 +182,36 @@ let handleToolsCall = async (
         sendError(handler, id, Types.ErrorCode.serverError, `Tool execution failed: ${msg}`)
       }
     }
-  | None => sendError(handler, id, Types.ErrorCode.invalidParams, "Missing params for tools/call")
   }
 }
 
-// Handle incoming MCP message
-// Guaranteed to never reject — all exceptions are caught and logged
-// (the Sentry log handler auto-reports Log.error calls).
 let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit => {
   try {
-    handler.onMessage->Option.forEach(cb => cb(Receive, payload))
-
     switch parse(payload) {
     | Ok(Request({id, method, params})) =>
-      switch method {
-      | "initialize" => handleInitialize(handler, id, params)
-      | "tools/list" => handleToolsList(handler, id)
-      | "tools/call" => await handleToolsCall(handler, id, params)
-      | _ => sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
+      switch parseParams(params, Types.discoverParamsSchema, "Missing request params") {
+      | Error(msg) =>
+        sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
+      | Ok({_meta}) =>
+        switch Types.validateRequestMeta(_meta) {
+        | Error(error) => sendMetadataError(handler, id, error)
+        | Ok(_) =>
+          switch method {
+          | "server/discover" => handleDiscover(handler, id, params)
+          | "tools/list" => handleToolsList(handler, id, params)
+          | "tools/call" => await handleToolsCall(handler, id, params)
+          | _ =>
+            sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
+          }
+        }
       }
-    | Ok(Notification({
-        method: "notifications/initialized",
-      })) => // Agent acknowledged initialization - nothing to do
-      ()
-    | Ok(Notification(_)) => // Other notifications - ignore for now
-      ()
-    | Error(msg) => Log.error(`Failed to parse MCP message: ${msg}`)
+    | Ok(Notification(_)) => ()
+    | Error(msg) =>
+      Log.error(`Failed to parse MCP message: ${msg}`)
+      switch readableId(payload) {
+      | Some(id) => sendError(handler, id, Types.ErrorCode.invalidRequest, "Invalid Request")
+      | None => sendErrorWithoutId(handler, Types.ErrorCode.invalidRequest, "Invalid Request")
+      }
     }
   } catch {
   | exn =>
@@ -199,15 +220,13 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
   }
 }
 
-// Attach MCP handler to a session channel with a server interface
 @@live
 let attach = (
   ~channel: Channel.t,
   ~sessionId: string,
   ~serverInterface: Types.serverInterface<'server>,
-  ~onMessage: option<(messageDirection, JSON.t) => unit>=?,
 ): mcpHandler<'server> => {
-  let handler = {serverInterface, channel, sessionId, onMessage}
+  let handler = {serverInterface, channel, sessionId}
 
   channel->Channel.on(~event=#"mcp:message", ~callback=payload => {
     handleMessage(handler, payload)->ignore
@@ -216,7 +235,6 @@ let attach = (
   handler
 }
 
-// Detach MCP handler from channel
 @@live
 let detach = (handler: mcpHandler<'server>): unit => {
   handler.channel->Channel.off(~event=#"mcp:message")

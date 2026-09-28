@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
 
-// ── Types ──────────────────────────────────────────────────────────────
 
 type ActionStatus = 'active' | 'paused' | 'failed' | 'completed';
 type ActionType = 'webhook' | 'scheduled' | 'triggered';
@@ -36,7 +35,6 @@ interface FilterState {
   owner: string;
 }
 
-// ── Sample Data ────────────────────────────────────────────────────────
 
 const SAMPLE_ACTIONS: Action[] = [
   {
@@ -118,7 +116,6 @@ const SAMPLE_ACTIONS: Action[] = [
 const ALL_TAGS = Array.from(new Set(SAMPLE_ACTIONS.flatMap(a => a.tags))).sort();
 const ALL_OWNERS = Array.from(new Set(SAMPLE_ACTIONS.map(a => a.owner))).sort();
 
-// ── Utility Functions ──────────────────────────────────────────────────
 
 const statusColors: Record<ActionStatus, string> = {
   active: 'bg-green-100 text-green-700',
@@ -173,9 +170,6 @@ function compareActions(a: Action, b: Action, field: SortField, dir: SortDirecti
   return dir === 'asc' ? cmp : -cmp;
 }
 
-// ── Inline Sub-Components ──────────────────────────────────────────────
-// These are defined in-file (not extracted) to simulate a realistic
-// large component file where everything lives in one place.
 
 function ActionStatusBadge({ status }: { status: ActionStatus }) {
   return (
@@ -332,10 +326,8 @@ function DetailPanel({ action, onClose }: { action: Action; onClose: () => void 
   );
 }
 
-// ── Main Component ─────────────────────────────────────────────────────
 
 export default function ActionsTable() {
-  // ── State ────────────────────────────────────────────────────────────
 
   const [filters, setFilters] = useState<FilterState>({
     search: '',
@@ -356,7 +348,6 @@ export default function ActionsTable() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const pageSize = 10;
 
-  // ── Derived State ────────────────────────────────────────────────────
 
   const filteredActions = useMemo(() => {
     return SAMPLE_ACTIONS
@@ -385,7 +376,6 @@ export default function ActionsTable() {
     filters.tags.length > 0,
   ].filter(Boolean).length;
 
-  // ── Handlers ─────────────────────────────────────────────────────────
 
   const handleSort = useCallback((field: SortField) => {
     setSort(prev => ({
@@ -420,11 +410,9 @@ export default function ActionsTable() {
     return <span className="text-blue-600 ml-1">{sort.direction === 'asc' ? '↑' : '↓'}</span>;
   };
 
-  // ── Render ───────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6 pb-6">
-      {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Actions</h1>
@@ -442,7 +430,6 @@ export default function ActionsTable() {
         </div>
       </div>
 
-      {/* Filter Panel — always visible, takes significant vertical space */}
       <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-gray-700">
@@ -512,7 +499,6 @@ export default function ActionsTable() {
           </div>
         </div>
 
-        {/* Advanced filters row — date range + tags */}
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label htmlFor="filter-date" className="block text-xs text-gray-500 mb-1">Date range</label>
@@ -556,7 +542,6 @@ export default function ActionsTable() {
           </div>
         </div>
 
-        {/* Active filter pills */}
         {activeFilterCount > 0 && (
           <div className="flex items-center gap-2 pt-2 border-t border-gray-100">
             <span className="text-xs text-gray-400">Active:</span>
@@ -594,7 +579,6 @@ export default function ActionsTable() {
         )}
       </div>
 
-      {/* Bulk actions bar */}
       {selectedRows.size > 0 && (
         <div className="flex items-center gap-3 px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
           <span className="text-sm text-blue-700 font-medium">{selectedRows.size} selected</span>
@@ -605,7 +589,6 @@ export default function ActionsTable() {
         </div>
       )}
 
-      {/* Data Table */}
       <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
         {paginatedActions.length === 0 ? (
           <EmptyState search={filters.search} />
@@ -688,7 +671,6 @@ export default function ActionsTable() {
         )}
       </div>
 
-      {/* Pagination */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-lg">
           <p className="text-sm text-gray-500">
@@ -731,7 +713,6 @@ export default function ActionsTable() {
         </div>
       )}
 
-      {/* Detail Panel — shows below the table when a row is clicked */}
       {selectedAction && (
         <DetailPanel action={selectedAction} onClose={() => setSelectedAction(null)} />
       )}

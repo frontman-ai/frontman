@@ -1,0 +1,3 @@
+let importLine = `import value from "https://frontman.sh/path/*literal*/";`
+let pluginCall = server => `frontmanPlugin({host: '${server}'})`
+let prose = `// prose outside generated bindings`

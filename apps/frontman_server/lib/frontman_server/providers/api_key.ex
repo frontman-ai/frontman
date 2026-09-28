@@ -51,4 +51,8 @@ defmodule FrontmanServer.Providers.ApiKey do
   def for_user_and_provider(query \\ __MODULE__, user_id, provider) do
     from(k in query, where: k.user_id == ^user_id and k.provider == ^provider)
   end
+
+  def provider_names_for_user(query \\ __MODULE__, user_id) do
+    from(k in for_user(query, user_id), order_by: [asc: k.provider], select: k.provider)
+  end
 end

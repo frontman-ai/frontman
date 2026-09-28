@@ -8,9 +8,10 @@ interface Props {
 	description: string
 	heading: string
 	content: string
+	eyebrow?: string
 }
 
-const { title, description, heading, content } = Astro.props
+const { title, description, heading, content, eyebrow = 'Legal' } = Astro.props
 const resolvedContent = applyLegalPlaceholders(content)
 const html = await marked.parse(resolvedContent)
 const updatedAtMatch = resolvedContent.match(/_Last updated:\s*(.+)_/)
@@ -21,7 +22,7 @@ const contentHtml = html.replace(/<p><em>Last updated:[\s\S]*?<\/em><\/p>\s*$/u,
 <Layout title={title} description={description}>
 	<div class="flex min-h-screen justify-center bg-zinc-950 px-6 pb-28 pt-20 text-zinc-50 max-sm:px-5 max-sm:pb-20 max-sm:pt-12">
 		<div class="w-full max-w-[720px]">
-			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-zinc-500">Legal</p>
+			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-zinc-500">{eyebrow}</p>
 			<h1 class="mb-3 text-[42px] font-bold leading-[1.1] tracking-[-0.02em] text-zinc-50 max-sm:text-[32px]">{heading}</h1>
 			{updatedAt && <p class="mb-16 text-sm text-zinc-500 max-sm:mb-12">Last updated: {updatedAt}</p>}
 

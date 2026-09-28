@@ -1,9 +1,7 @@
-// Client tool that sets the device emulation mode in the web preview
-// Allows the agent to simulate mobile/tablet/desktop viewports
-
 module Tool = FrontmanAiFrontmanClient.FrontmanClient__MCP__Tool
 
 let name = Tool.ToolNames.setDeviceMode
+let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Write
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
 let description = `Set the device emulation mode in the web preview for responsive design testing.
@@ -59,13 +57,13 @@ type output = {
   error: option<string>,
 }
 
-// Find a preset by name (case-insensitive exact match)
+let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
+
 let findPresetByName = (name: string): option<Client__DeviceMode.devicePreset> => {
   let lowerName = name->String.toLowerCase
   Client__DeviceMode.presets->Array.find(preset => preset.name->String.toLowerCase == lowerName)
 }
 
-// Build output with current state info
 let makeOutput = (
   ~success: bool,
   ~error: option<string>,
@@ -90,10 +88,10 @@ let makeOutput = (
 }
 
 let okOutput = (~success, ~error) =>
-  Tool.jsonResult(makeOutput(~success, ~error, ~presets=None), outputSchema)
+  Tool.structuredResult(makeOutput(~success, ~error, ~presets=None), outputSchema)
 
 let okOutputWithPresets = (~success, ~presets) =>
-  Tool.jsonResult(makeOutput(~success, ~error=None, ~presets=Some(presets)), outputSchema)
+  Tool.structuredResult(makeOutput(~success, ~error=None, ~presets=Some(presets)), outputSchema)
 
 let execute = async (
   input: input,

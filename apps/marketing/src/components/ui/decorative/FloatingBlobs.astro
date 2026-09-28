@@ -1,22 +1,15 @@
 ---
-// Floating Blobs
-// ------------
-// Description: Animated decorative blobs that float slowly like a screensaver
-// The blobs drift in random directions with smooth ease-in-out transitions
-// They stay mostly on-screen with at least 60% visible at all times
-// Properties:
-// - blobs: array of blob configurations { color, size, startPosition }
 
 type BlobConfig = {
 	color: string
 	size: number
-	startX?: number // percentage
-	startY?: number // percentage
+	startX?: number
+	startY?: number
 }
 
 type Props = {
 	blobs?: BlobConfig[]
-	speed?: number // seconds for each movement (default: 15)
+	speed?: number
 }
 
 const defaultBlobs: BlobConfig[] = [
@@ -62,8 +55,6 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 </div>
 
 <script is:inline define:vars={{ speed }}>
-	// Floating Blobs Animation - Screensaver Effect
-	// Uses transform: translate() for GPU-composited animation (no layout thrashing)
 	class FloatingBlobsAnimation {
 		constructor(speed) {
 			this.speed = speed
@@ -74,7 +65,6 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 		init() {
 			const blobElements = document.querySelectorAll('.floating-blob')
 
-			// Phase 1: Batch all reads (no DOM writes here)
 			const blobData = []
 			blobElements.forEach((blobElement, index) => {
 				blobData.push({
@@ -86,7 +76,6 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 				})
 			})
 
-			// Phase 2: Batch all writes (no DOM reads here)
 			blobData.forEach((data) => {
 				data.element.style.transform = `translate(calc(${data.startX}cqw - 50%), calc(${data.startY}cqh - 50%))`
 				data.element.style.transition = `transform ${this.speed}s ease-in-out`
@@ -99,25 +88,19 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 				})
 			})
 
-			// Start animation
 			this.animate()
 		}
 
 		getRandomPosition() {
-			// Calculate boundaries - allow blob to go partially off-screen
-			// But at least 60% must remain visible (max 40% can go off-screen)
 			const visiblePercentage = 60
 			const maxOffscreen = (100 - visiblePercentage)
 
-			// X boundaries: can go from -maxOffscreen% to (100 + maxOffscreen - 100)%
 			const minX = -maxOffscreen
 			const maxX = 100 + maxOffscreen
 
-			// Y boundaries: same for vertical
 			const minY = -maxOffscreen
 			const maxY = 100 + maxOffscreen
 
-			// Generate random position within boundaries
 			const x = minX + Math.random() * (maxX - minX)
 			const y = minY + Math.random() * (maxY - minY)
 
@@ -127,7 +110,6 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 		moveBlob(blob) {
 			const newPos = this.getRandomPosition()
 
-			// Use transform instead of left/top — GPU-composited, no layout triggered
 			blob.element.style.transform = `translate(calc(${newPos.x}cqw - 50%), calc(${newPos.y}cqh - 50%))`
 
 			blob.currentX = newPos.x
@@ -138,12 +120,10 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 			if (this.isAnimating) return
 			this.isAnimating = true
 
-			// Move all blobs to random positions
 			this.blobs.forEach(blob => {
 				this.moveBlob(blob)
 			})
 
-			// Schedule next movement after current animation completes
 			setTimeout(() => {
 				this.isAnimating = false
 				this.animate()
@@ -151,7 +131,6 @@ const { blobs = defaultBlobs, speed = 15 } = Astro.props
 		}
 	}
 
-	// Initialize on page load
 	document.addEventListener('DOMContentLoaded', () => {
 		const animation = new FloatingBlobsAnimation(speed)
 		animation.init()

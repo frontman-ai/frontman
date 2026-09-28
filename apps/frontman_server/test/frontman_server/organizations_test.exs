@@ -15,7 +15,6 @@ defmodule FrontmanServer.OrganizationsTest do
       assert organization.name == "My Org"
       assert organization.slug == "my-org"
 
-      # Creator should be owner - need org in scope to check
       org_scope = user_scope_fixture(scope.user, organization)
       assert Organizations.owner?(org_scope)
       assert Organizations.member?(org_scope)

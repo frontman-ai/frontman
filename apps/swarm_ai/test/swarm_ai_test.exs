@@ -1,37 +1,72 @@
 defmodule SwarmAiTest do
   use SwarmAi.Testing, async: true
 
-  alias SwarmAi.{ToolExecution, ToolResult}
+  alias SwarmAi.ToolExecution
 
-  def slow_run(tool_call) do
-    Process.sleep(500)
-    ToolResult.make(tool_call.id, "never", false)
+  def start_await(test_pid, tool_call) do
+    send(test_pid, {:await_started, tool_call.id, self()})
+    :ok
   end
 
-  def noop_timeout(_tool_call, _reason), do: :ok
+  describe "run/3" do
+    test "hands off to the next execution after terminal dispatch finishes" do
+      runtime = start_runtime!()
+      test_pid = self()
 
-  describe "run/2" do
-    test "runs without event dispatcher" do
-      runtime = start_runtime_without_dispatcher!()
+      {:ok, pid} =
+        run_agent(runtime, "task-handoff", %MockLLM{response: "done"},
+          dispatch_event: completion_dispatch(test_pid, runtime, "task-handoff")
+        )
 
-      {:ok, pid} = run_agent(runtime, "task-no-dispatch", %MockLLM{response: "done"})
-      await_exit(pid)
+      ref = await_worker_event(pid, {:completion_started, pid})
 
-      refute SwarmAi.running?(runtime, "task-no-dispatch")
+      next_loop = agent("task-handoff", %MockLLM{response: "follow-up"}, [])
+
+      next_run = Task.async(fn -> SwarmAi.run(runtime, "task-handoff", next_loop) end)
+
+      assert_waiting_for_execution(next_run.pid, pid)
+      assert SwarmAi.running?(runtime, "task-handoff")
+
+      send(pid, :finish_persistence)
+      assert {:ok, next_pid} = Task.await(next_run, 2_000)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2_000
+      await_exit(next_pid)
+      assert_receive {:test_event, "task-handoff", :completed}, 2_000
+      assert_unregistered(runtime, "task-handoff")
     end
 
-    test "prevents duplicate execution for same key" do
+    test "registration keys are independent of loop identity" do
       runtime = start_runtime!()
-      llm = %MockLLM{response: "slow", delay_ms: 500}
+      refute SwarmAi.running?(runtime, "first")
+      loop = agent("first", blocked_llm(), [])
+      refute Map.has_key?(loop, :task_id)
+      refute Map.has_key?(loop, :context)
 
-      {:ok, _} = run_agent(runtime, "task-dup", llm)
+      {:ok, first} = SwarmAi.run(runtime, "first", loop)
+      await_worker_event(first, {:llm_started, first})
+      {:ok, second} = SwarmAi.run(runtime, "second", loop)
+      await_worker_event(second, {:llm_started, second})
 
-      assert run_agent(runtime, "task-dup", llm) == {:error, :already_running}
+      assert SwarmAi.run(runtime, "first", test_execution(mock_llm("done"))) ==
+               {:error, :already_running}
+
+      assert :ok = SwarmAi.cancel(runtime, "first")
+      await_exit(first)
+      assert_receive {:test_event, "first", {:cancelled, nil}}, 2_000
+      assert SwarmAi.active_count(runtime) == 1
+      refute_receive {:test_event, "first", {:crashed, _}}, 0
+      refute_receive {:test_event, "first", {:terminated, _}}, 0
+      assert SwarmAi.running?(runtime, "second")
+      send(second, :finish_llm)
+      await_exit(second)
+      assert_unregistered(runtime, "first")
+      assert_unregistered(runtime, "second")
+      assert SwarmAi.active_count(runtime) == 0
     end
 
     test "concurrent starts allow only one registered execution" do
       runtime = start_runtime!()
-      llm = %MockLLM{response: "slow", delay_ms: 5000}
+      llm = blocked_llm()
       start_ref = make_ref()
       parent = self()
 
@@ -42,6 +77,8 @@ defmodule SwarmAiTest do
 
             receive do
               ^start_ref -> :ok
+            after
+              2_000 -> raise "Concurrent start was not released"
             end
 
             run_agent(runtime, "task-race", llm)
@@ -63,29 +100,26 @@ defmodule SwarmAiTest do
     end
   end
 
-  describe "running?/2" do
-    test "returns true while running, false when not" do
-      runtime = start_runtime!()
-      refute SwarmAi.running?(runtime, "no-such")
-
-      {:ok, _} = run_agent(runtime, "task-r", %MockLLM{response: "slow", delay_ms: 500})
-
-      assert SwarmAi.running?(runtime, "task-r")
-    end
-  end
-
   describe "cancel/2" do
-    test "dispatches cancelled (not crashed or terminated) and unregisters" do
+    test "does not interrupt terminal dispatch or emit a second terminal event" do
       runtime = start_runtime!()
-      {:ok, pid} = run_agent(runtime, "task-c", %MockLLM{response: "slow", delay_ms: 5000})
+      test_pid = self()
 
-      assert SwarmAi.cancel(runtime, "task-c") == :ok
-      await_exit(pid)
+      {:ok, pid} =
+        run_agent(runtime, "task-finishing", %MockLLM{response: "done"},
+          dispatch_event: completion_dispatch(test_pid, runtime, "task-finishing")
+        )
 
-      assert_receive {:test_event, "task-c", {:cancelled, _}}
-      refute_receive {:test_event, "task-c", {:crashed, _}}, 100
-      refute_receive {:test_event, "task-c", {:terminated, _}}, 0
-      refute SwarmAi.running?(runtime, "task-c")
+      ref = await_worker_event(pid, {:completion_started, pid})
+      assert :ok = SwarmAi.cancel(runtime, "task-finishing")
+      assert SwarmAi.running?(runtime, "task-finishing")
+
+      send(pid, :finish_persistence)
+      await_worker_event(pid, :completion_persisted, ref)
+      assert_receive {:DOWN, ^ref, :process, ^pid, :normal}, 2000
+      assert SwarmAi.active_count(runtime) == 0
+      refute_receive {:unexpected_terminal, ^pid, _}, 0
+      refute_receive {:completion_started, _}, 0
     end
 
     test "returns error when not running" do
@@ -94,60 +128,39 @@ defmodule SwarmAiTest do
     end
   end
 
-  describe "pause_agent" do
-    test "pause_agent tool timeout returns :paused result, no :failed event" do
-      runtime = start_runtime!()
+  test "cancelling an infinite Await terminates the parked worker and unregisters" do
+    runtime = start_runtime!()
+    test_pid = self()
 
-      # Executor returns Sync executions with 10ms timeout and :pause_agent policy.
-      execute_tools = fn tool_calls, task_supervisor ->
-        executions =
-          Enum.map(tool_calls, fn tool_call ->
-            %ToolExecution.Sync{
-              tool_call: tool_call,
-              timeout_ms: 10,
-              on_timeout_policy: :pause_agent,
-              run: {__MODULE__, :slow_run, []},
-              on_timeout: {__MODULE__, :noop_timeout, []}
-            }
-          end)
-
-        SwarmAi.ParallelExecutor.run(executions, task_supervisor)
-      end
-
-      llm = %MockLLM{
-        response: fn ->
-          {:ok,
-           %SwarmAi.LLM.Response{
-             content: nil,
-             tool_calls: [%SwarmAi.ToolCall{id: "tc1", name: "test_tool", arguments: "{}"}],
-             usage: %{input_tokens: 10, output_tokens: 5},
-             raw: nil
-           }}
-        end
-      }
-
-      {:ok, pid} =
-        run_agent(runtime, "task-pause", llm, execute_tools: execute_tools)
-
-      await_exit(pid)
-
-      assert_receive {:test_event, "task-pause", {:paused, {:timeout, "tc1", "test_tool", 10}}},
-                     200
-
-      refute_receive {:test_event, "task-pause", :completed}, 200
-      refute_receive {:test_event, "task-pause", {:failed, _}}, 0
-      refute_receive {:test_event, "task-pause", {:crashed, _}}, 0
-      refute SwarmAi.running?(runtime, "task-pause")
+    execute_tools = fn tool_calls, task_supervisor ->
+      Enum.map(tool_calls, fn tool_call ->
+        %ToolExecution.Await{
+          tool_call: tool_call,
+          timeout_ms: :infinity,
+          start: {__MODULE__, :start_await, [test_pid]},
+          on_error: {SwarmAi.Testing, :default_tool_error, []}
+        }
+      end)
+      |> SwarmAi.ParallelExecutor.run(task_supervisor)
     end
+
+    llm = tool_then_complete_llm([tool_call("approval", %{}, id: "tc1")], "done")
+    {:ok, pid} = run_agent(runtime, "task-wait", llm, execute_tools: execute_tools)
+    await_worker_event(pid, {:await_started, "tc1", pid})
+    assert SwarmAi.running?(runtime, "task-wait")
+
+    assert :ok = SwarmAi.cancel(runtime, "task-wait")
+    await_exit(pid)
+    assert_receive {:test_event, "task-wait", {:cancelled, nil}}, 2_000
+    assert_unregistered(runtime, "task-wait")
+    assert SwarmAi.active_count(runtime) == 0
+    send(pid, {:tool_result, "tc1", "late answer", false})
+    refute_receive {:test_event, "task-wait", :completed}, 0
+    refute_receive {:test_event, "task-wait", {:failed, _}}, 0
+    refute_receive {:test_event, "task-wait", {:crashed, _}}, 0
   end
 
   defp start_runtime! do
-    name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
-    start_supervised!({SwarmAi, name: name})
-    name
-  end
-
-  defp start_runtime_without_dispatcher! do
     name = :"TestRuntime_#{:erlang.unique_integer([:positive])}"
     start_supervised!({SwarmAi, name: name})
     name
@@ -161,7 +174,6 @@ defmodule SwarmAiTest do
       "TestBot",
       Keyword.merge(
         [
-          id: id,
           dispatch_event: fn event ->
             send(test_pid, {:test_event, id, event})
             :ok
@@ -173,7 +185,114 @@ defmodule SwarmAiTest do
   end
 
   defp run_agent(runtime, id, llm, opts \\ []) do
-    SwarmAi.run(runtime, agent(id, llm, opts))
+    SwarmAi.run(runtime, id, agent(id, llm, opts))
+  end
+
+  defp completion_dispatch(test_pid, runtime, key) do
+    fn
+      :completed ->
+        assert SwarmAi.running?(runtime, key)
+        send(test_pid, {:completion_started, self()})
+
+        receive do
+          :finish_persistence ->
+            send(test_pid, :completion_persisted)
+            :ok
+        after
+          2_000 -> raise "Terminal persistence was not released"
+        end
+
+      {:chunk, _, _} ->
+        :ok
+
+      {:response, _, _} ->
+        :ok
+
+      event ->
+        send(test_pid, {:unexpected_terminal, self(), event})
+        :ok
+    end
+  end
+
+  defp blocked_llm do
+    test_pid = self()
+
+    %MockLLM{
+      response: fn ->
+        send(test_pid, {:llm_started, self()})
+
+        receive do
+          :finish_llm -> {:ok, %SwarmAi.LLM.Response{content: "done"}}
+        after
+          2_000 -> raise "Mock LLM was not released"
+        end
+      end
+    }
+  end
+
+  defp await_worker_event(pid, event),
+    do: await_worker_event(pid, event, Process.monitor(pid))
+
+  defp await_worker_event(pid, event, ref) do
+    receive do
+      ^event ->
+        ref
+
+      {:DOWN, ^ref, :process, ^pid, reason} ->
+        flunk("Worker exited: #{inspect(reason)}")
+
+      {:unexpected_terminal, ^pid, terminal} ->
+        flunk("Unexpected terminal: #{inspect(terminal)}")
+
+      {:test_event, _, {status, _} = terminal}
+      when status in [:failed, :cancelled, :crashed, :terminated] ->
+        flunk("Unexpected terminal: #{inspect(terminal)}")
+    after
+      2_000 -> flunk("Worker did not send #{inspect(event)}: #{inspect(Process.info(pid))}")
+    end
+  end
+
+  defp assert_waiting_for_execution(
+         caller,
+         worker,
+         deadline \\ System.monotonic_time(:millisecond) + 2_000
+       ) do
+    case Process.info(caller, [:status, :current_function, :monitors]) do
+      [
+        status: :waiting,
+        current_function: {SwarmAi.Runtime, :await_finishing_execution, 2},
+        monitors: monitors
+      ] ->
+        assert {:process, worker} in monitors
+
+      nil ->
+        flunk("Next caller exited without waiting for terminal persistence")
+
+      info ->
+        assert System.monotonic_time(:millisecond) < deadline,
+               "Next caller did not wait for terminal persistence: #{inspect(info)}"
+
+        :erlang.yield()
+        assert_waiting_for_execution(caller, worker, deadline)
+    end
+  end
+
+  defp assert_unregistered(
+         runtime,
+         task_id,
+         deadline \\ System.monotonic_time(:millisecond) + 2_000
+       ) do
+    case SwarmAi.running?(runtime, task_id) do
+      false ->
+        :ok
+
+      true ->
+        assert System.monotonic_time(:millisecond) < deadline,
+               "Registry did not remove the exited execution for #{task_id}"
+
+        :erlang.yield()
+        assert_unregistered(runtime, task_id, deadline)
+    end
   end
 
   defp await_exit(pid) do

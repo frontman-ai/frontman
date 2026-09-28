@@ -130,7 +130,6 @@ describe("CircularBuffer", _t => {
       t => {
         let buffer = CircularBuffer.make(~capacity=3)
 
-        // Wrap multiple times
         let buffer = CircularBuffer.push(buffer, "a")
         let buffer = CircularBuffer.push(buffer, "b")
         let buffer = CircularBuffer.push(buffer, "c")
@@ -194,7 +193,6 @@ describe("CircularBuffer", _t => {
       t => {
         let buffer = CircularBuffer.make(~capacity=10000)
 
-        // Push 100 items
         let buffer = ref(buffer)
         for i in 0 to 99 {
           buffer := CircularBuffer.push(buffer.contents, i)
@@ -213,7 +211,6 @@ describe("CircularBuffer", _t => {
         let buffer2 = CircularBuffer.push(buffer1, "a")
         let buffer3 = CircularBuffer.push(buffer2, "b")
 
-        // Each push returns a new state
         t->expect(CircularBuffer.length(buffer1))->Expect.toBe(0)
         t->expect(CircularBuffer.length(buffer2))->Expect.toBe(1)
         t->expect(CircularBuffer.length(buffer3))->Expect.toBe(2)

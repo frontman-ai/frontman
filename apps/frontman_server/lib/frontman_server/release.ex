@@ -29,7 +29,6 @@ defmodule FrontmanServer.Release do
   end
 
   defp load_app do
-    # Many platforms require SSL when connecting to the database
     Application.ensure_all_started(:ssl)
     Application.ensure_loaded(@app)
   end

@@ -14,6 +14,23 @@
         "annotations": {
           "type": "object",
           "properties": {
+            "audience": {
+              "items": {
+                "enum": [
+                  "user",
+                  "assistant"
+                ]
+              },
+              "type": "array"
+            },
+            "priority": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0
+            },
+            "lastModified": {
+              "type": "string"
+            },
             "_meta": {}
           }
         }
@@ -40,6 +57,23 @@
         "annotations": {
           "type": "object",
           "properties": {
+            "audience": {
+              "items": {
+                "enum": [
+                  "user",
+                  "assistant"
+                ]
+              },
+              "type": "array"
+            },
+            "priority": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0
+            },
+            "lastModified": {
+              "type": "string"
+            },
             "_meta": {}
           }
         }
@@ -67,6 +101,23 @@
         "annotations": {
           "type": "object",
           "properties": {
+            "audience": {
+              "items": {
+                "enum": [
+                  "user",
+                  "assistant"
+                ]
+              },
+              "type": "array"
+            },
+            "priority": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0
+            },
+            "lastModified": {
+              "type": "string"
+            },
             "_meta": {}
           }
         }
@@ -87,13 +138,44 @@
         "name": {
           "type": "string"
         },
+        "title": {
+          "type": "string"
+        },
         "uri": {
           "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "size": {
+          "type": "number",
+          "multipleOf": 1,
+          "minimum": 0
         },
         "_meta": {},
         "annotations": {
           "type": "object",
           "properties": {
+            "audience": {
+              "items": {
+                "enum": [
+                  "user",
+                  "assistant"
+                ]
+              },
+              "type": "array"
+            },
+            "priority": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0
+            },
+            "lastModified": {
+              "type": "string"
+            },
             "_meta": {}
           }
         }
@@ -111,67 +193,71 @@
           "type": "string",
           "const": "resource"
         },
-        "resource": {
-          "type": "object",
-          "properties": {
-            "_meta": {},
-            "annotations": {
-              "type": "object",
-              "properties": {
-                "_meta": {}
-              }
-            },
-            "resource": {
-              "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "uri": {
-                      "type": "string"
-                    },
-                    "mimeType": {
-                      "type": "string"
-                    },
-                    "text": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "uri",
-                    "text"
-                  ]
-                },
-                {
-                  "type": "object",
-                  "properties": {
-                    "uri": {
-                      "type": "string"
-                    },
-                    "mimeType": {
-                      "type": "string"
-                    },
-                    "blob": {
-                      "type": "string"
-                    }
-                  },
-                  "required": [
-                    "uri",
-                    "blob"
-                  ]
-                }
-              ]
-            }
-          },
-          "required": [
-            "resource"
-          ]
-        },
         "_meta": {},
         "annotations": {
           "type": "object",
           "properties": {
+            "audience": {
+              "items": {
+                "enum": [
+                  "user",
+                  "assistant"
+                ]
+              },
+              "type": "array"
+            },
+            "priority": {
+              "type": "number",
+              "maximum": 1,
+              "minimum": 0
+            },
+            "lastModified": {
+              "type": "string"
+            },
             "_meta": {}
           }
+        },
+        "resource": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "uri": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                },
+                "_meta": {}
+              },
+              "required": [
+                "uri",
+                "text"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "uri": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "blob": {
+                  "type": "string"
+                },
+                "_meta": {}
+              },
+              "required": [
+                "uri",
+                "blob"
+              ]
+            }
+          ]
         }
       },
       "required": [

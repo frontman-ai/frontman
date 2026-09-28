@@ -1,0 +1,4 @@
+<main>
+  <%!-- component documentation --%>
+  <p>Hello</p>
+</main>

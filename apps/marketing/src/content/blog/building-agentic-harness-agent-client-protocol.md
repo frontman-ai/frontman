@@ -4,10 +4,8 @@ seoTitle: 'Agent Client Protocol: Building an Agentic Harness'
 pubDate: 2026-06-28T18:00:00Z
 description: 'How Frontman uses Agent Client Protocol to connect browser UI, agent sessions, streaming updates, and tool calls in an agentic harness.'
 author: 'Danni Friedland'
-authorRole: 'Co-founder, Frontman'
+articleSection: 'Technical Explainer'
 image: '/blog/agent-client-protocol-agentic-harness-cover.png'
-imageWidth: 1200
-imageHeight: 450
 imageAlt: 'Agent Client Protocol cover showing Frontman agentic harness architecture'
 tags: ['ai', 'developer-tools', 'agent-protocols']
 faq:
@@ -33,7 +31,7 @@ This post is the first in a series on building an agentic harness. We are starti
 
 ### What Frontman Is
 
-Frontman is an open-source browser-based AI coding agent for frontend work. It runs inside your app at `/frontman`, shows chat beside a live preview, lets a user click a UI element, describe a change, and then uses runtime context to edit real source files.
+Frontman is a source-available browser-based AI coding agent for frontend work. Its browser client and JavaScript framework integrations are Apache-2.0, its WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. It runs inside your app at `/frontman`, shows chat beside a live preview, lets a user click a UI element, describe a change, and then uses runtime context to edit real source files.
 
 The important part is not the chat. The important part is what the agent can see.
 

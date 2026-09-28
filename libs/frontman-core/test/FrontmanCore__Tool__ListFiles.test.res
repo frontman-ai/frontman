@@ -1,5 +1,3 @@
-// Integration tests for the ListFiles tool with .gitignore support
-
 open Vitest
 
 module ListFiles = FrontmanCore__Tool__ListFiles
@@ -7,6 +5,12 @@ module Tool = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool
 module Path = FrontmanBindings.Path
 module ChildProcess = FrontmanCore__ChildProcess
 module Process = FrontmanBindings.Process
+module Fs = FrontmanBindings.Fs
+module Helpers = FrontmanCore__ToolTestHelpers
+
+@module("node:fs/promises") external mkdtemp: string => promise<string> = "mkdtemp"
+@module("node:fs/promises") external chmod: (string, int) => promise<unit> = "chmod"
+@val @scope("process") external getuid: unit => int = "getuid"
 
 let fixtureDir = Path.join([Process.cwd(), "test", "fixtures", "listfiles"])
 
@@ -14,12 +18,10 @@ let execute = (ctx, input) =>
   FrontmanCore__ToolTestHelpers.execute(ListFiles.execute, ctx, input, ListFiles.outputSchema)
 
 describe("ListFiles Tool - execute (integration)", _t => {
-  // Initialize git repo before tests
   beforeAllAsync(async () => {
     let _ = await ChildProcess.execWithOptions("git init", {cwd: fixtureDir})
   })
 
-  // Clean up .git after tests
   afterAllAsync(async () => {
     let _ = await ChildProcess.exec(`rm -rf ${Path.join([fixtureDir, ".git"])}`)
   })
@@ -36,7 +38,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
     | Ok(entries) => {
         t->expect(Array.length(entries) > 0)->Expect.toBe(true)
 
-        // Should include regular files
         let hasIndex = entries->Array.some(e => e.name === "index.ts")
         let hasConfig = entries->Array.some(e => e.name === "config.json")
         let hasReadme = entries->Array.some(e => e.name === "readme.md")
@@ -59,7 +60,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(entries) => {
-        // Should NOT include gitignored entries
         let hasNodeModules = entries->Array.some(e => e.name === "node_modules")
         let hasDist = entries->Array.some(e => e.name === "dist")
         let hasSecretsEnv = entries->Array.some(e => e.name === "secrets.env")
@@ -106,7 +106,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
         let hasAppTs = entries->Array.some(e => e.name === "app.ts")
         t->expect(hasAppTs)->Expect.toBe(true)
 
-        // Verify path includes subdirectory
         let appEntry = entries->Array.find(e => e.name === "app.ts")
         switch appEntry {
         | Some(entry) => t->expect(entry.path)->Expect.toBe("src/app.ts")
@@ -127,7 +126,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(entries) => {
-        // Check a file entry
         let fileEntry = entries->Array.find(e => e.name === "index.ts")
         switch fileEntry {
         | Some(entry) => {
@@ -137,7 +135,6 @@ describe("ListFiles Tool - execute (integration)", _t => {
         | None => failwith("index.ts not found")
         }
 
-        // Check a directory entry
         let dirEntry = entries->Array.find(e => e.name === "src")
         switch dirEntry {
         | Some(entry) => {
@@ -157,15 +154,12 @@ describe("ListFiles Tool - execute (integration)", _t => {
       sourceRoot: fixtureDir,
     }
 
-    // Pass a file path instead of a directory — should list the parent directory
     let result = await execute(ctx, {path: "index.ts"})
 
     switch result {
     | Ok(entries) => {
-        // Should list the root directory (parent of index.ts)
         t->expect(Array.length(entries) > 0)->Expect.toBe(true)
 
-        // Should find files that are in the root directory
         let hasConfig = entries->Array.some(e => e.name === "config.json")
         t->expect(hasConfig)->Expect.toBe(true)
       }
@@ -183,7 +177,64 @@ describe("ListFiles Tool - execute (integration)", _t => {
 
     switch result {
     | Ok(_) => failwith("Should have failed for non-existent directory")
-    | Error(msg) => t->expect(msg->String.includes("nonexistent"))->Expect.toBe(true)
+    | Error(msg) =>
+      t->expect(msg->String.includes("nonexistent"))->Expect.toBe(true)
+      t->expect(msg->String.includes("sourceRoot: " ++ fixtureDir))->Expect.toBe(true)
+      t
+      ->expect(msg->String.includes("resolved: " ++ fixtureDir ++ "/nonexistent"))
+      ->Expect.toBe(true)
+    }
+  })
+
+  testAsync("reports fallback notices without hiding Git failures", async t => {
+    let dir = await mkdtemp("/tmp/listfiles-test-")
+    let ctx: Tool.serverExecutionContext = {projectRoot: dir, sourceRoot: dir}
+    await Fs.Promises.writeFile(dir ++ "/file.ts", "")
+    let path = Process.env->Dict.get("PATH")->Option.getOrThrow
+    try {
+      for mode in 0 to 1 {
+        switch mode {
+        | 1 => Process.env->Dict.set("PATH", dir)
+        | _ => ()
+        }
+        let text = (await ListFiles.execute(ctx, {}))->Helpers.text->Result.getOrThrow
+        t->expect(text->String.includes("[filesystem fallback]"))->Expect.toBe(true)
+        t->expect(text->String.includes("file.ts"))->Expect.toBe(true)
+      }
+    } catch {
+    | exn =>
+      Process.env->Dict.set("PATH", path)
+      (await ChildProcess.spawnResult("rm", ["-rf", dir]))->Result.getOrThrow->ignore
+      throw(exn)
+    }
+    Process.env->Dict.set("PATH", path)
+    await Fs.Promises.writeFile(dir ++ "/.git", "invalid git metadata\n")
+    let result = (await ListFiles.execute(ctx, {}))->Helpers.text
+    (await ChildProcess.spawnResult("rm", ["-rf", dir]))->Result.getOrThrow->ignore
+    switch result {
+    | Ok(_) => failwith("Expected invalid Git metadata error")
+    | Error(msg) =>
+      t->expect(msg->String.includes("invalid gitfile format"))->Expect.toBe(true)
+      t->expect(msg->String.includes("sourceRoot: " ++ dir))->Expect.toBe(true)
+    }
+  })
+
+  testAsync("keeps permission failures visible", async t => {
+    switch getuid() == 0 {
+    | true => ()
+    | false =>
+      let dir = await mkdtemp("/tmp/listfiles-test-")
+      let ctx: Tool.serverExecutionContext = {projectRoot: dir, sourceRoot: dir}
+      await chmod(dir, 0)
+      let result = (await ListFiles.execute(ctx, {}))->Helpers.text
+      await chmod(dir, 493)
+      (await ChildProcess.spawnResult("rm", ["-rf", dir]))->Result.getOrThrow->ignore
+      switch result {
+      | Ok(_) => failwith("Expected permission error")
+      | Error(msg) =>
+        t->expect(msg->String.includes("EACCES"))->Expect.toBe(true)
+        t->expect(msg->String.includes("sourceRoot: " ++ dir))->Expect.toBe(true)
+      }
     }
   })
 
@@ -203,18 +254,17 @@ describe("ListFiles Tool - execute (integration)", _t => {
 })
 
 describe("ListFiles Tool - getIgnoredEntries", _t => {
-  // Initialize git repo before tests
   beforeAllAsync(async () => {
     let _ = await ChildProcess.execWithOptions("git init", {cwd: fixtureDir})
   })
 
-  // Clean up .git after tests
   afterAllAsync(async () => {
     let _ = await ChildProcess.exec(`rm -rf ${Path.join([fixtureDir, ".git"])}`)
   })
 
   testAsync("should return ignored entries from gitignore", async t => {
-    let entries = ["node_modules", "dist", "index.ts", "secrets.env"]
+    let unusual = "quote'$(touch INJECTED)\nfile.ts"
+    let entries = ["node_modules", "dist", "index.ts", "secrets.env", unusual]
     let result = await ListFiles.getIgnoredEntries(~cwd=fixtureDir, entries)
 
     switch result {
@@ -223,6 +273,10 @@ describe("ListFiles Tool - getIgnoredEntries", _t => {
         t->expect(ignored->Array.includes("dist"))->Expect.toBe(true)
         t->expect(ignored->Array.includes("secrets.env"))->Expect.toBe(true)
         t->expect(ignored->Array.includes("index.ts"))->Expect.toBe(false)
+        t->expect(ignored->Array.includes(unusual))->Expect.toBe(false)
+        t
+        ->expect((await Fs.Promises.readdir(fixtureDir))->Array.includes("INJECTED"))
+        ->Expect.toBe(false)
       }
     | Error(msg) => failwith(`getIgnoredEntries failed: ${msg}`)
     }

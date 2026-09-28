@@ -6,12 +6,16 @@ defmodule FrontmanServer.Workers.NotifyDiscordNewUserTest do
   alias FrontmanServer.Workers.NotifyDiscordNewUser
 
   setup do
-    Application.put_env(:frontman_server, :notify_discord_req_options,
-      plug: {Req.Test, :discord_webhook}
+    original_config = Application.get_env(:frontman_server, NotifyDiscordNewUser, [])
+
+    Application.put_env(
+      :frontman_server,
+      NotifyDiscordNewUser,
+      Keyword.put(original_config, :req_options, plug: {Req.Test, :discord_webhook})
     )
 
     on_exit(fn ->
-      Application.delete_env(:frontman_server, :notify_discord_req_options)
+      Application.put_env(:frontman_server, NotifyDiscordNewUser, original_config)
     end)
 
     :ok

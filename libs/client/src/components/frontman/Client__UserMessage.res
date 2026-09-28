@@ -1,15 +1,14 @@
 /**
  * UserMessage - Renders user messages (text, images, files, annotations)
- * 
+ *
  * Displays user messages in a purple/violet bubble style.
- * Sticky at top when scrolling for context.
  * Images render as thumbnails with lightbox preview.
  * Annotations render as compact chips with numbered badges.
  */
 module UserContentPart = Client__State__Types.UserContentPart
 module MessageAnnotation = Client__Message.MessageAnnotation
+module AgentChip = Client__AgentChip
 
-// Circled number characters for annotation badges (1-20)
 let _circledNumbers = [
   "\u{2460}",
   "\u{2461}",
@@ -41,12 +40,17 @@ let make = (
   ~content: array<UserContentPart.t>,
   ~annotations: array<MessageAnnotation.t>=[],
   ~messageId: string,
+  ~agent: Client__Agent.t,
   ~isNew: bool=false,
 ) => {
-  let animationClass = isNew ? "animate-in fade-in duration-100" : ""
+  let rootClass = isNew
+    ? "frontman-content-auto animate-in fade-in duration-100"
+    : "frontman-content-auto"
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
+  let highlightedAnnotation = Client__State.useSelector(
+    Client__State.Selectors.highlightedAnnotation,
+  )
 
-  // Separate image parts from text parts for layout
   let imageParts = content->Array.filterMap(part =>
     switch part {
     | UserContentPart.Image({image, mediaType, name: _, id: _}) => Some((image, mediaType))
@@ -68,14 +72,15 @@ let make = (
 
   let hasAnnotations = Array.length(annotations) > 0
 
-  // Sticky container with dark background for proper stacking
-  <div className={`sticky top-0 z-10 bg-[#130d20] py-2 px-3 ${animationClass}`}>
+  <div className=rootClass>
     <div
-      className="inline-block max-w-[85%] min-w-0 overflow-hidden bg-violet-600/80 rounded-2xl px-4 py-3"
+      className="relative mt-2.5 w-full min-w-0 bg-violet-600/80 rounded-2xl px-3 pb-2 pt-5 text-[14px] leading-relaxed text-white font-semibold"
     >
-      // Annotation chips (above images/text)
+      <div className="absolute -top-2.5 left-1 z-10">
+        <AgentChip agent className="" borderColor="rgb(124 58 237 / 0.8)" />
+      </div>
       {hasAnnotations
-        ? <div className="flex flex-wrap gap-1.5 mb-2 min-w-0">
+        ? <div className="flex flex-wrap gap-1.5 mb-2 min-w-0 w-full">
             {annotations
             ->Array.mapWithIndex((annotation, i) => {
               let badge = _getBadge(i)
@@ -87,22 +92,53 @@ let make = (
                   : `<${annotation.tagName}>`
               | None => `<${annotation.tagName}>`
               }
+              let selector = switch annotation.selector {
+              | Ok(Some(selector)) => Some(selector)
+              | Ok(None) | Error(_) => None
+              }
+              let isHighlighted = switch highlightedAnnotation {
+              | Some(highlighted) => highlighted.annotationId == annotation.id
+              | None => false
+              }
+              let baseChipClass = "flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0 w-full text-xs font-mono text-left disabled:cursor-default"
+              let chipClass = switch (selector, isHighlighted) {
+              | (Some(_), true) =>
+                `${baseChipClass} bg-violet-400/80 text-white cursor-pointer ring-1 ring-white/70 transition-colors`
+              | (Some(_), false) =>
+                `${baseChipClass} bg-violet-500/60 text-violet-100 cursor-pointer hover:bg-violet-400/70 transition-colors`
+              | (None, _) => `${baseChipClass} bg-violet-500/60 text-violet-100`
+              }
+              let chipTitle = switch selector {
+              | Some(_) => "Click to highlight in preview"
+              | None => "No selector captured for this element"
+              }
+
               <div
                 key={`${messageId}-ann-${Int.toString(i)}`}
-                className="flex flex-col gap-0.5 min-w-0"
+                className="flex flex-col gap-0.5 min-w-0 w-full"
               >
-                <div
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-md min-w-0
-                             bg-violet-500/60 text-violet-100 text-xs font-mono"
+                <button
+                  type_="button"
+                  className=chipClass
+                  title=chipTitle
+                  disabled={selector->Option.isNone}
+                  ariaPressed={isHighlighted ? #"true" : #"false"}
+                  onClick={_ =>
+                    switch selector {
+                    | Some(selector) =>
+                      Client__State.Actions.highlightAnnotation(
+                        ~annotationId=annotation.id,
+                        ~selector,
+                      )
+                    | None => ()
+                    }}
                 >
                   <span className="text-violet-200 shrink-0"> {React.string(badge)} </span>
-                  <span className="truncate min-w-0 max-w-[160px]"> {React.string(label)} </span>
-                </div>
+                  <span className="truncate min-w-0 flex-1"> {React.string(label)} </span>
+                </button>
                 {switch annotation.comment {
                 | Some(comment) =>
-                  <div
-                    className="text-[11px] text-violet-200/80 italic pl-1 max-w-[200px] truncate"
-                  >
+                  <div className="text-[11px] text-violet-200/80 italic pl-1 w-full truncate">
                     {React.string(comment)}
                   </div>
                 | None => React.null
@@ -113,7 +149,6 @@ let make = (
           </div>
         : React.null}
 
-      // Image thumbnails row (above text)
       {Array.length(imageParts) > 0
         ? <div className="flex flex-wrap gap-2 mb-2">
             {imageParts
@@ -148,7 +183,6 @@ let make = (
           </div>
         : React.null}
 
-      // File chips
       {Array.length(fileParts) > 0
         ? <div className="flex flex-wrap gap-1.5 mb-2">
             {fileParts
@@ -166,21 +200,17 @@ let make = (
           </div>
         : React.null}
 
-      // Text content
-      <div className="text-[14px] leading-relaxed text-white font-semibold">
-        {textParts
-        ->Array.mapWithIndex((text, i) => {
-          <div
-            key={`${messageId}-text-${Int.toString(i)}`} className="whitespace-pre-wrap break-words"
-          >
-            {React.string(text)}
-          </div>
-        })
-        ->React.array}
-      </div>
+      {textParts
+      ->Array.mapWithIndex((text, i) => {
+        <div
+          key={`${messageId}-text-${Int.toString(i)}`} className="whitespace-pre-wrap break-words"
+        >
+          {React.string(text)}
+        </div>
+      })
+      ->React.array}
     </div>
 
-    // Lightbox preview
     {switch previewSrc {
     | Some(src) => <Client__ImagePreview src onClose={() => setPreviewSrc(_ => None)} />
     | None => React.null

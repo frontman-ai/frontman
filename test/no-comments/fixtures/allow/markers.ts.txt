@@ -1,0 +1,5 @@
+const url = "https://frontman.sh/path#section"
+const markers = "// not a comment /* neither */ TODO FIXME"
+const expression = /https?:\/\/[^/]+\/\/*/
+const division = 10 / 2
+const template = `<!-- text --> // text`

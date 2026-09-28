@@ -1,33 +1,30 @@
 defmodule FrontmanServer.Tasks.InteractionAgentRetryTest do
   use ExUnit.Case, async: true
 
-  import FrontmanServer.InteractionCase.Helpers, only: [agent_error: 2, agent_error: 4]
+  import FrontmanServer.InteractionCase.Helpers,
+    only: [agent_error: 2, agent_error: 4]
 
   alias FrontmanServer.Tasks.Interaction
 
   describe "AgentError fields" do
-    test "struct sets retryable and category" do
+    test "struct and JSON include retry metadata" do
       err = agent_error("Rate limited", "failed", true, "rate_limit")
 
       assert err.retryable == true
       assert err.category == "rate_limit"
       assert err.error == "Rate limited"
-    end
-
-    test "schema defaults retryable=false, category=unknown" do
-      err = agent_error("Something went wrong", "failed")
-      assert err.retryable == false
-      assert err.category == "unknown"
-    end
-
-    test "Jason.Encoder includes retryable and category" do
-      err = agent_error("Rate limited", "failed", true, "rate_limit")
 
       encoded = Jason.encode!(err)
       decoded = Jason.decode!(encoded)
       assert decoded["retryable"] == true
       assert decoded["category"] == "rate_limit"
       refute Map.has_key?(decoded, "type")
+    end
+
+    test "schema defaults retryable=false, category=unknown" do
+      err = agent_error("Something went wrong", "failed")
+      assert err.retryable == false
+      assert err.category == "unknown"
     end
   end
 

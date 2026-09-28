@@ -7,6 +7,10 @@
           "type": "string",
           "const": "agent_message_chunk"
         },
+        "messageId": {
+          "type": "string",
+          "minLength": 1
+        },
         "content": {
           "anyOf": [
             {
@@ -23,6 +27,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -49,6 +70,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -76,6 +114,23 @@
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -96,13 +151,44 @@
                 "name": {
                   "type": "string"
                 },
+                "title": {
+                  "type": "string"
+                },
                 "uri": {
                   "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "number",
+                  "multipleOf": 1,
+                  "minimum": 0
                 },
                 "_meta": {},
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
                 }
@@ -120,67 +206,71 @@
                   "type": "string",
                   "const": "resource"
                 },
-                "resource": {
-                  "type": "object",
-                  "properties": {
-                    "_meta": {},
-                    "annotations": {
-                      "type": "object",
-                      "properties": {
-                        "_meta": {}
-                      }
-                    },
-                    "resource": {
-                      "anyOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "uri": {
-                              "type": "string"
-                            },
-                            "mimeType": {
-                              "type": "string"
-                            },
-                            "text": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "uri",
-                            "text"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "uri": {
-                              "type": "string"
-                            },
-                            "mimeType": {
-                              "type": "string"
-                            },
-                            "blob": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "uri",
-                            "blob"
-                          ]
-                        }
-                      ]
-                    }
-                  },
-                  "required": [
-                    "resource"
-                  ]
-                },
                 "_meta": {},
                 "annotations": {
                   "type": "object",
                   "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
                     "_meta": {}
                   }
+                },
+                "resource": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "_meta": {}
+                      },
+                      "required": [
+                        "uri",
+                        "text"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "blob": {
+                          "type": "string"
+                        },
+                        "_meta": {}
+                      },
+                      "required": [
+                        "uri",
+                        "blob"
+                      ]
+                    }
+                  ]
                 }
               },
               "required": [
@@ -190,14 +280,30 @@
             }
           ]
         },
-        "timestamp": {
-          "type": "string"
+        "_meta": {
+          "type": "object",
+          "properties": {
+            "frontman.dev/agentId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frontman.dev/timestamp": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])[Tt]([01]\\d|2[0-3]):[0-5]\\d:([0-5]\\d|60)(\\.\\d+)?([Zz]|[+-]([01]\\d|2[0-3]):[0-5]\\d)$",
+              "format": "date-time"
+            }
+          },
+          "required": [
+            "frontman.dev/agentId",
+            "frontman.dev/timestamp"
+          ]
         }
       },
       "required": [
         "sessionUpdate",
+        "messageId",
         "content",
-        "timestamp"
+        "_meta"
       ]
     },
     {
@@ -205,202 +311,322 @@
       "properties": {
         "sessionUpdate": {
           "type": "string",
-          "const": "user_message"
+          "const": "user_message_chunk"
         },
         "messageId": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         },
         "content": {
-          "items": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "text"
-                  },
-                  "text": {
-                    "type": "string"
-                  },
-                  "_meta": {},
-                  "annotations": {
-                    "type": "object",
-                    "properties": {
-                      "_meta": {}
-                    }
-                  }
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "text"
                 },
-                "required": [
-                  "type",
-                  "text"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "image"
-                  },
-                  "data": {
-                    "type": "string"
-                  },
-                  "mimeType": {
-                    "type": "string"
-                  },
-                  "_meta": {},
-                  "annotations": {
-                    "type": "object",
-                    "properties": {
-                      "_meta": {}
-                    }
-                  }
+                "text": {
+                  "type": "string"
                 },
-                "required": [
-                  "type",
-                  "data",
-                  "mimeType"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "audio"
-                  },
-                  "data": {
-                    "type": "string"
-                  },
-                  "mimeType": {
-                    "type": "string"
-                  },
-                  "_meta": {},
-                  "annotations": {
-                    "type": "object",
-                    "properties": {
-                      "_meta": {}
-                    }
-                  }
-                },
-                "required": [
-                  "type",
-                  "data",
-                  "mimeType"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "resource_link"
-                  },
-                  "name": {
-                    "type": "string"
-                  },
-                  "uri": {
-                    "type": "string"
-                  },
-                  "_meta": {},
-                  "annotations": {
-                    "type": "object",
-                    "properties": {
-                      "_meta": {}
-                    }
-                  }
-                },
-                "required": [
-                  "type",
-                  "name",
-                  "uri"
-                ]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "resource"
-                  },
-                  "resource": {
-                    "type": "object",
-                    "properties": {
-                      "_meta": {},
-                      "annotations": {
-                        "type": "object",
-                        "properties": {
-                          "_meta": {}
-                        }
-                      },
-                      "resource": {
-                        "anyOf": [
-                          {
-                            "type": "object",
-                            "properties": {
-                              "uri": {
-                                "type": "string"
-                              },
-                              "mimeType": {
-                                "type": "string"
-                              },
-                              "text": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "uri",
-                              "text"
-                            ]
-                          },
-                          {
-                            "type": "object",
-                            "properties": {
-                              "uri": {
-                                "type": "string"
-                              },
-                              "mimeType": {
-                                "type": "string"
-                              },
-                              "blob": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "uri",
-                              "blob"
-                            ]
-                          }
+                "_meta": {},
+                "annotations": {
+                  "type": "object",
+                  "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
                         ]
-                      }
+                      },
+                      "type": "array"
                     },
-                    "required": [
-                      "resource"
-                    ]
-                  },
-                  "_meta": {},
-                  "annotations": {
-                    "type": "object",
-                    "properties": {
-                      "_meta": {}
-                    }
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
+                    "_meta": {}
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "text"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "image"
+                },
+                "data": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "_meta": {},
+                "annotations": {
+                  "type": "object",
+                  "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
+                    "_meta": {}
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "data",
+                "mimeType"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "audio"
+                },
+                "data": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "_meta": {},
+                "annotations": {
+                  "type": "object",
+                  "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
+                    "_meta": {}
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "data",
+                "mimeType"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "resource_link"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "uri": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "mimeType": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "number",
+                  "multipleOf": 1,
+                  "minimum": 0
+                },
+                "_meta": {},
+                "annotations": {
+                  "type": "object",
+                  "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
+                    "_meta": {}
+                  }
+                }
+              },
+              "required": [
+                "type",
+                "name",
+                "uri"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "resource"
+                },
+                "_meta": {},
+                "annotations": {
+                  "type": "object",
+                  "properties": {
+                    "audience": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "assistant"
+                        ]
+                      },
+                      "type": "array"
+                    },
+                    "priority": {
+                      "type": "number",
+                      "maximum": 1,
+                      "minimum": 0
+                    },
+                    "lastModified": {
+                      "type": "string"
+                    },
+                    "_meta": {}
                   }
                 },
-                "required": [
-                  "type",
-                  "resource"
-                ]
-              }
-            ]
+                "resource": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "text": {
+                          "type": "string"
+                        },
+                        "_meta": {}
+                      },
+                      "required": [
+                        "uri",
+                        "text"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "uri": {
+                          "type": "string"
+                        },
+                        "mimeType": {
+                          "type": "string"
+                        },
+                        "blob": {
+                          "type": "string"
+                        },
+                        "_meta": {}
+                      },
+                      "required": [
+                        "uri",
+                        "blob"
+                      ]
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "type",
+                "resource"
+              ]
+            }
+          ]
+        },
+        "_meta": {
+          "type": "object",
+          "properties": {
+            "frontman.dev/agentId": {
+              "type": "string",
+              "minLength": 1
+            },
+            "frontman.dev/timestamp": {
+              "type": "string",
+              "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])[Tt]([01]\\d|2[0-3]):[0-5]\\d:([0-5]\\d|60)(\\.\\d+)?([Zz]|[+-]([01]\\d|2[0-3]):[0-5]\\d)$",
+              "format": "date-time"
+            }
           },
-          "type": "array"
+          "required": [
+            "frontman.dev/agentId",
+            "frontman.dev/timestamp"
+          ]
         }
       },
       "required": [
         "sessionUpdate",
         "messageId",
-        "content"
+        "content",
+        "_meta"
+      ]
+    },
+    {
+      "type": "object",
+      "properties": {
+        "sessionUpdate": {
+          "type": "string",
+          "const": "message_unqueued"
+        },
+        "messageId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionUpdate",
+        "messageId"
       ]
     },
     {
@@ -427,6 +653,346 @@
             "failed"
           ]
         },
+        "content": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "content"
+                  },
+                  "content": {
+                    "anyOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "text"
+                          },
+                          "text": {
+                            "type": "string"
+                          },
+                          "_meta": {},
+                          "annotations": {
+                            "type": "object",
+                            "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "_meta": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "text"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "image"
+                          },
+                          "data": {
+                            "type": "string"
+                          },
+                          "mimeType": {
+                            "type": "string"
+                          },
+                          "_meta": {},
+                          "annotations": {
+                            "type": "object",
+                            "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "_meta": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "data",
+                          "mimeType"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "audio"
+                          },
+                          "data": {
+                            "type": "string"
+                          },
+                          "mimeType": {
+                            "type": "string"
+                          },
+                          "_meta": {},
+                          "annotations": {
+                            "type": "object",
+                            "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "_meta": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "data",
+                          "mimeType"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "resource_link"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "uri": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "mimeType": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "number",
+                            "multipleOf": 1,
+                            "minimum": 0
+                          },
+                          "_meta": {},
+                          "annotations": {
+                            "type": "object",
+                            "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "_meta": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "name",
+                          "uri"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "resource"
+                          },
+                          "_meta": {},
+                          "annotations": {
+                            "type": "object",
+                            "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "_meta": {}
+                            }
+                          },
+                          "resource": {
+                            "anyOf": [
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "uri": {
+                                    "type": "string"
+                                  },
+                                  "mimeType": {
+                                    "type": "string"
+                                  },
+                                  "text": {
+                                    "type": "string"
+                                  },
+                                  "_meta": {}
+                                },
+                                "required": [
+                                  "uri",
+                                  "text"
+                                ]
+                              },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "uri": {
+                                    "type": "string"
+                                  },
+                                  "mimeType": {
+                                    "type": "string"
+                                  },
+                                  "blob": {
+                                    "type": "string"
+                                  },
+                                  "_meta": {}
+                                },
+                                "required": [
+                                  "uri",
+                                  "blob"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "resource"
+                        ]
+                      }
+                    ]
+                  },
+                  "_meta": {}
+                },
+                "required": [
+                  "type",
+                  "content"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "diff"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "oldText": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "newText": {
+                    "type": "string"
+                  },
+                  "_meta": {}
+                },
+                "required": [
+                  "type",
+                  "path",
+                  "newText"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "terminal"
+                  },
+                  "terminalId": {
+                    "type": "string"
+                  },
+                  "_meta": {}
+                },
+                "required": [
+                  "type",
+                  "terminalId"
+                ]
+              }
+            ]
+          },
+          "type": "array"
+        },
+        "rawInput": {},
+        "rawOutput": {},
         "timestamp": {
           "type": "string"
         },
@@ -464,131 +1030,230 @@
         },
         "content": {
           "items": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string"
-              },
-              "content": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "const": "text"
-                      },
-                      "text": {
-                        "type": "string"
-                      },
-                      "_meta": {},
-                      "annotations": {
-                        "type": "object",
-                        "properties": {
-                          "_meta": {}
-                        }
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "text"
-                    ]
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "content"
                   },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "const": "image"
-                      },
-                      "data": {
-                        "type": "string"
-                      },
-                      "mimeType": {
-                        "type": "string"
-                      },
-                      "_meta": {},
-                      "annotations": {
+                  "content": {
+                    "anyOf": [
+                      {
                         "type": "object",
                         "properties": {
-                          "_meta": {}
-                        }
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "data",
-                      "mimeType"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "const": "audio"
-                      },
-                      "data": {
-                        "type": "string"
-                      },
-                      "mimeType": {
-                        "type": "string"
-                      },
-                      "_meta": {},
-                      "annotations": {
-                        "type": "object",
-                        "properties": {
-                          "_meta": {}
-                        }
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "data",
-                      "mimeType"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "const": "resource_link"
-                      },
-                      "name": {
-                        "type": "string"
-                      },
-                      "uri": {
-                        "type": "string"
-                      },
-                      "_meta": {},
-                      "annotations": {
-                        "type": "object",
-                        "properties": {
-                          "_meta": {}
-                        }
-                      }
-                    },
-                    "required": [
-                      "type",
-                      "name",
-                      "uri"
-                    ]
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "const": "resource"
-                      },
-                      "resource": {
-                        "type": "object",
-                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "text"
+                          },
+                          "text": {
+                            "type": "string"
+                          },
                           "_meta": {},
                           "annotations": {
                             "type": "object",
                             "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "_meta": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "text"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "image"
+                          },
+                          "data": {
+                            "type": "string"
+                          },
+                          "mimeType": {
+                            "type": "string"
+                          },
+                          "_meta": {},
+                          "annotations": {
+                            "type": "object",
+                            "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "_meta": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "data",
+                          "mimeType"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "audio"
+                          },
+                          "data": {
+                            "type": "string"
+                          },
+                          "mimeType": {
+                            "type": "string"
+                          },
+                          "_meta": {},
+                          "annotations": {
+                            "type": "object",
+                            "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "_meta": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "data",
+                          "mimeType"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "resource_link"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "uri": {
+                            "type": "string"
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "mimeType": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "number",
+                            "multipleOf": 1,
+                            "minimum": 0
+                          },
+                          "_meta": {},
+                          "annotations": {
+                            "type": "object",
+                            "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
+                              "_meta": {}
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "name",
+                          "uri"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "resource"
+                          },
+                          "_meta": {},
+                          "annotations": {
+                            "type": "object",
+                            "properties": {
+                              "audience": {
+                                "items": {
+                                  "enum": [
+                                    "user",
+                                    "assistant"
+                                  ]
+                                },
+                                "type": "array"
+                              },
+                              "priority": {
+                                "type": "number",
+                                "maximum": 1,
+                                "minimum": 0
+                              },
+                              "lastModified": {
+                                "type": "string"
+                              },
                               "_meta": {}
                             }
                           },
@@ -605,7 +1270,8 @@
                                   },
                                   "text": {
                                     "type": "string"
-                                  }
+                                  },
+                                  "_meta": {}
                                 },
                                 "required": [
                                   "uri",
@@ -623,7 +1289,8 @@
                                   },
                                   "blob": {
                                     "type": "string"
-                                  }
+                                  },
+                                  "_meta": {}
                                 },
                                 "required": [
                                   "uri",
@@ -634,31 +1301,73 @@
                           }
                         },
                         "required": [
+                          "type",
                           "resource"
                         ]
-                      },
-                      "_meta": {},
-                      "annotations": {
-                        "type": "object",
-                        "properties": {
-                          "_meta": {}
-                        }
                       }
-                    },
-                    "required": [
-                      "type",
-                      "resource"
                     ]
-                  }
+                  },
+                  "_meta": {}
+                },
+                "required": [
+                  "type",
+                  "content"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "diff"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "oldText": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "newText": {
+                    "type": "string"
+                  },
+                  "_meta": {}
+                },
+                "required": [
+                  "type",
+                  "path",
+                  "newText"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "terminal"
+                  },
+                  "terminalId": {
+                    "type": "string"
+                  },
+                  "_meta": {}
+                },
+                "required": [
+                  "type",
+                  "terminalId"
                 ]
               }
-            },
-            "required": [
-              "type"
             ]
           },
           "type": "array"
-        }
+        },
+        "rawInput": {},
+        "rawOutput": {}
       },
       "required": [
         "sessionUpdate",
@@ -916,17 +1625,6 @@
         "sessionUpdate",
         "message",
         "timestamp"
-      ]
-    },
-    {
-      "type": "object",
-      "properties": {
-        "sessionUpdate": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "sessionUpdate"
       ]
     }
   ]

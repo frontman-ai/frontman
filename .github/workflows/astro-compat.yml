@@ -1,0 +1,126 @@
+name: Astro Compatibility
+
+on:
+  pull_request:
+    paths:
+      - "libs/frontman-astro/**"
+      - "libs/frontman-core/**"
+      - "libs/frontman-protocol/**"
+      - "libs/bindings/**"
+      - "test/astro-compat/**"
+      - "yarn.lock"
+      - ".github/workflows/astro-compat.yml"
+  push:
+    branches: [main]
+    paths:
+      - "libs/frontman-astro/**"
+      - "libs/frontman-core/**"
+      - "libs/frontman-protocol/**"
+      - "libs/bindings/**"
+      - "test/astro-compat/**"
+      - "yarn.lock"
+      - ".github/workflows/astro-compat.yml"
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: astro-compat-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pack:
+    name: Pack integration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24"
+
+      - name: Enable Corepack
+        run: corepack enable && corepack install
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Pack integration
+        run: make -C test/astro-compat pack
+
+      - name: Upload package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: frontman-astro-package
+          path: test/astro-compat/.artifacts/*.tgz
+          if-no-files-found: error
+          include-hidden-files: true
+
+  latest:
+    name: Astro ${{ matrix.astro }} / Node ${{ matrix.node }}
+    if: github.event_name != 'schedule'
+    needs: pack
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        astro: ["5", "6", "7"]
+        node: ["22.19.0", "24"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Download package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: frontman-astro-package
+          path: test/astro-compat/.artifacts
+
+      - name: Test packed consumer
+        run: node test/astro-compat/run-consumer.mjs "${{ matrix.astro }}" test/astro-compat/.artifacts/*.tgz
+
+  boundaries:
+    name: Boundary Astro ${{ matrix.astro }} / Node ${{ matrix.node }}
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: pack
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {astro: "5.0.0", node: "22.19.0"}
+          - {astro: "5", node: "22.19.0"}
+          - {astro: "5", node: "24"}
+          - {astro: "6.0.0", node: "22.19.0"}
+          - {astro: "6", node: "22.19.0"}
+          - {astro: "6", node: "24"}
+          - {astro: "7.0.0", node: "22.19.0"}
+          - {astro: "7", node: "22.19.0"}
+          - {astro: "7", node: "24"}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Download package
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          name: frontman-astro-package
+          path: test/astro-compat/.artifacts
+
+      - name: Test packed consumer
+        run: node test/astro-compat/run-consumer.mjs "${{ matrix.astro }}" test/astro-compat/.artifacts/*.tgz

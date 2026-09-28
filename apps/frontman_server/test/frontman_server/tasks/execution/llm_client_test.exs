@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import Mox
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
@@ -9,7 +9,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   alias ReqLLM.Error.API.{Request, Stream}
   alias SwarmAi.Message.ContentPart
 
-  setup :set_mox_from_context
+  @client_opts [llm_opts: [api_key: "test-key"]]
+
   setup :verify_on_exit!
 
   describe "ReqLLM stream exception contract" do
@@ -33,15 +34,14 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
       tool = %SwarmAi.Tool{
         name: "read_file",
         description: "Reads a file",
+        access: :read,
         parameter_schema: %{
           "type" => "object",
           "properties" => %{
             "path" => %{"type" => "string"}
           },
           "required" => ["path"]
-        },
-        timeout_ms: 60_000,
-        on_timeout: :error
+        }
       }
 
       {:ok, tool: tool}
@@ -63,7 +63,9 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
 
   describe "image modality guard" do
     test "strips image parts for text-only models" do
-      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+      model = model!("nvidia:deepseek-ai/deepseek-v4-flash")
+
+      expect(LLMProviderMock, :stream_text, fn ^model, [message], _opts ->
         assert Enum.map(message.content, & &1.type) == [:text, :text, :text]
         assert Enum.at(message.content, 0).text == "look"
         assert Enum.at(message.content, 1).text =~ "Image omitted"
@@ -72,11 +74,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: "nvidia:deepseek-ai/deepseek-v4-flash",
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.User{
@@ -92,16 +90,14 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
     end
 
     test "preserves image parts for multimodal models" do
-      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+      model = model!("nvidia:moonshotai/kimi-k2.6")
+
+      expect(LLMProviderMock, :stream_text, fn ^model, [message], _opts ->
         assert Enum.map(message.content, & &1.type) == [:text, :image]
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: "nvidia:moonshotai/kimi-k2.6",
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.User{
@@ -116,7 +112,9 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
     end
 
     test "replaces oversized images before provider requests" do
-      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+      model = model!("anthropic:claude-sonnet-4-6")
+
+      expect(LLMProviderMock, :stream_text, fn ^model, [message], _opts ->
         assert Enum.map(message.content, & &1.type) == [:text, :text]
         assert Enum.at(message.content, 1).text =~ "Image removed"
         assert Enum.at(message.content, 1).text =~ "9000x1080px"
@@ -124,11 +122,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: "anthropic:claude-sonnet-4-5",
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.User{
@@ -146,18 +140,15 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   describe "assistant reasoning details" do
     test "serializes reasoning details from Swarm assistant messages" do
       reasoning = [%{"type" => "reasoning.encrypted", "data" => "encrypted-data"}]
+      model = model!("openrouter:openai/gpt-5.5")
 
-      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+      expect(LLMProviderMock, :stream_text, fn ^model, [message], _opts ->
         assert message.role == :assistant
         assert message.reasoning_details == reasoning
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: "openrouter:openai/gpt-5.5",
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.Assistant{
@@ -181,7 +172,9 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         }
       ]
 
-      expect(LLMProviderMock, :stream_text, fn _model, [message], _opts ->
+      model = model!("anthropic:claude-sonnet-4-6")
+
+      expect(LLMProviderMock, :stream_text, fn ^model, [message], _opts ->
         assert [thinking] = message.reasoning_details
         assert %ReqLLM.Message.ReasoningDetails{provider: :anthropic} = thinking
         assert thinking.index == 0
@@ -190,7 +183,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         request =
           [message]
           |> ReqLLM.Context.new()
-          |> ReqLLM.Providers.Anthropic.Context.encode_request(%{model: "claude-sonnet-4-5"})
+          |> ReqLLM.Providers.Anthropic.Context.encode_request(%{model: "claude-sonnet-4-6"})
 
         assert [%{role: "assistant", content: [%{type: "thinking"} = thinking_block | _]}] =
                  request.messages
@@ -200,11 +193,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: "anthropic:claude-sonnet-4-5",
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.Assistant{
@@ -242,4 +231,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   defp stream_response(chunks) do
     %{stream: chunks, cancel: fn -> :ok end}
   end
+
+  defp model!(spec), do: ReqLLM.model!(spec)
 end

@@ -1,0 +1,222 @@
+defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
+  use ExUnit.Case, async: false
+
+  import FrontmanServer.Test.Fixtures.Accounts
+  import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 1]
+
+  alias Ecto.Adapters.SQL.Sandbox
+  alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Protocols.MCP
+  alias FrontmanServer.Repo
+  alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.Execution.ToolExecutor
+  alias FrontmanServer.Tasks.Interaction
+  alias FrontmanServer.Tools.MCP, as: MCPTool
+
+  test "two tasks with the same tool call id receive only their own result" do
+    Sandbox.unboxed_run(Repo, fn ->
+      scope = user_scope_fixture()
+
+      try do
+        shared_tool_call_id = "call_shared_#{System.unique_integer([:positive])}"
+        first_task_id = task_fixture(scope).id
+        second_task_id = task_fixture(scope).id
+        first_turn_number = start_turn_fixture(scope, first_task_id)
+        second_turn_number = start_turn_fixture(scope, second_task_id)
+
+        first_executor =
+          start_executor(scope, first_task_id, first_turn_number, shared_tool_call_id)
+
+        second_executor =
+          start_executor(scope, second_task_id, second_turn_number, shared_tool_call_id)
+
+        assert_tool_executor_registered(first_task_id, shared_tool_call_id)
+        assert_tool_executor_registered(second_task_id, shared_tool_call_id)
+
+        assert {:ok, _interaction, :notified} =
+                 resolve(
+                   scope,
+                   first_task_id,
+                   first_turn_number,
+                   "first task result",
+                   shared_tool_call_id
+                 )
+
+        assert {:ok, _interaction, :notified} =
+                 resolve(
+                   scope,
+                   second_task_id,
+                   second_turn_number,
+                   "second task result",
+                   shared_tool_call_id
+                 )
+
+        assert {:ok, [%SwarmAi.ToolResult{content: [%{text: "first task result"}]}]} =
+                 Task.await(first_executor, 1_000)
+
+        assert {:ok, [%SwarmAi.ToolResult{content: [%{text: "second task result"}]}]} =
+                 Task.await(second_executor, 1_000)
+      after
+        Repo.delete!(Scope.user(scope))
+      end
+    end)
+  end
+
+  test "concurrent responses have unique sequences and tool results converge" do
+    Sandbox.unboxed_run(Repo, fn ->
+      scope = user_scope_fixture()
+
+      try do
+        task_id = task_fixture(scope).id
+        turn_number = start_turn_fixture(scope, task_id)
+        parent = self()
+
+        tasks =
+          for result <- ["result1", "result2"] do
+            Task.async(fn ->
+              Sandbox.unboxed_run(Repo, fn ->
+                send(parent, {:ready, self()})
+
+                receive do
+                  :resolve ->
+                    assert {:ok, _} = Tasks.agent_replied(scope, task_id, turn_number, result)
+                    resolve(scope, task_id, turn_number, result)
+                after
+                  1_000 -> raise "timed out waiting to resolve tool result"
+                end
+              end)
+            end)
+          end
+
+        assert_receive {:ready, _task_pid}, 1_000
+        assert_receive {:ready, _task_pid}, 1_000
+        Enum.each(tasks, &send(&1.pid, :resolve))
+
+        results = Enum.map(tasks, &Task.await(&1, 1_000))
+
+        assert Enum.all?(results, &match?({:ok, _interaction, :no_executor}, &1))
+
+        [{:ok, canonical, :no_executor}, {:ok, canonical, :no_executor}] = results
+
+        Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, task_id, "call_dedup"}, %{
+          caller_pid: self()
+        })
+
+        assert {:ok, ^canonical, :notified} =
+                 resolve(scope, task_id, turn_number, "late result")
+
+        assert %{"content" => [%{"text" => canonical_text}]} = canonical.result
+        assert_receive {:tool_result, "call_dedup", [%{text: ^canonical_text}], false}
+
+        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+        sequences = Enum.map(task.interaction_rows, & &1.sequence)
+        assert length(sequences) == 5
+        assert sequences == Enum.sort(Enum.uniq(sequences))
+        assert Enum.all?(sequences, &(&1 > 0))
+
+        assert [^canonical] =
+                 Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+      after
+        Repo.delete!(Scope.user(scope))
+      end
+    end)
+  end
+
+  test "an answer concurrent with cancellation cleanup preserves one result and a closed turn" do
+    Sandbox.unboxed_run(Repo, fn ->
+      scope = user_scope_fixture()
+
+      try do
+        task_id = task_fixture(scope).id
+        turn_number = start_turn_fixture(scope, task_id)
+        call = %SwarmAi.ToolCall{id: "cancel_race", name: "approval", arguments: "{}"}
+        {:ok, _} = Tasks.request_client_tool(scope, task_id, turn_number, call, :interactive)
+        parent = self()
+
+        operations = [
+          fn -> Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user}) end,
+          fn -> Tasks.resolve_tool_request(scope, task_id, call, MCP.tool_result_text("yes")) end
+        ]
+
+        tasks =
+          Enum.map(operations, fn operation ->
+            Task.async(fn ->
+              Sandbox.unboxed_run(Repo, fn ->
+                send(parent, {:ready, self()})
+
+                receive do
+                  :go -> operation.()
+                after
+                  1_000 -> raise "cancellation race barrier timed out"
+                end
+              end)
+            end)
+          end)
+
+        assert_receive {:ready, _}, 1_000
+        assert_receive {:ready, _}, 1_000
+        Enum.each(tasks, &send(&1.pid, :go))
+        assert [:ok, {:ok, winner, :no_executor}] = Enum.map(tasks, &Task.await(&1, 1_000))
+
+        assert {:ok, ^winner, :no_executor} =
+                 Tasks.resolve_tool_request(scope, task_id, call, MCP.tool_result_text("late"))
+
+        assert {:ok, :no_active_turn} =
+                 Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+
+        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+        assert [^winner] =
+                 Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
+      after
+        Repo.delete!(Scope.user(scope))
+      end
+    end)
+  end
+
+  defp start_executor(scope, task_id, turn_number, tool_call_id) do
+    Task.async(fn ->
+      Sandbox.unboxed_run(Repo, fn ->
+        tool = %{MCPTool.from_map(mcp_tool("some_tool")) | timeout_ms: 1_000}
+
+        ToolExecutor.callback(scope, %{tool.name => tool}, :serial, task_id, turn_number).(
+          [%SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}],
+          SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
+        )
+      end)
+    end)
+  end
+
+  defp assert_tool_executor_registered(task_id, tool_call_id) do
+    assert eventually(fn ->
+             Registry.lookup(FrontmanServer.ProcessRegistry, {:tool_call, task_id, tool_call_id})
+           end) == [{:registered}]
+  end
+
+  defp eventually(fun), do: eventually(fun, 50)
+
+  defp eventually(fun, attempts) when attempts > 0 do
+    case fun.() do
+      [] ->
+        Process.sleep(10)
+        eventually(fun, attempts - 1)
+
+      [_entry] ->
+        [{:registered}]
+    end
+  end
+
+  defp eventually(_fun, 0), do: []
+
+  defp resolve(scope, task_id, turn_number, result, tool_call_id \\ "call_dedup") do
+    Tasks.resolve_tool_request(
+      scope,
+      task_id,
+      %{id: tool_call_id, name: "some_tool"},
+      MCP.tool_result_text(result),
+      turn_number: turn_number
+    )
+  end
+end
