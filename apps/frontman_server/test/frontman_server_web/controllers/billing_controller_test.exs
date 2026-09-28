@@ -30,6 +30,19 @@ defmodule FrontmanServerWeb.BillingControllerTest do
   end
 
   describe "POST /billing/checkout/monthly" do
+    test "rejects existing subscribers without creating another Stripe subscription", %{
+      conn: conn
+    } do
+      use_billing_client_stub()
+      %{conn: conn, scope: scope} = register_and_log_in_user(%{conn: conn})
+      allow_access_for_scope_fixture(scope)
+
+      conn = post(conn, ~p"/billing/checkout/monthly")
+
+      assert %{"error" => "subscription_already_active"} = json_response(conn, 409)
+      refute_received {:start_checkout, _, _, _, _, _}
+    end
+
     test "redirects to Stripe with server-owned safe return URLs", %{conn: conn} do
       use_billing_client_stub()
 

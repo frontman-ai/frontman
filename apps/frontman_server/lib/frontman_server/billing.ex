@@ -30,13 +30,18 @@ defmodule FrontmanServer.Billing do
           {:ok, map()} | {:error, term()}
   def start_checkout(%Scope{} = scope, interval, return_urls)
       when is_map(return_urls) do
-    user = Accounts.scope_user(scope)
-    customer = Customer |> Customer.for_user(user.id) |> Repo.one()
-    trial_eligible = trial_eligible?(scope)
+    case allow_access?(scope) do
+      true ->
+        {:error, :subscription_already_active}
 
-    billing_client().start_checkout(user, customer, interval, return_urls,
-      trial_eligible: trial_eligible
-    )
+      false ->
+        user = Accounts.scope_user(scope)
+        customer = Customer |> Customer.for_user(user.id) |> Repo.one()
+
+        billing_client().start_checkout(user, customer, interval, return_urls,
+          trial_eligible: trial_eligible?(scope)
+        )
+    end
   end
 
   @doc """

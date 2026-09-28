@@ -9,6 +9,44 @@ defmodule FrontmanServer.BillingTest do
   alias FrontmanServer.Test.BillingClientStub
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
+  describe "start_checkout/3" do
+    test "rejects a second checkout while the user has subscription access" do
+      use_billing_client_stub()
+
+      for status <- ["trialing", "active", "past_due"] do
+        scope = scope_with_subscription_fixture(status)
+
+        assert {:error, :subscription_already_active} =
+                 Billing.start_checkout(scope, :monthly, %{
+                   success_url: "https://frontman.test/success",
+                   cancel_url: "https://frontman.test/cancel"
+                 })
+      end
+
+      refute_received {:start_checkout, _, _, _, _, _}
+    end
+
+    test "allows a canceled subscriber to return without a second trial" do
+      use_billing_client_stub()
+      BillingClientStub.stub_start_checkout({:ok, %{"id" => "cs_returning"}})
+      scope = AccountsFixtures.user_scope_fixture()
+      customer = customer_for_scope_fixture(scope)
+
+      subscription_for_customer_fixture(scope, customer, %{
+        status: "canceled",
+        trial_end: ~U[2026-01-01 00:00:00Z]
+      })
+
+      assert {:ok, %{"id" => "cs_returning"}} =
+               Billing.start_checkout(scope, :yearly, %{
+                 success_url: "https://frontman.test/success",
+                 cancel_url: "https://frontman.test/cancel"
+               })
+
+      assert_received {:start_checkout, _, ^customer, :yearly, _, [trial_eligible: false]}
+    end
+  end
+
   describe "trial_eligible?/1" do
     test "returns true when the user has never had a trial" do
       user = AccountsFixtures.user_fixture()

@@ -36,9 +36,13 @@ config :logger, level: :info
 # Keep dev routes available in E2E to match local development behavior.
 config :frontman_server, dev_routes: true
 
+# E2E seeds grant access locally; accidental Stripe requests must not reach the live API.
 config :frontman_server, :stripe,
-  monthly_price_id: "price_1TUYBtPPoSdrJYfmJ26XlUS4",
-  yearly_price_id: "price_1TUYAiPPoSdrJYfmwhmJyMCw",
+  api_base_url: "http://127.0.0.1:1/v1",
+  secret_key: "e2e-unused-key",
+  webhook_secret: "e2e-unused-webhook-secret",
+  monthly_price_id: "price_e2e_monthly",
+  yearly_price_id: "price_e2e_yearly",
   trial_days: 14
 
 # Include metadata and timestamps in logs.

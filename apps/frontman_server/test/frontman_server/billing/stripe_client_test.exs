@@ -34,7 +34,7 @@ defmodule FrontmanServer.Billing.StripeClientTest do
 
         assert params["cancel_url"] == "https://frontman.test/billing/stripe-return/cancel"
         assert params["client_reference_id"] == user.id
-        assert params["customer_email"] == user.email
+        refute Map.has_key?(params, "customer_email")
         assert params["customer"] == "cus_existing"
         assert params["subscription_data[trial_period_days]"] == "14"
         assert params["subscription_data[metadata][user_id]"] == user.id
@@ -61,6 +61,40 @@ defmodule FrontmanServer.Billing.StripeClientTest do
                    cancel_url: "https://frontman.test/billing/stripe-return/cancel"
                  },
                  trial_eligible: true
+               )
+    end
+  end
+
+  describe "checkout without a billing customer" do
+    setup :setup_stripe_bypass
+
+    test "prefills email only for a new customer and omits a consumed trial", %{bypass: bypass} do
+      user = AccountsFixtures.user_fixture()
+
+      Bypass.expect(bypass, "POST", "/v1/checkout/sessions", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        params = URI.decode_query(body)
+
+        assert params["customer_email"] == user.email
+        assert params["line_items[0][price]"] == "price_monthly_test"
+        refute Map.has_key?(params, "customer")
+        refute Map.has_key?(params, "subscription_data[trial_period_days]")
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(200, Jason.encode!(%{"id" => "cs_new_customer"}))
+      end)
+
+      assert {:ok, %{"id" => "cs_new_customer"}} =
+               StripeClient.start_checkout(
+                 user,
+                 nil,
+                 :monthly,
+                 %{
+                   success_url: "https://frontman.test/success",
+                   cancel_url: "https://frontman.test/cancel"
+                 },
+                 trial_eligible: false
                )
     end
   end

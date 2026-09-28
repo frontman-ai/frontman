@@ -101,6 +101,12 @@ defmodule FrontmanServerWeb.BillingController do
     )
   end
 
+  defp checkout_error(conn, :subscription_already_active) do
+    conn
+    |> put_status(:conflict)
+    |> json(%{error: "subscription_already_active"})
+  end
+
   defp checkout_error(conn, reason) do
     conn
     |> put_status(:bad_gateway)

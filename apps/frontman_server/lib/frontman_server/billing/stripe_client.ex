@@ -92,14 +92,13 @@ defmodule FrontmanServer.Billing.StripeClient do
       {"success_url", Map.fetch!(return_urls, :success_url)},
       {"cancel_url", Map.fetch!(return_urls, :cancel_url)},
       {"client_reference_id", user.id},
-      {"customer_email", user.email},
       {"subscription_data[metadata][user_id]", user.id},
       {"subscription_data[metadata][interval]", Atom.to_string(interval)},
       {"metadata[user_id]", user.id},
       {"metadata[interval]", Atom.to_string(interval)}
     ]
 
-    customer_params(customer) ++ trial_params(opts) ++ base_params
+    customer_params(customer, user) ++ trial_params(opts) ++ base_params
   end
 
   defp trial_params(opts) do
@@ -112,11 +111,12 @@ defmodule FrontmanServer.Billing.StripeClient do
     end
   end
 
-  defp customer_params(%Customer{stripe_customer_id: customer_id}) when is_binary(customer_id) do
+  defp customer_params(%Customer{stripe_customer_id: customer_id}, _user)
+       when is_binary(customer_id) do
     [{"customer", customer_id}]
   end
 
-  defp customer_params(_customer), do: []
+  defp customer_params(nil, user), do: [{"customer_email", user.email}]
 
   defp price_id_key(:monthly), do: :monthly_price_id
   defp price_id_key(:yearly), do: :yearly_price_id

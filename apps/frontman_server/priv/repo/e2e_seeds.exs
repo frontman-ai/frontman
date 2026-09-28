@@ -7,6 +7,7 @@
 #   MIX_ENV=e2e mix run priv/repo/e2e_seeds.exs
 
 alias FrontmanServer.Accounts
+alias FrontmanServer.Billing.Webhooks
 alias FrontmanServer.Providers.OAuthToken
 alias FrontmanServer.Repo
 
@@ -35,6 +36,26 @@ user =
   end
 
 IO.puts("E2E user: #{user.email} (id: #{user.id})")
+
+# Grant the test user access without a Stripe request. A stable event ID makes re-seeding safe.
+{:ok, _result} =
+  Webhooks.process_event(%{
+    "id" => "evt_e2e_subscription_#{user.id}",
+    "type" => "customer.subscription.created",
+    "data" => %{
+      "object" => %{
+        "id" => "sub_e2e_#{user.id}",
+        "customer" => "cus_e2e_#{user.id}",
+        "status" => "active",
+        "metadata" => %{"user_id" => user.id},
+        "items" => %{
+          "data" => [
+            %{"price" => %{"id" => "price_e2e_monthly", "recurring" => %{"interval" => "month"}}}
+          ]
+        }
+      }
+    }
+  })
 
 # ── 2. Insert OpenAI OAuth token (from env vars) ───────────────────────────────
 

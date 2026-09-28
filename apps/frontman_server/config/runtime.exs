@@ -58,15 +58,10 @@ config :workos, WorkOS.Client,
   api_key: env!("WORKOS_API_KEY", :string, nil),
   client_id: env!("WORKOS_CLIENT_ID", :string, nil)
 
-if config_env() != :test do
-  stripe_config = Application.get_env(:frontman_server, :stripe, [])
-
-  config :frontman_server,
-    stripe:
-      Keyword.merge(stripe_config,
-        secret_key: env!("STRIPE_SECRET_KEY", :string!),
-        webhook_secret: env!("STRIPE_WEBHOOK_SECRET", :string!)
-      )
+if config_env() not in [:test, :e2e] do
+  config :frontman_server, :stripe,
+    secret_key: env!("STRIPE_SECRET_KEY", :string!),
+    webhook_secret: env!("STRIPE_WEBHOOK_SECRET", :string!)
 end
 
 # OpenTelemetry configuration
