@@ -1,8 +1,8 @@
 import {
-  validateInput, validateQuestion, validateFeedback,
+  validateInput, validateQuestion,
   validateSearch, validateSearchIndex, searchInputSchema,
   validateQueuedQuestion, validateUnavailableQuestion,
-  inputSchema, questionInputSchema, feedbackInputSchema, feedbackPrefix,
+  inputSchema, questionInputSchema,
 } from "virtual:webmcp-validators";
 import { agentInstructions } from "./install-agent.mjs";
 
@@ -21,57 +21,6 @@ function readFeatureText(root, selector) {
 
 export function createHomepageTools(document) {
   const window = document.defaultView;
-
-  const createSubmissionTool = ({ name, title, description, field, inputSchema, validate, prefix = "" }) => {
-    return {
-      name,
-      title,
-      description: `${description} No replies. Exclude credentials and private information. Never automatically retry a failed submission.`,
-      inputSchema,
-      execute: async (input, { signal = new AbortController().signal } = {}) => {
-        const text = parseWith(validate, input)[field];
-        signal.throwIfAborted();
-        const supportUrl = new URL("/api/support/questions", import.meta.env.FRONTMAN_API_ORIGIN);
-        if (field === "question") {
-          const confirmed = window.confirm(
-            `Send this question to Frontman through Discord? It will be stored for delivery. ` +
-            `No replies are available. Exclude credentials and private information.\n\n${text}`,
-          );
-          signal.throwIfAborted();
-          if (!confirmed) return { status: "cancelled", submitted: false };
-        }
-
-        const request = {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(parseWith(validateQuestion, { question: prefix + text })),
-          credentials: "omit",
-          referrerPolicy: "no-referrer",
-          signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
-        };
-        let response, body;
-        try {
-          response = await window.fetch(supportUrl.href, request);
-          body = await response.text();
-        } catch (cause) {
-          throw new Error("Submission could not be confirmed; it may already be queued. Do not automatically retry.", { cause });
-        }
-        switch (response.status) {
-          case 202: {
-            const { status, submitted, submission_id } = parseWith(validateQueuedQuestion, JSON.parse(body));
-            return { status, submitted, submission_id, message: "Queued. Delivery is not confirmed; no replies are available." };
-          }
-          case 429:
-          case 503: {
-            const { status, submitted } = parseWith(validateUnavailableQuestion, JSON.parse(body));
-            return { status, submitted, message: "Support is unavailable. Submission was not accepted." };
-          }
-          default:
-            throw new Error(`Support submission returned HTTP ${response.status}. Delivery is unconfirmed; do not automatically retry.`);
-        }
-      },
-    };
-  };
 
   return [
     {
@@ -100,25 +49,52 @@ export function createHomepageTools(document) {
         return { status: results.length ? "found" : "no_results", results };
       },
     },
-    createSubmissionTool({
+    {
       name: "ask_question",
       title: "Ask a question",
-      description:
-        "Send Frontman a product, compatibility, or setup question that the published documentation does not answer. Requires user approval; do not repeat a declined request.",
-      field: "question",
+      description: "Send Frontman a product, compatibility, or setup question that the published documentation does not answer. Requires user approval; do not repeat a declined request. No replies. Exclude credentials and private information. Never automatically retry a failed submission.",
       inputSchema: questionInputSchema,
-      validate: validateQuestion,
-    }),
-    createSubmissionTool({
-      name: "leave_feedback",
-      title: "Leave feedback",
-      description:
-        "Before leaving Frontman or finishing your task, use `leave_feedback` to share why you visited, whether you found what you needed, and what would help you accomplish your goal. Feedback is useful even when everything worked. If approval is required, show the proposed message and ask permission rather than silently skipping feedback. Do not invent needs.",
-      field: "feedback",
-      inputSchema: feedbackInputSchema,
-      validate: validateFeedback,
-      prefix: feedbackPrefix,
-    }),
+      execute: async (input, { signal = new AbortController().signal } = {}) => {
+        const { question } = parseWith(validateQuestion, input);
+        signal.throwIfAborted();
+        const supportUrl = new URL("/api/support/questions", import.meta.env.FRONTMAN_API_ORIGIN);
+        const confirmed = window.confirm(
+          `Send this question to Frontman through Discord? It will be stored for delivery. ` +
+          `No replies are available. Exclude credentials and private information.\n\n${question}`,
+        );
+        signal.throwIfAborted();
+        if (!confirmed) return { status: "cancelled", submitted: false };
+
+        const request = {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question }),
+          credentials: "omit",
+          referrerPolicy: "no-referrer",
+          signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+        };
+        let response, body;
+        try {
+          response = await window.fetch(supportUrl.href, request);
+          body = await response.text();
+        } catch (cause) {
+          throw new Error("Submission could not be confirmed; it may already be queued. Do not automatically retry.", { cause });
+        }
+        switch (response.status) {
+          case 202: {
+            const { status, submitted, submission_id } = parseWith(validateQueuedQuestion, JSON.parse(body));
+            return { status, submitted, submission_id, message: "Queued. Delivery is not confirmed; no replies are available." };
+          }
+          case 429:
+          case 503: {
+            const { status, submitted } = parseWith(validateUnavailableQuestion, JSON.parse(body));
+            return { status, submitted, message: "Support is unavailable. Submission was not accepted." };
+          }
+          default:
+            throw new Error(`Support submission returned HTTP ${response.status}. Delivery is unconfirmed; do not automatically retry.`);
+        }
+      },
+    },
     {
       name: "how_to_install",
       title: "How to install Frontman",

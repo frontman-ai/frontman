@@ -66,14 +66,11 @@ The integration now runs entirely inside the WordPress plugin.
 
 The plugin handles authentication, serves the `/frontman` route, loads the hosted Frontman UI assets, and exposes WordPress-specific tools for posts, pages, blocks, Elementor content, menus, templates, widgets, and settings. Tool calls are handled server-side in PHP.
 
-## This Is Experimental, and We Need Your Help
+## Experimental Release
 
 This is an early release. The WordPress integration works, but it hasn't been battle-tested across the full range of WordPress setups, including different themes, page builders, hosting environments, and PHP versions.
 
-We're actively looking for WordPress users and developers to try it and help shape where this integration goes next. If you run into issues, have ideas for new tools, or want better support for specific WordPress patterns, we want that feedback directly from real sites and real workflows.
-
 - **Report issues** on [GitHub](https://github.com/frontman-ai/frontman/issues)
-- **Join the conversation** and share feedback
 - **Contribute**: the source-available codebase is on GitHub, with an Apache-2.0 browser client and JavaScript integrations, a GPL-2.0-or-later WordPress plugin, and an AGPL-3.0-only server plus AI Supplementary Terms
 
 ## A Note on Production Use

@@ -312,11 +312,11 @@ module Provider = {
       | Plan({entries}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.planReceived(~taskId, ~entries)
-      | StateUpdate({state, stopReason}) =>
+      | StateUpdate({state, _}) =>
         Client__TextDeltaBuffer.flush()
         switch state {
         | Running => Client__State.Actions.executionStateRunning(~taskId)
-        | Idle => Client__State.Actions.executionStateIdle(~taskId, ~stopReason)
+        | Idle => Client__State.Actions.executionStateIdle(~taskId)
         | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
         }
       | ConfigOptionUpdate({configOptions}) =>

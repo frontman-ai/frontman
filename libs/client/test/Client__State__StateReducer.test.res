@@ -798,126 +798,29 @@ describe("Client State Reducer", () => {
   })
 })
 
-describe("Client State Reducer - First Task Feedback Dialog", () => {
-  let firstTurnState = (~agentId="test-agent", ~sessionsLoadState=StateTypes.SessionsLoaded) => {
-    ...TestHelpers.makeStateWithTask(
-      ~isAgentRunning=true,
-      ~messages=[
-        Reducer.Message.User({
-          id: "user-1",
-          content: [UserContentPart.text("Build something")],
-          annotations: [],
-          agentId,
-        }),
-        Reducer.Message.Assistant(Streaming({id: "assistant-1", textBuffer: "Done", agentId})),
-      ],
-    ),
-    sessionsLoadState,
-  }
-
-  let reduce = (state, action) => Reducer.next(state, action)->Pair.first
-  let stopTurnResult = (state, stopReason) => {
+describe("Client State Reducer - Task Completion", () => {
+  test("completes the first task without promotional effects, including after history loads", t => {
+    let state = {
+      ...TestHelpers.makeStateWithTask(
+        ~isAgentRunning=true,
+        ~messages=[
+          Reducer.Message.Assistant(
+            Streaming({id: "assistant-1", textBuffer: "Done", agentId: "test-agent"}),
+          ),
+        ],
+      ),
+      sessionsLoadState: StateTypes.SessionsLoading,
+    }
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    Reducer.next(state, TaskExecutionStopped({taskId, stopReason}))
-  }
-  let stopTurn = (state, stopReason) => stopTurnResult(state, stopReason)->Pair.first
-  let completeSuccessfulTurn = state => stopTurn(state, Some(ACP.EndTurn))
-  let loadHistoryResult = state => Reducer.next(state, SessionsLoadSuccess({sessions: []}))
-  let loadHistory = state => state->loadHistoryResult->Pair.first
-  let expectOpen = (t, state, expected) =>
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(state))->Expect.toBe(expected)
-
-  test("opens only after the first task's first successful turn", t => {
-    expectOpen(t, firstTurnState()->stopTurn(Some(ACP.Refusal)), false)
-
-    let (completedState, effects) = firstTurnState()->stopTurnResult(Some(ACP.EndTurn))
-    expectOpen(t, completedState, true)
-    t->expect(effects)->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackDialogShown)])
-  })
-
-  test("waits for session history and only celebrates a new user", t => {
-    let pendingState =
-      firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
-    expectOpen(t, pendingState, false)
-
-    let (loadedState, effects) = pendingState->loadHistoryResult
-    expectOpen(t, loadedState, true)
-    t->expect(effects)->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackDialogShown)])
-
-    let returningUserState = {...pendingState, tasks: pendingState.tasks->Dict.copy}
-    returningUserState.tasks->Dict.set("previous-task", Task.makeNew(~previewUrl=""))
-    expectOpen(t, returningUserState->loadHistory, false)
-
-    let failedState = pendingState->reduce(SessionsLoadError({error: "unavailable"}))
-    t->expect(failedState.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
-  })
-
-  test("rechecks queued prompts when session history arrives", t => {
-    let queuedState =
-      firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
-    let taskId = TestHelpers.getCurrentTaskId(queuedState)->Option.getOrThrow
-    let (queuedState, _) = Reducer.next(
-      queuedState,
-      AddUserMessage({
-        id: secondTestUserMessageId,
-        sessionId: taskId,
-        content: [UserContentPart.text("Second message")],
-        annotations: [],
-        agentId: "test-agent",
-      }),
+    let (completedState, effects) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
     )
-    expectOpen(t, queuedState->loadHistory, false)
-  })
+    t->expect(Reducer.Selectors.isAgentRunning(completedState))->Expect.toBe(false)
+    t->expect(effects)->Expect.toEqual([])
 
-  test("waits for planner execution before celebrating", t => {
-    let plannedState =
-      firstTurnState(~agentId=planner.id)->withPlanHandoffContext->completeSuccessfulTurn
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(plannedState))->Expect.toBe(false)
-
-    let taskId = TestHelpers.getCurrentTaskId(plannedState)->Option.getOrThrow
-    let executingState = plannedState->reduce(ExecutePendingPlan({id: secondTestUserMessageId}))
-    let executingState = TestHelpers.acceptUserMessage(
-      executingState,
-      ~taskId,
-      ~id=secondTestUserMessageId->UserMessageId.toString,
-      ~content=[UserContentPart.text(Reducer.executePlanPrompt)],
-    )
-    let executingState =
-      executingState->reduce(TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}))
-    let executingState = executingState->reduce(
-      TaskAction({
-        target: ForTask(taskId),
-        action: TextDeltaReceived({
-          messageId: "assistant-executor",
-          text: "Done",
-          agentId: executor.id,
-        }),
-      }),
-    )
-    expectOpen(t, executingState->completeSuccessfulTurn, true)
-  })
-
-  test("tracks close through the reducer", t => {
-    let visibleState = firstTurnState()->completeSuccessfulTurn
-    let (closedState, effects) = Reducer.next(visibleState, CloseFirstTaskFeedbackDialog)
-
-    t->expect(closedState.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
-    t->expect(effects)->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackDialogClosed)])
-  })
-
-  test("keeps failed sharing visible and retryable", t => {
-    let visibleState = firstTurnState()->completeSuccessfulTurn
-    let failedState = visibleState->reduce(ShareFrontmanFailed)
-    let (_, retryEffects) = Reducer.next(failedState, ShareFrontman)
-
-    expectOpen(t, failedState, true)
-    t->expect(Reducer.Selectors.firstTaskFeedbackShareFailed(failedState))->Expect.toBe(true)
-    t
-    ->expect(retryEffects)
-    ->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackShareClicked), ShareFrontmanEffect])
-
-    let copiedState = failedState->reduce(ShareFrontmanLinkCopied)
-    t->expect(copiedState.firstTaskFeedbackDialogState)->Expect.toEqual(LinkCopied)
+    let (_, historyEffects) = Reducer.next(completedState, SessionsLoadSuccess({sessions: []}))
+    t->expect(historyEffects)->Expect.toEqual([])
   })
 })
 
