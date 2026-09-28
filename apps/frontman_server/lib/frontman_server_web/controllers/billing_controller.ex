@@ -9,6 +9,8 @@ defmodule FrontmanServerWeb.BillingController do
 
   alias FrontmanServer.Billing
 
+  action_fallback FrontmanServerWeb.BillingFallbackController
+
   def checkout_monthly(conn, _params) do
     stripe_launch(conn, ~p"/billing/checkout/monthly")
   end
@@ -74,7 +76,7 @@ defmodule FrontmanServerWeb.BillingController do
         redirect(conn, external: url)
 
       {:error, reason} ->
-        checkout_error(conn, reason)
+        {:error, {:billing, :checkout, reason}}
     end
   end
 
@@ -89,7 +91,7 @@ defmodule FrontmanServerWeb.BillingController do
         redirect(conn, external: url)
 
       {:error, reason} ->
-        customer_portal_url_error(conn, reason)
+        {:error, {:billing, :customer_portal, reason}}
     end
   end
 
@@ -99,32 +101,5 @@ defmodule FrontmanServerWeb.BillingController do
       title: title,
       message: "You can close this tab and return to Frontman."
     )
-  end
-
-  defp checkout_error(conn, :subscription_already_active) do
-    conn
-    |> put_status(:conflict)
-    |> json(%{error: "subscription_already_active"})
-  end
-
-  defp checkout_error(conn, reason) do
-    conn
-    |> put_status(:bad_gateway)
-    |> json(%{error: "stripe_checkout_session_failed", reason: inspect(reason)})
-  end
-
-  defp customer_portal_url_error(conn, :billing_customer_missing) do
-    conn
-    |> put_status(:unprocessable_entity)
-    |> json(%{error: "billing_customer_missing"})
-  end
-
-  defp customer_portal_url_error(
-         conn,
-         {:customer_portal_url_failed, reason}
-       ) do
-    conn
-    |> put_status(:bad_gateway)
-    |> json(%{error: "customer_portal_url_failed", reason: inspect(reason)})
   end
 end

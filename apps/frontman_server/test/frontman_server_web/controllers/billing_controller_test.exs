@@ -6,6 +6,12 @@ defmodule FrontmanServerWeb.BillingControllerTest do
   alias FrontmanServer.Billing.Customer
   alias FrontmanServer.Test.BillingClientStub
 
+  setup do
+    Sentry.Test.setup_sentry(dedup_events: false)
+    Sentry.Context.clear_all()
+    :ok
+  end
+
   describe "GET /billing/checkout/monthly" do
     test "renders a CSRF-protected auto-submit form for authenticated users", %{conn: conn} do
       %{conn: conn} = register_and_log_in_user(%{conn: conn})
@@ -39,7 +45,8 @@ defmodule FrontmanServerWeb.BillingControllerTest do
 
       conn = post(conn, ~p"/billing/checkout/monthly")
 
-      assert %{"error" => "subscription_already_active"} = json_response(conn, 409)
+      assert html_response(conn, 409) =~ "already have an active subscription"
+      assert Sentry.Test.pop_sentry_reports() == []
       refute_received {:start_checkout, _, _, _, _, _}
     end
 
@@ -152,6 +159,112 @@ defmodule FrontmanServerWeb.BillingControllerTest do
       }
 
       assert String.ends_with?(return_url, "/billing/stripe-return/customer-portal")
+    end
+  end
+
+  describe "billing failure boundary" do
+    for path <- [
+          "/billing/checkout/monthly",
+          "/billing/checkout/yearly",
+          "/billing/customer-portal"
+        ],
+        failure <- [:unauthorized, :upstream, :timeout] do
+      @path path
+      @failure failure
+      test "#{path} safely reports #{failure}", %{conn: conn} do
+        use_billing_client_stub()
+        %{conn: conn, scope: scope, user: user} = register_and_log_in_user(%{conn: conn})
+        secret = "sk_live_DO_NOT_EXPOSE_TEST_SECRET"
+
+        reason =
+          case @failure do
+            :timeout ->
+              %Req.TransportError{reason: :timeout}
+
+            :unauthorized ->
+              {:stripe_error, 401,
+               %{"error" => %{"message" => secret, "code" => "api_key_expired"}}, ["req_test123"]}
+
+            :upstream ->
+              {:stripe_error, 503, %{"error" => %{"message" => secret, "code" => secret}},
+               [secret]}
+          end
+
+        operation =
+          case @path do
+            "/billing/customer-portal" ->
+              customer_for_scope_fixture(scope, %{stripe_customer_id: "cus_error_test"})
+              BillingClientStub.stub_customer_portal_url({:error, reason})
+              :customer_portal
+
+            _checkout ->
+              BillingClientStub.stub_start_checkout({:error, reason})
+              :checkout
+          end
+
+        conn = post(conn, @path, %{"untrusted" => secret})
+        response = html_response(conn, 502)
+        assert response =~ "We could not open Stripe"
+        assert response =~ "Request reference:"
+        assert response =~ "Return to Frontman"
+        refute response =~ secret
+        refute response =~ "stripe_error"
+
+        [event] = Sentry.Test.pop_sentry_reports()
+        assert event.message.formatted == "Billing request failed"
+        assert event.tags == %{error_type: "billing_failure", billing_operation: operation}
+        assert event.user == %{id: user.id}
+        assert event.request == nil
+        assert event.breadcrumbs == []
+        assert event.attachments == []
+        assert [event.extra.request_id] == get_resp_header(conn, "x-request-id")
+        assert response =~ event.extra.request_id
+        refute inspect(event) =~ secret
+
+        case @failure do
+          :unauthorized ->
+            assert event.extra.upstream_status == 401
+            assert event.extra.stripe_code == "api_key_expired"
+            assert event.extra.stripe_request_id == "req_test123"
+
+          :upstream ->
+            assert event.extra.upstream_status == 503
+            assert event.extra.stripe_code == nil
+            assert event.extra.stripe_request_id == nil
+
+          :timeout ->
+            assert event.extra.failure == "timeout"
+        end
+      end
+    end
+
+    test "missing billing customer is a safe business error without an incident", %{conn: conn} do
+      %{conn: conn} = register_and_log_in_user(%{conn: conn})
+      conn = post(conn, ~p"/billing/customer-portal")
+      assert html_response(conn, 422) =~ "no billing account to manage"
+      assert Sentry.Test.pop_sentry_reports() == []
+    end
+
+    test "programming errors still raise instead of becoming handled billing failures", %{
+      conn: conn
+    } do
+      use_billing_client_stub()
+      %{conn: conn} = register_and_log_in_user(%{conn: conn})
+
+      assert_raise RuntimeError, "unexpected checkout through billing client stub", fn ->
+        post(conn, ~p"/billing/checkout/monthly")
+      end
+    end
+
+    test "unknown provider errors are reported without inspecting them", %{conn: conn} do
+      use_billing_client_stub()
+      BillingClientStub.stub_start_checkout({:error, {:unexpected, "private-provider-data"}})
+      %{conn: conn} = register_and_log_in_user(%{conn: conn})
+      conn = post(conn, ~p"/billing/checkout/monthly")
+      refute html_response(conn, 502) =~ "private-provider-data"
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert event.extra.failure == "unexpected_provider_error"
+      refute inspect(event) =~ "private-provider-data"
     end
   end
 

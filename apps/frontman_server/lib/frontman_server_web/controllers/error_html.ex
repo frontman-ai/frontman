@@ -22,6 +22,11 @@ defmodule FrontmanServerWeb.ErrorHTML do
       |> Map.put(:status_title, Phoenix.Controller.status_message_from_template(template))
       |> Map.put(:support_email, @support_email)
       |> Map.put(:discord_url, @discord_url)
+      |> Map.put_new(
+        :message,
+        "Something went wrong while Frontman handled this request. Contact support if you need help."
+      )
+      |> Map.put_new(:request_id, nil)
 
     ~H"""
     <main class="min-h-screen bg-slate-950 px-6 py-16 text-white">
@@ -35,8 +40,7 @@ defmodule FrontmanServerWeb.ErrorHTML do
           </p>
           <h1 class="text-3xl font-semibold tracking-tight sm:text-4xl">{@status_title}</h1>
           <p class="text-base leading-7 text-slate-300">
-            Something went wrong while Frontman handled this request. If you were signing in or
-            setting up Frontman, we can help you get unstuck.
+            {@message}
           </p>
         </div>
 
@@ -62,6 +66,11 @@ defmodule FrontmanServerWeb.ErrorHTML do
             Join Discord
           </a>
         </div>
+
+        <p :if={@request_id} class="text-sm text-slate-400">
+          Request reference: <code class="break-all">{@request_id}</code>
+        </p>
+        <a href="/" class="text-primary underline underline-offset-4">Return to Frontman</a>
 
         <p class="text-sm leading-6 text-slate-400">
           Include what you were trying to do, the page URL, and the approximate time of the
