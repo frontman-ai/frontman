@@ -2,12 +2,7 @@ type relayFailureReason = HttpError | InvalidResponse | NetworkError
 
 type relayOutcome = Success | Failure(relayFailureReason)
 
-type event =
-  | RelayConnectionCompleted(relayOutcome)
-  | FirstTaskFeedbackDialogShown
-  | FirstTaskFeedbackDialogClosed
-  | FirstTaskFeedbackShareClicked
-  | FirstTaskFeedbackDiscordClicked
+type event = RelayConnectionCompleted(relayOutcome)
 
 let relayFailureReasonToString = reason =>
   switch reason {
@@ -24,10 +19,6 @@ let frameworkProperties = () => {
 let eventName = event =>
   switch event {
   | RelayConnectionCompleted(_) => "relay_connection_completed"
-  | FirstTaskFeedbackDialogShown => "first_task_feedback_dialog_shown"
-  | FirstTaskFeedbackDialogClosed => "first_task_feedback_dialog_closed"
-  | FirstTaskFeedbackShareClicked => "first_task_feedback_share_clicked"
-  | FirstTaskFeedbackDiscordClicked => "first_task_feedback_discord_clicked"
   }
 
 let eventProperties = event => {
@@ -38,10 +29,6 @@ let eventProperties = event => {
   | RelayConnectionCompleted(Failure(reason)) =>
     properties->Dict.set("outcome", JSON.Encode.string("failure"))
     properties->Dict.set("reason_code", JSON.Encode.string(relayFailureReasonToString(reason)))
-  | FirstTaskFeedbackDialogShown
-  | FirstTaskFeedbackDialogClosed
-  | FirstTaskFeedbackShareClicked
-  | FirstTaskFeedbackDiscordClicked => ()
   }
   properties
 }

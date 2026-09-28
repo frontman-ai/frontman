@@ -160,8 +160,8 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
     )
 
-  let executionStateIdle = (~taskId: string, ~stopReason) =>
-    Client__State__Store.dispatch(TaskExecutionStopped({taskId, stopReason}))
+  let executionStateIdle = (~taskId: string) =>
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}))
 
   let executionStateRequiresAction = (~taskId: string) =>
     Client__State__Store.dispatch(
@@ -300,14 +300,6 @@ module Actions = {
     Client__State__Store.dispatch(CheckForUpdate({apiBaseUrl, installedVersion, target}))
 
   let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
-
-  let closeFirstTaskFeedbackDialog = () =>
-    Client__State__Store.dispatch(CloseFirstTaskFeedbackDialog)
-
-  let dismissFirstTaskFeedbackDialog = () =>
-    Client__State__Store.dispatch(DismissFirstTaskFeedbackDialog)
-
-  let shareFrontman = () => Client__State__Store.dispatch(ShareFrontman)
 
   let fetchCustomProviders = () => Client__State__Store.dispatch(FetchCustomProviders)
 
