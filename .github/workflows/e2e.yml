@@ -137,7 +137,7 @@ jobs:
         run: chmod -R +x ~/.local/share/mise/bin/ 2>/dev/null || true
 
       - name: Setup Erlang/Elixir via mise
-        uses: jdx/mise-action@3c2e0cf82a5b2e5249f0d3635a4d83d0ae861518
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c
         with:
           install: true
           cache: true
