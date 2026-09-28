@@ -135,6 +135,41 @@ defmodule FrontmanServer.Billing.StripeClientTest do
     end
   end
 
+  describe "provider failures" do
+    setup :setup_stripe_bypass
+
+    test "preserves Stripe request IDs for checkout and portal failures", %{bypass: bypass} do
+      body = %{"error" => %{"code" => "api_key_expired", "message" => "Invalid API key"}}
+
+      for path <- ["/v1/checkout/sessions", "/v1/billing_portal/sessions"] do
+        Bypass.expect_once(bypass, "POST", path, fn conn ->
+          conn
+          |> Plug.Conn.put_resp_content_type("application/json")
+          |> Plug.Conn.put_resp_header("request-id", "req_test123")
+          |> Plug.Conn.resp(401, Jason.encode!(body))
+        end)
+      end
+
+      assert {:error, {:stripe_error, 401, ^body, ["req_test123"]}} =
+               StripeClient.start_checkout(
+                 AccountsFixtures.user_fixture(),
+                 nil,
+                 :monthly,
+                 %{
+                   success_url: "https://frontman.test/success",
+                   cancel_url: "https://frontman.test/cancel"
+                 },
+                 trial_eligible: false
+               )
+
+      assert {:error, {:stripe_error, 401, ^body, ["req_test123"]}} =
+               StripeClient.create_customer_portal_url(
+                 %Customer{stripe_customer_id: "cus_existing"},
+                 "https://frontman.test/return"
+               )
+    end
+  end
+
   describe "construct_webhook_event/2" do
     test "accepts valid Stripe signatures" do
       raw_body = Jason.encode!(%{"id" => "evt_signed", "type" => "checkout.session.completed"})

@@ -21,8 +21,8 @@ defmodule FrontmanServer.Billing.StripeClient do
       {:ok, %{status: status, body: body}} when status in 200..299 ->
         {:ok, body}
 
-      {:ok, %{status: status, body: body}} ->
-        {:error, {:stripe_error, status, body}}
+      {:ok, %Req.Response{status: status, body: body} = response} ->
+        {:error, {:stripe_error, status, body, Req.Response.get_header(response, "request-id")}}
 
       {:error, reason} ->
         {:error, reason}
@@ -44,8 +44,8 @@ defmodule FrontmanServer.Billing.StripeClient do
       {:ok, %{status: status, body: %{"url" => url}}} when status in 200..299 ->
         {:ok, url}
 
-      {:ok, %{status: status, body: body}} ->
-        {:error, {:stripe_error, status, body}}
+      {:ok, %Req.Response{status: status, body: body} = response} ->
+        {:error, {:stripe_error, status, body, Req.Response.get_header(response, "request-id")}}
 
       {:error, reason} ->
         {:error, reason}
