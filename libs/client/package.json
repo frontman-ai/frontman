@@ -49,7 +49,7 @@
 		"@rescript/react": "^0.15.0",
 		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "workspace:*",
-		"@tailwindcss/vite": "^4.3.2",
+		"@tailwindcss/vite": "^4.3.3",
 		"@types/babel__core": "^7",
 		"@types/react": "^19.2.18",
 		"@types/react-dom": "^19.2.3",
