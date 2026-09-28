@@ -33,6 +33,7 @@ defmodule FrontmanServerWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import FrontmanServerWeb.ConnCase
+      import FrontmanServer.StripeIntegrationCase
     end
   end
 

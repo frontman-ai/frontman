@@ -27,7 +27,7 @@ let sendRequest = (
   ~params: option<JSON.t>,
   ~timeoutMs: int=requestTimeoutMs,
   ~parseResult: JSON.t => result<'a, string>,
-): promise<result<'a, string>> => {
+): promise<result<'a, Client.requestError>> => {
   let method = (method :> string)
   Promise.make((resolve, _) => {
     let id = state.contents.currentId + 1
@@ -40,7 +40,7 @@ let sendRequest = (
     }
 
     let pending: Client.pendingRequest = {
-      resolve: json => finish(parseResult(json)),
+      resolve: json => finish(parseResult(json)->Result.mapError(Client.requestErrorFromMessage)),
       reject: e => finish(Error(e)),
     }
 
@@ -50,7 +50,11 @@ let sendRequest = (
         WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
           state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
           state := state.contents->Client.reduce(Client.ResponseReceived(id))
-          pending.reject(`Request ${method} timed out after ${Int.toString(timeoutMs)}ms`)
+          pending.reject(
+            Client.requestErrorFromMessage(
+              `Request ${method} timed out after ${Int.toString(timeoutMs)}ms`,
+            ),
+          )
         }),
       )
 
@@ -61,7 +65,7 @@ let sendRequest = (
       | Ok(message) => state := Client.handleResponse(state.contents, message)
       | Error(error) =>
         state := state.contents->Client.reduce(Client.ResponseReceived(id))
-        pending.reject(error)
+        pending.reject(Client.requestErrorFromMessage(error))
       }
     })->ignore
   })
@@ -71,7 +75,7 @@ let sendInitialize = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
   ~clientConfig: Client.config,
-): promise<result<Types.initializeResult, string>> => {
+): promise<result<Types.initializeResult, Client.requestError>> => {
   let params = Client.buildInitializeParams(clientConfig)
   sendRequest(
     ~channel,
@@ -83,7 +87,7 @@ let sendInitialize = (
 }
 
 let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId: string): promise<
-  result<Types.sessionNewResult, string>,
+  result<Types.sessionNewResult, Client.requestError>,
 > => {
   let params = Dict.make()
   params->Dict.set("sessionId", JSON.Encode.string(sessionId))
@@ -102,7 +106,7 @@ let sendPrompt = (
   ~sessionId: string,
   ~prompt: array<JSON.t>,
   ~_meta: option<JSON.t>,
-): promise<result<Types.promptResult, string>> => {
+): promise<result<Types.promptResult, Client.requestError>> => {
   let entries = [
     ("sessionId", JSON.Encode.string(sessionId)),
     ("prompt", JSON.Encode.array(prompt)),

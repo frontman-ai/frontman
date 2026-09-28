@@ -460,8 +460,37 @@ describe("ACP Protocol sendRequest", _t => {
 
     t
     ->expect(result)
-    ->Expect.toEqual(Error("Request session/prompt timed out after 10ms"))
+    ->Expect.toEqual(
+      Error(Client.requestErrorFromMessage("Request session/prompt timed out after 10ms")),
+    )
     t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+  })
+})
+
+describe("ACP Client transport events", _t => {
+  test("billing status event invokes callback", t => {
+    let eventNames: ref<array<string>> = ref([])
+    let callbacks: ref<array<JSON.t => unit>> = ref([])
+    let channel: FrontmanClient__Phoenix__Channel.t = %raw(`({
+      on: function(event, callback) {
+        eventNames.push(event);
+        callbacks.push(callback);
+      }
+    })`)
+    let received: ref<option<JSON.t>> = ref(None)
+
+    FrontmanClient__ACP.attachBillingStatusHandler(
+      ~channel,
+      ~onBillingStatusUpdated=Some(payload => received := Some(payload)),
+    )
+
+    t->expect(eventNames.contents->Array.get(0))->Expect.toEqual(Some("billing_status_updated"))
+
+    let payload = JSON.Encode.object(Dict.fromArray([("status", JSON.Encode.string("none"))]))
+    let callback = callbacks.contents->Array.get(0)->Option.getOrThrow
+    callback(payload)
+
+    t->expect(received.contents)->Expect.toEqual(Some(payload))
   })
 })
 
@@ -506,6 +535,36 @@ describe("ACP Client handleResponse", _t => {
     Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
 
     t->expect(rejected.contents)->Expect.toEqual(true)
+  })
+
+  test("error response preserves code and message", t => {
+    let rejected = ref(None)
+    let pending: Client.pendingRequest = {
+      resolve: _ => (),
+      reject: err => rejected := Some(err),
+    }
+
+    let state = Client.initialState->Client.reduce(Client.RequestSent(4, pending))
+
+    let errorObj = Dict.make()
+    errorObj->Dict.set("code", JSON.Encode.int(JsonRpc.ErrorCode.billingInactive))
+    errorObj->Dict.set("message", JSON.Encode.string("Alternate billing copy"))
+
+    let responseJson = Dict.make()
+    responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
+    responseJson->Dict.set("id", JSON.Encode.int(4))
+    responseJson->Dict.set("error", JSON.Encode.object(errorObj))
+
+    Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
+
+    switch rejected.contents {
+    | Some(err) =>
+      t
+      ->expect(Client.requestErrorCode(err))
+      ->Expect.toEqual(Some(JsonRpc.ErrorCode.billingInactive))
+      t->expect(Client.requestErrorMessage(err))->Expect.toEqual("Alternate billing copy")
+    | None => failwith("Expected rejected error")
+    }
   })
 
   test("removes request from pending after handling", t => {

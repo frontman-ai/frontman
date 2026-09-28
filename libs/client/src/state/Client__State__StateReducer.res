@@ -55,6 +55,9 @@ type action =
       apiBaseUrl: string,
     })
   | ClearAcpSession
+  | SetSettingsModalTab({tab: option<Client__State__Types.settingsTab>})
+  | BillingStatusReceived(Client__Billing.status)
+  | BillingStatusError({error: string})
   | FetchUserProfile({apiBaseUrl: string})
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
@@ -295,6 +298,8 @@ let defaultState: state = {
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   acpSession: NoAcpSession,
   userProfile: None,
+  settingsModalTab: None,
+  billingStatus: Client__Billing.NotLoaded,
   openrouterKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
@@ -557,6 +562,10 @@ module Selectors = {
     | _ => None
     }
   }
+
+  let settingsModalTab = (state: state) => state.settingsModalTab
+  let billingStatus = (state: state) => state.billingStatus
+  let billingAccessAllowed = (state: state) => Client__Billing.accessAllowed(state.billingStatus)
 
   let providerSetupRequired = (state: state): bool => {
     switch (state.acpSession, state.configOptions) {
@@ -1806,7 +1815,15 @@ let next = (state: state, action) => {
       ...state,
       tasks: updatedTasks,
       acpSession: NoAcpSession,
+      billingStatus: Client__Billing.NotLoaded,
+      settingsModalTab: None,
     }->StateReducer.update
+
+  | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+  | BillingStatusReceived(status) =>
+    {...state, billingStatus: Client__Billing.Loaded(status)}->StateReducer.update
+  | BillingStatusError({error}) =>
+    {...state, billingStatus: Client__Billing.Error(error)}->StateReducer.update
 
   | FetchUserProfile({apiBaseUrl}) =>
     state->StateReducer.update(~sideEffects=[FetchUserProfileEffect({apiBaseUrl: apiBaseUrl})])

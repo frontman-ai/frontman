@@ -8,6 +8,7 @@ module ErrorCode = {
   let internalError = -32603
   let serverError = -32000
   let urlElicitationRequired = -32042
+  let billingInactive = -32010
 }
 
 module Id: {

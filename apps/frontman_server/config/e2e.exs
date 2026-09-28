@@ -32,13 +32,21 @@ config :logger, level: :info
 
 config :frontman_server, dev_routes: true
 
+config :frontman_server, :stripe,
+  api_base_url: "http://127.0.0.1:1/v1",
+  secret_key: "e2e-unused-key",
+  webhook_secret: "e2e-unused-webhook-secret",
+  monthly_price_id: "price_e2e_monthly",
+  yearly_price_id: "price_e2e_yearly",
+  trial_days: 14
+
 config :workos, WorkOS.Client,
   api_key: "sk_test_workos_e2e",
   client_id: "client_test_workos_e2e"
 
 config :logger, :default_formatter,
   format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id, :task_id, :pid, :reason]
+  metadata: [:request_id, :task_id, :pid, :reason, :user_id, :user_name]
 
 config :phoenix, :stacktrace_depth, 20
 

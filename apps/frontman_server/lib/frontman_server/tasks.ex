@@ -44,6 +44,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents
+  alias FrontmanServer.Billing
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.MCP
@@ -504,7 +505,8 @@ defmodule FrontmanServer.Tasks do
              agent_id != "" do
     selected_server_skill_id = Map.get(arguments, :selected_server_skill_id)
 
-    with {:ok, selected_skill} <- selected_skill(scope, selected_server_skill_id),
+    with :ok <- guard_billing_access(scope),
+         {:ok, selected_skill} <- selected_skill(scope, selected_server_skill_id),
          {:ok, user_message_attrs} <-
            Interaction.UserMessage.attrs(content_blocks, model, agent_id),
          user_message_attrs = put_selected_skill(user_message_attrs, selected_skill),
@@ -528,6 +530,23 @@ defmodule FrontmanServer.Tasks do
 
   def submit_user_message(%Scope{}, %{model: _model}) do
     {:error, :missing_agent}
+  end
+
+  defp guard_billing_access(scope) do
+    case Billing.allow_access?(scope) do
+      true -> :ok
+      false -> {:error, :billing_inactive}
+    end
+  end
+
+  def billing_inactive_message(%Scope{} = scope) do
+    case Billing.get_current_subscription(scope) do
+      nil ->
+        "Finish billing setup to start using Frontman."
+
+      %Billing.Subscription{} ->
+        "Your Frontman access has ended. Start a subscription to continue."
+    end
   end
 
   defp selected_skill(_scope, nil), do: {:ok, nil}
@@ -919,7 +938,8 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Records a retry request and starts execution."
   def retry_execution(scope, task_id, retried_error_id, execution) do
-    with {:ok, schema} <- get_task(scope, task_id),
+    with :ok <- guard_billing_access(scope),
+         {:ok, schema} <- get_task(scope, task_id),
          {:ok, history} = load_history(task_id),
          {:ok, turn_number} <- retry_turn_number(history.rows, retried_error_id),
          :ok <- ensure_latest_retry_turn(retried_error_id, turn_number, history),
@@ -985,7 +1005,8 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Resumes execution for the active turn."
   def resume_execution(scope, task_id, execution) do
-    with {:ok, task} <- get_task(scope, task_id),
+    with :ok <- guard_billing_access(scope),
+         {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- load_history(task.id),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),

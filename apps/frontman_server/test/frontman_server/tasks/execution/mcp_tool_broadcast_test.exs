@@ -19,6 +19,7 @@ defmodule FrontmanServer.Tasks.Execution.MCPToolBroadcastTest do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.MCP
 
+  @moduletag billing: :active
   setup [:setup_sandbox, :setup_user, :setup_task]
 
   describe "MCP tool call broadcast" do

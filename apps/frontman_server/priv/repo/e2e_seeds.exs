@@ -42,6 +42,7 @@ defmodule FrontmanServer.E2ESeeds do
 end
 
 alias FrontmanServer.Accounts
+alias FrontmanServer.Billing.Webhooks
 alias FrontmanServer.E2ESeeds
 alias FrontmanServer.Providers.OAuthToken
 alias FrontmanServer.Repo
@@ -68,6 +69,25 @@ user =
   end
 
 IO.puts("E2E user: #{user.email} (id: #{user.id})")
+
+{:ok, _result} =
+  Webhooks.process_event(%{
+    "id" => "evt_e2e_subscription_#{user.id}",
+    "type" => "customer.subscription.created",
+    "data" => %{
+      "object" => %{
+        "id" => "sub_e2e_#{user.id}",
+        "customer" => "cus_e2e_#{user.id}",
+        "status" => "active",
+        "metadata" => %{"user_id" => user.id},
+        "items" => %{
+          "data" => [
+            %{"price" => %{"id" => "price_e2e_monthly", "recurring" => %{"interval" => "month"}}}
+          ]
+        }
+      }
+    }
+  })
 
 access_token = System.get_env("E2E_OPENAI_ACCESS_TOKEN")
 refresh_token = System.get_env("E2E_OPENAI_REFRESH_TOKEN")

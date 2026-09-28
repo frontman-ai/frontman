@@ -31,6 +31,11 @@ export default vite.defineConfig({
 			"@": path.resolve(__dirname, "./src"),
 		},
 	},
+	define: {
+		"globalThis.__FRONTMAN_INTERNAL_DEV__": JSON.stringify(
+			process.env.FRONTMAN_INTERNAL_DEV === "true",
+		),
+	},
 	server: {
 		host: "0.0.0.0",
 		port: 5173,

@@ -38,6 +38,9 @@ function reactCompilerPlugin(): vite.Plugin {
 export default vite.defineConfig({
 	plugins: [reactCompilerPlugin(), tailwindcss()],
 	define: {
+		"globalThis.__FRONTMAN_INTERNAL_DEV__": JSON.stringify(
+			process.env.FRONTMAN_INTERNAL_DEV === "true",
+		),
 		"process.env.NODE_ENV": JSON.stringify("production"),
 	},
 	resolve: {

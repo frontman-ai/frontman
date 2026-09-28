@@ -1,3 +1,10 @@
+let openBillingSettingsForErrorCategory = category => {
+  switch category {
+  | Some("billing") => Client__State.Actions.openSettingsModalOnBilling()
+  | Some(_) | None => ()
+  }
+}
+
 module Log = FrontmanLogs.Logs.Make({
   let component = #FrontmanProvider
 })
@@ -317,6 +324,7 @@ module Provider = {
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => Client__TextDeltaBuffer.flush()
       | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
+        openBillingSettingsForErrorCategory(category)
         Client__TextDeltaBuffer.flush()
         switch retryAt {
         | Some(retryAtStr) =>

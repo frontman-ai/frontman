@@ -148,6 +148,18 @@ help:
 
 
 
+STRIPE_WEBHOOK_EVENTS := checkout.session.completed,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,customer.subscription.paused,customer.subscription.resumed
+STRIPE_WEBHOOK_FORWARD_URL ?= https://localhost:4000/api/stripe/webhook
+STRIPE_WEBHOOK_ENV_FILE := apps/frontman_server/envs/.dev.stripe-webhook.env
+
+.PHONY: stripe-webhooks wait-stripe-webhook-secret
+stripe-webhooks:
+	STRIPE_WEBHOOK_FORWARD_URL="$(STRIPE_WEBHOOK_FORWARD_URL)" STRIPE_WEBHOOK_EVENTS="$(STRIPE_WEBHOOK_EVENTS)" bash ./bin/stripe-webhooks
+
+wait-stripe-webhook-secret:
+	@printf "$(YELLOW)Waiting for generated Stripe webhook secret...$(RESET)\n"
+	@while ! grep -q '^STRIPE_WEBHOOK_SECRET=whsec_' "$(STRIPE_WEBHOOK_ENV_FILE)" 2>/dev/null; do sleep 1; done
+
 .PHONY: dev dev-client dev-server dev-nextjs dev-nextjs-prebuilt dev-marketing
 
 dev:

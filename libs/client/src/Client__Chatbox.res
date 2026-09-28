@@ -138,6 +138,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
+  let billingStatus = Client__State.useSelector(Client__State.Selectors.billingStatus)
   let providerSetupRequired = Client__State.useSelector(
     Client__State.Selectors.providerSetupRequired,
   )
@@ -460,6 +461,23 @@ let make = (~onConfigureProvider: unit => unit) => {
       </ScrollContainer.ContentWrapper>
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
+    {switch billingStatus {
+    | Client__Billing.Loaded(status) if !Client__Billing.isAccessAllowed(status) =>
+      <Client__UI__Alert className="mx-4 mb-2 w-auto">
+        <Client__UI__Alert.Title> {React.string("Billing required")} </Client__UI__Alert.Title>
+        <Client__UI__Alert.Description>
+          {React.string(Client__Billing.activationMessage(status))}
+          <Client__UI__Button
+            variant=Client__UI__Button.Variant.Secondary
+            size=Client__UI__Button.Size.Sm
+            onClick={_ => Client__State.Actions.openSettingsModalOnBilling()}
+          >
+            {React.string("Open billing")}
+          </Client__UI__Button>
+        </Client__UI__Alert.Description>
+      </Client__UI__Alert>
+    | _ => React.null
+    }}
     <Client__QueuedMessagesDrawer
       messages=queuedUserMessages
       onUnqueue={messageId =>

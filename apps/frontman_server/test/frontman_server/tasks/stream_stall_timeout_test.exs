@@ -15,6 +15,7 @@ defmodule FrontmanServer.Tasks.StreamStallTimeoutTest do
       assert result == ["chunk-1", "chunk-2", "chunk-3", "chunk-4", "chunk-5"]
     end
 
+    @tag :capture_log
     test "raises StreamStallTimeout.Error when stream stalls" do
       stall_stream =
         Stream.resource(
@@ -37,6 +38,7 @@ defmodule FrontmanServer.Tasks.StreamStallTimeoutTest do
       end
     end
 
+    @tag :capture_log
     test "raises immediately when stream stalls from the start" do
       never_stream =
         Stream.resource(
@@ -114,6 +116,7 @@ defmodule FrontmanServer.Tasks.StreamStallTimeoutTest do
       assert result == [:content_chunk, :keepalive, :keepalive, :keepalive, :final_chunk]
     end
 
+    @tag :capture_log
     test "stalls when no keepalives arrive between content chunks" do
       no_keepalive_stream =
         Stream.resource(
@@ -136,6 +139,7 @@ defmodule FrontmanServer.Tasks.StreamStallTimeoutTest do
       end
     end
 
+    @tag :capture_log
     test "feeder process is cleaned up after stall timeout" do
       stall_stream =
         Stream.resource(

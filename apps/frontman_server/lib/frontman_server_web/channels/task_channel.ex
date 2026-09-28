@@ -722,6 +722,14 @@ defmodule FrontmanServerWeb.TaskChannel do
             {message, _metadata} = Keyword.fetch!(changeset.errors, :id)
             reply_invalid_params(socket, id, "Message ID #{message}")
 
+          {:error, :billing_inactive} ->
+            reply_acp_error(
+              socket,
+              id,
+              JsonRpc.error_billing_inactive(),
+              Tasks.billing_inactive_message(scope)
+            )
+
           {:error, :missing_agent} ->
             reply_invalid_params(socket, id, "Agent is required")
 

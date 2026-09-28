@@ -3,6 +3,7 @@ defmodule FrontmanServer.TasksTest do
   use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.Test.Fixtures.Accounts
+  import FrontmanServer.BillingFixtures
   import FrontmanServer.Test.Fixtures.Tasks
   import SwarmAi.Testing, only: [tool_call: 3]
 
@@ -50,6 +51,38 @@ defmodule FrontmanServer.TasksTest do
       :ok = Tasks.apply_title_suggestion(scope, task_id, "Second Title")
 
       assert {:ok, %{short_desc: "First Title"}} = Tasks.get_task(scope, task_id)
+    end
+  end
+
+  describe "submit_user_message/2 billing access" do
+    for status <- [nil, "canceled", "active"] do
+      test "enforces billing for #{inspect(status)} subscription", %{scope: scope} do
+        status = unquote(status)
+        if status, do: subscription_for_scope_fixture(scope, %{status: status})
+        task_id = task_fixture(scope).id
+
+        result =
+          Tasks.submit_user_message(scope, %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: user_content("Hello"),
+            model: "openrouter:openai/gpt-5.5",
+            agent_id: "test-frontman"
+          })
+
+        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+        case status do
+          "active" ->
+            assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} = result
+            assert Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
+
+          _ ->
+            assert {:error, :billing_inactive} = result
+            refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
+            refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
+        end
+      end
     end
   end
 
@@ -108,6 +141,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "submit_user_message/2" do
     test "persists an accepted user message without starting a turn", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
 
@@ -141,6 +175,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "accepts another user message while a turn is running", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("first"))
 
@@ -161,6 +196,11 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "unqueue_user_message/3" do
+    setup %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
+      :ok
+    end
+
     test "deletes a queued message", %{scope: scope} do
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
@@ -192,6 +232,11 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "execute_next_turn/3 agent identity" do
+    setup %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
+      :ok
+    end
+
     test "persists configured agent identity", %{scope: scope} do
       task = task_fixture(scope)
 
@@ -706,6 +751,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "retry_execution/4" do
     test "only retries agent errors", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
       {:ok, user_message} = user_message_fixture(scope, task_id, user_content("not an error"))
 
@@ -714,6 +760,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "rejects an older error after later interactions in the same turn", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
       assert 1 = start_turn_fixture(scope, task_id)
       insert_interaction_row(task_id, Interaction.AgentError, 1, %{"id" => "error-1"})
@@ -729,6 +776,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "fills missing model from started turn user messages", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("failed"), "missing:test")
 
@@ -758,6 +806,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "resume_execution/3" do
     test "returns not_running when no active turn exists", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
 
       assert {:error, :not_running} =
@@ -765,6 +814,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "fills missing model from started turn user messages", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("running"), "missing:test")
 

@@ -229,11 +229,15 @@ type firstTaskFeedbackDialogState =
   | ShareFailed
   | Dismissed
 
+type settingsTab = General | Providers | Billing
+
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   acpSession: acpSession,
   userProfile: option<userProfile>,
+  settingsModalTab: option<settingsTab>,
+  billingStatus: Client__Billing.state,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
   fireworksKeySettings: apiKeySettings,

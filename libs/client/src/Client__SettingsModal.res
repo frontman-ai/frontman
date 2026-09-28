@@ -634,6 +634,14 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
               <Icons.GlobeIcon className="size-4" />
               {React.string("Providers")}
             </button>
+            <button
+              type_="button"
+              className={tabButtonClass(activeTab == "billing")}
+              onClick={_ => setActiveTab(_ => "billing")}
+            >
+              <Icons.CreditCardIcon className="size-4" />
+              {React.string("Billing")}
+            </button>
           </div>
         </div>
 
@@ -646,76 +654,76 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
             </Dialog.Close>
           </div>
           <div className="flex-1 overflow-y-auto px-6 pb-6 pr-6">
-            {activeTab == "general"
+            {activeTab == "billing"
+              ? <Client__SettingsModal__Tab__Billing />
+              : activeTab == "general"
               ? <div className="space-y-6">
-                  <div>
-                    <div className="text-sm font-medium text-zinc-400">
-                      {React.string("Account")}
-                    </div>
-                    <div
-                      className="mt-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="flex size-8 items-center justify-center rounded-full bg-zinc-700 text-xs font-medium text-zinc-200"
-                          >
-                            {React.string(
-                              switch userEmail {
-                              | Some(email) => email->String.charAt(0)->String.toUpperCase
-                              | None => "?"
-                              },
-                            )}
-                          </div>
-                          <div>
-                            {switch userEmail {
-                            | Some(email) =>
-                              <div className="text-sm text-zinc-100"> {React.string(email)} </div>
-                            | None =>
-                              <div className="text-sm text-zinc-500">
-                                {React.string("Loading...")}
-                              </div>
-                            }}
-                            <div className="text-xs text-zinc-500">
-                              {React.string("Signed in via OAuth")}
+                <div>
+                  <div className="text-sm font-medium text-zinc-400">
+                    {React.string("Account")}
+                  </div>
+                  <div className="mt-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="flex size-8 items-center justify-center rounded-full bg-zinc-700 text-xs font-medium text-zinc-200"
+                        >
+                          {React.string(
+                            switch userEmail {
+                            | Some(email) => email->String.charAt(0)->String.toUpperCase
+                            | None => "?"
+                            },
+                          )}
+                        </div>
+                        <div>
+                          {switch userEmail {
+                          | Some(email) =>
+                            <div className="text-sm text-zinc-100"> {React.string(email)} </div>
+                          | None =>
+                            <div className="text-sm text-zinc-500">
+                              {React.string("Loading...")}
                             </div>
+                          }}
+                          <div className="text-xs text-zinc-500">
+                            {React.string("Signed in via OAuth")}
                           </div>
                         </div>
-                        {switch (connectionState, acpSession) {
-                        | (LoggingOut, _) =>
-                          <Button variant=Button.Variant.Outline size=Button.Size.Sm disabled=true>
-                            <Client__UI__Spinner />
-                            {React.string("Signing out...")}
-                          </Button>
-                        | (_, Types.AcpSessionActive({apiBaseUrl})) =>
-                          <a
-                            className={Button.buttonVariants(
-                              ~variant=Button.Variant.Outline,
-                              ~size=Button.Size.Sm,
-                            )}
-                            href={`${apiBaseUrl}/users/log-out?return_to=%2Fusers%2Fpopup-complete`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={_ => beginLogout()}
-                          >
-                            {React.string("Sign out")}
-                          </a>
-                        | (_, Types.NoAcpSession) => React.null
-                        }}
                       </div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium text-zinc-400">
-                      {React.string("Environment")}
-                    </div>
-                    <div
-                      className="mt-2 rounded-lg border border-emerald-900/60 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-200"
-                    >
-                      {React.string(`Framework detected: ${frameworkDisplayName}`)}
+                      {switch (connectionState, acpSession) {
+                      | (LoggingOut, _) =>
+                        <Button variant=Button.Variant.Outline size=Button.Size.Sm disabled=true>
+                          <Client__UI__Spinner />
+                          {React.string("Signing out...")}
+                        </Button>
+                      | (_, Types.AcpSessionActive({apiBaseUrl})) =>
+                        <a
+                          className={Button.buttonVariants(
+                            ~variant=Button.Variant.Outline,
+                            ~size=Button.Size.Sm,
+                          )}
+                          href={`${apiBaseUrl}/users/log-out?return_to=%2Fusers%2Fpopup-complete`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={_ => beginLogout()}
+                        >
+                          {React.string("Sign out")}
+                        </a>
+                      | (_, Types.NoAcpSession) => React.null
+                      }}
                     </div>
                   </div>
                 </div>
+                <div>
+                  <div className="text-sm font-medium text-zinc-400">
+                    {React.string("Environment")}
+                  </div>
+                  <div
+                    className="mt-2 rounded-lg border border-emerald-900/60 bg-emerald-900/20 px-4 py-3 text-sm text-emerald-200"
+                  >
+                    {React.string(`Framework detected: ${frameworkDisplayName}`)}
+                  </div>
+                </div>
+              </div>
               : <div className="space-y-6">
                   <div className="text-sm text-zinc-400">
                     {React.string("Connect your account")}

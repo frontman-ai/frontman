@@ -2,6 +2,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: false
   use Oban.Testing, repo: FrontmanServer.Repo
 
+  @moduletag :capture_log
+
   import FrontmanServer.InteractionCase.Helpers,
     only: [
       agent_error: 2,
@@ -353,6 +355,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "session/prompt" do
     setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       {socket, task_id} = join_task_channel(scope)
       {:ok, socket: socket, task_id: task_id}
     end
@@ -756,6 +759,34 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           }
         }
       })
+    end
+  end
+
+  describe "session/prompt billing access" do
+    test "rejects inactive billing before persisting prompt or enqueuing title generation", %{
+      scope: scope
+    } do
+      task_id = Ecto.UUID.generate()
+      {:ok, _task} = Tasks.create_task(scope, task_id, "nextjs")
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      ref = push(socket, "acp:message", build_prompt_request(id: 42))
+
+      assert_reply(ref, :ok, %{
+        "acp:message" => %{
+          "error" => %{"message" => "Finish billing setup to start using Frontman."}
+        }
+      })
+
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
+      refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
     end
   end
 
@@ -1619,6 +1650,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "drains accepted work created outside the channel prompt flow", %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
 
       {:ok, _reply, socket} =
@@ -1759,6 +1791,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "reconnect re-executes unresolved tool calls" do
     setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
 
       tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
@@ -2197,8 +2230,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  describe "retry flow" do
+  describe "retry command flow" do
     setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
@@ -2278,6 +2312,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{"sessionUpdate" => "error", "message" => "Auth failed"}
         }
       })
+    end
+  end
+
+  describe "retry flow" do
+    setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
     end
 
     test "retry_turn command creates AgentRetry interaction", %{

@@ -39,6 +39,7 @@ defmodule FrontmanServer.Protocols.JsonRpc do
   @error_internal -32_603
 
   @error_url_elicitation_required -32_042
+  @error_billing_inactive -32_010
 
   def error_parse, do: @error_parse
   def error_invalid_request, do: @error_invalid_request
@@ -46,6 +47,7 @@ defmodule FrontmanServer.Protocols.JsonRpc do
   def error_invalid_params, do: @error_invalid_params
   def error_internal, do: @error_internal
   def error_url_elicitation_required, do: @error_url_elicitation_required
+  def error_billing_inactive, do: @error_billing_inactive
 
   @doc """
   Parses a JSON-RPC 2.0 message into a tagged tuple.

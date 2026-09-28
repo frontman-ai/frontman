@@ -21,6 +21,7 @@ defmodule FrontmanServer.Tasks.ExecutionImageHistoryTest do
   alias FrontmanServer.Test.Fixtures.ReqLLMResponses
   alias FrontmanServer.Tools.MCP
 
+  @moduletag billing: :active
   setup [:verify_on_exit!, :setup_sandbox, :setup_user, :setup_task]
 
   setup %{scope: scope} do

@@ -13,6 +13,7 @@ defmodule FrontmanServer.Tasks.Execution.PromptCacheTest do
 
   @cache %{"type" => "ephemeral"}
 
+  @moduletag billing: :active
   setup [:setup_sandbox, :setup_user, :setup_task]
 
   setup do

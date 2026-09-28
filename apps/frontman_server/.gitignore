@@ -29,4 +29,6 @@ npm-debug.log
 !lib/
 
 /envs/.dev.overrides.env
-
+/envs/*.overrides.env
+/envs/.dev.stripe-webhook.env
+/envs/.stripe-webhook-secret.ready

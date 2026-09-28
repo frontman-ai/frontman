@@ -22,6 +22,7 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
   alias FrontmanServer.Tasks.Interaction
 
   describe "LLM stream error propagation" do
+    @describetag billing: :active
     setup [:setup_sandbox, :setup_user, :setup_task]
 
     @tag :capture_log

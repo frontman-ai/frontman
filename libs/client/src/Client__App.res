@@ -60,25 +60,39 @@ let make = (~apiBaseUrl: string) => {
     None
   }, [fileChangeCount])
 
-  let (settingsOpen, setSettingsOpen) = React.useState(() => false)
-  let (settingsInitialTab, setSettingsInitialTab) = React.useState(() => None)
+  let settingsTab = Client__State.useSelector(Client__State.Selectors.settingsModalTab)
+  let settingsOpen = settingsTab->Option.isSome
+  let settingsInitialTab = settingsTab->Option.map(tab =>
+    switch tab {
+    | General => "general"
+    | Providers => "providers"
+    | Billing => "billing"
+    }
+  )
+  let billingStatus = Client__State.useSelector(Client__State.Selectors.billingStatus)
+  let billingAccessAllowed = Client__State.useSelector(Client__State.Selectors.billingAccessAllowed)
+
+  React.useEffect(() => {
+    switch billingStatus {
+    | Client__Billing.Loaded(status) if !Client__Billing.isAccessAllowed(status) =>
+      Client__State.Actions.openSettingsModalOnBilling()
+    | _ => ()
+    }
+    None
+  }, [billingStatus])
 
   let providerSetupRequired = Client__State.useSelector(
     Client__State.Selectors.providerSetupRequired,
   )
 
-  let openSettingsProviders = () => {
-    setSettingsInitialTab(_ => Some("providers"))
-    setSettingsOpen(_ => true)
-  }
+  let openSettingsProviders = () => Client__State.Actions.openSettingsModalOnProviders()
 
-  let showProviderSetupModal = providerSetupRequired && !settingsOpen
+  let showProviderSetupModal = providerSetupRequired && !settingsOpen && billingAccessAllowed
 
   let handleSettingsOpenChange = (value: bool) => {
-    setSettingsOpen(_ => value)
     switch value {
-    | false => setSettingsInitialTab(_ => None)
-    | true => ()
+    | false => Client__State.Actions.closeSettingsModal()
+    | true => Client__State.Actions.openSettingsModal()
     }
   }
 
@@ -100,7 +114,7 @@ let make = (~apiBaseUrl: string) => {
       workspaceView
       onWorkspaceViewChange={view => setSelectedWorkspaceView(_ => view)}
       onToggleChat={() => setChatOpen(prev => !prev)}
-      onSettingsClick={() => setSettingsOpen(_ => true)}
+      onSettingsClick={() => Client__State.Actions.openSettingsModal()}
     />
     <div className="flex flex-1 min-h-0 w-full">
       {switch isResizing {
