@@ -1,5 +1,21 @@
 # @frontman-ai/astro
 
+## 3.1.0
+
+### Minor Changes
+
+- [#1691](https://github.com/frontman-ai/frontman/pull/1691) [`311872c`](https://github.com/frontman-ai/frontman/commit/311872c0c4086af85d3ebc8c0a5ef4dec9f17beb) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the latest observed Astro navigation in both modes of `get_dom`. Report its source URL, destination URL, and lifecycle phase. Distinguish missing instrumentation from an installed recorder with no navigation observed. Clarify that routing opt-in, DOM swaps, and hash changes do not prove page lifecycle completion or preserved state.
+
+- [#1690](https://github.com/frontman-ai/frontman/pull/1690) [`b5587a6`](https://github.com/frontman-ai/frontman/commit/b5587a6b773662659393bc19920344425613cc46) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Record the latest Astro client navigation's source URL, destination URL, and lifecycle phase during development. Guard lifecycle transitions against out-of-order completion events and capture the destination after the swap. Track hash-only navigation with a separate `hash-change` phase, including history traversal. Prevent duplicate navigation listeners and history wrappers when browser instrumentation initializes again.
+
+### Patch Changes
+
+- [#1719](https://github.com/frontman-ai/frontman/pull/1719) [`8f6681a`](https://github.com/frontman-ai/frontman/commit/8f6681a9051628d29833db1b469b805a6201d975) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve component props annotations with Astro 7.3.3's streaming renderer. Wrap rendering without exposing Astro's instance marker, while preserving the original receiver and async results.
+
+- [#1680](https://github.com/frontman-ai/frontman/pull/1680) [`eeb1b5b`](https://github.com/frontman-ai/frontman/commit/eeb1b5b7a65e5d78e6e27f20d3abca93f6decdad) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Install the prebuilt component-source package from npm instead of building it from Git. This removes the nested Yarn install that blocked Dependabot updates.
+
+- [#1719](https://github.com/frontman-ai/frontman/pull/1719) [`8f6681a`](https://github.com/frontman-ai/frontman/commit/8f6681a9051628d29833db1b469b805a6201d975) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose the Astro integration's resolved server origin as `import.meta.env.FRONTMAN_API_ORIGIN` for website support submissions.
+
 ## 3.0.1
 
 ### Patch Changes
