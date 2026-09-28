@@ -49,7 +49,7 @@ config :frontman_server, FrontmanServerWeb.Endpoint,
 config :frontman_server, dev_routes: true
 
 config :frontman_server, :stripe,
-  monthly_price_id: "price_1TUYBtPPoSdrJYfmJ26XlUS4",
+  monthly_price_id: "price_1TRtEAAusjHKowtIWQOVN6Al",
   yearly_price_id: "price_1TUYAiPPoSdrJYfmwhmJyMCw",
   trial_days: 14
 
