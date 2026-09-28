@@ -84,7 +84,7 @@ defmodule FrontmanServer.MixProject do
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:jsv, "~> 0.22"},
-      {:dns_cluster, "~> 0.2.0"},
+      {:dns_cluster, "~> 0.3.0"},
       {:bandit, "~> 1.5"},
       {:zoi, "~> 0.14"},
       {:dotenvy, "~> 1.1"},
