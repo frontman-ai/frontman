@@ -379,11 +379,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/preact@npm:6.0.2":
-  version: 6.0.2
-  resolution: "@astrojs/preact@npm:6.0.2"
+"@astrojs/preact@npm:6.0.4":
+  version: 6.0.4
+  resolution: "@astrojs/preact@npm:6.0.4"
   dependencies:
-    "@astrojs/internal-helpers": "npm:0.10.2"
+    "@astrojs/internal-helpers": "npm:0.10.4"
     "@preact/preset-vite": "npm:^2.10.5"
     "@preact/signals": "npm:^2.8.2"
     devalue: "npm:^5.8.1"
@@ -391,7 +391,7 @@ __metadata:
     vite: "npm:^8.0.13"
   peerDependencies:
     preact: ^10.6.5
-  checksum: 10c0/12644c60d4089f012e5abeb2ffbd2a5b26251c63fb2b531ae601c590db6efc9599af9049c818d8fb7a1433e832fc5a715676a08820b83be1c2c6a5c024aa69a1
+  checksum: 10c0/e469044d0fc8da876e92583727d17a8a245afacb52cfba7f274eef388ba4a6869289f6c72dd2e1d8e8dac3653dc08a972832e57855c2e1c3632f6a0e03170ede
   languageName: node
   linkType: hard
 
@@ -12580,7 +12580,7 @@ __metadata:
   resolution: "marketing@workspace:apps/marketing"
   dependencies:
     "@astrojs/check": "npm:^0.9.10"
-    "@astrojs/preact": "npm:6.0.2"
+    "@astrojs/preact": "npm:6.0.4"
     "@astrojs/rss": "npm:4.0.19"
     "@astrojs/sitemap": "npm:^3.7.3"
     "@astrojs/starlight": "npm:0.41.7"
