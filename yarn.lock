@@ -2418,7 +2418,7 @@ __metadata:
     rescript: "catalog:"
     rescript-base-ui: "npm:^1.6.1"
     rescript-vitest: "catalog:"
-    shadcn: "npm:^4.18.0"
+    shadcn: "npm:^4.19.0"
     streamdown: "npm:^2.5.0"
     sury: "catalog:"
     sury-ppx: "catalog:"
@@ -16211,9 +16211,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"shadcn@npm:^4.18.0":
-  version: 4.18.0
-  resolution: "shadcn@npm:4.18.0"
+"shadcn@npm:^4.19.0":
+  version: 4.19.0
+  resolution: "shadcn@npm:4.19.0"
   dependencies:
     "@babel/core": "npm:^7.28.0"
     "@babel/parser": "npm:^7.28.0"
@@ -16250,7 +16250,7 @@ __metadata:
     zod-to-json-schema: "npm:^3.24.6"
   bin:
     shadcn: dist/index.js
-  checksum: 10c0/731edda5736c4e8a463cb64f18089d2e5c00dca4bf527bd5cf0fe693f7af3924f2681f8876b9863df61a0294e81cf26ff4365283e3148764c3ac8b4ba64219af
+  checksum: 10c0/8a640134113c8e3f7583e4217867f27a607cda1e9ed71d7b11a385d395a1bf27cb26c6a08f023fb9cfad6890576b093423848f70e661bab86662f7f3de237491
   languageName: node
   linkType: hard
 
