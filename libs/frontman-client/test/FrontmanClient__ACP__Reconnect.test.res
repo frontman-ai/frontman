@@ -5,7 +5,9 @@ module Channel = FrontmanClient__Phoenix__Channel
 type request = {method: string, params: JSON.t}
 type wire = {
   requests: array<request>,
+  @live
   mutable holdInitialize: bool,
+  @live
   mutable joinError: option<JSON.t>,
   initialize: (int, option<JSON.t>) => unit,
   lose: bool => unit,
