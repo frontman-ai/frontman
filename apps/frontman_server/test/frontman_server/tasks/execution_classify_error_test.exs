@@ -9,9 +9,9 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
       for {status, category, message} <- [
             {400, "unknown", "Bad request — the provider rejected the request."},
             {401, "auth",
-             "Authentication failed (HTTP 401). Reconnect your provider account by signing in again, or replace your API key in Settings."},
+             "Authentication failed (HTTP 401). In Settings, disconnect and reconnect your provider account. To use an API key instead, disconnect the account first. If you already use an API key, replace it."},
             {403, "auth",
-             "Authentication failed (HTTP 403). Reconnect your provider account by signing in again, or replace your API key in Settings."}
+             "Authentication failed (HTTP 403). In Settings, disconnect and reconnect your provider account. To use an API key instead, disconnect the account first. If you already use an API key, replace it."}
           ],
           body <- [
             %{"detail" => "The 'private-input' field is invalid"},
