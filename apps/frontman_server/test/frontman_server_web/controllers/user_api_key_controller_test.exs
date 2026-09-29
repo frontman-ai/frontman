@@ -1,7 +1,7 @@
 defmodule FrontmanServerWeb.UserApiKeyControllerTest do
   use FrontmanServerWeb.ConnCase, async: true
 
-  @fireworks_model "fireworks_ai:accounts/fireworks/routers/kimi-k2p6-turbo"
+  @fireworks_model "fireworks_ai:accounts/fireworks/routers/kimi-k3-fast"
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Providers
