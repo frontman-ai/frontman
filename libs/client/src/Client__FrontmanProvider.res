@@ -1,6 +1,6 @@
-let openBillingSettingsForErrorCategory = category => {
+let openProviderSettingsForErrorCategory = category => {
   switch category {
-  | Some("billing") => Client__State.Actions.openSettingsModalOnBilling()
+  | Some("billing") => Client__State.Actions.openSettingsModalOnProviders()
   | Some(_) | None => ()
   }
 }
@@ -324,7 +324,7 @@ module Provider = {
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => Client__TextDeltaBuffer.flush()
       | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
-        openBillingSettingsForErrorCategory(category)
+        openProviderSettingsForErrorCategory(category)
         Client__TextDeltaBuffer.flush()
         switch retryAt {
         | Some(retryAtStr) =>

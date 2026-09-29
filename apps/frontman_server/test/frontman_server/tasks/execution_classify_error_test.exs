@@ -17,6 +17,15 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
       end
     end
 
+    test "402 explains provider billing without exposing provider data" do
+      assert {message, "billing", false} =
+               classify_request(status: 402, reason: "private-input")
+
+      assert message =~ "AI provider"
+      assert message =~ "separate from your Frontman subscription"
+      refute message =~ "private-input"
+    end
+
     test "plain 429 remains retryable rate limit" do
       assert {msg, "rate_limit", true} = classify_request(reason: "Too many requests")
       assert String.contains?(msg, "Rate limited")

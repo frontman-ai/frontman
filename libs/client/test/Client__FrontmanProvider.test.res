@@ -10,13 +10,14 @@ let resetStore = () => {
 afterEach(_t => resetStore())
 
 describe("Client__FrontmanProvider billing update handling", () => {
-  test("opens Billing settings for billing error category", t => {
+  test("provider billing errors open Providers, not Frontman Billing", t => {
     resetStore()
+    Client__State.Actions.openSettingsModalOnBilling()
 
-    Client__FrontmanProvider.openBillingSettingsForErrorCategory(Some("billing"))
+    Client__FrontmanProvider.openProviderSettingsForErrorCategory(Some("billing"))
 
     let state = StateStore.getState(Client__State__Store.store)
-    t->expect(state.settingsModalTab)->Expect.toEqual(Some(Client__State__Types.Billing))
+    t->expect(state.settingsModalTab)->Expect.toEqual(Some(Client__State__Types.Providers))
   })
 
   test("billing RPC failure opens settings and retains the server message", t => {
@@ -35,7 +36,7 @@ describe("Client__FrontmanProvider billing update handling", () => {
   test("does not open settings for non-billing error category", t => {
     resetStore()
 
-    Client__FrontmanProvider.openBillingSettingsForErrorCategory(Some("rate_limit"))
+    Client__FrontmanProvider.openProviderSettingsForErrorCategory(Some("rate_limit"))
 
     let state = StateStore.getState(Client__State__Store.store)
     t->expect(state.settingsModalTab)->Expect.toEqual(None)
