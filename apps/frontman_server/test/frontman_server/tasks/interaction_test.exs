@@ -37,6 +37,52 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "UserMessage.attrs/1" do
+    test "rejects documents in blob and tagged text resources without changing image support" do
+      for mime <- ["application/pdf", "text/plain", "application/octet-stream"],
+          contents <- [%{"blob" => "AAAA"}, %{"text" => "document"}, %{}] do
+        block = %{
+          "type" => "resource",
+          "_meta" => %{"user_image" => true, "filename" => "fixture"},
+          "resource" =>
+            Map.merge(contents, %{"uri" => "attachment://fixture", "mimeType" => mime})
+        }
+
+        assert {:error, {:invalid_content_block, error}} = UserMessage.attrs([block])
+        assert error =~ "Paste the document text"
+      end
+
+      for mime <- ["image/png", "image/jpeg", "image/gif", "image/webp"] do
+        assert {:ok, %{images: [%{"mime_type" => ^mime}]}} =
+                 UserMessage.attrs([
+                   %{
+                     "type" => "resource",
+                     "_meta" => %{"user_image" => true},
+                     "resource" => %{"mimeType" => mime, "blob" => "AAAA"}
+                   }
+                 ])
+      end
+    end
+
+    test "historical documents remain loadable but are explicitly unreadable in model input" do
+      for mime <- ["application/pdf", "text/plain"] do
+        attrs = %{
+          images: [%{blob: "AAAA", mime_type: mime, filename: "fixture", uri: "attachment://old"}]
+        }
+
+        history =
+          user_msg("Old prompt") |> UserMessage.changeset(attrs) |> Ecto.Changeset.apply_changes()
+
+        assert [%UserImage{mime_type: ^mime, blob: "AAAA"}] = history.images
+        [projected] = Interaction.to_swarm_messages([history])
+        assert [_, %ContentPart{type: :text, text: notice}] = projected.content
+        assert notice =~ "Unsupported attachment: fixture (#{mime})"
+        assert notice =~ "Its contents were not read"
+        refute extract_text(projected) =~ "Available Image Attachments"
+        refute extract_text(projected) =~ "attachment://old"
+        refute notice =~ "Attached PDF"
+      end
+    end
+
     test "extracts non-empty text messages" do
       msg = build_user_message([text_block("Hello")])
 

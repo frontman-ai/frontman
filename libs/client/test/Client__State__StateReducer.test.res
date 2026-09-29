@@ -128,6 +128,88 @@ module TestHelpers = {
   }
 }
 
+describe("prompt preflight and shared send", () => {
+  test(
+    "new-task context matches promoted context and does not replace background-task context",
+    t => {
+      setRuntime(JSON.parseOrThrow(`{"framework":"nextjs"}`))
+      let draft = Task.makeNew(~previewUrl="https://example.test/new")
+      let state = {...Reducer.defaultState, currentTask: Task.New(draft)}
+      let build = (state, taskId) =>
+        Reducer.buildPrompt(
+          state,
+          ~taskId,
+          ~messageId=testUserMessageId,
+          ~attachments=[],
+          ~annotations=[],
+          ~agentId="executor",
+        )
+      let initial = build(state, Reducer.Selectors.currentTaskClientId(state))
+      let tasks = Dict.fromArray([
+        ("session", draft->Task.newToLoaded(~id="session", ~title="Test")),
+      ])
+      t
+      ->expect(build({...state, tasks, currentTask: Task.Selected("session")}, "session"))
+      ->Expect.toEqual(initial)
+      t->expect(build({...state, tasks}, "session"))->Expect.toEqual(initial)
+      let hugeContext = {
+        ...state,
+        currentTask: Task.New(Task.makeNew(~previewUrl="x"->String.repeat(4_000_000))),
+      }
+      t
+      ->expect(
+        Reducer.validatePromptDraft(
+          hugeContext,
+          ~content=[Text({text: "x"->String.repeat(4_000_000)})],
+          ~annotations=[],
+          ~agentId="executor",
+        )->Result.isError,
+      )
+      ->Expect.toBe(true)
+    },
+  )
+
+  test("shared sends reject documents and aggregate images without invoking sendPrompt", t => {
+    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs"}`))
+    let sent = ref(0)
+    let failed = ref(0)
+    let state = {
+      ...TestHelpers.makeStateWithTask(),
+      acpSession: TestHelpers.activeAcpSession(
+        ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) =>
+          sent := sent.contents + 1,
+      ),
+    }
+    let dispatch = (action: Reducer.action) =>
+      switch action {
+      | TaskAction({action: UserMessageSendFailed(_)}) => failed := failed.contents + 1
+      | _ => failwith("Unexpected action")
+      }
+    ["application/pdf", "image/png"]->Array.forEach(
+      mediaType => {
+        let attachment: Client__Message.fileAttachmentData = {
+          id: "fixture",
+          filename: "fixture",
+          mediaType,
+          dataUrl: "data:fixture;base64," ++ "A"->String.repeat(4_000_000),
+        }
+        Reducer.sendMessageToAPIImpl(
+          state,
+          dispatch,
+          ~messageId=testUserMessageId,
+          ~message="Read",
+          ~attachments=[attachment, attachment],
+          ~annotations=[],
+          ~taskId="test-task-1",
+          ~agentId="executor",
+        )
+      },
+    )
+    t->expect(sent.contents)->Expect.toBe(0)
+    t->expect(failed.contents)->Expect.toBe(2)
+  })
+})
+
 describe("Client State Reducer - Integration Updates", () => {
   let wordpress = StateTypes.WordPressPlugin
   let npm = StateTypes.NpmPackage("@frontman-ai/nextjs")

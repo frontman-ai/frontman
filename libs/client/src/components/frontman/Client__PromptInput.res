@@ -293,7 +293,7 @@ module SubmitButton = {
 
 @react.component
 let make = (
-  ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => unit,
+  ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => promise<result<unit, string>>,
   ~onCancel: unit => unit,
   ~modelConfigOption: option<ACP.sessionConfigOption>,
   ~isModelsConfigLoading: bool,
@@ -405,7 +405,6 @@ let make = (
       dataUrl: file.dataUrl,
     }))
     onSubmit(~text, ~inputItems)
-    setHasContent(_ => false)
   }
 
   let hasSubmittableContent = hasContent || hasAnnotations

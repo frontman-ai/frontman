@@ -743,7 +743,9 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       AddUserMessage({
         id: testUserMessageId,
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
-        annotations: _sampleMessageAnnotations,
+        annotations: TaskReducer.Selectors.annotations(task)
+        ->Option.getOrThrow
+        ->Array.map(MessageAnnotation.fromAnnotation),
         agentId: "executor-id",
       }),
     )
@@ -768,6 +770,35 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       }
     | _ => t->expect("SendMessage effect")->Expect.toBe("not found")
     }
+  })
+
+  test("annotations added or edited during async submission remain editable", t => {
+    let task = _taskWithAnnotations()
+    let captured =
+      TaskReducer.Selectors.annotations(task)
+      ->Option.getOrThrow
+      ->Array.map(MessageAnnotation.fromAnnotation)
+    let editedId = (captured->Array.getUnsafe(0)).id
+    let (task, _) = TaskReducer.next(
+      task,
+      UpdateAnnotationComment({id: editedId, comment: "New edit"}),
+    )
+    let (task, _) = TaskReducer.next(
+      task,
+      ToggleAnnotation({element: _makeMockElement(), tagName: "span"}),
+    )
+    let (task, _) = TaskReducer.next(
+      task,
+      AddUserMessage({
+        id: testUserMessageId,
+        content: [],
+        annotations: captured,
+        agentId: "executor-id",
+      }),
+    )
+    let remaining = TaskReducer.Selectors.annotations(task)->Option.getOrThrow
+    t->expect(remaining->Array.length)->Expect.toBe(2)
+    t->expect((remaining->Array.getUnsafe(0)).comment)->Expect.toEqual(Some("New edit"))
   })
 
   test("Annotations are stored on the message itself", t => {

@@ -1,4 +1,5 @@
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Client = FrontmanClient__ACP__Client
 module Channel = FrontmanClient__Phoenix__Channel
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
@@ -11,6 +12,66 @@ module Log = FrontmanLogs.Logs.Make({
 type requestMethod = [#initialize | #"session/new" | #"session/load" | #"session/prompt"]
 
 let requestTimeoutMs = 120000
+
+let maxMessageBytes = 8_000_000
+let envelopeReserveBytes = 4096
+let promptSizeError = "Prompt and attachments are too large. Remove images or shorten the text and try again (8 MB message limit)."
+let unsupportedAttachmentError = "Documents, including PDFs, are not supported. Paste the document text or attach PNG, JPEG, GIF, or WebP images instead."
+
+let validateMessageSize = (payload, ~reservedBytes=0) =>
+  switch payload->JSON.stringify->FrontmanBindings.WebStreams.utf8ByteSize <=
+    maxMessageBytes - reservedBytes {
+  | true => Ok()
+  | false => Error(promptSizeError)
+  }
+
+let validatePrompt = (~text, ~additionalBlocks, ~_meta) => {
+  switch additionalBlocks->Array.some(block =>
+    switch block {
+    | ContentBlock.EmbeddedResource({resource: BlobResourceContents({mimeType}), _}) =>
+      switch mimeType {
+      | Some("image/png" | "image/jpeg" | "image/gif" | "image/webp") => false
+      | _ => true
+      }
+    | ContentBlock.EmbeddedResource({resource: TextResourceContents(_), _meta, _}) =>
+      _meta->Option.flatMap(meta =>
+        meta->S.decodeOrThrow(
+          ~from=S.json,
+          ~to=S.object(s => s.field("user_image", S.option(S.bool))),
+        )
+      ) == Some(true)
+    | _ => false
+    }
+  ) {
+  | true => Error(unsupportedAttachmentError)
+  | false =>
+    let prompt =
+      Array.concat(
+        [ContentBlock.TextContent({text, _meta: None, annotations: None})],
+        additionalBlocks,
+      )->Array.map(block => block->S.decodeOrThrow(~from=ContentBlock.schema, ~to=S.json))
+    let payload = JSON.Encode.object(
+      Dict.fromArray([
+        ("prompt", JSON.Encode.array(prompt)),
+        ("_meta", _meta->Option.getOr(JSON.Encode.null)),
+      ]),
+    )
+    validateMessageSize(payload, ~reservedBytes=envelopeReserveBytes)
+  }
+}
+
+@get external channelTopic: Channel.t => string = "topic"
+
+let validateRequest = (~channel, payload) => {
+  let envelope = JSON.Encode.array([
+    JSON.Encode.string("9007199254740991"),
+    JSON.Encode.string("9007199254740991"),
+    JSON.Encode.string(channel->channelTopic),
+    JSON.Encode.string("acp:message"),
+    payload,
+  ])
+  validateMessageSize(envelope)
+}
 
 let pushReplyMessageSchema: S.t<JSON.t> = S.object(s => s.field("acp:message", S.json))
 
@@ -29,46 +90,51 @@ let sendRequest = (
   ~parseResult: JSON.t => result<'a, string>,
 ): promise<result<'a, Client.requestError>> => {
   let method = (method :> string)
-  Promise.make((resolve, _) => {
-    let id = state.contents.currentId + 1
-    let idStr = Int.toString(id)
-    let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
-    let timer = ref(None)
-    let finish = result => {
-      timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
-      resolve(result)
-    }
-
-    let pending: Client.pendingRequest = {
-      resolve: json => finish(parseResult(json)->Result.mapError(Client.requestErrorFromMessage)),
-      reject: e => finish(Error(e)),
-    }
-
-    state := state.contents->Client.reduce(Client.RequestSent(id, pending))
-    timer :=
-      Some(
-        WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
-          state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
-          state := state.contents->Client.reduce(Client.ResponseReceived(id))
-          pending.reject(
-            Client.requestErrorFromMessage(
-              `Request ${method} timed out after ${Int.toString(timeoutMs)}ms`,
-            ),
-          )
-        }),
-      )
-
-    let payload = request->JsonRpc.Request.toJson
-    let push = channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
-    push.receive(~status="ok", ~callback=reply => {
-      switch parsePushReply(reply) {
-      | Ok(message) => state := Client.handleResponse(state.contents, message)
-      | Error(error) =>
-        state := state.contents->Client.reduce(Client.ResponseReceived(id))
-        pending.reject(Client.requestErrorFromMessage(error))
+  let id = state.contents.currentId + 1
+  let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
+  let payload = request->JsonRpc.Request.toJson
+  switch validateRequest(~channel, payload) {
+  | Error(error) => Promise.resolve(Error(Client.requestErrorFromMessage(error)))
+  | Ok() =>
+    Promise.make((resolve, _) => {
+      let idStr = Int.toString(id)
+      let timer = ref(None)
+      let finish = result => {
+        timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
+        resolve(result)
       }
-    })->ignore
-  })
+
+      let pending: Client.pendingRequest = {
+        resolve: json => finish(parseResult(json)->Result.mapError(Client.requestErrorFromMessage)),
+        reject: e => finish(Error(e)),
+      }
+
+      state := state.contents->Client.reduce(Client.RequestSent(id, pending))
+      timer :=
+        Some(
+          WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
+            state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
+            state := state.contents->Client.reduce(Client.ResponseReceived(id))
+            pending.reject(
+              Client.requestErrorFromMessage(
+                `Request ${method} timed out after ${Int.toString(timeoutMs)}ms`,
+              ),
+            )
+          }),
+        )
+
+      let push =
+        channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
+      push.receive(~status="ok", ~callback=reply => {
+        switch parsePushReply(reply) {
+        | Ok(message) => state := Client.handleResponse(state.contents, message)
+        | Error(error) =>
+          state := state.contents->Client.reduce(Client.ResponseReceived(id))
+          pending.reject(Client.requestErrorFromMessage(error))
+        }
+      })->ignore
+    })
+  }
 }
 
 let sendInitialize = (

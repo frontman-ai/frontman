@@ -84,7 +84,7 @@ describe("prompt editor file types", () => {
   test("exposes accepted file picker types", t => {
     t
     ->expect(PromptEditor.acceptedPromptFileTypesString)
-    ->Expect.toBe("image/png,image/jpeg,image/gif,image/webp,application/pdf")
+    ->Expect.toBe("image/png,image/jpeg,image/gif,image/webp")
   })
 
   test("parses accepted media types", t => {
@@ -102,7 +102,7 @@ describe("prompt editor file types", () => {
     ->Expect.toEqual(Some(PromptEditor.Webp))
     t
     ->expect(PromptEditor.parseAcceptedMediaType("application/pdf"))
-    ->Expect.toEqual(Some(PromptEditor.Pdf))
+    ->Expect.toEqual(None)
   })
 
   test("rejects unsupported media types", t => {

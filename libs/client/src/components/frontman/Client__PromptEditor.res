@@ -12,7 +12,6 @@ type acceptedMediaType =
   | Jpeg
   | Gif
   | Webp
-  | Pdf
 
 type serializedPromptEditorContent = {
   text: string,
@@ -48,7 +47,7 @@ type insertTarget =
   | Cursor(int)
   | Range(TiptapCore.insertRange)
 
-let acceptedPromptFileTypesString = "image/png,image/jpeg,image/gif,image/webp,application/pdf"
+let acceptedPromptFileTypesString = "image/png,image/jpeg,image/gif,image/webp"
 let maxFileSizeBytes = 10 * 1024 * 1024
 
 let acceptedMediaTypeToString = mediaType => {
@@ -57,7 +56,6 @@ let acceptedMediaTypeToString = mediaType => {
   | Jpeg => "image/jpeg"
   | Gif => "image/gif"
   | Webp => "image/webp"
-  | Pdf => "application/pdf"
   }
 }
 
@@ -67,7 +65,6 @@ let parseAcceptedMediaType = mediaType => {
   | "image/jpeg" => Some(Jpeg)
   | "image/gif" => Some(Gif)
   | "image/webp" => Some(Webp)
-  | "application/pdf" => Some(Pdf)
   | _ => None
   }
 }
@@ -76,14 +73,7 @@ let fileMediaType = (file: browserFile) => file.type_
 let fileName = (file: browserFile) => file.name
 let fileSize = (file: browserFile) => file.size
 
-let isAcceptedPromptFile = file => file->fileMediaType->parseAcceptedMediaType->Option.isSome
-
-let validatePromptFile = file => {
-  switch file->fileMediaType->parseAcceptedMediaType {
-  | Some(mediaType) => Some(mediaType)
-  | None => None
-  }
-}
+let validatePromptFile = file => file->fileMediaType->parseAcceptedMediaType
 
 let getPromptFileSizeError = file => {
   switch (validatePromptFile(file), file->fileSize > maxFileSizeBytes) {
@@ -497,10 +487,11 @@ let make = (
   ~dropFilesSignal: int,
   ~droppedFiles: array<browserFile>,
   ~onHasContentChange: bool => unit,
-  ~onSubmit: (string, array<editorFileAttachment>) => unit,
+  ~onSubmit: (string, array<editorFileAttachment>) => promise<result<unit, string>>,
   ~onPreviewImage: string => unit,
   ~onFileSizeError: string => unit,
 ) => {
+  let submittingRef = React.useRef(false)
   let editorRef: React.ref<Null.t<TiptapCore.editor>> = React.useRef(Null.null)
   let fileInputRef: React.ref<Nullable.t<Dom.element>> = React.useRef(Nullable.null)
   let placeholderRef = React.useRef(placeholder)
@@ -563,17 +554,33 @@ let make = (
   React.useEffect0(() => Some(clearExpandablePasteTimer))
 
   let submitEditor = editor => {
-    let serialized = editor->TiptapCore.getJSON->Obj.magic->serializePromptEditorContent
+    let snapshot = editor->TiptapCore.getJSON
+    let serialized = snapshot->Obj.magic->serializePromptEditorContent
     switch (
-      serialized.text == "",
-      serialized.fileAttachments->Array.length == 0,
-      hasAnnotationsRef.current,
+      submittingRef.current,
+      serialized.text == "" &&
+      serialized.fileAttachments->Array.length == 0 &&
+      !hasAnnotationsRef.current,
     ) {
-    | (true, true, false) => false
-    | _ =>
+    | (true, _) | (_, true) => false
+    | (false, false) =>
+      submittingRef.current = true
       onSubmitRef.current(serialized.text, serialized.fileAttachments)
-      editor->TiptapCore.Commands.commands->TiptapCore.Commands.clearContent
-      onHasContentChangeRef.current(false)
+      ->Promise.then(result => {
+        submittingRef.current = false
+        switch result {
+        | Error(error) => onFileSizeErrorRef.current(error)
+        | Ok() =>
+          switch JSON.stringify(snapshot) == JSON.stringify(editor->TiptapCore.getJSON) {
+          | false => ()
+          | true =>
+            editor->TiptapCore.Commands.commands->TiptapCore.Commands.clearContent
+            onHasContentChangeRef.current(false)
+          }
+        }
+        Promise.resolve()
+      })
+      ->ignore
       true
     }
   }
@@ -583,7 +590,10 @@ let make = (
     for i in 0 to files->Array.length - 1 {
       let file = files->Array.get(i)->Option.getOrThrow(~message="file index inside loop bounds")
       switch validatePromptFile(file) {
-      | None => ()
+      | None =>
+        onFileSizeErrorRef.current(
+          FrontmanAiFrontmanClient.FrontmanClient__ACP__Protocol.unsupportedAttachmentError,
+        )
       | Some(mediaType) =>
         switch getPromptFileSizeError(file) {
         | Some(error) => onFileSizeErrorRef.current(error)
@@ -651,7 +661,7 @@ let make = (
           true
         | Some(currentEditor) =>
           let dataTransfer = event.clipboardData->Null.toOption
-          let acceptedFiles = dataTransfer->getClipboardFiles->Array.filter(isAcceptedPromptFile)
+          let acceptedFiles = dataTransfer->getClipboardFiles
           let text =
             dataTransfer->Option.map(WebAPI.DataTransfer.getData(_, "text/plain"))->Option.getOr("")
 

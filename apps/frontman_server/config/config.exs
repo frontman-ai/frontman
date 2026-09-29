@@ -151,6 +151,7 @@ config :frontman_server, :stripe,
 config :frontman_server, FrontmanServerWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
+  http: [websocket_options: [max_fragmented_message_size: 8_000_000]],
   render_errors: [
     formats: [html: FrontmanServerWeb.ErrorHTML, json: FrontmanServerWeb.ErrorJSON],
     layout: false
