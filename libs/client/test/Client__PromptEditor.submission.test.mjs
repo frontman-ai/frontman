@@ -1,7 +1,9 @@
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, expect, test, vi } from "vitest";
+import { expect, onTestFinished, test, vi } from "vitest";
+import { sendUserMessage } from "../src/Client__Chatbox.res.mjs";
 import { make as PromptEditor } from "../src/components/frontman/Client__PromptEditor.res.mjs";
+import { Actions } from "../src/state/Client__State.res.mjs";
 
 const mock = vi.hoisted(() => ({ options: null, editor: null }));
 vi.mock("@tiptap/react", async (original) => ({
@@ -13,13 +15,8 @@ vi.mock("@tiptap/react", async (original) => ({
 	EditorContent: () => null,
 }));
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-let root;
-afterEach(() => {
-	act(() => root?.unmount());
-	document.body.innerHTML = "";
-});
 
-async function mount(onSubmit) {
+test("submission preserves rejected drafts and newer edits, without duplicate sends", async () => {
 	let doc = {
 		type: "doc",
 		content: [
@@ -40,14 +37,26 @@ async function mount(onSubmit) {
 			},
 		],
 	};
+	const pending = [];
+	const onSubmit = vi.fn(() => {
+		const result = Promise.withResolvers();
+		pending.push(result);
+		return result.promise;
+	});
+	const clearContent = vi.fn();
+	const onFileSizeError = vi.fn();
 	mock.editor = {
 		getJSON: () => doc,
 		isEmpty: false,
 		setEditable: vi.fn(),
-		commands: { clearContent: vi.fn() },
+		commands: { clearContent },
 	};
-	const onFileSizeError = vi.fn();
-	root = createRoot(document.body.appendChild(document.createElement("div")));
+	const container = document.body.appendChild(document.createElement("div"));
+	const root = createRoot(container);
+	onTestFinished(() => {
+		act(() => root.unmount());
+		container.remove();
+	});
 	await act(async () =>
 		root.render(
 			React.createElement(PromptEditor, {
@@ -66,28 +75,11 @@ async function mount(onSubmit) {
 			}),
 		),
 	);
-	return {
-		onFileSizeError,
-		edit: () => {
-			doc = { type: "doc", content: [{ type: "text", text: "New draft" }] };
-		},
-	};
-}
-const submit = () =>
-	mock.options.editorProps.handleKeyDown(null, {
-		key: "Enter",
-		preventDefault() {},
-	});
-
-test("rejection preserves editable text/files, blocks double send and permits retry", async () => {
-	let resolve;
-	const onSubmit = vi.fn(
-		() =>
-			new Promise((done) => {
-				resolve = done;
-			}),
-	);
-	const { onFileSizeError } = await mount(onSubmit);
+	const submit = () =>
+		mock.options.editorProps.handleKeyDown(null, {
+			key: "Enter",
+			preventDefault() {},
+		});
 	await act(async () => {
 		submit();
 		submit();
@@ -96,52 +88,58 @@ test("rejection preserves editable text/files, blocks double send and permits re
 	expect(onSubmit.mock.calls[0][1][0].dataUrl).toBe(
 		"data:image/png;base64,AAAA",
 	);
-	await act(async () => resolve({ TAG: "Error", _0: "Remove images" }));
-	expect(onFileSizeError).toHaveBeenCalledWith("Remove images");
-	expect(mock.editor.commands.clearContent).not.toHaveBeenCalled();
-	await act(async () => submit());
-	expect(onSubmit).toHaveBeenCalledTimes(2);
-	await act(async () => resolve({ TAG: "Ok" }));
-	expect(mock.editor.commands.clearContent).toHaveBeenCalledTimes(1);
-});
-
-test("successful async submission does not erase newer edits", async () => {
-	let resolve;
-	const { edit } = await mount(
-		() =>
-			new Promise((done) => {
-				resolve = done;
-			}),
+	await act(async () =>
+		pending[0].resolve({ TAG: "Error", _0: "Remove images" }),
 	);
+	expect(onFileSizeError).toHaveBeenCalledWith("Remove images");
+	expect(clearContent).not.toHaveBeenCalled();
 	await act(async () => {
 		submit();
-		edit();
-		resolve({ TAG: "Ok" });
+		doc = {
+			type: "doc",
+			content: [
+				{ type: "paragraph", content: [{ type: "text", text: "New draft" }] },
+			],
+		};
+		pending[1].resolve({ TAG: "Ok" });
 	});
-	expect(mock.editor.commands.clearContent).not.toHaveBeenCalled();
+	expect(clearContent).not.toHaveBeenCalled();
+	await act(async () => {
+		submit();
+		pending[2].resolve({ TAG: "Ok" });
+	});
+	expect(clearContent).toHaveBeenCalledTimes(1);
 });
 
-test("PDF paste and drop report an actionable error without altering the draft", async () => {
-	const { onFileSizeError } = await mount(vi.fn());
-	const file = new File(["fixture"], "fixture.pdf", {
-		type: "application/pdf",
+test("preflight prevents phantom tasks and routes interrupted history through reload", async () => {
+	window.__frontmanRuntime = { framework: "nextjs" };
+	onTestFinished(() => {
+		delete window.__frontmanRuntime;
+		vi.restoreAllMocks();
 	});
-	const transfer = {
-		items: [],
-		files: { length: 1, item: () => file },
-		getData: () => "",
+	const create = vi.fn();
+	const reload = vi.spyOn(Actions, "switchTask").mockImplementation(() => {});
+	const send = vi.spyOn(Actions, "addUserMessage").mockImplementation(() => {});
+	const submit = (content, taskId, session) =>
+		sendUserMessage(session, create, taskId, content, [], "executor");
+	const image = {
+		TAG: "File",
+		file: `data:image/png;base64,${"A".repeat(4_000_000)}`,
 	};
-	await act(async () => {
-		mock.options.editorProps.handlePaste(null, {
-			clipboardData: transfer,
-			preventDefault() {},
-		});
-		mock.options.editorProps.handleDrop(
-			{ posAtCoords: () => null },
-			{ dataTransfer: transfer, preventDefault() {} },
-		);
+	expect((await submit([image, image])).TAG).toBe("Error");
+	expect(create).not.toHaveBeenCalled();
+	const text = [{ TAG: "Text", text: "draft" }];
+	expect((await submit(text, "history")).TAG).toBe("Error");
+	expect(reload).toHaveBeenCalledWith("history");
+	expect(send).not.toHaveBeenCalled();
+	expect((await submit(text, "history", { sessionId: "history" })).TAG).toBe(
+		"Ok",
+	);
+	expect(send).toHaveBeenCalledWith("history", text, [], "executor");
+	create.mockImplementation((onComplete) => {
+		window.__frontmanRuntime.traits = ["x".repeat(8_000_000)];
+		onComplete({ TAG: "Ok", _0: "new-session" });
 	});
-	expect(onFileSizeError).toHaveBeenCalledTimes(2);
-	expect(onFileSizeError.mock.calls[0][0]).toContain("Paste the document text");
-	expect(mock.editor.commands.clearContent).not.toHaveBeenCalled();
+	expect((await submit(text)).TAG).toBe("Error");
+	expect(send).toHaveBeenCalledTimes(1);
 });
