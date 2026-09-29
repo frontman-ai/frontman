@@ -22,7 +22,7 @@ defmodule FrontmanServerWeb.Endpoint do
   )
 
   socket("/socket", FrontmanServerWeb.UserSocket,
-    websocket: [check_origin: false],
+    websocket: [check_origin: false, max_frame_size: 8_000_014],
     longpoll: false,
     auth_token: true
   )

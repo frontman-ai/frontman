@@ -6,6 +6,14 @@ module Selectors = Client__State__StateReducer.Selectors
 module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
+let validatePromptDraft = (~content, ~annotations, ~agentId) =>
+  Client__State__StateReducer.validatePromptDraft(
+    StateStore.getState(Client__State__Store.store),
+    ~content,
+    ~annotations,
+    ~agentId,
+  )
+
 module Actions = {
   let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
     let id = Client__Message.UserMessageId.make()

@@ -153,7 +153,7 @@ defmodule FrontmanServer.Tasks.Interaction do
 
   defmodule UserImage do
     @moduledoc """
-    A user-uploaded image or PDF attachment.
+    A user-uploaded image attachment (historical documents remain loadable).
     """
 
     use Ecto.Schema
@@ -403,6 +403,22 @@ defmodule FrontmanServer.Tasks.Interaction do
           {:halt,
            {:error,
             {:invalid_content_block, "text content block must include non-empty string text"}}}
+
+        %{"type" => "resource", "resource" => resource} = block, acc ->
+          case {get_in(block, ["_meta", "user_image"]), Map.has_key?(resource, "blob"),
+                resource["mimeType"]} do
+            {_, true, mime} when mime in ["image/png", "image/jpeg", "image/gif", "image/webp"] ->
+              {:cont, acc}
+
+            {user_image, false, _} when user_image != true ->
+              {:cont, acc}
+
+            _ ->
+              {:halt,
+               {:error,
+                {:invalid_content_block,
+                 "Documents, including PDFs, are not supported. Paste the document text or attach PNG, JPEG, GIF, or WebP images instead."}}}
+          end
 
         _block, {:ok, messages} ->
           {:cont, {:ok, messages}}
@@ -1271,27 +1287,21 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp append_user_attachment_parts(parts, []), do: parts
 
   defp append_user_attachment_parts(parts, images) when is_list(images) do
-    {image_attachments, pdf_attachments} =
-      Enum.split_with(images, fn %{mime_type: mime_type} ->
-        String.starts_with?(mime_type, "image/")
+    attachment_parts =
+      Enum.map(images, fn
+        %{blob: base64_data, mime_type: "image/" <> _ = mime_type} ->
+          case Base.decode64(base64_data) do
+            {:ok, decoded_data} -> SwarmContentPart.image(decoded_data, mime_type)
+            :error -> nil
+          end
+
+        %{mime_type: mime_type, filename: filename} ->
+          SwarmContentPart.text(
+            "[Unsupported attachment: #{filename} (#{mime_type}). Its contents were not read. Ask the user to paste the text or attach images.]"
+          )
       end)
 
-    image_parts =
-      image_attachments
-      |> Enum.map(fn %{blob: base64_data, mime_type: mime_type} ->
-        case Base.decode64(base64_data) do
-          {:ok, decoded_data} -> SwarmContentPart.image(decoded_data, mime_type)
-          :error -> nil
-        end
-      end)
-      |> Enum.reject(&is_nil/1)
-
-    pdf_parts =
-      Enum.map(pdf_attachments, fn %{filename: filename} ->
-        SwarmContentPart.text("[Attached PDF: #{filename}]")
-      end)
-
-    parts ++ image_parts ++ pdf_parts
+    parts ++ Enum.reject(attachment_parts, &is_nil/1)
   end
 
   defp build_swarm_user_message([]), do: SwarmMessage.user("")
@@ -1399,7 +1409,10 @@ defmodule FrontmanServer.Tasks.Interaction do
   defp append_attachment_context(text, images) when is_list(images) and images != [] do
     uris =
       images
-      |> Enum.filter(fn img -> is_binary(Map.get(img, :uri)) end)
+      |> Enum.filter(fn
+        %{mime_type: "image/" <> _, uri: uri} when is_binary(uri) -> true
+        _ -> false
+      end)
       |> Enum.map(fn img -> "- #{img.uri} (#{img.filename}, #{img.mime_type})" end)
 
     case uris do
