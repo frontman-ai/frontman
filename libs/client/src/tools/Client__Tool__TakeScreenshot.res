@@ -29,53 +29,6 @@ let captureErrorMessage = (message: string) =>
   | false => message
   }
 
-let _cropCanvasToViewport = (
-  sourceCanvas: WebAPI.DomTypes.htmlCanvasElement,
-  ~scrollX: float,
-  ~scrollY: float,
-  ~viewportW: int,
-  ~viewportH: int,
-  ~scale: float,
-  ~quality: float,
-): string => {
-  open WebAPI
-
-  let qualityJson = JSON.Encode.float(quality)
-
-  let sx = Math.round(scrollX *. scale)
-  let sy = Math.round(scrollY *. scale)
-  let sw = Math.round(viewportW->Int.toFloat *. scale)
-  let sh = Math.round(viewportH->Int.toFloat *. scale)
-
-  let sx = Math.max(sx, 0.0)
-  let sy = Math.max(sy, 0.0)
-  let sw = Math.min(sw, sourceCanvas.width->Int.toFloat -. sx)
-  let sh = Math.min(sh, sourceCanvas.height->Int.toFloat -. sy)
-
-  if sw <= 0.0 || sh <= 0.0 {
-    sourceCanvas->HTMLCanvasElement.toDataURL(~type_="image/jpeg", ~quality=qualityJson)
-  } else {
-    let crop = Window.current->Window.document->Document.createCanvasElement
-    crop.width = sw->Float.toInt
-    crop.height = sh->Float.toInt
-    let ctx = crop->HTMLCanvasElement.getContext2D
-
-    ctx->CanvasRenderingContext2D.drawImageWithCanvasSubRectangle(
-      ~image=sourceCanvas,
-      ~sx,
-      ~sy,
-      ~sw,
-      ~sh,
-      ~dx=0.0,
-      ~dy=0.0,
-      ~dw=sw,
-      ~dh=sh,
-    )
-
-    crop->HTMLCanvasElement.toDataURL(~type_="image/jpeg", ~quality=qualityJson)
-  }
-}
-
 let imageResultFromDataUrl = (dataUrl: string): Tool.MCP.CallToolResult.t => {
   switch dataUrl->String.split(",") {
   | [header, data] =>
@@ -119,14 +72,17 @@ let execute = async (
         ))
       }
 
-      let viewportCrop = switch (fullPage, input.selector) {
+      let viewport: option<FrontmanBindings.Bindings__Snapdom.clip> = switch (
+        fullPage,
+        input.selector,
+      ) {
       | (false, None) =>
-        Some((
-          win->WebAPI.Window.innerWidth,
-          win->WebAPI.Window.innerHeight,
-          win->WebAPI.Window.scrollX,
-          win->WebAPI.Window.scrollY,
-        ))
+        Some({
+          x: win->WebAPI.Window.scrollX,
+          y: win->WebAPI.Window.scrollY,
+          width: win->WebAPI.Window.innerWidth->Int.toFloat,
+          height: win->WebAPI.Window.innerHeight->Int.toFloat,
+        })
       | _ => None
       }
 
@@ -141,27 +97,20 @@ let execute = async (
         } else {
           try {
             let limits = Client__ImageLimits.conservative
-            let scale = Client__ImageLimits.computeScale(element, limits.maxDimension)
-
-            let captureResult = await FrontmanBindings.Bindings__Snapdom.snapdom(element)
-
-            switch viewportCrop {
-            | Some((viewportW, viewportH, scrollX, scrollY)) =>
-              let canvas = await captureResult.toCanvas({scale, dpr: 1.0})
-              let dataUrl = _cropCanvasToViewport(
-                canvas,
-                ~scrollX,
-                ~scrollY,
-                ~viewportW,
-                ~viewportH,
-                ~scale,
-                ~quality=limits.quality,
+            let (options, scale, dpr) = switch viewport {
+            | Some(clip) => (
+                Some({FrontmanBindings.Bindings__Snapdom.clip, reconcile: true}),
+                Math.min(
+                  1.0,
+                  limits.maxDimension->Int.toFloat /. Math.max(clip.width, clip.height),
+                ),
+                Some(1.0),
               )
-              imageResultFromDataUrl(dataUrl)
-            | None =>
-              let jpgImage = await captureResult.toJpg({scale, quality: limits.quality})
-              imageResultFromDataUrl(jpgImage.src)
+            | None => (None, Client__ImageLimits.computeScale(element, limits.maxDimension), None)
             }
+            let captureResult = await FrontmanBindings.Bindings__Snapdom.snapdom(element, ~options?)
+            let jpgImage = await captureResult.toJpg({scale, quality: limits.quality, ?dpr})
+            imageResultFromDataUrl(jpgImage.src)
           } catch {
           | exn =>
             let message = Client__Tool__PreviewContext.exnMessage(exn)
