@@ -60,8 +60,8 @@ let icon = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewB
 @val @scope(("import", "meta"))
 external importMetaUrl: string = "url"
 
-let getToolbarAppPath = () => {
-  let url = WebAPI.URL.make(~url="./toolbar.js", ~base=importMetaUrl)
+let getBrowserScriptPath = filename => {
+  let url = WebAPI.URL.make(~url=filename, ~base=importMetaUrl)
   url.pathname
 }
 
@@ -89,6 +89,22 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
       },
       configSetup: ?Some(
         ctx => {
+          let apiOrigin = WebAPI.URL.make(
+            ~url=switch config.host->String.includes("://") {
+            | true => config.host
+            | false => `https://${config.host}`
+            },
+          ).origin
+          ctx.updateConfig({
+            vite: {
+              define: dict{
+                "import.meta.env.FRONTMAN_API_ORIGIN": apiOrigin->S.decodeOrThrow(
+                  ~from=S.string,
+                  ~to=S.jsonString,
+                ),
+              },
+            },
+          })
           if ctx.command == #dev {
             if astroMajorVersion < 7 && !ctx.config.devToolbar.enabled {
               Console.warn(
@@ -152,7 +168,7 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               id: "frontman:toolbar",
               name: "Frontman",
               icon,
-              entrypoint: getToolbarAppPath(),
+              entrypoint: getBrowserScriptPath("./toolbar.js"),
             })
 
             let safeBasePath = JSON.stringifyAny(config.basePath)->Option.getOr(`"frontman"`)
@@ -163,6 +179,12 @@ let make = (configInput: Config.jsConfigInput): Bindings.astroIntegration => {
               document.head.appendChild(meta);
             }`
             ctx.injectScript("head-inline", basePathMeta ++ "\n" ++ annotationCaptureScript)
+            let navigationPath =
+              getBrowserScriptPath("./navigation.js")->S.decodeOrThrow(
+                ~from=S.string,
+                ~to=S.jsonString,
+              )
+            ctx.injectScript("page", `import ${navigationPath};`)
           }
         },
       ),

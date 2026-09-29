@@ -8,6 +8,8 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
+type requestMethod = [#initialize | #"session/new" | #"session/load" | #"session/prompt"]
+
 let requestTimeoutMs = 120000
 let connectionLost = "Connection lost. The agent may still be running. Reload to reconnect."
 
@@ -22,11 +24,12 @@ let parsePushReply = payload => {
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
-  ~method: string,
+  ~method: requestMethod,
   ~params: option<JSON.t>,
   ~timeoutMs: int=requestTimeoutMs,
   ~parseResult: JSON.t => result<'a, string>,
-): promise<result<'a, string>> => {
+): promise<result<'a, Client.requestError>> => {
+  let method = (method :> string)
   switch Channel.state(channel) {
   | "joined" =>
     Promise.make((resolve, _) => {
@@ -41,20 +44,27 @@ let sendRequest = (
         resolve(result)
       }
       let pending: Client.pendingRequest = {
-        resolve: json => finish(parseResult(json)),
+        resolve: json => finish(parseResult(json)->Result.mapError(Client.requestErrorFromMessage)),
         reject: e => finish(Error(e)),
       }
       listeners :=
         [#phx_error, #phx_close]->Array.map(event => (
           event,
-          channel->Channel.onWithRef(~event, ~callback=_ => pending.reject(connectionLost)),
+          channel->Channel.onWithRef(
+            ~event,
+            ~callback=_ => pending.reject(Client.requestErrorFromMessage(connectionLost)),
+          ),
         ))
 
       state := state.contents->Client.reduce(Client.RequestSent(id, pending))
       timer :=
         Some(
           WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() =>
-            pending.reject(`Request ${method} timed out after ${Int.toString(timeoutMs)}ms`)
+            pending.reject(
+              Client.requestErrorFromMessage(
+                `Request ${method} timed out after ${Int.toString(timeoutMs)}ms`,
+              ),
+            )
           ),
         )
       let payload = request->JsonRpc.Request.toJson
@@ -63,11 +73,13 @@ let sendRequest = (
       push.receive(~status="ok", ~callback=reply => {
         switch parsePushReply(reply) {
         | Ok(message) => Client.handleResponse(state, message)
-        | Error(error) => pending.reject(error)
+        | Error(error) => pending.reject(Client.requestErrorFromMessage(error))
         }
-      }).receive(~status="error", ~callback=_ => pending.reject("ACP request failed"))->ignore
+      }).receive(~status="error", ~callback=_ =>
+        pending.reject(Client.requestErrorFromMessage("ACP request failed"))
+      )->ignore
     })
-  | _ => Promise.resolve(Error(connectionLost))
+  | _ => Promise.resolve(Error(Client.requestErrorFromMessage(connectionLost)))
   }
 }
 
@@ -75,26 +87,26 @@ let sendInitialize = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
   ~clientConfig: Client.config,
-): promise<result<Types.initializeResult, string>> => {
+): promise<result<Types.initializeResult, Client.requestError>> => {
   let params = Client.buildInitializeParams(clientConfig)
   sendRequest(
     ~channel,
     ~state,
-    ~method="initialize",
+    ~method=#initialize,
     ~params=Some(params),
     ~parseResult=Client.parseInitializeResult,
   )
 }
 
 let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId: string): promise<
-  result<Types.sessionNewResult, string>,
+  result<Types.sessionNewResult, Client.requestError>,
 > => {
   let params = Dict.make()
   params->Dict.set("sessionId", JSON.Encode.string(sessionId))
   sendRequest(
     ~channel,
     ~state,
-    ~method="session/new",
+    ~method=#"session/new",
     ~params=Some(JSON.Encode.object(params)),
     ~parseResult=Client.parseSessionNewResult,
   )
@@ -106,7 +118,7 @@ let sendPrompt = (
   ~sessionId: string,
   ~prompt: array<JSON.t>,
   ~_meta: option<JSON.t>,
-): promise<result<Types.promptResult, string>> => {
+): promise<result<Types.promptResult, Client.requestError>> => {
   let entries = [
     ("sessionId", JSON.Encode.string(sessionId)),
     ("prompt", JSON.Encode.array(prompt)),
@@ -119,7 +131,7 @@ let sendPrompt = (
   sendRequest(
     ~channel,
     ~state,
-    ~method="session/prompt",
+    ~method=#"session/prompt",
     ~params=Some(promptParams),
     ~parseResult=Client.parsePromptResult,
   )

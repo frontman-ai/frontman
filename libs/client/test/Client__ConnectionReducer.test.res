@@ -389,7 +389,10 @@ describe("Connection Reducer", () => {
         let state = {...Reducer.initialState, session: SessionActive(mockSession)}
         [
           Reducer.SessionFailed({sessionId: "sess-1", error: "stale update"}),
-          Reducer.SessionCreateError({sessionId: "sess-2", error: "late activation"}),
+          Reducer.SessionCreateError({
+            sessionId: "sess-2",
+            error: Reducer.ACP.requestErrorFromMessage("late activation"),
+          }),
         ]->Array.forEach(
           action => {
             let (nextState, effects) = Reducer.reduce(state, action)
@@ -446,6 +449,24 @@ describe("Connection Reducer", () => {
           t->expect(request.taskId)->Expect.toBe("sess-2")
         | _ => t->expect(effectKinds(effects))->Expect.toEqual([#cleanupSession, #loadTask])
         }
+      },
+    )
+
+    test(
+      "billing SessionCreateError returns to NoSession",
+      t => {
+        let err = FrontmanAiFrontmanClient.FrontmanClient__ACP.requestErrorWithCode(
+          ~code=FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc.ErrorCode.billingInactive,
+          ~message="Alternate billing copy",
+        )
+        let state = {...Reducer.initialState, session: SessionCreating("billing-session")}
+        let (nextState, effects) = Reducer.reduce(
+          state,
+          SessionCreateError({sessionId: "billing-session", error: err}),
+        )
+
+        t->expect(nextState.session)->Expect.toBe(Reducer.NoSession)
+        t->expect(effectKinds(effects))->Expect.toEqual([#logError])
       },
     )
   })

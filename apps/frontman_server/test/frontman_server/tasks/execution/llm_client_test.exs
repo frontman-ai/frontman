@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import Mox
   import FrontmanServer.ProvidersFixtures, only: [png_fixture: 2]
@@ -9,7 +9,8 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
   alias ReqLLM.Error.API.{Request, Stream}
   alias SwarmAi.Message.ContentPart
 
-  setup :set_mox_from_context
+  @client_opts [llm_opts: [api_key: "test-key"]]
+
   setup :verify_on_exit!
 
   describe "ReqLLM stream exception contract" do
@@ -73,11 +74,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.User{
@@ -100,11 +97,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.User{
@@ -129,11 +122,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.User{
@@ -159,11 +148,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.Assistant{
@@ -208,11 +193,7 @@ defmodule FrontmanServer.Tasks.Execution.LLMClientTest do
         {:ok, stream_response([])}
       end)
 
-      client =
-        LLMClient.new(
-          model: model,
-          llm_opts: [api_key: "test-key"]
-        )
+      client = LLMClient.new([model: model] ++ @client_opts)
 
       messages = [
         %SwarmAi.Message.Assistant{

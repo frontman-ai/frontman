@@ -34,6 +34,14 @@ defmodule FrontmanServerWeb.Router do
     pipe_through(:browser)
 
     get("/", PageController, :home)
+    get("/billing/stripe-return/success", BillingController, :stripe_return_success)
+    get("/billing/stripe-return/cancel", BillingController, :stripe_return_cancel)
+
+    get(
+      "/billing/stripe-return/customer-portal",
+      BillingController,
+      :stripe_return_customer_portal
+    )
 
     delete("/users/log-out", UserSessionController, :delete)
     get("/users/log-out", UserSessionController, :confirm_logout)
@@ -78,6 +86,13 @@ defmodule FrontmanServerWeb.Router do
   scope "/", FrontmanServerWeb do
     pipe_through([:browser, :require_authenticated_user])
 
+    get("/billing/checkout/monthly", BillingController, :checkout_monthly)
+    post("/billing/checkout/monthly", BillingController, :create_monthly_checkout)
+    get("/billing/checkout/yearly", BillingController, :checkout_yearly)
+    post("/billing/checkout/yearly", BillingController, :create_yearly_checkout)
+    get("/billing/customer-portal", BillingController, :customer_portal)
+    post("/billing/customer-portal", BillingController, :create_customer_portal)
+
     get("/users/settings", UserSettingsController, :edit)
     put("/users/settings", UserSettingsController, :update)
     get("/users/settings/confirm-email/:token", UserSettingsController, :confirm_email)
@@ -87,6 +102,8 @@ defmodule FrontmanServerWeb.Router do
     pipe_through(:api)
 
     get("/integrations/latest-versions", IntegrationsController, :latest_versions)
+    post("/stripe/webhook", StripeWebhookController, :create)
+    post("/support/questions", SupportQuestionController, :create, log: false)
   end
 
   scope "/api", FrontmanServerWeb do
@@ -97,6 +114,7 @@ defmodule FrontmanServerWeb.Router do
     get("/user/me", UserMeController, :show)
     get("/user/api-keys", UserApiKeyController, :index)
     post("/user/api-keys", UserApiKeyController, :create)
+    get("/user/api-key-usage", UserApiKeyController, :usage)
 
     get("/oauth/anthropic/authorize-url", AnthropicOAuthController, :authorize_url)
     post("/oauth/anthropic/exchange", AnthropicOAuthController, :exchange)

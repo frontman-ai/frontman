@@ -3,6 +3,144 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [5.2.0] - 2026-09-28
+
+
+#### @frontman-ai/client
+
+
+### Minor Changes
+
+- [#1677](https://github.com/frontman-ai/frontman/pull/1677) [`20c6c34`](https://github.com/frontman-ai/frontman/commit/20c6c342bb4199d5cc88cc865e072449da5f861f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include Astro client-routing status in automatic page context. Detect enabled, disabled, and unavailable states from the preview document, and preserve the status in server storage and conversation history. Add conditional lifecycle guidance to agent prompts.
+
+- [#1679](https://github.com/frontman-ai/frontman/pull/1679) [`1a93c75`](https://github.com/frontman-ai/frontman/commit/1a93c753949c6c4ee39336c7f552eeb4d455581e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the current preview URL in `get_dom` results and fresh client-routing status for Astro only. Keep Astro-specific metadata in the `astro-browser` package, with shared DOM input and output types in the protocol package.
+
+  Report unavailable previews and failed queries as MCP errors (`isError: true`), retaining narrowing guidance for size-limit errors. Remove payload-level `success` and `error` fields; successful results always contain the URL, DOM content, node count, and byte size.
+
+- [#1689](https://github.com/frontman-ai/frontman/pull/1689) [`5a40cf1`](https://github.com/frontman-ai/frontman/commit/5a40cf1de9e15f5612d729093bf575e5621aacf9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show Astro persistence keys in DOM inspection and element annotations. Astro `get_dom` also describes marked DOM ancestors outside the selected subtree in both output modes.
+
+  Ancestor inspection stops at 50 parent steps, 10 marked ancestors, or 4 KB of context, with explicit truncation. It does not cross shadow roots. These markers do not prove that elements or state survived navigation. Inspection for other frameworks remains unchanged.
+
+### Patch Changes
+
+- [#1676](https://github.com/frontman-ai/frontman/pull/1676) [`f95c040`](https://github.com/frontman-ai/frontman/commit/f95c040e9c4e64359bd320e127de74f308f41830) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover authenticated nonce rejections in the WordPress integration, preserve access errors, and consolidate request authorization without weakening permission checks.
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix provider settings console warnings by marking anchor-rendered buttons as non-native buttons, and suppress Frontman Sentry reporting in internal browser dev builds.
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add billing settings management with plan status, new-tab Stripe checkout, Customer Portal handoff, live channel billing activation after Stripe webhooks, and a chat-panel billing-required alert.
+
+- [#1667](https://github.com/frontman-ai/frontman/pull/1667) [`7c2b289`](https://github.com/frontman-ai/frontman/commit/7c2b289b6ffb0ae179be972848638cd9d9895f3a) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add GPT-6 Astra to the OpenAI model picker through Codex OAuth. Update ReqLLM for experimental Astra Responses support and pin LLMDB to the upstream commit with Astra metadata until a Hex release includes it.
+
+- [#1767](https://github.com/frontman-ai/frontman/pull/1767) [`74663e9`](https://github.com/frontman-ai/frontman/commit/74663e96d5c9703fd19ac3be8e102f94ff4de992) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove the first-task feedback dialog, review banner, sharing flow, and related state and analytics. Remove the marketing feedback tool and feedback requests. Replace GitHub-star requests with source links. Keep support, bug reporting, and agent diagnostics available.
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Replace Radix-backed TSX UI wrappers with ReScript-native Base UI shadcn primitives and remove direct Radix wrapper dependencies.
+
+- [#1678](https://github.com/frontman-ai/frontman/pull/1678) [`448ef90`](https://github.com/frontman-ai/frontman/commit/448ef90131bee3ac243c54b4e9a89be7945566b3) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Tiptap editor dependencies to 3.30.5 and keep their required peer versions aligned.
+
+#### @frontman-ai/astro-browser
+
+
+### Minor Changes
+
+- [#1677](https://github.com/frontman-ai/frontman/pull/1677) [`20c6c34`](https://github.com/frontman-ai/frontman/commit/20c6c342bb4199d5cc88cc865e072449da5f861f) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include Astro client-routing status in automatic page context. Detect enabled, disabled, and unavailable states from the preview document, and preserve the status in server storage and conversation history. Add conditional lifecycle guidance to agent prompts.
+
+- [#1679](https://github.com/frontman-ai/frontman/pull/1679) [`1a93c75`](https://github.com/frontman-ai/frontman/commit/1a93c753949c6c4ee39336c7f552eeb4d455581e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the current preview URL in `get_dom` results and fresh client-routing status for Astro only. Keep Astro-specific metadata in the `astro-browser` package, with shared DOM input and output types in the protocol package.
+
+  Report unavailable previews and failed queries as MCP errors (`isError: true`), retaining narrowing guidance for size-limit errors. Remove payload-level `success` and `error` fields; successful results always contain the URL, DOM content, node count, and byte size.
+
+- [#1689](https://github.com/frontman-ai/frontman/pull/1689) [`5a40cf1`](https://github.com/frontman-ai/frontman/commit/5a40cf1de9e15f5612d729093bf575e5621aacf9) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show Astro persistence keys in DOM inspection and element annotations. Astro `get_dom` also describes marked DOM ancestors outside the selected subtree in both output modes.
+
+  Ancestor inspection stops at 50 parent steps, 10 marked ancestors, or 4 KB of context, with explicit truncation. It does not cross shadow roots. These markers do not prove that elements or state survived navigation. Inspection for other frameworks remains unchanged.
+
+#### @frontman-ai/astro
+
+
+### Minor Changes
+
+- [#1691](https://github.com/frontman-ai/frontman/pull/1691) [`311872c`](https://github.com/frontman-ai/frontman/commit/311872c0c4086af85d3ebc8c0a5ef4dec9f17beb) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the latest observed Astro navigation in both modes of `get_dom`. Report its source URL, destination URL, and lifecycle phase. Distinguish missing instrumentation from an installed recorder with no navigation observed. Clarify that routing opt-in, DOM swaps, and hash changes do not prove page lifecycle completion or preserved state.
+
+- [#1690](https://github.com/frontman-ai/frontman/pull/1690) [`b5587a6`](https://github.com/frontman-ai/frontman/commit/b5587a6b773662659393bc19920344425613cc46) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Record the latest Astro client navigation's source URL, destination URL, and lifecycle phase during development. Guard lifecycle transitions against out-of-order completion events and capture the destination after the swap. Track hash-only navigation with a separate `hash-change` phase, including history traversal. Prevent duplicate navigation listeners and history wrappers when browser instrumentation initializes again.
+
+### Patch Changes
+
+- [#1719](https://github.com/frontman-ai/frontman/pull/1719) [`8f6681a`](https://github.com/frontman-ai/frontman/commit/8f6681a9051628d29833db1b469b805a6201d975) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve component props annotations with Astro 7.3.3's streaming renderer. Wrap rendering without exposing Astro's instance marker, while preserving the original receiver and async results.
+
+- [#1680](https://github.com/frontman-ai/frontman/pull/1680) [`eeb1b5b`](https://github.com/frontman-ai/frontman/commit/eeb1b5b7a65e5d78e6e27f20d3abca93f6decdad) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Install the prebuilt component-source package from npm instead of building it from Git. This removes the nested Yarn install that blocked Dependabot updates.
+
+- [#1719](https://github.com/frontman-ai/frontman/pull/1719) [`8f6681a`](https://github.com/frontman-ai/frontman/commit/8f6681a9051628d29833db1b469b805a6201d975) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose the Astro integration's resolved server origin as `import.meta.env.FRONTMAN_API_ORIGIN` for website support submissions.
+
+#### @frontman-ai/frontman-client
+
+
+### Patch Changes
+
+- [#1676](https://github.com/frontman-ai/frontman/pull/1676) [`f95c040`](https://github.com/frontman-ai/frontman/commit/f95c040e9c4e64359bd320e127de74f308f41830) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover authenticated nonce rejections in the WordPress integration, preserve access errors, and consolidate request authorization without weakening permission checks.
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add billing settings management with plan status, new-tab Stripe checkout, Customer Portal handoff, live channel billing activation after Stripe webhooks, and a chat-panel billing-required alert.
+
+- [#1695](https://github.com/frontman-ai/frontman/pull/1695) [`5409e4f`](https://github.com/frontman-ai/frontman/commit/5409e4f97328b947fbc21c858276b16f86194e4c) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject invalid ACP request method names at compile time without changing wire messages.
+
+#### @frontman-ai/frontman-core
+
+
+### Patch Changes
+
+- [#1693](https://github.com/frontman-ai/frontman/pull/1693) [`e247310`](https://github.com/frontman-ai/frontman/commit/e247310dd1b7eb58c8ad1942e44f2acdfc25e9ec) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix file discovery in projects without Git. Preserve nested directories in filesystem trees, include non-ignored untracked files in Git trees, and report fallback notices and source-root context. Report unreadable directories instead of returning partial Git trees.
+- Updated dependencies [[`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be), [`1a93c75`](https://github.com/frontman-ai/frontman/commit/1a93c753949c6c4ee39336c7f552eeb4d455581e)]:
+  - @frontman-ai/frontman-protocol@4.1.0
+
+#### @frontman-ai/nextjs
+
+
+### Patch Changes
+
+- [#1680](https://github.com/frontman-ai/frontman/pull/1680) [`eeb1b5b`](https://github.com/frontman-ai/frontman/commit/eeb1b5b7a65e5d78e6e27f20d3abca93f6decdad) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Install the prebuilt component-source package from npm instead of building it from Git. This removes the nested Yarn install that blocked Dependabot updates.
+
+#### @frontman-ai/frontman-preview-bridge
+
+
+### Patch Changes
+
+- Updated dependencies [[`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be), [`1a93c75`](https://github.com/frontman-ai/frontman/commit/1a93c753949c6c4ee39336c7f552eeb4d455581e)]:
+  - @frontman-ai/frontman-protocol@4.1.0
+
+#### @frontman-ai/frontman-protocol
+
+
+### Minor Changes
+
+- [#1679](https://github.com/frontman-ai/frontman/pull/1679) [`1a93c75`](https://github.com/frontman-ai/frontman/commit/1a93c753949c6c4ee39336c7f552eeb4d455581e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the current preview URL in `get_dom` results and fresh client-routing status for Astro only. Keep Astro-specific metadata in the `astro-browser` package, with shared DOM input and output types in the protocol package.
+
+  Report unavailable previews and failed queries as MCP errors (`isError: true`), retaining narrowing guidance for size-limit errors. Remove payload-level `success` and `error` fields; successful results always contain the URL, DOM content, node count, and byte size.
+
+### Patch Changes
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add billing settings management with plan status, new-tab Stripe checkout, Customer Portal handoff, live channel billing activation after Stripe webhooks, and a chat-panel billing-required alert.
+
+#### @frontman-ai/vite
+
+
+### Patch Changes
+
+- [#1680](https://github.com/frontman-ai/frontman/pull/1680) [`eeb1b5b`](https://github.com/frontman-ai/frontman/commit/eeb1b5b7a65e5d78e6e27f20d3abca93f6decdad) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Install the prebuilt component-source package from npm instead of building it from Git. This removes the nested Yarn install that blocked Dependabot updates.
+
+#### @frontman-ai/frontman-wordpress
+
+
+### Minor Changes
+
+- [#1687](https://github.com/frontman-ai/frontman/pull/1687) [`5670a5b`](https://github.com/frontman-ai/frontman/commit/5670a5b3a701f6e75d598c169e647cce1ff34f78) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Expose custom post type archive URLs and registration metadata in site information. Add permission-checked Redirection tools to list rules, create literal-path 301/302 redirects or 404/410 responses, and delete individual rules with confirmation. Keep CPT registration and PHP files unchanged.
+
+### Patch Changes
+
+- [#1726](https://github.com/frontman-ai/frontman/pull/1726) [`745fdcc`](https://github.com/frontman-ai/frontman/commit/745fdccf2748f97bd6422269d27ffdeedf675ed6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add read-only Angie snippet inspection through its native REST API, including legacy slug-based routes. Clarify that ordinary post reads exclude snippet metadata. Snippet editing and publishing remain unsupported.
+
+- [#1676](https://github.com/frontman-ai/frontman/pull/1676) [`f95c040`](https://github.com/frontman-ai/frontman/commit/f95c040e9c4e64359bd320e127de74f308f41830) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Recover authenticated nonce rejections in the WordPress integration, preserve access errors, and consolidate request authorization without weakening permission checks.
+
+- [#1665](https://github.com/frontman-ai/frontman/pull/1665) [`f0281a5`](https://github.com/frontman-ai/frontman/commit/f0281a5f9b602e909a9a2a6020bb45c0524fc60d) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix WordPress.org publishing by excluding bundled dependency documentation and development tools. Preserve PHP runtime files, licenses, and author attribution, and validate the export before publishing. Keep older SVN release tags when publishing a new version.
+
+- [#1666](https://github.com/frontman-ai/frontman/pull/1666) [`949d59f`](https://github.com/frontman-ai/frontman/commit/949d59f1d91cc0d6f05a6923ff98ec7ba0989a3e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support editing existing Custom HTML widgets while preserving omitted content, plugin metadata, and sidebar placement. Apply WordPress HTML permissions to submitted content and reject invalid settings.
+
 ## [5.1.0] - 2026-09-08
 
 
@@ -84,6 +222,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - [#1661](https://github.com/frontman-ai/frontman/pull/1661) [`55430e4`](https://github.com/frontman-ai/frontman/commit/55430e4dd957889e7882fa10b8db36ff16ffa254) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the stored slug in WordPress post list results, consistent with single-post reads. Draft and pending slugs can be empty; publication applies WordPress core slug rules.
 
 ## [Unreleased]
+
+### Added
+
+- Add the WebMCP skill to the server catalog through a reversible data migration. Include current browser APIs, confirmation safeguards, and migration guidance.
+- Add WebMCP tools for website support questions and agent feedback, with delivery to Discord through a dedicated server queue. Questions require user confirmation. Agent feedback does not. Submission results distinguish queued requests from unconfirmed delivery and do not promise replies.
+- Use the Astro integration's resolved server host for support submissions. Reuse the existing agent-feedback Discord webhook without a separate enablement flag. Submissions are unavailable when that webhook is absent. Validate requests and disable Discord mentions.
+- Use ten best-effort slots to limit unfinished support submissions. Return HTTP 503 when all slots are occupied. This does not provide rate limiting. Prune terminal background jobs after seven days.
 
 ### Fixed
 
@@ -1132,6 +1277,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - [#976](https://github.com/frontman-ai/frontman/pull/976) [`5585afb`](https://github.com/frontman-ai/frontman/commit/5585afb0f0a1e715133ede2fa97f0d32abc3b648) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update the ReScript compiler and runtime dependencies to 12.2.0 across the workspace.
 
 ## [Unreleased]
+
+### Added
+
+- Add initial Frontman Server billing foundation for Stripe Managed Payments subscription trials, including monthly/yearly Checkout Session creation, Stripe webhook ingestion, billing persistence tables, and testable billing client behaviour.
 
 ### Changed
 

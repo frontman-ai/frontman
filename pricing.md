@@ -2,9 +2,9 @@
 	[x]  revew TOU
 	[x]  review Privacy
 	[x]  Terms of Service
-	[]  Finish company Berlin registration
+	[x]  Finish company Berlin registration
 	[]  Finish VAT registration
-	[]  Create Pricing page
+	[x]  Create Pricing page
 	[X]  Cookie Banner
 	[x]  Impressum
 	[]  Free trial

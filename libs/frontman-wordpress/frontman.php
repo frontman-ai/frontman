@@ -3,7 +3,7 @@
  * Plugin Name:       Frontman - AI Website Editor
  * Plugin URI:        https://frontman.sh
  * Description:       Edit WordPress with AI beside a live preview. Update pages, posts, Elementor layouts, WooCommerce data, menus, and settings faster.
- * Version:           5.1.0
+ * Version:           5.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Frontman AI
@@ -43,7 +43,7 @@ if ( ! function_exists( 'frontman_plugin_dir_url' ) ) {
 	}
 }
 
-define( 'FRONTMAN_VERSION', '5.1.0' );
+define( 'FRONTMAN_VERSION', '5.2.0' );
 define( 'FRONTMAN_PLUGIN_DIR', frontman_plugin_dir_path( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_URL', frontman_plugin_dir_url( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
@@ -65,6 +65,8 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-templates.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-widgets.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-redirection.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-angie.php';
 
 /**
  * Main plugin bootstrap.
@@ -80,6 +82,14 @@ function frontman_init(): void {
 	( new Frontman_Tool_Templates() )->register( $tools );
 	( new Frontman_Tool_Widgets() )->register( $tools );
 	( new Frontman_Tool_Cache() )->register( $tools );
+
+	if ( Frontman_Tool_Angie::is_available() ) {
+		( new Frontman_Tool_Angie() )->register( $tools );
+	}
+
+	if ( Frontman_Tool_Redirection::is_available() ) {
+		( new Frontman_Tool_Redirection() )->register( $tools );
+	}
 
 	if ( Frontman_Tool_Seo::is_available() ) {
 		( new Frontman_Tool_Seo() )->register( $tools );

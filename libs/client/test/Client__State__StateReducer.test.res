@@ -12,6 +12,9 @@ module UserMessageId = Client__Message.UserMessageId
 let testUserMessageId = UserMessageId.make()
 let secondTestUserMessageId = UserMessageId.make()
 
+@schema
+type pageRoutingMeta = {astro_client_routing: option<string>}
+
 let setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
 
@@ -21,8 +24,9 @@ module TestHelpers = {
   let activeAcpSession = (
     ~deleteSession=(_, ~onComplete as _) => (),
     ~requireAuthentication=() => (),
+    ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   ): Client__State__Types.acpSession => AcpSessionActive({
-    sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+    sendPrompt,
     sendSessionCommand: _ => (),
     loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
     deleteSession,
@@ -794,126 +798,29 @@ describe("Client State Reducer", () => {
   })
 })
 
-describe("Client State Reducer - First Task Feedback Dialog", () => {
-  let firstTurnState = (~agentId="test-agent", ~sessionsLoadState=StateTypes.SessionsLoaded) => {
-    ...TestHelpers.makeStateWithTask(
-      ~isAgentRunning=true,
-      ~messages=[
-        Reducer.Message.User({
-          id: "user-1",
-          content: [UserContentPart.text("Build something")],
-          annotations: [],
-          agentId,
-        }),
-        Reducer.Message.Assistant(Streaming({id: "assistant-1", textBuffer: "Done", agentId})),
-      ],
-    ),
-    sessionsLoadState,
-  }
-
-  let reduce = (state, action) => Reducer.next(state, action)->Pair.first
-  let stopTurnResult = (state, stopReason) => {
+describe("Client State Reducer - Task Completion", () => {
+  test("completes the first task without promotional effects, including after history loads", t => {
+    let state = {
+      ...TestHelpers.makeStateWithTask(
+        ~isAgentRunning=true,
+        ~messages=[
+          Reducer.Message.Assistant(
+            Streaming({id: "assistant-1", textBuffer: "Done", agentId: "test-agent"}),
+          ),
+        ],
+      ),
+      sessionsLoadState: StateTypes.SessionsLoading,
+    }
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
-    Reducer.next(state, TaskExecutionStopped({taskId, stopReason}))
-  }
-  let stopTurn = (state, stopReason) => stopTurnResult(state, stopReason)->Pair.first
-  let completeSuccessfulTurn = state => stopTurn(state, Some(ACP.EndTurn))
-  let loadHistoryResult = state => Reducer.next(state, SessionsLoadSuccess({sessions: []}))
-  let loadHistory = state => state->loadHistoryResult->Pair.first
-  let expectOpen = (t, state, expected) =>
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(state))->Expect.toBe(expected)
-
-  test("opens only after the first task's first successful turn", t => {
-    expectOpen(t, firstTurnState()->stopTurn(Some(ACP.Refusal)), false)
-
-    let (completedState, effects) = firstTurnState()->stopTurnResult(Some(ACP.EndTurn))
-    expectOpen(t, completedState, true)
-    t->expect(effects)->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackDialogShown)])
-  })
-
-  test("waits for session history and only celebrates a new user", t => {
-    let pendingState =
-      firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
-    expectOpen(t, pendingState, false)
-
-    let (loadedState, effects) = pendingState->loadHistoryResult
-    expectOpen(t, loadedState, true)
-    t->expect(effects)->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackDialogShown)])
-
-    let returningUserState = {...pendingState, tasks: pendingState.tasks->Dict.copy}
-    returningUserState.tasks->Dict.set("previous-task", Task.makeNew(~previewUrl=""))
-    expectOpen(t, returningUserState->loadHistory, false)
-
-    let failedState = pendingState->reduce(SessionsLoadError({error: "unavailable"}))
-    t->expect(failedState.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
-  })
-
-  test("rechecks queued prompts when session history arrives", t => {
-    let queuedState =
-      firstTurnState(~sessionsLoadState=StateTypes.SessionsLoading)->completeSuccessfulTurn
-    let taskId = TestHelpers.getCurrentTaskId(queuedState)->Option.getOrThrow
-    let (queuedState, _) = Reducer.next(
-      queuedState,
-      AddUserMessage({
-        id: secondTestUserMessageId,
-        sessionId: taskId,
-        content: [UserContentPart.text("Second message")],
-        annotations: [],
-        agentId: "test-agent",
-      }),
+    let (completedState, effects) = Reducer.next(
+      state,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
     )
-    expectOpen(t, queuedState->loadHistory, false)
-  })
+    t->expect(Reducer.Selectors.isAgentRunning(completedState))->Expect.toBe(false)
+    t->expect(effects)->Expect.toEqual([])
 
-  test("waits for planner execution before celebrating", t => {
-    let plannedState =
-      firstTurnState(~agentId=planner.id)->withPlanHandoffContext->completeSuccessfulTurn
-    t->expect(Reducer.Selectors.showFirstTaskFeedbackDialog(plannedState))->Expect.toBe(false)
-
-    let taskId = TestHelpers.getCurrentTaskId(plannedState)->Option.getOrThrow
-    let executingState = plannedState->reduce(ExecutePendingPlan({id: secondTestUserMessageId}))
-    let executingState = TestHelpers.acceptUserMessage(
-      executingState,
-      ~taskId,
-      ~id=secondTestUserMessageId->UserMessageId.toString,
-      ~content=[UserContentPart.text(Reducer.executePlanPrompt)],
-    )
-    let executingState =
-      executingState->reduce(TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}))
-    let executingState = executingState->reduce(
-      TaskAction({
-        target: ForTask(taskId),
-        action: TextDeltaReceived({
-          messageId: "assistant-executor",
-          text: "Done",
-          agentId: executor.id,
-        }),
-      }),
-    )
-    expectOpen(t, executingState->completeSuccessfulTurn, true)
-  })
-
-  test("tracks close through the reducer", t => {
-    let visibleState = firstTurnState()->completeSuccessfulTurn
-    let (closedState, effects) = Reducer.next(visibleState, CloseFirstTaskFeedbackDialog)
-
-    t->expect(closedState.firstTaskFeedbackDialogState)->Expect.toEqual(Dismissed)
-    t->expect(effects)->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackDialogClosed)])
-  })
-
-  test("keeps failed sharing visible and retryable", t => {
-    let visibleState = firstTurnState()->completeSuccessfulTurn
-    let failedState = visibleState->reduce(ShareFrontmanFailed)
-    let (_, retryEffects) = Reducer.next(failedState, ShareFrontman)
-
-    expectOpen(t, failedState, true)
-    t->expect(Reducer.Selectors.firstTaskFeedbackShareFailed(failedState))->Expect.toBe(true)
-    t
-    ->expect(retryEffects)
-    ->Expect.toEqual([TrackAnalyticsEffect(FirstTaskFeedbackShareClicked), ShareFrontmanEffect])
-
-    let copiedState = failedState->reduce(ShareFrontmanLinkCopied)
-    t->expect(copiedState.firstTaskFeedbackDialogState)->Expect.toEqual(LinkCopied)
+    let (_, historyEffects) = Reducer.next(completedState, SessionsLoadSuccess({sessions: []}))
+    t->expect(historyEffects)->Expect.toEqual([])
   })
 })
 
@@ -1421,6 +1328,157 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 })
 
+describe("Client State Reducer - Billing Settings", () => {
+  let parseBillingStatus = json =>
+    JSON.parseOrThrow(json)->S.decodeOrThrow(~from=S.json, ~to=Client__Billing.statusSchema)
+
+  test("SetSettingsModalTab(Billing) only opens the tab", t => {
+    let state: Reducer.state = {
+      ...Reducer.defaultState,
+      billingStatus: Client__Billing.NotLoaded,
+    }
+
+    let (nextState, effects) = Reducer.next(
+      state,
+      SetSettingsModalTab({tab: Some(Client__State__Types.Billing)}),
+    )
+
+    t->expect(nextState.settingsModalTab)->Expect.toEqual(Some(Client__State__Types.Billing))
+    t->expect(nextState.billingStatus)->Expect.toEqual(Client__Billing.NotLoaded)
+    t->expect(effects->Array.length)->Expect.toBe(0)
+  })
+
+  test("BillingStatusReceived stores global billing status", t => {
+    let billingStatus = parseBillingStatus(`{
+      "status": "active",
+      "access_allowed": true,
+      "has_billing_customer": true,
+      "interval": "monthly",
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    let (nextState, effects) = Reducer.next(
+      Reducer.defaultState,
+      BillingStatusReceived(billingStatus),
+    )
+
+    t
+    ->expect(nextState.billingStatus)
+    ->Expect.toEqual(Client__Billing.Loaded(billingStatus))
+    t->expect(effects->Array.length)->Expect.toBe(0)
+  })
+
+  test("BillingStatusReceived updates inactive billing to active", t => {
+    let inactiveStatus = parseBillingStatus(`{
+      "status": "none",
+      "access_allowed": false,
+      "has_billing_customer": false,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+    let activeStatus = parseBillingStatus(`{
+      "status": "active",
+      "access_allowed": true,
+      "has_billing_customer": true,
+      "interval": "monthly",
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    let (inactiveState, inactiveEffects) = Reducer.next(
+      Reducer.defaultState,
+      BillingStatusReceived(inactiveStatus),
+    )
+    let (activeState, activeEffects) = Reducer.next(
+      inactiveState,
+      BillingStatusReceived(activeStatus),
+    )
+
+    t->expect(Reducer.Selectors.billingAccessAllowed(inactiveState))->Expect.toBe(false)
+    t->expect(Reducer.Selectors.billingAccessAllowed(activeState))->Expect.toBe(true)
+    t->expect(inactiveEffects->Array.length)->Expect.toBe(0)
+    t->expect(activeEffects->Array.length)->Expect.toBe(0)
+  })
+
+  test("billingAccessAllowed selector returns derived billing access", t => {
+    let activeStatus = parseBillingStatus(`{
+      "status": "active",
+      "access_allowed": true,
+      "has_billing_customer": true,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+    let inactiveStatus = parseBillingStatus(`{
+      "status": "none",
+      "access_allowed": false,
+      "has_billing_customer": false,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.Loaded(activeStatus),
+      }),
+    )
+    ->Expect.toBe(true)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.Loaded(inactiveStatus),
+      }),
+    )
+    ->Expect.toBe(false)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.NotLoaded,
+      }),
+    )
+    ->Expect.toBe(false)
+
+    t
+    ->expect(
+      Reducer.Selectors.billingAccessAllowed({
+        ...Reducer.defaultState,
+        billingStatus: Client__Billing.Error("boom"),
+      }),
+    )
+    ->Expect.toBe(false)
+  })
+
+  test("clearing the session clears billing state and settings", t => {
+    let state = {
+      ...Reducer.defaultState,
+      settingsModalTab: Some(StateTypes.Billing),
+      billingStatus: Client__Billing.Error("old account"),
+    }
+    let (nextState, _) = Reducer.next(state, ClearAcpSession)
+    t->expect(nextState.settingsModalTab)->Expect.toEqual(None)
+    t->expect(nextState.billingStatus)->Expect.toEqual(Client__Billing.NotLoaded)
+  })
+})
+
 describe("Client State Reducer - Session Loading Actions", () => {
   test("SessionsLoadStarted transitions to Loading state", t => {
     let state = Reducer.defaultState
@@ -1805,6 +1863,66 @@ describe("Client State Reducer - Annotations on Messages", () => {
     t
     ->expect(metadata->Dict.get("model")->Option.flatMap(JSON.Decode.string))
     ->Expect.toEqual(Some("anthropic:claude-opus-4-6"))
+  })
+
+  test("SendMessage includes fresh routing metadata only for Astro previews", t => {
+    let enabledDocument =
+      WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
+        ~title="",
+      )
+    enabledDocument.head.innerHTML = "<meta name=\"astro-view-transitions-enabled\" content=\"true\">"
+    let disabledDocument =
+      WebAPI.DomGlobal.document.implementation->WebAPI.DOMImplementation.createHTMLDocument(
+        ~title="",
+      )
+    [
+      ("astro", Some(enabledDocument), Some("enabled")),
+      ("astro", Some(disabledDocument), Some("disabled")),
+      ("astro", None, Some("unavailable")),
+      ("nextjs", Some(enabledDocument), None),
+      ("vite", Some(enabledDocument), None),
+      ("wordpress", Some(enabledDocument), None),
+    ]->Array.forEach(
+      ((framework, contentDocument, expected)) => {
+        setRuntime(
+          {"framework": framework}->S.decodeOrThrow(
+            ~from=S.object(s => {"framework": s.field("framework", S.string)}),
+            ~to=S.json,
+          ),
+        )
+        let sentBlocks = ref([])
+        let state = TestHelpers.makeStateWithTask()
+        let task = state.tasks->Dict.get("test-task-1")->Option.getOrThrow
+        state.tasks->Dict.set(
+          "test-task-1",
+          TaskReducer.Lens.setPreviewFrame(task, ~contentDocument, ~contentWindow=None),
+        )
+        let state = {
+          ...state,
+          acpSession: TestHelpers.activeAcpSession(
+            ~sendPrompt=(_, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
+              sentBlocks := additionalBlocks,
+          ),
+        }
+        let (state, effects) = Reducer.next(
+          state,
+          Reducer.AddUserMessage({
+            id: UserMessageId.make(),
+            sessionId: "session-1",
+            content: [UserContentPart.text("Fix this")],
+            annotations: [],
+            agentId: "planner-id",
+          }),
+        )
+        effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+        switch sentBlocks.contents->Array.get(0) {
+        | Some(ContentBlock.EmbeddedResource({_meta: Some(meta)})) =>
+          let metadata = S.parseOrThrow(meta, ~to=pageRoutingMetaSchema)
+          t->expect(metadata.astro_client_routing)->Expect.toEqual(expected)
+        | _ => JsExn.throw("Expected current-page metadata in the submitted prompt")
+        }
+      },
+    )
   })
 
   test("SendMessage dispatches task cleanup when sendPrompt fails", t => {

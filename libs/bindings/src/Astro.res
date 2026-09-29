@@ -1,3 +1,9 @@
+module NavigationEvent = {
+  @get external signal: WebAPI.EventTypes.event => WebAPI.EventTypes.abortSignal = "signal"
+  @get external fromUrl: WebAPI.EventTypes.event => WebAPI.UrlTypes.url = "from"
+  @get external toUrl: WebAPI.EventTypes.event => WebAPI.UrlTypes.url = "to"
+}
+
 type devToolbarAppConfig = {
   id: string,
   name: string,
@@ -90,7 +96,7 @@ type vitePluginConfig = {
 
 external makeVitePlugin: vitePluginConfig => vitePlugin = "%identity"
 
-type partialViteConfig = {plugins?: array<vitePlugin>}
+type partialViteConfig = {plugins?: array<vitePlugin>, define?: dict<string>}
 
 type partialMarkdownConfig = {rehypePlugins?: array<rehypePlugin>}
 type partialAstroConfig = {vite?: partialViteConfig, markdown?: partialMarkdownConfig}

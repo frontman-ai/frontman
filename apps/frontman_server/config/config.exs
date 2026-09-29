@@ -16,13 +16,14 @@ config :frontman_server, :scopes,
 config :frontman_server,
   ecto_repos: [FrontmanServer.Repo],
   generators: [timestamp_type: :utc_datetime, binary_id: true],
+  billing_client: FrontmanServer.Billing.StripeClient,
   stream_stall_timeout_ms: 60_000,
-  llm_max_tokens: 64_000,
   web_fetch_req_options: []
 
 config :frontman_server, :backend_tools, [
   FrontmanServer.Tools.AgentFeedback,
   FrontmanServer.Tools.GetToolResult,
+  FrontmanServer.Tools.Skill,
   FrontmanServer.Tools.TodoWrite,
   FrontmanServer.Tools.WebFetch
 ]
@@ -141,6 +142,12 @@ config :frontman_server, FrontmanServer.Providers.AnthropicOAuth,
   redirect_uri: "https://console.anthropic.com/oauth/code/callback",
   scopes: "org:create_api_key user:profile user:inference"
 
+config :frontman_server, :stripe,
+  api_base_url: "https://api.stripe.com/v1",
+  api_version: "2025-03-31.basil",
+  signature_tolerance_seconds: 300,
+  trial_days: 14
+
 config :frontman_server, FrontmanServerWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
@@ -174,7 +181,8 @@ config :frontman_server, FrontmanServer.Workers.SendAgentFeedbackToDiscord,
 
 config :frontman_server, Oban,
   repo: FrontmanServer.Repo,
-  queues: [default: 10, mailers: 5, notifications: 5]
+  plugins: [{Oban.Plugins.Pruner, max_age: 7 * 24 * 60 * 60}],
+  queues: [default: 10, mailers: 5, notifications: 5, support: 10]
 
 config :esbuild,
   version: "0.25.4",

@@ -5,11 +5,11 @@ defmodule FrontmanServer.Tools.AgentFeedbackTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tools.AgentFeedback
   alias FrontmanServer.Tools.Backend.Context
   alias FrontmanServer.Workers.SendAgentFeedbackToDiscord
-  alias ModelContextProtocol, as: MCP
 
   test "enqueues feedback for Discord" do
     scope = user_scope_fixture()

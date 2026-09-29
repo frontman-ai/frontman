@@ -11,22 +11,28 @@ defmodule FrontmanServer.Tools do
 
   alias FrontmanServer.Tools.Backend
   alias FrontmanServer.Tools.MCP
+  alias FrontmanServer.Tools.Skill
 
   @todo_mutations [FrontmanServer.Tools.TodoWrite.name()]
 
-  def backend_tool_modules, do: backend_tool_modules(:all)
+  def resolve(policy, mcp_tools) when is_list(mcp_tools) do
+    mcp_tools
+    |> Map.new(&{&1.name, &1})
+    |> Map.merge(Map.new(backend_tool_modules(), &{&1.name(), &1}))
+    |> Map.filter(fn
+      {_name, %MCP{visible_to_agent: false}} -> false
+      {_name, %MCP{access: access}} -> allowed?(access, policy)
+      {_name, module} when is_atom(module) -> allowed?(module.access(), policy)
+    end)
+  end
 
-  def backend_tool_modules(:all) do
+  def backend_tool_modules do
     Application.fetch_env!(:frontman_server, :backend_tools)
   end
 
-  def backend_tool_modules(%{access: access}) when is_list(access) do
-    Enum.filter(backend_tool_modules(), &(&1.access() in access))
-  end
-
-  def backend_tools do
-    Enum.map(backend_tool_modules(), &Backend.to_swarm_tool/1)
-  end
+  @doc "Whether the resolved tools include backend skill loading."
+  def supports_skills?(tools) when is_map(tools),
+    do: Map.get(tools, Skill.name()) == Skill
 
   def find_tool(tool_name) do
     case Enum.find(backend_tool_modules(), fn mod -> mod.name() == tool_name end) do
@@ -50,13 +56,15 @@ defmodule FrontmanServer.Tools do
 
   def todo_mutation?(tool_name), do: tool_name in @todo_mutations
 
-  def mcp_tools(mcp_tools, :all), do: Enum.filter(mcp_tools, & &1.visible_to_agent)
-
-  def mcp_tools(mcp_tools, %{access: access}) when is_list(access) do
-    Enum.filter(mcp_tools, &(&1.visible_to_agent and &1.access in access))
+  def to_swarm_tools(tools) when is_map(tools) do
+    tools
+    |> Enum.sort_by(&elem(&1, 0))
+    |> Enum.map(fn
+      {_name, %MCP{} = tool} -> MCP.to_swarm_tool(tool)
+      {_name, module} when is_atom(module) -> Backend.to_swarm_tool(module)
+    end)
   end
 
-  def to_swarm_tools(backend_tool_modules, mcp_tools) do
-    Enum.map(backend_tool_modules, &Backend.to_swarm_tool/1) ++ MCP.to_swarm_tools(mcp_tools)
-  end
+  defp allowed?(_access, :all), do: true
+  defp allowed?(access, %{access: allowed}) when is_list(allowed), do: access in allowed
 end

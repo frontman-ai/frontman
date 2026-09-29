@@ -57,14 +57,18 @@ class Frontman_Router {
 		$request_uri = $this->get_request_path();
 		$method      = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_key( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
 		$route       = $this->classify_route( $request_uri, $method );
+		if ( 'none' === $route['type'] ) {
+			return;
+		}
+
+		$auth = Frontman_Auth::check();
+		if ( is_wp_error( $auth ) ) {
+			Frontman_Auth::send_error( $auth, 'prefix' === $route['type'] );
+		}
 
 		if ( 'prefix' === $route['type'] ) {
 			$sub_path = $route['subPath'];
-
-			$this->require_auth( true );
-			if ( $method === 'POST' ) {
-				$this->require_nonce();
-			}
+			$body = $method === 'POST' ? $this->read_json_body() : [];
 
 			switch ( true ) {
 				case $method === 'GET' && $sub_path === 'tools':
@@ -76,7 +80,7 @@ class Frontman_Router {
 					exit;
 
 				case $method === 'POST' && $sub_path === 'tools/call':
-					$this->handle_tool_call();
+					$this->handle_tool_call( $body );
 					exit;
 
 				case $method === 'POST' && $sub_path === 'resolve-source-location':
@@ -92,13 +96,7 @@ class Frontman_Router {
 			}
 		}
 
-		if ( 'suffix' !== $route['type'] ) {
-			return;
-		}
-
 		$suffix_prefix = $route['prefix'];
-
-		$this->require_auth( false );
 
 		$canonical = $this->get_canonical_redirect( $suffix_prefix );
 		if ( $canonical !== null ) {
@@ -135,26 +133,6 @@ class Frontman_Router {
 		}
 
 		return [ 'type' => 'none' ];
-	}
-
-	/**
-	 * Check auth and send error response if unauthorized.
-	 */
-	private function require_auth( bool $is_api ): void {
-		$auth = Frontman_Auth::check();
-		if ( is_wp_error( $auth ) ) {
-			Frontman_Auth::send_error( $auth, $is_api );
-		}
-	}
-
-	/**
-	 * Check nonce and send API error response if invalid.
-	 */
-	private function require_nonce(): void {
-		$nonce = Frontman_Auth::verify_nonce();
-		if ( is_wp_error( $nonce ) ) {
-			Frontman_Auth::send_error( $nonce, true );
-		}
 	}
 
 	/**
@@ -272,8 +250,8 @@ class Frontman_Router {
 		if ( '' === $nonce || ! wp_verify_nonce( $nonce, Frontman_Auth::nonce_action() ) ) {
 			Frontman_Auth::send_error(
 				new \WP_Error(
-					'frontman_invalid_nonce',
-					__( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
+					'' === $nonce ? 'frontman_missing_nonce' : 'frontman_invalid_nonce',
+					'' === $nonce ? __( 'Missing request nonce.', 'frontman-agentic-ai-editor' ) : __( 'Invalid request nonce.', 'frontman-agentic-ai-editor' ),
 					[ 'status' => 403 ]
 				),
 				true
@@ -361,8 +339,7 @@ class Frontman_Router {
 	 *
 	 * Tools are handled locally in the WordPress plugin.
 	 */
-	private function handle_tool_call(): void {
-		$body      = $this->read_json_body();
+	private function handle_tool_call( array $body ): void {
 		$name      = sanitize_key( $body['name'] ?? '' );
 		$raw_input = $body['arguments'] ?? $body['input'] ?? [];
 

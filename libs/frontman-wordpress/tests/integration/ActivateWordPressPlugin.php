@@ -22,9 +22,11 @@ if ( false !== $yoast && '' !== $yoast ) {
 		throw new RuntimeException( $result->get_error_message() );
 	}
 }
-$result = activate_plugin( 'frontman-agentic-ai-editor/frontman.php' );
-if ( is_wp_error( $result ) ) {
-	throw new RuntimeException( $result->get_error_message() );
+foreach ( [ 'megamenu/megamenu.php', 'frontman-agentic-ai-editor/frontman.php' ] as $plugin ) {
+	$result = activate_plugin( $plugin );
+	if ( is_wp_error( $result ) ) {
+		throw new RuntimeException( $result->get_error_message() );
+	}
 }
 
 restore_error_handler();

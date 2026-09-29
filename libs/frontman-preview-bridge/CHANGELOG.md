@@ -1,5 +1,12 @@
 # @frontman-ai/frontman-preview-bridge
 
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [[`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be), [`1a93c75`](https://github.com/frontman-ai/frontman/commit/1a93c753949c6c4ee39336c7f552eeb4d455581e)]:
+  - @frontman-ai/frontman-protocol@4.1.0
+
 ## 0.2.2
 
 ### Patch Changes

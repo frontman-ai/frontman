@@ -49,6 +49,17 @@ defmodule FrontmanServer.Test.Fixtures.Accounts do
     user
   end
 
+  def setup_user(context) do
+    scope = user_scope_fixture()
+
+    case context do
+      %{billing: :active} -> FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
+      %{} -> :ok
+    end
+
+    %{scope: scope}
+  end
+
   def user_scope_fixture do
     user = user_fixture()
     user_scope_fixture(user)

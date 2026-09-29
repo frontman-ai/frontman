@@ -2,13 +2,36 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
   use ExUnit.Case, async: true
 
   alias FrontmanServer.Tasks.Execution.ErrorClassifier
-  alias FrontmanServer.Tasks.Execution.LLMError
   alias ReqLLM.Error.API.Request
 
   describe "classify_error/1" do
-    test "LLMError passes through message, category, retryable" do
-      err = %LLMError{message: "Rate limited", category: "rate_limit", retryable: true}
-      assert {"Rate limited", "rate_limit", true} = ErrorClassifier.classify_error(err)
+    test "request failures give safe guidance without exposing provider data" do
+      for {status, category, message} <- [
+            {400, "unknown", "Bad request — the provider rejected the request."},
+            {401, "auth",
+             "Authentication failed (HTTP 401). In Settings, disconnect and reconnect your provider account. To use an API key instead, disconnect the account first. If you already use an API key, replace it."},
+            {403, "auth",
+             "Authentication failed (HTTP 403). In Settings, disconnect and reconnect your provider account. To use an API key instead, disconnect the account first. If you already use an API key, replace it."}
+          ],
+          body <- [
+            %{"detail" => "The 'private-input' field is invalid"},
+            %{"detail" => ["private-input"]},
+            %{"error" => %{"message" => "private-input"}},
+            %{"error" => %{"code" => "token_invalidated", "message" => "private-input"}},
+            nil
+          ] do
+        assert {^message, ^category, false} =
+                 classify_request(status: status, reason: "private-input", response_body: body)
+      end
+    end
+
+    test "402 explains provider billing without exposing provider data" do
+      assert {message, "billing", false} =
+               classify_request(status: 402, reason: "private-input")
+
+      assert message =~ "AI provider"
+      assert message =~ "separate from your Frontman subscription"
+      refute message =~ "private-input"
     end
 
     test "plain 429 remains retryable rate limit" do

@@ -26,9 +26,7 @@ defmodule FrontmanServerWeb do
   use Boundary,
     deps: [
       FrontmanServer,
-      AgentClientProtocol,
-      JsonRpc,
-      ModelContextProtocol
+      FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
     ],
     exports: [Endpoint, Telemetry]
 

@@ -7,6 +7,7 @@ source!([
   Path.absname(".env", env_dir_prefix),
   Path.absname(".#{config_env()}.env", env_dir_prefix),
   Path.absname(".#{config_env()}.overrides.env", env_dir_prefix),
+  Path.absname(".#{config_env()}.stripe-webhook.env", env_dir_prefix),
   System.get_env()
 ])
 
@@ -48,6 +49,12 @@ if config_env() in [:dev, :prod] do
   config :workos, WorkOS.Client,
     api_key: env!("WORKOS_API_KEY", :string!),
     client_id: env!("WORKOS_CLIENT_ID", :string!)
+end
+
+if config_env() not in [:test, :e2e] do
+  config :frontman_server, :stripe,
+    secret_key: env!("STRIPE_SECRET_KEY", :string!),
+    webhook_secret: env!("STRIPE_WEBHOOK_SECRET", :string!)
 end
 
 if config_env() in [:dev, :test, :e2e] do

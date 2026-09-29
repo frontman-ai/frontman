@@ -11,6 +11,17 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
+type requestError = Client.requestError
+let requestErrorFromMessage = Client.requestErrorFromMessage
+let requestErrorWithCode = Client.requestErrorWithCode
+let requestErrorMessage = Client.requestErrorMessage
+let requestErrorIsBillingInactive = Client.requestErrorIsBillingInactive
+
+let attachBillingStatusHandler = (~channel, ~onBillingStatusUpdated) =>
+  onBillingStatusUpdated->Option.forEach(callback =>
+    channel->Channel.on(~event=Constants.billingStatusUpdatedEvent, ~callback)
+  )
+
 @@live
 type config = {
   endpoint: string,
@@ -19,6 +30,7 @@ type config = {
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
   onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
+  onBillingStatusUpdated: option<JSON.t => unit>,
 }
 
 @@live
@@ -30,6 +42,7 @@ let makeConfig = (
   ~version: string,
   ~_meta: JSON.t,
   ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
+  ~onBillingStatusUpdated: option<JSON.t => unit>=?,
 ): config => {
   endpoint,
   loginUrl,
@@ -41,6 +54,7 @@ let makeConfig = (
     _meta: Some(_meta),
   },
   onConfigOptionsUpdated,
+  onBillingStatusUpdated,
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
     terminal: Some(false),
@@ -76,6 +90,7 @@ let cleanupChannel = channel => {
     channel->Channel.off(~event=#"mcp:message")
     channel->Channel.off(~event=#title_updated)
     channel->Channel.off(~event=#config_options_updated)
+    channel->Channel.off(~event=#billing_status_updated)
     Channel.leave(channel)->ignore
   }
 }
@@ -201,9 +216,12 @@ let connect = async (
       | None => ()
       }
 
+      attachBillingStatusHandler(~channel, ~onBillingStatusUpdated=config.onBillingStatusUpdated)
+
       Sentry.addBreadcrumb(~category=#acp, ~message="Channel joined, sending initialize")
       switch await Protocol.sendInitialize(~channel, ~state, ~clientConfig) {
-      | Error(e) =>
+      | Error(error) =>
+        let e = requestErrorMessage(error)
         Log.error(`ACP initialize failed: ${e}`)
         cleanupConnection(socket, state)
         Error(ConnectionFailed(e))
@@ -310,7 +328,7 @@ let createSession = async (
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
-): result<(session, Types.sessionNewResult), string> => {
+): result<(session, Types.sessionNewResult), requestError> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
   let sessionNewResult = await Protocol.sendSessionNew(
@@ -322,7 +340,10 @@ let createSession = async (
   switch sessionNewResult {
   | Ok(result) =>
     switch result.sessionId == sessionId {
-    | false => Error(`session/new returned unexpected session ID: ${result.sessionId}`)
+    | false =>
+      Error(
+        requestErrorFromMessage(`session/new returned unexpected session ID: ${result.sessionId}`),
+      )
     | true =>
       let joinResult = await joinSession(
         conn,
@@ -334,11 +355,11 @@ let createSession = async (
       )
       switch joinResult {
       | Ok(session) => Ok((session, result))
-      | Error(e) => Error(e)
+      | Error(e) => Error(requestErrorFromMessage(e))
       }
     }
   | Error(err) =>
-    Log.error(`Session creation failed: ${err}`)
+    Log.error(`Session creation failed: ${requestErrorMessage(err)}`)
     Error(err)
   }
 }
@@ -349,7 +370,7 @@ let sendPrompt = async (
   text: string,
   ~additionalBlocks: array<ContentBlock.t>=[],
   ~_meta: option<JSON.t>=None,
-): result<Types.promptResult, string> => {
+): result<Types.promptResult, requestError> => {
   let baseBlocks: array<ContentBlock.t> = switch text->String.trim != "" {
   | true => [TextContent({text, _meta: None, annotations: None})]
   | false => []
@@ -477,7 +498,7 @@ let loadSession = async (
     let loadResult = await Protocol.sendRequest(
       ~channel=session.channel,
       ~state=conn.state,
-      ~method="session/load",
+      ~method=#"session/load",
       ~params=Some(
         params->S.decodeOrThrow(
           ~from=Types.sessionLoadParamsSchema,
@@ -489,7 +510,9 @@ let loadSession = async (
     let validatedLoad = switch parseError.contents {
     | Some(error) => Error(error)
     | None =>
-      loadResult->Result.flatMap(result =>
+      loadResult
+      ->Result.mapError(requestErrorMessage)
+      ->Result.flatMap(result =>
         bufferedUpdates.contents
         ->Array.reduce(Ok(), (validation, (updateSessionId, update)) =>
           validation->Result.flatMap(() => validate(updateSessionId, update))

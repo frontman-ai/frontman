@@ -69,7 +69,7 @@ defmodule FrontmanServer.Tools.MCPTest do
     end
   end
 
-  describe "to_swarm_tools/1" do
+  describe "to_swarm_tool/1" do
     test "passes access through to swarm tool" do
       mcp_tool =
         MCP.from_map(%{
@@ -79,7 +79,7 @@ defmodule FrontmanServer.Tools.MCPTest do
           "_meta" => %{"ai.frontman/tool-metadata" => %{"access" => "read"}}
         })
 
-      [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
+      swarm_tool = MCP.to_swarm_tool(mcp_tool)
 
       assert swarm_tool.access == :read
     end
@@ -95,7 +95,7 @@ defmodule FrontmanServer.Tools.MCPTest do
           }
         })
 
-      [swarm_tool] = MCP.to_swarm_tools([mcp_tool])
+      swarm_tool = MCP.to_swarm_tool(mcp_tool)
 
       refute Map.has_key?(swarm_tool, :timeout_ms)
       refute Map.has_key?(swarm_tool, :on_timeout)

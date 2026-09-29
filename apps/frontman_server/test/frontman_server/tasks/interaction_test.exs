@@ -11,7 +11,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     UserMessage
   }
 
-  alias ModelContextProtocol, as: MCP
+  alias FrontmanServer.Protocols.MCP
+  alias SwarmAi.Message.ContentPart
 
   describe "SkillUsed.build/2" do
     test "snapshots skill content" do
@@ -256,6 +257,41 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
   end
 
+  describe "tool_result_content_parts/1" do
+    test "preserves mixed content order and decodes images for live results and replay" do
+      image = <<137, 80, 78, 71>>
+
+      result = %{
+        "content" => [
+          %{"type" => "text", "text" => "Screenshot"},
+          %{"type" => "image", "data" => Base.encode64(image), "mimeType" => "image/png"}
+        ]
+      }
+
+      parts = Interaction.tool_result_content_parts(result)
+
+      assert parts == [
+               ContentPart.text("Screenshot"),
+               ContentPart.image(image, "image/png")
+             ]
+
+      assert [%SwarmAi.Message.Tool{content: ^parts}] =
+               Interaction.to_swarm_messages([
+                 %Interaction.ToolResult{tool_call_id: "screenshot", result: result}
+               ])
+
+      assert Interaction.tool_result_content_parts(%{"content" => []}) == []
+    end
+
+    test "rejects invalid base64 rather than dropping image content" do
+      assert_raise ArgumentError, fn ->
+        Interaction.tool_result_content_parts(%{
+          "content" => [%{"type" => "image", "data" => "!", "mimeType" => "image/png"}]
+        })
+      end
+    end
+  end
+
   describe "to_swarm_messages/1" do
     test "converts user message text and images to Swarm content parts" do
       msg = %{
@@ -332,27 +368,32 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert messages == []
     end
 
-    test "adds active skill as its own user context message" do
+    test "prepends the matching skill without changing prompt or attachments" do
+      msg = %{
+        user_msg("Improve hero")
+        | images: [%UserImage{blob: Base.encode64("image"), mime_type: "image/png"}]
+      }
+
+      [original] = Interaction.to_swarm_messages([msg])
+
       skill_used = %Interaction.SkillUsed{
         id: "skill-used-1",
         timestamp: DateTime.utc_now(),
-        user_message_id: Ecto.UUID.generate(),
+        user_message_id: msg.id,
         skill_id: Ecto.UUID.generate(),
         skill_name: "design_polish",
         skill_content: "Use hierarchy."
       }
 
-      messages = Interaction.to_swarm_messages([skill_used, user_msg("Improve hero")])
+      assert [%SwarmAi.Message.User{content: [skill_part | prompt_parts]}] =
+               Interaction.to_swarm_messages([msg, skill_used])
 
-      assert [
-               %SwarmAi.Message.User{content: [skill_part]},
-               %SwarmAi.Message.User{content: [prompt_part]}
-             ] = messages
+      assert Interaction.to_swarm_messages([skill_used]) == []
 
       assert skill_part.text ==
                "## Active Skill: design_polish\n\nUse this expert lens for this turn.\n\nUse hierarchy."
 
-      assert prompt_part.text == "Improve hero"
+      assert prompt_parts == original.content
     end
 
     test "handles mixed conversation in correct order" do
@@ -710,7 +751,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                "device_pixel_ratio" => 2.0,
                "title" => "Settings",
                "color_scheme" => "dark",
-               "scroll_y" => 320
+               "scroll_y" => 320,
+               "astro_client_routing" => nil
              }
 
       assert [ann] = decoded["annotations"]

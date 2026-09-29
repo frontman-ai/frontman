@@ -5,12 +5,13 @@ providers = [
    %{
      display_name: "OpenAI",
      models: [
+       {"GPT-6 Astra", "gpt-6-astra"},
+       {"GPT-6 Sol", "gpt-6-sol"},
+       {"GPT-6 Luna", "gpt-6-luna"},
        {"GPT-5.6 Terra", "gpt-5.6-terra"},
        {"GPT-5.6 Sol", "gpt-5.6-sol"},
        {"GPT-5.6 Luna", "gpt-5.6-luna"},
        {"GPT-5.5", "gpt-5.5"},
-       {"GPT-5.4", "gpt-5.4"},
-       {"GPT-5.4 Mini", "gpt-5.4-mini"},
        {"GPT-5.3 Codex Spark", "gpt-5.3-codex-spark"}
      ]
    }},
@@ -18,6 +19,10 @@ providers = [
    %{
      display_name: "Anthropic (Claude Pro/Max)",
      models: [
+       {"Claude Opus 5.5", "claude-opus-5-5"},
+       {"Claude Sonnet 5.5", "claude-sonnet-5-5"},
+       {"Claude Fable 5.1", "claude-fable-5-1"},
+       {"Claude Opus 5", "claude-opus-5"},
        {"Claude Sonnet 5", "claude-sonnet-5"},
        {"Claude Fable 5", "claude-fable-5"},
        {"Claude Opus 4.8", "claude-opus-4-8"},
@@ -34,11 +39,16 @@ providers = [
    %{
      display_name: "OpenRouter",
      models: [
+       {"GPT-6 Astra", "openai/gpt-6-astra"},
+       {"GPT-6 Sol", "openai/gpt-6-sol"},
+       {"GPT-6 Luna", "openai/gpt-6-luna"},
        {"GPT-5.6 Terra", "openai/gpt-5.6-terra"},
        {"GPT-5.6 Sol", "openai/gpt-5.6-sol"},
        {"GPT-5.6 Luna", "openai/gpt-5.6-luna"},
        {"GPT-5.5", "openai/gpt-5.5"},
        {"GPT-5.5 Pro", "openai/gpt-5.5-pro"},
+       {"Claude Opus 5.5", "anthropic/claude-opus-5.5"},
+       {"Claude Sonnet 5.5", "anthropic/claude-sonnet-5.5"},
        {"Claude Fable 5.1", "anthropic/claude-fable-5.1"},
        {"Claude Opus 5", "anthropic/claude-opus-5"},
        {"Claude Sonnet 5", "anthropic/claude-sonnet-5"},
@@ -49,25 +59,36 @@ providers = [
        {"Claude Haiku 4.5", "anthropic/claude-haiku-4.5"},
        {"Gemini 3.1 Pro Preview", "google/gemini-3.1-pro-preview"},
        {"Gemini Flash Latest", "~google/gemini-flash-latest"},
+       {"Gemini Pro Latest", "~google/gemini-pro-latest"},
        {"Kimi Latest", "~moonshotai/kimi-latest"},
-       {"MiniMax M3", "minimax/minimax-m3"}
+       {"MiniMax M3", "minimax/minimax-m3"},
+       {"DeepSeek V4.1 Flash", "deepseek/deepseek-v4.1-flash"},
+       {"GLM 5.3", "z-ai/glm-5.3"},
+       {"GLM 5.3 Flash", "z-ai/glm-5.3-flash"},
+       {"Qwen3.8 Max Prime", "qwen/qwen3.8-max-prime"},
+       {"Grok 4.7", "x-ai/grok-4.7"}
      ]
    }},
   {:fireworks_ai,
    %{
      display_name: "Fireworks AI",
      models: [
-       {"Kimi K2.6 Turbo", "accounts/fireworks/routers/kimi-k2p6-turbo"}
+       {"Kimi K3 Fast", "accounts/fireworks/routers/kimi-k3-fast"},
+       {"Ember 1", "accounts/fireworks/models/ember-1"},
+       {"DeepSeek V4.1 Flash", "accounts/fireworks/models/deepseek-v4p1-flash"},
+       {"GLM 5.3 Fast", "accounts/fireworks/routers/glm-5p3-fast"},
+       {"GLM 5.3 Flash", "accounts/fireworks/models/glm-5p3-flash"},
+       {"MiniMax M3", "accounts/fireworks/models/minimax-m3"},
+       {"Qwen3.8 Max", "accounts/fireworks/models/qwen3p8-max"}
      ]
    }},
   {:nvidia,
    %{
      display_name: "NVIDIA",
      models: [
-       {"Kimi K2.6", "moonshotai/kimi-k2.6"},
-       {"DeepSeek V4 Flash", "deepseek-ai/deepseek-v4-flash"},
-       {"MiniMax M2.7", "minimaxai/minimax-m2.7"},
-       {"Qwen3 Coder 480B", "qwen/qwen3-coder-480b-a35b-instruct"}
+       {"Kimi K3", "moonshotai/kimi-k3"},
+       {"GLM 5.3", "z-ai/glm-5.3"},
+       {"GLM 5.3 Flash", "z-ai/glm-5.3-flash"}
      ]
    }},
   {:google,

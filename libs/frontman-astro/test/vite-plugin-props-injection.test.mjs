@@ -62,6 +62,39 @@ describe("frontmanPropsInjectionPlugin", () => {
     expect(transformed.map.sources).toEqual([runtimeId])
   })
 
+  test.each([false, true])("wraps tagged Astro instances without exposing the streaming fast path (async: %s)", async asynchronous => {
+    const {module} = await loadTransformed(`
+function markHTMLString(value) { return value }
+function renderComponent(result, displayName, Component, props, slots) {
+  return result;
+}
+export {renderComponent}
+`)
+    const destination = {value: "", write(value) { this.value += value }}
+    const completion = asynchronous ? Promise.resolve("done") : "done"
+    const originalRender = vi.fn(function(destination) {
+      destination.write(this.html)
+      return completion
+    })
+    const original = {
+      [Symbol.for("astro.componentInstance")]: true,
+      html: "<h1>Rendered</h1>",
+      render: originalRender,
+    }
+
+    const instance = await module.renderComponent(
+      asynchronous ? Promise.resolve(original) : original,
+      "Greeting", {moduleId: "/project/Greeting.astro"}, {name: "Astro"}, {},
+    )
+
+    expect(instance[Symbol.for("astro.componentInstance")]).toBeUndefined()
+    expect(original.render).toBe(originalRender)
+    expect(instance.render(destination)).toBe(completion)
+    expect(originalRender.mock.contexts).toEqual([original])
+    expect(decodeMarker(destination.value).props).toEqual({name: "Astro"})
+    expect(destination.value).toMatch(/<h1>Rendered<\/h1>$/)
+  })
+
   test("redacts secrets and bounds nested prop values", async () => {
     const {module} = await loadTransformed(runtimeSource())
     const destination = {value: "", write(value) { this.value += value }}

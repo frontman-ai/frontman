@@ -80,6 +80,8 @@ runs with `--network=host` and routes `{hash}.{service}.frontman.local` to
 `127.0.0.1:{port}`. dnsmasq resolves `*.frontman.local` to `127.0.0.1`.
 
 ## Key Principles
+
+- Keep changes DRY and simple: reuse existing execution paths and prefer a small guard over extracting a new API or abstraction when that is enough.
 - ReScript codebase - functional style, Result types for errors
 - File naming: `Client__ComponentName.res` (flat folder + namespacing)
 - Task runner: Makefiles only - never yarn/npm scripts directly

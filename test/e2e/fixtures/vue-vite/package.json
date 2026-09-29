@@ -9,6 +9,6 @@
 		"@frontman-ai/vite": "workspace:*",
 		"@vitejs/plugin-vue": "^6.0.8",
 		"vite": "catalog:",
-		"vue": "^3.5.40"
+		"vue": "^3.5.42"
 	}
 }

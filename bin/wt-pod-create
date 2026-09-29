@@ -56,7 +56,7 @@ if ! op account get &>/dev/null; then
 fi
 op run --no-masking --env-file=apps/frontman_server/envs/.dev.secrets.env -- env \
   | grep -v '^_=' | grep -v '^SHLVL=' | grep -v '^PWD=' | grep -v '^OLDPWD=' \
-  | grep -E '^(WORKOS_|OPENROUTER_|SENTRY_|SECRET_|DATABASE_|PHX_|FRONTMAN_)' \
+  | grep -E '^(WORKOS_|OPENROUTER_|SENTRY_|SECRET_|DATABASE_|PHX_|FRONTMAN_|STRIPE_)' \
   > "$WT_DIR/.env.secrets.resolved"
 printf "${GREEN}Secrets resolved.${RESET}\n"
 echo ""

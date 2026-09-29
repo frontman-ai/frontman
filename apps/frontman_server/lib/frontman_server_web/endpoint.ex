@@ -49,16 +49,23 @@ defmodule FrontmanServerWeb.Endpoint do
   plug(Plug.RequestId)
   plug(Plug.Telemetry, event_prefix: [:phoenix, :endpoint])
 
+  plug(FrontmanServerWeb.Plugs.CORS, path_prefix: "/api")
+  plug(FrontmanServerWeb.Plugs.SupportQuestionBody)
+
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],
+    body_reader: {FrontmanServerWeb.Plugs.RawBodyReader, :read_body, []},
     json_decoder: Phoenix.json_library()
   )
 
   plug(Plug.MethodOverride)
   plug(Plug.Head)
   plug(Plug.Session, @session_options)
-  plug(Sentry.PlugContext)
-  plug(FrontmanServerWeb.Plugs.CORS, path_prefix: "/api")
+
+  plug(Sentry.PlugContext,
+    body_scrubber: {FrontmanServerWeb.Plugs.SupportQuestionBody, :scrub_params}
+  )
+
   plug(FrontmanServerWeb.Router)
 end

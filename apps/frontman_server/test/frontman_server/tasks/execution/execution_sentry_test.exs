@@ -7,7 +7,7 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   - Stream-consumption errors are reported as failed executions, not crashes
   """
 
-  use ExUnit.Case, async: false
+  use FrontmanServer.DataCase, async: true
 
   import FrontmanServer.InteractionCase.Helpers,
     only: [assert_receive_interaction: 2]
@@ -15,7 +15,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
 
-  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.StreamStallTimeout
@@ -24,9 +23,6 @@ defmodule FrontmanServer.Tasks.Execution.ExecutionSentryTest do
     Sentry.Test.setup_sentry(dedup_events: false)
     Sentry.Context.clear_all()
     Logger.reset_metadata([])
-
-    pid = Sandbox.start_owner!(FrontmanServer.Repo, shared: true)
-    on_exit(fn -> Sandbox.stop_owner(pid) end)
 
     scope = user_scope_fixture()
     task_id = task_with_active_turn_fixture(scope, framework: "nextjs").id

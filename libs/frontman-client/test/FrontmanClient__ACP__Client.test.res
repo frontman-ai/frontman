@@ -149,6 +149,7 @@ let loadCleanupEvents = [
   "off:mcp:message",
   "off:title_updated",
   "off:config_options_updated",
+  "off:billing_status_updated",
   "leave",
 ]
 
@@ -360,6 +361,7 @@ describe("ACP Client parseInitializeResult", _t => {
 type pushRef = {ref: string}
 @get external joinPush: Channel.t => pushRef = "joinPush"
 @get external pushBuffer: Channel.t => array<pushRef> = "pushBuffer"
+@get external pushPayload: pushRef => unit => JSON.t = "payload"
 @send external socketClosed: (Socket.t, JSON.t) => unit = "onConnClose"
 
 let joinedChannel = async (socket, ~onError, ~topic="task:test") => {
@@ -379,7 +381,7 @@ let request = (channel, state) =>
   Protocol.sendRequest(
     ~channel,
     ~state,
-    ~method="test/method",
+    ~method=#"session/prompt",
     ~params=None,
     ~timeoutMs=10,
     ~parseResult=json => Ok(json),
@@ -396,6 +398,89 @@ let reply = (channel, response) =>
 let acceptedReply = JSON.parseOrThrow(`{"status":"ok","response":{"acp:message":{"jsonrpc":"2.0","id":1,"result":"accepted"}}}`)
 
 describe("ACP request and channel lifetime", _t => {
+  [
+    (#initialize, "initialize"),
+    (#"session/new", "session/new"),
+    (#"session/load", "session/load"),
+    (#"session/prompt", "session/prompt"),
+  ]->Array.forEach(((method, wireMethod)) => {
+    testAsync(
+      `serializes ${wireMethod} and clears its request timer`,
+      async t => {
+        Vi.useFakeTimers()->ignore
+        let socket = Socket.make(~endpoint="ws://localhost/socket")
+        let channel = await joinedChannel(socket, ~onError=_ => ())
+        let state = ref(Client.initialState)
+        let pending = Protocol.sendRequest(
+          ~channel,
+          ~state,
+          ~method,
+          ~params=None,
+          ~parseResult=json => Ok(json),
+        )
+        let push = pushBuffer(channel)->Array.get(0)->Option.getOrThrow
+        let sentMethod = S.parseOrThrow(
+          pushPayload(push)(),
+          ~to=S.object(s => s.field("method", S.string)),
+        )
+        t->expect(sentMethod)->Expect.toEqual(wireMethod)
+        reply(channel, acceptedReply)
+        t->expect(await pending)->Expect.toEqual(Ok(JSON.Encode.string("accepted")))
+        t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
+        t->expect(Vi.getTimerCount())->Expect.toBe(0)
+        ACP.cleanupChannel(channel)
+      },
+    )
+  })
+
+  testAsync("preserves billing error codes through response settlement", async t => {
+    Vi.useFakeTimers()->ignore
+    let socket = Socket.make(~endpoint="ws://localhost/socket")
+    let channel = await joinedChannel(socket, ~onError=_ => ())
+    let state = ref(Client.initialState)
+    let pending = request(channel, state)
+    let message =
+      JsonRpc.Response.makeError(
+        ~id=JsonRpc.Id.fromInt(1),
+        ~error=JsonRpc.RpcError.make(
+          ~code=JsonRpc.ErrorCode.billingInactive,
+          ~message="Alternate billing copy",
+          ~data=None,
+        ),
+      )->JsonRpc.Response.toJson
+    Protocol.handleIncomingMessage(~state, ~onUpdate=None, ~onParseError=None, message)
+    t
+    ->expect(await pending)
+    ->Expect.toEqual(
+      Error(
+        Client.requestErrorWithCode(
+          ~code=JsonRpc.ErrorCode.billingInactive,
+          ~message="Alternate billing copy",
+        ),
+      ),
+    )
+    t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
+    ACP.cleanupChannel(channel)
+  })
+
+  testAsync("billing status callback is detached during connection cleanup", async t => {
+    Vi.useFakeTimers()->ignore
+    let socket = Socket.make(~endpoint="ws://localhost/socket")
+    let channel = await joinedChannel(socket, ~onError=_ => ())
+    let received = ref(None)
+    ACP.attachBillingStatusHandler(
+      ~channel,
+      ~onBillingStatusUpdated=Some(payload => received := Some(payload)),
+    )
+    let payload = JSON.parseOrThrow(`{"status":"none"}`)
+    trigger(channel, "billing_status_updated", payload)
+    t->expect(received.contents)->Expect.toEqual(Some(payload))
+    ACP.cleanupConnection(socket, ref(Client.initialState))
+    received := None
+    trigger(channel, "billing_status_updated", payload)
+    t->expect(received.contents)->Expect.toEqual(None)
+  })
+
   testAsync("response settlement preserves requests created by the result handler", async t => {
     Vi.useFakeTimers()->ignore
     let socket = Socket.make(~endpoint="ws://localhost/socket")
@@ -405,7 +490,7 @@ describe("ACP request and channel lifetime", _t => {
     let pending = Protocol.sendRequest(
       ~channel,
       ~state,
-      ~method="test/first",
+      ~method=#initialize,
       ~params=None,
       ~parseResult=json => {
         followup := Some(request(channel, state))
@@ -419,7 +504,7 @@ describe("ACP request and channel lifetime", _t => {
     ACP.cleanupConnection(socket, state)
     t
     ->expect(await followup.contents->Option.getOrThrow)
-    ->Expect.toEqual(Error(Protocol.connectionLost))
+    ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
     t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
   })
 
@@ -446,14 +531,14 @@ describe("ACP request and channel lifetime", _t => {
     (
       "push error",
       Some(JSON.parseOrThrow(`{"status":"error","response":{}}`)),
-      Error("ACP request failed"),
+      Error(Client.requestErrorFromMessage("ACP request failed")),
     ),
     (
       "RPC error",
       Some(
         JSON.parseOrThrow(`{"status":"ok","response":{"acp:message":{"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"Invalid request"}}}}`),
       ),
-      Error("Invalid request"),
+      Error(Client.requestErrorWithCode(~code=-32600, ~message="Invalid request")),
     ),
     (
       "null result",
@@ -462,7 +547,11 @@ describe("ACP request and channel lifetime", _t => {
       ),
       Ok(JSON.Encode.null),
     ),
-    ("timeout", None, Error("Request test/method timed out after 10ms")),
+    (
+      "timeout",
+      None,
+      Error(Client.requestErrorFromMessage("Request session/prompt timed out after 10ms")),
+    ),
   ]->Array.forEach(((name, response, expected)) =>
     testAsync(
       `settles request on ${name}`,
@@ -540,8 +629,12 @@ describe("ACP request and channel lifetime", _t => {
         | #channelClose => trigger(channel, "phx_close", JSON.Encode.null)
         | #socketLoss => socketClosed(socket, JSON.parseOrThrow(`{"code":1000}`))
         }
-        t->expect(await pending)->Expect.toEqual(Error(Protocol.connectionLost))
-        t->expect(await request(channel, state))->Expect.toEqual(Error(Protocol.connectionLost))
+        t
+        ->expect(await pending)
+        ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
+        t
+        ->expect(await request(channel, state))
+        ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
         t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
         switch failure {
         | #channelError | #channelClose =>
@@ -550,7 +643,9 @@ describe("ACP request and channel lifetime", _t => {
           t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
         }
         ACP.cleanupConnection(socket, state)
-        t->expect(await otherPending)->Expect.toEqual(Error(Protocol.connectionLost))
+        t
+        ->expect(await otherPending)
+        ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
         t->expect(socket->Socket.channels->Array.length)->Expect.toBe(0)
         t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
         (await Vi.advanceTimersByTimeAsync(20))->ignore

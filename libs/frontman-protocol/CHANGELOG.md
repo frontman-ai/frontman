@@ -1,5 +1,17 @@
 # @frontman-ai/frontman-protocol
 
+## 4.1.0
+
+### Minor Changes
+
+- [#1679](https://github.com/frontman-ai/frontman/pull/1679) [`1a93c75`](https://github.com/frontman-ai/frontman/commit/1a93c753949c6c4ee39336c7f552eeb4d455581e) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Include the current preview URL in `get_dom` results and fresh client-routing status for Astro only. Keep Astro-specific metadata in the `astro-browser` package, with shared DOM input and output types in the protocol package.
+
+  Report unavailable previews and failed queries as MCP errors (`isError: true`), retaining narrowing guidance for size-limit errors. Remove payload-level `success` and `error` fields; successful results always contain the URL, DOM content, node count, and byte size.
+
+### Patch Changes
+
+- [#996](https://github.com/frontman-ai/frontman/pull/996) [`961d660`](https://github.com/frontman-ai/frontman/commit/961d660a5c0063c3fe44f63b21e47f3f510f95be) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add billing settings management with plan status, new-tab Stripe checkout, Customer Portal handoff, live channel billing activation after Stripe webhooks, and a chat-panel billing-required alert.
+
 ## 4.0.1
 
 ### Patch Changes

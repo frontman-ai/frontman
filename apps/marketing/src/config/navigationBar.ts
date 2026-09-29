@@ -70,6 +70,10 @@ export const navigationBarData: NavData = {
 			}
 		},
 		{
+			name: 'Pricing',
+			link: '/pricing/'
+		},
+		{
 			name: 'Compare',
 			link: '/vs/',
 			submenu: [

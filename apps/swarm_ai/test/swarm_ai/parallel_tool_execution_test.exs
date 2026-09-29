@@ -41,6 +41,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
       runtime = start_runtime!()
       test_pid = self()
       total = 3
+      context = make_ref()
 
       llm =
         multi_turn_llm([
@@ -68,21 +69,26 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           Enum.each(pids, &send(&1, :go))
         end)
 
-      execute_tools = fn tool_calls, task_supervisor ->
-        Enum.map(tool_calls, fn tc ->
-          %ToolExecution.Sync{
-            tool_call: tc,
-            timeout_ms: 5_000,
-            run: {__MODULE__, :run_rendezvous, [coordinator]},
-            on_error: {SwarmAi.Testing, :default_tool_error, []}
-          }
-        end)
-        |> SwarmAi.ParallelExecutor.run(task_supervisor)
+      prepare_tools = fn tool_calls ->
+        send(test_pid, {:captured_context, context})
+
+        executions =
+          Enum.map(tool_calls, fn tc ->
+            %ToolExecution.Sync{
+              tool_call: tc,
+              timeout_ms: 5_000,
+              run: {__MODULE__, :run_rendezvous, [coordinator]},
+              on_error: {SwarmAi.Testing, :default_tool_error, []}
+            }
+          end)
+
+        {:parallel, executions}
       end
 
       {:ok, pid} =
-        run_execution(runtime, "task-parallel", llm, execute_tools: execute_tools)
+        run_execution(runtime, "task-parallel", llm, prepare_tools: prepare_tools)
 
+      assert_receive {:captured_context, ^context}, 5_000
       assert_receive :all_concurrent, 5_000
       await_exit(pid)
       assert_receive {:test_event, "task-parallel", :completed}, 2_000
@@ -101,26 +107,28 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           {:complete, "Handled"}
         ])
 
-      execute_tools = fn tool_calls, task_supervisor ->
-        Enum.map(tool_calls, fn tc ->
-          run_mfa =
-            case tc.name do
-              "bad" -> {__MODULE__, :run_crash, []}
-              _ -> {__MODULE__, :run_instant, []}
-            end
+      prepare_tools = fn tool_calls ->
+        executions =
+          Enum.map(tool_calls, fn tc ->
+            run_mfa =
+              case tc.name do
+                "bad" -> {__MODULE__, :run_crash, []}
+                _ -> {__MODULE__, :run_instant, []}
+              end
 
-          %ToolExecution.Sync{
-            tool_call: tc,
-            timeout_ms: 5_000,
-            run: run_mfa,
-            on_error: {SwarmAi.Testing, :default_tool_error, []}
-          }
-        end)
-        |> SwarmAi.ParallelExecutor.run(task_supervisor)
+            %ToolExecution.Sync{
+              tool_call: tc,
+              timeout_ms: 5_000,
+              run: run_mfa,
+              on_error: {SwarmAi.Testing, :default_tool_error, []}
+            }
+          end)
+
+        {:parallel, executions}
       end
 
       {:ok, pid} =
-        run_execution(runtime, "task-crash", llm, execute_tools: execute_tools)
+        run_execution(runtime, "task-crash", llm, prepare_tools: prepare_tools)
 
       await_exit(pid)
       assert_receive {:test_event, "task-crash", :completed}, 2_000
@@ -140,20 +148,22 @@ defmodule SwarmAi.ParallelToolExecutionTest do
           {:complete, "All done"}
         ])
 
-      execute_tools = fn tool_calls, task_supervisor ->
-        Enum.map(tool_calls, fn tc ->
-          %ToolExecution.Sync{
-            tool_call: tc,
-            timeout_ms: 5_000,
-            run: {__MODULE__, :run_serial_gate, [test_pid]},
-            on_error: {SwarmAi.Testing, :default_tool_error, []}
-          }
-        end)
-        |> SwarmAi.ParallelExecutor.run_serial(task_supervisor)
+      prepare_tools = fn tool_calls ->
+        executions =
+          Enum.map(tool_calls, fn tc ->
+            %ToolExecution.Sync{
+              tool_call: tc,
+              timeout_ms: 5_000,
+              run: {__MODULE__, :run_serial_gate, [test_pid]},
+              on_error: {SwarmAi.Testing, :default_tool_error, []}
+            }
+          end)
+
+        {:serial, executions}
       end
 
       {:ok, pid} =
-        run_execution(runtime, "task-serial", llm, execute_tools: execute_tools)
+        run_execution(runtime, "task-serial", llm, prepare_tools: prepare_tools)
 
       assert_receive {:serial_started, "t1", first_pid}, 1_000
       refute_receive {:serial_started, "t2", _}, 100
@@ -167,31 +177,132 @@ defmodule SwarmAi.ParallelToolExecutionTest do
     end
   end
 
-  test "a delayed interactive answer continues the same loop to completion" do
-    runtime = start_runtime!()
-    test_pid = self()
-    llm = tool_then_complete_llm([tool_call("approval", %{}, id: "human")], "done")
+  for mode <- [:serial, :parallel] do
+    test "#{mode} interactive waits resume as counted model work without caller bookkeeping" do
+      runtime = start_runtime!()
+      test_pid = self()
 
-    execute_tools = fn tool_calls, task_supervisor ->
-      Enum.map(tool_calls, fn tool_call ->
-        %ToolExecution.Await{
+      responses = tool_then_complete_llm([tool_call("approval", %{}, id: "human")], "done")
+
+      llm = %MockLLM{
+        response: fn ->
+          case responses.response.() do
+            {:ok, %{tool_calls: []}} = result ->
+              send(test_pid, {:resumed_llm, self()})
+
+              receive do
+                :finish_llm -> result
+              after
+                5_000 -> raise "resumed LLM was not released"
+              end
+
+            result ->
+              result
+          end
+        end
+      }
+
+      prepare_tools = fn [tool_call] ->
+        execution = %ToolExecution.Await{
           tool_call: tool_call,
           timeout_ms: :infinity,
           start: {__MODULE__, :start_await, [test_pid]},
           on_error: {SwarmAi.Testing, :default_tool_error, []}
         }
-      end)
-      |> SwarmAi.ParallelExecutor.run(task_supervisor)
+
+        {unquote(mode), [execution]}
+      end
+
+      {:ok, pid} =
+        run_execution(runtime, "task-human", llm, prepare_tools: prepare_tools)
+
+      assert_receive {:await_started, "human", ^pid}, 1_000
+      assert_active_count(runtime, 0)
+      assert SwarmAi.running?(runtime, "task-human")
+      assert Process.alive?(pid)
+
+      send(pid, {:tool_result, "human", "approved", false})
+      assert_receive {:resumed_llm, ^pid}, 1_000
+      assert SwarmAi.active_count(runtime) == 1
+      send(pid, :finish_llm)
+      await_exit(pid)
+
+      assert_received {:test_event, "task-human", {:response, %{ordinal: 1}, _response}}
+      assert_received {:test_event, "task-human", :completed}
+      refute_received {:test_event, "task-human", {:failed, _}}
+    end
+  end
+
+  test "a mixed batch counts until only infinite-deadline tools remain" do
+    runtime = start_runtime!()
+    test_pid = self()
+    key = "mixed-waits"
+
+    calls =
+      Enum.map(["human1", "human2", "remote_write", "backend_write"], &tool_call(&1, %{}, id: &1))
+
+    llm = tool_then_complete_llm(calls, "done")
+
+    prepare_tools = fn tool_calls ->
+      {:parallel, Enum.map(tool_calls, &mixed_execution(&1, test_pid))}
     end
 
-    {:ok, pid} = run_execution(runtime, "task-human", llm, execute_tools: execute_tools)
-    assert_receive {:await_started, "human", ^pid}
-    refute_receive {:test_event, "task-human", :completed}, 50
-    assert SwarmAi.running?(runtime, "task-human")
-    send(pid, {:tool_result, "human", "approved", false})
+    {:ok, pid} = run_execution(runtime, key, llm, prepare_tools: prepare_tools)
+    assert_receive {:await_started, "remote_write", ^pid}, 1_000
+    assert_receive {:serial_started, "backend_write", backend}, 1_000
+    assert SwarmAi.active_count(runtime) == 1
+
+    send(pid, {:tool_result, "remote_write", "saved", false})
+    refute_receive {:test_event, ^key, :completed}, 50
+    assert SwarmAi.active_count(runtime) == 1
+
+    send(backend, :go)
+    assert_active_count(runtime, 0)
+    assert SwarmAi.running?(runtime, key)
+
+    send(pid, {:tool_result, "human1", "yes", false})
+    refute_receive {:test_event, ^key, :completed}, 50
+    assert_active_count(runtime, 0)
+
+    send(pid, {:tool_result, "human2", "yes", false})
     await_exit(pid)
-    assert_receive {:test_event, "task-human", :completed}
-    refute_receive {:test_event, "task-human", {:failed, _}}, 0
+    assert_receive {:test_event, ^key, :completed}, 1_000
+    assert SwarmAi.active_count(runtime) == 0
+  end
+
+  defp mixed_execution(%{name: "backend_write"} = call, test_pid) do
+    %ToolExecution.Sync{
+      tool_call: call,
+      timeout_ms: 5_000,
+      run: {__MODULE__, :run_serial_gate, [test_pid]},
+      on_error: {SwarmAi.Testing, :default_tool_error, []}
+    }
+  end
+
+  defp mixed_execution(call, test_pid) do
+    %ToolExecution.Await{
+      tool_call: call,
+      timeout_ms: if(call.name == "remote_write", do: 5_000, else: :infinity),
+      start: {__MODULE__, :start_await, [test_pid]},
+      on_error: {SwarmAi.Testing, :default_tool_error, []}
+    }
+  end
+
+  defp assert_active_count(runtime, expected, attempts \\ 50)
+
+  defp assert_active_count(runtime, expected, 0) do
+    assert SwarmAi.active_count(runtime) == expected
+  end
+
+  defp assert_active_count(runtime, expected, attempts) do
+    case SwarmAi.active_count(runtime) do
+      ^expected ->
+        :ok
+
+      _count ->
+        Process.sleep(10)
+        assert_active_count(runtime, expected, attempts - 1)
+    end
   end
 
   defp start_runtime! do
@@ -209,7 +320,6 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         "TestBot",
         Keyword.merge(
           [
-            id: id,
             messages: [SwarmAi.Message.system("You are TestBot"), SwarmAi.Message.user("Do work")],
             dispatch_event: fn event ->
               send(test_pid, {:test_event, id, event})
@@ -220,7 +330,7 @@ defmodule SwarmAi.ParallelToolExecutionTest do
         )
       )
 
-    SwarmAi.run(runtime, loop)
+    SwarmAi.run(runtime, id, loop)
   end
 
   defp await_exit(pid) do

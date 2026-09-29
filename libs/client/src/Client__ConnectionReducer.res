@@ -106,7 +106,7 @@ type action =
   | RelayConnectSuccess
   | RelayConnectError(string)
   | SessionCreateSuccess(ACP.session)
-  | SessionCreateError({sessionId: string, error: string})
+  | SessionCreateError({sessionId: string, error: ACP.requestError})
   | SessionFailed({sessionId: string, error: string})
   | CreateSession(createSessionRequest)
   | SendPrompt({
@@ -228,6 +228,18 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ~_meta=config._meta,
       ~onConfigOptionsUpdated=configOptions => {
         Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
+      },
+      ~onBillingStatusUpdated=payload => {
+        switch FrontmanAiFrontmanClient.FrontmanClient__Decoders.parseSchema(
+          payload,
+          Client__Billing.statusSchema,
+        ) {
+        | Ok(status) => Client__State__Store.dispatch(BillingStatusReceived(status))
+        | Error(_) =>
+          Client__State__Store.dispatch(
+            BillingStatusError({error: "Failed to parse billing status"}),
+          )
+        }
       },
     )
     let abortController = WebAPI.AbortController.make()
@@ -381,10 +393,21 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | ({session: SessionCreating(expectedSessionId)}, SessionCreateError({sessionId, error}))
+    if expectedSessionId == sessionId => (
+      {
+        ...state,
+        session: switch ACP.requestErrorIsBillingInactive(error) {
+        | true => NoSession
+        | false => SessionError(ACP.requestErrorMessage(error))
+        },
+      },
+      [LogError(`Session failed: ${ACP.requestErrorMessage(error)}`)],
+    )
+
   | (
-    {session: SessionActive({sessionId: expectedSessionId}) | SessionCreating(expectedSessionId)},
-    SessionFailed({sessionId, error}),
-  ) if expectedSessionId == sessionId => (
+      {session: SessionActive({sessionId: expectedSessionId}) | SessionCreating(expectedSessionId)},
+      SessionFailed({sessionId, error}),
+    ) if expectedSessionId == sessionId => (
       {...state, session: SessionError(error)},
       [LogError(`Session failed: ${error}`)],
     )
@@ -526,6 +549,14 @@ let reportSessionFailure = (dispatch, ~sessionId, error) => {
   dispatch(SessionFailed({sessionId, error}))
 }
 
+let billingRequestErrorMessage = error => {
+  switch ACP.requestErrorIsBillingInactive(error) {
+  | true => Client__State.Actions.openSettingsModalOnBilling()
+  | false => ()
+  }
+  ACP.requestErrorMessage(error)
+}
+
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   let dispatchConfigOptions = (configOptions: option<array<_>>) =>
     configOptions->Option.forEach(opts =>
@@ -626,7 +657,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         }
       | Error(err) =>
         dispatch(SessionCreateError({sessionId, error: err}))
-        onComplete(Error(err))
+        onComplete(Error(billingRequestErrorMessage(err)))
       }
     }
     create()->ignore
@@ -634,7 +665,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     let send = async () => {
       try {
         let result = await ACP.sendPrompt(session, text, ~additionalBlocks, ~_meta)
-        onComplete(result)
+        onComplete(result->Result.mapError(billingRequestErrorMessage))
       } catch {
       | exn =>
         onComplete(Error("sendPrompt exception"))
@@ -691,7 +722,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         Log.info(~ctx={"taskId": taskId}, "Session activated")
         onComplete(Ok())
       | Error(err) =>
-        dispatch(SessionCreateError({sessionId: taskId, error: err}))
+        dispatch(SessionCreateError({sessionId: taskId, error: ACP.requestErrorFromMessage(err)}))
         Log.error(~ctx={"error": err}, "Failed to activate session")
         onComplete(Error(err))
       }

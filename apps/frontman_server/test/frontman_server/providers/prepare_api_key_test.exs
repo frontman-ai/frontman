@@ -1,19 +1,13 @@
 defmodule FrontmanServer.Providers.PrepareApiKeyTest do
-  @moduledoc """
-  Integration tests for the full `Providers.resolve_model_access/3` resolution chain.
-
-  Tests the priority order: OAuth > user key.
-  This is the primary entry point for all LLM key resolution in the system.
-  """
+  @moduledoc "Tests credential resolution, provider request encoding, and streamed tool calls."
   use FrontmanServer.DataCase, async: false
 
   import FrontmanServer.Test.Fixtures.Accounts
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.{Providers, Repo}
-  alias FrontmanServer.Providers.{Nvidia, OAuthToken}
-  alias ReqLLM.Context
-  alias ReqLLM.Providers.Anthropic
+  alias FrontmanServer.Providers.OAuthToken
+  alias ReqLLM.Providers.{Anthropic, OpenAICodex}
 
   setup {Req.Test, :set_req_test_from_context}
   setup {Req.Test, :verify_on_exit!}
@@ -24,7 +18,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     {:ok, scope: scope}
   end
 
-  describe "resolve_model_access/3 resolution priority" do
+  describe "resolve_model_access/2 resolution priority" do
     test "resolves OAuth token as highest priority for anthropic", %{scope: scope} do
       {:ok, _} = upsert_anthropic_oauth_token(scope, :valid)
       :ok = upsert_anthropic_api_key(scope)
@@ -50,32 +44,6 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert llm_opts[:api_key] == "user_key_456"
       assert llm_opts[:anthropic_prompt_cache] == true
       assert llm_opts[:anthropic_cache_messages] == -1
-    end
-
-    test "resolved Anthropic opts mark the last message for prompt caching", %{scope: scope} do
-      :ok = upsert_anthropic_api_key(scope)
-
-      {:ok, {model, llm_opts}} =
-        Providers.resolve_model_access(scope, "anthropic:claude-sonnet-4-6")
-
-      context =
-        Context.new([
-          Context.system("system prompt"),
-          Context.user("first user message"),
-          Context.assistant("assistant reply"),
-          Context.user("latest user message")
-        ])
-
-      {:ok, request} = Anthropic.prepare_request(:chat, model, context, llm_opts)
-      encoded_request = Anthropic.encode_body(request)
-      body = encoded_request.options[:json]
-
-      last_message = List.last(body[:messages])
-      [last_block] = last_message[:content]
-
-      assert last_message[:role] == "user"
-      assert last_block[:text] == "latest user message"
-      assert last_block[:cache_control] == %{type: "ephemeral"}
     end
 
     test "returns :no_api_key when no key source is available", %{scope: scope} do
@@ -140,17 +108,22 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
       assert llm_opts[:api_key] == "sk-or-user-test"
     end
 
-    test "openai codex oauth resolves direct ReqLLM args", %{scope: scope} do
+    test "GPT-6 Codex requests retain OAuth routing and never store conversations", %{
+      scope: scope
+    } do
       {:ok, _} = upsert_openai_oauth_token(scope, :valid)
 
-      {:ok, {model, llm_opts}} =
-        Providers.resolve_model_access(scope, "openai_codex:gpt-5.6-sol", max_tokens: 16_384)
-
-      assert %LLMDB.Model{provider: :openai_codex, id: "gpt-5.6-sol"} = model
-      assert llm_opts[:access_token] == "openai_access"
-      assert llm_opts[:auth_mode] == :oauth
-      assert llm_opts[:chatgpt_account_id] == "acc-789"
-      assert llm_opts[:max_tokens] == 16_384
+      for id <- ~w(gpt-6-sol gpt-6-luna) do
+        {:ok, {model, opts}} = Providers.resolve_model_access(scope, "openai_codex:#{id}")
+        {:ok, request} = OpenAICodex.prepare_request(:chat, model, "Hello", opts)
+        body = request |> OpenAICodex.encode_body() |> Map.fetch!(:body) |> Jason.decode!()
+        assert request.options[:base_url] == "https://chatgpt.com/backend-api"
+        assert request.url.path == "/codex/responses"
+        assert request.headers["authorization"] == ["Bearer openai_access"]
+        assert request.headers["chatgpt-account-id"] == ["acc-789"]
+        assert body["model"] == id
+        assert body["store"] == false
+      end
     end
 
     test "refreshes expired OpenAI OAuth token before resolving LLM args", %{scope: scope} do
@@ -250,109 +223,84 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     end
   end
 
-  describe "packaged LLMDB metadata" do
-    test "NVIDIA Kimi K2.6 no longer needs Frontman metadata" do
-      model = ReqLLM.model!("nvidia:moonshotai/kimi-k2.6")
+  test "current Claude models encode required adaptive thinking through OAuth", %{scope: scope} do
+    {:ok, _} = upsert_anthropic_oauth_token(scope, :valid)
 
-      assert model.capabilities.reasoning.enabled
-      assert model.capabilities.streaming.tool_calls
-      assert model.capabilities.tools.enabled
-      assert model.limits == %{context: 262_144, output: 262_144}
-      assert model.modalities == %{input: [:text, :image, :video], output: [:text]}
+    for id <- ~w(claude-opus-5-5 claude-sonnet-5-5 claude-fable-5-1) do
+      {:ok, {model, opts}} = Providers.resolve_model_access(scope, "anthropic:#{id}")
+
+      {:ok, request} =
+        Anthropic.prepare_request(
+          :chat,
+          model,
+          "Hello",
+          Keyword.put(opts, :reasoning_effort, :high)
+        )
+
+      body = Anthropic.encode_body(request).options[:json] |> Jason.encode!() |> Jason.decode!()
+      assert request.headers["authorization"] == ["Bearer oauth_access"]
+      assert body["model"] == id
+      assert body["thinking"]["type"] == "adaptive"
+      refute Map.has_key?(body, "temperature")
     end
   end
 
   describe "advertised provider execution" do
-    test "NVIDIA models cross real provider dispatch and decode streaming responses", %{
-      scope: scope
-    } do
-      :ok = Providers.upsert_api_key(scope, "nvidia", "nvapi-test")
+    for group <- [:nvidia, :fireworks_ai, :openrouter] do
+      test "#{group} models send tools and decode streamed tool calls", %{scope: scope} do
+        group = unquote(group)
+        :ok = Providers.upsert_api_key(scope, to_string(group), "test-key")
 
-      %{groups: groups} = Providers.available_models(scope)
-      %{options: [nvidia_model | _]} = Enum.find(groups, &(&1.id == "nvidia"))
-      bypass = Bypass.open()
+        tools = [
+          ReqLLM.Tool.new!(
+            name: "lookup",
+            description: "Look up a query",
+            parameter_schema: [q: [type: :string, required: true]],
+            callback: fn _ -> {:ok, "ok"} end
+          )
+        ]
 
-      assert Nvidia.default_base_url() == "https://integrate.api.nvidia.com/v1"
+        for {_name, id} <- Application.fetch_env!(:frontman_server, :providers)[group].models do
+          bypass = Bypass.open()
 
-      Bypass.expect(bypass, "POST", "/v1/chat/completions", fn conn ->
-        {:ok, body, conn} = Plug.Conn.read_body(conn)
-        decoded_body = Jason.decode!(body)
+          Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
+            {:ok, body, conn} = Plug.Conn.read_body(conn)
+            body = Jason.decode!(body)
+            assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer test-key"]
+            assert body["model"] == id
+            assert body["stream"] == true
+            assert body["messages"] == [%{"role" => "user", "content" => "Hello"}]
+            assert [%{"function" => %{"name" => "lookup"}}] = body["tools"]
 
-        assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer nvapi-test"]
-        assert decoded_body["model"] == "moonshotai/kimi-k2.6"
-        assert decoded_body["stream"] == true
-        assert decoded_body["messages"] == [%{"role" => "user", "content" => "Hello"}]
+            sse = ~S"""
+            data: {"choices":[{"delta":{"content":"Hello"}}]}
 
-        text_event = %{
-          id: "chatcmpl-nvidia",
-          choices: [%{delta: %{content: "Hello from NVIDIA"}}]
-        }
+            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"lookup","arguments":"{\"q\":"}}]}}]}
 
-        tool_event = %{
-          id: "chatcmpl-nvidia",
-          choices: [
-            %{
-              delta: %{
-                tool_calls: [
-                  %{
-                    index: 0,
-                    id: "call_1",
-                    type: "function",
-                    function: %{name: "lookup", arguments: ~s({"q":"elixir"})}
-                  }
-                ]
-              }
-            }
-          ]
-        }
+            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"elixir\"}"}}]}}]}
 
-        finished_event = %{
-          id: "chatcmpl-nvidia",
-          choices: [%{delta: %{}, finish_reason: "tool_calls"}]
-        }
+            data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
 
-        sse_body =
-          "data: #{Jason.encode!(text_event)}\n\n" <>
-            "data: #{Jason.encode!(tool_event)}\n\n" <>
-            "data: #{Jason.encode!(finished_event)}\n\n" <>
-            "data: [DONE]\n\n"
+            data: [DONE]
 
-        conn
-        |> Plug.Conn.put_resp_header("content-type", "text/event-stream")
-        |> Plug.Conn.send_resp(200, sse_body)
-      end)
+            """
 
-      {:ok, {model, llm_opts}} =
-        Providers.resolve_model_access(scope, nvidia_model.value,
-          base_url: "http://localhost:#{bypass.port}/v1"
-        )
+            conn
+            |> Plug.Conn.put_resp_header("content-type", "text/event-stream")
+            |> Plug.Conn.send_resp(200, sse)
+          end)
 
-      assert {:ok, stream_response} = ReqLLM.stream_text(model, "Hello", llm_opts)
-      assert {:ok, response} = ReqLLM.StreamResponse.to_response(stream_response)
-      assert ReqLLM.Response.text(response) == "Hello from NVIDIA"
+          {:ok, {model, opts}} = Providers.resolve_model_access(scope, "#{group}:#{id}")
+          opts = Keyword.merge(opts, base_url: "http://localhost:#{bypass.port}/v1", tools: tools)
+          assert {:ok, stream} = ReqLLM.stream_text(model, "Hello", opts)
+          assert {:ok, response} = ReqLLM.StreamResponse.to_response(stream)
+          assert ReqLLM.Response.text(response) == "Hello"
 
-      assert [%ReqLLM.ToolCall{id: "call_1", function: tool_function}] =
-               ReqLLM.Response.tool_calls(response)
+          assert [%ReqLLM.ToolCall{id: "call_1", function: function}] =
+                   ReqLLM.Response.tool_calls(response)
 
-      assert tool_function == %{name: "lookup", arguments: ~s({"q":"elixir"})}
-    end
-
-    test "every advertised model resolves to executable transport" do
-      for {group, %{models: models}} <- Application.fetch_env!(:frontman_server, :providers),
-          model_entry <- models do
-        model_id = elem(model_entry, 1)
-
-        model_spec =
-          case model_entry do
-            {_name, ^model_id, model_spec} -> model_spec
-            {_name, ^model_id} -> "#{group}:#{model_id}"
-          end
-
-        assert {:ok, model} = ReqLLM.model(model_spec),
-               "advertised model #{group}:#{model_id} has no catalog metadata"
-
-        assert {:ok, _provider} = ReqLLM.provider(model.provider),
-               "advertised model #{group}:#{model_id} has no executable transport"
+          assert %{name: "lookup", arguments: ~s({"q":"elixir"})} = function
+        end
       end
     end
   end

@@ -7,6 +7,14 @@ RUNTIME="${CONTAINER_RUNTIME:-docker}"
 WORDPRESS_VERSION="${WORDPRESS_VERSION:-7.0.2}"
 PHP_VERSION="${PHP_VERSION:-8.4}"
 YOAST_VERSION="${YOAST_VERSION:-}"
+MEGAMENU_VERSION="3.10.7"
+MEGAMENU_SHA256="6cfe5fc2484bccbcc6782364b38e16fde55a496bfaf86d123d1d46b0684c5e7e"
+case "$WORDPRESS_VERSION" in
+  6.0.*|6.1.*)
+    MEGAMENU_VERSION="3.6.2"
+    MEGAMENU_SHA256="df0a37af42b6937fc716bbd302d983a9e78abc9a63caf1e731ac09597856ea55"
+    ;;
+esac
 YOAST_SHA256="93eba5afc65149967a4bb4906bc8fdebf92f4a65ee02bec97f5c01a7e14e7028"
 PLUGIN_VERSION="$(bash "$ROOT_DIR/scripts/validate-wordpress-plugin-release.sh")"
 RUN_ID="frontman-wp-runtime-$$"
@@ -26,6 +34,9 @@ trap cleanup EXIT
 
 make -C "$ROOT_DIR" package-wordpress-plugin VERSION="$PLUGIN_VERSION" >/dev/null
 curl -fsSL "https://wordpress.org/wordpress-${WORDPRESS_VERSION}.tar.gz" -o "$BUILD_DIR/wordpress.tar.gz"
+curl -fsSL "https://downloads.wordpress.org/plugin/megamenu.${MEGAMENU_VERSION}.zip" -o "$BUILD_DIR/megamenu.zip"
+printf '%s  %s\n' "$MEGAMENU_SHA256" "$BUILD_DIR/megamenu.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/megamenu.zip" -d "$BUILD_DIR/megamenu"
 if [[ -n "$YOAST_VERSION" ]]; then
   if [[ "$YOAST_VERSION" != "28.4" ]]; then
     printf 'Unsupported Yoast runtime test version: %s\n' "$YOAST_VERSION" >&2
@@ -66,6 +77,7 @@ done
 
 "$RUNTIME" exec "$WORDPRESS" php -r '$db = @new mysqli(getenv("WORDPRESS_DB_HOST"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_NAME")); if ($db->connect_errno) { throw new RuntimeException("Database did not become ready."); }'
 "$RUNTIME" exec "$WORDPRESS" php -r '$config = file_get_contents("/var/www/html/wp-config-sample.php"); $config = str_replace(["database_name_here", "username_here", "password_here", "localhost"], [getenv("WORDPRESS_DB_NAME"), getenv("WORDPRESS_DB_USER"), getenv("WORDPRESS_DB_PASSWORD"), getenv("WORDPRESS_DB_HOST")], $config); file_put_contents("/var/www/html/wp-config.php", $config);'
+"$RUNTIME" cp "$BUILD_DIR/megamenu/megamenu" "$WORDPRESS:/var/www/html/wp-content/plugins/megamenu"
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/plugins/frontman-agentic-ai-editor
 "$RUNTIME" cp "$ROOT_DIR/dist/frontman-wordpress-package/github/frontman-agentic-ai-editor/." "$WORDPRESS:/var/www/html/wp-content/plugins/frontman-agentic-ai-editor/"
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
@@ -116,3 +128,40 @@ if [[ "$MULTISITE_STATUS" -ne 0 || "$MULTISITE_OUTPUT" != *"OK (Multisite author
   printf 'Multisite author tests did not report successful completion.\n' >&2
   exit 1
 fi
+
+case "$WORDPRESS_VERSION" in
+  6.[0-6].*) printf 'Skipping Redirection 5.10.0: requires WordPress 6.7+.\n'; exit 0 ;;
+esac
+curl -fsSL 'https://downloads.wordpress.org/plugin/redirection.5.10.0.zip' -o "$BUILD_DIR/redirection.zip"
+printf '%s  %s\n' '966ac6267cd6a99f2d79ec05db1dee2e0aa0cddb6060b1c32cde2ffde739e333' "$BUILD_DIR/redirection.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/redirection.zip" -d "$BUILD_DIR/redirection"
+"$RUNTIME" cp "$BUILD_DIR/redirection/redirection" "$WORDPRESS:/var/www/html/wp-content/plugins/redirection"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/RedirectionRuntimeTest.php" "$WORDPRESS:/tmp/RedirectionRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RedirectionRuntimeTest.php --setup
+if REDIRECTION_OUTPUT="$("$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/RedirectionRuntimeTest.php)"; then
+  REDIRECTION_STATUS=0
+else REDIRECTION_STATUS=$?
+fi
+printf '%s\n' "$REDIRECTION_OUTPUT"
+if [[ "$REDIRECTION_STATUS" -ne 0 || "$REDIRECTION_OUTPUT" != *"OK (Redirection 5.10.0, WordPress ${WORDPRESS_VERSION}, PHP "* ]]; then
+  printf 'Redirection runtime tests did not report successful completion.\n' >&2
+  exit 1
+fi
+
+case "$WORDPRESS_VERSION" in
+  6.[0-8].*) printf 'Skipping Angie 1.1.16: requires WordPress 6.9+.\n'; exit 0 ;;
+esac
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/AngieRuntimeTest.php" "$WORDPRESS:/tmp/AngieRuntimeTest.php"
+for ANGIE_VERSION in 1.1.0 1.1.16; do
+  case "$ANGIE_VERSION" in
+    1.1.0) ANGIE_SHA256=b2770a38efb3d79a638e12196aac75025218cde450a04e191bbc339ffa18bc85 ;;
+    1.1.16) ANGIE_SHA256=d91f13533c9190e2db6b18f53c6b74c4ba3badb62623d656cac2fac33bb12a95 ;;
+  esac
+  curl -fsSL "https://downloads.wordpress.org/plugin/angie.${ANGIE_VERSION}.zip" -o "$BUILD_DIR/angie.zip"
+  printf '%s  %s\n' "$ANGIE_SHA256" "$BUILD_DIR/angie.zip" | sha256sum --check --status
+  unzip -q "$BUILD_DIR/angie.zip" -d "$BUILD_DIR/angie-${ANGIE_VERSION}"
+  "$RUNTIME" exec "$WORDPRESS" rm -rf /var/www/html/wp-content/plugins/angie
+  "$RUNTIME" cp "$BUILD_DIR/angie-${ANGIE_VERSION}/angie" "$WORDPRESS:/var/www/html/wp-content/plugins/angie"
+  "$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php --setup
+  "$RUNTIME" exec -e EXPECTED_ANGIE_VERSION="$ANGIE_VERSION" "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/AngieRuntimeTest.php
+done

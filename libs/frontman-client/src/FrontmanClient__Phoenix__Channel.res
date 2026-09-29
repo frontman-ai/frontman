@@ -14,6 +14,7 @@ type channelEvent = [
   | #config_options_updated
   | #phx_error
   | #phx_close
+  | #billing_status_updated
 ]
 
 type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) => pushResponse}

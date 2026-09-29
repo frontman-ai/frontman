@@ -24,14 +24,40 @@ let registerAll = (registry: t, mcpServer: MCPServer.t): MCPServer.t => {
 }
 
 let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {
-  let tools = switch framework {
+  let frameworkTools = switch framework {
   | Astro =>
     let getPreviewDoc = Client__Tool__PreviewContext.get
     Array.concat(
-      coreBrowserTools,
+      [
+        FrontmanAiAstroBrowser.FrontmanAstroBrowser__Tool__GetDom.make(
+          ~getPreviewDoc,
+          ~inspect=(input, preview) =>
+            Client__Tool__GetDom.inspect(
+              input,
+              preview,
+              ~additionalAttributes=FrontmanAiAstroBrowser.FrontmanAstroBrowser__Persistence.inspectionAttributes,
+            ),
+          ~describeAncestor=(element, preview) =>
+            Client__ElementInspector.describeAncestor(
+              ~element,
+              ~document=preview.doc,
+              ~additionalAttributes=FrontmanAiAstroBrowser.FrontmanAstroBrowser__Persistence.inspectionAttributes,
+            ),
+          ~description=Client__Tool__GetDom.description,
+        ),
+      ],
       FrontmanAiAstroBrowser.FrontmanAstroBrowser__Registry.browserTools(~getPreviewDoc),
     )
-  | Nextjs | Vite | Wordpress => coreBrowserTools
+  | Nextjs | Vite | Wordpress => []
   }
-  {tools: tools}
+  let sharedTools = coreBrowserTools->Array.filter(coreTool => {
+    module Core = unpack(coreTool)
+    !(
+      frameworkTools->Array.some(frameworkTool => {
+        module Framework = unpack(frameworkTool)
+        Core.name == Framework.name
+      })
+    )
+  })
+  {tools: Array.concat(sharedTools, frameworkTools)}
 }

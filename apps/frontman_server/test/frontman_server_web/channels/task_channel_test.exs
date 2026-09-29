@@ -2,6 +2,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   use FrontmanServerWeb.ChannelCase, async: false
   use Oban.Testing, repo: FrontmanServer.Repo
 
+  @moduletag :capture_log
+
   import FrontmanServer.InteractionCase.Helpers,
     only: [
       agent_error: 2,
@@ -13,6 +15,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     ]
 
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 2, question_args: 2]
+  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 1]
   import ExUnit.CaptureLog
 
   alias FrontmanServer.InteractionCase.Helpers
@@ -23,8 +27,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   alias FrontmanServer.Workers.GenerateTitle
   alias FrontmanServerWeb.UserSocket
 
+  alias FrontmanServer.Protocols.{JsonRpc, MCP}
   alias FrontmanServer.Tasks.Interaction
-  alias ModelContextProtocol, as: MCP
 
   @persisted_restart_model "openrouter:openai/gpt-5.5"
   @logged_output_schema %{
@@ -218,24 +222,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     assert_state_update_idle(task_id)
   end
 
-  defp refute_running_eventually(task_id, attempts \\ 50)
-
-  defp refute_running_eventually(task_id, attempts) when attempts > 0 do
-    case SwarmAi.running?(FrontmanServer.AgentRuntime, task_id) do
-      false ->
-        :ok
-
-      true ->
-        Process.sleep(10)
-        refute_running_eventually(task_id, attempts - 1)
-    end
-  end
-
-  defp refute_running_eventually(task_id, 0) do
-    refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id),
-           "Agent should not be running after completion"
-  end
-
   defp register_tool_receiver(task_id, tool_call_id) do
     Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, task_id, tool_call_id}, %{
       caller_pid: self()
@@ -298,18 +284,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   defp question_tool_call(id, header, label) do
-    args =
-      Jason.encode!(%{
-        "questions" => [
-          %{
-            "question" => "Pick one",
-            "header" => header,
-            "options" => [%{"label" => label, "description" => "Option #{label}"}]
-          }
-        ]
-      })
-
-    %SwarmAi.ToolCall{id: id, name: "question", arguments: args}
+    SwarmAi.Testing.tool_call("question", question_args(header, label), id: id)
   end
 
   defp redispatched_question_header?(
@@ -380,6 +355,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "session/prompt" do
     setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       {socket, task_id} = join_task_channel(scope)
       {:ok, socket: socket, task_id: task_id}
     end
@@ -786,6 +762,34 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
+  describe "session/prompt billing access" do
+    test "rejects inactive billing before persisting prompt or enqueuing title generation", %{
+      scope: scope
+    } do
+      task_id = Ecto.UUID.generate()
+      {:ok, _task} = Tasks.create_task(scope, task_id, "nextjs")
+
+      {:ok, _reply, socket} =
+        UserSocket
+        |> socket("user_id", %{scope: scope})
+        |> subscribe_and_join("task:#{task_id}", %{})
+
+      complete_mcp_handshake(socket)
+
+      ref = push(socket, "acp:message", build_prompt_request(id: 42))
+
+      assert_reply(ref, :ok, %{
+        "acp:message" => %{
+          "error" => %{"message" => "Finish billing setup to start using Frontman."}
+        }
+      })
+
+      {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+      refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
+      refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
+    end
+  end
+
   describe "PubSub subscription" do
     setup %{scope: scope} do
       {socket, task_id} = join_task_channel(scope)
@@ -1033,7 +1037,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       }
 
       assert :ok =
-               ModelContextProtocol.Schema.validate_call_tool_result(
+               MCP.Schema.validate_call_tool_result(
                  result,
                  @logged_output_schema
                )
@@ -1041,7 +1045,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert :error =
                result
                |> Map.put("structuredContent", %{})
-               |> ModelContextProtocol.Schema.validate_call_tool_result(@logged_output_schema)
+               |> MCP.Schema.validate_call_tool_result(@logged_output_schema)
     end
   end
 
@@ -1109,7 +1113,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "sends MCP discovery request on join", %{scope: scope} do
       {_socket, _task_id} = join_task_channel(scope)
 
-      expected_version = ModelContextProtocol.protocol_version()
+      expected_version = MCP.protocol_version()
 
       assert_push("mcp:message", %{
         "jsonrpc" => "2.0",
@@ -1292,11 +1296,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       complete_mcp_handshake(socket,
         tools: [
-          %{
-            "name" => "testTool",
-            "inputSchema" => %{"type" => "object"},
-            "outputSchema" => @logged_output_schema
-          }
+          mcp_tool("testTool", %{"outputSchema" => @logged_output_schema})
         ]
       )
 
@@ -1650,6 +1650,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "drains accepted work created outside the channel prompt flow", %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
 
       {:ok, _reply, socket} =
@@ -1790,6 +1791,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
   describe "reconnect re-executes unresolved tool calls" do
     setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
 
       tool_call_id = "tc_question_#{System.unique_integer([:positive])}"
@@ -2228,8 +2230,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
   end
 
-  describe "retry flow" do
+  describe "retry command flow" do
     setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       {socket, task_id} = join_task_channel(scope)
       complete_mcp_handshake(socket)
       {:ok, socket: socket, task_id: task_id}
@@ -2309,6 +2312,15 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{"sessionUpdate" => "error", "message" => "Auth failed"}
         }
       })
+    end
+  end
+
+  describe "retry flow" do
+    setup %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
+      {socket, task_id} = join_task_channel(scope)
+      complete_mcp_handshake(socket)
+      {:ok, socket: socket, task_id: task_id}
     end
 
     test "retry_turn command creates AgentRetry interaction", %{

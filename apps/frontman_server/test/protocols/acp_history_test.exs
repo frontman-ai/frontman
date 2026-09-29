@@ -1,4 +1,4 @@
-defmodule AgentClientProtocol.HistoryTest do
+defmodule FrontmanServer.Protocols.ACP.HistoryTest do
   use ExUnit.Case, async: true
 
   import FrontmanServer.InteractionCase.Helpers,
@@ -15,8 +15,8 @@ defmodule AgentClientProtocol.HistoryTest do
       user_msg: 1
     ]
 
-  alias AgentClientProtocol.History
   alias FrontmanServer.Agents.Agent
+  alias FrontmanServer.Protocols.ACP.History
   alias FrontmanServer.Tasks.History, as: TaskHistory
 
   @session_id "test-session-123"

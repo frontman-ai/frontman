@@ -1,5 +1,11 @@
 # @frontman-ai/vite
 
+## 2.0.1
+
+### Patch Changes
+
+- [#1680](https://github.com/frontman-ai/frontman/pull/1680) [`eeb1b5b`](https://github.com/frontman-ai/frontman/commit/eeb1b5b7a65e5d78e6e27f20d3abca93f6decdad) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Install the prebuilt component-source package from npm instead of building it from Git. This removes the nested Yarn install that blocked Dependabot updates.
+
 ## 2.0.0
 
 ### Major Changes

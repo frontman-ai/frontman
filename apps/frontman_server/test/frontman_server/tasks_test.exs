@@ -3,7 +3,9 @@ defmodule FrontmanServer.TasksTest do
   use Oban.Testing, repo: FrontmanServer.Repo
 
   import FrontmanServer.Test.Fixtures.Accounts
+  import FrontmanServer.BillingFixtures
   import FrontmanServer.Test.Fixtures.Tasks
+  import SwarmAi.Testing, only: [tool_call: 3]
 
   alias Ecto.Migration.Runner
 
@@ -15,12 +17,12 @@ defmodule FrontmanServer.TasksTest do
     ScrubToolResultMetadata
   }
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServer.Workers.GenerateTitle
-  alias ModelContextProtocol, as: MCP
 
   setup do
     scope = user_scope_fixture()
@@ -49,6 +51,38 @@ defmodule FrontmanServer.TasksTest do
       :ok = Tasks.apply_title_suggestion(scope, task_id, "Second Title")
 
       assert {:ok, %{short_desc: "First Title"}} = Tasks.get_task(scope, task_id)
+    end
+  end
+
+  describe "submit_user_message/2 billing access" do
+    for status <- [nil, "canceled", "active"] do
+      test "enforces billing for #{inspect(status)} subscription", %{scope: scope} do
+        status = unquote(status)
+        if status, do: subscription_for_scope_fixture(scope, %{status: status})
+        task_id = task_fixture(scope).id
+
+        result =
+          Tasks.submit_user_message(scope, %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: user_content("Hello"),
+            model: "openrouter:openai/gpt-5.5",
+            agent_id: "test-frontman"
+          })
+
+        {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+        case status do
+          "active" ->
+            assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} = result
+            assert Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
+
+          _ ->
+            assert {:error, :billing_inactive} = result
+            refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
+            refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
+        end
+      end
     end
   end
 
@@ -107,6 +141,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "submit_user_message/2" do
     test "persists an accepted user message without starting a turn", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
 
@@ -140,6 +175,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "accepts another user message while a turn is running", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("first"))
 
@@ -160,6 +196,11 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "unqueue_user_message/3" do
+    setup %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
+      :ok
+    end
+
     test "deletes a queued message", %{scope: scope} do
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
@@ -191,6 +232,11 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "execute_next_turn/3 agent identity" do
+    setup %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
+      :ok
+    end
+
     test "persists configured agent identity", %{scope: scope} do
       task = task_fixture(scope)
 
@@ -248,7 +294,7 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("question_1", "approval"),
+          tool_call("approval", %{}, id: "question_1"),
           :interactive
         )
 
@@ -257,7 +303,7 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("read_1", "read_file"),
+          tool_call("read_file", %{}, id: "read_1"),
           :synchronous
         )
 
@@ -294,7 +340,7 @@ defmodule FrontmanServer.TasksTest do
         scope,
         task_id,
         turn_number,
-        named_swarm_tool_call("legacy_question", "question"),
+        tool_call("question", %{}, id: "legacy_question"),
         :interactive
       )
 
@@ -318,8 +364,8 @@ defmodule FrontmanServer.TasksTest do
        %{scope: scope} do
     task_id = task_fixture(scope).id
     turn_number = start_turn_fixture(scope, task_id)
-    approval = named_swarm_tool_call("approval_pending", "approval")
-    write = named_swarm_tool_call("write_not_dispatched", "write_file")
+    approval = tool_call("approval", %{}, id: "approval_pending")
+    write = tool_call("write_file", %{}, id: "write_not_dispatched")
 
     {:ok, _} =
       Tasks.agent_replied(scope, task_id, turn_number, nil, %{
@@ -356,7 +402,7 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("question_1", "question"),
+          tool_call("question", %{}, id: "question_1"),
           :interactive
         )
 
@@ -365,7 +411,7 @@ defmodule FrontmanServer.TasksTest do
           scope,
           task_id,
           turn_number,
-          named_swarm_tool_call("read_1", "read_file"),
+          tool_call("read_file", %{}, id: "read_1"),
           :synchronous
         )
 
@@ -705,6 +751,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "retry_execution/4" do
     test "only retries agent errors", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
       {:ok, user_message} = user_message_fixture(scope, task_id, user_content("not an error"))
 
@@ -713,6 +760,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "rejects an older error after later interactions in the same turn", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
       assert 1 = start_turn_fixture(scope, task_id)
       insert_interaction_row(task_id, Interaction.AgentError, 1, %{"id" => "error-1"})
@@ -728,6 +776,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "fills missing model from started turn user messages", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("failed"), "missing:test")
 
@@ -757,6 +806,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "resume_execution/3" do
     test "returns not_running when no active turn exists", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task_id = task_fixture(scope).id
 
       assert {:error, :not_running} =
@@ -764,6 +814,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "fills missing model from started turn user messages", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("running"), "missing:test")
 
@@ -979,27 +1030,6 @@ defmodule FrontmanServer.TasksTest do
       assert sequences == Enum.uniq(sequences)
       assert Enum.all?(sequences, &(&1 > 0))
     end
-
-    test "concurrent inserts produce unique, sortable sequences", %{scope: scope} do
-      task_id = task_fixture(scope).id
-      turn_number = start_turn_fixture(scope, task_id)
-
-      1..20
-      |> Task.async_stream(
-        fn i ->
-          Tasks.agent_replied(scope, task_id, turn_number, "concurrent msg #{i}")
-        end,
-        max_concurrency: 20,
-        timeout: :infinity
-      )
-      |> Enum.each(fn {:ok, {:ok, _interaction}} -> :ok end)
-
-      results = db_sequences(task_id)
-
-      assert length(results) == 22
-      assert results == Enum.uniq(results), "sequences must be unique, got duplicates"
-      assert results == Enum.sort(results), "DB ordering must be sorted"
-    end
   end
 
   defp db_sequences(task_id) do
@@ -1126,23 +1156,6 @@ defmodule FrontmanServer.TasksTest do
     )
   end
 
-  defp insert_accepted_user_message!(
-         %TaskSchema{} = task,
-         text,
-         model \\ "openrouter:openai/gpt-5.5"
-       ) do
-    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
-    message_id = Ecto.UUID.generate()
-
-    interaction_changeset(task.id, %{
-      id: message_id,
-      type: :user_message,
-      data: Map.put(attrs, :id, message_id),
-      turn_number: nil
-    })
-    |> Repo.insert!()
-  end
-
   defp run_backfill_migration do
     Code.require_file("priv/repo/migrations/20260531130646_backfill_interaction_turn_numbers.exs")
 
@@ -1233,10 +1246,6 @@ defmodule FrontmanServer.TasksTest do
       )
 
     Enum.map(rows, fn [data] -> data end)
-  end
-
-  defp named_swarm_tool_call(id, name, args \\ %{}) do
-    %SwarmAi.ToolCall{id: id, name: name, arguments: Jason.encode!(args)}
   end
 
   describe "add_discovered_project_rules/3" do

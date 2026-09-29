@@ -169,11 +169,12 @@ function __frontman_wrapInstance(renderInstance, displayName, Component, props) 
   if (!serialized) return renderInstance;
   const encoded = Buffer.from(serialized, 'utf8').toString('base64');
   const originalRender = renderInstance.render;
-  renderInstance.render = function(destination) {
-    destination.write(markHTMLString('<!-- __frontman_props__:' + encoded + ' -->'));
-    return originalRender.call(renderInstance, destination);
+  return {
+    render(destination) {
+      destination.write(markHTMLString('<!-- __frontman_props__:' + encoded + ' -->'));
+      return originalRender.call(renderInstance, destination);
+    }
   };
-  return renderInstance;
 }
 
 function __frontman_renderAndWrap(result, displayName, Component, props, slots) {

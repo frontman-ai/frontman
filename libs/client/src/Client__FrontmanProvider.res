@@ -1,3 +1,10 @@
+let openProviderSettingsForErrorCategory = category => {
+  switch category {
+  | Some("billing") => Client__State.Actions.openSettingsModalOnProviders()
+  | Some(_) | None => ()
+  }
+}
+
 module Log = FrontmanLogs.Logs.Make({
   let component = #FrontmanProvider
 })
@@ -160,10 +167,10 @@ module Provider = {
 
       let runtimeConfig = RuntimeConfig.read()
       let _meta = RuntimeConfig.toMeta(runtimeConfig)
-      let relayHeaders = Dict.make()
-      runtimeConfig.wpNonce->Option.forEach(nonce => relayHeaders->Dict.set("X-WP-Nonce", nonce))
-
-      let relay = Relay.make(~baseUrl, ~requestHeaders=relayHeaders)
+      let relay = switch runtimeConfig.framework {
+      | Wordpress => Client__WordPressRelay.make(~baseUrl, ~nonce=runtimeConfig.wpNonce)
+      | Nextjs | Vite | Astro => Relay.make(~baseUrl)
+      }
       let toolRegistry = Client__ToolRegistry.forFramework(runtimeConfig.framework)
       let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
       let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
@@ -296,11 +303,11 @@ module Provider = {
       | Plan({entries}) =>
         Client__TextDeltaBuffer.flush()
         Client__State.Actions.planReceived(~taskId, ~entries)
-      | StateUpdate({state, stopReason}) =>
+      | StateUpdate({state, _}) =>
         Client__TextDeltaBuffer.flush()
         switch state {
         | Running => Client__State.Actions.executionStateRunning(~taskId)
-        | Idle => Client__State.Actions.executionStateIdle(~taskId, ~stopReason)
+        | Idle => Client__State.Actions.executionStateIdle(~taskId)
         | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
         }
       | ConfigOptionUpdate({configOptions}) =>
@@ -308,6 +315,7 @@ module Provider = {
         Client__State.Actions.configOptionsReceived(~configOptions)
       | CurrentModeUpdate(_) => Client__TextDeltaBuffer.flush()
       | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
+        openProviderSettingsForErrorCategory(category)
         Client__TextDeltaBuffer.flush()
         switch retryAt {
         | Some(retryAtStr) =>

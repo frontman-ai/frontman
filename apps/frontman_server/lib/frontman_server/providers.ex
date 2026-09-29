@@ -88,41 +88,36 @@ defmodule FrontmanServer.Providers do
     - `{:ok, {model_spec, llm_opts}}` - Ready to use for LLM calls
     - `{:error, :no_api_key}` - No API key available
   """
-  @spec resolve_model_access(Scope.t(), String.t() | nil, keyword()) ::
-          {:ok, {LLMDB.Model.t(), keyword()}} | {:error, term()}
-  def resolve_model_access(scope, model, opts \\ [])
+  def resolve_model_access(%Scope{}, nil), do: {:error, :missing_model}
 
-  def resolve_model_access(%Scope{}, nil, _opts), do: {:error, :missing_model}
-
-  def resolve_model_access(%Scope{} = scope, "custom:" <> rest, opts)
+  def resolve_model_access(%Scope{} = scope, "custom:" <> rest)
       when is_binary(rest) and rest != "" do
     case String.split(rest, ":", parts: 2) do
       [provider_id, model_id] when provider_id != "" and model_id != "" ->
-        resolve_custom_model(scope, provider_id, model_id, opts)
+        resolve_custom_model(scope, provider_id, model_id)
 
       _ ->
         {:error, :unknown_model}
     end
   end
 
-  def resolve_model_access(%Scope{} = scope, model, opts)
+  def resolve_model_access(%Scope{} = scope, model)
       when is_binary(model) and model != "" do
     with {:ok, {credential_source, resolved_model}} <- resolve_catalog_model(model) do
       case oauth_llm_opts(credential_source, resolve_oauth_token(scope, credential_source)) do
         {:ok, llm_opts} ->
-          {:ok,
-           {resolved_model, Keyword.merge(llm_opts ++ transport_llm_opts(resolved_model), opts)}}
+          {:ok, {resolved_model, llm_opts ++ transport_llm_opts(resolved_model)}}
 
         {:error, reason} ->
           {:error, reason}
 
         :use_api_key ->
-          api_key_llm_args(scope, credential_source, resolved_model, opts)
+          api_key_llm_args(scope, credential_source, resolved_model)
       end
     end
   end
 
-  def resolve_model_access(%Scope{}, _model, _opts), do: {:error, :missing_model}
+  def resolve_model_access(%Scope{}, _model), do: {:error, :missing_model}
 
   defp oauth_llm_opts("anthropic", %OAuthToken{access_token: access_token}) do
     {:ok,
@@ -144,10 +139,10 @@ defmodule FrontmanServer.Providers do
   defp oauth_llm_opts("openai_codex", %OAuthToken{}), do: {:error, :invalid_oauth_token}
   defp oauth_llm_opts(_provider, _token), do: :use_api_key
 
-  defp api_key_llm_args(scope, provider, model, opts) do
+  defp api_key_llm_args(scope, provider, model) do
     case get_api_key(scope, provider) do
       %ApiKey{key: key} when is_binary(key) and key != "" ->
-        {:ok, {model, Keyword.merge([api_key: key] ++ transport_llm_opts(model), opts)}}
+        {:ok, {model, [api_key: key] ++ transport_llm_opts(model)}}
 
       nil ->
         {:error, :no_api_key}
@@ -159,7 +154,7 @@ defmodule FrontmanServer.Providers do
 
   defp transport_llm_opts(%LLMDB.Model{}), do: []
 
-  defp resolve_custom_model(scope, provider_id, model_id, opts) do
+  defp resolve_custom_model(scope, provider_id, model_id) do
     with {:ok, provider_id} <- Ecto.UUID.cast(provider_id),
          %CustomProvider{} = provider <- get_owned_custom_provider(scope, provider_id),
          true <- model_id in provider.models do
@@ -168,7 +163,6 @@ defmodule FrontmanServer.Providers do
       llm_opts =
         []
         |> maybe_put_api_key(provider.api_key)
-        |> Keyword.merge(opts)
         |> Keyword.merge(custom_provider_transport_opts())
 
       {:ok, {model, llm_opts}}

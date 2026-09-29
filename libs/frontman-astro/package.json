@@ -1,6 +1,6 @@
 {
 	"name": "@frontman-ai/astro",
-	"version": "3.0.1",
+	"version": "3.1.0",
 	"description": "Astro integration for Frontman",
 	"license": "Apache-2.0",
 	"author": "Frontman AI",
@@ -54,9 +54,9 @@
 	"dependencies": {
 		"@astrojs/compiler": "^4.0.0",
 		"chrome-launcher": "^1.1.2",
-		"lighthouse": "^13.4.0",
-		"magic-string": "^0.30.21",
-		"source-map": "^0.7.6"
+		"lighthouse": "^13.4.1",
+		"magic-string": "^1.2.3",
+		"source-map": "^0.8.0"
 	},
 	"optionalDependencies": {
 		"@vscode/ripgrep": "^1.18.0"
@@ -73,7 +73,7 @@
 		"@frontman/bindings": "*",
 		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "workspace:*",
-		"dom-element-to-component-source": "https://github.com/frontman-ai/dom-element-to-component-source.git#7f5fa7f3fecc65a23cc05a92345f1c556fb252bb",
+		"dom-element-to-component-source": "npm:@frontman-ai/dom-element-to-component-source@0.5.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",

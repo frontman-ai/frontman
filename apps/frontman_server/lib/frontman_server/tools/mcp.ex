@@ -53,13 +53,7 @@ defmodule FrontmanServer.Tools.MCP do
     Enum.map(tools, &from_map/1)
   end
 
-  def to_swarm_tools(mcp_tools) when is_list(mcp_tools) do
-    mcp_tools
-    |> Enum.filter(& &1.visible_to_agent)
-    |> Enum.map(&to_swarm_tool/1)
-  end
-
-  defp to_swarm_tool(%__MODULE__{} = tool) do
+  def to_swarm_tool(%__MODULE__{} = tool) do
     SwarmAi.Tool.new(
       name: tool.name,
       description: tool.description,

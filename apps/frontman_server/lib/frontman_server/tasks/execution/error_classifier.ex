@@ -3,7 +3,6 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   Classifies execution error reasons for persistence and client retry behavior.
   """
 
-  alias FrontmanServer.Tasks.Execution.LLMError
   alias FrontmanServer.Tasks.StreamStallTimeout
 
   @doc """
@@ -12,8 +11,6 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   `category` is one of: "auth", "billing", "quota", "rate_limit", "overload",
   "payload_too_large", "output_truncated", "unknown".
   """
-  def classify_error(%LLMError{message: msg, category: cat, retryable: r}), do: {msg, cat, r}
-
   def classify_error(%ReqLLM.Error.API.Stream{cause: %ReqLLM.Error.API.Request{} = cause}) do
     classify_reqllm_request(cause)
   end
@@ -30,6 +27,11 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
 
   def classify_error(:no_api_key), do: {"No API key available for this request.", "auth", false}
   def classify_error(:missing_model), do: {"Model is required for this request.", "auth", false}
+
+  def classify_error(:unknown_model),
+    do:
+      {"This model is unavailable for your connection. Select another model and send a new message.",
+       "unknown", false}
 
   def classify_error(:registration_timeout),
     do: {"Agent failed to start. Please try again.", "unknown", false}
@@ -78,17 +80,28 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
     end
   end
 
+  defp classify_reqllm_request(
+         %ReqLLM.Error.API.Request{
+           status: 400,
+           response_body: %{"detail" => "The '" <> detail}
+         } = request
+       ) do
+    case String.ends_with?(
+           detail,
+           "' model is not supported when using Codex with a ChatGPT account."
+         ) do
+      true -> classify_error(:unknown_model)
+      false -> classify_reqllm_request(400, request.reason)
+    end
+  end
+
   defp classify_reqllm_request(%ReqLLM.Error.API.Request{status: status, reason: reason}) do
     classify_reqllm_request(status, reason)
   end
 
   defp classify_reqllm_request(status, _reason) when status in [401, 403] do
-    {"Authentication failed — your API key may be invalid or expired (HTTP #{status})", "auth",
-     false}
-  end
-
-  defp classify_reqllm_request(400, reason) when is_binary(reason) do
-    {"Bad request — the provider rejected the request: #{reason}", "unknown", false}
+    {"Authentication failed (HTTP #{status}). In Settings, disconnect and reconnect your provider account. To use an API key instead, disconnect the account first. If you already use an API key, replace it.",
+     "auth", false}
   end
 
   defp classify_reqllm_request(400, _reason) do
@@ -96,8 +109,9 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   end
 
   defp classify_reqllm_request(402, _reason) do
-    {"Payment required — your account balance is insufficient or billing is not configured (HTTP 402)",
-     "billing", false}
+    {"Your AI provider rejected this request because of its credit or billing limits (HTTP 402). " <>
+       "Check your provider's billing or choose another provider. " <>
+       "This is separate from your Frontman subscription.", "billing", false}
   end
 
   defp classify_reqllm_request(413, _reason) do

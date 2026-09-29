@@ -160,8 +160,8 @@ module Actions = {
       TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
     )
 
-  let executionStateIdle = (~taskId: string, ~stopReason) =>
-    Client__State__Store.dispatch(TaskExecutionStopped({taskId, stopReason}))
+  let executionStateIdle = (~taskId: string) =>
+    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}))
 
   let executionStateRequiresAction = (~taskId: string) =>
     Client__State__Store.dispatch(
@@ -208,6 +208,13 @@ module Actions = {
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: PlanReceived({entries: entries})}),
     )
+
+  let setSettingsModalTab = (tab: option<Client__State__Types.settingsTab>) =>
+    Client__State__Store.dispatch(SetSettingsModalTab({tab: tab}))
+  let openSettingsModal = () => setSettingsModalTab(Some(Client__State__Types.General))
+  let openSettingsModalOnProviders = () => setSettingsModalTab(Some(Client__State__Types.Providers))
+  let openSettingsModalOnBilling = () => setSettingsModalTab(Some(Client__State__Types.Billing))
+  let closeSettingsModal = () => setSettingsModalTab(None)
 
   let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)
 
@@ -293,14 +300,6 @@ module Actions = {
     Client__State__Store.dispatch(CheckForUpdate({apiBaseUrl, installedVersion, target}))
 
   let dismissUpdateBanner = () => Client__State__Store.dispatch(DismissUpdateBanner)
-
-  let closeFirstTaskFeedbackDialog = () =>
-    Client__State__Store.dispatch(CloseFirstTaskFeedbackDialog)
-
-  let dismissFirstTaskFeedbackDialog = () =>
-    Client__State__Store.dispatch(DismissFirstTaskFeedbackDialog)
-
-  let shareFrontman = () => Client__State__Store.dispatch(ShareFrontman)
 
   let fetchCustomProviders = () => Client__State__Store.dispatch(FetchCustomProviders)
 

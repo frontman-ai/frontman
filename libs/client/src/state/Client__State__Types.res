@@ -221,19 +221,15 @@ type highlightedAnnotation = {
   selector: string,
 }
 
-type firstTaskFeedbackDialogState =
-  | Waiting
-  | AwaitingHistory
-  | Visible
-  | LinkCopied
-  | ShareFailed
-  | Dismissed
+type settingsTab = General | Providers | Billing
 
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   acpSession: acpSession,
   userProfile: option<userProfile>,
+  settingsModalTab: option<settingsTab>,
+  billingStatus: Client__Billing.state,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
   fireworksKeySettings: apiKeySettings,
@@ -251,6 +247,5 @@ type state = {
   updateInfo: option<updateInfo>,
   wordpressUpdates: Client__WordPressUpdates.t,
   updateBannerDismissed: bool,
-  firstTaskFeedbackDialogState: firstTaskFeedbackDialogState,
   highlightedAnnotation: option<highlightedAnnotation>,
 }

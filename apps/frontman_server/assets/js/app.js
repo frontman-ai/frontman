@@ -30,6 +30,10 @@ document.querySelectorAll("form[data-auto-submit]").forEach(form => {
   form.requestSubmit()
 })
 
+if (document.querySelector("[data-auto-close-window]")) {
+  window.close()
+}
+
 const embeddedClientAuthCompletion = document.getElementById("embedded-client-auth-completion")
 if (embeddedClientAuthCompletion && window.opener) {
   window.opener.postMessage(

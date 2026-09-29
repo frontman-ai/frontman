@@ -255,6 +255,135 @@ foreach ( [ 'any', 'draft', 'pending', 'publish' ] as $status ) {
 }
 frontman_runtime_assert( $posts_before_listing === $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A ), 'Listing or reading slugs mutated posts.' );
 
+wp_set_current_user( $admin->ID );
+register_sidebar( [ 'id' => 'frontman-widgets', 'name' => 'Widget runtime fixture' ] );
+register_sidebar( [ 'id' => 'frontman-footer', 'name' => 'Empty runtime footer' ] );
+$widget_sidebars = get_option( 'sidebars_widgets' );
+update_option( 'sidebars_widgets', [ 'frontman-widgets' => [ 'custom_html-4', 'categories-3' ], 'frontman-footer' => [] ] );
+update_option( 'widget_categories', [ 3 => [ 'title' => 'Categories' ] ] );
+$widget_call = static function ( string $name, array $input, bool $error = false ): array {
+	$tools = Frontman_Tools::instance();
+	$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+	frontman_runtime_assert( $error === $result['isError'], $name . ': ' . wp_json_encode( $result ) );
+	return $error ? [] : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+};
+$widget_input = [ 'sidebar_id' => 'frontman-widgets', 'widget_id' => 'custom_html-4' ];
+$widget_original = [ 'title' => 'Resources', 'content' => '<script>window.existing = true;</script>', 'mega_menu_is_grid_widget' => 'true', 'plugin_meta' => [ 'keep' => 'untouched' ] ];
+$widget_html = '<a class="blog" href="/category/blog/?a=1&amp;b=2" onclick="alert(1)">Reader\'s 日本 Blog \\ guide</a>' . "\n" . '<script>window.added = true;</script>';
+foreach ( [ true, false ] as $unfiltered ) {
+	$widget_caps = static fn( $caps ) => array_merge( $caps, [ 'unfiltered_html' => $unfiltered ] );
+	add_filter( 'user_has_cap', $widget_caps );
+	update_option( 'widget_custom_html', [ 4 => $widget_original, 6 => $widget_original, '_multiwidget' => 1 ] );
+	$title_update = $widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"title":"<b>Links</b>"}' ] );
+	frontman_runtime_assert( $widget_original === $title_update['before'] && array_merge( $widget_original, [ 'title' => 'Links' ] ) === $title_update['settings'], 'Title-only update changed omitted HTML or metadata.' );
+	$updated_widget = $widget_call( 'wp_update_widget', $widget_input + [ 'settings' => wp_json_encode( [ 'content' => $widget_html ] ) ] );
+	$expected_widget = array_merge( $title_update['settings'], [ 'content' => $unfiltered ? $widget_html : wp_kses_post( $widget_html ) ] );
+	frontman_runtime_assert( $title_update['settings'] === $updated_widget['before'] && $expected_widget === $updated_widget['settings'], 'HTML permissions or update snapshots differ from WordPress.' );
+	frontman_runtime_assert( [ 4 => $expected_widget, 6 => $widget_original, '_multiwidget' => 1 ] === get_option( 'widget_custom_html' ), 'Update changed sibling widgets or metadata.' );
+	$read_widget = $widget_call( 'wp_read_widget', [ 'widget_id' => 'custom_html-4' ] );
+	frontman_runtime_assert( $expected_widget === $read_widget['settings'] && 1 === $read_widget['position'], 'Readback differs from persisted settings or placement.' );
+	ob_start();
+	the_widget( 'WP_Widget_Custom_HTML', $read_widget['settings'] );
+	frontman_runtime_assert( false !== strpos( ob_get_clean(), $expected_widget['content'] ), 'Custom HTML widget did not render the saved link.' );
+	$widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"content":""}' ] );
+	$empty_widget = $widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"content":""}' ] );
+	frontman_runtime_assert( '' === $empty_widget['settings']['content'], 'Clearing content or saving an unchanged value failed.' );
+	remove_filter( 'user_has_cap', $widget_caps );
+}
+$widget_filter = static function ( $value ) {
+	$value[4]['title'] = 'Filtered by WordPress';
+	return $value;
+};
+add_filter( 'pre_update_option_widget_custom_html', $widget_filter );
+$filtered_widget = $widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"title":"Requested title"}' ] );
+frontman_runtime_assert( get_option( 'widget_custom_html' )[4] === $filtered_widget['settings'] && 'Filtered by WordPress' === $filtered_widget['settings']['title'], 'Update returned proposed rather than persisted settings.' );
+remove_filter( 'pre_update_option_widget_custom_html', $widget_filter );
+$widget_filter = static fn( $value, $old ) => $old;
+add_filter( 'pre_update_option_widget_custom_html', $widget_filter, 10, 2 );
+$widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"title":"Rejected save"}' ], true );
+remove_filter( 'pre_update_option_widget_custom_html', $widget_filter );
+$widget_saved = get_option( 'widget_custom_html' );
+$widget_placement = get_option( 'sidebars_widgets' );
+foreach ( [ '', '{broken', '[]', 'null', '42', '{"title":null}', '{"content":[]}', '{"content":false}', '{"title":"Must not save","mega_menu_is_grid_widget":"false"}' ] as $invalid_settings ) {
+	$widget_call( 'wp_update_widget', $widget_input + [ 'settings' => $invalid_settings ], true );
+}
+foreach ( [ [ 'sidebar_id' => 'frontman-footer' ], [ 'widget_id' => 'custom_html-999' ], [ 'widget_id' => 'preview' ] ] as $invalid_widget ) {
+	$widget_call( 'wp_update_widget', $invalid_widget + $widget_input + [ 'settings' => '{"content":"Must not save"}' ], true );
+}
+$widget_caps = static fn( $caps ) => array_merge( $caps, [ 'edit_theme_options' => false ] );
+add_filter( 'user_has_cap', $widget_caps );
+$widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"content":"Denied"}' ], true );
+remove_filter( 'user_has_cap', $widget_caps );
+foreach ( [ 'categories', 'custom_html' ] as $base ) {
+	$widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => $base, 'settings' => '{}' ], true );
+	$widget_call( 'wp_delete_widget', [ 'widget_id' => 'custom_html' === $base ? 'custom_html-4' : 'categories-3', 'confirm' => true ], true );
+}
+$widget_call( 'wp_update_widget', [ 'sidebar_id' => 'frontman-widgets', 'widget_id' => 'categories-3', 'settings' => '{}' ], true );
+frontman_runtime_assert( $widget_saved === get_option( 'widget_custom_html' ) && $widget_placement === get_option( 'sidebars_widgets' ), 'Rejected updates or content edits mutated widgets/sidebar placement.' );
+$created_widget = $widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => 'text', 'settings' => '{"title":"Footer","text":"Hello"}' ] );
+$text_input = [ 'sidebar_id' => 'frontman-footer', 'widget_id' => $created_widget['widget_id'] ];
+frontman_runtime_assert( 0 === $created_widget['before']['widget_count'] && 1 === $created_widget['after']['widget_count'] && 'Footer' === $created_widget['widget']['settings']['title'], 'Text widget creation snapshots changed.' );
+$text_updated = $widget_call( 'wp_update_widget', $text_input + [ 'settings' => '{"title":"New Footer"}' ] );
+frontman_runtime_assert( 'Footer' === $text_updated['before']['title'] && [ 'title' => 'New Footer', 'text' => 'Hello' ] === $text_updated['settings'], 'Text widget update behavior changed.' );
+foreach ( [ 1, 2 ] as $position ) {
+	$moved_widget = $widget_call( 'wp_move_widget', [ 'widget_id' => $text_input['widget_id'], 'to_sidebar_id' => 'frontman-widgets', 'to_position' => $position ] );
+	frontman_runtime_assert( ( 1 === $position ? 'frontman-footer' : 'frontman-widgets' ) === $moved_widget['before']['widget']['sidebar_id'] && 'frontman-widgets' === $moved_widget['after']['widget']['sidebar_id'] && $position === $moved_widget['after']['widget']['position'], 'Move/reorder snapshots changed.' );
+	frontman_runtime_assert( 3 === $moved_widget['after']['to_sidebar']['widget_count'], 'Move/reorder duplicated or lost a widget.' );
+}
+$widget_call( 'wp_delete_widget', [ 'widget_id' => $text_input['widget_id'], 'confirm' => false ], true );
+$deleted_widget = $widget_call( 'wp_delete_widget', [ 'widget_id' => $text_input['widget_id'], 'confirm' => true ] );
+frontman_runtime_assert( $text_input['widget_id'] === $deleted_widget['widget_id'] && 'New Footer' === $deleted_widget['before']['widget']['settings']['title'] && 2 === $deleted_widget['after']['widget_count'], 'Widget deletion snapshot or placement changed.' );
+frontman_runtime_assert( is_plugin_active( 'megamenu/megamenu.php' ), 'Max Mega Menu must be active for widget integration coverage.' );
+register_nav_menu( 'frontman-mega', 'Runtime mega menu' );
+$mega_menu = wp_create_nav_menu( 'Runtime mega menu' );
+frontman_runtime_assert( ! is_wp_error( $mega_menu ), 'Could not create mega menu fixture.' );
+$mega_locations = get_theme_mod( 'nav_menu_locations', [] );
+$mega_settings = get_option( 'megamenu_settings', [] );
+set_theme_mod( 'nav_menu_locations', array_merge( $mega_locations, [ 'frontman-mega' => $mega_menu ] ) );
+update_option( 'megamenu_settings', array_merge( $mega_settings, [ 'frontman-mega' => [ 'enabled' => '1' ] ] ) );
+$mega_manager = new Mega_Menu_Widget_Manager();
+foreach ( [ 'megamenu', 'grid' ] as $layout ) {
+	$mega_parent = wp_update_nav_menu_item( $mega_menu, 0, [ 'menu-item-title' => $layout, 'menu-item-url' => home_url( '/' ), 'menu-item-status' => 'publish' ] );
+	frontman_runtime_assert( ! is_wp_error( $mega_parent ), 'Could not create mega menu parent.' );
+	$mega_widgets = (array) $mega_manager->get_mega_menu_sidebar_widgets();
+	$mega_manager->add_widget( 'custom_html', $mega_parent, 'Custom HTML', 'grid' === $layout );
+	$mega_added = array_values( array_diff( $mega_manager->get_mega_menu_sidebar_widgets(), $mega_widgets ) );
+	frontman_runtime_assert( 1 === count( $mega_added ), 'Max Mega Menu did not create exactly one widget.' );
+	$mega_widget_id = $mega_added[0];
+	$mega_meta = [ 'type' => $layout ];
+	if ( 'grid' === $layout ) {
+		$mega_meta['grid'] = [ [ 'columns' => [ [ 'meta' => [ 'span' => 12 ], 'items' => [ [ 'id' => $mega_widget_id, 'type' => 'widget' ] ] ] ] ] ];
+	}
+	update_post_meta( $mega_parent, '_megamenu', $mega_meta );
+	$GLOBALS['wp_widget_factory']->widgets['WP_Widget_Custom_HTML']->_register();
+	$mega_before = $widget_call( 'wp_read_widget', [ 'widget_id' => $mega_widget_id ] );
+	$mega_input = [ 'sidebar_id' => $mega_before['sidebar_id'], 'widget_id' => $mega_widget_id ];
+	$mega_placement = get_option( 'sidebars_widgets' );
+	$mega_expected = $mega_before['settings'];
+	foreach ( [ [ 'title' => 'Original ' . $layout, 'content' => '<a href="/old-' . $layout . '">Old link</a>' ], [ 'title' => 'Resources ' . $layout ], [ 'content' => '<a class="blog" href="/category/blog-' . $layout . '/">Reader\'s 日本 Blog</a>' ] ] as $patch ) {
+		$mega_siblings = get_option( 'widget_custom_html' );
+		$mega_updated = $widget_call( 'wp_update_widget', $mega_input + [ 'settings' => wp_json_encode( $patch ) ] );
+		frontman_runtime_assert( $mega_expected === $mega_updated['before'], 'Mega menu update lost its before snapshot.' );
+		$mega_expected = array_merge( $mega_expected, $patch );
+		$mega_read = $widget_call( 'wp_read_widget', [ 'widget_id' => $mega_widget_id ] );
+		frontman_runtime_assert( $mega_expected === $mega_updated['settings'] && $mega_expected === $mega_read['settings'], 'Mega menu update changed omitted content or plugin metadata.' );
+		$mega_siblings[ $mega_manager->get_widget_number_for_widget_id( $mega_widget_id ) ] = $mega_expected;
+		frontman_runtime_assert( $mega_siblings === get_option( 'widget_custom_html' ) && $mega_placement === get_option( 'sidebars_widgets' ) && $mega_meta === get_post_meta( $mega_parent, '_megamenu', true ), 'Mega menu update changed sibling widgets or placement.' );
+		$mega_rendered = wp_nav_menu( [ 'theme_location' => 'frontman-mega', 'echo' => false ] );
+		frontman_runtime_assert( false !== strpos( $mega_rendered, 'max-mega-menu' ) && 1 === substr_count( $mega_rendered, $mega_expected['content'] ) && false !== strpos( $mega_rendered, $mega_expected['title'] ), 'Max Mega Menu did not render the saved widget exactly once.' );
+		if ( isset( $patch['content'] ) && false !== strpos( $patch['content'], '/category/' ) ) {
+			frontman_runtime_assert( false === strpos( $mega_rendered, '/old-' . $layout ), 'Max Mega Menu still rendered stale widget content.' );
+		}
+	}
+}
+fwrite( STDOUT, 'Max Mega Menu ' . get_plugin_data( WP_PLUGIN_DIR . '/megamenu/megamenu.php', false, false )['Version'] . " standard/grid widget updates and rendering passed.\n" );
+wp_delete_nav_menu( $mega_menu );
+set_theme_mod( 'nav_menu_locations', $mega_locations );
+update_option( 'megamenu_settings', $mega_settings );
+unregister_nav_menu( 'frontman-mega' );
+update_option( 'sidebars_widgets', $widget_sidebars );
+wp_set_current_user( 0 );
+
 $yoast = getenv( 'EXPECTED_YOAST_VERSION' );
 if ( false === $yoast || '' === $yoast ) {
 	frontman_runtime_assert( null === Frontman_Tools::instance()->get( 'wp_read_seo' ), 'SEO tools were registered without Yoast.' );

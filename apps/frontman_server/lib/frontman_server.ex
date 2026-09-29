@@ -15,10 +15,12 @@ defmodule FrontmanServer do
 
   @base_exports [
     {Accounts, []},
+    {Billing, []},
     {Agents, []},
     {Organizations, []},
     {Providers, []},
     {Skills, []},
+    {Support, []},
     {Tasks, []},
     {Frameworks, []},
     BrandTokens,
@@ -45,5 +47,5 @@ defmodule FrontmanServer do
               _ -> @base_exports
             end)
 
-  use Boundary, deps: [ModelContextProtocol], exports: @exports
+  use Boundary, deps: [FrontmanServer.Protocols.MCP], exports: @exports
 end

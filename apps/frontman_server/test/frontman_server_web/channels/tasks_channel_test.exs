@@ -1,11 +1,13 @@
 defmodule FrontmanServerWeb.TasksChannelTest do
   use FrontmanServerWeb.ChannelCase, async: false
 
+  import FrontmanServer.BillingFixtures
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
   import ExUnit.CaptureLog
 
-  alias AgentClientProtocol, as: ACP
+  alias FrontmanServer.Billing
+  alias FrontmanServer.Protocols.ACP
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks.TaskSchema
   alias FrontmanServerWeb.UserSocket
@@ -17,6 +19,21 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       |> subscribe_and_join("tasks", %{})
 
     {:ok, socket: socket, scope: scope}
+  end
+
+  describe "join tasks" do
+    test "pushes billing status update when billing changes", %{socket: _socket, scope: scope} do
+      subscription_for_scope_fixture(scope, %{status: "active"})
+
+      assert :ok = Billing.broadcast_status_changed(scope.user.id)
+
+      assert_push("billing_status_updated", %{
+        status: "active",
+        access_allowed: true,
+        has_billing_customer: true,
+        interval: :monthly
+      })
+    end
   end
 
   describe "ACP initialize" do
@@ -102,6 +119,31 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       })
     end
 
+    test "pushes billing status update", %{socket: socket} do
+      version = ACP.protocol_version()
+
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{
+          "protocolVersion" => version,
+          "clientInfo" => %{"name" => "test-client", "version" => "1.0.0"}
+        }
+      })
+
+      assert_push("billing_status_updated", %{
+        status: "none",
+        access_allowed: false,
+        has_billing_customer: false,
+        interval: nil,
+        current_period_end: nil,
+        trial_end: nil,
+        cancel_at: nil,
+        canceled_at: nil
+      })
+    end
+
     test "fails with wrong protocol version", %{socket: socket} do
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
@@ -141,6 +183,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
   describe "ACP session/new" do
     test "creates task and returns sessionId", %{socket: socket, scope: scope} do
+      allow_access_for_scope_fixture(scope)
+
       version = ACP.protocol_version()
 
       push(socket, "acp:message", %{
@@ -181,7 +225,88 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert task.framework == :nextjs
     end
 
+    test "rejects inactive billing before creating task", %{socket: socket, scope: scope} do
+      version = ACP.protocol_version()
+
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{
+          "protocolVersion" => version,
+          "clientInfo" => %{
+            "name" => "test-client",
+            "version" => "1.0.0",
+            "_meta" => %{"framework" => "nextjs"}
+          }
+        }
+      })
+
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+
+      client_session_id = Ecto.UUID.generate()
+
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "session/new",
+        "params" => %{"sessionId" => client_session_id}
+      })
+
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "error" => %{
+          "code" => -32_010,
+          "message" => "Finish billing setup to start using Frontman."
+        }
+      })
+
+      assert {:error, :not_found} = FrontmanServer.Tasks.get_task(scope, client_session_id)
+    end
+
+    test "creates task for trialing billing", %{socket: socket, scope: scope} do
+      subscription_for_scope_fixture(scope, %{status: "trialing"})
+
+      version = ACP.protocol_version()
+
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 1,
+        "method" => "initialize",
+        "params" => %{
+          "protocolVersion" => version,
+          "clientInfo" => %{
+            "name" => "test-client",
+            "version" => "1.0.0",
+            "_meta" => %{"framework" => "nextjs"}
+          }
+        }
+      })
+
+      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+
+      client_session_id = Ecto.UUID.generate()
+
+      push(socket, "acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "method" => "session/new",
+        "params" => %{"sessionId" => client_session_id}
+      })
+
+      assert_push("acp:message", %{
+        "jsonrpc" => "2.0",
+        "id" => 2,
+        "result" => %{"sessionId" => ^client_session_id}
+      })
+
+      assert {:ok, _task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
+    end
+
     test "stores framework ID from clientInfo", %{socket: socket, scope: scope} do
+      allow_access_for_scope_fixture(scope)
+
       version = ACP.protocol_version()
 
       push(socket, "acp:message", %{
@@ -229,6 +354,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     end
 
     test "stores vite framework ID from clientInfo", %{socket: socket, scope: scope} do
+      allow_access_for_scope_fixture(scope)
+
       version = ACP.protocol_version()
 
       push(socket, "acp:message", %{
@@ -339,6 +466,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       socket: socket,
       scope: scope
     } do
+      allow_access_for_scope_fixture(scope)
+
       version = ACP.protocol_version()
 
       push(socket, "acp:message", %{

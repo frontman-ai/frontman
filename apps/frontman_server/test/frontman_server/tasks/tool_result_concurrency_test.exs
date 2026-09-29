@@ -3,15 +3,16 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 1]
 
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Execution.ToolExecutor
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tools.MCP, as: MCPTool
-  alias ModelContextProtocol, as: MCP
 
   test "two tasks with the same tool call id receive only their own result" do
     Sandbox.unboxed_run(Repo, fn ->
@@ -62,7 +63,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
     end)
   end
 
-  test "concurrent tool results resolve to one canonical interaction" do
+  test "concurrent responses have unique sequences and tool results converge" do
     Sandbox.unboxed_run(Repo, fn ->
       scope = user_scope_fixture()
 
@@ -78,7 +79,9 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
                 send(parent, {:ready, self()})
 
                 receive do
-                  :resolve -> resolve(scope, task_id, turn_number, result)
+                  :resolve ->
+                    assert {:ok, _} = Tasks.agent_replied(scope, task_id, turn_number, result)
+                    resolve(scope, task_id, turn_number, result)
                 after
                   1_000 -> raise "timed out waiting to resolve tool result"
                 end
@@ -108,7 +111,12 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
         {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
-        assert [_result] =
+        sequences = Enum.map(task.interaction_rows, & &1.sequence)
+        assert length(sequences) == 5
+        assert sequences == Enum.sort(Enum.uniq(sequences))
+        assert Enum.all?(sequences, &(&1 > 0))
+
+        assert [^canonical] =
                  Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
       after
         Repo.delete!(Scope.user(scope))
@@ -171,27 +179,19 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
   defp start_executor(scope, task_id, turn_number, tool_call_id) do
     Task.async(fn ->
       Sandbox.unboxed_run(Repo, fn ->
-        ToolExecutor.execute(scope, %{
-          task_id: task_id,
-          turn_number: turn_number,
-          tool_calls: [%SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}],
-          task_supervisor: SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime),
-          backend_tool_modules: [],
-          mcp_tool_defs: [mcp_tool_def()],
-          execution_mode: :serial
-        })
+        tool = %{MCPTool.from_map(mcp_tool("some_tool")) | timeout_ms: 1_000}
+
+        {:serial, executions} =
+          ToolExecutor.callback(scope, %{tool.name => tool}, :serial, task_id, turn_number).([
+            %SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}
+          ])
+
+        SwarmAi.ParallelExecutor.run_serial(
+          executions,
+          SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
+        )
       end)
     end)
-  end
-
-  defp mcp_tool_def do
-    %MCPTool{
-      name: "some_tool",
-      description: "Some client tool",
-      input_schema: %{},
-      timeout_ms: 1_000,
-      execution_mode: :synchronous
-    }
   end
 
   defp assert_tool_executor_registered(task_id, tool_call_id) do

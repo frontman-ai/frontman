@@ -7,6 +7,11 @@ config :swoosh, api_client: Swoosh.ApiClient.Req
 
 config :swoosh, local: false
 
+config :frontman_server, :stripe,
+  monthly_price_id: "price_1TUNIEPPoSdrJYfmu6kRjlTI",
+  yearly_price_id: "price_1TUNIEPPoSdrJYfmCbSWxXUb",
+  trial_days: 14
+
 config :logger, level: :info
 
 config :sentry,

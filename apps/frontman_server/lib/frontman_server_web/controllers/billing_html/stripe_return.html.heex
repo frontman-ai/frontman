@@ -1,0 +1,23 @@
+<Layouts.app flash={@flash} current_scope={@current_scope}>
+  <section
+    id="billing-stripe-return"
+    data-auto-close-window
+    class="mx-auto flex max-w-xl flex-col items-center rounded-box border border-base-content/10 bg-base-200/70 px-6 py-12 text-center shadow-2xl shadow-primary/10"
+  >
+    <div class="mb-6 flex size-14 items-center justify-center rounded-full bg-primary/15 text-primary">
+      <.icon name="hero-check" class="size-7" />
+    </div>
+
+    <div class="space-y-3">
+      <h1 class="font-headings text-2xl font-semibold tracking-tight text-base-content">
+        {@title}
+      </h1>
+      <p id="billing-stripe-return-message" class="text-sm leading-6 text-base-content/70">
+        {@message}
+      </p>
+      <p class="text-xs leading-5 text-base-content/50">
+        Your original Frontman tab updates automatically when Stripe sends a billing event.
+      </p>
+    </div>
+  </section>
+</Layouts.app>

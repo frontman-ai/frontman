@@ -572,12 +572,6 @@ if ( ! function_exists( 'wp_setup_nav_menu_item' ) ) {
 	}
 }
 
-if ( ! function_exists( 'wp_get_sidebars_widgets' ) ) {
-	function wp_get_sidebars_widgets(): array {
-		return $GLOBALS['frontman_test_options']['sidebars_widgets'] ?? [];
-	}
-}
-
 if ( ! function_exists( 'wp_get_theme' ) ) {
 	function wp_get_theme() {
 		return new class() {
@@ -640,7 +634,6 @@ require_once __DIR__ . '/../tools/class-tool-blocks.php';
 require_once __DIR__ . '/../tools/class-tool-menus.php';
 require_once __DIR__ . '/../tools/class-tool-options.php';
 require_once __DIR__ . '/../tools/class-tool-templates.php';
-require_once __DIR__ . '/../tools/class-tool-widgets.php';
 require_once __DIR__ . '/../tools/class-tool-cache.php';
 
 class Frontman_Mutation_Snapshots_Test_Runner {
@@ -656,10 +649,11 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->test_menu_management_snapshots();
 		$this->test_block_navigation_management();
 		$this->test_menu_item_creation_includes_before_snapshot();
-		$this->test_menu_option_and_widget_updates_include_before_snapshots();
+		$this->test_menu_and_option_updates_include_before_snapshots();
+		$this->test_privacy_options_are_read_only();
+		$this->test_option_schemas_match_permissions();
 		$this->test_theme_source_tools();
 		$this->test_post_backed_menu_items_preserve_metadata();
-		$this->test_widget_management_snapshots();
 		$this->test_template_update_snapshot();
 		$this->test_cache_tools();
 		fwrite( STDOUT, "OK ({$this->assertions} assertions)\n" );
@@ -770,20 +764,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			'page_title_enabled' => true,
 		];
 		$GLOBALS['frontman_test_options']['active_plugins'] = [ 'wp-rocket/wp-rocket.php' ];
-		$GLOBALS['frontman_test_options']['widget_text'] = [
-			2 => [ 'title' => 'Old Widget', 'text' => 'Old text' ],
-		];
-		$GLOBALS['frontman_test_options']['widget_categories'] = [
-			3 => [ 'title' => 'Categories Widget' ],
-		];
-		$GLOBALS['frontman_test_options']['sidebars_widgets'] = [
-			'sidebar-1' => [ 'text-2', 'categories-3' ],
-			'sidebar-2' => [],
-		];
-		$GLOBALS['wp_registered_sidebars'] = [
-			'sidebar-1' => [ 'name' => 'Primary Sidebar', 'description' => '' ],
-			'sidebar-2' => [ 'name' => 'Footer Sidebar', 'description' => '' ],
-		];
 		$GLOBALS['frontman_test_block_templates'][] = (object) [
 			'id' => 'frontman-theme//home',
 			'slug' => 'home',
@@ -1060,7 +1040,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->assert_same( 'Footer Navigation', $deleted['before']['title'], 'wp_delete_navigation_menu returns deleted navigation snapshot' );
 	}
 
-	private function test_menu_option_and_widget_updates_include_before_snapshots(): void {
+	private function test_menu_and_option_updates_include_before_snapshots(): void {
 		$menu_tool = new Frontman_Tool_Menus();
 		$menu = $menu_tool->update_menu_item( [ 'menu_item_id' => 25, 'title' => 'New Label' ] );
 		$this->assert_same( 'Old Label', $menu['before']['title'], 'wp_update_menu_item returns previous menu item snapshot' );
@@ -1087,15 +1067,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			'wp_update_option rejects complex widget/sidebar state writes'
 		);
 
-		$widget_tool = new Frontman_Tool_Widgets();
-		$widget = $widget_tool->update_widget( [
-			'sidebar_id' => 'sidebar-1',
-			'widget_id' => 'text-2',
-			'settings' => [ 'title' => 'New Widget' ],
-		] );
-		$this->assert_same( 'Old Widget', $widget['before']['title'], 'wp_update_widget returns previous widget settings' );
-		$this->assert_same( 'New Widget', $widget['settings']['title'], 'wp_update_widget returns updated widget settings' );
-
 		$this->assert_error_contains(
 			static function() use ( $menu_tool ) {
 				$menu_tool->delete_menu_item( [ 'menu_item_id' => 25, 'confirm' => false ] );
@@ -1107,6 +1078,83 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$deleted_item = $menu_tool->delete_menu_item( [ 'menu_item_id' => 25, 'confirm' => true ] );
 		$this->assert_same( $slash_sensitive_title, $deleted_item['before']['item']['title'], 'wp_delete_menu_item returns previous item snapshot' );
 		$this->assert_same( 1, count( $deleted_item['after']['items'] ), 'wp_delete_menu_item returns updated menu snapshot' );
+	}
+
+	private function test_privacy_options_are_read_only(): void {
+		$tool = new Frontman_Tool_Options();
+		$tools = Frontman_Tools::instance();
+		$tool->register( $tools );
+		$original = $GLOBALS['frontman_test_options'];
+		$values = [ 'wp_page_for_privacy_policy' => 42, 'comment_registration' => '0', 'require_name_email' => '1' ];
+		foreach ( $values as $name => $value ) {
+			$GLOBALS['frontman_test_options'][ $name ] = $value;
+		}
+		$GLOBALS['frontman_test_options']['frontman_test_secret'] = 'must-not-be-returned';
+		$before = $GLOBALS['frontman_test_options'];
+		$listed = array_column( $tool->list_options( [] ), 'value', 'name' );
+
+		foreach ( $values as $name => $value ) {
+			$this->assert_same( [ 'name' => $name, 'value' => $value ], $tool->get_option( [ 'name' => $name ] ), 'Privacy reads preserve the stored value and type: ' . $name );
+			$this->assert_same( $value, $listed[ $name ], 'Privacy options appear in bulk reads: ' . $name );
+			$this->assert_error_contains(
+				static function() use ( $tool, $tools, $name ) {
+					$tool->update_option( $tools->sanitize_input( 'wp_update_option', [ 'name' => $name, 'value' => '99' ] ) );
+				},
+				'Option not allowed',
+				'Privacy options remain non-writable: ' . $name
+			);
+			$this->assert_same( $before, $GLOBALS['frontman_test_options'], 'Rejected update must not change any option' );
+		}
+
+		foreach ( [ 'wp_get_option' => 'get_option', 'wp_update_option' => 'update_option' ] as $name => $handler ) {
+			$this->assert_error_contains(
+				static function() use ( $tool, $tools, $name, $handler ) {
+					$tool->$handler( $tools->sanitize_input( $name, [ 'name' => 'frontman_test_secret', 'value' => 'changed' ] ) );
+				},
+				'Option not allowed',
+				'Handlers reject unknown keys even after schema sanitization'
+			);
+		}
+		$this->assert_true( ! array_key_exists( 'frontman_test_secret', $listed ), 'Bulk reads exclude unlisted secrets' );
+		$this->assert_same( $before, $GLOBALS['frontman_test_options'], 'Reads and rejected secret writes leave storage unchanged' );
+		$GLOBALS['frontman_test_options']['wp_page_for_privacy_policy'] = 0;
+		$this->assert_same( [ 'name' => 'wp_page_for_privacy_policy', 'value' => 0 ], $tool->get_option( [ 'name' => 'wp_page_for_privacy_policy' ] ), 'No selected privacy page is a valid zero value' );
+		$GLOBALS['frontman_test_options'] = $original;
+	}
+
+	private function test_option_schemas_match_permissions(): void {
+		$tool = new Frontman_Tool_Options();
+		$tools = Frontman_Tools::instance();
+		$tool->register( $tools );
+		$writable = [
+			'blogname', 'blogdescription', 'siteurl', 'home', 'admin_email', 'posts_per_page',
+			'date_format', 'time_format', 'timezone_string', 'gmt_offset', 'permalink_structure',
+			'default_category', 'default_post_format', 'show_on_front', 'page_on_front', 'page_for_posts',
+			'blog_public', 'default_comment_status', 'thread_comments', 'thread_comments_depth',
+			'comments_per_page', 'stylesheet', 'template',
+		];
+		$read_only = [
+			'sidebars_widgets', 'widget_text', 'widget_categories', 'widget_archives', 'widget_meta',
+			'widget_search', 'widget_recent-posts', 'widget_recent-comments',
+			'wp_page_for_privacy_policy', 'comment_registration', 'require_name_email',
+		];
+		$readable = array_merge( $writable, $read_only );
+		$this->assert_same( $readable, $tools->get( 'wp_get_option' )->input_schema['properties']['name']['enum'], 'Read schema advertises the complete ordered allowlist without duplicates' );
+		$this->assert_same( $writable, $tools->get( 'wp_update_option' )->input_schema['properties']['name']['enum'], 'Write schema preserves all existing permissions and excludes read-only keys' );
+		$definitions = array_column( json_decode( wp_json_encode( $tools->all_definitions() ), true ), null, 'name' );
+		$this->assert_same( $readable, $definitions['wp_get_option']['inputSchema']['properties']['name']['enum'], 'Serialized read schema preserves the enum' );
+		$this->assert_same( $writable, $definitions['wp_update_option']['inputSchema']['properties']['name']['enum'], 'Serialized write schema preserves the enum' );
+
+		foreach ( $readable as $name ) {
+			$this->assert_same( [ 'name' => $name, 'value' => get_option( $name ) ], $tool->get_option( [ 'name' => $name ] ), 'Advertised option is readable: ' . $name );
+		}
+		$original = $GLOBALS['frontman_test_options'];
+		$GLOBALS['frontman_test_options']['sidebars_widgets'] = [ 'sidebar-1' => [ 'text-1' ] ];
+		$listed = $tool->list_options( [] );
+		$this->assert_same( array_values( array_diff( $readable, [ 'admin_email' ] ) ), array_column( $listed, 'name' ), 'Bulk reads preserve option order and omit the administrator email' );
+		$this->assert_same( '(complex value - use wp_get_option to read)', array_column( $listed, 'value', 'name' )['sidebars_widgets'], 'Bulk reads retain the complex-value placeholder' );
+		$this->assert_same( $GLOBALS['frontman_test_options']['sidebars_widgets'], $tool->get_option( [ 'name' => 'sidebars_widgets' ] )['value'], 'Explicit reads retain complex values' );
+		$GLOBALS['frontman_test_options'] = $original;
 	}
 
 	private function test_theme_source_tools(): void {
@@ -1453,82 +1501,6 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			'post-backed menu item',
 			'wp_update_menu_item rejects URL-only updates on post-backed menu items'
 		);
-	}
-
-	private function test_widget_management_snapshots(): void {
-		$tool = new Frontman_Tool_Widgets();
-
-		$this->assert_error_contains(
-			static function() use ( $tool ) {
-				$tool->create_widget( [
-					'sidebar_id' => 'sidebar-2',
-					'widget_base' => 'categories',
-					'settings' => [ 'title' => 'Categories' ],
-				] );
-			},
-			'text',
-			'wp_create_widget rejects unsupported widget bases'
-		);
-
-		$this->assert_error_contains(
-			static function() use ( $tool ) {
-				$tool->update_widget( [
-					'sidebar_id' => 'sidebar-1',
-					'widget_id' => 'categories-3',
-					'settings' => [ 'title' => 'Nope' ],
-				] );
-			},
-			'text',
-			'wp_update_widget rejects unsupported widget bases'
-		);
-
-		$this->assert_error_contains(
-			static function() use ( $tool ) {
-				$tool->delete_widget( [
-					'widget_id' => 'categories-3',
-					'confirm' => true,
-				] );
-			},
-			'text',
-			'wp_delete_widget rejects unsupported widget bases'
-		);
-
-		$created = $tool->create_widget( [
-			'sidebar_id' => 'sidebar-2',
-			'widget_base' => 'text',
-			'settings' => [ 'title' => 'Footer Widget', 'text' => 'Hello' ],
-		] );
-		$this->assert_same( 0, $created['before']['widget_count'], 'wp_create_widget captures sidebar state before creation' );
-		$this->assert_same( 1, $created['after']['widget_count'], 'wp_create_widget captures sidebar state after creation' );
-		$this->assert_same( 'Footer Widget', $tool->read_widget( [ 'widget_id' => $created['widget_id'] ] )['settings']['title'], 'wp_read_widget reads created widget settings' );
-
-		$moved = $tool->move_widget( [
-			'widget_id' => $created['widget_id'],
-			'to_sidebar_id' => 'sidebar-1',
-			'to_position' => 1,
-		] );
-		$this->assert_same( 'sidebar-2', $moved['before']['widget']['sidebar_id'], 'wp_move_widget captures original sidebar' );
-		$this->assert_same( 'sidebar-1', $moved['after']['widget']['sidebar_id'], 'wp_move_widget captures destination sidebar' );
-
-		$reordered = $tool->move_widget( [
-			'widget_id' => $created['widget_id'],
-			'to_sidebar_id' => 'sidebar-1',
-			'to_position' => 2,
-		] );
-		$this->assert_same( 2, $reordered['after']['widget']['position'], 'wp_move_widget can reorder within the same sidebar without duplicating the widget' );
-		$this->assert_same( $reordered['before']['from_sidebar']['widget_count'], $reordered['after']['from_sidebar']['widget_count'], 'same-sidebar widget move keeps the sidebar widget count stable' );
-
-		$this->assert_error_contains(
-			static function() use ( $tool, $created ) {
-				$tool->delete_widget( [ 'widget_id' => $created['widget_id'], 'confirm' => false ] );
-			},
-			'explicit confirmation',
-			'wp_delete_widget requires confirm=true'
-		);
-
-		$deleted = $tool->delete_widget( [ 'widget_id' => $created['widget_id'], 'confirm' => true ] );
-		$this->assert_same( $created['widget_id'], $deleted['widget_id'], 'wp_delete_widget reports deleted widget id' );
-		$this->assert_same( 'Footer Widget', $deleted['before']['widget']['settings']['title'], 'wp_delete_widget returns previous widget snapshot' );
 	}
 
 	private function test_template_update_snapshot(): void {

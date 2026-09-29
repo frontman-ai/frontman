@@ -13,12 +13,11 @@ defmodule FrontmanServer.Tools.Backend do
     @moduledoc """
     Execution context passed to backend tools.
 
-    Tools receive all needed data through this context rather than calling back into
-    contexts.
+    Provides the current task and authorization scope for context API calls.
     """
 
     @enforce_keys [:task]
-    defstruct task: nil
+    defstruct task: nil, scope: nil
   end
 
   @type result :: map()

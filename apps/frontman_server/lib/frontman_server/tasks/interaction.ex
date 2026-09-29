@@ -193,6 +193,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       field :title, :string
       field :color_scheme, :string
       field :scroll_y, :integer
+      field :astro_client_routing, :string
     end
 
     def changeset(%__MODULE__{} = current_page, attrs) do
@@ -203,29 +204,15 @@ defmodule FrontmanServer.Tasks.Interaction do
         :device_pixel_ratio,
         :title,
         :color_scheme,
-        :scroll_y
+        :scroll_y,
+        :astro_client_routing
       ])
+      |> validate_inclusion(:astro_client_routing, ["enabled", "disabled", "unavailable"])
     end
 
-    def attrs_from_acp_meta(meta) when is_map(meta) do
-      case CurrentPageContext.fields_from_current_page_meta(meta) do
-        %{url: url} = fields ->
-          %{
-            url: url,
-            viewport_width: fields.viewport_width,
-            viewport_height: fields.viewport_height,
-            device_pixel_ratio: fields.device_pixel_ratio,
-            title: fields.title,
-            color_scheme: fields.color_scheme,
-            scroll_y: fields.scroll_y
-          }
-
-        nil ->
-          nil
-      end
-    end
-
-    def attrs_from_acp_meta(_), do: nil
+    defdelegate attrs_from_acp_meta(meta),
+      to: CurrentPageContext,
+      as: :fields_from_current_page_meta
   end
 
   defmodule Annotation do
@@ -1161,18 +1148,33 @@ defmodule FrontmanServer.Tasks.Interaction do
   tool results) regardless of database insertion timing.
   """
   def to_swarm_messages(interactions) when is_list(interactions) do
-    Enum.flat_map(interactions, &to_swarm_message/1)
+    skills =
+      for %SkillUsed{} = skill <- interactions,
+          into: %{},
+          do: {skill.user_message_id, SwarmContentPart.text(active_skill_text(skill))}
+
+    Enum.flat_map(interactions, fn
+      %UserMessage{} = msg ->
+        [message] = to_swarm_message(msg)
+        [%{message | content: List.wrap(Map.get(skills, msg.id)) ++ message.content}]
+
+      interaction ->
+        to_swarm_message(interaction)
+    end)
   end
 
-  defp to_swarm_message(%SkillUsed{} = skill_used) do
-    [%SwarmMessage.User{content: [SwarmContentPart.text(active_skill_text(skill_used))]}]
-  end
+  defp to_swarm_message(%SkillUsed{}), do: []
 
   defp to_swarm_message(%UserMessage{} = msg) do
-    prompt_text = user_prompt_text(msg)
-    content_parts = build_user_content_parts(prompt_text, msg)
+    message =
+      msg
+      |> user_prompt_text()
+      |> text_parts()
+      |> append_annotation_screenshot_parts(msg.annotations)
+      |> append_user_attachment_parts(msg.images)
+      |> build_swarm_user_message()
 
-    [build_swarm_user_message(content_parts)]
+    [message]
   end
 
   defp to_swarm_message(
@@ -1206,7 +1208,7 @@ defmodule FrontmanServer.Tasks.Interaction do
        when is_list(content) do
     [
       %SwarmMessage.Tool{
-        content: Enum.map(content, &tool_result_content_part/1),
+        content: tool_result_content_parts(result.result),
         tool_call_id: result.tool_call_id,
         name: result.tool_name
       }
@@ -1234,15 +1236,13 @@ defmodule FrontmanServer.Tasks.Interaction do
     |> append_attachment_context(msg.images)
   end
 
-  defp build_user_content_parts(prompt_text, %UserMessage{} = msg) do
-    prompt_text
-    |> text_parts()
-    |> append_annotation_screenshot_parts(msg.annotations)
-    |> append_user_attachment_parts(msg.images)
-  end
-
   defp text_parts(""), do: []
   defp text_parts(text), do: [SwarmContentPart.text(text)]
+
+  @doc "Projects MCP tool-result content into Swarm content parts."
+  def tool_result_content_parts(%{"content" => content}) when is_list(content) do
+    Enum.map(content, &tool_result_content_part/1)
+  end
 
   defp tool_result_content_part(%{"type" => "text", "text" => text}),
     do: SwarmContentPart.text(text)

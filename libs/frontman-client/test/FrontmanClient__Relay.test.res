@@ -2,8 +2,6 @@ open Vitest
 
 module Relay = FrontmanClient__Relay
 
-let jsonString = json => JSON.stringify(json)
-
 describe("Relay.connect", _t => {
   test("accepts only the current relay protocol version", t => {
     let json = JSON.parseOrThrow(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"1.0"}`)
@@ -28,7 +26,7 @@ describe("Relay.connect", _t => {
 
     t->expect(response.protocolVersion)->Expect.toBe("2.0")
     t
-    ->expect(response.tools->Array.get(0)->Option.map(jsonString))
+    ->expect(response.tools->Array.get(0)->Option.map(json => JSON.stringify(json)))
     ->Expect.toEqual(
       Some(
         JSON.stringify(
@@ -81,7 +79,7 @@ test("preserves relayed MCP tool metadata and parses legacy results", t => {
     })
 
   t
-  ->expect(relay->Relay.getToolsJson->Array.get(0)->Option.map(jsonString))
+  ->expect(relay->Relay.getToolsJson->Array.get(0)->Option.map(json => JSON.stringify(json)))
   ->Expect.toEqual(Some(JSON.stringify(tool)))
   t->expect(relay->Relay.hasTool("tool"))->Expect.toBe(true)
   JSON.parseOrThrow(`{"content":[]}`)

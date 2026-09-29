@@ -5,6 +5,7 @@ defmodule FrontmanServer.SkillsTest do
   alias FrontmanServer.Skills.Skill
 
   import FrontmanServer.Test.Fixtures.Accounts
+  import FrontmanServer.Test.Fixtures.Skills
 
   describe "register/2" do
     test "registers a global skill and downcases its name" do
@@ -12,12 +13,12 @@ defmodule FrontmanServer.SkillsTest do
 
       assert {:ok, %Skill{} = skill} =
                Skills.register(scope, %{
-                 name: "Design_Polish",
+                 name: "Test_Design_Polish",
                  description: "Improve visual quality.",
                  content: "Use stronger hierarchy."
                })
 
-      assert skill.name == "design_polish"
+      assert skill.name == "test_design_polish"
       assert skill.description == "Improve visual quality."
       assert skill.content == "Use stronger hierarchy."
     end
@@ -45,13 +46,30 @@ defmodule FrontmanServer.SkillsTest do
       assert "has invalid format" in errors_on(changeset).name
     end
 
+    test "accepts a 255-character name" do
+      scope = user_scope_fixture()
+      name = String.duplicate("a", 255)
+
+      assert {:ok, skill} = Skills.register(scope, skill_attrs_fixture(%{name: name}))
+      assert skill.name == name
+    end
+
+    test "rejects a 256-character name" do
+      scope = user_scope_fixture()
+
+      assert {:error, changeset} =
+               Skills.register(scope, skill_attrs_fixture(%{name: String.duplicate("a", 256)}))
+
+      assert "should be at most 255 character(s)" in errors_on(changeset).name
+    end
+
     test "validates description length" do
       scope = user_scope_fixture()
 
       assert {:error, changeset} =
                Skills.register(
                  scope,
-                 valid_skill_attrs(%{description: String.duplicate("a", 201)})
+                 skill_attrs_fixture(%{description: String.duplicate("a", 201)})
                )
 
       assert "should be at most 200 character(s)" in errors_on(changeset).description
@@ -59,7 +77,7 @@ defmodule FrontmanServer.SkillsTest do
 
     test "enforces unique names" do
       scope = user_scope_fixture()
-      attrs = valid_skill_attrs(%{name: "seo_auditor"})
+      attrs = skill_attrs_fixture(%{name: "seo_auditor"})
 
       assert {:ok, _skill} = Skills.register(scope, attrs)
       assert {:error, changeset} = Skills.register(scope, attrs)
@@ -69,21 +87,45 @@ defmodule FrontmanServer.SkillsTest do
   end
 
   describe "catalog/1" do
+    test "includes the official skill installed by migrations" do
+      assert %Skill{content: content, description: description} =
+               Repo.get_by!(Skill, name: "design_polish")
+
+      assert content =~ "You are Frontman's design polish expert."
+
+      assert description ==
+               "Improve visual quality using selected UI, DOM, CSS, and page context."
+    end
+
+    test "includes the WebMCP skill installed by migrations" do
+      scope = user_scope_fixture()
+
+      assert {:ok, %Skill{content: content, description: description}} =
+               Skills.load(scope, %{source: :backend, name: "webmcp"})
+
+      assert content =~ "# Implement WebMCP"
+      assert content =~ "await document.modelContext.registerTool"
+      assert content =~ "## Migration checklist"
+      assert String.length(description) <= 200
+    end
+
     test "returns globally usable skills ordered by name" do
       scope = user_scope_fixture()
 
-      {:ok, _} = Skills.register(scope, valid_skill_attrs(%{name: "seo_auditor"}))
-      {:ok, _} = Skills.register(scope, valid_skill_attrs(%{name: "design_polish"}))
+      skill_fixture(scope, %{name: "seo_auditor"})
 
-      assert [%Skill{name: "design_polish"}, %Skill{name: "seo_auditor"}] =
-               Skills.catalog(scope)
+      assert [
+               %Skill{name: "design_polish"},
+               %Skill{name: "seo_auditor"},
+               %Skill{name: "webmcp"}
+             ] = Skills.catalog(scope)
     end
   end
 
   describe "get_by_id/2" do
     test "returns ok tuple for an existing database id" do
       scope = user_scope_fixture()
-      {:ok, skill} = Skills.register(scope, valid_skill_attrs())
+      skill = skill_fixture(scope)
 
       assert {:ok, %Skill{id: skill_id}} = Skills.get_by_id(scope, skill.id)
       assert skill_id == skill.id
@@ -106,22 +148,22 @@ defmodule FrontmanServer.SkillsTest do
   describe "update/3" do
     test "updates through the skill changeset" do
       scope = user_scope_fixture()
-      {:ok, skill} = Skills.register(scope, valid_skill_attrs())
+      skill = skill_fixture(scope)
 
       assert {:ok, updated} = Skills.update(scope, skill, %{description: "Updated skill."})
 
       assert updated.description == "Updated skill."
     end
-  end
 
-  defp valid_skill_attrs(attrs \\ %{}) do
-    Map.merge(
-      %{
-        name: "conversion_copy",
-        description: "Rewrite page copy for conversion.",
-        content: "Focus on user intent and clear CTAs."
-      },
-      attrs
-    )
+    test "rejects a 256-character name without changing the persisted skill" do
+      scope = user_scope_fixture()
+      skill = skill_fixture(scope)
+
+      assert {:error, changeset} =
+               Skills.update(scope, skill, %{name: String.duplicate("a", 256)})
+
+      assert "should be at most 255 character(s)" in errors_on(changeset).name
+      assert Skills.get_by_id(scope, skill.id) == {:ok, skill}
+    end
   end
 end

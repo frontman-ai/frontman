@@ -16,12 +16,14 @@ defmodule FrontmanServerWeb.TasksChannel do
   use FrontmanServerWeb, :verified_routes
   require Logger
 
-  alias AgentClientProtocol, as: ACP
   alias FrontmanServer.Agents
+  alias FrontmanServer.Billing
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Protocols.{ACP, JsonRpc}
   alias FrontmanServer.Providers
   alias FrontmanServer.Tasks
 
+  @billing_status_updated "billing_status_updated"
   @acp_protocol_version ACP.protocol_version()
   @acp_message ACP.event_acp_message()
   @acp_config_updated ACP.event_config_options_updated()
@@ -43,6 +45,8 @@ defmodule FrontmanServerWeb.TasksChannel do
         FrontmanServer.PubSub,
         Providers.config_pubsub_topic(user_id)
       )
+
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(user_id))
 
       {:ok, %{status: "connected"}, socket}
     else
@@ -94,6 +98,7 @@ defmodule FrontmanServerWeb.TasksChannel do
           ACP.build_config_options_updated_payload(current_config_options(socket))
         )
 
+        push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
         agents = Agents.list_agents(socket.assigns.scope)
 
         push_response(
@@ -130,6 +135,7 @@ defmodule FrontmanServerWeb.TasksChannel do
     with :ok <- validate_uuid_format(session_id),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
+         true <- Billing.allow_access?(socket.assigns.scope),
          {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
            Tasks.create_task(
              socket.assigns.scope,
@@ -145,6 +151,16 @@ defmodule FrontmanServerWeb.TasksChannel do
         )
       )
     else
+      false ->
+        push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
+
+        push_error(
+          socket,
+          id,
+          JsonRpc.error_billing_inactive(),
+          Tasks.billing_inactive_message(socket.assigns.scope)
+        )
+
       :error ->
         push_error(
           socket,
@@ -182,6 +198,11 @@ defmodule FrontmanServerWeb.TasksChannel do
       ACP.build_config_options_updated_payload(current_config_options(socket))
     )
 
+    {:noreply, socket}
+  end
+
+  def handle_info(:billing_status_changed, socket) do
+    push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
     {:noreply, socket}
   end
 

@@ -11,10 +11,10 @@ defmodule FrontmanServer.Tools.GetToolResult do
 
   @behaviour FrontmanServer.Tools.Backend
 
+  alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Tasks.Interaction.ToolResult
   alias FrontmanServer.Tasks.InteractionSchema
   alias FrontmanServer.Tools.Backend.Context
-  alias ModelContextProtocol, as: MCP
 
   @impl true
   def name, do: "get_tool_result"
