@@ -169,7 +169,12 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = user_image, attrs) do
-      cast(user_image, attrs, [:blob, :mime_type, :filename, :uri])
+      user_image
+      |> cast(attrs, [:blob, :mime_type, :filename, :uri])
+      |> validate_required([:blob, :mime_type])
+      |> validate_inclusion(:mime_type, ["image/png", "image/jpeg", "image/gif", "image/webp"],
+        message: "must be PNG, JPEG, GIF, or WebP; paste document text instead"
+      )
     end
   end
 
@@ -378,7 +383,8 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def attrs(content_blocks, model \\ nil, agent_id \\ nil) do
-      with {:ok, messages} <- extract_messages(content_blocks) do
+      with {:ok, messages} <- extract_messages(content_blocks),
+           {:ok, images} <- extract_user_images(content_blocks) do
         {:ok,
          %{
            agent_id: agent_id,
@@ -386,7 +392,7 @@ defmodule FrontmanServer.Tasks.Interaction do
            messages: messages,
            annotations: extract_annotations(content_blocks),
            selected_figma_node: extract_selected_figma_node(content_blocks),
-           images: extract_user_images(content_blocks),
+           images: images,
            current_page: extract_current_page(content_blocks)
          }}
       end
@@ -403,22 +409,6 @@ defmodule FrontmanServer.Tasks.Interaction do
           {:halt,
            {:error,
             {:invalid_content_block, "text content block must include non-empty string text"}}}
-
-        %{"type" => "resource", "resource" => resource} = block, acc ->
-          case {get_in(block, ["_meta", "user_image"]), Map.has_key?(resource, "blob"),
-                resource["mimeType"]} do
-            {_, true, mime} when mime in ["image/png", "image/jpeg", "image/gif", "image/webp"] ->
-              {:cont, acc}
-
-            {user_image, false, _} when user_image != true ->
-              {:cont, acc}
-
-            _ ->
-              {:halt,
-               {:error,
-                {:invalid_content_block,
-                 "Documents, including PDFs, are not supported. Paste the document text or attach PNG, JPEG, GIF, or WebP images instead."}}}
-          end
 
         _block, {:ok, messages} ->
           {:cont, {:ok, messages}}
@@ -527,15 +517,33 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp extract_user_images(content_blocks) do
       content_blocks
-      |> Enum.filter(&user_image_block?/1)
-      |> Enum.map(fn %{"type" => "resource", "_meta" => meta, "resource" => resource} ->
-        %{
-          "blob" => resource["blob"] || "",
-          "mime_type" => resource["mimeType"] || "image/png",
-          "filename" => meta["filename"] || "attachment",
-          "uri" => resource["uri"]
-        }
+      |> Enum.filter(fn
+        %{"type" => "resource", "resource" => %{"blob" => _}} -> true
+        block -> user_image_block?(block)
       end)
+      |> Enum.reduce_while({:ok, []}, fn block, {:ok, images} ->
+        attrs = %{
+          "blob" => get_in(block, ["resource", "blob"]),
+          "mime_type" => get_in(block, ["resource", "mimeType"]),
+          "filename" => get_in(block, ["_meta", "filename"]) || "attachment",
+          "uri" => get_in(block, ["resource", "uri"])
+        }
+
+        case {UserImage.changeset(%UserImage{}, attrs), user_image_block?(block)} do
+          {%{valid?: true}, true} ->
+            {:cont, {:ok, [attrs | images]}}
+
+          {%{valid?: true}, false} ->
+            {:cont, {:ok, images}}
+
+          {changeset, _} ->
+            {:halt, {:error, changeset}}
+        end
+      end)
+      |> case do
+        {:ok, images} -> {:ok, Enum.reverse(images)}
+        {:error, changeset} -> {:error, changeset}
+      end
     end
 
     defp user_image_block?(%{

@@ -38,6 +38,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
 
   describe "UserMessage.attrs/1" do
     test "rejects documents in blob and tagged text resources without changing image support" do
+      for attrs <- [%{blob: "AAAA"}, %{mime_type: "image/png"}] do
+        refute UserImage.changeset(%UserImage{}, attrs).valid?
+      end
+
       for mime <- ["application/pdf", "text/plain", "application/octet-stream"],
           contents <- [%{"blob" => "AAAA"}, %{"text" => "document"}, %{}] do
         block = %{
@@ -47,8 +51,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             Map.merge(contents, %{"uri" => "attachment://fixture", "mimeType" => mime})
         }
 
-        assert {:error, {:invalid_content_block, error}} = UserMessage.attrs([block])
-        assert error =~ "Paste the document text"
+        assert {:error, changeset} = UserMessage.attrs([block])
+        assert {error, _} = changeset.errors[:mime_type]
+        assert error =~ "paste document text"
       end
 
       for mime <- ["image/png", "image/jpeg", "image/gif", "image/webp"] do
@@ -66,11 +71,19 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     test "historical documents remain loadable but are explicitly unreadable in model input" do
       for mime <- ["application/pdf", "text/plain"] do
         attrs = %{
-          images: [%{blob: "AAAA", mime_type: mime, filename: "fixture", uri: "attachment://old"}]
+          "messages" => ["Old prompt"],
+          "images" => [
+            %{
+              "blob" => "AAAA",
+              "mime_type" => mime,
+              "filename" => "fixture",
+              "uri" => "attachment://old"
+            }
+          ]
         }
 
-        history =
-          user_msg("Old prompt") |> UserMessage.changeset(attrs) |> Ecto.Changeset.apply_changes()
+        refute UserMessage.changeset(%UserMessage{}, attrs).valid?
+        history = Ecto.embedded_load(UserMessage, attrs, :json)
 
         assert [%UserImage{mime_type: ^mime, blob: "AAAA"}] = history.images
         [projected] = Interaction.to_swarm_messages([history])
