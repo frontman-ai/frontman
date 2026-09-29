@@ -2,13 +2,19 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
   use ExUnit.Case, async: true
 
   alias FrontmanServer.Tasks.Execution.ErrorClassifier
-  alias FrontmanServer.Tasks.Execution.LLMError
   alias ReqLLM.Error.API.Request
 
   describe "classify_error/1" do
-    test "LLMError passes through message, category, retryable" do
-      err = %LLMError{message: "Rate limited", category: "rate_limit", retryable: true}
-      assert {"Rate limited", "rate_limit", true} = ErrorClassifier.classify_error(err)
+    test "unrelated or malformed 400 bodies stay generic without exposing provider data" do
+      for body <- [
+            %{"detail" => "The 'private-input' field is invalid"},
+            %{"detail" => ["private-input"]},
+            %{"error" => %{"message" => "private-input"}},
+            nil
+          ] do
+        assert {"Bad request — the provider rejected the request.", "unknown", false} =
+                 classify_request(status: 400, reason: "private-input", response_body: body)
+      end
     end
 
     test "plain 429 remains retryable rate limit" do
