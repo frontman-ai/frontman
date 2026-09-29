@@ -307,12 +307,9 @@ let make = (
 ) => {
   let (hasContent, setHasContent) = React.useState(() => false)
   let (hasComposerFocus, setHasComposerFocus) = React.useState(() => false)
-  let (submitSignal, setSubmitSignal) = React.useState(() => 0)
-  let (attachSignal, setAttachSignal) = React.useState(() => 0)
-  let (dropFilesSignal, setDropFilesSignal) = React.useState(() => 0)
-  let (droppedFiles, setDroppedFiles) = React.useState((): array<
-    Client__PromptEditor.browserFile,
-  > => [])
+  let commandsRef: React.ref<Nullable.t<Client__PromptEditor.commands>> = React.useRef(
+    Nullable.null,
+  )
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
   let (fileSizeError, setFileSizeError) = React.useState((): option<string> => None)
   let (showToolbarLabels, setShowToolbarLabels) = React.useState(() => true)
@@ -373,17 +370,15 @@ let make = (
     }
   }, [fileSizeError])
 
-  let doSubmit = () => setSubmitSignal(prev => prev + 1)
-  let openAttachPicker = () => setAttachSignal(prev => prev + 1)
+  let doSubmit = () =>
+    commandsRef.current->Nullable.toOption->Option.forEach(commands => commands.submit())
+  let openAttachPicker = () =>
+    commandsRef.current->Nullable.toOption->Option.forEach(commands => commands.attach())
   let handleDrop = (event: ReactEvent.Mouse.t) => {
     preventDefaultDropNavigation(event)
-    let files = getDroppedFiles(event)
-    switch files->Array.length {
-    | 0 => ()
-    | _ =>
-      setDroppedFiles(_ => files)
-      setDropFilesSignal(prev => prev + 1)
-    }
+    commandsRef.current
+    ->Nullable.toOption
+    ->Option.forEach(commands => commands.dropFiles(getDroppedFiles(event)))
   }
 
   let handleEditorSubmit = (
@@ -494,10 +489,7 @@ let make = (
             placeholder={currentPlaceholder}
             isEnrichingAnnotations
             hasAnnotations
-            submitSignal
-            attachSignal
-            dropFilesSignal
-            droppedFiles
+            commandsRef
             onHasContentChange={value => setHasContent(_ => value)}
             onSubmit={handleEditorSubmit}
             onPreviewImage={src => setPreviewSrc(_ => Some(src))}
