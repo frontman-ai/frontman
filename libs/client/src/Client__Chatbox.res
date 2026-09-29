@@ -120,6 +120,45 @@ module ExecutePlanAction = {
   }
 }
 
+let sendUserMessage = (
+  ~session: option<FrontmanAiFrontmanClient.FrontmanClient__ACP.session>,
+  ~createSession,
+  ~currentTaskId,
+  ~content: array<Client__State.UserContentPart.t>,
+  ~annotations: array<Client__Message.MessageAnnotation.t>,
+  ~agentId: string,
+) => {
+  let sendMessage = (sessionId: string) => {
+    switch Client__State.validatePromptDraft(~content, ~annotations, ~agentId) {
+    | Error(error) => Error(error)
+    | Ok() =>
+      Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations, ~agentId)
+      Ok()
+    }
+  }
+  switch session {
+  | Some(sess) => Promise.resolve(sendMessage(sess.sessionId))
+  | None =>
+    switch (Client__State.validatePromptDraft(~content, ~annotations, ~agentId), currentTaskId) {
+    | (Error(error), _) => Promise.resolve(Error(error))
+    | (Ok(), Some(taskId)) =>
+      Client__State.Actions.switchTask(~taskId)
+      Promise.resolve(Error("Reconnecting this conversation. Send again when it is ready."))
+    | (Ok(), None) =>
+      Promise.make((resolve, _) =>
+        createSession(~onComplete=result =>
+          resolve(
+            switch result {
+            | Ok(sessionId) => sendMessage(sessionId)
+            | Error(err) => Error(err)
+            },
+          )
+        )
+      )
+    }
+  }
+}
+
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
   let {state, dispatch} = Client__FrontmanProvider.useFrontman()
@@ -169,40 +208,6 @@ let make = (~onConfigureProvider: unit => unit) => {
     Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
   let hasAnnotations = Array.length(annotations) > 0
 
-  let sendUserMessage = (
-    ~content: array<Client__State.UserContentPart.t>,
-    ~annotations: array<Client__Message.MessageAnnotation.t>,
-    ~agentId: string,
-  ) => {
-    let sendMessage = (sessionId: string) => {
-      switch Client__State.validatePromptDraft(~content, ~annotations, ~agentId) {
-      | Error(error) => Error(error)
-      | Ok() =>
-        Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations, ~agentId)
-        Ok()
-      }
-    }
-    switch (session, isNewTask) {
-    | (Some(sess), _) => Promise.resolve(sendMessage(sess.sessionId))
-    | (None, true) =>
-      Promise.make((resolve, _) =>
-        dispatch(
-          CreateSession({
-            onComplete: result =>
-              resolve(
-                switch result {
-                | Ok(sessionId) => sendMessage(sessionId)
-                | Error(err) => Error(err)
-                },
-              ),
-          }),
-        )
-      )
-    | (None, false) =>
-      Promise.resolve(Error("Cannot send message: conversation has no active session"))
-    }
-  }
-
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
@@ -213,7 +218,15 @@ let make = (~onConfigureProvider: unit => unit) => {
     let sendWithContent = content => {
       switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
       | false => Promise.resolve(Ok())
-      | true => sendUserMessage(~content, ~annotations=messageAnnotations, ~agentId)
+      | true =>
+        sendUserMessage(
+          ~session,
+          ~createSession=(~onComplete) => dispatch(CreateSession({onComplete})),
+          ~currentTaskId,
+          ~content,
+          ~annotations=messageAnnotations,
+          ~agentId,
+        )
       }
     }
 
