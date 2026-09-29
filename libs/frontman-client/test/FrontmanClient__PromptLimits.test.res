@@ -94,8 +94,18 @@ describe("bounded prompt submission", () => {
   testAsync(
     "rejects repeated oversized requests before push, pending registration or timers",
     async t => {
-      let channel = %raw(`({topic: "task:fixture", push() { throw new Error("must not push"); }})`)
-      let state = ref(Client.initialState)
+      let channel = %raw(`({topic: "task:fixture", canPush() { return true; }, push() { throw new Error("must not push"); }})`)
+      let initialized =
+        Client.initialState->Client.reduce(
+          Client.ACPStateChanged(
+            Client.Initialized(
+              Client.parseInitializeResult(
+                JSON.parseOrThrow(`{"protocolVersion":1}`),
+              )->Result.getOrThrow,
+            ),
+          ),
+        )
+      let state = ref(initialized)
       for _ in 1 to 2 {
         let result = await Protocol.sendRequest(
           ~channel,
@@ -107,7 +117,7 @@ describe("bounded prompt submission", () => {
         t
         ->expect(result)
         ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.promptSizeError)))
-        t->expect(state.contents)->Expect.toEqual(Client.initialState)
+        t->expect(state.contents)->Expect.toEqual(initialized)
       }
     },
   )
