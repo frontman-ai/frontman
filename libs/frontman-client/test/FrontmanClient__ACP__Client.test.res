@@ -13,6 +13,15 @@ module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
 module Socket = FrontmanClient__Phoenix__Socket
 
+let initializedState =
+  Client.initialState->Client.reduce(
+    Client.ACPStateChanged(
+      Client.Initialized(
+        Client.parseInitializeResult(JSON.parseOrThrow(`{"protocolVersion":1}`))->Result.getOrThrow,
+      ),
+    ),
+  )
+
 type mockTransport = {
   socket: Socket.t,
   channel: Channel.t,
@@ -24,8 +33,10 @@ let makeLoadTransport: (array<JSON.t>, JSON.t) => mockTransport = %raw(`
   function(history, loadResult) {
     const handlers = {};
     const events = [];
-    const inertPush = { receive() { return this; } };
+    const inertPush = { receive() { return this; }, cancelTimeout() {}, cancelRefEvent() {} };
     const channel = {
+      canPush() { return true; },
+      onError() {},
       on(event, callback) { handlers[event] = callback; },
       off(event) {
         events.push("off:" + event);
@@ -77,7 +88,8 @@ let loadConnectionWithTransport = (history, result): (ACP.connection, mockTransp
     socket: transport.socket,
     channel: transport.channel,
     clientConfig,
-    state: ref(Client.initialState),
+    state: ref(initializedState),
+    dispose: () => (),
   }
   (connection, transport)
 }
@@ -95,7 +107,7 @@ let attributionConfiguration = (~id="agent-1") =>
 let negotiateV1 = (connection: ACP.connection, ~id="agent-1"): ACP.connection => {
   ...connection,
   state: ref({
-    ...Client.initialState,
+    ...initializedState,
     agentAttributionConfiguration: Some(attributionConfiguration(~id)),
   }),
 }
@@ -385,8 +397,10 @@ describe("ACP Protocol sendRequest", _t => {
       async t => {
         Vi.useFakeTimers()->ignore
         let channel = %raw(`{
+        canPush() { return true; },
         push(_event, payload) {
           return {
+            cancelTimeout() {}, cancelRefEvent() {},
             receive(status, callback) {
               if (status === "ok") {
                 callback({"acp:message": {jsonrpc: "2.0", id: payload.id, result: payload.method}});
@@ -396,7 +410,7 @@ describe("ACP Protocol sendRequest", _t => {
           };
         }
       }`)
-        let state = ref(Client.initialState)
+        let state = ref(initializedState)
         let result = await Protocol.sendRequest(
           ~channel,
           ~state,
@@ -416,8 +430,10 @@ describe("ACP Protocol sendRequest", _t => {
   testAsync("rejects malformed Phoenix push reply envelopes immediately", async t => {
     Vi.useFakeTimers()->ignore
     let channel = %raw(`{
+      canPush() { return true; },
       push(_event, _payload) {
         return {
+          cancelTimeout() {}, cancelRefEvent() {},
           receive(status, callback) {
             if (status === "ok") {
               callback({});
@@ -427,7 +443,7 @@ describe("ACP Protocol sendRequest", _t => {
         };
       }
     }`)
-    let state = ref(Client.initialState)
+    let state = ref(initializedState)
     let result = await Protocol.sendRequest(
       ~channel,
       ~state,
@@ -444,7 +460,7 @@ describe("ACP Protocol sendRequest", _t => {
   testAsync("times out and removes pending request when no response arrives", async t => {
     Vi.useFakeTimers()->ignore
     let transport = makeLoadTransport([], loadResult)
-    let state = ref(Client.initialState)
+    let state = ref(initializedState)
     let promise = Protocol.sendRequest(
       ~channel=transport.channel,
       ~state,

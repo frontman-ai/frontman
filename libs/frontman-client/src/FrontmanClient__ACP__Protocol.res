@@ -89,51 +89,68 @@ let sendRequest = (
   ~timeoutMs: int=requestTimeoutMs,
   ~parseResult: JSON.t => result<'a, string>,
 ): promise<result<'a, Client.requestError>> => {
-  let method = (method :> string)
-  let id = state.contents.currentId + 1
-  let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
-  let payload = request->JsonRpc.Request.toJson
-  switch validateRequest(~channel, payload) {
-  | Error(error) => Promise.resolve(Error(Client.requestErrorFromMessage(error)))
-  | Ok() =>
-    Promise.make((resolve, _) => {
-      let idStr = Int.toString(id)
-      let timer = ref(None)
-      let finish = result => {
-        timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
-        resolve(result)
-      }
-
-      let pending: Client.pendingRequest = {
-        resolve: json => finish(parseResult(json)->Result.mapError(Client.requestErrorFromMessage)),
-        reject: e => finish(Error(e)),
-      }
-
-      state := state.contents->Client.reduce(Client.RequestSent(id, pending))
-      timer :=
-        Some(
-          WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
-            state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
-            state := state.contents->Client.reduce(Client.ResponseReceived(id))
-            pending.reject(
-              Client.requestErrorFromMessage(
-                `Request ${method} timed out after ${Int.toString(timeoutMs)}ms`,
-              ),
-            )
-          }),
-        )
-
-      let push =
-        channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
-      push.receive(~status="ok", ~callback=reply => {
-        switch parsePushReply(reply) {
-        | Ok(message) => state := Client.handleResponse(state.contents, message)
-        | Error(error) =>
-          state := state.contents->Client.reduce(Client.ResponseReceived(id))
-          pending.reject(Client.requestErrorFromMessage(error))
+  switch Channel.canPush(channel) &&
+  (method == #initialize || Client.isInitialized(state.contents)) {
+  | false => Promise.resolve(Error(Client.requestErrorFromMessage("ACP connection is not ready")))
+  | true =>
+    let method = (method :> string)
+    let id = state.contents.currentId + 1
+    let request = JsonRpc.Request.make(~id=JsonRpc.Id.fromInt(id), ~method, ~params)
+    let payload = request->JsonRpc.Request.toJson
+    switch validateRequest(~channel, payload) {
+    | Error(error) => Promise.resolve(Error(Client.requestErrorFromMessage(error)))
+    | Ok() =>
+      Promise.make((resolve, _) => {
+        let idStr = Int.toString(id)
+        let timer = ref(None)
+        let pushRef = ref(None)
+        let finish = result => {
+          timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
+          pushRef.contents->Option.forEach(Channel.cancelPush)
+          resolve(result)
         }
-      })->ignore
-    })
+
+        let pending: Client.pendingRequest = {
+          resolve: json =>
+            finish(parseResult(json)->Result.mapError(Client.requestErrorFromMessage)),
+          reject: e => finish(Error(e)),
+        }
+
+        state := state.contents->Client.reduce(Client.RequestSent(id, pending))
+        timer :=
+          Some(
+            WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
+              state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
+              state := state.contents->Client.reduce(Client.ResponseReceived(id))
+              pending.reject(
+                Client.requestErrorFromMessage(
+                  `Request ${method} timed out after ${Int.toString(timeoutMs)}ms`,
+                ),
+              )
+            }),
+          )
+
+        let push =
+          channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
+        pushRef := Some(push)
+        switch state.contents.pendingRequests->Dict.get(idStr) {
+        | None => Channel.cancelPush(push)
+        | Some(_) => ()
+        }
+        push.receive(~status="ok", ~callback=reply => {
+          switch state.contents.pendingRequests->Dict.get(idStr) {
+          | None => ()
+          | Some(_) =>
+            switch parsePushReply(reply) {
+            | Ok(message) => state := Client.handleResponse(state.contents, message)
+            | Error(error) =>
+              state := state.contents->Client.reduce(Client.ResponseReceived(id))
+              pending.reject(Client.requestErrorFromMessage(error))
+            }
+          }
+        })->ignore
+      })
+    }
   }
 }
 
@@ -192,6 +209,10 @@ let sendPrompt = (
 }
 
 let sendCancel = (~channel: Channel.t, ~sessionId: string): unit => {
+  switch Channel.canPush(channel) {
+  | false => failwith("Cannot cancel: channel is disconnected")
+  | true => ()
+  }
   let params = JSON.Encode.object(Dict.fromArray([("sessionId", JSON.Encode.string(sessionId))]))
   let notification = JsonRpc.Notification.make(~method="session/cancel", ~params=Some(params))
   let payload = notification->JsonRpc.Notification.toJson
@@ -204,6 +225,10 @@ let sendSessionCommand = (
   ~command: string,
   ~argument: option<(string, JSON.t)>,
 ): unit => {
+  switch Channel.canPush(channel) {
+  | false => failwith("Cannot send session command: channel is disconnected")
+  | true => ()
+  }
   let params = [
     ("sessionId", JSON.Encode.string(sessionId)),
     ("command", JSON.Encode.string(command)),
