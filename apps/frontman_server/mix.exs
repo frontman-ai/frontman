@@ -67,7 +67,7 @@ defmodule FrontmanServer.MixProject do
       {:phoenix_live_dashboard, "~> 0.9.0"},
       {:req_llm, github: "agentjido/req_llm", branch: "main", override: true},
       {:llm_db,
-       github: "agentjido/llmdb", ref: "2cd54cc0773536a50a672f7753d48f3a845e6292", override: true},
+       github: "agentjido/llmdb", ref: "1fe27f4b390e9cddcf1308729417595867a8f80f", override: true},
       {:heroicons,
        github: "tailwindlabs/heroicons",
        tag: "v2.2.0",
