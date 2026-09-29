@@ -133,6 +133,15 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
     Process.exit(self(), :kill)
   end
 
+  defp run_prepared(mode, executions) do
+    supervisor = SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
+
+    case mode do
+      :serial -> SwarmAi.ParallelExecutor.run_serial(executions, supervisor)
+      :parallel -> SwarmAi.ParallelExecutor.run(executions, supervisor)
+    end
+  end
+
   describe "callback/5" do
     test "runs available and unavailable tools in serial and parallel", context do
       %{scope: scope, task_id: task_id, turn_number: turn_number} = context
@@ -150,17 +159,20 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
           arguments: "{}"
         }
 
-        assert {:ok, results} =
+        assert {^mode, executions} =
                  ToolExecutor.callback(
                    scope,
                    %{FiniteTool.name() => FiniteTool},
                    mode,
                    task_id,
                    turn_number
-                 ).(
-                   [available, unavailable],
-                   SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
-                 )
+                 ).([available, unavailable])
+
+        {:ok, prepared_task} = Tasks.get_task_with_history(scope, task_id)
+        assert tool_results(prepared_task, available.id) == []
+        assert tool_results(prepared_task, unavailable.id) == []
+
+        assert {:ok, results} = run_prepared(mode, executions)
 
         assert [
                  %SwarmAi.ToolResult{is_error: false, content: [%ContentPart{text: "done"}]},
@@ -204,11 +216,10 @@ defmodule FrontmanServer.Tasks.Execution.ToolExecutorTest do
       tools = Tools.resolve(%{access: [:read]}, [tool])
       tc = %SwarmAi.ToolCall{id: "collision_backend", name: "todo_write", arguments: "{}"}
 
-      assert {:ok, [%SwarmAi.ToolResult{is_error: true}]} =
-               ToolExecutor.callback(scope, tools, :serial, task_id, turn_number).(
-                 [tc],
-                 SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
-               )
+      assert {:serial, executions} =
+               ToolExecutor.callback(scope, tools, :serial, task_id, turn_number).([tc])
+
+      assert {:ok, [%SwarmAi.ToolResult{is_error: true}]} = run_prepared(:serial, executions)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))

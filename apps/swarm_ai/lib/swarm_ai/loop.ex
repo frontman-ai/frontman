@@ -19,7 +19,7 @@ defmodule SwarmAi.Loop do
   alias SwarmAi.Loop.Step
   alias SwarmAi.Message
   alias SwarmAi.ToolCall
-  alias SwarmAi.ToolResult
+  alias SwarmAi.ToolExecution
 
   use TypedStruct
 
@@ -42,8 +42,8 @@ defmodule SwarmAi.Loop do
           | {:terminated, term()}
           | {:crashed, %{message: String.t()}}
 
-  @type execute_tools ::
-          ([ToolCall.t()], pid() | atom() -> {:ok, [ToolResult.t()]})
+  @type prepare_tools ::
+          ([ToolCall.t()] -> {:serial | :parallel, [ToolExecution.t()]})
 
   typedstruct do
     field(:id, String.t(), enforce: true)
@@ -51,7 +51,7 @@ defmodule SwarmAi.Loop do
     field(:messages, [Message.t()], enforce: true)
     field(:llm, LLM.t(), enforce: true)
 
-    field(:execute_tools, execute_tools(), enforce: true)
+    field(:prepare_tools, prepare_tools(), enforce: true)
     field(:dispatch_event, (event() -> term()), enforce: true)
 
     field(:status, status(), enforce: true)
@@ -69,7 +69,7 @@ defmodule SwarmAi.Loop do
       id: generate_id("loop"),
       messages: Map.fetch!(attrs, :messages),
       llm: Map.fetch!(attrs, :llm),
-      execute_tools: Map.fetch!(attrs, :execute_tools),
+      prepare_tools: Map.fetch!(attrs, :prepare_tools),
       dispatch_event: Map.fetch!(attrs, :dispatch_event),
       status: :ready,
       steps: [],

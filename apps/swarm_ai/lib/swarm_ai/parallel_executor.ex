@@ -36,23 +36,26 @@ defmodule SwarmAi.ParallelExecutor do
 
   @doc """
   Runs all executions concurrently and collects results with per-tool deadlines.
+
+  `on_wait` receives `true` only while all pending tools have infinite deadlines,
+  and `false` before handling a result or continuing execution.
   """
-  @spec run([ToolExecution.t()], pid() | atom()) :: result()
-  def run(executions, task_supervisor) do
+  @spec run([ToolExecution.t()], pid() | atom(), (boolean() -> :ok)) :: result()
+  def run(executions, task_supervisor, on_wait \\ fn _waiting -> :ok end) do
     {pending, awaiting} = spawn_all(executions, task_supervisor)
     tool_calls = Enum.map(executions, & &1.tool_call)
-    results_map = collect_results(pending, awaiting, %{})
+    results_map = collect_results(pending, awaiting, %{}, on_wait)
     {:ok, finalize(tool_calls, results_map)}
   end
 
   @doc """
   Runs executions one at a time and preserves original call order.
   """
-  @spec run_serial([ToolExecution.t()], pid() | atom()) :: result()
-  def run_serial(executions, task_supervisor) do
+  @spec run_serial([ToolExecution.t()], pid() | atom(), (boolean() -> :ok)) :: result()
+  def run_serial(executions, task_supervisor, on_wait \\ fn _waiting -> :ok end) do
     results =
       Enum.map(executions, fn exec ->
-        {:ok, [result]} = run([exec], task_supervisor)
+        {:ok, [result]} = run([exec], task_supervisor, on_wait)
         result
       end)
 
@@ -89,12 +92,16 @@ defmodule SwarmAi.ParallelExecutor do
   defp cancel_timer(nil), do: :ok
   defp cancel_timer(timer), do: Process.cancel_timer(timer)
 
-  @spec collect_results(pending(), awaiting(), results_map()) :: results_map()
-  defp collect_results(pending, _awaiting, results) when pending == %{}, do: results
+  @spec collect_results(pending(), awaiting(), results_map(), (boolean() -> :ok)) :: results_map()
+  defp collect_results(pending, _awaiting, results, _on_wait) when pending == %{}, do: results
 
-  defp collect_results(pending, awaiting, results) do
+  defp collect_results(pending, awaiting, results, on_wait) do
+    waiting = Enum.all?(pending, fn {_ref, entry} -> entry.timer == nil end)
+    :ok = on_wait.(waiting)
+
     receive do
       {ref, result} when is_map_key(pending, ref) ->
+        :ok = on_wait.(false)
         Process.demonitor(ref, [:flush])
         %{timer: timer, exec: exec} = Map.fetch!(pending, ref)
         cancel_timer(timer)
@@ -102,10 +109,12 @@ defmodule SwarmAi.ParallelExecutor do
         collect_results(
           Map.delete(pending, ref),
           awaiting,
-          Map.put(results, exec.tool_call.id, result)
+          Map.put(results, exec.tool_call.id, result),
+          on_wait
         )
 
       {:DOWN, ref, :process, _pid, reason} when is_map_key(pending, ref) ->
+        :ok = on_wait.(false)
         %{timer: timer, exec: exec} = Map.fetch!(pending, ref)
         cancel_timer(timer)
 
@@ -114,10 +123,12 @@ defmodule SwarmAi.ParallelExecutor do
         collect_results(
           Map.delete(pending, ref),
           awaiting,
-          Map.put(results, exec.tool_call.id, error_result)
+          Map.put(results, exec.tool_call.id, error_result),
+          on_wait
         )
 
       {:tool_result, key, content, is_error} when is_map_key(awaiting, key) ->
+        :ok = on_wait.(false)
         ref = Map.fetch!(awaiting, key)
         %{exec: exec, timer: timer} = Map.fetch!(pending, ref)
         cancel_timer(timer)
@@ -127,16 +138,17 @@ defmodule SwarmAi.ParallelExecutor do
         collect_results(
           Map.delete(pending, ref),
           Map.delete(awaiting, key),
-          Map.put(results, exec.tool_call.id, result)
+          Map.put(results, exec.tool_call.id, result),
+          on_wait
         )
 
       {:deadline, ref} when is_map_key(pending, ref) ->
-        handle_deadline(pending, awaiting, results, ref)
+        :ok = on_wait.(false)
+        handle_deadline(pending, awaiting, results, ref, on_wait)
     end
   end
 
-  @spec handle_deadline(pending(), awaiting(), results_map(), reference()) :: results_map()
-  defp handle_deadline(pending, awaiting, results, ref) do
+  defp handle_deadline(pending, awaiting, results, ref, on_wait) do
     entry = Map.fetch!(pending, ref)
     exec = entry.exec
 
@@ -150,7 +162,8 @@ defmodule SwarmAi.ParallelExecutor do
     collect_results(
       Map.delete(pending, ref),
       Map.delete(awaiting, exec.tool_call.id),
-      Map.put(results, exec.tool_call.id, result)
+      Map.put(results, exec.tool_call.id, result),
+      on_wait
     )
   end
 

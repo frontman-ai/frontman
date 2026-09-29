@@ -181,8 +181,13 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
       Sandbox.unboxed_run(Repo, fn ->
         tool = %{MCPTool.from_map(mcp_tool("some_tool")) | timeout_ms: 1_000}
 
-        ToolExecutor.callback(scope, %{tool.name => tool}, :serial, task_id, turn_number).(
-          [%SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}],
+        {:serial, executions} =
+          ToolExecutor.callback(scope, %{tool.name => tool}, :serial, task_id, turn_number).([
+            %SwarmAi.ToolCall{id: tool_call_id, name: "some_tool", arguments: "{}"}
+          ])
+
+        SwarmAi.ParallelExecutor.run_serial(
+          executions,
           SwarmAi.Runtime.task_supervisor_name(FrontmanServer.AgentRuntime)
         )
       end)

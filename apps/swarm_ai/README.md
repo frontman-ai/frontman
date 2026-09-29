@@ -23,14 +23,14 @@ Add a runtime to the supervision tree:
 children = [{SwarmAi, name: MyApp.AgentRuntime}]
 ```
 
-Create a loop with complete input messages, an LLM client, a tool callback, and an event callback:
+Create a loop with complete input messages, an LLM client, a tool preparation callback, and an event callback:
 
 ```elixir
 loop = SwarmAi.Loop.new(%{
   messages: [SwarmAi.Message.user("Analyze this code")],
   llm: MyLLMClient.new("my-model"),
-  execute_tools: fn tool_calls, supervisor ->
-    MyTools.execute(request_id, tool_calls, supervisor)
+  prepare_tools: fn tool_calls ->
+    {:parallel, MyTools.prepare(request_id, tool_calls)}
   end,
   dispatch_event: &MyEvents.dispatch/1
 })
@@ -40,7 +40,7 @@ SwarmAi.running?(MyApp.AgentRuntime, request_id)
 SwarmAi.cancel(MyApp.AgentRuntime, request_id)
 ```
 
-The LLM client implements `SwarmAi.LLM.stream/3`. The tool callback accepts `(tool_calls, task_supervisor)` and returns `{:ok, results}`. Callbacks capture application-specific state.
+The LLM client implements `SwarmAi.LLM.stream/3`. The tool preparation callback accepts `tool_calls` and returns `{mode, executions}`. The mode is `:serial` or `:parallel`; executions are `ToolExecution.Sync` or `ToolExecution.Await` descriptors. Callbacks capture application-specific state. Swarm runs the descriptors and tracks execution activity.
 
 `run/3` accepts a binary registration key, unique within the runtime. The key controls duplicate execution and cancellation. It is separate from the generated `loop.id` and is not part of the loop or its telemetry.
 
@@ -70,6 +70,8 @@ The error callback returns the canonical `SwarmAi.ToolResult` selected by applic
 `ParallelExecutor.run/2` returns results in call order. `run_serial/2` also preserves dispatch order. An interactive wait blocks subsequent serial calls, but not parallel siblings.
 
 Human waits are an explicit exception to bounded execution. A parked executor retains its history in memory without polling or calling the LLM.
+
+`SwarmAi.active_count/1` excludes an execution only while all pending tools have infinite deadlines. Finite tool work and resumed execution still count. Swarm tracks these transitions internally; application callbacks do not update runtime status.
 
 Cancellation terminates the parked executor and removes its registration. Existing Sync tasks use the runtime-global task supervisor and can outlive executor cancellation. This release does not change that ownership.
 

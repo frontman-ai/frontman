@@ -14,7 +14,7 @@ defmodule SwarmAi do
       SwarmAi.cancel(MyApp.AgentRuntime, key)
 
   SwarmAi owns execution lifecycle, cancellation, telemetry, and execution
-  events. Callers provide LLM messages, tool execution, and event dispatch on
+  events. Callers provide LLM messages, tool preparation, and event dispatch on
   the loop.
   """
 
@@ -41,7 +41,7 @@ defmodule SwarmAi do
   @spec running?(atom(), String.t()) :: boolean()
   defdelegate running?(runtime, key), to: SwarmAi.Runtime
 
-  @doc "Returns the number of active executions owned by a supervised runtime."
+  @doc "Counts executions except those waiting exclusively for tools with infinite deadlines."
   @spec active_count(atom()) :: non_neg_integer()
   defdelegate active_count(runtime), to: SwarmAi.Runtime
 

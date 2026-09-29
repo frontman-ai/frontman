@@ -15,6 +15,13 @@ defmodule SwarmAi.Runtime.Registry do
     Registry.lookup(name(runtime), key)
   end
 
+  def mark_awaiting_input(runtime, key, waiting)
+      when is_atom(runtime) and is_binary(key) and is_boolean(waiting) do
+    value = if waiting, do: :awaiting_input, else: nil
+    {^value, _previous} = Registry.update_value(name(runtime), key, fn _ -> value end)
+    :ok
+  end
+
   def mark_finishing(runtime, key) when is_atom(runtime) and is_binary(key) do
     {:finishing, _previous} =
       Registry.update_value(name(runtime), key, fn _ -> :finishing end)

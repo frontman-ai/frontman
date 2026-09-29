@@ -1068,7 +1068,7 @@ defmodule FrontmanServer.Tasks do
               llm_opts: llm_opts,
               model: model_spec
             ),
-          execute_tools:
+          prepare_tools:
             ToolExecutor.callback(scope, tools, execution_mode, task.id, turn_number),
           dispatch_event:
             &dispatch_execution_event(scope, task.id, turn_number, response_context, &1)

@@ -80,9 +80,9 @@ defmodule SwarmAi.SupervisorTest do
           {:tool_calls, [%ToolCall{id: "tc-crash", name: "crash", arguments: "{}"}], "Running..."}
         ])
 
-      execute_tools = fn _tool_calls, _task_supervisor -> raise "boom" end
+      prepare_tools = fn _tool_calls -> raise "boom" end
 
-      {:ok, pid} = run_agent(runtime, "task-crash", llm, execute_tools: execute_tools)
+      {:ok, pid} = run_agent(runtime, "task-crash", llm, prepare_tools: prepare_tools)
       await_exit(pid)
 
       assert_receive {:test_event, "task-crash", {:crashed, %{message: message}}}, 2000
@@ -117,9 +117,9 @@ defmodule SwarmAi.SupervisorTest do
            "Running..."}
         ])
 
-      execute_tools = fn _tool_calls, _task_supervisor -> raise "boom" end
+      prepare_tools = fn _tool_calls -> raise "boom" end
 
-      {:ok, pid} = run_agent(runtime, "task-count-crash", llm, execute_tools: execute_tools)
+      {:ok, pid} = run_agent(runtime, "task-count-crash", llm, prepare_tools: prepare_tools)
 
       assert SwarmAi.active_count(runtime) == 1
 

@@ -32,7 +32,8 @@ defmodule SwarmAi.ExecutionWorker do
   def handle_continue(:run, %__MODULE__{loop: loop, runtime: runtime, key: key} = state) do
     task_supervisor = SwarmAi.Runtime.task_supervisor_name(runtime)
 
-    final_loop = SwarmAi.Executor.run(loop, task_supervisor)
+    on_wait = &SwarmAi.Runtime.Registry.mark_awaiting_input(runtime, key, &1)
+    final_loop = SwarmAi.Executor.run(loop, task_supervisor, on_wait)
     :ok = SwarmAi.Runtime.Registry.mark_finishing(runtime, key)
 
     try do
