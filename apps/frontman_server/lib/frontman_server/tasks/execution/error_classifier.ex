@@ -109,8 +109,9 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   end
 
   defp classify_reqllm_request(402, _reason) do
-    {"Payment required — your account balance is insufficient or billing is not configured (HTTP 402)",
-     "billing", false}
+    {"Your AI provider rejected this request because of its credit or billing limits (HTTP 402). " <>
+       "Check your provider's billing or choose another provider. " <>
+       "This is separate from your Frontman subscription.", "billing", false}
   end
 
   defp classify_reqllm_request(413, _reason) do
