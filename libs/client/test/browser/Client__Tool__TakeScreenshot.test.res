@@ -3,10 +3,8 @@ open WebAPI
 
 module Task = Client__State__Types.Task
 
-@send
-external createIframe: (DomTypes.document, @as("iframe") _) => DomTypes.htmliFrameElement =
-  "createElement"
-@new external makeImage: unit => DomTypes.htmlImageElement = "Image"
+module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
+module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
 let originalState = StateStore.getState(Client__State__Store.store)
 
@@ -21,20 +19,22 @@ afterEach(() => {
   )
 })
 
-let checkVisibleMarker = async (t, ~bodyStyle, ~markerStyle, ~scrollY) => {
-  let frame = DomGlobal.document->createIframe
-  frame->HTMLIFrameElement.setAttribute(~qualifiedName="id", ~value="screenshot-preview")
-  frame->HTMLIFrameElement.setAttribute(
-    ~qualifiedName="style",
-    ~value="width:800px;height:600px;border:0",
-  )
+let checkVisibleMarker = async (t, ~style, ~scrollY) => {
+  let frame =
+    DomGlobal.document
+    ->Document.createElement("iframe")
+    ->FrontmanBindings.Bindings__WebAPI.iframeElementFromElement
+    ->Option.getOrThrow
+  frame.id = "screenshot-preview"
+  frame.style.cssText = "width:800px;height:600px;border:0"
   DomGlobal.document.body->HTMLElement.appendChild(frame->HTMLIFrameElement.asNode)->ignore
   let doc = frame->HTMLIFrameElement.contentDocument->Option.getOrThrow
   let win = frame->HTMLIFrameElement.contentWindow->Option.getOrThrow
   doc->Document.write(
     `<!doctype html><style>
-    html {background:white} body {margin:0;height:1400px;${bodyStyle}}
-    #brand {width:100px;height:50px;background:red;${markerStyle}}
+    html {background:white} body {margin:0;height:1400px}
+    #brand {width:100px;height:50px;background:red}
+    ${style}
     </style><div id="brand"></div>`,
   )
   doc->Document.close
@@ -59,12 +59,10 @@ let checkVisibleMarker = async (t, ~bodyStyle, ~markerStyle, ~scrollY) => {
   )
   let content =
     result->S.decodeOrThrow(
-      ~from=FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP.CallToolResult.schema,
-      ~to=S.object(s =>
-        s.field("content", FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.arraySchema)
-      ),
+      ~from=MCP.CallToolResult.schema,
+      ~to=S.object(s => s.field("content", ContentBlock.arraySchema)),
     )
-  let image = makeImage()
+  let image = Client__ImageLimits.makeImage()
   image.src = switch content {
   | [ImageContent({data, mimeType})] => `data:${mimeType};base64,${data}`
   | _ => failwith("Screenshot must return image content")
@@ -99,9 +97,9 @@ let checkVisibleMarker = async (t, ~bodyStyle, ~markerStyle, ~scrollY) => {
 }
 
 testAsync("viewport capture preserves body margins", async t => {
-  await checkVisibleMarker(t, ~bodyStyle="margin:40px", ~markerStyle="", ~scrollY=0.0)
+  await checkVisibleMarker(t, ~style="body {margin:40px}", ~scrollY=0.0)
 })
 
 testAsync("viewport capture keeps a fixed header visible after scrolling", async t => {
-  await checkVisibleMarker(t, ~bodyStyle="", ~markerStyle="position:fixed;top:0", ~scrollY=400.0)
+  await checkVisibleMarker(t, ~style="#brand {position:fixed;top:0}", ~scrollY=400.0)
 })
