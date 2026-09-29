@@ -8,7 +8,7 @@ HELP_TARGETS := help install test test-screenshots test-coverage lint format dev
 HELP_help := Display this help message
 HELP_install := Install project dependencies
 HELP_test := Run test suite
-HELP_test-screenshots := Compare screenshot tool output with native Chromium (requires Playwright Chromium)
+HELP_test-screenshots := Run ReScript screenshot geometry regressions in Chromium
 HELP_test-coverage := Run tests with coverage
 HELP_lint := Run linters and code formatters
 HELP_format := Format code with biome
@@ -32,7 +32,7 @@ test: build
 	yarn vitest run
 
 test-screenshots: build
-	yarn node --test test/browser/*.test.mjs
+	yarn vitest run --config vitest.browser.config.js
 
 test-coverage: build
 	yarn vitest run --coverage
