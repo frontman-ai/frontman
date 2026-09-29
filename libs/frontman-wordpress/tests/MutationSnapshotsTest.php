@@ -650,6 +650,8 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$this->test_block_navigation_management();
 		$this->test_menu_item_creation_includes_before_snapshot();
 		$this->test_menu_and_option_updates_include_before_snapshots();
+		$this->test_privacy_options_are_read_only();
+		$this->test_option_schemas_match_permissions();
 		$this->test_theme_source_tools();
 		$this->test_post_backed_menu_items_preserve_metadata();
 		$this->test_template_update_snapshot();
@@ -1076,6 +1078,83 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 		$deleted_item = $menu_tool->delete_menu_item( [ 'menu_item_id' => 25, 'confirm' => true ] );
 		$this->assert_same( $slash_sensitive_title, $deleted_item['before']['item']['title'], 'wp_delete_menu_item returns previous item snapshot' );
 		$this->assert_same( 1, count( $deleted_item['after']['items'] ), 'wp_delete_menu_item returns updated menu snapshot' );
+	}
+
+	private function test_privacy_options_are_read_only(): void {
+		$tool = new Frontman_Tool_Options();
+		$tools = Frontman_Tools::instance();
+		$tool->register( $tools );
+		$original = $GLOBALS['frontman_test_options'];
+		$values = [ 'wp_page_for_privacy_policy' => 42, 'comment_registration' => '0', 'require_name_email' => '1' ];
+		foreach ( $values as $name => $value ) {
+			$GLOBALS['frontman_test_options'][ $name ] = $value;
+		}
+		$GLOBALS['frontman_test_options']['frontman_test_secret'] = 'must-not-be-returned';
+		$before = $GLOBALS['frontman_test_options'];
+		$listed = array_column( $tool->list_options( [] ), 'value', 'name' );
+
+		foreach ( $values as $name => $value ) {
+			$this->assert_same( [ 'name' => $name, 'value' => $value ], $tool->get_option( [ 'name' => $name ] ), 'Privacy reads preserve the stored value and type: ' . $name );
+			$this->assert_same( $value, $listed[ $name ], 'Privacy options appear in bulk reads: ' . $name );
+			$this->assert_error_contains(
+				static function() use ( $tool, $tools, $name ) {
+					$tool->update_option( $tools->sanitize_input( 'wp_update_option', [ 'name' => $name, 'value' => '99' ] ) );
+				},
+				'Option not allowed',
+				'Privacy options remain non-writable: ' . $name
+			);
+			$this->assert_same( $before, $GLOBALS['frontman_test_options'], 'Rejected update must not change any option' );
+		}
+
+		foreach ( [ 'wp_get_option' => 'get_option', 'wp_update_option' => 'update_option' ] as $name => $handler ) {
+			$this->assert_error_contains(
+				static function() use ( $tool, $tools, $name, $handler ) {
+					$tool->$handler( $tools->sanitize_input( $name, [ 'name' => 'frontman_test_secret', 'value' => 'changed' ] ) );
+				},
+				'Option not allowed',
+				'Handlers reject unknown keys even after schema sanitization'
+			);
+		}
+		$this->assert_true( ! array_key_exists( 'frontman_test_secret', $listed ), 'Bulk reads exclude unlisted secrets' );
+		$this->assert_same( $before, $GLOBALS['frontman_test_options'], 'Reads and rejected secret writes leave storage unchanged' );
+		$GLOBALS['frontman_test_options']['wp_page_for_privacy_policy'] = 0;
+		$this->assert_same( [ 'name' => 'wp_page_for_privacy_policy', 'value' => 0 ], $tool->get_option( [ 'name' => 'wp_page_for_privacy_policy' ] ), 'No selected privacy page is a valid zero value' );
+		$GLOBALS['frontman_test_options'] = $original;
+	}
+
+	private function test_option_schemas_match_permissions(): void {
+		$tool = new Frontman_Tool_Options();
+		$tools = Frontman_Tools::instance();
+		$tool->register( $tools );
+		$writable = [
+			'blogname', 'blogdescription', 'siteurl', 'home', 'admin_email', 'posts_per_page',
+			'date_format', 'time_format', 'timezone_string', 'gmt_offset', 'permalink_structure',
+			'default_category', 'default_post_format', 'show_on_front', 'page_on_front', 'page_for_posts',
+			'blog_public', 'default_comment_status', 'thread_comments', 'thread_comments_depth',
+			'comments_per_page', 'stylesheet', 'template',
+		];
+		$read_only = [
+			'sidebars_widgets', 'widget_text', 'widget_categories', 'widget_archives', 'widget_meta',
+			'widget_search', 'widget_recent-posts', 'widget_recent-comments',
+			'wp_page_for_privacy_policy', 'comment_registration', 'require_name_email',
+		];
+		$readable = array_merge( $writable, $read_only );
+		$this->assert_same( $readable, $tools->get( 'wp_get_option' )->input_schema['properties']['name']['enum'], 'Read schema advertises the complete ordered allowlist without duplicates' );
+		$this->assert_same( $writable, $tools->get( 'wp_update_option' )->input_schema['properties']['name']['enum'], 'Write schema preserves all existing permissions and excludes read-only keys' );
+		$definitions = array_column( json_decode( wp_json_encode( $tools->all_definitions() ), true ), null, 'name' );
+		$this->assert_same( $readable, $definitions['wp_get_option']['inputSchema']['properties']['name']['enum'], 'Serialized read schema preserves the enum' );
+		$this->assert_same( $writable, $definitions['wp_update_option']['inputSchema']['properties']['name']['enum'], 'Serialized write schema preserves the enum' );
+
+		foreach ( $readable as $name ) {
+			$this->assert_same( [ 'name' => $name, 'value' => get_option( $name ) ], $tool->get_option( [ 'name' => $name ] ), 'Advertised option is readable: ' . $name );
+		}
+		$original = $GLOBALS['frontman_test_options'];
+		$GLOBALS['frontman_test_options']['sidebars_widgets'] = [ 'sidebar-1' => [ 'text-1' ] ];
+		$listed = $tool->list_options( [] );
+		$this->assert_same( array_values( array_diff( $readable, [ 'admin_email' ] ) ), array_column( $listed, 'name' ), 'Bulk reads preserve option order and omit the administrator email' );
+		$this->assert_same( '(complex value - use wp_get_option to read)', array_column( $listed, 'value', 'name' )['sidebars_widgets'], 'Bulk reads retain the complex-value placeholder' );
+		$this->assert_same( $GLOBALS['frontman_test_options']['sidebars_widgets'], $tool->get_option( [ 'name' => 'sidebars_widgets' ] )['value'], 'Explicit reads retain complex values' );
+		$GLOBALS['frontman_test_options'] = $original;
 	}
 
 	private function test_theme_source_tools(): void {
