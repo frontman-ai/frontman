@@ -3,10 +3,11 @@ defmodule FrontmanServerWeb.UserSocketTest do
 
   import FrontmanServer.Test.Fixtures.Accounts
 
+  alias Bandit.WebSocket.Frame
   alias FrontmanServer.Accounts
   alias FrontmanServerWeb.UserSocket
 
-  test "endpoint enables Phoenix websocket auth token transport" do
+  test "endpoint enables bounded authenticated websocket transport" do
     assert {"/socket", UserSocket, socket_opts} =
              Enum.find(FrontmanServerWeb.Endpoint.__sockets__(), fn {path, module, _opts} ->
                path == "/socket" and module == UserSocket
@@ -14,6 +15,25 @@ defmodule FrontmanServerWeb.UserSocketTest do
 
     assert socket_opts[:auth_token] == true
     assert socket_opts[:websocket] == [check_origin: false, max_frame_size: 8_000_014]
+
+    assert FrontmanServerWeb.Endpoint.config(:http)[:websocket_options][
+             :max_fragmented_message_size
+           ] ==
+             8_000_000
+
+    limit = socket_opts[:websocket][:max_frame_size]
+
+    assert {:ok, {14, 8_000_000}} =
+             Frame.header_and_payload_length(
+               <<0x81, 0xFF, 8_000_000::64, 0::32>>,
+               limit
+             )
+
+    assert {:error, :max_frame_size_exceeded} =
+             Frame.header_and_payload_length(
+               <<0x81, 0xFF, 8_000_001::64, 0::32>>,
+               limit
+             )
   end
 
   test "connects with valid embedded client auth token" do
