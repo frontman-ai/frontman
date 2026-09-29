@@ -554,6 +554,30 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert Tasks.interactions(task) == []
     end
 
+    test "rejects changeset errors without accepting a prompt", context do
+      pdf = %{"mimeType" => "application/pdf", "blob" => "AAAA"}
+
+      for {meta, resource, error_hint} <- [
+            {%{"user_image" => true}, pdf, "paste document text"},
+            {%{}, pdf, "paste document text"},
+            {%{"annotation" => true, "annotation_index" => "bad"}, %{"text" => ""},
+             "Invalid message"}
+          ] do
+        block = %{"type" => "resource", "_meta" => meta, "resource" => resource}
+
+        request = put_in(build_prompt_request(), ["params", "prompt"], [block])
+        ref = push(context.socket, "acp:message", request)
+        assert_reply(ref, :ok, %{"acp:message" => %{"error" => error}})
+        assert error["code"] == JsonRpc.error_invalid_params()
+        assert error["message"] =~ error_hint
+      end
+
+      assert {:ok, task} = Tasks.get_task_with_history(context.scope, context.task_id)
+      assert Tasks.interactions(task) == []
+      assert all_enqueued(worker: GenerateTitle) == []
+      refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
+    end
+
     test "rejects duplicate message UUIDs", %{socket: socket} do
       message_id = Ecto.UUID.generate()
       first_ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))

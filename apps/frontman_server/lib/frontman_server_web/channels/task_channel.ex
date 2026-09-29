@@ -719,8 +719,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
         else
           {:error, %Ecto.Changeset{} = changeset} ->
-            {message, _metadata} = Keyword.fetch!(changeset.errors, :id)
-            reply_invalid_params(socket, id, "Message ID #{message}")
+            reply_invalid_params(socket, id, changeset)
 
           {:error, :billing_inactive} ->
             reply_acp_error(
@@ -757,8 +756,17 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:reply, {:ok, %{@acp_message => JsonRpc.error_response(id, code, message)}}, socket}
   end
 
-  defp reply_invalid_params(socket, id, message),
+  defp reply_invalid_params(socket, id, message) when is_binary(message),
     do: reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
+
+  defp reply_invalid_params(socket, id, %Ecto.Changeset{errors: [{:id, {message, _}} | _]}),
+    do: reply_invalid_params(socket, id, "Message ID #{message}")
+
+  defp reply_invalid_params(socket, id, %Ecto.Changeset{errors: [{field, {message, _}} | _]}),
+    do: reply_invalid_params(socket, id, "#{Phoenix.Naming.humanize(field)} #{message}")
+
+  defp reply_invalid_params(socket, id, %Ecto.Changeset{}),
+    do: reply_invalid_params(socket, id, "Invalid message fields or attachments")
 
   defp push_acp_error(socket, id, code, message) do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
