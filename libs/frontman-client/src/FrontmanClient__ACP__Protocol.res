@@ -62,7 +62,7 @@ let sendRequest = (
         channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
       push.receive(~status="ok", ~callback=reply => {
         switch parsePushReply(reply) {
-        | Ok(message) => state := Client.handleResponse(state.contents, message)
+        | Ok(message) => Client.handleResponse(state, message)
         | Error(error) => pending.reject(error)
         }
       }).receive(~status="error", ~callback=_ => pending.reject("ACP request failed"))->ignore
@@ -188,7 +188,7 @@ let handleIncomingMessage = (
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
   | Some(method) => Log.warning(`Received unhandled ACP notification: ${method}`)
-  | None => state := Client.handleResponse(state.contents, payload)
+  | None => Client.handleResponse(state, payload)
   }
 }
 

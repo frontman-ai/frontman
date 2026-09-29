@@ -103,6 +103,13 @@ let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): b
     )
   )
 
+let retryTurnHandler = (~hasActiveACPSession, ~taskId, ~retryErrorId) =>
+  switch (hasActiveACPSession, taskId, retryErrorId) {
+  | (true, Some(taskId), Some(retriedErrorId)) =>
+    Some(() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId))
+  | _ => None
+  }
+
 let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSelect, text) => {
   switch providerSetupRequired {
   | true => onConfigureProvider()
@@ -388,12 +395,11 @@ let make = (~onConfigureProvider: unit => unit) => {
           error={Message.ErrorMessage.error(err)}
           category={Message.ErrorMessage.category(err)}
           onConfigureProvider
-          onRetry={switch currentTaskId {
-          | Some(taskId) =>
-            () =>
-              Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=Message.ErrorMessage.id(err))
-          | None => () => ()
-          }}
+          onRetry=?{retryTurnHandler(
+            ~hasActiveACPSession,
+            ~taskId=currentTaskId,
+            ~retryErrorId=Some(Message.ErrorMessage.id(err)),
+          )}
         />
       </div>
     }
@@ -444,14 +450,9 @@ let make = (~onConfigureProvider: unit => unit) => {
 
         {switch (retryStatus, turnError, currentTaskId) {
         | (Some(rs), _, _) if hasActiveACPSession => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({id, message, category, retryErrorId}), Some(taskId))
+        | (None, Some({id, message, category, retryErrorId}), Some(_))
           if shouldRenderTurnError(messages, id) =>
-          let onRetry =
-            retryErrorId
-            ->Option.filter(_ => hasActiveACPSession)
-            ->Option.map(retriedErrorId =>
-              () => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId)
-            )
+          let onRetry = retryTurnHandler(~hasActiveACPSession, ~taskId=currentTaskId, ~retryErrorId)
           <ErrorBanner error=message category onConfigureProvider onRetry=?onRetry />
         | _ => React.null
         }}

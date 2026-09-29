@@ -257,10 +257,9 @@ module SubmitButton = {
     ~onCancel: unit => unit,
   ) => {
     <button
-      type_={showStop ? "button" : "submit"}
+      type_="button"
       disabled
-      onClick={e => {
-        ReactEvent.Mouse.preventDefault(e)
+      onClick={_ => {
         switch showStop {
         | true => onCancel()
         | false => onClick()

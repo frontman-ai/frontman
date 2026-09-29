@@ -181,11 +181,6 @@ module Provider = {
         clientName,
         clientVersion,
         _meta,
-        onTitleUpdated: Some(
-          (taskId, title) => {
-            Client__State.Actions.updateTaskTitle(~taskId, ~title)
-          },
-        ),
       }
 
       dispatch(Initialize({config, relay, mcpServer}))

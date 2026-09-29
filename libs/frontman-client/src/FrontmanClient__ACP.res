@@ -18,7 +18,6 @@ type config = {
   getAuthToken: unit => option<string>,
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
-  onTitleUpdated: option<(string, string) => unit>,
   onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
 }
 
@@ -30,7 +29,6 @@ let makeConfig = (
   ~name: string,
   ~version: string,
   ~_meta: JSON.t,
-  ~onTitleUpdated: option<(string, string) => unit>=?,
   ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
 ): config => {
   endpoint,
@@ -42,7 +40,6 @@ let makeConfig = (
     title: None,
     _meta: Some(_meta),
   },
-  onTitleUpdated,
   onConfigOptionsUpdated,
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
@@ -64,7 +61,6 @@ type session = {
   sessionId: string,
   channel: Channel.t,
   connection: connection,
-  onUpdate: (string, Types.sessionUpdate) => unit,
 }
 
 type sessionCommand =
@@ -73,38 +69,48 @@ type sessionCommand =
   | UnqueueMessage(string)
 
 let cleanupChannel = channel => {
-  channel->Channel.off(~event=#"acp:message")
-  channel->Channel.off(~event=#"mcp:message")
-  channel->Channel.off(~event=#title_updated)
-  channel->Channel.off(~event=#config_options_updated)
-  Channel.leave(channel)->ignore
+  switch Channel.state(channel) {
+  | "closed" | "leaving" => ()
+  | _ =>
+    channel->Channel.off(~event=#"acp:message")
+    channel->Channel.off(~event=#"mcp:message")
+    channel->Channel.off(~event=#title_updated)
+    channel->Channel.off(~event=#config_options_updated)
+    Channel.leave(channel)->ignore
+  }
 }
 
 let cleanupSessionChannel = (session: session): unit => cleanupChannel(session.channel)
 
 let cleanupConnection = (socket, state: ref<Client.state>): unit => {
   state := state.contents->Client.reduce(Client.ACPStateChanged(Disconnected))
-  state.contents.pendingRequests
-  ->Dict.valuesToArray
-  ->Array.forEach(pending => pending.reject(Protocol.connectionLost))
   socket->Socket.channels->Array.forEach(cleanupChannel)
   Socket.disconnect(socket)
 }
 
 let disconnect = (conn: connection): unit => cleanupConnection(conn.socket, conn.state)
 
-type joinError =
+type connectError =
   | AuthRequired({loginUrl: string})
-  | JoinFailed(string)
+  | ConnectionFailed(string)
 
 let joinChannel = (channel: Channel.t, ~onError: string => unit): promise<
-  result<unit, joinError>,
+  result<unit, connectError>,
 > => {
   Promise.make((resolve, _) => {
-    channel->Channel.on(~event=#phx_error, ~callback=_ => {
-      resolve(Error(JoinFailed(Protocol.connectionLost)))
-      onError(Protocol.connectionLost)
-    })
+    [#phx_error, #phx_close]->Array.forEach(event =>
+      channel->Channel.on(
+        ~event,
+        ~callback=payload => {
+          switch (event, payload == JSON.Encode.string("leave")) {
+          | (#phx_close, true) => ()
+          | _ =>
+            resolve(Error(ConnectionFailed(Protocol.connectionLost)))
+            onError(Protocol.connectionLost)
+          }
+        },
+      )
+    )
     Channel.join(channel).receive(~status="ok", ~callback=_ =>
       resolve(Ok())
     ).receive(~status="error", ~callback=err => {
@@ -116,10 +122,10 @@ let joinChannel = (channel: Channel.t, ~onError: string => unit): promise<
 
       switch (reason, loginUrl) {
       | (Some("unauthorized"), Some(url)) => resolve(Error(AuthRequired({loginUrl: url})))
-      | _ => resolve(Error(JoinFailed(JSON.stringify(err))))
+      | _ => resolve(Error(ConnectionFailed(JSON.stringify(err))))
       }
     }).receive(~status="timeout", ~callback=_ =>
-      resolve(Error(JoinFailed("Channel join timed out")))
+      resolve(Error(ConnectionFailed("Channel join timed out")))
     )->ignore
   })
 }
@@ -130,10 +136,6 @@ let checkAborted = (signal: option<WebAPI.EventTypes.abortSignal>): result<unit,
   | _ => Ok()
   }
 }
-
-type connectError =
-  | AuthRequired({loginUrl: string})
-  | ConnectionFailed(string)
 
 @@live
 let connect = async (
@@ -168,7 +170,6 @@ let connect = async (
     let channel = socket->Socket.channel(~topic=Constants.tasksTopic)
     let state = ref(Client.initialState)
     let clientConfig: Client.config = {
-      channel,
       clientInfo: config.clientInfo,
       clientCapabilities: config.clientCapabilities,
     }
@@ -187,12 +188,7 @@ let connect = async (
       Error(ConnectionFailed("Connection aborted"))
     | (Error(e), _) =>
       cleanupConnection(socket, state)
-      Error(
-        switch e {
-        | AuthRequired({loginUrl}) => AuthRequired({loginUrl: loginUrl})
-        | JoinFailed(error) => ConnectionFailed(error)
-        },
-      )
+      Error(e)
     | (Ok(), Ok()) =>
       switch config.onConfigOptionsUpdated {
       | Some(callback) =>
@@ -255,15 +251,11 @@ let joinSession = async (
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
-  ~cleanupOnParseError: option<ref<bool>>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
 ): result<session, string> => {
   let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
   let handleSessionError = err => {
-    switch cleanupOnParseError->Option.mapOr(true, enabled => enabled.contents) {
-    | true => cleanupChannel(sessionChannel)
-    | false => ()
-    }
+    cleanupChannel(sessionChannel)
     switch onParseError {
     | Some(callback) => callback(err)
     | None => throw(SessionMessageParseError(err))
@@ -278,14 +270,7 @@ let joinSession = async (
   )
 
   mcpServerInterface->Option.forEach(serverInterface => {
-    let handler: MCP.mcpHandler<'server> = {
-      serverInterface,
-      channel: sessionChannel,
-      sessionId,
-    }
-    sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
-      MCP.handleMessage(handler, payload)->ignore
-    })
+    MCP.attach(~channel=sessionChannel, ~sessionId, ~serverInterface)->ignore
   })
 
   sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
@@ -302,7 +287,7 @@ let joinSession = async (
     cleanupChannel(sessionChannel)
     let errMsg = switch err {
     | AuthRequired({loginUrl}) => `Auth required: ${loginUrl}`
-    | JoinFailed(msg) => msg
+    | ConnectionFailed(msg) => msg
     }
     Log.error(`Session join failed: ${errMsg}`)
     errMsg
@@ -313,7 +298,6 @@ let joinSession = async (
       sessionId,
       channel: sessionChannel,
       connection: conn,
-      onUpdate,
     }
   })
 }
@@ -449,7 +433,6 @@ let loadSession = async (
   let buffering = ref(true)
   let bufferedUpdates = ref([])
   let parseError = ref(None)
-  let cleanupOnParseError = ref(false)
   let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId)
   let handleUpdate = (sessionId, update) =>
     switch buffering.contents {
@@ -479,7 +462,6 @@ let loadSession = async (
         | Some(_) => ()
         }
       },
-    ~cleanupOnParseError,
     ~mcpServerInterface?,
   )
 
@@ -504,19 +486,17 @@ let loadSession = async (
       ),
       ~parseResult=Client.parseSessionLoadResult,
     )
-    cleanupOnParseError := true
-
-    let validatedLoad = loadResult->Result.flatMap(result =>
-      switch parseError.contents {
-      | Some(error) => Error(error)
-      | None =>
+    let validatedLoad = switch parseError.contents {
+    | Some(error) => Error(error)
+    | None =>
+      loadResult->Result.flatMap(result =>
         bufferedUpdates.contents
         ->Array.reduce(Ok(), (validation, (updateSessionId, update)) =>
           validation->Result.flatMap(() => validate(updateSessionId, update))
         )
         ->Result.map(() => result)
-      }
-    )
+      )
+    }
 
     switch validatedLoad {
     | Error(error) =>

@@ -1,6 +1,5 @@
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
-module Channel = FrontmanClient__Phoenix__Channel
 module Decoders = FrontmanClient__Decoders
 module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
@@ -25,7 +24,6 @@ type state = {
 
 @@live
 type config = {
-  channel: Channel.t,
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
 }
@@ -99,13 +97,13 @@ let reduce = (state: state, action: action): state => {
   }
 }
 
-let handleResponse = (state: state, payload: JSON.t): state => {
+let handleResponse = (state: ref<state>, payload: JSON.t): unit => {
   try {
     let response = payload->JsonRpc.Response.fromJsonExn
     let id = response->JsonRpc.Response.id->Option.flatMap(JsonRpc.Id.toInt)->Option.getOrThrow
     let idStr = Int.toString(id)
 
-    switch state.pendingRequests->Dict.get(idStr) {
+    switch state.contents.pendingRequests->Dict.get(idStr) {
     | Some({resolve, reject}) =>
       switch response->JsonRpc.Response.result {
       | Some(result) => resolve(result)
@@ -115,16 +113,12 @@ let handleResponse = (state: state, payload: JSON.t): state => {
         | None => reject("Unknown error")
         }
       }
-      state->reduce(ResponseReceived(id))
-    | None =>
-      Log.warning(`Received response for unknown request: ${idStr}`)
-      state
+    | None => Log.warning(`Received response for unknown request: ${idStr}`)
     }
   } catch {
   | exn =>
     let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
     Log.error(`Failed to parse JSON-RPC response: ${msg}`)
-    state
   }
 }
 

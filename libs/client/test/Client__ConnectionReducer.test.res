@@ -38,7 +38,6 @@ let initConfig: Reducer.initConfig = {
   loginUrl: "http://test/users/log-in",
   clientName: "test",
   clientVersion: "1.0.0",
-  onTitleUpdated: None,
   _meta: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
 }
 let initPayload = (): Reducer.initPayload => {
