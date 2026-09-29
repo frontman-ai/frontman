@@ -100,8 +100,8 @@ defmodule FrontmanServer.Tasks.Execution.ErrorClassifier do
   end
 
   defp classify_reqllm_request(status, _reason) when status in [401, 403] do
-    {"Authentication failed — your API key may be invalid or expired (HTTP #{status})", "auth",
-     false}
+    {"Authentication failed (HTTP #{status}). Reconnect your provider account by signing in again, or replace your API key in Settings.",
+     "auth", false}
   end
 
   defp classify_reqllm_request(400, _reason) do

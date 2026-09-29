@@ -5,15 +5,23 @@ defmodule FrontmanServer.Tasks.ExecutionClassifyErrorTest do
   alias ReqLLM.Error.API.Request
 
   describe "classify_error/1" do
-    test "unrelated or malformed 400 bodies stay generic without exposing provider data" do
-      for body <- [
+    test "request failures give safe guidance without exposing provider data" do
+      for {status, category, message} <- [
+            {400, "unknown", "Bad request — the provider rejected the request."},
+            {401, "auth",
+             "Authentication failed (HTTP 401). Reconnect your provider account by signing in again, or replace your API key in Settings."},
+            {403, "auth",
+             "Authentication failed (HTTP 403). Reconnect your provider account by signing in again, or replace your API key in Settings."}
+          ],
+          body <- [
             %{"detail" => "The 'private-input' field is invalid"},
             %{"detail" => ["private-input"]},
             %{"error" => %{"message" => "private-input"}},
+            %{"error" => %{"code" => "token_invalidated", "message" => "private-input"}},
             nil
           ] do
-        assert {"Bad request — the provider rejected the request.", "unknown", false} =
-                 classify_request(status: 400, reason: "private-input", response_body: body)
+        assert {^message, ^category, false} =
+                 classify_request(status: status, reason: "private-input", response_body: body)
       end
     end
 
