@@ -13,8 +13,10 @@ module Log = FrontmanLogs.Logs.Make({
 
 type requestError = Client.requestError
 let requestErrorFromMessage = Client.requestErrorFromMessage
+@@live
 let requestErrorWithCode = Client.requestErrorWithCode
 let requestErrorMessage = Client.requestErrorMessage
+@@live
 let requestErrorIsBillingInactive = Client.requestErrorIsBillingInactive
 
 let attachBillingStatusHandler = (~channel, ~onBillingStatusUpdated) =>
