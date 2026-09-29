@@ -23,29 +23,7 @@ class Frontman_Tool_Options {
 	 * We deliberately exclude sensitive options like auth keys, salts, etc.
 	 */
 	private const READABLE_OPTIONS = [
-		'blogname',
-		'blogdescription',
-		'siteurl',
-		'home',
-		'admin_email',
-		'posts_per_page',
-		'date_format',
-		'time_format',
-		'timezone_string',
-		'gmt_offset',
-		'permalink_structure',
-		'default_category',
-		'default_post_format',
-		'show_on_front',
-		'page_on_front',
-		'page_for_posts',
-		'blog_public',
-		'default_comment_status',
-		'thread_comments',
-		'thread_comments_depth',
-		'comments_per_page',
-		'stylesheet',
-		'template',
+		...self::WRITABLE_OPTIONS,
 		'sidebars_widgets',
 		'widget_text',
 		'widget_categories',
@@ -54,6 +32,9 @@ class Frontman_Tool_Options {
 		'widget_search',
 		'widget_recent-posts',
 		'widget_recent-comments',
+		'wp_page_for_privacy_policy',
+		'comment_registration',
+		'require_name_email',
 	];
 
 	private const WRITABLE_OPTIONS = [
@@ -95,6 +76,7 @@ class Frontman_Tool_Options {
 				'properties'           => [
 					'name' => [
 						'type'        => 'string',
+						'enum'        => self::READABLE_OPTIONS,
 						'description' => 'The option name to read (e.g. "blogname", "permalink_structure", "posts_per_page").',
 					],
 				],
@@ -112,6 +94,7 @@ class Frontman_Tool_Options {
 				'properties'           => [
 					'name'  => [
 						'type'        => 'string',
+						'enum'        => self::WRITABLE_OPTIONS,
 						'description' => 'The option name to update.',
 					],
 					'value' => [
