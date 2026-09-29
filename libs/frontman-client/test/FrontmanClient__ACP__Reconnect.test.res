@@ -48,9 +48,17 @@ let create = conn =>
 let methods = wire => wire.requests->Array.map(request => request.method)
 let params = (wire, index) => (wire.requests[index]->Option.getOrThrow).params
 
-[false, true]->Array.forEach(transport =>
+[
+  (false, "wordpress"),
+  (true, "wordpress"),
+  (false, "astro"),
+  (false, "nextjs"),
+  (false, "vite"),
+]->Array.forEach(((transport, framework)) =>
   testAsync(
-    `reinitializes real Phoenix ${transport ? "transport" : "channel"} rejoin before session/new`,
+    `reinitializes ${framework} on real Phoenix ${transport
+        ? "transport"
+        : "channel"} rejoin before session/new`,
     async t => {
       let wire = makeTransport()
       let configs = ref(0)
@@ -58,7 +66,7 @@ let params = (wire, index) => (wire.requests[index]->Option.getOrThrow).params
       let conn =
         (
           await ACP.connect(
-            config(~onConfigOptionsUpdated=_ => configs := configs.contents + 1),
+            config(~framework, ~onConfigOptionsUpdated=_ => configs := configs.contents + 1),
             ~onReconnect=result => {
               result->Result.getOrThrow->ignore
               reconnects := reconnects.contents + 1
@@ -184,17 +192,6 @@ testAsync(
     t->expect(ACP.isInitialized(conn))->Expect.toBe(false)
     t->expect(conn.state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
     t->expect(Vi.getTimerCount())->Expect.toBe(0)
-  })
-)
-
-["astro", "nextjs", "vite"]->Array.forEach(framework =>
-  testAsync(`preserves ${framework} metadata across rejoin`, async t => {
-    let wire = makeTransport()
-    let conn = (await ACP.connect(config(~framework)))->Result.getOrThrow->remember
-    wire.lose(false)
-    (await Vi.advanceTimersByTimeAsync(1000))->ignore
-    t->expect(params(wire, 0))->Expect.toEqual(params(wire, 1))
-    t->expect((await create(conn))->Result.isOk)->Expect.toBe(true)
   })
 )
 
