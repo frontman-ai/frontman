@@ -188,11 +188,6 @@ module Provider = {
         clientName,
         clientVersion,
         _meta,
-        onTitleUpdated: Some(
-          (taskId, title) => {
-            Client__State.Actions.updateTaskTitle(~taskId, ~title)
-          },
-        ),
       }
 
       dispatch(Initialize({config, relay, mcpServer}))
@@ -205,12 +200,8 @@ module Provider = {
             WebAPI.AbortController.abort(controller)
           )
           state.relayInstance->Option.forEach(relay => Relay.disconnect(relay))
-          let activeSession = switch state.session {
-          | SessionActive(session) => Some(session)
-          | NoSession | SessionCreating(_) | SessionError(_) => None
-          }
           switch state.acp {
-          | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
+          | ACPConnected(conn) => ACP.disconnect(conn)
           | ACPDisconnected | ACPConnecting | ACPLoggingOut | ACPAuthRequired(_) | ACPError(_) => ()
           }
           dispatch(Dispose)

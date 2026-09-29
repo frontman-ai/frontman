@@ -34,16 +34,19 @@ let isLongPromptPasteText: string => bool
 let serializePromptEditorContent: jsonContentNode => serializedPromptEditorContent
 let focus: unit => unit
 
+type commands = {
+  submit: unit => unit,
+  attach: unit => unit,
+  dropFiles: array<browserFile> => unit,
+}
+
 @react.component
 let make: (
   ~disabled: bool,
   ~placeholder: string,
   ~isEnrichingAnnotations: bool,
   ~hasAnnotations: bool,
-  ~submitSignal: int,
-  ~attachSignal: int,
-  ~dropFilesSignal: int,
-  ~droppedFiles: array<browserFile>,
+  ~commandsRef: React.ref<Nullable.t<commands>>,
   ~onHasContentChange: bool => unit,
   ~onSubmit: (string, array<editorFileAttachment>) => unit,
   ~onPreviewImage: string => unit,

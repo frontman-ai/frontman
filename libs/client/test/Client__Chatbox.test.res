@@ -65,6 +65,31 @@ describe("selectGetStartedTask", () => {
   })
 })
 
+test("error banners only offer retry when connected with a task and retry ID", t => {
+  [
+    (true, Some("task-1"), Some("error-1"), true),
+    (false, Some("task-1"), Some("error-1"), false),
+    (true, None, Some("error-1"), false),
+    (true, Some("task-1"), None, false),
+  ]->Array.forEach(((hasActiveACPSession, taskId, retryErrorId, expected)) => {
+    let onRetry = Chatbox.retryTurnHandler(~hasActiveACPSession, ~taskId, ~retryErrorId)
+    t->expect(onRetry->Option.isSome)->Expect.toBe(expected)
+  })
+})
+
+test("both stop and send respect the disconnected control's disabled state", t => {
+  [true, false]->Array.forEach(showStop => {
+    let html = renderToStaticMarkup(
+      <Client__PromptInput.SubmitButton
+        disabled=true showStop onClick={() => ()} onCancel={() => ()}
+      />,
+    )
+    t->expect(html->String.includes("disabled=\"\""))->Expect.toBe(true)
+    t->expect(html->String.includes("type=\"button\""))->Expect.toBe(true)
+    t->expect(html->String.includes("Stop generation"))->Expect.toBe(showStop)
+  })
+})
+
 describe("ExecutePlanAction", () => {
   test("hides execute action without a selected model", t => {
     let html = renderToStaticMarkup(

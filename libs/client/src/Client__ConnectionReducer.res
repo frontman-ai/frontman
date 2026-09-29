@@ -14,7 +14,6 @@ type initConfig = {
   clientName: string,
   clientVersion: string,
   _meta: JSON.t,
-  onTitleUpdated: option<(string, string) => unit>,
 }
 
 type authRequiredPayload = {loginUrl: string}
@@ -129,7 +128,6 @@ type effect =
   | ScheduleAuthRetry({signal: WebAPI.EventTypes.abortSignal})
   | LogoutEffect({
       connection: ACP.connection,
-      session: option<ACP.session>,
       apiBaseUrl: string,
       signal: WebAPI.EventTypes.abortSignal,
     })
@@ -228,7 +226,6 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ~name=config.clientName,
       ~version=config.clientVersion,
       ~_meta=config._meta,
-      ~onTitleUpdated=?config.onTitleUpdated,
       ~onConfigOptionsUpdated=configOptions => {
         Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
       },
@@ -267,20 +264,11 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ],
     )
 
-  | ({acp: ACPConnecting}, ACPConnectSuccess(conn)) => (
-      {
-        ...state,
-        acp: ACPConnected(conn),
-        authRetryActive: false,
-        authRetryInFlight: false,
-      },
-      [FetchSessionsEffect(conn)],
-    )
-
+  | ({acp: ACPConnecting}, ACPConnectSuccess(conn))
   | (
-      {acp: ACPAuthRequired(_), authRetryActive: true, authRetryInFlight: true},
-      ACPConnectSuccess(conn),
-    ) => (
+    {acp: ACPAuthRequired(_), authRetryActive: true, authRetryInFlight: true},
+    ACPConnectSuccess(conn),
+  ) => (
       {
         ...state,
         acp: ACPConnected(conn),
@@ -336,31 +324,31 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         abortController: Some(signalController),
       },
       BeginLogout,
-    ) => {
-      let session = switch state.session {
-      | SessionActive(session) => Some(session)
-      | NoSession | SessionCreating(_) | SessionError(_) => None
-      }
-      {
-        ...state,
-        acp: ACPLoggingOut,
-        authRetryActive: false,
-        authRetryInFlight: false,
-        session: NoSession,
-      }->StateReducer.update(
-        ~sideEffect=LogoutEffect({
-          connection,
-          session,
-          apiBaseUrl: apiBaseUrlFromLoginUrl(config.loginUrl),
-          signal: signalController.signal,
-        }),
-      )
-    }
+    ) =>
+    {
+      ...state,
+      acp: ACPLoggingOut,
+      authRetryActive: false,
+      authRetryInFlight: false,
+      session: NoSession,
+    }->StateReducer.update(
+      ~sideEffect=LogoutEffect({
+        connection,
+        apiBaseUrl: apiBaseUrlFromLoginUrl(config.loginUrl),
+        signal: signalController.signal,
+      }),
+    )
 
   | (_, BeginLogout) => (state, [])
 
-  | ({acp: ACPConnecting}, ACPConnectError(msg)) => (
-      {...state, acp: ACPError(msg), authRetryActive: false, authRetryInFlight: false},
+  | ({acp: ACPConnecting | ACPConnected(_)}, ACPConnectError(msg)) => (
+      {
+        ...state,
+        acp: ACPError(msg),
+        session: NoSession,
+        authRetryActive: false,
+        authRetryInFlight: false,
+      },
       [LogError(`ACP connect failed: ${msg}`)],
     )
 
@@ -556,6 +544,11 @@ let revokeEmbeddedClientToken = async (
   WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
 }
 
+let reportSessionFailure = (dispatch, ~sessionId, error) => {
+  Client__TextDeltaBuffer.flush()
+  dispatch(SessionFailed({sessionId, error}))
+}
+
 let billingRequestErrorMessage = error => {
   switch ACP.requestErrorIsBillingInactive(error) {
   | true => Client__State.Actions.openSettingsModalOnBilling()
@@ -570,8 +563,6 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
     )
 
-  let dispatchSessionResult = configOptions => dispatchConfigOptions(configOptions)
-
   switch effect {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
@@ -579,7 +570,10 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
   | ConnectACP({config, signal}) =>
     let connect = async () => {
-      let result = await ACP.connect(config, ~signal)
+      let result = await ACP.connect(config, ~signal, ~onError=error => {
+        Client__TextDeltaBuffer.flush()
+        dispatch(ACPConnectError(error))
+      })
       switch (signal.aborted, result) {
       | (true, Ok(conn)) =>
         ACP.disconnect(conn)
@@ -615,8 +609,8 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       | false => dispatch(RetryAuthentication)
       }
     })
-  | LogoutEffect({connection, session, apiBaseUrl, signal}) =>
-    ACP.disconnect(connection, ~session?)
+  | LogoutEffect({connection, apiBaseUrl, signal}) =>
+    ACP.disconnect(connection)
     revokeEmbeddedClientToken(~apiBaseUrl, ~signal)->ignore
   | ConnectRelay(relay, signal) =>
     let connect = async () => {
@@ -646,8 +640,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         ~onTitleUpdated,
         ~onParseError=error => {
           creationError := Some(error)
-          Client__TextDeltaBuffer.discardTask(sessionId)
-          dispatch(SessionFailed({sessionId, error}))
+          reportSessionFailure(dispatch, ~sessionId, error)
         },
         ~mcpServerInterface,
       )
@@ -660,7 +653,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         | None =>
           dispatch(SessionCreateSuccess(sess))
           onComplete(Ok(sess.sessionId))
-          dispatchSessionResult(sessionNewResult.configOptions)
+          dispatchConfigOptions(sessionNewResult.configOptions)
         }
       | Error(err) =>
         dispatch(SessionCreateError({sessionId, error: err}))
@@ -706,13 +699,10 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         let loadResult = await ACP.loadSession(
           connection,
           taskId,
-          ~onLoadResult=result => dispatchSessionResult(result.configOptions),
+          ~onLoadResult=result => dispatchConfigOptions(result.configOptions),
           ~onUpdate,
           ~onTitleUpdated,
-          ~onParseError=err => {
-            Client__TextDeltaBuffer.discardTask(taskId)
-            dispatch(SessionFailed({sessionId: taskId, error: err}))
-          },
+          ~onParseError=reportSessionFailure(dispatch, ~sessionId=taskId, _),
           ~mcpServerInterface,
         )
         loadResult->Result.map(((session, _)) => session)
@@ -722,10 +712,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           taskId,
           ~onUpdate=ACP.validatedUpdateHandler(connection, taskId, onUpdate),
           ~onTitleUpdated,
-          ~onParseError=err => {
-            Client__TextDeltaBuffer.discardTask(taskId)
-            dispatch(SessionFailed({sessionId: taskId, error: err}))
-          },
+          ~onParseError=reportSessionFailure(dispatch, ~sessionId=taskId, _),
           ~mcpServerInterface,
         )
       }

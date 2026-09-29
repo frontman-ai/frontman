@@ -38,7 +38,6 @@ let initConfig: Reducer.initConfig = {
   loginUrl: "http://test/users/log-in",
   clientName: "test",
   clientVersion: "1.0.0",
-  onTitleUpdated: None,
   _meta: JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
 }
 let initPayload = (): Reducer.initPayload => {
@@ -255,6 +254,28 @@ describe("Connection Reducer", () => {
 
         t->expect(nextState)->Expect.toBe(state)
         t->expect(effectKinds(effects))->Expect.toEqual([])
+      },
+    )
+  })
+
+  test("connection loss cannot leave an active session masking the error", t => {
+    let connection = mock({"id": "connection"})
+    [
+      (Reducer.ACPConnecting, Reducer.NoSession),
+      (Reducer.ACPConnected(connection), Reducer.SessionCreating("sess-1")),
+      (Reducer.ACPConnected(connection), Reducer.SessionActive(mock({"sessionId": "sess-1"}))),
+    ]->Array.forEach(
+      ((acp, session)) => {
+        let (failed, _) = Reducer.reduce(
+          {...Reducer.initialState, acp, session},
+          ACPConnectError("Connection lost"),
+        )
+        t->expect(failed.session)->Expect.toEqual(NoSession)
+        t
+        ->expect(Reducer.Selectors.getConnectionStatus(failed))
+        ->Expect.toEqual(Error("Connection lost"))
+        let (late, _) = Reducer.reduce(failed, SessionCreateSuccess(mock({"sessionId": "sess-1"})))
+        t->expect(late)->Expect.toBe(failed)
       },
     )
   })

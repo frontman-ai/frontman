@@ -256,38 +256,30 @@ module SubmitButton = {
     ~onClick: unit => unit,
     ~onCancel: unit => unit,
   ) => {
-    if showStop {
-      <button
-        type_="button"
-        onClick={e => {
-          ReactEvent.Mouse.preventDefault(e)
-          onCancel()
-        }}
-        className="inline-flex items-center gap-2 h-8 px-4 rounded-full
-                   bg-[#985DF7] hover:bg-[#8247E5] text-white text-xs font-medium
-                   transition-all hover:scale-105 cursor-pointer"
-        title="Stop generation"
-      >
-        <StopIcon size=12 />
-        <span> {React.string("Stop")} </span>
-      </button>
-    } else {
-      <button
-        type_="submit"
-        disabled
-        onClick={e => {
-          ReactEvent.Mouse.preventDefault(e)
-          onClick()
-        }}
-        className="flex items-center justify-center w-8 h-8 rounded-full
-                   transition-all text-white cursor-pointer
-                   bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
-                   disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100"
-        title="Send (Enter)"
-      >
-        <Icons.SendArrowIcon size=14 />
-      </button>
-    }
+    <button
+      type_="button"
+      disabled
+      onClick={_ => {
+        switch showStop {
+        | true => onCancel()
+        | false => onClick()
+        }
+      }}
+      className={`inline-flex items-center justify-center gap-2 h-8 rounded-full
+        transition-all text-white cursor-pointer bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
+        disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100
+        ${showStop ? "px-4 text-xs font-medium" : "w-8"}`}
+      title={showStop ? "Stop generation" : "Send (Enter)"}
+    >
+      {switch showStop {
+      | true =>
+        <>
+          <StopIcon size=12 />
+          <span> {React.string("Stop")} </span>
+        </>
+      | false => <Icons.SendArrowIcon size=14 />
+      }}
+    </button>
   }
 }
 
@@ -315,12 +307,9 @@ let make = (
 ) => {
   let (hasContent, setHasContent) = React.useState(() => false)
   let (hasComposerFocus, setHasComposerFocus) = React.useState(() => false)
-  let (submitSignal, setSubmitSignal) = React.useState(() => 0)
-  let (attachSignal, setAttachSignal) = React.useState(() => 0)
-  let (dropFilesSignal, setDropFilesSignal) = React.useState(() => 0)
-  let (droppedFiles, setDroppedFiles) = React.useState((): array<
-    Client__PromptEditor.browserFile,
-  > => [])
+  let commandsRef: React.ref<Nullable.t<Client__PromptEditor.commands>> = React.useRef(
+    Nullable.null,
+  )
   let (previewSrc, setPreviewSrc) = React.useState((): option<string> => None)
   let (fileSizeError, setFileSizeError) = React.useState((): option<string> => None)
   let (showToolbarLabels, setShowToolbarLabels) = React.useState(() => true)
@@ -381,17 +370,15 @@ let make = (
     }
   }, [fileSizeError])
 
-  let doSubmit = () => setSubmitSignal(prev => prev + 1)
-  let openAttachPicker = () => setAttachSignal(prev => prev + 1)
+  let doSubmit = () =>
+    commandsRef.current->Nullable.toOption->Option.forEach(commands => commands.submit())
+  let openAttachPicker = () =>
+    commandsRef.current->Nullable.toOption->Option.forEach(commands => commands.attach())
   let handleDrop = (event: ReactEvent.Mouse.t) => {
     preventDefaultDropNavigation(event)
-    let files = getDroppedFiles(event)
-    switch files->Array.length {
-    | 0 => ()
-    | _ =>
-      setDroppedFiles(_ => files)
-      setDropFilesSignal(prev => prev + 1)
-    }
+    commandsRef.current
+    ->Nullable.toOption
+    ->Option.forEach(commands => commands.dropFiles(getDroppedFiles(event)))
   }
 
   let handleEditorSubmit = (
@@ -411,8 +398,11 @@ let make = (
   let hasSubmittableContent = hasContent || hasAnnotations
   let noModelSelected = selectedModelValue->Option.isNone
   let isInputDisabled = !hasActiveACPSession || disabled || noModelsConfigured || noModelSelected
-  let isSubmitDisabled = isInputDisabled || !hasSubmittableContent || isEnrichingAnnotations
   let showStopButton = isAgentRunning && !hasSubmittableContent
+  let isSubmitDisabled = switch showStopButton {
+  | true => !hasActiveACPSession || disabled
+  | false => isInputDisabled || !hasSubmittableContent || isEnrichingAnnotations
+  }
 
   let currentPlaceholder = switch (
     noModelsConfigured,
@@ -499,10 +489,7 @@ let make = (
             placeholder={currentPlaceholder}
             isEnrichingAnnotations
             hasAnnotations
-            submitSignal
-            attachSignal
-            dropFilesSignal
-            droppedFiles
+            commandsRef
             onHasContentChange={value => setHasContent(_ => value)}
             onSubmit={handleEditorSubmit}
             onPreviewImage={src => setPreviewSrc(_ => Some(src))}

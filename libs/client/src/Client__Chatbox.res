@@ -103,6 +103,13 @@ let shouldRenderTurnError = (messages: array<Message.t>, turnErrorId: string): b
     )
   )
 
+let retryTurnHandler = (~hasActiveACPSession, ~taskId, ~retryErrorId) =>
+  switch (hasActiveACPSession, taskId, retryErrorId) {
+  | (true, Some(taskId), Some(retriedErrorId)) =>
+    Some(() => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId))
+  | _ => None
+  }
+
 let selectGetStartedTask = (~providerSetupRequired, ~onConfigureProvider, ~onSelect, text) => {
   switch providerSetupRequired {
   | true => onConfigureProvider()
@@ -389,12 +396,11 @@ let make = (~onConfigureProvider: unit => unit) => {
           error={Message.ErrorMessage.error(err)}
           category={Message.ErrorMessage.category(err)}
           onConfigureProvider
-          onRetry={switch currentTaskId {
-          | Some(taskId) =>
-            () =>
-              Client__State.Actions.retryTurn(~taskId, ~retriedErrorId=Message.ErrorMessage.id(err))
-          | None => () => ()
-          }}
+          onRetry=?{retryTurnHandler(
+            ~hasActiveACPSession,
+            ~taskId=currentTaskId,
+            ~retryErrorId=Some(Message.ErrorMessage.id(err)),
+          )}
         />
       </div>
     }
@@ -408,7 +414,9 @@ let make = (~onConfigureProvider: unit => unit) => {
         | (true, _) => React.null
         | (false, Error(message)) =>
           <div role="alert" className="py-3 px-4 text-[13px] text-red-400">
-            {React.string(`Could not load project context: ${message}`)}
+            {React.string(message)}
+            {React.string(" ")}
+            <a href="" className="underline"> {React.string("Reload")} </a>
           </div>
         | (false, Connecting | LoggingOut | Connected | SessionActive(_) | Disconnected) =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
@@ -441,13 +449,10 @@ let make = (~onConfigureProvider: unit => unit) => {
         />
 
         {switch (retryStatus, turnError, currentTaskId) {
-        | (Some(rs), _, _) => <Client__RetryBanner retryStatus=rs />
-        | (None, Some({id, message, category, retryErrorId}), Some(taskId))
+        | (Some(rs), _, _) if hasActiveACPSession => <Client__RetryBanner retryStatus=rs />
+        | (None, Some({id, message, category, retryErrorId}), Some(_))
           if shouldRenderTurnError(messages, id) =>
-          let onRetry =
-            retryErrorId->Option.map(retriedErrorId =>
-              () => Client__State.Actions.retryTurn(~taskId, ~retriedErrorId)
-            )
+          let onRetry = retryTurnHandler(~hasActiveACPSession, ~taskId=currentTaskId, ~retryErrorId)
           <ErrorBanner error=message category onConfigureProvider onRetry=?onRetry />
         | _ => React.null
         }}
@@ -477,14 +482,16 @@ let make = (~onConfigureProvider: unit => unit) => {
       </Client__UI__Alert>
     | _ => React.null
     }}
-    <Client__QueuedMessagesDrawer
-      messages=queuedUserMessages
-      onUnqueue={messageId =>
-        switch currentTaskId {
-        | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
-        | None => ()
-        }}
-    />
+    <fieldset disabled={!hasActiveACPSession} className="contents">
+      <Client__QueuedMessagesDrawer
+        messages=queuedUserMessages
+        onUnqueue={messageId =>
+          switch currentTaskId {
+          | Some(taskId) => Client__State.Actions.unqueueMessage(~taskId, ~messageId)
+          | None => ()
+          }}
+      />
+    </fieldset>
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
       {switch hasPendingQuestion {
