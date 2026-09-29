@@ -18,6 +18,8 @@ type pageRoutingMeta = {astro_client_routing: option<string>}
 let setRuntime: JSON.t => unit = %raw(`function(value) { window.__frontmanRuntime = value }`)
 let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRuntime }`)
 
+@module("vitest") external onTestFinished: (unit => unit) => unit = "onTestFinished"
+
 afterEach(() => clearRuntime())
 
 module TestHelpers = {
@@ -25,10 +27,11 @@ module TestHelpers = {
     ~deleteSession=(_, ~onComplete as _) => (),
     ~requireAuthentication=() => (),
     ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
+    ~loadTask=(_, ~needsHistory as _, ~onComplete as _) => (),
   ): Client__State__Types.acpSession => AcpSessionActive({
     sendPrompt,
     sendSessionCommand: _ => (),
-    loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
+    loadTask,
     deleteSession,
     requireAuthentication,
     apiBaseUrl: "http://localhost:4000",
@@ -129,6 +132,102 @@ module TestHelpers = {
 }
 
 describe("prompt preflight and shared send", () => {
+  testAsync("first drafts reject before creation and revalidate after creation", async t => {
+    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs"}`))
+    let created = ref(0)
+    let send = (~content, ~createSession) =>
+      Client__Chatbox.sendUserMessage(
+        ~session=None,
+        ~createSession,
+        ~currentTaskId=None,
+        ~content,
+        ~annotations=[],
+        ~agentId="executor",
+      )
+    for i in 0 to 1 {
+      let content = switch i {
+      | 0 => [UserContentPart.File({file: "data:application/pdf;base64,AAAA"})]
+      | _ => [UserContentPart.Text({text: "x"->String.repeat(8_000_000)})]
+      }
+      let result = await send(
+        ~content,
+        ~createSession=(~onComplete) => {
+          created := created.contents + 1
+          onComplete(Error("must not create"))
+        },
+      )
+      t->expect(result->Result.isError)->Expect.toBe(true)
+    }
+    t->expect(created.contents)->Expect.toBe(0)
+    let result = await send(
+      ~content=[UserContentPart.text("valid draft")],
+      ~createSession=(~onComplete) => {
+        created := created.contents + 1
+        setRuntime(
+          JSON.parseOrThrow(`{"framework":"nextjs","traits":["${"x"->String.repeat(8_000_000)}"]}`),
+        )
+        onComplete(Ok("new-session"))
+      },
+    )
+    t->expect(created.contents)->Expect.toBe(1)
+    t->expect(result->Result.isError)->Expect.toBe(true)
+  })
+
+  testAsync(
+    "interrupted history reloads the selected task without creating or sending",
+    async t => {
+      setRuntime(JSON.parseOrThrow(`{"framework":"nextjs"}`))
+      let store = Client__State__Store.store
+      let original = StateStore.getState(store)
+      onTestFinished(
+        () => StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, original),
+      )
+      let task = Task.Unloaded({id: "history", title: "History", createdAt: 0.0, updatedAt: 0.0})
+      let sent = ref(0)
+      StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
+        store,
+        {
+          ...TestHelpers.makeStateWithTasks(
+            ~tasks=Dict.fromArray([("history", task)]),
+            ~currentTask=Selected("history"),
+          ),
+          acpSession: TestHelpers.activeAcpSession(
+            ~loadTask=(taskId, ~needsHistory, ~onComplete) => {
+              t->expect(taskId)->Expect.toBe("history")
+              t->expect(needsHistory)->Expect.toBe(true)
+              onComplete(Ok())
+            },
+            ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) =>
+              sent := sent.contents + 1,
+          ),
+        },
+      )
+      let send = session =>
+        Client__Chatbox.sendUserMessage(
+          ~session,
+          ~currentTaskId=Some("history"),
+          ~createSession=(~onComplete as _) => failwith("must not create a new conversation"),
+          ~content=[UserContentPart.text("draft")],
+          ~annotations=[],
+          ~agentId="executor",
+        )
+      t->expect((await send(None))->Result.isError)->Expect.toBe(true)
+      t->expect(sent.contents)->Expect.toBe(0)
+      t
+      ->expect(
+        StateStore.getState(store).tasks->Dict.get("history")->Option.getOrThrow->Task.isLoaded,
+      )
+      ->Expect.toBe(true)
+      t
+      ->expect((await send(Some(Obj.magic({"sessionId": "history"}))))->Result.isOk)
+      ->Expect.toBe(true)
+      t->expect(sent.contents)->Expect.toBe(1)
+      t
+      ->expect(Reducer.Selectors.currentTaskId(StateStore.getState(store)))
+      ->Expect.toEqual(Some("history"))
+    },
+  )
+
   test(
     "new-task context matches promoted context and does not replace background-task context",
     t => {
