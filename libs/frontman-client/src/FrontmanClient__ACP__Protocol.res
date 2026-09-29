@@ -25,6 +25,7 @@ let validateMessageSize = (payload, ~reservedBytes=0) =>
   | false => Error(promptSizeError)
   }
 
+@@live
 let validatePrompt = (~text, ~additionalBlocks, ~_meta) => {
   switch additionalBlocks->Array.some(block =>
     switch block {
