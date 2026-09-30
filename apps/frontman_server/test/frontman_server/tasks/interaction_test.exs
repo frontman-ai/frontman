@@ -51,13 +51,15 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             Map.merge(contents, %{"uri" => "attachment://fixture", "mimeType" => mime})
         }
 
-        assert {:error, changeset} = UserMessage.attrs([block])
-        assert {error, _} = changeset.errors[:mime_type]
+        assert {:ok, attrs} = UserMessage.attrs([block])
+        changeset = UserMessage.changeset(%UserMessage{}, attrs)
+        refute changeset.valid?
+        assert {error, _} = hd(changeset.changes.images).errors[:mime_type]
         assert error =~ "paste document text"
       end
 
       for mime <- ["image/png", "image/jpeg", "image/gif", "image/webp"] do
-        assert {:ok, %{images: [%{"mime_type" => ^mime}]}} =
+        assert {:ok, %{images: [%{"mime_type" => ^mime}]} = attrs} =
                  UserMessage.attrs([
                    %{
                      "type" => "resource",
@@ -65,6 +67,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
                      "resource" => %{"mimeType" => mime, "blob" => "AAAA"}
                    }
                  ])
+
+        assert UserMessage.changeset(%UserMessage{}, attrs).valid?
       end
     end
 

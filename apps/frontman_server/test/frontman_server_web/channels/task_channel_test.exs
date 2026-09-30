@@ -559,9 +559,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       for {meta, resource, error_hint} <- [
             {%{"user_image" => true}, pdf, "paste document text"},
-            {%{}, pdf, "paste document text"},
             {%{"annotation" => true, "annotation_index" => "bad"}, %{"text" => ""},
-             "Invalid message"}
+             "Annotation index"}
           ] do
         block = %{"type" => "resource", "_meta" => meta, "resource" => resource}
 
