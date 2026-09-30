@@ -383,8 +383,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def attrs(content_blocks, model \\ nil, agent_id \\ nil) do
-      with {:ok, messages} <- extract_messages(content_blocks),
-           {:ok, images} <- extract_user_images(content_blocks) do
+      with {:ok, messages} <- extract_messages(content_blocks) do
         {:ok,
          %{
            agent_id: agent_id,
@@ -392,7 +391,7 @@ defmodule FrontmanServer.Tasks.Interaction do
            messages: messages,
            annotations: extract_annotations(content_blocks),
            selected_figma_node: extract_selected_figma_node(content_blocks),
-           images: images,
+           images: extract_user_images(content_blocks),
            current_page: extract_current_page(content_blocks)
          }}
       end
@@ -517,33 +516,15 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp extract_user_images(content_blocks) do
       content_blocks
-      |> Enum.filter(fn
-        %{"type" => "resource", "resource" => %{"blob" => _}} -> true
-        block -> user_image_block?(block)
-      end)
-      |> Enum.reduce_while({:ok, []}, fn block, {:ok, images} ->
-        attrs = %{
+      |> Enum.filter(&user_image_block?/1)
+      |> Enum.map(fn block ->
+        %{
           "blob" => get_in(block, ["resource", "blob"]),
           "mime_type" => get_in(block, ["resource", "mimeType"]),
           "filename" => get_in(block, ["_meta", "filename"]) || "attachment",
           "uri" => get_in(block, ["resource", "uri"])
         }
-
-        case {UserImage.changeset(%UserImage{}, attrs), user_image_block?(block)} do
-          {%{valid?: true}, true} ->
-            {:cont, {:ok, [attrs | images]}}
-
-          {%{valid?: true}, false} ->
-            {:cont, {:ok, images}}
-
-          {changeset, _} ->
-            {:halt, {:error, changeset}}
-        end
       end)
-      |> case do
-        {:ok, images} -> {:ok, Enum.reverse(images)}
-        {:error, changeset} -> {:error, changeset}
-      end
     end
 
     defp user_image_block?(%{

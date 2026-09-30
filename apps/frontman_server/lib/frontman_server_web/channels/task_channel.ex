@@ -765,8 +765,15 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp reply_invalid_params(socket, id, %Ecto.Changeset{errors: [{field, {message, _}} | _]}),
     do: reply_invalid_params(socket, id, "#{Phoenix.Naming.humanize(field)} #{message}")
 
-  defp reply_invalid_params(socket, id, %Ecto.Changeset{}),
-    do: reply_invalid_params(socket, id, "Invalid message fields or attachments")
+  defp reply_invalid_params(socket, id, %Ecto.Changeset{valid?: false, changes: changes}) do
+    invalid_child =
+      changes
+      |> Map.values()
+      |> List.flatten()
+      |> Enum.find(&match?(%Ecto.Changeset{valid?: false}, &1))
+
+    reply_invalid_params(socket, id, invalid_child)
+  end
 
   defp push_acp_error(socket, id, code, message) do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))
