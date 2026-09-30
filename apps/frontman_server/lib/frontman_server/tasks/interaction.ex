@@ -77,7 +77,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = figma_node, attrs) do
-      cast(figma_node, attrs, [:id, :node, :image, :is_dsl])
+      figma_node
+      |> cast(attrs, [:id, :node, :image, :is_dsl])
+      |> validate_required([:id, :node])
     end
   end
 
@@ -97,7 +99,9 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def changeset(%__MODULE__{} = screenshot, attrs) do
-      cast(screenshot, attrs, [:blob, :mime_type])
+      screenshot
+      |> cast(attrs, [:blob, :mime_type])
+      |> validate_required([:blob])
     end
   end
 
@@ -164,14 +168,14 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :blob, :string
       field :mime_type, :string
-      field :filename, :string
+      field :filename, :string, default: "attachment"
       field :uri, :string
     end
 
     def changeset(%__MODULE__{} = user_image, attrs) do
       user_image
       |> cast(attrs, [:blob, :mime_type, :filename, :uri])
-      |> validate_required([:blob, :mime_type])
+      |> validate_required([:blob, :mime_type, :filename])
       |> validate_inclusion(:mime_type, ["image/png", "image/jpeg", "image/gif", "image/webp"],
         message: "must be PNG, JPEG, GIF, or WebP; paste document text instead"
       )
@@ -182,8 +186,6 @@ defmodule FrontmanServer.Tasks.Interaction do
     @moduledoc """
     Page context from the client: URL, viewport, DPR, title, color scheme, scroll position.
     """
-
-    alias FrontmanServer.CurrentPageContext
 
     use Ecto.Schema
     import Ecto.Changeset
@@ -212,12 +214,9 @@ defmodule FrontmanServer.Tasks.Interaction do
         :scroll_y,
         :astro_client_routing
       ])
+      |> validate_required([:url])
       |> validate_inclusion(:astro_client_routing, ["enabled", "disabled", "unavailable"])
     end
-
-    defdelegate attrs_from_acp_meta(meta),
-      to: CurrentPageContext,
-      as: :fields_from_current_page_meta
   end
 
   defmodule Annotation do
@@ -235,7 +234,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :annotation_id, :string
       field :annotation_index, :integer
-      field :tag_name, :string
+      field :tag_name, :string, default: "unknown"
       field :selector, :string
       field :comment, :string
       field :file, :string
@@ -264,6 +263,7 @@ defmodule FrontmanServer.Tasks.Interaction do
         :component_props,
         :metadata
       ])
+      |> validate_required([:tag_name])
       |> cast_embed(:parent, with: &ParentLocation.changeset/2)
       |> cast_embed(:bounding_box, with: &BoundingBox.changeset/2)
       |> cast_embed(:screenshot, with: &Screenshot.changeset/2)
@@ -292,7 +292,7 @@ defmodule FrontmanServer.Tasks.Interaction do
       %{
         annotation_id: data["annotation_id"],
         annotation_index: data["annotation_index"],
-        tag_name: data["tag_name"] || "unknown",
+        tag_name: Map.get(data, "tag_name", "unknown"),
         selector: data["selector"],
         comment: data["comment"],
         file: data["file"],
@@ -308,10 +308,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     defp metadata_from_map(data) do
-      inline_metadata = drop_known_metadata(data)
-      explicit_metadata = data |> Map.get("metadata") |> drop_known_metadata()
-
-      Map.merge(inline_metadata, explicit_metadata)
+      case data["metadata"] do
+        nil -> drop_known_metadata(data)
+        %{} = metadata -> Map.merge(drop_known_metadata(data), drop_known_metadata(metadata))
+        metadata -> metadata
+      end
     end
 
     defp drop_known_metadata(metadata) when is_map(metadata),
@@ -319,8 +320,6 @@ defmodule FrontmanServer.Tasks.Interaction do
         metadata
         |> Map.drop(@known_meta_keys)
         |> Map.reject(fn {_key, value} -> is_nil(value) end)
-
-    defp drop_known_metadata(_), do: %{}
 
     @doc """
     Builds an Annotation from an ACP `_meta` block, pairing with a separate
@@ -373,9 +372,16 @@ defmodule FrontmanServer.Tasks.Interaction do
         :model,
         :selected_server_skill_id,
         :selected_server_skill_name,
-        :selected_server_skill_content,
-        :messages
+        :selected_server_skill_content
       ])
+      |> cast(attrs, [:messages], empty_values: [])
+      |> validate_required([:messages])
+      |> validate_change(:messages, fn :messages, messages ->
+        case Enum.any?(messages, &(&1 in [nil, ""])) do
+          true -> [messages: "must contain non-empty strings"]
+          false -> []
+        end
+      end)
       |> cast_embed(:annotations, with: &Annotation.changeset/2)
       |> cast_embed(:selected_figma_node, with: &FigmaNode.changeset/2)
       |> cast_embed(:images, with: &UserImage.changeset/2)
@@ -383,39 +389,15 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     def attrs(content_blocks, model \\ nil, agent_id \\ nil) do
-      with {:ok, messages} <- extract_messages(content_blocks) do
-        {:ok,
-         %{
-           agent_id: agent_id,
-           model: model,
-           messages: messages,
-           annotations: extract_annotations(content_blocks),
-           selected_figma_node: extract_selected_figma_node(content_blocks),
-           images: extract_user_images(content_blocks),
-           current_page: extract_current_page(content_blocks)
-         }}
-      end
-    end
-
-    defp extract_messages(content_blocks) do
-      content_blocks
-      |> Enum.reduce_while({:ok, []}, fn
-        %{"type" => "text", "text" => text}, {:ok, messages}
-        when is_binary(text) and text != "" ->
-          {:cont, {:ok, [text | messages]}}
-
-        %{"type" => "text"}, {:ok, _messages} ->
-          {:halt,
-           {:error,
-            {:invalid_content_block, "text content block must include non-empty string text"}}}
-
-        _block, {:ok, messages} ->
-          {:cont, {:ok, messages}}
-      end)
-      |> case do
-        {:ok, messages} -> {:ok, Enum.reverse(messages)}
-        {:error, reason} -> {:error, reason}
-      end
+      %{
+        agent_id: agent_id,
+        model: model,
+        messages: for(%{"type" => "text"} = block <- content_blocks, do: block["text"]),
+        annotations: extract_annotations(content_blocks),
+        selected_figma_node: extract_selected_figma_node(content_blocks),
+        images: extract_user_images(content_blocks),
+        current_page: extract_current_page(content_blocks)
+      }
     end
 
     defp extract_annotations(content_blocks) do
@@ -440,22 +422,10 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp extract_screenshot_map(content_blocks) do
       content_blocks
       |> Enum.filter(&annotation_screenshot_block?/1)
-      |> Enum.reduce(%{}, fn %{
-                               "type" => "resource",
-                               "_meta" => meta,
-                               "resource" => resource
-                             },
-                             acc ->
-        case {meta["annotation_id"], resource["blob"]} do
-          {annotation_id, blob} when is_binary(annotation_id) and is_binary(blob) ->
-            Map.put(acc, annotation_id, %{
-              "blob" => blob,
-              "mime_type" => resource["mimeType"] || "image/jpeg"
-            })
-
-          {_annotation_id, _blob} ->
-            acc
-        end
+      |> Map.new(fn %{"_meta" => %{"annotation_id" => id}, "resource" => resource}
+                    when is_binary(id) ->
+        {id,
+         %{"blob" => resource["blob"], "mime_type" => Map.get(resource, "mimeType", "image/jpeg")}}
       end)
     end
 
@@ -469,19 +439,12 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     defp extract_selected_figma_node(content_blocks) do
       Enum.find_value(content_blocks, fn
-        %{
-          "type" => "resource",
-          "_meta" => %{"figma_node" => true, "node_id" => node_id} = meta,
-          "resource" => %{"text" => text}
-        }
-        when is_binary(text) and is_binary(node_id) ->
-          is_dsl = Map.get(meta, "is_dsl", true)
-
-          %FigmaNode{
-            id: node_id,
-            node: text,
+        %{"type" => "resource", "_meta" => %{"figma_node" => true} = meta} = block ->
+          %{
+            id: meta["node_id"],
+            node: get_in(block, ["resource", "text"]),
             image: extract_figma_image_blob(content_blocks),
-            is_dsl: is_dsl
+            is_dsl: Map.get(meta, "is_dsl", true)
           }
 
         _ ->
@@ -490,24 +453,18 @@ defmodule FrontmanServer.Tasks.Interaction do
     end
 
     defp extract_figma_image_blob(content_blocks) do
-      Enum.find_value(content_blocks, fn
-        %{
-          "type" => "resource",
-          "_meta" => %{"figma_image" => true},
-          "resource" => %{"blob" => blob}
-        }
-        when is_binary(blob) ->
-          blob
-
-        _ ->
-          nil
-      end)
+      content_blocks
+      |> Enum.find(&match?(%{"type" => "resource", "_meta" => %{"figma_image" => true}}, &1))
+      |> case do
+        nil -> nil
+        block -> block |> Map.fetch!("resource") |> Map.fetch!("blob")
+      end
     end
 
     defp extract_current_page(content_blocks) do
       Enum.find_value(content_blocks, fn
-        %{"type" => "resource", "_meta" => meta} ->
-          CurrentPage.attrs_from_acp_meta(meta)
+        %{"type" => "resource", "_meta" => %{"current_page" => true} = meta} ->
+          meta
 
         _ ->
           nil
@@ -517,11 +474,11 @@ defmodule FrontmanServer.Tasks.Interaction do
     defp extract_user_images(content_blocks) do
       content_blocks
       |> Enum.filter(&user_image_block?/1)
-      |> Enum.map(fn block ->
+      |> Enum.map(fn %{"_meta" => meta} = block ->
         %{
           "blob" => get_in(block, ["resource", "blob"]),
           "mime_type" => get_in(block, ["resource", "mimeType"]),
-          "filename" => get_in(block, ["_meta", "filename"]) || "attachment",
+          "filename" => Map.get(meta, "filename", "attachment"),
           "uri" => get_in(block, ["resource", "uri"])
         }
       end)

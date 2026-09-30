@@ -55,8 +55,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
           "resource" => %{"mimeType" => mime, "blob" => blob}
         }
 
-        assert {:ok, %{images: [%{"mime_type" => ^mime, "blob" => ^blob}]} = attrs} =
-                 UserMessage.attrs([block])
+        assert %{images: [%{"mime_type" => ^mime, "blob" => ^blob}]} =
+                 attrs = UserMessage.attrs([block])
 
         assert UserMessage.changeset(%UserMessage{}, attrs).valid? == valid?
       end
@@ -91,9 +91,9 @@ defmodule FrontmanServer.Tasks.InteractionTest do
     end
 
     test "extracts non-empty text messages" do
-      msg = build_user_message([text_block("Hello")])
+      msg = build_user_message([text_block("Hello"), text_block(" ")])
 
-      assert msg.messages == ["Hello"]
+      assert msg.messages == ["Hello", " "]
     end
 
     test "accepts resource-only prompts without a text block" do
@@ -109,18 +109,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.current_page.url == "https://example.com/app"
     end
 
-    test "returns error for text blocks without non-empty string text" do
-      assert {:error,
-              {:invalid_content_block, "text content block must include non-empty string text"}} =
-               UserMessage.attrs([%{"type" => "text"}])
-
-      assert {:error,
-              {:invalid_content_block, "text content block must include non-empty string text"}} =
-               UserMessage.attrs([%{"type" => "text", "text" => ""}])
-
-      assert {:error,
-              {:invalid_content_block, "text content block must include non-empty string text"}} =
-               UserMessage.attrs([%{"type" => "text", "text" => 1}])
+    test "changesets reject invalid text without extraction dropping it" do
+      for text <- [nil, "", 1], prefix <- [[], [text_block("Valid")]] do
+        attrs = UserMessage.attrs(prefix ++ [%{"type" => "text", "text" => text}])
+        assert List.last(attrs.messages) == text
+        refute UserMessage.changeset(%UserMessage{}, attrs).valid?
+      end
     end
 
     test "extracts annotation from resource block" do
@@ -145,21 +139,45 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.annotations == []
     end
 
-    test "pairs screenshot with annotation by annotation_id" do
-      msg =
-        build_user_message([
-          text_block("Fix this button"),
-          annotation_block("ann-1", "button", "/src/Button.tsx", 15, 3),
-          screenshot_block("ann-1", "base64screenshotdata")
-        ])
+    test "pairs screenshots without discarding invalid values before changeset validation" do
+      annotation = annotation_block("ann-1", "button", "/src/Button.tsx", 15, 3)
 
-      assert [ann] = msg.annotations
-      assert ann.file == "/src/Button.tsx"
+      for {blob, mime, valid?} <- [
+            {"base64screenshotdata", "image/png", true},
+            {nil, "image/png", false},
+            {1, "image/png", false},
+            {"base64screenshotdata", false, false}
+          ] do
+        attrs = UserMessage.attrs([screenshot_block("ann-1", blob, mime), annotation])
+        assert [%{screenshot: %{"blob" => ^blob, "mime_type" => ^mime}}] = attrs.annotations
+        assert UserMessage.changeset(%UserMessage{}, attrs).valid? == valid?
+      end
 
-      assert ann.screenshot == %Interaction.Screenshot{
-               blob: "base64screenshotdata",
-               mime_type: "image/png"
-             }
+      assert_raise FunctionClauseError, fn ->
+        UserMessage.attrs([screenshot_block(nil, "data")])
+      end
+    end
+
+    test "decodes Figma attributes without discarding invalid fields or malformed resources" do
+      node = %{
+        "type" => "resource",
+        "_meta" => %{"figma_node" => true, "node_id" => "1:2", "is_dsl" => false},
+        "resource" => %{"text" => "{}"}
+      }
+
+      image = %{
+        "type" => "resource",
+        "_meta" => %{"figma_image" => true},
+        "resource" => %{"blob" => "data"}
+      }
+
+      assert %Interaction.FigmaNode{id: "1:2", node: "{}", image: "data", is_dsl: false} =
+               build_user_message([node, image]).selected_figma_node
+
+      attrs = UserMessage.attrs([node, put_in(image, ["resource", "blob"], false)])
+      refute UserMessage.changeset(%UserMessage{}, attrs).valid?
+
+      assert_raise KeyError, fn -> UserMessage.attrs([node, Map.delete(image, "resource")]) end
     end
 
     test "extracts multiple annotations with enrichment data" do
@@ -851,10 +869,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   defp build_user_message(content_blocks) do
-    assert {:ok, attrs} = UserMessage.attrs(content_blocks)
-
     %UserMessage{}
-    |> UserMessage.changeset(attrs)
+    |> UserMessage.changeset(UserMessage.attrs(content_blocks))
     |> Ecto.Changeset.apply_action!(:insert)
   end
 end
