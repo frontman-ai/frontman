@@ -561,11 +561,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       blocks =
         for {meta, resource, error_hint} <- [
               {%{"user_image" => true}, pdf, "paste document text"},
-              {%{"user_image" => true, "filename" => nil}, Map.put(pdf, "mimeType", "image/png"),
+              {%{"user_image" => true, "filename" => ""}, Map.put(pdf, "mimeType", "image/png"),
                "Filename"},
               {Map.put(annotation, "annotation_index", "bad"), %{}, "Annotation index"},
               {Map.put(annotation, "metadata", false), %{}, "Metadata"},
-              {Map.put(annotation, "tag_name", nil), %{}, "Tag name"},
+              {Map.put(annotation, "tag_name", ""), %{}, "Tag name"},
               {%{"current_page" => true, "url" => nil}, %{}, "Url"},
               {%{"current_page" => true, "url" => "/", "device_pixel_ratio" => "bad"}, %{},
                "Device pixel ratio"},
