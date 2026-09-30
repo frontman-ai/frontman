@@ -29,42 +29,6 @@ defmodule FrontmanServer.CurrentPageContext do
   @doc "Returns the placeholder used when page context repeats."
   def unchanged_placeholder, do: @unchanged_placeholder
 
-  @doc "Extracts normalized fields from metadata marked as current-page context."
-  def fields_from_current_page_meta(%{@marker_key => true} = meta), do: fields_from_meta(meta)
-  def fields_from_current_page_meta(_), do: nil
-
-  @doc "Extracts normalized fields from ACP/DB metadata."
-  def fields_from_meta(nil), do: nil
-
-  def fields_from_meta(meta) when is_map(meta) do
-    case meta["url"] do
-      url when is_binary(url) ->
-        %{
-          url: url,
-          viewport_width: meta["viewport_width"],
-          viewport_height: meta["viewport_height"],
-          device_pixel_ratio: device_pixel_ratio(meta["device_pixel_ratio"]),
-          title: meta["title"],
-          color_scheme: meta["color_scheme"],
-          scroll_y: meta["scroll_y"],
-          astro_client_routing: astro_client_routing(meta["astro_client_routing"])
-        }
-
-      _ ->
-        nil
-    end
-  end
-
-  def fields_from_meta(_), do: nil
-
-  defp astro_client_routing(nil), do: nil
-
-  defp astro_client_routing(status) when status in ["enabled", "disabled", "unavailable"],
-    do: status
-
-  defp device_pixel_ratio(nil), do: nil
-  defp device_pixel_ratio(value) when is_number(value), do: value / 1
-
   @doc "Appends current-page prompt context to user text when present."
   def append_prompt_section(text, nil), do: text
 

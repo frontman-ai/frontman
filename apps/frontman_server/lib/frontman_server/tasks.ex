@@ -507,8 +507,7 @@ defmodule FrontmanServer.Tasks do
 
     with :ok <- guard_billing_access(scope),
          {:ok, selected_skill} <- selected_skill(scope, selected_server_skill_id),
-         {:ok, user_message_attrs} <-
-           Interaction.UserMessage.attrs(content_blocks, model, agent_id),
+         user_message_attrs = Interaction.UserMessage.attrs(content_blocks, model, agent_id),
          user_message_attrs = put_selected_skill(user_message_attrs, selected_skill),
          {:ok, task_schema} <- get_task(scope, task_id) do
       record_interaction_row(

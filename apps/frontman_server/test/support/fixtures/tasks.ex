@@ -28,7 +28,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   end
 
   def insert_accepted_user_message!(%TaskSchema{} = task, text, model \\ @default_test_model) do
-    {:ok, attrs} = Interaction.UserMessage.attrs(user_content(text), model)
+    attrs = Interaction.UserMessage.attrs(user_content(text), model)
     message_id = Ecto.UUID.generate()
 
     interaction_changeset(task.id, %{
@@ -129,7 +129,7 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
   """
   def user_message_fixture(scope, task_id, content_blocks, model \\ @default_test_model) do
     {:ok, task} = Tasks.get_task(scope, task_id)
-    {:ok, attrs} = Interaction.UserMessage.attrs(content_blocks, model, "test-frontman")
+    attrs = Interaction.UserMessage.attrs(content_blocks, model, "test-frontman")
     message_id = Ecto.UUID.generate()
 
     with {:ok, row} <-
