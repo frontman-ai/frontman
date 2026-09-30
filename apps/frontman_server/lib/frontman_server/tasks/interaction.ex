@@ -95,7 +95,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     @primary_key false
     embedded_schema do
       field :blob, :string
-      field :mime_type, :string, default: "image/jpeg"
+      field :mime_type, :string
     end
 
     def changeset(%__MODULE__{} = screenshot, attrs) do
@@ -168,7 +168,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :blob, :string
       field :mime_type, :string
-      field :filename, :string, default: "attachment"
+      field :filename, :string
       field :uri, :string
     end
 
@@ -234,7 +234,7 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :annotation_id, :string
       field :annotation_index, :integer
-      field :tag_name, :string, default: "unknown"
+      field :tag_name, :string
       field :selector, :string
       field :comment, :string
       field :file, :string
