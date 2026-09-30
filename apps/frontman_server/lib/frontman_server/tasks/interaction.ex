@@ -95,13 +95,13 @@ defmodule FrontmanServer.Tasks.Interaction do
     @primary_key false
     embedded_schema do
       field :blob, :string
-      field :mime_type, :string
+      field :mime_type, :string, default: "image/jpeg"
     end
 
     def changeset(%__MODULE__{} = screenshot, attrs) do
       screenshot
       |> cast(attrs, [:blob, :mime_type])
-      |> validate_required([:blob])
+      |> validate_required([:blob, :mime_type])
     end
   end
 

@@ -146,6 +146,7 @@ defmodule FrontmanServer.Tasks.InteractionTest do
             {"base64screenshotdata", "image/png", true},
             {nil, "image/png", false},
             {1, "image/png", false},
+            {"base64screenshotdata", nil, false},
             {"base64screenshotdata", false, false}
           ] do
         attrs = UserMessage.attrs([screenshot_block("ann-1", blob, mime), annotation])
