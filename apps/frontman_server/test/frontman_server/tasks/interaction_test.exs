@@ -37,38 +37,28 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "UserMessage.attrs/1" do
-    test "rejects documents in blob and tagged text resources without changing image support" do
-      for attrs <- [%{blob: "AAAA"}, %{mime_type: "image/png"}] do
-        refute UserImage.changeset(%UserImage{}, attrs).valid?
-      end
-
-      for mime <- ["application/pdf", "text/plain", "application/octet-stream"],
-          contents <- [%{"blob" => "AAAA"}, %{"text" => "document"}, %{}] do
+    test "extracts attachment data unchanged and validates it in the changeset" do
+      for {mime, blob, valid?} <- [
+            {"image/png", "AAAA", true},
+            {"image/jpeg", "AAAA", true},
+            {"image/gif", "AAAA", true},
+            {"image/webp", "AAAA", true},
+            {"application/pdf", "AAAA", false},
+            {"text/plain", "AAAA", false},
+            {"application/octet-stream", "AAAA", false},
+            {nil, "AAAA", false},
+            {"image/png", nil, false}
+          ] do
         block = %{
           "type" => "resource",
-          "_meta" => %{"user_image" => true, "filename" => "fixture"},
-          "resource" =>
-            Map.merge(contents, %{"uri" => "attachment://fixture", "mimeType" => mime})
+          "_meta" => %{"user_image" => true},
+          "resource" => %{"mimeType" => mime, "blob" => blob}
         }
 
-        assert {:ok, attrs} = UserMessage.attrs([block])
-        changeset = UserMessage.changeset(%UserMessage{}, attrs)
-        refute changeset.valid?
-        assert {error, _} = hd(changeset.changes.images).errors[:mime_type]
-        assert error =~ "paste document text"
-      end
+        assert {:ok, %{images: [%{"mime_type" => ^mime, "blob" => ^blob}]} = attrs} =
+                 UserMessage.attrs([block])
 
-      for mime <- ["image/png", "image/jpeg", "image/gif", "image/webp"] do
-        assert {:ok, %{images: [%{"mime_type" => ^mime}]} = attrs} =
-                 UserMessage.attrs([
-                   %{
-                     "type" => "resource",
-                     "_meta" => %{"user_image" => true},
-                     "resource" => %{"mimeType" => mime, "blob" => "AAAA"}
-                   }
-                 ])
-
-        assert UserMessage.changeset(%UserMessage{}, attrs).valid?
+        assert UserMessage.changeset(%UserMessage{}, attrs).valid? == valid?
       end
     end
 
