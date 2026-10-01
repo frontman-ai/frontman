@@ -188,11 +188,6 @@ module Provider = {
         clientName,
         clientVersion,
         _meta,
-        onTitleUpdated: Some(
-          (taskId, title) => {
-            Client__State.Actions.updateTaskTitle(~taskId, ~title)
-          },
-        ),
       }
 
       dispatch(Initialize({config, relay, mcpServer}))
@@ -200,19 +195,7 @@ module Provider = {
       Some(
         () => {
           textDeltaBuffer.reset()
-          let state = connectionStateRef.current
-          state.abortController->Option.forEach(controller =>
-            WebAPI.AbortController.abort(controller)
-          )
-          state.relayInstance->Option.forEach(relay => Relay.disconnect(relay))
-          let activeSession = switch state.session {
-          | SessionActive(session) => Some(session)
-          | NoSession | SessionCreating(_) | SessionError(_) => None
-          }
-          switch state.acp {
-          | ACPConnected(conn) => ACP.disconnect(conn, ~session=?activeSession)
-          | ACPDisconnected | ACPConnecting | ACPLoggingOut | ACPAuthRequired(_) | ACPError(_) => ()
-          }
+          Reducer.cleanup(connectionStateRef.current)
           dispatch(Dispose)
         },
       )
@@ -398,7 +381,7 @@ module Provider = {
       connectionState: Reducer.Selectors.getConnectionStatus(state),
       apiBaseUrl,
       session: Reducer.Selectors.getSession(state),
-      relay: state.relayInstance,
+      relay: Reducer.Selectors.getRelay(state),
       authRedirectUrl,
       beginAuthenticationRetry,
       requireAuthentication,
