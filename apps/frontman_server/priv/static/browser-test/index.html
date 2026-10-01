@@ -350,6 +350,7 @@
     const planCountEl = document.getElementById('planCount');
 
     let relay = null;
+    let relayController = null;
     let connection = null;
     let session = null;
     let mcpHandler = null;
@@ -443,21 +444,22 @@
       connectRelayBtn.disabled = true;
 
       try {
-        relay = Relay.make(endpoint);
-        const result = await Relay.connect(relay);
+        const controller = new AbortController();
+        relayController = controller;
+        const result = await Relay.connect(Relay.makeConfig(endpoint), controller.signal);
+        if (controller.signal.aborted) return;
 
         if (result.TAG === 'Ok') {
+          relay = result._0;
           log('Relay connected', 'success');
 
-          const state = Relay.getState(relay);
-          if (state.TAG === 'Connected') {
-            const { tools, serverInfo } = state;
-            log(`${serverInfo.name} v${serverInfo.version} - ${tools.length} tools`, 'relay');
-            tools.forEach((tool) => log(`==> ${JSON.stringify(tool)}`));
-            displayRelayTools(tools);
-          }
+          const tools = Relay.getToolsJson(relay);
+          const serverInfo = Relay.getServerInfo(relay);
+          log(`${serverInfo.name} v${serverInfo.version} - ${tools.length} tools`, 'relay');
+          tools.forEach((tool) => log(`==> ${JSON.stringify(tool)}`));
+          displayRelayTools(tools);
 
-          mcpServer = MCPServer.make(relay, 'browser-test-mcp', '1.0.0');
+          mcpServer = MCPServer.make(MCPServer.makeConfig([], 'browser-test-mcp', '1.0.0'), relay);
 
           disconnectRelayBtn.style.display = 'inline-block';
           advanceToStep(2);
@@ -474,8 +476,9 @@
     }
 
     function disconnectRelay() {
+      relayController?.abort();
+      relayController = null;
       if (relay) {
-        Relay.disconnect(relay);
         relay = null;
         mcpServer = null;
         log('Relay disconnected', 'info');
@@ -787,6 +790,7 @@
     });
 
     window.addEventListener('beforeunload', () => {
+      relayController?.abort();
       if (session && session.channel) {
         Channel.leave(session.channel);
       }

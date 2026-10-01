@@ -6,38 +6,26 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #Relay
 })
 
-type relayState =
-  | Disconnected
-  | Connected({tools: array<Types.remoteTool>, @live serverInfo: MCPTypes.info})
-  | Error(string)
-
-type t = {
+type config = {
   baseUrl: string,
   requestHeaders: Dict.t<string>,
   fetch: (string, WebAPI.FetchTypes.requestInit) => promise<WebAPI.Response.t>,
-  state: ref<relayState>,
 }
 
-@@live
-let make = (
+type connected = {
+  config: config,
+  tools: array<Types.remoteTool>,
+  serverInfo: MCPTypes.info,
+  signal: WebAPI.EventTypes.abortSignal,
+}
+
+let makeConfig = (
   ~baseUrl: string,
   ~requestHeaders: Dict.t<string>=Dict.make(),
   ~fetch=(url, init) => WebAPI.Fetch.fetch(url, ~init),
-): t => {
-  baseUrl,
-  requestHeaders,
-  fetch,
-  state: ref(Disconnected),
-}
+): config => {baseUrl, requestHeaders, fetch}
 
-let isConnected = (relay: t): bool => {
-  switch relay.state.contents {
-  | Connected(_) => true
-  | Disconnected | Error(_) => false
-  }
-}
-
-let getState = (relay: t): relayState => relay.state.contents
+let getServerInfo = (relay: connected): MCPTypes.info => relay.serverInfo
 
 let parseToolsResponse = (json: JSON.t): result<Types.toolsResponse, string> => {
   let normalizeLegacyTool = (tool: Types.legacyRemoteTool): Types.remoteTool => {
@@ -100,7 +88,7 @@ let readHttpError = async response => {
   }
 }
 
-let request = async (relay: t, ~path, ~body=?, ~signal=?, ~decode): result<'a, string> => {
+let request = async (relay: config, ~path, ~body=?, ~signal, ~decode): result<'a, string> => {
   let result: result<'a, string> = try {
     let (method, headers) = switch body {
     | Some(_) => ("POST", dict{"Content-Type": "application/json", "Accept": "text/event-stream"})
@@ -113,7 +101,7 @@ let request = async (relay: t, ~path, ~body=?, ~signal=?, ~decode): result<'a, s
         method,
         headers: WebAPI.HeadersInit.fromDict(headers),
         body: ?(body->Option.map(WebAPI.BodyInit.fromString)),
-        signal: ?(signal->Option.map(Null.make)),
+        signal: Null.make(signal),
       },
     )
     switch response.ok {
@@ -139,34 +127,27 @@ let request = async (relay: t, ~path, ~body=?, ~signal=?, ~decode): result<'a, s
   })
 }
 
-let connect = async (relay: t, ~signal: option<WebAPI.EventTypes.abortSignal>=?) => {
-  let result = await request(relay, ~path="tools", ~signal?, ~decode=async response => {
-    (await response->WebAPI.Response.json)
-    ->parseToolsResponse
-    ->Result.mapError(message => `Invalid tools response: ${message}`)
-  })
-  switch result {
-  | Ok(data) => relay.state := Connected({tools: data.tools, serverInfo: data.serverInfo})
-  | Error(message) =>
-    switch signal {
-    | Some(s) if s.aborted => ()
-    | _ => relay.state := Error(message)
+let connect = async (config: config, ~signal: WebAPI.EventTypes.abortSignal): result<
+  connected,
+  string,
+> => {
+  switch signal.aborted {
+  | true => Error("Relay connection aborted")
+  | false =>
+    let result = await request(config, ~path="tools", ~signal, ~decode=async response => {
+      (await response->WebAPI.Response.json)
+      ->parseToolsResponse
+      ->Result.mapError(message => `Invalid tools response: ${message}`)
+    })
+    switch signal.aborted {
+    | true => Error("Relay connection aborted")
+    | false =>
+      result->Result.map(data => {config, tools: data.tools, serverInfo: data.serverInfo, signal})
     }
   }
-  result->Result.map(_ => ())
 }
 
-@@live
-let disconnect = (relay: t): unit => {
-  relay.state := Disconnected
-}
-
-let getToolsJson = (relay: t): array<JSON.t> => {
-  switch relay.state.contents {
-  | Connected({tools}) => tools
-  | Disconnected | Error(_) => []
-  }
-}
+let getToolsJson = (relay: connected): array<JSON.t> => relay.tools
 
 let toolName = tool =>
   tool
@@ -174,25 +155,32 @@ let toolName = tool =>
   ->Option.flatMap(tool => tool->Dict.get("name"))
   ->Option.flatMap(JSON.Decode.string)
 
-let hasTool = (relay: t, name: string): bool =>
+let hasTool = (relay: connected, name: string): bool =>
   relay->getToolsJson->Array.some(tool => tool->toolName == Some(name))
 
-let executeTool = async (relay: t, ~name: string, ~arguments: option<Dict.t<JSON.t>>=?): result<
-  MCPTypes.CallToolResult.t,
-  string,
-> => {
-  switch relay->isConnected {
-  | false => Error("Relay not connected")
-  | true =>
+let executeTool = async (
+  relay: connected,
+  ~name: string,
+  ~arguments: option<Dict.t<JSON.t>>=?,
+): result<MCPTypes.CallToolResult.t, string> => {
+  switch relay.signal.aborted {
+  | true => Error("Relay connection aborted")
+  | false =>
     Log.debug(~ctx={"tool": name}, "Executing relay tool")
     let input: Types.toolCallRequest = {name, arguments}
     let body = input->S.decodeOrThrow(~from=Types.toolCallRequestSchema, ~to=S.jsonString)
-    await request(relay, ~path="tools/call", ~body, ~decode=async response => {
-      (await SSE.readStream(response))->Result.flatMap(json =>
-        json
-        ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
-        ->Result.mapError(message => `Invalid result: ${message}`)
-      )
-    })
+    await request(
+      relay.config,
+      ~path="tools/call",
+      ~body,
+      ~signal=relay.signal,
+      ~decode=async response => {
+        (await SSE.readStream(response))->Result.flatMap(json =>
+          json
+          ->Decoders.parseSchema(MCPTypes.callToolResultSchema)
+          ->Result.mapError(message => `Invalid result: ${message}`)
+        )
+      },
+    )
   }
 }

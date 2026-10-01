@@ -2,7 +2,25 @@ import * as Sentry from "@frontman-ai/frontman-client/src/FrontmanClient__Sentry
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
+import { initialState } from "../src/Client__ConnectionReducer.res.mjs";
+import { context } from "../src/Client__FrontmanProvider.res.mjs";
 import { make as UpdateBanner } from "../src/components/frontman/Client__UpdateBanner.res.mjs";
+
+const renderBanner = () =>
+	renderToStaticMarkup(
+		createElement(
+			context.Provider,
+			{
+				value: {
+					state: initialState({
+						acp: { loginUrl: "https://api.frontman.sh/users/log-in" },
+					}),
+					dispatch: vi.fn(),
+				},
+			},
+			createElement(UpdateBanner),
+		),
+	);
 
 const selectedState = vi.hoisted(() => ({ current: undefined }));
 vi.mock("../src/state/Client__State.res.mjs", async (importOriginal) => ({
@@ -59,7 +77,7 @@ it("stops legacy WordPress update checks after a 404 without reporting an error"
 	);
 	expect(state.wordpressUpdates).toBe("Unsupported");
 	selectedState.current = state;
-	expect(renderToStaticMarkup(createElement(UpdateBanner))).toBe("");
+	expect(renderBanner()).toBe("");
 	expect(next(state, check)[1]).toEqual([]);
 	expect(Sentry.captureConnectionError).not.toHaveBeenCalled();
 	expect(Sentry.captureException).not.toHaveBeenCalled();
@@ -106,7 +124,7 @@ it("refreshes the auto-update nudge independently of version updates and dismiss
 		});
 		expect(state.updateInfo).toBeUndefined();
 		selectedState.current = state;
-		const markup = renderToStaticMarkup(createElement(UpdateBanner));
+		const markup = renderBanner();
 		if (enabled === false) {
 			expect(markup).toContain("Enable auto-updates for Frontman");
 			expect(markup).toContain(

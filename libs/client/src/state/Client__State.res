@@ -17,37 +17,6 @@ module Actions = {
     Client__State__Store.dispatch(ExecuteAnnotation({id, sessionId, annotationId, comment}))
   }
 
-  let textDeltaReceived = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) =>
-    Client__State__Store.dispatch(
-      TaskAction({
-        target: ForTask(taskId),
-        action: TextDeltaReceived({messageId, text, agentId}),
-      }),
-    )
-
-  let toolCallReceived = (~taskId, ~toolCall) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: ToolCallReceived({toolCall: toolCall})}),
-    )
-
-  let toolInputReceived = (~taskId, ~id, ~input) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: ToolInputReceived({id, input})}),
-    )
-
-  let toolResultReceived = (~taskId, ~id, ~rawOutput, ~content, ~complete) =>
-    Client__State__Store.dispatch(
-      TaskAction({
-        target: ForTask(taskId),
-        action: ToolResultReceived({id, rawOutput, content, complete}),
-      }),
-    )
-
-  let toolErrorReceived = (~taskId, ~id, ~error) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: ToolErrorReceived({id, error})}),
-    )
-
   let setCurrentPreviewUrl = (~url) =>
     Client__State__Store.dispatch(
       TaskAction({target: CurrentTask, action: SetPreviewUrl({url: url})}),
@@ -155,58 +124,14 @@ module Actions = {
   let fetchUserProfile = (~apiBaseUrl: string) =>
     Client__State__Store.dispatch(FetchUserProfile({apiBaseUrl: apiBaseUrl}))
 
-  let executionStateRunning = (~taskId: string) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: ExecutionStateRunning}),
-    )
-
-  let executionStateIdle = (~taskId: string) =>
-    Client__State__Store.dispatch(TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}))
-
-  let executionStateRequiresAction = (~taskId: string) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: ExecutionStateRequiresAction}),
-    )
-
-  let agentErrorReceived = (
-    ~taskId: string,
-    ~id: string,
-    ~error: string,
-    ~category: Client__ErrorCategory.t,
-  ) =>
-    Client__State__Store.dispatch(
-      TaskAction({
-        target: ForTask(taskId),
-        action: AgentError({id, error, category}),
-      }),
-    )
-
-  let retryingStatusReceived = (
-    ~taskId: string,
-    ~retryStatus: Client__Task__Types.Task.retryStatus,
-  ) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: RetryingUpdate({retryStatus: retryStatus})}),
-    )
-
   let unqueueMessage = (~taskId: string, ~messageId: string) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: UnqueueMessage({messageId: messageId})}),
     )
 
-  let messageUnqueued = (~taskId: string, ~messageId: string) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: MessageUnqueued({messageId: messageId})}),
-    )
-
   let retryTurn = (~taskId: string, ~retriedErrorId: string) =>
     Client__State__Store.dispatch(
       TaskAction({target: ForTask(taskId), action: RetryTurn({retriedErrorId: retriedErrorId})}),
-    )
-
-  let planReceived = (~taskId: string, ~entries) =>
-    Client__State__Store.dispatch(
-      TaskAction({target: ForTask(taskId), action: PlanReceived({entries: entries})}),
     )
 
   let setSettingsModalTab = (tab: option<Client__State__Types.settingsTab>) =>
@@ -241,9 +166,6 @@ module Actions = {
   let resetNvidiaKeySaveStatus = () =>
     Client__State__Store.dispatch(ResetApiKeySaveStatus({provider: Nvidia}))
 
-  let configOptionsReceived = (~configOptions) =>
-    Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
-
   let setSelectedModelValue = (~value) =>
     Client__State__Store.dispatch(SetSelectedModelValue({value: value}))
 
@@ -273,20 +195,6 @@ module Actions = {
   let disconnectOpenAIOAuth = () => Client__State__Store.dispatch(DisconnectOpenAIOAuth)
 
   let resetOpenAIOAuthError = () => Client__State__Store.dispatch(ResetOpenAIOAuthError)
-
-  let userMessageReceived = (
-    ~taskId: string,
-    ~id: string,
-    ~content: array<Client__Message.UserContentPart.t>,
-    ~annotations: array<Client__Message.MessageAnnotation.t>,
-    ~agentId: string,
-  ) =>
-    Client__State__Store.dispatch(
-      TaskAction({
-        target: ForTask(taskId),
-        action: UserMessageReceived({id, content, annotations, agentId}),
-      }),
-    )
 
   let sessionsLoadStarted = () => Client__State__Store.dispatch(SessionsLoadStarted)
 

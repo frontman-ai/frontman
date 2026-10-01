@@ -122,7 +122,10 @@ module ExecutePlanAction = {
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
-  let {session, createSession, connectionState} = Client__FrontmanProvider.useFrontman()
+  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
+  let connectionState = Client__ConnectionReducer.Selectors.getConnectionStatus(state)
+  let session = Client__ConnectionReducer.Selectors.getSession(state)
+  let sessionError = Client__ConnectionReducer.Selectors.getSessionError(state)
 
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
@@ -174,15 +177,19 @@ let make = (~onConfigureProvider: unit => unit) => {
     let sendMessage = (sessionId: string) => {
       Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations, ~agentId)
     }
-    switch session {
-    | Some(sess) => sendMessage(sess.sessionId)
-    | None =>
-      createSession(~onComplete=result => {
-        switch result {
-        | Ok(sessionId) => sendMessage(sessionId)
-        | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
-        }
-      })
+    switch (session, isNewTask) {
+    | (Some(sess), _) => sendMessage(sess.sessionId)
+    | (None, true) =>
+      dispatch(
+        CreateSession({
+          onComplete: result =>
+            switch result {
+            | Ok(sessionId) => sendMessage(sessionId)
+            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
+            },
+        }),
+      )
+    | (None, false) => Log.error("Cannot send message: conversation has no active session")
     }
   }
 
@@ -416,6 +423,25 @@ let make = (~onConfigureProvider: unit => unit) => {
           </div>
         }}
 
+        {switch sessionError {
+        | Some(message) =>
+          <div role="alert" className="py-3 px-4 text-[13px] text-red-400 break-words">
+            <p> {React.string(`Conversation unavailable: ${message}`)} </p>
+            {switch currentTaskId {
+            | Some(taskId) =>
+              <Client__UI__Button
+                variant=Client__UI__Button.Variant.Secondary
+                size=Client__UI__Button.Size.Sm
+                onClick={_ => Client__State.Actions.switchTask(~taskId)}
+              >
+                {React.string("Retry conversation")}
+              </Client__UI__Button>
+            | None => <p> {React.string("Submit your message again to retry.")} </p>
+            }}
+          </div>
+        | None => React.null
+        }}
+
         {switch (hasActiveACPSession, isNewTask, totalItems) {
         | (true, true, 0) =>
           <Client__GetStartedTasks
@@ -502,7 +528,7 @@ let make = (~onConfigureProvider: unit => unit) => {
           onAgentChange={agentId => Client__State.Actions.setSelectedAgentId(~agentId)}
           onConfigureProvider
           isAgentRunning
-          hasActiveACPSession
+          hasActiveACPSession={hasActiveACPSession && (isNewTask || session->Option.isSome)}
           onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
           isSelecting={webPreviewIsSelecting}
           hasAnnotations

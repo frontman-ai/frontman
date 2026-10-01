@@ -13,8 +13,10 @@ module Log = FrontmanLogs.Logs.Make({
 
 type requestError = Client.requestError
 let requestErrorFromMessage = Client.requestErrorFromMessage
+@@live
 let requestErrorWithCode = Client.requestErrorWithCode
 let requestErrorMessage = Client.requestErrorMessage
+@@live
 let requestErrorIsBillingInactive = Client.requestErrorIsBillingInactive
 
 let attachBillingStatusHandler = (~channel, ~onBillingStatusUpdated) =>
@@ -29,7 +31,6 @@ type config = {
   getAuthToken: unit => option<string>,
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
-  onTitleUpdated: option<(string, string) => unit>,
   onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
   onBillingStatusUpdated: option<JSON.t => unit>,
 }
@@ -42,7 +43,6 @@ let makeConfig = (
   ~name: string,
   ~version: string,
   ~_meta: JSON.t,
-  ~onTitleUpdated: option<(string, string) => unit>=?,
   ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
   ~onBillingStatusUpdated: option<JSON.t => unit>=?,
 ): config => {
@@ -55,7 +55,6 @@ let makeConfig = (
     title: None,
     _meta: Some(_meta),
   },
-  onTitleUpdated,
   onConfigOptionsUpdated,
   onBillingStatusUpdated,
   clientCapabilities: {
@@ -145,11 +144,32 @@ type connectError =
   | AuthRequired({loginUrl: string})
   | ConnectionFailed(string)
 
+let waitForConnectionStep = (
+  pending,
+  ~signal: option<WebAPI.EventTypes.abortSignal>,
+  ~abortError,
+) =>
+  switch signal {
+  | None => pending
+  | Some(signal) if signal.aborted => Promise.resolve(Error(abortError))
+  | Some(signal) =>
+    let onAbort = ref(_ => ())
+    let cancelled = Promise.make((resolve, _) => {
+      let listener = _ => resolve(Error(abortError))
+      onAbort := listener
+      WebAPI.AbortSignal.addEventListener(signal, Custom("abort"), listener)
+    })
+    Promise.race([pending, cancelled])->Promise.finally(() => {
+      WebAPI.AbortSignal.removeEventListener(signal, Custom("abort"), onAbort.contents)
+    })
+  }
+
 @@live
-let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSignal>=?): result<
-  connection,
-  connectError,
-> => {
+let connect = async (
+  config: config,
+  ~signal: option<WebAPI.EventTypes.abortSignal>=?,
+  ~onConnectionCreated: option<connection => unit>=?,
+): result<connection, connectError> => {
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
 
@@ -182,9 +202,15 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       clientCapabilities: config.clientCapabilities,
     }
 
+    let connection: connection = {socket, channel, clientConfig, state}
     Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
+    onConnectionCreated->Option.forEach(callback => callback(connection))
 
-    let socketResult = await waitForSocket(socket)
+    let socketResult = await waitForConnectionStep(
+      waitForSocket(socket),
+      ~signal,
+      ~abortError="Connection aborted",
+    )
 
     let joinResult = switch (socketResult, checkAborted(signal)) {
     | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
@@ -193,7 +219,11 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       Error(ConnectionFailed(e))
     | (Ok(), Ok()) =>
       Sentry.addBreadcrumb(~category=#acp, ~message="Socket connected, joining channel")
-      switch await joinChannel(channel) {
+      switch await waitForConnectionStep(
+        joinChannel(channel),
+        ~signal,
+        ~abortError=JoinFailed("Connection aborted"),
+      ) {
       | Error(AuthRequired({loginUrl})) => Error(AuthRequired({loginUrl: loginUrl}))
       | Error(JoinFailed(e)) =>
         Log.error(`Channel join failed: ${e}`)
@@ -226,7 +256,11 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       attachBillingStatusHandler(~channel, ~onBillingStatusUpdated=config.onBillingStatusUpdated)
 
       Sentry.addBreadcrumb(~category=#acp, ~message="Channel joined, sending initialize")
-      switch await Protocol.sendInitialize(~channel, ~state, ~clientConfig) {
+      switch await waitForConnectionStep(
+        Protocol.sendInitialize(~channel, ~state, ~clientConfig),
+        ~signal,
+        ~abortError=requestErrorFromMessage("Connection aborted"),
+      ) {
       | Error(error) =>
         let e = requestErrorMessage(error)
         Log.error(`ACP initialize failed: ${e}`)
@@ -237,7 +271,7 @@ let connect = async (config: config, ~signal: option<WebAPI.EventTypes.abortSign
       | Ok(result) =>
         Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
         state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
-        Ok({socket, channel, clientConfig, state})
+        Ok(connection)
       }
     }
   }

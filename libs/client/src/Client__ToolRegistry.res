@@ -1,5 +1,4 @@
 module FrontmanClient = FrontmanAiFrontmanClient
-module MCPServer = FrontmanClient.FrontmanClient__MCP__Server
 module Tool = FrontmanClient.FrontmanClient__MCP__Tool
 
 type tool = module(Tool.Tool)
@@ -16,12 +15,6 @@ let coreBrowserTools: array<tool> = [
   module(Client__Tool__SearchText),
   module(Client__Tool__Question),
 ]
-
-let registerAll = (registry: t, mcpServer: MCPServer.t): MCPServer.t => {
-  registry.tools->Array.reduce(mcpServer, (srv, toolModule) =>
-    srv->MCPServer.registerToolModule(toolModule)
-  )
-}
 
 let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {
   let frameworkTools = switch framework {

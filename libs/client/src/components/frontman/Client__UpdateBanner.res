@@ -39,12 +39,15 @@ let make = () => {
   let wordpressUpdateUnsupported = wordpressUpdates == Unsupported
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let runtimeConfig = RuntimeConfig.read()
-  let {relay, session, createSession, apiBaseUrl} = Client__FrontmanProvider.useFrontman()
-  let relayState = relay->Option.map(Relay.getState)
+  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
+  let apiBaseUrl = Client__ConnectionReducer.apiBaseUrlFromLoginUrl(state.config.acp.loginUrl)
+  let session = Client__ConnectionReducer.Selectors.getSession(state)
+  let serverInfo =
+    Client__ConnectionReducer.Selectors.getRelay(state)->Option.map(Relay.getServerInfo)
 
   React.useEffect3(() => {
-    switch (relayState, wordpressUpdateUnsupported) {
-    | (Some(Connected({serverInfo})), false) =>
+    switch (serverInfo, wordpressUpdateUnsupported) {
+    | (Some(serverInfo), false) =>
       let target = RuntimeConfig.frameworkUpdateTarget(runtimeConfig.framework)
       let check = () =>
         Client__State.Actions.checkForUpdate(
@@ -73,7 +76,7 @@ let make = () => {
       }
     | _ => None
     }
-  }, (apiBaseUrl, relayState, wordpressUpdateUnsupported))
+  }, (apiBaseUrl, serverInfo, wordpressUpdateUnsupported))
 
   let handleUpdateClick = () => {
     switch updateInfo {
@@ -100,14 +103,17 @@ let make = () => {
           sendMessage(sess.sessionId)
           Client__State.Actions.dismissUpdateBanner()
         | None =>
-          createSession(~onComplete=result => {
-            switch result {
-            | Ok(sessionId) =>
-              sendMessage(sessionId)
-              Client__State.Actions.dismissUpdateBanner()
-            | Error(_) => ()
-            }
-          })
+          dispatch(
+            CreateSession({
+              onComplete: result =>
+                switch result {
+                | Ok(sessionId) =>
+                  sendMessage(sessionId)
+                  Client__State.Actions.dismissUpdateBanner()
+                | Error(_) => ()
+                },
+            }),
+          )
         }
       | WordPressUpdate(_) => ()
       }

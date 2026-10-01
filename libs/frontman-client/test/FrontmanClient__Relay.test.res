@@ -60,8 +60,7 @@ describe("Relay.connect", _t => {
   })
 })
 
-test("preserves relayed MCP tool metadata and parses legacy results", t => {
-  let relay = Relay.make(~baseUrl="http://localhost")
+testAsync("preserves relayed MCP tool metadata and parses legacy results", async t => {
   let tool = JSON.parseOrThrow(`{
     "name":"tool",
     "title":"Tool",
@@ -72,11 +71,15 @@ test("preserves relayed MCP tool metadata and parses legacy results", t => {
     "annotations":{"title":"Tool annotation","readOnlyHint":true},
     "_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"},"vendor/example":{"x":1}}
   }`)
-  relay.state :=
-    Relay.Connected({
-      tools: [tool],
-      serverInfo: {name: "test", version: "1"},
-    })
+  let config = Relay.makeConfig(~baseUrl="http://localhost", ~fetch=async (_, _) =>
+    WebAPI.Response.fromString(
+      `{"tools":[${JSON.stringify(
+          tool,
+        )}],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`,
+    )
+  )
+  let controller = WebAPI.AbortController.make()
+  let relay = (await Relay.connect(config, ~signal=controller.signal))->Result.getOrThrow
 
   t
   ->expect(relay->Relay.getToolsJson->Array.get(0)->Option.map(json => JSON.stringify(json)))
@@ -85,4 +88,19 @@ test("preserves relayed MCP tool metadata and parses legacy results", t => {
   JSON.parseOrThrow(`{"content":[]}`)
   ->S.parseOrThrow(~to=FrontmanClient__MCP__Types.callToolResultSchema)
   ->ignore
+  WebAPI.AbortController.abort(controller)
+  t
+  ->expect(await Relay.executeTool(relay, ~name="tool"))
+  ->Expect.toEqual(Error("Relay connection aborted"))
+})
+
+testAsync("does not expose a connected relay after cancellation", async t => {
+  let controller = WebAPI.AbortController.make()
+  let config = Relay.makeConfig(~baseUrl="http://localhost", ~fetch=async (_, _) => {
+    WebAPI.AbortController.abort(controller)
+    WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`)
+  })
+  t
+  ->expect(await Relay.connect(config, ~signal=controller.signal))
+  ->Expect.toEqual(Error("Relay connection aborted"))
 })

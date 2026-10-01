@@ -537,7 +537,8 @@ module APIKeyCard = {
 
 @react.component
 let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
-  let {connectionState, beginLogout, _} = Client__FrontmanProvider.useFrontman()
+  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
+  let connectionState = Client__ConnectionReducer.Selectors.getConnectionStatus(state)
   let runtimeConfig = RuntimeConfig.read()
   let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
   let (activeTab, setActiveTab) = React.useState(() => "general")
@@ -704,7 +705,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                           href={`${apiBaseUrl}/users/log-out?return_to=%2Fusers%2Fpopup-complete`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={_ => beginLogout()}
+                          onClick={_ => dispatch(BeginLogout)}
                         >
                           {React.string("Sign out")}
                         </a>
