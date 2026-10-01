@@ -39,7 +39,7 @@ let make = () => {
   let wordpressUpdateUnsupported = wordpressUpdates == Unsupported
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let runtimeConfig = RuntimeConfig.read()
-  let {state, createSession} = Client__FrontmanProvider.useFrontman()
+  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
   let apiBaseUrl = Client__ConnectionReducer.apiBaseUrlFromLoginUrl(state.config.acp.loginUrl)
   let session = Client__ConnectionReducer.Selectors.getSession(state)
   let serverInfo =
@@ -103,14 +103,17 @@ let make = () => {
           sendMessage(sess.sessionId)
           Client__State.Actions.dismissUpdateBanner()
         | None =>
-          createSession(~onComplete=result => {
-            switch result {
-            | Ok(sessionId) =>
-              sendMessage(sessionId)
-              Client__State.Actions.dismissUpdateBanner()
-            | Error(_) => ()
-            }
-          })
+          dispatch(
+            CreateSession({
+              onComplete: result =>
+                switch result {
+                | Ok(sessionId) =>
+                  sendMessage(sessionId)
+                  Client__State.Actions.dismissUpdateBanner()
+                | Error(_) => ()
+                },
+            }),
+          )
         }
       | WordPressUpdate(_) => ()
       }

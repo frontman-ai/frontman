@@ -14,7 +14,7 @@ let effectKinds = effects =>
     | Reducer.CleanupConnectionEffect(_) => #cleanupConnection
     | Reducer.LogoutEffect(_) => #logout
     | Reducer.ActivateSessionEffect({operation: #create}) => #createSession
-    | Reducer.ActivateSessionEffect({operation: #load | #join}) => #loadTask
+    | Reducer.ActivateSessionEffect({operation: #load(_) | #join(_)}) => #loadTask
     | Reducer.SendPromptEffect(_) => #sendPrompt
     | Reducer.SessionCommandEffect(_) => #sessionCommand
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
@@ -66,7 +66,7 @@ let sessionState = state =>
   | Reducer.Ready({session}) => session
   | _ => failwith("Expected ready connection")
   }
-let creating = sessionId => Reducer.SessionCreating({sessionId, requestId: ref()})
+let creating = sessionId => Reducer.SessionCreating({sessionId: Some(sessionId), requestId: ref()})
 let active = session => Reducer.SessionActive({session, requestId: ref()})
 let requestId = state =>
   switch sessionState(state) {
@@ -75,13 +75,21 @@ let requestId = state =>
   }
 let pendingSessionId = state =>
   switch sessionState(state) {
-  | SessionCreating({sessionId}) => sessionId
+  | SessionCreating({sessionId}) => sessionId->Option.getOrThrow
   | _ => failwith("Expected pending session")
   }
-let completeSession = (state, result) =>
+let completeSession = (state, result, ~onComplete=_ => ()) =>
   Reducer.reduce(
     state,
-    SessionResultReceived({requestId: requestId(state), result, onComplete: _ => ()}),
+    SessionResultReceived({
+      requestId: requestId(state),
+      sessionId: switch result {
+      | Ok((session, _)) => session.Reducer.ACP.sessionId
+      | Error(_) => pendingSessionId(state)
+      },
+      result,
+      onComplete,
+    }),
   )
 
 let complete = (state, result) =>
@@ -316,11 +324,15 @@ describe("Connection Reducer", () => {
     test(
       "accepted session result transitions to SessionActive",
       t => {
+        let completed = ref(None)
         let mockSession = mock({"sessionId": "sess-1", "channel": null})
         let (state, effects) = completeSession(
-          withSession(creating("sess-1")),
+          Reducer.reduce(withSession(NoSession), CreateSession({onComplete: _ => ()}))->Pair.first,
           Ok((mockSession, None)),
+          ~onComplete=result => completed := Some(result),
         )
+        effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+        t->expect(completed.contents)->Expect.toEqual(Some(Ok("sess-1")))
         t->expect(Reducer.Selectors.getSession(state))->Expect.toEqual(Some(mockSession))
         t
         ->expect(Reducer.Selectors.getConnectionStatus(state))
@@ -337,6 +349,7 @@ describe("Connection Reducer", () => {
           state,
           SessionResultReceived({
             requestId: requestId(state),
+            sessionId: "sess-1",
             result: Error(Reducer.ACP.requestErrorFromMessage("invalid attribution")),
             onComplete: _ => (),
           }),
@@ -359,11 +372,13 @@ describe("Connection Reducer", () => {
         [
           Reducer.SessionResultReceived({
             requestId: ref(),
+            sessionId: "sess-2",
             result: Error(Reducer.ACP.requestErrorFromMessage("stale update")),
             onComplete: _ => (),
           }),
           Reducer.SessionResultReceived({
             requestId: ref(),
+            sessionId: "sess-2",
             result: Error(Reducer.ACP.requestErrorFromMessage("late activation")),
             onComplete: _ => (),
           }),
@@ -388,6 +403,7 @@ describe("Connection Reducer", () => {
               loadingSecond,
               SessionResultReceived({
                 requestId: requestId(loadingFirst),
+                sessionId: "sess-1",
                 result: Ok((staleSession, None)),
                 onComplete: _ => failwith("Stale callback ran"),
               }),
@@ -411,7 +427,7 @@ describe("Connection Reducer", () => {
         switch effects {
         | [
             Reducer.CleanupSessionEffect({session: cleaned}),
-            Reducer.ActivateSessionEffect({sessionId, operation: #load}),
+            Reducer.ActivateSessionEffect({operation: #load(sessionId)}),
           ] =>
           t->expect(cleaned)->Expect.toBe(oldSession)
           t->expect(sessionId)->Expect.toBe("sess-2")
@@ -437,19 +453,17 @@ describe("Connection Reducer", () => {
     test(
       "CreateSession requires a ready connection",
       t => {
-        let request: Reducer.createSessionRequest = {
-          sessionId: "sess-1",
-          onComplete: _ => (),
-        }
-        let (_, rejected) = Reducer.reduce(initialized(), CreateSession(request))
+        let request = Reducer.CreateSession({onComplete: _ => ()})
+        let (_, rejected) = Reducer.reduce(initialized(), request)
         t->expect(effectKinds(rejected))->Expect.toEqual([#logError])
         let state = withSession(NoSession)
-        let (nextState, effects) = Reducer.reduce(state, CreateSession(request))
-        t->expect(pendingSessionId(nextState))->Expect.toBe("sess-1")
+        let (nextState, effects) = Reducer.reduce(state, request)
+        t
+        ->expect(sessionState(nextState))
+        ->Expect.toEqual(SessionCreating({sessionId: None, requestId: requestId(nextState)}))
         switch effects {
-        | [Reducer.ActivateSessionEffect({connection, sessionId, operation: #create})] =>
+        | [Reducer.ActivateSessionEffect({connection, operation: #create})] =>
           t->expect(connection)->Expect.toBe(mockConnection)
-          t->expect(sessionId)->Expect.toBe("sess-1")
         | _ => t->expect(effectKinds(effects))->Expect.toEqual([#createSession])
         }
       },

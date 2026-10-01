@@ -23,7 +23,7 @@ type configOptions = option<array<ACPTypes.sessionConfigOption>>
 
 type sessionState =
   | NoSession
-  | SessionCreating({sessionId: string, requestId: sessionRequestId})
+  | SessionCreating({sessionId: option<string>, requestId: sessionRequestId})
   | SessionActive({session: ACP.session, requestId: sessionRequestId})
   | SessionCreationFailed(string)
   | SessionFailed({session: ACP.session, error: string})
@@ -80,11 +80,6 @@ type loadTaskRequest = {
   onComplete: result<unit, string> => unit,
 }
 
-type createSessionRequest = {
-  sessionId: string,
-  onComplete: result<string, string> => unit,
-}
-
 type connectionCallback = {signal: WebAPI.EventTypes.abortSignal, callback: unit => unit}
 type sessionCallback = {requestId: sessionRequestId, callback: unit => unit}
 
@@ -100,12 +95,13 @@ type action =
     })
   | SessionResultReceived({
       requestId: sessionRequestId,
+      sessionId: string,
       result: result<(ACP.session, configOptions), ACP.requestError>,
-      onComplete: result<unit, string> => unit,
+      onComplete: result<string, string> => unit,
     })
   | ConnectionCallbackReceived(connectionCallback)
   | SessionCallbackReceived(sessionCallback)
-  | CreateSession(createSessionRequest)
+  | CreateSession({onComplete: result<string, string> => unit})
   | SendPrompt({
       text: string,
       additionalBlocks: array<ContentBlock.t>,
@@ -129,9 +125,8 @@ type effect =
       requestId: sessionRequestId,
       connection: ACP.connection,
       mcpServer: MCPServer.t,
-      sessionId: string,
-      operation: [#create | #load | #join],
-      onComplete: result<unit, string> => unit,
+      operation: [#create | #load(string) | #join(string)],
+      onComplete: result<string, string> => unit,
     })
   | SendPromptEffect({
       requestId: sessionRequestId,
@@ -149,7 +144,7 @@ type effect =
       sessionId: string,
       ready: readyState,
       result: result<configOptions, ACP.requestError>,
-      onComplete: result<unit, string> => unit,
+      onComplete: result<string, string> => unit,
     })
   | DeleteSessionEffect({
       signal: WebAPI.EventTypes.abortSignal,
@@ -259,14 +254,11 @@ let isCurrentSessionRequest = (state: state, requestId: sessionRequestId): bool 
   | Ok(_) | Error(_) => false
   }
 
-let startSession = (
-  state: state,
-  runtime: runtime,
-  ready: readyState,
-  ~sessionId,
-  ~operation,
-  ~onComplete,
-) => {
+let startSession = (state: state, runtime: runtime, ready: readyState, ~operation, ~onComplete) => {
+  let sessionId = switch operation {
+  | #create => None
+  | #load(id) | #join(id) => Some(id)
+  }
   let requestId = ref()
   let cleanup = switch ownedSession(ready.session) {
   | Some(session) => [CleanupSessionEffect({session: session})]
@@ -288,7 +280,6 @@ let startSession = (
         requestId,
         connection: ready.connection,
         mcpServer: ready.mcpServer,
-        sessionId,
         operation,
         onComplete,
       }),
@@ -396,8 +387,16 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
           phase: Ready({session: SessionCreating({sessionId: expectedSessionId})} as ready),
         } as runtime,
       )),
-      SessionResultReceived({requestId, result: Ok((session, configOptions)), onComplete}),
-    ) if isCurrentSessionRequest(state, requestId) && expectedSessionId == session.sessionId =>
+      SessionResultReceived({
+        requestId,
+        sessionId,
+        result: Ok((session, configOptions)),
+        onComplete,
+      }),
+    )
+    if isCurrentSessionRequest(state, requestId) &&
+    sessionId == session.sessionId &&
+    expectedSessionId->Option.mapOr(true, expected => expected == sessionId) =>
     let ready = {...ready, session: SessionActive({session, requestId})}
     (
       {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
@@ -421,15 +420,9 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | (
       Ok(Some(
-        {
-          phase: Ready(
-            {
-              session: SessionCreating({sessionId}) | SessionActive({session: {sessionId}}),
-            } as ready,
-          ),
-        } as runtime,
+        {phase: Ready({session: SessionCreating(_) | SessionActive(_)} as ready)} as runtime,
       )),
-      SessionResultReceived({requestId, result: Error(error), onComplete}),
+      SessionResultReceived({requestId, sessionId, result: Error(error), onComplete}),
     ) if isCurrentSessionRequest(state, requestId) =>
     let session = switch (ownedSession(ready.session), ACP.requestErrorIsBillingInactive(error)) {
     | (Some(session), _) => SessionFailed({session, error: ACP.requestErrorMessage(error)})
@@ -451,16 +444,9 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | (
       Ok(Some({phase: Ready({session: NoSession | SessionCreationFailed(_)} as ready)} as runtime)),
-      CreateSession(request),
+      CreateSession({onComplete}),
     ) =>
-    startSession(
-      state,
-      runtime,
-      ready,
-      ~sessionId=request.sessionId,
-      ~operation=#create,
-      ~onComplete=result => request.onComplete(result->Result.map(_ => request.sessionId)),
-    )
+    startSession(state, runtime, ready, ~operation=#create, ~onComplete)
 
   | (
       Ok(Some({phase: Ready({session: SessionActive({session, requestId})})})),
@@ -485,16 +471,11 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
   | (Ok(Some({phase: Ready(ready)} as runtime)), LoadTask(request)) =>
     let operation = switch request.needsHistory {
-    | true => #load
-    | false => #join
+    | true => #load(request.taskId)
+    | false => #join(request.taskId)
     }
-    startSession(
-      state,
-      runtime,
-      ready,
-      ~sessionId=request.taskId,
-      ~operation,
-      ~onComplete=request.onComplete,
+    startSession(state, runtime, ready, ~operation, ~onComplete=result =>
+      request.onComplete(result->Result.map(_ => ()))
     )
   | (_, LoadTask(_)) => (state, [LogError("Cannot load task: not connected")])
 
@@ -660,7 +641,7 @@ let connectRuntime = async (~config: config, ~signal: WebAPI.EventTypes.abortSig
 }
 
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
-  let activateSession = async (~requestId, ~onComplete, activate) => {
+  let activateSession = async (~requestId, ~sessionId, ~onComplete, activate) => {
     switch isCurrentSessionRequest(state, requestId) {
     | false => ()
     | true =>
@@ -691,6 +672,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
             dispatch(
               SessionResultReceived({
                 requestId,
+                sessionId,
                 result: Error(ACP.requestErrorFromMessage(error)),
                 onComplete: _ => (),
               }),
@@ -706,7 +688,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         }
       )
       pending := false
-      dispatch(SessionResultReceived({requestId, result, onComplete}))
+      dispatch(SessionResultReceived({requestId, sessionId, result, onComplete}))
     }
   }
 
@@ -733,7 +715,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         configOptions->Option.forEach(opts =>
           Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
         )
-        onComplete(Ok())
+        onComplete(Ok(sessionId))
       | Error(error) =>
         Client__TextDeltaBuffer.discardTask(sessionId)
         onComplete(Error(billingRequestErrorMessage(error)))
@@ -812,8 +794,16 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
     | true => fetch()->ignore
     | false => ()
     }
-  | ActivateSessionEffect({requestId, connection, mcpServer, sessionId, operation, onComplete}) =>
-    activateSession(~requestId, ~onComplete, async (onUpdate, onTitleUpdated, onParseError) => {
+  | ActivateSessionEffect({requestId, connection, mcpServer, operation, onComplete}) =>
+    let sessionId = switch operation {
+    | #load(sessionId) | #join(sessionId) => sessionId
+    | #create => WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID
+    }
+    activateSession(~requestId, ~sessionId, ~onComplete, async (
+      onUpdate,
+      onTitleUpdated,
+      onParseError,
+    ) => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
       switch operation {
       | #create =>
@@ -826,7 +816,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
           ~mcpServerInterface,
         )
         result->Result.map(((session, result)) => (session, result.configOptions))
-      | #load =>
+      | #load(_) =>
         let result = await ACP.loadSession(
           connection,
           sessionId,
@@ -839,7 +829,7 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
         result
         ->Result.map(((session, result)) => (session, result.configOptions))
         ->Result.mapError(ACP.requestErrorFromMessage)
-      | #join =>
+      | #join(_) =>
         let result = await ACP.joinSession(
           connection,
           sessionId,

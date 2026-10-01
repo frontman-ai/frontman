@@ -7,7 +7,6 @@ module RuntimeConfig = Client__RuntimeConfig
 type contextValue = {
   state: Reducer.state,
   dispatch: Reducer.action => unit,
-  createSession: (~onComplete: result<string, string> => unit) => unit,
 }
 
 let context: React.Context.t<option<contextValue>> = React.createContext(None)
@@ -90,16 +89,7 @@ module Provider = {
       )
     })
 
-    let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
-      dispatch(
-        CreateSession({
-          sessionId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
-          onComplete,
-        }),
-      )
-    }, [dispatch])
-
-    let contextValue: contextValue = {state, dispatch, createSession}
+    let contextValue: contextValue = {state, dispatch}
 
     <ContextProvider value={Some(contextValue)}> {children} </ContextProvider>
   }

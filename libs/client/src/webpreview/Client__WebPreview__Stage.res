@@ -67,7 +67,7 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   )
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasAnnotations = annotations->Array.length > 0
-  let {state, createSession} = Client__FrontmanProvider.useFrontman()
+  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
   let session = Client__ConnectionReducer.Selectors.getSession(state)
 
   let executeAnnotation = (~annotationId: string, ~comment: string) => {
@@ -77,11 +77,14 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
     switch session {
     | Some(sess) => dispatchExecute(sess.sessionId)
     | None =>
-      createSession(~onComplete=result =>
-        switch result {
-        | Ok(sessionId) => dispatchExecute(sessionId)
-        | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
-        }
+      dispatch(
+        CreateSession({
+          onComplete: result =>
+            switch result {
+            | Ok(sessionId) => dispatchExecute(sessionId)
+            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
+            },
+        }),
       )
     }
   }

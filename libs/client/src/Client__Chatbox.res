@@ -122,7 +122,7 @@ module ExecutePlanAction = {
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
-  let {state, createSession} = Client__FrontmanProvider.useFrontman()
+  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
   let connectionState = Client__ConnectionReducer.Selectors.getConnectionStatus(state)
   let session = Client__ConnectionReducer.Selectors.getSession(state)
   let sessionError = Client__ConnectionReducer.Selectors.getSessionError(state)
@@ -180,12 +180,15 @@ let make = (~onConfigureProvider: unit => unit) => {
     switch (session, isNewTask) {
     | (Some(sess), _) => sendMessage(sess.sessionId)
     | (None, true) =>
-      createSession(~onComplete=result => {
-        switch result {
-        | Ok(sessionId) => sendMessage(sessionId)
-        | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
-        }
-      })
+      dispatch(
+        CreateSession({
+          onComplete: result =>
+            switch result {
+            | Ok(sessionId) => sendMessage(sessionId)
+            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
+            },
+        }),
+      )
     | (None, false) => Log.error("Cannot send message: conversation has no active session")
     }
   }

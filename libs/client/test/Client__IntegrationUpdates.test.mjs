@@ -15,7 +15,7 @@ const renderBanner = () =>
 					state: initialState({
 						acp: { loginUrl: "https://api.frontman.sh/users/log-in" },
 					}),
-					createSession: vi.fn(),
+					dispatch: vi.fn(),
 				},
 			},
 			createElement(UpdateBanner),
