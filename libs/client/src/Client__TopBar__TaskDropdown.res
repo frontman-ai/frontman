@@ -12,7 +12,7 @@ let make = (~onNewTask: unit => unit) => {
   let (taskToDelete, setTaskToDelete) = React.useState(() => None)
   let (search, setSearch) = React.useState(() => "")
 
-  let {clearSession} = Client__FrontmanProvider.useFrontman()
+  let {dispatch} = Client__FrontmanProvider.useFrontman()
 
   let tasks = Client__State.useSelector(Client__State.Selectors.tasks)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
@@ -80,7 +80,7 @@ let make = (~onNewTask: unit => unit) => {
     switch taskToDelete {
     | Some(taskId) => {
         if currentTaskId == Some(taskId) {
-          clearSession()
+          dispatch(ClearSession)
         }
         Client__State.Actions.deleteTask(~taskId)
         setDeleteDialogOpen(_ => false)

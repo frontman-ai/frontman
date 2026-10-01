@@ -8,50 +8,49 @@ module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 
-type initConfig = {
-  endpoint: string,
-  loginUrl: string,
-  clientName: string,
-  clientVersion: string,
-  _meta: JSON.t,
+type config = {
+  acp: ACP.config,
+  relay: Relay.config,
+  mcp: MCPServer.config,
 }
 
 type authRequiredPayload = {loginUrl: string}
+type connectionError = ACPError(string) | RelayError(string)
+type connectError = AuthenticationRequired(authRequiredPayload) | ConnectionFailed(connectionError)
 
-type connectionAttempt = Opening | Initializing(ACP.connection)
+type sessionRequestId = ref<unit>
+type configOptions = option<array<ACPTypes.sessionConfigOption>>
 
 type sessionState =
   | NoSession
-  | SessionCreating(string)
-  | SessionActive(ACP.session)
+  | SessionCreating({sessionId: string, requestId: sessionRequestId})
+  | SessionActive({session: ACP.session, requestId: sessionRequestId})
   | SessionCreationFailed(string)
   | SessionFailed({session: ACP.session, error: string})
 
-type readyState = {connection: ACP.connection, session: sessionState}
-
-type acpState =
-  | Connecting(connectionAttempt)
-  | WaitingForSignIn(authRequiredPayload)
-  | WaitingForAuthRetry(authRequiredPayload)
-  | Authenticating({loginUrl: string, attempt: connectionAttempt})
-  | Ready(readyState)
-  | Closing({connection: ACP.connection, session: option<ACP.session>})
-  | Failed(string)
-
-type relayState =
-  | RelayConnecting(Relay.t)
-  | RelayConnected(Relay.t)
-  | RelayError(Relay.t, string)
-
-type initializedState = {
-  config: ACP.config,
-  abortController: WebAPI.EventTypes.abortController,
+type readyState = {
+  connection: ACP.connection,
+  relay: Relay.connected,
   mcpServer: MCPServer.t,
-  relay: relayState,
-  acp: acpState,
+  session: sessionState,
 }
 
-type state = Uninitialized | Initialized(initializedState)
+type phase =
+  | Connecting
+  | WaitingForAuthentication(authRequiredPayload)
+  | Authenticating(authRequiredPayload)
+  | Ready(readyState)
+  | LoggingOut
+
+type runtime = {
+  lifetimeAbortController: WebAPI.EventTypes.abortController,
+  phase: phase,
+}
+
+type state = {
+  config: config,
+  connection: result<option<runtime>, connectionError>,
+}
 
 @schema
 type clientInfoMeta = {framework: option<string>}
@@ -75,43 +74,42 @@ let apiBaseUrlFromLoginUrl = (loginUrl: string): string => {
   url.origin
 }
 
-type initPayload = {
-  config: initConfig,
-  relay: Relay.t,
-  mcpServer: MCPServer.t,
-}
-
 type loadTaskRequest = {
   taskId: string,
   needsHistory: bool,
-  onUpdate: (string, ACPTypes.sessionUpdate) => unit,
-  onTitleUpdated: (string, string) => unit,
   onComplete: result<unit, string> => unit,
 }
 
 type createSessionRequest = {
   sessionId: string,
-  onUpdate: (string, ACPTypes.sessionUpdate) => unit,
-  onTitleUpdated: (string, string) => unit,
   onComplete: result<string, string> => unit,
 }
 
+type connectionResult = {
+  signal: WebAPI.EventTypes.abortSignal,
+  result: result<readyState, connectError>,
+}
+
+type sessionResult = {
+  requestId: sessionRequestId,
+  result: result<(ACP.session, configOptions), ACP.requestError>,
+  onComplete: result<unit, string> => unit,
+}
+
+type connectionCallback = {signal: WebAPI.EventTypes.abortSignal, callback: unit => unit}
+type sessionCallback = {requestId: sessionRequestId, callback: unit => unit}
+
 type action =
-  | Initialize(initPayload)
+  | Initialize
   | Dispose
-  | BeginAuthenticationRetry
   | RequireAuthentication
   | RetryAuthentication
   | BeginLogout
-  | ACPConnectionAllocated(ACP.connection)
-  | ACPConnectSuccess(ACP.connection)
-  | ACPAuthRequiredReceived(authRequiredPayload)
-  | ACPConnectError(string)
-  | RelayConnectSuccess
-  | RelayConnectError(string)
-  | SessionCreateSuccess(ACP.session)
-  | SessionCreateError({sessionId: string, error: ACP.requestError})
-  | SessionFailed({sessionId: string, error: string})
+  | ConnectionResultReceived(connectionResult)
+  | SessionResultReceived(sessionResult)
+  | SessionFailed({requestId: sessionRequestId, sessionId: string, error: string})
+  | ConnectionCallbackReceived(connectionCallback)
+  | SessionCallbackReceived(sessionCallback)
   | CreateSession(createSessionRequest)
   | SendPrompt({
       text: string,
@@ -127,24 +125,19 @@ type action =
 type effect =
   | LogError(string)
   | LogInfo(string)
-  | TrackAnalytics(Client__Analytics.event)
-  | ConnectACP({config: ACP.config, signal: WebAPI.EventTypes.abortSignal})
+  | ConnectRuntime({config: config, signal: WebAPI.EventTypes.abortSignal})
   | ScheduleAuthRetry({signal: WebAPI.EventTypes.abortSignal})
-  | CleanupEffect(state)
-  | CleanupConnectionEffect({connection: ACP.connection, session: option<ACP.session>})
-  | LogoutEffect({
-      connection: ACP.connection,
-      session: option<ACP.session>,
-      apiBaseUrl: string,
-      signal: WebAPI.EventTypes.abortSignal,
-    })
-  | ConnectRelay(Relay.t, WebAPI.EventTypes.abortSignal)
+  | CleanupEffect(runtime)
+  | CleanupConnectionEffect(ACP.connection)
+  | LogoutEffect({apiBaseUrl: string, signal: WebAPI.EventTypes.abortSignal})
   | CreateSessionEffect({
+      requestId: sessionRequestId,
       connection: ACP.connection,
       mcpServer: MCPServer.t,
       request: createSessionRequest,
     })
   | SendPromptEffect({
+      requestId: sessionRequestId,
       session: ACP.session,
       text: string,
       additionalBlocks: array<ContentBlock.t>,
@@ -152,9 +145,23 @@ type effect =
       _meta: option<JSON.t>,
     })
   | SessionCommandEffect({session: ACP.session, command: ACP.sessionCommand})
-  | FetchSessionsEffect(ACP.connection)
-  | LoadTaskEffect({connection: ACP.connection, mcpServer: MCPServer.t, request: loadTaskRequest})
+  | FetchSessionsEffect({connection: ACP.connection, signal: WebAPI.EventTypes.abortSignal})
+  | LoadTaskEffect({
+      requestId: sessionRequestId,
+      connection: ACP.connection,
+      mcpServer: MCPServer.t,
+      request: loadTaskRequest,
+    })
+  | ConnectionCallbackEffect(connectionCallback)
+  | SessionCallbackEffect(sessionCallback)
+  | SessionCompletionEffect({
+      sessionId: string,
+      ready: readyState,
+      result: result<configOptions, ACP.requestError>,
+      onComplete: result<unit, string> => unit,
+    })
   | DeleteSessionEffect({
+      signal: WebAPI.EventTypes.abortSignal,
       connection: ACP.connection,
       taskId: string,
       onComplete: result<unit, string> => unit,
@@ -162,11 +169,11 @@ type effect =
   | NotifyDeleteSessionRejected({onComplete: result<unit, string> => unit, reason: string})
   | CleanupSessionEffect({session: ACP.session})
 
-let initialState: state = Uninitialized
+let initialState = (config: config): state => {config, connection: Ok(None)}
 
 let ownedSession = session =>
   switch session {
-  | SessionActive(session) | SessionFailed({session}) => Some(session)
+  | SessionActive({session}) | SessionFailed({session}) => Some(session)
   | NoSession | SessionCreating(_) | SessionCreationFailed(_) => None
   }
 
@@ -179,17 +186,23 @@ let relayFailureReason = message =>
   }
 
 module Selectors = {
-  let getRelay = (state: state): option<Relay.t> =>
-    switch state {
-    | Uninitialized => None
-    | Initialized({relay: RelayConnecting(relay) | RelayConnected(relay) | RelayError(relay, _)}) =>
-      Some(relay)
+  let getRelay = (state: state): option<Relay.connected> =>
+    switch state.connection {
+    | Ok(Some({phase: Ready({relay})})) => Some(relay)
+    | Ok(_) | Error(_) => None
     }
 
   let getSession = (state: state): option<ACP.session> =>
-    switch state {
-    | Initialized({acp: Ready({session: SessionActive(session)})}) => Some(session)
-    | Uninitialized | Initialized(_) => None
+    switch state.connection {
+    | Ok(Some({phase: Ready({session: SessionActive({session})})})) => Some(session)
+    | Ok(_) | Error(_) => None
+    }
+
+  let getSessionError = (state: state): option<string> =>
+    switch state.connection {
+    | Ok(Some({phase: Ready({session: SessionCreationFailed(error) | SessionFailed({error})})})) =>
+      Some(error)
+    | Ok(_) | Error(_) => None
     }
 
   type connectionStatus =
@@ -201,207 +214,176 @@ module Selectors = {
     | Error(string)
 
   let getConnectionStatus = (state: state): connectionStatus =>
-    switch state {
-    | Uninitialized => Disconnected
-    | Initialized({acp: Ready({session: SessionActive(session)})}) =>
+    switch state.connection {
+    | Ok(None) => Disconnected
+    | Error(ACPError(error) | RelayError(error)) => Error(error)
+    | Ok(Some({phase: Ready({session: SessionActive({session})})})) =>
       SessionActive(session.sessionId)
-    | Initialized({acp: Ready({session: SessionCreationFailed(error) | SessionFailed({error})})}) =>
-      Error(error)
-    | Initialized({acp: Closing(_)}) => LoggingOut
-    | Initialized({acp: Failed(error)}) => Error(error)
-    | Initialized({relay: RelayError(_, error)}) => Error(error)
-    | Initialized({acp: Ready(_), relay: RelayConnected(_)}) => Connected
-    | Initialized({acp: Ready(_) | Connecting(_)}) => Connecting
-    | Initialized({acp: WaitingForSignIn(_) | WaitingForAuthRetry(_) | Authenticating(_)}) =>
-      Disconnected
+    | Ok(Some({phase: Ready(_)})) => Connected
+    | Ok(Some({phase: LoggingOut})) => LoggingOut
+    | Ok(Some({phase: Connecting})) => Connecting
+    | Ok(Some({phase: WaitingForAuthentication(_) | Authenticating(_)})) => Disconnected
     }
 
   let getAuthRedirectUrl = (state: state): option<string> =>
-    switch state {
-    | Initialized({
-        acp:
-          WaitingForSignIn({loginUrl})
-          | WaitingForAuthRetry({loginUrl})
-          | Authenticating({loginUrl}),
-      }) =>
+    switch state.connection {
+    | Ok(Some({phase: WaitingForAuthentication({loginUrl}) | Authenticating({loginUrl})})) =>
       Some(loginUrl)
-    | Uninitialized | Initialized(_) => None
+    | Ok(_) | Error(_) => None
     }
 }
 
-let cleanup = (state: state): unit => {
-  switch state {
-  | Uninitialized => ()
-  | Initialized(runtime) =>
-    WebAPI.AbortController.abort(runtime.abortController)
-    Selectors.getRelay(state)->Option.forEach(Relay.disconnect)
-    switch runtime.acp {
-    | Connecting(Initializing(connection)) | Authenticating({attempt: Initializing(connection)}) =>
-      ACP.disconnect(connection)
-    | Ready({connection, session}) => ACP.disconnect(connection, ~session=?ownedSession(session))
-    | Closing({connection, session}) => ACP.disconnect(connection, ~session?)
-    | Connecting(Opening)
-    | Authenticating({attempt: Opening})
-    | WaitingForSignIn(_)
-    | WaitingForAuthRetry(_)
-    | Failed(_) => ()
-    }
+let cleanupRuntime = (runtime: runtime): unit => {
+  WebAPI.AbortController.abort(runtime.lifetimeAbortController)
+  switch runtime.phase {
+  | Ready({connection, session}) => ACP.disconnect(connection, ~session=?ownedSession(session))
+  | Connecting | WaitingForAuthentication(_) | Authenticating(_) | LoggingOut => ()
   }
 }
 
+let cleanup = (state: state): unit => {
+  Client__TextDeltaBuffer.reset()
+  switch state.connection {
+  | Ok(Some(runtime)) => cleanupRuntime(runtime)
+  | Ok(None) | Error(_) => ()
+  }
+}
+
+let isCurrentConnection = (state: state, signal: WebAPI.EventTypes.abortSignal): bool =>
+  switch state.connection {
+  | Ok(Some({phase: Ready(_), lifetimeAbortController})) =>
+    signal === lifetimeAbortController.signal && !signal.aborted
+  | Ok(_) | Error(_) => false
+  }
+
+let isCurrentSessionRequest = (state: state, requestId: sessionRequestId): bool =>
+  switch state.connection {
+  | Ok(Some({
+      phase: Ready({
+        session: SessionCreating({requestId: expected}) | SessionActive({requestId: expected}),
+      }),
+      lifetimeAbortController,
+    })) =>
+    requestId === expected && !lifetimeAbortController.signal.aborted
+  | Ok(_) | Error(_) => false
+  }
+
 let reduce = (state: state, action: action): (state, array<effect>) => {
-  switch (state, action) {
-  | (Uninitialized, Dispose) => (initialState, [])
-  | (Initialized(_), Dispose) => (initialState, [CleanupEffect(state)])
+  switch (state.connection, action) {
+  | (Ok(Some(runtime)), Dispose) => (initialState(state.config), [CleanupEffect(runtime)])
+  | (Ok(None) | Error(_), Dispose) => (initialState(state.config), [])
 
-  | (Uninitialized, Initialize({config, relay, mcpServer})) =>
-    let acpConfig = ACP.makeConfig(
-      ~endpoint=config.endpoint,
-      ~loginUrl=config.loginUrl,
-      ~getAuthToken=Client__EmbeddedAuth.loadToken,
-      ~name=config.clientName,
-      ~version=config.clientVersion,
-      ~_meta=config._meta,
-      ~onConfigOptionsUpdated=configOptions => {
-        Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
-      },
-      ~onBillingStatusUpdated=payload => {
-        switch FrontmanAiFrontmanClient.FrontmanClient__Decoders.parseSchema(
-          payload,
-          Client__Billing.statusSchema,
-        ) {
-        | Ok(status) => Client__State__Store.dispatch(BillingStatusReceived(status))
-        | Error(_) =>
-          Client__State__Store.dispatch(
-            BillingStatusError({error: "Failed to parse billing status"}),
-          )
-        }
-      },
-    )
-    let abortController = WebAPI.AbortController.make()
+  | (Ok(None), Initialize) =>
+    let lifetimeAbortController = WebAPI.AbortController.make()
     (
-      Initialized({
-        config: acpConfig,
-        abortController,
-        mcpServer,
-        relay: RelayConnecting(relay),
-        acp: Connecting(Opening),
-      }),
-      [
-        ConnectACP({config: acpConfig, signal: abortController.signal}),
-        ConnectRelay(relay, abortController.signal),
-      ],
+      {...state, connection: Ok(Some({lifetimeAbortController, phase: Connecting}))},
+      [ConnectRuntime({config: state.config, signal: lifetimeAbortController.signal})],
     )
 
-  | (Initialized({acp: Connecting(Opening)} as runtime), ACPConnectionAllocated(connection)) => (
-      Initialized({...runtime, acp: Connecting(Initializing(connection))}),
-      [],
-    )
   | (
-      Initialized({acp: Authenticating({loginUrl, attempt: Opening})} as runtime),
-      ACPConnectionAllocated(connection),
-    ) => (
-      Initialized({...runtime, acp: Authenticating({loginUrl, attempt: Initializing(connection)})}),
-      [],
-    )
-  | (_, ACPConnectionAllocated(connection)) => (
+      Ok(Some({phase: Connecting | Authenticating(_)} as runtime)),
+      ConnectionResultReceived({signal, result}),
+    ) if signal === runtime.lifetimeAbortController.signal && !signal.aborted =>
+    switch result {
+    | Ok(ready) => (
+        {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
+        [FetchSessionsEffect({connection: ready.connection, signal})],
+      )
+    | Error(AuthenticationRequired(payload)) =>
+      let effects = switch runtime.phase {
+      | Authenticating(_) => [ScheduleAuthRetry({signal: runtime.lifetimeAbortController.signal})]
+      | Connecting | WaitingForAuthentication(_) | Ready(_) | LoggingOut => []
+      }
+      (
+        {...state, connection: Ok(Some({...runtime, phase: WaitingForAuthentication(payload)}))},
+        effects,
+      )
+    | Error(ConnectionFailed(ACPError(error))) =>
+      switch runtime.phase {
+      | Authenticating(payload) => (
+          {...state, connection: Ok(Some({...runtime, phase: WaitingForAuthentication(payload)}))},
+          [
+            LogInfo(`ACP auth retry failed: ${error}`),
+            ScheduleAuthRetry({signal: runtime.lifetimeAbortController.signal}),
+          ],
+        )
+      | Connecting | WaitingForAuthentication(_) | Ready(_) | LoggingOut => (
+          {...state, connection: Error(ACPError(error))},
+          [CleanupEffect(runtime), LogError(`ACP connect failed: ${error}`)],
+        )
+      }
+    | Error(ConnectionFailed(RelayError(error))) => (
+        {...state, connection: Error(RelayError(error))},
+        [CleanupEffect(runtime), LogError(`Project context connection failed: ${error}`)],
+      )
+    }
+  | (_, ConnectionResultReceived({result: Ok(ready)})) => (
       state,
-      [CleanupConnectionEffect({connection, session: None})],
+      [CleanupConnectionEffect(ready.connection), LogInfo("Stale connection result ignored")],
+    )
+  | (_, ConnectionResultReceived({result: Error(_)})) => (
+      state,
+      [LogInfo("Stale connection result ignored")],
     )
 
-  | (
-      Initialized(
-        {
-          acp:
-            Connecting(Initializing(expected)) | Authenticating({attempt: Initializing(expected)}),
-        } as runtime,
-      ),
-      ACPConnectSuccess(connection),
-    ) if expected === connection => (
-      Initialized({...runtime, acp: Ready({connection, session: NoSession})}),
-      [FetchSessionsEffect(connection)],
+  | (Ok(Some({phase: WaitingForAuthentication(payload)} as runtime)), RetryAuthentication) => (
+      {...state, connection: Ok(Some({...runtime, phase: Authenticating(payload)}))},
+      [ConnectRuntime({config: state.config, signal: runtime.lifetimeAbortController.signal})],
     )
 
-  | (
-      Initialized({acp: Connecting(_) | WaitingForSignIn(_)} as runtime),
-      ACPAuthRequiredReceived({loginUrl}),
-    ) => (Initialized({...runtime, acp: WaitingForSignIn({loginUrl: loginUrl})}), [])
-  | (
-      Initialized({acp: WaitingForAuthRetry(_) | Authenticating(_)} as runtime),
-      ACPAuthRequiredReceived({loginUrl}),
-    ) => (
-      Initialized({...runtime, acp: WaitingForAuthRetry({loginUrl: loginUrl})}),
-      [ScheduleAuthRetry({signal: runtime.abortController.signal})],
-    )
-
-  | (
-      Initialized({acp: WaitingForSignIn({loginUrl}) | WaitingForAuthRetry({loginUrl})} as runtime),
-      BeginAuthenticationRetry | RetryAuthentication,
-    ) => (
-      Initialized({...runtime, acp: Authenticating({loginUrl, attempt: Opening})}),
-      [ConnectACP({config: runtime.config, signal: runtime.abortController.signal})],
-    )
-
-  | (Initialized({acp: Ready({connection, session})} as runtime), RequireAuthentication) =>
-    let framework = runtime.config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
+  | (Ok(Some({phase: Ready(_)} as runtime)), RequireAuthentication) =>
+    let framework = state.config.acp.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
+    let phase = WaitingForAuthentication({
+      loginUrl: enrichLoginUrl(~loginUrl=state.config.acp.loginUrl, ~framework),
+    })
     (
-      Initialized({
-        ...runtime,
-        acp: WaitingForSignIn({
-          loginUrl: enrichLoginUrl(~loginUrl=runtime.config.loginUrl, ~framework),
-        }),
-      }),
-      [CleanupConnectionEffect({connection, session: ownedSession(session)})],
+      {
+        ...state,
+        connection: Ok(Some({lifetimeAbortController: WebAPI.AbortController.make(), phase})),
+      },
+      [CleanupEffect(runtime)],
     )
-  | (_, BeginAuthenticationRetry | RequireAuthentication | RetryAuthentication) => (state, [])
+  | (_, RequireAuthentication | RetryAuthentication) => (state, [])
 
-  | (Initialized({acp: Ready({connection, session})} as runtime), BeginLogout) =>
-    let session = ownedSession(session)
+  | (Ok(Some({phase: Ready(_)} as runtime)), BeginLogout) =>
+    let lifetimeAbortController = WebAPI.AbortController.make()
     (
-      Initialized({...runtime, acp: Closing({connection, session})}),
+      {...state, connection: Ok(Some({lifetimeAbortController, phase: LoggingOut}))},
       [
+        CleanupEffect(runtime),
         LogoutEffect({
-          connection,
-          session,
-          apiBaseUrl: apiBaseUrlFromLoginUrl(runtime.config.loginUrl),
-          signal: runtime.abortController.signal,
+          apiBaseUrl: apiBaseUrlFromLoginUrl(state.config.acp.loginUrl),
+          signal: lifetimeAbortController.signal,
         }),
       ],
     )
   | (_, BeginLogout) => (state, [])
 
-  | (Initialized({acp: Connecting(_)} as runtime), ACPConnectError(error)) => (
-      Initialized({...runtime, acp: Failed(error)}),
-      [LogError(`ACP connect failed: ${error}`)],
-    )
-  | (Initialized({acp: Authenticating({loginUrl})} as runtime), ACPConnectError(error)) => (
-      Initialized({...runtime, acp: WaitingForAuthRetry({loginUrl: loginUrl})}),
-      [
-        LogInfo(`ACP auth retry failed: ${error}`),
-        ScheduleAuthRetry({signal: runtime.abortController.signal}),
-      ],
-    )
-
-  | (Initialized({relay: RelayConnecting(relay)} as runtime), RelayConnectSuccess) => (
-      Initialized({...runtime, relay: RelayConnected(relay)}),
-      [TrackAnalytics(RelayConnectionCompleted(Success))],
-    )
-  | (Initialized({relay: RelayConnecting(relay)} as runtime), RelayConnectError(message)) => (
-      Initialized({...runtime, relay: RelayError(relay, message)}),
-      [
-        LogError(`Project context connection failed: ${message}`),
-        TrackAnalytics(RelayConnectionCompleted(Failure(relayFailureReason(message)))),
-      ],
-    )
+  | (_, ConnectionCallbackReceived(callback)) => (state, [ConnectionCallbackEffect(callback)])
+  | (_, SessionCallbackReceived(callback)) => (state, [SessionCallbackEffect(callback)])
 
   | (
-      Initialized({acp: Ready({session: SessionCreating(expectedSessionId)} as ready)} as runtime),
-      SessionCreateSuccess(session),
-    ) if expectedSessionId == session.sessionId => (
-      Initialized({...runtime, acp: Ready({...ready, session: SessionActive(session)})}),
-      [LogInfo(`Session activated: ${session.sessionId}`)],
+      Ok(Some(
+        {
+          phase: Ready({session: SessionCreating({sessionId: expectedSessionId})} as ready),
+        } as runtime,
+      )),
+      SessionResultReceived({requestId, result: Ok((session, configOptions)), onComplete}),
+    ) if isCurrentSessionRequest(state, requestId) && expectedSessionId == session.sessionId =>
+    let ready = {...ready, session: SessionActive({session, requestId})}
+    (
+      {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
+      [
+        SessionCompletionEffect({
+          sessionId: session.sessionId,
+          ready,
+          result: Ok(configOptions),
+          onComplete,
+        }),
+        LogInfo(`Session activated: ${session.sessionId}`),
+      ],
     )
-  | (_, SessionCreateSuccess(session)) => (
+  | (_, SessionResultReceived({result: Ok((session, _))})) => (
       state,
       [
         CleanupSessionEffect({session: session}),
@@ -410,55 +392,87 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
 
   | (
-      Initialized({acp: Ready({session: SessionCreating(expectedSessionId)} as ready)} as runtime),
-      SessionCreateError({sessionId, error}),
-    ) if expectedSessionId == sessionId => {
-      let session = switch ACP.requestErrorIsBillingInactive(error) {
-      | true => NoSession
-      | false => SessionCreationFailed(ACP.requestErrorMessage(error))
-      }
-      (
-        Initialized({...runtime, acp: Ready({...ready, session})}),
-        [LogError(`Session failed: ${ACP.requestErrorMessage(error)}`)],
-      )
+      Ok(Some({phase: Ready({session: SessionCreating({sessionId})} as ready)} as runtime)),
+      SessionResultReceived({requestId, result: Error(error), onComplete}),
+    ) if isCurrentSessionRequest(state, requestId) =>
+    let session = switch ACP.requestErrorIsBillingInactive(error) {
+    | true => NoSession
+    | false => SessionCreationFailed(ACP.requestErrorMessage(error))
     }
+    let ready = {...ready, session}
+    (
+      {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
+      [
+        SessionCompletionEffect({sessionId, ready, result: Error(error), onComplete}),
+        LogError(`Session failed: ${ACP.requestErrorMessage(error)}`),
+      ],
+    )
+  | (_, SessionResultReceived({result: Error(_)})) => (
+      state,
+      [LogInfo("Stale session result ignored")],
+    )
 
   | (
-      Initialized(
+      Ok(Some(
         {
-          acp: Ready({session: SessionActive({sessionId: expectedSessionId} as session)} as ready),
+          phase: Ready(
+            {session: SessionActive({session: {sessionId: expectedSessionId} as session})} as ready,
+          ),
         } as runtime,
-      ),
-      SessionFailed({sessionId, error}),
-    ) if expectedSessionId == sessionId => (
-      Initialized({...runtime, acp: Ready({...ready, session: SessionFailed({session, error})})}),
-      [LogError(`Session failed: ${error}`)],
-    )
-  | (
-      Initialized({acp: Ready({session: SessionCreating(expectedSessionId)} as ready)} as runtime),
-      SessionFailed({sessionId, error}),
-    ) if expectedSessionId == sessionId => (
-      Initialized({...runtime, acp: Ready({...ready, session: SessionCreationFailed(error)})}),
-      [LogError(`Session failed: ${error}`)],
+      )),
+      SessionFailed({requestId, sessionId, error}),
+    ) if isCurrentSessionRequest(state, requestId) && expectedSessionId == sessionId =>
+    let ready = {...ready, session: SessionFailed({session, error})}
+    (
+      {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
+      [
+        SessionCompletionEffect({
+          sessionId,
+          ready,
+          result: Error(ACP.requestErrorFromMessage(error)),
+          onComplete: _ => (),
+        }),
+        LogError(`Session failed: ${error}`),
+      ],
     )
   | (_, SessionFailed(_)) => (state, [LogInfo("Stale session failure ignored")])
 
   | (
-      Initialized({acp: Ready({session: NoSession} as ready), relay: RelayConnected(_)} as runtime),
+      Ok(Some({phase: Ready({session: NoSession | SessionCreationFailed(_)} as ready)} as runtime)),
       CreateSession(request),
-    ) => (
-      Initialized({
-        ...runtime,
-        acp: Ready({...ready, session: SessionCreating(request.sessionId)}),
-      }),
-      [CreateSessionEffect({connection: ready.connection, mcpServer: runtime.mcpServer, request})],
+    ) =>
+    let requestId = ref()
+    (
+      {
+        ...state,
+        connection: Ok(
+          Some({
+            ...runtime,
+            phase: Ready({
+              ...ready,
+              session: SessionCreating({sessionId: request.sessionId, requestId}),
+            }),
+          }),
+        ),
+      },
+      [
+        CreateSessionEffect({
+          requestId,
+          connection: ready.connection,
+          mcpServer: ready.mcpServer,
+          request,
+        }),
+      ],
     )
 
   | (
-      Initialized({acp: Ready({session: SessionActive(session)})}),
+      Ok(Some({phase: Ready({session: SessionActive({session, requestId})})})),
       SendPrompt({text, additionalBlocks, onComplete, _meta}),
-    ) => (state, [SendPromptEffect({session, text, additionalBlocks, onComplete, _meta})])
-  | (Initialized({acp: Ready({session: SessionActive(session)})}), SessionCommand(command)) => (
+    ) => (
+      state,
+      [SendPromptEffect({requestId, session, text, additionalBlocks, onComplete, _meta})],
+    )
+  | (Ok(Some({phase: Ready({session: SessionActive({session})})})), SessionCommand(command)) => (
       state,
       [SessionCommandEffect({session, command})],
     )
@@ -466,30 +480,58 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   | (_, SendPrompt(_)) => (state, [LogError("Cannot send prompt: no active session")])
 
   | (
-      Initialized({acp: Ready({connection, session: SessionActive({sessionId})})} as runtime),
+      Ok(Some({phase: Ready({session: SessionActive({session: {sessionId}, requestId})})})),
       LoadTask(request),
     ) if sessionId == request.taskId => (
       state,
-      [LoadTaskEffect({connection, mcpServer: runtime.mcpServer, request})],
+      [SessionCallbackEffect({requestId, callback: () => request.onComplete(Ok())})],
     )
-  | (Initialized({acp: Ready(ready)} as runtime), LoadTask(request)) => {
-      let cleanup = switch ownedSession(ready.session) {
-      | Some(session) => [CleanupSessionEffect({session: session})]
-      | None => []
-      }
-      (
-        Initialized({...runtime, acp: Ready({...ready, session: SessionCreating(request.taskId)})}),
-        Array.concat(
-          cleanup,
-          [LoadTaskEffect({connection: ready.connection, mcpServer: runtime.mcpServer, request})],
-        ),
-      )
+  | (Ok(Some({phase: Ready(ready)} as runtime)), LoadTask(request)) =>
+    let requestId = ref()
+    let cleanup = switch ownedSession(ready.session) {
+    | Some(session) => [CleanupSessionEffect({session: session})]
+    | None => []
     }
+    (
+      {
+        ...state,
+        connection: Ok(
+          Some({
+            ...runtime,
+            phase: Ready({
+              ...ready,
+              session: SessionCreating({sessionId: request.taskId, requestId}),
+            }),
+          }),
+        ),
+      },
+      Array.concat(
+        cleanup,
+        [
+          LoadTaskEffect({
+            requestId,
+            connection: ready.connection,
+            mcpServer: ready.mcpServer,
+            request,
+          }),
+        ],
+      ),
+    )
   | (_, LoadTask(_)) => (state, [LogError("Cannot load task: not connected")])
 
-  | (Initialized({acp: Ready({connection})}), DeleteSession({taskId, onComplete})) => (
+  | (
+      Ok(Some({phase: Ready({connection}), lifetimeAbortController})),
+      DeleteSession({taskId, onComplete}),
+    ) => (
       state,
-      [DeleteSessionEffect({connection, taskId, onComplete})],
+      [
+        DeleteSessionEffect({
+          signal: lifetimeAbortController.signal,
+          connection,
+          taskId,
+          onComplete,
+        }),
+      ],
     )
   | (_, DeleteSession({onComplete, _})) => (
       state,
@@ -499,32 +541,18 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       ],
     )
 
-  | (Initialized({acp: Ready(ready)} as runtime), ClearSession) => {
-      let effects = switch ownedSession(ready.session) {
-      | Some(session) => [CleanupSessionEffect({session: session})]
-      | None => []
-      }
-      (Initialized({...runtime, acp: Ready({...ready, session: NoSession})}), effects)
+  | (Ok(Some({phase: Ready(ready)} as runtime)), ClearSession) =>
+    let effects = switch ownedSession(ready.session) {
+    | Some(session) => [CleanupSessionEffect({session: session})]
+    | None => []
     }
+    (
+      {...state, connection: Ok(Some({...runtime, phase: Ready({...ready, session: NoSession})}))},
+      effects,
+    )
   | (_, ClearSession) => (state, [])
   | (_, CreateSession(_)) => (state, [LogError("Cannot create session: not ready")])
-  | (_, Initialize(_)) => (state, [LogInfo("Initialize ignored: already initialized")])
-  | (_, ACPConnectSuccess(connection)) => (
-      state,
-      [
-        CleanupConnectionEffect({connection, session: None}),
-        LogInfo("Stale ACP connection result ignored"),
-      ],
-    )
-  | (_, ACPAuthRequiredReceived(_) | ACPConnectError(_)) => (
-      state,
-      [LogInfo("Stale ACP connection result ignored")],
-    )
-  | (_, RelayConnectSuccess | RelayConnectError(_)) => (
-      state,
-      [LogInfo("Stale relay connection result ignored")],
-    )
-  | (_, SessionCreateError(_)) => (state, [LogInfo("Stale session create result ignored")])
+  | (_, Initialize) => (state, [LogInfo("Initialize ignored: dispose before restarting")])
   }
 }
 
@@ -572,46 +600,188 @@ let billingRequestErrorMessage = error => {
   ACP.requestErrorMessage(error)
 }
 
+let connectRuntime = async (~config: config, ~signal: WebAPI.EventTypes.abortSignal): result<
+  readyState,
+  connectError,
+> => {
+  let attempt = WebAPI.AbortController.make()
+  let rec onAbort = _ => {
+    WebAPI.AbortController.abort(attempt)
+    WebAPI.AbortSignal.removeEventListener(signal, Custom("abort"), onAbort)
+  }
+  WebAPI.AbortSignal.addEventListener(signal, Custom("abort"), onAbort)
+  switch signal.aborted {
+  | true => onAbort()
+  | false => ()
+  }
+  let failure = ref(None)
+  let connection = ref(None)
+  let relay = ref(None)
+  let fail = error => {
+    switch failure.contents {
+    | None => failure := Some(error)
+    | Some(_) => ()
+    }
+    WebAPI.AbortController.abort(attempt)
+  }
+  let release = () => {
+    connection.contents->Option.forEach(conn => ACP.disconnect(conn))
+    connection := None
+    WebAPI.AbortSignal.removeEventListener(signal, Custom("abort"), onAbort)
+  }
+  let connectACP = async () => {
+    switch await ACP.connect(config.acp, ~signal=attempt.signal, ~onConnectionCreated=conn => {
+      connection := Some(conn)
+    }) {
+    | Ok(conn) =>
+      switch attempt.signal.aborted {
+      | true =>
+        ACP.disconnect(conn)
+        connection := None
+      | false =>
+        switch ACP.getAgentAttributionConfiguration(conn) {
+        | Some(_) => ()
+        | None => fail(ConnectionFailed(ACPError("Frontman requires agent attribution v1")))
+        }
+      }
+    | Error(ACP.AuthRequired({loginUrl})) =>
+      connection := None
+      let framework = config.acp.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
+      fail(AuthenticationRequired({loginUrl: enrichLoginUrl(~loginUrl, ~framework)}))
+    | Error(ACP.ConnectionFailed(message)) =>
+      connection := None
+      fail(ConnectionFailed(ACPError(message)))
+    }
+  }
+  let connectRelay = async () => {
+    let result = await Relay.connect(config.relay, ~signal=attempt.signal)
+    switch attempt.signal.aborted {
+    | true => ()
+    | false =>
+      switch result {
+      | Ok(connected) =>
+        relay := Some(connected)
+        Client__Analytics.track(RelayConnectionCompleted(Success))
+      | Error(message) =>
+        Client__Analytics.track(RelayConnectionCompleted(Failure(relayFailureReason(message))))
+        fail(ConnectionFailed(RelayError(message)))
+      }
+    }
+  }
+  try {
+    let _ = await Promise.all([connectACP(), connectRelay()])
+    switch (signal.aborted, failure.contents) {
+    | (true, _) =>
+      release()
+      Error(ConnectionFailed(ACPError("Connection aborted")))
+    | (false, Some(error)) =>
+      release()
+      Error(error)
+    | (false, None) =>
+      let relay = relay.contents->Option.getOrThrow
+      Ok({
+        connection: connection.contents->Option.getOrThrow,
+        relay,
+        mcpServer: MCPServer.make(config.mcp, ~relay),
+        session: NoSession,
+      })
+    }
+  } catch {
+  | exn =>
+    WebAPI.AbortController.abort(attempt)
+    release()
+    throw(exn)
+  }
+}
+
 let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
-  let dispatchConfigOptions = (configOptions: option<array<_>>) =>
-    configOptions->Option.forEach(opts =>
-      Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
-    )
-  let dispatchSessionResult = configOptions => dispatchConfigOptions(configOptions)
+  let activateSession = async (~requestId, ~sessionId, ~onComplete, activate) => {
+    switch isCurrentSessionRequest(state, requestId) {
+    | false => ()
+    | true =>
+      let pending = ref(true)
+      let creationError = ref(None)
+      let result = await activate(
+        (sessionId, update) =>
+          dispatch(
+            SessionCallbackReceived({
+              requestId,
+              callback: () =>
+                Client__State__Store.dispatch(
+                  AcpSessionUpdateReceived({taskId: sessionId, update}),
+                ),
+            }),
+          ),
+        (sessionId, title) =>
+          dispatch(
+            SessionCallbackReceived({
+              requestId,
+              callback: () => Client__State.Actions.updateTaskTitle(~taskId=sessionId, ~title),
+            }),
+          ),
+        error =>
+          switch pending.contents {
+          | true => creationError := Some(error)
+          | false => dispatch(SessionFailed({requestId, sessionId, error}))
+          },
+      )
+      let result = result->Result.flatMap(((session, configOptions)) =>
+        switch creationError.contents {
+        | Some(error) =>
+          ACP.cleanupSessionChannel(session)
+          Error(ACP.requestErrorFromMessage(error))
+        | None => Ok((session, configOptions))
+        }
+      )
+      pending := false
+      dispatch(SessionResultReceived({requestId, result, onComplete}))
+    }
+  }
 
   switch effect {
   | LogError(msg) => Log.error(msg)
   | LogInfo(msg) => Log.info(msg)
-  | TrackAnalytics(event) => Client__Analytics.track(event)
   | NotifyDeleteSessionRejected({onComplete, reason}) => onComplete(Error(reason))
-  | CleanupEffect(state) => cleanup(state)
-  | CleanupConnectionEffect({connection, session}) => ACP.disconnect(connection, ~session?)
-  | ConnectACP({config, signal}) =>
+  | ConnectionCallbackEffect({signal, callback}) =>
+    switch isCurrentConnection(state, signal) {
+    | true => callback()
+    | false => ()
+    }
+  | SessionCallbackEffect({requestId, callback}) =>
+    switch isCurrentSessionRequest(state, requestId) {
+    | true => callback()
+    | false => ()
+    }
+  | SessionCompletionEffect({sessionId, ready, result, onComplete}) =>
+    switch state.connection {
+    | Ok(Some({phase: Ready(current), lifetimeAbortController}))
+      if current === ready && !lifetimeAbortController.signal.aborted =>
+      switch result {
+      | Ok(configOptions) =>
+        configOptions->Option.forEach(opts =>
+          Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: opts}))
+        )
+        onComplete(Ok())
+      | Error(error) =>
+        Client__TextDeltaBuffer.discardTask(sessionId)
+        onComplete(Error(billingRequestErrorMessage(error)))
+      }
+    | Ok(_) | Error(_) => ()
+    }
+  | CleanupEffect(runtime) => cleanupRuntime(runtime)
+  | CleanupConnectionEffect(connection) => ACP.disconnect(connection)
+  | ConnectRuntime({config, signal}) =>
     let connect = async () => {
-      let result = await ACP.connect(config, ~signal, ~onConnectionCreated=connection =>
-        dispatch(ACPConnectionAllocated(connection))
-      )
+      let result = await connectRuntime(~config, ~signal)
       switch (signal.aborted, result) {
-      | (true, Ok(conn)) =>
-        ACP.disconnect(conn)
-        Log.info("ACP connection aborted after connect (cleanup)")
-      | (true, Error(_)) => Log.info("ACP connection aborted (cleanup)")
-      | (false, Ok(conn)) =>
-        switch ACP.getAgentAttributionConfiguration(conn) {
-        | Some({agents, defaultAgentId}) =>
-          Client__State.Actions.agentAttributionConfigured(~agentCatalog=agents, ~defaultAgentId)
-          dispatch(ACPConnectSuccess(conn))
-        | None =>
-          ACP.disconnect(conn)
-          dispatch(ACPConnectError("Frontman requires agent attribution v1"))
-        }
-      | (false, Error(err)) =>
-        switch err {
-        | ACP.AuthRequired({loginUrl}) =>
-          let framework = config.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
-          dispatch(ACPAuthRequiredReceived({loginUrl: enrichLoginUrl(~loginUrl, ~framework)}))
-        | ACP.ConnectionFailed(msg) => dispatch(ACPConnectError(msg))
-        }
+      | (true, Ok(ready)) => ACP.disconnect(ready.connection)
+      | (true, Error(_)) => ()
+      | (false, Ok(ready)) =>
+        let {agents, defaultAgentId} =
+          ACP.getAgentAttributionConfiguration(ready.connection)->Option.getOrThrow
+        Client__State.Actions.agentAttributionConfigured(~agentCatalog=agents, ~defaultAgentId)
+        dispatch(ConnectionResultReceived({signal, result}))
+      | (false, Error(_)) => dispatch(ConnectionResultReceived({signal, result}))
       }
     }
     connect()->ignore
@@ -622,144 +792,129 @@ let handleEffect = (effect: effect, state: state, dispatch: action => unit) => {
       | false => dispatch(RetryAuthentication)
       }
     })
-  | LogoutEffect({connection, session, apiBaseUrl, signal}) =>
-    ACP.disconnect(connection, ~session?)
-    revokeEmbeddedClientToken(~apiBaseUrl, ~signal)->ignore
-  | ConnectRelay(relay, signal) =>
-    let connect = async () => {
-      let result = await Relay.connect(relay, ~signal)
-      switch (signal.aborted, result) {
-      | (true, Ok()) =>
-        Relay.disconnect(relay)
-        Log.info("Relay connection aborted after connect (cleanup)")
-      | (true, Error(_)) => Log.info("Relay connection aborted (cleanup)")
-      | (false, Ok()) => dispatch(RelayConnectSuccess)
-      | (false, Error(message)) => dispatch(RelayConnectError(message))
-      }
-    }
-    connect()->ignore
-  | CreateSessionEffect({
-      connection,
-      mcpServer,
-      request: {sessionId, onUpdate, onTitleUpdated, onComplete},
-    }) =>
-    let create = async () => {
-      let mcpServerInterface = MCPServer.toInterface(mcpServer)
-      let creationError = ref(None)
-      let result = await ACP.createSession(
-        connection,
-        ~sessionId,
-        ~onUpdate,
-        ~onTitleUpdated,
-        ~onParseError=error => {
-          creationError := Some(error)
-          Client__TextDeltaBuffer.discardTask(sessionId)
-          dispatch(SessionFailed({sessionId, error}))
-        },
-        ~mcpServerInterface,
-      )
-      switch result {
-      | Ok((sess, sessionNewResult)) =>
-        switch creationError.contents {
-        | Some(error) =>
-          ACP.cleanupSessionChannel(sess)
-          onComplete(Error(error))
-        | None =>
-          dispatch(SessionCreateSuccess(sess))
-          onComplete(Ok(sess.sessionId))
-          dispatchSessionResult(sessionNewResult.configOptions)
-        }
-      | Error(err) =>
-        dispatch(SessionCreateError({sessionId, error: err}))
-        onComplete(Error(billingRequestErrorMessage(err)))
-      }
-    }
-    create()->ignore
-  | SendPromptEffect({session, text, additionalBlocks, onComplete, _meta}) =>
+  | LogoutEffect({apiBaseUrl, signal}) => revokeEmbeddedClientToken(~apiBaseUrl, ~signal)->ignore
+  | CreateSessionEffect({requestId, connection, mcpServer, request: {sessionId, onComplete}}) =>
+    activateSession(
+      ~requestId,
+      ~sessionId,
+      ~onComplete=result => onComplete(result->Result.map(_ => sessionId)),
+      async (onUpdate, onTitleUpdated, onParseError) => {
+        let result = await ACP.createSession(
+          connection,
+          ~sessionId,
+          ~onUpdate,
+          ~onTitleUpdated,
+          ~onParseError,
+          ~mcpServerInterface=MCPServer.toInterface(mcpServer),
+        )
+        result->Result.map(((session, result)) => (session, result.configOptions))
+      },
+    )->ignore
+  | SendPromptEffect({requestId, session, text, additionalBlocks, onComplete, _meta}) =>
     let send = async () => {
       try {
         let result = await ACP.sendPrompt(session, text, ~additionalBlocks, ~_meta)
-        onComplete(result->Result.mapError(billingRequestErrorMessage))
+        dispatch(
+          SessionCallbackReceived({
+            requestId,
+            callback: () => onComplete(result->Result.mapError(billingRequestErrorMessage)),
+          }),
+        )
       } catch {
       | exn =>
-        onComplete(Error("sendPrompt exception"))
+        dispatch(
+          SessionCallbackReceived({
+            requestId,
+            callback: () => onComplete(Error("sendPrompt exception")),
+          }),
+        )
         throw(exn)
       }
     }
-    send()->ignore
-  | SessionCommandEffect({session, command}) => ACP.sendSessionCommand(session, command)
-  | FetchSessionsEffect(conn) =>
-    Client__State.Actions.sessionsLoadStarted()
-    let fetch = async () => {
-      switch await ACP.listSessions(conn) {
-      | Ok(sessions) => Client__State.Actions.sessionsLoadSuccess(~sessions)
-      | Error(err) =>
-        Log.error(~ctx={"error": err}, "Failed to fetch sessions")
-        Client__State.Actions.sessionsLoadError(~error=err)
-      }
+    switch isCurrentSessionRequest(state, requestId) {
+    | true => send()->ignore
+    | false => ()
     }
-    fetch()->ignore
+  | SessionCommandEffect({session, command}) => ACP.sendSessionCommand(session, command)
+  | FetchSessionsEffect({connection, signal}) =>
+    let fetch = async () => {
+      Client__State.Actions.sessionsLoadStarted()
+      let result = await ACP.listSessions(connection)
+      dispatch(
+        ConnectionCallbackReceived({
+          signal,
+          callback: () =>
+            switch result {
+            | Ok(sessions) => Client__State.Actions.sessionsLoadSuccess(~sessions)
+            | Error(err) =>
+              Log.error(~ctx={"error": err}, "Failed to fetch sessions")
+              Client__State.Actions.sessionsLoadError(~error=err)
+            },
+        }),
+      )
+    }
+    switch isCurrentConnection(state, signal) {
+    | true => fetch()->ignore
+    | false => ()
+    }
   | LoadTaskEffect({
+      requestId,
       connection,
       mcpServer,
-      request: {taskId, needsHistory, onUpdate, onTitleUpdated, onComplete},
+      request: {taskId, needsHistory, onComplete},
     }) =>
-    let activateSession = async () => {
+    activateSession(~requestId, ~sessionId=taskId, ~onComplete, async (
+      onUpdate,
+      onTitleUpdated,
+      onParseError,
+    ) => {
       let mcpServerInterface = MCPServer.toInterface(mcpServer)
       let result = switch needsHistory {
       | true =>
         let loadResult = await ACP.loadSession(
           connection,
           taskId,
-          ~onLoadResult=result => dispatchSessionResult(result.configOptions),
+          ~onLoadResult=_ => (),
           ~onUpdate,
           ~onTitleUpdated,
-          ~onParseError=err => {
-            Client__TextDeltaBuffer.discardTask(taskId)
-            dispatch(SessionFailed({sessionId: taskId, error: err}))
-          },
+          ~onParseError,
           ~mcpServerInterface,
         )
-        loadResult->Result.map(((session, _)) => session)
+        loadResult->Result.map(((session, loadResult)) => (session, loadResult.configOptions))
       | false =>
-        await ACP.joinSession(
+        let joinResult = await ACP.joinSession(
           connection,
           taskId,
           ~onUpdate=ACP.validatedUpdateHandler(connection, taskId, onUpdate),
           ~onTitleUpdated,
-          ~onParseError=err => {
-            Client__TextDeltaBuffer.discardTask(taskId)
-            dispatch(SessionFailed({sessionId: taskId, error: err}))
-          },
+          ~onParseError,
           ~mcpServerInterface,
         )
+        joinResult->Result.map(session => (session, None))
       }
-      switch result {
-      | Ok(session) =>
-        dispatch(SessionCreateSuccess(session))
-        Log.info(~ctx={"taskId": taskId}, "Session activated")
-        onComplete(Ok())
-      | Error(err) =>
-        dispatch(SessionCreateError({sessionId: taskId, error: ACP.requestErrorFromMessage(err)}))
-        Log.error(~ctx={"error": err}, "Failed to activate session")
-        onComplete(Error(err))
-      }
-    }
-    switch state {
-    | Initialized({acp: Ready({session: SessionActive({sessionId})})}) if sessionId == taskId =>
-      onComplete(Ok())
-    | Uninitialized | Initialized(_) => activateSession()->ignore
-    }
-  | DeleteSessionEffect({connection, taskId, onComplete}) =>
+      result->Result.mapError(ACP.requestErrorFromMessage)
+    })->ignore
+  | DeleteSessionEffect({signal, connection, taskId, onComplete}) =>
     let delete = async () => {
       let result = await ACP.deleteSession(connection, taskId)
-      switch result {
-      | Ok() => Log.info(~ctx={"taskId": taskId}, "Session deleted")
-      | Error(err) => Log.error(~ctx={"taskId": taskId, "error": err}, "Failed to delete session")
-      }
-      onComplete(result)
+      dispatch(
+        ConnectionCallbackReceived({
+          signal,
+          callback: () => {
+            switch result {
+            | Ok() => Log.info(~ctx={"taskId": taskId}, "Session deleted")
+            | Error(err) =>
+              Log.error(~ctx={"taskId": taskId, "error": err}, "Failed to delete session")
+            }
+            onComplete(result)
+          },
+        }),
+      )
     }
-    delete()->ignore
+    switch isCurrentConnection(state, signal) {
+    | true => delete()->ignore
+    | false => ()
+    }
   | CleanupSessionEffect({session}) => cleanupSession(session)
   }
 }

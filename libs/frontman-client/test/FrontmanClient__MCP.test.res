@@ -5,6 +5,15 @@ module Types = FrontmanClient__MCP__Types
 module MCPServer = FrontmanClient__MCP__Server
 module Relay = FrontmanClient__Relay
 
+let makeServer = async (~tools=[]) => {
+  let config = Relay.makeConfig(~baseUrl="http://relay.invalid", ~fetch=async (_, _) =>
+    WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`)
+  )
+  let relay =
+    (await Relay.connect(config, ~signal=WebAPI.AbortController.make().signal))->Result.getOrThrow
+  MCPServer.make(MCPServer.makeConfig(~tools), ~relay)
+}
+
 module MockChannel = {
   type pushCall = {payload: JSON.t}
 
@@ -124,11 +133,8 @@ let handler = (channel, context, ~sessionId="task-1", ~failure=?) => {
 }
 
 describe("MCP 2026-07-28", () => {
-  test("namespaces Frontman tool metadata under _meta", t => {
-    let server =
-      MCPServer.make(
-        ~relay=Relay.make(~baseUrl="http://relay.invalid"),
-      )->MCPServer.registerToolModule(module(ThrowingTool))
+  testAsync("namespaces Frontman tool metadata under _meta", async t => {
+    let server = await makeServer(~tools=[module(ThrowingTool)])
     let tool =
       MCPServer.buildToolsListResult(server).tools
       ->Array.get(0)
@@ -293,7 +299,7 @@ describe("MCP 2026-07-28", () => {
   })
 
   testAsync("returns invalid params for an unknown tool", async t => {
-    let server = MCPServer.make(~relay=Relay.make(~baseUrl="http://relay.invalid"))
+    let server = await makeServer()
     let (channel, calls) = MockChannel.make()
 
     await MCP.handleMessage(
@@ -314,10 +320,7 @@ describe("MCP 2026-07-28", () => {
   })
 
   testAsync("returns thrown tool failures as tool errors", async t => {
-    let server =
-      MCPServer.make(
-        ~relay=Relay.make(~baseUrl="http://relay.invalid"),
-      )->MCPServer.registerToolModule(module(ThrowingTool))
+    let server = await makeServer(~tools=[module(ThrowingTool)])
     let (channel, calls) = MockChannel.make()
 
     await MCP.handleMessage(

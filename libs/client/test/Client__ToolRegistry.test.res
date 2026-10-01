@@ -2,16 +2,13 @@ open Vitest
 
 module ToolRegistry = Client__ToolRegistry
 module FrontmanClient = FrontmanAiFrontmanClient
-module Relay = FrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanClient.FrontmanClient__MCP__Server
 module MCP = FrontmanAiFrontmanProtocol.FrontmanProtocol__MCP
 
 let toolDefinitions = framework => {
   let registry = ToolRegistry.forFramework(framework)
-  let relay = Relay.make(~baseUrl="http://localhost:3000")
-  let server = ToolRegistry.registerAll(registry, MCPServer.make(~relay))
-  server
-  ->MCPServer.getToolsJson
+  registry.tools
+  ->Array.map(MCPServer.serializeTool)
   ->Array.map(json => json->JSON.Decode.object->Option.getOrThrow)
 }
 

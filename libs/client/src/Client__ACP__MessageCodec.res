@@ -1,4 +1,58 @@
 module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
+module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module Message = Client__State__Types.Message
+
+let toolCallState = (
+  ~status: option<ACP.toolCallStatus>,
+  ~rawInput: option<JSON.t>,
+): Message.toolCallState =>
+  switch status {
+  | Some(Completed) => Message.OutputAvailable
+  | Some(Failed) => Message.OutputError
+  | Some(Pending | InProgress) | None =>
+    rawInput->Option.mapOr(Message.InputStreaming, _ => Message.InputAvailable)
+  }
+
+let makeToolCall = (
+  ~id,
+  ~title,
+  ~status,
+  ~content,
+  ~rawInput,
+  ~rawOutput,
+  ~parentAgentId,
+  ~spawningToolName,
+): Message.toolCall => {
+  let result = switch (rawOutput, content) {
+  | (None, None) => None
+  | _ => Some({Message.rawOutput, content: content->Option.getOr([])})
+  }
+  {
+    id,
+    toolName: title,
+    inputBuffer: "",
+    input: rawInput,
+    result,
+    errorText: status == Some(Failed) ? Some("Unknown error") : None,
+    state: toolCallState(~status, ~rawInput),
+    parentAgentId,
+    spawningToolName,
+  }
+}
+
+@schema
+type frontmanErrorMeta = {
+  @as("frontman.dev/agentErrorId")
+  agentErrorId: string,
+}
+
+let agentErrorId = meta => {
+  let json = switch meta {
+  | Some(json) => json
+  | None => failwith("Frontman error update missing _meta.frontman.dev/agentErrorId")
+  }
+  S.parseOrThrow(json, ~to=frontmanErrorMetaSchema).agentErrorId
+}
 
 let parseUserMessageBlocks = (blocks: array<ContentBlock.t>): (
   array<Client__Message.UserContentPart.t>,

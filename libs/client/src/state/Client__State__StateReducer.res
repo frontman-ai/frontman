@@ -24,6 +24,7 @@ type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 
 type action =
+  | AcpSessionUpdateReceived({taskId: string, update: ACP.sessionUpdate})
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   | AddUserMessage({
       id: Message.UserMessageId.t,
@@ -124,6 +125,14 @@ type customProviderMutationRequest =
   | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
+  | BufferAssistantText({taskId: string, messageId: string, text: string, agentId: string})
+  | BufferUserBlock({
+      taskId: string,
+      messageId: string,
+      block: FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock.t,
+      agentId: string,
+    })
+  | FlushSessionActions(array<action>)
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
@@ -1053,8 +1062,41 @@ let customProviderMutationImpl = (dispatch, ~apiBaseUrl, ~request, ~requireAuthe
   run()->ignore
 }
 
+let getSessionTextBuffer = dispatch =>
+  switch Client__TextDeltaBuffer.active.contents {
+  | Some(buffer) => buffer
+  | None =>
+    let buffer = Client__TextDeltaBuffer.make(
+      ~onFlush=(~taskId, ~messageId, ~text, ~agentId) =>
+        dispatch(
+          TaskAction({
+            target: ForTask(taskId),
+            action: TextDeltaReceived({messageId, text, agentId}),
+          }),
+        ),
+      ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) => {
+        let (content, annotations) = Client__ACP__MessageCodec.parseUserMessageBlocks(blocks)
+        dispatch(
+          TaskAction({
+            target: ForTask(taskId),
+            action: UserMessageReceived({id: messageId, content, annotations, agentId}),
+          }),
+        )
+      },
+    )
+    Client__TextDeltaBuffer.active := Some(buffer)
+    buffer
+  }
+
 let handleEffect = (effect, state: state, dispatch) => {
   switch effect {
+  | BufferAssistantText({taskId, messageId, text, agentId}) =>
+    getSessionTextBuffer(dispatch).add(~taskId, ~messageId, ~text, ~agentId)
+  | BufferUserBlock({taskId, messageId, block, agentId}) =>
+    getSessionTextBuffer(dispatch).addUserBlock(~taskId, ~messageId, ~block, ~agentId)
+  | FlushSessionActions(actions) =>
+    Client__TextDeltaBuffer.flush()
+    actions->Array.forEach(action => dispatch(action))
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       let taskDispatch = (taskAction: TaskReducer.action) => {
@@ -1562,6 +1604,151 @@ let startCustomProviderMutation = (state: state, request) => {
 
 let next = (state: state, action) => {
   switch action {
+  | AcpSessionUpdateReceived({
+      taskId,
+      update: AgentMessageChunk({messageId, content: TextContent({text}), _meta: {agentId}}),
+    }) =>
+    state->StateReducer.update(~sideEffect=BufferAssistantText({taskId, messageId, text, agentId}))
+  | AcpSessionUpdateReceived({
+      taskId,
+      update: UserMessageChunk({messageId, content, _meta: {agentId}}),
+    }) =>
+    state->StateReducer.update(
+      ~sideEffect=BufferUserBlock({taskId, messageId, block: content, agentId}),
+    )
+  | AcpSessionUpdateReceived({update: GenericAgentMessageChunk(_) | GenericUserMessageChunk(_)}) =>
+    failwith("Frontman UI requires negotiated agent attribution")
+  | AcpSessionUpdateReceived({update: AgentMessageChunk(_) | Unknown(_)}) =>
+    state->StateReducer.update
+  | AcpSessionUpdateReceived({taskId, update: MessageUnqueued({messageId})}) =>
+    state->Lens.delegateToTask(ForTask(taskId), TaskReducer.MessageUnqueued({messageId: messageId}))
+  | AcpSessionUpdateReceived({
+      taskId,
+      update: ToolCall({
+        toolCallId,
+        title,
+        status,
+        content,
+        rawInput,
+        rawOutput,
+        parentAgentId,
+        spawningToolName,
+      }),
+    }) =>
+    let toolCall = Client__ACP__MessageCodec.makeToolCall(
+      ~id=toolCallId,
+      ~title,
+      ~status,
+      ~content,
+      ~rawInput,
+      ~rawOutput,
+      ~parentAgentId,
+      ~spawningToolName,
+    )
+    state->StateReducer.update(
+      ~sideEffect=FlushSessionActions([
+        TaskAction({target: ForTask(taskId), action: ToolCallReceived({toolCall: toolCall})}),
+      ]),
+    )
+  | AcpSessionUpdateReceived({
+      taskId,
+      update: ToolCallUpdate({toolCallId, status, content, rawInput, rawOutput}),
+    }) =>
+    let target = ForTask(taskId)
+    let inputActions = switch rawInput {
+    | Some(input) => [TaskAction({target, action: ToolInputReceived({id: toolCallId, input})})]
+    | None => []
+    }
+    let resultActions = switch (rawOutput, content, status) {
+    | (None, None, Some(Completed)) => [
+        TaskAction({
+          target,
+          action: ToolResultReceived({id: toolCallId, rawOutput, content, complete: true}),
+        }),
+      ]
+    | (None, None, _) => []
+    | _ => [
+        TaskAction({
+          target,
+          action: ToolResultReceived({
+            id: toolCallId,
+            rawOutput,
+            content,
+            complete: status == Some(Completed),
+          }),
+        }),
+      ]
+    }
+    let errorActions = switch status {
+    | Some(Failed) =>
+      let error =
+        content
+        ->Option.flatMap(items =>
+          items->Array.findMap(item =>
+            switch item {
+            | Content({content: TextContent({text})}) => Some(text)
+            | _ => None
+            }
+          )
+        )
+        ->Option.getOr("Unknown error")
+      [TaskAction({target, action: ToolErrorReceived({id: toolCallId, error})})]
+    | Some(Pending | Completed | InProgress) | None => []
+    }
+    state->StateReducer.update(
+      ~sideEffect=FlushSessionActions([...inputActions, ...resultActions, ...errorActions]),
+    )
+  | AcpSessionUpdateReceived({taskId, update: Plan({entries})}) =>
+    state->StateReducer.update(
+      ~sideEffect=FlushSessionActions([
+        TaskAction({target: ForTask(taskId), action: PlanReceived({entries: entries})}),
+      ]),
+    )
+  | AcpSessionUpdateReceived({taskId, update: StateUpdate({state: executionState})}) =>
+    let action = switch executionState {
+    | Running => TaskReducer.ExecutionStateRunning
+    | Idle => TaskReducer.ExecutionStateIdle
+    | RequiresAction => TaskReducer.ExecutionStateRequiresAction
+    }
+    state->StateReducer.update(
+      ~sideEffect=FlushSessionActions([TaskAction({target: ForTask(taskId), action})]),
+    )
+  | AcpSessionUpdateReceived({update: ConfigOptionUpdate({configOptions})}) =>
+    state->StateReducer.update(
+      ~sideEffect=FlushSessionActions([ConfigOptionsReceived({configOptions: configOptions})]),
+    )
+  | AcpSessionUpdateReceived({update: CurrentModeUpdate(_)}) =>
+    state->StateReducer.update(~sideEffect=FlushSessionActions([]))
+  | AcpSessionUpdateReceived({
+      taskId,
+      update: Error({_meta, message, retryAt, attempt, maxAttempts, category}),
+    }) =>
+    let settingsActions = switch category {
+    | Some("billing") => [SetSettingsModalTab({tab: Some(Providers)})]
+    | Some(_) | None => []
+    }
+    let action = switch retryAt {
+    | Some(retryAt) =>
+      TaskReducer.RetryingUpdate({
+        retryStatus: {
+          attempt: attempt->Option.getOr(1),
+          maxAttempts: maxAttempts->Option.getOr(5),
+          retryAt: Date.fromString(retryAt)->Date.getTime,
+          error: message,
+        },
+      })
+    | None =>
+      TaskReducer.AgentError({
+        id: Client__ACP__MessageCodec.agentErrorId(_meta),
+        error: message,
+        category: Client__ErrorCategory.fromAcpCategory(category),
+      })
+    }
+    state->StateReducer.update(
+      ~sideEffect=FlushSessionActions(
+        [...settingsActions, TaskAction({target: ForTask(taskId), action})],
+      ),
+    )
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
   | ExecuteAnnotation({id, sessionId, annotationId, comment}) =>

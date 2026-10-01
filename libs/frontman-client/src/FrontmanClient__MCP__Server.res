@@ -13,35 +13,35 @@ type resolvedImage = {
 
 type imageRefResolver = (string, ~taskId: string) => option<resolvedImage>
 
-type t = {
+type config = {
   tools: array<module(Tool.Tool)>,
-  relay: Relay.t,
   serverInfo: Types.info,
-  resolveImageRef: ref<option<imageRefResolver>>,
+  resolveImageRef: option<imageRefResolver>,
 }
 
-@@live
-let make = (
-  ~relay: Relay.t,
+type t = {
+  tools: array<module(Tool.Tool)>,
+  relay: Relay.connected,
+  serverInfo: Types.info,
+  resolveImageRef: option<imageRefResolver>,
+}
+
+let makeConfig = (
+  ~tools=[],
   ~serverName="frontman-browser",
   ~serverVersion="1.0.0",
   ~resolveImageRef: option<imageRefResolver>=?,
-): t => {
-  tools: [],
-  relay,
+): config => {
+  tools,
   serverInfo: {name: serverName, version: serverVersion},
-  resolveImageRef: ref(resolveImageRef),
+  resolveImageRef,
 }
 
-let setImageRefResolver = (server: t, resolver: imageRefResolver): unit => {
-  server.resolveImageRef := Some(resolver)
-}
-
-let registerToolModule = (server: t, toolModule: module(Tool.Tool)): t => {
-  {
-    ...server,
-    tools: Array.concat(server.tools, [toolModule]),
-  }
+let make = (config: config, ~relay: Relay.connected): t => {
+  tools: config.tools,
+  relay,
+  serverInfo: config.serverInfo,
+  resolveImageRef: config.resolveImageRef,
 }
 
 external jsonSchemaAsJson: JSONSchema.t => JSON.t = "%identity"
@@ -147,7 +147,7 @@ let resolveToolImageRef = (
   switch arguments {
   | None => Ok(None)
   | Some(args) =>
-    switch (args->Dict.get("image_ref"), server.resolveImageRef.contents) {
+    switch (args->Dict.get("image_ref"), server.resolveImageRef) {
     | (None, _) => Ok(Some(args))
     | (Some(String("")), _) => Error("image_ref must be a non-empty string")
     | (Some(_), None) => Error("Cannot resolve image_ref: no resolver configured")

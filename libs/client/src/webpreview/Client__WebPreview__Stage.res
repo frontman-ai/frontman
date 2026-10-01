@@ -67,7 +67,8 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   )
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasAnnotations = annotations->Array.length > 0
-  let {session, createSession} = Client__FrontmanProvider.useFrontman()
+  let {state, createSession} = Client__FrontmanProvider.useFrontman()
+  let session = Client__ConnectionReducer.Selectors.getSession(state)
 
   let executeAnnotation = (~annotationId: string, ~comment: string) => {
     let dispatchExecute = sessionId =>

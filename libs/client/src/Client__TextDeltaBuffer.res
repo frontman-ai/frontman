@@ -130,6 +130,11 @@ let make = (
 
 let active: ref<option<t>> = ref(None)
 
+let reset = () => {
+  active.contents->Option.forEach(instance => instance.reset())
+  active := None
+}
+
 let flush = () => active.contents->Option.forEach(instance => instance.flush())
 
 let discardTask = taskId =>

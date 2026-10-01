@@ -1,160 +1,77 @@
-let openProviderSettingsForErrorCategory = category => {
-  switch category {
-  | Some("billing") => Client__State.Actions.openSettingsModalOnProviders()
-  | Some(_) | None => ()
-  }
-}
-
-module Log = FrontmanLogs.Logs.Make({
-  let component = #FrontmanProvider
-})
-
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
-module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
-module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
 module Reducer = Client__ConnectionReducer
 module RuntimeConfig = Client__RuntimeConfig
-module Message = Client__State__Types.Message
 
-let makeToolResult = (~rawOutput, ~content): Message.toolResult => {rawOutput, content}
-
-let toolCallState = (
-  ~status: option<Types.toolCallStatus>,
-  ~rawInput: option<JSON.t>,
-): Message.toolCallState =>
-  switch status {
-  | Some(Completed) => Message.OutputAvailable
-  | Some(Failed) => Message.OutputError
-  | Some(Pending | InProgress) | None =>
-    rawInput->Option.mapOr(Message.InputStreaming, _ => Message.InputAvailable)
-  }
-
-let makeToolCall = (
-  ~id,
-  ~title,
-  ~status,
-  ~content,
-  ~rawInput,
-  ~rawOutput,
-  ~parentAgentId,
-  ~spawningToolName,
-): Message.toolCall => {
-  let result = switch (rawOutput, content) {
-  | (None, None) => None
-  | _ => Some(makeToolResult(~rawOutput, ~content=content->Option.getOr([])))
-  }
-  {
-    id,
-    toolName: title,
-    inputBuffer: "",
-    input: rawInput,
-    result,
-    errorText: status == Some(Failed) ? Some("Unknown error") : None,
-    state: toolCallState(~status, ~rawInput),
-    parentAgentId,
-    spawningToolName,
-  }
-}
-
-let getContentBlockText = (block: ContentBlock.t): option<string> =>
-  switch block {
-  | TextContent({text}) => Some(text)
-  | ImageContent(_) | AudioContent(_) | ResourceLink(_) | EmbeddedResource(_) => None
-  }
-
-@schema
-type frontmanErrorMeta = {
-  @as("frontman.dev/agentErrorId")
-  agentErrorId: string,
-}
-
-let agentErrorId = meta => {
-  let json = switch meta {
-  | Some(json) => json
-  | None => failwith("Frontman error update missing _meta.frontman.dev/agentErrorId")
-  }
-  S.parseOrThrow(json, ~to=frontmanErrorMetaSchema).agentErrorId
-}
-
-let textDeltaBuffer = Client__TextDeltaBuffer.make(
-  ~onFlush=(~taskId, ~messageId, ~text, ~agentId) =>
-    Client__State.Actions.textDeltaReceived(~taskId, ~messageId, ~text, ~agentId),
-  ~onUserFlush=(~taskId, ~messageId, ~blocks, ~agentId) => {
-    let (content, annotations) = Client__ACP__MessageCodec.parseUserMessageBlocks(blocks)
-    Client__State.Actions.userMessageReceived(
-      ~taskId,
-      ~id=messageId,
-      ~content,
-      ~annotations,
-      ~agentId,
-    )
-  },
-)
-let () = Client__TextDeltaBuffer.active := Some(textDeltaBuffer)
-
-type connectionState = Reducer.Selectors.connectionStatus
-
-@@live
 type contextValue = {
-  connectionState: connectionState,
-  apiBaseUrl: string,
-  session: option<ACP.session>,
-  relay: option<Relay.t>,
-  authRedirectUrl: option<string>,
-  beginAuthenticationRetry: unit => unit,
-  requireAuthentication: unit => unit,
-  beginLogout: unit => unit,
+  state: Reducer.state,
+  dispatch: Reducer.action => unit,
   createSession: (~onComplete: result<string, string> => unit) => unit,
-  clearSession: unit => unit,
-  sendPrompt: (
-    string,
-    ~additionalBlocks: array<ContentBlock.t>,
-    ~onComplete: result<Types.promptResult, string> => unit,
-    ~_meta: option<JSON.t>,
-  ) => unit,
-  sendSessionCommand: ACP.sessionCommand => unit,
-  loadTask: (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit,
-  deleteSession: (string, ~onComplete: result<unit, string> => unit) => unit,
 }
 
-let defaultContextValue: contextValue = {
-  connectionState: Disconnected,
-  apiBaseUrl: "",
-  session: None,
-  relay: None,
-  authRedirectUrl: None,
-  beginAuthenticationRetry: () => (),
-  requireAuthentication: () => (),
-  beginLogout: () => (),
-  createSession: (~onComplete as _) => (),
-  clearSession: () => (),
-  sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-  sendSessionCommand: _ => (),
-  loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-  deleteSession: (_, ~onComplete as _) => (),
-}
-
-let context = React.createContext(defaultContextValue)
+let context: React.Context.t<option<contextValue>> = React.createContext(None)
 
 module ContextProvider = {
   let make = React.Context.provider(context)
 }
 
-let useFrontman = () => React.useContext(context)
+let useFrontman = () =>
+  React.useContext(context)->Option.getOrThrow(~message="useFrontman requires FrontmanProvider")
 
 module Provider = {
   @react.component
   let make = (
     ~endpoint: string,
     ~loginUrl: string,
-    ~apiBaseUrl: string,
     ~clientName: string="frontman-client",
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    let (state, dispatch) = StateReducer.useReducer(module(Reducer), Reducer.initialState)
+    let (initialState, _) = React.useState(() => {
+      let baseUrl = Client__RelayBaseUrl.current()
+      let runtimeConfig = RuntimeConfig.read()
+      let relay = switch runtimeConfig.framework {
+      | Wordpress => Client__WordPressRelay.makeConfig(~baseUrl, ~nonce=runtimeConfig.wpNonce)
+      | Nextjs | Vite | Astro => Relay.makeConfig(~baseUrl)
+      }
+      let acp = ACP.makeConfig(
+        ~endpoint,
+        ~loginUrl,
+        ~getAuthToken=Client__EmbeddedAuth.loadToken,
+        ~name=clientName,
+        ~version=clientVersion,
+        ~_meta=RuntimeConfig.toMeta(runtimeConfig),
+        ~onConfigOptionsUpdated=configOptions => {
+          Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
+        },
+        ~onBillingStatusUpdated=payload => {
+          switch FrontmanAiFrontmanClient.FrontmanClient__Decoders.parseSchema(
+            payload,
+            Client__Billing.statusSchema,
+          ) {
+          | Ok(status) => Client__State__Store.dispatch(BillingStatusReceived(status))
+          | Error(_) =>
+            Client__State__Store.dispatch(
+              BillingStatusError({error: "Failed to parse billing status"}),
+            )
+          }
+        },
+      )
+      let mcp = MCPServer.makeConfig(
+        ~tools=Client__ToolRegistry.forFramework(runtimeConfig.framework).tools,
+        ~serverName=clientName,
+        ~serverVersion=clientVersion,
+        ~resolveImageRef=(uri, ~taskId) => {
+          let state = StateStore.getState(Client__State__Store.store)
+          Client__State.Selectors.resolveImageRef(state, ~taskId, ~uri)->Option.map(
+            ({base64, mediaType}) => {MCPServer.base64, mediaType},
+          )
+        },
+      )
+      Reducer.initialState({acp, relay, mcp})
+    })
+    let (state, dispatch) = StateReducer.useReducer(module(Reducer), initialState)
     let connectionStateRef = React.useRef(state)
 
     React.useEffect(() => {
@@ -163,237 +80,27 @@ module Provider = {
     }, [state])
 
     React.useEffect0(() => {
-      let baseUrl = Client__RelayBaseUrl.current()
-
-      let runtimeConfig = RuntimeConfig.read()
-      let _meta = RuntimeConfig.toMeta(runtimeConfig)
-      let relay = switch runtimeConfig.framework {
-      | Wordpress => Client__WordPressRelay.make(~baseUrl, ~nonce=runtimeConfig.wpNonce)
-      | Nextjs | Vite | Astro => Relay.make(~baseUrl)
-      }
-      let toolRegistry = Client__ToolRegistry.forFramework(runtimeConfig.framework)
-      let mcpServer = MCPServer.make(~relay, ~serverName=clientName, ~serverVersion=clientVersion)
-      let mcpServer = Client__ToolRegistry.registerAll(toolRegistry, mcpServer)
-
-      MCPServer.setImageRefResolver(mcpServer, (uri, ~taskId) => {
-        let state = StateStore.getState(Client__State__Store.store)
-        Client__State.Selectors.resolveImageRef(state, ~taskId, ~uri)->Option.map(
-          ({base64, mediaType}) => {MCPServer.base64, mediaType},
-        )
-      })
-
-      let config: Reducer.initConfig = {
-        endpoint,
-        loginUrl,
-        clientName,
-        clientVersion,
-        _meta,
-      }
-
-      dispatch(Initialize({config, relay, mcpServer}))
+      dispatch(Initialize)
 
       Some(
         () => {
-          textDeltaBuffer.reset()
           Reducer.cleanup(connectionStateRef.current)
           dispatch(Dispose)
         },
       )
     })
 
-    let handleTitleUpdated = React.useCallback0((taskId: string, title: string) => {
-      Client__State.Actions.updateTaskTitle(~taskId, ~title)
-    })
-
-    let handleSessionUpdate = React.useCallback0((
-      sessionId: string,
-      update: Types.sessionUpdate,
-    ) => {
-      let taskId = sessionId
-      switch update {
-      | AgentMessageChunk({messageId, content, _meta: {agentId}}) =>
-        getContentBlockText(content)->Option.forEach(text => {
-          textDeltaBuffer.add(~taskId, ~messageId, ~text, ~agentId)
-        })
-      | UserMessageChunk({messageId, content, _meta}) =>
-        textDeltaBuffer.addUserBlock(~taskId, ~messageId, ~block=content, ~agentId=_meta.agentId)
-      | MessageUnqueued({messageId}) => Client__State.Actions.messageUnqueued(~taskId, ~messageId)
-      | GenericAgentMessageChunk(_) | GenericUserMessageChunk(_) =>
-        failwith("Frontman UI requires negotiated agent attribution")
-      | Unknown(_) => ()
-      | ToolCall({
-          toolCallId,
-          title,
-          status,
-          content,
-          rawInput,
-          rawOutput,
-          parentAgentId,
-          spawningToolName,
-          _,
-        }) =>
-        Client__TextDeltaBuffer.flush()
-        Client__State.Actions.toolCallReceived(
-          ~taskId,
-          ~toolCall=makeToolCall(
-            ~id=toolCallId,
-            ~title,
-            ~status,
-            ~content,
-            ~rawInput,
-            ~rawOutput,
-            ~parentAgentId,
-            ~spawningToolName,
-          ),
-        )
-      | ToolCallUpdate({toolCallId, status, content, rawInput, rawOutput}) =>
-        Client__TextDeltaBuffer.flush()
-        let text = () =>
-          content->Option.flatMap(c =>
-            c->Array.findMap(
-              item =>
-                switch item {
-                | Content({content: TextContent({text})}) => Some(text)
-                | _ => None
-                },
-            )
-          )
-        rawInput->Option.forEach(input => {
-          Client__State.Actions.toolInputReceived(~taskId, ~id=toolCallId, ~input)
-        })
-        switch (rawOutput, content, status) {
-        | (None, None, Some(Completed)) =>
-          Client__State.Actions.toolResultReceived(
-            ~taskId,
-            ~id=toolCallId,
-            ~rawOutput,
-            ~content,
-            ~complete=true,
-          )
-        | (None, None, _) => ()
-        | _ =>
-          Client__State.Actions.toolResultReceived(
-            ~taskId,
-            ~id=toolCallId,
-            ~rawOutput,
-            ~content,
-            ~complete=status == Some(Completed),
-          )
-        }
-        switch status {
-        | Some(Pending) => ()
-        | Some(Completed) => ()
-        | Some(Failed) =>
-          Client__State.Actions.toolErrorReceived(
-            ~taskId,
-            ~id=toolCallId,
-            ~error=text()->Option.getOr("Unknown error"),
-          )
-        | Some(InProgress) => ()
-        | None => ()
-        }
-      | Plan({entries}) =>
-        Client__TextDeltaBuffer.flush()
-        Client__State.Actions.planReceived(~taskId, ~entries)
-      | StateUpdate({state, _}) =>
-        Client__TextDeltaBuffer.flush()
-        switch state {
-        | Running => Client__State.Actions.executionStateRunning(~taskId)
-        | Idle => Client__State.Actions.executionStateIdle(~taskId)
-        | RequiresAction => Client__State.Actions.executionStateRequiresAction(~taskId)
-        }
-      | ConfigOptionUpdate({configOptions}) =>
-        Client__TextDeltaBuffer.flush()
-        Client__State.Actions.configOptionsReceived(~configOptions)
-      | CurrentModeUpdate(_) => Client__TextDeltaBuffer.flush()
-      | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
-        openProviderSettingsForErrorCategory(category)
-        Client__TextDeltaBuffer.flush()
-        switch retryAt {
-        | Some(retryAtStr) =>
-          let retryAtMs = Date.fromString(retryAtStr)->Date.getTime
-          let retryStatus: Client__Task__Types.Task.retryStatus = {
-            attempt: attempt->Option.getOr(1),
-            maxAttempts: maxAttempts->Option.getOr(5),
-            retryAt: retryAtMs,
-            error: message,
-          }
-          Client__State.Actions.retryingStatusReceived(~taskId, ~retryStatus)
-        | None =>
-          Client__State.Actions.agentErrorReceived(
-            ~taskId,
-            ~id=agentErrorId(_meta),
-            ~error=message,
-            ~category=Client__ErrorCategory.fromAcpCategory(category),
-          )
-        }
-      }
-    })
-
     let createSession = React.useCallback1((~onComplete: result<string, string> => unit) => {
       dispatch(
         CreateSession({
           sessionId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
-          onUpdate: handleSessionUpdate,
-          onTitleUpdated: handleTitleUpdated,
           onComplete,
         }),
       )
     }, [dispatch])
 
-    let clearSession = React.useCallback1(() => dispatch(ClearSession), [dispatch])
+    let contextValue: contextValue = {state, dispatch, createSession}
 
-    let sendPrompt = React.useCallback1((text: string, ~additionalBlocks, ~onComplete, ~_meta) => {
-      dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta}))
-    }, [dispatch])
-
-    let sendSessionCommand = React.useCallback1((command: ACP.sessionCommand) => {
-      dispatch(SessionCommand(command))
-    }, [dispatch])
-
-    let loadTask = React.useCallback1((taskId: string, ~needsHistory, ~onComplete) => {
-      dispatch(
-        LoadTask({
-          taskId,
-          needsHistory,
-          onUpdate: handleSessionUpdate,
-          onTitleUpdated: handleTitleUpdated,
-          onComplete,
-        }),
-      )
-    }, [dispatch])
-
-    let deleteSession = React.useCallback1((taskId: string, ~onComplete) => {
-      dispatch(DeleteSession({taskId, onComplete}))
-    }, [dispatch])
-
-    let authRedirectUrl = Reducer.Selectors.getAuthRedirectUrl(state)
-    let beginAuthenticationRetry = React.useCallback1(() => {
-      dispatch(BeginAuthenticationRetry)
-    }, [dispatch])
-    let requireAuthentication = React.useCallback1(
-      () => dispatch(RequireAuthentication),
-      [dispatch],
-    )
-    let beginLogout = React.useCallback1(() => dispatch(BeginLogout), [dispatch])
-
-    let contextValue: contextValue = {
-      connectionState: Reducer.Selectors.getConnectionStatus(state),
-      apiBaseUrl,
-      session: Reducer.Selectors.getSession(state),
-      relay: Reducer.Selectors.getRelay(state),
-      authRedirectUrl,
-      beginAuthenticationRetry,
-      requireAuthentication,
-      beginLogout,
-      createSession,
-      clearSession,
-      sendPrompt,
-      sendSessionCommand,
-      loadTask,
-      deleteSession,
-    }
-
-    <ContextProvider value={contextValue}> {children} </ContextProvider>
+    <ContextProvider value={Some(contextValue)}> {children} </ContextProvider>
   }
 }

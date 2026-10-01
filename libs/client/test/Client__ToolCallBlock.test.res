@@ -1,7 +1,7 @@
 open Vitest
 
 module ToolCallBlock = Client__ToolCallBlock
-module Provider = Client__FrontmanProvider
+module Codec = Client__ACP__MessageCodec
 module Message = Client__State__Types.Message
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
@@ -62,19 +62,19 @@ describe("getTarget", _t => {
 
 test("initial tool-call state follows ACP status", t => {
   t
-  ->expect(Provider.toolCallState(~status=Some(ACP.Completed), ~rawInput=None))
+  ->expect(Codec.toolCallState(~status=Some(ACP.Completed), ~rawInput=None))
   ->Expect.toBe(Message.OutputAvailable)
   t
-  ->expect(Provider.toolCallState(~status=Some(ACP.Failed), ~rawInput=None))
+  ->expect(Codec.toolCallState(~status=Some(ACP.Failed), ~rawInput=None))
   ->Expect.toBe(Message.OutputError)
   t
-  ->expect(Provider.toolCallState(~status=Some(ACP.Pending), ~rawInput=None))
+  ->expect(Codec.toolCallState(~status=Some(ACP.Pending), ~rawInput=None))
   ->Expect.toBe(Message.InputStreaming)
 })
 
 test("initial tool call retains output without overriding status", t => {
   let rawOutput = JSON.Encode.object(Dict.make())
-  let call = Provider.makeToolCall(
+  let call = Codec.makeToolCall(
     ~id="call-1",
     ~title="tool",
     ~status=Some(ACP.Pending),

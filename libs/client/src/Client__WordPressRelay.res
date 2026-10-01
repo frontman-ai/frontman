@@ -2,7 +2,7 @@ module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 
 @new external makeHeaders: option<WebAPI.HeadersInit.t> => WebAPI.FetchTypes.headers = "Headers"
 
-let make = (~baseUrl, ~nonce: option<string>) => {
+let makeConfig = (~baseUrl, ~nonce: option<string>) => {
   let nonce = ref(nonce)
   let fetch = async (url, init: WebAPI.FetchTypes.requestInit) => {
     let headers = makeHeaders(init.headers)
@@ -28,5 +28,5 @@ let make = (~baseUrl, ~nonce: option<string>) => {
     | _ => response
     }
   }
-  Relay.make(~baseUrl, ~fetch)
+  Relay.makeConfig(~baseUrl, ~fetch)
 }
