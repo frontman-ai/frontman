@@ -10,6 +10,29 @@ const create = (conn) =>
 		() => {},
 	);
 
+test.each(["abort", "disconnect"])("ownership callback can %s before startup", async (action) => {
+	vi.useFakeTimers();
+	const wire = makeTransport();
+	onTestFinished(() => {
+		vi.clearAllTimers();
+		vi.useRealTimers();
+		vi.unstubAllGlobals();
+	});
+	const controller = new AbortController();
+	const config = ACP.makeConfig("ws://localhost/socket", "https://localhost/login",
+		() => "test-token", "test", "1", { framework: "wordpress" });
+	let owned;
+	const result = await ACP.connect(config, controller.signal, (conn) => {
+		owned = conn;
+		if (action === "abort") controller.abort();
+		else ACP.disconnect(conn);
+	});
+	expect(result.TAG).toBe("Error");
+	expect(ACP.isInitialized(owned)).toBe(false);
+	expect(wire.requests).toHaveLength(0);
+	expect(vi.getTimerCount()).toBe(0);
+});
+
 test.each([
 	"transport",
 	"channel",
@@ -35,6 +58,7 @@ test.each([
 	const { _0: conn } = await ACP.connect(
 		config,
 		controller.signal,
+		undefined,
 		undefined,
 		(result) => results.push(result),
 	);

@@ -229,7 +229,6 @@ let connect = async (
           resolve(Error(ConnectionFailed("Connection aborted")))
         }
       let conn = {socket, channel, clientConfig, state, dispose}
-      onConnectionCreated->Option.forEach(callback => callback(conn))
       let complete = result => {
         resolve(result)
         switch connected.contents {
@@ -308,7 +307,11 @@ let connect = async (
           joinChannel(channel, ~onResult=result => initialize(result)->ignore)->ignore
         }
       }
-      start()->ignore
+      onConnectionCreated->Option.forEach(callback => callback(conn))
+      switch closed.contents {
+      | true => ()
+      | false => start()->ignore
+      }
     })
   }
 }

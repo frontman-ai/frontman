@@ -221,7 +221,7 @@ let make = (~onConfigureProvider: unit => unit) => {
       | true =>
         sendUserMessage(
           ~session,
-          ~createSession=(~onComplete) => dispatch(CreateSession({onComplete})),
+          ~createSession=(~onComplete) => dispatch(CreateSession({onComplete: onComplete})),
           ~currentTaskId,
           ~content,
           ~annotations=messageAnnotations,

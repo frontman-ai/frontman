@@ -16,7 +16,14 @@ export function makeTransport() {
     initialize(index, error) {
       const frame = frames.filter(frame => frame[4].method === "initialize")[index];
       clientInfo = frame[4].params.clientInfo;
-      server.reply(frame, { protocolVersion: 1 }, error);
+      server.reply(frame, {
+        protocolVersion: 1,
+        agentCapabilities: { _meta: { "frontman.dev": {
+          agentAttribution: { version: 1 },
+          agents: [{ id: "agent-1", name: "executor", displayName: "Executor", description: "Executes work", color: "#985DF7" }],
+          defaultAgentId: "agent-1"
+        } } }
+      }, error);
     },
     lose(transport) {
       clientInfo = undefined;
