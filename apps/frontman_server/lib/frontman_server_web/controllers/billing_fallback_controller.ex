@@ -8,7 +8,6 @@ defmodule FrontmanServerWeb.BillingFallbackController do
   use FrontmanServerWeb, :controller
 
   alias FrontmanServer.Accounts.Scope
-  alias Plug.Conn.Status
 
   def call(conn, {:error, {:billing, :checkout, :subscription_already_active}}) do
     render_error(conn, :conflict, "You already have an active subscription.")
@@ -43,11 +42,7 @@ defmodule FrontmanServerWeb.BillingFallbackController do
   defp render_error(conn, status, message) do
     conn
     |> put_status(status)
-    |> put_view(html: FrontmanServerWeb.ErrorHTML, json: FrontmanServerWeb.ErrorJSON)
-    |> render("#{Status.code(status)}.#{get_format(conn)}",
-      message: message,
-      request_id: request_id(conn)
-    )
+    |> json(%{error: message, request_id: request_id(conn)})
   end
 
   defp request_id(conn), do: conn |> get_resp_header("x-request-id") |> List.first()

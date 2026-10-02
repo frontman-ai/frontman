@@ -65,6 +65,26 @@ type state =
   | Loaded(status)
   | Error(string)
 
+type request = Status | Checkout(interval) | CustomerPortal
+
+type flow = Idle | Opening | Failed(string)
+
+@schema
+type checkoutRequest = {interval: interval}
+
+@schema
+type urlResponse = {url: string}
+
+@schema
+type errorResponse = {error: string, @as("request_id") requestId: option<string>}
+
+let requestPath = request =>
+  switch request {
+  | Status => "/api/billing/status"
+  | Checkout(_) => "/api/billing/checkout"
+  | CustomerPortal => "/api/billing/customer-portal"
+  }
+
 type checkoutOption = {
   interval: interval,
   title: string,
@@ -119,14 +139,6 @@ let intervalLabel = interval =>
   | Yearly => "Yearly"
   }
 
-let checkoutPath = interval =>
-  switch interval {
-  | Monthly => "/billing/checkout/monthly"
-  | Yearly => "/billing/checkout/yearly"
-  }
-
-let customerPortalPath = "/billing/customer-portal"
-
 let currentPeriodEnd = (billingStatus: status) => billingStatus.currentPeriodEnd
 let trialEnd = (billingStatus: status) => billingStatus.trialEnd
 let cancelAt = (billingStatus: status) => billingStatus.cancelAt
@@ -153,7 +165,7 @@ let checkoutOptionTitle = (option: checkoutOption) => option.title
 let checkoutOptionPrice = (option: checkoutOption) => option.price
 let checkoutOptionDescription = (option: checkoutOption) => option.description
 let checkoutOptionBadge = (option: checkoutOption) => option.badge
-let checkoutOptionPath = (option: checkoutOption) => checkoutPath(option.interval)
+let checkoutOptionRequest = (option: checkoutOption) => Checkout(option.interval)
 let checkoutOptionRecommended = (option: checkoutOption) =>
   switch option.interval {
   | Yearly => true

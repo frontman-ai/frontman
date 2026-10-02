@@ -139,6 +139,7 @@ module Actions = {
   let openSettingsModal = () => setSettingsModalTab(Some(Client__State__Types.General))
   let openSettingsModalOnProviders = () => setSettingsModalTab(Some(Client__State__Types.Providers))
   let openSettingsModalOnBilling = () => setSettingsModalTab(Some(Client__State__Types.Billing))
+  let requestBilling = request => Client__State__Store.dispatch(RequestBilling(request))
   let closeSettingsModal = () => setSettingsModalTab(None)
 
   let fetchApiKeySettings = () => Client__State__Store.dispatch(FetchApiKeySettings)

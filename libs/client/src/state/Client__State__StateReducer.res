@@ -57,6 +57,8 @@ type action =
   | SetSettingsModalTab({tab: option<Client__State__Types.settingsTab>})
   | BillingStatusReceived(Client__Billing.status)
   | BillingStatusError({error: string})
+  | RequestBilling(Client__Billing.request)
+  | BillingFlowChanged(Client__Billing.flow)
   | FetchUserProfile({apiBaseUrl: string})
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
@@ -125,6 +127,11 @@ type customProviderMutationRequest =
   | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
+  | BillingRequestEffect({
+      request: Client__Billing.request,
+      apiBaseUrl: string,
+      requireAuthentication: Client__State__Types.requireAuthenticationFn,
+    })
   | BufferAssistantText({taskId: string, messageId: string, text: string, agentId: string})
   | BufferUserBlock({
       taskId: string,
@@ -300,6 +307,7 @@ let defaultState: state = {
   userProfile: None,
   settingsModalTab: None,
   billingStatus: Client__Billing.NotLoaded,
+  billingFlow: Client__Billing.Idle,
   openrouterKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
@@ -552,6 +560,7 @@ module Selectors = {
 
   let settingsModalTab = (state: state) => state.settingsModalTab
   let billingStatus = (state: state) => state.billingStatus
+  let billingFlow = (state: state) => state.billingFlow
   let billingAccessAllowed = (state: state) => Client__Billing.accessAllowed(state.billingStatus)
 
   let providerSetupRequired = (state: state): bool => {
@@ -720,6 +729,104 @@ let requireEmbeddedAuthentication = requireAuthentication => {
 }
 
 let embeddedAuthRequiredError = "Frontman authorization is required"
+
+let requestBillingImpl = (dispatch, ~request, ~apiBaseUrl, ~requireAuthentication) => {
+  let token = Client__EmbeddedAuth.loadToken()
+  let fail = error => dispatch(BillingFlowChanged(Client__Billing.Failed(error)))
+  switch Client__EmbeddedAuth.jsonHeaders() {
+  | None => requireEmbeddedAuthentication(requireAuthentication)
+  | Some(headers) =>
+    let tab = switch request {
+    | Client__Billing.Status => None
+    | Checkout(_) | CustomerPortal => Client__HostNavigation.openManagedTab(~url="about:blank")
+    }
+    let closeTab = () => tab->Option.forEach(WebAPI.Window.close)
+    switch (request, tab) {
+    | (Checkout(_) | CustomerPortal, None) => fail("Allow popups, then try again.")
+    | _ =>
+      let fetch = async () => {
+        try {
+          let body = switch request {
+          | Client__Billing.Checkout(interval) =>
+            Some(
+              WebAPI.BodyInit.fromString(
+                S.decodeOrThrow(
+                  {Client__Billing.interval: interval},
+                  ~from=Client__Billing.checkoutRequestSchema,
+                  ~to=S.json->S.noValidation(true),
+                )->JSON.stringify,
+              ),
+            )
+          | Status | CustomerPortal => None
+          }
+          let response = await WebAPI.Fetch.fetch(
+            `${apiBaseUrl}${Client__Billing.requestPath(request)}`,
+            ~init={
+              method: switch request {
+              | Status => "GET"
+              | _ => "POST"
+              },
+              headers,
+              credentials: Omit,
+              cache: NoStore,
+              ?body,
+              signal: WebAPI.AbortSignal.timeout(30000)->Null.make,
+            },
+          )
+          let json = await response->WebAPI.Response.json
+          switch token === Client__EmbeddedAuth.loadToken() {
+          | false => closeTab()
+          | true =>
+            switch (response.status, response.ok) {
+            | (401, _) =>
+              closeTab()
+              requireEmbeddedAuthentication(requireAuthentication)
+            | (_, false) =>
+              closeTab()
+              let error = S.parseOrThrow(json, ~to=Client__Billing.errorResponseSchema)
+              fail(
+                switch error.requestId {
+                | Some(id) => `${error.error} Request reference: ${id}`
+                | None => error.error
+                },
+              )
+            | (_, true) =>
+              switch request {
+              | Status =>
+                dispatch(
+                  BillingStatusReceived(S.parseOrThrow(json, ~to=Client__Billing.statusSchema)),
+                )
+              | Checkout(_) | CustomerPortal =>
+                let {url} = S.parseOrThrow(json, ~to=Client__Billing.urlResponseSchema)
+                switch WebAPI.URL.make(~url).protocol {
+                | "https:" => ()
+                | _ => failwith("Invalid Stripe URL")
+                }
+                let tab = tab->Option.getOrThrow
+                switch WebAPI.Window.closed(tab) {
+                | true => fail("Stripe tab was closed. Please try again.")
+                | false =>
+                  tab->WebAPI.Window.location->WebAPI.Location.assign(url)
+                  dispatch(BillingFlowChanged(Client__Billing.Idle))
+                }
+              }
+            }
+          }
+        } catch {
+        | exn =>
+          closeTab()
+          switch token === Client__EmbeddedAuth.loadToken() {
+          | true =>
+            Log.error(~error=JsExn.fromException(exn), "Billing request failed")
+            fail("Could not contact billing. Please try again.")
+          | false => ()
+          }
+        }
+      }
+      fetch()->ignore
+    }
+  }
+}
 
 let fetchUserProfileImpl = (dispatch, ~apiBaseUrl) => {
   let fetch = async () => {
@@ -1088,6 +1195,8 @@ let handleEffect = (effect, state: state, dispatch) => {
   | FlushSessionActions(actions) =>
     Client__TextDeltaBuffer.flush()
     actions->Array.forEach(action => dispatch(action))
+  | BillingRequestEffect({request, apiBaseUrl, requireAuthentication}) =>
+    requestBillingImpl(dispatch, ~request, ~apiBaseUrl, ~requireAuthentication)
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       let taskDispatch = (taskAction: TaskReducer.action) => {
@@ -1870,10 +1979,27 @@ let next = (state: state, action) => {
       tasks: updatedTasks,
       acpSession: NoAcpSession,
       billingStatus: Client__Billing.NotLoaded,
+      billingFlow: Client__Billing.Idle,
       settingsModalTab: None,
     }->StateReducer.update
 
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+  | RequestBilling(request) =>
+    switch (state.acpSession, request, state.billingFlow) {
+    | (NoAcpSession, _, _) | (_, Checkout(_) | CustomerPortal, Opening) =>
+      state->StateReducer.update
+    | (AcpSessionActive({apiBaseUrl, requireAuthentication}), _, _) =>
+      {
+        ...state,
+        billingFlow: switch request {
+        | Status => state.billingFlow
+        | _ => Opening
+        },
+      }->StateReducer.update(
+        ~sideEffects=[BillingRequestEffect({request, apiBaseUrl, requireAuthentication})],
+      )
+    }
+  | BillingFlowChanged(billingFlow) => {...state, billingFlow}->StateReducer.update
   | BillingStatusReceived(status) =>
     {...state, billingStatus: Client__Billing.Loaded(status)}->StateReducer.update
   | BillingStatusError({error}) =>

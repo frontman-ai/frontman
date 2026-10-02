@@ -89,6 +89,15 @@ module Provider = {
       )
     })
 
+    React.useEffect0(() => {
+      let refreshBilling = _ => Client__State.Actions.requestBilling(Client__Billing.Status)
+      WebAPI.Window.current->WebAPI.Window.addEventListener(Custom("focus"), refreshBilling)
+      Some(
+        () =>
+          WebAPI.Window.current->WebAPI.Window.removeEventListener(Custom("focus"), refreshBilling),
+      )
+    })
+
     let contextValue: contextValue = {state, dispatch}
 
     <ContextProvider value={Some(contextValue)}> {children} </ContextProvider>

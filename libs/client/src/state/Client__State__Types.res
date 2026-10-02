@@ -230,6 +230,7 @@ type state = {
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
   billingStatus: Client__Billing.state,
+  billingFlow: Client__Billing.flow,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
   fireworksKeySettings: apiKeySettings,

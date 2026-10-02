@@ -11,87 +11,42 @@ defmodule FrontmanServerWeb.BillingController do
 
   action_fallback FrontmanServerWeb.BillingFallbackController
 
-  def checkout_monthly(conn, _params) do
-    stripe_launch(conn, ~p"/billing/checkout/monthly")
-  end
+  def status(conn, _params), do: json(conn, Billing.status(conn.assigns.current_scope))
 
-  def create_monthly_checkout(conn, _params) do
-    checkout_browser_redirect(conn, :monthly)
-  end
+  def checkout(conn, %{"interval" => "monthly"}), do: checkout_url(conn, :monthly)
+  def checkout(conn, %{"interval" => "yearly"}), do: checkout_url(conn, :yearly)
 
-  def checkout_yearly(conn, _params) do
-    stripe_launch(conn, ~p"/billing/checkout/yearly")
-  end
-
-  def create_yearly_checkout(conn, _params) do
-    checkout_browser_redirect(conn, :yearly)
+  def checkout(conn, _params) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{error: "Choose a monthly or yearly interval."})
   end
 
   def customer_portal(conn, _params) do
-    stripe_launch(conn, ~p"/billing/customer-portal")
-  end
-
-  def create_customer_portal(conn, _params) do
-    customer_portal_browser_redirect(conn)
-  end
-
-  def stripe_return_success(conn, _params) do
-    stripe_return(conn, "Stripe checkout complete")
-  end
-
-  def stripe_return_cancel(conn, _params) do
-    stripe_return(conn, "Stripe checkout closed")
-  end
-
-  def stripe_return_customer_portal(conn, _params) do
-    stripe_return(conn, "Stripe billing portal closed")
-  end
-
-  defp checkout_return_urls do
-    %{
-      success_url: url(~p"/billing/stripe-return/success") <> "?session_id={CHECKOUT_SESSION_ID}",
-      cancel_url: url(~p"/billing/stripe-return/cancel")
-    }
-  end
-
-  defp customer_portal_return_url do
-    url(~p"/billing/stripe-return/customer-portal")
-  end
-
-  defp stripe_launch(conn, action) do
-    render(conn, :stripe_launch,
-      page_title: "Opening Stripe",
-      title: "Opening Stripe...",
-      message: "This tab will continue to Stripe automatically.",
-      action: action,
-      submit_label: "Open Stripe"
-    )
-  end
-
-  defp checkout_browser_redirect(conn, interval) do
-    scope = conn.assigns.current_scope
-
-    case Billing.start_checkout(scope, interval, checkout_return_urls()) do
-      {:ok, %{"url" => url}} when is_binary(url) ->
-        redirect(conn, external: url)
-
-      {:error, reason} ->
-        {:error, {:billing, :checkout, reason}}
+    case Billing.create_customer_portal_url(
+           conn.assigns.current_scope,
+           url(~p"/billing/stripe-return/customer-portal")
+         ) do
+      {:ok, url} when is_binary(url) -> json(conn, %{url: url})
+      {:error, reason} -> {:error, {:billing, :customer_portal, reason}}
     end
   end
 
-  defp customer_portal_browser_redirect(conn) do
-    scope = conn.assigns.current_scope
+  def stripe_return_success(conn, _params), do: stripe_return(conn, "Stripe checkout complete")
+  def stripe_return_cancel(conn, _params), do: stripe_return(conn, "Stripe checkout closed")
 
-    case Billing.create_customer_portal_url(
-           scope,
-           customer_portal_return_url()
-         ) do
-      {:ok, url} when is_binary(url) ->
-        redirect(conn, external: url)
+  def stripe_return_customer_portal(conn, _params),
+    do: stripe_return(conn, "Stripe billing portal closed")
 
-      {:error, reason} ->
-        {:error, {:billing, :customer_portal, reason}}
+  defp checkout_url(conn, interval) do
+    return_urls = %{
+      success_url: url(~p"/billing/stripe-return/success") <> "?session_id={CHECKOUT_SESSION_ID}",
+      cancel_url: url(~p"/billing/stripe-return/cancel")
+    }
+
+    case Billing.start_checkout(conn.assigns.current_scope, interval, return_urls) do
+      {:ok, %{"url" => url}} when is_binary(url) -> json(conn, %{url: url})
+      {:error, reason} -> {:error, {:billing, :checkout, reason}}
     end
   end
 
