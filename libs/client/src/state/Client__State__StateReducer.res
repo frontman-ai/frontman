@@ -742,7 +742,7 @@ let embeddedAuthRequiredError = "Frontman authorization is required"
 
 type billingRequestError = Unauthorized | Cancelled | RequestFailed(string)
 
-let fetchBilling = (
+let fetchBilling = async (
   ~request,
   ~apiBaseUrl,
   ~signal: WebAPI.EventTypes.abortSignal,
@@ -752,66 +752,61 @@ let fetchBilling = (
   let token = Client__EmbeddedAuth.loadToken()
   let isCurrent = () => !signal.aborted && token === Client__EmbeddedAuth.loadToken()
   switch Client__EmbeddedAuth.jsonHeaders() {
-  | None => onResult(Error(Unauthorized))
+  | None => Unauthorized->Error->onResult
   | Some(headers) =>
-    let fetch = async () => {
-      try {
-        let body = switch request {
-        | Client__Billing.Checkout(interval) =>
-          Some(
-            WebAPI.BodyInit.fromString(
-              S.decodeOrThrow(
-                {Client__Billing.interval: interval},
-                ~from=Client__Billing.checkoutRequestSchema,
-                ~to=S.json->S.noValidation(true),
-              )->JSON.stringify,
-            ),
-          )
-        | Status | CustomerPortal => None
-        }
-        let response = await WebAPI.Fetch.fetch(
-          `${apiBaseUrl}${Client__Billing.requestPath(request)}`,
-          ~init={
-            method: switch request {
-            | Status => "GET"
-            | _ => "POST"
-            },
-            headers,
-            credentials: Omit,
-            cache: NoStore,
-            ?body,
-            signal: WebAPI.AbortSignal.any([signal, WebAPI.AbortSignal.timeout(30000)])->Null.make,
-          },
+    try {
+      let body = switch request {
+      | Client__Billing.Checkout(interval) =>
+        {Client__Billing.interval: interval}
+        ->S.decodeOrThrow(
+          ~from=Client__Billing.checkoutRequestSchema,
+          ~to=S.json->S.noValidation(true),
         )
-        let json = await response->WebAPI.Response.json
-        onResult(
-          switch (isCurrent(), response.status, response.ok) {
-          | (false, _, _) => Error(Cancelled)
-          | (true, 401, _) => Error(Unauthorized)
-          | (true, _, false) =>
-            let error = S.parseOrThrow(json, ~to=Client__Billing.errorResponseSchema)
-            Error(
-              RequestFailed(
-                switch error.requestId {
-                | Some(id) => `${error.error} Request reference: ${id}`
-                | None => error.error
-                },
-              ),
-            )
-          | (true, _, true) => Ok(S.parseOrThrow(json, ~to=schema))
-          },
-        )
-      } catch {
-      | exn =>
-        switch isCurrent() {
-        | false => onResult(Error(Cancelled))
-        | true =>
-          Log.error(~error=JsExn.fromException(exn), "Billing request failed")
-          onResult(Error(RequestFailed("Could not contact billing. Please try again.")))
-        }
+        ->JSON.stringify
+        ->WebAPI.BodyInit.fromString
+        ->Some
+      | Status | CustomerPortal => None
       }
+      let response = await `${apiBaseUrl}${Client__Billing.requestPath(
+          request,
+        )}`->WebAPI.Fetch.fetch(
+        ~init={
+          method: switch request {
+          | Status => "GET"
+          | _ => "POST"
+          },
+          headers,
+          credentials: Omit,
+          cache: NoStore,
+          ?body,
+          signal: [signal, WebAPI.AbortSignal.timeout(30000)]->WebAPI.AbortSignal.any->Null.make,
+        },
+      )
+      let json = await response->WebAPI.Response.json
+      switch (isCurrent(), response.status, response.ok) {
+      | (false, _, _) => Error(Cancelled)
+      | (true, 401, _) => Error(Unauthorized)
+      | (true, _, false) =>
+        let error = json->S.parseOrThrow(~to=Client__Billing.errorResponseSchema)
+        switch error.requestId {
+        | Some(id) => `${error.error} Request reference: ${id}`
+        | None => error.error
+        }
+        ->RequestFailed
+        ->Error
+      | (true, _, true) => json->S.parseOrThrow(~to=schema)->Ok
+      }->onResult
+    } catch {
+    | exn =>
+      switch isCurrent() {
+      | false => Cancelled
+      | true =>
+        Log.error(~error=JsExn.fromException(exn), "Billing request failed")
+        RequestFailed("Could not contact billing. Please try again.")
+      }
+      ->Error
+      ->onResult
     }
-    fetch()->ignore
   }
 }
 
@@ -1198,7 +1193,7 @@ let handleEffect = (effect, state: state, dispatch) => {
         | Error(Cancelled) => ()
         }
       },
-    )
+    )->ignore
   | OpenBillingTabAndFetchUrl({request, apiBaseUrl, signal}) =>
     switch Client__EmbeddedAuth.loadToken() {
     | None => dispatch(BillingAuthRequired({tab: None}))
@@ -1223,7 +1218,7 @@ let handleEffect = (effect, state: state, dispatch) => {
             | Error(Cancelled) => dispatch(BillingRequestCancelled({tab: Some(tab)}))
             }
           },
-        )
+        )->ignore
       }
     }
   | CloseBillingTab(tab) => tab->Option.forEach(WebAPI.Window.close)
