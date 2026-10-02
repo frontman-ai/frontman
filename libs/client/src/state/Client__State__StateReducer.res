@@ -58,7 +58,10 @@ type action =
   | BillingStatusReceived(Client__Billing.status)
   | BillingStatusError({error: string})
   | RequestBilling(Client__Billing.request)
-  | BillingFlowChanged(Client__Billing.flow)
+  | BillingUrlReceived({tab: WebAPI.Window.t, url: string})
+  | BillingLaunchFailed({tab: option<WebAPI.Window.t>, error: string})
+  | BillingAuthRequired({tab: option<WebAPI.Window.t>})
+  | BillingRequestCancelled({tab: option<WebAPI.Window.t>})
   | FetchUserProfile({apiBaseUrl: string})
   | FetchApiKeySettings
   | ApiKeySettingsReceived({provider: apiKeyProvider, source: Client__State__Types.apiKeySource})
@@ -128,12 +131,15 @@ type customProviderMutationRequest =
 
 type effect =
   | AbortBillingRequest(option<WebAPI.EventTypes.abortController>)
-  | BillingRequestEffect({
+  | FetchBillingStatus({signal: WebAPI.EventTypes.abortSignal, apiBaseUrl: string})
+  | OpenBillingTabAndFetchUrl({
       signal: WebAPI.EventTypes.abortSignal,
       request: Client__Billing.request,
       apiBaseUrl: string,
-      requireAuthentication: Client__State__Types.requireAuthenticationFn,
     })
+  | NavigateBillingTab({tab: WebAPI.Window.t, url: string})
+  | CloseBillingTab(option<WebAPI.Window.t>)
+  | RequireBillingAuthentication(Client__State__Types.requireAuthenticationFn)
   | BufferAssistantText({taskId: string, messageId: string, text: string, agentId: string})
   | BufferUserBlock({
       taskId: string,
@@ -734,116 +740,78 @@ let requireEmbeddedAuthentication = requireAuthentication => {
 
 let embeddedAuthRequiredError = "Frontman authorization is required"
 
-let requestBillingImpl = (
-  dispatch: action => unit,
+type billingRequestError = Unauthorized | Cancelled | RequestFailed(string)
+
+let fetchBilling = (
   ~request,
   ~apiBaseUrl,
-  ~requireAuthentication,
   ~signal: WebAPI.EventTypes.abortSignal,
+  ~schema,
+  ~onResult,
 ) => {
   let token = Client__EmbeddedAuth.loadToken()
   let isCurrent = () => !signal.aborted && token === Client__EmbeddedAuth.loadToken()
-  let fail = (error: string) => {
-    switch request {
-    | Client__Billing.Status => dispatch(BillingStatusError({error: error}))
-    | Checkout(_) | CustomerPortal => dispatch(BillingFlowChanged(Client__Billing.Failed(error)))
-    }
-  }
   switch Client__EmbeddedAuth.jsonHeaders() {
-  | None => requireEmbeddedAuthentication(requireAuthentication)
+  | None => onResult(Error(Unauthorized))
   | Some(headers) =>
-    let tab = switch request {
-    | Client__Billing.Status => None
-    | Checkout(_) | CustomerPortal => Client__HostNavigation.openManagedTab(~url="about:blank")
-    }
-    let closeTab = () => tab->Option.forEach(WebAPI.Window.close)
-    switch (request, tab) {
-    | (Checkout(_) | CustomerPortal, None) => fail("Allow popups, then try again.")
-    | _ =>
-      let fetch = async () => {
-        try {
-          let body = switch request {
-          | Client__Billing.Checkout(interval) =>
-            Some(
-              WebAPI.BodyInit.fromString(
-                S.decodeOrThrow(
-                  {Client__Billing.interval: interval},
-                  ~from=Client__Billing.checkoutRequestSchema,
-                  ~to=S.json->S.noValidation(true),
-                )->JSON.stringify,
-              ),
-            )
-          | Status | CustomerPortal => None
-          }
-          let response = await WebAPI.Fetch.fetch(
-            `${apiBaseUrl}${Client__Billing.requestPath(request)}`,
-            ~init={
-              method: switch request {
-              | Status => "GET"
-              | _ => "POST"
-              },
-              headers,
-              credentials: Omit,
-              cache: NoStore,
-              ?body,
-              signal: WebAPI.AbortSignal.any([
-                signal,
-                WebAPI.AbortSignal.timeout(30000),
-              ])->Null.make,
-            },
+    let fetch = async () => {
+      try {
+        let body = switch request {
+        | Client__Billing.Checkout(interval) =>
+          Some(
+            WebAPI.BodyInit.fromString(
+              S.decodeOrThrow(
+                {Client__Billing.interval: interval},
+                ~from=Client__Billing.checkoutRequestSchema,
+                ~to=S.json->S.noValidation(true),
+              )->JSON.stringify,
+            ),
           )
-          let json = await response->WebAPI.Response.json
-          switch isCurrent() {
-          | false => closeTab()
-          | true =>
-            switch (response.status, response.ok) {
-            | (401, _) =>
-              closeTab()
-              requireEmbeddedAuthentication(requireAuthentication)
-            | (_, false) =>
-              closeTab()
-              let error = S.parseOrThrow(json, ~to=Client__Billing.errorResponseSchema)
-              fail(
+        | Status | CustomerPortal => None
+        }
+        let response = await WebAPI.Fetch.fetch(
+          `${apiBaseUrl}${Client__Billing.requestPath(request)}`,
+          ~init={
+            method: switch request {
+            | Status => "GET"
+            | _ => "POST"
+            },
+            headers,
+            credentials: Omit,
+            cache: NoStore,
+            ?body,
+            signal: WebAPI.AbortSignal.any([signal, WebAPI.AbortSignal.timeout(30000)])->Null.make,
+          },
+        )
+        let json = await response->WebAPI.Response.json
+        onResult(
+          switch (isCurrent(), response.status, response.ok) {
+          | (false, _, _) => Error(Cancelled)
+          | (true, 401, _) => Error(Unauthorized)
+          | (true, _, false) =>
+            let error = S.parseOrThrow(json, ~to=Client__Billing.errorResponseSchema)
+            Error(
+              RequestFailed(
                 switch error.requestId {
                 | Some(id) => `${error.error} Request reference: ${id}`
                 | None => error.error
                 },
-              )
-            | (_, true) =>
-              switch request {
-              | Status =>
-                dispatch(
-                  BillingStatusReceived(S.parseOrThrow(json, ~to=Client__Billing.statusSchema)),
-                )
-              | Checkout(_) | CustomerPortal =>
-                let {url} = S.parseOrThrow(json, ~to=Client__Billing.urlResponseSchema)
-                switch WebAPI.URL.make(~url).protocol {
-                | "https:" => ()
-                | _ => failwith("Invalid Stripe URL")
-                }
-                let tab = tab->Option.getOrThrow
-                switch WebAPI.Window.closed(tab) {
-                | true => fail("Stripe tab was closed. Please try again.")
-                | false =>
-                  tab->WebAPI.Window.location->WebAPI.Location.assign(url)
-                  dispatch(BillingFlowChanged(Client__Billing.Idle))
-                }
-              }
-            }
-          }
-        } catch {
-        | exn =>
-          closeTab()
-          switch isCurrent() {
-          | true =>
-            Log.error(~error=JsExn.fromException(exn), "Billing request failed")
-            fail("Could not contact billing. Please try again.")
-          | false => ()
-          }
+              ),
+            )
+          | (true, _, true) => Ok(S.parseOrThrow(json, ~to=schema))
+          },
+        )
+      } catch {
+      | exn =>
+        switch isCurrent() {
+        | false => onResult(Error(Cancelled))
+        | true =>
+          Log.error(~error=JsExn.fromException(exn), "Billing request failed")
+          onResult(Error(RequestFailed("Could not contact billing. Please try again.")))
         }
       }
-      fetch()->ignore
     }
+    fetch()->ignore
   }
 }
 
@@ -1216,8 +1184,67 @@ let handleEffect = (effect, state: state, dispatch) => {
     actions->Array.forEach(action => dispatch(action))
   | AbortBillingRequest(controller) =>
     controller->Option.forEach(controller => WebAPI.AbortController.abort(controller))
-  | BillingRequestEffect({request, apiBaseUrl, requireAuthentication, signal}) =>
-    requestBillingImpl(dispatch, ~request, ~apiBaseUrl, ~requireAuthentication, ~signal)
+  | FetchBillingStatus({apiBaseUrl, signal}) =>
+    fetchBilling(
+      ~request=Status,
+      ~apiBaseUrl,
+      ~signal,
+      ~schema=Client__Billing.statusSchema,
+      ~onResult=result => {
+        switch result {
+        | Ok(status) => dispatch(BillingStatusReceived(status))
+        | Error(RequestFailed(error)) => dispatch(BillingStatusError({error: error}))
+        | Error(Unauthorized) => dispatch(BillingAuthRequired({tab: None}))
+        | Error(Cancelled) => ()
+        }
+      },
+    )
+  | OpenBillingTabAndFetchUrl({request, apiBaseUrl, signal}) =>
+    switch Client__EmbeddedAuth.loadToken() {
+    | None => dispatch(BillingAuthRequired({tab: None}))
+    | Some(_) =>
+      switch Client__HostNavigation.openManagedTab(~url="about:blank") {
+      | None => dispatch(BillingLaunchFailed({tab: None, error: "Allow popups, then try again."}))
+      | Some(tab) =>
+        fetchBilling(
+          ~request,
+          ~apiBaseUrl,
+          ~signal,
+          ~schema=Client__Billing.urlResponseSchema,
+          ~onResult=result => {
+            switch result {
+            | Ok({url}) =>
+              switch WebAPI.URL.make(~url).protocol {
+              | "https:" => dispatch(BillingUrlReceived({tab, url}))
+              | _ => failwith("Invalid Stripe URL")
+              }
+            | Error(RequestFailed(error)) => dispatch(BillingLaunchFailed({tab: Some(tab), error}))
+            | Error(Unauthorized) => dispatch(BillingAuthRequired({tab: Some(tab)}))
+            | Error(Cancelled) => dispatch(BillingRequestCancelled({tab: Some(tab)}))
+            }
+          },
+        )
+      }
+    }
+  | CloseBillingTab(tab) => tab->Option.forEach(WebAPI.Window.close)
+  | RequireBillingAuthentication(requireAuthentication) =>
+    requireEmbeddedAuthentication(requireAuthentication)
+  | NavigateBillingTab({tab, url}) =>
+    try {
+      switch WebAPI.Window.closed(tab) {
+      | true =>
+        dispatch(
+          BillingLaunchFailed({tab: Some(tab), error: "Stripe tab was closed. Please try again."}),
+        )
+      | false => tab->WebAPI.Window.location->WebAPI.Location.assign(url)
+      }
+    } catch {
+    | exn =>
+      Log.error(~error=JsExn.fromException(exn), "Billing navigation failed")
+      dispatch(
+        BillingLaunchFailed({tab: Some(tab), error: "Could not open Stripe. Please try again."}),
+      )
+    }
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       let taskDispatch = (taskAction: TaskReducer.action) => {
@@ -2016,7 +2043,7 @@ let next = (state: state, action) => {
     switch (state.acpSession, request, state.billingFlow) {
     | (NoAcpSession, _, _) | (_, Checkout(_) | CustomerPortal, Opening) =>
       state->StateReducer.update
-    | (AcpSessionActive({apiBaseUrl, requireAuthentication}), _, _) =>
+    | (AcpSessionActive({apiBaseUrl}), _, _) =>
       let controller = switch state.billingAbortController {
       | Some(controller) => controller
       | None => WebAPI.AbortController.make()
@@ -2030,7 +2057,13 @@ let next = (state: state, action) => {
         WebAPI.AbortSignal.any([controller.signal, statusController.signal])
       | _ => controller.signal
       }
-      let effects = [BillingRequestEffect({request, apiBaseUrl, requireAuthentication, signal})]
+      let effects = switch request {
+      | Status => [
+          AbortBillingRequest(state.billingStatusAbortController),
+          FetchBillingStatus({apiBaseUrl, signal}),
+        ]
+      | Checkout(_) | CustomerPortal => [OpenBillingTabAndFetchUrl({request, apiBaseUrl, signal})]
+      }
       {
         ...state,
         billingAbortController: Some(controller),
@@ -2039,14 +2072,28 @@ let next = (state: state, action) => {
         | Status => state.billingFlow
         | _ => Opening
         },
-      }->StateReducer.update(
-        ~sideEffects=switch request {
-        | Status => Array.concat([AbortBillingRequest(state.billingStatusAbortController)], effects)
-        | _ => effects
-        },
-      )
+      }->StateReducer.update(~sideEffects=effects)
     }
-  | BillingFlowChanged(billingFlow) => {...state, billingFlow}->StateReducer.update
+  | BillingUrlReceived({tab, url}) =>
+    {...state, billingFlow: Client__Billing.Idle}->StateReducer.update(
+      ~sideEffects=[NavigateBillingTab({tab, url})],
+    )
+  | BillingLaunchFailed({tab, error}) =>
+    {...state, billingFlow: Client__Billing.Failed(error)}->StateReducer.update(
+      ~sideEffects=[CloseBillingTab(tab)],
+    )
+  | BillingRequestCancelled({tab}) =>
+    state->StateReducer.update(~sideEffects=[CloseBillingTab(tab)])
+  | BillingAuthRequired({tab}) =>
+    {...state, billingFlow: Client__Billing.Idle}->StateReducer.update(
+      ~sideEffects=switch state.acpSession {
+      | NoAcpSession => [CloseBillingTab(tab)]
+      | AcpSessionActive({requireAuthentication}) => [
+          CloseBillingTab(tab),
+          RequireBillingAuthentication(requireAuthentication),
+        ]
+      },
+    )
   | BillingStatusReceived(status) =>
     {
       ...state,

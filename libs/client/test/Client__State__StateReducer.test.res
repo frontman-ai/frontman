@@ -1348,6 +1348,38 @@ describe("Client State Reducer - Billing Settings", () => {
     t->expect(effects->Array.length)->Expect.toBe(0)
   })
 
+  test("billing launch results schedule navigation and cleanup without executing them", t => {
+    let tab = WebAPI.Window.current
+    let requireAuthentication = () => failwith("Reducer must not authenticate")
+    let state: Reducer.state = {
+      ...Reducer.defaultState,
+      billingFlow: Opening,
+      acpSession: TestHelpers.activeAcpSession(~requireAuthentication),
+    }
+    let url = "https://billing.stripe.test/session"
+    let cases: array<(Reducer.action, Client__Billing.flow, array<Reducer.effect>)> = [
+      (BillingUrlReceived({tab, url}), Idle, [NavigateBillingTab({tab, url})]),
+      (
+        BillingLaunchFailed({tab: Some(tab), error: "Unavailable"}),
+        Failed("Unavailable"),
+        [CloseBillingTab(Some(tab))],
+      ),
+      (
+        BillingAuthRequired({tab: Some(tab)}),
+        Idle,
+        [CloseBillingTab(Some(tab)), RequireBillingAuthentication(requireAuthentication)],
+      ),
+      (BillingRequestCancelled({tab: Some(tab)}), Opening, [CloseBillingTab(Some(tab))]),
+    ]
+    cases->Array.forEach(
+      ((action, flow, expectedEffects)) => {
+        let (updated, effects) = Reducer.next(state, action)
+        t->expect(updated.billingFlow)->Expect.toEqual(flow)
+        t->expect(effects)->Expect.toEqual(expectedEffects)
+      },
+    )
+  })
+
   test("BillingStatusReceived stores global billing status", t => {
     let billingStatus = parseBillingStatus(`{
       "status": "active",
