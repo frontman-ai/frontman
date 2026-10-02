@@ -127,7 +127,9 @@ type customProviderMutationRequest =
   | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
+  | AbortBillingRequest(option<WebAPI.EventTypes.abortController>)
   | BillingRequestEffect({
+      signal: WebAPI.EventTypes.abortSignal,
       request: Client__Billing.request,
       apiBaseUrl: string,
       requireAuthentication: Client__State__Types.requireAuthenticationFn,
@@ -308,6 +310,8 @@ let defaultState: state = {
   settingsModalTab: None,
   billingStatus: Client__Billing.NotLoaded,
   billingFlow: Client__Billing.Idle,
+  billingAbortController: None,
+  billingStatusAbortController: None,
   openrouterKeySettings: {
     source: Client__State__Types.None,
     saveStatus: Client__State__Types.Idle,
@@ -730,9 +734,21 @@ let requireEmbeddedAuthentication = requireAuthentication => {
 
 let embeddedAuthRequiredError = "Frontman authorization is required"
 
-let requestBillingImpl = (dispatch, ~request, ~apiBaseUrl, ~requireAuthentication) => {
+let requestBillingImpl = (
+  dispatch: action => unit,
+  ~request,
+  ~apiBaseUrl,
+  ~requireAuthentication,
+  ~signal: WebAPI.EventTypes.abortSignal,
+) => {
   let token = Client__EmbeddedAuth.loadToken()
-  let fail = error => dispatch(BillingFlowChanged(Client__Billing.Failed(error)))
+  let isCurrent = () => !signal.aborted && token === Client__EmbeddedAuth.loadToken()
+  let fail = (error: string) => {
+    switch request {
+    | Client__Billing.Status => dispatch(BillingStatusError({error: error}))
+    | Checkout(_) | CustomerPortal => dispatch(BillingFlowChanged(Client__Billing.Failed(error)))
+    }
+  }
   switch Client__EmbeddedAuth.jsonHeaders() {
   | None => requireEmbeddedAuthentication(requireAuthentication)
   | Some(headers) =>
@@ -770,11 +786,14 @@ let requestBillingImpl = (dispatch, ~request, ~apiBaseUrl, ~requireAuthenticatio
               credentials: Omit,
               cache: NoStore,
               ?body,
-              signal: WebAPI.AbortSignal.timeout(30000)->Null.make,
+              signal: WebAPI.AbortSignal.any([
+                signal,
+                WebAPI.AbortSignal.timeout(30000),
+              ])->Null.make,
             },
           )
           let json = await response->WebAPI.Response.json
-          switch token === Client__EmbeddedAuth.loadToken() {
+          switch isCurrent() {
           | false => closeTab()
           | true =>
             switch (response.status, response.ok) {
@@ -815,7 +834,7 @@ let requestBillingImpl = (dispatch, ~request, ~apiBaseUrl, ~requireAuthenticatio
         } catch {
         | exn =>
           closeTab()
-          switch token === Client__EmbeddedAuth.loadToken() {
+          switch isCurrent() {
           | true =>
             Log.error(~error=JsExn.fromException(exn), "Billing request failed")
             fail("Could not contact billing. Please try again.")
@@ -1195,8 +1214,10 @@ let handleEffect = (effect, state: state, dispatch) => {
   | FlushSessionActions(actions) =>
     Client__TextDeltaBuffer.flush()
     actions->Array.forEach(action => dispatch(action))
-  | BillingRequestEffect({request, apiBaseUrl, requireAuthentication}) =>
-    requestBillingImpl(dispatch, ~request, ~apiBaseUrl, ~requireAuthentication)
+  | AbortBillingRequest(controller) =>
+    controller->Option.forEach(controller => WebAPI.AbortController.abort(controller))
+  | BillingRequestEffect({request, apiBaseUrl, requireAuthentication, signal}) =>
+    requestBillingImpl(dispatch, ~request, ~apiBaseUrl, ~requireAuthentication, ~signal)
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
   | TaskEffect({target, effect: taskEffect}) => {
       let taskDispatch = (taskAction: TaskReducer.action) => {
@@ -1980,8 +2001,15 @@ let next = (state: state, action) => {
       acpSession: NoAcpSession,
       billingStatus: Client__Billing.NotLoaded,
       billingFlow: Client__Billing.Idle,
+      billingAbortController: None,
+      billingStatusAbortController: None,
       settingsModalTab: None,
-    }->StateReducer.update
+    }->StateReducer.update(
+      ~sideEffects=[
+        AbortBillingRequest(state.billingAbortController),
+        AbortBillingRequest(state.billingStatusAbortController),
+      ],
+    )
 
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
   | RequestBilling(request) =>
@@ -1989,21 +2017,58 @@ let next = (state: state, action) => {
     | (NoAcpSession, _, _) | (_, Checkout(_) | CustomerPortal, Opening) =>
       state->StateReducer.update
     | (AcpSessionActive({apiBaseUrl, requireAuthentication}), _, _) =>
+      let controller = switch state.billingAbortController {
+      | Some(controller) => controller
+      | None => WebAPI.AbortController.make()
+      }
+      let statusController = switch request {
+      | Status => Some(WebAPI.AbortController.make())
+      | _ => state.billingStatusAbortController
+      }
+      let signal = switch (request, statusController) {
+      | (Status, Some(statusController)) =>
+        WebAPI.AbortSignal.any([controller.signal, statusController.signal])
+      | _ => controller.signal
+      }
+      let effects = [BillingRequestEffect({request, apiBaseUrl, requireAuthentication, signal})]
       {
         ...state,
+        billingAbortController: Some(controller),
+        billingStatusAbortController: statusController,
         billingFlow: switch request {
         | Status => state.billingFlow
         | _ => Opening
         },
       }->StateReducer.update(
-        ~sideEffects=[BillingRequestEffect({request, apiBaseUrl, requireAuthentication})],
+        ~sideEffects=switch request {
+        | Status => Array.concat([AbortBillingRequest(state.billingStatusAbortController)], effects)
+        | _ => effects
+        },
       )
     }
   | BillingFlowChanged(billingFlow) => {...state, billingFlow}->StateReducer.update
   | BillingStatusReceived(status) =>
-    {...state, billingStatus: Client__Billing.Loaded(status)}->StateReducer.update
+    {
+      ...state,
+      billingStatus: Client__Billing.Loaded(status),
+      billingStatusAbortController: None,
+    }->StateReducer.update(
+      ~sideEffects=switch state.billingStatusAbortController {
+      | None => []
+      | Some(_) => [AbortBillingRequest(state.billingStatusAbortController)]
+      },
+    )
   | BillingStatusError({error}) =>
-    {...state, billingStatus: Client__Billing.Error(error)}->StateReducer.update
+    {
+      ...state,
+      billingStatus: Client__Billing.Error(error),
+      billingStatusAbortController: None,
+    }->StateReducer.update(
+      ~sideEffects=switch state.billingStatusAbortController {
+      | None => []
+      | Some(_) => [AbortBillingRequest(state.billingStatusAbortController)]
+      },
+    )
 
   | FetchUserProfile({apiBaseUrl}) =>
     state->StateReducer.update(~sideEffects=[FetchUserProfileEffect({apiBaseUrl: apiBaseUrl})])

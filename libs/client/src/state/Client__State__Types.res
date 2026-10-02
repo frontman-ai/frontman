@@ -231,6 +231,8 @@ type state = {
   settingsModalTab: option<settingsTab>,
   billingStatus: Client__Billing.state,
   billingFlow: Client__Billing.flow,
+  billingAbortController: option<WebAPI.EventTypes.abortController>,
+  billingStatusAbortController: option<WebAPI.EventTypes.abortController>,
   openrouterKeySettings: apiKeySettings,
   anthropicKeySettings: apiKeySettings,
   fireworksKeySettings: apiKeySettings,
