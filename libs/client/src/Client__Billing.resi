@@ -20,6 +20,16 @@ type state =
   | Loaded(status)
   | Error(string)
 
+type request = Status | Checkout(interval) | CustomerPortal
+type flow = Idle | Opening | Failed(string)
+type checkoutRequest = {interval: interval}
+type urlResponse = {url: string}
+type errorResponse = {error: string, @as("request_id") requestId: option<string>}
+let checkoutRequestSchema: S.t<checkoutRequest>
+let urlResponseSchema: S.t<urlResponse>
+let errorResponseSchema: S.t<errorResponse>
+let requestPath: request => string
+
 type checkoutOption
 
 let statusSchema: S.t<status>
@@ -39,11 +49,10 @@ let trialEnd: status => option<string>
 let cancelAt: status => option<string>
 let canceledAt: status => option<string>
 
-let customerPortalPath: string
 let checkoutOptions: array<checkoutOption>
 let checkoutOptionTitle: checkoutOption => string
 let checkoutOptionPrice: checkoutOption => string
 let checkoutOptionDescription: checkoutOption => string
 let checkoutOptionBadge: checkoutOption => option<string>
-let checkoutOptionPath: checkoutOption => string
+let checkoutOptionRequest: checkoutOption => request
 let checkoutOptionRecommended: checkoutOption => bool

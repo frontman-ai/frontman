@@ -10,5 +10,3 @@ let openManagedTab = (~url: string): option<managedTab> => {
     tab
   })
 }
-
-let tabClosed = (tab: managedTab): bool => tab->WebAPI.Window.closed

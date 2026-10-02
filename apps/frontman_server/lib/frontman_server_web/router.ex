@@ -86,13 +86,6 @@ defmodule FrontmanServerWeb.Router do
   scope "/", FrontmanServerWeb do
     pipe_through([:browser, :require_authenticated_user])
 
-    get("/billing/checkout/monthly", BillingController, :checkout_monthly)
-    post("/billing/checkout/monthly", BillingController, :create_monthly_checkout)
-    get("/billing/checkout/yearly", BillingController, :checkout_yearly)
-    post("/billing/checkout/yearly", BillingController, :create_yearly_checkout)
-    get("/billing/customer-portal", BillingController, :customer_portal)
-    post("/billing/customer-portal", BillingController, :create_customer_portal)
-
     get("/users/settings", UserSettingsController, :edit)
     put("/users/settings", UserSettingsController, :update)
     get("/users/settings/confirm-email/:token", UserSettingsController, :confirm_email)
@@ -110,6 +103,10 @@ defmodule FrontmanServerWeb.Router do
     pipe_through(:bearer_api)
 
     delete("/client-token", ClientTokenController, :delete)
+
+    get("/billing/status", BillingController, :status)
+    post("/billing/checkout", BillingController, :checkout)
+    post("/billing/customer-portal", BillingController, :customer_portal)
 
     get("/user/me", UserMeController, :show)
     get("/user/api-keys", UserApiKeyController, :index)
