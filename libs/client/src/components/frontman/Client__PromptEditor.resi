@@ -12,7 +12,6 @@ type acceptedMediaType =
   | Jpeg
   | Gif
   | Webp
-  | Pdf
 
 type serializedPromptEditorContent = {
   text: string,
@@ -45,7 +44,7 @@ let make: (
   ~dropFilesSignal: int,
   ~droppedFiles: array<browserFile>,
   ~onHasContentChange: bool => unit,
-  ~onSubmit: (string, array<editorFileAttachment>) => unit,
+  ~onSubmit: (string, array<editorFileAttachment>) => promise<result<unit, string>>,
   ~onPreviewImage: string => unit,
   ~onFileSizeError: string => unit,
 ) => React.element

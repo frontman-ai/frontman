@@ -718,9 +718,11 @@ defmodule FrontmanServerWeb.TaskChannel do
           Logger.info("User message accepted for task #{task_id}")
           {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, %{})}}, socket}
         else
-          {:error, %Ecto.Changeset{} = changeset} ->
-            {message, _metadata} = Keyword.fetch!(changeset.errors, :id)
+          {:error, %Ecto.Changeset{errors: [{:id, {message, _}} | _]}} ->
             reply_invalid_params(socket, id, "Message ID #{message}")
+
+          {:error, %Ecto.Changeset{} = changeset} ->
+            reply_invalid_params(socket, id, changeset)
 
           {:error, :billing_inactive} ->
             reply_acp_error(
@@ -739,10 +741,6 @@ defmodule FrontmanServerWeb.TaskChannel do
           {:error, :skill_not_found} ->
             reply_invalid_params(socket, id, "Selected skill not found")
 
-          {:error, {:invalid_content_block, message}} ->
-            Logger.error("Failed to add user message: #{message}")
-            reply_invalid_params(socket, id, message)
-
           {:error, reason} ->
             Logger.error("Failed to add user message: #{inspect(reason)}")
             reply_acp_error(socket, id, -32_000, inspect(reason))
@@ -757,8 +755,21 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:reply, {:ok, %{@acp_message => JsonRpc.error_response(id, code, message)}}, socket}
   end
 
-  defp reply_invalid_params(socket, id, message),
+  defp reply_invalid_params(socket, id, message) when is_binary(message),
     do: reply_acp_error(socket, id, JsonRpc.error_invalid_params(), message)
+
+  defp reply_invalid_params(socket, id, %Ecto.Changeset{errors: [{field, {message, _}} | _]}),
+    do: reply_invalid_params(socket, id, "#{Phoenix.Naming.humanize(field)} #{message}")
+
+  defp reply_invalid_params(socket, id, %Ecto.Changeset{valid?: false, changes: changes}) do
+    invalid_child =
+      changes
+      |> Map.values()
+      |> List.flatten()
+      |> Enum.find(&match?(%Ecto.Changeset{valid?: false}, &1))
+
+    reply_invalid_params(socket, id, invalid_child)
+  end
 
   defp push_acp_error(socket, id, code, message) do
     push(socket, @acp_message, JsonRpc.error_response(id, code, message))

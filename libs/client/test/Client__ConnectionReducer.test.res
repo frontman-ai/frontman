@@ -19,7 +19,7 @@ let effectKinds = effects =>
     | Reducer.SessionCommandEffect(_) => #sessionCommand
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
     | Reducer.DeleteSessionEffect(_) => #deleteSession
-    | Reducer.NotifyDeleteSessionRejected(_) => #deleteRejected
+    | Reducer.NotifyRequestRejected(_) => #requestRejected
     | Reducer.CleanupSessionEffect(_) => #cleanupSession
     | Reducer.ConnectionCallbackEffect(_) => #connectionCallback
     | Reducer.SessionCallbackEffect(_) => #sessionCallback
@@ -27,9 +27,21 @@ let effectKinds = effects =>
     }
   )
 
+type reconnectWire = {lose: bool => unit}
+@module("../../frontman-client/test/acpReconnectTransport.mjs")
+external reconnectWire: unit => reconnectWire = "makeTransport"
+@module("vitest") @scope("vi") external stubGlobal: (string, 'a) => unit = "stubGlobal"
+@module("vitest") @scope("vi") external unstubAllGlobals: unit => unit = "unstubAllGlobals"
+@module("vitest") external onTestFinished: (unit => unit) => unit = "onTestFinished"
+
 let mock = value => Obj.magic(value)
 let mockRelay: Reducer.Relay.connected = mock({"id": "relay"})
-let mockConnection: Reducer.ACP.connection = mock({"id": "connection"})
+let mockConnection: Reducer.ACP.connection = mock({
+  "state": ref({
+    ...FrontmanAiFrontmanClient.FrontmanClient__ACP__Client.initialState,
+    acpState: Initialized(mock({"protocolVersion": 1})),
+  }),
+})
 let loginUrl = "https://app.frontman.sh/users/log-in"
 let config: Reducer.config = {
   acp: Reducer.ACP.makeConfig(
@@ -66,7 +78,11 @@ let sessionState = state =>
   | Reducer.Ready({session}) => session
   | _ => failwith("Expected ready connection")
   }
-let creating = sessionId => Reducer.SessionCreating({sessionId: Some(sessionId), requestId: ref()})
+let creating = sessionId => Reducer.SessionCreating({
+  sessionId: Some(sessionId),
+  requestId: ref(),
+  onComplete: _ => (),
+})
 let active = session => Reducer.SessionActive({session, requestId: ref()})
 let requestId = state =>
   switch sessionState(state) {
@@ -234,6 +250,107 @@ describe("Connection Reducer", () => {
         )
       },
     )
+  })
+
+  test("rejoin hides readiness, rejects operations and fences stale connection callbacks", t => {
+    let session = mock({"sessionId": "existing"})
+    let original = withSession(active(session))
+    let signal = runtime(original).lifetimeAbortController.signal
+    let (lost, _) = Reducer.reduce(original, ACPReconnecting({signal: signal}))
+    t->expect(Reducer.Selectors.getConnectionStatus(lost))->Expect.toBe(Connecting)
+    t->expect(Reducer.Selectors.getSession(lost))->Expect.toBe(None)
+    let interrupted = ref(0)
+    let completion = Reducer.SessionCallbackEffect({
+      requestId: requestId(original),
+      callback: () => failwith("A disconnected session must not run its ready callback"),
+      onConnectionLost: Some(() => interrupted := interrupted.contents + 1),
+    })
+    Reducer.handleEffect(completion, lost, _ => ())
+    t->expect(interrupted.contents)->Expect.toBe(1)
+    Reducer.handleEffect(completion, withSession(NoSession), _ => ())
+    t->expect(interrupted.contents)->Expect.toBe(1)
+    let rejected = ref(0)
+    let onComplete = result => {
+      t->expect(result->Result.isError)->Expect.toBe(true)
+      rejected := rejected.contents + 1
+    }
+    [
+      Reducer.CreateSession({onComplete: onComplete}),
+      Reducer.LoadTask({
+        taskId: "existing",
+        needsHistory: false,
+        onComplete: result => onComplete(result->Result.map(_ => "")),
+      }),
+      Reducer.SendPrompt({
+        text: "draft",
+        additionalBlocks: [],
+        _meta: None,
+        onComplete: result => onComplete(result->Result.map(_ => "")),
+      }),
+    ]->Array.forEach(
+      action => {
+        let (_, effects) = Reducer.reduce(lost, action)
+        effects->Array.forEach(effect => Reducer.handleEffect(effect, lost, _ => ()))
+      },
+    )
+    t->expect(rejected.contents)->Expect.toBe(3)
+    let rejoined = Reducer.ACPReconnected({signal, result: Ok(mockConnection)})
+    let (restored, effects) = Reducer.reduce(lost, rejoined)
+    t->expect(Reducer.Selectors.getSession(restored))->Expect.toEqual(Some(session))
+    t->expect(effectKinds(effects))->Expect.toEqual([#fetchSessions])
+    let (cleared, effects) = Reducer.reduce(lost, ClearSession)
+    t->expect(effectKinds(effects))->Expect.toEqual([#cleanupSession])
+    t->expect(Reducer.Selectors.getConnectionStatus(cleared))->Expect.toBe(Connecting)
+    let (restored, _) = Reducer.reduce(cleared, rejoined)
+    t->expect(Reducer.Selectors.getSession(restored))->Expect.toBe(None)
+    let (waiting, _) = Reducer.reduce(lost, RequireAuthentication)
+    t->expect(Reducer.reduce(waiting, rejoined)->Pair.first)->Expect.toBe(waiting)
+    [
+      Reducer.AuthenticationRequired({loginUrl: loginUrl}),
+      ConnectionFailed(ACPError("handshake failed")),
+    ]->Array.forEach(
+      error => {
+        let (failed, effects) = Reducer.reduce(lost, ACPReconnected({signal, result: Error(error)}))
+        t->expect(Reducer.Selectors.getSession(failed))->Expect.toBe(None)
+        t->expect(effectKinds(effects))->Expect.toEqual([#cleanup])
+      },
+    )
+  })
+
+  test("rejoin cancels a pending draft and never accepts its late session", t => {
+    let completed = ref(None)
+    let (creating, _) = Reducer.reduce(
+      withSession(NoSession),
+      CreateSession({
+        onComplete: result => completed := Some(result),
+      }),
+    )
+    let signal = runtime(creating).lifetimeAbortController.signal
+    let (lost, effects) = Reducer.reduce(creating, ACPReconnecting({signal: signal}))
+    effects->Array.forEach(effect => Reducer.handleEffect(effect, lost, _ => ()))
+    t->expect(completed.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
+    let (restored, _) = Reducer.reduce(lost, ACPReconnected({signal, result: Ok(mockConnection)}))
+    let (unchanged, effects) = Reducer.reduce(
+      restored,
+      SessionResultReceived({
+        requestId: requestId(creating),
+        sessionId: "late",
+        result: Ok((mock({"sessionId": "late"}), None)),
+        onComplete: _ => failwith("Late creation must not submit the captured draft"),
+      }),
+    )
+    t->expect(sessionState(unchanged))->Expect.toBe(NoSession)
+    t->expect(effectKinds(effects))->Expect.toEqual([#cleanupSession, #logInfo])
+    completed := None
+    let (activated, queued) = completeSession(
+      creating,
+      Ok((mock({"sessionId": "late"}), None)),
+      ~onComplete=result => completed := Some(result),
+    )
+    let (lost, _) = Reducer.reduce(activated, ACPReconnecting({signal: signal}))
+    let (restored, _) = Reducer.reduce(lost, ACPReconnected({signal, result: Ok(mockConnection)}))
+    queued->Array.forEach(effect => Reducer.handleEffect(effect, restored, _ => ()))
+    t->expect(completed.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
   })
 
   describe("Authentication Retry", () => {
@@ -455,12 +572,13 @@ describe("Connection Reducer", () => {
       t => {
         let request = Reducer.CreateSession({onComplete: _ => ()})
         let (_, rejected) = Reducer.reduce(initialized(), request)
-        t->expect(effectKinds(rejected))->Expect.toEqual([#logError])
+        t->expect(effectKinds(rejected))->Expect.toEqual([#requestRejected])
         let state = withSession(NoSession)
         let (nextState, effects) = Reducer.reduce(state, request)
-        t
-        ->expect(sessionState(nextState))
-        ->Expect.toEqual(SessionCreating({sessionId: None, requestId: requestId(nextState)}))
+        switch sessionState(nextState) {
+        | SessionCreating({sessionId: None}) => ()
+        | _ => failwith("Expected a new session request")
+        }
         switch effects {
         | [Reducer.ActivateSessionEffect({connection, operation: #create})] =>
           t->expect(connection)->Expect.toBe(mockConnection)
@@ -468,6 +586,52 @@ describe("Connection Reducer", () => {
         }
       },
     )
+  })
+
+  testAsync("joint runtime receives real rejoin events and releases ownership on auth", async t => {
+    Vi.useFakeTimers()->ignore
+    let wire = reconnectWire()
+    onTestFinished(
+      () => {
+        Vi.useRealTimers()->ignore
+        unstubAllGlobals()
+      },
+    )
+    stubGlobal(
+      "window",
+      {
+        "location": {"origin": "https://wordpress.test"},
+        "__frontmanRuntime": {"framework": "nextjs", "basePath": "frontman"},
+        "heap": {"track": (_: string, _: JSON.t) => ()},
+      },
+    )
+    stubGlobal(
+      "fetch",
+      async (_: string, _: WebAPI.FetchTypes.requestInit) =>
+        WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`),
+    )
+    let state = ref(initialized())
+    let signal = runtime(state.contents).lifetimeAbortController.signal
+    let result = await Reducer.connectRuntime(
+      ~config={...config, acp: {...config.acp, getAuthToken: () => Some("test")}},
+      ~signal,
+      ~onReconnecting=() =>
+        state := Reducer.reduce(state.contents, ACPReconnecting({signal: signal}))->Pair.first,
+      ~onReconnect=result =>
+        state := Reducer.reduce(state.contents, ACPReconnected({signal, result}))->Pair.first,
+    )
+    let ready = result->Result.getOrThrow
+    onTestFinished(() => Reducer.ACP.disconnect(ready.connection))
+    state := complete(state.contents, result)->Pair.first
+    wire.lose(false)
+    t->expect(Reducer.Selectors.getConnectionStatus(state.contents))->Expect.toBe(Connecting)
+    let _ = await Vi.advanceTimersByTimeAsync(1000)
+    t->expect(Reducer.Selectors.getConnectionStatus(state.contents))->Expect.toBe(Connected)
+    let (waiting, effects) = Reducer.reduce(state.contents, RequireAuthentication)
+    effects->Array.forEach(effect => Reducer.handleEffect(effect, waiting, _ => ()))
+    t->expect(signal.aborted)->Expect.toBe(true)
+    t->expect(Reducer.ACP.isInitialized(ready.connection))->Expect.toBe(false)
+    t->expect(Reducer.Selectors.getAuthRedirectUrl(waiting)->Option.isSome)->Expect.toBe(true)
   })
 
   test("connection callbacks cannot cross ready lifetimes or run obsolete queued effects", t => {

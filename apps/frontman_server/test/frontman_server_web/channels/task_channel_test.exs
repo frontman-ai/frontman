@@ -554,6 +554,41 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert Tasks.interactions(task) == []
     end
 
+    test "rejects changeset errors without accepting a prompt", context do
+      pdf = %{"mimeType" => "application/pdf", "blob" => "AAAA"}
+      annotation = %{"annotation" => true, "annotation_id" => "ann-1", "annotation_index" => 0}
+
+      blocks =
+        for {meta, resource, error_hint} <- [
+              {%{"user_image" => true}, pdf, "paste document text"},
+              {%{"user_image" => true, "filename" => ""}, Map.put(pdf, "mimeType", "image/png"),
+               "Filename"},
+              {Map.put(annotation, "annotation_index", "bad"), %{}, "Annotation index"},
+              {Map.put(annotation, "metadata", false), %{}, "Metadata"},
+              {Map.put(annotation, "tag_name", ""), %{}, "Tag name"},
+              {%{"current_page" => true, "url" => nil}, %{}, "Url"},
+              {%{"current_page" => true, "url" => "/", "device_pixel_ratio" => "bad"}, %{},
+               "Device pixel ratio"},
+              {%{"figma_node" => true, "node_id" => "1:2"}, %{"text" => nil}, "Node"},
+              {%{"figma_node" => true}, %{"text" => "{}"}, "Id can't be blank"}
+            ] do
+          {%{"type" => "resource", "_meta" => meta, "resource" => resource}, error_hint}
+        end
+
+      for {block, error_hint} <- [{%{"type" => "text", "text" => ""}, "Messages"} | blocks] do
+        request = put_in(build_prompt_request(), ["params", "prompt"], [block])
+        ref = push(context.socket, "acp:message", request)
+        assert_reply(ref, :ok, %{"acp:message" => %{"error" => error}})
+        assert error["code"] == JsonRpc.error_invalid_params()
+        assert error["message"] =~ error_hint
+      end
+
+      assert {:ok, task} = Tasks.get_task_with_history(context.scope, context.task_id)
+      assert Tasks.interactions(task) == []
+      assert all_enqueued(worker: GenerateTitle) == []
+      refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
+    end
+
     test "rejects duplicate message UUIDs", %{socket: socket} do
       message_id = Ecto.UUID.generate()
       first_ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
@@ -615,30 +650,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
         refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
       end
-    end
-
-    test "returns invalid params for malformed text content block", %{socket: socket} do
-      complete_mcp_handshake(socket)
-
-      ref =
-        push(
-          socket,
-          "acp:message",
-          build_acp_request("session/prompt", 44, %{
-            "prompt" => [%{"type" => "text", "text" => ""}],
-            "_meta" => %{
-              "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
-              "agent" => "test-frontman",
-              "frontman.dev/messageId" => Ecto.UUID.generate()
-            }
-          })
-        )
-
-      assert_reply(ref, :ok, %{"acp:message" => response})
-      assert response["error"]["code"] == JsonRpc.error_invalid_params()
-
-      assert response["error"]["message"] ==
-               "text content block must include non-empty string text"
     end
 
     test "accepts before MCP is ready and drains after initialization", %{

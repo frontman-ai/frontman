@@ -3,6 +3,7 @@ defmodule FrontmanServer.CurrentPageContextTest do
 
   alias FrontmanServer.CurrentPageContext
   alias FrontmanServer.Tasks.Interaction.CurrentPage
+  alias FrontmanServer.Tasks.Interaction.UserMessage
 
   test "routing status survives ACP parsing, embedded storage, history, and prompt formatting" do
     for status <- ["enabled", "disabled", "unavailable"] do
@@ -14,15 +15,16 @@ defmodule FrontmanServer.CurrentPageContextTest do
 
       assert {:ok, page} =
                %CurrentPage{}
-               |> CurrentPage.changeset(CurrentPage.attrs_from_acp_meta(meta))
+               |> CurrentPage.changeset(
+                 UserMessage.attrs([%{"type" => "resource", "_meta" => meta}]).current_page
+               )
                |> Ecto.Changeset.apply_action(:insert)
 
       stored = page |> Ecto.embedded_dump(:json) |> Jason.encode!() |> Jason.decode!()
       restored = Ecto.embedded_load(CurrentPage, stored, :json)
       assert restored.astro_client_routing == status
-      assert [%{"_meta" => history_meta}] = CurrentPageContext.to_content_blocks(restored)
-      assert history_meta == meta
-      assert CurrentPage.attrs_from_acp_meta(history_meta).astro_client_routing == status
+      assert [history_block] = CurrentPageContext.to_content_blocks(restored)
+      assert UserMessage.attrs([history_block]).current_page == meta
 
       prompt = CurrentPageContext.to_prompt_section(restored)
       assert prompt =~ "Astro Client Routing: #{status}"
@@ -47,23 +49,21 @@ defmodule FrontmanServer.CurrentPageContextTest do
 
   test "legacy and non-Astro metadata omit routing status and guidance" do
     meta = %{"current_page" => true, "url" => "http://localhost:3000/"}
-    fields = CurrentPage.attrs_from_acp_meta(meta)
-    assert fields.astro_client_routing == nil
+    fields = UserMessage.attrs([%{"type" => "resource", "_meta" => meta}]).current_page
     assert [%{"_meta" => ^meta}] = CurrentPageContext.to_content_blocks(fields)
     refute CurrentPageContext.to_prompt_section(fields) =~ "Astro Client Routing"
   end
 
-  test "rejects invalid routing metadata at parsing and storage boundaries" do
+  test "preserves invalid routing metadata for changeset validation" do
     for invalid <- [true, false, "unknown", %{}, 1] do
-      assert_raise FunctionClauseError, fn ->
-        CurrentPageContext.fields_from_meta(%{
-          "url" => "http://localhost:4321/",
-          "astro_client_routing" => invalid
-        })
-      end
+      meta = %{
+        "current_page" => true,
+        "url" => "http://localhost:4321/",
+        "astro_client_routing" => invalid
+      }
 
-      changeset = CurrentPage.changeset(%CurrentPage{}, %{astro_client_routing: invalid})
-      refute changeset.valid?
+      assert UserMessage.attrs([%{"type" => "resource", "_meta" => meta}]).current_page == meta
+      refute CurrentPage.changeset(%CurrentPage{}, meta).valid?
     end
   end
 end

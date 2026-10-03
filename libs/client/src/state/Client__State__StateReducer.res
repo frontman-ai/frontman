@@ -611,6 +611,48 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
   })
 }
 
+let buildPrompt = (state: state, ~messageId, ~attachments, ~annotations, ~task, ~agentId) => {
+  let runtimeConfig = Client__RuntimeConfig.read()
+  let pageContextBlocks = Client__State__Types.taskToPageContextBlocks(
+    task,
+    ~isAstro=runtimeConfig.framework == Astro,
+  )
+
+  let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
+
+  let attachmentBlocks = buildAttachmentContentBlocks(attachments)
+  let additionalBlocks =
+    Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
+
+  let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
+  let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
+  state.selectedModelValue->Option.forEach(modelValue =>
+    metadata->Dict.set("model", JSON.Encode.string(modelValue))
+  )
+  metadata->Dict.set(
+    "frontman.dev/messageId",
+    JSON.Encode.string(Message.UserMessageId.toString(messageId)),
+  )
+  metadata->Dict.set("agent", JSON.Encode.string(agentId))
+  (additionalBlocks, Some(JSON.Encode.object(metadata)))
+}
+
+let validatePrompt = FrontmanAiFrontmanClient.FrontmanClient__ACP__Protocol.validatePrompt
+
+let validatePromptDraft = (state: state, ~content, ~annotations, ~agentId) => {
+  let text = TaskReducer.extractTextFromUserContent(content)
+  let attachments = TaskReducer.extractAttachmentsFromUserContent(content)
+  let (additionalBlocks, _meta) = buildPrompt(
+    state,
+    ~messageId=Message.UserMessageId.make(),
+    ~attachments,
+    ~annotations,
+    ~task=Selectors.currentTask(state),
+    ~agentId,
+  )
+  validatePrompt(~text, ~additionalBlocks, ~_meta)
+}
+
 let sendMessageToAPIImpl = (
   state: state,
   dispatch,
@@ -621,62 +663,32 @@ let sendMessageToAPIImpl = (
   ~taskId,
   ~agentId,
 ) => {
-  switch state.acpSession {
-  | AcpSessionActive({sendPrompt}) =>
-    let runtimeConfig = Client__RuntimeConfig.read()
-    let pageContextBlocks =
-      state.tasks
-      ->Dict.get(taskId)
-      ->Option.mapOr([], task =>
-        Client__State__Types.taskToPageContextBlocks(
-          task,
-          ~isAstro=runtimeConfig.framework == Astro,
-        )
+  let onComplete = result =>
+    switch result {
+    | Ok(_) => ()
+    | Error(error) =>
+      dispatch(
+        TaskAction({
+          target: ForTask(taskId),
+          action: UserMessageSendFailed({id: messageId, error}),
+        }),
       )
-
-    let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
-
-    let attachmentBlocks = buildAttachmentContentBlocks(attachments)
-    let additionalBlocks =
-      Array.concat(pageContextBlocks, annotationBlocks)->Array.concat(attachmentBlocks)
-
-    let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
-    let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
-    state.selectedModelValue->Option.forEach(modelValue =>
-      metadata->Dict.set("model", JSON.Encode.string(modelValue))
-    )
-    metadata->Dict.set(
-      "frontman.dev/messageId",
-      JSON.Encode.string(Message.UserMessageId.toString(messageId)),
-    )
-    metadata->Dict.set("agent", JSON.Encode.string(agentId))
-    let _meta = Some(JSON.Encode.object(metadata))
-
-    sendPrompt(
-      message,
-      ~additionalBlocks,
-      ~onComplete=result =>
-        switch result {
-        | Ok(_) => ()
-        | Error(error) =>
-          dispatch(
-            TaskAction({
-              target: ForTask(taskId),
-              action: UserMessageSendFailed({id: messageId, error}),
-            }),
-          )
-        },
-      ~_meta,
-    )
-  | NoAcpSession =>
-    let error = "Cannot send message: no active ACP session"
-    Log.error(error)
-    dispatch(
-      TaskAction({
-        target: ForTask(taskId),
-        action: UserMessageSendFailed({id: messageId, error}),
-      }),
-    )
+    }
+  let (additionalBlocks, _meta) = buildPrompt(
+    state,
+    ~messageId,
+    ~attachments,
+    ~annotations,
+    ~task=state.tasks->Dict.get(taskId)->Option.getOrThrow,
+    ~agentId,
+  )
+  switch validatePrompt(~text=message, ~additionalBlocks, ~_meta) {
+  | Error(error) => onComplete(Error(error))
+  | Ok() =>
+    switch state.acpSession {
+    | AcpSessionActive({sendPrompt}) => sendPrompt(message, ~additionalBlocks, ~_meta, ~onComplete)
+    | NoAcpSession => onComplete(Error("Cannot send message: no active ACP session"))
+    }
   }
 }
 

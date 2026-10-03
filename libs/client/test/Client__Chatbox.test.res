@@ -65,6 +65,66 @@ describe("selectGetStartedTask", () => {
   })
 })
 
+module Submission = {
+  type runtime = {"framework": string, "traits": array<string>}
+  @set external setRuntime: (WebAPI.DomTypes.window, option<runtime>) => unit = "__frontmanRuntime"
+  type actions
+  type calls = {calls: array<array<JSON.t>>}
+  type spy = {mock: calls}
+  @module("../src/state/Client__State.res.mjs") external actions: actions = "Actions"
+  @module("vitest") @scope("vi") external spyOn: (actions, string) => spy = "spyOn"
+  @send external mockReturnValue: (spy, unit) => unit = "mockReturnValue"
+  @module("vitest") @scope("vi") external restoreAllMocks: unit => unit = "restoreAllMocks"
+}
+
+describe("sendUserMessage", () => {
+  open Submission
+  afterEach(() => {
+    setRuntime(WebAPI.DomGlobal.window, None)
+    restoreAllMocks()
+  })
+
+  testAsync("preflight prevents phantom tasks and reloads interrupted history", async t => {
+    let runtime = ref({"framework": "nextjs", "traits": []})
+    setRuntime(WebAPI.DomGlobal.window, Some(runtime.contents))
+    let reload = spyOn(actions, "switchTask")
+    let send = spyOn(actions, "addUserMessage")
+    mockReturnValue(reload, ())
+    mockReturnValue(send, ())
+    let created = ref(0)
+    let submit = (content, currentTaskId) =>
+      Chatbox.sendUserMessage(
+        ~session=None,
+        ~createSession=(~onComplete) => {
+          created := created.contents + 1
+          runtime :=
+            {"framework": runtime.contents["framework"], "traits": ["x"->String.repeat(8_000_000)]}
+          setRuntime(WebAPI.DomGlobal.window, Some(runtime.contents))
+          onComplete(Ok("new-session"))
+        },
+        ~currentTaskId,
+        ~content,
+        ~annotations=[],
+        ~agentId="executor",
+      )
+    let image = Client__State.UserContentPart.File({
+      file: "data:image/png;base64," ++ "A"->String.repeat(4_000_000),
+    })
+    t
+    ->expect(await submit([image, image], None)->Promise.thenResolve(Result.isError))
+    ->Expect.toBe(true)
+    t->expect(created.contents)->Expect.toBe(0)
+    let text = [Client__State.UserContentPart.Text({text: "draft"})]
+    t
+    ->expect(await submit(text, Some("history"))->Promise.thenResolve(Result.isError))
+    ->Expect.toBe(true)
+    t->expect(reload.mock.calls)->Expect.toEqual([[JSON.Encode.string("history")]])
+    t->expect(await submit(text, None)->Promise.thenResolve(Result.isError))->Expect.toBe(true)
+    t->expect(created.contents)->Expect.toBe(1)
+    t->expect(send.mock.calls)->Expect.toEqual([])
+  })
+})
+
 describe("ExecutePlanAction", () => {
   test("hides execute action without a selected model", t => {
     let html = renderToStaticMarkup(
