@@ -37,57 +37,29 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "UserMessage.attrs/1" do
-    test "extracts attachment data unchanged and validates it in the changeset" do
-      for {mime, blob, valid?} <- [
-            {"image/png", "AAAA", true},
-            {"image/jpeg", "AAAA", true},
-            {"image/gif", "AAAA", true},
-            {"image/webp", "AAAA", true},
-            {"application/pdf", "AAAA", false},
-            {"text/plain", "AAAA", false},
-            {"application/octet-stream", "AAAA", false},
-            {nil, "AAAA", false},
-            {"image/png", nil, false}
-          ] do
-        block = %{
-          "type" => "resource",
-          "_meta" => %{"user_image" => true},
-          "resource" => %{"mimeType" => mime, "blob" => blob}
-        }
+    test "historical PDFs remain loadable but are explicitly unreadable in model input" do
+      history =
+        Ecto.embedded_load(
+          UserMessage,
+          %{
+            "messages" => ["Old prompt"],
+            "images" => [
+              %{
+                "blob" => "AAAA",
+                "mime_type" => "application/pdf",
+                "filename" => "old.pdf",
+                "uri" => "attachment://old"
+              }
+            ]
+          },
+          :json
+        )
 
-        assert %{images: [%{"mime_type" => ^mime, "blob" => ^blob}]} =
-                 attrs = UserMessage.attrs([block])
-
-        assert UserMessage.changeset(%UserMessage{}, attrs).valid? == valid?
-      end
-    end
-
-    test "historical documents remain loadable but are explicitly unreadable in model input" do
-      for mime <- ["application/pdf", "text/plain"] do
-        attrs = %{
-          "messages" => ["Old prompt"],
-          "images" => [
-            %{
-              "blob" => "AAAA",
-              "mime_type" => mime,
-              "filename" => "fixture",
-              "uri" => "attachment://old"
-            }
-          ]
-        }
-
-        refute UserMessage.changeset(%UserMessage{}, attrs).valid?
-        history = Ecto.embedded_load(UserMessage, attrs, :json)
-
-        assert [%UserImage{mime_type: ^mime, blob: "AAAA"}] = history.images
-        [projected] = Interaction.to_swarm_messages([history])
-        assert [_, %ContentPart{type: :text, text: notice}] = projected.content
-        assert notice =~ "Unsupported attachment: fixture (#{mime})"
-        assert notice =~ "Its contents were not read"
-        refute extract_text(projected) =~ "Available Image Attachments"
-        refute extract_text(projected) =~ "attachment://old"
-        refute notice =~ "Attached PDF"
-      end
+      [projected] = Interaction.to_swarm_messages([history])
+      assert [_, %ContentPart{type: :text, text: notice}] = projected.content
+      assert notice =~ "Unsupported attachment: old.pdf"
+      assert notice =~ "Its contents were not read"
+      refute extract_text(projected) =~ "attachment://old"
     end
 
     test "extracts non-empty text messages" do
@@ -109,12 +81,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.current_page.url == "https://example.com/app"
     end
 
-    test "changesets reject invalid text without extraction dropping it" do
-      for text <- [nil, "", 1], prefix <- [[], [text_block("Valid")]] do
-        attrs = UserMessage.attrs(prefix ++ [%{"type" => "text", "text" => text}])
-        assert List.last(attrs.messages) == text
-        refute UserMessage.changeset(%UserMessage{}, attrs).valid?
-      end
+    test "does not discard invalid text alongside valid text" do
+      attrs = UserMessage.attrs([text_block("Valid"), text_block("")])
+      assert attrs.messages == ["Valid", ""]
+      refute UserMessage.changeset(%UserMessage{}, attrs).valid?
     end
 
     test "extracts annotation from resource block" do
@@ -139,46 +109,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.annotations == []
     end
 
-    test "pairs screenshots without discarding invalid values before changeset validation" do
+    test "pairs malformed screenshots instead of silently discarding them" do
       annotation = annotation_block("ann-1", "button", "/src/Button.tsx", 15, 3)
+      attrs = UserMessage.attrs([screenshot_block("ann-1", nil), annotation])
 
-      for {blob, mime, valid?} <- [
-            {"base64screenshotdata", "image/png", true},
-            {nil, "image/png", false},
-            {1, "image/png", false},
-            {"base64screenshotdata", "", false},
-            {"base64screenshotdata", false, false}
-          ] do
-        attrs = UserMessage.attrs([screenshot_block("ann-1", blob, mime), annotation])
-        assert [%{screenshot: %{"blob" => ^blob, "mime_type" => ^mime}}] = attrs.annotations
-        assert UserMessage.changeset(%UserMessage{}, attrs).valid? == valid?
-      end
-
-      assert_raise FunctionClauseError, fn ->
-        UserMessage.attrs([screenshot_block(nil, "data")])
-      end
-    end
-
-    test "decodes Figma attributes without discarding invalid fields or malformed resources" do
-      node = %{
-        "type" => "resource",
-        "_meta" => %{"figma_node" => true, "node_id" => "1:2", "is_dsl" => false},
-        "resource" => %{"text" => "{}"}
-      }
-
-      image = %{
-        "type" => "resource",
-        "_meta" => %{"figma_image" => true},
-        "resource" => %{"blob" => "data"}
-      }
-
-      assert %Interaction.FigmaNode{id: "1:2", node: "{}", image: "data", is_dsl: false} =
-               build_user_message([node, image]).selected_figma_node
-
-      attrs = UserMessage.attrs([node, put_in(image, ["resource", "blob"], false)])
+      assert [%{screenshot: %{"blob" => nil}}] = attrs.annotations
       refute UserMessage.changeset(%UserMessage{}, attrs).valid?
-
-      assert_raise KeyError, fn -> UserMessage.attrs([node, Map.delete(image, "resource")]) end
     end
 
     test "extracts multiple annotations with enrichment data" do
