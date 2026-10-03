@@ -1852,6 +1852,28 @@ describe("Client State Reducer - Annotations on Messages", () => {
     t->expect(effects)->Expect.toEqual([])
   })
 
+  test("draft preflight includes page context after task promotion", t => {
+    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
+    let state = TestHelpers.makeStateWithTask(
+      ~previewUrl="https://example.com/" ++ "x"->String.repeat(3_000_000),
+    )
+    t
+    ->expect(
+      Some(Reducer.Selectors.currentTaskClientId(state)) == Reducer.Selectors.currentTaskId(state),
+    )
+    ->Expect.toBe(false)
+    t
+    ->expect(
+      Reducer.validatePromptDraft(
+        state,
+        ~content=[UserContentPart.text("Fix this")],
+        ~annotations=[],
+        ~agentId="executor-id",
+      ),
+    )
+    ->Expect.toEqual(Error(FrontmanAiFrontmanClient.FrontmanClient__ACP__Protocol.promptSizeError))
+  })
+
   test("SendMessage metadata carries message ID, submission agent, and selected model", t => {
     setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
     let messageId = UserMessageId.make()
