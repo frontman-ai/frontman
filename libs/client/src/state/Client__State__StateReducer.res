@@ -611,17 +611,12 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
   })
 }
 
-let buildPrompt = (state: state, ~messageId, ~attachments, ~annotations, ~taskId, ~agentId) => {
+let buildPrompt = (state: state, ~messageId, ~attachments, ~annotations, ~task, ~agentId) => {
   let runtimeConfig = Client__RuntimeConfig.read()
-  let task = switch (state.tasks->Dict.get(taskId), state.currentTask) {
-  | (Some(task), _) => Some(task)
-  | (None, Task.New(task)) if taskId == Selectors.currentTaskClientId(state) => Some(task)
-  | (None, _) => None
-  }
-  let pageContextBlocks =
-    task->Option.mapOr([], task =>
-      Client__State__Types.taskToPageContextBlocks(task, ~isAstro=runtimeConfig.framework == Astro)
-    )
+  let pageContextBlocks = Client__State__Types.taskToPageContextBlocks(
+    task,
+    ~isAstro=runtimeConfig.framework == Astro,
+  )
 
   let annotationBlocks = Client__State__Types.messageAnnotationsToContentBlocks(annotations)
 
@@ -652,7 +647,7 @@ let validatePromptDraft = (state: state, ~content, ~annotations, ~agentId) => {
     ~messageId=Message.UserMessageId.make(),
     ~attachments,
     ~annotations,
-    ~taskId=Selectors.currentTaskClientId(state),
+    ~task=Selectors.currentTask(state),
     ~agentId,
   )
   validatePrompt(~text, ~additionalBlocks, ~_meta)
@@ -684,7 +679,7 @@ let sendMessageToAPIImpl = (
     ~messageId,
     ~attachments,
     ~annotations,
-    ~taskId,
+    ~task=state.tasks->Dict.get(taskId)->Option.getOrThrow,
     ~agentId,
   )
   switch validatePrompt(~text=message, ~additionalBlocks, ~_meta) {
