@@ -449,7 +449,13 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
           Client__State.Actions.updateAnnotationComment(~id=annotation.id, ~comment)}
         onClose={() => Client__State.Actions.closeAnnotationPopup()}
         onExecute={comment =>
-          Client__State.Actions.executeAnnotation(~annotationId=annotation.id, ~comment)}
+          Client__State.Actions.addUserMessage(
+            ~annotationId=annotation.id,
+            ~content=switch comment->String.trim {
+            | "" => []
+            | text => [Client__State.UserContentPart.text(text)]
+            },
+          )}
       />
     | None => React.null
     }

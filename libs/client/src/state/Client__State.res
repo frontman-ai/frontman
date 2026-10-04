@@ -7,14 +7,9 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
-  let addUserMessage = (~content) =>
+  let addUserMessage = (~content, ~annotationId=?) =>
     Promise.make((resolve, _) =>
-      Client__State__Store.dispatch(SubmitUserMessage({content, onComplete: resolve}))
-    )
-
-  let executeAnnotation = (~annotationId, ~comment) =>
-    Promise.make((resolve, _) =>
-      Client__State__Store.dispatch(ExecuteAnnotation({annotationId, comment, onComplete: resolve}))
+      Client__State__Store.dispatch(AddUserMessage({content, annotationId, onComplete: resolve}))
     )
 
   let setCurrentPreviewUrl = (~url) =>

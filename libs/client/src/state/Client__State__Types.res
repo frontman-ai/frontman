@@ -27,7 +27,6 @@ type createSessionFn = (~onComplete: result<string, string> => unit) => unit
 
 type submission = {
   id: Message.UserMessageId.t,
-  task: Task.t,
   content: array<UserContentPart.t>,
   annotations: array<Message.MessageAnnotation.t>,
   agentId: string,

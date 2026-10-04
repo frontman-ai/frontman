@@ -407,26 +407,12 @@ type effect =
       document: option<WebAPI.DomTypes.document>,
       contentWindow: option<WebAPI.DomTypes.window>,
     })
-  | SendMessage({
-      id: Message.UserMessageId.t,
-      text: string,
-      attachments: array<Message.fileAttachmentData>,
-      annotations: array<Message.MessageAnnotation.t>,
-      agentId: string,
-    })
   | SessionCommand(ACP.sessionCommand)
   | ResolveQuestionToolEffect({resolveOk: JSON.t => unit, answerJson: JSON.t})
   | RejectQuestionToolEffect({resolveError: string => unit, message: string})
   | SyncBrowserUrl(string)
 
 type delegated =
-  | NeedSendMessage({
-      id: Message.UserMessageId.t,
-      text: string,
-      attachments: array<Message.fileAttachmentData>,
-      annotations: array<Message.MessageAnnotation.t>,
-      agentId: string,
-    })
   | NeedSessionCommand(ACP.sessionCommand)
   | NeedSyncBrowserUrl(string)
 
@@ -919,7 +905,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
 
   | (Task.Loaded(data), AddUserMessage({id, content, annotations, agentId})) =>
-    let text = extractTextFromUserContent(content)
     let attachments = extractAttachmentsFromUserContent(content)
     let messageId = Message.UserMessageId.toString(id)
     let pendingMessage = Message.User({
@@ -948,7 +933,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         annotationMode: Annotation.Off,
         activePopupAnnotationId: None,
       }),
-      [SendMessage({id, text, attachments, annotations, agentId})],
+      [],
     )
 
   | (Task.Loaded(data), UserMessageSendFailed({id, error})) => {
@@ -1525,8 +1510,6 @@ let handleEffect = (effect: effect, ~dispatch: action => unit, ~delegate: delega
   switch effect {
   | FetchAnnotationDetails({id, element, document, contentWindow}) =>
     fetchAnnotationDetails(~id, ~element, ~document, ~contentWindow, ~dispatch)
-  | SendMessage({id, text, attachments, annotations, agentId}) =>
-    delegate(NeedSendMessage({id, text, attachments, annotations, agentId}))
   | SessionCommand(command) => delegate(NeedSessionCommand(command))
   | ResolveQuestionToolEffect({resolveOk, answerJson}) => resolveOk(answerJson)
   | RejectQuestionToolEffect({resolveError, message}) => resolveError(message)
