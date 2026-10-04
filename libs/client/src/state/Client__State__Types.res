@@ -23,9 +23,22 @@ type sendSessionCommandFn = FrontmanAiFrontmanClient.FrontmanClient__ACP.session
 
 type requireAuthenticationFn = unit => unit
 
+type createSessionFn = (~onComplete: result<string, string> => unit) => unit
+
+type submission = {
+  id: Message.UserMessageId.t,
+  task: Task.t,
+  content: array<UserContentPart.t>,
+  annotations: array<Message.MessageAnnotation.t>,
+  agentId: string,
+  onComplete: result<unit, string> => unit,
+}
+
 type acpSession =
   | NoAcpSession
   | AcpSessionActive({
+      sessionId: option<string>,
+      createSession: createSessionFn,
       sendPrompt: sendPromptFn,
       sendSessionCommand: sendSessionCommandFn,
       loadTask: loadTaskFn,
@@ -227,6 +240,7 @@ type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   acpSession: acpSession,
+  submitting: option<submission>,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
   billingStatus: Client__Billing.state,

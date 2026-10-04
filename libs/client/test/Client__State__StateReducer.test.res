@@ -22,10 +22,14 @@ afterEach(() => clearRuntime())
 
 module TestHelpers = {
   let activeAcpSession = (
+    ~sessionId=None,
+    ~createSession=(~onComplete as _) => (),
     ~deleteSession=(_, ~onComplete as _) => (),
     ~requireAuthentication=() => (),
     ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
   ): Client__State__Types.acpSession => AcpSessionActive({
+    sessionId,
+    createSession,
     sendPrompt,
     sendSessionCommand: _ => (),
     loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
@@ -1852,27 +1856,81 @@ describe("Client State Reducer - Annotations on Messages", () => {
     t->expect(effects)->Expect.toEqual([])
   })
 
-  test("draft preflight includes page context after task promotion", t => {
-    setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
-    let state = TestHelpers.makeStateWithTask(
-      ~previewUrl="https://example.com/" ++ "x"->String.repeat(3_000_000),
-    )
-    t
-    ->expect(
-      Some(Reducer.Selectors.currentTaskClientId(state)) == Reducer.Selectors.currentTaskId(state),
-    )
-    ->Expect.toBe(false)
-    t
-    ->expect(
-      Reducer.validatePromptDraft(
-        state,
-        ~content=[UserContentPart.text("Fix this")],
-        ~annotations=[],
-        ~agentId="executor-id",
-      ),
-    )
-    ->Expect.toEqual(Error(FrontmanAiFrontmanClient.FrontmanClient__ACP__Protocol.promptSizeError))
-  })
+  test(
+    "submission validates before and after creation, locks the draft and rejects stale completion",
+    t => {
+      setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
+      let created = ref(0)
+      let completion = ref(None)
+      let sent = ref(0)
+      let result = ref(None)
+      let store = StateStore.make(
+        module(Reducer),
+        {
+          ...Reducer.defaultState,
+          selectedAgentId: Some("executor-id"),
+          selectedModelValue: Some("test:model"),
+          acpSession: TestHelpers.activeAcpSession(
+            ~createSession=(~onComplete) => {
+              created := created.contents + 1
+              completion := Some(onComplete)
+            },
+            ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) =>
+              sent := sent.contents + 1,
+          ),
+        },
+      )
+      let submit = content =>
+        store->StateStore.dispatch(
+          SubmitUserMessage({content, onComplete: value => result := Some(value)}),
+        )
+      let text = [UserContentPart.text("draft")]
+      submit([UserContentPart.text("x"->String.repeat(8_000_000))])
+      t->expect(created.contents)->Expect.toBe(0)
+      t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
+      submit(text)
+      let draft = store->StateStore.getState->Reducer.Selectors.currentTask
+      store->StateStore.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotationMode}))
+      t->expect(store->StateStore.getState->Reducer.Selectors.currentTask)->Expect.toEqual(draft)
+      submit(text)
+      t->expect(created.contents)->Expect.toBe(1)
+      store->StateStore.dispatch(
+        TaskAction({
+          target: CurrentTask,
+          action: SetPreviewUrl({url: "https://example.com/" ++ "x"->String.repeat(3_000_000)}),
+        }),
+      )
+      (completion.contents->Option.getOrThrow)(Ok("first-session"))
+      t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
+      t->expect(store->StateStore.getState->Reducer.Selectors.isNewTask)->Expect.toBe(true)
+      store->StateStore.dispatch(
+        TaskAction({target: CurrentTask, action: SetPreviewUrl({url: "https://example.com/"})}),
+      )
+      submit(text)
+      let staleCompletion = completion.contents->Option.getOrThrow
+      store->StateStore.dispatch(ClearCurrentTask)
+      submit([
+        UserContentPart.Image({
+          id: Some("image"),
+          image: "data:image/png;base64,AAAA",
+          mediaType: Some("image/png"),
+          name: Some("image.png"),
+        }),
+      ])
+      staleCompletion(Ok("stale-session"))
+      t->expect(store->StateStore.getState->Reducer.Selectors.isSubmitting)->Expect.toBe(true)
+      t->expect(sent.contents)->Expect.toBe(0)
+      (completion.contents->Option.getOrThrow)(Ok("current-session"))
+      t->expect(result.contents)->Expect.toEqual(Some(Ok()))
+      t->expect(sent.contents)->Expect.toBe(1)
+      t
+      ->expect(store->StateStore.getState->Reducer.Selectors.currentTaskId)
+      ->Expect.toEqual(Some("current-session"))
+      submit(text)
+      t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
+      t->expect(sent.contents)->Expect.toBe(1)
+    },
+  )
 
   test("SendMessage metadata carries message ID, submission agent, and selected model", t => {
     setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
@@ -1881,14 +1939,10 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let state = {
       ...Reducer.defaultState,
       selectedModelValue: Some("anthropic:claude-opus-4-6"),
-      acpSession: AcpSessionActive({
-        sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta) => sentMetadata := _meta,
-        sendSessionCommand: _ => (),
-        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-        deleteSession: (_, ~onComplete as _) => (),
-        requireAuthentication: () => (),
-        apiBaseUrl: "http://localhost:4000",
-      }),
+      acpSession: TestHelpers.activeAcpSession(
+        ~sessionId=Some("session-1"),
+        ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta) => sentMetadata := _meta,
+      ),
     }
     let (state, effects) = Reducer.next(
       state,
@@ -1987,15 +2041,10 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let state = {
       ...Reducer.defaultState,
       selectedModelValue: Some("test:model"),
-      acpSession: AcpSessionActive({
-        sendPrompt: (_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
+      acpSession: TestHelpers.activeAcpSession(
+        ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
           completion := Some(onComplete),
-        sendSessionCommand: _ => (),
-        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-        deleteSession: (_, ~onComplete as _) => (),
-        requireAuthentication: () => (),
-        apiBaseUrl: "http://localhost:4000",
-      }),
+      ),
     }
     let (state, effects) = Reducer.next(
       state,
@@ -2043,6 +2092,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
     }
 
     let _setAcpSessionAction = (): Reducer.action => SetAcpSession({
+      sessionId: None,
+      createSession: (~onComplete as _) => (),
       sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
       sendSessionCommand: _ => (),
       loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),

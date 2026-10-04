@@ -37,11 +37,9 @@ let make = () => {
   )
   let wordpressUpdates = Client__State.useSelector(Client__State.Selectors.wordpressUpdates)
   let wordpressUpdateUnsupported = wordpressUpdates == Unsupported
-  let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let runtimeConfig = RuntimeConfig.read()
-  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
+  let {state} = Client__FrontmanProvider.useFrontman()
   let apiBaseUrl = Client__ConnectionReducer.apiBaseUrlFromLoginUrl(state.config.acp.loginUrl)
-  let session = Client__ConnectionReducer.Selectors.getSession(state)
   let serverInfo =
     Client__ConnectionReducer.Selectors.getRelay(state)->Option.map(Relay.getServerInfo)
 
@@ -83,7 +81,6 @@ let make = () => {
     | Some({target, latestVersion, installedVersion}) =>
       switch updateActionForTarget(target, ~wordpressPluginsUrl=runtimeConfig.wordpressPluginsUrl) {
       | AgentUpdate(npmPackage) =>
-        let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
         let projectRootHint = switch runtimeConfig.projectRoot {
         | Some(root) => ` The project root is ${root}.`
         | None => ""
@@ -95,26 +92,15 @@ let make = () => {
           ` detect the package manager from the lock file` ++
           ` (yarn.lock, package-lock.json, pnpm-lock.yaml, or bun.lock),` ++ ` and run the appropriate update command from that package's directory.`
         let content = [Client__State.UserContentPart.Text({text: text})]
-        let sendMessage = (sessionId: string) => {
-          Client__State.Actions.addUserMessage(~sessionId, ~content, ~agentId)
-        }
-        switch session {
-        | Some(sess) =>
-          sendMessage(sess.sessionId)
-          Client__State.Actions.dismissUpdateBanner()
-        | None =>
-          dispatch(
-            CreateSession({
-              onComplete: result =>
-                switch result {
-                | Ok(sessionId) =>
-                  sendMessage(sessionId)
-                  Client__State.Actions.dismissUpdateBanner()
-                | Error(_) => ()
-                },
-            }),
-          )
-        }
+        Client__State.Actions.addUserMessage(~content)
+        ->Promise.then(result => {
+          switch result {
+          | Ok() => Client__State.Actions.dismissUpdateBanner()
+          | Error(error) => WebAPI.Window.current->WebAPI.Window.alert(~message=error)
+          }
+          Promise.resolve()
+        })
+        ->ignore
       | WordPressUpdate(_) => ()
       }
     | None => ()

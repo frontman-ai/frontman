@@ -24,6 +24,11 @@ type apiKeyProvider = OpenRouter | Anthropic | Fireworks | Nvidia
 type pendingPlanHandoff = {taskId: string, executorAgentId: string}
 
 type action =
+  | SubmitUserMessage({content: array<UserContentPart.t>, onComplete: result<unit, string> => unit})
+  | UserMessagePrepared({
+      submission: Client__State__Types.submission,
+      result: result<string, string>,
+    })
   | AcpSessionUpdateReceived({taskId: string, update: ACP.sessionUpdate})
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   | AddUserMessage({
@@ -34,10 +39,9 @@ type action =
       agentId: string,
     })
   | ExecuteAnnotation({
-      id: Message.UserMessageId.t,
-      sessionId: string,
       annotationId: string,
       comment: string,
+      onComplete: result<unit, string> => unit,
     })
   | CancelTurn
   | ExecutePendingPlan({id: Message.UserMessageId.t})
@@ -46,6 +50,8 @@ type action =
   | ClearCurrentTask
   | UpdateTaskTitle({taskId: string, title: string})
   | SetAcpSession({
+      sessionId: option<string>,
+      createSession: Client__State__Types.createSessionFn,
       sendPrompt: Client__State__Types.sendPromptFn,
       sendSessionCommand: Client__State__Types.sendSessionCommandFn,
       loadTask: Client__State__Types.loadTaskFn,
@@ -130,6 +136,8 @@ type customProviderMutationRequest =
   | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
+  | PrepareUserMessage(Client__State__Types.submission)
+  | SubmissionCompleted({onComplete: result<unit, string> => unit, result: result<unit, string>})
   | AbortBillingRequest(option<WebAPI.EventTypes.abortController>)
   | FetchBillingStatus({signal: WebAPI.EventTypes.abortSignal, apiBaseUrl: string})
   | OpenBillingTabAndFetchUrl({
@@ -312,6 +320,7 @@ let defaultState: state = {
   tasks: Dict.make(),
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   acpSession: NoAcpSession,
+  submitting: None,
   userProfile: None,
   settingsModalTab: None,
   billingStatus: Client__Billing.NotLoaded,
@@ -351,6 +360,8 @@ let defaultState: state = {
 }
 
 module Selectors = {
+  let isSubmitting = (state: state) => state.submitting->Option.isSome
+
   let getMessageId = Message.getId
 
   let currentTask = (state: state): Task.t => {
@@ -393,7 +404,7 @@ module Selectors = {
   }
 
   let webPreviewIsSelecting = (state: state): bool => {
-    Task.getWebPreviewIsSelecting(currentTask(state))
+    !isSubmitting(state) && Task.getWebPreviewIsSelecting(currentTask(state))
   }
 
   let hasEnrichingAnnotations = (state: state): bool => {
@@ -639,56 +650,44 @@ let buildPrompt = (state: state, ~messageId, ~attachments, ~annotations, ~task, 
 
 let validatePrompt = FrontmanAiFrontmanClient.FrontmanClient__ACP__Protocol.validatePrompt
 
-let validatePromptDraft = (state: state, ~content, ~annotations, ~agentId) => {
+let validateSubmission = (state: state, submission: Client__State__Types.submission) => {
+  let {id: messageId, task, content, annotations, agentId} = submission
   let text = TaskReducer.extractTextFromUserContent(content)
   let attachments = TaskReducer.extractAttachmentsFromUserContent(content)
-  let (additionalBlocks, _meta) = buildPrompt(
-    state,
-    ~messageId=Message.UserMessageId.make(),
-    ~attachments,
-    ~annotations,
-    ~task=Selectors.currentTask(state),
-    ~agentId,
-  )
-  validatePrompt(~text, ~additionalBlocks, ~_meta)
-}
-
-let sendMessageToAPIImpl = (
-  state: state,
-  dispatch,
-  ~messageId,
-  ~message,
-  ~attachments: array<Client__Message.fileAttachmentData>,
-  ~annotations: array<Client__Message.MessageAnnotation.t>,
-  ~taskId,
-  ~agentId,
-) => {
-  let onComplete = result =>
-    switch result {
-    | Ok(_) => ()
-    | Error(error) =>
-      dispatch(
-        TaskAction({
-          target: ForTask(taskId),
-          action: UserMessageSendFailed({id: messageId, error}),
-        }),
-      )
-    }
   let (additionalBlocks, _meta) = buildPrompt(
     state,
     ~messageId,
     ~attachments,
     ~annotations,
-    ~task=state.tasks->Dict.get(taskId)->Option.getOrThrow,
+    ~task,
     ~agentId,
   )
-  switch validatePrompt(~text=message, ~additionalBlocks, ~_meta) {
-  | Error(error) => onComplete(Error(error))
-  | Ok() =>
-    switch state.acpSession {
-    | AcpSessionActive({sendPrompt}) => sendPrompt(message, ~additionalBlocks, ~_meta, ~onComplete)
-    | NoAcpSession => onComplete(Error("Cannot send message: no active ACP session"))
+  validatePrompt(~text, ~additionalBlocks, ~_meta)
+}
+
+let startSubmission = (state: state, ~content, ~annotations, ~onComplete) => {
+  switch (state.submitting, state.selectedAgentId, state.selectedModelValue) {
+  | (None, Some(agentId), Some(_)) if !Selectors.hasEnrichingAnnotations(state) =>
+    let submission: Client__State__Types.submission = {
+      id: Message.UserMessageId.make(),
+      task: Selectors.currentTask(state),
+      content,
+      annotations,
+      agentId,
+      onComplete,
     }
+    {...state, submitting: Some(submission)}->StateReducer.update(
+      ~sideEffect=PrepareUserMessage(submission),
+    )
+  | _ =>
+    state->StateReducer.update(
+      ~sideEffects=[
+        SubmissionCompleted({
+          onComplete,
+          result: Error("The composer is not ready to send."),
+        }),
+      ],
+    )
   }
 }
 
@@ -1180,7 +1179,7 @@ let getSessionTextBuffer = dispatch =>
     buffer
   }
 
-let handleEffect = (effect, state: state, dispatch) => {
+let handleEffect = (effect, state: state, dispatch: action => unit) => {
   switch effect {
   | BufferAssistantText({taskId, messageId, text, agentId}) =>
     getSessionTextBuffer(dispatch).add(~taskId, ~messageId, ~text, ~agentId)
@@ -1253,6 +1252,22 @@ let handleEffect = (effect, state: state, dispatch) => {
       )
     }
   | FetchUserProfileEffect({apiBaseUrl}) => fetchUserProfileImpl(dispatch, ~apiBaseUrl)
+  | SubmissionCompleted({onComplete, result}) => onComplete(result)
+  | PrepareUserMessage(submission) =>
+    let onComplete = result => dispatch(UserMessagePrepared({submission, result}))
+    switch validateSubmission(state, submission) {
+    | Error(error) => onComplete(Error(error))
+    | Ok() =>
+      switch (state.acpSession, Task.getId(submission.task)) {
+      | (AcpSessionActive({sessionId: Some(sessionId)}), Some(taskId)) if sessionId == taskId =>
+        onComplete(Ok(taskId))
+      | (AcpSessionActive({createSession}), None) => createSession(~onComplete)
+      | (_, Some(taskId)) =>
+        onComplete(Error("Reconnecting this conversation. Send again when it is ready."))
+        dispatch(SwitchTask({taskId: taskId}))
+      | _ => onComplete(Error("Cannot send message: no active connection"))
+      }
+    }
   | TaskEffect({target, effect: taskEffect}) => {
       let taskDispatch = (taskAction: TaskReducer.action) => {
         dispatch(TaskAction({target, action: taskAction}))
@@ -1270,16 +1285,31 @@ let handleEffect = (effect, state: state, dispatch) => {
               failwith("[TaskEffect] NeedSendMessage from CurrentTask but currentTask is New")
             }
           }
-          sendMessageToAPIImpl(
+          let onComplete = result =>
+            switch result {
+            | Ok(_) => ()
+            | Error(error) =>
+              dispatch(
+                TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}),
+              )
+            }
+          let (additionalBlocks, _meta) = buildPrompt(
             state,
-            dispatch,
             ~messageId=id,
-            ~message=text,
             ~attachments,
             ~annotations,
-            ~taskId,
+            ~task=state.tasks->Dict.get(taskId)->Option.getOrThrow,
             ~agentId,
           )
+          switch validatePrompt(~text, ~additionalBlocks, ~_meta) {
+          | Error(error) => onComplete(Error(error))
+          | Ok() =>
+            switch state.acpSession {
+            | AcpSessionActive({sendPrompt}) =>
+              sendPrompt(text, ~additionalBlocks, ~_meta, ~onComplete)
+            | NoAcpSession => onComplete(Error("Cannot send message: no active ACP session"))
+            }
+          }
         | NeedSessionCommand(command) =>
           switch state.acpSession {
           | AcpSessionActive({sendSessionCommand}) => sendSessionCommand(command)
@@ -1757,8 +1787,42 @@ let startCustomProviderMutation = (state: state, request) => {
   }
 }
 
-let next = (state: state, action) => {
+let rec next = (state: state, action) => {
   switch action {
+  | SwitchTask(_) | ClearCurrentTask | DeleteTask(_) | ClearAcpSession
+    if Selectors.isSubmitting(state) =>
+    let {onComplete} = state.submitting->Option.getOrThrow
+    let (state, effects) = next({...state, submitting: None}, action)
+    state->StateReducer.update(
+      ~sideEffects=Array.concat(
+        effects,
+        [
+          SubmissionCompleted({
+            onComplete,
+            result: Error("Conversation changed. Your message was not sent."),
+          }),
+        ],
+      ),
+    )
+  | UserMessagePrepared({submission: {id}})
+    if state.submitting->Option.map(submission => submission.id) != Some(id) =>
+    state->StateReducer.update
+  | TaskAction({
+    action:
+      SetAnnotationMode(_)
+      | ToggleAnnotationMode
+      | ToggleAnnotation(_)
+      | AddAnnotation(_)
+      | AddAnnotations(_)
+      | RemoveAnnotation(_)
+      | ClearAnnotations
+      | SetActivePopupAnnotationId(_)
+      | UpdateAnnotationComment(_),
+  })
+  | SetSelectedAgentId(_)
+  | SetSelectedModelValue(_)
+  | ExecutePendingPlan(_) if Selectors.isSubmitting(state) =>
+    state->StateReducer.update
   | AcpSessionUpdateReceived({taskId, update}) =>
     let task = action => TaskAction({target: ForTask(taskId), action})
     let flush = actions => state->StateReducer.update(~sideEffect=FlushSessionActions(actions))
@@ -1870,8 +1934,45 @@ let next = (state: state, action) => {
     }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
-  | ExecuteAnnotation({id, sessionId, annotationId, comment}) =>
-    let agentId = state.selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
+  | SubmitUserMessage({content, onComplete}) =>
+    startSubmission(
+      state,
+      ~content,
+      ~annotations=Selectors.annotations(state)->Array.map(
+        Message.MessageAnnotation.fromAnnotation,
+      ),
+      ~onComplete,
+    )
+
+  | UserMessagePrepared({submission, result}) =>
+    let {id, task, content, annotations, agentId, onComplete} = submission
+    let result = switch (
+      state.selectedModelValue,
+      Selectors.currentTaskClientId(state) == Task.getClientId(task),
+    ) {
+    | (None, _) | (_, false) =>
+      Error("Conversation or model changed while preparing. Your draft is preserved.")
+    | (Some(_), true) =>
+      result->Result.flatMap(sessionId =>
+        validateSubmission(
+          state,
+          {...submission, task: Selectors.currentTask(state)},
+        )->Result.map(_ => sessionId)
+      )
+    }
+    let state = {...state, submitting: None}
+    let (state, effects) = switch result {
+    | Ok(sessionId) => next(state, AddUserMessage({id, sessionId, content, annotations, agentId}))
+    | Error(_) => (state, [])
+    }
+    state->StateReducer.update(
+      ~sideEffects=Array.concat(
+        effects,
+        [SubmissionCompleted({onComplete, result: result->Result.map(_ => ())})],
+      ),
+    )
+
+  | ExecuteAnnotation({annotationId, comment, onComplete}) =>
     let annotation =
       Selectors.currentTask(state)
       ->Task.getAnnotations
@@ -1890,14 +1991,7 @@ let next = (state: state, action) => {
     | value => [UserContentPart.Text({text: value})]
     }
     let messageAnnotation = Client__Message.MessageAnnotation.fromAnnotation(annotation)
-    addUserMessageToState(
-      state,
-      ~id,
-      ~sessionId,
-      ~content,
-      ~annotations=[messageAnnotation],
-      ~agentId,
-    )
+    startSubmission(state, ~content, ~annotations=[messageAnnotation], ~onComplete)
 
   | AddUserMessage({id, sessionId, content, annotations, agentId}) =>
     addUserMessageToState(state, ~id, ~sessionId, ~content, ~annotations, ~agentId)
@@ -1997,6 +2091,8 @@ let next = (state: state, action) => {
     }
 
   | SetAcpSession({
+      sessionId,
+      createSession,
       sendPrompt,
       sendSessionCommand,
       loadTask,
@@ -2007,6 +2103,8 @@ let next = (state: state, action) => {
     {
       ...state,
       acpSession: AcpSessionActive({
+        sessionId,
+        createSession,
         sendPrompt,
         sendSessionCommand,
         loadTask,

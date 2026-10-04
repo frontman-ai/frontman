@@ -598,7 +598,9 @@ let make = (
         switch getPromptFileSizeError(file) {
         | Some(error) => onFileSizeErrorRef.current(error)
         | None =>
-          let dataUrl = await readFileAsDataUrl(file)
+          let dataUrl = await readFileAsDataUrl(file)->Promise.then(dataUrl =>
+            Client__ImageLimits.constrainDataUrl(dataUrl, Client__ImageLimits.conservative)
+          )
           let target =
             nextInsertPos.contents
             ->Option.map(position => Cursor(position))
@@ -608,7 +610,9 @@ let make = (
             {
               id: generateId(),
               name: file->fileName,
-              mediaType: mediaType->acceptedMediaTypeToString,
+              mediaType: dataUrl->String.startsWith("data:image/jpeg")
+                ? "image/jpeg"
+                : mediaType->acceptedMediaTypeToString,
               dataUrl,
             },
             target,

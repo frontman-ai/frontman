@@ -6,24 +6,16 @@ module Selectors = Client__State__StateReducer.Selectors
 module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
-let validatePromptDraft = (~content, ~annotations, ~agentId) =>
-  Client__State__StateReducer.validatePromptDraft(
-    StateStore.getState(Client__State__Store.store),
-    ~content,
-    ~annotations,
-    ~agentId,
-  )
-
 module Actions = {
-  let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
-    let id = Client__Message.UserMessageId.make()
-    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
-  }
+  let addUserMessage = (~content) =>
+    Promise.make((resolve, _) =>
+      Client__State__Store.dispatch(SubmitUserMessage({content, onComplete: resolve}))
+    )
 
-  let executeAnnotation = (~sessionId, ~annotationId, ~comment) => {
-    let id = Client__Message.UserMessageId.make()
-    Client__State__Store.dispatch(ExecuteAnnotation({id, sessionId, annotationId, comment}))
-  }
+  let executeAnnotation = (~annotationId, ~comment) =>
+    Promise.make((resolve, _) =>
+      Client__State__Store.dispatch(ExecuteAnnotation({annotationId, comment, onComplete: resolve}))
+    )
 
   let setCurrentPreviewUrl = (~url) =>
     Client__State__Store.dispatch(
@@ -109,6 +101,8 @@ module Actions = {
   }
 
   let setAcpSession = (
+    ~sessionId,
+    ~createSession,
     ~sendPrompt,
     ~sendSessionCommand,
     ~loadTask,
@@ -118,6 +112,8 @@ module Actions = {
   ) =>
     Client__State__Store.dispatch(
       SetAcpSession({
+        sessionId,
+        createSession,
         sendPrompt,
         sendSessionCommand,
         loadTask,

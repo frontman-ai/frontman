@@ -14,6 +14,10 @@ let make = (~apiBaseUrl: string) => {
     | Connecting => ()
     | Connected | SessionActive(_) =>
       Client__State.Actions.setAcpSession(
+        ~sessionId=Client__ConnectionReducer.Selectors.getSession(state)->Option.map(session =>
+          session.sessionId
+        ),
+        ~createSession=(~onComplete) => dispatch(CreateSession({onComplete: onComplete})),
         ~sendPrompt=(text, ~additionalBlocks, ~onComplete, ~_meta) =>
           dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta})),
         ~sendSessionCommand=command => dispatch(SessionCommand(command)),

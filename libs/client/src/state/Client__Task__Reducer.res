@@ -929,14 +929,6 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       agentId,
     })
 
-    let remainingAnnotations =
-      data.annotations->Array.filter(annotation =>
-        !(
-          annotations->Array.some(sent =>
-            sent == Message.MessageAnnotation.fromAnnotation(annotation)
-          )
-        )
-      )
     let updatedImageAttachments = data.imageAttachments->Dict.copy
     attachments->Array.forEach(att => {
       let uri = `attachment://${att.id}/${att.filename}`
@@ -952,13 +944,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         imageAttachments: updatedImageAttachments,
         queuedUserMessages: Array.concat(data.queuedUserMessages, [pendingMessage]),
         pendingUserMessageIds: Array.concat(data.pendingUserMessageIds, [messageId]),
-        annotations: remainingAnnotations,
-        annotationMode: remainingAnnotations->Array.length == 0
-          ? Annotation.Off
-          : data.annotationMode,
-        activePopupAnnotationId: data.activePopupAnnotationId->Option.filter(id =>
-          remainingAnnotations->Array.some(annotation => annotation.id == id)
-        ),
+        annotations: [],
+        annotationMode: Annotation.Off,
+        activePopupAnnotationId: None,
       }),
       [SendMessage({id, text, attachments, annotations, agentId})],
     )

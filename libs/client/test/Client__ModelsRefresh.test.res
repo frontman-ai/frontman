@@ -20,6 +20,8 @@ let _apiBaseUrl = "http://localhost:4000"
 let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
   ...Reducer.defaultState,
   acpSession: AcpSessionActive({
+    sessionId: None,
+    createSession: (~onComplete as _) => (),
     sendPrompt: _dummySendPrompt,
     sendSessionCommand: _dummySendSessionCommand,
     loadTask: _dummyLoadTask,

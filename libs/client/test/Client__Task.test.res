@@ -728,19 +728,8 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     task3
   }
 
-  test("AddUserMessage clears submitted annotations but preserves later edits", t => {
+  test("AddUserMessage clears the submitted draft and annotation UI", t => {
     let task = _taskWithAnnotations()
-    let submitted =
-      TaskReducer.Selectors.annotations(task)
-      ->Option.getOrThrow
-      ->Array.map(MessageAnnotation.fromAnnotation)
-    let (task, _) = TaskReducer.next(
-      task,
-      UpdateAnnotationComment({
-        id: (submitted[1]->Option.getOrThrow).id,
-        comment: "Edited while preparing",
-      }),
-    )
     t
     ->expect(TaskReducer.Selectors.annotations(task)->Option.getOr([])->Array.length)
     ->Expect.toBe(2)
@@ -754,18 +743,18 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
       AddUserMessage({
         id: testUserMessageId,
         content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
-        annotations: submitted,
+        annotations: _sampleMessageAnnotations,
         agentId: "executor-id",
       }),
     )
 
     t
     ->expect(TaskReducer.Selectors.annotations(updated)->Option.getOr([])->Array.length)
-    ->Expect.toBe(1)
-    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(updated))->Expect.toEqual(Some(true))
+    ->Expect.toBe(0)
+    t->expect(TaskReducer.Selectors.webPreviewIsSelecting(updated))->Expect.toEqual(Some(false))
     t
     ->expect(
-      TaskReducer.Selectors.activePopupAnnotationId(updated)->Option.getOr(None)->Option.isSome,
+      TaskReducer.Selectors.activePopupAnnotationId(updated)->Option.getOr(None)->Option.isNone,
     )
     ->Expect.toBe(true)
 

@@ -73,6 +73,8 @@ beforeEach(() => {
   state := {
       ...Reducer.defaultState,
       acpSession: AcpSessionActive({
+        sessionId: None,
+        createSession: (~onComplete as _) => (),
         apiBaseUrl: "https://api.example",
         requireAuthentication: () => authenticated := authenticated.contents + 1,
         sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
