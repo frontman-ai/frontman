@@ -1,36 +1,8 @@
 module SettingsModal = Client__SettingsModal
 
 @react.component
-let make = (~apiBaseUrl: string) => {
-  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
-  let connectionState = React.useMemo1(
-    () => Client__ConnectionReducer.Selectors.getConnectionStatus(state),
-    [state],
-  )
-  let authRedirectUrl = Client__ConnectionReducer.Selectors.getAuthRedirectUrl(state)
-
-  React.useEffect(() => {
-    switch connectionState {
-    | Connecting => ()
-    | Connected | SessionActive(_) =>
-      Client__State.Actions.setAcpSession(
-        ~sessionId=Client__ConnectionReducer.Selectors.getSession(state)->Option.map(session =>
-          session.sessionId
-        ),
-        ~createSession=(~onComplete) => dispatch(CreateSession({onComplete: onComplete})),
-        ~sendPrompt=(text, ~additionalBlocks, ~onComplete, ~_meta) =>
-          dispatch(SendPrompt({text, additionalBlocks, onComplete, _meta})),
-        ~sendSessionCommand=command => dispatch(SessionCommand(command)),
-        ~loadTask=(taskId, ~needsHistory, ~onComplete) =>
-          dispatch(LoadTask({taskId, needsHistory, onComplete})),
-        ~deleteSession=(taskId, ~onComplete) => dispatch(DeleteSession({taskId, onComplete})),
-        ~requireAuthentication=() => dispatch(RequireAuthentication),
-        ~apiBaseUrl,
-      )
-    | LoggingOut | Disconnected | Error(_) => Client__State.Actions.clearAcpSession()
-    }
-    None
-  }, (connectionState, dispatch, apiBaseUrl))
+let make = () => {
+  let authRedirectUrl = Client__State.useSelector(Client__State.Selectors.getAuthRedirectUrl)
 
   let (chatboxWidth, isResizing, handleResizeMouseDown) = Client__UseResizableWidth.use()
 
@@ -98,7 +70,9 @@ let make = (~apiBaseUrl: string) => {
     />
     {switch authRedirectUrl {
     | Some(loginUrl) =>
-      <Client__WelcomeModal loginUrl onSignIn={() => dispatch(RetryAuthentication)} />
+      <Client__WelcomeModal
+        loginUrl onSignIn={() => Client__State.Actions.connection(RetryAuthentication)}
+      />
     | None => React.null
     }}
     <Client__TopBar

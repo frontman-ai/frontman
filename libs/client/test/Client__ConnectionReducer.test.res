@@ -3,6 +3,14 @@ open Vitest
 module Reducer = Client__ConnectionReducer
 module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
 
+let handleEffect = (effect, state, dispatch) =>
+  Client__State__StateReducer.ConnectionEffects.handleEffect(
+    effect,
+    state,
+    dispatch,
+    ~dispatchApp=Client__State__Store.dispatch,
+  )
+
 let effectKinds = effects =>
   effects->Array.map(effect =>
     switch effect {
@@ -13,7 +21,7 @@ let effectKinds = effects =>
     | Reducer.CleanupEffect(_) => #cleanup
     | Reducer.CleanupConnectionEffect(_) => #cleanupConnection
     | Reducer.LogoutEffect(_) => #logout
-    | Reducer.ActivateSessionEffect({operation: #create}) => #createSession
+    | Reducer.ActivateSessionEffect({operation: #create(_)}) => #createSession
     | Reducer.ActivateSessionEffect({operation: #load(_) | #join(_)}) => #loadTask
     | Reducer.SendPromptEffect(_) => #sendPrompt
     | Reducer.SessionCommandEffect(_) => #sessionCommand
@@ -36,25 +44,9 @@ external reconnectWire: unit => reconnectWire = "makeTransport"
 
 let mock = value => Obj.magic(value)
 let mockRelay: Reducer.Relay.connected = mock({"id": "relay"})
-let mockConnection: Reducer.ACP.connection = mock({
-  "state": ref({
-    ...FrontmanAiFrontmanClient.FrontmanClient__ACP__Client.initialState,
-    acpState: Initialized(mock({"protocolVersion": 1})),
-  }),
-})
+let mockConnection = Client__ConnectionTestHelpers.connection
 let loginUrl = "https://app.frontman.sh/users/log-in"
-let config: Reducer.config = {
-  acp: Reducer.ACP.makeConfig(
-    ~endpoint="ws://test",
-    ~loginUrl,
-    ~getAuthToken=() => None,
-    ~name="test",
-    ~version="1.0.0",
-    ~_meta=JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("test"))])),
-  ),
-  relay: Reducer.Relay.makeConfig(~baseUrl="http://test"),
-  mcp: Reducer.MCPServer.makeConfig(),
-}
+let config = Client__ConnectionTestHelpers.config(~apiBaseUrl="https://app.frontman.sh")
 let initialState = Reducer.initialState(config)
 let initialize = state => Reducer.reduce(state, Initialize)
 let runtime = (state: Reducer.state) => state.connection->Result.getOrThrow->Option.getOrThrow
@@ -198,7 +190,7 @@ describe("Connection Reducer", () => {
             t->expect(failed.config)->Expect.toBe(config)
             t->expect(Reducer.Selectors.getRelay(failed))->Expect.toBe(None)
             t->expect(effectKinds(effects))->Expect.toEqual([#cleanup, #logError])
-            Reducer.handleEffect(effects->Array.get(0)->Option.getOrThrow, failed, _ => ())
+            handleEffect(effects->Array.get(0)->Option.getOrThrow, failed, _ => ())
             t->expect(previous.lifetimeAbortController.signal.aborted)->Expect.toBe(true)
           },
         )
@@ -246,7 +238,9 @@ describe("Connection Reducer", () => {
           ("Connection refused", Client__Analytics.NetworkError),
         ]->Array.forEach(
           ((message, reason)) =>
-            t->expect(Reducer.relayFailureReason(message))->Expect.toBe(reason),
+            t
+            ->expect(Client__State__StateReducer.ConnectionEffects.relayFailureReason(message))
+            ->Expect.toBe(reason),
         )
       },
     )
@@ -265,9 +259,9 @@ describe("Connection Reducer", () => {
       callback: () => failwith("A disconnected session must not run its ready callback"),
       onConnectionLost: Some(() => interrupted := interrupted.contents + 1),
     })
-    Reducer.handleEffect(completion, lost, _ => ())
+    handleEffect(completion, lost, _ => ())
     t->expect(interrupted.contents)->Expect.toBe(1)
-    Reducer.handleEffect(completion, withSession(NoSession), _ => ())
+    handleEffect(completion, withSession(NoSession), _ => ())
     t->expect(interrupted.contents)->Expect.toBe(1)
     let rejected = ref(0)
     let onComplete = result => {
@@ -275,7 +269,7 @@ describe("Connection Reducer", () => {
       rejected := rejected.contents + 1
     }
     [
-      Reducer.CreateSession({onComplete: onComplete}),
+      Reducer.CreateSession({sessionId: "new-session", onComplete}),
       Reducer.LoadTask({
         taskId: "existing",
         needsHistory: false,
@@ -290,7 +284,7 @@ describe("Connection Reducer", () => {
     ]->Array.forEach(
       action => {
         let (_, effects) = Reducer.reduce(lost, action)
-        effects->Array.forEach(effect => Reducer.handleEffect(effect, lost, _ => ()))
+        effects->Array.forEach(effect => handleEffect(effect, lost, _ => ()))
       },
     )
     t->expect(rejected.contents)->Expect.toBe(3)
@@ -321,13 +315,11 @@ describe("Connection Reducer", () => {
     let completed = ref(None)
     let (creating, _) = Reducer.reduce(
       withSession(NoSession),
-      CreateSession({
-        onComplete: result => completed := Some(result),
-      }),
+      CreateSession({sessionId: "new-session", onComplete: result => completed := Some(result)}),
     )
     let signal = runtime(creating).lifetimeAbortController.signal
     let (lost, effects) = Reducer.reduce(creating, ACPReconnecting({signal: signal}))
-    effects->Array.forEach(effect => Reducer.handleEffect(effect, lost, _ => ()))
+    effects->Array.forEach(effect => handleEffect(effect, lost, _ => ()))
     t->expect(completed.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
     let (restored, _) = Reducer.reduce(lost, ACPReconnected({signal, result: Ok(mockConnection)}))
     let (unchanged, effects) = Reducer.reduce(
@@ -349,7 +341,7 @@ describe("Connection Reducer", () => {
     )
     let (lost, _) = Reducer.reduce(activated, ACPReconnecting({signal: signal}))
     let (restored, _) = Reducer.reduce(lost, ACPReconnected({signal, result: Ok(mockConnection)}))
-    queued->Array.forEach(effect => Reducer.handleEffect(effect, restored, _ => ()))
+    queued->Array.forEach(effect => handleEffect(effect, restored, _ => ()))
     t->expect(completed.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
   })
 
@@ -444,11 +436,14 @@ describe("Connection Reducer", () => {
         let completed = ref(None)
         let mockSession = mock({"sessionId": "sess-1", "channel": null})
         let (state, effects) = completeSession(
-          Reducer.reduce(withSession(NoSession), CreateSession({onComplete: _ => ()}))->Pair.first,
+          Reducer.reduce(
+            withSession(NoSession),
+            CreateSession({sessionId: "new-session", onComplete: _ => ()}),
+          )->Pair.first,
           Ok((mockSession, None)),
           ~onComplete=result => completed := Some(result),
         )
-        effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+        effects->Array.forEach(effect => handleEffect(effect, state, _ => ()))
         t->expect(completed.contents)->Expect.toEqual(Some(Ok("sess-1")))
         t->expect(Reducer.Selectors.getSession(state))->Expect.toEqual(Some(mockSession))
         t
@@ -570,7 +565,7 @@ describe("Connection Reducer", () => {
     test(
       "CreateSession requires a ready connection",
       t => {
-        let request = Reducer.CreateSession({onComplete: _ => ()})
+        let request = Reducer.CreateSession({sessionId: "new-session", onComplete: _ => ()})
         let (_, rejected) = Reducer.reduce(initialized(), request)
         t->expect(effectKinds(rejected))->Expect.toEqual([#requestRejected])
         let state = withSession(NoSession)
@@ -580,7 +575,7 @@ describe("Connection Reducer", () => {
         | _ => failwith("Expected a new session request")
         }
         switch effects {
-        | [Reducer.ActivateSessionEffect({connection, operation: #create})] =>
+        | [Reducer.ActivateSessionEffect({connection, operation: #create(_)})] =>
           t->expect(connection)->Expect.toBe(mockConnection)
         | _ => t->expect(effectKinds(effects))->Expect.toEqual([#createSession])
         }
@@ -612,7 +607,7 @@ describe("Connection Reducer", () => {
     )
     let state = ref(initialized())
     let signal = runtime(state.contents).lifetimeAbortController.signal
-    let result = await Reducer.connectRuntime(
+    let result = await Client__State__StateReducer.ConnectionEffects.connectRuntime(
       ~config={...config, acp: {...config.acp, getAuthToken: () => Some("test")}},
       ~signal,
       ~onReconnecting=() =>
@@ -628,7 +623,7 @@ describe("Connection Reducer", () => {
     let _ = await Vi.advanceTimersByTimeAsync(1000)
     t->expect(Reducer.Selectors.getConnectionStatus(state.contents))->Expect.toBe(Connected)
     let (waiting, effects) = Reducer.reduce(state.contents, RequireAuthentication)
-    effects->Array.forEach(effect => Reducer.handleEffect(effect, waiting, _ => ()))
+    effects->Array.forEach(effect => handleEffect(effect, waiting, _ => ()))
     t->expect(signal.aborted)->Expect.toBe(true)
     t->expect(Reducer.ACP.isInitialized(ready.connection))->Expect.toBe(false)
     t->expect(Reducer.Selectors.getAuthRedirectUrl(waiting)->Option.isSome)->Expect.toBe(true)
@@ -644,11 +639,11 @@ describe("Connection Reducer", () => {
     }
     let (_, effects) = Reducer.reduce(state, ConnectionCallbackReceived(callback))
     let (_, staleEffects) = Reducer.reduce(newer, ConnectionCallbackReceived(callback))
-    staleEffects->Array.forEach(effect => Reducer.handleEffect(effect, newer, _ => ()))
+    staleEffects->Array.forEach(effect => handleEffect(effect, newer, _ => ()))
     t->expect(called.contents)->Expect.toBe(false)
-    effects->Array.forEach(effect => Reducer.handleEffect(effect, newer, _ => ()))
+    effects->Array.forEach(effect => handleEffect(effect, newer, _ => ()))
     t->expect(called.contents)->Expect.toBe(false)
-    effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+    effects->Array.forEach(effect => handleEffect(effect, state, _ => ()))
     t->expect(called.contents)->Expect.toBe(true)
   })
 

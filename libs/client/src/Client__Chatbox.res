@@ -118,10 +118,9 @@ module ExecutePlanAction = {
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
-  let {state} = Client__FrontmanProvider.useFrontman()
-  let connectionState = Client__ConnectionReducer.Selectors.getConnectionStatus(state)
-  let session = Client__ConnectionReducer.Selectors.getSession(state)
-  let sessionError = Client__ConnectionReducer.Selectors.getSessionError(state)
+  let connectionState = Client__State.useSelector(Client__State.Selectors.getConnectionStatus)
+  let session = Client__State.useSelector(Client__State.Selectors.getSession)
+  let sessionError = Client__State.useSelector(Client__State.Selectors.getSessionError)
 
   let isSubmitting = Client__State.useSelector(Client__State.Selectors.isSubmitting)
   let messages = Client__State.useSelector(Client__State.Selectors.messages)

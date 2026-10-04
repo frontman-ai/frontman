@@ -9,6 +9,7 @@ import {
 } from "../src/Client__SettingsModal.res.mjs";
 import { defaultState } from "../src/state/Client__State__StateReducer.res.mjs";
 import { store } from "../src/state/Client__State__Store.res.mjs";
+import { ready } from "./Client__ConnectionTestHelpers.res.mjs";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 const saved = {
@@ -39,11 +40,7 @@ const setState = (state = {}) => {
 	localStorage.setItem("frontman:embeddedClientToken", "test-token");
 	StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(store, {
 		...defaultState,
-		acpSession: {
-			TAG: "AcpSessionActive",
-			apiBaseUrl: "/api",
-			requireAuthentication: () => {},
-		},
+		connection: ready(),
 		customProviders: [],
 		...state,
 	});

@@ -2,25 +2,9 @@ import * as Sentry from "@frontman-ai/frontman-client/src/FrontmanClient__Sentry
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, expect, it, vi } from "vitest";
-import { initialState } from "../src/Client__ConnectionReducer.res.mjs";
-import { context } from "../src/Client__FrontmanProvider.res.mjs";
 import { make as UpdateBanner } from "../src/components/frontman/Client__UpdateBanner.res.mjs";
 
-const renderBanner = () =>
-	renderToStaticMarkup(
-		createElement(
-			context.Provider,
-			{
-				value: {
-					state: initialState({
-						acp: { loginUrl: "https://api.frontman.sh/users/log-in" },
-					}),
-					dispatch: vi.fn(),
-				},
-			},
-			createElement(UpdateBanner),
-		),
-	);
+const renderBanner = () => renderToStaticMarkup(createElement(UpdateBanner));
 
 const selectedState = vi.hoisted(() => ({ current: undefined }));
 vi.mock("../src/state/Client__State.res.mjs", async (importOriginal) => ({

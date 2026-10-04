@@ -21,23 +21,6 @@ let clearRuntime: unit => unit = %raw(`function() { delete window.__frontmanRunt
 afterEach(() => clearRuntime())
 
 module TestHelpers = {
-  let activeAcpSession = (
-    ~sessionId=None,
-    ~createSession=(~onComplete as _) => (),
-    ~deleteSession=(_, ~onComplete as _) => (),
-    ~requireAuthentication=() => (),
-    ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-  ): Client__State__Types.acpSession => AcpSessionActive({
-    sessionId,
-    createSession,
-    sendPrompt,
-    sendSessionCommand: _ => (),
-    loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-    deleteSession,
-    requireAuthentication,
-    apiBaseUrl: "http://localhost:4000",
-  })
-
   let makeLoadedTask = (
     ~id,
     ~title,
@@ -274,7 +257,7 @@ describe("Client State Reducer - Custom Providers", () => {
   })
 
   test("mutations serialize and accept only matching completions", t => {
-    let state = {...Reducer.defaultState, acpSession: TestHelpers.activeAcpSession()}
+    let state = {...Reducer.defaultState, connection: Client__ConnectionTestHelpers.ready()}
     let saveOperation = StateTypes.SavingCustomProvider(Some("provider-1"))
     let (saving, effects) = Reducer.next(
       state,
@@ -343,18 +326,16 @@ describe("Client State Reducer - Custom Providers", () => {
     ->WebAPI.Storage.removeItem(Client__EmbeddedAuth.tokenStorageKey)
 
     let requireAuthenticationCalled = ref(false)
-    let state = {
-      ...Reducer.defaultState,
-      acpSession: TestHelpers.activeAcpSession(
-        ~requireAuthentication=() => {
-          requireAuthenticationCalled := true
-        },
-      ),
-    }
+    let observeAuth = action =>
+      switch action {
+      | Reducer.ConnectionAction(RequireAuthentication) => requireAuthenticationCalled := true
+      | _ => ()
+      }
+    let state = {...Reducer.defaultState, connection: Client__ConnectionTestHelpers.ready()}
     let (_fetchState, fetchEffects) = Reducer.next(state, Reducer.FetchCustomProviders)
 
     switch fetchEffects->Array.get(0) {
-    | Some(effect) => Reducer.handleEffect(effect, state, _ => ())
+    | Some(effect) => Reducer.handleEffect(effect, state, observeAuth)
     | None => JsExn.throw("Expected FetchCustomProvidersEffect")
     }
     t->expect(requireAuthenticationCalled.contents)->Expect.toBe(true)
@@ -367,13 +348,19 @@ describe("Client State Reducer - Custom Providers", () => {
       Reducer.handleEffect(
         effect,
         mutationState,
-        action => dispatched := Array.concat(dispatched.contents, [action]),
+        action => {
+          observeAuth(action)
+          dispatched := Array.concat(dispatched.contents, [action])
+        },
       )
     | None => JsExn.throw("Expected CustomProviderMutationEffect")
     }
     t->expect(requireAuthenticationCalled.contents)->Expect.toBe(true)
     switch dispatched.contents {
-    | [Reducer.CustomProviderMutationFailed({operation, error})] => {
+    | [
+        Reducer.ConnectionAction(RequireAuthentication),
+        Reducer.CustomProviderMutationFailed({operation, error}),
+      ] => {
         t->expect(operation)->Expect.toEqual(StateTypes.SavingCustomProvider(None))
         t
         ->expect(error)
@@ -391,49 +378,46 @@ describe("Client State Reducer - Custom Providers", () => {
     ->WebAPI.Storage.removeItem(Client__EmbeddedAuth.tokenStorageKey)
 
     let requireAuthenticationCount = ref(0)
-    let requireAuthentication = () => {
-      requireAuthenticationCount := requireAuthenticationCount.contents + 1
-    }
+    let observeAuth = action =>
+      switch action {
+      | Reducer.ConnectionAction(RequireAuthentication) =>
+        requireAuthenticationCount := requireAuthenticationCount.contents + 1
+      | _ => ()
+      }
     let effects = [
       Reducer.FetchAnthropicOAuthStatusEffect({
         apiBaseUrl: "http://localhost:4000",
-        requireAuthentication,
       }),
       Reducer.GetAnthropicOAuthUrlEffect({
         apiBaseUrl: "http://localhost:4000",
-        requireAuthentication,
       }),
       Reducer.ExchangeAnthropicOAuthCodeEffect({
         apiBaseUrl: "http://localhost:4000",
         code: "code-123",
         verifier: "verifier-123",
-        requireAuthentication,
       }),
       Reducer.DisconnectAnthropicOAuthEffect({
         apiBaseUrl: "http://localhost:4000",
-        requireAuthentication,
       }),
       Reducer.FetchOpenAIOAuthStatusEffect({
         apiBaseUrl: "http://localhost:4000",
-        requireAuthentication,
       }),
       Reducer.InitiateOpenAIDeviceAuthEffect({
         apiBaseUrl: "http://localhost:4000",
-        requireAuthentication,
       }),
       Reducer.PollOpenAIDeviceAuthEffect({
         apiBaseUrl: "http://localhost:4000",
         deviceAuthId: "device-123",
         userCode: "user-code",
-        requireAuthentication,
       }),
       Reducer.DisconnectOpenAIOAuthEffect({
         apiBaseUrl: "http://localhost:4000",
-        requireAuthentication,
       }),
     ]
 
-    effects->Array.forEach(effect => Reducer.handleEffect(effect, Reducer.defaultState, _ => ()))
+    effects->Array.forEach(
+      effect => Reducer.handleEffect(effect, Reducer.defaultState, observeAuth),
+    )
 
     t->expect(requireAuthenticationCount.contents)->Expect.toBe(effects->Array.length)
   })
@@ -496,7 +480,7 @@ let plannerPlan = Reducer.Message.Assistant(
 
 let withPlanHandoffContext = (state: Client__State__Types.state): Client__State__Types.state => {
   ...state,
-  acpSession: TestHelpers.activeAcpSession(),
+  connection: Client__ConnectionTestHelpers.ready(),
   agentCatalog: Some([planner, executor]),
 }
 
@@ -1223,11 +1207,21 @@ describe("Client State Reducer - Task Management Actions", () => {
     let deletedTaskId = ref(None)
     let state = {
       ...TestHelpers.makeStateWithTask(~taskId="task-1"),
-      acpSession: TestHelpers.activeAcpSession(
-        ~deleteSession=(taskId, ~onComplete as _) => deletedTaskId := Some(taskId),
-      ),
+      connection: Client__ConnectionTestHelpers.ready(),
     }
-    let store = StateStore.make(module(Reducer), state)
+    let store = StateStore.make(
+      module(
+        {
+          include Reducer
+          let handleEffect = (effect, state, dispatch) =>
+            switch effect {
+            | ConnectionEffect(DeleteSessionEffect({taskId})) => deletedTaskId := Some(taskId)
+            | _ => Reducer.handleEffect(effect, state, dispatch)
+            }
+        }
+      ),
+      state,
+    )
 
     store->StateStore.dispatch(DeleteTask({taskId: "task-1"}))
     let state = store->StateStore.getState
@@ -1360,11 +1354,10 @@ describe("Client State Reducer - Billing Settings", () => {
 
   test("billing launch results schedule navigation and cleanup without executing them", t => {
     let tab = WebAPI.Window.current
-    let requireAuthentication = () => failwith("Reducer must not authenticate")
     let state: Reducer.state = {
       ...Reducer.defaultState,
       billingFlow: Opening,
-      acpSession: TestHelpers.activeAcpSession(~requireAuthentication),
+      connection: Client__ConnectionTestHelpers.ready(),
     }
     let url = "https://billing.stripe.test/session"
     let cases: array<(Reducer.action, Client__Billing.flow, array<Reducer.effect>)> = [
@@ -1377,7 +1370,7 @@ describe("Client State Reducer - Billing Settings", () => {
       (
         BillingAuthRequired({tab: Some(tab)}),
         Idle,
-        [CloseBillingTab(Some(tab)), RequireBillingAuthentication(requireAuthentication)],
+        [CloseBillingTab(Some(tab)), RequireBillingAuthentication],
       ),
       (BillingRequestCancelled({tab: Some(tab)}), Opening, [CloseBillingTab(Some(tab))]),
     ]
@@ -1515,7 +1508,7 @@ describe("Client State Reducer - Billing Settings", () => {
       settingsModalTab: Some(StateTypes.Billing),
       billingStatus: Client__Billing.Error("old account"),
     }
-    let (nextState, _) = Reducer.next(state, ClearAcpSession)
+    let (nextState, _) = Reducer.next(state, ConnectionAction(Dispose))
     t->expect(nextState.settingsModalTab)->Expect.toEqual(None)
     t->expect(nextState.billingStatus)->Expect.toEqual(Client__Billing.NotLoaded)
   })
@@ -1829,7 +1822,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let state = {
       ...TestHelpers.makeStateWithTask(),
       selectedAgentId: Some("executor-id"),
-      acpSession: TestHelpers.activeAcpSession(~sessionId=Some("test-task-1")),
+      connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
     }->Reducer.Lens.updateTask(
       "test-task-1",
       task => TaskReducer.Lens.setAnnotations(task, [annotation, {...annotation, id: "ann-2"}]),
@@ -1844,7 +1837,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
             onComplete: _ => (),
           }),
         )
-        t->expect(nextState.submitting)->Expect.toEqual(None)
+        t->expect(Reducer.Selectors.isSubmitting(nextState))->Expect.toBe(false)
         t->expect(Reducer.Selectors.annotations(nextState))->Expect.toEqual([])
         switch effects {
         | [Reducer.SendMessage({taskId, submission: {annotations, agentId}})] =>
@@ -1863,7 +1856,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let result = ref(None)
     let state = {
       ...Reducer.defaultState,
-      acpSession: TestHelpers.activeAcpSession(),
+      connection: Client__ConnectionTestHelpers.ready(),
       selectedAgentId: Some("executor-id"),
       selectedModelValue: None,
     }
@@ -1888,20 +1881,48 @@ describe("Client State Reducer - Annotations on Messages", () => {
       let completion = ref(None)
       let sent = ref(0)
       let result = ref(None)
+      let handleEffect = (
+        effect: Reducer.effect,
+        state: Reducer.state,
+        dispatch: Reducer.action => unit,
+      ) =>
+        switch effect {
+        | ConnectionEffect(ActivateSessionEffect({
+            requestId,
+            operation: #create(sessionId),
+            onComplete,
+          })) =>
+          created := created.contents + 1
+          completion :=
+            Some(
+              () =>
+                dispatch(
+                  ConnectionAction(
+                    SessionResultReceived({
+                      requestId,
+                      sessionId,
+                      onComplete,
+                      result: Ok((Client__ConnectionTestHelpers.session(sessionId), None)),
+                    }),
+                  ),
+                ),
+            )
+        | ConnectionEffect(SendPromptEffect(_)) => sent := sent.contents + 1
+        | _ => Reducer.handleEffect(effect, state, dispatch)
+        }
+      let runEffect = handleEffect
       let store = StateStore.make(
-        module(Reducer),
+        module(
+          {
+            include Reducer
+            let handleEffect = runEffect
+          }
+        ),
         {
           ...Reducer.defaultState,
           selectedAgentId: Some("executor-id"),
           selectedModelValue: Some("test:model"),
-          acpSession: TestHelpers.activeAcpSession(
-            ~createSession=(~onComplete) => {
-              created := created.contents + 1
-              completion := Some(onComplete)
-            },
-            ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) =>
-              sent := sent.contents + 1,
-          ),
+          connection: Client__ConnectionTestHelpers.ready(),
         },
       )
       let submit = content =>
@@ -1924,15 +1945,17 @@ describe("Client State Reducer - Annotations on Messages", () => {
           action: SetPreviewUrl({url: "https://example.com/" ++ "x"->String.repeat(3_000_000)}),
         }),
       )
-      (completion.contents->Option.getOrThrow)(Ok("first-session"))
+      (completion.contents->Option.getOrThrow)()
       t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
       t->expect(store->StateStore.getState->Reducer.Selectors.isNewTask)->Expect.toBe(true)
       store->StateStore.dispatch(
         TaskAction({target: CurrentTask, action: SetPreviewUrl({url: "https://example.com/"})}),
       )
+      store->StateStore.dispatch(ClearCurrentTask)
       submit(text)
       let staleCompletion = completion.contents->Option.getOrThrow
       store->StateStore.dispatch(ClearCurrentTask)
+      t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
       submit([
         UserContentPart.Image({
           id: Some("image"),
@@ -1941,18 +1964,20 @@ describe("Client State Reducer - Annotations on Messages", () => {
           name: Some("image.png"),
         }),
       ])
-      staleCompletion(Ok("stale-session"))
+      let taskId = store->StateStore.getState->Reducer.Selectors.currentTaskClientId
+      staleCompletion()
       t->expect(store->StateStore.getState->Reducer.Selectors.isSubmitting)->Expect.toBe(true)
       t->expect(sent.contents)->Expect.toBe(0)
-      (completion.contents->Option.getOrThrow)(Ok("current-session"))
+      (completion.contents->Option.getOrThrow)()
       t->expect(result.contents)->Expect.toEqual(Some(Ok()))
       t->expect(sent.contents)->Expect.toBe(1)
       t
       ->expect(store->StateStore.getState->Reducer.Selectors.currentTaskId)
-      ->Expect.toEqual(Some("current-session"))
+      ->Expect.toEqual(Some(taskId))
       submit(text)
-      t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
-      t->expect(sent.contents)->Expect.toBe(1)
+      t->expect(result.contents)->Expect.toEqual(Some(Ok()))
+      t->expect(sent.contents)->Expect.toBe(2)
+      t->expect(created.contents)->Expect.toBe(3)
     },
   )
 
@@ -1963,10 +1988,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let state = {
       ...Reducer.defaultState,
       selectedModelValue: Some("anthropic:claude-opus-4-6"),
-      acpSession: TestHelpers.activeAcpSession(
-        ~sessionId=Some("session-1"),
-        ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete as _, ~_meta) => sentMetadata := _meta,
-      ),
+      connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("session-1")),
     }
     let (state, effects) = Reducer.addUserMessageToState(
       state,
@@ -1980,7 +2002,18 @@ describe("Client State Reducer - Annotations on Messages", () => {
       },
     )
 
-    effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+    effects->Array.forEach(
+      effect =>
+        Reducer.handleEffect(
+          effect,
+          state,
+          action =>
+            switch action {
+            | ConnectionAction(SendPrompt({_meta})) => sentMetadata := _meta
+            | _ => failwith("Expected SendPrompt")
+            },
+        ),
+    )
     let metadata =
       sentMetadata.contents
       ->Option.getOrThrow
@@ -2032,10 +2065,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
         )
         let state = {
           ...state,
-          acpSession: TestHelpers.activeAcpSession(
-            ~sendPrompt=(_, ~additionalBlocks, ~onComplete as _, ~_meta as _) =>
-              sentBlocks := additionalBlocks,
-          ),
+          connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
         }
         let (state, effects) = Reducer.addUserMessageToState(
           state,
@@ -2048,7 +2078,18 @@ describe("Client State Reducer - Annotations on Messages", () => {
             onComplete: _ => (),
           },
         )
-        effects->Array.forEach(effect => Reducer.handleEffect(effect, state, _ => ()))
+        effects->Array.forEach(
+          effect =>
+            Reducer.handleEffect(
+              effect,
+              state,
+              action =>
+                switch action {
+                | ConnectionAction(SendPrompt({additionalBlocks})) => sentBlocks := additionalBlocks
+                | _ => failwith("Expected SendPrompt")
+                },
+            ),
+        )
         switch sentBlocks.contents->Array.get(0) {
         | Some(ContentBlock.EmbeddedResource({_meta: Some(meta)})) =>
           let metadata = S.parseOrThrow(meta, ~to=pageRoutingMetaSchema)
@@ -2067,10 +2108,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let state = {
       ...Reducer.defaultState,
       selectedModelValue: Some("test:model"),
-      acpSession: TestHelpers.activeAcpSession(
-        ~sendPrompt=(_, ~additionalBlocks as _, ~onComplete, ~_meta as _) =>
-          completion := Some(onComplete),
-      ),
+      connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("session-1")),
     }
     let (state, effects) = Reducer.addUserMessageToState(
       state,
@@ -2089,7 +2127,11 @@ describe("Client State Reducer - Annotations on Messages", () => {
         Reducer.handleEffect(
           effect,
           state,
-          action => dispatched := Array.concat(dispatched.contents, [action]),
+          action =>
+            switch action {
+            | ConnectionAction(SendPrompt({onComplete})) => completion := Some(onComplete)
+            | _ => dispatched := Array.concat(dispatched.contents, [action])
+            },
         ),
     )
     let onComplete = completion.contents->Option.getOrThrow
@@ -2113,21 +2155,10 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let _makeStateWithSession = () => {
       {
         ...Reducer.defaultState,
-        acpSession: TestHelpers.activeAcpSession(),
+        connection: Client__ConnectionTestHelpers.ready(),
         selectedModelValue: None,
       }
     }
-
-    let _setAcpSessionAction = (): Reducer.action => SetAcpSession({
-      sessionId: None,
-      createSession: (~onComplete as _) => (),
-      sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-      sendSessionCommand: _ => (),
-      loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-      deleteSession: (_, ~onComplete as _) => (),
-      requireAuthentication: () => (),
-      apiBaseUrl: "http://localhost:4000",
-    })
 
     let _providerCases: array<(Reducer.apiKeyProvider, string)> = [
       (OpenRouter, "openrouter"),
@@ -2303,7 +2334,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
           anthropicOAuthStatus: authorizing,
           openaiOAuthStatus: showingCode,
         }
-        let (nextState, effects) = Reducer.next(state, _setAcpSessionAction())
+        let (nextState, effects) = Reducer.next(state, ConnectionAction(ClearSession))
 
         t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(authorizing)
         t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(showingCode)
@@ -2314,11 +2345,16 @@ describe("Client State Reducer - Annotations on Messages", () => {
     test(
       "initializing a new ACP session does not fetch provider settings",
       t => {
-        let (nextState, effects) = Reducer.next(Reducer.defaultState, _setAcpSessionAction())
-
+        let (nextState, effects) = Reducer.next(
+          Reducer.defaultState,
+          InitializeConnection(Client__ConnectionTestHelpers.config()),
+        )
         t->expect(nextState.anthropicOAuthStatus)->Expect.toEqual(NotConnected)
         t->expect(nextState.openaiOAuthStatus)->Expect.toEqual(OpenAINotConnected)
-        t->expect(effects->Array.length)->Expect.toBe(0)
+        switch effects {
+        | [ConnectionEffect(ConnectRuntime(_))] => ()
+        | _ => failwith("Expected only connection initialization")
+        }
       },
     )
 
@@ -2326,7 +2362,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       "clearing the ACP session invalidates loaded provider settings",
       t => {
         let state = _makeStateWithSession()
-        let (nextState, _effects) = Reducer.next(state, ClearAcpSession)
+        let (nextState, _effects) = Reducer.next(state, ConnectionAction(Dispose))
 
         t->expect(Reducer.Selectors.hasActiveACPSession(nextState))->Expect.toBe(false)
       },

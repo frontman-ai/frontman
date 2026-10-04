@@ -59,7 +59,7 @@ WebAPI.Window.current
         <Client__FrontmanProvider.Provider
           clientName={config.clientName} endpoint={config.endpoint} loginUrl={config.loginUrl}
         >
-          <Client__App apiBaseUrl={config.apiBaseUrl} />
+          <Client__App />
         </Client__FrontmanProvider.Provider>
       </React.StrictMode>,
     )

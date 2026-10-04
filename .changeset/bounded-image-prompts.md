@@ -7,7 +7,7 @@ Reject prompts that exceed the 8 MB WebSocket message limit without clearing the
 
 The server rejects invalid text and context fields before it stores prompts. Image-only prompts remain supported.
 
-The composer locks the draft during session creation. Switching conversations cancels submission without sending the draft to another conversation.
+The client uses one state store for tasks and connection state. Session creation locks the draft. Switching conversations cancels submission without sending the draft to another conversation.
 
 Active sessions send directly from the state reducer. Annotation execution uses the same submission action.
 

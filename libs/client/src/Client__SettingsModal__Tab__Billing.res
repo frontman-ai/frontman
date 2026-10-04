@@ -50,14 +50,9 @@ let renderButton = (~request, ~label, ~disabled, ~opening, ~variant) =>
 let make = () => {
   let billingStatus = State.useSelector(State.Selectors.billingStatus)
   let billingFlow = State.useSelector(State.Selectors.billingFlow)
-  let acpSession = State.useSelector(State.Selectors.acpSession)
+  let connected = State.useSelector(State.Selectors.hasActiveACPSession)
   let opening = billingFlow === Billing.Opening
-  let disabled =
-    opening ||
-    switch acpSession {
-    | Client__State__Types.NoAcpSession => true
-    | AcpSessionActive(_) => false
-    }
+  let disabled = opening || !connected
 
   <div className="space-y-4">
     {switch billingFlow {

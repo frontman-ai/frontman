@@ -49,7 +49,9 @@ describe("ACP billing update handling", () => {
       ~message="Alternate billing copy",
     )
     t
-    ->expect(Client__ConnectionReducer.billingRequestErrorMessage(error))
+    ->expect(
+      Reducer.ConnectionEffects.billingRequestErrorMessage(error, Client__State__Store.dispatch),
+    )
     ->Expect.toBe("Alternate billing copy")
     let state = StateStore.getState(Client__State__Store.store)
     t->expect(state.settingsModalTab)->Expect.toEqual(Some(Client__State__Types.Billing))

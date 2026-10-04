@@ -30,6 +30,10 @@ let navigationBlocked = ref(false)
 let response = (status, body) => WebAPI.Response.fromString(body, ~init={status: status})
 let pending = ref(Promise.withResolvers())
 let rec dispatch = action => {
+  switch action {
+  | Reducer.ConnectionAction(RequireAuthentication) => authenticated := authenticated.contents + 1
+  | _ => ()
+  }
   let (updated, effects) = Reducer.next(state.contents, action)
   state := updated
   effects->Array.forEach(effect => Reducer.handleEffect(effect, updated, dispatch))
@@ -72,16 +76,7 @@ beforeEach(() => {
     )
   state := {
       ...Reducer.defaultState,
-      acpSession: AcpSessionActive({
-        sessionId: None,
-        createSession: (~onComplete as _) => (),
-        apiBaseUrl: "https://api.example",
-        requireAuthentication: () => authenticated := authenticated.contents + 1,
-        sendPrompt: (_, ~additionalBlocks as _, ~onComplete as _, ~_meta as _) => (),
-        sendSessionCommand: _ => (),
-        loadTask: (_, ~needsHistory as _, ~onComplete as _) => (),
-        deleteSession: (_, ~onComplete as _) => (),
-      }),
+      connection: Client__ConnectionTestHelpers.ready(~apiBaseUrl="https://api.example"),
     }
   spyOn(WebAPI.Window.current, "open")->mockImplementation((url: string, target: string) => {
     assert(url == "about:blank" && target == "_blank")
@@ -224,7 +219,7 @@ test("blocked popups do not create unused checkout", t => {
 ["account switch", "session clear"]->Array.forEach(mode => {
   testAsync(`${mode} discards in-flight billing URL`, async t => {
     request(CustomerPortal)
-    dispatch(ClearAcpSession)
+    dispatch(ConnectionAction(Dispose))
     switch mode {
     | "account switch" => Client__EmbeddedAuth.saveToken("other-account")
     | _ => ()
@@ -296,7 +291,7 @@ test("blocked popups do not create unused checkout", t => {
 ["success", "unauthorized", "network"]->Array.forEach(outcome => {
   testAsync(`session clear discards late status ${outcome} with same bearer`, async t => {
     request(Status)
-    dispatch(ClearAcpSession)
+    dispatch(ConnectionAction(Dispose))
     t->expect(Client__EmbeddedAuth.loadToken())->Expect.toEqual(Some("editor-account-a"))
     switch outcome {
     | "network" => pending.contents.reject(Failure("offline"))

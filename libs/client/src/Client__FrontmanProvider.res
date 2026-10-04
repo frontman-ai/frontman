@@ -1,22 +1,7 @@
 module ACP = FrontmanAiFrontmanClient.FrontmanClient__ACP
 module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 module MCPServer = FrontmanAiFrontmanClient.FrontmanClient__MCP__Server
-module Reducer = Client__ConnectionReducer
 module RuntimeConfig = Client__RuntimeConfig
-
-type contextValue = {
-  state: Reducer.state,
-  dispatch: Reducer.action => unit,
-}
-
-let context: React.Context.t<option<contextValue>> = React.createContext(None)
-
-module ContextProvider = {
-  let make = React.Context.provider(context)
-}
-
-let useFrontman = () =>
-  React.useContext(context)->Option.getOrThrow(~message="useFrontman requires FrontmanProvider")
 
 module Provider = {
   @react.component
@@ -27,7 +12,7 @@ module Provider = {
     ~clientVersion: string="1.0.0",
     ~children: React.element,
   ) => {
-    let (initialState, _) = React.useState(() => {
+    React.useEffect0(() => {
       let baseUrl = Client__RelayBaseUrl.current()
       let runtimeConfig = RuntimeConfig.read()
       let relay = switch runtimeConfig.framework {
@@ -68,38 +53,17 @@ module Provider = {
           )
         },
       )
-      Reducer.initialState({acp, relay, mcp})
-    })
-    let (state, dispatch) = StateReducer.useReducer(module(Reducer), initialState)
-    let connectionStateRef = React.useRef(state)
-
-    React.useEffect(() => {
-      connectionStateRef.current = state
-      None
-    }, [state])
-
-    React.useEffect0(() => {
-      dispatch(Initialize)
-
-      Some(
-        () => {
-          Reducer.cleanup(connectionStateRef.current)
-          dispatch(Dispose)
-        },
-      )
-    })
-
-    React.useEffect0(() => {
+      Client__State__Store.dispatch(InitializeConnection({acp, relay, mcp}))
       let refreshBilling = _ => Client__State.Actions.requestBilling(Client__Billing.Status)
       WebAPI.Window.current->WebAPI.Window.addEventListener(Custom("focus"), refreshBilling)
       Some(
-        () =>
-          WebAPI.Window.current->WebAPI.Window.removeEventListener(Custom("focus"), refreshBilling),
+        () => {
+          Client__TextDeltaBuffer.reset()
+          Client__State.Actions.connection(Dispose)
+          WebAPI.Window.current->WebAPI.Window.removeEventListener(Custom("focus"), refreshBilling)
+        },
       )
     })
-
-    let contextValue: contextValue = {state, dispatch}
-
-    <ContextProvider value={Some(contextValue)}> {children} </ContextProvider>
+    children
   }
 }

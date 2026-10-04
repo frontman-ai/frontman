@@ -38,14 +38,13 @@ let make = () => {
   let wordpressUpdates = Client__State.useSelector(Client__State.Selectors.wordpressUpdates)
   let wordpressUpdateUnsupported = wordpressUpdates == Unsupported
   let runtimeConfig = RuntimeConfig.read()
-  let {state} = Client__FrontmanProvider.useFrontman()
-  let apiBaseUrl = Client__ConnectionReducer.apiBaseUrlFromLoginUrl(state.config.acp.loginUrl)
-  let serverInfo =
-    Client__ConnectionReducer.Selectors.getRelay(state)->Option.map(Relay.getServerInfo)
+  let relay = Client__State.useSelector(Client__State.Selectors.getRelay)
+  let apiBaseUrl = Client__State.useSelector(Client__State.Selectors.apiBaseUrl)
+  let serverInfo = relay->Option.map(Relay.getServerInfo)
 
   React.useEffect3(() => {
-    switch (serverInfo, wordpressUpdateUnsupported) {
-    | (Some(serverInfo), false) =>
+    switch (serverInfo, apiBaseUrl, wordpressUpdateUnsupported) {
+    | (Some(serverInfo), Some(apiBaseUrl), false) =>
       let target = RuntimeConfig.frameworkUpdateTarget(runtimeConfig.framework)
       let check = () =>
         Client__State.Actions.checkForUpdate(
