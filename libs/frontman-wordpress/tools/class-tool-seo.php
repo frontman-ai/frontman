@@ -9,12 +9,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Frontman_Tool_Seo {
 	private const YOAST = 'wordpress-seo/wp-seo.php';
+	private const SUPPORTED_YOAST_VERSIONS = [ '28.4', '19.9' ];
 	private const META = [ 'title' => '_yoast_wpseo_title', 'description' => '_yoast_wpseo_metadesc' ];
 	public function register( Frontman_Tools $tools ): void {
 		$schema = [
 			'type'                 => 'object',
 			'additionalProperties' => false,
-			'properties'           => [ 'id' => [ 'type' => 'integer', 'description' => 'Post, page, or custom post type ID.' ] ],
+			'properties'           => [ 'id' => [ 'type' => 'integer', 'minimum' => 1, 'description' => 'Post, page, or custom post type ID.' ] ],
 			'required'             => [ 'id' ],
 		];
 		$tools->add( new Frontman_Tool_Definition(
@@ -28,6 +29,7 @@ class Frontman_Tool_Seo {
 			'title'       => [ 'type' => 'string', 'description' => 'SEO title override.' ],
 			'description' => [ 'type' => 'string', 'description' => 'SEO description override.' ],
 		];
+		$schema['anyOf'] = [ [ 'required' => [ 'title' ] ], [ 'required' => [ 'description' ] ] ];
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_seo',
 			'Updates SEO overrides. Omitted fields stay unchanged; empty strings restore provider defaults.',
@@ -36,32 +38,45 @@ class Frontman_Tool_Seo {
 			'read-write'
 		) );
 	}
-	public static function is_available(): bool {
+	public static function unavailable_reason(): ?string {
 		global $wp_version;
-		if ( ! Frontman_Plugin_Dependencies::is_available( self::YOAST )
-			|| Frontman_Plugin_Dependencies::is_available( 'wordpress-seo-premium/wp-seo-premium.php' )
+		if ( ! Frontman_Plugin_Dependencies::is_available( self::YOAST ) || ! defined( 'WPSEO_VERSION' ) ) {
+			return __( 'Yoast SEO Free is absent or not loaded.', 'frontman-agentic-ai-editor' );
+		}
+		if ( Frontman_Plugin_Dependencies::is_available( 'wordpress-seo-premium/wp-seo-premium.php' )
 			|| Frontman_Plugin_Dependencies::is_available( 'seo-by-rank-math/rank-math.php', 'RankMath' )
 			|| Frontman_Plugin_Dependencies::is_available( 'all-in-one-seo-pack/all_in_one_seo_pack.php' ) || function_exists( 'aioseo' )
 			|| Frontman_Plugin_Dependencies::is_available( 'all-in-one-seo-pack-pro/all_in_one_seo_pack.php' )
-			|| Frontman_Plugin_Dependencies::is_available( 'autodescription/autodescription.php' ) || defined( 'THE_SEO_FRAMEWORK_VERSION' )
-			|| ! defined( 'WPSEO_VERSION' ) || '28.4' !== WPSEO_VERSION
-			|| ! isset( $wp_version ) || version_compare( (string) $wp_version, '6.9', '<' )
-			|| did_action( 'wpseo_loaded' ) < 1 || ! function_exists( 'sanitize_meta' ) ) {
-			return false;
+			|| Frontman_Plugin_Dependencies::is_available( 'autodescription/autodescription.php' ) || defined( 'THE_SEO_FRAMEWORK_VERSION' ) ) {
+			return __( 'Yoast SEO Premium or another active SEO plugin conflicts with this route.', 'frontman-agentic-ai-editor' );
+		}
+		if ( ! in_array( WPSEO_VERSION, self::SUPPORTED_YOAST_VERSIONS, true ) ) {
+			return sprintf(
+				/** translators: 1: installed Yoast version, 2: tested Yoast versions. */
+				__( 'Unsupported Yoast SEO version %1$s; tested versions: %2$s.', 'frontman-agentic-ai-editor' ),
+				(string) WPSEO_VERSION, implode( ', ', self::SUPPORTED_YOAST_VERSIONS )
+			);
+		}
+		if ( ! isset( $wp_version ) || version_compare( (string) $wp_version, '6.9', '<' ) ) {
+			return __( 'SEO tools require WordPress 6.9 or later.', 'frontman-agentic-ai-editor' );
+		}
+		$runtime_reason = __( 'Yoast SEO runtime methods, initialization, or metadata sanitizers are unavailable.', 'frontman-agentic-ai-editor' );
+		if ( did_action( 'wpseo_loaded' ) < 1 || ! function_exists( 'sanitize_meta' ) ) {
+			return $runtime_reason;
 		}
 		foreach ( [ 'get_value', 'set_value', 'delete', 'sanitize_post_meta' ] as $method ) {
 			if ( ! is_callable( [ 'WPSEO_Meta', $method ] ) ) {
-				return false;
+				return $runtime_reason;
 			}
 		}
 		$registered = get_registered_meta_keys( 'post' );
 		foreach ( self::META as $meta_key ) {
 			if ( ! is_callable( $registered[ $meta_key ]['sanitize_callback'] ?? null )
 				|| false === has_filter( 'sanitize_post_meta_' . $meta_key, [ 'WPSEO_Meta', 'sanitize_post_meta' ] ) ) {
-				return false;
+				return $runtime_reason;
 			}
 		}
-		return true;
+		return null;
 	}
 	public static function validate_input( string $tool, array $input ): array {
 		$allowed = 'wp_read_seo' === $tool ? [ 'id' ] : [ 'id', 'title', 'description' ];
@@ -138,15 +153,9 @@ class Frontman_Tool_Seo {
 		];
 	}
 	private function guard( int $id ): string {
-		if ( defined( 'WPSEO_VERSION' ) && '28.4' !== WPSEO_VERSION ) {
-			throw new Frontman_Tool_Error( sprintf(
-				/** translators: %s: installed Yoast SEO version. */
-				__( 'Unsupported Yoast SEO version %s; expected 28.4.', 'frontman-agentic-ai-editor' ),
-				(string) WPSEO_VERSION
-			) );
-		}
-		if ( ! self::is_available() ) {
-			throw new Frontman_Tool_Error( __( 'Yoast SEO Free 28.4 is unavailable or conflicts with another SEO plugin.', 'frontman-agentic-ai-editor' ) );
+		$reason = self::unavailable_reason();
+		if ( null !== $reason ) {
+			throw new Frontman_Tool_Error( $reason );
 		}
 		$post = get_post( $id );
 		$type = $post ? get_post_type_object( $post->post_type ) : null;

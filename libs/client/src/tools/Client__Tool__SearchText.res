@@ -137,7 +137,7 @@ let execute = async (
             let maxResults = input.maxResults->Option.getOr(defaultMaxResults)
             let contextChars = input.contextChars->Option.getOr(defaultContextChars)
 
-            let allMatches = Client__Tool__ElementQuery.findMatchingElements(
+            let allMatches = Client__Preview__ElementQuery.findMatchingElements(
               ~root,
               ~query=input.query,
             )
@@ -150,7 +150,7 @@ let execute = async (
               ->Array.mapWithIndex((el, idx) => {
                 index: idx,
                 text: buildContextSnippet(
-                  ~text=Client__Tool__ElementQuery.getVisibleText(el),
+                  ~text=Client__Preview__ElementQuery.getVisibleText(el),
                   ~query=input.query,
                   ~contextChars,
                 ),

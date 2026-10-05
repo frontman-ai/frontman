@@ -47,6 +47,9 @@ jobs:
           - wordpress: "7.0.2"
             php: "8.4"
             yoast: "28.4"
+          - wordpress: "6.9.9"
+            php: "8.2"
+            yoast: "19.9"
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1

@@ -91,7 +91,7 @@ function frontman_init(): void {
 		( new Frontman_Tool_Redirection() )->register( $tools );
 	}
 
-	if ( Frontman_Tool_Seo::is_available() ) {
+	if ( null === Frontman_Tool_Seo::unavailable_reason() ) {
 		( new Frontman_Tool_Seo() )->register( $tools );
 	}
 
