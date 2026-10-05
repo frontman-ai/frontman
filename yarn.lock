@@ -1043,7 +1043,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@babel/runtime@npm:^7.29.2":
+"@babel/runtime@npm:^7.29.7":
   version: 7.29.7
   resolution: "@babel/runtime@npm:7.29.7"
   checksum: 10c0/ca11572f7146b21e0bde6a9ed4bb6a89eafbee5f0944c7eb54d0d8a2dac962c33638a1d611e14faa71dfbb92b4b5f9236232208568a6b7d5c6f3f39ddb91771e
@@ -1178,12 +1178,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@base-ui/react@npm:^1.7.0":
-  version: 1.7.0
-  resolution: "@base-ui/react@npm:1.7.0"
+"@base-ui/react@npm:^1.8.0":
+  version: 1.8.0
+  resolution: "@base-ui/react@npm:1.8.0"
   dependencies:
-    "@babel/runtime": "npm:^7.29.2"
-    "@base-ui/utils": "npm:0.3.2"
+    "@babel/runtime": "npm:^7.29.7"
+    "@base-ui/utils": "npm:0.4.0"
     "@floating-ui/react-dom": "npm:^2.1.9"
     "@floating-ui/utils": "npm:^0.2.12"
     use-sync-external-store: "npm:^1.6.0"
@@ -1200,15 +1200,15 @@ __metadata:
       optional: true
     date-fns:
       optional: true
-  checksum: 10c0/05bc69f68431ff30a5fac98d8e75c77af7c27749d10aeac10ab7f26843a0a8b49ca5cff32654aad1a107cb7f44aeb1705c15138c9c7f7ddc19d6321fbb263e4d
+  checksum: 10c0/bf3faa8891fe6c9695a07b30caa3349f9ffc067f0efd381bb6ed12d68400a2d273ab0f764dd07c5cc6b25f5bc6df6a5688e0164d4e2500ad07efaec8bdd88896
   languageName: node
   linkType: hard
 
-"@base-ui/utils@npm:0.3.2":
-  version: 0.3.2
-  resolution: "@base-ui/utils@npm:0.3.2"
+"@base-ui/utils@npm:0.4.0":
+  version: 0.4.0
+  resolution: "@base-ui/utils@npm:0.4.0"
   dependencies:
-    "@babel/runtime": "npm:^7.29.2"
+    "@babel/runtime": "npm:^7.29.7"
     "@floating-ui/utils": "npm:^0.2.12"
     reselect: "npm:^5.2.0"
     use-sync-external-store: "npm:^1.6.0"
@@ -1219,7 +1219,7 @@ __metadata:
   peerDependenciesMeta:
     "@types/react":
       optional: true
-  checksum: 10c0/b523339f350679915550605e59754b5db9806a41a3b390d6f6adad29fedc0caf084c8ad1bad6bb62a463360593382defb7d3ea941a94404ed9db0142fdae5800
+  checksum: 10c0/dd32220d13d42ed2cf0d0ae18e02bf9ece5c54d6a26e49c9449514d66d38b1fee51c875f7d9d21484a326b7a8a2c33c95be620e8a5976b7b6f3bfa27572b6baf
   languageName: node
   linkType: hard
 
@@ -2386,7 +2386,7 @@ __metadata:
   resolution: "@frontman-ai/client@workspace:libs/client"
   dependencies:
     "@babel/core": "npm:^8.0.1"
-    "@base-ui/react": "npm:^1.7.0"
+    "@base-ui/react": "npm:^1.8.0"
     "@biomejs/biome": "npm:^2.5.11"
     "@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main"
     "@floating-ui/dom": "npm:^1.8.0"
