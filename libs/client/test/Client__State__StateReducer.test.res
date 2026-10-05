@@ -1947,7 +1947,31 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect(created.contents)->Expect.toBe(0)
       t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
       submit(text)
-      let draft = store->StateStore.getState->Reducer.Selectors.currentTask
+      let creating = store->StateStore.getState
+      let draft = Reducer.Selectors.currentTask(creating)
+      let deletionIds = ["unrelated-task", Reducer.Selectors.currentTaskClientId(creating)]
+      deletionIds->Array.forEach(
+        taskId => {
+          let (deleted, deletionEffects) = Reducer.next(
+            creating,
+            Reducer.DeleteTask({taskId: taskId}),
+          )
+          t
+          ->expect(Reducer.Selectors.isSubmitting(deleted))
+          ->Expect.toBe(taskId == "unrelated-task")
+          t
+          ->expect(
+            deletionEffects->Array.some(
+              effect =>
+                switch effect {
+                | ConnectionEffect(NotifyRequestRejected(_)) => true
+                | _ => false
+                },
+            ),
+          )
+          ->Expect.toBe(taskId != "unrelated-task")
+        },
+      )
       store->StateStore.dispatch(TaskAction({target: CurrentTask, action: ToggleAnnotationMode}))
       t->expect(store->StateStore.getState->Reducer.Selectors.currentTask)->Expect.toEqual(draft)
       submit(text)

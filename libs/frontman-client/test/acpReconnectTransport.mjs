@@ -4,7 +4,7 @@ export function makeTransport() {
   let socket, tasksJoin, clientInfo;
   const frames = [], requests = [];
   const server = {
-    requests, holdInitialize: false, joinError: undefined,
+    requests, holdInitialize: false, holdTasksJoin: false, holdSessionJoin: false, holdSessionNew: false, joinError: undefined,
     reply(frame, result, error) {
       const [joinRef, ref, topic, , payload] = frame;
       socket.onmessage({ data: JSON.stringify([joinRef, ref, topic, "phx_reply", {
@@ -53,13 +53,14 @@ export function makeTransport() {
       ]) });
       if (event === "phx_join") {
         if (topic === "tasks") { tasksJoin = frame; clientInfo = undefined; }
-        Promise.resolve().then(() => receipt(server.joinError ? "error" : "ok", server.joinError ?? {}));
+        if (!(topic === "tasks" ? server.holdTasksJoin : server.holdSessionJoin))
+          Promise.resolve().then(() => receipt(server.joinError ? "error" : "ok", server.joinError ?? {}));
       } else if (event === "phx_leave") receipt("ok", {});
       else if (event === "acp:message") {
         requests.push(payload);
         if (payload.method === "initialize" && !server.holdInitialize) {
           Promise.resolve().then(() => server.initialize(requests.filter(r => r.method === "initialize").length - 1));
-        } else if (payload.method === "session/new") {
+        } else if (payload.method === "session/new" && !server.holdSessionNew) {
           const error = clientInfo?._meta?.framework ? undefined : { code: -32602, message: "Missing framework in clientInfo" };
           Promise.resolve().then(() => server.reply(frame, { sessionId: payload.params.sessionId }, error));
         }

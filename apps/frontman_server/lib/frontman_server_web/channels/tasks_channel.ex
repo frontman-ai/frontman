@@ -137,7 +137,7 @@ defmodule FrontmanServerWeb.TasksChannel do
            extract_framework(socket.assigns[:acp_client_info]),
          true <- Billing.allow_access?(socket.assigns.scope),
          {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
-           Tasks.create_task(
+           Tasks.ensure_session(
              socket.assigns.scope,
              session_id,
              raw_framework

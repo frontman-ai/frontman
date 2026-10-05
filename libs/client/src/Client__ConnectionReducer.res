@@ -150,6 +150,17 @@ module Selectors = {
     | Ok(_) | Error(_) => None
     }
 
+  let sessionTaskId = (state: state): option<string> =>
+    switch state.connection {
+    | Ok(Some({phase: Ready({session}) | Reconnecting({session})})) =>
+      switch session {
+      | SessionCreating({sessionId}) => sessionId
+      | SessionActive({session}) | SessionFailed({session}) => Some(session.sessionId)
+      | NoSession | SessionCreationFailed(_) => None
+      }
+    | Ok(_) | Error(_) => None
+    }
+
   let getSessionError = (state: state): option<string> =>
     switch state.connection {
     | Ok(Some({phase: Ready({session: SessionCreationFailed(error) | SessionFailed({error})})})) =>
@@ -229,8 +240,7 @@ let startSession = (
   ~onComplete=None,
 ) => {
   let sessionId = switch operation {
-  | #create(_) => None
-  | #load(id) | #join(id) => Some(id)
+  | #create(id) | #load(id) | #join(id) => Some(id)
   }
   let requestId = ref()
   (

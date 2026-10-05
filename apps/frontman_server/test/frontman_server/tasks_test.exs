@@ -43,6 +43,19 @@ defmodule FrontmanServer.TasksTest do
     end
   end
 
+  test "session creation handles concurrent retries without changing ordinary creation", %{
+    scope: scope
+  } do
+    id = Ecto.UUID.generate()
+    results = Task.async_stream(1..2, fn _ -> Tasks.ensure_session(scope, id, "nextjs") end)
+    Enum.each(results, fn {:ok, result} -> assert {:ok, %TaskSchema{id: ^id}} = result end)
+    assert {:error, _} = Tasks.create_task(scope, id, "nextjs")
+    assert {:error, _} = Tasks.ensure_session(scope, id, "invalid")
+    assert {:error, :not_found} = Tasks.ensure_session(user_scope_fixture(), id, "vite")
+    assert Repo.aggregate(TaskSchema.by_id(id), :count, :id) == 1
+    assert {:ok, %{framework: :nextjs}} = Tasks.get_task(scope, id)
+  end
+
   describe "apply_title_suggestion/3" do
     test "sets the default title once", %{scope: scope} do
       task_id = task_fixture(scope).id

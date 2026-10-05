@@ -320,7 +320,10 @@ describe("Connection Reducer", () => {
     t->expect(sessionState(unchanged))->Expect.toBe(NoSession)
     t->expect(effectKinds(effects))->Expect.toEqual([#cleanupSession, #logInfo])
     completed := None
-    let (activated, queued) = completeSession(creating, Ok((mock({"sessionId": "late"}), None)))
+    let (activated, queued) = completeSession(
+      creating,
+      Ok((mock({"sessionId": "new-session"}), None)),
+    )
     let (lost, _) = Reducer.reduce(activated, ACPReconnecting({signal: signal}))
     let (restored, _) = Reducer.reduce(lost, ACPReconnected({signal, result: Ok(mockConnection)}))
     queued->Array.forEach(effect => handleEffect(effect, restored, _ => ()))
@@ -421,7 +424,7 @@ describe("Connection Reducer", () => {
           Reducer.reduce(
             withSession(NoSession),
             CreateSession({
-              sessionId: "new-session",
+              sessionId: "sess-1",
               onComplete: result => completed := Some(result),
             }),
           )->Pair.first,
@@ -551,7 +554,7 @@ describe("Connection Reducer", () => {
         let state = withSession(NoSession)
         let (nextState, effects) = Reducer.reduce(state, request)
         switch sessionState(nextState) {
-        | SessionCreating({sessionId: None}) => ()
+        | SessionCreating({sessionId: Some("new-session")}) => ()
         | _ => failwith("Expected a new session request")
         }
         switch effects {

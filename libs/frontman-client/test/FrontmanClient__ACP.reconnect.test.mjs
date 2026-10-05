@@ -10,7 +10,7 @@ const create = (conn) =>
 		() => {},
 	);
 
-test.each(["abort", "disconnect"])("ownership callback can %s before startup", async (action) => {
+test.each(["abort", "disconnect", "join-timeout"])("startup settles on %s", async (action) => {
 	vi.useFakeTimers();
 	const wire = makeTransport();
 	onTestFinished(() => {
@@ -22,12 +22,14 @@ test.each(["abort", "disconnect"])("ownership callback can %s before startup", a
 	const config = ACP.makeConfig("ws://localhost/socket", "https://localhost/login",
 		() => "test-token", "test", "1", { framework: "wordpress" });
 	let owned;
-	const result = await ACP.connect(config, controller.signal, (conn) => {
+	wire.holdTasksJoin = action === "join-timeout";
+	const pending = ACP.connect(config, controller.signal, (conn) => {
 		owned = conn;
 		if (action === "abort") controller.abort();
-		else ACP.disconnect(conn);
+		else if (action === "disconnect") ACP.disconnect(conn);
 	});
-	expect(result.TAG).toBe("Error");
+	if (action === "join-timeout") await vi.advanceTimersByTimeAsync(20000);
+	expect((await pending).TAG).toBe("Error");
 	expect(ACP.isInitialized(owned)).toBe(false);
 	expect(wire.requests).toHaveLength(0);
 	expect(vi.getTimerCount()).toBe(0);
@@ -39,6 +41,9 @@ test.each([
 	"rapid",
 	"error",
 	"timeout",
+	"join-timeout",
+	"session-timeout",
+	"new-reply-lost",
 	"unauthorized",
 	"abort",
 	"disconnect",
@@ -68,12 +73,22 @@ test.each([
 		vi.useRealTimers();
 		vi.unstubAllGlobals();
 	});
-	const {
-		_0: [session],
-	} = await create(conn);
+	wire.holdSessionJoin = scenario === "session-timeout";
+	wire.holdSessionNew = scenario === "new-reply-lost";
+	const creation = create(conn);
+	const retryCreation = wire.holdSessionJoin || wire.holdSessionNew;
+	if (retryCreation) {
+		await vi.advanceTimersByTimeAsync(wire.holdSessionNew ? 130000 : 20000);
+		expect((await creation).TAG).toBe("Error");
+		expect(ACP.isInitialized(conn)).toBe(true);
+		wire.holdSessionJoin = false;
+		wire.holdSessionNew = false;
+	}
+	const { _0: [session] } = retryCreation ? await create(conn) : await creation;
 	const pending = ACP.sendPrompt(session, "only once");
 	const listeners = wire.listenerCount(conn.channel, "acp:message");
 	wire.holdInitialize = true;
+	wire.holdTasksJoin = scenario === "join-timeout";
 	if (scenario === "unauthorized")
 		wire.joinError = {
 			reason: "unauthorized",
@@ -91,6 +106,14 @@ test.each([
 	}
 	const attempt = scenario === "rapid" ? 2 : 1;
 	switch (scenario) {
+		case "join-timeout":
+			await vi.advanceTimersByTimeAsync(20000);
+			expect(results).toHaveLength(0);
+			expect(ACP.isInitialized(conn)).toBe(false);
+			wire.holdTasksJoin = false;
+			wire.holdInitialize = false;
+			await vi.advanceTimersByTimeAsync(20000);
+			break;
 		case "timeout":
 			await vi.advanceTimersByTimeAsync(120000);
 			break;
@@ -111,7 +134,7 @@ test.each([
 			);
 	}
 	await vi.advanceTimersByTimeAsync(0);
-	const success = ["transport", "channel", "rapid"].includes(scenario);
+	const success = ["transport", "channel", "rapid", "join-timeout", "session-timeout", "new-reply-lost"].includes(scenario);
 	expect(ACP.isInitialized(conn)).toBe(success);
 	expect((await create(conn)).TAG).toBe(success ? "Ok" : "Error");
 	expect(results).toHaveLength(

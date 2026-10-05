@@ -462,7 +462,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       })
     end
 
-    test "returns error when session/new called with duplicate sessionId", %{
+    test "same-user session/new retries return the existing row", %{
       socket: socket,
       scope: scope
     } do
@@ -486,7 +486,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("acp:message", %{"id" => 1, "result" => %{}})
 
-      existing_id = task_fixture(scope).id
+      existing_id = task_fixture(scope, framework: "vite").id
 
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
@@ -495,13 +495,21 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => existing_id}
       })
 
-      assert_push("acp:message", %{
+      assert_push("acp:message", %{"id" => 2, "result" => %{"sessionId" => ^existing_id}})
+      assert Repo.get!(TaskSchema, existing_id).framework == :vite
+      assert Repo.aggregate(TaskSchema.by_id(existing_id), :count, :id) == 1
+      other_id = task_fixture(user_scope_fixture()).id
+
+      push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
-        "id" => 2,
-        "error" => %{
-          "code" => -32_602,
-          "message" => "Failed to create session"
-        }
+        "id" => 3,
+        "method" => "session/new",
+        "params" => %{"sessionId" => other_id}
+      })
+
+      assert_push("acp:message", %{
+        "id" => 3,
+        "error" => %{"code" => -32_602, "message" => "Failed to create session"}
       })
     end
 

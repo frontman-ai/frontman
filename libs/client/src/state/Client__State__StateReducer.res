@@ -337,7 +337,7 @@ module Selectors = {
   let isSubmitting = (state: state) =>
     switch state.connection {
     | Some({
-        connection: Ok(Some({phase: Ready({session: SessionCreating({sessionId: None})})})),
+        connection: Ok(Some({phase: Ready({session: SessionCreating({onComplete: Some(_)})})})),
       }) => true
     | _ => false
     }
@@ -2398,8 +2398,9 @@ let rec next = (state: state, action) => {
     }
 
   | DeleteTask({taskId}) => {
-      let (state, effects) = switch Selectors.currentTaskId(state) == Some(taskId) ||
-        Selectors.isSubmitting(state) {
+      let (state, effects) = switch state.connection->Option.flatMap(
+        Connection.Selectors.sessionTaskId,
+      ) == Some(taskId) {
       | true => next(state, ConnectionAction(ClearSession))
       | false => (state, [])
       }

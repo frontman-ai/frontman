@@ -131,6 +131,7 @@ let waitForSocket = (socket: Socket.t): promise<result<unit, string>> => {
 type joinError =
   | AuthRequired({loginUrl: string})
   | JoinFailed(string)
+  | JoinTimedOut(string)
 
 let joinChannel = (channel: Channel.t, ~onResult: result<unit, joinError> => unit=_ => ()): promise<
   result<unit, joinError>,
@@ -154,7 +155,7 @@ let joinChannel = (channel: Channel.t, ~onResult: result<unit, joinError> => uni
       | _ => resolve(Error(JoinFailed(JSON.stringify(err))))
       }
     }).receive(~status="timeout", ~callback=_ =>
-      resolve(Error(JoinFailed("Channel join timed out")))
+      resolve(Error(JoinTimedOut("Channel join timed out")))
     )->ignore
   })
 }
@@ -283,7 +284,7 @@ let connect = async (
           state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Connecting))
           let result: result<Types.initializeResult, connectError> = switch joinResult {
           | Error(AuthRequired({loginUrl})) => Error(AuthRequired({loginUrl: loginUrl}))
-          | Error(JoinFailed(message)) => Error(ConnectionFailed(message))
+          | Error(JoinFailed(message) | JoinTimedOut(message)) => Error(ConnectionFailed(message))
           | Ok() =>
             (
               await Protocol.sendInitialize(~channel, ~state, ~clientConfig)
@@ -294,7 +295,11 @@ let connect = async (
             state :=
               state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
             complete(Ok(conn))
-          | (false, true, Error(error)) => complete(Error(error))
+          | (false, true, Error(error)) =>
+            switch joinResult {
+            | Error(JoinTimedOut(_)) if connected.contents => ()
+            | _ => complete(Error(error))
+            }
           | _ => ()
           }
         }
@@ -405,7 +410,7 @@ let joinSession = async (
       cleanupChannel(sessionChannel)
       let errMsg = switch err {
       | AuthRequired({loginUrl}) => `Auth required: ${loginUrl}`
-      | JoinFailed(msg) => msg
+      | JoinFailed(msg) | JoinTimedOut(msg) => msg
       }
       Log.error(`Session join failed: ${errMsg}`)
       errMsg
