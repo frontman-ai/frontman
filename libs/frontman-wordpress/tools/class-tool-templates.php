@@ -197,6 +197,7 @@ class Frontman_Tool_Templates {
 				'template'   => $theme->get_template(),
 				'stylesheet' => $theme->get_stylesheet(),
 			],
+			'seo_unavailable_reason' => Frontman_Tool_Seo::unavailable_reason(),
 			'plugins'      => $plugin_info,
 			'post_types'   => $pt_list,
 			'taxonomies'   => $tax_list,

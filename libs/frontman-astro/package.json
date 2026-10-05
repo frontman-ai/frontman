@@ -74,10 +74,13 @@
 		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "workspace:*",
 		"dom-element-to-component-source": "npm:@frontman-ai/dom-element-to-component-source@0.5.0",
+		"rehype-parse": "^9.0.1",
+		"rehype-stringify": "^10.0.1",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"sury": "catalog:",
 		"tsup": "^8.0.0",
+		"unified": "^11.0.5",
 		"vite": "catalog:",
 		"vitest": "catalog:"
 	}

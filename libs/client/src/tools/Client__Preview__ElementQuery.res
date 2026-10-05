@@ -1,7 +1,20 @@
+let isEditingHost = (element: WebAPI.DomTypes.element): bool =>
+  (element->FrontmanBindings.Bindings__WebAPI.unsafeHtmlElementFromElement).isContentEditable ===
+    true &&
+    !(
+      element.parentElement
+      ->Null.toOption
+      ->Option.mapOr(false, parent => parent.isContentEditable === true)
+    )
+
 let effectiveRole = (element: WebAPI.DomTypes.element): string =>
   switch FrontmanBindings.Bindings__DomAccessibilityApi.getRole(element)->Null.toOption {
   | Some(role) if role !== "" => role
-  | Some(_) | None => element.tagName->String.toLowerCase
+  | Some(_) | None =>
+    switch isEditingHost(element) {
+    | true => "textbox"
+    | false => element.tagName->String.toLowerCase
+    }
   }
 
 let interactiveRoleSet =
@@ -30,12 +43,14 @@ type detectionMethod =
   | Semantic
   | CursorPointer
   | Tabindex
+  | Contenteditable
 
 let detectionMethodToString = method =>
   switch method {
   | Semantic => "semantic"
   | CursorPointer => "cursor_pointer"
   | Tabindex => "tabindex"
+  | Contenteditable => "contenteditable"
   }
 
 type resolvedElement = {
@@ -77,6 +92,7 @@ let detectInteractivity = (
 ): option<detectionMethod> =>
   switch true {
   | _ if interactiveRoleSet->Dict.get(role->String.toLowerCase)->Option.isSome => Some(Semantic)
+  | _ if isEditingHost(element) => Some(Contenteditable)
   | _ if WebAPI.Window.getComputedStyle(contentWindow, ~elt=element).cursor === "pointer" =>
     Some(CursorPointer)
   | _ if element->WebAPI.Element.hasAttribute("tabindex") =>
@@ -121,10 +137,12 @@ let queryInteractiveElements = (
   ~roleFilter: option<string>,
   ~nameFilter: option<string>,
   ~limit: option<int>,
+  ~offset: int=0,
 ): array<resolvedElement> => {
   let elements = document->WebAPI.Document.querySelectorAll("*")->WebAPI.NodeList.toArray
   let results = []
   let index = ref(0)
+  let skipped = ref(0)
   let belowLimit = () => limit->Option.mapOr(true, limit => results->Array.length < limit)
   while index.contents < elements->Array.length && belowLimit() {
     let element = elements->Array.getUnsafe(index.contents)
@@ -141,7 +159,11 @@ let queryInteractiveElements = (
           result.name->String.toLowerCase->String.includes(filter->String.toLowerCase)
         )
       switch roleMatches && nameMatches {
-      | true => results->Array.push(result)->ignore
+      | true =>
+        switch skipped.contents < offset {
+        | true => skipped := skipped.contents + 1
+        | false => results->Array.push(result)->ignore
+        }
       | false => ()
       }
     }

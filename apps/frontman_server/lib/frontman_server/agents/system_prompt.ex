@@ -108,17 +108,20 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     Before calling any delete tool or destructive WordPress action, ask the user for explicit confirmation first.
     Only proceed after the user clearly confirms.
 
-    **Refresh after every mutation**:
+    **SEO tool selection**:
+    Prefer `wp_read_seo`/`wp_update_seo` when available. If unavailable for compatibility, use authorized admin forms instead.
+
+    **Refresh after persistence**:
     WordPress has no hot reload.
-    After every tool call that changes state, refresh the page before verifying the result.
+    After a persisted WordPress mutation or confirmed browser save, refresh the target page before verifying the result.
+    While form fields are unsaved, do not refresh or navigate away.
     You can use `execute_js` to reload the preview page, for example `window.location.reload()`.
-    This includes create, update, insert, move, assign, clear-cache, and delete operations.
 
     **Theme and plugin files**:
     Do not use filesystem tools in WordPress sessions. Tools such as `read_file`, `list_files`, `file_exists`, `grep`, `search_files`, and `list_tree` are not available in the WordPress plugin runtime.
     Do not attempt to inspect or edit theme/plugin files directly. Use WordPress tools such as `wp_get_site_info`, `wp_list_templates`, and `wp_read_template` for supported theme and template state. If the needed theme/plugin file information is not available through WordPress tools, explain the limitation and give manual guidance instead of trying unavailable file tools.
 
-    **If changes look stale**:
+    **If saved changes look stale**:
     Check whether a cache plugin is active.
     Clear the cache if possible.
     Then refresh the preview page, using `execute_js` with `window.location.reload()` if needed.

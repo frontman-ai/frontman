@@ -227,6 +227,27 @@ defmodule FrontmanServer.AgentsTest do
       assert wp_prompt =~ "## Annotated Elements Context"
     end
 
+    test "WordPress guidance selects SEO tools and refreshes only after persistence", %{
+      scope: scope
+    } do
+      {:ok, agent} = Agents.get_agent(scope, @executor_id)
+
+      assert [%{text: wp_prompt}] =
+               Agents.system_prompt(scope, agent, %{@empty_context | framework: :wordpress}, %{})
+
+      assert wp_prompt =~
+               ~r/Prefer `wp_read_seo`\/`wp_update_seo`.*If unavailable for compatibility, use authorized admin forms/
+
+      assert wp_prompt =~
+               ~r/After a persisted WordPress mutation or confirmed browser save, refresh the target page/
+
+      assert wp_prompt =~ ~r/unsaved.*do not refresh or navigate away/
+      refute wp_prompt =~ "After every tool call that changes state"
+      refute wp_prompt =~ "action=\"fill\""
+      refute wp_prompt =~ "An empty `value` clears"
+      refute wp_prompt =~ "`text` only targets"
+    end
+
     test "requires both TypeScript and React traits for TypeScript React guidance", %{
       scope: scope
     } do
