@@ -4,7 +4,7 @@ let name = Tool.ToolNames.interactWithElement
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.ReadWrite
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Synchronous
-let description = `Interact with an element in the web preview. Supports click, hover, and focus actions.
+let description = `Interact with an element in the web preview. Supports click, hover, focus, and fill actions.
 
 Element targeting (use one strategy):
 1. **selector** (preferred): CSS selector — use when you have a selector from get_interactive_elements or the user's selected element context
@@ -15,6 +15,7 @@ Actions:
 - **click** (default): Click the element
 - **hover**: Trigger mouseenter/mouseover events on the element
 - **focus**: Focus the element
+- **fill**: Replace all text in an input, textarea, or contenteditable editing host. Requires **value** (empty string clears). **text** is only for targeting. Checks observed field content after events and blur, not arbitrary application state or persistence; save separately and read back.
 
 Examples:
 - Click by selector: {"selector": "#submit-btn", "action": "click"}
@@ -22,6 +23,8 @@ Examples:
 - Click by text: {"text": "Learn more", "action": "click"}
 - Hover by selector: {"selector": ".dropdown-trigger", "action": "hover"}
 - Focus an input: {"role": "textbox", "name": "Email", "action": "focus"}
+- Fill an input: {"selector": "#email", "action": "fill", "value": "user@example.com"}
+- Clear an input: {"selector": "#email", "action": "fill", "value": ""}
 
 When multiple elements match, use the index parameter (0-based) to select which one.`
 
@@ -41,8 +44,12 @@ type input = {
   name: option<string>,
   @s.describe("Visible text content to match (finds the innermost element containing this text)")
   text: option<string>,
-  @s.describe("Interaction type: 'click' (default), 'hover', or 'focus'")
-  action: option<[#click | #hover | #focus]>,
+  @s.describe("Interaction type: 'click' (default), 'hover', 'focus', or 'fill'")
+  action: option<[#click | #hover | #focus | #fill]>,
+  @s.describe(
+    "Required for fill: entire replacement text. Empty string clears. Not used for targeting."
+  )
+  value: option<string>,
   @s.describe("0-based index when multiple elements match (default: 0, i.e. first match)")
   index: option<int>,
 }
@@ -53,7 +60,7 @@ type output = {
   success: bool,
   @s.describe("Description of the element that was interacted with") @live
   interactedElement: option<string>,
-  @s.describe("The action that was performed: 'clicked', 'hovered', or 'focused'") @live
+  @s.describe("The action that was performed: 'clicked', 'hovered', 'focused', or 'filled'") @live
   action: option<string>,
   @s.describe("Total number of elements that matched the targeting criteria") @live
   matchCount: option<int>,
@@ -77,28 +84,53 @@ let dispatchHoverEvents = (el: WebAPI.DomTypes.element): unit => {
   target->WebAPI.EventTarget.dispatchEvent(overEvt->WebAPI.MouseEvent.asEvent)->ignore
 }
 
-let clickElement = (el: WebAPI.DomTypes.element): unit => {
-  let htmlEl: WebAPI.DomTypes.htmlElement = el->Obj.magic
-  htmlEl->WebAPI.HTMLElement.click
-}
+@send external clickElement: WebAPI.DomTypes.element => unit = "click"
+@send external focusElement: WebAPI.DomTypes.element => unit = "focus"
+@set external setIsError: (Tool.MCP.CallToolResult.t, bool) => unit = "isError"
 
-let focusElement = (el: WebAPI.DomTypes.element): unit => {
-  let htmlEl: WebAPI.DomTypes.htmlElement = el->Obj.magic
-  htmlEl->WebAPI.HTMLElement.focus
-}
-
-let actionToString = (action: [#click | #hover | #focus]): string =>
+let actionToString = (action: [#click | #hover | #focus | #fill]): string =>
   switch action {
   | #click => "clicked"
   | #hover => "hovered"
   | #focus => "focused"
+  | #fill => "filled"
   }
 
-let performAction = (el: WebAPI.DomTypes.element, action: [#click | #hover | #focus]): unit =>
+let performAction = async (~doc, ~win, ~el, ~action, ~value): result<unit, string> =>
   switch action {
-  | #click => clickElement(el)
-  | #hover => dispatchHoverEvents(el)
-  | #focus => focusElement(el)
+  | #fill =>
+    switch value {
+    | None => Error("'value' is required for fill (use an empty string to clear)")
+    | Some(value) => await Client__Tool__FillElement.fill(~doc, ~win, ~el, ~value)
+    }
+  | #click if Client__Tool__FillElement.unavailable(el) =>
+    Error("Cannot click a disabled or inert element")
+  | #click =>
+    let observed = ref(false)
+    let listener = _event => observed := true
+    let target = (el :> WebAPI.EventTypes.eventTarget)
+    target->WebAPI.EventTarget.addEventListener(Click, listener, ~options={capture: true})
+    try {
+      clickElement(el)
+    } catch {
+    | exn =>
+      target->WebAPI.EventTarget.removeEventListener(Click, listener, ~options={capture: true})
+      throw(exn)
+    }
+    target->WebAPI.EventTarget.removeEventListener(Click, listener, ~options={capture: true})
+    switch observed.contents {
+    | true => Ok()
+    | false => Error("Element did not dispatch a click; interaction was not performed")
+    }
+  | #hover =>
+    dispatchHoverEvents(el)
+    Ok()
+  | #focus =>
+    focusElement(el)
+    switch el->WebAPI.Element.matches(":focus") {
+    | true => Ok()
+    | false => Error("Element did not accept focus")
+    }
   }
 
 type resolution =
@@ -149,8 +181,8 @@ let resolveTarget = (
     }
   }
 
-let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallToolResult.t =>
-  Tool.structuredResult(
+let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallToolResult.t => {
+  let result = Tool.structuredResult(
     {
       success: false,
       interactedElement: None,
@@ -160,6 +192,9 @@ let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallTool
     },
     outputSchema,
   )
+  setIsError(result, true)
+  result
+}
 
 let execute = async (
   input: input,
@@ -169,9 +204,9 @@ let execute = async (
   let action = input.action->Option.getOr(#click)
   let index = Math.Int.max(0, input.index->Option.getOr(0))
 
-  Client__Tool__PreviewContext.withPreview(
-    ~onUnavailable=() => errorResult("Preview frame document not available"),
-    ({doc, win}) => {
+  await Client__Tool__PreviewContext.withPreview(
+    ~onUnavailable=async () => errorResult("Preview frame document not available"),
+    async ({doc, win}) => {
       try {
         switch resolveTarget(~doc, ~contentWindow=win, ~input, ~index) {
         | Error(msg) => errorResult(msg)
@@ -185,23 +220,26 @@ let execute = async (
             ~matchCount,
           )
         | Resolved({element: Some(el), matchCount}) =>
-          performAction(el, action)
-          let role = Client__Tool__ElementQuery.effectiveRole(el)
-          Tool.structuredResult(
-            {
-              success: true,
-              interactedElement: Some(
-                switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el) {
-                | "" => role
-                | name => `${role} '${name}'`
-                },
-              ),
-              action: Some(actionToString(action)),
-              matchCount: Some(matchCount),
-              error: None,
-            },
-            outputSchema,
-          )
+          switch await performAction(~doc, ~win, ~el, ~action, ~value=input.value) {
+          | Error(message) => errorResult(message, ~matchCount)
+          | Ok() =>
+            let role = Client__Tool__ElementQuery.effectiveRole(el)
+            Tool.structuredResult(
+              {
+                success: true,
+                interactedElement: Some(
+                  switch FrontmanBindings.Bindings__DomAccessibilityApi.computeAccessibleName(el) {
+                  | "" => role
+                  | name => `${role} '${name}'`
+                  },
+                ),
+                action: Some(actionToString(action)),
+                matchCount: Some(matchCount),
+                error: None,
+              },
+              outputSchema,
+            )
+          }
         }
       } catch {
       | exn => errorResult(Client__Tool__PreviewContext.exnMessage(exn))

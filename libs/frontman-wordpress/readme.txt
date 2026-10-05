@@ -76,13 +76,19 @@ Consider the remaining pages before selecting an account. If multiple accounts c
 
 == Optional SEO Tools ==
 
-`wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. Yoast SEO Free 28.4 is an optional dependency that Frontman does not install.
+`wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. The tested versions are Yoast SEO Free 28.4 and 19.9. Frontman does not install Yoast.
 
-The route requires WordPress 6.9 or later. Tests cover WordPress 7.0.2 with PHP 7.4 and 8.4. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
+The route requires WordPress 6.9 or later. Tests cover Yoast 28.4 on WordPress 7.0.2 with PHP 7.4 and 8.4. Tests also cover Yoast 19.9 on WordPress 6.9.9 with PHP 8.2. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
+
+`wp_get_site_info` returns `seo_unavailable_reason`. A nonempty reason explains why Frontman does not register the SEO tools. A null reason means the compatibility checks pass. Each post still requires edit permissions.
 
 Supported objects are posts, pages, and editable non-attachment custom post types with an admin interface, including authorized drafts and private content. Revisions, autosaves, attachments, and internal WordPress object types are not supported.
 
-Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags. Results confirm stored overrides, not rendered HTML or search-engine indexing. Yoast expands variables on later requests. External full-page caches and CDNs have separate refresh behavior.
+The post ID must be a positive integer. An update must include a title or description. Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags.
+
+Results confirm stored overrides, not rendered HTML or search-engine indexing. Yoast expands variables on later requests. External full-page caches and CDNs have separate refresh behavior.
+
+Explicit social overrides stay unchanged and can differ from the SEO title or description. Persistence errors report observed state or mark readback as uncertain. A successful result for one page does not establish success for other pages.
 
 == Safety, Limits, and Data ==
 
