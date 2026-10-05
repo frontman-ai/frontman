@@ -1,16 +1,23 @@
 ---
 
 import faqData from '../../../data/json-files/faqData.json'
-const faqs = faqData
+type Props = {
+	faqs?: { question: string; reply: string }[]
+	title?: string
+	subtitle?: string
+}
+const {
+	faqs = faqData,
+	title = 'Frequently asked questions',
+	subtitle = 'Everything you need to know about Frontman — the AI agent that lives inside your app.'
+} = Astro.props
 ---
 
 <section id="faq" class="faq-section">
 	<div class="faq-container">
 		<p class="faq-label">FAQ</p>
-		<h2 class="faq-title">Frequently asked questions</h2>
-		<p class="faq-subtitle">
-			Everything you need to know about Frontman — the AI agent that lives inside your app.
-		</p>
+		<h2 class="faq-title">{title}</h2>
+		<p class="faq-subtitle">{subtitle}</p>
 
 		<div class="faq-list">
 			{

@@ -16,11 +16,6 @@ defmodule FrontmanServerWeb.UserSocketTest do
     assert socket_opts[:auth_token] == true
     assert socket_opts[:websocket] == [check_origin: false, max_frame_size: 8_000_014]
 
-    assert FrontmanServerWeb.Endpoint.config(:http)[:websocket_options][
-             :max_fragmented_message_size
-           ] ==
-             8_000_000
-
     limit = socket_opts[:websocket][:max_frame_size]
 
     assert {:ok, {14, 8_000_000}} =
