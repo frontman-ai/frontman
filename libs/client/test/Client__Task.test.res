@@ -728,7 +728,7 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     task3
   }
 
-  test("AddUserMessage clears annotation UI state and sends annotations", t => {
+  test("AddUserMessage clears the submitted draft and annotation UI", t => {
     let task = _taskWithAnnotations()
     t
     ->expect(TaskReducer.Selectors.annotations(task)->Option.getOr([])->Array.length)
@@ -758,15 +758,13 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     )
     ->Expect.toBe(true)
 
-    switch effects->Array.get(0) {
-    | Some(SendMessage({id, annotations, agentId})) => {
-        t
-        ->expect(id->UserMessageId.toString)
-        ->Expect.toBe(testUserMessageId->UserMessageId.toString)
-        t->expect(annotations->Array.length)->Expect.toBe(2)
-        t->expect(agentId)->Expect.toBe("executor-id")
-      }
-    | _ => t->expect("SendMessage effect")->Expect.toBe("not found")
+    t->expect(effects)->Expect.toEqual([])
+    switch TestHelpers.getQueuedUserMessages(updated)->Array.get(0) {
+    | Some(Message.User({id, annotations, agentId})) =>
+      t->expect(id)->Expect.toBe(testUserMessageId->UserMessageId.toString)
+      t->expect(annotations)->Expect.toEqual(_sampleMessageAnnotations)
+      t->expect(agentId)->Expect.toBe("executor-id")
+    | _ => failwith("Expected the queued message")
     }
   })
 
@@ -929,8 +927,12 @@ describe("Task - Interactive wait contract", () => {
             agentId: "executor-id",
           }),
         )
-        switch sendEffects->Array.get(0) {
-        | Some(SendMessage({text})) => t->expect(text)->Expect.toBe("Next turn, not an answer")
+        t->expect(sendEffects)->Expect.toEqual([])
+        switch TestHelpers.getQueuedUserMessages(queued)->Array.get(0) {
+        | Some(Message.User({content})) =>
+          t
+          ->expect(TaskReducer.extractTextFromUserContent(content))
+          ->Expect.toBe("Next turn, not an answer")
         | _ => failwith("Expected ordinary prompt, not a question result")
         }
         let accepted = TestHelpers.acceptUserMessage(

@@ -141,18 +141,22 @@ defmodule FrontmanServer.Tasks do
   Requires a scope with a user.
   Returns `{:ok, task}` on success.
   """
-  def create_task(scope, task_id, framework) do
-    user_id = Accounts.scope_user_id(scope)
-
-    attrs = %{
+  def create_task(scope, task_id, framework, opts \\ []) do
+    %{
       id: task_id,
       short_desc: TaskSchema.default_title(),
       framework: framework,
-      user_id: user_id
+      user_id: Accounts.scope_user_id(scope)
     }
+    |> TaskSchema.create_changeset()
+    |> Repo.insert(opts)
+  end
 
-    TaskSchema.create_changeset(attrs)
-    |> Repo.insert()
+  def ensure_session(scope, task_id, framework) do
+    with {:ok, _task} <-
+           create_task(scope, task_id, framework, on_conflict: :nothing, conflict_target: :id) do
+      get_task(scope, task_id)
+    end
   end
 
   defp load_history(task_id) do
@@ -507,8 +511,7 @@ defmodule FrontmanServer.Tasks do
 
     with :ok <- guard_billing_access(scope),
          {:ok, selected_skill} <- selected_skill(scope, selected_server_skill_id),
-         {:ok, user_message_attrs} <-
-           Interaction.UserMessage.attrs(content_blocks, model, agent_id),
+         user_message_attrs = Interaction.UserMessage.attrs(content_blocks, model, agent_id),
          user_message_attrs = put_selected_skill(user_message_attrs, selected_skill),
          {:ok, task_schema} <- get_task(scope, task_id) do
       record_interaction_row(

@@ -67,27 +67,6 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
   )
   let annotations = Client__State.useSelector(Client__State.Selectors.annotations)
   let hasAnnotations = annotations->Array.length > 0
-  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
-  let session = Client__ConnectionReducer.Selectors.getSession(state)
-
-  let executeAnnotation = (~annotationId: string, ~comment: string) => {
-    let dispatchExecute = sessionId =>
-      Client__State.Actions.executeAnnotation(~sessionId, ~annotationId, ~comment)
-
-    switch session {
-    | Some(sess) => dispatchExecute(sess.sessionId)
-    | None =>
-      dispatch(
-        CreateSession({
-          onComplete: result =>
-            switch result {
-            | Ok(sessionId) => dispatchExecute(sessionId)
-            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
-            },
-        }),
-      )
-    }
-  }
 
   let lastProcessedClickId = React.useRef(-1)
   let wasSelecting = React.useRef(false)
@@ -469,7 +448,14 @@ let make = (~document, ~viewportStyle: option<(int, int, float)>=?) => {
         onCommentChange={comment =>
           Client__State.Actions.updateAnnotationComment(~id=annotation.id, ~comment)}
         onClose={() => Client__State.Actions.closeAnnotationPopup()}
-        onExecute={comment => executeAnnotation(~annotationId=annotation.id, ~comment)}
+        onExecute={comment =>
+          Client__State.Actions.addUserMessage(
+            ~annotationId=annotation.id,
+            ~content=switch comment->String.trim {
+            | "" => []
+            | text => [Client__State.UserContentPart.text(text)]
+            },
+          )}
       />
     | None => React.null
     }

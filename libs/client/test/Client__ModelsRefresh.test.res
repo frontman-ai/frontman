@@ -4,29 +4,9 @@ module Reducer = Client__State__StateReducer
 module Types = Client__State__Types
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-let _dummySendPrompt: Types.sendPromptFn = (
-  _,
-  ~additionalBlocks as _,
-  ~onComplete as _,
-  ~_meta as _,
-) => ()
-let _dummySendSessionCommand: Types.sendSessionCommandFn = _ => ()
-let _dummyLoadTask: Types.loadTaskFn = (_, ~needsHistory as _, ~onComplete as _) => ()
-let _dummyDeleteSession: Types.deleteSessionFn = (_, ~onComplete as _) => ()
-let _dummyRequireAuthentication: Types.requireAuthenticationFn = () => ()
-
-let _apiBaseUrl = "http://localhost:4000"
-
 let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
   ...Reducer.defaultState,
-  acpSession: AcpSessionActive({
-    sendPrompt: _dummySendPrompt,
-    sendSessionCommand: _dummySendSessionCommand,
-    loadTask: _dummyLoadTask,
-    deleteSession: _dummyDeleteSession,
-    requireAuthentication: _dummyRequireAuthentication,
-    apiBaseUrl: _apiBaseUrl,
-  }),
+  connection: Client__ConnectionTestHelpers.ready(),
   selectedModelValue,
   pendingProviderAutoSelect,
 }

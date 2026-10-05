@@ -4,8 +4,16 @@ import Button from '../../ui/Button.astro'
 
 type Props = {
 	link?: string
+	title?: string
+	description?: string
+	buttonLabel?: string
 }
-const { link = '#install' } = Astro.props
+const {
+	link = '#install',
+	title = 'Done refreshing. Done guessing.',
+	description = 'Your AI finally sees what you see. Click an element, describe what you want, and watch it happen — no more alt-tabbing, no more hallucinated layouts, no more broken diffs.',
+	buttonLabel = 'Start Frontman'
+} = Astro.props
 
 const logoImage = { src: '/logo.svg' }
 ---
@@ -14,13 +22,11 @@ const logoImage = { src: '/logo.svg' }
 	<div class="container">
 		<div class="cta-content">
 			<img src={logoImage.src} alt="Frontman" class="cta-logo" width="192" height="192" loading="lazy" />
-			<h2 class="cta-title">Done refreshing. Done guessing.</h2>
-			<p class="cta-description">
-				Your AI finally sees what you see. Click an element, describe what you want, and watch it happen — no more alt-tabbing, no more hallucinated layouts, no more broken diffs.
-			</p>
+			<h2 class="cta-title">{title}</h2>
+			<p class="cta-description">{description}</p>
 			<div class="cta-buttons">
 				<div class="cta-button">
-					<Button size="lg" style="primary" link={link} data-ga-event="click_start_frontman" data-ga-category="conversion" data-ga-label="final_cta">Start Frontman</Button>
+					<Button size="lg" style="primary" link={link} data-ga-event="click_start_frontman" data-ga-category="conversion" data-ga-label="final_cta">{buttonLabel}</Button>
 				</div>
 				<a href="https://discord.gg/xk8uXJSvhC" target="_blank" rel="noopener noreferrer" class="cta-community-link" data-ga-event="click_join_discord" data-ga-category="engagement" data-ga-label="final_cta">
 					<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="18" height="18" aria-hidden="true">

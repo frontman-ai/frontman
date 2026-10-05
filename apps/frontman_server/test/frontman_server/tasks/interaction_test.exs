@@ -37,10 +37,35 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   describe "UserMessage.attrs/1" do
-    test "extracts non-empty text messages" do
-      msg = build_user_message([text_block("Hello")])
+    test "historical PDFs remain loadable but are explicitly unreadable in model input" do
+      history =
+        Ecto.embedded_load(
+          UserMessage,
+          %{
+            "messages" => ["Old prompt"],
+            "images" => [
+              %{
+                "blob" => "AAAA",
+                "mime_type" => "application/pdf",
+                "filename" => "old.pdf",
+                "uri" => "attachment://old"
+              }
+            ]
+          },
+          :json
+        )
 
-      assert msg.messages == ["Hello"]
+      [projected] = Interaction.to_swarm_messages([history])
+      assert [_, %ContentPart{type: :text, text: notice}] = projected.content
+      assert notice =~ "Unsupported attachment: old.pdf"
+      assert notice =~ "Its contents were not read"
+      refute extract_text(projected) =~ "attachment://old"
+    end
+
+    test "extracts non-empty text messages" do
+      msg = build_user_message([text_block("Hello"), text_block(" ")])
+
+      assert msg.messages == ["Hello", " "]
     end
 
     test "accepts resource-only prompts without a text block" do
@@ -56,18 +81,10 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.current_page.url == "https://example.com/app"
     end
 
-    test "returns error for text blocks without non-empty string text" do
-      assert {:error,
-              {:invalid_content_block, "text content block must include non-empty string text"}} =
-               UserMessage.attrs([%{"type" => "text"}])
-
-      assert {:error,
-              {:invalid_content_block, "text content block must include non-empty string text"}} =
-               UserMessage.attrs([%{"type" => "text", "text" => ""}])
-
-      assert {:error,
-              {:invalid_content_block, "text content block must include non-empty string text"}} =
-               UserMessage.attrs([%{"type" => "text", "text" => 1}])
+    test "does not discard invalid text alongside valid text" do
+      attrs = UserMessage.attrs([text_block("Valid"), text_block("")])
+      assert attrs.messages == ["Valid", ""]
+      refute UserMessage.changeset(%UserMessage{}, attrs).valid?
     end
 
     test "extracts annotation from resource block" do
@@ -92,21 +109,12 @@ defmodule FrontmanServer.Tasks.InteractionTest do
       assert msg.annotations == []
     end
 
-    test "pairs screenshot with annotation by annotation_id" do
-      msg =
-        build_user_message([
-          text_block("Fix this button"),
-          annotation_block("ann-1", "button", "/src/Button.tsx", 15, 3),
-          screenshot_block("ann-1", "base64screenshotdata")
-        ])
+    test "pairs malformed screenshots instead of silently discarding them" do
+      annotation = annotation_block("ann-1", "button", "/src/Button.tsx", 15, 3)
+      attrs = UserMessage.attrs([screenshot_block("ann-1", nil), annotation])
 
-      assert [ann] = msg.annotations
-      assert ann.file == "/src/Button.tsx"
-
-      assert ann.screenshot == %Interaction.Screenshot{
-               blob: "base64screenshotdata",
-               mime_type: "image/png"
-             }
+      assert [%{screenshot: %{"blob" => nil}}] = attrs.annotations
+      refute UserMessage.changeset(%UserMessage{}, attrs).valid?
     end
 
     test "extracts multiple annotations with enrichment data" do
@@ -798,10 +806,8 @@ defmodule FrontmanServer.Tasks.InteractionTest do
   end
 
   defp build_user_message(content_blocks) do
-    assert {:ok, attrs} = UserMessage.attrs(content_blocks)
-
     %UserMessage{}
-    |> UserMessage.changeset(attrs)
+    |> UserMessage.changeset(UserMessage.attrs(content_blocks))
     |> Ecto.Changeset.apply_action!(:insert)
   end
 end

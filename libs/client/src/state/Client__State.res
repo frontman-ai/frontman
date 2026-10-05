@@ -7,15 +7,10 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
-  let addUserMessage = (~sessionId, ~content, ~annotations=[], ~agentId) => {
-    let id = Client__Message.UserMessageId.make()
-    Client__State__Store.dispatch(AddUserMessage({id, sessionId, content, annotations, agentId}))
-  }
-
-  let executeAnnotation = (~sessionId, ~annotationId, ~comment) => {
-    let id = Client__Message.UserMessageId.make()
-    Client__State__Store.dispatch(ExecuteAnnotation({id, sessionId, annotationId, comment}))
-  }
+  let addUserMessage = (~content, ~annotationId=?) =>
+    Promise.make((resolve, _) =>
+      Client__State__Store.dispatch(AddUserMessage({content, annotationId, onComplete: resolve}))
+    )
 
   let setCurrentPreviewUrl = (~url) =>
     Client__State__Store.dispatch(
@@ -90,9 +85,6 @@ module Actions = {
 
   let clearCurrentTask = () => Client__State__Store.dispatch(ClearCurrentTask)
 
-  let updateTaskTitle = (~taskId, ~title) =>
-    Client__State__Store.dispatch(UpdateTaskTitle({taskId, title}))
-
   let cancelTurn = () => Client__State__Store.dispatch(CancelTurn)
 
   let executePendingPlan = () => {
@@ -100,26 +92,7 @@ module Actions = {
     Client__State__Store.dispatch(ExecutePendingPlan({id: id}))
   }
 
-  let setAcpSession = (
-    ~sendPrompt,
-    ~sendSessionCommand,
-    ~loadTask,
-    ~deleteSession,
-    ~requireAuthentication,
-    ~apiBaseUrl,
-  ) =>
-    Client__State__Store.dispatch(
-      SetAcpSession({
-        sendPrompt,
-        sendSessionCommand,
-        loadTask,
-        deleteSession,
-        requireAuthentication,
-        apiBaseUrl,
-      }),
-    )
-
-  let clearAcpSession = () => Client__State__Store.dispatch(ClearAcpSession)
+  let connection = action => Client__State__Store.dispatch(ConnectionAction(action))
 
   let fetchUserProfile = (~apiBaseUrl: string) =>
     Client__State__Store.dispatch(FetchUserProfile({apiBaseUrl: apiBaseUrl}))
@@ -170,9 +143,6 @@ module Actions = {
   let setSelectedModelValue = (~value) =>
     Client__State__Store.dispatch(SetSelectedModelValue({value: value}))
 
-  let agentAttributionConfigured = (~agentCatalog, ~defaultAgentId) =>
-    Client__State__Store.dispatch(AgentAttributionConfigured({agentCatalog, defaultAgentId}))
-
   let setSelectedAgentId = (~agentId: string) =>
     Client__State__Store.dispatch(SetSelectedAgentId(agentId))
 
@@ -196,14 +166,6 @@ module Actions = {
   let disconnectOpenAIOAuth = () => Client__State__Store.dispatch(DisconnectOpenAIOAuth)
 
   let resetOpenAIOAuthError = () => Client__State__Store.dispatch(ResetOpenAIOAuthError)
-
-  let sessionsLoadStarted = () => Client__State__Store.dispatch(SessionsLoadStarted)
-
-  let sessionsLoadSuccess = (~sessions) =>
-    Client__State__Store.dispatch(SessionsLoadSuccess({sessions: sessions}))
-
-  let sessionsLoadError = (~error: string) =>
-    Client__State__Store.dispatch(SessionsLoadError({error: error}))
 
   let checkForUpdate = (~apiBaseUrl, ~installedVersion, ~target) =>
     Client__State__Store.dispatch(CheckForUpdate({apiBaseUrl, installedVersion, target}))

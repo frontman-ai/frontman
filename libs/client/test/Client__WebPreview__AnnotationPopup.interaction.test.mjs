@@ -34,6 +34,7 @@ const renderPopup = async ({ comment } = {}) => {
 				onExecute: (comment) => {
 					executeCount++;
 					executedComment = comment;
+					return Promise.resolve({ TAG: "Ok" });
 				},
 			}),
 		);

@@ -32,8 +32,6 @@ let make = (
     Client__RuntimeConfig.read().framework->Client__RuntimeConfig.supportsFileChanges
   let fileChangeCount = Array.length(completedFileChanges.files)
 
-  let {dispatch} = Client__FrontmanProvider.useFrontman()
-
   let (editableUrl, setEditableUrl) = React.useState(() => previewUrl)
   let (isEditingUrl, setIsEditingUrl) = React.useState(() => false)
 
@@ -90,9 +88,7 @@ let make = (
   let handleNewTask = () => {
     onWorkspaceViewChange(Client__WorkspacePanel.Preview)
     switch isNewTask {
-    | false =>
-      dispatch(ClearSession)
-      Client__State.Actions.clearCurrentTask()
+    | false => Client__State.Actions.clearCurrentTask()
     | true => ()
     }
     Client__PromptEditor.focus()

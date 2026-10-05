@@ -329,7 +329,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     } do
       expect_llm_responses(["Response"])
 
-      {:ok, attrs} =
+      attrs =
         Interaction.UserMessage.attrs(user_content("historical"), "openrouter:openai/gpt-5.5")
 
       message_id = Ecto.UUID.generate()
@@ -404,12 +404,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                2
     end
 
-    test "returns invalid content block errors instead of raising", %{
+    test "returns changeset errors for invalid text instead of raising", %{
       task_id: task_id,
       scope: scope
     } do
-      assert {:error,
-              {:invalid_content_block, "text content block must include non-empty string text"}} =
+      assert {:error, %Ecto.Changeset{valid?: false}} =
                submit_user_message(scope, task_id, [%{"type" => "text", "text" => ""}])
     end
 

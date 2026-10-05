@@ -20,8 +20,10 @@ let make = (
   ~mutationTimestamp: float,
   ~onCommentChange: string => unit,
   ~onClose: unit => unit,
-  ~onExecute: string => unit,
+  ~onExecute: string => promise<result<unit, string>>,
 ) => {
+  let disabled = Client__State.useSelector(Client__State.Selectors.isSubmitting)
+  let (error, setError) = React.useState(() => None)
   let (comment, setComment) = React.useState(() => annotation.comment->Option.getOr(""))
   let inputRef = React.useRef(Nullable.null)
   let (rect, setRect) = React.useState(() => None)
@@ -43,6 +45,16 @@ let make = (
   let execute = () => {
     onCommentChange(comment)
     onExecute(comment)
+    ->Promise.then(result => {
+      setError(_ =>
+        switch result {
+        | Ok() => None
+        | Error(error) => Some(error)
+        }
+      )
+      Promise.resolve()
+    })
+    ->ignore
   }
 
   let handleKeyDown = (e: ReactEvent.Keyboard.t) => {
@@ -79,7 +91,8 @@ let make = (
           left: `clamp(8px, ${Float.toString(left)}px, calc(100vw - 328px))`,
         }
       >
-        <div
+        <fieldset
+          disabled
           className="bg-white rounded-lg shadow-lg border border-gray-200 p-2 min-w-[240px] max-w-[320px]"
         >
           <div className="flex items-center gap-1.5 mb-1">
@@ -92,6 +105,9 @@ let make = (
               {React.string(`<${annotation.tagName}>`)}
             </span>
           </div>
+          {error->Option.mapOr(React.null, message =>
+            <p role="alert"> {React.string(message)} </p>
+          )}
           <div className="flex items-center gap-1">
             <input
               ref={ReactDOM.Ref.domRef(inputRef)}
@@ -123,7 +139,7 @@ let make = (
               <Icons.Cross2Icon className="size-3" />
             </button>
           </div>
-        </div>
+        </fieldset>
       </div>
     }
   | None => React.null

@@ -537,8 +537,7 @@ module APIKeyCard = {
 
 @react.component
 let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
-  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
-  let connectionState = Client__ConnectionReducer.Selectors.getConnectionStatus(state)
+  let connectionState = State.useSelector(State.Selectors.getConnectionStatus)
   let runtimeConfig = RuntimeConfig.read()
   let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
   let (activeTab, setActiveTab) = React.useState(() => "general")
@@ -559,7 +558,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
   let userProfile = State.useSelector(State.Selectors.userProfile)
   let userEmail = userProfile->Option.map(p => p.email)
 
-  let acpSession = State.useSelector(State.Selectors.acpSession)
+  let apiBaseUrl = State.useSelector(State.Selectors.apiBaseUrl)
   let keySettings = State.useSelector(State.Selectors.openrouterKeySettings)
   let anthropicKeySettings = State.useSelector(State.Selectors.anthropicKeySettings)
   let fireworksKeySettings = State.useSelector(State.Selectors.fireworksKeySettings)
@@ -586,7 +585,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
       setOauthCode(_ => "")
     }
     None
-  }, (open_, acpSession))
+  }, (open_, apiBaseUrl))
 
   let anthropicPlaceholder = apiKeyPlaceholder(
     anthropicKeySettings.source,
@@ -690,13 +689,13 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                           </div>
                         </div>
                       </div>
-                      {switch (connectionState, acpSession) {
+                      {switch (connectionState, apiBaseUrl) {
                       | (LoggingOut, _) =>
                         <Button variant=Button.Variant.Outline size=Button.Size.Sm disabled=true>
                           <Client__UI__Spinner />
                           {React.string("Signing out...")}
                         </Button>
-                      | (_, Types.AcpSessionActive({apiBaseUrl})) =>
+                      | (_, Some(apiBaseUrl)) =>
                         <a
                           className={Button.buttonVariants(
                             ~variant=Button.Variant.Outline,
@@ -705,11 +704,11 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                           href={`${apiBaseUrl}/users/log-out?return_to=%2Fusers%2Fpopup-complete`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          onClick={_ => dispatch(BeginLogout)}
+                          onClick={_ => State.Actions.connection(BeginLogout)}
                         >
                           {React.string("Sign out")}
                         </a>
-                      | (_, Types.NoAcpSession) => React.null
+                      | (_, None) => React.null
                       }}
                     </div>
                   </div>

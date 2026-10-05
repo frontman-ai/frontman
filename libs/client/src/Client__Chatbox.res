@@ -7,10 +7,6 @@
  * - TODO list integration
  * - Thinking indicators
  */
-module Log = FrontmanLogs.Logs.Make({
-  let component = #Chatbox
-})
-
 module Message = Client__State__Types.Message
 
 module UserMessage = Client__UserMessage
@@ -122,11 +118,11 @@ module ExecutePlanAction = {
 
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
-  let {state, dispatch} = Client__FrontmanProvider.useFrontman()
-  let connectionState = Client__ConnectionReducer.Selectors.getConnectionStatus(state)
-  let session = Client__ConnectionReducer.Selectors.getSession(state)
-  let sessionError = Client__ConnectionReducer.Selectors.getSessionError(state)
+  let connectionState = Client__State.useSelector(Client__State.Selectors.getConnectionStatus)
+  let session = Client__State.useSelector(Client__State.Selectors.getSession)
+  let sessionError = Client__State.useSelector(Client__State.Selectors.getSessionError)
 
+  let isSubmitting = Client__State.useSelector(Client__State.Selectors.isSubmitting)
   let messages = Client__State.useSelector(Client__State.Selectors.messages)
   let isAgentRunning = Client__State.useSelector(Client__State.Selectors.isAgentRunning)
   let isNewTask = Client__State.useSelector(Client__State.Selectors.isNewTask)
@@ -169,87 +165,26 @@ let make = (~onConfigureProvider: unit => unit) => {
     Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
   let hasAnnotations = Array.length(annotations) > 0
 
-  let sendUserMessage = (
-    ~content: array<Client__State.UserContentPart.t>,
-    ~annotations: array<Client__Message.MessageAnnotation.t>,
-    ~agentId: string,
-  ) => {
-    let sendMessage = (sessionId: string) => {
-      Client__State.Actions.addUserMessage(~sessionId, ~content, ~annotations, ~agentId)
-    }
-    switch (session, isNewTask) {
-    | (Some(sess), _) => sendMessage(sess.sessionId)
-    | (None, true) =>
-      dispatch(
-        CreateSession({
-          onComplete: result =>
-            switch result {
-            | Ok(sessionId) => sendMessage(sessionId)
-            | Error(err) => Log.error(~ctx={"error": err}, "Session creation failed")
-            },
-        }),
-      )
-    | (None, false) => Log.error("Cannot send message: conversation has no active session")
-    }
-  }
-
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
 
   let handleSubmit = (~text: string, ~inputItems: array<Client__PromptInput.inputItem>) => {
-    let agentId = selectedAgentId->Option.getOrThrow(~message="Selected agent is required")
-    let messageAnnotations =
-      annotations->Array.map(Client__Message.MessageAnnotation.fromAnnotation)
-
-    let sendWithContent = content => {
-      switch Array.length(content) > 0 || Array.length(messageAnnotations) > 0 {
-      | false => ()
-      | true => sendUserMessage(~content, ~annotations=messageAnnotations, ~agentId)
-      }
-    }
-
     let textParts = switch text != "" {
     | true => [Client__State.UserContentPart.Text({text: text})]
     | false => []
     }
 
-    switch Array.length(inputItems) {
-    | 0 => sendWithContent(textParts)
-    | _ =>
-      let _ =
-        inputItems
-        ->Array.map(item => {
-          switch item {
-          | Client__PromptInput.FileAttachment({id, name, mediaType, dataUrl}) =>
-            Client__ImageLimits.constrainDataUrl(
-              dataUrl,
-              Client__ImageLimits.conservative,
-            )->Promise.then(constrained => {
-              let actualMediaType = switch constrained->String.startsWith("data:image/jpeg") {
-              | true => "image/jpeg"
-              | false => mediaType
-              }
-              Promise.resolve(
-                Client__State.UserContentPart.Image({
-                  id: Some(id),
-                  image: constrained,
-                  mediaType: Some(actualMediaType),
-                  name: Some(name),
-                }),
-              )
-            })
-          }
-        })
-        ->Promise.all
-        ->Promise.then(fileParts => {
-          sendWithContent(Array.concat(textParts, fileParts))
-          Promise.resolve()
-        })
-        ->Promise.catch(err => {
-          Log.error(~error=JsExn.fromException(err), "Image resize failed")
-          sendWithContent(textParts)
-          Promise.resolve()
-        })
-    }
+    let files = inputItems->Array.map(({
+      id,
+      name,
+      mediaType,
+      dataUrl,
+    }) => Client__State.UserContentPart.Image({
+      id: Some(id),
+      image: dataUrl,
+      mediaType: Some(mediaType),
+      name: Some(name),
+    }))
+    Client__State.Actions.addUserMessage(~content=Array.concat(textParts, files))
   }
 
   let groupCacheRef: React.ref<Dict.t<ToolGroupTypes.toolGroup>> = React.useRef(Dict.make())
@@ -451,7 +386,7 @@ let make = (~onConfigureProvider: unit => unit) => {
               selectGetStartedTask(
                 ~providerSetupRequired,
                 ~onConfigureProvider,
-                ~onSelect=text => handleSubmit(~text, ~inputItems=[]),
+                ~onSelect=text => handleSubmit(~text, ~inputItems=[])->ignore,
                 text,
               )}
           />
@@ -518,6 +453,7 @@ let make = (~onConfigureProvider: unit => unit) => {
       | false =>
         <PromptInput
           onSubmit={handleSubmit}
+          disabled={isSubmitting}
           onCancel={Client__State.Actions.cancelTurn}
           modelConfigOption
           isModelsConfigLoading

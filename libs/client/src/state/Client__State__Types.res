@@ -8,31 +8,13 @@ module ContentBlock = Client__Task__Types.ContentBlock
 let taskToPageContextBlocks = Client__Task__Types.taskToPageContextBlocks
 let messageAnnotationsToContentBlocks = Client__Task__Types.messageAnnotationsToContentBlocks
 
-type sendPromptFn = (
-  string,
-  ~additionalBlocks: array<ContentBlock.t>,
-  ~onComplete: result<ACPTypes.promptResult, string> => unit,
-  ~_meta: option<JSON.t>,
-) => unit
-
-type loadTaskFn = (string, ~needsHistory: bool, ~onComplete: result<unit, string> => unit) => unit
-
-type deleteSessionFn = (string, ~onComplete: result<unit, string> => unit) => unit
-
-type sendSessionCommandFn = FrontmanAiFrontmanClient.FrontmanClient__ACP.sessionCommand => unit
-
-type requireAuthenticationFn = unit => unit
-
-type acpSession =
-  | NoAcpSession
-  | AcpSessionActive({
-      sendPrompt: sendPromptFn,
-      sendSessionCommand: sendSessionCommandFn,
-      loadTask: loadTaskFn,
-      deleteSession: deleteSessionFn,
-      requireAuthentication: requireAuthenticationFn,
-      apiBaseUrl: string,
-    })
+type submission = {
+  id: Message.UserMessageId.t,
+  content: array<UserContentPart.t>,
+  annotations: array<Message.MessageAnnotation.t>,
+  agentId: string,
+  onComplete: result<unit, string> => unit,
+}
 
 @schema
 type userApiKeysResponse = {
@@ -226,7 +208,7 @@ type settingsTab = General | Providers | Billing
 type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
-  acpSession: acpSession,
+  connection: option<Client__ConnectionReducer.state>,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
   billingStatus: Client__Billing.state,

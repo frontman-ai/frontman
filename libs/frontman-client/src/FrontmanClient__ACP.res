@@ -31,6 +31,7 @@ type config = {
   getAuthToken: unit => option<string>,
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
+  onTitleUpdated: option<(string, string) => unit>,
   onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
   onBillingStatusUpdated: option<JSON.t => unit>,
 }
@@ -43,6 +44,7 @@ let makeConfig = (
   ~name: string,
   ~version: string,
   ~_meta: JSON.t,
+  ~onTitleUpdated: option<(string, string) => unit>=?,
   ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
   ~onBillingStatusUpdated: option<JSON.t => unit>=?,
 ): config => {
@@ -55,6 +57,7 @@ let makeConfig = (
     title: None,
     _meta: Some(_meta),
   },
+  onTitleUpdated,
   onConfigOptionsUpdated,
   onBillingStatusUpdated,
   clientCapabilities: {
@@ -70,6 +73,7 @@ type connection = {
   channel: Channel.t,
   clientConfig: Client.config,
   state: ref<Client.state>,
+  dispose: unit => unit,
 }
 
 @@live
@@ -95,12 +99,26 @@ let cleanupChannel = channel => {
 let cleanupSessionChannel = (session: session): unit => cleanupChannel(session.channel)
 
 let disconnect = (conn: connection, ~session: option<session>=?): unit => {
+  conn.dispose()
   session->Option.forEach(cleanupSessionChannel)
-  conn.channel->Channel.off(~event=#"acp:message")
-  conn.channel->Channel.off(~event=#config_options_updated)
-  Channel.leave(conn.channel)->ignore
-  Socket.disconnect(conn.socket)
 }
+
+let rejectPendingRequests = (state: ref<Client.state>) => {
+  let pending = state.contents.pendingRequests
+  state := {...state.contents, pendingRequests: Dict.make()}
+  pending
+  ->Dict.valuesToArray
+  ->Array.forEach(request =>
+    request.reject(requestErrorFromMessage("Connection lost; request was not replayed"))
+  )
+}
+
+@send
+external onAbort: (WebAPI.EventTypes.abortSignal, @as("abort") _, unit => unit) => unit =
+  "addEventListener"
+@send
+external offAbort: (WebAPI.EventTypes.abortSignal, @as("abort") _, unit => unit) => unit =
+  "removeEventListener"
 
 let waitForSocket = (socket: Socket.t): promise<result<unit, string>> => {
   Promise.make((resolve, _) => {
@@ -113,9 +131,16 @@ let waitForSocket = (socket: Socket.t): promise<result<unit, string>> => {
 type joinError =
   | AuthRequired({loginUrl: string})
   | JoinFailed(string)
+  | JoinTimedOut(string)
 
-let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
+let joinChannel = (channel: Channel.t, ~onResult: result<unit, joinError> => unit=_ => ()): promise<
+  result<unit, joinError>,
+> => {
   Promise.make((resolve, _) => {
+    let resolve = result => {
+      onResult(result)
+      resolve(result)
+    }
     Channel.join(channel).receive(~status="ok", ~callback=_ =>
       resolve(Ok())
     ).receive(~status="error", ~callback=err => {
@@ -129,7 +154,9 @@ let joinChannel = (channel: Channel.t): promise<result<unit, joinError>> => {
       | (Some("unauthorized"), Some(url)) => resolve(Error(AuthRequired({loginUrl: url})))
       | _ => resolve(Error(JoinFailed(JSON.stringify(err))))
       }
-    })->ignore
+    }).receive(~status="timeout", ~callback=_ =>
+      resolve(Error(JoinTimedOut("Channel join timed out")))
+    )->ignore
   })
 }
 
@@ -144,31 +171,13 @@ type connectError =
   | AuthRequired({loginUrl: string})
   | ConnectionFailed(string)
 
-let waitForConnectionStep = (
-  pending,
-  ~signal: option<WebAPI.EventTypes.abortSignal>,
-  ~abortError,
-) =>
-  switch signal {
-  | None => pending
-  | Some(signal) if signal.aborted => Promise.resolve(Error(abortError))
-  | Some(signal) =>
-    let onAbort = ref(_ => ())
-    let cancelled = Promise.make((resolve, _) => {
-      let listener = _ => resolve(Error(abortError))
-      onAbort := listener
-      WebAPI.AbortSignal.addEventListener(signal, Custom("abort"), listener)
-    })
-    Promise.race([pending, cancelled])->Promise.finally(() => {
-      WebAPI.AbortSignal.removeEventListener(signal, Custom("abort"), onAbort.contents)
-    })
-  }
-
 @@live
 let connect = async (
   config: config,
   ~signal: option<WebAPI.EventTypes.abortSignal>=?,
   ~onConnectionCreated: option<connection => unit>=?,
+  ~onReconnecting: unit => unit=() => (),
+  ~onReconnect: result<connection, connectError> => unit=_ => (),
 ): result<connection, connectError> => {
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
@@ -202,78 +211,113 @@ let connect = async (
       clientCapabilities: config.clientCapabilities,
     }
 
-    let connection: connection = {socket, channel, clientConfig, state}
-    Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
-    onConnectionCreated->Option.forEach(callback => callback(connection))
-
-    let socketResult = await waitForConnectionStep(
-      waitForSocket(socket),
-      ~signal,
-      ~abortError="Connection aborted",
-    )
-
-    let joinResult = switch (socketResult, checkAborted(signal)) {
-    | (_, Error(_)) => Error(ConnectionFailed("Connection aborted"))
-    | (Error(e), _) =>
-      Log.error(`Socket connection failed: ${e}`)
-      Error(ConnectionFailed(e))
-    | (Ok(), Ok()) =>
-      Sentry.addBreadcrumb(~category=#acp, ~message="Socket connected, joining channel")
-      switch await waitForConnectionStep(
-        joinChannel(channel),
-        ~signal,
-        ~abortError=JoinFailed("Connection aborted"),
-      ) {
-      | Error(AuthRequired({loginUrl})) => Error(AuthRequired({loginUrl: loginUrl}))
-      | Error(JoinFailed(e)) =>
-        Log.error(`Channel join failed: ${e}`)
-        Error(ConnectionFailed(e))
-      | Ok() => Ok()
+    await Promise.make((resolve, _) => {
+      let closed = ref(false)
+      let connected = ref(false)
+      let generation = ref(0)
+      let rec dispose = () =>
+        switch closed.contents {
+        | true => ()
+        | false =>
+          closed := true
+          signal->Option.forEach(signal => offAbort(signal, dispose))
+          state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
+          rejectPendingRequests(state)
+          channel->Channel.off(~event=#config_options_updated)
+          channel->Channel.off(~event=#billing_status_updated)
+          cleanupChannel(channel)
+          Socket.disconnect(socket)
+          resolve(Error(ConnectionFailed("Connection aborted")))
+        }
+      let conn = {socket, channel, clientConfig, state, dispose}
+      let complete = result => {
+        resolve(result)
+        switch connected.contents {
+        | true => onReconnect(result)
+        | false => connected := Result.isOk(result)
+        }
+        switch result {
+        | Error(_) => dispose()
+        | Ok(_) => ()
+        }
       }
-    }
-
-    switch (joinResult, checkAborted(signal)) {
-    | (_, Error(_)) =>
-      cleanupChannel(channel)
-      Socket.disconnect(socket)
-      Error(ConnectionFailed("Connection aborted"))
-    | (Error(e), _) =>
-      cleanupChannel(channel)
-      Socket.disconnect(socket)
-      Error(e)
-    | (Ok(), Ok()) =>
-      switch config.onConfigOptionsUpdated {
-      | Some(callback) =>
-        channel->Channel.on(~event=#config_options_updated, ~callback=payload => {
-          switch payload->Decoders.parseSchema(Types.configOptionsUpdatedSchema) {
-          | Ok({configOptions}) => callback(configOptions)
-          | Error(e) => Log.error(`Failed to parse config_options_updated payload: ${e}`)
-          }
-        })
-      | None => ()
+      let lost = _ => {
+        switch closed.contents {
+        | true => ()
+        | false =>
+          generation := generation.contents + 1
+          state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Connecting))
+          rejectPendingRequests(state)
+          onReconnecting()
+        }
       }
-
+      channel->Channel.onError(~callback=lost)
+      channel->Channel.onClose(~callback=payload => {
+        switch closed.contents {
+        | true => ()
+        | false =>
+          lost(payload)
+          complete(Error(ConnectionFailed("Channel closed")))
+        }
+      })
+      Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
+      config.onConfigOptionsUpdated->Option.forEach(callback =>
+        channel->Channel.on(
+          ~event=#config_options_updated,
+          ~callback=payload => {
+            switch payload->Decoders.parseSchema(Types.configOptionsUpdatedSchema) {
+            | Ok({configOptions}) => callback(configOptions)
+            | Error(e) => Log.error(`Failed to parse config_options_updated payload: ${e}`)
+            }
+          },
+        )
+      )
       attachBillingStatusHandler(~channel, ~onBillingStatusUpdated=config.onBillingStatusUpdated)
+      signal->Option.forEach(signal => onAbort(signal, dispose))
 
-      Sentry.addBreadcrumb(~category=#acp, ~message="Channel joined, sending initialize")
-      switch await waitForConnectionStep(
-        Protocol.sendInitialize(~channel, ~state, ~clientConfig),
-        ~signal,
-        ~abortError=requestErrorFromMessage("Connection aborted"),
-      ) {
-      | Error(error) =>
-        let e = requestErrorMessage(error)
-        Log.error(`ACP initialize failed: ${e}`)
-        channel->Channel.off(~event=#config_options_updated)
-        cleanupChannel(channel)
-        Socket.disconnect(socket)
-        Error(ConnectionFailed(e))
-      | Ok(result) =>
-        Sentry.addBreadcrumb(~category=#acp, ~message="ACP initialized successfully")
-        state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
-        Ok(connection)
+      let initialize = async (joinResult: result<unit, joinError>) => {
+        generation := generation.contents + 1
+        let attempt = generation.contents
+        switch closed.contents {
+        | true => ()
+        | false =>
+          state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Connecting))
+          let result: result<Types.initializeResult, connectError> = switch joinResult {
+          | Error(AuthRequired({loginUrl})) => Error(AuthRequired({loginUrl: loginUrl}))
+          | Error(JoinFailed(message) | JoinTimedOut(message)) => Error(ConnectionFailed(message))
+          | Ok() =>
+            (
+              await Protocol.sendInitialize(~channel, ~state, ~clientConfig)
+            )->Result.mapError(error => ConnectionFailed(requestErrorMessage(error)))
+          }
+          switch (closed.contents, attempt == generation.contents, result) {
+          | (false, true, Ok(result)) =>
+            state :=
+              state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
+            complete(Ok(conn))
+          | (false, true, Error(error)) =>
+            switch joinResult {
+            | Error(JoinTimedOut(_)) if connected.contents => ()
+            | _ => complete(Error(error))
+            }
+          | _ => ()
+          }
+        }
       }
-    }
+      let start = async () => {
+        switch (await waitForSocket(socket), closed.contents) {
+        | (_, true) => ()
+        | (Error(message), false) => complete(Error(ConnectionFailed(message)))
+        | (Ok(), false) =>
+          joinChannel(channel, ~onResult=result => initialize(result)->ignore)->ignore
+        }
+      }
+      onConnectionCreated->Option.forEach(callback => callback(conn))
+      switch closed.contents {
+      | true => ()
+      | false => start()->ignore
+      }
+    })
   }
 }
 
@@ -315,64 +359,72 @@ let joinSession = async (
   ~cleanupOnParseError: option<ref<bool>>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
 ): result<session, string> => {
-  let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
-  let handleParseError = err => {
-    switch cleanupOnParseError->Option.mapOr(true, enabled => enabled.contents) {
-    | true => cleanupChannel(sessionChannel)
-    | false => ()
+  switch isInitialized(conn) {
+  | false => Error("ACP connection is not ready")
+  | true =>
+    let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
+    let handleParseError = err => {
+      switch cleanupOnParseError->Option.mapOr(true, enabled => enabled.contents) {
+      | true => cleanupChannel(sessionChannel)
+      | false => ()
+      }
+      switch onParseError {
+      | Some(callback) => callback(err)
+      | None => throw(SessionMessageParseError(err))
+      }
     }
-    switch onParseError {
-    | Some(callback) => callback(err)
-    | None => throw(SessionMessageParseError(err))
-    }
-  }
 
-  Protocol.attachMessageHandler(
-    ~channel=sessionChannel,
-    ~state=conn.state,
-    ~onUpdate=Some(onUpdate),
-    ~onParseError=Some(handleParseError),
-  )
+    Protocol.attachMessageHandler(
+      ~channel=sessionChannel,
+      ~state=conn.state,
+      ~onUpdate=Some(onUpdate),
+      ~onParseError=Some(handleParseError),
+    )
 
-  mcpServerInterface->Option.forEach(serverInterface => {
-    let handler: MCP.mcpHandler<'server> = {
-      serverInterface,
-      channel: sessionChannel,
-      sessionId,
-    }
-    sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
-      MCP.handleMessage(handler, payload)->ignore
+    mcpServerInterface->Option.forEach(serverInterface => {
+      let handler: MCP.mcpHandler<'server> = {
+        serverInterface,
+        channel: sessionChannel,
+        sessionId,
+      }
+      sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
+        MCP.handleMessage(handler, payload)->ignore
+      })
     })
-  })
 
-  sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
-    switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
-    | Ok({sessionId, title}) => onTitleUpdated(sessionId, title)
-    | Error(e) => Log.error(`Failed to parse title_updated payload: ${e}`)
-    }
-  })
+    sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
+      switch payload->Decoders.parseSchema(Types.titleUpdatedSchema) {
+      | Ok({sessionId, title}) => onTitleUpdated(sessionId, title)
+      | Error(e) => Log.error(`Failed to parse title_updated payload: ${e}`)
+      }
+    })
 
-  let joinResult = await joinChannel(sessionChannel)
+    let joinResult = await joinChannel(sessionChannel)
+    let joinResult = switch isInitialized(conn) {
+    | true => joinResult
+    | false => Error(JoinFailed("ACP connection is not ready"))
+    }
 
-  joinResult
-  ->Result.mapError(err => {
-    cleanupChannel(sessionChannel)
-    let errMsg = switch err {
-    | AuthRequired({loginUrl}) => `Auth required: ${loginUrl}`
-    | JoinFailed(msg) => msg
-    }
-    Log.error(`Session join failed: ${errMsg}`)
-    errMsg
-  })
-  ->Result.map(_ => {
-    Sentry.addBreadcrumb(~category=#session, ~message=`Joined session ${sessionId}`)
-    {
-      sessionId,
-      channel: sessionChannel,
-      connection: conn,
-      onUpdate,
-    }
-  })
+    joinResult
+    ->Result.mapError(err => {
+      cleanupChannel(sessionChannel)
+      let errMsg = switch err {
+      | AuthRequired({loginUrl}) => `Auth required: ${loginUrl}`
+      | JoinFailed(msg) | JoinTimedOut(msg) => msg
+      }
+      Log.error(`Session join failed: ${errMsg}`)
+      errMsg
+    })
+    ->Result.map(_ => {
+      Sentry.addBreadcrumb(~category=#session, ~message=`Joined session ${sessionId}`)
+      {
+        sessionId,
+        channel: sessionChannel,
+        connection: conn,
+        onUpdate,
+      }
+    })
+  }
 }
 
 @@live
@@ -467,16 +519,22 @@ let sendSessionCommand = (session: session, command: sessionCommand): unit => {
 
 let listSessions = (conn: connection): promise<result<array<Types.sessionSummary>, string>> => {
   Promise.make((resolve, _) => {
-    let pushRef =
-      conn.channel->Channel.push(~event=#list_sessions, ~payload=JSON.Encode.object(Dict.make()))
-    pushRef.receive(~status="ok", ~callback=response => {
-      switch response->Decoders.parseSchema(Types.listSessionsResultSchema) {
-      | Ok({sessions}) => resolve(Ok(sessions))
-      | Error(e) => resolve(Error(e))
-      }
-    }).receive(~status="error", ~callback=err => {
-      resolve(Error(JSON.stringify(err)))
-    })->ignore
+    switch Channel.canPush(conn.channel) {
+    | false => resolve(Error("Channel is disconnected"))
+    | true =>
+      let pushRef =
+        conn.channel->Channel.push(~event=#list_sessions, ~payload=JSON.Encode.object(Dict.make()))
+      pushRef.receive(~status="ok", ~callback=response => {
+        switch response->Decoders.parseSchema(Types.listSessionsResultSchema) {
+        | Ok({sessions}) => resolve(Ok(sessions))
+        | Error(e) => resolve(Error(e))
+        }
+      }).receive(~status="error", ~callback=err => {
+        resolve(Error(JSON.stringify(err)))
+      }).receive(~status="timeout", ~callback=_ =>
+        resolve(Error("Listing sessions timed out"))
+      )->ignore
+    }
   })
 }
 
@@ -488,11 +546,17 @@ let deleteSession = (conn: connection, sessionId: string): promise<result<unit, 
         ~from=Types.deleteSessionParamsSchema,
         ~to=S.json->S.noValidation(true),
       )
-    let pushRef = conn.channel->Channel.push(~event=#delete_session, ~payload)
-    pushRef.receive(~status="ok", ~callback=_ => resolve(Ok())).receive(
-      ~status="error",
-      ~callback=err => resolve(Error(JSON.stringify(err))),
-    )->ignore
+    switch Channel.canPush(conn.channel) {
+    | false => resolve(Error("Channel is disconnected"))
+    | true =>
+      let pushRef = conn.channel->Channel.push(~event=#delete_session, ~payload)
+      pushRef.receive(~status="ok", ~callback=_ => resolve(Ok())).receive(
+        ~status="error",
+        ~callback=err => resolve(Error(JSON.stringify(err))),
+      ).receive(~status="timeout", ~callback=_ =>
+        resolve(Error("Deleting session timed out"))
+      )->ignore
+    }
   })
 }
 

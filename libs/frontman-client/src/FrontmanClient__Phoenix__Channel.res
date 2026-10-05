@@ -17,6 +17,13 @@ type channelEvent = [
 
 type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) => pushResponse}
 
+@send external cancelTimeout: pushResponse => unit = "cancelTimeout"
+@send external cancelRefEvent: pushResponse => unit = "cancelRefEvent"
+let cancelPush = push => {
+  cancelTimeout(push)
+  cancelRefEvent(push)
+}
+
 @send external join: (t, ~timeout: int=?) => pushResponse = "join"
 
 @send external leave: (t, ~timeout: int=?) => pushResponse = "leave"
@@ -29,3 +36,7 @@ external push: (t, ~event: channelEvent, ~payload: JSON.t, ~timeout: int=?) => p
 @send external off: (t, ~event: channelEvent) => unit = "off"
 
 @get external state: t => string = "state"
+
+@send external canPush: t => bool = "canPush"
+@send external onError: (t, ~callback: JSON.t => unit) => unit = "onError"
+@send external onClose: (t, ~callback: JSON.t => unit) => unit = "onClose"

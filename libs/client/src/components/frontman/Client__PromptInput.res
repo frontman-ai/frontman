@@ -8,7 +8,7 @@
 module Icons = Client__ToolIcons
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 
-type inputItem = FileAttachment({id: string, name: string, mediaType: string, dataUrl: string})
+type inputItem = Client__PromptEditor.editorFileAttachment
 
 let isComposerBeamActive = (~hasFocus, ~isInputDisabled) => !hasFocus && !isInputDisabled
 
@@ -293,7 +293,7 @@ module SubmitButton = {
 
 @react.component
 let make = (
-  ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => unit,
+  ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => promise<result<unit, string>>,
   ~onCancel: unit => unit,
   ~modelConfigOption: option<ACP.sessionConfigOption>,
   ~isModelsConfigLoading: bool,
@@ -394,20 +394,6 @@ let make = (
     }
   }
 
-  let handleEditorSubmit = (
-    text,
-    fileAttachments: array<Client__PromptEditor.editorFileAttachment>,
-  ) => {
-    let inputItems = fileAttachments->Array.map(file => FileAttachment({
-      id: file.id,
-      name: file.name,
-      mediaType: file.mediaType,
-      dataUrl: file.dataUrl,
-    }))
-    onSubmit(~text, ~inputItems)
-    setHasContent(_ => false)
-  }
-
   let hasSubmittableContent = hasContent || hasAnnotations
   let noModelSelected = selectedModelValue->Option.isNone
   let isInputDisabled = !hasActiveACPSession || disabled || noModelsConfigured || noModelSelected
@@ -470,7 +456,7 @@ let make = (
                    focus-within:ring-1 focus-within:ring-white/20"
         style={{borderColor: composerBorderColor}}
       >
-        <div className="flex items-center px-2 py-1">
+        <fieldset disabled className="flex items-center px-2 py-1">
           <div
             className="flex flex-1 items-center gap-1 min-w-0 overflow-hidden transition-opacity"
           >
@@ -491,7 +477,7 @@ let make = (
             | None => React.null
             }}
           </div>
-        </div>
+        </fieldset>
 
         <div className="border-t border-white/8">
           <Client__PromptEditor
@@ -504,13 +490,15 @@ let make = (
             dropFilesSignal
             droppedFiles
             onHasContentChange={value => setHasContent(_ => value)}
-            onSubmit={handleEditorSubmit}
+            onSubmit={(text, inputItems) => onSubmit(~text, ~inputItems)}
             onPreviewImage={src => setPreviewSrc(_ => Some(src))}
             onFileSizeError={message => setFileSizeError(_ => Some(message))}
           />
         </div>
 
-        <div className="flex min-w-0 items-center gap-2 border-t border-white/8 px-2 py-1">
+        <fieldset
+          disabled className="flex min-w-0 items-center gap-2 border-t border-white/8 px-2 py-1"
+        >
           <div
             className={`grid min-w-0 flex-1 ${hasAgentSelector
                 ? "grid-cols-2"
@@ -554,7 +542,7 @@ let make = (
           <SubmitButton
             disabled={isSubmitDisabled} showStop={showStopButton} onClick={doSubmit} onCancel
           />
-        </div>
+        </fieldset>
       </div>
     </Client__BorderBeam>
 
