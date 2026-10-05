@@ -227,29 +227,25 @@ defmodule FrontmanServer.AgentsTest do
       assert wp_prompt =~ "## Annotated Elements Context"
     end
 
-    test "WordPress SEO fallback preserves safety and requires saved readback", %{scope: scope} do
+    test "WordPress guidance selects SEO tools and refreshes only after persistence", %{
+      scope: scope
+    } do
       {:ok, agent} = Agents.get_agent(scope, @executor_id)
 
       assert [%{text: wp_prompt}] =
                Agents.system_prompt(scope, agent, %{@empty_context | framework: :wordpress}, %{})
 
-      assert wp_prompt =~ "wp_get_site_info.seo_unavailable_reason"
+      assert wp_prompt =~
+               ~r/Prefer `wp_read_seo`\/`wp_update_seo`.*If unavailable for compatibility, use authorized admin forms/
 
       assert wp_prompt =~
-               ~r/Prefer `wp_read_seo`\/`wp_update_seo`.*If unavailable for compatibility/
+               ~r/After a persisted WordPress mutation or confirmed browser save, refresh the target page/
 
-      assert wp_prompt =~
-               ~r/`interact_with_element`.*`action="fill"`.*`value`.*save and read back/
-
-      assert wp_prompt =~ ~r/empty `value` clears.*`text` only targets/
       assert wp_prompt =~ ~r/unsaved.*do not refresh or navigate away/
-      assert wp_prompt =~ ~r/fill or click.*not proof of persistence/
-
-      assert wp_prompt =~
-               ~r/Stored override.*not prove rendered.*title, description, social tags, or schema/
-
-      assert wp_prompt =~ ~r/`execute_js` only for inspection or navigation.*never DOM injection/
-      assert wp_prompt =~ ~r/report verified changes, preserved state, and unmet requirements/
+      refute wp_prompt =~ "After every tool call that changes state"
+      refute wp_prompt =~ "action=\"fill\""
+      refute wp_prompt =~ "An empty `value` clears"
+      refute wp_prompt =~ "`text` only targets"
     end
 
     test "requires both TypeScript and React traits for TypeScript React guidance", %{
