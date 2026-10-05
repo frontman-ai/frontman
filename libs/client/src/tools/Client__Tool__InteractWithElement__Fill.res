@@ -24,7 +24,7 @@ let classify = (el: WebAPI.DomTypes.element, ~value=""): result<field, string> =
     | type_ => Error(`Unsupported input type for fill: ${type_}`)
     }
   | _ if el.tagName === "TEXTAREA" => Ok(TextArea(el->Dom.unsafeTextAreaElementFromElement))
-  | _ if Client__Tool__ElementQuery.isEditingHost(el) => Ok(Editable)
+  | _ if Client__Preview__ElementQuery.isEditingHost(el) => Ok(Editable)
   | _ => Error("Fill requires a text input, textarea, or contenteditable editing host")
   }
   switch field {
@@ -39,7 +39,7 @@ let read = (el, field) =>
   switch field {
   | Input({value}) | TextArea({value}) => value
   | Editable =>
-    let text = Client__Tool__ElementQuery.getVisibleText(el)->String.replaceAll("\r\n", "\n")
+    let text = Client__Preview__ElementQuery.getVisibleText(el)->String.replaceAll("\r\n", "\n")
     switch text === "\n" &&
     (el :> WebAPI.DomTypes.node).textContent->Null.toOption === Some("") &&
     el->WebAPI.Element.querySelectorAll("br")->WebAPI.NodeList.toArray->Array.length === 1 {

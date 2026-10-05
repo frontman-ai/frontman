@@ -103,7 +103,7 @@ let execute = async (
           maxElements,
           Math.Int.max(1, input.limit->Option.getOr(maxElements)),
         )
-        let resolved = Client__Tool__ElementQuery.queryInteractiveElements(
+        let resolved = Client__Preview__ElementQuery.queryInteractiveElements(
           ~document=doc,
           ~contentWindow=win,
           ~roleFilter=input.role,
@@ -130,7 +130,7 @@ let execute = async (
               name: el.name,
               tag: el.tag,
               selector,
-              detectionMethod: Client__Tool__ElementQuery.detectionMethodToString(
+              detectionMethod: Client__Preview__ElementQuery.detectionMethodToString(
                 el.detectionMethod,
               ),
               visibleText: el.visibleText,

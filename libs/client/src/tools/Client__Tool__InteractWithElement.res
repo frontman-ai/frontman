@@ -97,9 +97,9 @@ let performAction = async (~doc, ~win, ~el, ~action, ~value): result<unit, strin
   | #fill =>
     switch value {
     | None => Error("'value' is required for fill (use an empty string to clear)")
-    | Some(value) => await Client__Tool__FillElement.fill(~doc, ~win, ~el, ~value)
+    | Some(value) => await Client__Tool__InteractWithElement__Fill.fill(~doc, ~win, ~el, ~value)
     }
-  | #click if Client__Tool__FillElement.unavailable(el) =>
+  | #click if Client__Tool__InteractWithElement__Fill.unavailable(el) =>
     Error("Cannot click a disabled or inert element")
   | #click =>
     let observed = ref(false)
@@ -150,7 +150,7 @@ let resolveTarget = (
   | None =>
     switch (input.role, input.name) {
     | (Some(role), Some(name)) =>
-      let (element, matchCount) = Client__Tool__ElementQuery.resolveByRoleAndName(
+      let (element, matchCount) = Client__Preview__ElementQuery.resolveByRoleAndName(
         ~document=doc,
         ~contentWindow,
         ~role,
@@ -164,7 +164,7 @@ let resolveTarget = (
       switch input.text {
       | Some(text) if text->String.trim === "" => Error("Text targeting cannot be empty")
       | Some(text) =>
-        let matches = Client__Tool__ElementQuery.findMatchingElements(
+        let matches = Client__Preview__ElementQuery.findMatchingElements(
           ~root=doc.body->WebAPI.HTMLElement.asElement,
           ~query=text,
         )
@@ -217,7 +217,7 @@ let execute = async (
           switch await performAction(~doc, ~win, ~el, ~action, ~value=input.value) {
           | Error(message) => errorResult(message, ~matchCount)
           | Ok() =>
-            let role = Client__Tool__ElementQuery.effectiveRole(el)
+            let role = Client__Preview__ElementQuery.effectiveRole(el)
             Tool.structuredResult(
               {
                 success: true,
