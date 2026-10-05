@@ -2421,7 +2421,7 @@ __metadata:
     dom-accessibility-api: "npm:^0.7.1"
     dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     draft-js: "npm:0.11.7"
-    immutable: "npm:3.7.6"
+    immutable: "npm:3.8.4"
     lucide-react: "npm:^1.41.0"
     playwright: "npm:^1.63.0"
     react: "npm:^19.2.8"
@@ -11640,10 +11640,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"immutable@npm:3.7.6, immutable@npm:~3.7.4":
-  version: 3.7.6
-  resolution: "immutable@npm:3.7.6"
-  checksum: 10c0/efe2bbb2620aa897afbb79545b9eda4dd3dc072e05ae7004895a7efb43187e4265612a88f8723f391eb1c87c46c52fd11e2d1968e42404450c63e49558d7ca4e
+"immutable@npm:3.8.4":
+  version: 3.8.4
+  resolution: "immutable@npm:3.8.4"
+  checksum: 10c0/fffbd0bf4ecf6cfed6b3444d2da740f171dd7c228d913d2cc81fc2782c10df0f6f7d822c926d38dd5fb5d91fcfce5c5482a8027817f07a5ed870b057271a3b8a
   languageName: node
   linkType: hard
 
