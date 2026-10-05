@@ -110,6 +110,9 @@ testAsync(
     let span = doc->WebAPI.Document.createElement("span")
     span.innerHTML = "Nested text"
     host->WebAPI.Element.appendChild((span :> WebAPI.DomTypes.node))->ignore
+    t->expect(Client__Tool__FillElement.classify(span)->Result.isError)->Expect.toBe(true)
+    span->WebAPI.Element.setAttribute(~qualifiedName="contenteditable", ~value="true")
+    t->expect(Client__Tool__FillElement.classify(span)->Result.isError)->Expect.toBe(true)
     ["false", "true"]->Array.forEach(editable => {
       let element = doc->WebAPI.Document.createElement("div")
       element->WebAPI.Element.setAttribute(~qualifiedName="contenteditable", ~value=editable)

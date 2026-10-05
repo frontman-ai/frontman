@@ -86,7 +86,6 @@ let dispatchHoverEvents = (el: WebAPI.DomTypes.element): unit => {
 
 @send external clickElement: WebAPI.DomTypes.element => unit = "click"
 @send external focusElement: WebAPI.DomTypes.element => unit = "focus"
-@set external setIsError: (Tool.MCP.CallToolResult.t, bool) => unit = "isError"
 
 let actionToString = (action: [#click | #hover | #focus | #fill]): string =>
   switch action {
@@ -181,8 +180,8 @@ let resolveTarget = (
     }
   }
 
-let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallToolResult.t => {
-  let result = Tool.structuredResult(
+let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallToolResult.t =>
+  Tool.structuredResult(
     {
       success: false,
       interactedElement: None,
@@ -191,10 +190,8 @@ let errorResult = (error: string, ~matchCount: option<int>=?): Tool.MCP.CallTool
       error: Some(error),
     },
     outputSchema,
+    ~isError=true,
   )
-  setIsError(result, true)
-  result
-}
 
 let execute = async (
   input: input,

@@ -6,8 +6,6 @@ type field =
   | TextArea(WebAPI.DomTypes.htmlTextAreaElement)
   | Editable
 
-let attribute = (el, name) => el->WebAPI.Element.getAttribute(name)->Null.toOption
-
 let unavailable = (el: WebAPI.DomTypes.element): bool =>
   el->WebAPI.Element.matches(":disabled") ||
     el->WebAPI.Element.closest("[inert], [aria-disabled='true']")->Null.toOption->Option.isSome
@@ -33,14 +31,8 @@ let classify = (el: WebAPI.DomTypes.element): result<field, string> =>
     | true => Error("Cannot fill a read-only element")
     | false => Ok(TextArea(textarea))
     }
-  | _ =>
-    switch (
-      attribute(el, "contenteditable"),
-      (el->Dom.unsafeHtmlElementFromElement).isContentEditable,
-    ) {
-    | (Some("" | "true" | "plaintext-only"), true) => Ok(Editable)
-    | _ => Error("Fill requires a text input, textarea, or contenteditable editing host")
-    }
+  | _ if Client__Tool__ElementQuery.isEditingHost(el) => Ok(Editable)
+  | _ => Error("Fill requires a text input, textarea, or contenteditable editing host")
   }
 
 let read = (el, field) =>
@@ -63,13 +55,17 @@ let edit = async (~doc, ~win, ~el, ~field, ~value) => {
   | false => Error("Element did not accept focus; no content was filled")
   | true if read(el, field) === value => Ok()
   | true =>
-    switch field {
-    | Input(_) | TextArea(_) =>
-      switch field {
-      | Input(input) => input->WebAPI.HTMLInputElement.select
-      | TextArea(textarea) => textarea->WebAPI.HTMLTextAreaElement.select
-      | Editable => ()
-      }
+    let controlConstructor = switch field {
+    | Input(input) =>
+      input->WebAPI.HTMLInputElement.select
+      Some(Dom.inputConstructor(win))
+    | TextArea(textarea) =>
+      textarea->WebAPI.HTMLTextAreaElement.select
+      Some(Dom.textareaConstructor(win))
+    | Editable => None
+    }
+    switch controlConstructor {
+    | Some(constructor) =>
       let edited = switch doc->Dom.hasExecCommand {
       | Some(_) => Dom.execCommand(doc, value === "" ? "delete" : "insertText", false, value)
       | None => false
@@ -77,8 +73,6 @@ let edit = async (~doc, ~win, ~el, ~field, ~value) => {
       switch edited {
       | true => Ok()
       | false =>
-        let constructor =
-          el.tagName === "INPUT" ? Dom.inputConstructor(win) : Dom.textareaConstructor(win)
         constructor
         ->Object.prototype
         ->Object.getOwnPropertyDescriptor("value")
@@ -103,7 +97,7 @@ let edit = async (~doc, ~win, ~el, ~field, ~value) => {
         ->ignore
         Ok()
       }
-    | Editable =>
+    | None =>
       switch doc->Dom.hasExecCommand {
       | None => Error("This browser does not provide native contenteditable editing")
       | Some(_) =>
