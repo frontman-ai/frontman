@@ -3,7 +3,7 @@ import {
 	getVisibleText,
 	queryInteractiveElements,
 	resolveByRoleAndName,
-} from "../src/tools/Client__Tool__ElementQuery.res.mjs";
+} from "../src/tools/Client__Preview__ElementQuery.res.mjs";
 import { resolveTarget } from "../src/tools/Client__Tool__InteractWithElement.res.mjs";
 
 it("uses one interactive-element policy for listing and role targeting", () => {

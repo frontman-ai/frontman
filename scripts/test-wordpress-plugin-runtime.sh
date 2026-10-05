@@ -15,7 +15,12 @@ case "$WORDPRESS_VERSION" in
     MEGAMENU_SHA256="df0a37af42b6937fc716bbd302d983a9e78abc9a63caf1e731ac09597856ea55"
     ;;
 esac
-YOAST_SHA256="93eba5afc65149967a4bb4906bc8fdebf92f4a65ee02bec97f5c01a7e14e7028"
+case "$YOAST_VERSION" in
+  "") ;;
+  28.4) YOAST_SHA256="93eba5afc65149967a4bb4906bc8fdebf92f4a65ee02bec97f5c01a7e14e7028" ;;
+  19.9) YOAST_SHA256="8494a158e4bb9fcea9bb2198cc4c5908e92f3a5a2ccfffd989db05cf4e016af9" ;;
+  *) printf 'Unsupported Yoast runtime test version: %s\n' "$YOAST_VERSION" >&2; exit 1 ;;
+esac
 PLUGIN_VERSION="$(bash "$ROOT_DIR/scripts/validate-wordpress-plugin-release.sh")"
 RUN_ID="frontman-wp-runtime-$$"
 NETWORK="${RUN_ID}-network"
@@ -38,10 +43,6 @@ curl -fsSL "https://downloads.wordpress.org/plugin/megamenu.${MEGAMENU_VERSION}.
 printf '%s  %s\n' "$MEGAMENU_SHA256" "$BUILD_DIR/megamenu.zip" | sha256sum --check --status
 unzip -q "$BUILD_DIR/megamenu.zip" -d "$BUILD_DIR/megamenu"
 if [[ -n "$YOAST_VERSION" ]]; then
-  if [[ "$YOAST_VERSION" != "28.4" ]]; then
-    printf 'Unsupported Yoast runtime test version: %s\n' "$YOAST_VERSION" >&2
-    exit 1
-  fi
   curl -fsSL "https://downloads.wordpress.org/plugin/wordpress-seo.${YOAST_VERSION}.zip" -o "$BUILD_DIR/wordpress-seo.zip"
   printf '%s  %s\n' "$YOAST_SHA256" "$BUILD_DIR/wordpress-seo.zip" | sha256sum --check --status
   unzip -q "$BUILD_DIR/wordpress-seo.zip" -d "$BUILD_DIR/yoast"
