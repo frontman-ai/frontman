@@ -1,10 +1,10 @@
 open Vitest
 
 module Reducer = Client__ConnectionReducer
-module ContentBlock = FrontmanAiFrontmanProtocol.FrontmanProtocol__ContentBlock
+module App = Client__State__StateReducer
 
 let handleEffect = (effect, state, dispatch) =>
-  Client__State__StateReducer.ConnectionEffects.handleEffect(
+  App.ConnectionEffects.handleEffect(
     effect,
     state,
     dispatch,
@@ -23,14 +23,12 @@ let effectKinds = effects =>
     | Reducer.LogoutEffect(_) => #logout
     | Reducer.ActivateSessionEffect({operation: #create(_)}) => #createSession
     | Reducer.ActivateSessionEffect({operation: #load(_) | #join(_)}) => #loadTask
-    | Reducer.SendPromptEffect(_) => #sendPrompt
     | Reducer.SessionCommandEffect(_) => #sessionCommand
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
     | Reducer.DeleteSessionEffect(_) => #deleteSession
     | Reducer.NotifyRequestRejected(_) => #requestRejected
     | Reducer.CleanupSessionEffect(_) => #cleanupSession
-    | Reducer.ConnectionCallbackEffect(_) => #connectionCallback
-    | Reducer.SessionCallbackEffect(_) => #sessionCallback
+    | Reducer.TaskLoadFailed(_) => #taskLoadFailed
     | Reducer.SessionCompletionEffect(_) => #sessionCompletion
     }
   )
@@ -73,7 +71,7 @@ let sessionState = state =>
 let creating = sessionId => Reducer.SessionCreating({
   sessionId: Some(sessionId),
   requestId: ref(),
-  onComplete: _ => (),
+  onComplete: Some(_ => ()),
 })
 let active = session => Reducer.SessionActive({session, requestId: ref()})
 let requestId = state =>
@@ -86,7 +84,7 @@ let pendingSessionId = state =>
   | SessionCreating({sessionId}) => sessionId->Option.getOrThrow
   | _ => failwith("Expected pending session")
   }
-let completeSession = (state, result, ~onComplete=_ => ()) =>
+let completeSession = (state, result) =>
   Reducer.reduce(
     state,
     SessionResultReceived({
@@ -96,7 +94,6 @@ let completeSession = (state, result, ~onComplete=_ => ()) =>
       | Error(_) => pendingSessionId(state)
       },
       result,
-      onComplete,
     }),
   )
 
@@ -108,11 +105,7 @@ let complete = (state, result) =>
       result,
     }),
   )
-let loadTask = taskId => Reducer.LoadTask({
-  taskId,
-  needsHistory: true,
-  onComplete: _ => (),
-})
+let loadTask = taskId => Reducer.LoadTask({taskId, needsHistory: true})
 
 describe("Connection Reducer", () => {
   describe("login URL", () => {
@@ -246,48 +239,42 @@ describe("Connection Reducer", () => {
     )
   })
 
-  test("rejoin hides readiness, rejects operations and fences stale connection callbacks", t => {
+  test("rejoin hides readiness, rejects operations and fences stale events", t => {
     let session = mock({"sessionId": "existing"})
     let original = withSession(active(session))
     let signal = runtime(original).lifetimeAbortController.signal
     let (lost, _) = Reducer.reduce(original, ACPReconnecting({signal: signal}))
     t->expect(Reducer.Selectors.getConnectionStatus(lost))->Expect.toBe(Connecting)
     t->expect(Reducer.Selectors.getSession(lost))->Expect.toBe(None)
-    let interrupted = ref(0)
-    let completion = Reducer.SessionCallbackEffect({
-      requestId: requestId(original),
-      callback: () => failwith("A disconnected session must not run its ready callback"),
-      onConnectionLost: Some(() => interrupted := interrupted.contents + 1),
-    })
-    handleEffect(completion, lost, _ => ())
-    t->expect(interrupted.contents)->Expect.toBe(1)
-    handleEffect(completion, withSession(NoSession), _ => ())
-    t->expect(interrupted.contents)->Expect.toBe(1)
+    let current = {...App.defaultState, connection: Some(original)}
+    let newer = {...current, connection: Some(withSession(active(session)))}
+    let action = App.SessionsLoadSuccess({sessions: []})
+    [
+      App.ConnectionEvent({signal, action}),
+      App.SessionEvent({requestId: requestId(original), action}),
+    ]->Array.forEach(
+      event => {
+        [newer, {...current, connection: Some(lost)}]->Array.forEach(
+          state => {
+            t->expect(App.next(state, event)->Pair.first)->Expect.toBe(state)
+          },
+        )
+        let (updated, effects) = App.next(current, event)
+        t->expect(updated.sessionsLoadState)->Expect.toEqual(SessionsLoaded)
+        t->expect(effects)->Expect.toEqual([])
+      },
+    )
     let rejected = ref(0)
     let onComplete = result => {
       t->expect(result->Result.isError)->Expect.toBe(true)
       rejected := rejected.contents + 1
     }
-    [
-      Reducer.CreateSession({sessionId: "new-session", onComplete}),
-      Reducer.LoadTask({
-        taskId: "existing",
-        needsHistory: false,
-        onComplete: result => onComplete(result->Result.map(_ => "")),
-      }),
-      Reducer.SendPrompt({
-        text: "draft",
-        additionalBlocks: [],
-        _meta: None,
-        onComplete: result => onComplete(result->Result.map(_ => "")),
-      }),
-    ]->Array.forEach(
-      action => {
-        let (_, effects) = Reducer.reduce(lost, action)
-        effects->Array.forEach(effect => handleEffect(effect, lost, _ => ()))
-      },
-    )
-    t->expect(rejected.contents)->Expect.toBe(3)
+    let (_, effects) = Reducer.reduce(lost, CreateSession({sessionId: "new-session", onComplete}))
+    effects->Array.forEach(effect => handleEffect(effect, lost, _ => ()))
+    t->expect(rejected.contents)->Expect.toBe(1)
+    t
+    ->expect(Reducer.reduce(lost, loadTask("existing"))->Pair.second->effectKinds)
+    ->Expect.toEqual([#taskLoadFailed])
     let rejoined = Reducer.ACPReconnected({signal, result: Ok(mockConnection)})
     let (restored, effects) = Reducer.reduce(lost, rejoined)
     t->expect(Reducer.Selectors.getSession(restored))->Expect.toEqual(Some(session))
@@ -328,17 +315,12 @@ describe("Connection Reducer", () => {
         requestId: requestId(creating),
         sessionId: "late",
         result: Ok((mock({"sessionId": "late"}), None)),
-        onComplete: _ => failwith("Late creation must not submit the captured draft"),
       }),
     )
     t->expect(sessionState(unchanged))->Expect.toBe(NoSession)
     t->expect(effectKinds(effects))->Expect.toEqual([#cleanupSession, #logInfo])
     completed := None
-    let (activated, queued) = completeSession(
-      creating,
-      Ok((mock({"sessionId": "late"}), None)),
-      ~onComplete=result => completed := Some(result),
-    )
+    let (activated, queued) = completeSession(creating, Ok((mock({"sessionId": "late"}), None)))
     let (lost, _) = Reducer.reduce(activated, ACPReconnecting({signal: signal}))
     let (restored, _) = Reducer.reduce(lost, ACPReconnected({signal, result: Ok(mockConnection)}))
     queued->Array.forEach(effect => handleEffect(effect, restored, _ => ()))
@@ -438,10 +420,12 @@ describe("Connection Reducer", () => {
         let (state, effects) = completeSession(
           Reducer.reduce(
             withSession(NoSession),
-            CreateSession({sessionId: "new-session", onComplete: _ => ()}),
+            CreateSession({
+              sessionId: "new-session",
+              onComplete: result => completed := Some(result),
+            }),
           )->Pair.first,
           Ok((mockSession, None)),
-          ~onComplete=result => completed := Some(result),
         )
         effects->Array.forEach(effect => handleEffect(effect, state, _ => ()))
         t->expect(completed.contents)->Expect.toEqual(Some(Ok("sess-1")))
@@ -463,7 +447,6 @@ describe("Connection Reducer", () => {
             requestId: requestId(state),
             sessionId: "sess-1",
             result: Error(Reducer.ACP.requestErrorFromMessage("invalid attribution")),
-            onComplete: _ => (),
           }),
         )
         t
@@ -486,13 +469,11 @@ describe("Connection Reducer", () => {
             requestId: ref(),
             sessionId: "sess-2",
             result: Error(Reducer.ACP.requestErrorFromMessage("stale update")),
-            onComplete: _ => (),
           }),
           Reducer.SessionResultReceived({
             requestId: ref(),
             sessionId: "sess-2",
             result: Error(Reducer.ACP.requestErrorFromMessage("late activation")),
-            onComplete: _ => (),
           }),
         ]->Array.forEach(
           action => {
@@ -517,7 +498,6 @@ describe("Connection Reducer", () => {
                 requestId: requestId(loadingFirst),
                 sessionId: "sess-1",
                 result: Ok((staleSession, None)),
-                onComplete: _ => failwith("Stale callback ran"),
               }),
             )
             t->expect(afterStaleSuccess)->Expect.toBe(loadingSecond)
@@ -627,47 +607,5 @@ describe("Connection Reducer", () => {
     t->expect(signal.aborted)->Expect.toBe(true)
     t->expect(Reducer.ACP.isInitialized(ready.connection))->Expect.toBe(false)
     t->expect(Reducer.Selectors.getAuthRedirectUrl(waiting)->Option.isSome)->Expect.toBe(true)
-  })
-
-  test("connection callbacks cannot cross ready lifetimes or run obsolete queued effects", t => {
-    let state = withSession(NoSession)
-    let newer = withSession(NoSession)
-    let called = ref(false)
-    let callback: Reducer.connectionCallback = {
-      signal: runtime(state).lifetimeAbortController.signal,
-      callback: () => called := true,
-    }
-    let (_, effects) = Reducer.reduce(state, ConnectionCallbackReceived(callback))
-    let (_, staleEffects) = Reducer.reduce(newer, ConnectionCallbackReceived(callback))
-    staleEffects->Array.forEach(effect => handleEffect(effect, newer, _ => ()))
-    t->expect(called.contents)->Expect.toBe(false)
-    effects->Array.forEach(effect => handleEffect(effect, newer, _ => ()))
-    t->expect(called.contents)->Expect.toBe(false)
-    effects->Array.forEach(effect => handleEffect(effect, state, _ => ()))
-    t->expect(called.contents)->Expect.toBe(true)
-  })
-
-  test("allows another prompt while previous prompt is still in flight", t => {
-    let mockSession = mock({"sessionId": "task-1"})
-    let state = withSession(active(mockSession))
-    let emptyBlocks: array<ContentBlock.t> = []
-    let prompt = text => Reducer.SendPrompt({
-      text,
-      additionalBlocks: emptyBlocks,
-      onComplete: _ => (),
-      _meta: None,
-    })
-    let (nextState, firstEffects) = Reducer.reduce(state, prompt("first"))
-    let (_, secondEffects) = Reducer.reduce(nextState, prompt("second"))
-    switch (firstEffects, secondEffects) {
-    | (
-        [Reducer.SendPromptEffect({text: "first"})],
-        [Reducer.SendPromptEffect({text: "second"})],
-      ) => ()
-    | _ =>
-      t
-      ->expect((effectKinds(firstEffects), effectKinds(secondEffects)))
-      ->Expect.toEqual(([#sendPrompt], [#sendPrompt]))
-    }
   })
 })

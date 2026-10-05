@@ -1,6 +1,17 @@
 module Connection = Client__ConnectionReducer
 module ACP = Connection.ACP
 
+let makeStore = (state, handle) =>
+  StateStore.make(
+    module(
+      {
+        include Client__State__StateReducer
+        let handleEffect = handle
+      }
+    ),
+    state,
+  )
+
 let config = (~apiBaseUrl="http://localhost:4000"): Connection.config => {
   acp: ACP.makeConfig(
     ~endpoint="ws://test",

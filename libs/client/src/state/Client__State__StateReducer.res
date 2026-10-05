@@ -30,14 +30,23 @@ type promptInput = {
   onComplete: result<unit, string> => unit,
 }
 
-type action =
+type rec action =
   | InitializeConnection(Connection.config)
   | ConnectionAction(Connection.action)
+  | ConnectionEvent({signal: WebAPI.EventTypes.abortSignal, action: action})
+  | SessionEvent({requestId: Connection.sessionRequestId, action: action})
   | AddUserMessage(promptInput)
+  | PromptFailed({
+      requestId: Connection.sessionRequestId,
+      taskId: string,
+      id: Message.UserMessageId.t,
+      error: Connection.ACP.requestError,
+    })
   | AcpSessionUpdateReceived({taskId: string, update: ACP.sessionUpdate})
   | TaskAction({target: taskTarget, action: TaskReducer.action})
   | CancelTurn
   | ExecutePendingPlan({id: Message.UserMessageId.t})
+  | TaskLoadFinished({taskId: string, result: result<Connection.sessionRequestId, string>})
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask
@@ -152,8 +161,6 @@ type effect =
   | DisconnectOpenAIOAuthEffect({apiBaseUrl: string})
   | PollOpenAIDeviceAuthEffect({apiBaseUrl: string, deviceAuthId: string, userCode: string})
   | FetchUserProfileEffect({apiBaseUrl: string})
-  | LoadTaskEffect({taskId: string})
-  | DeleteSessionEffect({taskId: string})
   | CheckForUpdateEffect({
       apiBaseUrl: string,
       installedVersion: string,
@@ -1248,13 +1255,13 @@ module ConnectionEffects = {
     ACP.requestErrorMessage(error)
   }
 
-  let handleEffect = (
+  let rec handleEffect = (
     effect: effect,
     state: state,
     dispatch: action => unit,
     ~dispatchApp: appAction => unit,
   ) => {
-    let activateSession = async (~requestId, ~sessionId, ~onComplete, activate) => {
+    let activateSession = async (~requestId, ~sessionId, activate) => {
       switch isCurrentSessionRequest(state, requestId) {
       | false => ()
       | true =>
@@ -1262,20 +1269,15 @@ module ConnectionEffects = {
         let creationError = ref(None)
         let result = await activate(
           (sessionId, update) =>
-            dispatch(
-              SessionCallbackReceived({
+            dispatchApp(
+              SessionEvent({
                 requestId,
-                onConnectionLost: None,
-                callback: () => dispatchApp(AcpSessionUpdateReceived({taskId: sessionId, update})),
+                action: AcpSessionUpdateReceived({taskId: sessionId, update}),
               }),
             ),
           (sessionId, title) =>
-            dispatch(
-              SessionCallbackReceived({
-                requestId,
-                onConnectionLost: None,
-                callback: () => dispatchApp(UpdateTaskTitle({taskId: sessionId, title})),
-              }),
+            dispatchApp(
+              SessionEvent({requestId, action: UpdateTaskTitle({taskId: sessionId, title})}),
             ),
           error =>
             switch pending.contents {
@@ -1286,7 +1288,6 @@ module ConnectionEffects = {
                   requestId,
                   sessionId,
                   result: Error(ACP.requestErrorFromMessage(error)),
-                  onComplete: _ => (),
                 }),
               )
             },
@@ -1300,7 +1301,7 @@ module ConnectionEffects = {
           }
         )
         pending := false
-        dispatch(SessionResultReceived({requestId, sessionId, result, onComplete}))
+        dispatch(SessionResultReceived({requestId, sessionId, result}))
       }
     }
 
@@ -1308,44 +1309,48 @@ module ConnectionEffects = {
     | LogError(msg) => Log.error(msg)
     | LogInfo(msg) => Log.info(msg)
     | NotifyRequestRejected(notify) => notify()
-    | ConnectionCallbackEffect({signal, callback}) =>
-      switch isCurrentConnection(state, signal) {
-      | true => callback()
-      | false => ()
-      }
-    | SessionCallbackEffect({requestId, callback, onConnectionLost}) =>
-      switch isCurrentSessionRequest(state, requestId) {
-      | true => callback()
-      | false =>
-        switch state.connection {
-        | Ok(Some({phase: Reconnecting({session: SessionActive({requestId: expected})})}))
-          if requestId === expected =>
-          onConnectionLost->Option.forEach(notify => notify())
-        | _ => ()
-        }
-      }
     | SessionCompletionEffect({sessionId, ready, result, onComplete}) =>
+      let complete = result =>
+        switch (onComplete, result) {
+        | (Some(onComplete), _) => onComplete(result)
+        | (None, Ok(_)) =>
+          Client__TextDeltaBuffer.flush()
+          switch ready.session {
+          | SessionActive({requestId}) =>
+            dispatchApp(TaskLoadFinished({taskId: sessionId, result: Ok(requestId)}))
+          | _ => failwith("Loaded session must be active")
+          }
+        | (None, Error(error)) =>
+          dispatchApp(TaskLoadFinished({taskId: sessionId, result: Error(error)}))
+        }
       switch state.connection {
       | Ok(Some({phase: Ready(current), lifetimeAbortController}))
         if current === ready &&
         !lifetimeAbortController.signal.aborted &&
         ACP.isInitialized(current.connection) =>
         switch result {
-        | Ok(configOptions) =>
-          configOptions->Option.forEach(opts =>
-            dispatchApp(ConfigOptionsReceived({configOptions: opts}))
-          )
-          onComplete(Ok(sessionId))
+        | Ok(_) => complete(Ok(sessionId))
         | Error(error) =>
           Client__TextDeltaBuffer.discardTask(sessionId)
-          onComplete(Error(billingRequestErrorMessage(error, dispatchApp)))
+          complete(Error(billingRequestErrorMessage(error, dispatchApp)))
         }
       | Ok(Some({phase: Ready(current) | Reconnecting(current)}))
         if current.session === ready.session =>
-        onComplete(Error("Connection changed before submission completed; send again when ready"))
-      | Ok(_) | Error(_) => ()
+        complete(Error("Connection changed before submission completed; send again when ready"))
+      | Ok(_) | Error(_) => complete(Error("Conversation changed. Your message was not sent."))
       }
-    | CleanupEffect(runtime) => cleanupRuntime(runtime)
+    | TaskLoadFailed({taskId, error}) =>
+      dispatchApp(TaskLoadFinished({taskId, result: Error(error)}))
+    | CleanupEffect(runtime) =>
+      WebAPI.AbortController.abort(runtime.lifetimeAbortController)
+      switch runtime.phase {
+      | Ready({connection, session}) | Reconnecting({connection, session}) =>
+        ACP.disconnect(connection)
+        releaseSession(session)->Array.forEach(effect =>
+          handleEffect(effect, state, dispatch, ~dispatchApp)
+        )
+      | _ => ()
+      }
     | CleanupConnectionEffect(connection) => ACP.disconnect(connection)
     | ConnectRuntime({config, signal}) =>
       let connect = async () => {
@@ -1370,38 +1375,6 @@ module ConnectionEffects = {
         }
       })
     | LogoutEffect({apiBaseUrl, signal}) => revokeEmbeddedClientToken(~apiBaseUrl, ~signal)->ignore
-    | SendPromptEffect({requestId, session, text, additionalBlocks, onComplete, _meta}) =>
-      let send = async () => {
-        try {
-          let result = await ACP.sendPrompt(session, text, ~additionalBlocks, ~_meta)
-          dispatch(
-            SessionCallbackReceived({
-              requestId,
-              onConnectionLost: Some(
-                () => onComplete(Error("Connection lost; request was not replayed")),
-              ),
-              callback: () =>
-                onComplete(
-                  result->Result.mapError(error => billingRequestErrorMessage(error, dispatchApp)),
-                ),
-            }),
-          )
-        } catch {
-        | exn =>
-          dispatch(
-            SessionCallbackReceived({
-              requestId,
-              onConnectionLost: Some(() => onComplete(Error("sendPrompt exception"))),
-              callback: () => onComplete(Error("sendPrompt exception")),
-            }),
-          )
-          throw(exn)
-        }
-      }
-      switch isCurrentSessionRequest(state, requestId) {
-      | true => send()->ignore
-      | false => ()
-      }
     | SessionCommandEffect({session, command}) => ACP.sendSessionCommand(session, command)
     | FetchSessionsEffect({connection, signal}) =>
       let fetch = async () => {
@@ -1410,16 +1383,13 @@ module ConnectionEffects = {
         dispatchApp(AgentAttributionConfigured({agentCatalog: agents, defaultAgentId}))
         dispatchApp(SessionsLoadStarted)
         let result = await ACP.listSessions(connection)
-        dispatch(
-          ConnectionCallbackReceived({
+        dispatchApp(
+          ConnectionEvent({
             signal,
-            callback: () =>
-              switch result {
-              | Ok(sessions) => dispatchApp(SessionsLoadSuccess({sessions: sessions}))
-              | Error(err) =>
-                Log.error(~ctx={"error": err}, "Failed to fetch sessions")
-                dispatchApp(SessionsLoadError({error: err}))
-              },
+            action: switch result {
+            | Ok(sessions) => SessionsLoadSuccess({sessions: sessions})
+            | Error(error) => SessionsLoadError({error: error})
+            },
           }),
         )
       }
@@ -1427,15 +1397,11 @@ module ConnectionEffects = {
       | true => fetch()->ignore
       | false => ()
       }
-    | ActivateSessionEffect({requestId, connection, mcpServer, operation, onComplete}) =>
+    | ActivateSessionEffect({requestId, connection, mcpServer, operation}) =>
       let sessionId = switch operation {
       | #load(sessionId) | #join(sessionId) | #create(sessionId) => sessionId
       }
-      activateSession(~requestId, ~sessionId, ~onComplete, async (
-        onUpdate,
-        onTitleUpdated,
-        onParseError,
-      ) => {
+      activateSession(~requestId, ~sessionId, async (onUpdate, onTitleUpdated, onParseError) => {
         let mcpServerInterface = MCPServer.toInterface(mcpServer)
         switch operation {
         | #create(_) =>
@@ -1475,22 +1441,13 @@ module ConnectionEffects = {
           ->Result.mapError(ACP.requestErrorFromMessage)
         }
       })->ignore
-    | DeleteSessionEffect({signal, connection, taskId, onComplete}) =>
+    | DeleteSessionEffect({signal, connection, taskId}) =>
       let delete = async () => {
-        let result = await ACP.deleteSession(connection, taskId)
-        dispatch(
-          ConnectionCallbackReceived({
-            signal,
-            callback: () => {
-              switch result {
-              | Ok() => Log.info(~ctx={"taskId": taskId}, "Session deleted")
-              | Error(err) =>
-                Log.error(~ctx={"taskId": taskId, "error": err}, "Failed to delete session")
-              }
-              onComplete(result)
-            },
-          }),
-        )
+        switch await ACP.deleteSession(connection, taskId) {
+        | Ok() => Log.info(~ctx={"taskId": taskId}, "Session deleted")
+        | Error(error) =>
+          Log.error(~ctx={"taskId": taskId, "error": error}, "Failed to delete session")
+        }
       }
       switch isCurrentConnection(state, signal) {
       | true => delete()->ignore
@@ -1597,12 +1554,6 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
       ),
     )
   | SendMessage({taskId, submission: {id, content, annotations, agentId, onComplete}}) =>
-    let sent = result =>
-      switch result {
-      | Ok(_) => ()
-      | Error(error) =>
-        dispatch(TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}))
-      }
     let text = TaskReducer.extractTextFromUserContent(content)
     let attachments = TaskReducer.extractAttachmentsFromUserContent(content)
     let (additionalBlocks, _meta) = buildPrompt(
@@ -1616,15 +1567,35 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
     let result = switch validatePrompt(~text, ~additionalBlocks, ~_meta) {
     | Error(error) => Error(error)
     | Ok() =>
-      switch Selectors.getSession(state) {
-      | Some({sessionId}) if sessionId == taskId =>
-        dispatch(ConnectionAction(SendPrompt({text, additionalBlocks, _meta, onComplete: sent})))
+      switch state.connection {
+      | Some(
+          {
+            connection: Ok(Some({phase: Ready({session: SessionActive({session, requestId})})})),
+          } as connection,
+        )
+        if session.sessionId == taskId &&
+          Connection.isCurrentSessionRequest(connection, requestId) =>
+        let fail = error => dispatch(PromptFailed({requestId, taskId, id, error}))
+        let send = async () => {
+          try {
+            switch await Connection.ACP.sendPrompt(session, text, ~additionalBlocks, ~_meta) {
+            | Ok(_) => ()
+            | Error(error) => fail(error)
+            }
+          } catch {
+          | exn =>
+            fail(Connection.ACP.requestErrorFromMessage("sendPrompt exception"))
+            throw(exn)
+          }
+        }
+        send()->ignore
         Ok()
       | _ => Error("Cannot send message: no active ACP session")
       }
     }
     switch result {
-    | Error(error) => sent(Error(error))
+    | Error(error) =>
+      dispatch(TaskAction({target: ForTask(taskId), action: UserMessageSendFailed({id, error})}))
     | Ok() => ()
     }
     onComplete(result)
@@ -1964,43 +1935,6 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
     }
     disconnect()->ignore
 
-  | DeleteSessionEffect({taskId}) =>
-    dispatch(ConnectionAction(DeleteSession({taskId, onComplete: _ => ()})))
-
-  | LoadTaskEffect({taskId}) =>
-    switch Selectors.apiBaseUrl(state) {
-    | Some(_) =>
-      let taskIdToLoad = taskId
-      let needsHistory = switch state.tasks->Dict.get(taskId) {
-      | Some(task) => !Task.isLoaded(task)
-      | None => true
-      }
-      dispatch(
-        ConnectionAction(
-          LoadTask({
-            taskId,
-            needsHistory,
-            onComplete: result => {
-              switch result {
-              | Ok() =>
-                if needsHistory {
-                  Client__TextDeltaBuffer.flush()
-                  dispatch(TaskAction({target: ForTask(taskIdToLoad), action: LoadComplete}))
-                }
-              | Error(err) =>
-                dispatch(
-                  TaskAction({target: ForTask(taskIdToLoad), action: LoadError({error: err})}),
-                )
-              }
-            },
-          }),
-        ),
-      )
-    | None =>
-      dispatch(
-        TaskAction({target: ForTask(taskId), action: LoadError({error: "No active ACP session"})}),
-      )
-    }
   | CheckForUpdateEffect({apiBaseUrl, installedVersion, target}) =>
     let fetch = async () => {
       try {
@@ -2148,15 +2082,31 @@ let rec next = (state: state, action) => {
       {...state, connection: Some(Connection.initialState(config))},
       ConnectionAction(Initialize),
     )
+  | ConnectionEvent({signal, action}) =>
+    switch state.connection {
+    | Some(connection) if Connection.isCurrentConnection(connection, signal) => next(state, action)
+    | _ => state->StateReducer.update
+    }
+  | SessionEvent({requestId, action}) =>
+    switch state.connection {
+    | Some(connection) if Connection.isCurrentSessionRequest(connection, requestId) =>
+      next(state, action)
+    | _ => state->StateReducer.update
+    }
+  | ConnectionAction(LoadTask({taskId})) if state.connection->Option.isNone =>
+    next(state, TaskLoadFinished({taskId, result: Error("No active ACP session")}))
   | ConnectionAction(action) =>
     let (updated, effects) = switch state.connection {
     | None => (state, [])
-    | Some(connection) =>
-      let (connection, effects) = Connection.next(connection, action)
-      (
-        {...state, connection: Some(connection)},
-        effects->Array.map(effect => ConnectionEffect(effect)),
-      )
+    | Some(previous) =>
+      let (connection, effects) = Connection.next(previous, action)
+      let updated = {...state, connection: Some(connection)}
+      let (updated, configEffects) = switch action {
+      | SessionResultReceived({result: Ok((_, Some(configOptions)))}) if connection !== previous =>
+        next(updated, ConfigOptionsReceived({configOptions: configOptions}))
+      | _ => (updated, [])
+      }
+      (updated, Array.concat(configEffects, effects->Array.map(effect => ConnectionEffect(effect))))
     }
     switch (
       action,
@@ -2294,6 +2244,24 @@ let rec next = (state: state, action) => {
     }
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
+  | PromptFailed({requestId, taskId, id, error}) =>
+    let failed = (state, error) =>
+      state->Lens.delegateToTask(ForTask(taskId), UserMessageSendFailed({id, error}))
+    switch state.connection {
+    | Some(connection) if Connection.isCurrentSessionRequest(connection, requestId) =>
+      let state = switch Connection.ACP.requestErrorIsBillingInactive(error) {
+      | true => {...state, settingsModalTab: Some(Billing)}
+      | false => state
+      }
+      failed(state, Connection.ACP.requestErrorMessage(error))
+    | Some({
+        connection: Ok(Some({
+          phase: Reconnecting({session: SessionActive({requestId: expected})}),
+        })),
+      }) if requestId === expected =>
+      failed(state, "Connection lost; request was not replayed")
+    | _ => state->StateReducer.update
+    }
   | AddUserMessage({content, annotationId, onComplete} as input) =>
     let reject = error =>
       state->StateReducer.update(
@@ -2365,6 +2333,42 @@ let rec next = (state: state, action) => {
     | _ => state->StateReducer.update
     }
 
+  | TaskLoadFinished({taskId, result: Ok(requestId)})
+    if !(
+      state.connection->Option.mapOr(false, connection =>
+        Connection.isCurrentSessionRequest(connection, requestId)
+      )
+    ) =>
+    next(
+      state,
+      TaskLoadFinished({taskId, result: Error("Conversation changed before loading completed")}),
+    )
+  | TaskLoadFinished({taskId, result: Error(_)})
+    if state.connection->Option.mapOr(false, connection =>
+      switch connection.connection {
+      | Ok(Some({
+        phase: Ready({session: SessionCreating({sessionId: Some(currentId), requestId})}),
+      }))
+      | Ok(Some({
+        phase: Ready({session: SessionActive({session: {sessionId: currentId}, requestId})}),
+      })) =>
+        currentId == taskId && Connection.isCurrentSessionRequest(connection, requestId)
+      | _ => false
+      }
+    ) =>
+    state->StateReducer.update
+  | TaskLoadFinished({taskId, result}) =>
+    switch state.tasks->Dict.get(taskId) {
+    | Some(Loading(_)) =>
+      state->Lens.delegateToTask(
+        ForTask(taskId),
+        switch result {
+        | Ok(_) => LoadComplete
+        | Error(error) => LoadError({error: error})
+        },
+      )
+    | _ => state->StateReducer.update
+    }
   | SwitchTask({taskId}) => {
       let (state, connectionEffects) = switch Selectors.currentTaskId(state) == Some(taskId) {
       | true => (state, [])
@@ -2380,15 +2384,16 @@ let rec next = (state: state, action) => {
       } else {
         (state, [])
       }
-      {
-        ...updatedState,
-        currentTask: Task.Selected(taskId),
-        highlightedAnnotation: None,
-      }->StateReducer.update(
-        ~sideEffects=Array.concat(
-          connectionEffects,
-          [LoadTaskEffect({taskId: taskId})],
-        )->Array.concat(taskEffects),
+      let (updatedState, loadEffects) = next(
+        {
+          ...updatedState,
+          currentTask: Task.Selected(taskId),
+          highlightedAnnotation: None,
+        },
+        ConnectionAction(LoadTask({taskId, needsHistory: !Task.isLoaded(task)})),
+      )
+      updatedState->StateReducer.update(
+        ~sideEffects=Array.concat(connectionEffects, loadEffects)->Array.concat(taskEffects),
       )
     }
 
@@ -2419,14 +2424,16 @@ let rec next = (state: state, action) => {
       | other => other
       }
 
-      {
-        ...state,
-        tasks: updatedTasks,
-        currentTask: newCurrentTask,
-        highlightedAnnotation: None,
-      }->StateReducer.update(
-        ~sideEffects=Array.concat(effects, [DeleteSessionEffect({taskId: taskId})]),
+      let (state, deleteEffects) = next(
+        {
+          ...state,
+          tasks: updatedTasks,
+          currentTask: newCurrentTask,
+          highlightedAnnotation: None,
+        },
+        ConnectionAction(DeleteSession({taskId: taskId})),
       )
+      state->StateReducer.update(~sideEffects=Array.concat(effects, deleteEffects))
     }
 
   | ClearCurrentTask =>
@@ -2885,7 +2892,7 @@ let rec next = (state: state, action) => {
     {
       ...state,
       sessionsLoadState: Client__State__Types.SessionsLoadError(error),
-    }->StateReducer.update
+    }->StateReducer.update(~sideEffect=ConnectionEffect(LogError(error)))
 
   | CheckForUpdate({apiBaseUrl, installedVersion, target}) =>
     switch (target, state.wordpressUpdates) {
