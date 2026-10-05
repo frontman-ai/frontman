@@ -723,6 +723,46 @@ describe("Client State Reducer", () => {
     }
   })
 
+  test("connection and task-channel loss preserve server execution state and received text", t => {
+    let state = {
+      ...TestHelpers.makeStateWithTask(
+        ~isAgentRunning=true,
+        ~messages=[
+          Reducer.Message.Assistant(
+            Streaming({id: "assistant-1", textBuffer: "Received text", agentId: "test-agent"}),
+          ),
+        ],
+      ),
+      connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
+    }
+    let (signal, requestId) = switch state.connection {
+    | Some({
+        connection: Ok(Some({
+          lifetimeAbortController,
+          phase: Ready({session: SessionActive({requestId})}),
+        })),
+      }) => (lifetimeAbortController.signal, requestId)
+    | _ => failwith("Expected active session")
+    }
+    let actions: array<Client__ConnectionReducer.action> = [
+      ACPReconnecting({signal: signal}),
+      SessionResultReceived({
+        requestId,
+        sessionId: "test-task-1",
+        result: Error(Client__ConnectionReducer.ACP.requestErrorFromMessage("Connection lost")),
+      }),
+    ]
+    actions->Array.forEach(
+      action => {
+        let (nextState, _) = Reducer.next(state, ConnectionAction(action))
+        t->expect(Reducer.Selectors.getSession(nextState)->Option.isNone)->Expect.toBe(true)
+        t->expect(Reducer.Selectors.isAgentRunning(nextState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.isStreaming(nextState))->Expect.toBe(true)
+        t->expect(nextState.tasks)->Expect.toEqual(state.tasks)
+      },
+    )
+  })
+
   test("Selectors.isStreaming detects streaming messages", t => {
     let state = TestHelpers.makeStateWithTask(
       ~messages=[

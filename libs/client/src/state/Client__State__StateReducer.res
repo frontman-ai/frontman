@@ -1279,7 +1279,8 @@ module ConnectionEffects = {
             dispatchApp(
               SessionEvent({requestId, action: UpdateTaskTitle({taskId: sessionId, title})}),
             ),
-          error =>
+          error => {
+            Client__TextDeltaBuffer.flush()
             switch pending.contents {
             | true => creationError := Some(error)
             | false =>
@@ -1290,7 +1291,8 @@ module ConnectionEffects = {
                   result: Error(ACP.requestErrorFromMessage(error)),
                 }),
               )
-            },
+            }
+          },
         )
         let result = result->Result.flatMap(((session, configOptions)) =>
           switch creationError.contents {
@@ -1331,7 +1333,7 @@ module ConnectionEffects = {
         switch result {
         | Ok(_) => complete(Ok(sessionId))
         | Error(error) =>
-          Client__TextDeltaBuffer.discardTask(sessionId)
+          Client__TextDeltaBuffer.flush()
           complete(Error(billingRequestErrorMessage(error, dispatchApp)))
         }
       | Ok(Some({phase: Ready(current) | Reconnecting(current)}))
@@ -1357,7 +1359,10 @@ module ConnectionEffects = {
         let result = await connectRuntime(
           ~config,
           ~signal,
-          ~onReconnecting=() => dispatch(ACPReconnecting({signal: signal})),
+          ~onReconnecting=() => {
+            Client__TextDeltaBuffer.flush()
+            dispatch(ACPReconnecting({signal: signal}))
+          },
           ~onReconnect=result => dispatch(ACPReconnected({signal, result})),
         )
         switch (signal.aborted, result) {
@@ -2049,14 +2054,10 @@ let startCustomProviderMutation = (state: state, request) => {
 let clearConnectionState = (state: state) => {
   let updatedTasks = state.tasks->Dict.copy
   updatedTasks->Dict.forEachWithKey((task, taskId) => {
-    switch TaskReducer.Selectors.pendingQuestion(task) {
-    | Some(_) =>
-      switch task {
-      | Task.Loaded(data) =>
-        updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
-      | _ => ()
-      }
-    | None => ()
+    switch task {
+    | Task.Loaded(data) =>
+      updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
+    | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => ()
     }
   })
   {

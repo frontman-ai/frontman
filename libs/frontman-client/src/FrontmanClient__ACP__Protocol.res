@@ -12,6 +12,7 @@ module Log = FrontmanLogs.Logs.Make({
 type requestMethod = [#initialize | #"session/new" | #"session/load" | #"session/prompt"]
 
 let requestTimeoutMs = 120000
+let connectionLost = "Connection lost. The agent may still be running. Reload to reconnect."
 
 let maxMessageBytes = 8_000_000
 let envelopeReserveBytes = 4096
@@ -105,9 +106,12 @@ let sendRequest = (
         let idStr = Int.toString(id)
         let timer = ref(None)
         let pushRef = ref(None)
+        let listeners = ref([])
         let finish = result => {
           timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
           pushRef.contents->Option.forEach(Channel.cancelPush)
+          listeners.contents->Array.forEach(((event, ref)) => channel->Channel.off(~event, ~ref))
+          state := state.contents->Client.reduce(Client.ResponseReceived(id))
           resolve(result)
         }
 
@@ -117,12 +121,18 @@ let sendRequest = (
           reject: e => finish(Error(e)),
         }
 
+        listeners :=
+          [#phx_error, #phx_close]->Array.map(event => (
+            event,
+            channel->Channel.onWithRef(
+              ~event,
+              ~callback=_ => pending.reject(Client.requestErrorFromMessage(connectionLost)),
+            ),
+          ))
         state := state.contents->Client.reduce(Client.RequestSent(id, pending))
         timer :=
           Some(
             WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
-              state.contents.pendingRequests->Dict.get(idStr)->Option.getOrThrow->ignore
-              state := state.contents->Client.reduce(Client.ResponseReceived(id))
               pending.reject(
                 Client.requestErrorFromMessage(
                   `Request ${method} timed out after ${Int.toString(timeoutMs)}ms`,
@@ -143,13 +153,13 @@ let sendRequest = (
           | None => ()
           | Some(_) =>
             switch parsePushReply(reply) {
-            | Ok(message) => state := Client.handleResponse(state.contents, message)
-            | Error(error) =>
-              state := state.contents->Client.reduce(Client.ResponseReceived(id))
-              pending.reject(Client.requestErrorFromMessage(error))
+            | Ok(message) => Client.handleResponse(state, message)
+            | Error(error) => pending.reject(Client.requestErrorFromMessage(error))
             }
           }
-        })->ignore
+        }).receive(~status="error", ~callback=_ =>
+          pending.reject(Client.requestErrorFromMessage("ACP request failed"))
+        )->ignore
       })
     }
   }
@@ -280,7 +290,7 @@ let handleIncomingMessage = (
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
   | Some(method) => Log.warning(`Received unhandled ACP notification: ${method}`)
-  | None => state := Client.handleResponse(state.contents, payload)
+  | None => Client.handleResponse(state, payload)
   }
 }
 

@@ -17,7 +17,6 @@ type t = {
     ~agentId: string,
   ) => unit,
   flush: unit => unit,
-  discardTask: string => unit,
   reset: unit => unit,
 }
 
@@ -77,15 +76,6 @@ let make = (
     flushUsers()
   }
 
-  let discardTask = taskId => {
-    buffer.contents->Dict.delete(taskId)
-    userBuffer.contents->Dict.delete(taskId)
-    switch buffer.contents->Dict.keysToArray->Array.length == 0 {
-    | true => cancelFlush()
-    | false => ()
-    }
-  }
-
   let add = (~taskId: string, ~messageId: string, ~text: string, ~agentId: string) => {
     flushUsers()
     let messages = taskEntries(buffer, taskId)
@@ -125,7 +115,7 @@ let make = (
     userBuffer := Dict.make()
   }
 
-  {add, addUserBlock, flush, discardTask, reset}
+  {add, addUserBlock, flush, reset}
 }
 
 let active: ref<option<t>> = ref(None)
@@ -136,6 +126,3 @@ let reset = () => {
 }
 
 let flush = () => active.contents->Option.forEach(instance => instance.flush())
-
-let discardTask = taskId =>
-  active.contents->Option.forEach(instance => instance.discardTask(taskId))

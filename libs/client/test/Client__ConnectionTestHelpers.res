@@ -35,7 +35,6 @@ let session = (sessionId): ACP.session => {
   sessionId,
   connection,
   channel: Obj.magic({"off": _ => (), "leave": () => ()}),
-  onUpdate: (_, _) => (),
 }
 let ready = (~sessionId=None, ~apiBaseUrl="http://localhost:4000"): option<
   Connection.state,
