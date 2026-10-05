@@ -17,102 +17,18 @@ const SEO = {
 
 const planFeatures = [
 	'Visual AI editing in your browser',
-	'Real source-file edits, not mockups',
-	'Live DOM, CSS, screenshots, component context, and logs',
-	'Reviewable diffs for your development team',
+	'Changes your developers can review and ship',
+	'Live page context for more accurate edits',
 	'Unlimited projects within one organization',
-	'Bring your own Claude, ChatGPT, or OpenRouter key'
+	'Your AI provider, billed separately'
 ]
 
-const comparisonRows = [
-	['Describe changes visually', 'Yes', 'Usually in tickets, comments, or calls'],
-	['Works against the live app', 'Yes', 'Often screenshots or stale mockups'],
-	['Creates source-file edits', 'Yes', 'A developer translates the request from scratch'],
-	['Developer handoff', 'Reviewable diffs', 'Extra clarification and back-and-forth'],
-	['Context included', 'DOM, CSS, screenshots, components, and logs', 'Usually missing or gathered manually'],
-	['Pricing', '€15 per seat / month', 'Hidden engineering time']
-]
-
-const includedFeatures = [
-	{
-		title: 'Visual AI editing',
-		text: 'Point Frontman at the running app, select an element, and describe what should change.'
-	},
-	{
-		title: 'Source-file changes',
-		text: 'Get edits in your project files instead of another mockup, comment thread, or vague ticket.'
-	},
-	{
-		title: 'Live app context',
-		text: 'DOM, CSS, screenshots, component context, and logs help the AI understand what is actually running.'
-	},
-	{
-		title: 'Reviewable handoff',
-		text: 'Designers and PMs can move faster while developers keep control through reviewable diffs.'
-	},
-	{
-		title: 'Bring your own AI key',
-		text: 'Use Claude, ChatGPT, or OpenRouter. Your team controls model choice and provider billing.'
-	},
-	{
-		title: 'Unlimited projects',
-		text: 'One seat can use Frontman Pro across unlimited projects within one organization.'
-	}
-]
-
-const trustLinks = [
-	{
-		title: 'Terms',
-		href: '/terms/',
-		text: 'Review the commercial terms before rolling Frontman Pro into your workflow.'
-	},
-	{
-		title: 'Privacy',
-		href: '/privacy/',
-		text: 'Understand what data Frontman collects and how product data is handled.'
-	},
-	{
-		title: 'DPA',
-		href: '/dpa/',
-		text: 'Use the data processing agreement for vendor and compliance review.'
-	},
-	{
-		title: 'AI coding agent pricing',
-		href: '/blog/best-frontend-coding-agent/',
-		text: 'Compare Frontman pricing with Cursor, Claude Code, GitHub Copilot, v0, Bolt.new, Kombai, and Stagewise.'
-	}
-]
 
 const faqs = [
 	{
-		question: 'Is pricing really just one plan?',
+		question: 'Can I cancel during the trial?',
 		answer:
-			'Yes. Frontman Pro is one hosted plan: €15/month per seat or €150/year per seat. No tiers, no usage games, and no surprise AI markup.'
-	},
-	{
-		question: 'Is there a free hosted plan?',
-		answer:
-			'No. Frontman Pro includes a 14-day free trial with a credit card. Self-hosting is currently free for teams that want to run Frontman themselves.'
-	},
-	{
-		question: 'Why do you require a credit card for the trial?',
-		answer:
-			'To keep the hosted service focused on real teams and reduce abuse. You can cancel before day 14, and we will send a reminder before billing.'
-	},
-	{
-		question: 'Are AI costs included?',
-		answer:
-			'No. Frontman uses your Claude, ChatGPT, or OpenRouter key. Your AI provider bills usage separately, so your team controls model choice and AI spend.'
-	},
-	{
-		question: 'Can designers and PMs use Frontman?',
-		answer:
-			'Yes. Frontman is built for semi-technical teammates to make visual frontend changes while developers keep control through reviewable source-file diffs.'
-	},
-	{
-		question: 'Does Frontman automatically ship code to production?',
-		answer:
-			'No. Frontman edits source files in your development workflow. Your team reviews and ships changes through Git as usual.'
+			'Yes. Cancel before day 14 to avoid billing. A credit card is required to start the trial.'
 	},
 	{
 		question: 'What does one seat include?',
@@ -120,9 +36,19 @@ const faqs = [
 			'One user can use Frontman Pro across unlimited projects within one organization.'
 	},
 	{
-		question: 'What does self-hosting include?',
+		question: 'Are AI costs included?',
 		answer:
-			'Self-hosting is currently free, but your team manages setup, infrastructure, updates, and AI provider keys themselves.'
+			'No. Bring your own AI provider key. Your provider bills usage separately, so you control your model and AI spend.'
+	},
+	{
+		question: 'Do changes go live automatically?',
+		answer:
+			'No. Frontman edits your project files. Your team reviews and ships changes through Git as usual.'
+	},
+	{
+		question: 'Can I self-host for free?',
+		answer:
+			'Yes. You manage setup, hosting, and updates, and pay your infrastructure and AI provider costs.'
 	}
 ]
 
@@ -183,9 +109,6 @@ const pricingJsonLd = {
 }
 
 const darkSectionClass = 'bg-neutral-950'
-const eyebrowClass = 'mb-4 font-mono text-sm uppercase tracking-[0.14em] text-primary-300'
-const valueCardClass = 'group h-full rounded-3xl border border-white/10 bg-white/[0.04] p-7 transition-colors hover:border-primary-300/60 hover:bg-primary-500/[0.08]'
-const mutedCopyClass = 'text-base leading-relaxed text-neutral-300'
 const checkItemClass =
 	"relative pl-7 text-neutral-200 before:absolute before:left-0 before:top-1 before:h-4 before:w-4 before:rounded-full before:bg-primary-300/20 before:text-center before:text-[10px] before:leading-4 before:text-primary-100 before:content-['✓']"
 const panelClass = 'rounded-3xl border'
@@ -316,78 +239,12 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 	</Section>
 
 
-	<Section classes={darkSectionClass} padding="both">
-		<Row>
-			<Col span="12" align="center" classes="mb-10">
-				<p class={eyebrowClass}>Compare the workflow</p>
-				<h2>Frontman Pro vs. the usual frontend handoff</h2>
-				<p class="mx-auto max-w-2xl text-lg leading-relaxed text-neutral-400">
-					Frontman replaces vague UI requests with source-file edits developers can review.
-				</p>
-			</Col>
-			<Col span="12">
-				<div class="overflow-x-auto rounded-[1.5rem] border border-white/10 bg-white/[0.04] backdrop-blur">
-					<table class="w-full min-w-[760px] border-collapse">
-						<caption class="sr-only">Frontman Pro compared with traditional UI change workflow</caption>
-						<thead>
-							<tr>
-								<th scope="col" class="border-t border-white/10 bg-white/[0.05] px-5 py-4 text-left text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-neutral-300 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">Workflow</th>
-								<th scope="col" class="border-t border-white/10 bg-primary-700 px-5 py-4 text-left text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-white first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">Frontman Pro</th>
-								<th scope="col" class="border-t border-white/10 bg-white/[0.05] px-5 py-4 text-left text-xs font-bold uppercase leading-relaxed tracking-[0.14em] text-neutral-300 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">Traditional UI handoff</th>
-							</tr>
-						</thead>
-						<tbody>
-							{comparisonRows.map((row) => (
-								<tr>
-									<th scope="row" class="border-t border-white/10 px-5 py-4 text-left text-sm font-semibold leading-relaxed text-neutral-50 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">{row[0]}</th>
-									<td class="border-t border-white/10 bg-primary-500/10 px-5 py-4 text-sm leading-relaxed text-primary-100 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">{row[1]}</td>
-									<td class="border-t border-white/10 px-5 py-4 text-sm leading-relaxed text-neutral-300 first:border-t-0 md:border-l md:border-t-0 md:first:border-l-0 lg:px-6 lg:py-5">{row[2]}</td>
-								</tr>
-							))}
-						</tbody>
-					</table>
-				</div>
-			</Col>
-		</Row>
-	</Section>
 
-	<Section classes={darkSectionClass} padding="both">
-		<Row>
-			<Col span="12" align="center" classes="mb-10">
-				<p class={eyebrowClass}>What’s included?</p>
-				<h2>Everything in Frontman Pro</h2>
-			</Col>
-			{includedFeatures.map((feature) => (
-				<Col span="4">
-					<div class={valueCardClass}>
-						<h3 class="text-xl">{feature.title}</h3>
-						<p class={mutedCopyClass}>{feature.text}</p>
-					</div>
-				</Col>
-			))}
-		</Row>
-	</Section>
-
-	<Section classes={darkSectionClass} padding="both">
-		<Row>
-			<Col span="12" align="center" classes="mb-10">
-				<p class={eyebrowClass}>For vendor review</p>
-				<h2>Clear terms for teams</h2>
-				<p class="mx-auto max-w-2xl text-lg leading-relaxed text-neutral-400">
-					Frontman keeps pricing, AI billing, and legal review paths visible before teams adopt it.
-				</p>
-			</Col>
-			{trustLinks.map((link) => (
-				<Col span="3">
-					<a href={link.href} class={`${valueCardClass} block`}>
-						<h3 class="text-xl">{link.title}</h3>
-						<p class={mutedCopyClass}>{link.text}</p>
-						<p class="mt-5 text-sm font-bold text-primary-300">Read {link.title}</p>
-					</a>
-				</Col>
-			))}
-		</Row>
-	</Section>
+	<nav aria-label="Pricing legal documents" class="flex flex-wrap justify-center gap-6 px-6 pb-8 text-sm">
+		<a href="/terms/">Terms</a>
+		<a href="/privacy/">Privacy</a>
+		<a href="/dpa/">DPA</a>
+	</nav>
 
 	<HomeFAQ
 		faqs={faqs.map(({ question, answer }) => ({ question, reply: answer }))}
