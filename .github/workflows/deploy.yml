@@ -38,6 +38,7 @@ jobs:
     outputs:
       server: ${{ steps.baseline.outputs.force == 'true' || steps.paths.outputs.server == 'true' }}
       client: ${{ steps.baseline.outputs.force == 'true' || steps.paths.outputs.client == 'true' }}
+      monitoring: ${{ steps.baseline.outputs.force == 'true' || steps.paths.outputs.monitoring == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -58,7 +59,7 @@ jobs:
                 force=false
               fi
             else
-              echo '::warning::Cannot read successful deployment baseline; deploying both apps.'
+              echo '::warning::Cannot read successful deployment baseline; deploying both apps and monitoring.'
             fi
           fi
           echo "force=$force" >> "$GITHUB_OUTPUT"
@@ -73,12 +74,17 @@ jobs:
             server:
               - 'apps/frontman_server/**'
               - 'apps/swarm_ai/**'
-              - 'infra/**'
+              - 'infra/production/*.sh'
+              - 'infra/production/*.template'
+              - 'infra/production/systemd/**'
               - 'scripts/ci/production-smoke.sh'
               - 'mise.toml'
               - 'Makefile'
               - '.github/workflows/deploy.yml'
               - '.github/actions/discord-notify/**'
+            monitoring:
+              - 'infra/production/monitoring/**'
+              - '.github/workflows/deploy.yml'
             client:
               - 'libs/**'
               - 'rescript.json'
@@ -173,6 +179,7 @@ jobs:
             --exclude '.certs' \
             --exclude 'docs' \
             --exclude 'infra/marketing' \
+            --exclude '/infra/production/monitoring' \
             -e "ssh -i ~/.ssh/deploy_key" \
             ./ \
             "deploy@${PROD_SERVER}:/opt/frontman/build/"
@@ -197,31 +204,6 @@ jobs:
             "deploy@${PROD_SERVER}" \
             '/opt/frontman/build-and-deploy.sh'
 
-      - name: Sync monitoring configs and reload
-        run: |
-          ssh -i ~/.ssh/deploy_key "deploy@${PROD_SERVER}" bash -s <<'EOF'
-          if [ -f /usr/local/bin/prometheus ]; then
-            BUILD_MON="/opt/frontman/build/infra/production/monitoring"
-            if [ -d "${BUILD_MON}" ]; then
-              echo "Syncing monitoring configs..."
-              sudo cp "${BUILD_MON}/prometheus.yml" /etc/prometheus/prometheus.yml
-              sudo cp "${BUILD_MON}/alert-rules.yml" /etc/prometheus/alert-rules.yml
-              sudo cp "${BUILD_MON}/blackbox.yml" /etc/prometheus/blackbox.yml
-              sudo cp "${BUILD_MON}/alertmanager.yml" /etc/alertmanager/alertmanager.yml
-              sudo chown -R prometheus:prometheus /etc/prometheus
-              sudo chown -R alertmanager:alertmanager /etc/alertmanager
-
-              echo "Reloading Prometheus..."
-              curl -sf -X POST http://127.0.0.1:9090/-/reload || echo "  Warning: Prometheus reload failed"
-              echo "Reloading Alertmanager..."
-              curl -sf -X POST http://127.0.0.1:9093/-/reload || echo "  Warning: Alertmanager reload failed"
-              echo "Monitoring configs synced and reloaded."
-            fi
-          else
-            echo "Monitoring not installed — skipping config sync."
-          fi
-          EOF
-
       - name: Smoke test production OAuth start routes
         run: scripts/ci/production-smoke.sh
 
@@ -236,6 +218,69 @@ jobs:
         with:
           status: ${{ job.status }}
           component: Server
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+  deploy-monitoring:
+    name: Deploy Monitoring Configs
+    needs: changes
+    if: needs.changes.outputs.monitoring == 'true'
+    runs-on: self-hosted
+    environment: production
+    env:
+      PROD_SERVER: ${{ secrets.PROD_SERVER }}
+      MONITORING_STAGE: /opt/frontman/build/infra/production/monitoring
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY_B64 }}" | base64 -d > ~/.ssh/monitoring_deploy_key
+          chmod 600 ~/.ssh/monitoring_deploy_key
+          ssh-keyscan -H "$PROD_SERVER" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload current monitoring configs
+        run: |
+          ssh -i ~/.ssh/monitoring_deploy_key "deploy@${PROD_SERVER}" "mkdir -p '$MONITORING_STAGE'"
+          rsync -az --delete -e "ssh -i ~/.ssh/monitoring_deploy_key" \
+            infra/production/monitoring/ "deploy@${PROD_SERVER}:${MONITORING_STAGE}/"
+
+      - name: Sync monitoring configs and reload
+        run: |
+          ssh -i ~/.ssh/monitoring_deploy_key "deploy@${PROD_SERVER}" bash -s -- "$MONITORING_STAGE" <<'EOF'
+          set -euo pipefail
+          if [ -f /usr/local/bin/prometheus ]; then
+            BUILD_MON="$1"
+            echo "Syncing monitoring configs..."
+            sudo cp "${BUILD_MON}/prometheus.yml" /etc/prometheus/prometheus.yml
+            sudo cp "${BUILD_MON}/alert-rules.yml" /etc/prometheus/alert-rules.yml
+            sudo cp "${BUILD_MON}/blackbox.yml" /etc/prometheus/blackbox.yml
+            sudo cp "${BUILD_MON}/alertmanager.yml" /etc/alertmanager/alertmanager.yml
+            sudo chown -R prometheus:prometheus /etc/prometheus
+            sudo chown -R alertmanager:alertmanager /etc/alertmanager
+
+            echo "Reloading Prometheus..."
+            curl -sf -X POST http://127.0.0.1:9090/-/reload
+            echo "Reloading Alertmanager..."
+            curl -sf -X POST http://127.0.0.1:9093/-/reload
+            echo "Monitoring configs synced and reloaded."
+          else
+            echo "Monitoring not installed — skipping config sync."
+          fi
+          EOF
+
+      - name: Cleanup SSH
+        if: always()
+        run: rm -f ~/.ssh/monitoring_deploy_key
+
+      - name: Notify Discord
+        if: always()
+        continue-on-error: true
+        uses: ./.github/actions/discord-notify
+        with:
+          status: ${{ job.status }}
+          component: Monitoring
           webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
   deploy-client:
