@@ -1,64 +1,10 @@
-type field = TextControl | Editable
+module Dom = FrontmanBindings.Bindings__WebAPI
+module Object = FrontmanBindings.Bindings__Object
 
-type constructor
-type prototype
-type descriptor
-type setter
-
-@get external inputConstructor: WebAPI.DomTypes.window => constructor = "HTMLInputElement"
-@get external textareaConstructor: WebAPI.DomTypes.window => constructor = "HTMLTextAreaElement"
-@get external prototype: constructor => prototype = "prototype"
-@scope("Object") @val
-external getDescriptor: (prototype, string) => option<descriptor> = "getOwnPropertyDescriptor"
-@get external setter: descriptor => option<setter> = "set"
-@send external setValue: (setter, WebAPI.DomTypes.element, string) => unit = "call"
-@get external value: WebAPI.DomTypes.element => string = "value"
-@get external inputType: WebAPI.DomTypes.element => string = "type"
-@get external readOnly: WebAPI.DomTypes.element => bool = "readOnly"
-@get external maxLength: WebAPI.DomTypes.element => int = "maxLength"
-@get external isContentEditable: WebAPI.DomTypes.element => bool = "isContentEditable"
-@send external focus: WebAPI.DomTypes.element => unit = "focus"
-@send external blur: WebAPI.DomTypes.element => unit = "blur"
-@send external select: WebAPI.DomTypes.element => unit = "select"
-@send
-external execCommand: (WebAPI.DomTypes.document, string, bool, string) => bool = "execCommand"
-type command
-type inputEventInit = {@live bubbles: bool, @live inputType: string, @live data: string}
-@get external hasExecCommand: WebAPI.DomTypes.document => option<command> = "execCommand"
-@get external inputEventConstructor: WebAPI.DomTypes.window => constructor = "InputEvent"
-@get external eventConstructor: WebAPI.DomTypes.window => constructor = "Event"
-@scope("Reflect") @val
-external inputEvent: (constructor, (string, inputEventInit)) => WebAPI.EventTypes.event =
-  "construct"
-type transfer
-@get external transferConstructor: WebAPI.DomTypes.window => constructor = "DataTransfer"
-@get external clipboardConstructor: WebAPI.DomTypes.window => constructor = "ClipboardEvent"
-@scope("Reflect") @val external transfer: (constructor, array<string>) => transfer = "construct"
-@send external setData: (transfer, string, string) => unit = "setData"
-type clipboardInit = {
-  @live bubbles: bool,
-  @live cancelable: bool,
-  @live clipboardData: transfer,
-}
-@scope("Reflect") @val
-external clipboardEvent: (constructor, (string, clipboardInit)) => WebAPI.EventTypes.event =
-  "construct"
-
-type keyInit = {
-  @live bubbles: bool,
-  @live cancelable: bool,
-  @live key: string,
-  @live code: string,
-  @live keyCode: int,
-  @live which: int,
-}
-@get external keyboardConstructor: WebAPI.DomTypes.window => constructor = "KeyboardEvent"
-@scope("Reflect") @val
-external keyboardEvent: (constructor, (string, keyInit)) => WebAPI.EventTypes.event = "construct"
-
-type eventInit = {@live bubbles: bool}
-@scope("Reflect") @val
-external event: (constructor, (string, eventInit)) => WebAPI.EventTypes.event = "construct"
+type field =
+  | Input(WebAPI.DomTypes.htmlInputElement)
+  | TextArea(WebAPI.DomTypes.htmlTextAreaElement)
+  | Editable
 
 let attribute = (el, name) => el->WebAPI.Element.getAttribute(name)->Null.toOption
 
@@ -71,18 +17,27 @@ let classify = (el: WebAPI.DomTypes.element): result<field, string> =>
   | _ if unavailable(el) => Error("Cannot fill a disabled or inert element")
   | _ if el->WebAPI.Element.closest("[aria-readonly='true']")->Null.toOption->Option.isSome =>
     Error("Cannot fill a read-only element")
-  | _ if el.tagName === "INPUT" || el.tagName === "TEXTAREA" =>
-    switch true {
-    | _ if readOnly(el) => Error("Cannot fill a read-only element")
-    | _ if el.tagName === "TEXTAREA" => Ok(TextControl)
-    | _ =>
-      switch inputType(el) {
-      | "text" | "search" | "email" | "url" | "tel" | "password" => Ok(TextControl)
+  | _ if el.tagName === "INPUT" =>
+    let input = el->Dom.unsafeInputElementFromElement
+    switch input.readOnly {
+    | true => Error("Cannot fill a read-only element")
+    | false =>
+      switch input.type_ {
+      | "text" | "search" | "email" | "url" | "tel" | "password" => Ok(Input(input))
       | type_ => Error(`Unsupported input type for fill: ${type_}`)
       }
     }
+  | _ if el.tagName === "TEXTAREA" =>
+    let textarea = el->Dom.unsafeTextAreaElementFromElement
+    switch textarea.readOnly {
+    | true => Error("Cannot fill a read-only element")
+    | false => Ok(TextArea(textarea))
+    }
   | _ =>
-    switch (attribute(el, "contenteditable"), isContentEditable(el)) {
+    switch (
+      attribute(el, "contenteditable"),
+      (el->Dom.unsafeHtmlElementFromElement).isContentEditable,
+    ) {
     | (Some("" | "true" | "plaintext-only"), true) => Ok(Editable)
     | _ => Error("Fill requires a text input, textarea, or contenteditable editing host")
     }
@@ -90,7 +45,8 @@ let classify = (el: WebAPI.DomTypes.element): result<field, string> =>
 
 let read = (el, field) =>
   switch field {
-  | TextControl => value(el)
+  | Input(input) => input.value
+  | TextArea(textarea) => textarea.value
   | Editable =>
     let text = Client__Tool__ElementQuery.getVisibleText(el)->String.replaceAll("\r\n", "\n")
     switch text === "\n" &&
@@ -102,39 +58,44 @@ let read = (el, field) =>
   }
 
 let edit = async (~doc, ~win, ~el, ~field, ~value) => {
-  focus(el)
+  el->Dom.unsafeHtmlElementFromElement->WebAPI.HTMLElement.focus
   switch el->WebAPI.Element.matches(":focus") {
   | false => Error("Element did not accept focus; no content was filled")
   | true if read(el, field) === value => Ok()
   | true =>
     switch field {
-    | TextControl =>
-      select(el)
-      let edited = switch hasExecCommand(doc) {
-      | Some(_) => execCommand(doc, value === "" ? "delete" : "insertText", false, value)
+    | Input(_) | TextArea(_) =>
+      switch field {
+      | Input(input) => input->WebAPI.HTMLInputElement.select
+      | TextArea(textarea) => textarea->WebAPI.HTMLTextAreaElement.select
+      | Editable => ()
+      }
+      let edited = switch doc->Dom.hasExecCommand {
+      | Some(_) => Dom.execCommand(doc, value === "" ? "delete" : "insertText", false, value)
       | None => false
       }
       switch edited {
       | true => Ok()
       | false =>
-        let constructor = el.tagName === "INPUT" ? inputConstructor(win) : textareaConstructor(win)
+        let constructor =
+          el.tagName === "INPUT" ? Dom.inputConstructor(win) : Dom.textareaConstructor(win)
         constructor
-        ->prototype
-        ->getDescriptor("value")
+        ->Object.prototype
+        ->Object.getOwnPropertyDescriptor("value")
         ->Option.getOrThrow
-        ->setter
+        ->Object.setter
         ->Option.getOrThrow
-        ->setValue(el, value)
+        ->Object.callSetter(el, value)
         (el :> WebAPI.EventTypes.eventTarget)
         ->WebAPI.EventTarget.dispatchEvent(
-          inputEvent(
-            inputEventConstructor(win),
+          Dom.inputEvent(
+            Dom.inputEventConstructor(win),
             (
               "input",
               {
                 bubbles: true,
                 inputType: value === "" ? "deleteContentBackward" : "insertText",
-                data: value,
+                data: Null.make(value),
               },
             ),
           ),
@@ -143,7 +104,7 @@ let edit = async (~doc, ~win, ~el, ~field, ~value) => {
         Ok()
       }
     | Editable =>
-      switch hasExecCommand(doc) {
+      switch doc->Dom.hasExecCommand {
       | None => Error("This browser does not provide native contenteditable editing")
       | Some(_) =>
         let selection = doc->WebAPI.Document.getSelection->Null.toOption->Option.getOrThrow
@@ -156,8 +117,8 @@ let edit = async (~doc, ~win, ~el, ~field, ~value) => {
         | true =>
           !(
             (el :> WebAPI.EventTypes.eventTarget)->WebAPI.EventTarget.dispatchEvent(
-              keyboardEvent(
-                keyboardConstructor(win),
+              Dom.keyboardEvent(
+                Dom.keyboardConstructor(win),
                 (
                   "keydown",
                   {
@@ -174,18 +135,19 @@ let edit = async (~doc, ~win, ~el, ~field, ~value) => {
           )
 
         | false =>
-          let data = transfer(transferConstructor(win), [])
-          setData(data, "text/plain", value)
+          let data = Dom.transfer(Dom.transferConstructor(win), [])
+          data->WebAPI.DataTransfer.setData(~format="text/plain", ~data=value)
           !(
             (el :> WebAPI.EventTypes.eventTarget)->WebAPI.EventTarget.dispatchEvent(
-              clipboardEvent(
-                clipboardConstructor(win),
-                ("paste", {bubbles: true, cancelable: true, clipboardData: data}),
+              Dom.clipboardEvent(
+                Dom.clipboardConstructor(win),
+                ("paste", {bubbles: true, cancelable: true, clipboardData: Null.make(data)}),
               ),
             )
           )
         }
-        switch handled || execCommand(doc, value === "" ? "delete" : "insertText", false, value) {
+        switch handled ||
+        Dom.execCommand(doc, value === "" ? "delete" : "insertText", false, value) {
         | true => Ok()
         | false =>
           Error("Browser rejected native contenteditable editing; no DOM fallback was applied")
@@ -199,22 +161,25 @@ let edit = async (~doc, ~win, ~el, ~field, ~value) => {
 let fill = async (~doc, ~win, ~el, ~value): result<unit, string> => {
   switch classify(el) {
   | Error(message) => Error(message)
-  | Ok(TextControl) if maxLength(el) >= 0 && value->String.length > maxLength(el) =>
+  | Ok(Input(input)) if input.maxLength >= 0 && value->String.length > input.maxLength =>
+    Error("Fill value exceeds the field's maxlength; no content was filled")
+  | Ok(TextArea(textarea))
+    if textarea.maxLength >= 0 && value->String.length > textarea.maxLength =>
     Error("Fill value exceeds the field's maxlength; no content was filled")
   | Ok(field) =>
     switch await edit(~doc, ~win, ~el, ~field, ~value) {
     | Error(message) => Error(message)
     | Ok() =>
       switch field {
-      | TextControl =>
+      | Input(_) | TextArea(_) =>
         (el :> WebAPI.EventTypes.eventTarget)
         ->WebAPI.EventTarget.dispatchEvent(
-          event(eventConstructor(win), ("change", {bubbles: true})),
+          Dom.event(Dom.eventConstructor(win), ("change", {bubbles: true})),
         )
         ->ignore
       | Editable => ()
       }
-      blur(el)
+      el->Dom.unsafeHtmlElementFromElement->WebAPI.HTMLElement.blur
       await Promise.make((resolve, _reject) => {
         setTimeout(() => resolve(), 50)->ignore
       })
