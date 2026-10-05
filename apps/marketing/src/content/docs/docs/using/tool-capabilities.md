@@ -39,7 +39,8 @@ Evaluates arbitrary JavaScript inside the web preview iframe and returns the res
 
 Use cases include querying DOM properties, measuring layout, reading computed styles, and navigating pages. The expression runs via `new Function` in the iframe's window context. Promises are automatically awaited. DOM nodes, NodeLists, Maps, Sets, and circular references are serialized to readable JSON. Console output during execution is captured.
 
-Output is capped at 30 KB.
+Output is capped at 30 KB. Agent guidance restricts this tool to inspection and navigation, including page reloads.
+Use `interact_with_element` for form edits and save controls. Do not inject DOM changes or access editor internals as a mutation workaround.
 
 ### `get_dom`
 
@@ -61,20 +62,27 @@ Simplified mode stops at its node or output limit and returns a narrowing hint. 
 
 ### `get_interactive_elements`
 
-Discovers clickable and interactive elements on the current page.
+Discovers interactive elements, including editable fields, on the current page.
 
 | Parameter | Type    | Description                                            |
 | --------- | ------- | ------------------------------------------------------ |
-| `role`    | string? | Filter by ARIA role (e.g. `"button"`, `"link"`)        |
+| `role`    | string? | Filter by ARIA role, such as `"button"` or `"textbox"` |
 | `name`    | string? | Filter by accessible name substring (case-insensitive) |
+| `offset`  | number? | Matching elements to skip. Default: 0                  |
+| `limit`   | number? | Page size. Default: 50, clamped to 1–50                 |
 
 Returns elements with their ARIA roles, accessible names, CSS selectors, detection method, and visible text. Detection methods include:
 
 - **semantic** — elements with interactive ARIA roles (button, link, checkbox, etc.)
 - **cursor_pointer** — elements styled with `cursor:pointer` (catches JS onclick handlers)
 - **tabindex** — elements with a `tabindex` attribute
+- **contenteditable** — editing hosts, reported as `textbox` when they have no computed ARIA role
 
-Results are capped at 50 elements.
+Each page contains at most 50 elements. `totalCount` counts only the returned page, not all matches.
+If `truncated` is true, pass `nextOffset` as the next request's `offset`, with the same filters.
+Continue until `nextOffset` is absent to reach fields beyond the first 50 matches.
+An element's `index` is local to its discovery page. Use its returned selector for interaction, not that index as a role/name match index.
+Discovery does not prove that a field is enabled, writable, or supported for filling.
 
 ### `interact_with_element`
 
@@ -85,8 +93,9 @@ Performs actions on elements in the web preview.
 | `selector` | string? | CSS selector (preferred)                     |
 | `role`     | string? | ARIA role — must be used with `name`         |
 | `name`     | string? | Accessible name — must be used with `role`   |
-| `text`     | string? | Visible text content to match                |
-| `action`   | string? | `"click"` (default), `"hover"`, or `"focus"` |
+| `text`     | string? | Visible text content for targeting, not replacement text |
+| `action`   | string? | `"click"` (default), `"hover"`, `"focus"`, or `"fill"` |
+| `value`    | string? | Required for `fill`: the entire replacement text. `""` clears |
 | `index`    | number? | 0-based index when multiple elements match   |
 
 Supports three targeting strategies:
@@ -94,6 +103,26 @@ Supports three targeting strategies:
 1. **CSS selector** — most precise, use selectors from `get_interactive_elements`
 2. **Role + name** — ARIA-based targeting (e.g. role=`"button"`, name=`"Submit"`)
 3. **Text** — matches the innermost element containing the text
+
+`fill` replaces the entire value in a text input, textarea, or supported contenteditable editing host. It does not append.
+Disabled, read-only, and unsupported targets return an error rather than a successful fill.
+
+```json
+{"selector": "#seo-title", "action": "fill", "value": "A new SEO title"}
+```
+
+To clear that field, use the same request with `"value": ""`. `text` remains a targeting argument.
+A successful response with `action: "filled"` reports accepted field content, not a saved change.
+A successful click also does not prove that an asynchronous save completed.
+
+Use the application's save control and wait for save confirmation. Then reopen or reload the target and read the saved value.
+Do not reload or navigate away between fill and save: this can discard unsaved edits.
+
+For WordPress SEO, first inspect `wp_get_site_info.seo_unavailable_reason` and the advertised tools.
+Prefer `wp_read_seo` and `wp_update_seo` when available. If compatibility prevents those tools, use an authorized admin form instead.
+The browser workflow does not bypass authentication or post/meta permissions.
+Stored overrides do not prove rendered titles, descriptions, social tags, or schema. Inspect the requested rendered output separately.
+If save or readback fails, report the remaining work instead of claiming completion.
 
 ### `search_text`
 

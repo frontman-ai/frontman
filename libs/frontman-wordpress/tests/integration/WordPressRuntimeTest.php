@@ -31,8 +31,26 @@ function frontman_runtime_http( string $method, string $path, string $cookie = '
 	);
 	preg_match_all( '/^HTTP\/\S+\s+(\d{3})/m', implode( "\n", $http_response_header ?? [] ), $status );
 	preg_match( '/<title[^>]*>(.*?)<\/title>/is', (string) $response, $title );
-	preg_match( "~<meta\\s+[^>]*name=[\"']description[\"'][^>]*content=([\"'])(.*?)\\1[^>]*>~is", (string) $response, $description );
-	return [ 'body' => (string) $response, 'status' => (int) ( end( $status[1] ) ?: 0 ), 'title' => isset( $title[1] ) ? html_entity_decode( trim( wp_strip_all_tags( $title[1] ) ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) : null, 'description' => isset( $description[2] ) ? html_entity_decode( $description[2], ENT_QUOTES | ENT_HTML5, 'UTF-8' ) : null ];
+	preg_match_all( "~<meta\\s+[^>]*(?:name|property)=[\"']([^\"']+)[\"'][^>]*content=([\"'])(.*?)\\2[^>]*>~is", (string) $response, $matches, PREG_SET_ORDER );
+	$meta = [];
+	foreach ( $matches as $match ) {
+		$meta[ $match[1] ] = html_entity_decode( $match[3], ENT_QUOTES | ENT_HTML5, 'UTF-8' );
+	}
+	$webpage = [];
+	if ( preg_match( '~<script[^>]*class=["\']yoast-schema-graph["\'][^>]*>(.*?)</script>~is', (string) $response, $schema ) ) {
+		foreach ( json_decode( $schema[1], true, 512, JSON_THROW_ON_ERROR )['@graph'] as $piece ) {
+			if ( in_array( 'WebPage', (array) $piece['@type'], true ) ) {
+				$webpage = $piece;
+			}
+		}
+	}
+	return [
+		'body' => (string) $response, 'status' => (int) ( end( $status[1] ) ?: 0 ),
+		'title' => isset( $title[1] ) ? html_entity_decode( trim( wp_strip_all_tags( $title[1] ) ), ENT_QUOTES | ENT_HTML5, 'UTF-8' ) : null,
+		'description' => $meta['description'] ?? null,
+		'og_title' => $meta['og:title'] ?? null, 'og_description' => $meta['og:description'] ?? null,
+		'schema_name' => $webpage['name'] ?? null, 'schema_description' => $webpage['description'] ?? null,
+	];
 }
 function frontman_runtime_tool( string $cookie, ?string $nonce, array $request, ?string $raw = null, string $test = '' ): array {
 	$response = frontman_runtime_http( 'POST', '/index.php/frontman/tools/call', $cookie, $nonce, $raw ?? wp_json_encode( $request ), $test );
@@ -386,10 +404,61 @@ wp_set_current_user( 0 );
 
 $yoast = getenv( 'EXPECTED_YOAST_VERSION' );
 if ( false === $yoast || '' === $yoast ) {
-	frontman_runtime_assert( null === Frontman_Tools::instance()->get( 'wp_read_seo' ), 'SEO tools were registered without Yoast.' );
+	frontman_runtime_assert( null === Frontman_Tools::instance()->get( 'wp_read_seo' ) && null === Frontman_Tools::instance()->get( 'wp_update_seo' ), 'SEO tools were registered without Yoast.' );
+	frontman_runtime_assert( false !== strpos( ( new Frontman_Tool_Templates() )->get_site_info( [] )['seo_unavailable_reason'], 'absent or not loaded' ), 'Site info did not explain missing Yoast.' );
 	return;
 }
 frontman_runtime_assert( defined( 'WPSEO_VERSION' ) && $yoast === WPSEO_VERSION, 'Loaded Yoast version differs from the verified package.' );
+$active_plugins = get_option( 'active_plugins' );
+$original_version = $wp_version;
+$loaded = $wp_actions['wpseo_loaded'];
+$registered = $wp_meta_keys;
+$sanitizer = [ 'WPSEO_Meta', 'sanitize_post_meta' ];
+$hook = 'sanitize_post_meta__yoast_wpseo_title';
+$priority = has_filter( $hook, $sanitizer );
+$blocked_plugins = [
+	'absent' => [],
+	'premium' => array_merge( $active_plugins, [ 'wordpress-seo-premium/wp-seo-premium.php' ] ),
+	'conflict' => array_merge( $active_plugins, [ 'seo-by-rank-math/rank-math.php' ] ),
+];
+foreach ( [
+	'absent' => 'absent or not loaded',
+	'premium' => 'conflicts',
+	'conflict' => 'conflicts',
+	'wordpress' => 'WordPress 6.9',
+	'initialization' => 'initialization',
+	'registration' => 'sanitizers',
+	'sanitizer' => 'sanitizers',
+] as $blocker => $fragment ) {
+	update_option( 'active_plugins', $blocked_plugins[ $blocker ] ?? $active_plugins );
+	$wp_version = 'wordpress' === $blocker ? '6.8' : $original_version;
+	$wp_actions['wpseo_loaded'] = 'initialization' === $blocker ? 0 : $loaded;
+	$wp_meta_keys = $registered;
+	if ( 'registration' === $blocker ) {
+		unset( $wp_meta_keys['post']['']['_yoast_wpseo_title']['sanitize_callback'] );
+	}
+	if ( 'sanitizer' === $blocker ) {
+		remove_filter( $hook, $sanitizer, $priority );
+	}
+	$reason = Frontman_Tool_Seo::unavailable_reason();
+	frontman_runtime_assert( is_string( $reason ) && false !== strpos( $reason, $fragment ) && $reason === ( new Frontman_Tool_Templates() )->get_site_info( [] )['seo_unavailable_reason'], "Site info disagrees with the $blocker compatibility reason." );
+	foreach ( [ 'read_seo', 'update_seo' ] as $handler ) {
+		try {
+			( new Frontman_Tool_Seo() )->$handler( [ 'id' => 1 ] + ( 'update_seo' === $handler ? [ 'title' => 'Must not write' ] : [] ) );
+			throw new RuntimeException( 'Unavailable handler accessed post state.' );
+		} catch ( Frontman_Tool_Error $error ) {
+			frontman_runtime_assert( $reason === $error->getMessage(), "Handler disagrees with the $blocker compatibility reason." );
+		}
+	}
+	if ( 'sanitizer' === $blocker ) {
+		add_filter( $hook, $sanitizer, $priority, 4 );
+	}
+}
+update_option( 'active_plugins', $active_plugins );
+$wp_version = $original_version;
+$wp_actions['wpseo_loaded'] = $loaded;
+$wp_meta_keys = $registered;
+frontman_runtime_assert( null === ( new Frontman_Tool_Templates() )->get_site_info( [] )['seo_unavailable_reason'], 'Supported runtime was diagnosed as unavailable.' );
 $runtime_permalink = get_option( 'permalink_structure' );
 $wp_rewrite->set_permalink_structure( '' );
 wp_set_current_user( $admin->ID );
@@ -470,6 +539,7 @@ foreach ( $fixtures as $fixture ) {
 		$html = frontman_runtime_http( 'GET', str_replace( home_url(), '', get_permalink( $id ) ), '', null, null, 'render' );
 		frontman_runtime_assert( false !== strpos( $html['title'], 'SEO ' . $fixture['title'] . ' — "Café"' ), 'A later request did not render the SEO title tag for ' . $fixture['type'] . '/' . $fixture['status'] . ': ' . var_export( $html['title'], true ) );
 		frontman_runtime_assert( false !== strpos( $html['description'], 'Runtime “Café”' ), 'A later request did not render the SEO description meta tag.' );
+		frontman_runtime_assert( $html['title'] === $html['og_title'] && $html['description'] === $html['og_description'] && $html['title'] === $html['schema_name'] && $readback['description'] === $html['schema_description'], 'Default-derived Open Graph or WebPage schema did not reflect the SEO overrides: ' . wp_json_encode( array_diff_key( $html, [ 'body' => true ] ) ) );
 	} else {
 		$restricted = frontman_runtime_http( 'GET', str_replace( home_url(), '', get_permalink( $id ) ), '', null, null, 'render' );
 		frontman_runtime_assert( 404 === $restricted['status'] && false === strpos( $restricted['body'], 'Café' ) && false === strpos( $restricted['body'], '\\ path' ), 'Restricted SEO data rendered anonymously.' );
@@ -480,8 +550,26 @@ foreach ( $fixtures as $fixture ) {
 	frontman_runtime_assert( $safe === $safety( $snapshot( $id ) ), 'SEO clear changed core, unrelated, or option SQL state.' );
 	if ( 'publish' === $fixture['status'] ) {
 		$default_after_clear = frontman_runtime_http( 'GET', str_replace( home_url(), '', get_permalink( $id ) ), '', null, null, 'render' );
+		frontman_runtime_assert( $default['og_title'] === $default_after_clear['og_title'] && $default['og_description'] === $default_after_clear['og_description'] && $default['schema_name'] === $default_after_clear['schema_name'] && $default['schema_description'] === $default_after_clear['schema_description'], 'Clearing did not restore social/schema defaults.' );
 		frontman_runtime_assert( $default['title'] === $default_after_clear['title'] && null === $default_after_clear['description'], 'Clearing did not restore later rendered defaults: ' . wp_json_encode( [ 'before' => [ $default['title'], $default['description'] ], 'after' => [ $default_after_clear['title'], $default_after_clear['description'] ] ] ) );
 	}
 }
+$page = $fixtures[1]['id'];
+WPSEO_Meta::set_value( 'opengraph-title', 'Explicit social title', $page );
+WPSEO_Meta::set_value( 'opengraph-description', 'Explicit social description', $page );
+$social = [ WPSEO_Meta::get_value( 'opengraph-title', $page ), WPSEO_Meta::get_value( 'opengraph-description', $page ) ];
+$updated = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_update_seo', 'arguments' => [ 'id' => $page, 'title' => 'Independent SEO title', 'description' => 'Independent SEO description' ] ] )['body'];
+$html = frontman_runtime_http( 'GET', str_replace( home_url(), '', get_permalink( $page ) ), '', null, null, 'render' );
+frontman_runtime_assert( false === $updated['isError'] && $social === [ WPSEO_Meta::get_value( 'opengraph-title', $page ), WPSEO_Meta::get_value( 'opengraph-description', $page ) ] && $social === [ $html['og_title'], $html['og_description'] ], 'SEO update overwrote explicit social overrides or their rendered output.' );
+frontman_runtime_assert( $html['title'] === $html['schema_name'] && $html['description'] === $html['schema_description'] && false !== strpos( $html['schema_name'], 'Independent SEO title' ), 'WebPage schema incorrectly followed explicit social overrides.' );
+$results = [];
+foreach ( [ [ $page, '' ], [ $post_id, 'fail-write' ] ] as [ $id, $fault ] ) {
+	$results[] = frontman_runtime_tool( $cookie, $nonce, [ 'name' => 'wp_update_seo', 'arguments' => [ 'id' => $id, 'title' => 'Multi-page title', 'description' => 'Multi-page description' ] ], null, $fault )['body'];
+}
+$success = json_decode( $results[0]['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+$failure_text = $results[1]['content'][0]['text'];
+$failure = json_decode( substr( $failure_text, strpos( $failure_text, '{' ) ), true, 512, JSON_THROW_ON_ERROR );
+frontman_runtime_assert( false === $results[0]['isError'] && $page === $success['id'] && 'Multi-page title [runtime-filter]' === $snapshot( $page )['title'] && 'Multi-page description' === $snapshot( $page )['description'], 'A failed sibling update obscured the persisted page success.' );
+frontman_runtime_assert( true === $results[1]['isError'] && $post_id === $failure['id'] && 'partial' === $failure['status'] && [ 'title' => $snapshot( $post_id )['title'], 'description' => $snapshot( $post_id )['description'] ?? '' ] === $failure['actualAfter'] && '' === $failure['actualAfter']['description'], 'Multi-page results concealed the failed description or claimed complete success.' );
 $wp_rewrite->set_permalink_structure( $runtime_permalink );
 fwrite( STDOUT, "Yoast $yoast HTTP SEO checks passed.\n" );

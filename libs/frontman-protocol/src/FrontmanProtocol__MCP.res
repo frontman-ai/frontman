@@ -249,7 +249,7 @@ module CallToolResult: {
   let jsonSchema: S.t<t>
   let makeText: string => t
   let makeTextWithStructured: (string, Dict.t<JSON.t>) => t
-  let makeStructured: Dict.t<JSON.t> => t
+  let makeStructured: (Dict.t<JSON.t>, ~isError: bool=?) => t
   let makeImage: (~data: string, ~mimeType: string) => t
   let makeError: string => t
 } = {
@@ -276,8 +276,9 @@ module CallToolResult: {
     content: [TextContent({text, _meta: None, annotations: None})],
   }
 
-  let makeStructured = json => {
+  let makeStructured = (json, ~isError=?) => {
     resultType: "complete",
+    ?isError,
     content: [
       TextContent({text: JSON.stringify(JSON.Encode.object(json)), _meta: None, annotations: None}),
     ],
