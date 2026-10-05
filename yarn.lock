@@ -313,7 +313,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/markdown-satteri@npm:0.4.0, @astrojs/markdown-satteri@npm:^0.4.0":
+"@astrojs/markdown-satteri@npm:0.4.0":
   version: 0.4.0
   resolution: "@astrojs/markdown-satteri@npm:0.4.0"
   dependencies:
@@ -325,21 +325,33 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/mdx@npm:^8.0.0":
-  version: 8.0.0
-  resolution: "@astrojs/mdx@npm:8.0.0"
+"@astrojs/markdown-satteri@npm:0.4.2, @astrojs/markdown-satteri@npm:^0.4.0":
+  version: 0.4.2
+  resolution: "@astrojs/markdown-satteri@npm:0.4.2"
   dependencies:
     "@astrojs/internal-helpers": "npm:0.11.0"
-    "@astrojs/markdown-satteri": "npm:0.4.0"
+    "@astrojs/prism": "npm:4.0.2"
+    github-slugger: "npm:^2.0.0"
+    satteri: "npm:^0.10.3"
+  checksum: 10c0/0f0aace3bc5e1982d78a044a3aa3d01bc40eca3df15f37eb83fe2cc517170df70afae2bf76ccff0446633ec132bd7bc8a232cf5814b24dd24f18d719cd41f5a3
+  languageName: node
+  linkType: hard
+
+"@astrojs/mdx@npm:^8.0.0":
+  version: 8.0.2
+  resolution: "@astrojs/mdx@npm:8.0.2"
+  dependencies:
+    "@astrojs/internal-helpers": "npm:0.11.0"
+    "@astrojs/markdown-satteri": "npm:0.4.2"
     es-module-lexer: "npm:^2.0.0"
   peerDependencies:
     "@astrojs/markdown-remark": ^7.3.0
     "@astrojs/markdown-satteri": ^0.4.0
-    astro: ^7.2.6
+    astro: ^7.2.10
   peerDependenciesMeta:
     "@astrojs/markdown-remark":
       optional: true
-  checksum: 10c0/1af058d8d557198ba0f43fc1d8382b92cec404b0e1062bea321f4abd17f1d3152a7b634f283599b287649656e6ebfd1f9193d23f7591b9299b3625d657943bba
+  checksum: 10c0/8a84a73afa712ee83df21d045183c4723066f7e5d853f236c13b8f7eb85804d1367f26815d6be9dcde500d6d98775b761188f542075f8b8a0cb75831a54f8ae9
   languageName: node
   linkType: hard
 
@@ -2649,12 +2661,12 @@ __metadata:
   linkType: soft
 
 "@grpc/grpc-js@npm:^1.14.3":
-  version: 1.14.4
-  resolution: "@grpc/grpc-js@npm:1.14.4"
+  version: 1.14.5
+  resolution: "@grpc/grpc-js@npm:1.14.5"
   dependencies:
     "@grpc/proto-loader": "npm:^0.8.0"
     "@js-sdsl/ordered-map": "npm:^4.4.2"
-  checksum: 10c0/0ff6395e8112ad30e8f99dbb684b997ebc3264e770b8e354f23effeedf181a380e0ecef8bca466cbbf3e9141968656144851de1da50f840a1efd9314c9812449
+  checksum: 10c0/25a44d80127ed166181fc3db25d9815a62081e33331938bdae31830296ec94a1c8ed3ade79fae26642ec3158e97a79936145c680f95c19528ffff334cca491e0
   languageName: node
   linkType: hard
 
@@ -4686,8 +4698,8 @@ __metadata:
   linkType: hard
 
 "@pierre/diffs@npm:^1.4.1":
-  version: 1.5.1
-  resolution: "@pierre/diffs@npm:1.5.1"
+  version: 1.4.1
+  resolution: "@pierre/diffs@npm:1.4.1"
   dependencies:
     "@pierre/theme": "npm:2.0.0"
     "@pierre/theming": "npm:1.0.1"
@@ -4704,7 +4716,7 @@ __metadata:
       optional: true
     react-dom:
       optional: true
-  checksum: 10c0/55f177d8cacd6d09bdfaa52b853fa1357eae6d04aeec71955bc720b3e807f7c4d2c275da40a4bfbaa6046dfda05d6a64df3544c615dd3646a4ee701335f5774b
+  checksum: 10c0/9fc6bbbcd27fc440119f4263ea3512f69230a36d661dcfcf2add0709e12ed81ad76e545e2a9a801c8cb9c029e80ffe1c78df5da1862e7ea945b0530a91f4cc89
   languageName: node
   linkType: hard
 
@@ -7006,11 +7018,11 @@ __metadata:
   linkType: hard
 
 "@types/react-dom@npm:^19.2.7":
-  version: 19.3.0
-  resolution: "@types/react-dom@npm:19.3.0"
+  version: 19.2.7
+  resolution: "@types/react-dom@npm:19.2.7"
   peerDependencies:
-    "@types/react": ^19.3.0
-  checksum: 10c0/ce0066d28b62bc6afdd17ca84756b8fbe0f6ffc0c8b1e60739abc30e81510da2edbc1007e6ab3d974d30f5a8c25bb0f7de8d7ce09736c909fe84c0f9aed0b946
+    "@types/react": ^19.2.0
+  checksum: 10c0/226ab7e2b62114125e2276b3dcc3a25060177a673f8abadb7e31f395003de72ad68075c6edc5f51b02dd1e47443920ee030239c474c47fad075ded7410836909
   languageName: node
   linkType: hard
 
@@ -8306,11 +8318,11 @@ __metadata:
   linkType: hard
 
 "brace-expansion@npm:^5.0.5":
-  version: 5.0.9
-  resolution: "brace-expansion@npm:5.0.9"
+  version: 5.0.12
+  resolution: "brace-expansion@npm:5.0.12"
   dependencies:
     balanced-match: "npm:^4.0.2"
-  checksum: 10c0/3dea38884a1c3c8b1c9c44a7402a0c76fca460f70cffb3127242b0b4cbf4472019e022ade021eec44838ff19f1dac2625dfd11dd459d7e1e055b0698a8d52fec
+  checksum: 10c0/a40ac64d3bdb5bb222456514d3633c1f627f03b844f509c69e70f98b78be0ce85e21b44bbfecdd0ddd4cc0855ca4242b41ea96ddccf88c7c3c7a84405474bb3a
   languageName: node
   linkType: hard
 
@@ -9632,9 +9644,9 @@ __metadata:
   linkType: hard
 
 "devalue@npm:^5.8.1":
-  version: 5.9.2
-  resolution: "devalue@npm:5.9.2"
-  checksum: 10c0/06ee48d3a69a2f77dee7867be4885b965d10592cd7082a19e885a81bc552548780564ea244ecc77e70a91c41bea7086a473b85120d73bfa1737c801a3797e6b5
+  version: 5.9.4
+  resolution: "devalue@npm:5.9.4"
+  checksum: 10c0/d621083acce13d7812418ed07d99f027f83ee00ba591a2d2eab4c9436e1491ebce7bc1a92aa4c1fb7903c31c0e3c0a3cdf8662bf31644742202e003c04c17e33
   languageName: node
   linkType: hard
 
@@ -9737,14 +9749,14 @@ __metadata:
   linkType: hard
 
 "dompurify@npm:^3.3.3":
-  version: 3.4.13
-  resolution: "dompurify@npm:3.4.13"
+  version: 3.4.16
+  resolution: "dompurify@npm:3.4.16"
   dependencies:
     "@types/trusted-types": "npm:^2.0.7"
   dependenciesMeta:
     "@types/trusted-types":
       optional: true
-  checksum: 10c0/9c2a1a71e1a1d8b77953db7a39ffc935ef4ed4f10fe40770232128c2cbfd4c3dc677d3d7bae51eb24cc52d9ff3548612dc540ecb4343e89b26e809d2be2e0cfe
+  checksum: 10c0/65a901c6b6d489d3e898f67223d81dac66d613cda48f5785f0ed52a4ae320c4b2745490a58c14161e29f0273080fea0a0cb234a9ef892650e1a9b2a7befa07a5
   languageName: node
   linkType: hard
 
@@ -12423,15 +12435,11 @@ __metadata:
   linkType: hard
 
 "lucide-react@npm:^1.41.0":
-  version: 1.52.0
-  resolution: "lucide-react@npm:1.52.0"
+  version: 1.41.0
+  resolution: "lucide-react@npm:1.41.0"
   peerDependencies:
-    "@types/react": "*"
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  peerDependenciesMeta:
-    "@types/react":
-      optional: true
-  checksum: 10c0/773966f9da9c4336cf1cb5dcf17cda93c6b9de15a3f42f4ae24e782d06efe4e20f59b13c4df71f1ea771586c306bcfdf01c7642b65e2bf0b12f6d16421efee5f
+  checksum: 10c0/28e1ac1087c153e7adfa007daa39d738e23372eb35d78cf93c4f91bfe44457a3d1b3e9e2a83ad62f9552206a37fbdf36a3255459bfb06ef2b1e7746c3ef65868
   languageName: node
   linkType: hard
 
