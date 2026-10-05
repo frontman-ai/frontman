@@ -23,10 +23,10 @@ export async function createFixture(kind) {
 	let root;
 	let draft;
 	let state;
-	let events;
 	let rows;
 	const timers = new Set();
 	const isDraft = kind.startsWith("draft");
+	const isEditable = kind === "contenteditable" || kind === "heading";
 
 	async function reload() {
 		timers.forEach(clearTimeout);
@@ -40,12 +40,6 @@ export async function createFixture(kind) {
 		});
 		const doc = frame.contentDocument;
 		state = localStorage.getItem(storageKey) ?? "Original title";
-		events = [];
-		for (const type of ["input", "change"]) {
-			doc.addEventListener(type, (event) =>
-				events.push({ type, trusted: event.isTrusted }),
-			);
-		}
 		const save = () => {
 			localStorage.setItem(storageKey, state);
 			if (kind === "bulk") {
@@ -122,13 +116,15 @@ export async function createFixture(kind) {
 			const field = doc.createElement(
 				kind === "textarea"
 					? "textarea"
-					: kind === "contenteditable"
-						? "div"
+					: isEditable
+						? kind === "heading"
+							? "h1"
+							: "div"
 						: "input",
 			);
 			field.id = "field";
 			field.setAttribute("aria-label", "Title");
-			if (kind === "contenteditable") {
+			if (isEditable) {
 				field.contentEditable = "true";
 				field.style.cssText = "min-height:30px;border:1px solid black";
 				field.innerText = state;
@@ -136,7 +132,7 @@ export async function createFixture(kind) {
 				field.value = state;
 			}
 			field.addEventListener("input", () => {
-				state = kind === "contenteditable" ? editableValue(field) : field.value;
+				state = isEditable ? editableValue(field) : field.value;
 			});
 			const button = doc.createElement("button");
 			button.id = "save";
@@ -167,12 +163,7 @@ export async function createFixture(kind) {
 			const field = frame.contentDocument.querySelector(
 				isDraft ? ".public-DraftEditor-content" : "#field",
 			);
-			return kind === "contenteditable" || isDraft
-				? editableValue(field)
-				: field.value;
-		},
-		get events() {
-			return events;
+			return isEditable || isDraft ? editableValue(field) : field.value;
 		},
 		rowState(index) {
 			return rows[index];

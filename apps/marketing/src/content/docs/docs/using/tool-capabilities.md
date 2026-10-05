@@ -76,7 +76,7 @@ Returns elements with their ARIA roles, accessible names, CSS selectors, detecti
 - **semantic** — elements with interactive ARIA roles (button, link, checkbox, etc.)
 - **cursor_pointer** — elements styled with `cursor:pointer` (catches JS onclick handlers)
 - **tabindex** — elements with a `tabindex` attribute
-- **contenteditable** — editing hosts, reported as `textbox` unless they have an explicit ARIA role
+- **contenteditable** — editing hosts, reported as `textbox` when they have no computed ARIA role
 
 Each page contains at most 50 elements. `totalCount` counts only the returned page, not all matches.
 If `truncated` is true, pass `nextOffset` as the next request's `offset`, with the same filters.

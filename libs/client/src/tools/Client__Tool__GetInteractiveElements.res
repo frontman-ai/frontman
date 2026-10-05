@@ -12,7 +12,7 @@ Detection methods:
 - **semantic**: Elements with interactive ARIA roles (button, link, checkbox, etc.) — either from HTML semantics or explicit role attributes
 - **cursor_pointer**: Elements styled with cursor:pointer (catches JS onclick handlers on divs, spans, etc.)
 - **tabindex**: Elements with a tabindex attribute (focusable, likely interactive)
-- **contenteditable**: Editing hosts, reported as textbox when no explicit ARIA role exists
+- **contenteditable**: Editing hosts, reported as textbox when no computed ARIA role exists
 
 Optional filters:
 - **role**: Only return elements with a specific ARIA role (e.g. "button", "link")
@@ -76,24 +76,26 @@ type output = {
 
 let outputJsonSchema = Some(outputSchema->S.toJSONSchema)
 
+let errorResult = (error: string): Tool.MCP.CallToolResult.t =>
+  Tool.structuredResult(
+    {
+      success: false,
+      elements: None,
+      totalCount: None,
+      truncated: None,
+      nextOffset: None,
+      error: Some(error),
+    },
+    outputSchema,
+  )
+
 let execute = async (
   input: input,
   ~taskId as _taskId: string,
   ~toolCallId as _toolCallId: string,
 ): Tool.MCP.CallToolResult.t => {
   Client__Tool__PreviewContext.withPreview(
-    ~onUnavailable=() =>
-      Tool.structuredResult(
-        {
-          success: false,
-          elements: None,
-          totalCount: None,
-          truncated: None,
-          nextOffset: None,
-          error: Some("Preview frame not available"),
-        },
-        outputSchema,
-      ),
+    ~onUnavailable=() => errorResult("Preview frame not available"),
     ({doc, win}) => {
       try {
         let offset = Math.Int.max(0, input.offset->Option.getOr(0))
@@ -151,18 +153,7 @@ let execute = async (
           outputSchema,
         )
       } catch {
-      | exn =>
-        Tool.structuredResult(
-          {
-            success: false,
-            elements: None,
-            totalCount: None,
-            truncated: None,
-            nextOffset: None,
-            error: Some(Client__Tool__PreviewContext.exnMessage(exn)),
-          },
-          outputSchema,
-        )
+      | exn => errorResult(Client__Tool__PreviewContext.exnMessage(exn))
       }
     },
   )

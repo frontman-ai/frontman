@@ -27,29 +27,26 @@ let discover = async json => {
   S.parseOrThrow(result, ~to=responseSchema).structuredContent->Option.getOrThrow
 }
 
-testAsync(
-  "plain contenteditable is discoverable and role/name targetable without an explicit role",
-  async t => {
-    let fixture = await mount("contenteditable")
-    let page = await discover(`{"role":"textbox","name":"Title"}`)
-    t->expect(page.success)->Expect.toBe(true)
-    let elements = page.elements->Option.getOrThrow
-    t->expect(elements->Array.length)->Expect.toBe(1)
-    let editor = elements->Array.get(0)->Option.getOrThrow
-    t->expect(editor.role)->Expect.toBe("textbox")
-    t->expect(editor.name)->Expect.toBe("Title")
-    t->expect(editor.detectionMethod)->Expect.toBe("contenteditable")
-    t->expect(editor.selector->Option.isSome)->Expect.toBe(true)
-    let (resolved, count) = Client__Tool__ElementQuery.resolveByRoleAndName(
-      ~document=fixture->Fixture.doc,
-      ~contentWindow=fixture->Fixture.win,
-      ~role="textbox",
-      ~name="Title",
-      ~index=0,
-    )
-    t->expect(count)->Expect.toBe(1)
-    t->expect(resolved->Option.isSome)->Expect.toBe(true)
-  },
+[("contenteditable", "textbox"), ("heading", "heading")]->Array.forEach(((kind, role)) =>
+  testAsync(
+    `${kind}: discovery preserves computed role and returns the editing host selector`,
+    async t => {
+      let fixture = await mount(kind)
+      let page = await discover(`{"role":"${role}","name":"Title"}`)
+      t->expect(page.success)->Expect.toBe(true)
+      let elements = page.elements->Option.getOrThrow
+      t->expect(elements->Array.length)->Expect.toBe(1)
+      let editor = elements->Array.get(0)->Option.getOrThrow
+      t->expect(editor.role)->Expect.toBe(role)
+      t->expect(editor.name)->Expect.toBe("Title")
+      t->expect(editor.detectionMethod)->Expect.toBe("contenteditable")
+      t
+      ->expect(
+        fixture->Fixture.doc->WebAPI.Document.querySelector(editor.selector->Option.getOrThrow),
+      )
+      ->Expect.toEqual(fixture->Fixture.doc->WebAPI.Document.querySelector("#field"))
+    },
+  )
 )
 
 testAsync("77 identically labelled titles are reachable through bounded pages", async t => {
