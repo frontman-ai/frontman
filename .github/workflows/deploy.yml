@@ -73,7 +73,6 @@ jobs:
 
   deploy-server:
     name: Deploy Server
-    needs: build-client
     runs-on: self-hosted
     environment: production
     env:
@@ -170,7 +169,7 @@ jobs:
 
   deploy-client:
     name: Deploy Client
-    needs: deploy-server
+    needs: [build-client, deploy-server]
     runs-on: ubuntu-latest
     environment: production
     steps:
