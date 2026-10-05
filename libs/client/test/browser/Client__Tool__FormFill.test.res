@@ -4,13 +4,13 @@ module Interact = Client__Tool__InteractWithElement
 
 @schema
 type request = {
-  selector: option<string>,
-  role: option<string>,
-  name: option<string>,
-  text: option<string>,
-  index: option<int>,
-  action: string,
-  value: option<string>,
+  @live selector: option<string>,
+  @live role: option<string>,
+  @live name: option<string>,
+  @live text: option<string>,
+  @live index: option<int>,
+  @live action: string,
+  @live value: option<string>,
 }
 @schema
 type response = {
@@ -258,7 +258,7 @@ testAsync("maxlength rejection does not partially edit or bypass the constraint"
 })
 
 testAsync("missing value, unsupported controls and missing targets produce MCP errors", async t => {
-  let _fixture = await mount("native")
+  let _ = await mount("native")
   let requests = [
     {...fill(~value=""), value: None},
     fill(~selector=Some("#save"), ~value="Not editable"),

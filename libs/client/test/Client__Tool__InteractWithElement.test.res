@@ -12,7 +12,7 @@ external createFrame: (
 @set external setValue: (WebAPI.DomTypes.element, string) => unit = "value"
 @send external on: (WebAPI.DomTypes.element, string, unit => unit) => unit = "addEventListener"
 @send external remove: WebAPI.DomTypes.element => unit = "remove"
-type bounds = {width: float, height: float}
+type bounds = {@live width: float, @live height: float}
 @set external setBounds: (WebAPI.DomTypes.element, unit => bounds) => unit = "getBoundingClientRect"
 @set external setClick: (WebAPI.DomTypes.element, unit => unit) => unit = "click"
 @set external setFocus: (WebAPI.DomTypes.element, unit => unit) => unit = "focus"

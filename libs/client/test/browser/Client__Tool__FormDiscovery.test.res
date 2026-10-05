@@ -32,10 +32,12 @@ testAsync(
   async t => {
     let fixture = await mount("contenteditable")
     let page = await discover(`{"role":"textbox","name":"Title"}`)
+    t->expect(page.success)->Expect.toBe(true)
     let elements = page.elements->Option.getOrThrow
     t->expect(elements->Array.length)->Expect.toBe(1)
     let editor = elements->Array.get(0)->Option.getOrThrow
     t->expect(editor.role)->Expect.toBe("textbox")
+    t->expect(editor.name)->Expect.toBe("Title")
     t->expect(editor.detectionMethod)->Expect.toBe("contenteditable")
     t->expect(editor.selector->Option.isSome)->Expect.toBe(true)
     let (resolved, count) = Client__Tool__ElementQuery.resolveByRoleAndName(
@@ -51,7 +53,7 @@ testAsync(
 )
 
 testAsync("77 identically labelled titles are reachable through bounded pages", async t => {
-  let _fixture = await mount("bulk")
+  let _ = await mount("bulk")
   let first = await discover(`{"role":"textbox","name":"Title"}`)
   t->expect(first.totalCount)->Expect.toEqual(Some(50))
   t->expect(first.truncated)->Expect.toEqual(Some(true))
@@ -87,7 +89,7 @@ testAsync("exactly 50 results are not falsely reported as truncated", async t =>
 })
 
 testAsync("page size is bounded and offsets beyond matches return an empty final page", async t => {
-  let _fixture = await mount("native")
+  let _ = await mount("native")
   let page = await discover(`{"limit":1}`)
   t->expect(page.totalCount)->Expect.toEqual(Some(1))
   t->expect(page.nextOffset)->Expect.toEqual(Some(1))

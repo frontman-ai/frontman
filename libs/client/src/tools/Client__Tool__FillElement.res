@@ -23,7 +23,7 @@ external getDescriptor: (prototype, string) => option<descriptor> = "getOwnPrope
 @send
 external execCommand: (WebAPI.DomTypes.document, string, bool, string) => bool = "execCommand"
 type command
-type inputEventInit = {bubbles: bool, inputType: string, data: string}
+type inputEventInit = {@live bubbles: bool, @live inputType: string, @live data: string}
 @get external hasExecCommand: WebAPI.DomTypes.document => option<command> = "execCommand"
 @get external inputEventConstructor: WebAPI.DomTypes.window => constructor = "InputEvent"
 @get external eventConstructor: WebAPI.DomTypes.window => constructor = "Event"
@@ -35,24 +35,28 @@ type transfer
 @get external clipboardConstructor: WebAPI.DomTypes.window => constructor = "ClipboardEvent"
 @scope("Reflect") @val external transfer: (constructor, array<string>) => transfer = "construct"
 @send external setData: (transfer, string, string) => unit = "setData"
-type clipboardInit = {bubbles: bool, cancelable: bool, clipboardData: transfer}
+type clipboardInit = {
+  @live bubbles: bool,
+  @live cancelable: bool,
+  @live clipboardData: transfer,
+}
 @scope("Reflect") @val
 external clipboardEvent: (constructor, (string, clipboardInit)) => WebAPI.EventTypes.event =
   "construct"
 
 type keyInit = {
-  bubbles: bool,
-  cancelable: bool,
-  key: string,
-  code: string,
-  keyCode: int,
-  which: int,
+  @live bubbles: bool,
+  @live cancelable: bool,
+  @live key: string,
+  @live code: string,
+  @live keyCode: int,
+  @live which: int,
 }
 @get external keyboardConstructor: WebAPI.DomTypes.window => constructor = "KeyboardEvent"
 @scope("Reflect") @val
 external keyboardEvent: (constructor, (string, keyInit)) => WebAPI.EventTypes.event = "construct"
 
-type eventInit = {bubbles: bool}
+type eventInit = {@live bubbles: bool}
 @scope("Reflect") @val
 external event: (constructor, (string, eventInit)) => WebAPI.EventTypes.event = "construct"
 
