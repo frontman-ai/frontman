@@ -84,9 +84,6 @@ let dispatchHoverEvents = (el: WebAPI.DomTypes.element): unit => {
   target->WebAPI.EventTarget.dispatchEvent(overEvt->WebAPI.MouseEvent.asEvent)->ignore
 }
 
-@send external clickElement: WebAPI.DomTypes.element => unit = "click"
-@send external focusElement: WebAPI.DomTypes.element => unit = "focus"
-
 let actionToString = (action: [#click | #hover | #focus | #fill]): string =>
   switch action {
   | #click => "clicked"
@@ -110,7 +107,7 @@ let performAction = async (~doc, ~win, ~el, ~action, ~value): result<unit, strin
     let target = (el :> WebAPI.EventTypes.eventTarget)
     target->WebAPI.EventTarget.addEventListener(Click, listener, ~options={capture: true})
     try {
-      clickElement(el)
+      el->FrontmanBindings.Bindings__WebAPI.unsafeHtmlElementFromElement->WebAPI.HTMLElement.click
     } catch {
     | exn =>
       target->WebAPI.EventTarget.removeEventListener(Click, listener, ~options={capture: true})
@@ -125,7 +122,7 @@ let performAction = async (~doc, ~win, ~el, ~action, ~value): result<unit, strin
     dispatchHoverEvents(el)
     Ok()
   | #focus =>
-    focusElement(el)
+    el->FrontmanBindings.Bindings__WebAPI.unsafeHtmlElementFromElement->WebAPI.HTMLElement.focus
     switch el->WebAPI.Element.matches(":focus") {
     | true => Ok()
     | false => Error("Element did not accept focus")

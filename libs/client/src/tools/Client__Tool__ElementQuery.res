@@ -1,14 +1,10 @@
-@get
-external isContentEditable: WebAPI.DomTypes.element => bool = "isContentEditable"
-
 let isEditingHost = (element: WebAPI.DomTypes.element): bool =>
-  element->isContentEditable === true &&
+  (element->FrontmanBindings.Bindings__WebAPI.unsafeHtmlElementFromElement).isContentEditable ===
+    true &&
     !(
       element.parentElement
       ->Null.toOption
-      ->Option.mapOr(false, parent =>
-        parent->WebAPI.HTMLElement.asElement->isContentEditable === true
-      )
+      ->Option.mapOr(false, parent => parent.isContentEditable === true)
     )
 
 let effectiveRole = (element: WebAPI.DomTypes.element): string =>
