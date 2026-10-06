@@ -656,18 +656,20 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
         Enum.each(replay.notifications, &push(socket, @acp_message, &1))
 
-        push(
-          socket,
-          @acp_message,
-          JsonRpc.success_response(
-            id,
-            ACP.build_session_load_result(
-              scope
-              |> Providers.available_models()
-              |> ACP.build_model_config_options()
-            )
-          )
-        )
+        reply(socket_ref(socket), {
+          :ok,
+          %{
+            @acp_message =>
+              JsonRpc.success_response(
+                id,
+                ACP.build_session_load_result(
+                  scope
+                  |> Providers.available_models()
+                  |> ACP.build_model_config_options()
+                )
+              )
+          }
+        })
 
         push_current_todo_plan(socket, Tasks.list_todos(task))
 
@@ -682,12 +684,12 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, socket}
 
       {:error, :not_found} ->
-        push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
+        reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
     end
   end
 
   defp handle_session_load(id, _params, socket) do
-    push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session does not match channel")
+    reply_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session does not match channel")
   end
 
   defp process_prompt(id, %{"prompt" => content_blocks, "_meta" => meta}, socket)
@@ -769,11 +771,6 @@ defmodule FrontmanServerWeb.TaskChannel do
       |> Enum.find(&match?(%Ecto.Changeset{valid?: false}, &1))
 
     reply_invalid_params(socket, id, invalid_child)
-  end
-
-  defp push_acp_error(socket, id, code, message) do
-    push(socket, @acp_message, JsonRpc.error_response(id, code, message))
-    {:noreply, socket}
   end
 
   defp handle_execution_chunk(
@@ -870,7 +867,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
     case payload do
       %{"id" => id} ->
-        push_acp_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
+        reply_acp_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
 
       _ ->
         {:noreply, socket}

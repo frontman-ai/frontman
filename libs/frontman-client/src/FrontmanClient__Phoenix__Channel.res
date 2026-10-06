@@ -43,3 +43,4 @@ external push: (t, ~event: channelEvent, ~payload: JSON.t, ~timeout: int=?) => p
 @send external canPush: t => bool = "canPush"
 @send external onError: (t, ~callback: JSON.t => unit) => unit = "onError"
 @send external onClose: (t, ~callback: JSON.t => unit) => unit = "onClose"
+

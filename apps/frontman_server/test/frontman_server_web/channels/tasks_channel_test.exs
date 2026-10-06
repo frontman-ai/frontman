@@ -57,7 +57,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           })
 
           assert_push("config_options_updated", %{})
-          assert_push("acp:message", %{"id" => 1})
+          assert_acp_reply(%{"id" => 1})
         end)
 
       refute log =~ "sk-fake-client-info-marker"
@@ -79,7 +79,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("config_options_updated", %{"configOptions" => _})
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 1,
         "result" => %{
@@ -110,7 +110,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "id" => 1,
         "error" => %{
           "code" => -32_602,
@@ -152,7 +152,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"protocolVersion" => 999}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
@@ -170,7 +170,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
@@ -201,7 +201,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+      assert_acp_reply(%{"id" => 1, "result" => %{}})
 
       client_session_id = Ecto.UUID.generate()
 
@@ -212,7 +212,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => client_session_id}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 2,
         "result" => %{
@@ -242,7 +242,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+      assert_acp_reply(%{"id" => 1, "result" => %{}})
 
       client_session_id = Ecto.UUID.generate()
 
@@ -253,7 +253,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => client_session_id}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 2,
         "error" => %{
@@ -284,7 +284,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+      assert_acp_reply(%{"id" => 1, "result" => %{}})
 
       client_session_id = Ecto.UUID.generate()
 
@@ -295,7 +295,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => client_session_id}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 2,
         "result" => %{"sessionId" => ^client_session_id}
@@ -323,7 +323,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 1,
         "result" => %{
@@ -341,7 +341,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => client_session_id}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 2,
         "result" => %{"sessionId" => ^client_session_id}
@@ -372,7 +372,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+      assert_acp_reply(%{"id" => 1, "result" => %{}})
 
       client_session_id = Ecto.UUID.generate()
 
@@ -383,7 +383,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => client_session_id}
       })
 
-      assert_push("acp:message", %{"id" => 2, "result" => %{}})
+      assert_acp_reply(%{"id" => 2, "result" => %{}})
 
       assert {:ok, task} = FrontmanServer.Tasks.get_task_with_history(scope, client_session_id)
       assert task.framework == :vite
@@ -407,7 +407,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+      assert_acp_reply(%{"id" => 1, "result" => %{}})
 
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
@@ -416,7 +416,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 2,
         "error" => %{
@@ -443,7 +443,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+      assert_acp_reply(%{"id" => 1, "result" => %{}})
 
       push(socket, "acp:message", %{
         "jsonrpc" => "2.0",
@@ -452,7 +452,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => "not-a-valid-uuid"}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 2,
         "error" => %{
@@ -484,7 +484,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         }
       })
 
-      assert_push("acp:message", %{"id" => 1, "result" => %{}})
+      assert_acp_reply(%{"id" => 1, "result" => %{}})
 
       existing_id = task_fixture(scope, framework: "vite").id
 
@@ -495,7 +495,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => existing_id}
       })
 
-      assert_push("acp:message", %{"id" => 2, "result" => %{"sessionId" => ^existing_id}})
+      assert_acp_reply(%{"id" => 2, "result" => %{"sessionId" => ^existing_id}})
       assert Repo.get!(TaskSchema, existing_id).framework == :vite
       assert Repo.aggregate(TaskSchema.by_id(existing_id), :count, :id) == 1
       other_id = task_fixture(user_scope_fixture()).id
@@ -507,7 +507,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => other_id}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "id" => 3,
         "error" => %{"code" => -32_602, "message" => "Failed to create session"}
       })
@@ -521,7 +521,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{"sessionId" => Ecto.UUID.generate()}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{
@@ -541,7 +541,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "params" => %{}
       })
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "jsonrpc" => "2.0",
         "id" => 1,
         "error" => %{

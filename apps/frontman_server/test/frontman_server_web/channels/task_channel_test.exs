@@ -90,6 +90,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     receive do
       %Phoenix.Socket.Message{event: event, payload: payload} ->
         collect_all_pushes([{event, payload} | acc])
+
+      %Phoenix.Socket.Reply{status: :ok, payload: %{"acp:message" => payload}} ->
+        collect_all_pushes([{"acp:reply", payload} | acc])
     after
       200 -> Enum.reverse(acc)
     end
@@ -1527,7 +1530,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         build_acp_request("session/load", 88, %{"sessionId" => other_task.id})
       )
 
-      assert_push("acp:message", %{
+      assert_acp_reply(%{
         "id" => 88,
         "error" => %{"code" => -32_602, "message" => "Session does not match channel"}
       })
@@ -1554,7 +1557,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       messages =
         collect_all_pushes()
-        |> Enum.filter(fn {event, _payload} -> event == "acp:message" end)
+        |> Enum.filter(fn {event, _payload} -> event in ["acp:message", "acp:reply"] end)
         |> Enum.map(&elem(&1, 1))
 
       assert [
@@ -1617,7 +1620,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       relevant_messages =
         collect_all_pushes()
         |> Enum.filter(fn
-          {"acp:message", %{"id" => 92}} ->
+          {"acp:reply", %{"id" => 92}} ->
             true
 
           {"acp:message", payload} ->
@@ -1688,7 +1691,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       :sys.get_state(socket.channel_pid)
 
-      assert_push("acp:message", %{"id" => 91, "result" => %{}})
+      assert_acp_reply(%{"id" => 91, "result" => %{}})
       assert_state_update_running_then_idle(task.id)
     end
   end
@@ -2183,7 +2186,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       session_load_idx =
         Enum.find_index(messages, fn
-          {"acp:message", %{"id" => 1, "result" => %{}}} -> true
+          {"acp:reply", %{"id" => 1, "result" => %{}}} -> true
           _ -> false
         end)
 

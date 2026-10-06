@@ -101,23 +101,23 @@ defmodule FrontmanServerWeb.TasksChannel do
         push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
         agents = Agents.list_agents(socket.assigns.scope)
 
-        push_response(
+        reply_response(
           socket,
           id,
           ACP.build_initialize_result(agents, Agents.default_agent_id(socket.assigns.scope))
         )
 
       {:error, message} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), message)
+        reply_error(socket, id, JsonRpc.error_invalid_params(), message)
     end
   end
 
   defp handle_message({:request, id, @acp_method_initialize, %{"protocolVersion" => _}}, socket) do
-    push_error(socket, id, JsonRpc.error_invalid_request(), "Unsupported protocol version")
+    reply_error(socket, id, JsonRpc.error_invalid_request(), "Unsupported protocol version")
   end
 
   defp handle_message({:request, id, @acp_method_initialize, _params}, socket) do
-    push_error(
+    reply_error(
       socket,
       id,
       JsonRpc.error_invalid_params(),
@@ -142,7 +142,7 @@ defmodule FrontmanServerWeb.TasksChannel do
              session_id,
              raw_framework
            ) do
-      push_response(
+      reply_response(
         socket,
         id,
         ACP.build_session_new_result(
@@ -154,7 +154,7 @@ defmodule FrontmanServerWeb.TasksChannel do
       false ->
         push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
 
-        push_error(
+        reply_error(
           socket,
           id,
           JsonRpc.error_billing_inactive(),
@@ -162,7 +162,7 @@ defmodule FrontmanServerWeb.TasksChannel do
         )
 
       :error ->
-        push_error(
+        reply_error(
           socket,
           id,
           JsonRpc.error_invalid_params(),
@@ -170,20 +170,20 @@ defmodule FrontmanServerWeb.TasksChannel do
         )
 
       nil ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
+        reply_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
 
       {:error, _changeset} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
+        reply_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
     end
   end
 
   defp handle_message({:request, id, @acp_method_session_new, _params}, socket) do
-    push_error(socket, id, JsonRpc.error_invalid_params(), "Missing required field: sessionId")
+    reply_error(socket, id, JsonRpc.error_invalid_params(), "Missing required field: sessionId")
   end
 
   defp handle_message({:request, id, method, _params}, socket) do
     Logger.info("ACP unknown method: #{method}")
-    push_error(socket, id, JsonRpc.error_method_not_found(), "Method not found")
+    reply_error(socket, id, JsonRpc.error_method_not_found(), "Method not found")
   end
 
   defp handle_message({:notification, _method, _params}, socket) do
@@ -226,7 +226,7 @@ defmodule FrontmanServerWeb.TasksChannel do
 
   defp handle_parse_error(_reason, %{"id" => id}, socket) do
     Logger.error("Invalid ACP message")
-    push_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
+    reply_error(socket, id, JsonRpc.error_invalid_request(), "Invalid JSON-RPC message")
   end
 
   defp handle_parse_error(_reason, _payload, socket) do
@@ -234,13 +234,11 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  defp push_response(socket, id, result) do
-    push(socket, @acp_message, JsonRpc.success_response(id, result))
-    {:noreply, socket}
+  defp reply_response(socket, id, result) do
+    {:reply, {:ok, %{@acp_message => JsonRpc.success_response(id, result)}}, socket}
   end
 
-  defp push_error(socket, id, code, message) do
-    push(socket, @acp_message, JsonRpc.error_response(id, code, message))
-    {:noreply, socket}
+  defp reply_error(socket, id, code, message) do
+    {:reply, {:ok, %{@acp_message => JsonRpc.error_response(id, code, message)}}, socket}
   end
 end

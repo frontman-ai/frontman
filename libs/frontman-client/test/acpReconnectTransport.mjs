@@ -4,11 +4,11 @@ export function makeTransport() {
   let socket, tasksJoin, clientInfo;
   const frames = [], requests = [];
   const server = {
-    requests, holdInitialize: false, holdTasksJoin: false, holdSessionJoin: false, holdSessionNew: false, joinError: undefined,
-    reply(frame, result, error) {
+    requests, frames, holdInitialize: false, holdTasksJoin: false, holdSessionJoin: false, holdSessionNew: false, joinError: undefined,
+    reply(frame, result, error, status = "ok") {
       const [joinRef, ref, topic, , payload] = frame;
       socket.onmessage({ data: JSON.stringify([joinRef, ref, topic, "phx_reply", {
-        status: "ok", response: { "acp:message": {
+        status, response: { "acp:message": {
           jsonrpc: "2.0", id: payload.id, ...(error ? { error } : { result })
         } }
       }]) });

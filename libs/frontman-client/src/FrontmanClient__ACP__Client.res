@@ -1,10 +1,6 @@
 module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Decoders = FrontmanClient__Decoders
-module Log = FrontmanLogs.Logs.Make({
-  let component = #ACP
-})
-
 type acpState =
   | Disconnected
   | Connecting
@@ -15,16 +11,10 @@ type requestError = {
   message: string,
 }
 
-type pendingRequest = {
-  resolve: JSON.t => unit,
-  reject: requestError => unit,
-}
-
 type state = {
   currentId: int,
   acpState: acpState,
   agentAttributionConfiguration: option<Types.agentAttributionConfigurationMetadata>,
-  pendingRequests: Dict.t<pendingRequest>,
 }
 
 @@live
@@ -33,16 +23,12 @@ type config = {
   clientCapabilities: Types.clientCapabilities,
 }
 
-type action =
-  | RequestSent(int, pendingRequest)
-  | ResponseReceived(int)
-  | ACPStateChanged(acpState)
+type action = ACPStateChanged(acpState)
 
 let initialState: state = {
   currentId: 0,
   acpState: Disconnected,
   agentAttributionConfiguration: None,
-  pendingRequests: Dict.make(),
 }
 
 let requestErrorFromMessage = message => {code: None, message}
@@ -85,18 +71,6 @@ let parseAgentAttributionConfiguration = (result: Types.initializeResult) => {
 
 let reduce = (state: state, action: action): state => {
   switch action {
-  | RequestSent(id, pending) =>
-    let newPending = state.pendingRequests->Dict.copy
-    newPending->Dict.set(Int.toString(id), pending)
-    {
-      ...state,
-      currentId: id,
-      pendingRequests: newPending,
-    }
-  | ResponseReceived(id) =>
-    let newPending = state.pendingRequests->Dict.copy
-    newPending->Dict.delete(Int.toString(id))
-    {...state, pendingRequests: newPending}
   | ACPStateChanged(Initialized(result) as acpState) => {
       ...state,
       acpState,
@@ -105,32 +79,6 @@ let reduce = (state: state, action: action): state => {
       ->Result.getOrThrow,
     }
   | ACPStateChanged(acpState) => {...state, acpState, agentAttributionConfiguration: None}
-  }
-}
-
-let handleResponse = (state: ref<state>, payload: JSON.t): unit => {
-  try {
-    let response = payload->JsonRpc.Response.fromJsonExn
-    let id = response->JsonRpc.Response.id->Option.flatMap(JsonRpc.Id.toInt)->Option.getOrThrow
-    let idStr = Int.toString(id)
-
-    switch state.contents.pendingRequests->Dict.get(idStr) {
-    | Some({resolve, reject}) =>
-      switch response->JsonRpc.Response.result {
-      | Some(result) => resolve(result)
-      | None =>
-        switch response->JsonRpc.Response.error {
-        | Some(err) =>
-          reject({code: Some(err->JsonRpc.RpcError.code), message: err->JsonRpc.RpcError.message})
-        | None => reject(requestErrorFromMessage("Unknown error"))
-        }
-      }
-    | None => Log.warning(`Received response for unknown request: ${idStr}`)
-    }
-  } catch {
-  | exn =>
-    let msg = exn->JsExn.fromException->Option.flatMap(JsExn.message)->Option.getOr("Unknown error")
-    Log.error(`Failed to parse JSON-RPC response: ${msg}`)
   }
 }
 
