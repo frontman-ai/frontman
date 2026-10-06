@@ -22,4 +22,4 @@ Frontman developer resources help agents answer installation, auth, integration,
 
 ## Frameworks
 
-Frontman supports Next.js, Astro, Vite, React, Vue, Svelte, and WordPress beta workflows.
+Frontman supports Next.js, Astro, Vite, React, Vue, Svelte, and WordPress workflows.

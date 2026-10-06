@@ -149,11 +149,11 @@ class Frontman_UI {
 				<img src="<?php echo esc_url( $logo_url ); ?>" alt="" aria-hidden="true">
 				<h2 id="frontman-warning-title"><?php esc_html_e( 'Use Frontman Carefully', 'frontman-agentic-ai-editor' ); ?></h2>
 			</div>
-			<p><?php esc_html_e( 'Frontman for WordPress is experimental. The agent can change real content, templates, styles, menus, widgets, and settings on your site.', 'frontman-agentic-ai-editor' ); ?></p>
+			<p><?php esc_html_e( 'Frontman for WordPress is production-ready. The agent can change real content, templates, styles, menus, widgets, and settings on your site.', 'frontman-agentic-ai-editor' ); ?></p>
 			<ul>
 				<li><?php esc_html_e( 'Make sure you have a current backup before using it on an important site.', 'frontman-agentic-ai-editor' ); ?></li>
 				<li><?php esc_html_e( 'Review each change carefully. The agent may not always do exactly what you intended.', 'frontman-agentic-ai-editor' ); ?></li>
-				<li><?php esc_html_e( 'When possible, start on a staging site first.', 'frontman-agentic-ai-editor' ); ?></li>
+				<li><?php esc_html_e( 'Use a staging site for higher-risk changes.', 'frontman-agentic-ai-editor' ); ?></li>
 			</ul>
 			<button type="button" id="frontman-warning-dismiss"><?php esc_html_e( 'I Understand', 'frontman-agentic-ai-editor' ); ?></button>
 		</div>

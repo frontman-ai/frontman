@@ -57,7 +57,7 @@ This Cline AI review covers the practical question: is Cline a good AI coding to
 
 The short version: **Cline is a strong AI coding tool if you want an open-source, developer-first agent with BYOK, VS Code support, CLI workflows, MCP, and human approval. Its main limits are setup friction, variable model costs, and weaker fit when the task starts from browser-visible frontend UI rather than source files.**
 
-We build [Frontman](/), a browser-aware frontend agent. That creates a conflict of interest in any AI coding tool comparison, so this review separates the Cline recommendation from the Frontman wedge. If you are choosing a general-purpose developer agent, Cline deserves serious consideration. If your team needs to click a broken UI, inspect runtime layout, and produce a reviewable source edit, compare Cline with browser-aware tools later in this guide.
+We build [Frontman](/frameworks/), a browser-aware frontend agent. That creates a conflict of interest in any AI coding tool comparison, so this review separates the Cline recommendation from the Frontman wedge. If you are choosing a general-purpose developer agent, Cline deserves serious consideration. If your team needs to click a broken UI, inspect runtime layout, and produce a reviewable source edit, compare Cline with browser-aware tools later in this guide.
 
 Source status checked: June 28, 2026. This is a source-backed workflow review based on public Cline materials, the [Cline GitHub repository](https://github.com/cline/cline), the [Cline FAQ](https://cline.bot/faq), existing public review pages, and Search Console data showing demand around `cline ai coding tool`, `cline ai coding agent`, `cline byok`, `cline pricing`, and `cline vs roo code`. Pricing plans, model costs, and product packaging can change quickly; verify current pricing before making a purchasing decision.
 
@@ -78,7 +78,7 @@ We also evaluated Cline against our own frontend-agent workflow experience. Fron
 | Main strength | BYOK model flexibility, reviewable edits, CLI/IDE ecosystem, MCP/tool support. |
 | Main tradeoff | Model costs can be harder to predict than fixed-seat assistants; setup and approval loops add friction. |
 | Frontend fit | Good for developer-led frontend code edits; weaker when task starts from the rendered browser UI. |
-| Best alternative for browser UI edits | [Frontman](/) or another browser-aware frontend agent category. |
+| Best alternative for browser UI edits | [Frontman](/frameworks/) or another browser-aware frontend agent category. |
 
 ## What Is Cline?
 
@@ -358,7 +358,7 @@ Windsurf is another AI IDE/productivity environment. Compare it when product pol
 
 ### Frontman
 
-[Frontman](/) is not a general Cline clone. It is the alternative when frontend changes start in the browser. You click UI, describe what should change, and get source edits that developers can review.
+[Frontman](/frameworks/) is not a general Cline clone. It is the alternative when frontend changes start in the browser. You click UI, describe what should change, and get source edits that developers can review.
 
 ## When Frontman Makes More Sense Than Cline
 

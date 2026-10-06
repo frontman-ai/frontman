@@ -30,7 +30,7 @@ Accounts are currently personal to the registered user. Team and organization fe
 
 ## Trial, Subscription, and Billing
 
-Frontman may offer a 7-day free trial for the hosted service. A valid payment method is required to start the trial. Unless you cancel before the trial ends, the trial automatically converts into a paid monthly subscription.
+Frontman may offer a 7-day trial for the hosted service. A valid credit card is required to start the trial. Unless you cancel before the trial ends, the trial automatically converts into a paid monthly subscription.
 
 Paid subscriptions renew monthly until canceled. Prices are shown in euros and are exclusive of VAT and other applicable taxes unless stated otherwise at checkout. The current self-serve plan is EUR 20 per month plus applicable VAT or taxes.
 

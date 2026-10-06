@@ -54,13 +54,14 @@ export const footerNavigationData: FooterData = {
 		{
 			category: 'Product',
 			subCategories: [
+				{ subCategory: 'For Frameworks', subCategoryLink: '/frameworks/' },
 				{
 					subCategory: 'Pricing',
 					subCategoryLink: '/pricing/'
 				},
 				{
 					subCategory: 'WordPress',
-					subCategoryLink: '/wordpress/'
+					subCategoryLink: '/'
 				},
 				{
 					subCategory: 'Marketing Teams',
@@ -117,7 +118,7 @@ export const footerNavigationData: FooterData = {
 				},
 				{
 					subCategory: 'WordPress',
-					subCategoryLink: '/wordpress/'
+					subCategoryLink: '/'
 				}
 			]
 		},

@@ -8,7 +8,7 @@
 			"priceLabel": "month, billed anually",
 			"priceMontly": "25",
 			"priceLabelMontly": "month",
-			"buttonName": "Try for free",
+			"buttonName": "Start trial",
 			"buttonLink": "/"
 		},
 		"body": {
@@ -33,7 +33,7 @@
 			"priceLabel": "month, billed anually",
 			"priceMontly": "35",
 			"priceLabelMontly": "month",
-			"buttonName": "Try for free",
+			"buttonName": "Start trial",
 			"buttonLink": "/"
 		},
 		"body": {
@@ -59,7 +59,7 @@
 			"priceLabel": "month, billed anually",
 			"priceMontly": "65",
 			"priceLabelMontly": "month",
-			"buttonName": "Try for free",
+			"buttonName": "Start trial",
 			"buttonLink": "/"
 		},
 		"body": {

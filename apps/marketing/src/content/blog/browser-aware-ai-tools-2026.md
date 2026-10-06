@@ -22,7 +22,7 @@ Runtime-aware tools try to close this gap — what we call [the runtime context 
 
 ### Frontman
 
-**Website:** [frontman.sh](https://frontman.sh) | **License:** Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms | **Stars:** ~131
+**Website:** [frontman.sh](/frameworks/) | **License:** Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms | **Stars:** ~131
 
 Framework middleware for Next.js, Astro, and Vite. Installs _inside_ the framework's dev server, so it has native access to both client-side context (DOM, component tree, computed styles) and server-side context (routes, compiled module graph, server logs). Both exposed via MCP.
 
@@ -74,13 +74,13 @@ Google's MCP server exposes DevTools state to AI agents. Your agent can query th
 | Client runtime   | Yes                  | Yes           | Yes         | Yes        |
 | Server runtime   | Yes                  | Limited       | Yes (deep)  | No         |
 | Standalone agent | Yes                  | Yes           | No          | No         |
-| Free (no limits) | Yes                  | No (10/day)   | No ($10/mo) | Yes        |
+| Pricing | 14-day trial (credit card required), then paid Pro + BYOK | Trial limits; paid plans | $10/mo | No platform fee |
 | BYOK             | Yes                  | No            | Yes         | Yes        |
 | Next.js          | Yes                  | Yes           | Thin        | Yes        |
 | Astro            | Yes                  | No            | No          | Yes        |
 | Svelte           | Yes                  | No            | No          | Yes        |
 | Vue              | Yes                  | Yes           | No          | Yes        |
-| Account required | No                   | Yes           | Yes         | No         |
+| Account required | Yes (hosted Pro)     | Yes           | Yes         | No         |
 
 ### Which One Should You Use?
 

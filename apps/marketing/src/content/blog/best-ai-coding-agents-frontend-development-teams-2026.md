@@ -74,7 +74,7 @@ Methodology matters here because "best AI coding agent" is too broad to be usefu
 
 | Use case | Best fit | Why | Main tradeoff |
 | --- | --- | --- | --- |
-| Visual UI edits in an existing app | [Frontman](/) | Starts from live DOM, computed CSS, selected elements, and framework source context. | Best for supported frontend stacks, not backend refactors. |
+| Visual UI edits in an existing app | [Frontman](/frameworks/) | Starts from live DOM, computed CSS, selected elements, and framework source context. | Best for supported frontend stacks, not backend refactors. |
 | Developer-led repo work | [Cursor](https://cursor.com/) | Strong IDE workflow, semantic codebase context, and day-to-day editing. | Visual verification still happens outside the IDE. |
 | Terminal-native engineering | [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) | Strong code reasoning, command-line flow, file edits, and test iteration. | Not built around non-engineers or browser-first UI review. |
 | GitHub-first teams | [GitHub Copilot](https://github.com/features/copilot) | Familiar IDE and GitHub workflow for completion, edits, chat, and review. | Broad assistant, not frontend-specific. |
@@ -167,4 +167,4 @@ For frontend development teams in 2026, start with the workflow, then pick the a
 
 The better world is not one agent replacing frontend developers. It is fewer blind edits, fewer wasted retries, smaller diffs, faster review, and less time explaining which `div` you meant.
 
-[Try Frontman](/#install) for browser-visible frontend edits, read the deeper [frontend coding agent guide](/blog/best-frontend-coding-agent/), or compare [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/).
+[Try Frontman](/frameworks/#install) for browser-visible frontend edits, read the deeper [frontend coding agent guide](/blog/best-frontend-coding-agent/), or compare [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/).

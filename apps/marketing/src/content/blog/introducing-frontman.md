@@ -85,4 +85,4 @@ Browser access is becoming a standard agent capability. Differentiation will mov
 
 That is the category Frontman is built around. The detailed technical model is in [the runtime context gap](/blog/runtime-context-gap/). The practical buying question is covered in [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/).
 
-[Try Frontman](https://frontman.sh) on an existing project, with the same requirement we recommend for every coding agent: inspect and understand the diff before merging it.
+[Try Frontman](/frameworks/) on an existing project, with the same requirement we recommend for every coding agent: inspect and understand the diff before merging it.

@@ -79,7 +79,7 @@ Require the PM to state what users should see and where. Avoid broad prompts suc
 
 ```text
 On the pricing page, change the primary CTA label from
-"Start Free Trial" to "Start Trial" at desktop and mobile widths.
+"Get Started" to "Start Trial" at desktop and mobile widths.
 Do not change click behavior, routing, analytics, or other CTAs.
 ```
 
@@ -110,4 +110,4 @@ The goal is not to remove developers from website work. It is to reserve enginee
 
 For ownership of shared tokens and components, read [Design System Collaboration Without Tickets](/blog/team-collaboration/). Apply the canonical [review workflow for UI changes from non-engineers](/blog/review-ui-changes-from-non-engineers/) to accepted self-service proposals.
 
-[Try Frontman](https://frontman.sh) in a governed development workflow, or start with the [installation guide](/docs/installation/).
+[Try Frontman](/frameworks/) in a governed development workflow, or start with the [installation guide](/docs/installation/).

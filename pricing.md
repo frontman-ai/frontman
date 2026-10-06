@@ -7,11 +7,11 @@
 	[x]  Create Pricing page
 	[X]  Cookie Banner
 	[x]  Impressum
-	[]  Free trial
+	[]  Trial (credit card required)
 			[] - Email - Start/Almost Finished/Finished
 			[] - Cancellation flow
 			[] - Enforce package
-	[]  Free chats - allow users X free prompts without connecting a provider
+
 
 # PH Launch
 	- Prepare list for upvotes

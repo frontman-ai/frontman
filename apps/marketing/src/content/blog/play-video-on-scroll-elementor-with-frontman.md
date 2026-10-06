@@ -67,7 +67,7 @@ The source video recommends converting the asset to 30 fps ([04:37](https://www.
 
 Frontman does not remove the need for GSAP or browser media behavior. It removes much of the admin-screen navigation and blind copy-paste work around them.
 
-Frontman for WordPress is currently beta. Use a staging site, keep a normal backup, and review every change. It requires WordPress 6.0 or later, PHP 7.4 or later, an authenticated WordPress user with the `manage_options` capability (normally an administrator), and an active Elementor installation for Elementor-specific tools.
+Frontman for WordPress is production-ready. Use staging for this custom scroll interaction, keep a normal backup, and review every change. It requires WordPress 6.0 or later, PHP 7.4 or later, an authenticated WordPress user with the `manage_options` capability (normally an administrator), and an active Elementor installation for Elementor-specific tools.
 
 ### Evidence behind this workflow
 
@@ -75,7 +75,7 @@ This guide separates three evidence layers. Palmkvist's recording demonstrates t
 
 ### 1. Open the target page beside Frontman
 
-Install [Frontman for WordPress](/wordpress/), sign in with the required capability, then append `/frontman` to the page URL. For example, open `/landing-page/frontman` to load the chat beside a preview of that page.
+Install [Frontman for WordPress](/), sign in with the required capability, then append `/frontman` to the page URL. For example, open `/landing-page/frontman` to load the chat beside a preview of that page.
 
 Frontman can inspect the compact Elementor tree before changing anything. That matters here because a page may contain several containers, videos, and HTML widgets. The agent should identify the intended element IDs instead of guessing from visible order.
 
@@ -123,4 +123,4 @@ Also review current [GSAP installation and licensing guidance](https://gsap.com/
 
 Watch the embedded tutorial to understand the intended interaction. Then implement against your own page structure, current Elementor controls, and primary GSAP and browser documentation.
 
-On a staging copy, install [Frontman for WordPress](/wordpress/), open the target page with `/frontman`, and submit the inspect-first prompt above. Review the full scroll range before deciding whether the effect belongs in production.
+On a staging copy, install [Frontman for WordPress](/), open the target page with `/frontman`, and submit the inspect-first prompt above. Review the full scroll range before deciding whether the effect belongs in production.

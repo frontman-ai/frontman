@@ -1,13 +1,13 @@
 ---
-title: Install and Use Frontman for WordPress (Beta)
+title: Install and Use Frontman for WordPress
 description: Install the Frontman WordPress plugin, connect model access, verify the editor, and troubleshoot supported site changes.
 ---
 
 The Frontman WordPress plugin adds an AI agent directly to your WordPress site. Open **Frontman** from the WordPress admin menu, describe what you want to change, and the agent handles the supported workflow inside the site preview — no code editor or terminal required for those supported changes.
 
-This guide owns WordPress installation and use. For the cross-platform support matrix, see [Frontman Framework Compatibility](/docs/reference/compatibility/). For the product overview, see [Frontman for WordPress](/wordpress/).
+This guide owns WordPress installation and use. For the cross-platform support matrix, see [Frontman Framework Compatibility](/docs/reference/compatibility/). For the product overview, see [Frontman for WordPress](/).
 
-> **Beta:** This is experimental software. Start on a staging site, keep backups, and review changes before deploying to production.
+> Frontman for WordPress is production-ready. Keep backups and review changes in the live preview. Use staging for higher-risk changes.
 
 ## Requirements
 

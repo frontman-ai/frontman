@@ -98,7 +98,7 @@ Chrome DevTools MCP (Google) and Tidewave (Phoenix/Rails) use this approach. Dev
 
 ### Frontman
 
-[frontman.sh](https://frontman.sh) | Deep integration | Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms
+[frontman.sh](/frameworks/) | Deep integration | Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms
 
 Next.js, Astro, and Vite (React, Vue, Svelte). Bring your own AI key (Claude, OpenAI, OpenRouter). Frontman is source-available, and self-hosting remains available under its package-specific licenses and terms. Hosted Frontman Pro is available now. Understands component hierarchies and design tokens at the source level. Early-stage with rough edges, small community, and incomplete documentation. A developer needs to install it ([Getting Started with Frontman](/blog/getting-started/) covers the process), and it only works with the three supported frameworks.
 
@@ -137,7 +137,7 @@ If your engineering team already uses Cursor, this is the lowest-friction option
 | Click-to-edit | Yes | Yes | No | No | Yes |
 | Usable by designers | After dev setup | Yes (standalone) | No | No | No |
 | Works with any framework | No (Next/Astro/Vite) | Yes | Yes | No (Phoenix) | No (React/Next) |
-| Cost for a team | Free self-hosting; hosted Pro available now | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
+| Cost for a team | 14-day hosted trial (credit card required); paid Pro subscription | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
 | Account required | No | Yes | No | Yes | Yes (Cursor) |
 | Component source mapping | Exact | Best-effort | No | No | Unknown |
 | Open source / source-available | Source-available | Yes | Yes | Yes | No |

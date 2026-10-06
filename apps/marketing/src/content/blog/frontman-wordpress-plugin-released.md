@@ -15,7 +15,7 @@ Open wp-admin. Search for the plugin. Click install. Activate it. Start editing 
 
 That is now the Frontman workflow.
 
-[Frontman for WordPress](/wordpress/) is live in the WordPress Plugin Directory as **Frontman - Agentic AI Editor**. It puts an AI agent inside your WordPress site, next to a live preview, with tools for posts, pages, blocks, Elementor pages, menus, templates, widgets, and settings. You can install it from the [Frontman WordPress plugin page](https://wordpress.org/plugins/frontman-agentic-ai-editor/).
+[Frontman for WordPress](/) is live in the WordPress Plugin Directory as **Frontman - Agentic AI Editor**. It puts an AI agent inside your WordPress site, next to a live preview, with tools for posts, pages, blocks, Elementor pages, menus, templates, widgets, and settings. You can install it from the [Frontman WordPress plugin page](https://wordpress.org/plugins/frontman-agentic-ai-editor/).
 
 If you are comparing the broader category before installing anything, read [Best WordPress AI Plugins in 2026](/blog/best-wordpress-ai-plugins-2026/) for how Frontman, AI Engine, Elementor AI, Divi AI, AIOSEO, WPForms AI, and WordPress AI builders fit different jobs.
 
@@ -74,13 +74,13 @@ That architecture is why Frontman can handle more than draft generation. It can 
 
 That is the useful version of AI for WordPress: not a blank prompt box, not a content generator isolated from the page, but an agent that can see the site, use WordPress tools, and show you what changed.
 
-### Still early, still use staging
+### Production-ready, with review in the loop
 
 This is a release announcement, not a claim that every WordPress edge case has been solved.
 
 WordPress is not one platform in practice. It is thousands of themes, page builders, hosting environments, cache layers, security plugins, custom post types, and old decisions nobody remembers making. Usually in production. Usually five minutes before someone needs the page fixed.
 
-Frontman is still experimental software. Start on a staging site. Keep backups. Review changes before trusting them. The plugin can make real changes to content, menus, templates, Elementor pages, and settings. That power is the point. It is also why the workflow has to be treated seriously.
+Frontman is production-ready and battle-tested. Keep backups. Review changes in the live preview. Use staging for higher-risk changes. The plugin can make real changes to content, menus, templates, Elementor pages, and settings. That power is the point. It is also why the workflow has to be treated seriously.
 
 ### Try it
 

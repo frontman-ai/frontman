@@ -12,7 +12,7 @@ faq:
   - question: 'Can I use more than one of these tools together?'
     answer: 'Yes. Frontman handles visual/UI changes in the browser, while an IDE tool like Cursor or Claude Code handles backend logic, refactors, and migrations. They complement each other.'
   - question: 'Which tool has the best free tier?'
-    answer: 'Cline is free and open-source; Frontman is free and source-available. You pay for the AI model usage (BYOK), but the tools themselves cost nothing.'
+    answer: 'Cline is open-source and BYOK. Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription. BYOK AI usage is billed separately.'
   - question: 'Do any of these tools work with my existing codebase?'
     answer: 'All of them do. That was the selection criteria for this list. They all handle existing, production codebases rather than only generating greenfield projects.'
   - question: 'How do framework-aware AI tools differ from general-purpose ones?'
@@ -41,7 +41,7 @@ You open your laptop on a Monday morning. There's a button on the homepage that'
 
 This is the moment I've lived through dozens of times. I'm a product manager at a mid-stage startup. I understand the product, I know what it should look like, and I have access to the codebase. But every visual change requires a developer, a ticket, a code review, and a deployment. The latency between "I see the problem" and "the user sees the fix" is measured in days or weeks.
 
-If you're dealing with the same thing, [Frontman](https://frontman.sh) is the tool we built to fix it. It's an AI agent that runs in your browser alongside your app, so you can select an element and describe what you want changed. More on that below.
+If you're dealing with the same thing, [Frontman](/frameworks/) is the tool we built to fix it. It's an AI agent that runs in your browser alongside your app, so you can select an element and describe what you want changed. More on that below.
 
 I've spent the past year testing every AI coding tool on the market, looking for one that lets me actually edit production code without needing a developer in the loop. They all generate new code from scratch fine. I needed something harder: a tool that can navigate an existing codebase, understand the context, and make targeted changes that work.
 
@@ -61,7 +61,7 @@ If your search is specifically frontend UI work, start with the [best frontend c
 
 ## 1. Frontman
 
-Every other tool on this list lives in an IDE or terminal. [Frontman](https://frontman.sh) is the exception: it's a source-available AI agent that hooks into your dev server as middleware and runs alongside your application in the browser.
+Every other tool on this list lives in an IDE or terminal. [Frontman](/frameworks/) is the exception: it's a source-available AI agent that hooks into your dev server as middleware and runs alongside your application in the browser.
 
 The workflow:
 
@@ -75,7 +75,7 @@ The limitation: Frontman is scoped to frontend work. It won't help you refactor 
 
 The target user is a designer or product manager who needs to make visual changes without opening an IDE.
 
-It's source-available, free to self-host, and BYOK: you connect your own API key from Anthropic, OpenAI, or OpenRouter. The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.
+Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription. It is source-available, self-hostable, and BYOK: you connect your own API key from Anthropic, OpenAI, or OpenRouter. The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.
 
 Get started in your project folder:
 
@@ -168,7 +168,7 @@ The trade-off is managing your own API costs. Cline shows real-time usage and es
 
 | Tool | Type | Price | Browser access | Open source / source-available | Best for |
 |------|------|-------|---------------|-------------|----------|
-| [Frontman](https://frontman.sh) | Browser agent | Free self-hosting; hosted Pro available now | Yes, full DOM | Source-available (Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms) | Designers & PMs making visual changes |
+| [Frontman](/frameworks/) | Browser agent | 14-day hosted trial (credit card required); paid Pro subscription | Yes, full DOM | Source-available (Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms) | Designers & PMs making visual changes |
 | [Cursor](https://cursor.sh) | VS Code fork | Credit-based | Limited | No | Deepest AI-native IDE experience |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code) | CLI | Usage-based | No | No | Terminal-native, massive context |
 | [Windsurf](https://windsurf.com) | VS Code fork | $15/mo | No | No | Flow awareness across sessions |

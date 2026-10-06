@@ -15,7 +15,7 @@ We started Frontman with a clear idea: put an AI agent inside the app, not the e
 
 WordPress powers over 40% of the web. Millions of sites, run by people who range from full-time developers to business owners who just want their site to look right. So we built a WordPress integration.
 
-**Quick answer:** [Frontman for WordPress](/wordpress/) is an AI WordPress editor plugin that lets you describe changes in plain English, edit WordPress content and Elementor pages, and verify the result in a live site preview.
+**Quick answer:** [Frontman for WordPress](/) is an AI WordPress editor plugin that lets you describe changes in plain English, edit WordPress content and Elementor pages, and verify the result in a live site preview.
 
 ## How It Works
 
@@ -56,7 +56,7 @@ Frontman takes a fundamentally different approach:
 
 - **Source-available.** Frontman's source code, including every prompt, every tool definition, and every piece of agent logic, is available on [GitHub](https://github.com/frontman-ai/frontman). The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.
 
-The tradeoff: Frontman is newer and more experimental. AI Engine has 100k+ installs, a Pro tier, WooCommerce tools, embeddings, and years of polish. If you need a production-ready AI content pipeline today, AI Engine is solid. If you want an agent that can edit actual WordPress content, Elementor pages, menus, templates, widgets, and settings inside a live preview, that's what Frontman does. For the broader comparison, read [AI Agent Plugins for WordPress Compared](/blog/ai-agent-wordpress-plugin-comparison/).
+The difference is the workflow: Frontman edits WordPress beside a live preview. AI Engine has 100k+ installs, a Pro tier, WooCommerce tools, embeddings, and years of polish. If you need a production-ready AI content pipeline today, AI Engine is solid. If you want an agent that can edit actual WordPress content, Elementor pages, menus, templates, widgets, and settings inside a live preview, that's what Frontman does. For the broader comparison, read [AI Agent Plugins for WordPress Compared](/blog/ai-agent-wordpress-plugin-comparison/).
 
 For one customer result, read how [AutonomyAI's marketing lead redesigned its Elementor site without an agency](/blog/autonomyai-wordpress-redesign-case-study/). The case study separates customer-reported project claims from facts confirmed through public sources and does not present the result as a universal benchmark.
 
@@ -66,18 +66,18 @@ The integration now runs entirely inside the WordPress plugin.
 
 The plugin handles authentication, serves the `/frontman` route, loads the hosted Frontman UI assets, and exposes WordPress-specific tools for posts, pages, blocks, Elementor content, menus, templates, widgets, and settings. Tool calls are handled server-side in PHP.
 
-## Experimental Release
+## Production-Ready WordPress Editing
 
-This is an early release. The WordPress integration works, but it hasn't been battle-tested across the full range of WordPress setups, including different themes, page builders, hosting environments, and PHP versions.
+Frontman for WordPress is production-ready and battle-tested. Themes, page builders, hosting environments, and PHP versions vary, so verify your site's specific workflow.
 
 - **Report issues** on [GitHub](https://github.com/frontman-ai/frontman/issues)
 - **Contribute**: the source-available codebase is on GitHub, with an Apache-2.0 browser client and JavaScript integrations, a GPL-2.0-or-later WordPress plugin, and an AGPL-3.0-only server plus AI Supplementary Terms
 
 ## A Note on Production Use
 
-Unlike our JavaScript framework integrations (which are development-only), the WordPress plugin can technically run in production environments. WordPress sites are often edited live, and the plugin respects that workflow.
+Unlike our JavaScript framework integrations (which are development-only), the WordPress plugin supports production environments. WordPress sites are often edited live, and the plugin respects that workflow.
 
-That said, this is experimental software. If you choose to use it in production, do so with care. We recommend starting in a staging environment, reviewing changes carefully, and keeping backups. The agent makes real content, template, and settings changes, and it may not always do exactly what you intended, so treat it accordingly.
+Keep backups and review changes in the live preview. Use staging for higher-risk changes. The agent makes real content, template, and settings changes, so verify the result before you consider the task complete.
 
 ## Getting Started
 

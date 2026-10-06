@@ -160,6 +160,6 @@ You do not need to begin with a full-site redesign. Pick one Elementor section w
 
 That small loop is the same one Guy repeated across AutonomyAI's site. To try it, install [Frontman - Agentic AI Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/) on a staging copy, a private test version of your site, then open Frontman from the WordPress admin menu.
 
-Frontman is beta software. Keep backups and review every change before production. You will need WordPress administrator access, a Frontman sign-in, and a supported AI model provider. Read the [WordPress security boundaries](/blog/security/#wordpress-live-site-threat-model) before connecting a production site.
+Frontman is production-ready and battle-tested. Keep backups and review every change. You will need WordPress administrator access, a Frontman sign-in, and a supported AI model provider. Read the [WordPress security boundaries](/blog/security/#wordpress-live-site-threat-model) before connecting a production site.
 
 Need setup details? [Read the WordPress integration guide](/docs/integrations/wordpress/).

@@ -49,7 +49,7 @@ npx @frontman-ai/vite install
 
 The installer adds `frontmanPlugin()` to your Vite config. Continue with the [Vite integration guide](/docs/integrations/vite/) for plugin ordering, manual setup, or framework-specific notes.
 
-## WordPress (Beta)
+## WordPress
 
 Install **Frontman - Agentic AI Editor** from the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/) in wp-admin. No npm package required.
 

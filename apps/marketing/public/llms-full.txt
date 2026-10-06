@@ -1,10 +1,13 @@
 # Frontman Full LLM Context
 
-Frontman is an open-source AI agent for frontend development. It runs inside framework dev servers, exposes browser and server runtime context to an AI agent, and edits source files with hot reload feedback.
+Frontman is a source-available AI website editor for existing sites. The primary homepage presents the WordPress plugin. Framework integrations for Next.js, Astro, and Vite are available at https://frontman.sh/frameworks/.
 
 ## Primary Resources
 
-- Homepage: https://frontman.sh/
+- WordPress homepage: https://frontman.sh/
+- WordPress plugin: https://wordpress.org/plugins/frontman-agentic-ai-editor/
+- WordPress setup: https://frontman.sh/docs/integrations/wordpress/
+- Framework integrations: https://frontman.sh/frameworks/
 - Markdown homepage: https://frontman.sh/index.md
 - Documentation: https://frontman.sh/docs/
 - Installation: https://frontman.sh/docs/installation/
@@ -17,10 +20,21 @@ Frontman is an open-source AI agent for frontend development. It runs inside fra
 
 ## Product Summary
 
+### WordPress
+
+Install Frontman Agentic AI Editor from wp-admin and open /frontman as an administrator. The plugin edits posts, pages, Gutenberg blocks, Elementor content, menus, templates, widgets, allowlisted settings, and WooCommerce data beside live preview. Tool requests use WordPress nonces. Keep backups, review changes, and use staging for higher-risk work.
+
+### Frameworks
+
 Frontman integrates with Next.js, Astro, and Vite. The framework plugin exposes routes, logs, source files, and build/runtime state. The browser-side client exposes DOM inspection, computed CSS, screenshots, element selection, and viewport behavior. The agent combines both views to make frontend edits with visual context that file-only coding tools lack.
+
+### Hosted service and licensing
+
+Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription. AI provider usage is billed separately. Self-hosting is available under the repository terms. The browser client and JavaScript integrations use Apache-2.0, the WordPress plugin uses GPL-2.0-or-later, and the server uses AGPL-3.0-only with AI Supplementary Terms.
 
 ## Suitable Uses
 
+- Describe a WordPress content, layout, navigation, or store update and review it beside the live site.
 - Click a rendered element and ask for copy, spacing, color, or layout changes.
 - Debug frontend issues where rendered DOM, CSS cascade, or responsive behavior matters.
 - Let designers and product managers propose changes while preserving reviewable git diffs.

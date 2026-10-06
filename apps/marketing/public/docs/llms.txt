@@ -13,7 +13,7 @@ Frontman documentation explains installation, API keys, integrations, usage work
 - Next.js: https://frontman.sh/docs/integrations/nextjs/
 - Astro: https://frontman.sh/docs/integrations/astro/
 - Vite: https://frontman.sh/docs/integrations/vite/
-- WordPress beta: https://frontman.sh/docs/integrations/wordpress/
+- WordPress: https://frontman.sh/docs/integrations/wordpress/
 
 ## Reference
 

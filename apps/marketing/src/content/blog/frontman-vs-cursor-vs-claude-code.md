@@ -119,4 +119,4 @@ Use Cursor for interactive implementation and Claude Code for delegated terminal
 5. Which browser origins, files, commands, and credentials may the agent access?
 6. How will a reviewer verify both rendered result and code quality?
 
-If runtime evidence is the unclear part, use the [UI-context evaluation checklist](/blog/ai-coding-agents-blind-to-ui/) and [runtime context taxonomy](/blog/runtime-context-gap/). If direct visual selection is the best starting point, [try Frontman](https://frontman.sh). If exact pairwise comparison is your intent, use [Frontman vs Cursor](/vs/cursor/) or [Frontman vs Claude Code](/vs/claude-code/).
+If runtime evidence is the unclear part, use the [UI-context evaluation checklist](/blog/ai-coding-agents-blind-to-ui/) and [runtime context taxonomy](/blog/runtime-context-gap/). If direct visual selection is the best starting point, [try Frontman](/frameworks/). If exact pairwise comparison is your intent, use [Frontman vs Cursor](/vs/cursor/) or [Frontman vs Claude Code](/vs/claude-code/).

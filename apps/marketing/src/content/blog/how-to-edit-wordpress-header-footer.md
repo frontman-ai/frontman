@@ -143,7 +143,7 @@ If the header or footer is hard-coded in theme PHP, do not edit the parent theme
 
 We build Frontman, so this is the product-specific route.
 
-[Frontman for WordPress](/wordpress/) works beside a live preview and can inspect candidate WordPress structures, including block templates, template parts, menus, widgets, and Elementor page content. It cannot always prove which candidate controls rendered output.
+[Frontman for WordPress](/) works beside a live preview and can inspect candidate WordPress structures, including block templates, template parts, menus, widgets, and Elementor page content. It cannot always prove which candidate controls rendered output.
 
 Install Frontman on a staging site, open `/frontman`, and start with an inspection request:
 
@@ -153,7 +153,7 @@ After Frontman verifies a supported candidate structure, make one bounded reques
 
 > Change the header button label from "Book a demo" to "View pricing." Keep its URL and styling unchanged. Show me the result in the preview.
 
-Frontman is experimental. It does not support every theme, custom plugin, hard-coded template, or page-builder configuration. Keep a backup, start on staging, and review the changed site at desktop and mobile widths.
+Frontman is production-ready. It does not support every theme, custom plugin, hard-coded template, or page-builder configuration. Keep a backup, start on staging, and review the changed site at desktop and mobile widths.
 
 [Watch one complete staging-safe WordPress task](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) from selection through reviewed result. The recording shows an FAQ-title update, not proof that Frontman supports every header or footer implementation.
 

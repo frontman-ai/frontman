@@ -21,7 +21,7 @@ If you want the end-to-end execution model behind that split, read [How the Agen
 | Next.js         | `@frontman-ai/nextjs`     | Supported | Next.js 15.x (15.5 minimum) or 16.x; Node.js 18+   | Files, route manifest, dev logs, optional OpenTelemetry spans                            |
 | Astro           | `@frontman-ai/astro`      | Supported | Astro 5.x, 6.x, or 7.x; Node.js 22.19+             | Files, resolved routes, dev logs, Astro and Frontman source annotations                  |
 | Vite-based apps | `@frontman-ai/vite`       | Supported | Vite 5.0+, Node.js 18+                             | Files, dev logs, framework-aware client context                                          |
-| WordPress       | Frontman WordPress plugin | Beta      | WordPress 6.0+, PHP 7.4+                           | Site content, Elementor, templates, widgets, menus, and settings through WordPress tools |
+| WordPress       | Frontman WordPress plugin | Supported | WordPress 6.0+, PHP 7.4+                           | Site content, Elementor, templates, widgets, menus, and settings through WordPress tools |
 
 ## How compatibility works
 
@@ -139,7 +139,7 @@ The Frontman WordPress plugin is separate from the JavaScript framework integrat
 
 **Notes**
 
-- WordPress support is currently beta.
+- The WordPress plugin supports production sites.
 - Supported workflows differ from the code-first integrations because the primary surface is WordPress content and configuration, not a local codebase.
 
 See [WordPress integration](/docs/integrations/wordpress/).

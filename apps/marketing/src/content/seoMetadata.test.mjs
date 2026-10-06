@@ -40,7 +40,7 @@ describe('site audit regressions', () => {
   it('does not claim Google software rich-result eligibility without review data', async () => {
     const [globalSchema, wordpressPage, structuredDataFeed, schemaMap] = await Promise.all([
       readMarketingFile('src/components/blocks/head/partials/StructuredData.astro'),
-      readMarketingFile('src/pages/wordpress.astro'),
+      readMarketingFile('src/pages/index.astro'),
       readMarketingFile('src/pages/feeds/structured-data.jsonl.ts'),
       readMarketingFile('src/pages/schema-map.xml.ts'),
     ])
