@@ -625,6 +625,8 @@ class Frontman_Tool_Options {
 				require_once ABSPATH . WPINC . '/class-wp-customize-manager.php';
 			}
 			$wp_customize = new \WP_Customize_Manager( [ 'settings_previewed' => false ] );
+			remove_action( 'customize_register', [ $wp_customize, 'register_controls' ] );
+			$wp_customize->register_controls();
 			do_action( 'customize_register', $wp_customize );
 		}
 		$setting = $wp_customize->get_setting( $current['name'] );
@@ -645,8 +647,20 @@ class Frontman_Tool_Options {
 		$mods   = get_theme_mods();
 		$before = $mods[ $current['name'] ] ?? null;
 		$wp_customize->set_post_value( $current['name'], $input['value'] );
-		if ( false === $setting->save() ) {
-			throw new Frontman_Tool_Error( 'Customizer setting could not be saved. Read current state before retrying.' );
+		$filter = 'pre_set_theme_mod_' . $current['name'];
+		$observe = static function( $filtered ) use ( &$value ) {
+			$value = $filtered;
+			return $filtered;
+		};
+		add_filter( $filter, $observe, PHP_INT_MAX );
+		try {
+			do_action( 'customize_save', $wp_customize );
+			if ( false === $setting->save() ) {
+				throw new Frontman_Tool_Error( 'Customizer setting could not be saved. Read current state before retrying.' );
+			}
+			do_action( 'customize_save_after', $wp_customize );
+		} finally {
+			remove_filter( $filter, $observe, PHP_INT_MAX );
 		}
 		$mods  = get_theme_mods();
 		$after = $mods[ $current['name'] ] ?? null;

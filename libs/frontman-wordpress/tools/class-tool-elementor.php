@@ -349,14 +349,13 @@ class Frontman_Tool_Elementor {
 					continue;
 				}
 				$found = [];
-				$matched = preg_match( '/' . preg_quote( $search, '/' ) . '/iu', $value, $found, PREG_OFFSET_CAPTURE );
+				$matched = preg_match( '/.{0,40}' . preg_quote( $search, '/' ) . '.{0,40}/isu', $value, $found );
 				if ( false === $matched ) {
 					throw new Frontman_Tool_Error( 'Invalid UTF-8 in Elementor settings. Search is incomplete.' );
 				}
 				if ( 0 === $matched ) {
 					continue;
 				}
-				$position = $found[0][1];
 				$path = [ 'settings' ];
 				for ( $depth = 0; $depth <= $settings->getDepth(); ++$depth ) {
 					$path[] = $settings->getSubIterator( $depth )->key();
@@ -364,7 +363,7 @@ class Frontman_Tool_Elementor {
 				$matches[] = [
 					'element_id'   => $element['id'],
 					'setting_path' => $path,
-					'excerpt'      => wp_check_invalid_utf8( substr( $value, max( 0, $position - 40 ), strlen( $search ) + 80 ), true ),
+					'excerpt'      => $found[0],
 				];
 			}
 			if ( ! empty( $element['elements'] ) ) {
