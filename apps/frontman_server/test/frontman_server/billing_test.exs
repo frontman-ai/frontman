@@ -10,6 +10,22 @@ defmodule FrontmanServer.BillingTest do
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
   describe "start_checkout/3" do
+    test "allows checkout before the BYOK allowance is exhausted" do
+      use_billing_client_stub()
+      BillingClientStub.stub_start_checkout({:ok, %{"id" => "cs_pretrial"}})
+      scope = AccountsFixtures.user_scope_fixture()
+      assert Billing.allow_run?(scope)
+
+      assert {:ok, _} =
+               Billing.start_checkout(scope, :monthly, %{
+                 success_url: "https://frontman.test/success",
+                 cancel_url: "https://frontman.test/cancel"
+               })
+
+      assert_received {:start_checkout, _, nil, :monthly, _, [trial_eligible: true]}
+      assert %{pretrial_runs_remaining: 5} = Billing.status(scope)
+    end
+
     test "rejects a second checkout while the user has subscription access" do
       use_billing_client_stub()
 
@@ -149,7 +165,8 @@ defmodule FrontmanServer.BillingTest do
 
       assert %{
                status: "none",
-               access_allowed: false,
+               access_allowed: true,
+               pretrial_runs_remaining: 5,
                has_billing_customer: false,
                interval: nil,
                current_period_end: nil,
@@ -165,7 +182,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert %{
                status: "none",
-               access_allowed: false,
+               access_allowed: true,
                has_billing_customer: true
              } = Billing.status(scope)
     end
@@ -208,6 +225,35 @@ defmodule FrontmanServer.BillingTest do
       scope = scope_with_subscription_fixture("active")
 
       assert Billing.allow_access?(scope)
+    end
+  end
+
+  test "BYOK allowance is atomic, rollback-safe, account-wide, and unavailable to former subscribers" do
+    scope = AccountsFixtures.user_scope_fixture()
+
+    assert {:error, :aborted} =
+             Repo.transact(fn ->
+               assert :ok = Billing.consume_pretrial_run(scope)
+               {:error, :aborted}
+             end)
+
+    assert %{pretrial_runs_remaining: 5} = Billing.status(scope)
+
+    results =
+      Task.async_stream(1..12, fn _ -> Billing.consume_pretrial_run(scope) end)
+      |> Enum.map(fn {:ok, result} -> result end)
+
+    assert Enum.count(results, &(&1 == :ok)) == 5
+    assert Enum.count(results, &(&1 == {:error, :billing_inactive})) == 7
+    assert %{pretrial_runs_remaining: 0, access_allowed: false} = Billing.status(scope)
+    assert Billing.trial_eligible?(scope)
+    assert %{pretrial_runs_remaining: 5} = Billing.status(AccountsFixtures.user_scope_fixture())
+
+    for status <- ["canceled", "unpaid", "incomplete_expired"] do
+      former = scope_with_subscription_fixture(status)
+      refute Billing.allow_run?(former)
+      assert {:error, :billing_inactive} = Billing.consume_pretrial_run(former)
+      assert %{pretrial_runs_remaining: nil} = Billing.status(former)
     end
   end
 
@@ -275,7 +321,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert %{
                status: "none",
-               access_allowed: false,
+               access_allowed: true,
                has_billing_customer: true
              } = Billing.status(scope)
     end

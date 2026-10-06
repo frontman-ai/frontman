@@ -15,6 +15,25 @@ let activeStatus = parseStatus(`{
 }`)
 
 describe("Client__Billing", _t => {
+  test("BYOK allowance permits use without hiding checkout", t => {
+    [5, 0]->Array.forEach(
+      remaining => {
+        let status = parseStatus(
+          `{
+        "status": "none", "access_allowed": ${remaining > 0 ? "true" : "false"},
+        "pretrial_runs_remaining": ${Int.toString(remaining)}, "has_billing_customer": false,
+        "interval": null, "current_period_end": null, "trial_end": null, "cancel_at": null, "canceled_at": null
+      }`,
+        )
+        t->expect(Client__Billing.pretrialRunsRemaining(status))->Expect.toEqual(Some(remaining))
+        t->expect(Client__Billing.canStartCheckout(status))->Expect.toBe(true)
+        t->expect(Client__Billing.requiresBilling(Loaded(status)))->Expect.toBe(remaining === 0)
+      },
+    )
+    t->expect(Client__Billing.canStartCheckout(activeStatus))->Expect.toBe(false)
+    t->expect(Client__Billing.pretrialRunsRemaining(activeStatus))->Expect.toEqual(None)
+  })
+
   test("parses billing status wire payload", t => {
     let status = parseStatus(`{
       "status": "past_due",

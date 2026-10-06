@@ -536,16 +536,55 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp guard_billing_access(scope) do
-    case Billing.allow_access?(scope) do
+    case Billing.allow_run?(scope) do
       true -> :ok
       false -> {:error, :billing_inactive}
+    end
+  end
+
+  defp authorize_turn(scope, model) do
+    case Billing.allow_access?(scope) do
+      true ->
+        {:ok, false}
+
+      false ->
+        with :ok <- guard_billing_access(scope),
+             {:ok, _access} <- Providers.resolve_model_access(scope, model),
+             :ok <- Billing.consume_pretrial_run(scope) do
+          {:ok, true}
+        end
+    end
+  end
+
+  defp guard_turn_access(scope, history, turn_number) do
+    pretrial_run? =
+      Enum.any?(history.rows, fn
+        %InteractionSchema{
+          turn_number: ^turn_number,
+          data: %Interaction.TurnStarted{pretrial_run: true}
+        } ->
+          true
+
+        _row ->
+          false
+      end)
+
+    case {Billing.get_current_subscription(scope), pretrial_run?} do
+      {nil, true} ->
+        :ok
+
+      {subscription, _} ->
+        case Billing.Subscription.allow_access?(subscription) do
+          true -> :ok
+          false -> {:error, :billing_inactive}
+        end
     end
   end
 
   def billing_inactive_message(%Scope{} = scope) do
     case Billing.get_current_subscription(scope) do
       nil ->
-        "Finish billing setup to start using Frontman."
+        "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
 
       %Billing.Subscription{} ->
         "Your Frontman access has ended. Start a subscription to continue."
@@ -604,6 +643,11 @@ defmodule FrontmanServer.Tasks do
     case claim_next_turn(scope, task_id) do
       {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent, first_message}} ->
         broadcast_task(task_id, {:interaction, turn_started_row})
+
+        if turn_started_row.data.pretrial_run do
+          Billing.broadcast_status_changed(Accounts.scope_user_id(scope))
+        end
+
         enqueue_title_generation(scope, task_id, first_message, turn_model, turn_number)
         {:ok, task_schema, turn_number, turn_model, agent}
 
@@ -643,11 +687,16 @@ defmodule FrontmanServer.Tasks do
            end),
          user_message_ids = Enum.map(accepted_messages, & &1.id),
          {:ok, agent} <- Agents.get_agent(scope, agent_id),
+         {:ok, pretrial_run} <- authorize_turn(scope, turn_model),
          {:ok, turn_started_row} <-
            insert_interaction_row(task_schema, %{
              id: Ecto.UUID.generate(),
              type: :turn_started,
-             data: %{agent_id: agent.id, user_message_ids: user_message_ids},
+             data: %{
+               agent_id: agent.id,
+               user_message_ids: user_message_ids,
+               pretrial_run: pretrial_run
+             },
              turn_number: turn_number
            }),
          :ok <- insert_skill_used_rows(task_schema, accepted_messages, turn_number) do
@@ -941,11 +990,11 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Records a retry request and starts execution."
   def retry_execution(scope, task_id, retried_error_id, execution) do
-    with :ok <- guard_billing_access(scope),
-         {:ok, schema} <- get_task(scope, task_id),
+    with {:ok, schema} <- get_task(scope, task_id),
          {:ok, history} = load_history(task_id),
          {:ok, turn_number} <- retry_turn_number(history.rows, retried_error_id),
          :ok <- ensure_latest_retry_turn(retried_error_id, turn_number, history),
+         :ok <- guard_turn_access(scope, history, turn_number),
          {:ok, execution} <- ensure_execution_model(history, turn_number, execution),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          retry_attrs = %{retried_error_id: retried_error_id},
@@ -1008,10 +1057,10 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Resumes execution for the active turn."
   def resume_execution(scope, task_id, execution) do
-    with :ok <- guard_billing_access(scope),
-         {:ok, task} <- get_task(scope, task_id),
+    with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- load_history(task.id),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
+         :ok <- guard_turn_access(scope, history, turn_number),
          {:ok, agent} <- turn_agent(scope, history, turn_number),
          {:ok, execution} <- ensure_execution_model(history, turn_number, execution) do
       start_execution(scope, task, turn_number, agent, execution)

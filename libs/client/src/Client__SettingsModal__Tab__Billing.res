@@ -123,9 +123,20 @@ let make = () => {
             </div>
           | false => React.null
           }}
-          {switch Billing.isAccessAllowed(status) {
-          | true => React.null
-          | false =>
+          {switch Billing.pretrialRunsRemaining(status) {
+          | Some(remaining) =>
+            <p className="text-sm text-muted-foreground">
+              {React.string(
+                `${Int.toString(
+                    remaining,
+                  )} BYOK runs remaining before a Frontman trial is required. Start a 14-day trial below. Card required; AI usage stays with your own provider.`,
+              )}
+            </p>
+          | None => React.null
+          }}
+          {switch Billing.canStartCheckout(status) {
+          | false => React.null
+          | true =>
             <div className="divide-y">
               {Billing.checkoutOptions
               ->Array.map(option =>
@@ -151,7 +162,10 @@ let make = () => {
                   </div>
                   {renderButton(
                     ~request=Billing.checkoutOptionRequest(option),
-                    ~label=`Choose ${Billing.checkoutOptionTitle(option)}`,
+                    ~label=switch Billing.pretrialRunsRemaining(status) {
+                    | Some(_) => `Start trial — ${Billing.checkoutOptionTitle(option)}`
+                    | None => `Choose ${Billing.checkoutOptionTitle(option)}`
+                    },
                     ~disabled,
                     ~opening,
                     ~variant=switch Billing.checkoutOptionRecommended(option) {
