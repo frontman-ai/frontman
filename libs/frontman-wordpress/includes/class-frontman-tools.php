@@ -160,6 +160,10 @@ class Frontman_Tools {
 			return Frontman_Tool_Seo::validate_input( $name, $input );
 		}
 
+		if ( class_exists( 'Frontman_Tool_Public_Files' ) && in_array( $name, [ 'wp_read_public_file', 'wp_write_public_file' ], true ) ) {
+			return Frontman_Tool_Public_Files::validate_input( $name, $input );
+		}
+
 		if ( class_exists( 'Frontman_Tool_Posts' ) && in_array( $name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
 			Frontman_Tool_Posts::validate_author_input( $input );
 		}

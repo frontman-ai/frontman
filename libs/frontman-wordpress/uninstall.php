@@ -11,3 +11,6 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 
 delete_option( 'frontman_settings' );
 delete_option( 'frontman_php_diagnostics' );
+foreach ( [ 'robots.txt', 'llms.txt', 'llms-full.txt' ] as $name ) {
+	delete_option( 'frontman_public_file_previous_' . $name );
+}

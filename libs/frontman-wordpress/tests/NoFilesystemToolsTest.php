@@ -47,6 +47,7 @@ require_once __DIR__ . '/../tools/class-tool-options.php';
 require_once __DIR__ . '/../tools/class-tool-templates.php';
 require_once __DIR__ . '/../tools/class-tool-widgets.php';
 require_once __DIR__ . '/../tools/class-tool-cache.php';
+require_once __DIR__ . '/../tools/class-tool-public-files.php';
 
 class Frontman_No_Filesystem_Tools_Test_Runner {
 	private int $assertions = 0;
@@ -61,6 +62,7 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 		( new Frontman_Tool_Templates() )->register( $tools );
 		( new Frontman_Tool_Widgets() )->register( $tools );
 		( new Frontman_Tool_Cache() )->register( $tools );
+		( new Frontman_Tool_Public_Files() )->register( $tools );
 
 		$definitions = $tools->all_definitions();
 		$tool_names = array_column( $definitions, 'name' );
@@ -92,6 +94,8 @@ class Frontman_No_Filesystem_Tools_Test_Runner {
 			$access_by_name[ $definition['name'] ] = $definition['access'];
 		}
 
+		$this->assert_same( 'read', $access_by_name['wp_read_public_file'], 'narrow public read is exposed' );
+		$this->assert_same( 'read-write', $access_by_name['wp_write_public_file'], 'narrow public replacement is exposed' );
 		$this->assert_same( 'read', $access_by_name['wp_list_posts'], 'wp_list_posts access' );
 		$this->assert_same( 'write', $access_by_name['wp_create_post'], 'wp_create_post access' );
 		$this->assert_same( 'read-write', $access_by_name['wp_update_post'], 'wp_update_post access' );
