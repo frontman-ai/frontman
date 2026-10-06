@@ -90,6 +90,24 @@ Results confirm stored overrides, not rendered HTML or search-engine indexing. Y
 
 Explicit social overrides stay unchanged and can differ from the SEO title or description. Persistence errors report observed state or mark readback as uncertain. A successful result for one page does not establish success for other pages.
 
+== Public Text Files ==
+
+`wp_read_public_file` and `wp_write_public_file` support only `robots.txt`, `llms.txt`, and `llms-full.txt` at the site root. They do not expose theme, plugin, or arbitrary files. Each file supports at most 128 KiB of UTF-8 text.
+
+Reads show local content, a revision, and a separate public HTTP observation. Public output can come from WordPress, a host, or a CDN. Frontman cannot prove which system controls that output.
+
+Writes require administrator access, the `edit_files` capability, and host permission for file changes. Supported sites use a single-site, domain-root installation with matching home/site origins and a writable local filesystem. Multisite, subdirectory installations, symlinked roots, unsafe targets, and non-direct filesystem transports are not supported. Frontman does not change host security policies or request FTP credentials.
+
+Before each write, Frontman reads the current state and asks for approval of the proposed diff. A stale revision blocks the write. Revision checks are best-effort conflict detection, not a lock against external file writers.
+
+CAUTION: Before creating a physical `robots.txt`, review the loss of generated output. The physical file replaces generated rules and sitemap updates. Restoring generated output requires manual removal of the physical file in this version. An unavailable public observation blocks file creation. A successful public response that differs from an existing physical file blocks updates.
+
+Frontman stores one previous snapshot per filename in WordPress options, outside the public root. Reads expose that snapshot. To restore previous physical content, read the current revision and approve a write through the same tool. Files and snapshots remain after plugin deactivation.
+
+Write results distinguish `saved` from `verified`. A saved file is not necessarily the file that visitors receive. Public timeouts, unexpected status codes, size limits, or content differences mean verification failed. Frontman reports the reason without automatic retries or rollback. An existing physical file can be updated when public observation is unavailable, with an explicit warning. These tools do not guarantee crawler behavior.
+
+During a user-requested task, local content, public observations, and previous snapshots can enter AI request context and stored task history. Do not put secrets in these public files.
+
 == Safety, Limits, and Data ==
 
 Only WordPress administrators with the `manage_options` capability can access Frontman. The plugin uses WordPress nonces, sanitizes inputs, and restricts option changes to an allowlist.

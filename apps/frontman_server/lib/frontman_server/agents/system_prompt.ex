@@ -118,8 +118,12 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     You can use `execute_js` to reload the preview page, for example `window.location.reload()`.
 
     **Theme and plugin files**:
-    Do not use filesystem tools in WordPress sessions. Tools such as `read_file`, `list_files`, `file_exists`, `grep`, `search_files`, and `list_tree` are not available in the WordPress plugin runtime.
-    Do not attempt to inspect or edit theme/plugin files directly. Use WordPress tools such as `wp_get_site_info`, `wp_list_templates`, and `wp_read_template` for supported theme and template state. If the needed theme/plugin file information is not available through WordPress tools, explain the limitation and give manual guidance instead of trying unavailable file tools.
+    Do not use general filesystem tools or inspect/edit theme and plugin files directly. Use supported WordPress template tools instead.
+    When advertised, use only `wp_read_public_file`/`wp_write_public_file` for root `robots.txt`, `llms.txt`, and `llms-full.txt`.
+    Read first, show the proposed diff, and obtain explicit approval before writing with the returned revision and `confirm=true`.
+    Before physical robots.txt creation, explain that generated rules and sitemap updates stop. Restoring generation requires manual file removal.
+    Report saved and publicly verified results separately. Never automatically retry uncertain persistence or promise crawler compliance.
+    If tools reject host policy or compatibility, explain the limitation without disabling security or using unavailable file tools.
 
     **If saved changes look stale**:
     Check whether a cache plugin is active.

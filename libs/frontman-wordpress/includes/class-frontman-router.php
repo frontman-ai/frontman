@@ -268,7 +268,7 @@ class Frontman_Router {
 			$raw  = wp_check_invalid_utf8( $raw, true );
 			$data = json_decode( $raw, true );
 			if ( is_array( $data ) && isset( $data['name'] ) && is_string( $data['name'] )
-				&& in_array( sanitize_key( $data['name'] ), [ 'wp_read_seo', 'wp_update_seo' ], true ) ) {
+				&& in_array( sanitize_key( $data['name'] ), [ 'wp_read_seo', 'wp_update_seo', 'wp_read_public_file', 'wp_write_public_file' ], true ) ) {
 				return [];
 			}
 		}

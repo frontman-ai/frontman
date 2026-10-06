@@ -192,6 +192,71 @@ $slug_call = static function ( string $name, array $arguments ) use ( $cookie, $
 	}
 	return $data;
 };
+$public_mu = WPMU_PLUGIN_DIR . '/frontman-public-runtime.php';
+frontman_runtime_assert( ! file_exists( $public_mu ), 'Public runtime seam already exists.' );
+file_put_contents( $public_mu, <<<'PHP'
+<?php
+add_filter( 'pre_http_request', static function ( $pre, $args, $url ) {
+	if ( ! in_array( $url, array_map( static fn( $name ) => home_url( '/' . $name ), [ 'robots.txt', 'llms.txt', 'llms-full.txt' ] ), true ) ) { return $pre; }
+	$fault = get_option( 'frontman_public_runtime_fault', '' );
+	if ( 'timeout' === $fault ) { return new WP_Error( 'timeout', 'Public test timeout' ); }
+	$body = file_get_contents( 'http://127.0.0.1/' . basename( $url ), false, stream_context_create( [ 'http' => [ 'ignore_errors' => true, 'follow_location' => 0, 'header' => 'Host: frontman-runtime.example.test' ] ] ) );
+	preg_match( '/\s(\d{3})\s/', $http_response_header[0], $status );
+	return [ 'response' => [ 'code' => (int) $status[1] ], 'body' => 'mismatch' === $fault ? 'Upstream output' : $body, 'headers' => [], 'cookies' => [] ];
+}, 10, 3 );
+PHP
+);
+$public_originals = [];
+$public_options = [];
+$public_htaccess = file_exists( ABSPATH . '.htaccess' ) ? file_get_contents( ABSPATH . '.htaccess' ) : null;
+$public_call = static function ( string $name, array $arguments ) use ( $cookie, $slug_nonce ): array {
+	$response = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $name, 'arguments' => $arguments ] );
+	frontman_runtime_assert( 200 === $response['status'] && false === $response['body']['isError'], 'Public tool failed: ' . wp_json_encode( $response ) );
+	return json_decode( $response['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+};
+try {
+	file_put_contents( ABSPATH . '.htaccess', "RewriteEngine On\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteRule ^robots\\.txt$ index.php?robots=1 [L]\n" . ( $public_htaccess ?? '' ) );
+	foreach ( [ 'robots.txt', 'llms.txt', 'llms-full.txt' ] as $name ) {
+		$path = ABSPATH . $name;
+		$public_originals[ $name ] = file_exists( $path ) ? file_get_contents( $path ) : null;
+		$public_options[ $name ] = get_option( 'frontman_public_file_previous_' . $name, null );
+		if ( file_exists( $path ) ) { unlink( $path ); }
+	}
+	foreach ( [ [ 'llms.txt', "  # Café\r\n[Docs](https://example.test/?a=1&b=2)\r\n", '' ], [ 'robots.txt', "User-agent: *\nDisallow: /private/\n", '' ], [ 'robots.txt', "User-agent: *\nAllow: /\n", '' ], [ 'robots.txt', "User-agent: *\nDisallow: /timeout/\n", 'timeout' ], [ 'llms-full.txt', "# Full documentation\n", 'mismatch' ] ] as [ $name, $text, $fault ] ) {
+		update_option( 'frontman_public_runtime_fault', $fault );
+		$before = $public_call( 'wp_read_public_file', [ 'name' => $name ] );
+		if ( 'robots.txt' === $name && ! $before['exists'] ) { frontman_runtime_assert( 200 === $before['public']['status'] && null !== $before['warning'], 'Generated robots takeover was not explained.' ); }
+		$arguments = [ 'name' => $name, 'content' => $text, 'expected_revision' => $before['revision'], 'confirm' => true ];
+		$saved = $public_call( 'wp_write_public_file', $arguments );
+		frontman_runtime_assert( true === $saved['saved'] && ( '' === $fault ) === $saved['verified'] && $text === file_get_contents( ABSPATH . $name ), 'Saved/verified or literal persistence incorrect.' );
+		frontman_runtime_assert( [ 'exists' => $before['exists'], 'content' => $before['content'] ] === $public_call( 'wp_read_public_file', [ 'name' => $name ] )['previous'], 'Runtime previous snapshot differs.' );
+		frontman_runtime_assert( $text === frontman_runtime_http( 'GET', '/' . $name )['body'], 'Literal public response differs.' );
+	}
+	foreach ( [ 'wp_read_public_file', 'wp_write_public_file' ] as $tool ) {
+		$request = [ 'name' => $tool, 'arguments' => $arguments ];
+		frontman_runtime_assert( 401 === frontman_runtime_tool( '', null, $request )['status'] && 403 === frontman_runtime_tool( $cookie, 'invalid', $request )['status'], 'Public tools bypassed authentication/nonce.' );
+		$raw = '{"name":"' . $tool . '","arguments":{"name":"llms.txt","content":"bad' . "\xC3\x28" . '"}}';
+		frontman_runtime_assert( true === frontman_runtime_tool( $cookie, $slug_nonce, [], $raw )['body']['isError'], 'Malformed public JSON was accepted.' );
+	}
+	deactivate_plugins( $plugin );
+	foreach ( [ 'llms.txt', 'robots.txt', 'llms-full.txt' ] as $name ) {
+		frontman_runtime_assert( file_get_contents( ABSPATH . $name ) === frontman_runtime_http( 'GET', '/' . $name )['body'], 'Deactivation lost public persisted output.' );
+	}
+	fwrite( STDOUT, "Public file authenticated HTTP, physical takeover, verification and deactivation passed.\n" );
+} finally {
+	frontman_runtime_assert( ! is_wp_error( activate_plugin( $plugin ) ), 'Could not reactivate Frontman after persistence test.' );
+	foreach ( $public_originals as $name => $text ) {
+		if ( file_exists( ABSPATH . $name ) ) { unlink( ABSPATH . $name ); }
+		if ( null !== $text ) { file_put_contents( ABSPATH . $name, $text ); }
+		$key = 'frontman_public_file_previous_' . $name;
+		wp_cache_delete( $key, 'options' );
+		wp_cache_delete( 'notoptions', 'options' );
+		if ( null === $public_options[ $name ] ) { delete_option( $key ); } else { update_option( $key, $public_options[ $name ], false ); }
+	}
+	delete_option( 'frontman_public_runtime_fault' );
+	if ( null === $public_htaccess ) { unlink( ABSPATH . '.htaccess' ); } else { file_put_contents( ABSPATH . '.htaccess', $public_htaccess ); }
+	unlink( $public_mu );
+}
 $slug_fixture = [ 'title' => 'Runtime Slug Fixture', 'content' => 'Unchanged content', 'status' => 'draft', 'slug' => 'sample-delivery-guide' ];
 $slug_created = $slug_call( 'wp_create_post', $slug_fixture );
 $slug_id = $slug_created['id'];
