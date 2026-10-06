@@ -349,7 +349,7 @@ defmodule FrontmanServer.Tasks do
        ) do
     {reason_str, category, retryable} = ErrorClassifier.classify_error(reason)
 
-    with {:ok, _} <-
+    with {:ok, %Interaction.AgentError{}} <-
            record_execution_outcome(
              scope,
              task_id,
@@ -367,13 +367,16 @@ defmodule FrontmanServer.Tasks do
          turn_number,
          {:crashed, %{message: message}}
        ) do
-    Sentry.capture_message("Agent execution crashed",
-      level: :error,
-      tags: %{error_type: "agent_crash"},
-      extra: %{task_id: task_id, reason: inspect(message)}
-    )
+    with {:ok, %Interaction.AgentError{} = outcome} <-
+           record_execution_outcome(scope, task_id, turn_number, {:crashed, message}) do
+      Sentry.capture_message("Agent execution crashed",
+        level: :error,
+        tags: %{error_type: "agent_crash"},
+        extra: %{task_id: task_id, reason: inspect(message)}
+      )
 
-    record_execution_outcome(scope, task_id, turn_number, {:crashed, message})
+      {:ok, outcome}
+    end
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {kind, _})
