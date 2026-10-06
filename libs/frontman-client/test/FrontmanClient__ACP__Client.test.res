@@ -389,12 +389,16 @@ describe("ACP Protocol sendRequest", _t => {
   testAsync("oversized UTF-8 prompts never register or push, including retries", async t => {
     let channel = %raw(`({topic: "task:fixture", canPush() { return true; }, push() { throw new Error("must not push"); }})`)
     let state = ref(initializedState)
+    let text = String.repeat("😀", 2_000_000)
+    t
+    ->expect(Protocol.validatePrompt(~text, ~additionalBlocks=[], ~_meta=None))
+    ->Expect.toEqual(Error(Protocol.promptSizeError))
     for _ in 1 to 2 {
       let result = await Protocol.sendRequest(
         ~channel,
         ~state,
         ~method=#"session/prompt",
-        ~params=Some(JSON.Encode.string(String.repeat("😀", 2_000_000))),
+        ~params=Some(JSON.Encode.string(text)),
         ~parseResult=_ => Ok(),
       )
       t

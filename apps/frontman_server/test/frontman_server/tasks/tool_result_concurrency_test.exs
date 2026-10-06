@@ -124,7 +124,9 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
     end)
   end
 
-  test "an answer concurrent with cancellation cleanup preserves one result and a closed turn" do
+  test "an answer racing cancellation ignores late failures without reporting or corrupting history" do
+    Sentry.Test.setup_sentry(dedup_events: false)
+
     Sandbox.unboxed_run(Repo, fn ->
       scope = user_scope_fixture()
 
@@ -155,10 +157,22 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
             end)
           end)
 
-        assert_receive {:ready, _}, 1_000
-        assert_receive {:ready, _}, 1_000
+        Enum.each(tasks, fn _ -> assert_receive {:ready, _}, 1_000 end)
         Enum.each(tasks, &send(&1.pid, :go))
         assert [:ok, {:ok, winner, :no_executor}] = Enum.map(tasks, &Task.await(&1, 1_000))
+
+        log =
+          ExUnit.CaptureLog.capture_log(fn ->
+            for event <- [
+                  {:failed, :llm_api_failure},
+                  {:crashed, %{message: "late shutdown crash"}}
+                ] do
+              assert :ok = Tasks.handle_swarm_event(scope, task_id, turn_number, event)
+            end
+          end)
+
+        assert log == ""
+        assert Sentry.Test.pop_sentry_reports() == []
 
         assert {:ok, ^winner, :no_executor} =
                  Tasks.resolve_tool_request(scope, task_id, call, MCP.tool_result_text("late"))
@@ -167,6 +181,9 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
                  Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
 
         {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+
+        assert [%Interaction.AgentError{kind: "cancelled"}] =
+                 Enum.filter(Tasks.interactions(task), &match?(%Interaction.AgentError{}, &1))
 
         assert [^winner] =
                  Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))

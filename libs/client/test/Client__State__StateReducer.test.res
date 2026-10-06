@@ -1893,7 +1893,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
   })
 
   test(
-    "submission validates before and after creation, locks the draft and rejects stale completion",
+    "session creation revalidates the model, locks the draft and rejects stale completion",
     t => {
       setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
       let created = ref(0)
@@ -1943,9 +1943,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
           AddUserMessage({content, annotationId: None, onComplete: value => result := Some(value)}),
         )
       let text = [UserContentPart.text("draft")]
-      submit([UserContentPart.text("x"->String.repeat(8_000_000))])
-      t->expect(created.contents)->Expect.toBe(0)
-      t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
       submit(text)
       let creating = store->StateStore.getState
       let draft = Reducer.Selectors.currentTask(creating)
@@ -1976,18 +1973,13 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect(store->StateStore.getState->Reducer.Selectors.currentTask)->Expect.toEqual(draft)
       submit(text)
       t->expect(created.contents)->Expect.toBe(1)
-      store->StateStore.dispatch(
-        TaskAction({
-          target: CurrentTask,
-          action: SetPreviewUrl({url: "https://example.com/" ++ "x"->String.repeat(3_000_000)}),
-        }),
-      )
+      configOptions := Some(TestHelpers.modelConfigOptions(~models=[]))
+      result := None
       (completion.contents->Option.getOrThrow)()
-      t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
+      t->expect(result.contents)->Expect.toEqual(Some(Error("Select a model before sending.")))
       t->expect(store->StateStore.getState->Reducer.Selectors.isNewTask)->Expect.toBe(true)
-      store->StateStore.dispatch(
-        TaskAction({target: CurrentTask, action: SetPreviewUrl({url: "https://example.com/"})}),
-      )
+      configOptions := None
+      store->StateStore.dispatch(SetSelectedModelValue({value: "test:model"}))
       store->StateStore.dispatch(ClearCurrentTask)
       submit(text)
       let staleCompletion = completion.contents->Option.getOrThrow

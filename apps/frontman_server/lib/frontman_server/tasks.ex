@@ -314,12 +314,12 @@ defmodule FrontmanServer.Tasks do
       when is_binary(task_id) and is_integer(turn_number) and turn_number > 0 do
     SentryContext.set_task_scope_context(scope, task_id)
 
-    with :ok <- persist_swarm_event(scope, task_id, turn_number, event) do
+    with {:ok, _} <- persist_swarm_event(scope, task_id, turn_number, event) do
       broadcast_swarm_event(task_id, turn_number, event)
     end
   end
 
-  defp persist_swarm_event(nil, _task_id, _turn_number, _event), do: :ok
+  defp persist_swarm_event(nil, _task_id, _turn_number, _event), do: {:ok, nil}
 
   defp persist_swarm_event(
          %Scope{} = scope,
@@ -332,15 +332,13 @@ defmodule FrontmanServer.Tasks do
       |> Interaction.AgentResponse.attrs_from_llm_response()
       |> Map.put(:timestamp, metadata.timestamp)
 
-    with {:ok, task_schema} <- get_task(scope, task_id),
-         {:ok, _interaction} <-
-           record_interaction(task_schema, :agent_response, attrs, turn_number) do
-      :ok
+    with {:ok, task_schema} <- get_task(scope, task_id) do
+      record_interaction(task_schema, :agent_response, attrs, turn_number)
     end
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, :completed) do
-    persist_execution_outcome(scope, task_id, turn_number, :completed)
+    record_execution_outcome(scope, task_id, turn_number, :completed)
   end
 
   defp persist_swarm_event(
@@ -351,14 +349,15 @@ defmodule FrontmanServer.Tasks do
        ) do
     {reason_str, category, retryable} = ErrorClassifier.classify_error(reason)
 
-    with :ok <-
-           persist_execution_outcome(
+    with {:ok, %Interaction.AgentError{}} <-
+           record_execution_outcome(
              scope,
              task_id,
              turn_number,
              {:failed, reason_str, retryable, category}
            ) do
       report_agent_execution_failure(task_id, reason_str, category, retryable)
+      {:ok, nil}
     end
   end
 
@@ -368,34 +367,25 @@ defmodule FrontmanServer.Tasks do
          turn_number,
          {:crashed, %{message: message}}
        ) do
-    Sentry.capture_message("Agent execution crashed",
-      level: :error,
-      tags: %{error_type: "agent_crash"},
-      extra: %{task_id: task_id, reason: inspect(message)}
-    )
+    with {:ok, %Interaction.AgentError{} = outcome} <-
+           record_execution_outcome(scope, task_id, turn_number, {:crashed, message}) do
+      Sentry.capture_message("Agent execution crashed",
+        level: :error,
+        tags: %{error_type: "agent_crash"},
+        extra: %{task_id: task_id, reason: inspect(message)}
+      )
 
-    persist_execution_outcome(scope, task_id, turn_number, {:crashed, message})
+      {:ok, outcome}
+    end
   end
 
   defp persist_swarm_event(%Scope{} = scope, task_id, turn_number, {kind, _})
        when kind in [:cancelled, :terminated] do
-    Repo.transact(fn ->
-      case get_task_by_id_for_update(scope, task_id) do
-        %TaskSchema{} = task -> interrupt_turn(task, turn_number, kind)
-        nil -> {:error, :not_found}
-      end
-    end)
-    |> publish_interruption(task_id)
+    record_execution_outcome(scope, task_id, turn_number, kind)
   end
 
-  defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:chunk, _, _}), do: :ok
-  defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:tool_call, _}), do: :ok
-
-  defp persist_execution_outcome(scope, task_id, turn_number, outcome) do
-    with {:ok, _interaction} <- record_execution_outcome(scope, task_id, turn_number, outcome) do
-      :ok
-    end
-  end
+  defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:chunk, _, _}), do: {:ok, nil}
+  defp persist_swarm_event(%Scope{}, _task_id, _turn_number, {:tool_call, _}), do: {:ok, nil}
 
   defp report_agent_execution_failure(task_id, reason_str, category, true)
        when category in ["overload", "rate_limit"] do
@@ -418,59 +408,51 @@ defmodule FrontmanServer.Tasks do
 
   defp broadcast_swarm_event(_task_id, _turn_number, _event), do: :ok
 
-  defp interrupt_turn(task, turn_number, kind) do
-    {:ok, history} = load_history(task.id)
+  defp finish_turn(task, history, turn_number, kind) when kind in [:cancelled, :terminated] do
+    {preserved, interrupted} =
+      history.rows
+      |> History.unresolved_tool_calls(turn_number)
+      |> Enum.split_with(&(kind == :terminated and keeps_turn_open_after_restart?(&1)))
 
-    case History.active_turn_number(history) do
-      ^turn_number when is_integer(turn_number) ->
-        {preserved, interrupted} =
-          history.rows
-          |> History.unresolved_tool_calls(turn_number)
-          |> Enum.split_with(&(kind == :terminated and keeps_turn_open_after_restart?(&1)))
+    reason =
+      case kind do
+        :cancelled -> "Interrupted by user"
+        :terminated -> "Interrupted by restart"
+      end
 
-        reason =
-          case kind do
-            :cancelled -> "Interrupted by user"
-            :terminated -> "Interrupted by restart"
-          end
+    results =
+      Enum.map(interrupted, fn {call, _dispatch} ->
+        {:ok, {row, true}} =
+          store_tool_result(task, turn_number, call, MCP.tool_result_error(reason))
 
-        results =
-          Enum.map(interrupted, fn {call, _dispatch} ->
-            {:ok, {row, true}} =
-              store_tool_result(
-                task,
-                turn_number,
-                call,
-                MCP.tool_result_error(reason)
-              )
+        row
+      end)
 
-            row
-          end)
-
-        case preserved do
-          [] ->
-            {type, attrs} = build_execution_outcome(kind)
-
-            {:ok, terminal} =
-              insert_interaction_row(task, %{
-                id: Ecto.UUID.generate(),
-                type: type,
-                data: attrs,
-                turn_number: turn_number
-              })
-
-            {:ok, results ++ [terminal]}
-
-          [_ | _] ->
-            {:ok, results}
+    case preserved do
+      [] ->
+        with {:ok, terminal} <-
+               finish_turn(task, history, turn_number, build_execution_outcome(kind)) do
+          {:ok, results ++ terminal}
         end
 
-      _inactive ->
-        {:ok, []}
+      [_ | _] ->
+        {:ok, results}
     end
   end
 
-  defp publish_interruption({:ok, rows}, task_id) do
+  defp finish_turn(task, _history, turn_number, {type, attrs}) do
+    with {:ok, row} <-
+           insert_interaction_row(task, %{
+             id: Ecto.UUID.generate(),
+             type: type,
+             data: attrs,
+             turn_number: turn_number
+           }) do
+      {:ok, [row]}
+    end
+  end
+
+  defp publish_outcome({:ok, rows}, task_id) do
     Enum.each(rows, fn row ->
       broadcast_task(task_id, {:interaction, row})
 
@@ -480,10 +462,10 @@ defmodule FrontmanServer.Tasks do
       end
     end)
 
-    :ok
+    {:ok, Enum.find_value(Enum.reverse(rows), & &1.data)}
   end
 
-  defp publish_interruption({:error, reason}, _task_id), do: {:error, reason}
+  defp publish_outcome({:error, reason}, _task_id), do: {:error, reason}
 
   defp keeps_turn_open_after_restart?({_tool_call, nil}), do: false
 
@@ -758,36 +740,40 @@ defmodule FrontmanServer.Tasks do
   end
 
   @doc "Records how the given execution ended."
-  def record_execution_outcome(scope, task_id, turn_number, outcome)
+  def record_execution_outcome(%Scope{} = scope, task_id, turn_number, outcome)
       when is_integer(turn_number) and turn_number > 0 do
-    with {:ok, task_schema} <- get_task(scope, task_id) do
-      {type, attrs} = build_execution_outcome(outcome)
+    outcome =
+      case outcome do
+        kind when kind in [:cancelled, :terminated] -> kind
+        other -> build_execution_outcome(other)
+      end
 
-      record_interaction(task_schema, type, attrs, turn_number)
-    end
+    Repo.transact(fn ->
+      with %TaskSchema{} = task <- get_task_by_id_for_update(scope, task_id),
+           {:ok, history} <- load_history(task_id),
+           {:ok, _turn} <- History.turn(history, turn_number),
+           true <- History.active_turn_number(history) == turn_number do
+        finish_turn(task, history, turn_number, outcome)
+      else
+        nil -> {:error, :not_found}
+        false -> {:ok, []}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
+    |> publish_outcome(task_id)
   end
 
-  defp build_execution_outcome(outcome) do
-    case outcome do
-      :completed ->
-        {:agent_completed, %{result: nil}}
+  defp build_execution_outcome(:completed), do: {:agent_completed, %{result: nil}}
+  defp build_execution_outcome(:cancelled), do: turn_error("Cancelled", "cancelled")
 
-      :cancelled ->
-        turn_error("Cancelled", "cancelled")
+  defp build_execution_outcome(:terminated),
+    do: turn_error("Terminated by supervisor", "terminated")
 
-      :terminated ->
-        turn_error("Terminated by supervisor", "terminated")
+  defp build_execution_outcome({:failed, error}), do: turn_error(error)
+  defp build_execution_outcome({:crashed, error}), do: turn_error(error, "crashed")
 
-      {:failed, error} ->
-        turn_error(error)
-
-      {:failed, error, retry, category} ->
-        turn_error(error, "failed", retry, category)
-
-      {:crashed, error} ->
-        turn_error(error, "crashed")
-    end
-  end
+  defp build_execution_outcome({:failed, error, retry, category}),
+    do: turn_error(error, "failed", retry, category)
 
   defp turn_error(error, kind \\ "failed", retryable \\ false, category \\ "unknown") do
     {:agent_error,

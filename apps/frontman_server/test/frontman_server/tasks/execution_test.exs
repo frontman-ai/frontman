@@ -32,6 +32,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   import FrontmanServer.Test.Fixtures.Tools,
     only: [mcp_tool: 1, mcp_tool: 2, question_args: 0, question_mcp_tool_defs: 0, todo_args: 0]
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Protocols
   alias FrontmanServer.Repo
@@ -1140,11 +1141,26 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   describe "interactive waits and serial recovery" do
-    setup [:setup_sandbox, :setup_user]
-
-    test "shutdown preserves approval, interrupts the undispatched write, and resumes the same turn",
-         %{scope: scope} do
+    test "application shutdown preserves approval, interrupts the write, and resumes the same turn",
+         context do
+      Process.flag(:trap_exit, true)
+      Sandbox.mode(Repo, :auto)
+      %{scope: scope} = setup_user(context)
       task_id = task_with_pubsub_fixture(scope, framework: "wordpress").id
+
+      on_exit(fn ->
+        {:ok, _} = Application.ensure_all_started(:frontman_server)
+
+        Sandbox.unboxed_run(Repo, fn ->
+          all_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
+          |> Enum.each(&Repo.delete!/1)
+
+          Repo.delete!(Scope.user(scope))
+        end)
+
+        Sandbox.mode(Repo, :manual)
+      end)
+
       approval = tool_call("approval", %{}, id: "approval_serial")
       write = tool_call("write_file", %{}, id: "write_serial")
 
@@ -1179,14 +1195,16 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       refute Enum.any?(Tasks.interactions(waiting), &match?(%Interaction.AgentPaused{}, &1))
 
       assert_active_count(0)
-      [{worker, _}] = SwarmAi.Runtime.Registry.lookup(FrontmanServer.AgentRuntime, task_id)
-      assert Process.alive?(worker)
+      assert SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
 
-      assert :ok =
-               DynamicSupervisor.terminate_child(
-                 SwarmAi.Runtime.execution_supervisor_name(FrontmanServer.AgentRuntime),
-                 worker
-               )
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert :ok = Application.stop(:frontman_server)
+        end)
+
+      refute log =~ "unknown registry"
+      {:ok, _} = Application.ensure_all_started(:frontman_server)
+      :ok = Phoenix.PubSub.subscribe(FrontmanServer.PubSub, "task:#{task_id}")
 
       assert_receive_interaction(
         %Interaction.ToolResult{tool_name: "write_file", is_error: true},
