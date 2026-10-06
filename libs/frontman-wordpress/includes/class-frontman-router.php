@@ -272,6 +272,18 @@ class Frontman_Router {
 				return [];
 			}
 		}
+		if ( is_array( $data ) && in_array( sanitize_key( $data['name'] ?? '' ), [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+			$typed = json_decode( $raw );
+			foreach ( [ 'arguments', 'input' ] as $key ) {
+				if ( isset( $typed->$key ) && is_object( $typed->$key ) && isset( $data[ $key ] ) && is_array( $data[ $key ] ) ) {
+					foreach ( [ 'categories', 'tags' ] as $field ) {
+						if ( property_exists( $typed->$key, $field ) ) {
+							$data[ $key ][ $field ] = $typed->$key->$field;
+						}
+					}
+				}
+			}
+		}
 		return is_array( $data ) ? $this->sanitize_json_body( $data ) : [];
 	}
 

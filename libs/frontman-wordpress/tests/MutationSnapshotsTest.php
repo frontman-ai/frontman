@@ -25,6 +25,8 @@ function current_user_can( string $capability, ...$args ): bool {
 	return true;
 }
 
+function is_object_in_taxonomy( string $type, string $taxonomy ): bool { return false; }
+
 function get_post_type_object( string $type ) {
 	return (object) [ 'cap' => (object) [ 'create_posts' => 'edit_posts', 'publish_posts' => 'publish_posts', 'edit_others_posts' => 'edit_others_posts' ] ];
 }
