@@ -1,5 +1,30 @@
 # @frontman-ai/frontman-client
 
+## 4.0.3
+
+### Patch Changes
+
+- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject prompts that exceed the 8 MB WebSocket message limit without clearing the draft. Count text, images, annotations, metadata, and transport overhead together. Reject PDF and document attachments with instructions to paste text or use images; keep historical attachments and explicitly state that their contents were not read.
+
+  The server rejects invalid text and context fields before it stores prompts. Image-only prompts remain supported.
+
+  The client uses one state store for tasks and connection state. Session creation locks the draft. Switching conversations cancels submission without sending the draft to another conversation.
+
+  Active sessions send directly from the state reducer, without callback forwarding. Task loading preserves history order and ignores stale results. Annotation execution uses the same submission action.
+
+  The transport budget is 8,000,000 UTF-8 JSON bytes. Draft validation reserves 4 KiB for UUID session IDs/topics, numeric request IDs, and JSON-RPC/Phoenix framing (under 256 bytes). The final check includes the actual topic and reserves 16 digits for each Phoenix reference. Bandit enforces 8,000,014 bytes per frame, including its maximum 14-byte header, and 8,000,000 bytes per fragmented message. The fragmented limit is configured on Bandit because Phoenix socket options do not accept it.
+
+- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore the ACP handshake after a connection loss before new conversations start. Reject interrupted requests without replay and show connection readiness during recovery.
+
+- [#1783](https://github.com/frontman-ai/frontman/pull/1783) [`c36cc2b`](https://github.com/frontman-ai/frontman/commit/c36cc2bbc9536bc3898cb9ad5375a8c6006c71f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep connection configuration across failures and disposal. Expose ready connections only after ACP and relay initialization both succeed, and clean up partial connections when startup fails or is cancelled. Update checks now wait for both connections to be ready.
+
+  React consumers now use connection reducer state and dispatch directly instead of separate state fields and dispatch-only wrappers. Update checks derive the API base URL from the reducer configuration, as logout already does. Consumers outside the provider fail explicitly instead of receiving placeholder state and inactive actions. Accepted ACP updates now use application reducer actions and buffering effects instead of provider callbacks.
+
+  Session errors no longer clear healthy transport bindings or billing state. Failed conversations show a retry action. Outdated session callbacks, configuration, history, and task-list results cannot overwrite current state, including during overlapping requests for the same task.
+
+- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reuse the existing authorized session after a failed creation attempt. Preserve pending session creation when another conversation is deleted.
+  Keep Phoenix retries active after a reconnect join timeout. Full conversation recovery after a disconnect remains unchanged.
+
 ## 4.0.2
 
 ### Patch Changes

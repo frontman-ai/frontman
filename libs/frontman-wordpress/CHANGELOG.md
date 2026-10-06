@@ -1,5 +1,25 @@
 # @frontman-ai/frontman-wordpress
 
+## 5.3.0
+
+### Minor Changes
+
+- [#1804](https://github.com/frontman-ai/frontman/pull/1804) [`8d3ae14`](https://github.com/frontman-ai/frontman/commit/8d3ae145e2e320c671b618703d2dc8882c67edda) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add guarded read and write tools for root robots.txt, llms.txt, and llms-full.txt on supported WordPress installations. Require an inspected revision and explicit approval before writes, retain one previous snapshot, and report local persistence separately from public verification. Physical robots.txt creation replaces generated rules and sitemap updates.
+
+- [#1805](https://github.com/frontman-ai/frontman/pull/1805) [`9d206e5`](https://github.com/frontman-ai/frontman/commit/9d206e533338853ab05fa47a3afdb58ce409b482) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Read post categories and tags with term IDs, names, and slugs. Create and update posts with existing category and tag IDs, with validation before writes and explicit partial-write errors. Empty tags clear assignments; empty categories follow WordPress default-category rules.
+
+- [#1820](https://github.com/frontman-ai/frontman/pull/1820) [`09d3dac`](https://github.com/frontman-ai/frontman/commit/09d3dac0ff64fdf5c270afcc41a47b7d88d18917) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add theme-mod updates through the registered Customizer setting's permissions, validation, sanitization, and save API. Extend Elementor page discovery with paginated text search across stored settings, including shared templates and nested repeater fields.
+
+### Patch Changes
+
+- [#1778](https://github.com/frontman-ai/frontman/pull/1778) [`37a46ea`](https://github.com/frontman-ai/frontman/commit/37a46ea789bb2019c99fcb7d48fad716800a6913) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow read-only access to the privacy policy page setting and comment registration/name-email requirements. Advertise supported option names in tool schemas while preserving existing write permissions.
+
+- [#1806](https://github.com/frontman-ai/frontman/pull/1806) [`888b7aa`](https://github.com/frontman-ai/frontman/commit/888b7aaa94c1d051e3d19e497f933010a3e43aac) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update plugin production-readiness wording while retaining backup, review, and staging guidance.
+
+- [#1800](https://github.com/frontman-ai/frontman/pull/1800) [`0251bda`](https://github.com/frontman-ai/frontman/commit/0251bda2c9518e9368558b71e908e0a858ed76d6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain unavailable SEO tools through `wp_get_site_info` and use the same compatibility reason for registration and direct calls. Match the tool schemas to the existing positive-ID and update-field requirements.
+
+  Support Yoast SEO Free 19.9 on the tested WordPress 6.9.9 / PHP 8.2 combination through the existing adapter. Retain Yoast 28.4 coverage, edit permissions, sanitizers, and stored readbacks. Extend runtime checks to cover later rendered titles, descriptions, Open Graph tags, and WebPage schema. Preserve explicit social overrides. Mutation results confirm stored overrides, not complete rendered output or success on other pages.
+
 ## 5.2.0
 
 ### Minor Changes

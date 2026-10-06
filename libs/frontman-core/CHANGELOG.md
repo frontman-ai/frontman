@@ -1,5 +1,12 @@
 # @frontman-ai/frontman-core
 
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [[`597b1e8`](https://github.com/frontman-ai/frontman/commit/597b1e8d82ab4cf53ec584af93b668bfe1ccbc67)]:
+  - @frontman/bindings@0.3.3
+
 ## 2.0.2
 
 ### Patch Changes
