@@ -826,7 +826,7 @@ import backgroundPattern from '../../../assets/pattern.svg'
 			</p>
 			<div class="hero__cta">
 				<Button size="lg" style="primary" link="/signup">
-					Get Started Free
+					Start Trial
 				</Button>
 				<Button size="lg" style="secondary" variation="outline" link="/demo">
 					Watch Demo

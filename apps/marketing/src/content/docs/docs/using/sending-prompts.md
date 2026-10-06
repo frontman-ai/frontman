@@ -69,7 +69,7 @@ The agent works best when you describe **what** you want changed and **where**.
 
 | Approach | Example | Why it works |
 |----------|---------|-------------|
-| **Name the element** | "Change the CTA button text to 'Get started free'" | The agent can search the DOM for it |
+| **Name the element** | "Change the CTA button text to 'Get started'" | The agent can search the DOM for it |
 | **Describe the location** | "In the pricing section, third column..." | Helps narrow down which component to edit |
 | **Use visual language** | "Make the gap between the cards wider" | The agent takes a screenshot first, so visual descriptions work |
 | **Reference CSS values** | "Set the font-weight to 600" | Precise values mean fewer iterations |
@@ -162,7 +162,7 @@ If you want a clean slate — for example, switching to a completely different a
 ### Content changes
 
 ```text
-"Update the CTA text to 'Start your free trial'"
+"Update the CTA text to 'Start your trial'"
 "Replace the placeholder lorem ipsum in the about section with this: [paste actual content]"
 "Change the navigation link 'Products' to 'Solutions'"
 ```

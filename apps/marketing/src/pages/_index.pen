@@ -95,7 +95,7 @@
                     {
                       "type": "text",
                       "id": "button-text",
-                      "content": "Get Started For Free",
+                      "content": "Start Your Trial",
                       "fontSize": 16,
                       "fontWeight": "600",
                       "fill": "#1a1a1a"
@@ -696,7 +696,7 @@
                 {
                   "type": "text",
                   "id": "cta-btn-text",
-                  "content": "Start Free Trial →",
+                  "content": "Start Trial →",
                   "fontSize": 18,
                   "fontWeight": "600",
                   "fill": "#ffffff"

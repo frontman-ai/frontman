@@ -79,7 +79,7 @@ Require the PM to state what users should see and where. Avoid broad prompts suc
 
 ```text
 On the pricing page, change the primary CTA label from
-"Start Free Trial" to "Start Trial" at desktop and mobile widths.
+"Get Started" to "Start Trial" at desktop and mobile widths.
 Do not change click behavior, routing, analytics, or other CTAs.
 ```
 

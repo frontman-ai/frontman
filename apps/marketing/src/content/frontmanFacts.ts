@@ -10,11 +10,11 @@ export const frontmanLicensePricingFeature =
 	'Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms'
 
 export const frontmanPricingFeatures = [
-	'Unlimited usage, no caps or credits',
+	'14-day trial; credit card required; paid subscription after trial',
 	'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
 	'Or sign in with Claude/ChatGPT subscription via OAuth',
 	frontmanLicensePricingFeature,
-	'You pay your LLM provider directly'
+	'AI provider usage is billed separately from Frontman Pro'
 ] as const
 
 export const frontmanComparisonSources = [

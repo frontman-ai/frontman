@@ -129,10 +129,10 @@ A usable PR description can be short:
 
 ```text
 What changed:
-Pricing CTA copy changed from "Start Free Trial" to "Start Trial".
+Pricing CTA copy changed from "Get Started" to "Start Trial".
 
 Why:
-Legal asked us to remove "free" before paid checkout launches.
+Make the trial clear before checkout launches. A credit card is required.
 
 Visual proof:
 Desktop and mobile screenshots attached. Pricing page only.

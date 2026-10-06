@@ -74,13 +74,13 @@ Google's MCP server exposes DevTools state to AI agents. Your agent can query th
 | Client runtime   | Yes                  | Yes           | Yes         | Yes        |
 | Server runtime   | Yes                  | Limited       | Yes (deep)  | No         |
 | Standalone agent | Yes                  | Yes           | No          | No         |
-| Free (no limits) | Yes                  | No (10/day)   | No ($10/mo) | Yes        |
+| Pricing | 14-day trial (credit card required), then paid Pro + BYOK | Trial limits; paid plans | $10/mo | No platform fee |
 | BYOK             | Yes                  | No            | Yes         | Yes        |
 | Next.js          | Yes                  | Yes           | Thin        | Yes        |
 | Astro            | Yes                  | No            | No          | Yes        |
 | Svelte           | Yes                  | No            | No          | Yes        |
 | Vue              | Yes                  | Yes           | No          | Yes        |
-| Account required | No                   | Yes           | Yes         | No         |
+| Account required | Yes (hosted Pro)     | Yes           | Yes         | No         |
 
 ### Which One Should You Use?
 

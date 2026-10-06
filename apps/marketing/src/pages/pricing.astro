@@ -11,7 +11,7 @@ import gridNetBackground from '../assets/grid-net-background.svg'
 const SEO = {
 	title: 'Frontman Pro Pricing | AI Frontend Editing',
 	description:
-		'Frontman Pro pricing for visual AI frontend editing: €15 per seat/month, 14-day free trial, BYOK AI billing, and free self-hosting while available.'
+		'Frontman Pro pricing for visual AI frontend editing: €15 per seat/month, 14-day trial with a credit card required, and separate BYOK AI billing.'
 }
 
 
@@ -46,7 +46,7 @@ const faqs = [
 			'No. Frontman edits your project files. Your team reviews and ships changes through Git as usual.'
 	},
 	{
-		question: 'Can I self-host for free?',
+		question: 'Can I self-host?',
 		answer:
 			'Yes. You manage setup, hosting, and updates, and pay your infrastructure and AI provider costs.'
 	}
@@ -134,7 +134,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 				yearly: {
 					amount: '12.50',
 					period: 'per seat / month',
-					note: '€150 per seat billed yearly. Save €30 a year — 2 months free.'
+					note: '€150 per seat billed yearly. Save €30 a year compared to monthly billing.'
 				}
 			}
 
@@ -173,7 +173,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 						Frontman Pro helps designers, PMs, and product teams turn visual requests into source-file edits your developers can review and ship.
 					</p>
 					<div class="mt-8 flex flex-wrap justify-center gap-3" aria-label="Pricing highlights">
-						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">14-day free trial</span>
+						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">14-day trial</span>
 					</div>
 				</div>
 			</Col>
@@ -222,7 +222,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 				<div class={`${panelClass} self-hosting-panel border-white/10 bg-white/[0.04] p-6 md:p-8`}>
 					<div class="self-hosting-header">
 						<h2>Self-hosting</h2>
-						<span class="rounded-full border border-primary-300/25 bg-primary-400/10 px-3 py-1 text-sm font-semibold text-primary-200">Free</span>
+						<span class="rounded-full border border-primary-300/25 bg-primary-400/10 px-3 py-1 text-sm font-semibold text-primary-200">Source-available</span>
 					</div>
 					<p class="self-hosting-intro">For technical teams that prefer to run Frontman on their own infrastructure.</p>
 					<div class="self-hosting-details">
@@ -249,13 +249,13 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 	<HomeFAQ
 		faqs={faqs.map(({ question, answer }) => ({ question, reply: answer }))}
 		title="Simple answers about Frontman pricing"
-		subtitle="The details on seats, your free trial, self-hosting, and AI billing."
+		subtitle="The details on seats, your trial, self-hosting, and AI billing."
 	/>
 
 	<FinalCTA
 		link="/frameworks/#install"
-		title="One simple hosted plan. 14-day free trial."
-		description="Cancel before billing. Bring your own AI key. Give your developers reviewable source-file diffs."
+		title="One simple hosted plan. 14-day trial."
+		description="Credit card required. Cancel before billing. Bring your own AI key. Give your developers reviewable source-file diffs."
 		buttonLabel="Start your 14-day trial"
 	/>
 	</div>
