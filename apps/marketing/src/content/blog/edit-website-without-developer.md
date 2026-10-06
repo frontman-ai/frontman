@@ -8,23 +8,23 @@ articleSection: 'Tutorial'
 image: '/blog/edit-website-without-developer-cover.png'
 imageAlt: 'Product manager editing a website directly in the browser'
 tags: ['product-management', 'design-ops', 'cross-functional']
-updatedDate: 2026-07-30T00:00:00Z
+updatedDate: 2026-10-06T00:00:00Z
 faq:
   - question: 'Do I need to set up a development environment to use Frontman?'
-    answer: 'An engineer must first install and configure the appropriate Frontman integration. After that, an authorized teammate can work from the Frontman browser workspace connected to the development app rather than navigating the codebase in an IDE.'
+    answer: 'For Next.js, Astro, or Vite, an engineer first configures Frontman in a running development app and grants workspace access. For WordPress, an administrator installs the plugin through wp-admin without a framework development app. Both workflows require Frontman sign-in, service access, and a supported AI provider with separate costs.'
   - question: 'What kinds of changes can a PM make without a developer?'
     answer: 'A team can permit narrowly scoped copy and visual proposals, such as labels, spacing, typography, approved design-token use, and existing component props. Business logic, authentication, data access, permissions, billing, dependencies, and infrastructure should remain engineer-owned.'
   - question: 'Will I accidentally break something?'
-    answer: 'No tool can guarantee that an edit is safe. Reduce risk by working on a branch, reviewing the source diff and browser result, running required CI checks, and requiring an engineer or code owner to approve before merge.'
+    answer: 'No tool can guarantee that an edit is safe. For framework projects, use a branch, review the source diff and browser result, run CI, and require engineering approval before merge. For WordPress, start on staging, keep backups, review changes, and use your normal publication process. Writes to published content on a live installation can change the site immediately.'
   - question: 'How is this different from a CMS?'
-    answer: 'A CMS usually changes content stored in a content model. Frontman can propose edits to existing source files through a development integration. That broader reach requires code review, tests, access controls, and clear scope boundaries.'
+    answer: 'A CMS usually changes content stored in a content model. Framework integrations let Frontman propose source edits that require code review, tests, and access controls. The WordPress plugin writes to the existing installation, including content and site settings. It requires staging, backups, access controls, and review rather than a framework branch-and-merge workflow.'
 ---
 
 Editing a website without waiting for a developer should not mean editing production without engineering controls. It should mean **self-service authorship with governed approval**.
 
 A product manager often knows the intended copy, campaign requirement, or visible acceptance criterion. An engineer knows the codebase impact and owns technical approval. A safe process preserves both forms of expertise instead of making engineering transcribe every small request.
 
-**Quick answer:** let product managers propose narrow content and visual changes from a development environment. Keep the work on a branch, require a focused diff and visual evidence, run normal CI, and require engineering approval before merge.
+**Quick answer:** for Next.js, Astro, or Vite, let product managers propose narrow content and visual changes from a development environment. Keep the work on a branch, require a focused diff and visual evidence, run normal CI, and require engineering approval before merge. For WordPress, an administrator installs Frontman through wp-admin. Start on staging, keep backups, review changes, and use your normal publication process. Writes to published content on a live installation can change the site immediately.
 
 ## Make One Bounded Update
 
@@ -37,6 +37,8 @@ Pick one heading or CTA label. State the exact replacement and ask Frontman to l
 If your native CMS editor already handles the update, use it. Self-service is a choice of workflow, not a requirement to add AI.
 
 ## Start With Policy, Not a Tool
+
+The remaining branch, CI, and merge guidance applies to framework source changes. WordPress content edits use staging review and your normal publication process instead.
 
 Before granting self-service access, agree on four things:
 
