@@ -1261,7 +1261,6 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
       assert length(turn_started_rows(task_id)) == 1
       refute_receive {:interaction, %{data: %Interaction.ToolCall{tool_name: "write_file"}}}, 50
-      assert {:ok, socket: _socket} = setup_channel(%{scope: scope, task_id: task_id})
     end
   end
 

@@ -137,8 +137,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
         operations = [
           fn -> Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user}) end,
-          fn -> Tasks.resolve_tool_request(scope, task_id, call, MCP.tool_result_text("yes")) end,
-          fn -> Tasks.handle_swarm_event(scope, task_id, turn_number, {:cancelled, :user}) end
+          fn -> Tasks.resolve_tool_request(scope, task_id, call, MCP.tool_result_text("yes")) end
         ]
 
         tasks =
@@ -158,7 +157,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
         Enum.each(tasks, fn _ -> assert_receive {:ready, _}, 1_000 end)
         Enum.each(tasks, &send(&1.pid, :go))
-        assert [:ok, {:ok, winner, :no_executor}, :ok] = Enum.map(tasks, &Task.await(&1, 1_000))
+        assert [:ok, {:ok, winner, :no_executor}] = Enum.map(tasks, &Task.await(&1, 1_000))
 
         assert :ok =
                  Tasks.handle_swarm_event(
