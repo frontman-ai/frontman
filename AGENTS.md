@@ -11,76 +11,19 @@ make worktree-create BRANCH=feature/my-feature
 cd .worktrees/feature/my-feature
 ```
 
-**Benefits:**
-- Work on multiple features without branch switching
-- Isolated agent session per feature
-- Parallel dev servers on different ports
-- Self-contained dependencies per worktree
-
-**Management (short aliases):**
-- `make wt` - **Dashboard** — shows all worktrees, pod status, URLs, and actions at a glance
-- `make wt-new BRANCH=...` - Create containerized worktree
-- `make wt-dev BRANCH=...` - Start dev servers (mprocs TUI)
-- `make wt-stop BRANCH=...` - Pause (preserves data)
-- `make wt-start BRANCH=...` - Resume paused worktree
-- `make wt-sh BRANCH=...` - Shell into container
-- `make wt-rm BRANCH=...` - Full cleanup (pod + volumes + worktree)
-- `make wt-urls BRANCH=...` - Show service URLs
-- `make wt-logs BRANCH=...` - Tail container logs
-
-**Plain worktree management (no containers):**
-- `make worktree-create BRANCH=...` - Create worktree (auto-detects new vs existing branch)
-- `make worktree-list` - List all worktrees
-- `make worktree-remove BRANCH=...` - Remove worktree
-- `make worktree-clean` - Clean stale worktrees
-
 **Secrets:**
 - Development platform and authentication secrets (currently WorkOS credentials) are stored as `op://` references in `apps/frontman_server/envs/.dev.secrets.env` and resolved at runtime via 1Password CLI (`op run`)
 - The server Makefile wraps `mix phx.server` with `op run --env-file=envs/.dev.secrets.env` so secrets are injected as env vars
 - Requires 1Password CLI (`op`) to be installed and authenticated
 - If the server fails on startup with WORKOS errors, ensure `op` is signed in (`op signin`)
+- To connect to servers, use Tailscale
 
 **Structure:**
 - `.worktrees/<branch-name>/` - Worktree directory
 
-## Containerized Worktrees
-
-When working in a containerized worktree (created via `make wt-new`),
-source files live on the host but the toolchain runs inside a Podman container.
-
-**File operations** (read, write, search, git): Run directly on the host.
-
-**Toolchain commands** (mix, yarn, node): Prefix with `./bin/pod-exec`:
-- `./bin/pod-exec mix test`
-- `./bin/pod-exec yarn vitest run`
-- `./bin/pod-exec mix format --check-formatted`
-- `./bin/pod-exec make rescript-build`
-
-**Lifecycle:**
-```bash
-# One-time infra setup
-make infra-up
-
-# Per-feature
-make wt-new BRANCH=feature/cool-thing
-make wt-dev BRANCH=feature/cool-thing
-
-# Pause/resume
-make wt-stop BRANCH=feature/cool-thing
-make wt-start BRANCH=feature/cool-thing
-
-# Done
-make wt-rm BRANCH=feature/cool-thing
-```
-
-**Architecture:** Each worktree gets its own Podman pod with a postgres container
-and a dev container sharing localhost. Pods publish service ports on the host
-(deterministic range derived from the 4-char hash). A single Caddy container
-runs with `--network=host` and routes `{hash}.{service}.frontman.local` to
-`127.0.0.1:{port}`. dnsmasq resolves `*.frontman.local` to `127.0.0.1`.
-
 ## Key Principles
 
+- Prefer small PRs, this is a hard rule, PRs that are above 500 net-new lines of code has a low probability of merging, it's your critical job to look for ways to rethink the architecture to cleanup more than just adding.
 - Keep changes DRY and simple: reuse existing execution paths and prefer a small guard over extracting a new API or abstraction when that is enough.
 - ReScript codebase - functional style, Result types for errors
 - File naming: `Client__ComponentName.res` (flat folder + namespacing)
@@ -91,6 +34,8 @@ runs with `--network=host` and routes `{hash}.{service}.frontman.local` to
 ## Raw JS vs ReScript
 
 - Prefer ReScript/WebAPI bindings and typed externals over `%raw` JavaScript.
+- Dont write bindings without exploring if the exists in `libs/bindings` or WebAPI and such libs
+- Write JS only with my explicit permission
 - Use `%raw` only when there is no practical typed binding or the browser API cannot be expressed cleanly in ReScript.
 - Keep `%raw` blocks minimal and isolated to small interop boundaries; keep business logic and event handling in ReScript.
 - For DOM/browser events, prefer typed ReScript handlers plus small externals for missing fields instead of full raw listener implementations.
