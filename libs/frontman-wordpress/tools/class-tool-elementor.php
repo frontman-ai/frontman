@@ -14,16 +14,21 @@ class Frontman_Tool_Elementor {
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_elementor_list_pages',
-			'Lists WordPress pages and whether each page has Elementor builder data. Use this to find the post_id for Elementor tools.',
+			'Lists WordPress pages and whether each has Elementor data. Optional text_search finds literal case-insensitive substrings in stored Elementor string settings (including nested/repeater settings), not rendered pages or dynamic output. Search defaults to public post types plus shared Elementor templates; post_type narrows the scope. Returns matching element IDs, setting paths and excerpts. offset/per_page paginate candidate posts, not matches: follow next_offset until null even when pages is empty. Use existing element-update tools to edit matches.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
 				'properties'           => [
-					'post_type' => [ 'type' => 'string', 'default' => 'page' ],
-					'per_page'  => [ 'type' => 'integer', 'default' => 100 ],
+					'post_type'   => [ 'type' => 'string', 'description' => 'Defaults to page without search, or all public post types plus elementor_library with search. Use elementor_library for shared templates, or any for the full search scope.' ],
+					'per_page'    => [ 'type' => 'integer', 'default' => 100, 'minimum' => 1, 'maximum' => 200 ],
+					'offset'      => [ 'type' => 'integer', 'default' => 0, 'minimum' => 0 ],
+					'text_search' => [ 'type' => 'string', 'minLength' => 1, 'maxLength' => 200, 'description' => 'Literal substring to find in Elementor string settings. Does not search theme mods or post content.' ],
 				],
 			],
-			[ $this, 'list_pages' ]
+			[ $this, 'list_pages' ],
+			'read',
+			true,
+			true
 		) );
 
 		$tools->add( new Frontman_Tool_Definition(
@@ -284,33 +289,88 @@ class Frontman_Tool_Elementor {
 	}
 
 	public function list_pages( array $input ): array {
-		$post_type = sanitize_key( $input['post_type'] ?? 'page' );
-		$per_page  = min( max( absint( $input['per_page'] ?? 100 ), 1 ), 200 );
-		$posts     = get_posts(
+		$search = $input['text_search'] ?? null;
+		if ( array_key_exists( 'text_search', $input ) && ( ! is_string( $search ) || '' === trim( $search ) || strlen( $search ) > 200 || 1 !== preg_match( '//u', $search ) ) ) {
+			throw new Frontman_Tool_Error( 'text_search must be a nonempty UTF-8 string of at most 200 bytes.' );
+		}
+		$offset = $input['offset'] ?? 0;
+		if ( ! is_int( $offset ) || $offset < 0 ) {
+			throw new Frontman_Tool_Error( 'offset must be a nonnegative integer.' );
+		}
+		$post_type = sanitize_key( $input['post_type'] ?? ( null === $search ? 'page' : 'any' ) );
+		if ( 'any' === $post_type ) {
+			$post_type = array_values( array_unique( array_merge( array_diff( get_post_types( [ 'public' => true ] ), [ 'attachment' ] ), [ 'elementor_library' ] ) ) );
+		}
+		$per_page = min( max( absint( $input['per_page'] ?? 100 ), 1 ), 200 );
+		$posts    = get_posts(
 			[
 				'post_type'      => $post_type,
 				'post_status'    => [ 'publish', 'draft', 'pending', 'private' ],
-				'posts_per_page' => $per_page,
-				'orderby'        => 'menu_order title',
+				'posts_per_page' => $per_page + 1,
+				'offset'         => $offset,
+				'orderby'        => 'menu_order title ID',
 				'order'          => 'ASC',
 			]
 		);
+		$has_more = count( $posts ) > $per_page;
+		$posts    = array_slice( $posts, 0, $per_page );
+		$pages    = [];
+		foreach ( $posts as $post ) {
+			$page = [
+				'post_id'       => (int) $post->ID,
+				'title'         => $post->post_title,
+				'slug'          => $post->post_name,
+				'status'        => $post->post_status,
+				'url'           => get_permalink( $post->ID ),
+				'has_elementor' => Frontman_Elementor_Data::post_uses_elementor( (int) $post->ID ),
+			];
+			if ( null !== $search ) {
+				$data = Frontman_Elementor_Data::get_page_data( (int) $post->ID );
+				if ( null === $data && ! empty( get_post_meta( $post->ID, '_elementor_data', true ) ) ) {
+					throw new Frontman_Tool_Error( 'Could not read Elementor data for post_id ' . $post->ID . '. Search is incomplete.' );
+				}
+				$page['matches'] = $this->search_element_settings( $data ?? [], $search );
+				if ( [] === $page['matches'] ) {
+					continue;
+				}
+			}
+			$pages[] = $page;
+		}
 
-		return [
-			'pages' => array_map(
-				function ( $post ) {
-					return [
-						'post_id'       => (int) $post->ID,
-						'title'         => $post->post_title,
-						'slug'          => $post->post_name,
-						'status'        => $post->post_status,
-						'url'           => get_permalink( $post->ID ),
-						'has_elementor' => Frontman_Elementor_Data::post_uses_elementor( (int) $post->ID ),
-					];
-				},
-				$posts
-			),
-		];
+		return [ 'pages' => $pages, 'next_offset' => $has_more ? $offset + count( $posts ) : null ];
+	}
+
+	private function search_element_settings( array $elements, string $search ): array {
+		$matches = [];
+		foreach ( $elements as $element ) {
+			$settings = new \RecursiveIteratorIterator( new \RecursiveArrayIterator( $element['settings'] ?? [] ) );
+			foreach ( $settings as $value ) {
+				if ( ! is_string( $value ) ) {
+					continue;
+				}
+				$found = [];
+				$matched = preg_match( '/.{0,40}' . preg_quote( $search, '/' ) . '.{0,40}/isu', $value, $found );
+				if ( false === $matched ) {
+					throw new Frontman_Tool_Error( 'Invalid UTF-8 in Elementor settings. Search is incomplete.' );
+				}
+				if ( 0 === $matched ) {
+					continue;
+				}
+				$path = [ 'settings' ];
+				for ( $depth = 0; $depth <= $settings->getDepth(); ++$depth ) {
+					$path[] = $settings->getSubIterator( $depth )->key();
+				}
+				$matches[] = [
+					'element_id'   => $element['id'],
+					'setting_path' => $path,
+					'excerpt'      => $found[0],
+				];
+			}
+			if ( ! empty( $element['elements'] ) ) {
+				$matches = array_merge( $matches, $this->search_element_settings( $element['elements'], $search ) );
+			}
+		}
+		return $matches;
 	}
 
 	public function get_page_structure( array $input ): array {

@@ -115,6 +115,9 @@ if [[ "$TEST_STATUS" -ne 0 || "$TEST_OUTPUT" != *"OK (WordPress ${WORDPRESS_VERS
   exit 1
 fi
 
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ThemeModsAndSearchRuntimeTest.php" "$WORDPRESS:/tmp/ThemeModsAndSearchRuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php -d display_errors=1 -d error_reporting=E_ALL /tmp/ThemeModsAndSearchRuntimeTest.php
+
 "$RUNTIME" exec "$WORDPRESS" cp -a /var/www/html /tmp/frontman-multisite
 "$RUNTIME" exec "$WORDPRESS" php -r '$path = "/tmp/frontman-multisite/wp-config.php"; $config = file_get_contents($path); $config = str_replace("\x27wp_\x27", "\x27fm_multi_\x27", $config); file_put_contents($path, $config);'
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SetupAuthorsMultisite.php" "$WORDPRESS:/tmp/SetupAuthorsMultisite.php"
