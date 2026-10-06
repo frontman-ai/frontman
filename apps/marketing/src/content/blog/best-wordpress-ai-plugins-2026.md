@@ -10,18 +10,6 @@ comparisonItems:
   - name: 'AI Engine'
     url: 'https://wordpress.org/plugins/ai-engine/'
     description: 'Broad AI framework for WordPress with chatbots, content generation, AI forms, embeddings, provider support, and MCP.'
-  - name: 'Raidboxes AI WordPress Plugins Guide'
-    url: 'https://raidboxes.io/en/blog/wordpress/ai-wordpress-plugins/'
-    description: 'Comparison article focused on AI WordPress plugins and content workflows.'
-  - name: 'Reddit WordPress AI Tools Thread'
-    url: 'https://www.reddit.com/r/Wordpress/comments/1o2wdi2/what_ai_tools_do_you_use_for_your_daily_work_with/'
-    description: 'Community discussion about daily WordPress AI tool usage.'
-  - name: 'WP Mayor AI Website Builders Guide'
-    url: 'https://wpmayor.com/best-wordpress-ai-website-builders/'
-    description: 'Comparison article focused on WordPress AI website builders.'
-  - name: 'WP101 AI WordPress Plugins Guide'
-    url: 'https://wp101.com/best-ai-wordpress-plugins/'
-    description: 'Long-form guide covering AI plugins for WordPress automation, content, forms, SEO, and builders.'
 faq:
   - question: 'What is the best WordPress AI plugin in 2026?'
     answer: 'Frontman is the best WordPress AI agent for editing an existing site beside a live preview. AI Engine is the strongest broad WordPress AI framework in the comparison set because it covers chatbots, content, AI forms, embeddings, provider support, and MCP.'
@@ -54,7 +42,7 @@ That is the trap.
     <a class="cta-link inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-transparent bg-violet-600 px-4 py-2.5 text-center text-sm font-bold leading-[1.3] !text-white no-underline transition-colors hover:bg-violet-700 hover:!text-white focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-violet-300 md:w-auto" href="#frontman-workflow-demo" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="quick_answer_demo" data-ga-placement="quick_answer" data-ga-destination="on_page_demo" data-ga-task-family="update">Watch the editing workflow</a>
     <a class="cta-link inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-zinc-600 bg-zinc-800 px-4 py-2.5 text-center text-sm font-bold leading-[1.3] !text-zinc-100 no-underline transition-colors hover:border-zinc-500 hover:bg-zinc-700 hover:!text-white focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-violet-300 md:w-auto" href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="quick_answer_install" data-ga-placement="quick_answer" data-ga-destination="wordpress_org" data-ga-task-family="update">Install on staging</a>
   </div>
-  <p class="!mt-3 !mb-0 !text-xs !leading-[1.55] !text-zinc-400">Frontman requires WordPress 6.0+, PHP 7.4+, administrator access, and your own supported AI provider. Start on staging and keep backups.</p>
+  <p class="!mt-3 !mb-0 !text-xs !leading-[1.55] !text-zinc-400">Frontman requires WordPress 6.0+, PHP 7.4+, administrator access, Frontman sign-in and service access, and your own supported AI provider with separate costs. Start on staging and keep backups.</p>
 </aside>
 
 That distinction matters because "AI plugin" is no longer one category. It is at least six.
@@ -65,7 +53,7 @@ That distinction matters because "AI plugin" is no longer one category. It is at
 
 We started with a histogram source-analysis file generated on June 24, 2026 for the query `best wordpress ai agents`. It included five ranking sources: AI Engine's WordPress.org plugin page, Raidboxes' AI WordPress plugins guide, a Reddit WordPress AI tools discussion, WP Mayor's AI website builders guide, and WP101's AI WordPress plugins guide.
 
-The export measured visible word count, heading counts, schema presence, image-alt usage, top TF-IDF terms, differentiating terms by page, and extracted entities. The strongest recurring terms were `AI`, `WordPress`, `plugins`, `website`, `content`, `MCP`, `builder`, `Elementor`, `Divi`, `AI Engine`, `AIOSEO`, `Uncanny Automator`, `SeedProd`, `Hostinger`, `Tidio`, `WPForms`, `Jasper`, and `pricing`.
+These sources help identify categories and documented use cases. They are not a hands-on test of every plugin, a current vendor audit, or evidence of search-ranking causes. We did not measure comparative editing speed, cost, or accepted results.
 
 We then grouped tools by the job they actually do: agentic site editing, broad AI framework, MCP infrastructure, website building, SEO, forms, automation, content, and chat. That grouping is why Frontman and AI Engine can both be the right answer, but for different intents. Frontman is strongest when the task is editing the existing site you can see. AI Engine is strongest when the task is adding a broad AI framework to WordPress.
 
@@ -102,15 +90,15 @@ If that table feels too broad, good. That is the point. The search result pages 
   <ol class="!my-6 mx-6 grid list-none grid-cols-1 gap-3 !p-0 md:grid-cols-3">
     <li class="!m-0 grid gap-1.5 rounded-[10px] border border-zinc-700 bg-zinc-950 p-4"><strong class="text-sm !text-zinc-100">Select</strong><span class="text-[13px] leading-5 text-zinc-400">Open <code>/frontman</code> on the staging page and identify the visible element.</span></li>
     <li class="!m-0 grid gap-1.5 rounded-[10px] border border-zinc-700 bg-zinc-950 p-4"><strong class="text-sm !text-zinc-100">Describe</strong><span class="text-[13px] leading-5 text-zinc-400">Request one bounded copy or layout update in plain language.</span></li>
-    <li class="!m-0 grid gap-1.5 rounded-[10px] border border-zinc-700 bg-zinc-950 p-4"><strong class="text-sm !text-zinc-100">Review</strong><span class="text-[13px] leading-5 text-zinc-400">Inspect the page, iterate if needed, and deploy through your normal safe process.</span></li>
+    <li class="!m-0 grid gap-1.5 rounded-[10px] border border-zinc-700 bg-zinc-950 p-4"><strong class="text-sm !text-zinc-100">Review</strong><span class="text-[13px] leading-5 text-zinc-400">Inspect the changed page and refine it. Writes persist to the connected WordPress site; use your normal draft or staging publication process.</span></li>
   </ol>
   <div class="mx-6 mt-5 flex flex-col gap-3 md:flex-row md:flex-wrap">
     <a class="cta-link inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-transparent bg-violet-600 px-4 py-2.5 text-center text-sm font-bold leading-[1.3] !text-white no-underline transition-colors hover:bg-violet-700 hover:!text-white focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-violet-300 md:w-auto" href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="after_demo_install" data-ga-placement="after_demo" data-ga-destination="wordpress_org" data-ga-task-family="update">Install on your staging site</a>
   </div>
-  <p class="!mx-6 !mt-[18px] !mb-6 !text-xs !leading-[1.55] !text-zinc-400">Frontman requires WordPress 6.0+, PHP 7.4+, administrator access, and your own supported AI provider. Frontman is production-ready. Keep backups and review changes in the live preview.</p>
+  <p class="!mx-6 !mt-[18px] !mb-6 !text-xs !leading-[1.55] !text-zinc-400">Frontman requires WordPress 6.0+, PHP 7.4+, administrator access, Frontman sign-in and service access, and your own supported AI provider with separate costs. Frontman is production-ready. Published content on a live installation can change immediately. Start on staging and keep backups.</p>
 </section>
 
-## What The 2026 Search Results Actually Reward
+## What The Source Set Covers
 
 The source analysis for "best wordpress ai agents" looked at five pages:
 
@@ -120,14 +108,9 @@ The source analysis for "best wordpress ai agents" looked at five pages:
 - [WP Mayor on WordPress AI website builders](https://wpmayor.com/best-wordpress-ai-website-builders/)
 - [WP101 on AI WordPress plugins](https://wp101.com/best-ai-wordpress-plugins/)
 
-The dominant terms are not subtle: AI, WordPress, plugins, website, content, MCP, builder, Elementor, Divi, AI Engine, AIOSEO, Uncanny Automator, SeedProd, Hostinger, Tidio, WPForms, Jasper, and pricing.
+The source set covers content generation, website builders, SEO, chatbots, forms, automation, and MCP. This mix helps explain why one search phrase can lead to tools for different jobs. It does not establish what Google rewards or which plugin performs best.
 
-That tells you what Google is grouping together. The results do not only reward pure "agent" tools. They reward pages that cover the whole WordPress AI landscape: content generation, website builders, SEO, chatbots, forms, automation, and MCP.
-
-So a useful 2026 answer must do two things at once:
-
-- Cover the broad plugin landscape because that is how the category is searched.
-- Draw hard boundaries because those plugins do different jobs.
+A useful comparison separates those jobs before recommending a workflow.
 
 Most bad comparisons fail the second part. They make one giant list and pretend a chatbot, an SEO assistant, a site builder, and an agent that edits WordPress content are interchangeable. They are not.
 
@@ -146,7 +129,7 @@ Frontman is strongest in the WordPress AI agent category because the page stays 
 - Review the actual page beside the chat.
 - Iterate without translating every visual issue back into admin-field names.
 
-That is the agent workflow WordPress needs. Not another AI text box. Not another disconnected MCP endpoint. An editing loop where the result is visible. To see where this sits in the current product, read the [Frontman WordPress plugin release notes](/blog/frontman-wordpress-plugin-released/) and the [WordPress setup guide](/docs/integrations/wordpress/).
+That is the agent workflow WordPress needs. Not another AI text box. Not another disconnected MCP endpoint. An editing loop where the result is visible. For current setup and costs, see [Frontman for WordPress](/), the [WordPress setup guide](/docs/integrations/wordpress/), and [pricing](/pricing/). Read how [AutonomyAI's marketing lead redesigned its existing Elementor site](/blog/autonomyai-wordpress-redesign-case-study/) with Frontman. This is a Frontman-authored customer report, not a controlled speed or cost comparison.
 
 ## AI Engine Is The Broadest WordPress AI Framework
 
@@ -314,6 +297,6 @@ The best WordPress AI agent for existing-site visual editing is Frontman. The be
 
 If you need the broadest WordPress AI framework, start with [AI Engine](https://wordpress.org/plugins/ai-engine/). If you need site generation, evaluate builder tools like Divi AI, Elementor AI, Hostinger, Liftoff AI, ZipWP, or SeedProd. If you need SEO, start with AIOSEO. If you need forms, look at WPForms AI or AI Engine's AI Forms. If you need automation, look at Uncanny Automator. If you need customer chat, look at Tidio or similar chat tools.
 
-If you need an AI agent to edit an existing WordPress site while you see what changed, use [Frontman for WordPress](/). Watch the workflow above, then install [Frontman - Agentic AI Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open `/frontman`, and start on staging with your own supported AI provider. For install details and launch context, see [Frontman WordPress Plugin Is Live](/blog/frontman-wordpress-plugin-released/).
+If you need an AI agent to edit an existing WordPress site while you see what changed, use [Frontman for WordPress](/). Watch the workflow above, then install [Frontman - Agentic AI Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open Frontman from the WordPress admin menu, and start on staging with your own supported AI provider. For install details and launch context, see [Frontman WordPress Plugin Is Live](/blog/frontman-wordpress-plugin-released/).
 
 That is the competent version of WordPress AI in 2026. Not more magic buttons. Clear tools for clear jobs, with review where the result actually appears.

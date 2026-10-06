@@ -40,10 +40,7 @@ const imageType = absoluteOgImage?.endsWith('.webp')
 			: 'image/png'
 const ogType = article ? 'article' : 'website'
 
-const normalizedDescription = (description ?? '').replace(/\s+/g, ' ').trim()
-const metaDescription = normalizedDescription.length > 160
-	? `${normalizedDescription.slice(0, 157).trimEnd()}...`
-	: normalizedDescription
+const metaDescription = (description ?? '').replace(/\s+/g, ' ').trim()
 ---
 
 <Fragment>

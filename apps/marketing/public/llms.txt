@@ -1,10 +1,10 @@
 # Frontman
 
-> Frontman is an AI WordPress editor plugin for existing sites. Describe changes to posts, pages, Gutenberg blocks, Elementor pages, menus, templates, settings, and WooCommerce data beside live preview. It also integrates with Next.js, Astro, and Vite for source-code editing. Bring your own supported AI provider.
+> Ship updates to your existing WordPress site faster with Frontman's AI editor. Describe one update, inspect the page, and refine the result. Next.js, Astro, and Vite use a separate development and source-review workflow.
 
 ## WordPress
 
-Install [Frontman from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, and open /frontman on your site. Only administrators can access the workspace. Frontman for WordPress is production-ready and battle-tested. Keep backups and review changes in the live preview.
+Install [Frontman from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, and open Frontman from the WordPress admin menu. Requires WordPress 6.0+, PHP 7.4+, administrator access, Frontman sign-in, service access, and your own supported AI provider with separate costs. Frontman for WordPress is production-ready. Start with staging and backups. WordPress-native writes persist to the connected installation; published content on a live site can change immediately. Preview is not a universal approval gate.
 
 - [WordPress homepage](https://frontman.sh/)
 - [WordPress setup guide](https://frontman.sh/docs/integrations/wordpress/)
@@ -14,31 +14,29 @@ The following sections describe the framework workflow.
 
 ## What problem does Frontman solve?
 
-Every AI coding agent today — Cursor, Claude Code, Copilot — operates on source files. They read your code but never see the rendered page. For frontend work, this means every visual change is a guess: the agent picks a CSS class, you switch to the browser, it's wrong, you switch back and describe the problem in text. Repeat.
-
-Frontman closes that loop. It connects to your running application and your dev server simultaneously. When you click an element, Frontman reads its computed styles from the live DOM, traces it through the component tree back to the exact source file and line number, and edits that line. Hot-reload fires. The change is verified in the same action that produced it. No guessing, no tab switching.
+Known website updates still need implementation: builder controls, file hunting, or handoffs. Frontman brings the request and rendered page into one editing loop. Inspect the result and refine it; visual context does not guarantee correctness.
 
 ## Who is Frontman for?
 
-- **Designers** who want to make spacing, typography, color, and layout changes directly in the running app without opening an IDE or filing a ticket. Every change produces a reviewable code diff.
+- **Designers** who want to make spacing, typography, color, and layout changes directly in the running app without opening an IDE or filing a ticket. Source changes still need developer review, tests, and deployment.
 - **Product managers** who need to update copy, tweak structure, or explore feature ideas without waiting for an engineering sprint. Frontman gives non-technical teammates a chat interface alongside a live view of the app.
 - **Frontend developers** who want faster iteration with richer context than terminal-based AI tools provide. Click an element, describe the change, see it happen — instead of writing prompts that specify file paths and line numbers.
 - **Teams** that want to collapse the gap between "people who can describe a change" and "people who can make a change" — while keeping the entire engineering review process intact.
 
 ## How it works
 
-Frontman integrates at the framework level as middleware. When installed, it turns your local dev server into an MCP server that exposes both client-side tools (component tree, performance data, click targets, console logs) and server-side tools (routes, server logs, query timing, compiled modules). The agent connects to this context in real time and always knows what is actually happening in your app.
+Framework integrations require a running supported development project and permitted workspace access. They expose source and dev-server context alongside browser tools for DOM, styles, and selection. A hosted or self-hosted Frontman server orchestrates tasks and sends relevant context to the selected AI provider. WordPress uses native CMS tools, not the framework filesystem tools.
 
-Frontman is intended for development workflows, but installed integrations must be checked in production builds. Next.js installer-generated middleware or proxy code has no automatic development-only guard and can remain active in a deployment. Add an environment guard or remove the integration when Frontman must be absent, then verify the built artifact and deployed `/frontman` route. Every change produces a standard git diff that goes through your team's normal PR review process.
+Frontman is intended for development workflows. RuntimeEnv disables the integration outside development by default, with explicit enable overrides. This is a runtime guard, not automatic build stripping. Check the configuration, built artifact, and deployed `/frontman` route when Frontman must be absent. Source changes use your team's normal Git review, tests, and deployment process.
 
 ## Key capabilities
 
 - **Browser-aware editing** — sees the live DOM, computed styles, and component tree; traces elements to source files
 - **Multi-select** — Shift-click multiple elements, add instructions to each, fix them all in one pass
 - **Framework integrations** — Next.js, Astro, and Vite (React, Vue, Svelte) with deep runtime context
-- **Bring your own AI** — works with Claude (Anthropic), ChatGPT (OpenAI), or any model via OpenRouter
+- **Bring your own AI** — Anthropic and OpenAI OAuth connections; supported saved keys for Anthropic, OpenRouter, Fireworks AI, and NVIDIA. See provider setup docs for current access.
 - **Built-in Lighthouse audits** — run performance and accessibility audits without leaving the browser
-- **Open-source core, bootstrapped SaaS** — Apache 2.0 licensed core, fully auditable on GitHub, with optional paid tier for managed API keys
+- **Source-available** — package-specific licenses. Hosted Frontman Pro has a card-required 14-day trial; provider usage is billed separately. See [pricing](https://frontman.sh/pricing/).
 
 ## Docs
 
@@ -62,13 +60,13 @@ Frontman is intended for development workflows, but installed integrations must 
 ## Blog
 
 - [Introducing Frontman](https://frontman.sh/blog/introducing-frontman/): Origin story and core vision — why we built a browser-based AI agent
-- [Getting Started](https://frontman.sh/blog/getting-started/): Install in one command and make your first edit in under five minutes
+- [Getting Started](https://frontman.sh/blog/getting-started/): Installation and first-edit walkthrough
 - [Why AI Coding Agents Are Blind to Your UI](https://frontman.sh/blog/ai-coding-agents-blind-to-ui/): The perception gap in file-level agents and how runtime context fixes it
 - [Frontman vs Cursor vs Claude Code](https://frontman.sh/blog/frontman-vs-cursor-vs-claude-code/): When to use file-level agents vs. browser-level agents
 - [Multi-Select Editing](https://frontman.sh/blog/multi-select/): Batch multiple UI fixes into a single operation
 - [The Runtime Context Gap](https://frontman.sh/blog/runtime-context-gap/): How live DOM, computed styles, and component tree improve AI code generation
 - [Lighthouse Audits Without Leaving the Browser](https://frontman.sh/blog/lighthouse-audits-without-leaving-the-browser/): Built-in performance and accessibility auditing
-- [Security Model](https://frontman.sh/blog/security/): Dev-only execution, encrypted API keys, reviewable diffs, and what Frontman cannot do
+- [Security Model](https://frontman.sh/blog/security/): Development boundaries, encrypted API keys, reviewable diffs, and limitations
 - [Team Collaboration](https://frontman.sh/blog/team-collaboration/): How designers and PMs use Frontman alongside developers
 
 ## Comparisons

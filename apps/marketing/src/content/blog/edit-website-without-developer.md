@@ -26,6 +26,16 @@ A product manager often knows the intended copy, campaign requirement, or visibl
 
 **Quick answer:** let product managers propose narrow content and visual changes from a development environment. Keep the work on a branch, require a focused diff and visual evidence, run normal CI, and require engineering approval before merge.
 
+## Make One Bounded Update
+
+For an existing WordPress site, use the [WordPress plugin setup guide](/docs/integrations/wordpress/). An administrator opens Frontman from wp-admin, signs in to Frontman, and connects service and AI-provider access. Start with a staging copy and a backup. WordPress writes persist to that installation, so published content on a live site can change immediately.
+
+For Next.js, Astro, or Vite, ask a developer to complete the [setup brief](/marketing-teams/#developer-setup) and [installation](/docs/installation/) in a supported running development environment. Agree on workspace access and a reviewer. Provider access and costs are separate in both workflows; see [pricing](/pricing/) and [provider setup](/docs/api-keys/).
+
+Pick one heading or CTA label. State the exact replacement and ask Frontman to leave links, behavior, and other content unchanged. Inspect the resulting page at desktop and mobile widths, then refine the copy if needed. Framework source changes still need developer review, tests, and deployment. WordPress drafts and staging promotion use your normal publication process.
+
+If your native CMS editor already handles the update, use it. Self-service is a choice of workflow, not a requirement to add AI.
+
 ## Start With Policy, Not a Tool
 
 Before granting self-service access, agree on four things:

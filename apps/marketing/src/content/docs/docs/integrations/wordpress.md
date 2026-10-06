@@ -15,7 +15,8 @@ This guide owns WordPress installation and use. For the cross-platform support m
 - PHP 7.4 or later
 - An admin account (`manage_options` capability)
 - A GitHub or Google account for Frontman sign-in
-- An AI provider connection or API key
+- Frontman service access (see [current pricing](/pricing/))
+- Your own supported AI provider connection or API key, with separate provider costs (see [API Keys & Providers](/docs/api-keys/))
 
 ## Installation
 
@@ -40,6 +41,12 @@ Install Frontman from the [WordPress Plugin Directory](https://wordpress.org/plu
 Frontman attempts to return you to the same site URL after hosted sign-in. If the hosted page remains open instead, reopen **Frontman** from the WordPress admin menu after signing in. Frontman does not include a built-in model credential; see [API Keys & Providers](/docs/api-keys/).
 
 Sites with pretty permalinks can also open Frontman while browsing any page: append `/frontman` to the page URL (for example, `https://yoursite.com/about/frontman`) and the agent will preview that page. Sites using Plain permalinks use the admin menu entrypoint, which routes through `/index.php/frontman`.
+
+## Where changes persist
+
+WordPress writes affect the connected installation. Published content on a live site can change immediately, before you finish visual review. Preview is not a universal approval gate. Only some tools require confirmation.
+
+Start with a staging copy and a backup. Draft publication and staging promotion still use your normal WordPress process. Recovery depends on the changed surface, as described in [Confirmation and Rollback](#confirmation-and-rollback).
 
 ## What the Agent Can Do
 

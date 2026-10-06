@@ -1,19 +1,15 @@
 ---
-import { Image } from 'astro:assets'
 import Layout from '../layouts/Layout.astro'
 import Button from '../components/ui/Button.astro'
 import gridNetBackground from '../assets/grid-net-background.svg'
-import videoPlaceholder from '../assets/video-placeholder.png'
 
 const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
-const taskDemoUrl = '/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo'
 const setupGuideUrl = '/docs/integrations/wordpress/'
-const youtubeVideoId = '-4GD1GYwH8Y'
 
 const SEO = {
-	title: 'AI WordPress Editor Plugin | Frontman for WordPress',
+	title: 'Ship WordPress Updates Faster | Frontman AI Editor',
 	description:
-		'Describe changes to posts, pages, Gutenberg blocks, Elementor pages, menus, templates, widgets, settings, and WooCommerce data. Frontman edits WordPress beside live preview.'
+		'Ship updates to your existing WordPress site faster. Describe a change, inspect the page, and refine it with WordPress-native tools beside live preview.'
 }
 
 const capabilities = [
@@ -21,7 +17,7 @@ const capabilities = [
 	'Insert, update, move, and delete Gutenberg blocks',
 	'Edit Elementor pages with Elementor-aware tools',
 	'Add and update navigation menu items',
-	'Read and change safe site options like title, tagline, and permalinks',
+	'Read and change allowlisted settings like title, tagline, and permalinks',
 	'Browse and update block templates and template parts',
 	'Manage widgets and flush WordPress cache',
 	'Work with WooCommerce data when WooCommerce is active'
@@ -31,12 +27,12 @@ const faqs = [
 	{
 		question: 'What is Frontman for WordPress?',
 		answer:
-			'Frontman for WordPress is an AI editor plugin for existing WordPress sites. It adds a /frontman workspace with chat, WordPress-native tools, and live site preview so administrators can describe changes and review the result in context.'
+			'Frontman for WordPress is an AI editor plugin for existing WordPress sites. It adds a Frontman workspace with chat, WordPress-native tools, and live site preview so administrators can describe changes and review the result in context.'
 	},
 	{
 		question: 'How do I install it?',
 		answer:
-			'Install Frontman Agentic AI Editor from the WordPress Plugin Directory in wp-admin: Plugins > Add New Plugin, search for Frontman Agentic AI Editor, install, activate, then visit /frontman on your site.'
+			'Install Frontman Agentic AI Editor from the WordPress Plugin Directory in wp-admin: Plugins > Add New Plugin, search for Frontman Agentic AI Editor, install, activate, then open Frontman from the WordPress admin menu. Sign in to Frontman, arrange service access, and connect your own supported AI provider.'
 	},
 	{
 		question: 'Does it work with Elementor?',
@@ -46,12 +42,12 @@ const faqs = [
 	{
 		question: 'Can I use it on production?',
 		answer:
-			'Yes. Frontman for WordPress is production-ready and battle-tested. Use it on your live site, keep backups, and review changes in the live preview.'
+			'Yes. Frontman for WordPress is production-ready. Writes affect the connected installation, so published content on a live site can change immediately. Use staging for higher-risk work, keep backups, and inspect the resulting page. Recovery depends on the type of change.'
 	},
 	{
 		question: 'Who can access Frontman in WordPress?',
 		answer:
-			'Only WordPress users with the manage_options capability can access Frontman. Tool requests are protected with WordPress nonces, and site option writes are restricted to a safe allowlist.'
+			'Only WordPress users with the manage_options capability can access Frontman. Tool requests are protected with WordPress nonces, and site option writes are restricted to allowlisted settings.'
 	}
 ]
 
@@ -99,53 +95,40 @@ const pageJsonLd = {
 		</div>
 		<div class="wp-container wp-container--wide wp-hero__grid">
 			<div class="wp-hero__content">
-				<p class="wp-label">Frontman for WordPress</p>
-				<h1>Tell WordPress what to change. Watch it happen live.</h1>
+				<p class="wp-label">AI that edits your WordPress site</p>
+				<h1>
+					<span class="wp-headline__setup">Stop wrestling with WordPress.</span>{' '}
+					<span class="wp-headline__payoff">Less busywork. More marketing.</span>
+				</h1>
 				<p class="wp-lead">
-					Make WordPress changes by describing the outcome you want. Frontman handles the right post, block, menu, template, setting, or WooCommerce update while you watch the live page change in context.
+					Rewrite the headline. Rework an Elementor section. Update your navigation. Tell Frontman what you want changed—it makes the edits while you review the result.
 				</p>
 				<div class="wp-actions wp-hero__cta">
-					<Button size="lg" style="white" link={pluginUrl} classes="wp-primary-cta">Install from WordPress.org <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
-					<Button size="lg" style="white" variation="outline" link={taskDemoUrl}>Watch real task demo <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
+					<Button size="lg" style="white" link={pluginUrl} classes="wp-primary-cta" data-ga-event="click_wordpress_plugin" data-ga-category="conversion" data-ga-label="wordpress_home_hero">Get Frontman for WordPress <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
 				</div>
-				<a href="/frameworks/" class="wp-secondary-link wp-hero__setup-link">Using Next.js, Astro, or Vite? Explore Frontman for frameworks <span aria-hidden="true">→</span></a>
-				<a href={setupGuideUrl} class="wp-secondary-link wp-hero__setup-link">Read setup guide</a>
-				<p class="wp-note">Production-ready. WordPress 6.0+, PHP 7.4+, administrator access required.</p>
+				<p class="wp-hero__support">Your existing site. Gutenberg and Elementor. No rebuild.</p>
 			</div>
-			<div class="wp-video-wrapper">
-				<button
-					class="wp-video-trigger"
-					data-video-id={youtubeVideoId}
-					aria-label="Play Frontman demo video"
-					type="button"
-				>
-					<Image
-						src={videoPlaceholder}
-						alt="Frontman demo video — click any element, describe changes, get real code edits"
-						class="wp-video-thumbnail"
-						loading="eager"
-						fetchpriority="high"
-						format="webp"
-						quality={80}
-						widths={[400, 960]}
-						sizes="(max-width: 1023px) 100vw, 960px"
-					/>
-					<div class="wp-play-button" aria-hidden="true">
-						<svg viewBox="0 0 68 48" width="68" height="48">
-							<path d="M66.52 7.74c-.78-2.93-2.49-5.41-5.42-6.19C55.79.13 34 0 34 0S12.21.13 6.9 1.55C3.97 2.33 2.27 4.81 1.48 7.74.06 13.05 0 24 0 24s.06 10.95 1.48 16.26c.78 2.93 2.49 5.41 5.42 6.19C12.21 47.87 34 48 34 48s21.79-.13 27.1-1.55c2.93-.78 4.64-3.26 5.42-6.19C67.94 34.95 68 24 68 24s-.06-10.95-1.48-16.26z" fill="#FF0000"/>
-							<path d="M45 24L27 14v20" fill="#fff"/>
-						</svg>
-					</div>
-				</button>
+			<div id="demo" class="wp-video-wrapper">
+				<iframe
+					src="https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y"
+					title="Frontman framework editing demo"
+					width="960"
+					height="540"
+					loading="lazy"
+					allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+					referrerpolicy="strict-origin-when-cross-origin"
+					allowfullscreen
+				></iframe>
 			</div>
+			<p class="wp-note">Production-ready. Start with a staging copy and a backup. Requires WordPress 6.0+, PHP 7.4+, administrator access, Frontman sign-in and service access, plus separate <a href="/docs/api-keys/" class="wp-copy-link">AI-provider access and costs</a>. See <a href="/pricing/" class="wp-copy-link">pricing</a>.</p>
 		</div>
 	</section>
 
 	<section class="wp-section wp-section--dark">
-		<div class="wp-container wp-narrow">
-			<h2>WordPress work is scattered. Frontman puts it in one loop.</h2>
+		<div class="wp-container">
+			<h2>You know the update. Getting it onto the page is the bottleneck.</h2>
 			<p>
-				A real WordPress change rarely lives in one obvious place. Copy may be in Gutenberg, layout in Elementor, navigation in menus, structure in templates, and behavior in settings or plugins. Frontman gives the agent WordPress-native tools and keeps the page visible while it works.
+				A new headline can mean finding the right Gutenberg block, Elementor widget, or person to implement it. Frontman uses WordPress-native tools beside the page preview so you can work from the outcome, not just the field name.
 			</p>
 		</div>
 	</section>
@@ -154,39 +137,66 @@ const pageJsonLd = {
 		<div class="wp-container">
 			<div class="wp-section-header">
 				<p class="wp-label wp-label--dark">Workflow</p>
-				<h2>Install the plugin. Open /frontman. Describe the change.</h2>
+				<h2>Describe. Inspect. Refine.</h2>
 			</div>
 			<div class="wp-steps">
-				<div class="wp-step"><span>1</span><h3>Install from wp-admin</h3><p>Go to Plugins > Add New Plugin, search for Frontman Agentic AI Editor, install, and activate.</p></div>
-				<div class="wp-step"><span>2</span><h3>Open the live workspace</h3><p>Visit https://yoursite.com/frontman, or append /frontman to a specific page URL.</p></div>
-				<div class="wp-step"><span>3</span><h3>Review what changed</h3><p>Ask for the update, watch the preview, and decide whether the result is ready.</p></div>
+				<div class="wp-step"><span>1</span><h3>Describe one update</h3><p>Ask for a bounded change on the page you want to update. Select an element when it helps clarify the request.</p></div>
+				<div class="wp-step"><span>2</span><h3>Inspect the page</h3><p>Check the changed content and layout in preview. WordPress writes already affect the connected installation.</p></div>
+				<div class="wp-step"><span>3</span><h3>Refine the result</h3><p>Ask for a focused adjustment, then check the page at the screen sizes your visitors use.</p></div>
 			</div>
-			<a href={taskDemoUrl} class="wp-demo-link">Watch one complete staging-safe WordPress task <span aria-hidden="true">→</span></a>
+			<a href="/blog/autonomyai-wordpress-redesign-case-study/" class="wp-demo-link" data-ga-event="click_customer_story" data-ga-category="engagement" data-ga-label="wordpress_home_workflow">Read how AutonomyAI's marketing lead redesigned its existing Elementor site with Frontman.</a>
+			<p>Frontman-authored customer report, not a controlled speed or cost comparison.</p>
 		</div>
 	</section>
 
 	<section class="wp-section wp-section--dark">
 		<div class="wp-container">
 			<div class="wp-section-header">
-				<p class="wp-label">Capabilities</p>
-				<h2>Built for existing WordPress sites.</h2>
-				<p>Not a blank writing box. Not a site generator. Frontman works against the WordPress structures already powering your site.</p>
+				<p class="wp-label">Everyday updates</p>
+				<h2>Start with one job on your existing site.</h2>
 			</div>
 			<div class="wp-capabilities">
-				{capabilities.map((capability) => <div class="wp-capability">{capability}</div>)}
+				<div class="wp-capability"><h3>Headline and CTA copy</h3><p>Replace a stale message or clarify the next action.</p></div>
+				<div class="wp-capability"><h3>A Gutenberg or Elementor section</h3><p>Update content or adjust a section without rebuilding the site.</p></div>
+				<div class="wp-capability"><h3>Navigation</h3><p>Add or update a menu item, then check its destination.</p></div>
 			</div>
+			<details class="wp-more-capabilities">
+				<summary>More WordPress capabilities</summary>
+				<ul>{capabilities.map((capability) => <li>{capability}</li>)}</ul>
+			</details>
 		</div>
 	</section>
 
-	<section class="wp-section wp-section--light">
+	<section id="install" class="wp-section wp-section--light">
 		<div class="wp-container wp-split">
 			<div>
-				<p class="wp-label wp-label--dark">Why different</p>
-				<h2>The page is the workspace.</h2>
+				<p class="wp-label wp-label--dark">Setup</p>
+				<h2>Connect the site before your first edit.</h2>
 			</div>
-			<div class="wp-copy">
-				<p>Most WordPress AI plugins generate text or expose tools somewhere inside wp-admin. Frontman centers the editing loop around the page you are changing.</p>
-				<p>The agent can use WordPress APIs for content, blocks, Elementor data, menus, templates, widgets, settings, cache, and WooCommerce. You keep visual review in the same workflow instead of switching tabs and hoping the right field changed.</p>
+			<div class="wp-install">
+				<ol class="wp-install__steps" role="list">
+					<li>
+						<h3>Install the plugin</h3>
+						<p>In wp-admin, go to Plugins → Add New Plugin. Search for Frontman Agentic AI Editor, install, and activate.</p>
+					</li>
+					<li>
+						<h3>Sign in to Frontman</h3>
+						<p>Open Frontman from the WordPress admin menu and sign in with GitHub or Google.</p>
+					</li>
+					<li>
+						<h3>Connect your AI provider</h3>
+						<p>Arrange Frontman service access and connect a supported AI provider. Provider access and costs are separate.</p>
+					</li>
+				</ol>
+				<div class="wp-install__details">
+					<p><strong>Requirements</strong> · WordPress 6.0+ · PHP 7.4+ · Administrator access</p>
+					<div class="wp-install__links">
+						<a href={setupGuideUrl}>WordPress setup guide</a>
+						<a href="/pricing/">Pricing</a>
+						<a href="/docs/api-keys/">Provider connection guide</a>
+					</div>
+					<p>Using Next.js, Astro, or Vite? <a href="/frameworks/#install" data-ga-event="click_framework_setup" data-ga-category="conversion" data-ga-label="wordpress_home_setup">Framework setup →</a><br />Developers review, test, and deploy source changes.</p>
+				</div>
 			</div>
 		</div>
 	</section>
@@ -195,18 +205,18 @@ const pageJsonLd = {
 		<div class="wp-container wp-split">
 			<div>
 				<p class="wp-label">Safety</p>
-				<h2>Built for production WordPress sites.</h2>
+				<h2>Know what changes immediately.</h2>
 			</div>
 			<div class="wp-copy">
-				<p>Frontman for WordPress is production-ready and battle-tested. Edit content, menus, templates, Elementor pages, settings, widgets, and cache state beside live preview.</p>
-				<p>Only administrators can access it. Tool requests use WordPress nonces. Site option writes are restricted to a safe allowlist. Keep backups and review changes in the live preview.</p>
-				<p>Use our <a href="/blog/wordpress-maintenance-checklist/">risk-based WordPress maintenance checklist</a> to turn staging, backup, verification, and recovery advice into a recurring operating process.</p>
+				<p>Frontman for WordPress is production-ready. Writes persist to the connected WordPress installation. Published content on a live site can change immediately; preview is not a universal approval gate. Draft publication and staging promotion still use your normal process.</p>
+				<p>Only administrators can access it. Tool requests use WordPress nonces. Site option writes are restricted to allowlisted settings. Keep backups and use staging for higher-risk work. Recovery is selective: Elementor snapshots and applicable WordPress revisions help with some changes, but there is no universal undo.</p>
+				<p>Use our <a href="/blog/wordpress-maintenance-checklist/" class="wp-copy-link">risk-based WordPress maintenance checklist</a> to turn staging, backup, verification, and recovery advice into a recurring operating process.</p>
 			</div>
 		</div>
 	</section>
 
 	<section class="wp-section wp-section--light">
-		<div class="wp-container wp-narrow">
+		<div class="wp-container">
 			<p class="wp-label wp-label--dark">FAQ</p>
 			<h2>Common questions</h2>
 			<div class="wp-faqs">
@@ -225,7 +235,7 @@ const pageJsonLd = {
 			<h2>Install Frontman for WordPress.</h2>
 			<p>Search for Frontman Agentic AI Editor in wp-admin, or open the Plugin Directory page.</p>
 			<div class="wp-actions wp-actions--center">
-				<Button size="lg" style="white" link={pluginUrl}>Install from WordPress.org</Button>
+				<Button size="lg" style="white" link={pluginUrl} data-ga-event="click_wordpress_plugin" data-ga-category="conversion" data-ga-label="wordpress_home_final">Install from WordPress.org</Button>
 				<a href="/docs/integrations/wordpress/" class="wp-secondary-link">Setup guide</a>
 			</div>
 		</div>
@@ -245,29 +255,37 @@ const pageJsonLd = {
 	.wp-hero__bg-image { width: 100%; height: 100%; object-fit: cover; object-position: center; }
 	.wp-hero__grid { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; padding-top: 104px; padding-bottom: 80px; }
 	.wp-hero__content { max-width: 780px; text-align: center; display: flex; flex-direction: column; align-items: center; }
-	h1 { font-family: 'SF Pro Display', system-ui, helvetica, sans-serif; font-size: 48px; line-height: 54px; font-weight: 700; letter-spacing: -0.035em; color: white; text-wrap: balance; }
-	.wp-lead { @apply mt-6 text-lg text-white/85; line-height: 1.55; max-width: 620px; text-wrap: pretty; }
+	h1 { width: 100%; text-align: center; font-family: 'SF Pro Display', system-ui, helvetica, sans-serif; font-size: clamp(32px, 4vw, 52px); line-height: 1.12; font-weight: 700; letter-spacing: -0.035em; color: white; }
+	.wp-headline__setup, .wp-headline__payoff { display: block; font-size: inherit; line-height: inherit; font-weight: inherit; text-wrap: pretty; }
+	.wp-headline__setup { margin-bottom: 8px; }
+	.wp-lead { @apply mt-6 text-lg text-white; line-height: 1.55; max-width: 620px; text-wrap: pretty; }
 	.wp-actions { @apply mt-8 flex flex-wrap items-center gap-4; }
 	.wp-hero__cta { justify-content: center; gap: 20px; }
 	.wp-hero__cta .button { justify-content: center; }
 	.wp-primary-cta { min-width: 268px; }
-	.wp-hero__setup-link { display: inline-flex; margin-top: 20px; }
+	.wp-hero__support { margin-top: 20px; font-size: 14px; line-height: 1.6; }
 	.wp-cta-arrow { margin-left: 8px; }
 	.wp-actions--center { justify-content: center; }
 	.wp-secondary-link { @apply font-semibold text-white underline underline-offset-4 hover:text-primary-100; }
-	.wp-note { @apply mt-6 text-sm leading-6 text-white/70; }
-	.wp-video-wrapper { width: 100%; max-width: 960px; aspect-ratio: 16 / 9; position: relative; margin: 40px auto 0; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 40px rgba(0,0,0,0.35); }
-	.wp-video-trigger { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; padding: 0; margin: 0; cursor: pointer; background: none; transition: opacity 0.2s ease; }
-	.wp-video-trigger:hover { opacity: 0.92; }
-	.wp-video-trigger:focus-visible { outline: 3px solid white; outline-offset: 3px; }
-	.wp-video-trigger[data-playing] { display: none; }
-	.wp-video-thumbnail { width: 100%; height: 100%; object-fit: cover; display: block; }
-	.wp-play-button { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); transition: transform 0.2s ease; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.4)); }
-	.wp-video-trigger:hover .wp-play-button { transform: translate(-50%, -50%) scale(1.1); }
-	.wp-video-wrapper :global(iframe) { position: absolute; inset: 0; width: 100%; height: 100%; border: none; }
+	.wp-note { width: 100%; max-width: 960px; @apply mt-6 text-sm leading-6 text-white; }
+	.wp-note a { color: inherit; text-decoration: underline; text-underline-offset: 4px; }
+	#demo, #install { scroll-margin-top: 100px; }
+	.wp-video-wrapper { position: relative; width: 100%; max-width: 960px; margin: 48px auto 0; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px; background: #09090b; box-shadow: 0 24px 64px rgba(30, 10, 65, 0.35), 0 4px 16px rgba(30, 10, 65, 0.2); }
+	.wp-video-wrapper iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; }
+	.wp-hero .wp-label { color: white; }
+	.wp-hero :global(a:focus-visible), .wp-final :global(a:focus-visible), video:focus-visible { outline: 3px solid white; outline-offset: 4px; }
+	.wp-section a:focus-visible, summary:focus-visible { outline: 3px solid #7c3aed; outline-offset: 4px; }
+	.wp-copy ol { list-style: decimal; padding-left: 24px; margin-bottom: 18px; line-height: 1.8; }
+	.wp-more-capabilities { margin-top: 28px; line-height: 1.8; }
+	.wp-more-capabilities summary { cursor: pointer; font-weight: 700; }
+	.wp-more-capabilities ul { list-style: disc; padding-left: 24px; }
+	.wp-capability h3 { font-weight: 700; margin-bottom: 8px; }
 	.wp-section { padding: 80px 0; }
 	.wp-section--dark { background: #09090b; color: #fafafa; }
 	.wp-section--light { background: #fafafa; color: #09090b; }
+	.wp-section--light a { color: #5b21b6; text-decoration: underline; text-underline-offset: 4px; }
+	.wp-section--dark a { color: #ddd6fe; text-decoration: underline; text-underline-offset: 4px; }
+	.wp-section--dark a:focus-visible { outline-color: #ddd6fe; }
 	.wp-section h2 { @apply mb-5 text-3xl font-bold tracking-[-0.03em] md:text-5xl; line-height: 1.08; color: inherit; opacity: 1; }
 	.wp-section p { @apply text-lg leading-8; color: inherit; opacity: 0.78; }
 	.wp-section-header { max-width: 760px; margin-bottom: 36px; }
@@ -277,10 +295,18 @@ const pageJsonLd = {
 	.wp-step h3 { @apply mb-2 text-xl font-bold text-slate-950; }
 	.wp-step p { @apply text-base leading-7 text-slate-600; opacity: 1; }
 	.wp-demo-link { @apply mt-8 inline-flex items-center gap-2 font-semibold text-violet-700 underline decoration-2 underline-offset-4 hover:text-violet-900; }
-	.wp-capabilities { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+	.wp-capabilities { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 	.wp-capability { border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 18px; background: rgba(255,255,255,0.04); color: #e4e4e7; }
 	.wp-split { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 56px; align-items: start; }
 	.wp-copy p + p { margin-top: 18px; }
+	.wp-install__steps { list-style: none; margin: 0; padding: 0; counter-reset: install-step; display: grid; gap: 24px; }
+	.wp-install__steps li { position: relative; padding-left: 48px; counter-increment: install-step; }
+	.wp-install__steps li::before { content: counter(install-step); position: absolute; left: 0; top: 0; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #ede9fe; color: #5b21b6; font-size: 14px; font-weight: 700; }
+	#install .wp-install__steps h3 { color: #09090b; margin: 0 0 4px; font-size: 18px; line-height: 30px; font-weight: 700; }
+	.wp-install__steps p { margin: 0; font-size: 16px; line-height: 1.6; opacity: 1; color: #52525b; }
+	.wp-install__details { margin-top: 28px; padding-top: 20px; border-top: 1px solid #d4d4d8; }
+	.wp-install__details p { margin: 0; font-size: 14px; line-height: 1.7; opacity: 1; color: #52525b; }
+	.wp-install__links { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0 18px; font-size: 14px; font-weight: 600; }
 	.wp-faqs { margin-top: 28px; border-top: 1px solid #d4d4d8; }
 	.wp-faq { border-bottom: 1px solid #d4d4d8; padding: 18px 0; }
 	.wp-faq summary { cursor: pointer; font-weight: 700; color: #09090b; }
@@ -289,10 +315,6 @@ const pageJsonLd = {
 	.wp-final h2 { @apply mb-4 text-4xl font-bold tracking-[-0.03em] md:text-5xl; }
 	.wp-final p { @apply text-lg text-violet-100; }
 
-	@media (min-width: 1024px) {
-		h1 { font-size: 64px; line-height: 70px; }
-	}
-
 	@media (max-width: 900px) {
 		.wp-split, .wp-steps, .wp-capabilities { grid-template-columns: 1fr; }
 		.wp-hero__grid { padding-top: 96px; padding-bottom: 56px; }
@@ -300,31 +322,6 @@ const pageJsonLd = {
 	}
 
 	@media (max-width: 639px) {
-		h1 { font-size: 38px; line-height: 44px; }
 		.wp-hero__cta .button { width: 100%; }
 	}
 </style>
-
-<script>
-	const trigger = document.querySelector('.wp-video-trigger') as HTMLButtonElement | null;
-	if (!trigger) throw new Error('Video trigger button not found in WordPress hero');
-
-	trigger.addEventListener('click', () => {
-		if (trigger.hasAttribute('data-playing')) return;
-		const videoId = trigger.dataset.videoId;
-		if (!videoId) return;
-
-		const iframe = document.createElement('iframe');
-		iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3`;
-		iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture';
-		iframe.allowFullscreen = true;
-		iframe.title = 'Frontman demo video';
-
-		const wrapper = trigger.parentElement;
-		if (wrapper) {
-			trigger.setAttribute('data-playing', '');
-			wrapper.appendChild(iframe);
-			iframe.focus();
-		}
-	});
-</script>

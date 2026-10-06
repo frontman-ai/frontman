@@ -65,15 +65,15 @@ const workflowSteps = [
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
 
-	<section class="teams-hero relative overflow-hidden bg-primary-500 px-6 pb-10 pt-16 text-center md:pt-24">
+	<section class="teams-hero relative overflow-hidden px-6 pb-10 pt-16 text-center md:pt-24">
 		<img src={gridNetBackground.src} alt="" aria-hidden="true" width="1440" height="900" class="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-30" />
 		<div class="relative mx-auto max-w-[960px]">
 			<div class="mx-auto max-w-[780px]">
 				<p class="mb-5 inline-block rounded-lg bg-primary-950/60 px-4 py-2 font-mono text-xs uppercase tracking-[0.12em] text-white">For marketing and design teams</p>
-				<h1 class="teams-hero__title">Your website. Your ideas.<br />No IDE required.</h1>
+				<h1 class="teams-hero__title">Ship website updates faster.</h1>
 				<p class="mx-auto mb-7 mt-5 max-w-[620px] text-base leading-relaxed text-white md:text-lg">Click your Next.js, Astro, or Vite site. Describe the change. Get reviewable source changes your developers can approve—without turning every update into a ticket.</p>
 				<div class="flex flex-col items-center gap-5">
-					<Button size="lg" style="white" link="/frameworks/#install">Add Frontman to your site <span aria-hidden="true">→</span></Button>
+					<Button size="lg" style="white" link="#developer-setup" data-ga-event="click_developer_setup" data-ga-category="conversion" data-ga-label="marketing_teams_hero">Get developer setup <span aria-hidden="true">→</span></Button>
 					<a href="/use-cases/designers/" class="rounded-xl border border-white/30 bg-primary-950/50 px-5 py-2 text-sm font-medium text-white no-underline transition-colors hover:bg-primary-950/70">Explore the designer workflow <span aria-hidden="true">→</span></a>
 				</div>
 			</div>
@@ -147,10 +147,20 @@ const workflowSteps = [
 			<div class="mt-16 grid gap-8 border-t border-white/10 pt-12 md:grid-cols-2 md:gap-16">
 				<h2 class="teams-heading text-white">Shorter handoff.<br />Same developer control.</h2>
 				<div class="text-neutral-300">
-					<p class="leading-7">Frontman does not turn marketers into production deployers. Framework integrations run in development, and production builds strip Frontman out.</p>
+					<p class="leading-7">Frontman does not turn marketers into production deployers. Use framework integrations in development. Developers must check integration guards, built artifacts, and deployed routes when Frontman must be absent from production.</p>
 					<p class="mt-4 leading-7">Every edit lands as normal source changes. Review the diff, test the result, and ship through the same git and deployment workflow you already trust.</p>
 				</div>
 			</div>
+		</div>
+	</section>
+
+	<section id="developer-setup" class="scroll-mt-24 bg-white px-6 py-16 text-neutral-950 md:py-24">
+		<div class="mx-auto max-w-3xl">
+			<h2 class="teams-heading">Developer setup brief</h2>
+			<p class="mt-5 leading-7">Name a developer to own installation in a supported, running Next.js, Astro, or Vite development environment. Agree on permitted workspace access before teammates edit files.</p>
+			<p class="mt-4 leading-7">Arrange Frontman sign-in, service access, and a supported provider connection. AI-provider access and costs are separate. Name the reviewer who will check source changes, run tests, and approve deployment.</p>
+			<p class="mt-4 leading-7"><a href="/docs/installation/" data-ga-event="click_developer_setup" data-ga-category="conversion" data-ga-label="marketing_teams_brief_install">Read installation guidance</a> and the <a href="/blog/review-ui-changes-from-non-engineers/" data-ga-event="click_developer_review" data-ga-category="conversion" data-ga-label="marketing_teams_brief_review">team review workflow</a>. See <a href="/docs/api-keys/">provider setup</a> and <a href="/pricing/">pricing</a>.</p>
+			<p class="mt-4 leading-7">Maintain a WordPress site instead? Use the <a href="/" data-ga-event="click_wordpress" data-ga-category="conversion" data-ga-label="marketing_teams_brief">WordPress plugin path</a>. WordPress writes affect the connected installation immediately.</p>
 		</div>
 	</section>
 
@@ -161,7 +171,7 @@ const workflowSteps = [
 			<img src="/logo.svg" alt="Frontman" width="154" height="154" loading="lazy" class="mb-8" />
 			<h2 class="teams-heading text-white">Your next update starts here.</h2>
 			<p class="mb-8 mt-6 text-lg leading-8 text-neutral-300">Give your website team a faster edit loop. Install Frontman in your Next.js, Astro, or Vite site and let visual requests start from the page, not a ticket.</p>
-			<Button size="lg" style="primary" link="/frameworks/#install">Add Frontman <span aria-hidden="true">→</span></Button>
+			<Button size="lg" style="primary" link="#developer-setup" data-ga-event="click_developer_setup" data-ga-category="conversion" data-ga-label="marketing_teams_final">Get developer setup <span aria-hidden="true">→</span></Button>
 			<a href="/docs/installation/" class="mt-5 block w-fit text-sm text-neutral-300 underline underline-offset-4 hover:text-white">Read install docs</a>
 		</div>
 	</section>
@@ -203,7 +213,18 @@ const workflowSteps = [
 		border: 0;
 	}
 	.teams-hero {
+		background: #5b21b6;
 		padding-top: 132px;
+	}
+	#developer-setup a {
+		color: #5b21b6;
+		text-decoration: underline;
+		text-underline-offset: 4px;
+	}
+	#developer-setup a:hover { color: #3b0764; }
+	#developer-setup a:focus-visible {
+		outline: 3px solid #5b21b6;
+		outline-offset: 4px;
 	}
 	section.bg-white h2,
 	section.bg-white h3,

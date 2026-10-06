@@ -9,15 +9,15 @@ import FinalCTA from '../components/blocks/CTA/FinalCTA.astro'
 import gridNetBackground from '../assets/grid-net-background.svg'
 
 const SEO = {
-	title: 'Frontman Pro Pricing | AI Frontend Editing',
+	title: 'Frontman Pro Pricing | AI Website Updates',
 	description:
-		'Frontman Pro pricing for visual AI frontend editing: €15 per seat/month, 14-day trial with a credit card required, and separate BYOK AI billing.'
+		'Frontman Pro pricing for updates to existing WordPress and framework websites: €15 per seat/month, a card-required 14-day trial, and separate AI-provider costs.'
 }
 
 
 const planFeatures = [
 	'Visual AI editing in your browser',
-	'Changes your developers can review and ship',
+	'Framework source changes for developer review; WordPress edits in the connected site',
 	'Live page context for more accurate edits',
 	'Unlimited projects within one organization',
 	'Your AI provider, billed separately'
@@ -43,7 +43,7 @@ const faqs = [
 	{
 		question: 'Do changes go live automatically?',
 		answer:
-			'No. Frontman edits your project files. Your team reviews and ships changes through Git as usual.'
+			'Framework integrations edit source files in development. Your team reviews, tests, and deploys them through its normal Git workflow. WordPress writes persist to the connected installation, so published content on a live site can change immediately. Preview is not a universal approval gate. Use staging and backups.'
 	},
 	{
 		question: 'Can I self-host?',
@@ -161,16 +161,16 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 	</script>
 
 	<div class="pricing-content">
-	<Section classes="pricing-hero bg-primary-500" padding="none">
+	<Section classes="pricing-hero" padding="none">
 		<div aria-hidden="true" class="pointer-events-none absolute inset-0 opacity-[0.12]">
 			<img src={gridNetBackground.src} alt="Decorative grid background" aria-hidden="true" class="h-full w-full object-cover object-center" width="1440" height="900" />
 		</div>
 		<Row classes="relative z-10">
 			<Col span="10" classes="lg:col-start-2">
 				<div class="relative mx-auto max-w-5xl text-center">
-					<h1 class="pricing-hero-title">Simple pricing for reviewable frontend code changes.</h1>
+					<h1 class="pricing-hero-title">Simple pricing for faster website updates.</h1>
 					<p class="pricing-hero-subtitle">
-						Frontman Pro helps designers, PMs, and product teams turn visual requests into source-file edits your developers can review and ship.
+						Update your existing WordPress, Next.js, Astro, or Vite website with Frontman Pro. WordPress edits persist to the connected site; framework source changes still need developer review, tests, and deployment.
 					</p>
 					<div class="mt-8 flex flex-wrap justify-center gap-3" aria-label="Pricing highlights">
 						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">14-day trial</span>
@@ -190,10 +190,9 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 							<p class="mb-3 text-sm font-bold uppercase tracking-[0.18em] text-white/75">Frontman Pro</p>
 							<h2 class="block text-3xl leading-tight text-white lg:text-4xl">The simple hosted plan</h2>
 						</div>
-						<p class="rounded-full border border-white/25 bg-white/15 px-3 py-1 text-sm font-bold text-white">Most teams</p>
 					</div>
 					<p class="relative mt-4 max-w-2xl text-lg leading-relaxed text-white">
-						For product teams that want visual AI frontend editing without running infrastructure.
+						For WordPress site owners and framework website teams that want AI-assisted updates without running Frontman infrastructure.
 					</p>
 					<div class="mt-6 inline-flex w-fit max-w-full rounded-full border border-white/20 bg-primary-700/25 p-1" aria-label="Billing frequency" data-billing-toggle-group>
 						<button type="button" class="cursor-pointer whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-bold text-primary-700 shadow-sm" data-billing-toggle="monthly" aria-pressed="true">Monthly</button>
@@ -211,7 +210,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 						</div>
 						<p class="mt-4 text-sm font-semibold text-white" data-price-note>Billed monthly. Switch to yearly to save 17% per seat.</p>
 					</div>
-					<Button type="link" link="/frameworks/#install" size="lg" style="white" classes={ctaButtonClass}>Start your 14-day trial</Button>
+					<Button type="link" link="/docs/installation/" size="lg" style="white" classes={ctaButtonClass}>Choose your setup</Button>
 					<p class="mt-4 text-sm leading-relaxed text-white/70">Credit card required. Cancel before day 14. We’ll send a reminder before billing. Taxes calculated at checkout.</p>
 					<ul class="mt-6 grid gap-3 border-t border-white/20 pt-6">
 						{planFeatures.map((feature) => <li class={checkItemClass}>{feature}</li>)}
@@ -253,10 +252,10 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 	/>
 
 	<FinalCTA
-		link="/frameworks/#install"
+		link="/docs/installation/"
 		title="One simple hosted plan. 14-day trial."
-		description="Credit card required. Cancel before billing. Bring your own AI key. Give your developers reviewable source-file diffs."
-		buttonLabel="Start your 14-day trial"
+		description="Credit card required. Cancel before billing. Connect your own supported AI provider with separate costs. Choose the WordPress or framework installation path."
+		buttonLabel="Choose your setup"
 	/>
 	</div>
 </Layout>
@@ -307,6 +306,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 	}
 
 	.pricing-content :global(.pricing-hero) {
+		background: #5b21b6;
 		padding: 104px 0 64px;
 	}
 
@@ -327,7 +327,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 		margin: 0 auto;
 		font-size: 18px;
 		line-height: 27px;
-		color: rgba(255, 255, 255, 0.85);
+		color: white;
 		text-wrap: pretty;
 	}
 

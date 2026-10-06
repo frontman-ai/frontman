@@ -264,6 +264,7 @@ export default defineConfig({
         if (/(?<!\/docs)\/integrations\/(astro|nextjs|vite)\/?$/.test(item.url))
           return undefined;
         if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
+        if (/\/docs\/reference\/env-vars\/?$/.test(item.url)) return undefined;
         if (/\/404\/?$/.test(item.url)) return undefined;
         if (item.url === "https://frontman.sh/wordpress/") return undefined;
 

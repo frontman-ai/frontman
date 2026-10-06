@@ -2,7 +2,6 @@
 
 import { Image } from 'astro:assets'
 import Button from '../../ui/Button.astro'
-import UsedInWild from '../socialproof/UsedInWild.astro'
 
 import gridNetBackground from '../../../assets/grid-net-background.svg'
 import videoPlaceholder from '../../../assets/video-placeholder.png'
@@ -11,7 +10,7 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 
 ---
 
-<section id="intro" class="hero-section bg-primary-500">
+<section id="intro" class="hero-section">
 	<script>
 		import { registerHomepageTools } from '../../../integrations/webmcp.mjs'
 
@@ -28,21 +27,17 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 	</div>
 	<div class="hero-section__container">
 		<div class="hero-section__top">
-			<div class="hero-section__traction" aria-label="Frontman usage across website stacks">
-				<span class="hero-section__traction-number">1,000+</span>
-				<span class="hero-section__traction-copy">tasks run across Vite, WordPress, Next.js, and Astro projects</span>
-			</div>
-			<h1 class="hero-section__title">Click your website. Tell AI what to change.</h1>
-			<p class="hero-section__subtitle">Frontman helps marketing teams, designers, and site owners update any website—including WordPress—without rebuilding or waiting on developer tickets.</p>
+			<h1 class="hero-section__title">Ship website updates faster.</h1>
+			<p class="hero-section__subtitle">Make changes to your existing Next.js, Astro, or Vite site from the page you can see. Frontman edits source files in a supported development environment. Your developers still review, test, and deploy.</p>
 			<div class="hero-section__cta">
-				<Button size="lg" style="white" link="#install" classes="hero-section__primary-cta" data-ga-event="click_start_building" data-ga-category="conversion" data-ga-label="hero">Try it now <span class="hero-section__cta-arrow" aria-hidden="true">→</span></Button>
+				<Button size="lg" style="white" link="#install" classes="hero-section__primary-cta" data-ga-event="click_start_building" data-ga-category="conversion" data-ga-label="frameworks_hero">Install Frontman <span class="hero-section__cta-arrow" aria-hidden="true">→</span></Button>
 				<div class="hero-section__secondary-links">
 					<a href="/" class="hero-section__text-link" data-ga-event="click_wordpress" data-ga-category="conversion" data-ga-label="hero">
 						WordPress site owner?
 					</a>
 					<span class="hero-section__link-divider" aria-hidden="true">·</span>
-					<a href="/marketing-teams/" class="hero-section__text-link" data-ga-event="click_marketing_teams" data-ga-category="conversion" data-ga-label="hero">
-						Marketing or design team?
+					<a href="/marketing-teams/#developer-setup" class="hero-section__text-link" data-ga-event="click_developer_setup" data-ga-category="conversion" data-ga-label="frameworks_hero">
+						Get developer setup
 					</a>
 				</div>
 			</div>
@@ -84,21 +79,21 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 			<span class="hero-section__proof-separator" aria-hidden="true">•</span>
 			<span class="hero-section__proof-item">
 				<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M12 1a9 9 0 0 0-9 9v7c0 1.66 1.34 3 3 3h3v-8H5v-2c0-3.87 3.13-7 7-7s7 3.13 7 7v2h-4v8h3c1.66 0 3-1.34 3-3v-7a9 9 0 0 0-9-9z"/></svg>
-				No design or dev skills needed
+				Development access required
 			</span>
 			<span class="hero-section__proof-separator" aria-hidden="true">•</span>
 			<span class="hero-section__proof-item">
 				<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
-				Changes happen in seconds
+				Normal source review and deployment
 			</span>
 		</div>
-		<UsedInWild />
-		<p class="hero-section__geo-lead">Frontman is a source-available AI website editor for existing WordPress, Next.js, Astro, and Vite sites. Browser tools inspect the live page, local integrations handle CMS or filesystem operations, and a hosted or self-hosted server orchestrates the agent and persists task history. Relevant context is sent to your selected LLM provider to produce reviewable site updates.</p>
+		<p class="hero-section__geo-lead">Frontman is a source-available AI editor for existing framework websites. A developer installs it in a running supported project with permitted workspace access. Sign in to Frontman, arrange service access, and connect your own supported AI provider. Provider costs are separate. Relevant context passes through the Frontman server to your selected provider.</p>
 	</div>
 </section>
 
 <style>
 	.hero-section {
+		background: #5b21b6;
 		position: relative;
 		overflow: hidden;
 	}
@@ -159,7 +154,7 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 	.hero-section__subtitle {
 		font-size: 15px;
 		line-height: 24px;
-		color: rgba(255, 255, 255, 0.85);
+		color: white;
 		max-width: 100%;
 		margin-bottom: 24px;
 		text-wrap: pretty;
@@ -254,7 +249,7 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 		display: inline-flex;
 		align-items: center;
 		gap: 6px;
-		color: rgba(255, 255, 255, 0.7);
+		color: white;
 		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
 		font-weight: 500;
 		font-size: 13px;
@@ -408,7 +403,7 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
 		font-size: 13px;
 		font-weight: 500;
-		color: rgba(255, 255, 255, 0.88);
+		color: white;
 		padding: 4px 10px;
 		border-radius: 20px;
 		background: rgba(255, 255, 255, 0.05);
@@ -426,53 +421,10 @@ const youtubeVideoId = '-4GD1GYwH8Y'
 			display: inline;
 		}
 	}
-	.hero-section__traction {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		gap: 10px;
-		max-width: 100%;
-		margin: 0 0 8px;
-		padding: 8px 14px;
-		font-family: 'SF Pro Display', system-ui, helvetica, sans-serif;
-		color: white;
-		text-align: center;
-		background: rgba(35, 18, 61, 0.38);
-		border-radius: 10px;
-	}
-	.hero-section__traction-number {
-		font-size: 18px;
-		line-height: 1;
-		font-weight: 800;
-		letter-spacing: -0.03em;
-		color: white;
-	}
-	.hero-section__traction-copy {
-		font-size: 14px;
-		line-height: 20px;
-		font-weight: 600;
-		letter-spacing: 0.005em;
-		color: rgba(243, 232, 255, 0.94);
-	}
-	@media (min-width: 640px) {
-		.hero-section__traction {
-			gap: 11px;
-			margin-bottom: 10px;
-			padding: 9px 16px;
-		}
-		.hero-section__traction-number {
-			font-size: 21px;
-		}
-		.hero-section__traction-copy {
-			font-size: 15px;
-			line-height: 22px;
-		}
-	}
-
 	.hero-section__geo-lead {
 		font-size: 12px;
 		line-height: 17px;
-		color: rgba(255, 255, 255, 0.68);
+		color: white;
 		text-align: center;
 		max-width: 700px;
 		margin: 24px auto 0;
