@@ -12,7 +12,6 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
 
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
-  import Ecto.Query, only: [from: 2]
 
   alias FrontmanServer.Tasks.{
     Interaction,
@@ -132,18 +131,20 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     attrs = Interaction.UserMessage.attrs(content_blocks, model, "test-frontman")
     message_id = Ecto.UUID.generate()
 
-    with {:ok, row} <-
-           interaction_changeset(task.id, %{
-             id: message_id,
-             type: :user_message,
-             data: Map.put(attrs, :id, message_id),
-             turn_number: nil
-           })
-           |> Repo.insert(),
-         {:ok, _turn_started} <-
-           turn_started_fixture(task.id, next_turn_number(task_id), [row.id]) do
-      {:ok, row.data}
-    end
+    Repo.transact(fn ->
+      with {:ok, row} <-
+             interaction_changeset(task.id, %{
+               id: message_id,
+               type: :user_message,
+               data: Map.put(attrs, :id, message_id),
+               turn_number: nil
+             })
+             |> Repo.insert(),
+           {:ok, _turn_started} <-
+             turn_started_fixture(task.id, (max_turn_number(task_id) || 0) + 1, [row.id]) do
+        {:ok, row.data}
+      end
+    end)
   end
 
   def turn_started_fixture(task_id, turn_number, user_message_ids, agent_id \\ "test-frontman") do
@@ -161,13 +162,8 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     |> Repo.insert()
   end
 
-  defp next_turn_number(task_id) do
-    (max_turn_number(task_id) || 0) + 1
-  end
-
   defp max_turn_number(task_id) do
-    from(i in InteractionSchema.for_task(task_id), select: max(i.turn_number))
-    |> Repo.one()
+    Repo.aggregate(InteractionSchema.for_task(task_id), :max, :turn_number)
   end
 
   @doc """
