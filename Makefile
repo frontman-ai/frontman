@@ -490,10 +490,6 @@ worktree-create:
 	fi; \
 	printf "$(GREEN)Worktree created at: .worktrees/$$WORKTREE_NAME$(RESET)\n"
 
-.PHONY: test-deploy-workflow
-test-deploy-workflow:
-	python3 scripts/ci/deploy-workflow.test.py
-
 .PHONY: test-production-backup
 test-production-backup:
 	@for script in infra/production/backup-pg.sh infra/production/backup-pg.test.sh infra/production/build-and-deploy.sh; do bash -n "$$script" || exit; done
