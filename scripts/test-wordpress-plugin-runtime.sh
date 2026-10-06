@@ -92,7 +92,6 @@ done
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-authors-runtime.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeTest.php" "$WORDPRESS:/tmp/PostAuthorsRuntimeTest.php"
-"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostTaxonomiesRuntimeTest.php" "$WORDPRESS:/tmp/PostTaxonomiesRuntimeTest.php"
 if [[ -n "$YOAST_VERSION" ]]; then
   "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins /var/www/html/wp-content/plugins/wordpress-seo
   "$RUNTIME" cp "$BUILD_DIR/yoast/wordpress-seo/." "$WORDPRESS:/var/www/html/wp-content/plugins/wordpress-seo/"

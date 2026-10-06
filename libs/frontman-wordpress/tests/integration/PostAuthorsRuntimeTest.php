@@ -136,3 +136,49 @@ $mutation = [ 'name' => 'wp_update_post', 'arguments' => $combined ];
 frontman_runtime_assert( [ 401, 403, 403, 403 ] === array_column( [ frontman_runtime_tool( '', null, $mutation ), frontman_runtime_tool( $subscriber_cookie, null, $mutation ), frontman_runtime_tool( $actor_cookie, null, $mutation ), frontman_runtime_tool( $actor_cookie, 'invalid', $mutation ) ], 'status' ), 'Auth/nonce bypass' );
 frontman_runtime_assert( $unchanged === $snapshot( $fixture ), 'Auth/nonce rejection wrote state' );
 echo "Author permissions, HTTP raw validation, literal lookup and privacy checks passed.\n";
+
+wp_set_current_user( $actor_id );
+$category_id = (int) wp_insert_term( 'Taxonomy category', 'category' )['term_id'];
+$tag_id = (int) wp_insert_term( 'Taxonomy tag', 'post_tag' )['term_id'];
+$base = [ 'title' => 'Taxonomy source', 'content' => '<p>Source body</p>' ];
+$source_id = wp_insert_post( [ 'post_title' => $base['title'], 'post_content' => $base['content'], 'post_status' => 'draft' ], true );
+wp_set_post_categories( $source_id, [ $category_id ] );
+wp_set_object_terms( $source_id, [ $tag_id ], 'post_tag' );
+$source = $call( 'wp_read_post', [ 'id' => $source_id ] );
+frontman_runtime_assert( [ [ 'id' => $category_id, 'name' => 'Taxonomy category', 'slug' => 'taxonomy-category' ] ] === $source['categories'] && [ [ 'id' => $tag_id, 'name' => 'Taxonomy tag', 'slug' => 'taxonomy-tag' ] ] === $source['tags'], 'Taxonomy readback fields' );
+$created = $call( 'wp_create_post', $base + [ 'categories' => array_column( $source['categories'], 'id' ), 'tags' => array_column( $source['tags'], 'id' ) ] );
+$id = $created['id'];
+$read = $call( 'wp_read_post', [ 'id' => $id ] );
+frontman_runtime_assert( 'draft' === $read['status'] && $created['after'] === $read && $source['categories'] === $read['categories'] && $source['tags'] === $read['tags'], 'Source taxonomy -> draft -> readback' );
+$omitted = $call( 'wp_update_post', [ 'id' => $id, 'title' => 'Taxonomy omitted' ] );
+frontman_runtime_assert( $read === $omitted['before'] && $read['categories'] === $omitted['after']['categories'] && $read['tags'] === $omitted['after']['tags'], 'Omitted assignments or before snapshot changed' );
+$default = (int) get_option( 'default_category' );
+$replaced = $call( 'wp_update_post', [ 'id' => $id, 'categories' => [ $default ], 'tags' => [] ] );
+frontman_runtime_assert( $omitted['after'] === $replaced['before'] && [ $default ] === array_column( $replaced['after']['categories'], 'id' ) && [] === $replaced['after']['tags'], 'Assignments did not replace/clear' );
+foreach ( [ 'wp_create_post' => $base, 'wp_update_post' => [ 'id' => $id ] ] as $name => $input ) {
+	$empty = $call( $name, $input + [ 'categories' => [], 'tags' => [] ] );
+	frontman_runtime_assert( [ $default ] === array_column( $empty['after']['categories'], 'id' ) && [] === $empty['after']['tags'], 'Empty arrays must apply default category and clear tags' );
+}
+$before = $call( 'wp_read_post', [ 'id' => $id ] );
+$post_count = $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->posts}" );
+foreach ( [ [ 'categories' => [ 99999999 ] ], [ 'categories' => [ $tag_id ] ], [ 'tags' => [ '1' ] ], [ 'tags' => (object) [] ] ] as $bad ) {
+	$call( 'wp_create_post', $base + $bad, true );
+	$call( 'wp_update_post', [ 'id' => $id, 'title' => 'Rejected', 'status' => 'publish' ] + $bad, true );
+	frontman_runtime_assert( $post_count === $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->posts}" ) && $before === $call( 'wp_read_post', [ 'id' => $id ] ), 'Invalid taxonomy input wrote state' );
+}
+$call( 'wp_create_post', $base + [ 'post_type' => 'page', 'categories' => [] ], true );
+
+$deny_term = static fn( $caps, $cap ) => 'assign_term' === $cap ? [ 'do_not_allow' ] : $caps;
+add_filter( 'map_meta_cap', $deny_term, 10, 2 );
+$denied = Frontman_Tools::instance()->call( 'wp_update_post', [ 'id' => $id, 'title' => 'Rejected', 'categories' => [] ] );
+remove_filter( 'map_meta_cap', $deny_term );
+frontman_runtime_assert( $denied['isError'] && false !== strpos( $denied['content'][0]['text'], 'permission' ) && $before === $call( 'wp_read_post', [ 'id' => $id ] ), 'Denied default category assignment wrote state' );
+
+$fail_assignment = static function( $object_id, $tt_id, $taxonomy ): void {
+	if ( 'post_tag' === $taxonomy ) { throw new RuntimeException( 'Injected relationship failure' ); }
+};
+add_action( 'added_term_relationship', $fail_assignment, 10, 3 );
+$error = Frontman_Tools::instance()->call( 'wp_update_post', [ 'id' => $id, 'title' => 'Partial write persisted', 'tags' => [ $tag_id ] ] );
+remove_action( 'added_term_relationship', $fail_assignment );
+frontman_runtime_assert( $error['isError'] && false !== strpos( $error['content'][0]['text'], "Post {$id} was saved" ) && false !== strpos( $error['content'][0]['text'], 'no rollback' ) && 'Partial write persisted' === get_post( $id )->post_title, 'Partial taxonomy write not reported' );
+echo "Post taxonomy regressions passed.\n";
