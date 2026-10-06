@@ -95,7 +95,7 @@ That is the lens here.
 
 | Use case | Winner | Why | Biggest tradeoff |
 | --- | --- | --- | --- |
-| Visual edits in an existing app | [Frontman](/) | Starts from the running browser, lets teammates point at UI, and produces source edits developers can review. | Best fit for frontend/runtime work, not backend refactors. |
+| Visual edits in an existing app | [Frontman](/frameworks/) | Starts from the running browser, lets teammates point at UI, and produces source edits developers can review. | Best fit for frontend/runtime work, not backend refactors. |
 | Frontend-specialized design-to-code | [Kombai](https://kombai.com) | Built around frontend code generation, repo-aware workflows, and design input. | Exact import/export and review workflow should be verified in your stack. |
 | Developers working in an IDE | [Cursor](https://cursor.com) | Strong codebase context, agent workflows, semantic search, and day-to-day editor ergonomics. | Developer-first; not designed around non-engineers editing the running page. |
 | Terminal-native engineers | [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) | Strong code reasoning, large-context work, file edits, commands, and PR-style workflows. | Visual frontend QA still needs browser verification. |
@@ -160,7 +160,7 @@ Proof labels used in this guide:
 
 | Tool | Capability sources | Pricing source | Proof status |
 | --- | --- | --- | --- |
-| Frontman | [frontman.sh](https://frontman.sh), [docs](/docs/) | [Pricing](/pricing/) | Source-backed plus one narrow internal case study. |
+| Frontman | [frontman.sh](/frameworks/), [docs](/docs/) | [Pricing](/pricing/) | Source-backed plus one narrow internal case study. |
 | Kombai | [kombai.com](https://kombai.com), [docs](https://docs.kombai.com) | [Pricing](https://kombai.com/pricing) | Source-backed only. |
 | Cursor | [Features](https://cursor.com/features) | [Pricing](https://cursor.com/pricing) | Source-backed only. |
 | Claude Code | [Overview](https://docs.anthropic.com/en/docs/claude-code/overview), [Chrome integration](https://docs.anthropic.com/en/docs/claude-code/chrome) | [Claude pricing](https://claude.com/pricing) | Source-backed only for Claude Code in this article; case study data is separate and narrow. |
@@ -211,7 +211,7 @@ This is the rubric behind the recommendations. It is intentionally frontend-spec
 
 | Tool | Best for | Ease | Code quality notes | Type | Existing codebase | Browser/runtime context | Figma/design input | UI generation | Reviewable diffs | Non-engineer friendly | Pricing model | Proof status | Biggest limitation |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| [Frontman](/) | Visual edits in existing apps | High for PM/designer visual edits | Reviewable source edits; supported stacks only | Browser visual agent | Strong for supported frameworks | Strong; runs in the app browser/dev-server loop | Screenshot/visual intent workflow; not a Figma import tool | Targeted edits more than greenfield generation | Yes; source edits for review | Strong | Hosted seat pricing plus BYOK AI; self-hosting available under repository terms | Source-backed plus one narrow case study | Limited framework coverage and not for backend refactors |
+| [Frontman](/frameworks/) | Visual edits in existing apps | High for PM/designer visual edits | Reviewable source edits; supported stacks only | Browser visual agent | Strong for supported frameworks | Strong; runs in the app browser/dev-server loop | Screenshot/visual intent workflow; not a Figma import tool | Targeted edits more than greenfield generation | Yes; source edits for review | Strong | Hosted seat pricing plus BYOK AI; self-hosting available under repository terms | Source-backed plus one narrow case study | Limited framework coverage and not for backend refactors |
 | [Kombai](https://kombai.com) | Frontend-specialized design-to-code | Medium to high for design-to-code | Verify generated code in your stack | Frontend/design-to-code agent | Source-backed repo-aware claims | Source-backed browser visual editor claims | Strong source-backed Figma/design-to-code focus | Strong frontend generation focus | Verify in your repo workflow | Medium; more technical than pure design tools | Credit-based subscription | Source-backed only | Import/export and review workflow need stack-specific verification |
 | [Cursor](https://cursor.com/features) | Developers in an IDE | High for developers, low for non-engineers | Strong when engineer guides the diff | IDE agent | Strong | Limited without external browser tooling | No official Figma-first positioning verified | Strong code/component generation | Yes in editor/git workflow | Low for non-engineers | Seat subscription with included usage | Source-backed only | Developer-first; no native visual browser overlay verified |
 | [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) | Terminal-native engineers | High for terminal-native engineers | Strong reasoning, still needs visual QA | Terminal/IDE/web coding agent | Strong | Chrome integration exists in beta | No Figma-first positioning verified | Strong code generation/reasoning | Yes through file/git workflow | Low for non-engineers | Claude subscription or API billing | Source-backed only here; separate case-study data is narrow | Terminal workflow still needs visual QA for frontend work |
@@ -252,7 +252,7 @@ Cursor and GitHub Copilot are the natural shortlist for developers who want AI i
 
 **Pricing:** 14-day hosted trial (credit card required); EUR 15/seat/month or EUR 150/seat/year; self-hosting available under repository terms; BYOK AI billed separately.
 
-**Sources/proof:** [frontman.sh](https://frontman.sh), [pricing](/pricing/); source-backed plus one narrow internal case study.
+**Sources/proof:** [frontman.sh](/frameworks/), [pricing](/pricing/); source-backed plus one narrow internal case study.
 
 **Use it if:** PMs, [designers](/use-cases/designers/), marketers, founders, or frontend teams need visual changes as reviewable source edits. **Skip it if:** work is mostly backend, low-level refactors, or unsupported frontend stacks.
 

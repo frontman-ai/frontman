@@ -43,7 +43,7 @@ Some people search `zoo code vs cline` or `cline vs zoo code` when they mean the
 
 That does not make Roo Code irrelevant. Roo Code popularized a useful mode-driven workflow: Architect for planning, Code for implementation, Debug for troubleshooting, Ask for answers, and Custom Modes for team-specific behavior. If you are comparing Roo Code and Cline because you liked that structure, the right comparison is now Cline vs Roo-style community forks such as [ZooCode](https://github.com/Zoo-Code-Org/Zoo-Code/) as much as Cline vs the archived Roo Code project.
 
-This guide gives the practical answer first, then compares the workflows, context handling, model flexibility, review controls, and frontend fit. If you are evaluating Cline on its own, read the full [Cline AI coding tool review](/blog/cline-ai-coding-tool-review/) for BYOK, pricing, MCP, CLI, and alternatives. We build [Frontman](/), so the frontend/browser section includes a clear disclosure where our product fits and where it does not. Frontman is not a direct replacement for Cline or Roo Code; it solves a narrower browser-based frontend editing problem.
+This guide gives the practical answer first, then compares the workflows, context handling, model flexibility, review controls, and frontend fit. If you are evaluating Cline on its own, read the full [Cline AI coding tool review](/blog/cline-ai-coding-tool-review/) for BYOK, pricing, MCP, CLI, and alternatives. We build [Frontman](/frameworks/), so the frontend/browser section includes a clear disclosure where our product fits and where it does not. Frontman is not a direct replacement for Cline or Roo Code; it solves a narrower browser-based frontend editing problem.
 
 Source status checked: June 15, 2026. Product claims below are based on the public [Cline GitHub repository](https://github.com/cline/cline), [Roo Code docs](https://docs.roocode.com/), and [Roo Code GitHub repository](https://github.com/RooCodeInc/Roo-Code/). Author: [Danni Friedland](/about/), co-founder of Frontman.
 
@@ -228,7 +228,7 @@ Frontman is not a Roo Code or Cline clone. It sits in a different part of the wo
 
 Cline and Roo Code are developer-first agents. You work in an IDE or terminal, the agent reads files, and the developer reviews changes. That is the right workflow for backend code, refactors, scripts, tests, and many frontend changes.
 
-[Frontman](/) starts from the running app in the browser. You click an element, describe the visual change, and Frontman maps that browser context back to source files. It is built for frontend work where DOM, computed styles, responsive layout, and framework runtime context matter.
+[Frontman](/frameworks/) starts from the running app in the browser. You click an element, describe the visual change, and Frontman maps that browser context back to source files. It is built for frontend work where DOM, computed styles, responsive layout, and framework runtime context matter.
 
 That means Frontman is relevant if your real comparison is not “Roo Code vs Cline,” but “IDE agent vs browser-aware frontend agent.” Examples:
 
@@ -247,4 +247,4 @@ If that is your use case, read the [browser-aware AI tools guide](/blog/browser-
 - **[Aider](https://aider.chat/):** terminal-native pair programmer with strong git workflow.
 - **[Cursor](https://cursor.com/):** AI IDE for developers who want autocomplete, chat, and agent workflows in one editor.
 - **[Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview):** terminal-native coding agent for engineers comfortable working from shell and git.
-- **[Frontman](/):** browser-native frontend agent for reviewable UI edits in existing apps.
+- **[Frontman](/frameworks/):** browser-native frontend agent for reviewable UI edits in existing apps.

@@ -37,7 +37,7 @@ Frontman requires:
 * WordPress administrator access
 * A Frontman account with GitHub or Google sign-in
 * A supported AI provider connected with OAuth or an API key
-* A staging site and a current backup for initial use
+* A current backup, with staging recommended for higher-risk changes
 
 Frontman does not include a model credential. Your provider can apply its own usage limits and charges.
 
@@ -94,9 +94,9 @@ Explicit social overrides stay unchanged and can differ from the SEO title or de
 
 Only WordPress administrators with the `manage_options` capability can access Frontman. The plugin uses WordPress nonces, sanitizes inputs, and restricts option changes to an allowlist.
 
-Frontman is early-access software. It has not been tested across every theme, page builder, plugin stack, and hosting setup.
+Frontman for WordPress is production-ready. Compatibility depends on your theme, page builder, plugin stack, and hosting setup.
 
-Start on a staging site. Keep a current backup. Review each change before you use it on a production site.
+Keep a current backup and review each change. Use staging for higher-risk changes.
 
 When you submit a request, relevant site content can pass through Frontman AI to your configured model provider. The Third-Party Services section summarizes this data flow.
 
@@ -136,7 +136,7 @@ No. Support depends on the structure that controls the rendered page. Custom the
 
 = Can I use Frontman in production? =
 
-Frontman can run on production, but it is early-access software. Start on staging, keep a current backup, and review each change.
+Yes. Frontman for WordPress is production-ready. Keep a current backup, review each change, and use staging for higher-risk changes.
 
 = What data is sent to Frontman AI? =
 

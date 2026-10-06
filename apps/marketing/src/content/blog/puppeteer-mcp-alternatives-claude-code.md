@@ -258,7 +258,7 @@ This changed the answer to "Can Claude Code see my browser?" Older comparisons t
 
 ## 4. Frontman: Best for DOM-to-Source Frontend Work
 
-[Frontman](/) is not a Puppeteer MCP server and does not plug into Claude Code. It is a specialized frontend agent with its own browser and framework tool loop.
+[Frontman](/frameworks/) is not a Puppeteer MCP server and does not plug into Claude Code. It is a specialized frontend agent with its own browser and framework tool loop.
 
 That narrower architecture matters when the task begins with a specific rendered element. Frontman's [annotation documentation](/docs/using/annotations/) and [tool reference](/docs/using/tool-capabilities/) describe this context:
 

@@ -231,4 +231,4 @@ WebMCP offers a cleaner path: keep the human interface, keep the browser context
 
 That is the right shape. Not a separate agent-only web. Not backend APIs pretending the UI does not exist. The same page, with explicit capabilities agents can understand.
 
-[Try Frontman](https://frontman.sh) if you want a frontend agent that already works from browser context, live UI selection, component mapping, and hot-reload feedback. Then read [why AI coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/) to see why runtime context is not a feature. It is the foundation.
+[Try Frontman](/frameworks/) if you want a frontend agent that already works from browser context, live UI selection, component mapping, and hot-reload feedback. Then read [why AI coding agents are blind to your UI](/blog/ai-coding-agents-blind-to-ui/) to see why runtime context is not a feature. It is the foundation.

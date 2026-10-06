@@ -159,7 +159,7 @@ If an agent creates the diff, review the diff. If a non-engineer describes the c
 
 ## How Frontman fits
 
-[Frontman](/) is built around this narrow workflow: non-engineers can start from the running UI, describe visual changes, and produce real source-file edits that engineers review.
+[Frontman](/frameworks/) is built around this narrow workflow: non-engineers can start from the running UI, describe visual changes, and produce real source-file edits that engineers review.
 
 That matters because visual changes are hard to describe from files. A product manager does not know whether the wrong button lives in `Hero.tsx`, `PricingCard.tsx`, or a shared `Button` component. A designer sees the problem in the browser. Frontman starts there.
 

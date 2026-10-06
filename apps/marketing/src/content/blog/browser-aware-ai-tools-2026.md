@@ -22,7 +22,7 @@ Runtime-aware tools try to close this gap — what we call [the runtime context 
 
 ### Frontman
 
-**Website:** [frontman.sh](https://frontman.sh) | **License:** Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms | **Stars:** ~131
+**Website:** [frontman.sh](/frameworks/) | **License:** Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms | **Stars:** ~131
 
 Framework middleware for Next.js, Astro, and Vite. Installs _inside_ the framework's dev server, so it has native access to both client-side context (DOM, component tree, computed styles) and server-side context (routes, compiled module graph, server logs). Both exposed via MCP.
 

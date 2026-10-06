@@ -14,7 +14,7 @@ AI coding agents [cannot see your frontend](/blog/introducing-frontman/). They r
 
 ### What Frontman Does
 
-[Frontman](https://frontman.sh) is a source-available AI agent with browser-side tools, a local framework integration, and a hosted or self-hosted orchestration server. Click any element in your running app and describe what you want changed in plain English. Frontman traces that element back to the exact source file and line number, applies the edit locally through the framework integration, and hot-reload shows you the result immediately.
+[Frontman](/frameworks/) is a source-available AI agent with browser-side tools, a local framework integration, and a hosted or self-hosted orchestration server. Click any element in your running app and describe what you want changed in plain English. Frontman traces that element back to the exact source file and line number, applies the edit locally through the framework integration, and hot-reload shows you the result immediately.
 
 **What you see when you click an element:**
 
@@ -80,6 +80,6 @@ This is not altruism. A tool that integrates with your dev server and works with
 
 Setup takes about five minutes. Your engineering team runs one install command, adds one line to the framework config, and restarts the dev server. After that, anyone on the team can open the app and start using Frontman.
 
-Full instructions: [frontman.sh](https://frontman.sh). Source code: [github.com/frontman-ai/frontman](https://github.com/frontman-ai/frontman).
+Full instructions: [frontman.sh](/frameworks/). Source code: [github.com/frontman-ai/frontman](https://github.com/frontman-ai/frontman).
 
 Not sure what the fuss is about? Read [why every AI coding agent is blind to your UI](/blog/introducing-frontman/) first. Ready to try it? [Change a button color in five minutes](/blog/getting-started/).

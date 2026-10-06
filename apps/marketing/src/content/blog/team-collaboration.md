@@ -108,4 +108,4 @@ This model makes collaboration explicit. Designers own standards. Product manage
 
 For PM self-service eligibility and rollout, read [How PMs Can Edit a Website Without Developers](/blog/edit-website-without-developer/). For approval, use the canonical [review workflow for UI changes from non-engineers](/blog/review-ui-changes-from-non-engineers/).
 
-[Try Frontman](https://frontman.sh) for browser-to-source editing inside this review model, and read the [security boundaries](/blog/security/) before team rollout.
+[Try Frontman](/frameworks/) for browser-to-source editing inside this review model, and read the [security boundaries](/blog/security/) before team rollout.

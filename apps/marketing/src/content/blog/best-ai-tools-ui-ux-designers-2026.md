@@ -28,7 +28,7 @@ You're a designer. You spotted a padding issue on the staging site at 3pm. You f
 
 Some generate mockups. Some generate prototypes. Some generate code you'll never use. And a few let you fix the padding yourself.
 
-This is an honest comparison of 9 AI tools that matter for UI/UX designers in 2026, organized by what they actually produce. We built [Frontman](https://frontman.sh) (one of the tools listed), so we'll note that where relevant and call out where other tools are stronger.
+This is an honest comparison of 9 AI tools that matter for UI/UX designers in 2026, organized by what they actually produce. We built [Frontman](/frameworks/) (one of the tools listed), so we'll note that where relevant and call out where other tools are stronger.
 
 If you want a narrower comparison of tools that generate or edit frontend source code, read the [AI frontend tool](/blog/best-frontend-coding-agent/) buyer guide.
 
@@ -122,7 +122,7 @@ This category is different.
 
 ### Frontman
 
-[frontman.sh](https://frontman.sh) | [GitHub](https://github.com/frontman-ai/frontman) | Source-available: Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms
+[frontman.sh](/frameworks/) | [GitHub](https://github.com/frontman-ai/frontman) | Source-available: Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms
 
 *Disclosure: We built this.*
 
@@ -134,7 +134,7 @@ The hard limits: only three frameworks supported. No Angular, no Ember, no stati
 
 If your team has designers or PMs who file tickets for padding changes and color fixes, Frontman is built for that specific problem.
 
-> The gap between seeing a design bug and fixing it shouldn't be a 4-day ticket. [Start your Frontman trial (credit card required) →](https://frontman.sh)
+> The gap between seeing a design bug and fixing it shouldn't be a 4-day ticket. [Start your Frontman trial (credit card required) →](/frameworks/)
 
 ## AI Image and Asset Generation
 
@@ -195,7 +195,7 @@ Midjourney for creative/artistic work. Adobe Firefly if you live in Photoshop/Il
 v0 by Vercel. The output is real React code with real components, not a screenshot.
 
 **"I want to edit my team's live app without opening a code editor."**
-[Frontman](https://frontman.sh). Click the element, describe the change, get a source code edit. No IDE, no ticket, no handoff.
+[Frontman](/frameworks/). Click the element, describe the change, get a source code edit. No IDE, no ticket, no handoff.
 
 ## What's Still Missing
 

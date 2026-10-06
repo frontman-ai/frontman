@@ -74,7 +74,7 @@ Methodology matters here because "best AI coding agent" is too broad to be usefu
 
 | Use case | Best fit | Why | Main tradeoff |
 | --- | --- | --- | --- |
-| Visual UI edits in an existing app | [Frontman](/) | Starts from live DOM, computed CSS, selected elements, and framework source context. | Best for supported frontend stacks, not backend refactors. |
+| Visual UI edits in an existing app | [Frontman](/frameworks/) | Starts from live DOM, computed CSS, selected elements, and framework source context. | Best for supported frontend stacks, not backend refactors. |
 | Developer-led repo work | [Cursor](https://cursor.com/) | Strong IDE workflow, semantic codebase context, and day-to-day editing. | Visual verification still happens outside the IDE. |
 | Terminal-native engineering | [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) | Strong code reasoning, command-line flow, file edits, and test iteration. | Not built around non-engineers or browser-first UI review. |
 | GitHub-first teams | [GitHub Copilot](https://github.com/features/copilot) | Familiar IDE and GitHub workflow for completion, edits, chat, and review. | Broad assistant, not frontend-specific. |

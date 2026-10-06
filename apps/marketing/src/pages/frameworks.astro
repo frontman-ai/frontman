@@ -18,52 +18,6 @@ const SEO = {
 		'Frontman is an AI website editor for WordPress, Next.js, Astro, and Vite sites. Click what you want changed and turn visual requests into reviewable updates.'
 }
 
-if (Astro.url.searchParams.get('mode') === 'agent') {
-	return new Response(JSON.stringify({
-		name: 'Frontman',
-		canonicalUrl: 'https://frontman.sh/frameworks/',
-		description: SEO.description,
-		capabilities: [
-			'Click-to-edit AI website editing for existing sites',
-			'Live DOM, computed CSS, screenshots, component tree, routes, and logs as agent context',
-			'Reviewable WordPress updates or source-code edits with hot reload feedback',
-			'Next.js, Astro, Vite, React, Vue, Svelte, and WordPress support',
-			'Bring-your-own Claude, ChatGPT, or OpenRouter API key support'
-		],
-		developerResources: {
-			docs: 'https://frontman.sh/docs/',
-			installation: 'https://frontman.sh/docs/installation/',
-			auth: 'https://frontman.sh/docs/api-keys/',
-			configuration: 'https://frontman.sh/docs/reference/configuration/',
-			architecture: 'https://frontman.sh/docs/reference/architecture/',
-			markdownHomepage: 'https://frontman.sh/index.md',
-			llms: 'https://frontman.sh/llms.txt',
-			fullLlms: 'https://frontman.sh/llms-full.txt',
-			apiCatalog: 'https://frontman.sh/.well-known/api-catalog',
-			agentCard: 'https://frontman.sh/.well-known/agent-card.json',
-			mcpServerCard: 'https://frontman.sh/.well-known/mcp/server-card.json',
-			agentSkills: 'https://frontman.sh/.well-known/agent-skills/index.json',
-			github: 'https://github.com/frontman-ai/frontman'
-		},
-		authentication: {
-			signIn: 'GitHub or Google OAuth for hosted accounts',
-			modelAccess: 'Users bring their own Claude, ChatGPT, or OpenRouter API keys',
-			sessionApi: 'Authenticated browser sessions expose socket-token and user settings APIs'
-		},
-		apiEndpoints: [
-			{ method: 'GET', url: 'https://api.frontman.sh/health/ready', purpose: 'Readiness check' },
-			{ method: 'GET', url: 'https://api.frontman.sh/api/integrations/latest-versions', purpose: 'Latest integration package versions' },
-			{ method: 'GET', url: 'https://api.frontman.sh/api/socket-token', purpose: 'Authenticated socket token for the browser client' },
-			{ method: 'GET', url: 'https://api.frontman.sh/api/user/me', purpose: 'Authenticated current user metadata' },
-			{ method: 'GET', url: 'https://api.frontman.sh/api/user/api-keys', purpose: 'Authenticated AI provider key status' }
-		]
-	}, null, 2), {
-		headers: {
-			'Content-Type': 'application/json; charset=utf-8',
-		}
-	})
-}
-
 const faqJsonLd = {
 	"@context": "https://schema.org",
 	"@type": "FAQPage",

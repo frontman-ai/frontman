@@ -42,6 +42,18 @@ const agentModeBody = {
 	],
 }
 
+const frameworkAgentModeBody = {
+	...agentModeBody,
+	canonicalUrl: 'https://frontman.sh/frameworks/',
+	description: 'Frontman is an AI frontend agent for Next.js, Astro, and Vite. Click elements in your running app and turn visual requests into reviewable source-code edits.',
+	capabilities: [
+		'Click-to-edit frontend source changes with hot reload',
+		'Live DOM, computed CSS, screenshots, component tree, routes, and logs as agent context',
+		'Next.js, Astro, Vite, React, Vue, and Svelte support',
+		'Bring-your-own Claude, ChatGPT, or OpenRouter API key support',
+	],
+}
+
 type PagesContext = {
 	request: Request
 	next: () => Promise<Response>
@@ -50,8 +62,11 @@ type PagesContext = {
 export const onRequest = async (context: PagesContext) => {
 	const url = new URL(context.request.url)
 
-	if (url.searchParams.get('mode') === 'agent') {
-		return new Response(JSON.stringify(agentModeBody, null, 2), {
+	const isFrameworks = url.pathname === '/frameworks' || url.pathname === '/frameworks/'
+
+	if (url.searchParams.get('mode') === 'agent' && (url.pathname === '/' || isFrameworks)) {
+		const body = isFrameworks ? frameworkAgentModeBody : agentModeBody
+		return new Response(JSON.stringify(body, null, 2), {
 			headers: { 'Content-Type': 'application/json; charset=utf-8' },
 		})
 	}

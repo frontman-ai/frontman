@@ -122,4 +122,4 @@ Generated code from tools like v0 or Bolt creates a parallel codebase you have t
 
 If you have a Next.js project running locally, setup takes under two minutes. Follow the [Next.js integration guide](/docs/integrations/nextjs/) for the full walkthrough, or read about [how Frontman connects to your framework](/blog/frontman-launch/).
 
-[Try Frontman](https://frontman.sh) — self-host in one command or use hosted Frontman Pro now. The browser client and JavaScript integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.
+[Try Frontman](/frameworks/) — self-host in one command or use hosted Frontman Pro now. The browser client and JavaScript integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.

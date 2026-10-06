@@ -131,4 +131,4 @@ Before adoption, establish:
 
 Score tools against your actual work, not a canned demo. A terminal agent with browser tooling may be ideal for an engineer debugging a network failure. A browser-first [frontend agent](/blog/frontend-agent/) may fit a designer selecting rendered elements. The distinction is workflow and evidence quality, not whether one product has a browser icon.
 
-For the architecture behind these layers, read [the runtime context gap](/blog/runtime-context-gap/). For a workflow comparison, see [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). Frontman's approach starts with direct element selection and framework context; [try Frontman](https://frontman.sh) or review [how Frontman keeps code safe](/blog/security/).
+For the architecture behind these layers, read [the runtime context gap](/blog/runtime-context-gap/). For a workflow comparison, see [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). Frontman's approach starts with direct element selection and framework context; [try Frontman](/frameworks/) or review [how Frontman keeps code safe](/blog/security/).

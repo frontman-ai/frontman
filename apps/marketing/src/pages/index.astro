@@ -83,7 +83,14 @@ const pageJsonLd = {
 }
 ---
 
-<Layout title={SEO.title} description={SEO.description}>
+<Layout
+	title={SEO.title}
+	description={SEO.description}
+	ogImage="/blog/frontman-wordpress-plugin-released-cover.png"
+	ogImageWidth={1200}
+	ogImageHeight={450}
+	ogImageAlt="Frontman WordPress Plugin Released"
+>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(pageJsonLd)} />
 
 	<section class="wp-hero">
