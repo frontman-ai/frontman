@@ -102,58 +102,44 @@ class Frontman_Tool_Public_Files {
 		}
 		return [ 'status' => $status, 'content' => $content, 'reason' => null ];
 	}
-	private function revision( string $name, array $scope, array $local, array $public ): string {
-		return hash( 'sha256', serialize( [ $name, $scope[0], $scope[2], $local, $local['exists'] ? null : $public ] ) );
-	}
-	private function block_reason( array $scope, array $local, array $public ): ?string {
-		if ( ! current_user_can( 'edit_files' ) || ( defined( 'DISALLOW_FILE_EDIT' ) && DISALLOW_FILE_EDIT ) || ! wp_is_file_mod_allowed( 'frontman_public_files' ) ) {
-			return 'File editing is prohibited by capability or WordPress modification policy.';
-		}
-		if ( ! $scope[3]->is_writable( $scope[0] ) || ( $local['exists'] && ! $scope[3]->is_writable( $scope[1] ) ) ) {
-			return 'Public root or target is not writable.';
-		}
-		if ( ! $local['exists'] && ( null !== $public['reason'] || ! in_array( $public['status'], [ 200, 404 ], true ) ) ) {
-			return 'Creation requires an available public 200 or 404 inspection.';
-		}
-		if ( $local['exists'] && $public['status'] >= 200 && $public['status'] < 300
-			&& ( null !== $public['reason'] || $public['content'] !== $local['content'] ) ) {
-			return 'Public output differs from local content; resolve possible host/CDN control before writing.';
-		}
-		return null;
-	}
-	private function warning( array $local, array $public ): ?string {
-		if ( ! $local['exists'] ) {
-			return 'Physical creation takes over any generated output; generated rules/sitemaps will stop updating. Manual removal is required to restore generation. Remote output ownership is unknown.';
-		}
-		return null !== $public['reason'] || 200 !== $public['status'] ? 'Public output is unavailable or unsuccessful; local saving cannot guarantee public delivery.' : null;
-	}
 	public function read_public_file( array $input ): array {
-		$input = self::validate_input( 'wp_read_public_file', $input );
+		return $this->assert_current( self::validate_input( 'wp_read_public_file', $input ) )[2];
+	}
+	private function assert_current( array $input ): array {
 		$scope = $this->scope( $input['name'] );
 		$local = $this->local( $scope[1], $scope[3] );
 		$public = $this->public_state( $scope[2] );
-		if ( null !== $public['reason'] && false !== strpos( $public['reason'], 'unsupported-size' ) ) {
+		if ( ! isset( $input['expected_revision'] ) && null !== $public['reason'] && false !== strpos( $public['reason'], 'unsupported-size' ) ) {
 			throw new Frontman_Tool_Error( $public['reason'] );
 		}
-		$block = $this->block_reason( $scope, $local, $public );
-		return [ 'name' => $input['name'], 'url' => $scope[2] ] + $local + [
-			'revision' => $this->revision( $input['name'], $scope, $local, $public ), 'public' => $public,
-			'writable' => null === $block, 'block_reason' => $block,
-			'previous' => get_option( 'frontman_public_file_previous_' . $input['name'], null ), 'warning' => $this->warning( $local, $public ),
-		];
-	}
-	private function assert_current( array $input, array $scope, array $local, array $public ): void {
-		$block = $this->block_reason( $scope, $local, $public );
-		if ( null !== $block || $input['expected_revision'] !== $this->revision( $input['name'], $scope, $local, $public ) ) {
+		$block = null;
+		if ( ! current_user_can( 'edit_files' ) || ( defined( 'DISALLOW_FILE_EDIT' ) && DISALLOW_FILE_EDIT ) || ! wp_is_file_mod_allowed( 'frontman_public_files' ) ) {
+			$block = 'File editing is prohibited by capability or WordPress modification policy.';
+		} elseif ( ! $scope[3]->is_writable( $scope[0] ) || ( $local['exists'] && ! $scope[3]->is_writable( $scope[1] ) ) ) {
+			$block = 'Public root or target is not writable.';
+		} elseif ( ! $local['exists'] && ( null !== $public['reason'] || ! in_array( $public['status'], [ 200, 404 ], true ) ) ) {
+			$block = 'Creation requires an available public 200 or 404 inspection.';
+		} elseif ( $local['exists'] && $public['status'] >= 200 && $public['status'] < 300
+			&& ( null !== $public['reason'] || $public['content'] !== $local['content'] ) ) {
+			$block = 'Public output differs from local content; resolve possible host/CDN control before writing.';
+		}
+		$revision = hash( 'sha256', serialize( [ $input['name'], $scope[0], $scope[2], $local, $local['exists'] ? null : $public ] ) );
+		if ( isset( $input['expected_revision'] ) && ( null !== $block || $input['expected_revision'] !== $revision ) ) {
 			throw new Frontman_Tool_Error( $block ?? 'Stale revision; read current state again before editing.' );
 		}
+		$warning = ! $local['exists'] ? 'Physical creation takes over any generated output; generated rules/sitemaps will stop updating. Manual removal is required to restore generation. Remote output ownership is unknown.'
+			: ( null !== $public['reason'] || 200 !== $public['status'] ? 'Public output is unavailable or unsuccessful; local saving cannot guarantee public delivery.' : null );
+		return [ $scope, $local, [ 'name' => $input['name'], 'url' => $scope[2] ] + $local + [
+			'revision' => $revision, 'public' => $public, 'writable' => null === $block, 'block_reason' => $block,
+			'previous' => get_option( 'frontman_public_file_previous_' . $input['name'], null ), 'warning' => $warning,
+		] ];
 	}
 	public function write_public_file( array $input ): array {
 		$input = self::validate_input( 'wp_write_public_file', $input );
-		$scope = $this->scope( $input['name'] );
-		$before = $this->local( $scope[1], $scope[3] );
-		$public = $this->public_state( $scope[2] );
-		$this->assert_current( $input, $scope, $before, $public );
+		[ $scope, $before, $inspection ] = $this->assert_current( $input );
+		$key = 'frontman_public_file_previous_' . $input['name'];
+		$previous = $inspection['previous'];
+		$backed_up = false;
 		$fs = $scope[3];
 		$stage = wp_tempnam( 'frontman-public', $scope[0] . '/' );
 		$saved = false;
@@ -166,29 +152,37 @@ class Frontman_Tool_Public_Files {
 				|| $this->local( $stage, $fs )['content'] !== $input['content'] ) {
 				throw new Frontman_Tool_Error( 'Staging write/readback failed; target was not replaced.' );
 			}
-			$fresh = $this->scope( $input['name'] );
-			$current = $this->local( $fresh[1], $fresh[3] );
-			$observed = $this->public_state( $fresh[2] );
-			$this->assert_current( $input, $fresh, $current, $observed );
-			if ( $fresh[0] !== $scope[0] || $fresh[2] !== $scope[2] ) {
-				throw new Frontman_Tool_Error( 'Site/root scope changed during staging.' );
+			if ( get_option( $key, null ) !== $previous ) {
+				throw new Frontman_Tool_Error( 'Previous snapshot independently changed; target was not replaced.' );
 			}
-			$key = 'frontman_public_file_previous_' . $input['name'];
+			$backed_up = true;
 			update_option( $key, $before, false );
 			if ( get_option( $key, null ) !== $before ) {
 				throw new Frontman_Tool_Error( 'Previous snapshot backup failed; target was not replaced.' );
 			}
-			$mode = $current['exists'] ? fileperms( $scope[1] ) : ( defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 );
-			$final = $this->scope( $input['name'] );
-			if ( false === $mode || $final[0] !== $scope[0] || $final[2] !== $scope[2]
-				|| ! $fs->chmod( $stage, $mode & 0777 ) || $this->local( $scope[1], $fs ) !== $before ) {
-				throw new Frontman_Tool_Error( 'Mode preservation or final local revision check failed.' );
+			$mode = $before['exists'] ? fileperms( $scope[1] ) : ( defined( 'FS_CHMOD_FILE' ) ? FS_CHMOD_FILE : 0644 );
+			if ( false === $mode || ! $fs->chmod( $stage, $mode & 0777 ) ) {
+				throw new Frontman_Tool_Error( 'Mode preservation failed.' );
 			}
-			$this->assert_current( $input, $final, $this->local( $scope[1], $fs ), $observed );
+			$this->assert_current( $input );
 			if ( ! @rename( $stage, $scope[1] ) ) {
 				throw new Frontman_Tool_Error( 'Rename failed; target was not deleted. Inspect current state before retrying.' );
 			}
 			$saved = true;
+		} catch ( \Throwable $error ) {
+			if ( $backed_up && get_option( $key, null ) !== $previous ) {
+				try {
+					if ( get_option( $key, null ) === $before ) {
+						if ( null === $previous ) { delete_option( $key ); } else { update_option( $key, $previous, false ); }
+					}
+					if ( get_option( $key, null ) !== $previous ) {
+						throw new Frontman_Tool_Error( 'Option not restored or backup independently changed; inspect state.' );
+					}
+				} catch ( \Throwable $recovery_error ) {
+					throw new Frontman_Tool_Error( 'Previous snapshot recovery failed: ' . $recovery_error->getMessage() . '. Original failure: ' . $error->getMessage() );
+				}
+			}
+			throw $error;
 		} finally {
 			if ( is_string( $stage ) && file_exists( $stage ) && ! $fs->delete( $stage ) ) {
 				throw new Frontman_Tool_Error( 'Staging cleanup failed; saved=' . ( $saved ? 'true' : 'false' ) . '. Inspect state; do not retry automatically.' );
@@ -209,6 +203,6 @@ class Frontman_Tool_Public_Files {
 			$reason = $observed['reason'] ?? 'Saved locally but public response is non-200 or differs. Do not retry automatically.';
 		}
 		return [ 'name' => $input['name'], 'url' => $scope[2], 'before' => $before, 'after' => $after,
-			'saved' => true, 'verified' => null === $reason, 'reason' => $reason, 'warning' => $this->warning( $before, $public ) ];
+			'saved' => true, 'verified' => null === $reason, 'reason' => $reason, 'warning' => $inspection['warning'] ];
 	}
 }

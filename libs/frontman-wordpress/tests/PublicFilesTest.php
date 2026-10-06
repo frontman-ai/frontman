@@ -14,21 +14,19 @@ function site_url( $path = '' ): string { return $GLOBALS['site'] . $path; }
 function get_home_path(): string { return $GLOBALS['root']; }
 function untrailingslashit( $value ): string { return rtrim( $value, '/\\' ); }
 function wp_parse_url( $value ) { return parse_url( $value ); }
-function wp_tempnam( $name, $directory ) {
-	$prefix = preg_replace( '/\.[^.]+$/', '', basename( $name ) );
-	$path = $directory . ( $prefix ?: uniqid() ) . '.tmp';
-	$handle = fopen( $path, 'x' );
-	if ( false === $handle ) { return false; }
-	fclose( $handle );
-	return $path;
-}
+function wp_tempnam( $name, $directory ) { return $directory . basename( tempnam( $directory, $name ) ); }
 function get_filesystem_method( ...$args ): string { return $GLOBALS['transport']; }
 function WP_Filesystem( ...$args ): bool { return true; }
 function get_option( $key, $default = false ) { return $GLOBALS['options'][ $key ] ?? $default; }
 function update_option( $key, $value, $autoload = null ): bool {
-	if ( $GLOBALS['backup_fail'] ) { return false; }
+	if ( 'backup_fail' === $GLOBALS['fault'] || ( $GLOBALS['recovery_fail'] ?? false ) ) { return false; }
 	$GLOBALS['options'][ $key ] = $value;
 	$GLOBALS['autoload'] = $autoload;
+	return true;
+}
+function delete_option( $key ): bool {
+	if ( $GLOBALS['recovery_fail'] ?? false ) { return false; }
+	unset( $GLOBALS['options'][ $key ] );
 	return true;
 }
 function wp_safe_remote_get( $url, $args ) {
@@ -49,13 +47,19 @@ class WP_Filesystem_Direct {
 		return file_get_contents( $path );
 	}
 	public function put_contents( $path, $content, $mode = false ): bool {
-		file_put_contents( $path, $GLOBALS['short_write'] ? substr( $content, 0, 1 ) : $content );
+		file_put_contents( $path, 'short_write' === $GLOBALS['fault'] ? substr( $content, 0, 1 ) : $content );
 		if ( $GLOBALS['race'] ) { file_put_contents( ABSPATH . 'llms.txt', 'External writer' ); }
 		return true;
 	}
 	public function is_writable( $path ): bool { return is_writable( $path ); }
 	public function chmod( $path, $mode ): bool {
-		if ( 0600 !== $mode && $GLOBALS['rename_fail'] ) { return unlink( $path ); }
+		if ( 0600 !== $mode ) {
+			if ( $GLOBALS['fault'] === 'recovery_fail' ) { $GLOBALS['recovery_fail'] = true; }
+			if ( $GLOBALS['fault'] === 'backup_race' ) { $GLOBALS['options']['frontman_public_file_previous_llms.txt'] = 'Independent backup'; }
+			if ( $GLOBALS['fault'] === 'final_fail' ) { $GLOBALS['allowed'] = false; }
+			if ( $GLOBALS['fault'] === 'late_race' ) { file_put_contents( ABSPATH . 'llms.txt', 'External writer' ); }
+			if ( in_array( $GLOBALS['fault'], [ 'rename_fail', 'recovery_fail', 'backup_race' ], true ) ) { return unlink( $path ); }
+		}
 		return chmod( $path, $mode );
 	}
 	public function delete( $path ): bool { return unlink( $path ); }
@@ -69,28 +73,25 @@ $home = $site = 'https://public.example.test';
 $root = ABSPATH;
 $transport = 'direct';
 $options = [];
-$backup_fail = $short_write = $rename_fail = $race = false;
+$race = $recovery_fail = false;
+$fault = '';
 $wp_filesystem = new WP_Filesystem_Direct();
 $tools = new Frontman_Tools();
 ( new Frontman_Tool_Public_Files() )->register( $tools );
 $assert = static function ( bool $condition, string $message ): void {
 	if ( ! $condition ) { throw new RuntimeException( $message ); }
 };
-$call = static function ( string $name, array $input, bool $error = false ) use ( $tools, $assert ): array {
+$call = static function ( string $name, array $input, bool $error = false, bool $invalid = false ) use ( $tools, $assert ): array {
 	try {
-		$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
+		$input = $tools->sanitize_input( $name, $input );
+		$assert( ! $invalid, 'Invalid raw input reached the handler.' );
+		$result = $tools->call( $name, $input );
 	} catch ( Frontman_Tool_Error $failure ) {
 		$assert( $error, $failure->getMessage() );
-		return [];
+		return [ 'message' => $failure->getMessage() ];
 	}
 	$assert( $error === $result['isError'], $name . ': ' . json_encode( $result ) );
-	return $error ? [] : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
-};
-$invalid = static function ( string $name, array $input ) use ( $tools ): void {
-	try {
-		$tools->sanitize_input( $name, $input );
-		throw new RuntimeException( 'Invalid raw input reached the handler.' );
-	} catch ( Frontman_Tool_Error $error ) { return; }
+	return $error ? $result : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 };
 $read = static fn( $name = 'llms.txt' ) => $call( 'wp_read_public_file', [ 'name' => $name ] );
 $write = static fn( $revision, $content = 'replacement', $error = false ) => $call( 'wp_write_public_file', [ 'name' => 'llms.txt', 'content' => $content, 'expected_revision' => $revision, 'confirm' => true ], $error );
@@ -112,15 +113,15 @@ try {
 	$assert( $valid === $tools->sanitize_input( 'wp_write_public_file', $valid ), 'Raw bytes changed in registry.' );
 	foreach ( [ 'name' => [ '../robots.txt', '/llms.txt', 'LLMS.txt', 'https://public.example.test/llms.txt', null, 7 ], 'content' => [ null, false, [], "bad\xC3\x28", "bad\0", "bad\x01", str_repeat( 'x', 131073 ) ], 'confirm' => [ false, 'true', 1 ], 'expected_revision' => [ null, 7, '', str_repeat( 'A', 64 ) ] ] as $key => $values ) {
 		foreach ( $values as $value ) {
-			$invalid( 'wp_write_public_file', array_merge( $valid, [ $key => $value ] ) );
-			if ( 'name' === $key ) { $invalid( 'wp_read_public_file', [ 'name' => $value ] ); }
+			$call( 'wp_write_public_file', array_merge( $valid, [ $key => $value ] ), true, true );
+			if ( 'name' === $key ) { $call( 'wp_read_public_file', [ 'name' => $value ], true, true ); }
 		}
 		$missing = $valid;
 		unset( $missing[ $key ] );
-		$invalid( 'wp_write_public_file', $missing );
+		$call( 'wp_write_public_file', $missing, true, true );
 	}
-	$invalid( 'wp_write_public_file', $valid + [ 'root' => '/tmp' ] );
-	$invalid( 'wp_read_public_file', [ 'name' => 'llms.txt', 'extra' => true ] );
+	$call( 'wp_write_public_file', $valid + [ 'root' => '/tmp' ], true, true );
+	$call( 'wp_read_public_file', [ 'name' => 'llms.txt', 'extra' => true ], true, true );
 	$absent = $read();
 	file_put_contents( ABSPATH . 'llms.txt', '' );
 	$empty = $read();
@@ -147,14 +148,24 @@ try {
 	$call( 'wp_read_public_file', [ 'name' => 'llms.txt' ], true );
 	$root = ABSPATH;
 	unlink( ABSPATH . 'root-alias' );
-	$options = [];
-	foreach ( [ 'backup_fail', 'short_write', 'rename_fail' ] as $fault ) {
-		$GLOBALS[ $fault ] = true;
-		$write( $read()['revision'], 'must not persist', true );
-		$GLOBALS[ $fault ] = false;
-		$assert( [ 'llms.txt' ] === array_values( array_diff( scandir( ABSPATH ), [ '.', '..' ] ) ), 'Failure leaked a staging file.' );
-		$assert( '' === file_get_contents( ABSPATH . 'llms.txt' ), 'Failure destroyed original content.' );
+	$key = 'frontman_public_file_previous_llms.txt';
+	foreach ( [ null, [ 'exists' => true, 'content' => 'A' ] ] as $previous ) {
+		foreach ( [ 'backup_fail', 'short_write', 'rename_fail', 'final_fail', 'late_race', 'recovery_fail', 'backup_race' ] as $fault ) {
+			$options = null === $previous ? [] : [ $key => $previous ];
+			file_put_contents( ABSPATH . 'llms.txt', 'B' );
+			$error = $write( $read()['revision'], 'Attempt C', true );
+			$recovery_fail = false;
+			$allowed = true;
+			$expected = 'recovery_fail' === $fault ? [ 'exists' => true, 'content' => 'B' ] : ( 'backup_race' === $fault ? 'Independent backup' : $previous );
+			$assert( $expected === get_option( $key, null ) && ( null !== $expected || ! array_key_exists( $key, $options ) ), 'Failure lost the prior backup or clobbered an independent change.' );
+			$assert( 'late_race' === $fault ? 'External writer' === file_get_contents( ABSPATH . 'llms.txt' ) : 'B' === file_get_contents( ABSPATH . 'llms.txt' ), 'Failure destroyed target content.' );
+			$assert( ! in_array( $fault, [ 'recovery_fail', 'backup_race' ], true ) || false !== strpos( json_encode( $error ), 'snapshot recovery failed' ), 'Recovery failure was not reported.' );
+			$assert( [ 'llms.txt' ] === array_values( array_diff( scandir( ABSPATH ), [ '.', '..' ] ) ), 'Failure leaked a staging file.' );
+		}
 	}
+	$fault = '';
+	$write( $read()['revision'], 'C' );
+	$assert( [ 'exists' => true, 'content' => 'B' ] === get_option( $key ), 'Success did not rotate the snapshot to B.' );
 	$race = true;
 	$write( $read()['revision'], 'must not overwrite race', true );
 	$race = false;
@@ -188,6 +199,10 @@ try {
 		$assert( $unverified['saved'] && ! $unverified['verified'] && null !== $unverified['reason'] && $expected_after === $unverified['after'], 'Post-save readback failure concealed persistence.' );
 	}
 	unset( $post_fault );
+	$options += array_fill_keys( [ 'frontman_settings', 'frontman_php_diagnostics', 'frontman_public_file_previous_robots.txt', 'frontman_public_file_previous_llms-full.txt', 'unrelated', 'frontman_public_file_previous_other.txt' ], 'keep' );
+	define( 'WP_UNINSTALL_PLUGIN', true );
+	require __DIR__ . '/../uninstall.php';
+	$assert( [ 'unrelated' => 'keep', 'frontman_public_file_previous_other.txt' => 'keep' ] === $options && 'Saved but unverified' === file_get_contents( ABSPATH . 'llms.txt' ), 'Uninstall left snapshots or removed unrelated data/files.' );
 	$assert( 0 === $http_args['redirection'] && 131073 === $http_args['limit_response_size'], 'Public fetch was not bounded/no-redirect.' );
 	passthru( escapeshellarg( PHP_BINARY ) . ' -d auto_prepend_file=' . escapeshellarg( __DIR__ . '/ErrorHandler.php' ) . ' ' . escapeshellarg( __FILE__ ) . ' --file-edit-denied', $status );
 	$assert( 0 === $status, 'File-edit prohibition child failed.' );

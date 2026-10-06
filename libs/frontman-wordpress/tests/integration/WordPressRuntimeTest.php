@@ -182,11 +182,11 @@ $_COOKIE[ LOGGED_IN_COOKIE ] = $cookie;
 $slug_nonce = Frontman_Auth::create_nonce();
 unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
 wp_set_current_user( 0 );
-$slug_call = static function ( string $name, array $arguments ) use ( $cookie, $slug_nonce ): array {
+$runtime_call = static function ( string $name, array $arguments ) use ( $cookie, $slug_nonce ): array {
 	$response = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $name, 'arguments' => $arguments ] );
-	frontman_runtime_assert( 200 === $response['status'] && false === $response['body']['isError'], 'Slug tool failed: ' . wp_json_encode( $response ) );
+	frontman_runtime_assert( 200 === $response['status'] && false === $response['body']['isError'], $name . ' failed: ' . wp_json_encode( $response ) );
 	$data = json_decode( $response['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
-	if ( isset( $data['after'] ) ) {
+	if ( ! in_array( $name, [ 'wp_read_public_file', 'wp_write_public_file' ], true ) && isset( $data['after'] ) ) {
 		clean_post_cache( $data['after']['id'] );
 		frontman_runtime_assert( get_post( $data['after']['id'] )->post_name === $data['after']['slug'], 'Slug snapshot differs from persisted post_name.' );
 	}
@@ -209,11 +209,6 @@ PHP
 $public_originals = [];
 $public_options = [];
 $public_htaccess = file_exists( ABSPATH . '.htaccess' ) ? file_get_contents( ABSPATH . '.htaccess' ) : null;
-$public_call = static function ( string $name, array $arguments ) use ( $cookie, $slug_nonce ): array {
-	$response = frontman_runtime_tool( $cookie, $slug_nonce, [ 'name' => $name, 'arguments' => $arguments ] );
-	frontman_runtime_assert( 200 === $response['status'] && false === $response['body']['isError'], 'Public tool failed: ' . wp_json_encode( $response ) );
-	return json_decode( $response['body']['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
-};
 try {
 	file_put_contents( ABSPATH . '.htaccess', "RewriteEngine On\nRewriteCond %{REQUEST_FILENAME} !-f\nRewriteRule ^robots\\.txt$ index.php?robots=1 [L]\n" . ( $public_htaccess ?? '' ) );
 	foreach ( [ 'robots.txt', 'llms.txt', 'llms-full.txt' ] as $name ) {
@@ -224,12 +219,12 @@ try {
 	}
 	foreach ( [ [ 'llms.txt', "  # Café\r\n[Docs](https://example.test/?a=1&b=2)\r\n", '' ], [ 'robots.txt', "User-agent: *\nDisallow: /private/\n", '' ], [ 'robots.txt', "User-agent: *\nAllow: /\n", '' ], [ 'robots.txt', "User-agent: *\nDisallow: /timeout/\n", 'timeout' ], [ 'llms-full.txt', "# Full documentation\n", 'mismatch' ] ] as [ $name, $text, $fault ] ) {
 		update_option( 'frontman_public_runtime_fault', $fault );
-		$before = $public_call( 'wp_read_public_file', [ 'name' => $name ] );
+		$before = $runtime_call( 'wp_read_public_file', [ 'name' => $name ] );
 		if ( 'robots.txt' === $name && ! $before['exists'] ) { frontman_runtime_assert( 200 === $before['public']['status'] && null !== $before['warning'], 'Generated robots takeover was not explained.' ); }
 		$arguments = [ 'name' => $name, 'content' => $text, 'expected_revision' => $before['revision'], 'confirm' => true ];
-		$saved = $public_call( 'wp_write_public_file', $arguments );
+		$saved = $runtime_call( 'wp_write_public_file', $arguments );
 		frontman_runtime_assert( true === $saved['saved'] && ( '' === $fault ) === $saved['verified'] && $text === file_get_contents( ABSPATH . $name ), 'Saved/verified or literal persistence incorrect.' );
-		frontman_runtime_assert( [ 'exists' => $before['exists'], 'content' => $before['content'] ] === $public_call( 'wp_read_public_file', [ 'name' => $name ] )['previous'], 'Runtime previous snapshot differs.' );
+		frontman_runtime_assert( [ 'exists' => $before['exists'], 'content' => $before['content'] ] === $runtime_call( 'wp_read_public_file', [ 'name' => $name ] )['previous'], 'Runtime previous snapshot differs.' );
 		frontman_runtime_assert( $text === frontman_runtime_http( 'GET', '/' . $name )['body'], 'Literal public response differs.' );
 	}
 	foreach ( [ 'wp_read_public_file', 'wp_write_public_file' ] as $tool ) {
@@ -258,40 +253,40 @@ try {
 	unlink( $public_mu );
 }
 $slug_fixture = [ 'title' => 'Runtime Slug Fixture', 'content' => 'Unchanged content', 'status' => 'draft', 'slug' => 'sample-delivery-guide' ];
-$slug_created = $slug_call( 'wp_create_post', $slug_fixture );
+$slug_created = $runtime_call( 'wp_create_post', $slug_fixture );
 $slug_id = $slug_created['id'];
 frontman_runtime_assert( 'sample-delivery-guide' === $slug_created['after']['slug'], 'Custom draft slug was not persisted.' );
-$slug_duplicate = $slug_call( 'wp_create_post', $slug_fixture );
+$slug_duplicate = $runtime_call( 'wp_create_post', $slug_fixture );
 frontman_runtime_assert( 'sample-delivery-guide' === $slug_duplicate['after']['slug'], 'Draft slugs should not be made unique.' );
-$slug_published = $slug_call( 'wp_update_post', [ 'id' => $slug_id, 'status' => 'publish' ] );
+$slug_published = $runtime_call( 'wp_update_post', [ 'id' => $slug_id, 'status' => 'publish' ] );
 frontman_runtime_assert( 'sample-delivery-guide-2' === $slug_published['after']['slug'], 'Publication did not resolve the collision with the other draft.' );
-$slug_collision = $slug_call( 'wp_update_post', [ 'id' => $slug_duplicate['id'], 'status' => 'publish' ] );
+$slug_collision = $runtime_call( 'wp_update_post', [ 'id' => $slug_duplicate['id'], 'status' => 'publish' ] );
 frontman_runtime_assert( 'sample-delivery-guide' === $slug_collision['after']['slug'], 'Publication changed the now-available draft slug.' );
-$slug_collision = $slug_call( 'wp_create_post', array_merge( $slug_fixture, [ 'status' => 'publish' ] ) );
+$slug_collision = $runtime_call( 'wp_create_post', array_merge( $slug_fixture, [ 'status' => 'publish' ] ) );
 frontman_runtime_assert( 'sample-delivery-guide-3' === $slug_collision['after']['slug'], 'Published create did not return the unique slug.' );
-$slug_updated = $slug_call( 'wp_update_post', [ 'id' => $slug_id, 'slug' => 'updated-delivery-guide' ] );
+$slug_updated = $runtime_call( 'wp_update_post', [ 'id' => $slug_id, 'slug' => 'updated-delivery-guide' ] );
 frontman_runtime_assert( 'sample-delivery-guide-2' === $slug_updated['before']['slug'] && 'updated-delivery-guide' === $slug_updated['after']['slug'], 'Slug update snapshots are inaccurate.' );
-$slug_omitted = $slug_call( 'wp_update_post', [ 'id' => $slug_id, 'title' => 'Changed title', 'excerpt' => 'Metadata only' ] );
+$slug_omitted = $runtime_call( 'wp_update_post', [ 'id' => $slug_id, 'title' => 'Changed title', 'excerpt' => 'Metadata only' ] );
 frontman_runtime_assert( 'updated-delivery-guide' === $slug_omitted['after']['slug'], 'Metadata-only edit regenerated the slug.' );
-$slug_read = $slug_call( 'wp_read_post', [ 'id' => $slug_id ] );
+$slug_read = $runtime_call( 'wp_read_post', [ 'id' => $slug_id ] );
 frontman_runtime_assert( $slug_read === $slug_omitted['after'], 'Read result differs from the mutation snapshot.' );
 
 foreach ( [ 'draft', 'pending', 'publish' ] as $slug_status ) {
 	$empty_fixture = [ 'title' => 'Runtime Empty ' . $slug_status, 'content' => '', 'status' => $slug_status ];
-	$omitted_create = $slug_call( 'wp_create_post', $empty_fixture );
+	$omitted_create = $runtime_call( 'wp_create_post', $empty_fixture );
 	frontman_runtime_assert( ( 'publish' === $slug_status ? sanitize_title( $empty_fixture['title'] ) : '' ) === $omitted_create['after']['slug'], 'Omitted create slug changed core behavior.' );
 	$empty_fixture['title'] .= ' Explicit';
-	$empty_create = $slug_call( 'wp_create_post', array_merge( $empty_fixture, [ 'slug' => '' ] ) );
+	$empty_create = $runtime_call( 'wp_create_post', array_merge( $empty_fixture, [ 'slug' => '' ] ) );
 	$expected_empty = 'publish' === $slug_status ? sanitize_title( $empty_fixture['title'] ) : '';
 	frontman_runtime_assert( $expected_empty === $empty_create['after']['slug'], 'Empty create slug changed core behavior.' );
-	$slug_call( 'wp_update_post', [ 'id' => $empty_create['id'], 'slug' => 'clear-me-' . $slug_status ] );
-	$empty_update = $slug_call( 'wp_update_post', [ 'id' => $empty_create['id'], 'slug' => '' ] );
+	$runtime_call( 'wp_update_post', [ 'id' => $empty_create['id'], 'slug' => 'clear-me-' . $slug_status ] );
+	$empty_update = $runtime_call( 'wp_update_post', [ 'id' => $empty_create['id'], 'slug' => '' ] );
 	frontman_runtime_assert( $expected_empty === $empty_update['after']['slug'], 'Empty update slug changed core behavior.' );
 }
 foreach ( [ 'Café — 日本! / Delivery', '%e6%97%a5%e6%9c%ac-guide', 'Quote\'s \\ path & punctuation?!' ] as $raw_slug ) {
-	$normalized = $slug_call( 'wp_create_post', array_merge( $slug_fixture, [ 'slug' => $raw_slug ] ) );
+	$normalized = $runtime_call( 'wp_create_post', array_merge( $slug_fixture, [ 'slug' => $raw_slug ] ) );
 	frontman_runtime_assert( sanitize_title( $raw_slug ) === $normalized['after']['slug'], 'Create slug normalization differs from core.' );
-	$normalized = $slug_call( 'wp_update_post', [ 'id' => $slug_duplicate['id'], 'status' => 'draft', 'slug' => $raw_slug ] );
+	$normalized = $runtime_call( 'wp_update_post', [ 'id' => $slug_duplicate['id'], 'status' => 'draft', 'slug' => $raw_slug ] );
 	frontman_runtime_assert( sanitize_title( $raw_slug ) === $normalized['after']['slug'], 'Update slug normalization differs from core.' );
 }
 $posts_before_invalid_slugs = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
@@ -309,14 +304,14 @@ frontman_runtime_assert( $posts_before_invalid_slugs === $wpdb->get_results( "SE
 
 $listed_slug_ids = [];
 foreach ( [ [ 'draft', '' ], [ 'pending', '' ], [ 'draft', 'stored-list-slug' ], [ 'publish', 'unique-list-slug' ], [ 'publish', 'unique-list-slug' ] ] as $index => $fixture ) {
-	$created = $slug_call( 'wp_create_post', [
+	$created = $runtime_call( 'wp_create_post', [
 		'title' => 'Runtime Listed Slug Fixture ' . $index,
 		'content' => '',
 		'status' => $fixture[0],
 	] + ( '' === $fixture[1] ? [] : [ 'slug' => $fixture[1] ] ) );
 	$listed_slug_ids[] = $created['id'];
 }
-$slug_call( 'wp_update_post', [ 'id' => $listed_slug_ids[2], 'excerpt' => 'Metadata-only list fixture update' ] );
+$runtime_call( 'wp_update_post', [ 'id' => $listed_slug_ids[2], 'excerpt' => 'Metadata-only list fixture update' ] );
 $expected_slugs = [ '', '', 'stored-list-slug', 'unique-list-slug', 'unique-list-slug-2' ];
 $posts_before_listing = $wpdb->get_results( "SELECT * FROM {$wpdb->posts} ORDER BY ID", ARRAY_A );
 foreach ( [ 'any', 'draft', 'pending', 'publish' ] as $status ) {
@@ -325,11 +320,11 @@ foreach ( [ 'any', 'draft', 'pending', 'publish' ] as $status ) {
 	} ) );
 	$total_pages = (int) ceil( count( $expected_ids ) / 2 );
 	for ( $page = 1; $page <= $total_pages; $page++ ) {
-		$listed = $slug_call( 'wp_list_posts', [ 'post_type' => 'post', 'status' => $status, 'search' => 'Runtime Listed Slug Fixture', 'per_page' => 2, 'page' => $page, 'orderby' => 'title', 'order' => 'ASC' ] );
+		$listed = $runtime_call( 'wp_list_posts', [ 'post_type' => 'post', 'status' => $status, 'search' => 'Runtime Listed Slug Fixture', 'per_page' => 2, 'page' => $page, 'orderby' => 'title', 'order' => 'ASC' ] );
 		frontman_runtime_assert( count( $expected_ids ) === $listed['total'] && $total_pages === $listed['total_pages'] && $page === $listed['page'], 'Slug listing changed pagination metadata.' );
 		frontman_runtime_assert( array_slice( $expected_ids, ( $page - 1 ) * 2, 2 ) === array_column( $listed['posts'], 'id' ), 'Slug listing changed filtering or pagination.' );
 		foreach ( $listed['posts'] as $listed_post ) {
-			$read = $slug_call( 'wp_read_post', [ 'id' => $listed_post['id'] ] );
+			$read = $runtime_call( 'wp_read_post', [ 'id' => $listed_post['id'] ] );
 			$expected_slug = $expected_slugs[ array_search( $listed_post['id'], $listed_slug_ids, true ) ];
 			frontman_runtime_assert( array_key_exists( 'slug', $listed_post ), 'Post list omitted the persisted slug.' );
 			frontman_runtime_assert( $expected_slug === $listed_post['slug'] && $read['slug'] === $listed_post['slug'] && get_post( $listed_post['id'] )->post_name === $listed_post['slug'], 'List/read slugs differ from the stored slug.' );
