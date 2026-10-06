@@ -3,6 +3,38 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [5.3.0] - 2026-10-06
+
+### Work on your site
+
+- Ask Frontman to fill, replace, or clear text in website forms, including long forms and rich-text fields. You still need to save or submit the form.
+- Choose from updated AI models, including GPT-6 Sol/Luna and Claude Opus/Sonnet 5.5. Unavailable models now show guidance to help you continue.
+- Frontman now captures page screenshots without shifting content or missing fixed headers after you scroll.
+
+### Manage your WordPress site
+
+- Organize posts with existing categories and tags as Frontman creates or updates them.
+- Ask Frontman to update supported theme settings and find text across Elementor pages and shared templates.
+- Review and update files that guide search engines and AI tools on supported sites. Frontman requires your approval and keeps the previous version.
+  Changes to `robots.txt` replace WordPress-generated rules, including automatic sitemap updates. Saving a file does not confirm that it is publicly available.
+- Frontman can read your privacy policy page setting and comment requirements without changing them.
+- Frontman now explains why SEO tools are unavailable. Compatibility checks also cover Yoast SEO Free 19.9.
+
+### Continue conversations with fewer interruptions
+
+- Failed conversations now offer a retry action, and Frontman shows when the connection is ready after a disconnect.
+- Conversation history stays in order. Switching conversations no longer risks sending your draft to the wrong conversation.
+- If a message is too large to send, Frontman keeps your draft so you can shorten it or remove images.
+- Unsupported PDF and document attachments now show instructions to paste text or use images instead.
+
+### Manage your account
+
+- Payments and subscription changes now use the account signed into the editor, even if your browser uses a different account.
+- Frontman shows payment errors in the editor and refreshes your subscription status after checkout.
+- If your AI service rejects a request, Frontman guides you to sign in again, replace your API key, or check that service's billing.
+  AI service credit limits are separate from your Frontman subscription.
+- Before you open billing, reload or update older editors.
+
 ## [5.2.0] - 2026-09-28
 
 

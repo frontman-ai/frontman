@@ -1,5 +1,11 @@
 # @frontman-ai/nextjs
 
+## 2.0.2
+
+### Patch Changes
+
+- [#1799](https://github.com/frontman-ai/frontman/pull/1799) [`30c9c33`](https://github.com/frontman-ai/frontman/commit/30c9c330fd3e356c17d8e646b362b6959a6ddbf3) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the Next.js development dependency and test fixture to the patched 16.3 release line.
+
 ## 2.0.1
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @frontman-ai/astro
 
+## 3.1.1
+
+### Patch Changes
+
+- [#1793](https://github.com/frontman-ai/frontman/pull/1793) [`dc3e00b`](https://github.com/frontman-ai/frontman/commit/dc3e00b7b55d1d68e3003cc65de80b4043a2ae1d) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the documentation site to Starlight 0.42.0 and Astro 7.2.10, and declare the Astro integration test parser dependency.
+
 ## 3.1.0
 
 ### Minor Changes

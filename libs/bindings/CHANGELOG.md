@@ -1,5 +1,11 @@
 # @frontman/bindings
 
+## 0.3.3
+
+### Patch Changes
+
+- [#1774](https://github.com/frontman-ai/frontman/pull/1774) [`597b1e8`](https://github.com/frontman-ai/frontman/commit/597b1e8d82ab4cf53ec584af93b668bfe1ccbc67) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix viewport screenshots that shifted page content or omitted fixed and sticky elements after scrolling. Preserve viewport resolution on long pages.
+
 ## 0.3.2
 
 ### Patch Changes
