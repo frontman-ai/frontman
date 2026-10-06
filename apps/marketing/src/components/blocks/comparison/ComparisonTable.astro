@@ -18,7 +18,7 @@ const features: Feature[] = [
 		name: 'Sees live DOM & styles',
 		frontman: 'yes',
 		claudeDesktop: 'no',
-		cursor: 'no',
+		cursor: 'yes',
 		copilot: 'no'
 	},
 	{
@@ -60,7 +60,7 @@ const features: Feature[] = [
 		name: 'Visual component selection',
 		frontman: 'yes',
 		claudeDesktop: 'no',
-		cursor: 'partial',
+		cursor: 'yes',
 		copilot: 'no'
 	}
 ]
@@ -98,10 +98,17 @@ function toolKey(tool: string): keyof Feature {
 			<Col span="12" align="center" classes="mb-12 lg:mb-16">
 				<h2 class="comparison-title">How Frontman stacks up</h2>
 				<p class="comparison-subtitle">
-					The only AI coding tool with direct access to your running application
+					Compare browser context, source editing, and workflow fit
 				</p>
 			</Col>
 		</Row>
+
+		<p class="comparison-subtitle">
+			Cursor Browser and visual-editor capabilities checked October 6, 2026 against
+			<a href="https://cursor.com/docs/agent/tools/browser">Cursor's Browser documentation</a>
+			and <a href="https://cursor.com/blog/browser-visual-editor">visual-editor announcement</a>.
+			Other columns retain their earlier comparison scope.
+		</p>
 
 		<div class="table-wrapper" id="comparison-table">
 			<table class="comparison-table">
