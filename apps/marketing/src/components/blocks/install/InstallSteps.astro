@@ -18,7 +18,7 @@ const frameworks = [
 		step2Title: 'Open Frontman',
 		step2Description: 'Visit localhost/frontman in your browser',
 		step3Title: 'Connect your AI',
-		step3Description: 'Connect to your preferred AI model subscription',
+		step3Description: 'Sign in to Frontman and connect a supported AI provider',
 		showPluginLink: 'false'
 	},
 	{
@@ -32,7 +32,7 @@ const frameworks = [
 		step2Title: 'Open Frontman',
 		step2Description: 'Visit localhost/frontman in your browser',
 		step3Title: 'Connect your AI',
-		step3Description: 'Connect to your preferred AI model subscription',
+		step3Description: 'Sign in to Frontman and connect a supported AI provider',
 		showPluginLink: 'false'
 	},
 	{
@@ -46,7 +46,7 @@ const frameworks = [
 		step2Title: 'Open Frontman',
 		step2Description: 'Visit localhost/frontman in your browser',
 		step3Title: 'Connect your AI',
-		step3Description: 'Connect to your preferred AI model subscription',
+		step3Description: 'Sign in to Frontman and connect a supported AI provider',
 		showPluginLink: 'false'
 	},
 	{
@@ -58,9 +58,9 @@ const frameworks = [
 		step1Title: 'Install the plugin',
 		step1Description: 'Search for Frontman Agentic AI Editor in wp-admin',
 		step2Title: 'Activate and open Frontman',
-		step2Description: 'Visit /frontman on your WordPress site',
-		step3Title: 'Describe a site change',
-		step3Description: 'Connect your AI provider, describe the edit, and review it beside live preview',
+		step2Description: 'Open Frontman from the WordPress admin menu',
+		step3Title: 'Connect your AI',
+		step3Description: 'Sign in to Frontman and connect a supported provider before your first edit',
 		showPluginLink: 'true'
 	}
 ]
@@ -78,9 +78,9 @@ const frameworks = [
 
 	<div class="container">
 		<div class="install-header">
-			<h2 class="install-title">Up and running in under 5 minutes</h2>
+			<h2 class="install-title">Install for your supported stack</h2>
 			<p class="install-subtitle">
-				One command to install, one URL to open, one AI to connect. That's it.
+				A developer needs a running supported project and permitted workspace access. Sign in to Frontman, arrange service access, and connect your own AI provider. Provider access and costs are separate. See <a href="/pricing/">current pricing</a> and <a href="/docs/api-keys/">provider setup</a>.
 			</p>
 
 			<div class="framework-tabs">
@@ -203,7 +203,7 @@ const frameworks = [
 				</div>
 				<div class="step-card step-card--peach">
 					<h3 class="step-title" data-step3-title>Connect your AI</h3>
-					<p class="step-description" data-step3-description>Connect to your preferred AI model subscription</p>
+					<p class="step-description" data-step3-description>Sign in to Frontman and connect a supported AI provider</p>
 					<div class="ai-badges">
 						<span class="ai-badge">Claude</span>
 						<span class="ai-badge">ChatGPT</span>
@@ -219,6 +219,7 @@ const frameworks = [
 	@reference "../../../styles/global.css";
 	.install-section {
 		@apply relative overflow-hidden py-16 lg:py-32;
+		scroll-margin-top: 100px;
 		background: #FAFAFA;
 	}
 

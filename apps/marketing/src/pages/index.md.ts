@@ -2,7 +2,7 @@ import type { APIRoute } from 'astro'
 
 const body = `# Frontman
 
-Frontman is an AI WordPress editor plugin for existing sites. Describe changes to posts, pages, Gutenberg blocks, Elementor pages, menus, templates, settings, and WooCommerce data beside live preview. Frontman for WordPress is production-ready and battle-tested. Only administrators can access the workspace. Keep backups and review changes in the live preview.
+Ship WordPress updates faster. Frontman is an AI editor for existing WordPress sites: describe one update, inspect the page, and refine it. WordPress-native writes persist to the connected installation. Published content on a live site can change immediately; preview is not a universal approval gate. Frontman for WordPress is production-ready. Start with staging and backups; recovery depends on the changed surface.
 
 ## Choose Your Workflow
 
@@ -12,13 +12,13 @@ Frontman is an AI WordPress editor plugin for existing sites. Describe changes t
 - Next.js, Astro, and Vite: https://frontman.sh/frameworks/
 - Framework installation: https://frontman.sh/frameworks/#install
 
-Framework integrations inspect the live page and source context to produce reviewable code edits. A hosted or self-hosted server orchestrates the agent and persists task history. Relevant context is sent to your selected LLM provider.
+Framework integrations require a running supported Next.js, Astro, or Vite development environment and permitted workspace access. Developers review source changes, run tests, and deploy through their normal workflow. Check production guards and runtime exposure rather than assume automatic stripping. A hosted or self-hosted server orchestrates the agent and persists task history. Relevant context is sent to your selected LLM provider.
 
 ## Core Capabilities
 
 - Select rendered elements and ask Frontman to change copy, spacing, color, layout, menus, or page content.
 - Use runtime context from Next.js, Astro, Vite, React, Vue, Svelte, and WordPress.
-- Bring your own Claude, ChatGPT, or OpenRouter API key.
+- Connect a supported AI provider account or save a supported provider key; provider access and costs are separate.
 - Keep developers in control with local development edits and normal git diffs for code-backed sites.
 - Run Frontman Pro hosted or self-host from the source-available repository.
 
@@ -38,7 +38,7 @@ Framework integrations inspect the live page and source context to produce revie
 
 ## Authentication And Access
 
-Frontman hosted accounts use OAuth sign-in with GitHub or Google. AI provider access is bring-your-own-key: users connect Claude, ChatGPT, or OpenRouter credentials from Frontman settings. Local framework integrations connect to the Frontman service over authenticated WebSocket sessions.
+WordPress requires WordPress 6.0+, PHP 7.4+, and administrator access. Open Frontman from the WordPress admin menu. Sign in to Frontman with GitHub or Google and arrange service access; see https://frontman.sh/pricing/. AI-provider access and costs are separate. Current settings support Anthropic and OpenAI OAuth connections, and saved keys for Anthropic, OpenRouter, Fireworks AI, and NVIDIA. See https://frontman.sh/docs/api-keys/. Framework integrations connect to the Frontman service over authenticated WebSocket sessions.
 
 ## Support
 

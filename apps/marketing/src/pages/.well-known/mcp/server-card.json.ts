@@ -6,14 +6,14 @@ const origin = siteUrl.origin
 const serverCard = {
   name: 'Frontman MCP discovery',
   description:
-    'Discovery card for Frontman agent integration. Frontman framework plugins expose browser and dev-server context to AI agents during local development.',
+    'Discovery card for Frontman existing-site AI editing. Ship WordPress updates faster using native CMS tools; published content can change immediately. Framework integrations require supported development setup and source review, testing, and deployment. Sign-in, service access, and separate AI-provider access and costs apply.',
   homepage: origin,
   documentation: `${origin}/docs/reference/architecture/`,
   auth: `${origin}/docs/api-keys/`,
   transports: [
     {
       type: 'local-dev-server',
-      description: 'Next.js, Astro, Vite, and WordPress integrations expose project-aware tools from the running app.',
+      description: 'Next.js, Astro, and Vite expose project-aware tools from a running development app. WordPress uses native CMS tools in the connected installation, not a local framework MCP server.',
     },
     {
       type: 'websocket',

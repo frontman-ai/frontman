@@ -14,7 +14,7 @@ const faqs = [
 	{
 		question: 'Can designers use Frontman without writing code?',
 		answer:
-			'Yes. Designers can click an element in the running app, describe the change in plain English, and review the updated UI instantly. Frontman writes source code edits behind the scenes, and engineering reviews changes in the normal PR flow.'
+			'Yes. Designers can click an element in the running app, describe the change in plain English, and inspect the updated development page. Frontman writes source code edits behind the scenes, and engineering reviews changes in the normal PR flow.'
 	},
 	{
 		question: 'Is Frontman a replacement for Figma?',
@@ -112,8 +112,9 @@ const highlightedTableToolCellClass = `${tableToolCellClass} bg-slate-900`
 				<a href="https://frontman.sh" class="text-primary-500 underline underline-offset-2 hover:text-primary-400">Frontman</a> is a distributed
 				AI agent with browser-side tools, a local framework integration, and hosted or self-hosted server orchestration and task-history persistence. Relevant context is sent to the selected LLM provider. Instead of
 				screenshots, tickets, and waiting for a sprint slot, designers can iterate directly on
-				the live app while engineering keeps normal review control.
+				the development app while engineering keeps normal review control.
 			</p>
+			<p class="mt-4 text-zinc-300">Start with the <a href="/marketing-teams/#developer-setup" class="text-primary-300 underline" data-ga-event="click_developer_setup" data-ga-category="conversion" data-ga-label="designers_intro">developer setup brief</a> before your first edit.</p>
 		</div>
 	</section>
 
@@ -169,7 +170,7 @@ const highlightedTableToolCellClass = `${tableToolCellClass} bg-slate-900`
 				</span>
 				<h3>Review and ship</h3>
 				<p class="m-0 text-[15px] leading-[1.6]">
-					See the update instantly, iterate if needed, and send through normal code review.
+					Inspect the development page, refine the result, and send source changes through normal code review.
 				</p>
 			</div>
 		</div>
@@ -227,8 +228,10 @@ const highlightedTableToolCellClass = `${tableToolCellClass} bg-slate-900`
 	<UseCaseFaqSection faqs={faqs} />
 
 	<UseCaseCtaSection
+		primaryLink="/marketing-teams/#developer-setup"
+		primaryLabel="Get developer setup"
 		title="Design on the real thing"
-		description="If your team is tired of visual ticket ping-pong, start with one page and one workflow."
+		description="Have a developer connect a supported development environment and permitted workspace. Start with one page; your team still reviews, tests, and deploys source changes."
 		secondaryLinks={[
 			{href: '/use-cases/frontend-developers/', label: 'Frontend developer workflow'},
 			{href: '/integrations/', label: 'Supported integrations'},

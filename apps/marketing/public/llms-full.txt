@@ -1,6 +1,6 @@
 # Frontman Full LLM Context
 
-Frontman is a source-available AI website editor for existing sites. The primary homepage presents the WordPress plugin. Framework integrations for Next.js, Astro, and Vite are available at https://frontman.sh/frameworks/.
+Frontman helps ship updates to existing websites faster with an AI editing loop: describe, inspect, and refine. The primary homepage presents the WordPress plugin. Framework integrations for Next.js, Astro, and Vite are available at https://frontman.sh/frameworks/.
 
 ## Primary Resources
 
@@ -22,15 +22,15 @@ Frontman is a source-available AI website editor for existing sites. The primary
 
 ### WordPress
 
-Install Frontman Agentic AI Editor from wp-admin and open /frontman as an administrator. The plugin edits posts, pages, Gutenberg blocks, Elementor content, menus, templates, widgets, allowlisted settings, and WooCommerce data beside live preview. Tool requests use WordPress nonces. Keep backups, review changes, and use staging for higher-risk work.
+Install Frontman Agentic AI Editor from wp-admin and open Frontman from the admin menu. Requires WordPress 6.0+, PHP 7.4+, administrator access, Frontman sign-in, service access, and your own supported AI provider with separate costs. The plugin edits posts, pages, Gutenberg blocks, Elementor content, menus, templates, widgets, allowlisted settings, and WooCommerce data beside live preview. WordPress uses native CMS tools. Tool requests use WordPress nonces. Frontman for WordPress is production-ready. Writes persist to the connected installation; published content on a live site can change immediately. Preview is not a universal approval gate. Start with staging and backups. Recovery is selective, not universal undo.
 
 ### Frameworks
 
-Frontman integrates with Next.js, Astro, and Vite. The framework plugin exposes routes, logs, source files, and build/runtime state. The browser-side client exposes DOM inspection, computed CSS, screenshots, element selection, and viewport behavior. The agent combines both views to make frontend edits with visual context that file-only coding tools lack.
+Frontman integrates with Next.js, Astro, and Vite. The framework plugin exposes routes, logs, source files, and build/runtime state. The browser-side client exposes DOM inspection, computed CSS, screenshots, element selection, and viewport behavior. Requires a running supported development environment and permitted workspace access. Developers review source changes, run tests, and deploy through their normal workflow. Check integration guards, built artifacts, and deployed routes when Frontman must be absent from production.
 
 ### Hosted service and licensing
 
-Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription. AI provider usage is billed separately. Self-hosting is available under the repository terms. The browser client and JavaScript integrations use Apache-2.0, the WordPress plugin uses GPL-2.0-or-later, and the server uses AGPL-3.0-only with AI Supplementary Terms.
+Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription. AI provider usage is billed separately. Supported connections include Anthropic and OpenAI OAuth, plus saved keys for Anthropic, OpenRouter, Fireworks AI, and NVIDIA. See the provider setup docs for current access. Self-hosting is available under the repository terms. The browser client and JavaScript integrations use Apache-2.0, the WordPress plugin uses GPL-2.0-or-later, and the server uses AGPL-3.0-only with AI Supplementary Terms.
 
 ## Suitable Uses
 
