@@ -5,6 +5,7 @@ import gridNetBackground from '../assets/grid-net-background.svg'
 
 const pluginUrl = 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
 const setupGuideUrl = '/docs/integrations/wordpress/'
+const taskDemoUrl = '/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo'
 
 const SEO = {
 	title: 'Ship WordPress Updates Faster | Frontman AI Editor',
@@ -95,31 +96,25 @@ const pageJsonLd = {
 		</div>
 		<div class="wp-container wp-container--wide wp-hero__grid">
 			<div class="wp-hero__content">
-				<p class="wp-label">AI that edits your WordPress site</p>
-				<h1>
-					<span class="wp-headline__setup">Stop wrestling with WordPress.</span>{' '}
-					<span class="wp-headline__payoff">Less busywork. More marketing.</span>
-				</h1>
+				<p class="wp-label">Frontman for WordPress</p>
+				<h1>Ship WordPress updates faster.</h1>
 				<p class="wp-lead">
-					Rewrite the headline. Rework an Elementor section. Update your navigation. Tell Frontman what you want changed—it makes the edits while you review the result.
+					Update the WordPress site you already have without translating every request into builder controls or another implementation handoff. Describe one change, inspect the page, and refine the result.
 				</p>
 				<div class="wp-actions wp-hero__cta">
-					<Button size="lg" style="white" link={pluginUrl} classes="wp-primary-cta" data-ga-event="click_wordpress_plugin" data-ga-category="conversion" data-ga-label="wordpress_home_hero">Get Frontman for WordPress <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
+					<Button size="lg" style="white" link={pluginUrl} classes="wp-primary-cta" data-ga-event="click_wordpress_plugin" data-ga-category="conversion" data-ga-label="wordpress_home_hero">Install from WordPress.org <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
+					<Button size="lg" style="white" variation="outline" link="#demo" data-ga-event="click_demo_navigation" data-ga-category="engagement" data-ga-label="wordpress_home_hero">See a WordPress task <span class="wp-cta-arrow" aria-hidden="true">→</span></Button>
 				</div>
 				<p class="wp-hero__support">Your existing site. Gutenberg and Elementor. No rebuild.</p>
 			</div>
-			<div id="demo" class="wp-video-wrapper">
-				<iframe
-					src="https://www.youtube-nocookie.com/embed/-4GD1GYwH8Y"
-					title="Frontman framework editing demo"
-					width="960"
-					height="540"
-					loading="lazy"
-					allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-					referrerpolicy="strict-origin-when-cross-origin"
-					allowfullscreen
-				></iframe>
-			</div>
+			<figure id="demo" class="wp-video-wrapper">
+				<video controls preload="metadata" poster="/blog/frontman-wordpress-editor-demo-poster.webp" width="520" height="350" aria-label="Frontman changing a WordPress FAQ heading beside live preview">
+					<source src="/blog/frontman-wordpress-editor-demo.mp4" type="video/mp4" />
+					<a href="/blog/frontman-wordpress-editor-demo.mp4">Watch the WordPress FAQ-heading edit.</a>
+				</video>
+				<figcaption>WordPress task demo: Frontman changes one FAQ heading beside the page preview. This is an editing example, not a timed benchmark or deployment.</figcaption>
+				<a href={taskDemoUrl} class="wp-secondary-link">Read the task walkthrough</a>
+			</figure>
 			<p class="wp-note">Production-ready. Start with a staging copy and a backup. Requires WordPress 6.0+, PHP 7.4+, administrator access, Frontman sign-in and service access, plus separate <a href="/docs/api-keys/" class="wp-copy-link">AI-provider access and costs</a>. See <a href="/pricing/" class="wp-copy-link">pricing</a>.</p>
 		</div>
 	</section>
@@ -267,11 +262,12 @@ const pageJsonLd = {
 	.wp-cta-arrow { margin-left: 8px; }
 	.wp-actions--center { justify-content: center; }
 	.wp-secondary-link { @apply font-semibold text-white underline underline-offset-4 hover:text-primary-100; }
-	.wp-note { width: 100%; max-width: 960px; @apply mt-6 text-sm leading-6 text-white; }
+	.wp-note { @apply mt-6 text-sm leading-6 text-white; }
 	.wp-note a { color: inherit; text-decoration: underline; text-underline-offset: 4px; }
 	#demo, #install { scroll-margin-top: 100px; }
-	.wp-video-wrapper { position: relative; width: 100%; max-width: 960px; margin: 48px auto 0; aspect-ratio: 16 / 9; overflow: hidden; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 20px; background: #09090b; box-shadow: 0 24px 64px rgba(30, 10, 65, 0.35), 0 4px 16px rgba(30, 10, 65, 0.2); }
-	.wp-video-wrapper iframe { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border: 0; }
+	.wp-video-wrapper { width: 100%; max-width: 520px; margin: 40px auto 0; }
+	.wp-video-wrapper video { display: block; width: 100%; height: auto; border-radius: 12px; }
+	.wp-video-wrapper figcaption { margin: 16px 0; font-size: 14px; line-height: 1.6; }
 	.wp-hero .wp-label { color: white; }
 	.wp-hero :global(a:focus-visible), .wp-final :global(a:focus-visible), video:focus-visible { outline: 3px solid white; outline-offset: 4px; }
 	.wp-section a:focus-visible, summary:focus-visible { outline: 3px solid #7c3aed; outline-offset: 4px; }
