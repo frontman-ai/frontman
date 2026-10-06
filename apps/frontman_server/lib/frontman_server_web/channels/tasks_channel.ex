@@ -24,13 +24,21 @@ defmodule FrontmanServerWeb.TasksChannel do
   alias FrontmanServer.Tasks
 
   @billing_status_updated "billing_status_updated"
-  @acp_protocol_version ACP.protocol_version()
   @acp_message ACP.event_acp_message()
   @acp_config_updated ACP.event_config_options_updated()
   @acp_list_sessions ACP.event_list_sessions()
   @acp_delete_session ACP.event_delete_session()
   @acp_method_initialize ACP.method_initialize()
   @acp_method_session_new ACP.method_session_new()
+  @session_new_params_path Path.expand(
+                             "../../../../../libs/frontman-protocol/schemas/acp/sessionNewParams.json",
+                             __DIR__
+                           )
+  @external_resource @session_new_params_path
+  @session_new_params_schema @session_new_params_path
+                             |> File.read!()
+                             |> Jason.decode!()
+                             |> JSV.build!()
 
   @impl true
   def join("tasks", _params, socket) do
@@ -82,10 +90,10 @@ defmodule FrontmanServerWeb.TasksChannel do
   end
 
   defp handle_message(
-         {:request, id, @acp_method_initialize,
-          %{"protocolVersion" => @acp_protocol_version} = params},
+         {:request, id, @acp_method_initialize, %{"protocolVersion" => version} = params},
          socket
-       ) do
+       )
+       when is_integer(version) and version >= 0 and version <= 65_535 do
     Logger.info("ACP initialize received")
 
     case ACP.negotiate_agent_attribution_version(params["clientCapabilities"]) do
@@ -113,7 +121,12 @@ defmodule FrontmanServerWeb.TasksChannel do
   end
 
   defp handle_message({:request, id, @acp_method_initialize, %{"protocolVersion" => _}}, socket) do
-    reply_error(socket, id, JsonRpc.error_invalid_request(), "Unsupported protocol version")
+    reply_error(
+      socket,
+      id,
+      JsonRpc.error_invalid_params(),
+      "Invalid protocolVersion: must be an integer between 0 and 65535"
+    )
   end
 
   defp handle_message({:request, id, @acp_method_initialize, _params}, socket) do
@@ -125,14 +138,8 @@ defmodule FrontmanServerWeb.TasksChannel do
     )
   end
 
-  defp handle_message(
-         {:request, id, @acp_method_session_new, %{"sessionId" => session_id}},
-         socket
-       )
-       when is_binary(session_id) and session_id != "" do
-    Logger.info("ACP session/new request received with sessionId: #{session_id}")
-
-    with :ok <- validate_uuid_format(session_id),
+  defp handle_message({:request, id, @acp_method_session_new, params}, socket) do
+    with {:ok, session_id} <- session_new_id(params),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
          true <- Billing.allow_access?(socket.assigns.scope),
@@ -161,12 +168,12 @@ defmodule FrontmanServerWeb.TasksChannel do
           Tasks.billing_inactive_message(socket.assigns.scope)
         )
 
-      :error ->
+      {:error, :invalid_session_params} ->
         reply_error(
           socket,
           id,
           JsonRpc.error_invalid_params(),
-          "Invalid sessionId: must be a valid UUID"
+          "Invalid or unsupported session/new parameters: use cwd /, empty mcpServers and no additional directories"
         )
 
       nil ->
@@ -175,10 +182,6 @@ defmodule FrontmanServerWeb.TasksChannel do
       {:error, _changeset} ->
         reply_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
     end
-  end
-
-  defp handle_message({:request, id, @acp_method_session_new, _params}, socket) do
-    reply_error(socket, id, JsonRpc.error_invalid_params(), "Missing required field: sessionId")
   end
 
   defp handle_message({:request, id, method, _params}, socket) do
@@ -212,12 +215,23 @@ defmodule FrontmanServerWeb.TasksChannel do
     |> ACP.build_model_config_options()
   end
 
-  defp validate_uuid_format(string) do
-    case Ecto.UUID.cast(string) do
-      {:ok, uuid} -> if uuid == String.downcase(string), do: :ok, else: :error
-      :error -> :error
+  defp session_new_id(params) do
+    with {:ok, %{"cwd" => "/"}} <-
+           JSV.validate(params, @session_new_params_schema, cast: false),
+         {:ok, session_id} <- session_new_retry_id(params["_meta"]) do
+      {:ok, session_id}
+    else
+      _invalid_params -> {:error, :invalid_session_params}
     end
   end
+
+  defp session_new_retry_id(%{"frontman.dev/sessionId" => session_id})
+       when is_binary(session_id) do
+    Ecto.UUID.cast(session_id)
+  end
+
+  defp session_new_retry_id(%{"frontman.dev/sessionId" => _invalid_id}), do: :error
+  defp session_new_retry_id(_metadata), do: {:ok, ACP.generate_session_id()}
 
   defp extract_framework(%{"_meta" => %{"framework" => framework}}) when is_binary(framework),
     do: framework

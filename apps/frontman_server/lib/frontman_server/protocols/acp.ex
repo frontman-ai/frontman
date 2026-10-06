@@ -117,6 +117,7 @@ defmodule FrontmanServer.Protocols.ACP do
       "mcpCapabilities" => %{"http" => false, "sse" => false, "websocket" => true},
       "promptCapabilities" => %{"image" => true, "audio" => false, "embeddedContext" => true},
       "_meta" => %{
+        "frontman.dev/sessionId" => true,
         @extension_namespace => %{
           "agentAttribution" => %{"version" => @agent_attribution_version},
           "agents" => build_agent_catalog(agents),

@@ -389,6 +389,38 @@ let findConfigOptionByCategory = (
     }
   )
 
+type sessionNewMetadata = {sessionId: option<string>}
+
+let sessionNewMetadataSchema = S.object(s => {
+  sessionId: s.field(
+    "frontman.dev/sessionId",
+    S.option(
+      S.string->S.pattern(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+        ~message="Expected a canonical UUID",
+      ),
+    ),
+  ),
+})
+
+type sessionNewParams = {
+  cwd: string,
+  mcpServers: array<JSON.t>,
+  additionalDirectories: option<array<string>>,
+  _meta: option<sessionNewMetadata>,
+}
+
+let sessionNewParamsSchema = S.object(s => {
+  cwd: s.field("cwd", S.string->S.pattern(/^\//, ~message="Expected an absolute path")),
+  mcpServers: s.field("mcpServers", S.array(S.json)->S.max(0)),
+  additionalDirectories: s.field("additionalDirectories", S.option(S.array(S.string)->S.max(0))),
+  _meta: s.field("_meta", S.nullableAsOption(sessionNewMetadataSchema)),
+})->S.strict
+
+let sessionIdCapabilityMetadataSchema = S.object(s =>
+  s.field("frontman.dev/sessionId", S.option(S.bool))
+)
+
 type sessionNewResult = {
   sessionId: string,
   modes: option<sessionModeState>,

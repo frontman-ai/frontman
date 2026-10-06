@@ -191,15 +191,38 @@ let sendInitialize = (
 let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId: string): promise<
   result<Types.sessionNewResult, Client.requestError>,
 > => {
-  let params = Dict.make()
-  params->Dict.set("sessionId", JSON.Encode.string(sessionId))
-  sendRequest(
-    ~channel,
-    ~state,
-    ~method=#"session/new",
-    ~params=Some(JSON.Encode.object(params)),
-    ~parseResult=Client.parseSessionNewResult,
-  )
+  let capability = switch state.contents.acpState {
+  | Initialized(result) =>
+    switch result.agentCapabilities->Option.flatMap(capabilities => capabilities._meta) {
+    | None => Ok(None)
+    | Some(metadata) => metadata->Decoders.parseSchema(Types.sessionIdCapabilityMetadataSchema)
+    }
+  | _ => Ok(None)
+  }
+  switch capability {
+  | Error(message) => Promise.resolve(Error(Client.requestErrorFromMessage(message)))
+  | Ok(Some(true)) =>
+    let params: Types.sessionNewParams = {
+      cwd: "/",
+      mcpServers: [],
+      additionalDirectories: None,
+      _meta: Some({sessionId: Some(sessionId)}),
+    }
+    let params = params->S.decodeOrThrow(~from=Types.sessionNewParamsSchema, ~to=S.json)
+    sendRequest(
+      ~channel,
+      ~state,
+      ~method=#"session/new",
+      ~params=Some(params),
+      ~parseResult=Client.parseSessionNewResult,
+    )
+  | Ok(_) =>
+    Promise.resolve(
+      Error(
+        Client.requestErrorFromMessage("Agent does not support Frontman retry-safe session IDs"),
+      ),
+    )
+  }
 }
 
 let sendPrompt = (
