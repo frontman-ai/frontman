@@ -5,7 +5,7 @@
  * Tools: wp_get_option, wp_update_option, wp_list_options,
  * wp_get_custom_css, wp_list_custom_css_revisions, wp_get_custom_css_revision,
  * wp_restore_custom_css_revision, wp_update_custom_css, wp_list_theme_mods,
- * wp_get_theme_mod
+ * wp_get_theme_mod, wp_update_theme_mod
  *
  * Handlers return plain data arrays on success, throw Frontman_Tool_Error on failure.
  *
@@ -235,6 +235,26 @@ class Frontman_Tool_Options {
 				'required'             => [ 'name' ],
 			],
 			[ $this, 'get_theme_mod' ]
+		) );
+
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_update_theme_mod',
+			'Updates one registered top-level Customizer theme mod for the active theme using its permissions, validation, sanitization and save API. Read wp_get_theme_mod first and pass its stylesheet. Requires confirm=true after user approval. Unregistered settings, option settings and indexed settings are not supported. Returns observed persisted before/after values; verify the rendered site separately.',
+			[
+				'type'                 => 'object',
+				'additionalProperties' => false,
+				'properties'           => [
+					'name'       => [ 'type' => 'string', 'description' => 'Exact registered theme mod name, e.g. header_button_text.' ],
+					'value'      => [ 'type' => [ 'string', 'number', 'boolean', 'array', 'object' ], 'description' => 'New value, validated and sanitized by the registered Customizer setting.' ],
+					'stylesheet' => [ 'type' => 'string', 'description' => 'Expected active stylesheet from wp_get_theme_mod.' ],
+					'confirm'    => [ 'type' => 'boolean', 'description' => 'Must be true after the user approves the theme setting change.' ],
+				],
+				'required'             => [ 'name', 'value', 'stylesheet', 'confirm' ],
+			],
+			[ $this, 'update_theme_mod' ],
+			null,
+			true,
+			true
 		) );
 	}
 
@@ -581,6 +601,65 @@ class Frontman_Tool_Options {
 			'name'       => $name,
 			'stylesheet' => $this->active_stylesheet(),
 			'value'      => get_theme_mod( $name, null ),
+		];
+	}
+
+	public function update_theme_mod( array $input ): array {
+		if ( true !== ( $input['confirm'] ?? false ) ) {
+			throw new Frontman_Tool_Error( 'Theme mod update requires confirm=true after user approval.' );
+		}
+		if ( ! current_user_can( 'edit_theme_options' ) ) {
+			throw new Frontman_Tool_Error( 'You cannot edit theme options.' );
+		}
+		$current = $this->get_theme_mod( $input );
+		if ( ( $input['stylesheet'] ?? null ) !== $current['stylesheet'] ) {
+			throw new Frontman_Tool_Error( 'stylesheet must match the active theme. Read wp_get_theme_mod again.' );
+		}
+		if ( ! array_key_exists( 'value', $input ) || null === $input['value'] || is_object( $input['value'] ) ) {
+			throw new Frontman_Tool_Error( 'value is required and must be a JSON scalar, array or object decoded as an array.' );
+		}
+
+		global $wp_customize;
+		if ( ! ( $wp_customize instanceof \WP_Customize_Manager ) ) {
+			if ( ! class_exists( '\WP_Customize_Manager' ) ) {
+				require_once ABSPATH . WPINC . '/class-wp-customize-manager.php';
+			}
+			$wp_customize = new \WP_Customize_Manager( [ 'settings_previewed' => false ] );
+			do_action( 'customize_register', $wp_customize );
+		}
+		$setting = $wp_customize->get_setting( $current['name'] );
+		if ( ! $setting || 'theme_mod' !== $setting->type || ! empty( $setting->id_data()['keys'] ) ) {
+			throw new Frontman_Tool_Error( 'Only registered top-level Customizer theme mods can be updated.' );
+		}
+		if ( ! $setting->check_capabilities() ) {
+			throw new Frontman_Tool_Error( 'You cannot edit this Customizer setting.' );
+		}
+		$valid = $setting->validate( $input['value'] );
+		if ( is_wp_error( $valid ) ) {
+			throw new Frontman_Tool_Error( $valid->get_error_message() );
+		}
+		$value = $setting->sanitize( $input['value'] );
+		if ( null === $value || is_wp_error( $value ) ) {
+			throw new Frontman_Tool_Error( 'Customizer setting rejected the value.' );
+		}
+		$mods   = get_theme_mods();
+		$before = $mods[ $current['name'] ] ?? null;
+		$wp_customize->set_post_value( $current['name'], $input['value'] );
+		if ( false === $setting->save() ) {
+			throw new Frontman_Tool_Error( 'Customizer setting could not be saved. Read current state before retrying.' );
+		}
+		$mods  = get_theme_mods();
+		$after = $mods[ $current['name'] ] ?? null;
+		if ( $after !== $value ) {
+			throw new Frontman_Tool_Error( 'Theme mod write could not be verified. Read current state before retrying.' );
+		}
+
+		return [
+			'name'       => $current['name'],
+			'stylesheet' => $current['stylesheet'],
+			'updated'    => $before !== $after,
+			'before'     => $before,
+			'after'      => $after,
 		];
 	}
 
