@@ -5,138 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [5.3.0] - 2026-10-06
 
-
-#### @frontman/bindings
-
-
-### Patch Changes
-
-- [#1774](https://github.com/frontman-ai/frontman/pull/1774) [`597b1e8`](https://github.com/frontman-ai/frontman/commit/597b1e8d82ab4cf53ec584af93b668bfe1ccbc67) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix viewport screenshots that shifted page content or omitted fixed and sticky elements after scrolling. Preserve viewport resolution on long pages.
-
-#### @frontman-ai/client
-
-
-### Minor Changes
-
-- [#1800](https://github.com/frontman-ai/frontman/pull/1800) [`0251bda`](https://github.com/frontman-ai/frontman/commit/0251bda2c9518e9368558b71e908e0a858ed76d6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add the `fill` action to browser element interactions. Agents can replace or clear text in inputs, textareas, and contenteditable editing hosts. Discovery and filling share the same host check. Fill rejects editable descendants that are not editing hosts. It rechecks field constraints after callbacks and rejects focus or selection drift before native editing. The tool uses editor-supported paste/delete events for controlled contenteditable fields. It checks field content after editing and reports rejected interactions through the shared structured MCP error result, with matching text and structured content. A successful fill does not prove that the application saved the value.
-
-### Patch Changes
-
-- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject prompts that exceed the 8 MB WebSocket message limit without clearing the draft. Count text, images, annotations, metadata, and transport overhead together. Reject PDF and document attachments with instructions to paste text or use images; keep historical attachments and explicitly state that their contents were not read.
-
-  The server rejects invalid text and context fields before it stores prompts. Image-only prompts remain supported.
-
-  The client uses one state store for tasks and connection state. Session creation locks the draft. Switching conversations cancels submission without sending the draft to another conversation.
-
-  Active sessions send directly from the state reducer, without callback forwarding. Task loading preserves history order and ignores stale results. Annotation execution uses the same submission action.
-
-  The transport budget is 8,000,000 UTF-8 JSON bytes. Draft validation reserves 4 KiB for UUID session IDs/topics, numeric request IDs, and JSON-RPC/Phoenix framing (under 256 bytes). The final check includes the actual topic and reserves 16 digits for each Phoenix reference. Bandit enforces 8,000,014 bytes per frame, including its maximum 14-byte header, and 8,000,000 bytes per fragmented message. The fragmented limit is configured on Bandit because Phoenix socket options do not accept it.
-
-- [#1800](https://github.com/frontman-ai/frontman/pull/1800) [`0251bda`](https://github.com/frontman-ai/frontman/commit/0251bda2c9518e9368558b71e908e0a858ed76d6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Discover plain contenteditable fields as textboxes. Add bounded pages to interactive-element discovery so forms with more than 50 controls remain accessible. Report more results only when another matching element exists.
-
-- [#1784](https://github.com/frontman-ai/frontman/pull/1784) [`e9e9eea`](https://github.com/frontman-ai/frontman/commit/e9e9eea5ca628c4cb324c44c620f539618a4cebe) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep checkout and billing management on the account signed into the editor, regardless of the browser's Frontman login. Replace browser checkout launch pages with bearer-authenticated requests, show billing errors in the editor, and refresh status when returning from Stripe. Discard superseded billing status responses and cancel pending billing requests when the editor session ends. Keep background status errors from unlocking an in-progress billing request. Deploy the matching server and client updates together; older editors must reload or update before opening billing.
-
-- [#1802](https://github.com/frontman-ai/frontman/pull/1802) [`722368c`](https://github.com/frontman-ai/frontman/commit/722368c98e503c23a7bdb211a8dc475b5b64e276) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Upgrade Tiptap editor packages together to 3.31.3 and fix the Astro WASM compiler dependency override.
-
-- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore the ACP handshake after a connection loss before new conversations start. Reject interrupted requests without replay and show connection readiness during recovery.
-
-- [#1772](https://github.com/frontman-ai/frontman/pull/1772) [`370da6f`](https://github.com/frontman-ai/frontman/commit/370da6fd4f0f41f4470e78b152a9918cc5ecee77) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Remove unsupported GPT-5.4 Mini from ChatGPT connections and show recovery guidance for unavailable models without exposing raw bad-request details.
-
-- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix development server startup failing with `:eaddrinuse` by removing an unintended HTTP listener that conflicts with HTTPS. Keep Bandit's default 8 MB fragmented WebSocket message limit.
-
-- [#1783](https://github.com/frontman-ai/frontman/pull/1783) [`c36cc2b`](https://github.com/frontman-ai/frontman/commit/c36cc2bbc9536bc3898cb9ad5375a8c6006c71f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep connection configuration across failures and disposal. Expose ready connections only after ACP and relay initialization both succeed, and clean up partial connections when startup fails or is cancelled. Update checks now wait for both connections to be ready.
-
-  React consumers now use connection reducer state and dispatch directly instead of separate state fields and dispatch-only wrappers. Update checks derive the API base URL from the reducer configuration, as logout already does. Consumers outside the provider fail explicitly instead of receiving placeholder state and inactive actions. Accepted ACP updates now use application reducer actions and buffering effects instead of provider callbacks.
-
-  Session errors no longer clear healthy transport bindings or billing state. Failed conversations show a retry action. Outdated session callbacks, configuration, history, and task-list results cannot overwrite current state, including during overlapping requests for the same task.
-
-- [#1774](https://github.com/frontman-ai/frontman/pull/1774) [`597b1e8`](https://github.com/frontman-ai/frontman/commit/597b1e8d82ab4cf53ec584af93b668bfe1ccbc67) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix viewport screenshots that shifted page content or omitted fixed and sticky elements after scrolling. Preserve viewport resolution on long pages.
-
-- [#1780](https://github.com/frontman-ai/frontman/pull/1780) [`5f17c7d`](https://github.com/frontman-ai/frontman/commit/5f17c7d535c7ee08ba1030cae71e5b64ad541e91) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show sign-in and API key replacement guidance when provider authentication fails.
-
-- [#1781](https://github.com/frontman-ai/frontman/pull/1781) [`95a52b1`](https://github.com/frontman-ai/frontman/commit/95a52b1e40605dd5bd390b2305762f020a22f973) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Open provider settings instead of Frontman billing when an AI provider rejects a request for credit or billing limits. Clarify that these limits are separate from the Frontman subscription.
-
-- [#1776](https://github.com/frontman-ai/frontman/pull/1776) [`f74a246`](https://github.com/frontman-ai/frontman/commit/f74a246867c17d74d0aae09e9a793196be4887b5) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Refresh the model catalog with GPT-6 Sol/Luna, Claude Opus/Sonnet 5.5, and current OpenRouter, Fireworks, and NVIDIA models. Update LLMDB metadata and provider documentation. Remove GPT-5.4 models from ChatGPT sign-in and replace older Fireworks and NVIDIA selections.
-
-- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reuse the existing authorized session after a failed creation attempt. Preserve pending session creation when another conversation is deleted.
-  Keep Phoenix retries active after a reconnect join timeout. Full conversation recovery after a disconnect remains unchanged.
-
-#### @frontman-ai/astro
-
-
-### Patch Changes
-
-- [#1793](https://github.com/frontman-ai/frontman/pull/1793) [`dc3e00b`](https://github.com/frontman-ai/frontman/commit/dc3e00b7b55d1d68e3003cc65de80b4043a2ae1d) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the documentation site to Starlight 0.42.0 and Astro 7.2.10, and declare the Astro integration test parser dependency.
-
-#### @frontman-ai/frontman-client
-
-
-### Patch Changes
-
-- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reject prompts that exceed the 8 MB WebSocket message limit without clearing the draft. Count text, images, annotations, metadata, and transport overhead together. Reject PDF and document attachments with instructions to paste text or use images; keep historical attachments and explicitly state that their contents were not read.
-
-  The server rejects invalid text and context fields before it stores prompts. Image-only prompts remain supported.
-
-  The client uses one state store for tasks and connection state. Session creation locks the draft. Switching conversations cancels submission without sending the draft to another conversation.
-
-  Active sessions send directly from the state reducer, without callback forwarding. Task loading preserves history order and ignores stale results. Annotation execution uses the same submission action.
-
-  The transport budget is 8,000,000 UTF-8 JSON bytes. Draft validation reserves 4 KiB for UUID session IDs/topics, numeric request IDs, and JSON-RPC/Phoenix framing (under 256 bytes). The final check includes the actual topic and reserves 16 digits for each Phoenix reference. Bandit enforces 8,000,014 bytes per frame, including its maximum 14-byte header, and 8,000,000 bytes per fragmented message. The fragmented limit is configured on Bandit because Phoenix socket options do not accept it.
-
-- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Restore the ACP handshake after a connection loss before new conversations start. Reject interrupted requests without replay and show connection readiness during recovery.
-
-- [#1783](https://github.com/frontman-ai/frontman/pull/1783) [`c36cc2b`](https://github.com/frontman-ai/frontman/commit/c36cc2bbc9536bc3898cb9ad5375a8c6006c71f8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Keep connection configuration across failures and disposal. Expose ready connections only after ACP and relay initialization both succeed, and clean up partial connections when startup fails or is cancelled. Update checks now wait for both connections to be ready.
-
-  React consumers now use connection reducer state and dispatch directly instead of separate state fields and dispatch-only wrappers. Update checks derive the API base URL from the reducer configuration, as logout already does. Consumers outside the provider fail explicitly instead of receiving placeholder state and inactive actions. Accepted ACP updates now use application reducer actions and buffering effects instead of provider callbacks.
-
-  Session errors no longer clear healthy transport bindings or billing state. Failed conversations show a retry action. Outdated session callbacks, configuration, history, and task-list results cannot overwrite current state, including during overlapping requests for the same task.
-
-- [#1782](https://github.com/frontman-ai/frontman/pull/1782) [`8368cdb`](https://github.com/frontman-ai/frontman/commit/8368cdbce2cb5181572d0143bb4d80aceea273a8) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Reuse the existing authorized session after a failed creation attempt. Preserve pending session creation when another conversation is deleted.
-  Keep Phoenix retries active after a reconnect join timeout. Full conversation recovery after a disconnect remains unchanged.
-
-#### @frontman-ai/frontman-core
-
-
-### Patch Changes
-
-- Updated dependencies [[`597b1e8`](https://github.com/frontman-ai/frontman/commit/597b1e8d82ab4cf53ec584af93b668bfe1ccbc67)]:
-  - @frontman/bindings@0.3.3
-
-#### @frontman-ai/nextjs
-
-
-### Patch Changes
-
-- [#1799](https://github.com/frontman-ai/frontman/pull/1799) [`30c9c33`](https://github.com/frontman-ai/frontman/commit/30c9c330fd3e356c17d8e646b362b6959a6ddbf3) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the Next.js development dependency and test fixture to the patched 16.3 release line.
-
-#### @frontman-ai/frontman-preview-bridge
-
-
-### Patch Changes
-
-- Updated dependencies [[`597b1e8`](https://github.com/frontman-ai/frontman/commit/597b1e8d82ab4cf53ec584af93b668bfe1ccbc67)]:
-  - @frontman/bindings@0.3.3
-
-#### @frontman-ai/frontman-wordpress
-
-
-### Minor Changes
-
-- [#1804](https://github.com/frontman-ai/frontman/pull/1804) [`8d3ae14`](https://github.com/frontman-ai/frontman/commit/8d3ae145e2e320c671b618703d2dc8882c67edda) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add guarded read and write tools for root robots.txt, llms.txt, and llms-full.txt on supported WordPress installations. Require an inspected revision and explicit approval before writes, retain one previous snapshot, and report local persistence separately from public verification. Physical robots.txt creation replaces generated rules and sitemap updates.
-
-- [#1805](https://github.com/frontman-ai/frontman/pull/1805) [`9d206e5`](https://github.com/frontman-ai/frontman/commit/9d206e533338853ab05fa47a3afdb58ce409b482) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Read post categories and tags with term IDs, names, and slugs. Create and update posts with existing category and tag IDs, with validation before writes and explicit partial-write errors. Empty tags clear assignments; empty categories follow WordPress default-category rules.
-
-- [#1820](https://github.com/frontman-ai/frontman/pull/1820) [`09d3dac`](https://github.com/frontman-ai/frontman/commit/09d3dac0ff64fdf5c270afcc41a47b7d88d18917) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add theme-mod updates through the registered Customizer setting's permissions, validation, sanitization, and save API. Extend Elementor page discovery with paginated text search across stored settings, including shared templates and nested repeater fields.
-
-### Patch Changes
-
-- [#1778](https://github.com/frontman-ai/frontman/pull/1778) [`37a46ea`](https://github.com/frontman-ai/frontman/commit/37a46ea789bb2019c99fcb7d48fad716800a6913) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow read-only access to the privacy policy page setting and comment registration/name-email requirements. Advertise supported option names in tool schemas while preserving existing write permissions.
-
-- [#1806](https://github.com/frontman-ai/frontman/pull/1806) [`888b7aa`](https://github.com/frontman-ai/frontman/commit/888b7aaa94c1d051e3d19e497f933010a3e43aac) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update plugin production-readiness wording while retaining backup, review, and staging guidance.
-
-- [#1800](https://github.com/frontman-ai/frontman/pull/1800) [`0251bda`](https://github.com/frontman-ai/frontman/commit/0251bda2c9518e9368558b71e908e0a858ed76d6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Explain unavailable SEO tools through `wp_get_site_info` and use the same compatibility reason for registration and direct calls. Match the tool schemas to the existing positive-ID and update-field requirements.
-
-  Support Yoast SEO Free 19.9 on the tested WordPress 6.9.9 / PHP 8.2 combination through the existing adapter. Retain Yoast 28.4 coverage, edit permissions, sanitizers, and stored readbacks. Extend runtime checks to cover later rendered titles, descriptions, Open Graph tags, and WebPage schema. Preserve explicit social overrides. Mutation results confirm stored overrides, not complete rendered output or success on other pages.
+### Work on your site
+
+- Ask Frontman to fill, replace, or clear text in website forms, including long forms and rich-text fields. You still need to save or submit the form.
+- Choose from updated AI models, including GPT-6 Sol/Luna and Claude Opus/Sonnet 5.5. Unavailable models now show guidance to help you continue.
+- Frontman now captures page screenshots without shifting content or missing fixed headers after you scroll.
+
+### Manage your WordPress site
+
+- Organize posts with existing categories and tags as Frontman creates or updates them.
+- Ask Frontman to update supported theme settings and find text across Elementor pages and shared templates.
+- Review and update files that guide search engines and AI tools on supported sites. Frontman requires your approval and keeps the previous version.
+  Changes to `robots.txt` replace WordPress-generated rules, including automatic sitemap updates. Saving a file does not confirm that it is publicly available.
+- Frontman can read your privacy policy page setting and comment requirements without changing them.
+- Frontman now explains why SEO tools are unavailable. Compatibility checks also cover Yoast SEO Free 19.9.
+
+### Continue conversations with fewer interruptions
+
+- Failed conversations now offer a retry action, and Frontman shows when the connection is ready after a disconnect.
+- Conversation history stays in order. Switching conversations no longer risks sending your draft to the wrong conversation.
+- If a message is too large to send, Frontman keeps your draft so you can shorten it or remove images.
+- Unsupported PDF and document attachments now show instructions to paste text or use images instead.
+
+### Manage your account
+
+- Payments and subscription changes now use the account signed into the editor, even if your browser uses a different account.
+- Frontman shows payment errors in the editor and refreshes your subscription status after checkout.
+- If your AI service rejects a request, Frontman guides you to sign in again, replace your API key, or check that service's billing.
+  AI service credit limits are separate from your Frontman subscription.
+- Before you open billing, reload or update older editors.
 
 ## [5.2.0] - 2026-09-28
 
