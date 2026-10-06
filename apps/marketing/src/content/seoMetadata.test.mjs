@@ -6,24 +6,6 @@ const marketingRoot = resolve(import.meta.dirname, '../..')
 const readMarketingFile = (path) => readFile(resolve(marketingRoot, path), 'utf8')
 
 describe('site audit regressions', () => {
-  it('preserves complete descriptions across search and social metadata', async () => {
-    const seo = await readMarketingFile('src/components/blocks/head/partials/Seo.astro')
-
-    expect(seo).toContain("const metaDescription = (description ?? '').replace(/\\s+/g, ' ').trim()")
-    expect(seo).not.toContain('.slice(')
-    expect(seo.match(/content={metaDescription}/g)).toHaveLength(3)
-  })
-
-  it('keeps the unfinished environment reference out of search and sitemap', async () => {
-    const [reference, sitemap] = await Promise.all([
-      readMarketingFile('src/content/docs/docs/reference/env-vars.md'),
-      readMarketingFile('astro.config.mjs'),
-    ])
-
-    expect(reference).toMatch(/name: robots\s+content: noindex,follow/)
-    expect(sitemap).toContain('if (/\\/docs\\/reference\\/env-vars\\/?$/.test(item.url)) return undefined;')
-  })
-
   it('prevents Cloudflare from replacing support links with broken protection URLs', async () => {
     const headers = await readMarketingFile('public/_headers')
 

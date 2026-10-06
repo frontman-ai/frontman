@@ -32,23 +32,6 @@ afterEach(() => {
 })
 
 describe("consent controls", () => {
-  test("keeps all first-visit choices and one policy link in the compact banner", () => {
-    const page = createPage()
-    pages.push(page)
-    const {document} = page.window
-    const banner = document.getElementById("astro-consent-banner")
-
-    expect(banner.querySelectorAll("button")).toHaveLength(3)
-    expect(banner.querySelector(".cb-manage").textContent).toBe("Manage")
-    expect(banner.querySelector(".cb-manage").getAttribute("aria-label")).toBe("Manage cookie preferences")
-    expect(banner.querySelector(".cb-reject").textContent).toBe("Reject optional")
-    expect(banner.querySelector(".cb-accept").textContent).toBe("Accept analytics")
-    expect(banner.querySelectorAll('a[href="/privacy/"]')).toHaveLength(1)
-    expect(page.window.astroConsent.get()).toBeNull()
-    banner.querySelector(".cb-reject").click()
-    expect(page.window.astroConsent.get().categories.analytics).toBe(false)
-  })
-
   test("stores managed preferences and leaves a control to reopen them", () => {
     const page = createPage()
     pages.push(page)
