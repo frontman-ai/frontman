@@ -536,12 +536,13 @@ module Selectors = {
         catalog->Array.find(agent => agent.name == name)
       )
     switch (
-      apiBaseUrl(state),
+      getSession(state),
       findAgent(plannerAgentName),
       findAgent(executorAgentName),
       TaskReducer.Selectors.completedIdleTurn(currentTask(state)),
     ) {
-    | (Some(_), Some(planner), Some(executor), Some({taskId, agentId})) if agentId == planner.id =>
+    | (Some({sessionId}), Some(planner), Some(executor), Some({taskId, agentId}))
+      if agentId == planner.id && sessionId == taskId =>
       Some({taskId, executorAgentId: executor.id})
     | _ => None
     }

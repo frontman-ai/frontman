@@ -504,7 +504,9 @@ let plannerPlan = Reducer.Message.Assistant(
 
 let withPlanHandoffContext = (state: Client__State__Types.state): Client__State__Types.state => {
   ...state,
-  connection: Client__ConnectionTestHelpers.ready(),
+  connection: Client__ConnectionTestHelpers.ready(
+    ~sessionId=Reducer.Selectors.currentTaskId(state),
+  ),
   agentCatalog: Some([planner, executor]),
 }
 
@@ -529,6 +531,39 @@ describe("Client State Reducer - Plan Handoff", () => {
 
     let (_, duplicateEffects) = Reducer.next(executing, action)
     t->expect(duplicateEffects)->Expect.toEqual([])
+  })
+
+  test("execute preserves the handoff when its session is unavailable", t => {
+    let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
+    let reconnecting = switch state.connection {
+    | Some({connection: Ok(Some(runtime))}) =>
+      let (nextState, _) = Reducer.next(
+        state,
+        ConnectionAction(ACPReconnecting({signal: runtime.lifetimeAbortController.signal})),
+      )
+      nextState
+    | _ => failwith("Expected connected fixture")
+    }
+    [
+      {...state, connection: None},
+      {...state, connection: Client__ConnectionTestHelpers.ready()},
+      {...state, connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("another-task"))},
+      reconnecting,
+    ]->Array.forEach(
+      state => {
+        let (nextState, effects) = Reducer.next(state, ExecutePendingPlan({id: testUserMessageId}))
+        t->expect(nextState)->Expect.toEqual(state)
+        t->expect(effects)->Expect.toEqual([])
+        t
+        ->expect(
+          Reducer.Selectors.pendingPlanHandoff({
+            ...nextState,
+            connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
+          })->Option.isSome,
+        )
+        ->Expect.toBe(true)
+      },
+    )
   })
 
   test("execute does nothing without a selected model", t => {
