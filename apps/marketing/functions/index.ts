@@ -2,15 +2,18 @@ const agentModeBody = {
 	name: 'Frontman',
 	canonicalUrl: 'https://frontman.sh/',
 	description:
-		'Frontman is an AI frontend agent that sees your live DOM, component tree, CSS, routes, and logs so it can turn visual requests into real code edits.',
+		'Frontman is an AI WordPress editor plugin for existing sites. Describe changes to content, blocks, Elementor pages, menus, templates, settings, and WooCommerce data beside live preview. Framework integrations are also available.',
 	capabilities: [
-		'Browser-aware visual editing for running web apps',
+		'WordPress-native editing beside live site preview',
 		'Live DOM, computed CSS, screenshots, component tree, routes, and logs as agent context',
-		'Reviewable source-code edits with hot reload feedback',
+		'WordPress updates or framework source-code edits with live preview feedback',
 		'Next.js, Astro, Vite, React, Vue, Svelte, and WordPress support',
 		'Bring-your-own Claude, ChatGPT, or OpenRouter API key support',
 	],
 	developerResources: {
+		wordpressPlugin: 'https://wordpress.org/plugins/frontman-agentic-ai-editor/',
+		wordpressSetup: 'https://frontman.sh/docs/integrations/wordpress/',
+		frameworks: 'https://frontman.sh/frameworks/',
 		docs: 'https://frontman.sh/docs/',
 		installation: 'https://frontman.sh/docs/installation/',
 		auth: 'https://frontman.sh/docs/api-keys/',

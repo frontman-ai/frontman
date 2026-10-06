@@ -121,6 +121,9 @@ function validateDocsDescriptions() {
 export default defineConfig({
   site: "https://frontman.sh",
   trailingSlash: "always",
+  redirects: {
+    "/wordpress/": "/",
+  },
   vite: {
     plugins: [tailwindcss(), webmcpValidators],
     server: {
@@ -200,7 +203,7 @@ export default defineConfig({
             { label: "Astro", slug: "docs/integrations/astro" },
             { label: "Next.js", slug: "docs/integrations/nextjs" },
             { label: "Vite", slug: "docs/integrations/vite" },
-            { label: "WordPress (Beta)", slug: "docs/integrations/wordpress" },
+            { label: "WordPress", slug: "docs/integrations/wordpress" },
           ],
         },
         {
@@ -262,6 +265,7 @@ export default defineConfig({
           return undefined;
         if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
         if (/\/404\/?$/.test(item.url)) return undefined;
+        if (item.url === "https://frontman.sh/wordpress/") return undefined;
 
         const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
         const releasesMatch = item.url.match(
@@ -281,7 +285,7 @@ export default defineConfig({
           item.priority = 1.0;
           item.changefreq = "weekly";
         } else if (
-          /\/(pricing|features|how-it-works)\/?$/.test(item.url) ||
+          /\/(pricing|features|how-it-works|frameworks)\/?$/.test(item.url) ||
           /\/use-cases\//.test(item.url)
         ) {
           item.priority = 0.9;

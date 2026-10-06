@@ -167,4 +167,4 @@ For frontend development teams in 2026, start with the workflow, then pick the a
 
 The better world is not one agent replacing frontend developers. It is fewer blind edits, fewer wasted retries, smaller diffs, faster review, and less time explaining which `div` you meant.
 
-[Try Frontman](/#install) for browser-visible frontend edits, read the deeper [frontend coding agent guide](/blog/best-frontend-coding-agent/), or compare [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/).
+[Try Frontman](/frameworks/#install) for browser-visible frontend edits, read the deeper [frontend coding agent guide](/blog/best-frontend-coding-agent/), or compare [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/).

@@ -81,7 +81,7 @@ imageAlt: 'Comparison guide cover for frontend coding agents'
 
 The best frontend coding agents are the ones that can inspect the running app, not just the repo. For frontend work, screenshots, DOM state, console logs, dev-server logs, responsive behavior, HMR feedback, and human review often matter as much as source context.
 
-The best frontend coding agent for semi-technical teams depends on the job: Frontman for visual edits in an existing app, Kombai for frontend-specialized design-to-code work, Cursor for developers in an IDE, Claude Code for terminal-native engineers, and v0 for fast React UI generation. This guide is for founders, PMs, marketers, designers, and frontend leads who need a shortlist without fake benchmark theater. We build Frontman. This is a source-backed buyer guide based on official docs, pricing pages, public workflows, and one narrow Frontman case study, not a multi-tool test. [Try Frontman free](/#install), or start with the table.
+The best frontend coding agent for semi-technical teams depends on the job: Frontman for visual edits in an existing app, Kombai for frontend-specialized design-to-code work, Cursor for developers in an IDE, Claude Code for terminal-native engineers, and v0 for fast React UI generation. This guide is for founders, PMs, marketers, designers, and frontend leads who need a shortlist without fake benchmark theater. We build Frontman. This is a source-backed buyer guide based on official docs, pricing pages, public workflows, and one narrow Frontman case study, not a multi-tool test. [Try Frontman free](/frameworks/#install), or start with the table.
 
 Source/pricing checked: May 21, 2026. Benchmark evidence is limited to the Frontman vs OpenCode vs Claude Code case study; no eight-tool benchmark wins are claimed.
 
@@ -104,7 +104,7 @@ That is the lens here.
 | Zero-setup prototypes | [Bolt.new](https://bolt.new) | Browser-based prompt-to-app workflow for quick prototypes and experiments. | Prototype workflow can diverge from production architecture. |
 | Browser-adjacent agentic IDE workflow | [Stagewise](https://stagewise.io) | Connects selected UI context to agentic editing and inline diff review workflows. | Product shape and pricing have changed quickly; verify current fit. |
 
-> If your team mostly needs to change existing frontend UI without opening an IDE, [try Frontman free](/#install). If you are comparing developer-first agents for broader engineering work, keep reading before choosing.
+> If your team mostly needs to change existing frontend UI without opening an IDE, [try Frontman free](/frameworks/#install). If you are comparing developer-first agents for broader engineering work, keep reading before choosing.
 
 ## What Generic AI Coding-Agent Lists Miss
 
@@ -220,13 +220,13 @@ This is the rubric behind the recommendations. It is intentionally frontend-spec
 | [Bolt.new](https://bolt.new) | Zero-setup prototypes | High for prototypes | Prototype code needs production hardening | Browser app builder | Medium; verify import/export for your repo | Preview/code workflow | Source-backed Figma/GitHub claims | Strong prompt-to-app workflow | Verify exported or GitHub workflow | Medium to strong for prototypes | Token-quota subscription | Source-backed only | Prototype architecture can drift from production code |
 | [Stagewise](https://stagewise.io) | Browser-adjacent agentic IDE | Medium; setup/product shape may vary | Diff review exists, verify current workflow | Desktop/browser agentic IDE | Source-backed file editing workflow | Strong source-backed DOM/app context | Not the primary positioning | Edits through connected agent workflow | Source-backed inline diff review | Medium | Public paid pricing unclear in review | Source-backed only | Pricing and current product shape should be rechecked |
 
-> If your job is existing-app visual editing, [try Frontman free](/#install). For deeper context, compare [Frontman vs Cursor](/vs/cursor/), [Frontman vs v0](/vs/v0/), or [Frontman vs Stagewise](/vs/stagewise/).
+> If your job is existing-app visual editing, [try Frontman free](/frameworks/#install). For deeper context, compare [Frontman vs Cursor](/vs/cursor/), [Frontman vs v0](/vs/v0/), or [Frontman vs Stagewise](/vs/stagewise/).
 
 ## Best Frontend Coding Agent by Use Case
 
 ### Best for non-technical teams
 
-Frontman is the best fit when founders, PMs, marketers, designers, or ops teammates need to propose visual UI changes without translating every request into file paths. It starts from the running page, keeps the change bounded, and gives developers source edits to review before merge. [Try Frontman free](/#install) if the workflow starts with "change this part of the page" instead of "open this component file."
+Frontman is the best fit when founders, PMs, marketers, designers, or ops teammates need to propose visual UI changes without translating every request into file paths. It starts from the running page, keeps the change bounded, and gives developers source edits to review before merge. [Try Frontman free](/frameworks/#install) if the workflow starts with "change this part of the page" instead of "open this component file."
 
 ### Best for existing React codebases
 
@@ -376,7 +376,7 @@ Frontman starts from the running app and gives semi-technical teammates a visual
 
 Safe frontend AI is not "let anyone ship code." It is "let more people propose frontend changes, then keep the same engineering review gates."
 
-Non-developers can use frontend coding agents safely when the tool creates reviewable source changes instead of silently publishing large rewrites. A developer should still review the diff, run checks, and decide what merges. For that workflow, [try Frontman free](/#install) or read the [designer use case](/use-cases/designers/).
+Non-developers can use frontend coding agents safely when the tool creates reviewable source changes instead of silently publishing large rewrites. A developer should still review the diff, run checks, and decide what merges. For that workflow, [try Frontman free](/frameworks/#install) or read the [designer use case](/use-cases/designers/).
 
 Will this break your site? It can, because every coding agent edits real code. The mitigation is boring and necessary: work on a branch, keep diffs small, run build/typecheck/tests, check desktop and mobile, and review accessibility before publishing. For existing apps, prefer tools that produce explicit accept/reject diffs or PRs.
 
@@ -432,4 +432,4 @@ If the work starts in a running app and the question is "can we safely change th
 
 The mistake is treating these as interchangeable AI coding agents. They are not. Frontend work crosses design, browser behavior, source code, accessibility, mobile layout, and review workflow. The best tool preserves that loop.
 
-[Try Frontman free](/#install), [install it locally](/blog/getting-started/), or read [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/) if your team is choosing between browser, IDE, and terminal workflows.
+[Try Frontman free](/frameworks/#install), [install it locally](/blog/getting-started/), or read [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/) if your team is choosing between browser, IDE, and terminal workflows.

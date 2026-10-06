@@ -42,7 +42,7 @@ ${verificationInstructions}`,
   wordpress: `Help me install Frontman for WordPress manually.
 
 Before making changes:
-- Confirm this is a staging site, not production.
+- Confirm which WordPress site I want to use: staging or production.
 - Confirm a current backup exists.
 - Confirm I have WordPress administrator access.
 - Read https://frontman.sh/docs/installation/ and the linked WordPress guide.
@@ -50,7 +50,7 @@ Before making changes:
 
 Guide me through finding Frontman Agentic AI Editor in wp-admin, installing and activating it, then opening Frontman from the admin menu.
 
-Do not ask for or enter credentials. I will complete WordPress administrator actions, GitHub or Google OAuth, and AI provider setup. Report the verification steps and any risks I should review before using Frontman on production.`,
+Do not ask for or enter credentials. I will complete WordPress administrator actions, GitHub or Google OAuth, and AI provider setup. Report the verification steps and any site-specific risks I should review.`,
 }
 
 const frameworkNames = {

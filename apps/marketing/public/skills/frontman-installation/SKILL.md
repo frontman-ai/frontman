@@ -7,7 +7,7 @@ Use this skill when helping a developer install Frontman in a web project.
 - Next.js: https://frontman.sh/docs/integrations/nextjs/
 - Astro: https://frontman.sh/docs/integrations/astro/
 - Vite: https://frontman.sh/docs/integrations/vite/
-- WordPress beta: https://frontman.sh/docs/integrations/wordpress/
+- WordPress: https://frontman.sh/docs/integrations/wordpress/
 
 ## Quickstart Flow
 

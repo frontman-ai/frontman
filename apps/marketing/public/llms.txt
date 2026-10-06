@@ -1,6 +1,16 @@
 # Frontman
 
-> Frontman is a vertically integrated AI agent that lives inside your framework's dev server, not your editor. It hooks into your framework (Next.js, Astro, Vite), sees the live DOM, component tree, computed styles, routes, and server-side state, and turns plain-English instructions into real source code changes — verified instantly via hot-reload. Open-source core with BYOK model support.
+> Frontman is an AI WordPress editor plugin for existing sites. Describe changes to posts, pages, Gutenberg blocks, Elementor pages, menus, templates, settings, and WooCommerce data beside live preview. It also integrates with Next.js, Astro, and Vite for source-code editing. Bring your own supported AI provider.
+
+## WordPress
+
+Install [Frontman from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, and open /frontman on your site. Only administrators can access the workspace. Frontman for WordPress is production-ready and battle-tested. Keep backups and review changes in the live preview.
+
+- [WordPress homepage](https://frontman.sh/)
+- [WordPress setup guide](https://frontman.sh/docs/integrations/wordpress/)
+- [Framework workflow and installation](https://frontman.sh/frameworks/)
+
+The following sections describe the framework workflow.
 
 ## What problem does Frontman solve?
 
@@ -32,7 +42,8 @@ Frontman is intended for development workflows, but installed integrations must 
 
 ## Docs
 
-- [Homepage](https://frontman.sh/): Product overview, feature highlights, and installation instructions
+- [Homepage](https://frontman.sh/): WordPress product overview and plugin installation
+- [For frameworks](https://frontman.sh/frameworks/): Next.js, Astro, and Vite overview, feature highlights, and installation instructions
 - [Markdown homepage](https://frontman.sh/index.md): Canonical markdown summary for agents
 - [FAQ](https://frontman.sh/faq/): Answers to common questions about features, frameworks, safety, and technical details
 - [Developer docs](https://frontman.sh/docs/): Installation, authentication, integrations, usage, and reference guides

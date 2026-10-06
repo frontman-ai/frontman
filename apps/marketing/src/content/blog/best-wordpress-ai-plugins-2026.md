@@ -73,7 +73,7 @@ We then grouped tools by the job they actually do: agentic site editing, broad A
 
 | Plugin or category                                                                                                                                | Best for                                                 | Why it shows up                                                                                                   | Main tradeoff                                                          |
 | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [Frontman](/wordpress/) | Best WordPress AI agent for existing-site visual editing | Live preview plus tools for posts, pages, Elementor content, menus, templates, widgets, settings, and WooCommerce | Newer; start on staging and keep backups                               |
+| [Frontman](/) | Best WordPress AI agent for existing-site visual editing | Live preview plus tools for posts, pages, Elementor content, menus, templates, widgets, settings, and WooCommerce | Newer; start on staging and keep backups                               |
 | [AI Engine](https://wordpress.org/plugins/ai-engine/)                                                                                             | Broad WordPress AI framework                             | Chatbots, content, AI forms, embeddings, provider support, MCP, function calling                                  | Huge surface area; not only a visual site-editing workflow             |
 | Elementor AI                                                                                                                                      | Elementor-first generation and edits                     | Native builder context for text, sections, images, CSS, and layout work                                           | Best when the site is already Elementor-centered                       |
 | Divi AI                                                                                                                                           | Divi sites and Divi layout generation                    | Builder-native AI for copy, images, code, and sections                                                            | Useful inside Divi, less universal outside Divi                        |
@@ -107,7 +107,7 @@ If that table feels too broad, good. That is the point. The search result pages 
   <div class="mx-6 mt-5 flex flex-col gap-3 md:flex-row md:flex-wrap">
     <a class="cta-link inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-transparent bg-violet-600 px-4 py-2.5 text-center text-sm font-bold leading-[1.3] !text-white no-underline transition-colors hover:bg-violet-700 hover:!text-white focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-violet-300 md:w-auto" href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" data-ga-event="wordpress_article_cta_clicked" data-ga-category="conversion" data-ga-label="after_demo_install" data-ga-placement="after_demo" data-ga-destination="wordpress_org" data-ga-task-family="update">Install on your staging site</a>
   </div>
-  <p class="!mx-6 !mt-[18px] !mb-6 !text-xs !leading-[1.55] !text-zinc-400">Frontman requires WordPress 6.0+, PHP 7.4+, administrator access, and your own supported AI provider. Frontman is beta software: begin on staging, keep backups, and review changes carefully.</p>
+  <p class="!mx-6 !mt-[18px] !mb-6 !text-xs !leading-[1.55] !text-zinc-400">Frontman requires WordPress 6.0+, PHP 7.4+, administrator access, and your own supported AI provider. Frontman is production-ready. Keep backups and review changes in the live preview.</p>
 </section>
 
 ## What The 2026 Search Results Actually Reward
@@ -137,7 +137,7 @@ Frontman should be first if your search intent is actually "WordPress AI agent f
 
 An agent is useful when it can take action. In WordPress, action means changing the site you already have: posts, pages, blocks, Elementor content, navigation menus, templates, widgets, settings, WooCommerce data, and the small bits of site state that only matter once you see the page.
 
-[Frontman for WordPress](/wordpress/) puts chat next to a live preview so the agent can make changes and the human can verify them in the same loop. That is the missing product layer in most WordPress AI comparisons. MCP can expose tools. Builders can generate pages. Content assistants can write paragraphs. None of that proves the agent changed the right part of the visible site. For a narrower agent-only breakdown, read our [AI agent plugins for WordPress comparison](/blog/ai-agent-wordpress-plugin-comparison/).
+[Frontman for WordPress](/) puts chat next to a live preview so the agent can make changes and the human can verify them in the same loop. That is the missing product layer in most WordPress AI comparisons. MCP can expose tools. Builders can generate pages. Content assistants can write paragraphs. None of that proves the agent changed the right part of the visible site. For a narrower agent-only breakdown, read our [AI agent plugins for WordPress comparison](/blog/ai-agent-wordpress-plugin-comparison/).
 
 Frontman is strongest in the WordPress AI agent category because the page stays in the workflow:
 
@@ -197,7 +197,7 @@ That means the work starts with a site that already exists. Not a blank canvas. 
 
 In that world, the final page is the source of truth. Not the post editor. Not the database row. Not the generated text. The page.
 
-[Frontman for WordPress](/wordpress/) puts chat next to a live preview so the agent can make changes and the human can verify them in the same loop. That matters because WordPress content is fragmented across surfaces:
+[Frontman for WordPress](/) puts chat next to a live preview so the agent can make changes and the human can verify them in the same loop. That matters because WordPress content is fragmented across surfaces:
 
 - Posts and pages
 - Gutenberg blocks
@@ -314,6 +314,6 @@ The best WordPress AI agent for existing-site visual editing is Frontman. The be
 
 If you need the broadest WordPress AI framework, start with [AI Engine](https://wordpress.org/plugins/ai-engine/). If you need site generation, evaluate builder tools like Divi AI, Elementor AI, Hostinger, Liftoff AI, ZipWP, or SeedProd. If you need SEO, start with AIOSEO. If you need forms, look at WPForms AI or AI Engine's AI Forms. If you need automation, look at Uncanny Automator. If you need customer chat, look at Tidio or similar chat tools.
 
-If you need an AI agent to edit an existing WordPress site while you see what changed, use [Frontman for WordPress](/wordpress/). Watch the workflow above, then install [Frontman - Agentic AI Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open `/frontman`, and start on staging with your own supported AI provider. For install details and launch context, see [Frontman WordPress Plugin Is Live](/blog/frontman-wordpress-plugin-released/).
+If you need an AI agent to edit an existing WordPress site while you see what changed, use [Frontman for WordPress](/). Watch the workflow above, then install [Frontman - Agentic AI Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open `/frontman`, and start on staging with your own supported AI provider. For install details and launch context, see [Frontman WordPress Plugin Is Live](/blog/frontman-wordpress-plugin-released/).
 
 That is the competent version of WordPress AI in 2026. Not more magic buttons. Clear tools for clear jobs, with review where the result actually appears.

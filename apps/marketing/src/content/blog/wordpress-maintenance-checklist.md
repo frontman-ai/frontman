@@ -284,7 +284,7 @@ An HTTP `200` check alone does not verify content accuracy or downstream order p
 
 We built Frontman, so this section is product guidance, not independent tool evaluation.
 
-The Frontman WordPress plugin is Beta software. Start on staging, keep current backups, and review each change before production use.
+The Frontman WordPress plugin is production-ready. Keep current backups, review each change, and use staging for higher-risk maintenance.
 
 According to Frontman's versioned WordPress capability guide, Frontman can help after maintenance identifies one specific content or layout problem. An administrator can inspect and change supported content beside the rendered site.
 

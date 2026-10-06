@@ -45,6 +45,7 @@ export const navigationBarData: NavData = {
 		text: 'Frontman'
 	},
 	navItems: [
+		{ name: 'For frameworks', link: '/frameworks/' },
 		{
 			name: 'Product',
 			megaMenu: {
@@ -52,7 +53,7 @@ export const navigationBarData: NavData = {
 					{
 						label: 'Website builder',
 						items: [
-							{ name: 'WordPress', link: '/wordpress/' },
+							{ name: 'WordPress', link: '/' },
 							{ name: 'Next.js', link: '/docs/integrations/nextjs/' },
 							{ name: 'Astro', link: '/docs/integrations/astro/' },
 							{ name: 'Vite', link: '/docs/integrations/vite/' }
@@ -95,5 +96,5 @@ export const navigationBarData: NavData = {
 			]
 		}
 	],
-	navActions: [{ name: 'Try it now', link: '/#install', style: 'white', size: 'lg' }]
+	navActions: [{ name: 'Try it now', link: '/frameworks/#install', style: 'white', size: 'lg' }]
 }

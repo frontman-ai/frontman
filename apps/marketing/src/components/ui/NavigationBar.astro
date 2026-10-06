@@ -3,9 +3,12 @@
 import { Icon } from 'astro-icon/components'
 
 import { navigationBarData } from '../../config/navigationBar'
-const { logo, navItems, navActions } = navigationBarData
+const { logo, navItems } = navigationBarData
 
 const path = new URL(Astro.request.url).pathname
+const navActions = path === '/'
+	? [{ name: 'Install plugin', link: 'https://wordpress.org/plugins/frontman-agentic-ai-editor/' }]
+	: navigationBarData.navActions
 function isActivePath(currentPath: string | undefined): boolean {
 	return currentPath !== undefined && (path === currentPath || path === `${currentPath}/`)
 }

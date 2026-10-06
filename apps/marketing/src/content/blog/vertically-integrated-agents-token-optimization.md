@@ -235,4 +235,4 @@ That is why they are so good at token optimization. They reduce the number of ti
 
 For frontend work, that shape starts in the running application.
 
-[Try Frontman](/#install) on a real frontend task, then compare the requests, total tokens, and verified result against your current coding agent.
+[Try Frontman](/frameworks/#install) on a real frontend task, then compare the requests, total tokens, and verified result against your current coding agent.

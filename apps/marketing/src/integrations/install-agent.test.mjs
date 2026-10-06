@@ -60,8 +60,8 @@ describe("coding-agent installation instructions", () => {
     expect(agentInstructions.nextjs).toContain("middleware or proxy")
   })
 
-  test("keeps WordPress installation manual and staging-first", () => {
-    expect(agentInstructions.wordpress).toContain("staging site")
+  test("keeps WordPress installation manual with an explicit site choice", () => {
+    expect(agentInstructions.wordpress).toContain("staging or production")
     expect(agentInstructions.wordpress).toContain("backup")
     expect(agentInstructions.wordpress).toContain("wp-admin")
     expect(agentInstructions.wordpress).toContain("Confirm I have WordPress administrator access")

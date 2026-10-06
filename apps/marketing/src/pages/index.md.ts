@@ -2,7 +2,17 @@ import type { APIRoute } from 'astro'
 
 const body = `# Frontman
 
-Frontman is an AI website editor for existing WordPress, Next.js, Astro, and Vite sites. Browser tools inspect the live page, local integrations handle filesystem or CMS operations, and a hosted or self-hosted server orchestrates the agent and persists task history. Relevant context is sent to your selected LLM provider to produce reviewable website updates.
+Frontman is an AI WordPress editor plugin for existing sites. Describe changes to posts, pages, Gutenberg blocks, Elementor pages, menus, templates, settings, and WooCommerce data beside live preview. Frontman for WordPress is production-ready and battle-tested. Only administrators can access the workspace. Keep backups and review changes in the live preview.
+
+## Choose Your Workflow
+
+- WordPress: https://frontman.sh/
+- Install the WordPress plugin: https://wordpress.org/plugins/frontman-agentic-ai-editor/
+- WordPress setup guide: https://frontman.sh/docs/integrations/wordpress/
+- Next.js, Astro, and Vite: https://frontman.sh/frameworks/
+- Framework installation: https://frontman.sh/frameworks/#install
+
+Framework integrations inspect the live page and source context to produce reviewable code edits. A hosted or self-hosted server orchestrates the agent and persists task history. Relevant context is sent to your selected LLM provider.
 
 ## Core Capabilities
 

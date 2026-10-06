@@ -1,12 +1,13 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test dev build deploy indexnow blog-cover
+.PHONY: help install test test-landing dev build deploy indexnow blog-cover
 
 PORT ?= 4321
 
-HELP_TARGETS := help install test dev build deploy indexnow blog-cover
+HELP_TARGETS := help install test test-landing dev build deploy indexnow blog-cover
 HELP_help := Display available commands
 HELP_install := Install dependencies
 HELP_test := Run marketing tests
+HELP_test-landing := Build and check landing routes, links, and metadata
 HELP_dev := Start development server
 HELP_build := Build for production
 HELP_deploy := Build and deploy to Cloudflare Pages
@@ -21,6 +22,9 @@ install:
 
 test:
 	yarn run -T vitest run src/integrations/*.test.mjs src/content/*.test.mjs src/utils/*.test.mjs
+
+test-landing: build
+	python3 scripts/check-landing-routes.py
 
 dev:
 	yarn dev --port $(PORT)

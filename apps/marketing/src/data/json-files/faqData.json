@@ -49,7 +49,7 @@
 	},
 	{
 		"question": "Does Frontman support WordPress?",
-		"reply": "Yes. Frontman for WordPress installs from the WordPress Plugin Directory and opens at /frontman on your site. It lets administrators edit posts, pages, Gutenberg blocks, Elementor pages, menus, templates, widgets, settings, cache, and WooCommerce data beside live preview. See /wordpress/ for the product overview and /docs/integrations/wordpress/ for setup.",
+		"reply": "Yes. Frontman for WordPress installs from the WordPress Plugin Directory and opens at /frontman on your site. It lets administrators edit posts, pages, Gutenberg blocks, Elementor pages, menus, templates, widgets, settings, cache, and WooCommerce data beside live preview. See / for the product overview and /docs/integrations/wordpress/ for setup.",
 		"category": "technical",
 		"open": false
 	},
@@ -61,7 +61,7 @@
 	},
 	{
 		"question": "Can the WordPress plugin run in production?",
-		"reply": "Yes — unlike the JavaScript framework integrations which are development-only, the WordPress plugin can run on a live site. WordPress sites are often edited directly in production, and the plugin respects that workflow. That said, this is experimental software. Use it with care: start on a staging site, keep backups, and review changes before relying on it in production.",
+		"reply": "Yes. Frontman for WordPress is production-ready and battle-tested. The plugin supports editing live WordPress sites beside a live preview. Keep backups and review changes as part of your normal site workflow.",
 		"category": "technical",
 		"open": false
 	}

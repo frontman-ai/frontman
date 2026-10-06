@@ -158,7 +158,7 @@ If another WordPress 7.1 article still lists these as shipped features, check wh
 
 For recurring backups, update review, security checks, verification, and recovery outside this release window, use our [risk-based WordPress maintenance checklist](/blog/wordpress-maintenance-checklist/).
 
-After the upgrade passes, keep the first production change small and reviewable. Frontman's [WordPress workflow](/wordpress/) can help inspect supported site state and review rendered changes, but its current public demonstration pins WordPress 7.0.2 and is not evidence of WordPress 7.1 compatibility.
+After the upgrade passes, keep the first production change small and reviewable. Frontman's [WordPress workflow](/) can help inspect supported site state and review rendered changes, but its current public demonstration pins WordPress 7.0.2 and is not evidence of WordPress 7.1 compatibility.
 
 ## Plugin and Theme Developer Checklist
 

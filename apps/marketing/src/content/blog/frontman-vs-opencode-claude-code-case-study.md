@@ -202,4 +202,4 @@ It showed something more practical: when the task depends on a running frontend,
 
 The model still matters. The prompt still matters. For frontend work, this run suggests the environment around the model matters too.
 
-[Try Frontman](https://frontman.sh/#install) on your own frontend task and compare the loop yourself.
+[Try Frontman](https://frontman.sh/frameworks/#install) on your own frontend task and compare the loop yourself.
