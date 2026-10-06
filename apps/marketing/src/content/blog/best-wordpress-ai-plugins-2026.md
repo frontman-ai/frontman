@@ -2,7 +2,7 @@
 title: 'Best WordPress AI Plugins in 2026'
 seoTitle: 'Best WordPress AI Plugins 2026 by Use Case'
 pubDate: 2026-06-24T05:00:00Z
-updatedDate: 2026-08-12T00:00:00Z
+updatedDate: 2026-10-06T00:00:00Z
 description: 'Compare WordPress AI plugins for editing existing sites, building pages, SEO, forms, chat, and automation. Find the right tool for your workflow.'
 image: '/blog/best-wordpress-ai-plugins-2026-cover.png'
 tags: ['wordpress', 'comparison', 'ai']
