@@ -5,9 +5,8 @@ const config = {
   storageKey: "frontman-cookie-consent",
   ttl: 180 * 24 * 60 * 60 * 1000,
   idleDelay: 1000,
-  headline: "Manage cookie preferences for Frontman",
-  description: "We use cookies to understand site traffic and improve Frontman.",
-  cookiePolicyUrl: "/privacy/",
+  headline: "Cookie preferences",
+  description: "Optional analytics cookies measure site traffic.",
   privacyPolicyUrl: "/privacy/",
 }
 
@@ -108,10 +107,7 @@ const runConsent = config => {
 
   const appendDescription = parent => {
     parent.append(`${config.description} Read our `)
-    const cookieLink = createElement("a", "", "Cookie Policy")
-    cookieLink.href = config.cookiePolicyUrl
-    parent.append(cookieLink, " and ")
-    const privacyLink = createElement("a", "", "Privacy Policy")
+    const privacyLink = createElement("a", "", "Privacy policy")
     privacyLink.href = config.privacyPolicyUrl
     parent.append(privacyLink, ".")
   }
@@ -248,7 +244,8 @@ const runConsent = config => {
     copy.append(description)
 
     const actions = createElement("div", "cb-actions")
-    const manage = createButton("cb-manage", "Manage preferences")
+    const manage = createButton("cb-manage", "Manage")
+    manage.setAttribute("aria-label", "Manage cookie preferences")
     const reject = createButton("cb-reject", "Reject optional")
     const accept = createButton("cb-accept", "Accept analytics")
     manage.onclick = openModal
