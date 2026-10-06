@@ -36,6 +36,20 @@ foreach ( [ '1', 1.0, true, false, null, 0, -1, [], (object) [] ] as $bad ) {
 		author_assert( $tools->call( $name, $input )['isError'], 'Direct dispatch accepted invalid author' );
 	}
 }
+foreach ( [ 'categories', 'tags' ] as $field ) {
+	foreach ( [ null, true, false, '1', 1, 1.0, (object) [], [ '1' ], [ 1.0 ], [ true ], [ null ], [ 0 ], [ -1 ], [ [] ], [ 'id' => 1 ], [ 1 => 1 ] ] as $bad ) {
+		foreach ( [ 'wp_create_post' => 'create_post', 'wp_update_post' => 'update_post' ] as $name => $method ) {
+			$input = [ 'id' => 9, 'title' => 'Changed', 'content' => 'Changed', $field => $bad ];
+			author_error( static fn() => $tools->sanitize_input( $name, $input ), 'array of positive integer' );
+			author_error( static fn() => $posts->$method( $input ), 'array of positive integer' );
+			author_assert( $tools->call( $name, $input )['isError'], 'Dispatch accepted invalid term IDs' );
+		}
+	}
+	foreach ( [ [], [ 1, 2 ], [ 1, 1 ] ] as $ids ) {
+		author_assert( $ids === $tools->sanitize_input( 'wp_create_post', [ 'title' => 'T', 'content' => 'C', $field => $ids ] )[ $field ], 'Term IDs altered' );
+	}
+	author_assert( ! array_key_exists( $field, $tools->sanitize_input( 'wp_update_post', [ 'id' => 9 ] ) ), 'Omitted taxonomy injected' );
+}
 author_assert( ! array_key_exists( 'author', $tools->sanitize_input( 'wp_create_post', [ 'title' => 'T', 'content' => 'C' ] ) ), 'Omitted author injected' );
 $base = [ 'search' => 'Same', 'match_by' => 'display_name' ];
 $invalid = [ [], [ 'search' => '' ], [ 'search' => '  ' ], [ 'search' => str_repeat( 'é', 101 ) ], [ 'search' => "\xC3\x28" ], [ 'match_by' => 'email' ], [ 'unexpected' => 1 ], [ 'page' => PHP_INT_MAX ] ];

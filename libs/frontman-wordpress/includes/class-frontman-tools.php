@@ -162,6 +162,7 @@ class Frontman_Tools {
 
 		if ( class_exists( 'Frontman_Tool_Posts' ) && in_array( $name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
 			Frontman_Tool_Posts::validate_author_input( $input );
+			Frontman_Tool_Posts::validate_taxonomy_input( $input );
 		}
 		if ( 'wp_find_users' === $name && class_exists( 'Frontman_Tool_Users' ) ) {
 			return Frontman_Tool_Users::validate_input( $input );

@@ -16,10 +16,22 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 
 class Frontman_Tool_Posts {
+	private const TAXONOMIES = [ 'categories' => 'category', 'tags' => 'post_tag' ];
+
 	/**
 	 * Register all post tools.
 	 */
 	public function register( Frontman_Tools $tools ): void {
+		$categories_schema = [
+			'type' => 'array',
+			'items' => [ 'type' => 'integer', 'minimum' => 1 ],
+			'description' => 'Existing category term IDs. Supplied arrays replace assignments; omit on update to preserve. Empty uses the WordPress default category for posts (and filtered default-category post types), except auto-drafts; otherwise clears. Never creates terms. Read IDs with wp_read_post.',
+		];
+		$tags_schema = [
+			'type' => 'array',
+			'items' => [ 'type' => 'integer', 'minimum' => 1 ],
+			'description' => 'Existing tag term IDs. Supplied arrays replace assignments; empty clears tags. Omit on update to preserve. Never creates terms. Read IDs with wp_read_post.',
+		];
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_posts',
 			'Lists posts, pages, or custom post types with pagination and filtering. Returns stored slugs, which can be empty for drafts or pending posts. Publication applies WordPress core slug rules.',
@@ -71,7 +83,7 @@ class Frontman_Tool_Posts {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_post',
-			'Reads a single post by ID, returning stored post_content (including any block markup) and basic post fields. Does not return custom post metadata or plugin snippet source. Empty content does not mean a plugin-managed snippet has no code.',
+			'Reads a single post by ID, returning stored post_content (including any block markup), basic post fields, and categories/tags with IDs, names and slugs. Does not return custom post metadata or plugin snippet source. Empty content does not mean a plugin-managed snippet has no code.',
 			[
 				'type'                 => 'object',
 				'additionalProperties' => false,
@@ -110,6 +122,8 @@ class Frontman_Tool_Posts {
 						'minimum' => 1,
 						'description' => 'Native WordPress account ID. Omit to use the current user. Requires author support; assigning another account requires edit_others_posts for this post type.',
 					],
+					'categories' => $categories_schema,
+					'tags' => $tags_schema,
 					'post_type' => [
 						'type'        => 'string',
 						'description' => 'Post type slug.',
@@ -181,6 +195,8 @@ class Frontman_Tool_Posts {
 						'minimum' => 1,
 						'description' => 'Native WordPress account ID. Omit to preserve the current author. Requires author support; an explicit other account requires edit_others_posts even when unchanged.',
 					],
+					'categories' => $categories_schema,
+					'tags' => $tags_schema,
 					'excerpt' => [
 						'type'        => 'string',
 						'description' => 'New post excerpt.',
@@ -282,7 +298,98 @@ class Frontman_Tool_Posts {
 			'author'    => (int) $post->post_author,
 			'slug'      => $post->post_name,
 			'permalink' => get_permalink( $post ),
+			'categories' => $this->read_terms( $post, 'category' ),
+			'tags'       => $this->read_terms( $post, 'post_tag' ),
 		];
+	}
+
+	private function read_terms( \WP_Post $post, string $taxonomy ): array {
+		if ( ! is_object_in_taxonomy( $post->post_type, $taxonomy ) ) {
+			return [];
+		}
+		$terms = get_the_terms( $post->ID, $taxonomy );
+		if ( is_wp_error( $terms ) ) {
+			throw new Frontman_Tool_Error( $terms->get_error_message() );
+		}
+		return array_map( static function( $term ): array {
+			return [ 'id' => (int) $term->term_id, 'name' => $term->name, 'slug' => $term->slug ];
+		}, array_values( $terms ?: [] ) );
+	}
+
+	public static function validate_taxonomy_input( array $input ): void {
+		foreach ( self::TAXONOMIES as $field => $taxonomy ) {
+			if ( ! array_key_exists( $field, $input ) ) {
+				continue;
+			}
+			$ids = $input[ $field ];
+			if ( ! is_array( $ids ) || array_values( $ids ) !== $ids ) {
+				throw new Frontman_Tool_Error( "{$field} must be an array of positive integer term IDs." );
+			}
+			foreach ( $ids as $id ) {
+				if ( ! is_int( $id ) || $id <= 0 ) {
+					throw new Frontman_Tool_Error( "{$field} must be an array of positive integer term IDs." );
+				}
+			}
+		}
+	}
+
+	/** Resolve and authorize all requested assignments before any post or term write. */
+	private function check_taxonomies( array $input, string $type, string $status ): array {
+		$assignments = [];
+		foreach ( self::TAXONOMIES as $field => $taxonomy ) {
+			if ( ! array_key_exists( $field, $input ) ) {
+				continue;
+			}
+			if ( ! is_object_in_taxonomy( $type, $taxonomy ) ) {
+				throw new Frontman_Tool_Error( "{$taxonomy} is not attached to post type {$type}." );
+			}
+			if ( ! current_user_can( get_taxonomy( $taxonomy )->cap->assign_terms ) ) {
+				throw new Frontman_Tool_Error( "Insufficient permission to assign {$taxonomy} terms." );
+			}
+			$ids = $input[ $field ];
+			if ( 'category' === $taxonomy && [] === $ids && 'auto-draft' !== $status && in_array( $type, array_merge( apply_filters( 'default_category_post_types', [] ), [ 'post' ] ), true ) ) {
+				$ids = [ (int) get_option( 'default_category' ) ];
+			}
+			foreach ( $ids as $id ) {
+				$term = get_term( $id, $taxonomy );
+				if ( is_wp_error( $term ) || ! $term ) {
+					throw new Frontman_Tool_Error( "Term {$id} does not exist in {$taxonomy}." );
+				}
+				if ( ! current_user_can( 'assign_term', $id ) ) {
+					throw new Frontman_Tool_Error( "Insufficient permission to assign {$taxonomy} term {$id}." );
+				}
+			}
+			$assignments[ $taxonomy ] = $ids;
+		}
+		return $assignments;
+	}
+
+	/** Core post writes do not propagate term assignment errors. Assign explicitly and report partial writes. */
+	private function assign_and_read( int $id, array $assignments ): array {
+		try {
+			foreach ( $assignments as $taxonomy => $ids ) {
+				$result = 'category' === $taxonomy
+					? wp_set_post_categories( $id, $ids )
+					: wp_set_object_terms( $id, $ids, $taxonomy, false );
+				if ( is_wp_error( $result ) ) {
+					throw new Frontman_Tool_Error( "{$taxonomy} assignment failed: " . $result->get_error_message() );
+				}
+			}
+			$after = $this->read_post( [ 'id' => $id ] );
+			foreach ( self::TAXONOMIES as $field => $taxonomy ) {
+				if ( ! array_key_exists( $taxonomy, $assignments ) ) { continue; }
+				$expected = array_values( array_unique( $assignments[ $taxonomy ] ) );
+				$actual = array_column( $after[ $field ], 'id' );
+				sort( $expected );
+				sort( $actual );
+				if ( $expected !== $actual ) {
+					throw new Frontman_Tool_Error( "{$taxonomy} assignment readback does not match requested term IDs." );
+				}
+			}
+			return $after;
+		} catch ( \Throwable $e ) {
+			throw new Frontman_Tool_Error( "Post {$id} was saved, but taxonomy assignment or readback failed. Partial writes may remain; no rollback was performed. Read wp_read_post before retrying. " . $e->getMessage(), 0, $e );
+		}
 	}
 
 	/** Validate before registry coercion and for direct handler calls. */
@@ -327,7 +434,9 @@ class Frontman_Tool_Posts {
 	 * wp_create_post handler.
 	 */
 	public function create_post( array $input ): array {
+		self::validate_taxonomy_input( $input );
 		$this->check_write_permissions( $input, sanitize_key( $input['post_type'] ?? 'post' ) );
+		$assignments = $this->check_taxonomies( $input, sanitize_key( $input['post_type'] ?? 'post' ), sanitize_key( $input['status'] ?? 'draft' ) );
 		$post_data = [
 			'post_title'   => sanitize_text_field( $input['title'] ),
 			'post_content' => wp_kses_post( $input['content'] ),
@@ -355,7 +464,7 @@ class Frontman_Tool_Posts {
 			'title'     => $post_data['post_title'],
 			'status'    => $post_data['post_status'],
 			'type'      => $post_data['post_type'],
-			'after'     => $this->read_post( [ 'id' => $post_id ] ),
+			'after'     => $this->assign_and_read( (int) $post_id, $assignments ),
 			'permalink' => get_permalink( $post_id ),
 		];
 	}
@@ -406,6 +515,7 @@ class Frontman_Tool_Posts {
 	 * wp_update_post handler.
 	 */
 	public function update_post( array $input ): array {
+		self::validate_taxonomy_input( $input );
 		$id   = absint( $input['id'] ?? 0 );
 		$post = get_post( $id );
 
@@ -414,6 +524,7 @@ class Frontman_Tool_Posts {
 		}
 
 		$this->check_write_permissions( $input, $post->post_type, $post );
+		$assignments = $this->check_taxonomies( $input, $post->post_type, sanitize_key( $input['status'] ?? $post->post_status ) );
 		$before = $this->read_post( [ 'id' => $id ] );
 
 		$post_data = [ 'ID' => $id ];
@@ -449,11 +560,9 @@ class Frontman_Tool_Posts {
 			throw new Frontman_Tool_Error( $result->get_error_message() );
 		}
 
-		$updated_post = get_post( $id );
-
 		return [
 			'before' => $before,
-			'after'  => $this->read_post( [ 'id' => $updated_post->ID ] ),
+			'after'  => $this->assign_and_read( $id, $assignments ),
 		];
 	}
 
