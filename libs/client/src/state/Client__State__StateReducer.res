@@ -2214,6 +2214,7 @@ let rec next = (state: state, action) => {
     | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
       let settings = switch category {
       | Some("billing") => [SetSettingsModalTab({tab: Some(Providers)})]
+      | Some("frontman_billing") => [SetSettingsModalTab({tab: Some(Billing)})]
       | Some(_) | None => []
       }
       let action = switch retryAt {
@@ -2249,6 +2250,15 @@ let rec next = (state: state, action) => {
       failed(state, Connection.ACP.requestErrorMessage(error))
     | _ => state->StateReducer.update
     }
+  | AddUserMessage({onComplete}) if Client__Billing.requiresBilling(state.billingStatus) =>
+    {...state, settingsModalTab: Some(Billing)}->StateReducer.update(
+      ~sideEffect=SubmissionCompleted({
+        onComplete,
+        result: Error("Start a Frontman trial to continue."),
+      }),
+    )
+  | ExecutePendingPlan(_) if Client__Billing.requiresBilling(state.billingStatus) =>
+    {...state, settingsModalTab: Some(Billing)}->StateReducer.update
   | AddUserMessage({content, annotationId, onComplete} as input) =>
     let reject = error =>
       state->StateReducer.update(

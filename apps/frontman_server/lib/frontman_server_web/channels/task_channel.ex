@@ -16,6 +16,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias FrontmanServer.Agents
+  alias FrontmanServer.Billing
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
@@ -42,6 +43,7 @@ defmodule FrontmanServerWeb.TaskChannel do
          {:ok, _owner} <-
            Registry.register(FrontmanServer.ProcessRegistry, {:task_channel, task_id}, nil) do
       {:ok, history} = TaskHistory.new(task.interaction_rows)
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
 
       SentryContext.set_task_scope_context(scope, task_id)
       {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
@@ -149,13 +151,33 @@ defmodule FrontmanServerWeb.TaskChannel do
     end
   end
 
+  def handle_info(:billing_status_changed, socket) do
+    if Billing.allow_access?(socket.assigns.scope), do: wake_runner(socket, nil)
+    {:noreply, socket}
+  end
+
   def handle_info({:execute_next_turn, execution}, socket) do
     case Tasks.execute_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
       result when result in [:ok, :already_running, :no_accepted_messages] ->
         :ok
 
+      {:error, :billing_inactive} ->
+        push_agent_error(
+          socket,
+          Ecto.UUID.generate(),
+          Tasks.billing_inactive_message(socket.assigns.scope),
+          "frontman_billing"
+        )
+
       {:error, reason} ->
         Logger.error("Failed to execute next turn: #{inspect(reason)}")
+
+        push_agent_error(
+          socket,
+          Ecto.UUID.generate(),
+          "Could not start this run. Check your AI provider and selected model.",
+          "billing"
+        )
     end
 
     {:noreply, socket}

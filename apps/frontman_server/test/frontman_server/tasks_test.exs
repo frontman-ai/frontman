@@ -86,7 +86,7 @@ defmodule FrontmanServer.TasksTest do
         {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
         case status do
-          "active" ->
+          status when status in [nil, "active"] ->
             assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} = result
             assert Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
 

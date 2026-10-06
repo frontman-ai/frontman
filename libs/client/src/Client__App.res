@@ -39,7 +39,9 @@ let make = () => {
 
   React.useEffect(() => {
     switch billingStatus {
-    | Client__Billing.Loaded(status) if !Client__Billing.isAccessAllowed(status) =>
+    | Client__Billing.Loaded(status)
+      if !Client__Billing.isAccessAllowed(status) &&
+      Client__Billing.pretrialRunsRemaining(status)->Option.isNone =>
       Client__State.Actions.openSettingsModalOnBilling()
     | _ => ()
     }

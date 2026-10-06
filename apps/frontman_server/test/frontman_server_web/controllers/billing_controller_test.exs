@@ -70,7 +70,11 @@ defmodule FrontmanServerWeb.BillingControllerTest do
     assert return_url ==
              FrontmanServerWeb.Endpoint.url() <> "/billing/stripe-return/customer-portal"
 
-    assert %{"access_allowed" => false, "has_billing_customer" => true} =
+    assert %{
+             "access_allowed" => true,
+             "pretrial_runs_remaining" => 5,
+             "has_billing_customer" => true
+           } =
              conn |> get(~p"/api/billing/status") |> json_response(200)
   end
 

@@ -680,12 +680,13 @@ defmodule FrontmanServer.Tasks.Interaction do
     embedded_schema do
       field :agent_id, :string
       field :user_message_ids, {:array, :string}
+      field :pretrial_run, :boolean, default: false
       field :timestamp, :utc_datetime_usec
     end
 
     def changeset(%__MODULE__{} = turn_started, attrs) do
       turn_started
-      |> Interaction.cast_timestamped(attrs, [:id, :timestamp | @fields])
+      |> Interaction.cast_timestamped(attrs, [:id, :timestamp, :pretrial_run | @fields])
       |> validate_required(@fields)
       |> validate_length(:user_message_ids, min: 1)
     end

@@ -47,6 +47,8 @@ type status = {
   status: subscriptionStatus,
   @as("access_allowed")
   accessAllowed: bool,
+  @as("pretrial_runs_remaining")
+  pretrialRunsRemaining: @s.nullable option<int>,
   @as("has_billing_customer")
   hasBillingCustomer: bool,
   @as("trial_eligible")
@@ -105,10 +107,18 @@ let accessAllowed = billingStatus =>
 
 let isAccessAllowed = (billingStatus: status) => billingStatus.accessAllowed
 
+let pretrialRunsRemaining = (billingStatus: status) => billingStatus.pretrialRunsRemaining
+
 let canStartCheckout = (billingStatus: status) =>
   switch billingStatus.status {
-  | Trialing | Active | PastDue => false
+  | NoSubscription => true
   | _ => !billingStatus.accessAllowed
+  }
+
+let requiresBilling = billingStatus =>
+  switch billingStatus {
+  | Loaded({accessAllowed: false}) => true
+  | _ => false
   }
 
 let canManage = (billingStatus: status) => billingStatus.hasBillingCustomer
@@ -116,14 +126,21 @@ let canManage = (billingStatus: status) => billingStatus.hasBillingCustomer
 let subscriptionStatus = (billingStatus: status) => billingStatus.status
 
 let activationMessage = (billingStatus: status) =>
-  switch billingStatus.status {
-  | NoSubscription
-  | Incomplete
-  | IncompleteExpired => "Finish billing setup to start using Frontman."
-  | PastDue => "Your payment failed. Manage billing in Stripe to restore access."
-  | Canceled
-  | Unpaid => "Your Frontman access has ended. Start a subscription to continue."
-  | Trialing | Active | UnknownSubscriptionStatus(_) => "Activate billing to start using Frontman."
+  switch (billingStatus.pretrialRunsRemaining, billingStatus.status) {
+  | (Some(0), _) => "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
+  | (Some(_), _) => "Use your own AI provider. AI usage is billed by your provider, not Frontman."
+  | (
+      _,
+      NoSubscription | Incomplete | IncompleteExpired,
+    ) => "Finish billing setup to start using Frontman."
+  | (
+      _,
+      Canceled | Unpaid | PastDue,
+    ) => "Your Frontman access has ended. Start a subscription to continue."
+  | (
+      _,
+      Trialing | Active | UnknownSubscriptionStatus(_),
+    ) => "Activate billing to start using Frontman."
   }
 
 let subscriptionStatusLabel = status =>

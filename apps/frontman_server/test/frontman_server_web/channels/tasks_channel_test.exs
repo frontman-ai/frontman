@@ -83,7 +83,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         })
 
         assert_push("config_options_updated", %{"configOptions" => _})
-        assert_push("billing_status_updated", %{status: "none", access_allowed: false})
+        assert_push("billing_status_updated", %{status: "none", access_allowed: true})
 
         assert_acp_reply(%{
           "jsonrpc" => "2.0",
@@ -154,7 +154,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("billing_status_updated", %{
         status: "none",
-        access_allowed: false,
+        access_allowed: true,
+        pretrial_runs_remaining: 5,
         has_billing_customer: false,
         interval: nil,
         current_period_end: nil,
@@ -273,12 +274,13 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert {:ok, _task} = FrontmanServer.Tasks.get_task(scope, third_id)
     end
 
-    test "rejects inactive billing before creating or retrying a task", %{
+    test "rejects exhausted allowance before creating or retrying a task", %{
       socket: socket,
       scope: scope
     } do
       id = task_fixture(scope).id
       new_id = Ecto.UUID.generate()
+      for _ <- 1..5, do: :ok = Billing.consume_pretrial_run(scope)
 
       for {request_id, session_id} <- [{2, id}, {3, new_id}] do
         push_session_new(socket, request_id, session_new_params(session_id))
@@ -287,7 +289,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "id" => ^request_id,
           "error" => %{
             "code" => -32_010,
-            "message" => "Finish billing setup to start using Frontman."
+            "message" => "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
           }
         })
       end
