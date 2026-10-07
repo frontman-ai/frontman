@@ -66,6 +66,28 @@ defmodule FrontmanServer.TasksTest do
     assert {:ok, %{framework: :nextjs}} = Tasks.get_task(scope, id)
   end
 
+  test "reconciles nullable history, removed selections, and empty catalogs", %{scope: scope} do
+    task = task_fixture(scope)
+    insert_accepted_user_message!(task, "old", "test:available")
+    insert_accepted_user_message!(task, "removed", "test:removed")
+    {:ok, task} = Tasks.get_task_with_history(scope, task.id)
+    catalog = %{groups: [%{options: [%{value: "test:first"}, %{value: "test:available"}]}]}
+
+    assert {:ok, %{current_model: "test:available"} = task} =
+             Tasks.reconcile_current_model(scope, task, catalog)
+
+    assert {:ok, ^task} = Tasks.reconcile_current_model(scope, task, catalog)
+    {:ok, task} = Tasks.set_current_model(scope, task.id, "test:removed")
+
+    assert {:ok, %{current_model: "test:first"} = task} =
+             Tasks.reconcile_current_model(scope, task, catalog)
+
+    assert {:ok, %{current_model: nil}} =
+             Tasks.reconcile_current_model(scope, task, %{groups: []})
+
+    assert {:ok, %{current_model: nil}} = Tasks.get_task(scope, task.id)
+  end
+
   describe "apply_title_suggestion/3" do
     test "sets the default title once", %{scope: scope} do
       task_id = task_fixture(scope).id
@@ -79,9 +101,13 @@ defmodule FrontmanServer.TasksTest do
 
   describe "submit_user_message/2 billing access" do
     for status <- [nil, "canceled", "active"] do
-      test "enforces billing for #{inspect(status)} subscription", %{scope: scope} do
-        status = unquote(status)
-        if status, do: subscription_for_scope_fixture(scope, %{status: status})
+      @tag status: status
+      test "enforces billing for #{inspect(status)}", %{scope: scope, status: status} do
+        case status do
+          nil -> :ok
+          status -> subscription_for_scope_fixture(scope, %{status: status})
+        end
+
         task_id = task_fixture(scope).id
 
         result =
@@ -167,6 +193,9 @@ defmodule FrontmanServer.TasksTest do
       allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
+      newer = "openrouter:google/gemini-3.1-pro-preview"
+      {:ok, _task} = Tasks.set_current_model(scope, task.id, newer)
+      catalog = %{groups: [%{options: [%{value: newer}, %{value: "openrouter:openai/gpt-5.5"}]}]}
 
       assert {:ok,
               %InteractionSchema{
@@ -178,10 +207,14 @@ defmodule FrontmanServer.TasksTest do
                  message_id: message_id,
                  message: user_content("hello"),
                  model: "openrouter:openai/gpt-5.5",
+                 current_model_catalog: catalog,
                  agent_id: "test-frontman"
                })
 
       assert [row] = db_rows(task.id)
+      assert row.data.model == newer
+      {:ok, _task} = Tasks.set_current_model(scope, task.id, "openrouter:openai/gpt-5.5")
+      assert [^row] = db_rows(task.id)
       assert row.type == :user_message
       assert row.turn_number == nil
       assert row.data.agent_id == "test-frontman"

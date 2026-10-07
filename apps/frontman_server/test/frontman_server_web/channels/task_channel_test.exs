@@ -425,6 +425,86 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert [%Interaction.UserMessage{model: ^model}] = Tasks.interactions(task)
     end
 
+    test "rejects explicit invalid models and skills without changing selection", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
+      {:ok, original} = Tasks.get_task(scope, task_id)
+
+      for meta <- [
+            %{"model" => nil},
+            %{"model" => 42},
+            %{"model" => %{}},
+            %{"model" => "missing:model"},
+            %{"model" => "openrouter:openai/gpt-5.5", "selectedServerSkillId" => "missing"}
+          ] do
+        ref = push(socket, "acp:message", build_prompt_request(_meta: meta))
+        assert_reply(ref, :ok, %{"acp:message" => %{"error" => %{"code" => -32_602}}})
+        assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+        assert task.current_model == original.current_model
+        assert Tasks.interactions(task) == []
+      end
+
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "config_option_update"}}
+      })
+    end
+
+    test "custom compatibility and credential removal advertise persisted fallback", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
+      alias FrontmanServer.Providers
+      fallback = scope |> Providers.available_models() |> Tasks.model_values() |> hd()
+
+      {:ok, provider} =
+        Providers.create_custom_provider(scope, %{
+          "name" => "Local",
+          "base_url" => "https://93.184.216.34/v1",
+          "models" => ["custom-model"]
+        })
+
+      model = "custom:#{provider.id}:custom-model"
+
+      for legacy <- [model, %{"provider" => "custom", "value" => model}] do
+        ref = push(socket, "acp:message", build_prompt_request(_meta: %{"model" => legacy}))
+        assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
+      end
+
+      assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+      assert task.current_model == model
+      assert Enum.all?(Tasks.interactions(task), &(&1.model == model))
+      collect_all_pushes()
+      :ok = Providers.delete_custom_provider(scope, provider.id, provider.lock_version)
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "config_option_update",
+            "configOptions" => [%{"currentValue" => ^fallback}]
+          }
+        }
+      })
+
+      assert {:ok, %{current_model: ^fallback}} = Tasks.get_task(scope, task_id)
+      providers = Application.fetch_env!(:frontman_server, :providers)
+      on_exit(fn -> Application.put_env(:frontman_server, :providers, providers) end)
+      Application.put_env(:frontman_server, :providers, [])
+      send(socket.channel_pid, :config_options_changed)
+      assert_push("acp:message", %{"params" => %{"update" => %{"configOptions" => []}}})
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/load", 99, %{"sessionId" => task_id})
+      )
+
+      assert_push("acp:message", %{"id" => 99, "result" => %{"configOptions" => []}})
+      assert {:ok, %{current_model: nil}} = Tasks.get_task(scope, task_id)
+    end
+
     test "forwards prompt model to title generation job", %{
       socket: socket,
       scope: scope,
@@ -611,6 +691,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "rejects changeset errors without accepting a prompt", context do
+      {:ok, original} = Tasks.get_task(context.scope, context.task_id)
       pdf = %{"mimeType" => "application/pdf", "blob" => "AAAA"}
       annotation = %{"annotation" => true, "annotation_id" => "ann-1", "annotation_index" => 0}
 
@@ -640,6 +721,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       end
 
       assert {:ok, task} = Tasks.get_task_with_history(context.scope, context.task_id)
+      assert task.current_model == original.current_model
       assert Tasks.interactions(task) == []
       assert all_enqueued(worker: GenerateTitle) == []
       refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
@@ -668,6 +750,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         scope: scope,
         task_id: task_id
       } do
+        {:ok, original} = Tasks.get_task(scope, task_id)
+
         meta = %{
           "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
           "agent" => "test-frontman"
@@ -694,6 +778,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         assert response["error"]["message"] == unquote(expected_message)
 
         assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+        assert task.current_model == original.current_model
         assert Tasks.interactions(task) == []
         assert all_enqueued(worker: GenerateTitle) == []
 
@@ -1734,6 +1819,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           model: "openrouter:google/gemini-3.1-pro-preview",
           agent_id: "test-frontman"
         })
+
+      assert_push("acp:message", %{"params" => %{"update" => update}})
+      assert update["sessionUpdate"] == "config_option_update"
+
+      assert [%{"currentValue" => "openrouter:google/gemini-3.1-pro-preview"}] =
+               update["configOptions"]
 
       push(
         socket,

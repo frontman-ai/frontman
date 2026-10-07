@@ -174,13 +174,14 @@ defmodule FrontmanServer.Protocols.ACP do
   This function has no knowledge of provider
   internals; all domain logic is encapsulated in the Providers context.
   """
-  def build_model_config_options(model_data, current_value \\ nil)
+  def build_model_config_options(catalog),
+    do:
+      build_model_config_options(catalog, List.first(FrontmanServer.Tasks.model_values(catalog)))
 
   def build_model_config_options(%{groups: groups}, current_value) do
     groups = Enum.reject(groups, &(&1.options == []))
-    values = groups |> Enum.flat_map(& &1.options) |> Enum.map(& &1.value)
 
-    case current_config_value(values, current_value) do
+    case current_value do
       nil ->
         []
 
@@ -208,15 +209,6 @@ defmodule FrontmanServer.Protocols.ACP do
     end
   end
 
-  defp current_config_value([], _current_value), do: nil
-
-  defp current_config_value([first | _rest] = values, current_value) do
-    case current_value in values do
-      true -> current_value
-      false -> first
-    end
-  end
-
   @doc "Encodes the resolved agent catalog for ACP metadata."
   def build_agent_catalog(agents) when is_list(agents) do
     Enum.map(agents, &agent_entry/1)
@@ -226,16 +218,14 @@ defmodule FrontmanServer.Protocols.ACP do
   Builds session/new result payload with config options.
   """
   def build_session_new_result(session_id, config_options) when is_list(config_options) do
-    %{"sessionId" => session_id}
-    |> put_config_options(config_options)
+    Map.put(build_session_load_result(config_options), "sessionId", session_id)
   end
 
   @doc """
   Builds session/load result payload with optional config options.
   """
   def build_session_load_result(config_options) when is_list(config_options) do
-    %{}
-    |> put_config_options(config_options)
+    %{"configOptions" => config_options}
   end
 
   defp agent_entry(%Agent{} = agent) do
@@ -247,11 +237,6 @@ defmodule FrontmanServer.Protocols.ACP do
       "color" => agent.color
     }
   end
-
-  defp put_config_options(result, []), do: result
-
-  defp put_config_options(result, config_options),
-    do: Map.put(result, "configOptions", config_options)
 
   @doc """
   Builds a session summary for the list_sessions channel response.
@@ -268,32 +253,12 @@ defmodule FrontmanServer.Protocols.ACP do
     }
   end
 
-  @doc """
-  Builds the payload for a config_options_updated channel push.
-  """
-  def build_config_options_updated_payload(config_options) when is_list(config_options) do
-    %{"configOptions" => config_options}
-  end
-
-  def build_set_config_option_result(config_options) when is_list(config_options) do
-    %{"configOptions" => config_options}
-  end
-
   def build_config_option_update_notification(session_id, config_options)
       when is_list(config_options) do
     session_update_notification(session_id, %{
       "sessionUpdate" => "config_option_update",
       "configOptions" => config_options
     })
-  end
-
-  @doc """
-  Generates ACP session ID.
-
-  Session IDs are UUIDs. In ACP, sessions map 1:1 with tasks.
-  """
-  def generate_session_id do
-    Ecto.UUID.generate()
   end
 
   @doc """

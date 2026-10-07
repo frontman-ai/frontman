@@ -154,18 +154,50 @@ defmodule FrontmanServer.Tasks do
   def ensure_session(scope, %{id: task_id} = attrs) do
     with {:ok, _task} <-
            create_task(scope, attrs, on_conflict: :nothing, conflict_target: :id) do
-      get_task(scope, task_id)
+      get_task_with_history(scope, task_id)
     end
   end
 
   @doc "Stores the agent-owned current model for a task."
   def set_current_model(%Scope{} = scope, task_id, current_model)
-      when is_binary(task_id) and is_binary(current_model) and current_model != "" do
-    with {:ok, task} <- get_task(scope, task_id) do
-      task
-      |> TaskSchema.update_changeset(%{current_model: current_model})
-      |> Repo.update()
+      when is_binary(task_id) and (is_nil(current_model) or is_binary(current_model)) do
+    with {:ok, task} <- get_task(scope, task_id),
+         {:ok, updated} <-
+           task |> TaskSchema.update_changeset(%{current_model: current_model}) |> Repo.update() do
+      if task.current_model != current_model,
+        do:
+          Phoenix.PubSub.broadcast_from(
+            FrontmanServer.PubSub,
+            self(),
+            topic(task_id),
+            :config_options_changed
+          )
+
+      {:ok, updated}
     end
+  end
+
+  def model_values(%{groups: groups}),
+    do: Enum.flat_map(groups, &Enum.map(&1.options, fn option -> option.value end))
+
+  def model_selection(%TaskSchema{} = task, catalog) do
+    values = model_values(catalog)
+
+    preferred =
+      task.current_model ||
+        Enum.find_value(Enum.reverse(task.interaction_rows), fn
+          %{data: %Interaction.UserMessage{model: model}} -> if model in values, do: model
+          _row -> nil
+        end)
+
+    if preferred in values, do: preferred, else: List.first(values)
+  end
+
+  def reconcile_current_model(%Scope{} = scope, %TaskSchema{} = task, catalog)
+      when task.user_id == scope.user.id do
+    model = model_selection(task, catalog)
+
+    task |> TaskSchema.update_changeset(%{current_model: model}) |> Repo.update()
   end
 
   defp load_history(task_id) do
@@ -490,8 +522,8 @@ defmodule FrontmanServer.Tasks do
         %Scope{} = scope,
         %{
           task_id: task_id,
-          message_id: message_id,
-          message: [_ | _] = content_blocks,
+          message_id: _message_id,
+          message: [_ | _],
           model: model,
           agent_id: agent_id
         } = arguments
@@ -502,18 +534,11 @@ defmodule FrontmanServer.Tasks do
 
     with :ok <- guard_billing_access(scope),
          {:ok, selected_skill} <- selected_skill(scope, selected_server_skill_id),
-         user_message_attrs = Interaction.UserMessage.attrs(content_blocks, model, agent_id),
-         user_message_attrs = put_selected_skill(user_message_attrs, selected_skill),
-         {:ok, task_schema} <- get_task(scope, task_id) do
-      record_interaction_row(
-        task_schema,
-        %{
-          id: message_id,
-          type: :user_message,
-          data: Map.put(user_message_attrs, :id, message_id),
-          turn_number: nil
-        }
-      )
+         {:ok, {row, selection_changed?}} <-
+           Repo.transact(fn -> accept_user_message(scope, arguments, selected_skill) end) do
+      if selection_changed?, do: broadcast_task(task_id, :config_options_changed)
+      broadcast_task(task_id, {:interaction, row})
+      {:ok, row}
     end
   end
 
@@ -525,6 +550,36 @@ defmodule FrontmanServer.Tasks do
   def submit_user_message(%Scope{}, %{model: _model}) do
     {:error, :missing_agent}
   end
+
+  defp accept_user_message(scope, arguments, selected_skill) do
+    with %TaskSchema{} = task <- get_task_by_id_for_update(scope, arguments.task_id),
+         model = prompt_model(task, arguments),
+         attrs = Interaction.UserMessage.attrs(arguments.message, model, arguments.agent_id),
+         attrs = put_selected_skill(attrs, selected_skill),
+         {:ok, row} <-
+           insert_interaction_row(task, %{
+             id: arguments.message_id,
+             type: :user_message,
+             data: Map.put(attrs, :id, arguments.message_id),
+             turn_number: nil
+           }),
+         {:ok, _task} <-
+           task |> TaskSchema.update_changeset(%{current_model: model}) |> Repo.update() do
+      {:ok, {row, task.current_model != model}}
+    else
+      nil -> {:error, :not_found}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp prompt_model(task, %{current_model_catalog: %{} = catalog, model: model}) do
+    case task.current_model in model_values(catalog) do
+      true -> task.current_model
+      false -> model
+    end
+  end
+
+  defp prompt_model(_task, %{model: model}), do: model
 
   defp guard_billing_access(scope) do
     case Billing.allow_access?(scope) do
