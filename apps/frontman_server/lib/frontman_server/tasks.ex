@@ -41,6 +41,7 @@ defmodule FrontmanServer.Tasks do
     ],
     exports: @exports
 
+  import Ecto.Changeset, only: [get_field: 2, add_error: 3]
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents
@@ -143,12 +144,11 @@ defmodule FrontmanServer.Tasks do
   """
   def create_task(%Scope{} = scope, %{id: task_id, framework: _framework} = attrs, opts \\ [])
       when is_binary(task_id) do
-    catalog = Providers.available_models(scope)
-
     attrs
     |> Map.put(:short_desc, TaskSchema.default_title())
     |> Map.put(:user_id, Accounts.scope_user_id(scope))
-    |> TaskSchema.create_changeset(catalog)
+    |> TaskSchema.create_changeset()
+    |> validate_current_model(Providers.available_models(scope))
     |> Repo.insert(opts)
   end
 
@@ -168,7 +168,8 @@ defmodule FrontmanServer.Tasks do
         with %TaskSchema{} = task <- get_task_by_id_for_update(scope, task_id),
              {:ok, updated} <-
                task
-               |> TaskSchema.model_changeset(%{current_model: current_model}, catalog)
+               |> TaskSchema.model_changeset(%{current_model: current_model})
+               |> validate_current_model(catalog)
                |> Repo.update() do
           {:ok, {updated, task.current_model != updated.current_model}}
         else
@@ -533,26 +534,32 @@ defmodule FrontmanServer.Tasks do
 
   defp accept_user_message(scope, arguments, selected_skill, catalog) do
     with %TaskSchema{} = task <- get_task_by_id_for_update(scope, arguments.task_id),
-         {:ok, %{current_model: model}} <-
-           task
-           |> TaskSchema.model_changeset(
-             %{current_model: prompt_model(task, Map.get(arguments, :model))},
-             catalog
-           )
-           |> Ecto.Changeset.apply_action(:update),
-         attrs = Interaction.UserMessage.attrs(arguments.message, model, arguments.agent_id),
-         attrs = put_selected_skill(attrs, selected_skill),
-         {:ok, row} <-
-           insert_interaction_row(task, %{
-             id: arguments.message_id,
-             type: :user_message,
-             data: Map.put(attrs, :id, arguments.message_id),
-             turn_number: nil
-           }) do
-      {:ok, row}
+         model = prompt_model(task, Map.get(arguments, :model)),
+         changeset = TaskSchema.model_changeset(task, %{current_model: model}),
+         %{valid?: true} <- validate_current_model(changeset, catalog) do
+      model = get_field(changeset, :current_model)
+      attrs = Interaction.UserMessage.attrs(arguments.message, model, arguments.agent_id)
+      attrs = put_selected_skill(attrs, selected_skill)
+
+      insert_interaction_row(task, %{
+        id: arguments.message_id,
+        type: :user_message,
+        data: Map.put(attrs, :id, arguments.message_id),
+        turn_number: nil
+      })
     else
       nil -> {:error, :not_found}
-      {:error, reason} -> {:error, reason}
+      %Ecto.Changeset{} = changeset -> {:error, changeset}
+    end
+  end
+
+  defp validate_current_model(%Ecto.Changeset{valid?: false} = changeset, _catalog),
+    do: changeset
+
+  defp validate_current_model(changeset, catalog) do
+    case Providers.model_available?(catalog, get_field(changeset, :current_model)) do
+      true -> changeset
+      false -> add_error(changeset, :current_model, "is unavailable; select another model")
     end
   end
 

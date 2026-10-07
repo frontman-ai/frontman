@@ -263,8 +263,6 @@ defmodule FrontmanServer.TasksTest do
       assert {:error, :not_found} =
                Tasks.set_current_model(scope, Ecto.UUID.generate(), newer)
 
-      refute TaskSchema.model_changeset(task, %{current_model: task.current_model}, %{groups: []}).valid?
-
       {:ok, _task} = Tasks.set_current_model(scope, task.id, newer)
 
       assert {:ok,
