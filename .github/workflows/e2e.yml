@@ -249,6 +249,9 @@ jobs:
           mkcert -key-file .certs/frontman.local-key.pem \
                  -cert-file .certs/frontman.local.pem \
                  frontman.local localhost 127.0.0.1 ::1
+          CA_CERT="$(mkcert -CAROOT)/rootCA.pem"
+          test -r "$CA_CERT"
+          printf 'NODE_EXTRA_CA_CERTS=%s\n' "$CA_CERT" >> "$GITHUB_ENV"
 
       - name: Cache Playwright browsers
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
@@ -283,8 +286,6 @@ jobs:
 
       - name: Run E2E tests
         working-directory: test/e2e
-        env:
-          NODE_TLS_REJECT_UNAUTHORIZED: "0"
         run: ${{ steps.test-cmd.outputs.cmd }}
 
       - name: Cleanup workspace

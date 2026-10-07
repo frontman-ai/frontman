@@ -24,6 +24,17 @@ Boolean env vars use one canonical parser in both Elixir and TS setup code.
 - Empty/unset: use default
 - Any other value: raises immediately
 
+## Certificate trust
+
+Run `make ssl-setup` before the local E2E suite.
+The Makefile exports the mkcert CA path through `NODE_EXTRA_CA_CERTS` before Node starts.
+To use another test CA, set `NODE_EXTRA_CA_CERTS` to its readable PEM file.
+The launcher stops if the CA file is missing.
+Certificate validation remains enabled.
+
+Run `make test-security` for the isolated security regression tests.
+These tests do not require the E2E database or provider secrets.
+
 ## Secrets
 
 Copy `test/e2e/.env.example` to `test/e2e/.env` and populate:

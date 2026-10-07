@@ -8,6 +8,8 @@ on:
       - "*"
   workflow_dispatch:
 
+permissions: {}
+
 concurrency:
   group: mirror-sourceforge
   cancel-in-progress: false
