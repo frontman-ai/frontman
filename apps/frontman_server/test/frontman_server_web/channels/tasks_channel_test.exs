@@ -134,7 +134,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("billing_status_updated", %{
         status: "none",
-        access_allowed: false,
+        access_allowed: true,
+        pretrial_runs_remaining: 5,
         has_billing_customer: false,
         interval: nil,
         current_period_end: nil,
@@ -225,7 +226,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert task.framework == :nextjs
     end
 
-    test "rejects inactive billing before creating task", %{socket: socket, scope: scope} do
+    test "rejects exhausted allowance before creating task", %{socket: socket, scope: scope} do
+      for _ <- 1..5, do: :ok = Billing.consume_pretrial_run(scope)
       version = ACP.protocol_version()
 
       push(socket, "acp:message", %{
@@ -258,7 +260,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "id" => 2,
         "error" => %{
           "code" => -32_010,
-          "message" => "Finish billing setup to start using Frontman."
+          "message" =>
+            "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
         }
       })
 

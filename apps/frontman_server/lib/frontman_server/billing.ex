@@ -15,8 +15,10 @@ defmodule FrontmanServer.Billing do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Billing.{Customer, Subscription}
+  alias FrontmanServer.Billing.{Customer, RunAllowance, Subscription}
   alias FrontmanServer.Repo
+
+  @pretrial_run_limit 5
 
   @type interval :: :monthly | :yearly
 
@@ -85,6 +87,7 @@ defmodule FrontmanServer.Billing do
   @spec status(Scope.t()) :: %{
           status: String.t(),
           access_allowed: boolean(),
+          pretrial_runs_remaining: non_neg_integer() | nil,
           has_billing_customer: boolean(),
           interval: atom() | nil,
           current_period_end: DateTime.t() | nil,
@@ -125,6 +128,38 @@ defmodule FrontmanServer.Billing do
     |> Subscription.allow_access?()
   end
 
+  @doc "Allows a new run with either subscription access or unused BYOK allowance."
+  def allow_run?(%Scope{} = scope) do
+    case get_current_subscription(scope) do
+      nil -> remaining_runs(scope) > 0
+      subscription -> Subscription.allow_access?(subscription)
+    end
+  end
+
+  @doc "Consumes a BYOK run inside the transaction that records its turn."
+  def consume_pretrial_run(%Scope{} = scope) do
+    case get_current_subscription(scope) do
+      nil ->
+        case Repo.insert_all(RunAllowance, [%{user_id: Accounts.scope_user_id(scope), used: 1}],
+               conflict_target: :user_id,
+               on_conflict: RunAllowance.increment_below(@pretrial_run_limit)
+             ) do
+          {1, _} -> :ok
+          {0, _} -> {:error, :billing_inactive}
+        end
+
+      %Subscription{} ->
+        {:error, :billing_inactive}
+    end
+  end
+
+  defp remaining_runs(scope) do
+    case Repo.get(RunAllowance, Accounts.scope_user_id(scope)) do
+      nil -> @pretrial_run_limit
+      %RunAllowance{used: used} -> @pretrial_run_limit - used
+    end
+  end
+
   @doc """
   Returns the current billing subscription for the scoped user.
   """
@@ -141,6 +176,7 @@ defmodule FrontmanServer.Billing do
     %{
       status: subscription.status,
       access_allowed: Subscription.allow_access?(subscription),
+      pretrial_runs_remaining: nil,
       has_billing_customer: has_billing_customer?(scope, subscription),
       interval: subscription.interval,
       current_period_end: subscription.current_period_end,
@@ -151,9 +187,12 @@ defmodule FrontmanServer.Billing do
   end
 
   defp status_payload(scope, nil) do
+    remaining = remaining_runs(scope)
+
     %{
       status: "none",
-      access_allowed: false,
+      access_allowed: remaining > 0,
+      pretrial_runs_remaining: remaining,
       has_billing_customer: has_billing_customer?(scope, nil),
       interval: nil,
       current_period_end: nil,

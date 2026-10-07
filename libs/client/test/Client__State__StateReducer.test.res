@@ -1870,6 +1870,37 @@ describe("Client State Reducer - Annotations on Messages", () => {
     )
   })
 
+  test("exhaustion does not open a modal until another run is requested", t => {
+    let parseBillingStatus = json =>
+      S.parseOrThrow(JSON.parseOrThrow(json), ~to=Client__Billing.statusSchema)
+    let status = parseBillingStatus(`{
+      "status": "none", "access_allowed": false, "pretrial_runs_remaining": 0,
+      "has_billing_customer": false, "interval": null, "current_period_end": null,
+      "trial_end": null, "cancel_at": null, "canceled_at": null
+    }`)
+    let (state, _) = Reducer.next(Reducer.defaultState, BillingStatusReceived(status))
+    t->expect(state.settingsModalTab)->Expect.toEqual(None)
+    let result = ref(None)
+    let (nextState, effects) = Reducer.next(
+      state,
+      AddUserMessage({
+        content: [UserContentPart.text("Sixth run")],
+        annotationId: None,
+        onComplete: value => result := Some(value),
+      }),
+    )
+    effects->Array.forEach(effect => Reducer.handleEffect(effect, nextState, _ => ()))
+    t->expect(nextState.settingsModalTab)->Expect.toEqual(Some(Billing))
+    t->expect(nextState.currentTask)->Expect.toEqual(state.currentTask)
+    t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
+    let (planState, planEffects) = Reducer.next(
+      state,
+      ExecutePendingPlan({id: Client__State__Types.Message.UserMessageId.make()}),
+    )
+    t->expect(planState.settingsModalTab)->Expect.toEqual(Some(Billing))
+    t->expect(planEffects)->Expect.toEqual([])
+  })
+
   test("AddUserMessage rejects without a selected model and leaves the draft unchanged", t => {
     setRuntime(JSON.parseOrThrow(`{"framework":"nextjs"}`))
     let result = ref(None)

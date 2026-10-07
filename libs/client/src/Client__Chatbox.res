@@ -422,9 +422,18 @@ let make = (~onConfigureProvider: unit => unit) => {
     </ScrollContainer>
     <Client__PlanList entries=planEntries />
     {switch billingStatus {
-    | Client__Billing.Loaded(status) if !Client__Billing.isAccessAllowed(status) =>
+    | Client__Billing.Loaded(status)
+      if !Client__Billing.isAccessAllowed(status) ||
+      Client__Billing.pretrialRunsRemaining(status)->Option.isSome =>
       <Client__UI__Alert className="mx-4 mb-2 w-auto">
-        <Client__UI__Alert.Title> {React.string("Billing required")} </Client__UI__Alert.Title>
+        <Client__UI__Alert.Title>
+          {React.string(
+            switch Client__Billing.pretrialRunsRemaining(status) {
+            | Some(remaining) => `${Int.toString(remaining)} BYOK runs remaining`
+            | None => "Billing required"
+            },
+          )}
+        </Client__UI__Alert.Title>
         <Client__UI__Alert.Description>
           {React.string(Client__Billing.activationMessage(status))}
           <Client__UI__Button
@@ -432,7 +441,12 @@ let make = (~onConfigureProvider: unit => unit) => {
             size=Client__UI__Button.Size.Sm
             onClick={_ => Client__State.Actions.openSettingsModalOnBilling()}
           >
-            {React.string("Open billing")}
+            {React.string(
+              switch Client__Billing.pretrialRunsRemaining(status) {
+              | Some(_) => "Start 14-day trial"
+              | None => "Open billing"
+              },
+            )}
           </Client__UI__Button>
         </Client__UI__Alert.Description>
       </Client__UI__Alert>
