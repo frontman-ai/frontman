@@ -1675,14 +1675,29 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
     test "pushes history before a standard load result", %{scope: scope} do
       task = task_fixture(scope)
-      {:ok, _message} = user_message_fixture(scope, task.id, user_content("history"))
+
+      [first, model | _] =
+        scope |> FrontmanServer.Providers.available_models() |> Tasks.model_values()
+
+      refute model == first
+      {:ok, _message} = user_message_fixture(scope, task.id, user_content("history"), model)
+      {:ok, _completed} = Tasks.record_execution_outcome(scope, task.id, 1, :completed)
+
+      {:ok, _removed} =
+        user_message_fixture(scope, task.id, user_content("removed"), "missing:model")
+
+      assert {:ok, %{current_model: nil}} = Tasks.get_task(scope, task.id)
 
       {:ok, _reply, socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task.id}", %{})
 
+      assert {:ok, %{current_model: ^model}} = Tasks.get_task(scope, task.id)
       collect_all_pushes()
+
+      {1, _} =
+        FrontmanServer.Repo.update_all(Tasks.TaskSchema.by_id(task.id), set: [current_model: nil])
 
       push(
         socket,
@@ -1703,14 +1718,20 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                  "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
                },
                %{
+                 "method" => "session/update",
+                 "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
+               },
+               %{
                  "id" => 90,
-                 "result" => %{"configOptions" => _config_options}
+                 "result" => %{"configOptions" => [%{"currentValue" => ^model}]}
                },
                %{
                  "method" => "session/update",
                  "params" => %{"update" => %{"sessionUpdate" => "plan", "entries" => []}}
                }
              ] = messages
+
+      assert {:ok, %{current_model: ^model}} = Tasks.get_task(scope, task.id)
     end
 
     test "restores current todo plan after the load result", %{scope: scope} do

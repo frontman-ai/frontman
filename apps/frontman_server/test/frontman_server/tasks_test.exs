@@ -66,29 +66,6 @@ defmodule FrontmanServer.TasksTest do
     assert {:ok, %{framework: :nextjs}} = Tasks.get_task(scope, id)
   end
 
-  test "reconciles nullable history, removed selections, and empty catalogs", %{scope: scope} do
-    task = task_fixture(scope)
-    assert_raise FunctionClauseError, fn -> Tasks.set_current_model(scope, task.id, "") end
-    insert_accepted_user_message!(task, "old", "test:available")
-    insert_accepted_user_message!(task, "removed", "test:removed")
-    {:ok, task} = Tasks.get_task_with_history(scope, task.id)
-    catalog = %{groups: [%{options: [%{value: "test:first"}, %{value: "test:available"}]}]}
-
-    assert {:ok, %{current_model: "test:available"} = task} =
-             Tasks.reconcile_current_model(scope, task, catalog)
-
-    assert {:ok, ^task} = Tasks.reconcile_current_model(scope, task, catalog)
-    {:ok, task} = Tasks.set_current_model(scope, task.id, "test:removed")
-
-    assert {:ok, %{current_model: "test:first"} = task} =
-             Tasks.reconcile_current_model(scope, task, catalog)
-
-    assert {:ok, %{current_model: nil}} =
-             Tasks.reconcile_current_model(scope, task, %{groups: []})
-
-    assert {:ok, %{current_model: nil}} = Tasks.get_task(scope, task.id)
-  end
-
   describe "apply_title_suggestion/3" do
     test "sets the default title once", %{scope: scope} do
       task_id = task_fixture(scope).id
@@ -195,6 +172,7 @@ defmodule FrontmanServer.TasksTest do
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
       newer = "openrouter:google/gemini-3.1-pro-preview"
+      assert_raise FunctionClauseError, fn -> Tasks.set_current_model(scope, task.id, "") end
       {:ok, _task} = Tasks.set_current_model(scope, task.id, newer)
       catalog = %{groups: [%{options: [%{value: newer}, %{value: "openrouter:openai/gpt-5.5"}]}]}
 
