@@ -18,6 +18,8 @@ defmodule FrontmanServer.TasksTest do
   }
 
   alias FrontmanServer.Protocols.MCP
+  alias FrontmanServer.Providers
+  alias FrontmanServer.Providers.OAuthToken
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
@@ -179,6 +181,69 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "submit_user_message/2" do
+    setup {Req.Test, :set_req_test_from_context}
+    setup {Req.Test, :verify_on_exit!}
+
+    test "model rejection preserves refreshed OAuth credentials for a corrected prompt", %{
+      scope: scope
+    } do
+      allow_access_for_scope_fixture(scope)
+      task = task_fixture(scope)
+      message_id = Ecto.UUID.generate()
+
+      token =
+        %OAuthToken{user_id: scope.user.id}
+        |> OAuthToken.changeset(%{
+          provider: "anthropic",
+          access_token: "expired-access",
+          refresh_token: "original-refresh",
+          expires_at: DateTime.add(DateTime.utc_now(), -60, :second)
+        })
+        |> Repo.insert!()
+
+      Req.Test.expect(:anthropic_oauth, fn conn ->
+        assert conn.body_params["refresh_token"] == "original-refresh"
+
+        Req.Test.json(conn, %{
+          "access_token" => "refreshed-access",
+          "refresh_token" => "rotated-refresh",
+          "expires_in" => 3600
+        })
+      end)
+
+      prompt = %{
+        task_id: task.id,
+        message_id: message_id,
+        message: user_content("hello"),
+        model: "missing:model",
+        agent_id: "test-frontman"
+      }
+
+      assert {:error, changeset} = Tasks.submit_user_message(scope, prompt)
+      assert errors_on(changeset) == %{current_model: ["is unavailable; select another model"]}
+      assert db_rows(task.id) == []
+      assert {:ok, unchanged_task} = Tasks.get_task(scope, task.id)
+      assert unchanged_task.current_model == task.current_model
+
+      refreshed_token = Repo.reload!(token)
+      assert refreshed_token.access_token == "refreshed-access"
+      assert refreshed_token.refresh_token == "rotated-refresh"
+      assert DateTime.compare(refreshed_token.expires_at, DateTime.utc_now()) == :gt
+
+      model = "anthropic:claude-sonnet-4-6"
+
+      assert {:ok, %InteractionSchema{id: ^message_id}} =
+               Tasks.submit_user_message(scope, %{prompt | model: model})
+
+      assert [row] = db_rows(task.id)
+      assert row.data.model == model
+
+      assert {:ok, {_model, opts}} =
+               Providers.resolve_model_access(scope, model)
+
+      assert opts[:access_token] == "refreshed-access"
+    end
+
     test "persists an accepted user message without starting a turn", %{scope: scope} do
       allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
