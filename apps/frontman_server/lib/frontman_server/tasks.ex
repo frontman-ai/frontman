@@ -160,7 +160,8 @@ defmodule FrontmanServer.Tasks do
 
   @doc "Stores the agent-owned current model for a task."
   def set_current_model(%Scope{} = scope, task_id, current_model)
-      when is_binary(task_id) and (is_nil(current_model) or is_binary(current_model)) do
+      when is_binary(task_id) and
+             (is_nil(current_model) or (is_binary(current_model) and current_model != "")) do
     with {:ok, task} <- get_task(scope, task_id),
          {:ok, updated} <-
            task |> TaskSchema.update_changeset(%{current_model: current_model}) |> Repo.update() do

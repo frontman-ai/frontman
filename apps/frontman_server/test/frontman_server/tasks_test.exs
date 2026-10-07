@@ -68,6 +68,7 @@ defmodule FrontmanServer.TasksTest do
 
   test "reconciles nullable history, removed selections, and empty catalogs", %{scope: scope} do
     task = task_fixture(scope)
+    assert_raise FunctionClauseError, fn -> Tasks.set_current_model(scope, task.id, "") end
     insert_accepted_user_message!(task, "old", "test:available")
     insert_accepted_user_message!(task, "removed", "test:removed")
     {:ok, task} = Tasks.get_task_with_history(scope, task.id)
