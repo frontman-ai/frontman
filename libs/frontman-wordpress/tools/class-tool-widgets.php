@@ -125,7 +125,7 @@ class Frontman_Tool_Widgets {
 	}
 
 	private function parse_widget_id( string $widget_id ): array {
-		if ( ! preg_match( '/^(.+)-(\d+)$/', $widget_id, $matches ) ) {
+		if ( ! preg_match( '/^(.+)-(\d+)$/', $widget_id, $matches ) || $widget_id !== sanitize_key( $matches[1] ) . '-' . (int) $matches[2] ) {
 			throw new Frontman_Tool_Error( "Invalid widget ID format: {$widget_id}" );
 		}
 
@@ -349,9 +349,10 @@ class Frontman_Tool_Widgets {
 		$to_sidebar_id = sanitize_key( $input['to_sidebar_id'] ?? '' );
 		$widget        = $this->read_widget( [ 'widget_id' => $widget_id ] );
 		$from_sidebar_id = $widget['sidebar_id'];
+		$snapshot_source = null !== $from_sidebar_id && 'wp_inactive_widgets' !== $from_sidebar_id;
 		$before = [
 			'widget'       => $widget,
-			'from_sidebar' => null === $from_sidebar_id ? null : $this->sidebar_snapshot( $from_sidebar_id ),
+			'from_sidebar' => $snapshot_source ? $this->sidebar_snapshot( $from_sidebar_id ) : null,
 			'to_sidebar'   => $this->sidebar_snapshot( $to_sidebar_id ),
 		];
 
@@ -376,7 +377,7 @@ class Frontman_Tool_Widgets {
 			'before' => $before,
 			'after'  => [
 				'widget'       => $this->read_widget( [ 'widget_id' => $widget_id ] ),
-				'from_sidebar' => null === $from_sidebar_id ? null : $this->sidebar_snapshot( $from_sidebar_id ),
+				'from_sidebar' => $snapshot_source ? $this->sidebar_snapshot( $from_sidebar_id ) : null,
 				'to_sidebar'   => $this->sidebar_snapshot( $to_sidebar_id ),
 			],
 		];

@@ -432,6 +432,37 @@ foreach ( [ [ 'text', 'text', 'WP_Widget_Text' ], [ 'custom_html', 'content', 'W
 	$input = [ 'sidebar_id' => 'frontman-footer', 'widget_id' => $created['widget_id'] ];
 	$widget_call( 'wp_update_widget', $input + [ 'settings' => wp_json_encode( [ $field => str_replace( 'Blog', 'Updated category', $markup ) ] ) ] );
 	frontman_runtime_assert( false !== strpos( $render_widget( $class ), '<a href="/category/blog/">Updated category</a>' ), $base . ': update must render the new category link.' );
+	$settings_before = get_option( 'widget_' . $base );
+	foreach ( [ 'active', 'detached', 'inactive' ] as $state ) {
+		if ( 'active' !== $state ) {
+			$widget_call( 'wp_delete_widget', [ 'widget_id' => $created['widget_id'], 'confirm' => true ] );
+		}
+		if ( 'inactive' === $state ) {
+			$GLOBALS['wp_widget_factory']->widgets[$class]->_register();
+			$GLOBALS['sidebars_widgets'] = get_option( 'sidebars_widgets' );
+			retrieve_widgets( true );
+		}
+		$before = $widget_call( 'wp_read_widget', [ 'widget_id' => $created['widget_id'] ] );
+		$source = 'active' === $state ? 'frontman-footer' : ( 'inactive' === $state ? 'wp_inactive_widgets' : null );
+		frontman_runtime_assert( $source === $before['sidebar_id'], $base . ': lifecycle did not reach ' . $state . '.' );
+		frontman_runtime_assert( $settings_before === get_option( 'widget_' . $base ), $base . ': removal or reconciliation changed retained settings.' );
+		$placement_before = get_option( 'sidebars_widgets' );
+		$number = substr( $created['widget_id'], strlen( $base ) + 1 );
+		foreach ( [ $base . '!-' . $number, $base . '-0' . $number, strtoupper( $base ) . '-' . $number, $base . '-999999999999999999999999999' ] as $invalid_id ) {
+			$widget_call( 'wp_read_widget', [ 'widget_id' => $invalid_id ], true );
+			$widget_call( 'wp_move_widget', [ 'widget_id' => $invalid_id, 'to_sidebar_id' => 'frontman-footer' ], true );
+			frontman_runtime_assert( $settings_before === get_option( 'widget_' . $base ) && $placement_before === get_option( 'sidebars_widgets' ), $base . ': invalid ID changed ' . $state . ' widget settings or placement.' );
+		}
+		$expected = $placement_before;
+		if ( null !== $source ) {
+			$expected[$source] = array_values( array_diff( $expected[$source], [ $created['widget_id'] ] ) );
+		}
+		array_splice( $expected['frontman-footer'], 0, 0, [ $created['widget_id'] ] );
+		$moved = $widget_call( 'wp_move_widget', [ 'widget_id' => $created['widget_id'], 'to_sidebar_id' => 'frontman-footer', 'to_position' => 1 ] );
+		frontman_runtime_assert( $before === $moved['before']['widget'] && 'frontman-footer' === $moved['after']['widget']['sidebar_id'] && 1 === $moved['after']['widget']['position'], $base . ': move from ' . $state . ' returned incorrect placement.' );
+		frontman_runtime_assert( $settings_before === get_option( 'widget_' . $base ) && $expected === get_option( 'sidebars_widgets' ), $base . ': move from ' . $state . ' changed settings, siblings or unrelated placement.' );
+		frontman_runtime_assert( false !== strpos( $render_widget( $class ), '<a href="/category/blog/">Updated category</a>' ), $base . ': widget did not render after move from ' . $state . '.' );
+	}
 	$widget_call( 'wp_delete_widget', [ 'widget_id' => $created['widget_id'], 'confirm' => true ] );
 }
 
@@ -459,12 +490,6 @@ $widget_call( 'wp_move_widget', [ 'widget_id' => 'block-19', 'to_sidebar_id' => 
 $widget_call( 'wp_delete_widget', [ 'widget_id' => 'block-19', 'confirm' => true ], true );
 remove_filter( 'user_has_cap', $deny_widgets );
 frontman_runtime_assert( $blocks === get_option( 'widget_block' ) && $placement === get_option( 'sidebars_widgets' ), 'Invalid or unauthorized requests must not change block-19.' );
-
-$widget_call( 'wp_delete_widget', [ 'widget_id' => 'block-19', 'confirm' => true ] );
-frontman_runtime_assert( $blocks === get_option( 'widget_block' ), 'Removal must retain the complete widget settings.' );
-frontman_runtime_assert( null === $widget_call( 'wp_read_widget', [ 'widget_id' => 'block-19' ] )['sidebar_id'], 'Removal must detach block-19.' );
-$widget_call( 'wp_move_widget', [ 'widget_id' => 'block-19', 'to_sidebar_id' => 'frontman-footer' ] );
-frontman_runtime_assert( $placement === get_option( 'sidebars_widgets' ), 'Recovery must restore the same widget ID and position.' );
 
 $reject_placement = static fn( $value, $old ) => $old;
 add_filter( 'pre_update_option_sidebars_widgets', $reject_placement, 10, 2 );
