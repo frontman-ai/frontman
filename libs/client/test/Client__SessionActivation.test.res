@@ -3,7 +3,7 @@ module H = Client__ConnectionTestHelpers.Integration
 module App = Client__State__StateReducer
 module Task = Client__State__Types.Task
 module ACP = Client__ConnectionReducer.ACPTypes
-@schema type promptMeta = {@as("frontman.dev/messageId") id: string, model: option<string>}
+@schema type promptMeta = {@as("frontman.dev/messageId") @live id: string, model: option<string>}
 @schema type prompt = {_meta: promptMeta}
 @module("vitest") @scope("vi") external unstub: unit => unit = "unstubAllGlobals"
 @set external runtime: (WebAPI.DomTypes.window, option<JSON.t>) => unit = "__frontmanRuntime"

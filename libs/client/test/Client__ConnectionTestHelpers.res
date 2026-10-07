@@ -99,11 +99,11 @@ module Integration = {
     s.item(3, S.string),
     s.item(4, S.json),
   ))
-  @schema type request = {id: int, method: string, params: JSON.t}
-  @schema type receipt = {status: string, response: JSON.t}
-  @schema type error = {code: int, message: string}
+  @schema type request = {@live id: int, method: string, params: JSON.t}
+  @schema type receipt = {@live status: string, @live response: JSON.t}
+  @schema type error = {@live code: int, @live message: string}
   type wire = {
-    mutable holdSessionNew: bool,
+    @live mutable holdSessionNew: bool,
     reply: (frame, JSON.t, option<JSON.t>) => unit,
     emit: (string, JSON.t) => unit,
     lose: bool => unit,
@@ -116,7 +116,7 @@ module Integration = {
   @get external send: native => string => unit = "send"
   @send external bind: (string => unit, native) => string => unit = "bind"
   @set external setSend: (native, string => unit) => unit = "send"
-  type incoming = {data: string}
+  type incoming = {@live data: string}
   @get external onmessage: native => incoming => unit = "onmessage"
   @set external runtime: (WebAPI.DomTypes.window, option<JSON.t>) => unit = "__frontmanRuntime"
   let a = "test:A"

@@ -118,12 +118,11 @@ module TestHelpers = {
     ~content=[UserContentPart.text("Hello")],
     ~annotations=[],
     ~agentId="executor-id",
-    ~onComplete=_ => (),
   ) =>
     Reducer.addUserMessageToState(
       state,
       ~sessionId,
-      {id, content, annotations, agentId, onComplete},
+      {id, content, annotations, agentId, onComplete: _ => ()},
     )
 
   let acceptUserMessage = (
