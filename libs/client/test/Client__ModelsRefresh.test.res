@@ -14,8 +14,8 @@ let makeState = (~preference=None, ~pending=None): Types.state => {
 let runtime = (state: Types.state) =>
   (state.connection->Option.getOrThrow).connection->Result.getOrThrow->Option.getOrThrow
 let signal = state => runtime(state).Client__ConnectionReducer.lifetimeAbortController.signal
-let catalog = (state, configOptions) =>
-  Reducer.next(state, CatalogReceived({signal: signal(state), configOptions}))->Pair.first
+let catalog = (state, groups) =>
+  Reducer.next(state, CatalogReceived({signal: signal(state), groups}))->Pair.first
 
 module SampleConfig = {
   let option = (value): ACP.sessionConfigSelectOption => {
@@ -30,43 +30,21 @@ module SampleConfig = {
     options: models->Array.map(option),
     _meta: None,
   }
-  let config = options => {
-    let values = switch options {
-    | ACP.Grouped(groups) => groups->Array.flatMap(group => group.options)
-    | ACP.Ungrouped(values) => values
-    }
-    [
-      ACP.SelectConfigOption({
-        id: "model",
-        name: "Model",
-        description: None,
-        category: Some(Model),
-        currentValue: values
-        ->Array.get(0)
-        ->Option.getOrThrow
-        ->((option: ACP.sessionConfigSelectOption) => option.value),
-        options,
-        _meta: None,
-      }),
-    ]
-  }
   let anthropic = "anthropic:claude-sonnet-5"
   let openai = "openai_codex:gpt-5.6-terra"
   let openrouter = "openrouter:openai/gpt-5.6-terra"
   let fireworks = "fireworks_ai:accounts/fireworks/routers/kimi-k2p5-turbo"
   let saved = "openrouter:anthropic/claude-haiku-4.5"
   let routerGroup = group("openrouter", [openrouter, saved])
-  let configWithOpenRouterOnly = config(Grouped([routerGroup]))
-  let configWithAnthropic = config(
-    Grouped([
-      routerGroup,
-      group("anthropic", [anthropic, "anthropic:claude-fable-5"]),
-      group("openai_codex", [openai, "openai_codex:gpt-5.6-sol"]),
-      group("fireworks_ai", [fireworks]),
-    ]),
-  )
-  let configWithEmptyFirstGroup = config(Grouped([group("anthropic", []), routerGroup]))
-  let configWithUngroupedModels = config(Ungrouped([option("future_provider:model")]))
+  let configWithOpenRouterOnly = [routerGroup]
+  let configWithAnthropic = [
+    routerGroup,
+    group("anthropic", [anthropic, "anthropic:claude-fable-5"]),
+    group("openai_codex", [openai, "openai_codex:gpt-5.6-sol"]),
+    group("fireworks_ai", [fireworks]),
+  ]
+  let configWithEmptyFirstGroup = [group("anthropic", []), routerGroup]
+  let configWithFutureProvider = [group("future_provider", ["future_provider:model"])]
 }
 
 describe("Draft catalog and session selection", () => {
@@ -106,7 +84,7 @@ describe("Draft catalog and session selection", () => {
     }
     [
       (None, configWithEmptyFirstGroup, Some(openrouter)),
-      (None, configWithUngroupedModels, Some("future_provider:model")),
+      (None, configWithFutureProvider, Some("future_provider:model")),
       (None, configWithAnthropic, Some(openrouter)),
       (Some(saved), configWithOpenRouterOnly, Some(saved)),
       (Some("removed:model"), configWithOpenRouterOnly, Some(openrouter)),

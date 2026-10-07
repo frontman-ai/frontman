@@ -221,7 +221,7 @@ type state = {
   nvidiaKeySettings: apiKeySettings,
   anthropicOAuthStatus: anthropicOAuthStatus,
   openaiOAuthStatus: openaiOAuthStatus,
-  configOptions: option<array<ACPConfig.sessionConfigOption>>,
+  modelGroups: option<array<ACPTypes.sessionConfigSelectGroup>>,
   draftModelPreference: option<ACPConfig.sessionConfigValueId>,
   agentCatalog: option<array<ACPTypes.agentCatalogEntry>>,
   selectedAgentId: option<string>,

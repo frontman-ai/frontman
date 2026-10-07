@@ -95,7 +95,7 @@ defmodule FrontmanServerWeb.TasksChannel do
         push(
           socket,
           @model_catalog_updated,
-          Providers.available_models(socket.assigns.scope)
+          socket.assigns.scope |> Providers.available_models() |> ACP.build_model_options()
         )
 
         push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
@@ -203,7 +203,7 @@ defmodule FrontmanServerWeb.TasksChannel do
     push(
       socket,
       @model_catalog_updated,
-      Providers.available_models(socket.assigns.scope)
+      socket.assigns.scope |> Providers.available_models() |> ACP.build_model_options()
     )
 
     {:noreply, socket}

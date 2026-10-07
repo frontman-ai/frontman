@@ -155,10 +155,8 @@ defmodule FrontmanServer.Tasks do
   end
 
   def ensure_session(%Scope{} = scope, %{id: task_id} = attrs) do
-    with {:ok, _task} <- create_task(scope, attrs, on_conflict: :nothing, conflict_target: :id),
-         {:ok, task} <- get_task_with_history(scope, task_id),
-         {:ok, _model} <- validate_model(task.current_model, Providers.available_models(scope)) do
-      {:ok, task}
+    with {:ok, _task} <- create_task(scope, attrs, on_conflict: :nothing, conflict_target: :id) do
+      set_current_model(scope, task_id, attrs.current_model)
     end
   end
 
@@ -518,12 +516,11 @@ defmodule FrontmanServer.Tasks do
           task_id: task_id,
           message_id: _message_id,
           message: [_ | _],
-          model: model,
+          model: _model,
           agent_id: agent_id
         } = arguments
       )
-      when is_binary(task_id) and is_binary(model) and model != "" and is_binary(agent_id) and
-             agent_id != "" do
+      when is_binary(task_id) and is_binary(agent_id) and agent_id != "" do
     selected_server_skill_id = Map.get(arguments, :selected_server_skill_id)
 
     with :ok <- guard_billing_access(scope),
@@ -566,7 +563,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp prompt_model(scope, task, %{use_session_model: true}) do
+  defp prompt_model(scope, task, %{model: :session}) do
     validate_model(task.current_model, Providers.available_models(scope))
   end
 

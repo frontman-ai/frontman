@@ -333,7 +333,7 @@ describe("Client State Reducer - Custom Providers", () => {
       (deleted.connection->Option.getOrThrow).connection->Result.getOrThrow->Option.getOrThrow
     let refreshed = reduce(
       deleted,
-      CatalogReceived({signal: runtime.lifetimeAbortController.signal, configOptions: []}),
+      CatalogReceived({signal: runtime.lifetimeAbortController.signal, groups: []}),
     )
     t->expect(refreshed.draftModelPreference)->Expect.toEqual(None)
 
@@ -1789,29 +1789,11 @@ describe("Client State Reducer - Annotations on Messages", () => {
   })
 
   testAsync(
-    "session creation revalidates the model, locks the draft and rejects stale completion",
+    "session creation locks the draft, handles request rejection and rejects stale completion",
     async t => {
       setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
       let created = ref(0)
       let completion = ref(None)
-      let configCalls = ref(0)
-      let configComplete = ref(None)
-      spyOn(acpModule, "setConfigOption")->mockAsync(
-        (_: Client__ConnectionReducer.ACP.session, configId: string, value: string) => {
-          t->expect((configId, value))->Expect.toEqual(("model", "test:model"))
-          configCalls := configCalls.contents + 1
-          Promise.make(
-            (resolve, _) =>
-              configComplete :=
-                Some(
-                  () =>
-                    resolve(
-                      Error(Client__ConnectionReducer.ACP.requestErrorFromMessage("Unknown model")),
-                    ),
-                ),
-          )
-        },
-      )
       let configOptions = ref(
         Some(Client__ConnectionTestHelpers.modelConfig(~models=["test:model"])),
       )
@@ -1830,13 +1812,21 @@ describe("Client State Reducer - Annotations on Messages", () => {
           Promise.make(
             (resolve, _) => {
               let complete = () => {
-                let response: ACP.sessionNewResult = {
-                  sessionId,
-                  configOptions: configOptions.contents,
-                  modes: None,
-                  _meta: None,
-                }
-                resolve(Ok((Client__ConnectionTestHelpers.session(sessionId), response)))
+                resolve(
+                  switch configOptions.contents {
+                  | None =>
+                    Error(Client__ConnectionReducer.ACP.requestErrorFromMessage("Unknown model"))
+                  | Some(options) => {
+                      let response: ACP.sessionNewResult = {
+                        sessionId,
+                        configOptions: Some(options),
+                        modes: None,
+                        _meta: None,
+                      }
+                      Ok((Client__ConnectionTestHelpers.session(sessionId), response))
+                    }
+                  },
+                )
               }
               completion := Some(complete)
             },
@@ -1848,8 +1838,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
           ...Reducer.defaultState,
           selectedAgentId: Some("executor-id"),
           draftModelPreference: Some("test:model"),
-          configOptions: Some(
-            Client__ConnectionTestHelpers.modelConfig(~models=["default:A", "test:model"]),
+          modelGroups: Some(
+            Client__ConnectionTestHelpers.modelGroups(~models=["default:A", "test:model"]),
           ),
           connection: Client__ConnectionTestHelpers.ready(),
         },
@@ -1890,13 +1880,11 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect(store->StateStore.getState->Reducer.Selectors.currentTask)->Expect.toEqual(draft)
       submit(text)
       t->expect(created.contents)->Expect.toBe(1)
-      configOptions := Some(Client__ConnectionTestHelpers.modelConfig(~models=[]))
+      configOptions := None
       result := None
       (completion.contents->Option.getOrThrow)()
       await settle()
       t->expect(sent)->Expect.toEqual([])
-      (configComplete.contents->Option.getOrThrow)()
-      await settle()
       t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
       t->expect(store->StateStore.getState->Reducer.Selectors.isNewTask)->Expect.toBe(true)
       configOptions := Some(Client__ConnectionTestHelpers.modelConfig(~models=["test:model"]))
@@ -1952,7 +1940,6 @@ describe("Client State Reducer - Annotations on Messages", () => {
       unsubscribe()
       t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
       t->expect(sent)->Expect.toEqual(["", "draft"])
-      t->expect(configCalls.contents)->Expect.toBe(1)
     },
   )
 
@@ -2231,12 +2218,12 @@ describe("Client State Reducer - Annotations on Messages", () => {
         let sessionState = _makeStateWithSession()
         let emptyState = {
           ...sessionState,
-          configOptions: Some(Client__ConnectionTestHelpers.modelConfig(~models=[])),
+          modelGroups: Some(Client__ConnectionTestHelpers.modelGroups(~models=[])),
         }
         let futureProviderState = {
           ...sessionState,
-          configOptions: Some(
-            Client__ConnectionTestHelpers.modelConfig(~models=["future_provider:model"]),
+          modelGroups: Some(
+            Client__ConnectionTestHelpers.modelGroups(~models=["future_provider:model"]),
           ),
         }
 

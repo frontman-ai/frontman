@@ -172,10 +172,8 @@ defmodule FrontmanServer.Protocols.ACP do
   The caller must supply the selected session model. This function only encodes
   the selection; it never chooses a model.
   """
-  def build_model_config_options(%{groups: groups}, current_value)
+  def build_model_config_options(catalog, current_value)
       when is_binary(current_value) and current_value != "" do
-    groups = Enum.reject(groups, &(&1.options == []))
-
     [
       %{
         "type" => "select",
@@ -183,19 +181,25 @@ defmodule FrontmanServer.Protocols.ACP do
         "name" => "Model",
         "category" => "model",
         "currentValue" => current_value,
-        "options" =>
-          Enum.map(groups, fn %{id: id, name: name, options: options} ->
-            %{
-              "group" => id,
-              "name" => name,
-              "options" =>
-                Enum.map(options, fn %{name: display_name, value: value} ->
-                  %{"value" => value, "name" => display_name}
-                end)
-            }
-          end)
+        "options" => build_model_options(catalog)
       }
     ]
+  end
+
+  @doc "Encodes grouped select values without selecting a current value."
+  def build_model_options(%{groups: groups}) do
+    groups
+    |> Enum.reject(&(&1.options == []))
+    |> Enum.map(fn %{id: id, name: name, options: options} ->
+      %{
+        "group" => id,
+        "name" => name,
+        "options" =>
+          Enum.map(options, fn %{name: name, value: value} ->
+            %{"value" => value, "name" => name}
+          end)
+      }
+    end)
   end
 
   @doc "Encodes the resolved agent catalog for ACP metadata."

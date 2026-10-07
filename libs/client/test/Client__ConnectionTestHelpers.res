@@ -37,6 +37,19 @@ let session = (sessionId): ACP.session => {
   channel: Obj.magic({"off": _ => (), "leave": () => ()}),
   onUpdate: (_, _) => (),
 }
+let modelGroups = (~models): array<Connection.ACPTypes.sessionConfigSelectGroup> => [
+  {
+    group: "test",
+    name: "test",
+    _meta: None,
+    options: models->Array.map(value => {
+      Connection.ACPTypes.value,
+      name: value,
+      description: None,
+      _meta: None,
+    }),
+  },
+]
 let modelConfig = (~models=["test:model"]): array<Connection.ACPTypes.sessionConfigOption> =>
   switch models->Array.get(0) {
   | None => []
@@ -47,14 +60,7 @@ let modelConfig = (~models=["test:model"]): array<Connection.ACPTypes.sessionCon
         description: None,
         category: Some(Model),
         currentValue: value,
-        options: Ungrouped(
-          models->Array.map(value => {
-            Connection.ACPTypes.value,
-            name: value,
-            description: None,
-            _meta: None,
-          }),
-        ),
+        options: Grouped(modelGroups(~models)),
         _meta: None,
       }),
     ]
@@ -121,42 +127,16 @@ module Integration = {
   @set external runtime: (WebAPI.DomTypes.window, option<JSON.t>) => unit = "__frontmanRuntime"
   let a = "test:A"
   let b = "test:B"
-  let options = model =>
-    modelConfig(~models=model == a ? [a, b] : [b, a])->Array.map(option =>
-      switch option {
-      | Types.SelectConfigOption(config) =>
-        let options = switch config.options {
-        | Ungrouped(options) => options
-        | Grouped(_) => failwith("Expected flat fixture")
-        }
-        Types.SelectConfigOption({
-          ...config,
-          options: Grouped([{group: "test", name: "test", options, _meta: None}]),
-        })
-      }
-    )
-  let catalog = model => {
-    module Catalog = FrontmanAiFrontmanProtocol.FrontmanProtocol__ModelCatalog
+  let options = model => modelConfig(~models=model == a ? [a, b] : [b, a])
+  let catalog = model =>
     S.decodeOrThrow(
-      {
-        Catalog.groups: switch model {
-        | None => []
-        | Some(model) => [
-            {
-              id: "test",
-              name: "test",
-              options: (model == a ? [a, b] : [b, a])->Array.map(value => {
-                Catalog.value,
-                name: value,
-              }),
-            },
-          ]
-        },
+      switch model {
+      | None => []
+      | Some(model) => modelGroups(~models=model == a ? [a, b] : [b, a])
       },
-      ~from=Catalog.schema,
+      ~from=S.array(Types.sessionConfigSelectGroupSchema),
       ~to=S.json,
     )
-  }
   let payload = ((_, _, _, _, payload): frame) => payload
   let request = frame => S.parseOrThrow(payload(frame), ~to=requestSchema)
   let sessionId = frame =>
@@ -179,8 +159,8 @@ module Integration = {
       {
         ...config.acp,
         getAuthToken: () => Some("integration"),
-        onConfigOptionsUpdated: Some(
-          configOptions => dispatch(CatalogReceived({signal: lifetime.signal, configOptions})),
+        onModelCatalogUpdated: Some(
+          groups => dispatch(CatalogReceived({signal: lifetime.signal, groups})),
         ),
       },
       ~signal=lifetime.signal,

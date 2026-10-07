@@ -69,7 +69,7 @@ type rec action =
   | ResetApiKeySaveStatus({provider: apiKeyProvider})
   | CatalogReceived({
       signal: WebAPI.EventTypes.abortSignal,
-      configOptions: array<ACP.sessionConfigOption>,
+      groups: array<ACP.sessionConfigSelectGroup>,
     })
   | SetSelectedModelValue({value: Client__State__Types.ACPConfig.sessionConfigValueId})
   | AgentAttributionConfigured({agentCatalog: array<ACP.agentCatalogEntry>, defaultAgentId: string})
@@ -302,7 +302,7 @@ let defaultState: state = {
   },
   anthropicOAuthStatus: Client__State__Types.NotConnected,
   openaiOAuthStatus: Client__State__Types.OpenAINotConnected,
-  configOptions: None,
+  modelGroups: None,
   draftModelPreference: loadSelectedModelValueFromStorage(),
   agentCatalog: None,
   selectedAgentId: None,
@@ -484,11 +484,8 @@ module Selectors = {
     state.nvidiaKeySettings
   }
 
-  let configOptions = (state: state): option<
-    array<Client__State__Types.ACPConfig.sessionConfigOption>,
-  > => {
+  let sessionConfigOptions = (state: state) =>
     switch (state.currentTask, state.connection) {
-    | (Task.New(_), _) => state.configOptions
     | (
         Task.Selected(taskId),
         Some({
@@ -498,7 +495,19 @@ module Selectors = {
       Some(configOptions)
     | _ => None
     }
-  }
+
+  let modelOptions = (state: state): option<ACP.sessionConfigSelectOptions> =>
+    switch state.currentTask {
+    | Task.New(_) => state.modelGroups->Option.map(groups => ACP.Grouped(groups))
+    | Task.Selected(_) =>
+      sessionConfigOptions(state)
+      ->Option.flatMap(options => options->ACP.findConfigOptionByCategory(ACP.Model))
+      ->Option.map(option =>
+        switch option {
+        | SelectConfigOption({options}) => options
+        }
+      )
+    }
 
   let agentCatalog = (state: state) => state.agentCatalog
 
@@ -509,7 +518,7 @@ module Selectors = {
   > => {
     switch state.currentTask {
     | Task.New(_) => state.draftModelPreference
-    | Task.Selected(_) => configOptions(state)->Option.flatMap(modelValue)
+    | Task.Selected(_) => sessionConfigOptions(state)->Option.flatMap(modelValue)
     }
   }
 
@@ -579,12 +588,8 @@ module Selectors = {
   let billingAccessAllowed = (state: state) => Client__Billing.accessAllowed(state.billingStatus)
 
   let providerSetupRequired = (state: state): bool => {
-    switch (apiBaseUrl(state), configOptions(state)) {
-    | (Some(_), Some(configOptions)) =>
-      switch configOptions->ACP.findConfigOptionByCategory(ACP.Model) {
-      | Some(modelConfig) => ACP.sessionConfigOptionFirstOption(modelConfig)->Option.isNone
-      | None => true
-      }
+    switch (apiBaseUrl(state), state.modelGroups) {
+    | (Some(_), Some(groups)) => groups->Array.every(group => group.options->Array.length == 0)
     | _ => false
     }
   }
@@ -1394,9 +1399,7 @@ module ConnectionEffects = {
             ...config,
             acp: {
               ...config.acp,
-              onConfigOptionsUpdated: Some(
-                configOptions => dispatchApp(CatalogReceived({signal, configOptions})),
-              ),
+              onModelCatalogUpdated: Some(groups => dispatchApp(CatalogReceived({signal, groups}))),
             },
           },
           ~signal,
@@ -1457,30 +1460,7 @@ module ConnectionEffects = {
             ~mcpServerInterface,
             ~modelPreference,
           )
-          switch result {
-          | Error(error) => Error(error)
-          | Ok((session, {configOptions}))
-            if configOptions->Option.flatMap(modelValue) == Some(modelPreference) =>
-            Ok((session, configOptions))
-          | Ok((session, _)) =>
-            let updated = await setModel(session, modelPreference)
-            updated
-            ->Result.flatMap(({configOptions}) =>
-              switch modelValue(configOptions) == Some(modelPreference) {
-              | true => Ok((session, Some(configOptions)))
-              | false =>
-                Error(
-                  ACP.requestErrorFromMessage(
-                    "The selected model changed before sending. Please try again.",
-                  ),
-                )
-              }
-            )
-            ->Result.mapError(error => {
-              ACP.cleanupSessionChannel(session)
-              error
-            })
-          }
+          result->Result.map(((session, result)) => (session, result.configOptions))
         | #load(_) =>
           let result = await ACP.loadSession(
             connection,
@@ -2625,38 +2605,28 @@ let rec next = (state: state, action) => {
   | ResetApiKeySaveStatus({provider}) =>
     state->setApiKeySaveStatus(provider, Idle)->StateReducer.update
 
-  | CatalogReceived({signal, configOptions}) =>
+  | CatalogReceived({signal, groups}) =>
     switch state.connection {
     | Some({connection: Ok(Some({lifetimeAbortController}))})
       if signal === lifetimeAbortController.signal && !signal.aborted =>
-      let option = configOptions->ACP.findConfigOptionByCategory(ACP.Model)
-      let preferred = switch (option, state.pendingProviderAutoSelect) {
-      | (Some(SelectConfigOption({options: Grouped(groups)})), Some(provider)) =>
+      let preferred = switch state.pendingProviderAutoSelect {
+      | Some(provider) =>
         groups
         ->Array.find(group => group.group == provider)
         ->Option.flatMap(group => group.options->Array.get(0))
         ->Option.map(option => option.value)
-      | _ => None
+      | None => None
       }
-      let available =
-        option
-        ->Option.map(option =>
-          switch option {
-          | SelectConfigOption({options: Grouped(groups)}) =>
-            groups->Array.flatMap(group => group.options)
-          | SelectConfigOption({options: Ungrouped(options)}) => options
-          }
-        )
-        ->Option.getOr([])
+      let available = groups->Array.flatMap(group => group.options)
       let preference = switch (preferred, state.draftModelPreference) {
       | (Some(value), _) => Some(value)
       | (None, Some(value)) if available->Array.some(option => option.value == value) => Some(value)
-      | _ => modelValue(configOptions)
+      | _ => available->Array.get(0)->Option.map(option => option.value)
       }
       syncSelectedModelValueToStorage(preference)
       {
         ...state,
-        configOptions: Some(configOptions),
+        modelGroups: Some(groups),
         draftModelPreference: preference,
         pendingProviderAutoSelect: switch preferred {
         | Some(_) => None

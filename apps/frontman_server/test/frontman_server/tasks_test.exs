@@ -192,8 +192,7 @@ defmodule FrontmanServer.TasksTest do
                  task_id: task.id,
                  message_id: message_id,
                  message: user_content("hello"),
-                 model: "openrouter:openai/gpt-5.5",
-                 use_session_model: true,
+                 model: :session,
                  agent_id: "test-frontman"
                })
 

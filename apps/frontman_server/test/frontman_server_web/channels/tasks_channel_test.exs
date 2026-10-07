@@ -70,7 +70,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
             }
           })
 
-          assert_push("model_catalog_updated", %{groups: _})
+          assert_push("model_catalog_updated", [_ | _])
           assert_push("acp:message", %{"id" => 1})
         end)
 
@@ -86,7 +86,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "clientInfo" => %{"name" => "test-client", "version" => "1.0.0"}
       })
 
-      assert_push("model_catalog_updated", %{groups: _})
+      assert_push("model_catalog_updated", [%{"group" => _, "options" => [_ | _]} | _])
 
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
@@ -325,15 +325,21 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       initialize(socket)
 
       existing_id = task_fixture(scope, framework: "vite").id
-      model = "openrouter:openai/gpt-5.5"
-      {:ok, _task} = FrontmanServer.Tasks.set_current_model(scope, existing_id, model)
+      model = "openrouter:google/gemini-3.1-pro-preview"
 
       request(socket, "session/new", 2, %{
         "sessionId" => existing_id,
-        "_meta" => %{"frontman.dev/model" => "openrouter:google/gemini-3.1-pro-preview"}
+        "_meta" => %{"frontman.dev/model" => model}
       })
 
-      assert_push("acp:message", %{"id" => 2, "result" => %{"sessionId" => ^existing_id}})
+      assert_push("acp:message", %{
+        "id" => 2,
+        "result" => %{
+          "sessionId" => ^existing_id,
+          "configOptions" => [%{"currentValue" => ^model}]
+        }
+      })
+
       assert Repo.get!(TaskSchema, existing_id).framework == :vite
       assert Repo.get!(TaskSchema, existing_id).current_model == model
       assert Repo.aggregate(TaskSchema.by_id(existing_id), :count, :id) == 1

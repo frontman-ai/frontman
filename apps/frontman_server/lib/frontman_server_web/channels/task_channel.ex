@@ -762,7 +762,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
-    case selected_model(socket, meta) do
+    case selected_model(meta) do
       {:ok, model} ->
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
@@ -774,7 +774,6 @@ defmodule FrontmanServerWeb.TaskChannel do
                    message_id: prompt_message_id(meta),
                    message: content_blocks,
                    model: model,
-                   use_session_model: not Map.has_key?(meta, "model"),
                    agent_id: agent_id,
                    selected_server_skill_id: meta["selectedServerSkillId"]
                  }
@@ -815,8 +814,8 @@ defmodule FrontmanServerWeb.TaskChannel do
             reply_acp_error(socket, id, -32_000, inspect(reason))
         end
 
-      {:error, reason} ->
-        reply_invalid_params(socket, id, model_error_message(reason))
+      :error ->
+        reply_invalid_params(socket, id, model_error_message(:unknown_model))
     end
   end
 
@@ -1074,23 +1073,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     }
   end
 
-  defp selected_model(socket, meta) do
-    scope = socket.assigns.scope
-    catalog = Providers.available_models(scope)
-    {:ok, task} = Tasks.get_task_with_history(scope, socket.assigns.task_id)
-
-    selected =
-      case Map.fetch(meta, "model") do
-        {:ok, model} -> parse_client_model(model)
-        :error -> {:ok, task.current_model}
-      end
-
-    with {:ok, model} <- selected,
-         {:ok, model} <- Tasks.validate_model(model, catalog) do
-      {:ok, model}
-    else
-      :error -> {:error, :unknown_model}
-      {:error, reason} -> {:error, reason}
+  defp selected_model(meta) do
+    case Map.fetch(meta, "model") do
+      {:ok, model} -> parse_client_model(model)
+      :error -> {:ok, :session}
     end
   end
 

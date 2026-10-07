@@ -19,39 +19,6 @@ let requestErrorMessage = Client.requestErrorMessage
 @@live
 let requestErrorIsBillingInactive = Client.requestErrorIsBillingInactive
 
-module ModelCatalog = FrontmanAiFrontmanProtocol.FrontmanProtocol__ModelCatalog
-
-let modelCatalogConfigOptions = ({groups}: ModelCatalog.t): array<Types.sessionConfigOption> => {
-  let groups: array<Types.sessionConfigSelectGroup> =
-    groups
-    ->Array.filter(group => group.options->Array.length > 0)
-    ->Array.map(group => {
-      Types.group: group.id,
-      name: group.name,
-      options: group.options->Array.map(model => {
-        Types.value: model.value,
-        name: model.name,
-        description: None,
-        _meta: None,
-      }),
-      _meta: None,
-    })
-  switch groups->Array.findMap(group => group.options->Array.get(0)) {
-  | None => []
-  | Some(model) => [
-      SelectConfigOption({
-        id: "model",
-        name: "Model",
-        description: None,
-        category: Some(Model),
-        currentValue: model.value,
-        options: Grouped(groups),
-        _meta: None,
-      }),
-    ]
-  }
-}
-
 let attachBillingStatusHandler = (~channel, ~onBillingStatusUpdated) =>
   onBillingStatusUpdated->Option.forEach(callback =>
     channel->Channel.on(~event=Constants.billingStatusUpdatedEvent, ~callback)
@@ -65,7 +32,7 @@ type config = {
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
   onTitleUpdated: option<(string, string) => unit>,
-  onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
+  onModelCatalogUpdated: option<array<Types.sessionConfigSelectGroup> => unit>,
   onBillingStatusUpdated: option<JSON.t => unit>,
 }
 
@@ -78,7 +45,7 @@ let makeConfig = (
   ~version: string,
   ~_meta: JSON.t,
   ~onTitleUpdated: option<(string, string) => unit>=?,
-  ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
+  ~onModelCatalogUpdated: option<array<Types.sessionConfigSelectGroup> => unit>=?,
   ~onBillingStatusUpdated: option<JSON.t => unit>=?,
 ): config => {
   endpoint,
@@ -91,7 +58,7 @@ let makeConfig = (
     _meta: Some(_meta),
   },
   onTitleUpdated,
-  onConfigOptionsUpdated,
+  onModelCatalogUpdated,
   onBillingStatusUpdated,
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
@@ -294,12 +261,12 @@ let connect = async (
         }
       })
       Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
-      config.onConfigOptionsUpdated->Option.forEach(callback =>
+      config.onModelCatalogUpdated->Option.forEach(callback =>
         channel->Channel.on(
           ~event=#model_catalog_updated,
           ~callback=payload => {
-            switch payload->Decoders.parseSchema(ModelCatalog.schema) {
-            | Ok(catalog) => callback(modelCatalogConfigOptions(catalog))
+            switch payload->Decoders.parseSchema(S.array(Types.sessionConfigSelectGroupSchema)) {
+            | Ok(groups) => callback(groups)
             | Error(e) => Log.error(`Failed to parse model_catalog_updated payload: ${e}`)
             }
           },

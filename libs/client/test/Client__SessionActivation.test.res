@@ -80,13 +80,9 @@ testAsync(
     send(store)
     await wait(() => matches("session/new")->Array.length == 3)
     t->expect(H.sessionId(last("session/new")))->Expect.toBe(id)
-    created(last("session/new"), H.b)
-    await wait(() => matches("session/set_config_option")->Array.length == 1)
-    t
-    ->expect((App.Selectors.isSubmitting(state(store)), matches("session/prompt")->Array.length))
-    ->Expect.toEqual((true, 1))
-    configured(last("session/set_config_option"), H.a)
+    created(last("session/new"), H.a)
     await wait(() => matches("session/prompt")->Array.length == 2)
+    t->expect(matches("session/set_config_option")->Array.length)->Expect.toBe(0)
     t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(Some(H.a))
     for outcome in 0 to 3 {
       let before = matches("session/set_config_option")->Array.length
@@ -166,40 +162,12 @@ testAsync(
       )
       ->Expect.toEqual(Some(H.a))
     }
-    for failure in 0 to 3 {
-      let before = matches("session/new")->Array.length
-      let calls = matches("session/set_config_option")->Array.length
-      send(store)
-      await wait(() => matches("session/new")->Array.length == before + 1)
-      created(last("session/new"), H.b)
-      await wait(() => matches("session/set_config_option")->Array.length == calls + 1)
-      let repair = last("session/set_config_option")
-      let sent = matches("session/prompt")->Array.length
-      switch failure {
-      | 0 => reject(repair)
-      | 1 => configured(repair, H.b)
-      | 3 =>
-        clear(store)
-        configured(repair, H.a)
-      | _ =>
-        wire.reply(
-          repair,
-          S.decodeOrThrow(
-            {ACP.configOptions: []},
-            ~from=ACP.configOptionsUpdatedSchema,
-            ~to=S.json,
-          ),
-          None,
-        )
-      }
-      await wait(() =>
-        result.contents->Option.mapOr(false, Result.isError) &&
-          !App.Selectors.isSubmitting(state(store))
-      )
-      t
-      ->expect((matches("session/prompt")->Array.length, App.Selectors.isNewTask(state(store))))
-      ->Expect.toEqual((sent, true))
-    }
+    let before = matches("session/new")->Array.length
+    send(store)
+    await wait(() => matches("session/new")->Array.length == before + 1)
+    reject(last("session/new"))
+    await wait(() => result.contents->Option.mapOr(false, Result.isError))
+    t->expect(App.Selectors.isNewTask(state(store)))->Expect.toBe(true)
     wire.emit("model_catalog_updated", H.catalog(None))
     t->expect(state(store).draftModelPreference)->Expect.toEqual(None)
     dispatch(store, ConnectionAction(Dispose))
