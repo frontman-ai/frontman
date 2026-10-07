@@ -49,6 +49,8 @@
 		"yaml": ">=2.8.3",
 		"esbuild": ">=0.28.1",
 		"postcss": ">=8.5.23",
+		"postcss-nested/postcss-selector-parser": "7.1.6",
+		"@tailwindcss/typography/postcss-selector-parser": "7.1.6",
 		"@tiptap/extension-bubble-menu": "3.31.3",
 		"@tiptap/extension-floating-menu": "3.31.3"
 	},
