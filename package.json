@@ -44,11 +44,13 @@
 	"resolutions": {
 		"draft-js/immutable": "3.8.4",
 		"satori/fflate": "0.7.5",
-		"qs": ">=6.15.2",
+		"qs": "^6.16.0",
 		"glob": ">=13.0.5",
 		"yaml": ">=2.8.3",
 		"esbuild": ">=0.28.1",
 		"postcss": ">=8.5.23",
+		"postcss-nested/postcss-selector-parser": "7.1.6",
+		"@tailwindcss/typography/postcss-selector-parser": "7.1.6",
 		"@tiptap/extension-bubble-menu": "3.31.3",
 		"@tiptap/extension-floating-menu": "3.31.3"
 	},

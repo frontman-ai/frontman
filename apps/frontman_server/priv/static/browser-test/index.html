@@ -392,7 +392,10 @@
       const time = new Date().toLocaleTimeString('en-US', { hour12: false });
       const entry = document.createElement('div');
       entry.className = `log-entry ${type}`;
-      entry.innerHTML = `<span class="time">${time}</span>${message}`;
+      const timestamp = document.createElement('span');
+      timestamp.className = 'time';
+      timestamp.textContent = time;
+      entry.append(timestamp, document.createTextNode(String(message)));
       logEl.appendChild(entry);
       logEl.scrollTop = logEl.scrollHeight;
     }
@@ -420,7 +423,13 @@
       tools.forEach(tool => {
         const li = document.createElement('li');
         li.className = 'tool-item';
-        li.innerHTML = `<div class="tool-name">${tool.name}</div><div class="tool-desc">${tool.description?.split('\n')[0] || ''}</div>`;
+        const name = document.createElement('div');
+        name.className = 'tool-name';
+        name.textContent = tool.name;
+        const description = document.createElement('div');
+        description.className = 'tool-desc';
+        description.textContent = tool.description?.split('\n')[0] || '';
+        li.append(name, description);
         relayToolsListEl.appendChild(li);
       });
       relayInfoEl.style.display = 'block';
@@ -433,7 +442,13 @@
       tools.forEach(tool => {
         const li = document.createElement('li');
         li.className = 'tool-item';
-        li.innerHTML = `<div class="tool-name">${tool.name}</div><div class="tool-desc">${tool.description?.split('\n')[0] || ''}</div>`;
+        const name = document.createElement('div');
+        name.className = 'tool-name';
+        name.textContent = tool.name;
+        const description = document.createElement('div');
+        description.className = 'tool-desc';
+        description.textContent = tool.description?.split('\n')[0] || '';
+        li.append(name, description);
         mcpToolsListEl.appendChild(li);
       });
     }

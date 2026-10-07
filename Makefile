@@ -51,7 +51,11 @@ endef
 
 define run_e2e
 	@test -f test/e2e/.env || { printf "$(YELLOW)Error: test/e2e/.env not found. Copy test/e2e/.env.example and fill in values.$(RESET)\n"; exit 1; }
-	set -a && . test/e2e/.env && set +a && cd test/e2e && npx vitest run $(1)
+	@set -eu; set -a; . test/e2e/.env; set +a; \
+	CA_CERT="$${NODE_EXTRA_CA_CERTS:-$$(mkcert -CAROOT)/rootCA.pem}"; \
+	test -r "$$CA_CERT" || { printf "Error: test CA not readable: %s. Run make ssl-setup.\n" "$$CA_CERT"; exit 1; }; \
+	export NODE_EXTRA_CA_CERTS="$$(realpath "$$CA_CERT")"; \
+	cd test/e2e && npx vitest run $(1)
 endef
 
 .PHONY: help
@@ -192,6 +196,10 @@ dev-marketing:
 
 
 .PHONY: install build rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments
+
+.PHONY: security-dependencies
+security-dependencies:
+	yarn up -R next sharp js-yaml svgo browserslist postcss-selector-parser qs vitest @vitest/coverage-v8 mermaid
 
 install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
