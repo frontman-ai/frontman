@@ -22,7 +22,8 @@ let effectKinds = effects =>
     | Reducer.CleanupConnectionEffect(_) => #cleanupConnection
     | Reducer.LogoutEffect(_) => #logout
     | Reducer.ActivateSessionEffect({operation: #create(_)}) => #createSession
-    | Reducer.ActivateSessionEffect({operation: #load(_) | #join(_)}) => #loadTask
+    | Reducer.ActivateSessionEffect({operation: #load(_)}) => #loadTask
+    | Reducer.SetModelEffect(_) => #setConfig
     | Reducer.SessionCommandEffect(_) => #sessionCommand
     | Reducer.FetchSessionsEffect(_) => #fetchSessions
     | Reducer.DeleteSessionEffect(_) => #deleteSession
@@ -73,7 +74,13 @@ let creating = sessionId => Reducer.SessionCreating({
   requestId: ref(),
   onComplete: Some(_ => ()),
 })
-let active = session => Reducer.SessionActive({session, requestId: ref()})
+let active = session => Reducer.SessionActive({
+  session,
+  requestId: ref(),
+  configOptions: Client__ConnectionTestHelpers.modelConfig(),
+  configPending: false,
+  configError: None,
+})
 let requestId = state =>
   switch sessionState(state) {
   | SessionCreating({requestId}) | SessionActive({requestId}) => requestId
@@ -105,7 +112,7 @@ let complete = (state, result) =>
       result,
     }),
   )
-let loadTask = taskId => Reducer.LoadTask({taskId, needsHistory: true})
+let loadTask = taskId => Reducer.LoadTask({taskId: taskId})
 
 describe("Connection Reducer", () => {
   describe("login URL", () => {
@@ -269,7 +276,10 @@ describe("Connection Reducer", () => {
       t->expect(result->Result.isError)->Expect.toBe(true)
       rejected := rejected.contents + 1
     }
-    let (_, effects) = Reducer.reduce(lost, CreateSession({sessionId: "new-session", onComplete}))
+    let (_, effects) = Reducer.reduce(
+      lost,
+      CreateSession({sessionId: "new-session", modelPreference: "test:model", onComplete}),
+    )
     effects->Array.forEach(effect => handleEffect(effect, lost, _ => ()))
     t->expect(rejected.contents)->Expect.toBe(1)
     t
@@ -277,8 +287,10 @@ describe("Connection Reducer", () => {
     ->Expect.toEqual([#taskLoadFailed])
     let rejoined = Reducer.ACPReconnected({signal, result: Ok(mockConnection)})
     let (restored, effects) = Reducer.reduce(lost, rejoined)
-    t->expect(Reducer.Selectors.getSession(restored))->Expect.toEqual(Some(session))
-    t->expect(effectKinds(effects))->Expect.toEqual([#fetchSessions])
+    t->expect(Reducer.Selectors.getSession(restored))->Expect.toEqual(None)
+    t->expect(pendingSessionId(restored))->Expect.toBe(session.Reducer.ACP.sessionId)
+    t->expect(Reducer.isCurrentSessionRequest(restored, requestId(original)))->Expect.toBe(false)
+    t->expect(effectKinds(effects))->Expect.toEqual([#cleanupSession, #loadTask, #fetchSessions])
     let (cleared, effects) = Reducer.reduce(lost, ClearSession)
     t->expect(effectKinds(effects))->Expect.toEqual([#cleanupSession])
     t->expect(Reducer.Selectors.getConnectionStatus(cleared))->Expect.toBe(Connecting)
@@ -302,7 +314,11 @@ describe("Connection Reducer", () => {
     let completed = ref(None)
     let (creating, _) = Reducer.reduce(
       withSession(NoSession),
-      CreateSession({sessionId: "new-session", onComplete: result => completed := Some(result)}),
+      CreateSession({
+        sessionId: "new-session",
+        modelPreference: "test:model",
+        onComplete: result => completed := Some(result),
+      }),
     )
     let signal = runtime(creating).lifetimeAbortController.signal
     let (lost, effects) = Reducer.reduce(creating, ACPReconnecting({signal: signal}))
@@ -425,6 +441,7 @@ describe("Connection Reducer", () => {
             withSession(NoSession),
             CreateSession({
               sessionId: "sess-1",
+              modelPreference: "test:model",
               onComplete: result => completed := Some(result),
             }),
           )->Pair.first,
@@ -548,7 +565,11 @@ describe("Connection Reducer", () => {
     test(
       "CreateSession requires a ready connection",
       t => {
-        let request = Reducer.CreateSession({sessionId: "new-session", onComplete: _ => ()})
+        let request = Reducer.CreateSession({
+          sessionId: "new-session",
+          modelPreference: "test:model",
+          onComplete: _ => (),
+        })
         let (_, rejected) = Reducer.reduce(initialized(), request)
         t->expect(effectKinds(rejected))->Expect.toEqual([#requestRejected])
         let state = withSession(NoSession)

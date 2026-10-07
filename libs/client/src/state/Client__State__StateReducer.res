@@ -67,8 +67,9 @@ type rec action =
   | ApiKeySaved({provider: apiKeyProvider})
   | ApiKeySaveError({provider: apiKeyProvider, error: string})
   | ResetApiKeySaveStatus({provider: apiKeyProvider})
-  | ConfigOptionsReceived({
-      configOptions: array<Client__State__Types.ACPConfig.sessionConfigOption>,
+  | CatalogReceived({
+      signal: WebAPI.EventTypes.abortSignal,
+      configOptions: array<ACP.sessionConfigOption>,
     })
   | SetSelectedModelValue({value: Client__State__Types.ACPConfig.sessionConfigValueId})
   | AgentAttributionConfigured({agentCatalog: array<ACP.agentCatalogEntry>, defaultAgentId: string})
@@ -149,6 +150,7 @@ type effect =
       agentId: string,
     })
   | FlushSessionActions(array<action>)
+  | DiscardTaskText(string)
   | TaskEffect({target: taskTarget, effect: TaskReducer.effect})
   | FetchApiKeySettingsEffect({apiBaseUrl: string})
   | SaveApiKeyEffect({apiBaseUrl: string, provider: apiKeyProvider, key: string})
@@ -301,7 +303,7 @@ let defaultState: state = {
   anthropicOAuthStatus: Client__State__Types.NotConnected,
   openaiOAuthStatus: Client__State__Types.OpenAINotConnected,
   configOptions: None,
-  selectedModelValue: loadSelectedModelValueFromStorage(),
+  draftModelPreference: loadSelectedModelValueFromStorage(),
   agentCatalog: None,
   selectedAgentId: None,
   pendingProviderAutoSelect: None,
@@ -313,6 +315,15 @@ let defaultState: state = {
   updateBannerDismissed: false,
   highlightedAnnotation: None,
 }
+
+let modelValue = options =>
+  options
+  ->ACP.findConfigOptionByCategory(ACP.Model)
+  ->Option.map(option =>
+    switch option {
+    | SelectConfigOption({currentValue}) => currentValue
+    }
+  )
 
 module Selectors = {
   let getSession = (state: state) =>
@@ -337,7 +348,9 @@ module Selectors = {
   let isSubmitting = (state: state) =>
     switch state.connection {
     | Some({
-        connection: Ok(Some({phase: Ready({session: SessionCreating({onComplete: Some(_)})})})),
+        connection: Ok(Some({
+          phase: Ready({session: SessionCreating(_) | SessionActive({configPending: true})}),
+        })),
       }) => true
     | _ => false
     }
@@ -474,7 +487,17 @@ module Selectors = {
   let configOptions = (state: state): option<
     array<Client__State__Types.ACPConfig.sessionConfigOption>,
   > => {
-    state.configOptions
+    switch (state.currentTask, state.connection) {
+    | (Task.New(_), _) => state.configOptions
+    | (
+        Task.Selected(taskId),
+        Some({
+          connection: Ok(Some({phase: Ready({session: SessionActive({session, configOptions})})})),
+        }),
+      ) if session.sessionId == taskId =>
+      Some(configOptions)
+    | _ => None
+    }
   }
 
   let agentCatalog = (state: state) => state.agentCatalog
@@ -484,7 +507,10 @@ module Selectors = {
   let selectedModelValue = (state: state): option<
     Client__State__Types.ACPConfig.sessionConfigValueId,
   > => {
-    state.selectedModelValue
+    switch state.currentTask {
+    | Task.New(_) => state.draftModelPreference
+    | Task.Selected(_) => configOptions(state)->Option.flatMap(modelValue)
+    }
   }
 
   let anthropicOAuthStatus = (state: state): Client__State__Types.anthropicOAuthStatus => {
@@ -553,7 +579,7 @@ module Selectors = {
   let billingAccessAllowed = (state: state) => Client__Billing.accessAllowed(state.billingStatus)
 
   let providerSetupRequired = (state: state): bool => {
-    switch (apiBaseUrl(state), state.configOptions) {
+    switch (apiBaseUrl(state), configOptions(state)) {
     | (Some(_), Some(configOptions)) =>
       switch configOptions->ACP.findConfigOptionByCategory(ACP.Model) {
       | Some(modelConfig) => ACP.sessionConfigOptionFirstOption(modelConfig)->Option.isNone
@@ -590,7 +616,7 @@ let buildAttachmentContentBlocks = (attachments: array<Client__Message.fileAttac
   })
 }
 
-let buildPrompt = (state: state, ~messageId, ~attachments, ~annotations, ~task, ~agentId) => {
+let buildPrompt = (~messageId, ~attachments, ~annotations, ~task, ~agentId) => {
   let runtimeConfig = Client__RuntimeConfig.read()
   let pageContextBlocks = Client__State__Types.taskToPageContextBlocks(
     task,
@@ -605,9 +631,6 @@ let buildPrompt = (state: state, ~messageId, ~attachments, ~annotations, ~task, 
 
   let baseMeta = Client__RuntimeConfig.toMeta(runtimeConfig)
   let metadata = baseMeta->JSON.Decode.object->Option.getOrThrow->Dict.copy
-  state.selectedModelValue->Option.forEach(modelValue =>
-    metadata->Dict.set("model", JSON.Encode.string(modelValue))
-  )
   metadata->Dict.set(
     "frontman.dev/messageId",
     JSON.Encode.string(Message.UserMessageId.toString(messageId)),
@@ -623,14 +646,13 @@ let validateSubmission = (state: state, submission: Client__State__Types.submiss
   let text = TaskReducer.extractTextFromUserContent(content)
   let attachments = TaskReducer.extractAttachmentsFromUserContent(content)
   let (additionalBlocks, _meta) = buildPrompt(
-    state,
     ~messageId,
     ~attachments,
     ~annotations,
     ~task=Selectors.currentTask(state),
     ~agentId,
   )
-  switch state.selectedModelValue {
+  switch Selectors.selectedModelValue(state) {
   | None => Error("Select a model before sending.")
   | Some(_) => validatePrompt(~text, ~additionalBlocks, ~_meta)
   }
@@ -651,37 +673,48 @@ let targetIsCurrent = (state: state, target: taskTarget): bool =>
   | ForTask(taskId) => Selectors.currentTaskId(state) == Some(taskId)
   }
 
+let rejectSubmission = (state: state, onComplete, error) =>
+  state->StateReducer.update(~sideEffect=SubmissionCompleted({onComplete, result: Error(error)}))
+
 let addUserMessageToState = (
   state: state,
   ~sessionId,
   submission: Client__State__Types.submission,
 ) => {
-  let {id, content, annotations, agentId} = submission
-  let handoff = Selectors.pendingPlanHandoff(state)->Option.isSome
-  let (state, taskId) = switch state.currentTask {
-  | Task.New(task) =>
-    let tasks = state.tasks->Dict.copy
-    tasks->Dict.set(
-      sessionId,
-      Task.newToLoaded(task, ~id=sessionId, ~title=TaskReducer.extractTextFromUserContent(content)),
+  switch Selectors.isSubmitting(state) {
+  | true => rejectSubmission(state, submission.onComplete, "The composer is not ready to send.")
+  | false =>
+    let {id, content, annotations, agentId} = submission
+    let handoff = Selectors.pendingPlanHandoff(state)->Option.isSome
+    let (state, taskId) = switch state.currentTask {
+    | Task.New(task) =>
+      let tasks = state.tasks->Dict.copy
+      tasks->Dict.set(
+        sessionId,
+        Task.newToLoaded(
+          task,
+          ~id=sessionId,
+          ~title=TaskReducer.extractTextFromUserContent(content),
+        ),
+      )
+      ({...state, tasks, currentTask: Task.Selected(sessionId)}, sessionId)
+    | Task.Selected(taskId) => (state, taskId)
+    }
+    let (state, effects) =
+      state->Lens.delegateToTask(
+        ForTask(taskId),
+        TaskReducer.AddUserMessage({id, content, annotations, agentId}),
+      )
+    let (state, runningEffects) = switch handoff {
+    | true => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
+    | false => (state, [])
+    }
+    state->StateReducer.update(
+      ~sideEffects=Array.concat(effects, runningEffects)->Array.concat([
+        SendMessage({taskId, submission}),
+      ]),
     )
-    ({...state, tasks, currentTask: Task.Selected(sessionId)}, sessionId)
-  | Task.Selected(taskId) => (state, taskId)
   }
-  let (state, effects) =
-    state->Lens.delegateToTask(
-      ForTask(taskId),
-      TaskReducer.AddUserMessage({id, content, annotations, agentId}),
-    )
-  let (state, runningEffects) = switch handoff {
-  | true => state->Lens.delegateToTask(ForTask(taskId), TaskReducer.ExecutionStateRunning)
-  | false => (state, [])
-  }
-  state->StateReducer.update(
-    ~sideEffects=Array.concat(effects, runningEffects)->Array.concat([
-      SendMessage({taskId, submission}),
-    ]),
-  )
 }
 
 let requireEmbeddedAuthentication = dispatch => {
@@ -1255,6 +1288,8 @@ module ConnectionEffects = {
     ACP.requestErrorMessage(error)
   }
 
+  let setModel = (session, value) => ACP.setConfigOption(session, ~configId="model", ~value)
+
   let rec handleEffect = (
     effect: effect,
     state: state,
@@ -1355,7 +1390,15 @@ module ConnectionEffects = {
     | ConnectRuntime({config, signal}) =>
       let connect = async () => {
         let result = await connectRuntime(
-          ~config,
+          ~config={
+            ...config,
+            acp: {
+              ...config.acp,
+              onConfigOptionsUpdated: Some(
+                configOptions => dispatchApp(CatalogReceived({signal, configOptions})),
+              ),
+            },
+          },
           ~signal,
           ~onReconnecting=() => dispatch(ACPReconnecting({signal: signal})),
           ~onReconnect=result => dispatch(ACPReconnected({signal, result})),
@@ -1399,12 +1442,12 @@ module ConnectionEffects = {
       }
     | ActivateSessionEffect({requestId, connection, mcpServer, operation}) =>
       let sessionId = switch operation {
-      | #load(sessionId) | #join(sessionId) | #create(sessionId) => sessionId
+      | #load(sessionId) | #create(sessionId, _) => sessionId
       }
       activateSession(~requestId, ~sessionId, async (onUpdate, onTitleUpdated, onParseError) => {
         let mcpServerInterface = MCPServer.toInterface(mcpServer)
         switch operation {
-        | #create(_) =>
+        | #create(_, modelPreference) =>
           let result = await ACP.createSession(
             connection,
             ~sessionId,
@@ -1412,13 +1455,46 @@ module ConnectionEffects = {
             ~onTitleUpdated,
             ~onParseError,
             ~mcpServerInterface,
+            ~modelPreference,
           )
-          result->Result.map(((session, result)) => (session, result.configOptions))
+          switch result {
+          | Error(error) => Error(error)
+          | Ok((session, {configOptions}))
+            if configOptions->Option.flatMap(modelValue) == Some(modelPreference) =>
+            Ok((session, configOptions))
+          | Ok((session, _)) =>
+            let updated = await setModel(session, modelPreference)
+            updated
+            ->Result.flatMap(({configOptions}) =>
+              switch modelValue(configOptions) == Some(modelPreference) {
+              | true => Ok((session, Some(configOptions)))
+              | false =>
+                Error(
+                  ACP.requestErrorFromMessage(
+                    "The selected model changed before sending. Please try again.",
+                  ),
+                )
+              }
+            )
+            ->Result.mapError(error => {
+              ACP.cleanupSessionChannel(session)
+              error
+            })
+          }
         | #load(_) =>
           let result = await ACP.loadSession(
             connection,
             sessionId,
-            ~onLoadResult=_ => (),
+            ~onLoadResult=_ =>
+              dispatchApp(
+                SessionEvent({
+                  requestId,
+                  action: TaskAction({
+                    target: ForTask(sessionId),
+                    action: LoadStarted({previewUrl: getInitialUrl()}),
+                  }),
+                }),
+              ),
             ~onUpdate,
             ~onTitleUpdated,
             ~onParseError,
@@ -1427,20 +1503,19 @@ module ConnectionEffects = {
           result
           ->Result.map(((session, result)) => (session, result.configOptions))
           ->Result.mapError(ACP.requestErrorFromMessage)
-        | #join(_) =>
-          let result = await ACP.joinSession(
-            connection,
-            sessionId,
-            ~onUpdate=ACP.validatedUpdateHandler(connection, sessionId, onUpdate),
-            ~onTitleUpdated,
-            ~onParseError,
-            ~mcpServerInterface,
-          )
-          result
-          ->Result.map(session => (session, None))
-          ->Result.mapError(ACP.requestErrorFromMessage)
         }
       })->ignore
+    | SetModelEffect({session, requestId, value}) =>
+      let set = async () => {
+        let result = await setModel(session, value)
+        dispatchApp(
+          SessionEvent({
+            requestId,
+            action: ConnectionAction(ConfigOptionResult({requestId, result})),
+          }),
+        )
+      }
+      set()->ignore
     | DeleteSessionEffect({signal, connection, taskId}) =>
       let delete = async () => {
         switch await ACP.deleteSession(connection, taskId) {
@@ -1466,6 +1541,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
     getSessionTextBuffer(dispatch).add(~taskId, ~messageId, ~text, ~agentId)
   | BufferUserBlock({taskId, messageId, block, agentId}) =>
     getSessionTextBuffer(dispatch).addUserBlock(~taskId, ~messageId, ~block, ~agentId)
+  | DiscardTaskText(taskId) => Client__TextDeltaBuffer.discardTask(taskId)
   | FlushSessionActions(actions) =>
     Client__TextDeltaBuffer.flush()
     actions->Array.forEach(action => dispatch(action))
@@ -1545,6 +1621,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
       ConnectionAction(
         CreateSession({
           sessionId: taskId,
+          modelPreference: state.draftModelPreference->Option.getOrThrow,
           onComplete: result =>
             switch result {
             | Ok(_) => dispatch(AddUserMessage(input))
@@ -1557,7 +1634,6 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
     let text = TaskReducer.extractTextFromUserContent(content)
     let attachments = TaskReducer.extractAttachmentsFromUserContent(content)
     let (additionalBlocks, _meta) = buildPrompt(
-      state,
       ~messageId=id,
       ~attachments,
       ~annotations,
@@ -1570,11 +1646,14 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
       switch state.connection {
       | Some(
           {
-            connection: Ok(Some({phase: Ready({session: SessionActive({session, requestId})})})),
+            connection: Ok(Some({
+              phase: Ready({session: SessionActive({session, requestId, configPending})}),
+            })),
           } as connection,
         )
         if session.sessionId == taskId &&
-          Connection.isCurrentSessionRequest(connection, requestId) =>
+        Connection.isCurrentSessionRequest(connection, requestId) &&
+        !configPending =>
         let fail = error => dispatch(PromptFailed({requestId, taskId, id, error}))
         let send = async () => {
           try {
@@ -2003,26 +2082,6 @@ let upsertCustomProvider = (
   }
 }
 
-let clearSelectedModelValue = (state: state): state => {
-  syncSelectedModelValueToStorage(None)
-  {...state, selectedModelValue: None}
-}
-
-let applyCustomProvider = (state: state, provider: Client__State__Types.customProvider): state => {
-  let state = {
-    ...state,
-    customProviders: Some(upsertCustomProvider(state.customProviders, provider)),
-  }
-  switch state.selectedModelValue {
-  | Some(value) if value->String.startsWith(`custom:${provider.id}:`) =>
-    switch provider.models->Array.some(model => value == `custom:${provider.id}:${model}`) {
-    | true => state
-    | false => clearSelectedModelValue(state)
-    }
-  | _ => state
-  }
-}
-
 let startCustomProviderMutation = (state: state, request) => {
   let operation = customProviderMutationOperation(request)
   switch state.customProviderMutation {
@@ -2101,12 +2160,7 @@ let rec next = (state: state, action) => {
     | Some(previous) =>
       let (connection, effects) = Connection.next(previous, action)
       let updated = {...state, connection: Some(connection)}
-      let (updated, configEffects) = switch action {
-      | SessionResultReceived({result: Ok((_, Some(configOptions)))}) if connection !== previous =>
-        next(updated, ConfigOptionsReceived({configOptions: configOptions}))
-      | _ => (updated, [])
-      }
-      (updated, Array.concat(configEffects, effects->Array.map(effect => ConnectionEffect(effect))))
+      (updated, effects->Array.map(effect => ConnectionEffect(effect)))
     }
     switch (
       action,
@@ -2216,7 +2270,7 @@ let rec next = (state: state, action) => {
       }
       flush([task(action)])
     | ConfigOptionUpdate({configOptions}) =>
-      flush([ConfigOptionsReceived({configOptions: configOptions})])
+      flush([ConnectionAction(SessionConfigReceived(configOptions))])
     | CurrentModeUpdate(_) => flush([])
     | Error({_meta, message, retryAt, attempt, maxAttempts, category}) =>
       let settings = switch category {
@@ -2242,6 +2296,9 @@ let rec next = (state: state, action) => {
       }
       flush([...settings, task(action)])
     }
+  | TaskAction({target: ForTask(taskId), action: LoadStarted(_) as taskAction}) =>
+    let (state, effects) = state->Lens.delegateToTask(ForTask(taskId), taskAction)
+    state->StateReducer.update(~sideEffects=Array.concat([DiscardTaskText(taskId)], effects))
   | TaskAction({target, action: taskAction}) => state->Lens.delegateToTask(target, taskAction)
 
   | PromptFailed({requestId, taskId, id, error}) =>
@@ -2263,10 +2320,7 @@ let rec next = (state: state, action) => {
     | _ => state->StateReducer.update
     }
   | AddUserMessage({content, annotationId, onComplete} as input) =>
-    let reject = error =>
-      state->StateReducer.update(
-        ~sideEffect=SubmissionCompleted({onComplete, result: Error(error)}),
-      )
+    let reject = error => rejectSubmission(state, onComplete, error)
     switch (Selectors.isSubmitting(state), state.selectedAgentId) {
     | (false, Some(agentId)) if !Selectors.hasEnrichingAnnotations(state) =>
       let annotations = Selectors.annotations(state)
@@ -2317,7 +2371,7 @@ let rec next = (state: state, action) => {
     }
 
   | ExecutePendingPlan({id}) =>
-    switch (state.selectedModelValue, Selectors.pendingPlanHandoff(state)) {
+    switch (Selectors.selectedModelValue(state), Selectors.pendingPlanHandoff(state)) {
     | (Some(_), Some({taskId, executorAgentId})) =>
       addUserMessageToState(
         {...state, selectedAgentId: Some(executorAgentId)},
@@ -2390,7 +2444,7 @@ let rec next = (state: state, action) => {
           currentTask: Task.Selected(taskId),
           highlightedAnnotation: None,
         },
-        ConnectionAction(LoadTask({taskId, needsHistory: !Task.isLoaded(task)})),
+        ConnectionAction(LoadTask({taskId: taskId})),
       )
       updatedState->StateReducer.update(
         ~sideEffects=Array.concat(connectionEffects, loadEffects)->Array.concat(taskEffects),
@@ -2571,49 +2625,57 @@ let rec next = (state: state, action) => {
   | ResetApiKeySaveStatus({provider}) =>
     state->setApiKeySaveStatus(provider, Idle)->StateReducer.update
 
-  | ConfigOptionsReceived({configOptions}) =>
-    let modelConfigOption = ACP.findConfigOptionByCategory(configOptions, ACP.Model)
-
-    let selectedModelValue = switch modelConfigOption {
-    | Some(modelConfigOption) => {
-        let currentModelValue = switch modelConfigOption {
-        | ACP.SelectConfigOption({currentValue}) => Some(currentValue)
-        }
-
-        switch state.pendingProviderAutoSelect {
-        | Some(providerId) =>
-          let providerModelValue = switch modelConfigOption {
-          | ACP.SelectConfigOption({options: ACP.Grouped(groups)}) =>
-            groups
-            ->Array.find(g => g.group == providerId)
-            ->Option.flatMap(g => g.options->Array.get(0))
-            ->Option.map(opt => opt.value)
-          | ACP.SelectConfigOption({options: ACP.Ungrouped(_)}) => None
-          }
-          switch providerModelValue {
-          | Some(value) => Some(value)
-          | None => currentModelValue
-          }
-        | None => currentModelValue
-        }
+  | CatalogReceived({signal, configOptions}) =>
+    switch state.connection {
+    | Some({connection: Ok(Some({lifetimeAbortController}))})
+      if signal === lifetimeAbortController.signal && !signal.aborted =>
+      let option = configOptions->ACP.findConfigOptionByCategory(ACP.Model)
+      let preferred = switch (option, state.pendingProviderAutoSelect) {
+      | (Some(SelectConfigOption({options: Grouped(groups)})), Some(provider)) =>
+        groups
+        ->Array.find(group => group.group == provider)
+        ->Option.flatMap(group => group.options->Array.get(0))
+        ->Option.map(option => option.value)
+      | _ => None
       }
-    | None => None
+      let available =
+        option
+        ->Option.map(option =>
+          switch option {
+          | SelectConfigOption({options: Grouped(groups)}) =>
+            groups->Array.flatMap(group => group.options)
+          | SelectConfigOption({options: Ungrouped(options)}) => options
+          }
+        )
+        ->Option.getOr([])
+      let preference = switch (preferred, state.draftModelPreference) {
+      | (Some(value), _) => Some(value)
+      | (None, Some(value)) if available->Array.some(option => option.value == value) => Some(value)
+      | _ => modelValue(configOptions)
+      }
+      syncSelectedModelValueToStorage(preference)
+      {
+        ...state,
+        configOptions: Some(configOptions),
+        draftModelPreference: preference,
+        pendingProviderAutoSelect: switch preferred {
+        | Some(_) => None
+        | None => state.pendingProviderAutoSelect
+        },
+      }->StateReducer.update
+    | _ => state->StateReducer.update
     }
-    switch (state.selectedModelValue, selectedModelValue) {
-    | (Some(current), Some(next)) if current == next => ()
-    | (None, None) => ()
-    | _ => syncSelectedModelValueToStorage(selectedModelValue)
-    }
-    {
-      ...state,
-      configOptions: Some(configOptions),
-      selectedModelValue,
-      pendingProviderAutoSelect: None,
-    }->StateReducer.update
-
   | SetSelectedModelValue({value}) =>
-    syncSelectedModelValueToStorage(Some(value))
-    {...state, selectedModelValue: Some(value)}->StateReducer.update
+    switch state.currentTask {
+    | Task.New(_) =>
+      syncSelectedModelValueToStorage(Some(value))
+      {
+        ...state,
+        draftModelPreference: Some(value),
+        pendingProviderAutoSelect: None,
+      }->StateReducer.update
+    | Task.Selected(_) => next(state, ConnectionAction(SetModel(value)))
+    }
 
   | AgentAttributionConfigured({agentCatalog, defaultAgentId}) =>
     Client__Agent.findOrThrow(Some(agentCatalog), defaultAgentId)->ignore
@@ -2854,7 +2916,6 @@ let rec next = (state: state, action) => {
     }->StateReducer.update
 
   | SessionsLoadSuccess({sessions}) =>
-    let previewUrl = getInitialUrl()
     let updatedTasks = state.tasks->Dict.copy
 
     sessions->Array.forEach(session => {
@@ -2862,10 +2923,9 @@ let rec next = (state: state, action) => {
         let createdAt = Date.fromString(session.createdAt)->Date.getTime
         let updatedAt = Date.fromString(session.updatedAt)->Date.getTime
 
-        let task = Task.makeWithId(
+        let task = Task.makeUnloaded(
           ~id=session.sessionId,
           ~title=session.title,
-          ~previewUrl,
           ~createdAt,
           ~updatedAt,
         )
@@ -2944,7 +3004,8 @@ let rec next = (state: state, action) => {
     switch state.customProviderMutation {
     | CustomProviderMutationFailed({error: CustomProviderConflict(provider), _}) =>
       {
-        ...applyCustomProvider(state, provider),
+        ...state,
+        customProviders: Some(upsertCustomProvider(state.customProviders, provider)),
         customProviderMutation: CustomProviderMutationIdle,
       }->StateReducer.update
     | CustomProviderMutationSucceeded(_) | CustomProviderMutationFailed(_) =>
@@ -2958,7 +3019,7 @@ let rec next = (state: state, action) => {
       let state = switch operation {
       | SavingCustomProvider(_) =>
         let provider = provider->Option.getOrThrow
-        applyCustomProvider(state, provider)
+        {...state, customProviders: Some(upsertCustomProvider(state.customProviders, provider))}
       | DeletingCustomProvider(id) =>
         let state = {
           ...state,
@@ -2966,10 +3027,7 @@ let rec next = (state: state, action) => {
             providers->Array.filter(provider => provider.id != id)
           ),
         }
-        switch state.selectedModelValue {
-        | Some(value) if value->String.startsWith(`custom:${id}:`) => clearSelectedModelValue(state)
-        | _ => state
-        }
+        state
       }
       {
         ...state,

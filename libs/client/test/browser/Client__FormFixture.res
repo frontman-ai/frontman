@@ -15,11 +15,13 @@ module Task = Client__State__Types.Task
 let originalState = StateStore.getState(Client__State__Store.store)
 
 let preview = (~doc, ~win) => {
-  let task =
-    Task.makeNew(~previewUrl="about:blank")->Client__Task__Reducer.Lens.setPreviewFrame(
-      ~contentDocument=Some(doc),
-      ~contentWindow=Some(win),
-    )
+  let task = Task.makeNew(
+    ~previewUrl="about:blank",
+  )->Client__Task__Reducer.Lens.updatePreviewFrame(frame => {
+    ...frame,
+    contentDocument: Some(doc),
+    contentWindow: Some(win),
+  })
   StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
     Client__State__Store.store,
     {...originalState, currentTask: Task.New(task)},

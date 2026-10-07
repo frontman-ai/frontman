@@ -3,313 +3,142 @@ open Vitest
 module Reducer = Client__State__StateReducer
 module Types = Client__State__Types
 module ACP = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
+module Helpers = Client__ConnectionTestHelpers
 
-let _makeState = (~selectedModelValue=None, ~pendingProviderAutoSelect=None): Types.state => {
+let makeState = (~preference=None, ~pending=None): Types.state => {
   ...Reducer.defaultState,
-  connection: Client__ConnectionTestHelpers.ready(),
-  selectedModelValue,
-  pendingProviderAutoSelect,
+  connection: Helpers.ready(),
+  draftModelPreference: preference,
+  pendingProviderAutoSelect: pending,
 }
+let runtime = (state: Types.state) =>
+  (state.connection->Option.getOrThrow).connection->Result.getOrThrow->Option.getOrThrow
+let signal = state => runtime(state).Client__ConnectionReducer.lifetimeAbortController.signal
+let catalog = (state, configOptions) =>
+  Reducer.next(state, CatalogReceived({signal: signal(state), configOptions}))->Pair.first
 
 module SampleConfig = {
-  let _makeOption = ((name, value)): ACP.sessionConfigSelectOption => {
+  let option = (value): ACP.sessionConfigSelectOption => {
     value,
-    name,
+    name: value,
     description: None,
     _meta: None,
   }
-
-  let _makeGroup = (~group, ~name, ~models): ACP.sessionConfigSelectGroup => {
+  let group = (group, models): ACP.sessionConfigSelectGroup => {
     group,
-    name,
-    options: models->Array.map(_makeOption),
+    name: group,
+    options: models->Array.map(option),
     _meta: None,
   }
-
-  let _firstModelValue = (options: ACP.sessionConfigSelectOptions) => {
-    let option: ACP.sessionConfigSelectOption = switch options {
-    | ACP.Grouped(groups) =>
-      groups
-      ->Array.findMap(group => group.options->Array.get(0))
-      ->Option.getOrThrow
-    | ACP.Ungrouped(options) => options->Array.get(0)->Option.getOrThrow
+  let config = options => {
+    let values = switch options {
+    | ACP.Grouped(groups) => groups->Array.flatMap(group => group.options)
+    | ACP.Ungrouped(values) => values
     }
-    option.value
+    [
+      ACP.SelectConfigOption({
+        id: "model",
+        name: "Model",
+        description: None,
+        category: Some(Model),
+        currentValue: values
+        ->Array.get(0)
+        ->Option.getOrThrow
+        ->((option: ACP.sessionConfigSelectOption) => option.value),
+        options,
+        _meta: None,
+      }),
+    ]
   }
-
-  let _makeModelConfigOption = (options: ACP.sessionConfigSelectOptions) => {
-    ACP.SelectConfigOption({
-      id: "model",
-      name: "Model",
-      description: None,
-      category: Some(ACP.Model),
-      currentValue: _firstModelValue(options),
-      options,
-      _meta: None,
-    })
-  }
-
-  let _anthropicGroup = _makeGroup(
-    ~group="anthropic",
-    ~name="Anthropic (Claude Pro/Max)",
-    ~models=[
-      ("Claude Sonnet 5", "anthropic:claude-sonnet-5"),
-      ("Claude Fable 5", "anthropic:claude-fable-5"),
-    ],
+  let anthropic = "anthropic:claude-sonnet-5"
+  let openai = "openai_codex:gpt-5.6-terra"
+  let openrouter = "openrouter:openai/gpt-5.6-terra"
+  let fireworks = "fireworks_ai:accounts/fireworks/routers/kimi-k2p5-turbo"
+  let saved = "openrouter:anthropic/claude-haiku-4.5"
+  let routerGroup = group("openrouter", [openrouter, saved])
+  let configWithOpenRouterOnly = config(Grouped([routerGroup]))
+  let configWithAnthropic = config(
+    Grouped([
+      routerGroup,
+      group("anthropic", [anthropic, "anthropic:claude-fable-5"]),
+      group("openai_codex", [openai, "openai_codex:gpt-5.6-sol"]),
+      group("fireworks_ai", [fireworks]),
+    ]),
   )
-
-  let _openaiGroup = _makeGroup(
-    ~group="openai_codex",
-    ~name="OpenAI",
-    ~models=[
-      ("GPT-5.6 Terra", "openai_codex:gpt-5.6-terra"),
-      ("GPT-5.6 Sol", "openai_codex:gpt-5.6-sol"),
-    ],
-  )
-
-  let _openrouterGroup = _makeGroup(
-    ~group="openrouter",
-    ~name="OpenRouter",
-    ~models=[
-      ("GPT-5.6 Terra", "openrouter:openai/gpt-5.6-terra"),
-      ("Claude Haiku 4.5", "openrouter:anthropic/claude-haiku-4.5"),
-    ],
-  )
-
-  let _fireworksGroup = _makeGroup(
-    ~group="fireworks_ai",
-    ~name="Fireworks AI",
-    ~models=[("Kimi K2.5 Turbo", "fireworks_ai:accounts/fireworks/routers/kimi-k2p5-turbo")],
-  )
-
-  let configWithAnthropic = [
-    _makeModelConfigOption(ACP.Grouped([_anthropicGroup, _openrouterGroup])),
-  ]
-
-  let configWithOpenAI = [
-    _makeModelConfigOption(ACP.Grouped([_openaiGroup, _anthropicGroup, _openrouterGroup])),
-  ]
-
-  let configWithOpenRouterOnly = [_makeModelConfigOption(ACP.Grouped([_openrouterGroup]))]
-
-  let configWithFireworksOnly = [_makeModelConfigOption(ACP.Grouped([_fireworksGroup]))]
-
-  let configWithNoModels = []
-
-  let configWithEmptyFirstGroup = [
-    _makeModelConfigOption(ACP.Grouped([{..._anthropicGroup, options: []}, _openrouterGroup])),
-  ]
-
-  let configWithUngroupedModels = [
-    _makeModelConfigOption(ACP.Ungrouped([_makeOption(("Future Model", "future_provider:model"))])),
-  ]
+  let configWithEmptyFirstGroup = config(Grouped([group("anthropic", []), routerGroup]))
+  let configWithUngroupedModels = config(Ungrouped([option("future_provider:model")]))
 }
 
-describe("Initiating actions set pendingProviderAutoSelect eagerly", () => {
-  test("ExchangeAnthropicOAuthCode sets pendingProviderAutoSelect to anthropic", t => {
-    let state = _makeState()
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ExchangeAnthropicOAuthCode({code: "test-code", verifier: "test-verifier"}),
-    )
-
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("anthropic"))
-  })
-
-  test("InitiateOpenAIOAuth sets pendingProviderAutoSelect to openai_codex", t => {
-    let state = _makeState()
-
-    let (nextState, _effects) = Reducer.next(state, InitiateOpenAIOAuth)
-
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some("openai_codex"))
-  })
-
-  test("SaveApiKey sets pendingProviderAutoSelect for each provider", t => {
-    let providerCases: array<(Reducer.apiKeyProvider, string)> = [
-      (OpenRouter, "openrouter"),
-      (Anthropic, "anthropic"),
-      (Fireworks, "fireworks_ai"),
-    ]
-
-    providerCases->Array.forEach(
-      ((provider, expectedProviderId)) => {
-        let (nextState, _effects) = Reducer.next(
-          _makeState(),
-          SaveApiKey({provider, key: "test-key"}),
+describe("Draft catalog and session selection", () => {
+  test("provider onboarding sets a draft auto-select intent", t => {
+    [
+      (Reducer.ExchangeAnthropicOAuthCode({code: "code", verifier: "verifier"}), "anthropic"),
+      (InitiateOpenAIOAuth, "openai_codex"),
+      (SaveApiKey({provider: OpenRouter, key: "key"}), "openrouter"),
+      (SaveApiKey({provider: Anthropic, key: "key"}), "anthropic"),
+      (SaveApiKey({provider: Fireworks, key: "key"}), "fireworks_ai"),
+      (SaveApiKey({provider: Nvidia, key: "key"}), "nvidia"),
+    ]->Array.forEach(
+      ((action, expected)) =>
+        t
+        ->expect(
+          Reducer.next(makeState(), action)
+          ->Pair.first
+          ->(state => state.Types.pendingProviderAutoSelect),
         )
-
-        t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(Some(expectedProviderId))
-      },
+        ->Expect.toEqual(Some(expected)),
     )
   })
-})
 
-describe("ConfigOptionsReceived auto-selects model from newly connected provider", () => {
-  test("selects first available grouped or ungrouped model", t => {
-    let cases: array<(Reducer.action, string)> = [
-      (
-        ConfigOptionsReceived({configOptions: SampleConfig.configWithEmptyFirstGroup}),
-        "openrouter:openai/gpt-5.6-terra",
+  test("catalog reconciles saved draft preferences and provider auto-selection", t => {
+    open SampleConfig
+    let check = (state: Types.state, expected, pending) => {
+      t->expect(state.draftModelPreference)->Expect.toEqual(expected)
+      t->expect(state.pendingProviderAutoSelect)->Expect.toEqual(pending)
+      t
+      ->expect(
+        WebAPI.Window.current
+        ->WebAPI.Window.localStorage
+        ->WebAPI.Storage.getItem("frontman:selectedModelValue")
+        ->Null.toOption,
+      )
+      ->Expect.toEqual(expected)
+    }
+    [
+      (None, configWithEmptyFirstGroup, Some(openrouter)),
+      (None, configWithUngroupedModels, Some("future_provider:model")),
+      (None, configWithAnthropic, Some(openrouter)),
+      (Some(saved), configWithOpenRouterOnly, Some(saved)),
+      (Some("removed:model"), configWithOpenRouterOnly, Some(openrouter)),
+      (Some("custom:provider:model"), [], None),
+      (None, [], None),
+    ]->Array.forEach(
+      ((preference, options, expected)) =>
+        check(catalog(makeState(~preference), options), expected, None),
+    )
+    [
+      ("anthropic", anthropic),
+      ("openai_codex", openai),
+      ("openrouter", openrouter),
+      ("fireworks_ai", fireworks),
+    ]->Array.forEach(
+      ((provider, expected)) =>
+        check(
+          catalog(
+            makeState(~preference=Some("old:model"), ~pending=Some(provider)),
+            configWithAnthropic,
+          ),
+          Some(expected),
+          None,
+        ),
+    )
+    check(
+      catalog(
+        makeState(~preference=Some("old:model"), ~pending=Some("openai_codex")),
+        configWithOpenRouterOnly,
       ),
-      (
-        ConfigOptionsReceived({configOptions: SampleConfig.configWithUngroupedModels}),
-        "future_provider:model",
-      ),
-    ]
-    cases->Array.forEach(
-      ((action, expected)) => {
-        let (nextState, _effects) = Reducer.next(_makeState(), action)
-        t->expect(nextState.selectedModelValue)->Expect.toEqual(Some(expected))
-      },
+      Some(openrouter),
+      Some("openai_codex"),
     )
-  })
-
-  test("auto-selects first Anthropic model when pendingProviderAutoSelect is anthropic", t => {
-    let state = _makeState(
-      ~pendingProviderAutoSelect=Some("anthropic"),
-      ~selectedModelValue=Some("openrouter:google/gemini-3-flash-preview"),
-    )
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithAnthropic}),
-    )
-
-    t
-    ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("anthropic:claude-sonnet-5"))
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
-  })
-
-  test("auto-selects first OpenAI model when pendingProviderAutoSelect is openai_codex", t => {
-    let state = _makeState(
-      ~pendingProviderAutoSelect=Some("openai_codex"),
-      ~selectedModelValue=Some("openrouter:google/gemini-3-flash-preview"),
-    )
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithOpenAI}),
-    )
-
-    t
-    ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openai_codex:gpt-5.6-terra"))
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
-  })
-
-  test("auto-selects first OpenRouter model when pendingProviderAutoSelect is openrouter", t => {
-    let state = _makeState(
-      ~pendingProviderAutoSelect=Some("openrouter"),
-      ~selectedModelValue=Some("openrouter:anthropic/claude-haiku-4.5"),
-    )
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithOpenRouterOnly}),
-    )
-
-    t
-    ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openrouter:openai/gpt-5.6-terra"))
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
-  })
-
-  test("auto-selects Fireworks model when pendingProviderAutoSelect is fireworks_ai", t => {
-    let state = _makeState(
-      ~pendingProviderAutoSelect=Some("fireworks_ai"),
-      ~selectedModelValue=Some("openrouter:anthropic/claude-haiku-4.5"),
-    )
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithFireworksOnly}),
-    )
-
-    t
-    ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("fireworks_ai:accounts/fireworks/routers/kimi-k2p5-turbo"))
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
-  })
-
-  test("replaces a selected model removed by refreshed config", t => {
-    let existingModel = "openrouter:google/gemini-3-flash-preview"
-    let state = _makeState(~selectedModelValue=Some(existingModel))
-    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
-    storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=existingModel)
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithOpenRouterOnly}),
-    )
-
-    let replacement = "openrouter:openai/gpt-5.6-terra"
-    t->expect(nextState.selectedModelValue)->Expect.toEqual(Some(replacement))
-    t
-    ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)
-    ->Expect.toEqual(Some(replacement))
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
-  })
-
-  test("clears a selection whose provider was removed", t => {
-    let existingModel = "custom:provider-id:model-id"
-    let state = _makeState(~selectedModelValue=Some(existingModel))
-    let storage = WebAPI.Window.current->WebAPI.Window.localStorage
-    storage->WebAPI.Storage.setItem(~key="frontman:selectedModelValue", ~value=existingModel)
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithNoModels}),
-    )
-
-    t->expect(nextState.selectedModelValue)->Expect.toEqual(None)
-    t
-    ->expect(storage->WebAPI.Storage.getItem("frontman:selectedModelValue")->Null.toOption)
-    ->Expect.toEqual(None)
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
-  })
-
-  test("selects first model when no selection and no pending provider", t => {
-    let state = _makeState()
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithAnthropic}),
-    )
-
-    t
-    ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("anthropic:claude-sonnet-5"))
-  })
-
-  test("falls back to the first model when pending provider and current model are missing", t => {
-    let existingModel = "openai_codex:gpt-5.1-codex-max"
-    let state = _makeState(
-      ~pendingProviderAutoSelect=Some("openai_codex"),
-      ~selectedModelValue=Some(existingModel),
-    )
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithOpenRouterOnly}),
-    )
-
-    t
-    ->expect(nextState.selectedModelValue)
-    ->Expect.toEqual(Some("openrouter:openai/gpt-5.6-terra"))
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
-  })
-
-  test("accepts empty model config when no providers are configured", t => {
-    let state = _makeState()
-
-    let (nextState, _effects) = Reducer.next(
-      state,
-      ConfigOptionsReceived({configOptions: SampleConfig.configWithNoModels}),
-    )
-
-    t->expect(nextState.selectedModelValue)->Expect.toEqual(None)
-    t->expect(nextState.pendingProviderAutoSelect)->Expect.toEqual(None)
   })
 })

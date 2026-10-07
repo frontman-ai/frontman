@@ -222,7 +222,7 @@ type state = {
   anthropicOAuthStatus: anthropicOAuthStatus,
   openaiOAuthStatus: openaiOAuthStatus,
   configOptions: option<array<ACPConfig.sessionConfigOption>>,
-  selectedModelValue: option<ACPConfig.sessionConfigValueId>,
+  draftModelPreference: option<ACPConfig.sessionConfigValueId>,
   agentCatalog: option<array<ACPTypes.agentCatalogEntry>>,
   selectedAgentId: option<string>,
   pendingProviderAutoSelect: option<string>,
