@@ -435,6 +435,7 @@ let createSession = async (
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
+  ~modelPreference: option<string>=?,
 ): result<(session, Types.sessionNewResult), requestError> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
@@ -442,6 +443,7 @@ let createSession = async (
     ~channel=conn.channel,
     ~state=conn.state,
     ~sessionId,
+    ~modelPreference?,
   )
 
   switch sessionNewResult {
@@ -494,6 +496,19 @@ let sendPrompt = async (
     ~sessionId=session.sessionId,
     ~prompt=allBlocks,
     ~_meta,
+  )
+}
+
+let setConfigOption = (session: session, ~configId: string, ~value: string): promise<
+  result<Types.configOptionsUpdated, requestError>,
+> => {
+  let params: Types.setConfigOptionParams = {sessionId: session.sessionId, configId, value}
+  Protocol.sendRequest(
+    ~channel=session.channel,
+    ~state=session.connection.state,
+    ~method=#"session/set_config_option",
+    ~params=Some(params->S.decodeOrThrow(~from=Types.setConfigOptionParamsSchema, ~to=S.json)),
+    ~parseResult=json => Decoders.parseSchema(json, Types.configOptionsUpdatedSchema),
   )
 }
 
