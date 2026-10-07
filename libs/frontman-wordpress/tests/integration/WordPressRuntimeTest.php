@@ -343,7 +343,7 @@ $widget_call = static function ( string $name, array $input, bool $error = false
 	$tools = Frontman_Tools::instance();
 	$result = $tools->call( $name, $tools->sanitize_input( $name, $input ) );
 	frontman_runtime_assert( $error === $result['isError'], $name . ': ' . wp_json_encode( $result ) );
-	return $error ? [] : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
+	return $error ? [ 'error' => $result['content'][0]['text'] ] : json_decode( $result['content'][0]['text'], true, 512, JSON_THROW_ON_ERROR );
 };
 $widget_input = [ 'sidebar_id' => 'frontman-widgets', 'widget_id' => 'custom_html-4' ];
 $widget_original = [ 'title' => 'Resources', 'content' => '<script>window.existing = true;</script>', 'mega_menu_is_grid_widget' => 'true', 'plugin_meta' => [ 'keep' => 'untouched' ] ];
@@ -392,10 +392,8 @@ $widget_caps = static fn( $caps ) => array_merge( $caps, [ 'edit_theme_options' 
 add_filter( 'user_has_cap', $widget_caps );
 $widget_call( 'wp_update_widget', $widget_input + [ 'settings' => '{"content":"Denied"}' ], true );
 remove_filter( 'user_has_cap', $widget_caps );
-foreach ( [ 'categories', 'custom_html' ] as $base ) {
-	$widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => $base, 'settings' => '{}' ], true );
-	$widget_call( 'wp_delete_widget', [ 'widget_id' => 'custom_html' === $base ? 'custom_html-4' : 'categories-3', 'confirm' => true ], true );
-}
+$widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => 'categories', 'settings' => '{}' ], true );
+$widget_call( 'wp_delete_widget', [ 'widget_id' => 'categories-3', 'confirm' => true ], true );
 $widget_call( 'wp_update_widget', [ 'sidebar_id' => 'frontman-widgets', 'widget_id' => 'categories-3', 'settings' => '{}' ], true );
 frontman_runtime_assert( $widget_saved === get_option( 'widget_custom_html' ) && $widget_placement === get_option( 'sidebars_widgets' ), 'Rejected updates or content edits mutated widgets/sidebar placement.' );
 $created_widget = $widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => 'text', 'settings' => '{"title":"Footer","text":"Hello"}' ] );
@@ -411,6 +409,79 @@ foreach ( [ 1, 2 ] as $position ) {
 $widget_call( 'wp_delete_widget', [ 'widget_id' => $text_input['widget_id'], 'confirm' => false ], true );
 $deleted_widget = $widget_call( 'wp_delete_widget', [ 'widget_id' => $text_input['widget_id'], 'confirm' => true ] );
 frontman_runtime_assert( $text_input['widget_id'] === $deleted_widget['widget_id'] && 'New Footer' === $deleted_widget['before']['widget']['settings']['title'] && 2 === $deleted_widget['after']['widget_count'], 'Widget deletion snapshot or placement changed.' );
+$widget_link = '<a href="/category/blog/">Blog</a>';
+$widget_markup = '<a href="/category/blog/" onclick="alert(1)">Blog</a><script>alert(1)</script>';
+$render_widget = static function ( string $class ): string {
+	$GLOBALS['wp_widget_factory']->widgets[$class]->_register();
+	unset( $GLOBALS['_wp_sidebars_widgets'] );
+	ob_start();
+	dynamic_sidebar( 'frontman-footer' );
+	return ob_get_clean();
+};
+$widget_caps = static fn( $caps ) => array_merge( $caps, [ 'unfiltered_html' => false ] );
+add_filter( 'user_has_cap', $widget_caps );
+foreach ( [ [ 'text', 'text', 'WP_Widget_Text' ], [ 'custom_html', 'content', 'WP_Widget_Custom_HTML' ], [ 'block', 'content', 'WP_Widget_Block' ] ] as [ $base, $field, $class ] ) {
+	$markup = 'block' === $base ? '<!-- wp:html -->' . $widget_markup . '<!-- /wp:html --><!-- wp:paragraph --><p>Second block</p><!-- /wp:paragraph -->' : $widget_markup;
+	$created = $widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => $base, 'settings' => wp_json_encode( [ $field => $markup ] ) ] );
+	$rendered = $render_widget( $class );
+	frontman_runtime_assert( false !== strpos( $rendered, $widget_link ), $base . ': creation must render a clickable category link.' );
+	frontman_runtime_assert( false === strpos( $rendered, 'onclick' ) && false === strpos( $rendered, '<script' ), $base . ': restricted creation must strip unsafe HTML.' );
+	if ( 'block' === $base ) {
+		frontman_runtime_assert( false !== strpos( $rendered, '>Second block</p>' ), 'Block widgets must render every block, not just the first.' );
+	}
+	$input = [ 'sidebar_id' => 'frontman-footer', 'widget_id' => $created['widget_id'] ];
+	$widget_call( 'wp_update_widget', $input + [ 'settings' => wp_json_encode( [ $field => str_replace( 'Blog', 'Updated category', $markup ) ] ) ] );
+	frontman_runtime_assert( false !== strpos( $render_widget( $class ), '<a href="/category/blog/">Updated category</a>' ), $base . ': update must render the new category link.' );
+	$widget_call( 'wp_delete_widget', [ 'widget_id' => $created['widget_id'], 'confirm' => true ] );
+}
+
+$blocks = get_option( 'widget_block' );
+$blocks[19] = [ 'content' => '<!-- wp:categories /-->', 'plugin_meta' => [ 'keep' => 'untouched' ] ];
+update_option( 'widget_block', $blocks );
+$placement = get_option( 'sidebars_widgets' );
+$placement['frontman-footer'] = [ 'block-19' ];
+update_option( 'sidebars_widgets', $placement );
+$input = [ 'sidebar_id' => 'frontman-footer', 'widget_id' => 'block-19' ];
+$widget_call( 'wp_update_widget', $input + [ 'settings' => wp_json_encode( [ 'content' => '<!-- wp:html -->' . $widget_link . '<!-- /wp:html -->' ] ) ] );
+$blocks[19]['content'] = '<!-- wp:html -->' . $widget_link . '<!-- /wp:html -->';
+frontman_runtime_assert( $blocks === get_option( 'widget_block' ), 'Replacing block-19 must preserve metadata and sibling instances.' );
+frontman_runtime_assert( $placement === get_option( 'sidebars_widgets' ), 'Replacing block-19 must preserve sidebar placement.' );
+
+foreach ( [ '{}', '{"content":false}', '{"content":"Changed","plugin_meta":{}}' ] as $invalid ) {
+	$widget_call( 'wp_update_widget', $input + [ 'settings' => $invalid ], true );
+}
+$widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => 'text', 'settings' => '{"filter":"true"}' ], true );
+$deny_widgets = static fn( $caps ) => array_merge( $caps, [ 'edit_theme_options' => false ] );
+add_filter( 'user_has_cap', $deny_widgets );
+$widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => 'block', 'settings' => '{"content":"Denied"}' ], true );
+$widget_call( 'wp_update_widget', $input + [ 'settings' => '{"content":"Denied"}' ], true );
+$widget_call( 'wp_move_widget', [ 'widget_id' => 'block-19', 'to_sidebar_id' => 'frontman-widgets' ], true );
+$widget_call( 'wp_delete_widget', [ 'widget_id' => 'block-19', 'confirm' => true ], true );
+remove_filter( 'user_has_cap', $deny_widgets );
+frontman_runtime_assert( $blocks === get_option( 'widget_block' ) && $placement === get_option( 'sidebars_widgets' ), 'Invalid or unauthorized requests must not change block-19.' );
+
+$widget_call( 'wp_delete_widget', [ 'widget_id' => 'block-19', 'confirm' => true ] );
+frontman_runtime_assert( $blocks === get_option( 'widget_block' ), 'Removal must retain the complete widget settings.' );
+frontman_runtime_assert( null === $widget_call( 'wp_read_widget', [ 'widget_id' => 'block-19' ] )['sidebar_id'], 'Removal must detach block-19.' );
+$widget_call( 'wp_move_widget', [ 'widget_id' => 'block-19', 'to_sidebar_id' => 'frontman-footer' ] );
+frontman_runtime_assert( $placement === get_option( 'sidebars_widgets' ), 'Recovery must restore the same widget ID and position.' );
+
+$reject_placement = static fn( $value, $old ) => $old;
+add_filter( 'pre_update_option_sidebars_widgets', $reject_placement, 10, 2 );
+$failed = $widget_call( 'wp_create_widget', [ 'sidebar_id' => 'frontman-footer', 'widget_base' => 'block', 'settings' => '{"content":"Retained"}' ], true );
+remove_filter( 'pre_update_option_sidebars_widgets', $reject_placement );
+$retained = array_diff_key( get_option( 'widget_block' ), $blocks );
+frontman_runtime_assert( 1 === count( $retained ) && [ 'content' => 'Retained' ] === reset( $retained ), 'Failed placement must retain the submitted settings in one recoverable instance.' );
+frontman_runtime_assert( $placement === get_option( 'sidebars_widgets' ), 'Failed placement must leave existing sidebars unchanged.' );
+$retained_id = 'block-' . array_key_first( $retained );
+frontman_runtime_assert( false !== strpos( $failed['error'], $retained_id ), 'Partial-save errors must identify the retained widget.' );
+$widget_call( 'wp_move_widget', [ 'widget_id' => $retained_id, 'to_sidebar_id' => 'frontman-footer' ] );
+frontman_runtime_assert( 'frontman-footer' === $widget_call( 'wp_read_widget', [ 'widget_id' => $retained_id ] )['sidebar_id'], 'A partially created widget must be recoverable.' );
+
+$attribute_markup = serialize_block( [ 'blockName' => 'core/navigation-link', 'attrs' => [ 'label' => '<b onclick="alert(1)">Blog</b>', 'url' => '/category/blog/' ], 'innerBlocks' => [], 'innerHTML' => '', 'innerContent' => [] ] );
+$widget_call( 'wp_update_widget', $input + [ 'settings' => wp_json_encode( [ 'content' => $attribute_markup ] ) ] );
+frontman_runtime_assert( '<b>Blog</b>' === parse_blocks( get_option( 'widget_block' )[19]['content'] )[0]['attrs']['label'], 'Restricted updates must strip unsafe HTML inside block attributes.' );
+remove_filter( 'user_has_cap', $widget_caps );
 frontman_runtime_assert( is_plugin_active( 'megamenu/megamenu.php' ), 'Max Mega Menu must be active for widget integration coverage.' );
 register_nav_menu( 'frontman-mega', 'Runtime mega menu' );
 $mega_menu = wp_create_nav_menu( 'Runtime mega menu' );
