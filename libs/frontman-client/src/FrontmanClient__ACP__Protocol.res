@@ -9,7 +9,13 @@ module Log = FrontmanLogs.Logs.Make({
   let component = #ACP
 })
 
-type requestMethod = [#initialize | #"session/new" | #"session/load" | #"session/prompt"]
+type requestMethod = [
+  | #initialize
+  | #"session/new"
+  | #"session/load"
+  | #"session/prompt"
+  | #"session/set_config_option"
+]
 
 let requestTimeoutMs = 120000
 
@@ -170,16 +176,21 @@ let sendInitialize = (
   )
 }
 
-let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId: string): promise<
-  result<Types.sessionNewResult, Client.requestError>,
-> => {
-  let params = Dict.make()
-  params->Dict.set("sessionId", JSON.Encode.string(sessionId))
+let sendSessionNew = (
+  ~channel: Channel.t,
+  ~state: ref<Client.state>,
+  ~sessionId: string,
+  ~modelPreference: option<string>=?,
+): promise<result<Types.sessionNewResult, Client.requestError>> => {
+  let params: Types.sessionNewParams = {
+    sessionId,
+    _meta: modelPreference->Option.map(model => {Types.model: model}),
+  }
   sendRequest(
     ~channel,
     ~state,
     ~method=#"session/new",
-    ~params=Some(JSON.Encode.object(params)),
+    ~params=Some(params->S.decodeOrThrow(~from=Types.sessionNewParamsSchema, ~to=S.json)),
     ~parseResult=Client.parseSessionNewResult,
   )
 }

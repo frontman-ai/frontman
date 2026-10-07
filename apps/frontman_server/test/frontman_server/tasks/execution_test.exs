@@ -35,6 +35,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Protocols
+  alias FrontmanServer.Providers.ApiKey
   alias FrontmanServer.Repo
   alias FrontmanServer.Skills
   alias FrontmanServer.Tasks
@@ -549,96 +550,121 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert second_part.text == "Now tighten copy"
     end
 
-    test "startup failure persists terminal error on the same turn" do
-      scope = Scope.for_user(user_fixture())
-      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
-      task_id = task_with_pubsub_fixture(scope).id
+    test "credentials lost after acceptance terminate the claimed turn", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      execution = execution_request_fixture()
+      message_id = Ecto.UUID.generate()
 
-      {:ok, _, 1} =
-        submit_user_message(scope, task_id, user_content("Hello"),
-          model: "openrouter:openai/gpt-5.5"
-        )
+      expect(LLMProviderMock, :stream_text, 0, fn _, _, _ ->
+        flunk("Provider must not be called")
+      end)
 
-      assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
+      verify_on_exit!()
 
-      assert %InteractionSchema{turn_number: 1, data: %Interaction.AgentError{category: "auth"}} =
-               Repo.get_by!(InteractionSchema,
+      assert {:ok, %InteractionSchema{id: ^message_id}} =
+               Tasks.submit_user_message(scope, %{
                  task_id: task_id,
-                 type: :agent_error
-               )
+                 message_id: message_id,
+                 message: user_content("Hello"),
+                 model: :session,
+                 agent_id: execution.agent_id
+               })
+
+      {1, _} = Repo.delete_all(ApiKey.for_user_and_provider(scope.user.id, "openrouter"))
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
+
+      assert_receive_interaction(
+        %Interaction.AgentError{
+          category: "auth",
+          kind: "failed",
+          retryable: false,
+          error: "No API key available for this request."
+        } = error,
+        1
+      )
+
+      assert [%{turn_number: 1, data: %{user_message_ids: [^message_id]}}] =
+               turn_started_rows(task_id)
+
+      assert [%InteractionSchema{turn_number: 1, data: ^error}] =
+               task_id
+               |> InteractionSchema.for_task()
+               |> InteractionSchema.of_type(:agent_error)
+               |> Repo.all()
 
       assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
+      assert :no_accepted_messages = Tasks.execute_next_turn(scope, task_id, execution)
+      refute SwarmAi.running?(FrontmanServer.AgentRuntime, task_id)
     end
 
-    test "submits browser context prompt through production recording path" do
-      scope = Scope.for_user(user_fixture())
-      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
-      task_id = task_with_pubsub_fixture(scope).id
+    test "executes browser context with the accepted prompt", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      parent = self()
+      verify_on_exit!()
+
+      expect(LLMProviderMock, :stream_text, fn _model, messages, _opts ->
+        send(parent, {:provider_messages, messages})
+        ReqLLMResponses.response("Updated headline")
+      end)
+
+      screenshot = Base.encode64("screenshot")
 
       content_blocks = [
         text_block("Change headline"),
         current_page_block("http://localhost:4321/", %{
-          "viewport_width" => 1316,
-          "viewport_height" => 1269,
-          "device_pixel_ratio" => 2,
-          "title" => "Frontman: Visual AI Frontend Editing",
-          "color_scheme" => "dark",
-          "scroll_y" => 0,
+          "title" => "Frontman",
           "astro_client_routing" => "enabled"
         }),
         annotation_block("ann-hero", "H1", "apps/marketing/src/components/Hero.astro", 65, 36,
           comment: "change this text to Danni",
-          component_name: "Hero",
-          component_props: %{},
-          css_classes: "hero-section__title",
-          nearby_text: "See it. Say it. Ship it.",
           bounding_box: %{"x" => 373.8, "y" => 152.0, "width" => 553.4, "height" => 62.0},
           parent: %{
             "file" => "apps/marketing/src/layouts/Layout.astro",
             "line" => 56,
-            "column" => 51,
-            "component_name" => "Header",
-            "component_props" => %{"title" => "Frontman"}
+            "column" => 51
           }
         ),
-        screenshot_block("ann-hero", Base.encode64("screenshot"), "image/jpeg")
+        screenshot_block("ann-hero", screenshot, "image/jpeg")
       ]
 
-      {:ok, returned, 1} =
-        submit_user_message(scope, task_id, content_blocks, model: "openrouter:openai/gpt-5.5")
-
-      assert %Interaction.CurrentPage{url: "http://localhost:4321/"} = returned.data.current_page
-
-      assert [%Interaction.Annotation{parent: %Interaction.ParentLocation{}}] =
-               returned.data.annotations
-
+      assert {:ok, accepted, 1} = submit_user_message(scope, task_id, content_blocks)
       assert_receive_interaction(%Interaction.UserMessage{} = broadcast_message, nil)
-
-      assert [%Interaction.Annotation{screenshot: %Interaction.Screenshot{}}] =
-               broadcast_message.annotations
-
-      assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
+      assert broadcast_message == accepted.data
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert_receive {:provider_messages, messages}, 1_000
+      refute_running_eventually(task_id)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert [%Interaction.UserMessage{} = persisted_message | _] = Tasks.interactions(task)
+      assert persisted_message == accepted.data
 
-      assert %Interaction.CurrentPage{
-               title: "Frontman: Visual AI Frontend Editing",
-               astro_client_routing: "enabled"
-             } = persisted_message.current_page
+      assert %Interaction.CurrentPage{title: "Frontman", astro_client_routing: "enabled"} =
+               persisted_message.current_page
 
-      assert [%Interaction.Annotation{bounding_box: %Interaction.BoundingBox{}}] =
-               persisted_message.annotations
+      assert [
+               %Interaction.Annotation{
+                 parent: %Interaction.ParentLocation{line: 56, column: 51},
+                 bounding_box: %Interaction.BoundingBox{width: 553.4, height: 62.0},
+                 screenshot: %Interaction.Screenshot{blob: ^screenshot, mime_type: "image/jpeg"}
+               }
+             ] = persisted_message.annotations
 
-      [swarm_message] = Interaction.to_swarm_messages([persisted_message])
-      text = extract_content_text(swarm_message.content)
-
-      assert text =~ "[Current Page Context]"
+      assert [prompt] = Enum.filter(messages, &(&1.role == :user))
+      text = extract_content_text(prompt.content)
+      assert text =~ "Change headline"
+      assert text =~ "http://localhost:4321/"
       assert text =~ "[Annotated Elements]"
       assert text =~ "apps/marketing/src/components/Hero.astro"
+      assert text =~ "change this text to Danni"
       assert text =~ "Astro Client Routing: enabled"
       assert text =~ "astro:page-load"
-      assert Enum.any?(swarm_message.content, &match?(%{type: :image}, &1))
+
+      assert [%{data: "screenshot", media_type: "image/jpeg"}] =
+               Enum.filter(prompt.content, &(&1.type == :image))
     end
 
     test "conversation with tool calls supports follow-up messages", %{

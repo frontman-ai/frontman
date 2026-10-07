@@ -39,29 +39,47 @@ external mockImplementation: (
 ) => unit = "mockImplementation"
 @module("vitest") @scope("vi") external restoreAllMocks: unit => unit = "restoreAllMocks"
 let mockPrompt = handler => spyOnPrompt(acpModule)->mockImplementation(handler)
+@module("vitest") @scope("vi") external spyOn: (acpModule, string) => promptSpy = "spyOn"
+@send external mockAsync: (promptSpy, 'handler) => unit = "mockImplementation"
+let settle = async () => {
+  for _ in 0 to 3 {
+    await Promise.resolve()
+  }
+}
 afterEach(() => {
   clearRuntime()
   restoreAllMocks()
 })
 
 module TestHelpers = {
+  let userMessage = (id, content) => Reducer.Message.User({
+    id,
+    content,
+    annotations: [],
+    agentId: "executor-id",
+  })
+
   let makeLoadedTask = (
     ~id,
     ~title,
-    ~previewUrl,
-    ~createdAt as _,
+    ~previewUrl="http://localhost:3000",
+    ~createdAt as _=1000.0,
     ~messages=[],
     ~isAgentRunning=false,
   ) =>
     Task.makeNew(~previewUrl)
     ->Task.newToLoaded(~id, ~title)
-    ->Task.updateLoadedData(data => {...data, messages, isAgentRunning})
+    ->Task.updateLoadedData(data => {
+      ...data,
+      messages: Client__MessageStore.fromArray(messages),
+      isAgentRunning,
+    })
 
   let makeStateWithTasks = (~tasks, ~currentTask) => {
     ...Reducer.defaultState,
     tasks,
     currentTask,
-    selectedModelValue: Some("test:model"),
+    draftModelPreference: Some("test:model"),
   }
 
   let makeStateWithTask = (
@@ -79,8 +97,7 @@ module TestHelpers = {
       ~isAgentRunning,
     )
 
-    let tasks = Dict.make()
-    tasks->Dict.set(taskId, task)
+    let tasks = Dict.fromArray([(taskId, task)])
 
     makeStateWithTasks(~tasks, ~currentTask=Task.Selected(taskId))
   }
@@ -94,37 +111,19 @@ module TestHelpers = {
     Reducer.Selectors.currentTaskId(state)
   }
 
-  let modelConfigOptions = (~models: array<string>) => {
-    switch models->Array.get(0) {
-    | None => []
-    | Some(_first) => [
-        ACP.SelectConfigOption({
-          id: "model",
-          name: "Model",
-          description: None,
-          category: Some(ACP.Model),
-          currentValue: models->Array.get(0)->Option.getOrThrow,
-          options: ACP.Grouped([
-            {
-              group: "future_provider",
-              name: "Future Provider",
-              options: models->Array.map(value => {
-                let option: ACP.sessionConfigSelectOption = {
-                  value,
-                  name: value,
-                  description: None,
-                  _meta: None,
-                }
-                option
-              }),
-              _meta: None,
-            },
-          ]),
-          _meta: None,
-        }),
-      ]
-    }
-  }
+  let submit = (
+    state,
+    ~sessionId,
+    ~id=testUserMessageId,
+    ~content=[UserContentPart.text("Hello")],
+    ~annotations=[],
+    ~agentId="executor-id",
+  ) =>
+    Reducer.addUserMessageToState(
+      state,
+      ~sessionId,
+      {id, content, annotations, agentId, onComplete: _ => ()},
+    )
 
   let acceptUserMessage = (
     state,
@@ -321,7 +320,7 @@ describe("Client State Reducer - Custom Providers", () => {
     let deleting = {
       ...saving,
       customProviders: Some([updated, kept]),
-      selectedModelValue: Some("custom:provider-1:vision-model"),
+      draftModelPreference: Some("custom:provider-1:vision-model"),
       customProviderMutation: StateTypes.CustomProviderMutationPending(deleteOperation),
     }
     let deleted = reduce(
@@ -329,7 +328,14 @@ describe("Client State Reducer - Custom Providers", () => {
       Reducer.CustomProviderMutationSucceeded({operation: deleteOperation, provider: None}),
     )
     t->expect(deleted.customProviders)->Expect.toEqual(Some([kept]))
-    t->expect(deleted.selectedModelValue)->Expect.toEqual(None)
+    t->expect(deleted.draftModelPreference)->Expect.toEqual(deleting.draftModelPreference)
+    let runtime =
+      (deleted.connection->Option.getOrThrow).connection->Result.getOrThrow->Option.getOrThrow
+    let refreshed = reduce(
+      deleted,
+      CatalogReceived({signal: runtime.lifetimeAbortController.signal, groups: []}),
+    )
+    t->expect(refreshed.draftModelPreference)->Expect.toEqual(None)
 
     let error = StateTypes.CustomProviderNetworkError("offline")
     let failed = reduce(
@@ -508,7 +514,9 @@ let plannerPlan = Reducer.Message.Assistant(
 
 let withPlanHandoffContext = (state: Client__State__Types.state): Client__State__Types.state => {
   ...state,
-  connection: Client__ConnectionTestHelpers.ready(),
+  connection: Client__ConnectionTestHelpers.ready(
+    ~sessionId=Reducer.Selectors.currentTaskId(state),
+  ),
   agentCatalog: Some([planner, executor]),
 }
 
@@ -536,10 +544,8 @@ describe("Client State Reducer - Plan Handoff", () => {
   })
 
   test("execute does nothing without a selected model", t => {
-    let state = {
-      ...TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext,
-      selectedModelValue: None,
-    }
+    let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
+    let state = Reducer.next(state, ConnectionAction(SessionConfigReceived([])))->Pair.first
     let (nextState, effects) = Reducer.next(
       state,
       Reducer.ExecutePendingPlan({id: testUserMessageId}),
@@ -551,16 +557,11 @@ describe("Client State Reducer - Plan Handoff", () => {
 
   test("planner follow-up consumes the handoff before the server reports running", t => {
     let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
-    let (submitting, _) = Reducer.addUserMessageToState(
+    let (submitting, _) = TestHelpers.submit(
       state,
       ~sessionId="test-task-1",
-      {
-        id: testUserMessageId,
-        content: [UserContentPart.text("Revise step one")],
-        annotations: [],
-        agentId: planner.id,
-        onComplete: _ => (),
-      },
+      ~content=[UserContentPart.text("Revise step one")],
+      ~agentId=planner.id,
     )
 
     let (_, executeEffects) = Reducer.next(submitting, ExecutePendingPlan({id: testUserMessageId}))
@@ -607,8 +608,7 @@ describe("Client State Reducer - Plan Handoff", () => {
       }),
     )
     let (loading, _) = TaskReducer.next(loading, ExecutionStateIdle)
-    let tasks = Dict.make()
-    tasks->Dict.set("test-task-1", loading)
+    let tasks = Dict.fromArray([("test-task-1", loading)])
     let state =
       TestHelpers.makeStateWithTasks(
         ~tasks,
@@ -647,18 +647,8 @@ describe("Client State Reducer", () => {
   })
 
   test("AddUserMessage creates task and sends without optimistic message", t => {
-    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
-    let (nextState, effects) = Reducer.addUserMessageToState(
-      state,
-      ~sessionId="session-1",
-      {
-        id: testUserMessageId,
-        content: [UserContentPart.text("Hello")],
-        annotations: [],
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
-    )
+    let state = {...Reducer.defaultState, draftModelPreference: Some("test:model")}
+    let (nextState, effects) = TestHelpers.submit(state, ~sessionId="session-1")
 
     t->expect(TestHelpers.getTaskCount(nextState))->Expect.toBe(1)
     t->expect(TestHelpers.getCurrentTaskId(nextState)->Option.isSome)->Expect.toBe(true)
@@ -674,18 +664,12 @@ describe("Client State Reducer", () => {
   })
 
   test("messages maintain order", t => {
-    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
+    let state = {...Reducer.defaultState, draftModelPreference: Some("test:model")}
 
-    let (state, _) = Reducer.addUserMessageToState(
+    let (state, _) = TestHelpers.submit(
       state,
       ~sessionId="session-1",
-      {
-        id: testUserMessageId,
-        content: [UserContentPart.text("Hi")],
-        annotations: [],
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
+      ~content=[UserContentPart.text("Hi")],
     )
 
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
@@ -1082,32 +1066,21 @@ describe("Client State Reducer - Tool Lifecycle", () => {
 
 describe("Client State Reducer - Task ID Continuity", () => {
   test("multiple user messages in same conversation use same task ID in state", t => {
-    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
+    let state = {...Reducer.defaultState, draftModelPreference: Some("test:model")}
 
-    let (state1, _effects1) = Reducer.addUserMessageToState(
+    let (state1, _effects1) = TestHelpers.submit(
       state,
       ~sessionId="sessionId",
-      {
-        id: testUserMessageId,
-        content: [UserContentPart.text("First message")],
-        annotations: [],
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
+      ~content=[UserContentPart.text("First message")],
     )
 
     let taskId1 = TestHelpers.getCurrentTaskId(state1)
 
-    let (state2, _effects2) = Reducer.addUserMessageToState(
+    let (state2, _effects2) = TestHelpers.submit(
       state1,
       ~sessionId="sessionId",
-      {
-        id: secondTestUserMessageId,
-        content: [UserContentPart.text("Second message")],
-        annotations: [],
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
+      ~id=secondTestUserMessageId,
+      ~content=[UserContentPart.text("Second message")],
     )
 
     let taskId2 = TestHelpers.getCurrentTaskId(state2)
@@ -1118,18 +1091,12 @@ describe("Client State Reducer - Task ID Continuity", () => {
   })
 
   test("effect contains same task ID as state", t => {
-    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
+    let state = {...Reducer.defaultState, draftModelPreference: Some("test:model")}
 
-    let (state1, effects1) = Reducer.addUserMessageToState(
+    let (state1, effects1) = TestHelpers.submit(
       state,
       ~sessionId="sessionId",
-      {
-        id: testUserMessageId,
-        content: [UserContentPart.text("First message")],
-        annotations: [],
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
+      ~content=[UserContentPart.text("First message")],
     )
 
     let taskIdInState = TestHelpers.getCurrentTaskId(state1)
@@ -1147,36 +1114,21 @@ describe("Client State Reducer - Task Management Actions", () => {
     let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
-      ~previewUrl="http://localhost:3000",
-      ~createdAt=1000.0,
       ~messages=[
-        Reducer.Message.User({
-          id: "user-1",
-          content: [UserContentPart.Text({text: "Hello from task 1"})],
-          annotations: [],
-          agentId: "executor-id",
-        }),
+        TestHelpers.userMessage("user-1", [UserContentPart.Text({text: "Hello from task 1"})]),
       ],
     )
 
     let task2 = TestHelpers.makeLoadedTask(
       ~id="task-2",
       ~title="Task 2",
-      ~previewUrl="http://localhost:3000",
       ~createdAt=2000.0,
       ~messages=[
-        Reducer.Message.User({
-          id: "user-2",
-          content: [UserContentPart.Text({text: "Hello from task 2"})],
-          annotations: [],
-          agentId: "executor-id",
-        }),
+        TestHelpers.userMessage("user-2", [UserContentPart.Text({text: "Hello from task 2"})]),
       ],
     )
 
-    let tasks = Dict.make()
-    tasks->Dict.set("task-1", task1)
-    tasks->Dict.set("task-2", task2)
+    let tasks = Dict.fromArray([("task-1", task1), ("task-2", task2)])
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
@@ -1258,20 +1210,10 @@ describe("Client State Reducer - Task Management Actions", () => {
     let task1 = TestHelpers.makeLoadedTask(
       ~id="task-1",
       ~title="Task 1",
-      ~previewUrl="http://localhost:3000",
-      ~createdAt=1000.0,
-      ~messages=[
-        Reducer.Message.User({
-          id: "user-1",
-          content: [UserContentPart.Text({text: "Old message"})],
-          annotations: [],
-          agentId: "executor-id",
-        }),
-      ],
+      ~messages=[TestHelpers.userMessage("user-1", [UserContentPart.Text({text: "Old message"})])],
     )
 
-    let tasks = Dict.make()
-    tasks->Dict.set("task-1", task1)
+    let tasks = Dict.fromArray([("task-1", task1)])
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
@@ -1282,16 +1224,11 @@ describe("Client State Reducer - Task Management Actions", () => {
     | _ => JsExn.throw("Expected New task after deleting last task")
     }
 
-    let (stateAfterMsg, effects) = Reducer.addUserMessageToState(
+    let (stateAfterMsg, effects) = TestHelpers.submit(
       stateAfterDelete,
       ~sessionId="session-new",
-      {
-        id: secondTestUserMessageId,
-        content: [UserContentPart.text("Hello after delete")],
-        annotations: [],
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
+      ~id=secondTestUserMessageId,
+      ~content=[UserContentPart.text("Hello after delete")],
     )
 
     t->expect(TestHelpers.getTaskCount(stateAfterMsg))->Expect.toBe(1)
@@ -1309,39 +1246,22 @@ describe("Client State Reducer - Task Management Actions", () => {
   })
 
   test("Tasks maintain independent state across switches", t => {
-    let task1 = TestHelpers.makeLoadedTask(
-      ~id="task-1",
-      ~title="Task 1",
-      ~previewUrl="http://localhost:3000",
-      ~createdAt=1000.0,
-    )
-    let tasks = Dict.make()
-    tasks->Dict.set("task-1", task1)
+    let task1 = TestHelpers.makeLoadedTask(~id="task-1", ~title="Task 1")
+    let tasks = Dict.fromArray([("task-1", task1)])
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
-    let (state1, effects1) = Reducer.addUserMessageToState(
+    let (state1, effects1) = TestHelpers.submit(
       state,
       ~sessionId="session",
-      {
-        id: testUserMessageId,
-        content: [UserContentPart.Text({text: "Message in task 1"})],
-        annotations: [],
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
+      ~content=[UserContentPart.Text({text: "Message in task 1"})],
     )
 
-    let (_state2, effects2) = Reducer.addUserMessageToState(
+    let (_state2, effects2) = TestHelpers.submit(
       state1,
       ~sessionId="session",
-      {
-        id: secondTestUserMessageId,
-        content: [UserContentPart.Text({text: "Second message"})],
-        annotations: [],
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
+      ~id=secondTestUserMessageId,
+      ~content=[UserContentPart.Text({text: "Second message"})],
     )
 
     switch (effects1->Array.get(0), effects2->Array.get(0)) {
@@ -1584,20 +1504,12 @@ describe("Client State Reducer - Session Loading Actions", () => {
     let existingTask = TestHelpers.makeLoadedTask(
       ~id="session-1",
       ~title="Existing Task",
-      ~previewUrl="http://localhost:3000",
-      ~createdAt=1000.0,
       ~messages=[
-        Reducer.Message.User({
-          id: "user-1",
-          content: [UserContentPart.Text({text: "Existing message"})],
-          annotations: [],
-          agentId: "executor-id",
-        }),
+        TestHelpers.userMessage("user-1", [UserContentPart.Text({text: "Existing message"})]),
       ],
     )
 
-    let tasks = Dict.make()
-    tasks->Dict.set("session-1", existingTask)
+    let tasks = Dict.fromArray([("session-1", existingTask)])
 
     let state = TestHelpers.makeStateWithTasks(~tasks, ~currentTask=Task.Selected("task-1"))
 
@@ -1731,17 +1643,12 @@ describe("Client State Reducer - Annotations on Messages", () => {
   ]
 
   test("UserMessageReceived with annotations stores them on the message", t => {
-    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
-    let (state, _) = Reducer.addUserMessageToState(
+    let state = {...Reducer.defaultState, draftModelPreference: Some("test:model")}
+    let (state, _) = TestHelpers.submit(
       state,
       ~sessionId="session-1",
-      {
-        id: testUserMessageId,
-        content: [UserContentPart.text("Fix this")],
-        annotations: _sampleAnnotations,
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
+      ~content=[UserContentPart.text("Fix this")],
+      ~annotations=_sampleAnnotations,
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
@@ -1770,17 +1677,12 @@ describe("Client State Reducer - Annotations on Messages", () => {
   })
 
   test("UserMessageReceived with only annotations creates valid message", t => {
-    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
-    let (state, _) = Reducer.addUserMessageToState(
+    let state = {...Reducer.defaultState, draftModelPreference: Some("test:model")}
+    let (state, _) = TestHelpers.submit(
       state,
       ~sessionId="session-1",
-      {
-        id: testUserMessageId,
-        content: [],
-        annotations: _sampleAnnotations,
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
+      ~content=[],
+      ~annotations=_sampleAnnotations,
     )
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
@@ -1804,18 +1706,8 @@ describe("Client State Reducer - Annotations on Messages", () => {
   })
 
   test("UserMessageReceived without annotations stores empty array", t => {
-    let state = {...Reducer.defaultState, selectedModelValue: Some("test:model")}
-    let (state, _) = Reducer.addUserMessageToState(
-      state,
-      ~sessionId="session-1",
-      {
-        id: testUserMessageId,
-        content: [UserContentPart.text("Hello")],
-        annotations: [],
-        agentId: "executor-id",
-        onComplete: _ => (),
-      },
-    )
+    let state = {...Reducer.defaultState, draftModelPreference: Some("test:model")}
+    let (state, _) = TestHelpers.submit(state, ~sessionId="session-1")
     let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
 
     let nextState = TestHelpers.acceptUserMessage(
@@ -1881,7 +1773,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ...Reducer.defaultState,
       connection: Client__ConnectionTestHelpers.ready(),
       selectedAgentId: Some("executor-id"),
-      selectedModelValue: None,
+      draftModelPreference: None,
     }
     let (nextState, effects) = Reducer.next(
       state,
@@ -1896,13 +1788,15 @@ describe("Client State Reducer - Annotations on Messages", () => {
     t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
   })
 
-  test(
-    "session creation revalidates the model, locks the draft and rejects stale completion",
-    t => {
+  testAsync(
+    "session creation locks the draft, handles request rejection and rejects stale completion",
+    async t => {
       setRuntime(JSON.parseOrThrow(`{"framework":"nextjs","basePath":"frontman"}`))
       let created = ref(0)
       let completion = ref(None)
-      let configOptions = ref(None)
+      let configOptions = ref(
+        Some(Client__ConnectionTestHelpers.modelConfig(~models=["test:model"])),
+      )
       let sent = []
       mockPrompt(
         (_, text, ~additionalBlocks as _, ~_meta as _) => {
@@ -1911,36 +1805,45 @@ describe("Client State Reducer - Annotations on Messages", () => {
         },
       )
       let result = ref(None)
-      let handleEffect = (effect: Reducer.effect, state, dispatch) =>
-        switch effect {
-        | ConnectionEffect(ActivateSessionEffect({requestId, operation: #create(sessionId)})) =>
+      spyOn(acpModule, "createSession")->mockAsync(
+        (_, sessionId: string, _, _, _, _, preference: option<string>) => {
           created := created.contents + 1
-          completion :=
-            Some(
-              () =>
-                dispatch(
-                  Reducer.ConnectionAction(
-                    SessionResultReceived({
-                      requestId,
-                      sessionId,
-                      result: Ok((
-                        Client__ConnectionTestHelpers.session(sessionId),
-                        configOptions.contents,
-                      )),
-                    }),
-                  ),
-                ),
-            )
-        | _ => Reducer.handleEffect(effect, state, dispatch)
-        }
+          t->expect(preference)->Expect.toEqual(Some("test:model"))
+          Promise.make(
+            (resolve, _) => {
+              let complete = () => {
+                resolve(
+                  switch configOptions.contents {
+                  | None =>
+                    Error(Client__ConnectionReducer.ACP.requestErrorFromMessage("Unknown model"))
+                  | Some(options) => {
+                      let response: ACP.sessionNewResult = {
+                        sessionId,
+                        configOptions: Some(options),
+                        modes: None,
+                        _meta: None,
+                      }
+                      Ok((Client__ConnectionTestHelpers.session(sessionId), response))
+                    }
+                  },
+                )
+              }
+              completion := Some(complete)
+            },
+          )
+        },
+      )
       let store = Client__ConnectionTestHelpers.makeStore(
         {
           ...Reducer.defaultState,
           selectedAgentId: Some("executor-id"),
-          selectedModelValue: Some("test:model"),
+          draftModelPreference: Some("test:model"),
+          modelGroups: Some(
+            Client__ConnectionTestHelpers.modelGroups(~models=["default:A", "test:model"]),
+          ),
           connection: Client__ConnectionTestHelpers.ready(),
         },
-        handleEffect,
+        Reducer.handleEffect,
       )
       let submit = content =>
         store->StateStore.dispatch(
@@ -1977,12 +1880,14 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect(store->StateStore.getState->Reducer.Selectors.currentTask)->Expect.toEqual(draft)
       submit(text)
       t->expect(created.contents)->Expect.toBe(1)
-      configOptions := Some(TestHelpers.modelConfigOptions(~models=[]))
+      configOptions := None
       result := None
       (completion.contents->Option.getOrThrow)()
-      t->expect(result.contents)->Expect.toEqual(Some(Error("Select a model before sending.")))
+      await settle()
+      t->expect(sent)->Expect.toEqual([])
+      t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
       t->expect(store->StateStore.getState->Reducer.Selectors.isNewTask)->Expect.toBe(true)
-      configOptions := None
+      configOptions := Some(Client__ConnectionTestHelpers.modelConfig(~models=["test:model"]))
       store->StateStore.dispatch(SetSelectedModelValue({value: "test:model"}))
       store->StateStore.dispatch(ClearCurrentTask)
       submit(text)
@@ -1999,11 +1904,16 @@ describe("Client State Reducer - Annotations on Messages", () => {
       ])
       let taskId = store->StateStore.getState->Reducer.Selectors.currentTaskClientId
       staleCompletion()
+      await settle()
       t->expect(store->StateStore.getState->Reducer.Selectors.isSubmitting)->Expect.toBe(true)
       t->expect(sent)->Expect.toEqual([])
       (completion.contents->Option.getOrThrow)()
+      await settle()
       t->expect(result.contents)->Expect.toEqual(Some(Ok()))
       t->expect(sent)->Expect.toEqual([""])
+      t
+      ->expect(store->StateStore.getState->Reducer.Selectors.selectedModelValue)
+      ->Expect.toEqual(Some("test:model"))
       t
       ->expect(store->StateStore.getState->Reducer.Selectors.currentTaskId)
       ->Expect.toEqual(Some(taskId))
@@ -2016,19 +1926,17 @@ describe("Client State Reducer - Annotations on Messages", () => {
       t->expect(created.contents)->Expect.toBe(3)
       store->StateStore.dispatch(ClearCurrentTask)
       submit(text)
-      configOptions := Some(TestHelpers.modelConfigOptions(~models=["replacement:model"]))
       let unsubscribe = subscribe(
         store,
         () => {
-          let state = store->StateStore.getState
-          switch Reducer.Selectors.getSession(state) {
-          | Some(_) if state.selectedModelValue == Some("replacement:model") =>
-            store->StateStore.dispatch(ClearCurrentTask)
-          | _ => ()
+          switch store->StateStore.getState->Reducer.Selectors.getSession {
+          | Some(_) => store->StateStore.dispatch(ClearCurrentTask)
+          | None => ()
           }
         },
       )
       (completion.contents->Option.getOrThrow)()
+      await settle()
       unsubscribe()
       t->expect(result.contents->Option.getOrThrow->Result.isError)->Expect.toBe(true)
       t->expect(sent)->Expect.toEqual(["", "draft"])
@@ -2062,12 +1970,10 @@ describe("Client State Reducer - Annotations on Messages", () => {
         )
         let state = TestHelpers.makeStateWithTask()
         let task =
-          Reducer.Selectors.currentTask(state)->TaskReducer.Lens.setPreviewFrame(
-            ~contentDocument,
-            ~contentWindow=None,
+          Reducer.Selectors.currentTask(state)->TaskReducer.Lens.updatePreviewFrame(
+            frame => {...frame, contentDocument, contentWindow: None},
           )
         let (blocks, _) = Reducer.buildPrompt(
-          state,
           ~task,
           ~messageId=UserMessageId.make(),
           ~attachments=[],
@@ -2091,19 +1997,15 @@ describe("Client State Reducer - Annotations on Messages", () => {
     let dispatched = []
     let state = {
       ...Reducer.defaultState,
-      selectedModelValue: Some("test:model"),
+      draftModelPreference: Some("test:model"),
       connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("session-1")),
     }
-    let (state, effects) = Reducer.addUserMessageToState(
+    let (state, effects) = TestHelpers.submit(
       state,
       ~sessionId="session-1",
-      {
-        id: messageId,
-        content: [UserContentPart.text("Fix this")],
-        annotations: [],
-        agentId: "planner-id",
-        onComplete: _ => (),
-      },
+      ~id=messageId,
+      ~content=[UserContentPart.text("Fix this")],
+      ~agentId="planner-id",
     )
     mockPrompt(
       (session, text, ~additionalBlocks, ~_meta) => {
@@ -2114,13 +2016,13 @@ describe("Client State Reducer - Annotations on Messages", () => {
             s => (
               s.field("frontman.dev/messageId", S.string),
               s.field("agent", S.string),
-              s.field("model", S.string),
+              s.field("model", S.option(S.string)),
             ),
           ),
         )
         t
         ->expect(metadata)
-        ->Expect.toEqual((UserMessageId.toString(messageId), "planner-id", "test:model"))
+        ->Expect.toEqual((UserMessageId.toString(messageId), "planner-id", None))
         t
         ->expect(additionalBlocks)
         ->Expect.toEqual(
@@ -2169,7 +2071,7 @@ describe("Client State Reducer - Annotations on Messages", () => {
       {
         ...Reducer.defaultState,
         connection: Client__ConnectionTestHelpers.ready(),
-        selectedModelValue: None,
+        draftModelPreference: None,
       }
     }
 
@@ -2316,11 +2218,13 @@ describe("Client State Reducer - Annotations on Messages", () => {
         let sessionState = _makeStateWithSession()
         let emptyState = {
           ...sessionState,
-          configOptions: Some(TestHelpers.modelConfigOptions(~models=[])),
+          modelGroups: Some(Client__ConnectionTestHelpers.modelGroups(~models=[])),
         }
         let futureProviderState = {
           ...sessionState,
-          configOptions: Some(TestHelpers.modelConfigOptions(~models=["future_provider:model"])),
+          modelGroups: Some(
+            Client__ConnectionTestHelpers.modelGroups(~models=["future_provider:model"]),
+          ),
         }
 
         t->expect(Reducer.Selectors.providerSetupRequired(Reducer.defaultState))->Expect.toBe(false)

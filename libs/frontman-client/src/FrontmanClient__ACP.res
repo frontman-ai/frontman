@@ -32,7 +32,7 @@ type config = {
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
   onTitleUpdated: option<(string, string) => unit>,
-  onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
+  onModelCatalogUpdated: option<array<Types.sessionConfigSelectGroup> => unit>,
   onBillingStatusUpdated: option<JSON.t => unit>,
 }
 
@@ -45,7 +45,7 @@ let makeConfig = (
   ~version: string,
   ~_meta: JSON.t,
   ~onTitleUpdated: option<(string, string) => unit>=?,
-  ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
+  ~onModelCatalogUpdated: option<array<Types.sessionConfigSelectGroup> => unit>=?,
   ~onBillingStatusUpdated: option<JSON.t => unit>=?,
 ): config => {
   endpoint,
@@ -58,7 +58,7 @@ let makeConfig = (
     _meta: Some(_meta),
   },
   onTitleUpdated,
-  onConfigOptionsUpdated,
+  onModelCatalogUpdated,
   onBillingStatusUpdated,
   clientCapabilities: {
     fs: Some({readTextFile: Some(true), writeTextFile: Some(true)}),
@@ -223,7 +223,7 @@ let connect = async (
           signal->Option.forEach(signal => offAbort(signal, dispose))
           state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
           rejectPendingRequests(state)
-          channel->Channel.off(~event=#config_options_updated)
+          channel->Channel.off(~event=#model_catalog_updated)
           channel->Channel.off(~event=#billing_status_updated)
           cleanupChannel(channel)
           Socket.disconnect(socket)
@@ -261,13 +261,13 @@ let connect = async (
         }
       })
       Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
-      config.onConfigOptionsUpdated->Option.forEach(callback =>
+      config.onModelCatalogUpdated->Option.forEach(callback =>
         channel->Channel.on(
-          ~event=#config_options_updated,
+          ~event=#model_catalog_updated,
           ~callback=payload => {
-            switch payload->Decoders.parseSchema(Types.configOptionsUpdatedSchema) {
-            | Ok({configOptions}) => callback(configOptions)
-            | Error(e) => Log.error(`Failed to parse config_options_updated payload: ${e}`)
+            switch payload->Decoders.parseSchema(S.array(Types.sessionConfigSelectGroupSchema)) {
+            | Ok(groups) => callback(groups)
+            | Error(e) => Log.error(`Failed to parse model_catalog_updated payload: ${e}`)
             }
           },
         )
@@ -435,6 +435,7 @@ let createSession = async (
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
+  ~modelPreference: option<string>=?,
 ): result<(session, Types.sessionNewResult), requestError> => {
   Sentry.addBreadcrumb(~category=#session, ~message=`Creating new session with id: ${sessionId}`)
 
@@ -442,6 +443,7 @@ let createSession = async (
     ~channel=conn.channel,
     ~state=conn.state,
     ~sessionId,
+    ~modelPreference?,
   )
 
   switch sessionNewResult {
@@ -494,6 +496,19 @@ let sendPrompt = async (
     ~sessionId=session.sessionId,
     ~prompt=allBlocks,
     ~_meta,
+  )
+}
+
+let setConfigOption = (session: session, ~configId: string, ~value: string): promise<
+  result<Types.configOptionsUpdated, requestError>,
+> => {
+  let params: Types.setConfigOptionParams = {sessionId: session.sessionId, configId, value}
+  Protocol.sendRequest(
+    ~channel=session.channel,
+    ~state=session.connection.state,
+    ~method=#"session/set_config_option",
+    ~params=Some(params->S.decodeOrThrow(~from=Types.setConfigOptionParamsSchema, ~to=S.json)),
+    ~parseResult=json => Decoders.parseSchema(json, Types.configOptionsUpdatedSchema),
   )
 }
 

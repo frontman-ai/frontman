@@ -18,41 +18,26 @@ module ModelSelector = {
 
   let optionClassName = "text-xs text-zinc-200 focus:bg-zinc-700 focus:text-white data-highlighted:bg-zinc-700 data-highlighted:text-white"
 
-  let _getSelectedDisplay = (configOption: ACP.sessionConfigOption, selectedValue: string): option<
-    string,
-  > => {
-    switch configOption {
-    | ACP.SelectConfigOption({options}) =>
-      switch options {
-      | ACP.Grouped(groups) =>
-        groups->Array.findMap(group =>
-          group.options->Array.findMap(opt =>
-            switch opt.value == selectedValue {
-            | true => Some(opt.name)
-            | false => None
-            }
-          )
-        )
-      | ACP.Ungrouped(opts) =>
-        opts->Array.findMap(opt =>
-          switch opt.value == selectedValue {
-          | true => Some(opt.name)
-          | false => None
-          }
-        )
-      }
+  let values = options =>
+    switch options {
+    | ACP.Grouped(groups) => groups->Array.flatMap(group => group.options)
+    | ACP.Ungrouped(options) => options
     }
-  }
+
+  let _getSelectedDisplay = (options, selectedValue) =>
+    values(options)
+    ->Array.find(option => option.value == selectedValue)
+    ->Option.map(option => option.name)
 
   @react.component
   let make = (
-    ~configOption: ACP.sessionConfigOption,
+    ~options: ACP.sessionConfigSelectOptions,
     ~selectedValue: string,
     ~onModelChange: string => unit,
   ) => {
     let selectedDisplay = React.useMemo2(
-      () => _getSelectedDisplay(configOption, selectedValue),
-      (configOption, selectedValue),
+      () => _getSelectedDisplay(options, selectedValue),
+      (options, selectedValue),
     )
 
     <Select value={selectedValue} onValueChange={(value, _) => onModelChange(value)}>
@@ -77,29 +62,15 @@ module ModelSelector = {
                    bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl
                    animate-in fade-in-0 zoom-in-95"
       >
-        {switch configOption {
-        | ACP.SelectConfigOption({options}) =>
-          switch options {
-          | ACP.Grouped(groups) =>
-            groups
-            ->Array.map(group => {
-              <Select.Group key={group.group}>
-                <Select.Label className="px-2 py-1.5 text-xs font-medium text-zinc-400">
-                  {React.string(group.name)}
-                </Select.Label>
-                {group.options
-                ->Array.map(opt => {
-                  <Select.Item key={opt.value} value={opt.value} className=optionClassName>
-                    {React.string(opt.name)}
-                  </Select.Item>
-                })
-                ->React.array}
-              </Select.Group>
-            })
-            ->React.array
-          | ACP.Ungrouped(opts) =>
-            <Select.Group>
-              {opts
+        {switch options {
+        | ACP.Grouped(groups) =>
+          groups
+          ->Array.map(group => {
+            <Select.Group key={group.group}>
+              <Select.Label className="px-2 py-1.5 text-xs font-medium text-zinc-400">
+                {React.string(group.name)}
+              </Select.Label>
+              {group.options
               ->Array.map(opt => {
                 <Select.Item key={opt.value} value={opt.value} className=optionClassName>
                   {React.string(opt.name)}
@@ -107,7 +78,18 @@ module ModelSelector = {
               })
               ->React.array}
             </Select.Group>
-          }
+          })
+          ->React.array
+        | ACP.Ungrouped(opts) =>
+          <Select.Group>
+            {opts
+            ->Array.map(opt => {
+              <Select.Item key={opt.value} value={opt.value} className=optionClassName>
+                {React.string(opt.name)}
+              </Select.Item>
+            })
+            ->React.array}
+          </Select.Group>
         }}
       </Select.Content>
     </Select>
@@ -295,7 +277,7 @@ module SubmitButton = {
 let make = (
   ~onSubmit: (~text: string, ~inputItems: array<inputItem>) => promise<result<unit, string>>,
   ~onCancel: unit => unit,
-  ~modelConfigOption: option<ACP.sessionConfigOption>,
+  ~modelOptions: option<ACP.sessionConfigSelectOptions>,
   ~isModelsConfigLoading: bool,
   ~selectedModelValue: option<ACP.sessionConfigValueId>,
   ~onModelChange: string => unit,
@@ -326,9 +308,8 @@ let make = (
   let (showToolbarLabels, setShowToolbarLabels) = React.useState(() => true)
   let formRef = React.useRef(Nullable.null)
   let hasModelOptions =
-    modelConfigOption->Option.flatMap(ACP.sessionConfigOptionFirstOption)->Option.isSome
-  let noModelsConfigured =
-    !isModelsConfigLoading && modelConfigOption->Option.isSome && !hasModelOptions
+    modelOptions->Option.mapOr(false, options => ModelSelector.values(options)->Array.length > 0)
+  let noModelsConfigured = !isModelsConfigLoading && modelOptions->Option.isSome && !hasModelOptions
   let hasAgentSelector = switch (agentCatalog, selectedAgentId) {
   | (Some(agents), Some(_)) => agents->Array.length > 0
   | _ => false
@@ -510,7 +491,7 @@ let make = (
             | _ => React.null
             }}
 
-            {switch (isModelsConfigLoading, modelConfigOption) {
+            {switch (isModelsConfigLoading, modelOptions) {
             | (true, _) =>
               <div className="inline-flex h-9 min-w-0 items-center gap-1 px-2 text-xs">
                 <span className="shrink-0 text-zinc-500"> {React.string("Model")} </span>
@@ -529,10 +510,10 @@ let make = (
                 <span className="shrink-0 text-zinc-600"> {React.string("\u{B7}")} </span>
                 <span className="truncate"> {React.string("Configure provider")} </span>
               </button>
-            | (false, Some(configOption)) =>
+            | (false, Some(options)) =>
               <div className="min-w-0 overflow-hidden">
                 <ModelSelector
-                  configOption selectedValue={selectedModelValue->Option.getOr("")} onModelChange
+                  options selectedValue={selectedModelValue->Option.getOr("")} onModelChange
                 />
               </div>
             | (false, None) => React.null

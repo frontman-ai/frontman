@@ -345,14 +345,6 @@ type sessionConfigOption =
       _meta: option<JSON.t>,
     })
 
-let sessionConfigOptionFirstOption = (configOption: sessionConfigOption) => {
-  switch configOption {
-  | SelectConfigOption({options: Grouped(groups)}) =>
-    groups->Array.findMap(group => group.options->Array.get(0))
-  | SelectConfigOption({options: Ungrouped(options)}) => options->Array.get(0)
-  }
-}
-
 let sessionConfigOptionSchema = S.union([
   S.object(s => {
     s.tag("type", "select")
@@ -424,11 +416,17 @@ let configOptionsUpdatedSchema = S.object(s => {
   configOptions: s.field("configOptions", S.array(sessionConfigOptionSchema)),
 })
 
-type setConfigOptionResult = {configOptions: array<sessionConfigOption>}
+@schema
+type setConfigOptionParams = {sessionId: string, configId: string, value: string}
 
-let setConfigOptionResultSchema = S.object(s => {
-  configOptions: s.field("configOptions", S.array(sessionConfigOptionSchema)),
+type sessionNewMetadata = {model: string}
+
+let sessionNewMetadataSchema = S.object(s => {
+  model: s.field("frontman.dev/model", nonEmptyStringSchema),
 })
+
+@schema
+type sessionNewParams = {sessionId: string, _meta: option<sessionNewMetadata>}
 
 type toolCallContentItem =
   | Content({content: FrontmanProtocol__ContentBlock.t, _meta: option<JSON.t>})

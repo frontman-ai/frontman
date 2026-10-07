@@ -480,10 +480,10 @@ defmodule FrontmanServer.Providers do
   end
 
   @doc """
-  Returns model selection data for a user, ready for ACP serialization.
+  Returns the available model catalog without a selected model.
 
   Resolves which providers the user can access, then builds model groups.
-  Returns a domain DTO that ACP translates to `SessionConfigOption` wire format.
+  Session selection is separate from this domain DTO.
 
   ## Parameters
 
@@ -540,6 +540,11 @@ defmodule FrontmanServer.Providers do
     groups = groups ++ build_custom_provider_groups(scope)
 
     %{groups: groups}
+  end
+
+  @doc "Checks whether a model is present in an available model catalog."
+  def model_available?(%{groups: groups}, model) do
+    Enum.any?(groups, fn group -> Enum.any?(group.options, &(&1.value == model)) end)
   end
 
   defp build_custom_provider_groups(%Scope{user: %User{id: user_id}}) do

@@ -33,6 +33,29 @@ module Task = {
     orientation: Client__DeviceMode.orientation,
   }
 
+  type data = {
+    id: string,
+    clientId: option<string>,
+    title: string,
+    createdAt: float,
+    updatedAt: float,
+    messages: Client__MessageStore.t,
+    previewFrame: previewFrame,
+    annotationMode: Annotation.annotationMode,
+    annotations: array<Annotation.t>,
+    activePopupAnnotationId: option<string>,
+    isAgentRunning: bool,
+    lastTurnCancelled: bool,
+    planEntries: array<ACPTypes.planEntry>,
+    queuedUserMessages: array<Message.t>,
+    pendingUserMessageIds: array<string>,
+    turnError: option<turnErrorInfo>,
+    retryStatus: option<retryStatus>,
+    imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
+    pendingQuestion: option<Client__Question__Types.pendingQuestion>,
+    completedFileChanges: Client__FileChanges.snapshot,
+  }
+
   type t =
     | New({
         clientId: string,
@@ -42,40 +65,8 @@ module Task = {
         activePopupAnnotationId: option<string>,
       })
     | Unloaded({id: string, title: string, createdAt: float, updatedAt: float})
-    | Loading({
-        id: string,
-        title: string,
-        createdAt: float,
-        updatedAt: float,
-        messages: Client__MessageStore.t,
-        previewFrame: previewFrame,
-        annotationMode: Annotation.annotationMode,
-        annotations: array<Annotation.t>,
-        activePopupAnnotationId: option<string>,
-        isAgentRunning: bool,
-      })
-    | Loaded({
-        id: string,
-        clientId: option<string>,
-        title: string,
-        createdAt: float,
-        updatedAt: float,
-        messages: Client__MessageStore.t,
-        previewFrame: previewFrame,
-        annotationMode: Annotation.annotationMode,
-        annotations: array<Annotation.t>,
-        activePopupAnnotationId: option<string>,
-        isAgentRunning: bool,
-        lastTurnCancelled: bool,
-        planEntries: array<ACPTypes.planEntry>,
-        queuedUserMessages: array<Message.t>,
-        pendingUserMessageIds: array<string>,
-        turnError: option<turnErrorInfo>,
-        retryStatus: option<retryStatus>,
-        imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
-        pendingQuestion: option<Client__Question__Types.pendingQuestion>,
-        completedFileChanges: Client__FileChanges.snapshot,
-      })
+    | Loading(data)
+    | Loaded(data)
 
   type currentTask =
     | New(t)
@@ -100,7 +91,7 @@ module Task = {
   let getClientId = (task: t): string =>
     switch task {
     | New({clientId}) => clientId
-    | Loaded({clientId: Some(clientId)}) => clientId
+    | Loading({clientId: Some(clientId)}) | Loaded({clientId: Some(clientId)}) => clientId
     | Unloaded({id}) | Loading({id}) | Loaded({id}) => id
     }
 
@@ -122,16 +113,18 @@ module Task = {
     | Loading({messages}) | Loaded({messages}) => Client__MessageStore.toArray(messages)
     }
 
+  let defaultPreviewFrame = (url): previewFrame => {
+    url,
+    contentDocument: None,
+    contentWindow: None,
+    deviceMode: Client__DeviceMode.defaultDeviceMode,
+    orientation: Client__DeviceMode.defaultOrientation,
+  }
+
   let getPreviewFrame = (task: t, ~defaultUrl: string): previewFrame =>
     switch task {
     | New({previewFrame}) => previewFrame
-    | Unloaded(_) => {
-        url: defaultUrl,
-        contentDocument: None,
-        contentWindow: None,
-        deviceMode: Client__DeviceMode.defaultDeviceMode,
-        orientation: Client__DeviceMode.defaultOrientation,
-      }
+    | Unloaded(_) => defaultPreviewFrame(defaultUrl)
     | Loading({previewFrame}) | Loaded({previewFrame}) => previewFrame
     }
 
@@ -159,17 +152,13 @@ module Task = {
 
   let getImageAttachments = (task: t): Dict.t<Client__Message.fileAttachmentData> =>
     switch task {
-    | Loaded({imageAttachments}) => imageAttachments
-    | New(_) | Unloaded(_) | Loading(_) => Dict.make()
+    | Loading({imageAttachments}) | Loaded({imageAttachments}) => imageAttachments
+    | New(_) | Unloaded(_) => Dict.make()
     }
 
   let getCompletedFileChanges = (task: t): Client__FileChanges.snapshot =>
     switch task {
-    | Loaded(_) =>
-      task
-      ->FrontmanBindings.Bindings__Object.completedFileChanges
-      ->Nullable.toOption
-      ->Option.getOr(Client__FileChanges.empty)
+    | Loaded({completedFileChanges}) => completedFileChanges
     | New(_) | Unloaded(_) | Loading(_) => Client__FileChanges.empty
     }
 
@@ -218,13 +207,7 @@ module Task = {
   let makeNew = (~previewUrl: string): t => {
     New({
       clientId: WebAPI.Window.current->WebAPI.Window.crypto->WebAPI.Crypto.randomUUID,
-      previewFrame: {
-        url: previewUrl,
-        contentDocument: None,
-        contentWindow: None,
-        deviceMode: Client__DeviceMode.defaultDeviceMode,
-        orientation: Client__DeviceMode.defaultOrientation,
-      },
+      previewFrame: defaultPreviewFrame(previewUrl),
       annotationMode: Annotation.Off,
       annotations: [],
       activePopupAnnotationId: None,
@@ -240,185 +223,67 @@ module Task = {
     })
   }
 
-  let newToLoaded = (task: t, ~id: string, ~title: string): t => {
+  let makeLoaded = (~id, ~title, ~createdAt, ~updatedAt, ~previewFrame): data => {
+    id,
+    clientId: None,
+    title: normalizeTitle(title),
+    createdAt,
+    updatedAt,
+    messages: Client__MessageStore.make(),
+    previewFrame,
+    annotationMode: Annotation.Off,
+    annotations: [],
+    activePopupAnnotationId: None,
+    isAgentRunning: false,
+    lastTurnCancelled: false,
+    planEntries: [],
+    queuedUserMessages: [],
+    pendingUserMessageIds: [],
+    turnError: None,
+    retryStatus: None,
+    imageAttachments: Dict.make(),
+    pendingQuestion: None,
+    completedFileChanges: Client__FileChanges.empty,
+  }
+
+  let newToLoaded = (task: t, ~id: string, ~title: string): t =>
     switch task {
     | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) =>
       let timestamp = Date.now()
       Loaded({
-        id,
+        ...makeLoaded(~id, ~title, ~createdAt=timestamp, ~updatedAt=timestamp, ~previewFrame),
         clientId: Some(clientId),
-        title: normalizeTitle(title),
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        messages: Client__MessageStore.make(),
-        previewFrame,
         annotationMode,
         annotations,
         activePopupAnnotationId,
-        isAgentRunning: false,
-        lastTurnCancelled: false,
-        planEntries: [],
-        queuedUserMessages: [],
-        pendingUserMessageIds: [],
-        turnError: None,
-        retryStatus: None,
-        imageAttachments: Dict.make(),
-        pendingQuestion: None,
-        completedFileChanges: Client__FileChanges.empty,
       })
     | Unloaded(_) | Loading(_) | Loaded(_) =>
       failwith("[Task.newToLoaded] Can only transition from New state")
     }
-  }
 
-  type loadedData = {
-    messages: array<Message.t>,
-    annotationMode: Annotation.annotationMode,
-    annotations: array<Annotation.t>,
-    activePopupAnnotationId: option<string>,
-    isAgentRunning: bool,
-    lastTurnCancelled: bool,
-    planEntries: array<ACPTypes.planEntry>,
-    queuedUserMessages: array<Message.t>,
-    pendingUserMessageIds: array<string>,
-    turnError: option<turnErrorInfo>,
-    pendingQuestion: option<Client__Question__Types.pendingQuestion>,
-  }
-
-  let makeWithId = (
-    ~id: string,
-    ~title: string,
-    ~previewUrl: string,
-    ~createdAt: float,
-    ~updatedAt: float,
-  ): t => {
-    let _ = previewUrl
-    makeUnloaded(~id, ~title, ~createdAt, ~updatedAt)
-  }
-
-  let updateLoadedData = (task: t, fn: loadedData => loadedData): t => {
+  let updateLoadedData = (task: t, fn: data => data): t => {
     switch task {
-    | Loaded({
-        id,
-        clientId,
-        title,
-        createdAt,
-        updatedAt,
-        messages,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAgentRunning,
-        lastTurnCancelled,
-        planEntries,
-        queuedUserMessages,
-        pendingUserMessageIds,
-        turnError,
-        retryStatus,
-        imageAttachments,
-        pendingQuestion,
-        completedFileChanges,
-      }) => {
-        let data = {
-          messages: Client__MessageStore.toArray(messages),
-          annotationMode,
-          annotations,
-          activePopupAnnotationId,
-          isAgentRunning,
-          lastTurnCancelled,
-          planEntries,
-          queuedUserMessages,
-          pendingUserMessageIds,
-          turnError,
-          pendingQuestion,
-        }
-        let updated = fn(data)
-        Loaded({
-          id,
-          clientId,
-          title,
-          createdAt,
-          updatedAt,
-          messages: Client__MessageStore.fromArray(updated.messages),
-          previewFrame,
-          annotationMode: updated.annotationMode,
-          annotations: updated.annotations,
-          activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAgentRunning: updated.isAgentRunning,
-          lastTurnCancelled: updated.lastTurnCancelled,
-          planEntries: updated.planEntries,
-          queuedUserMessages: updated.queuedUserMessages,
-          pendingUserMessageIds: updated.pendingUserMessageIds,
-          turnError: updated.turnError,
-          retryStatus,
-          imageAttachments,
-          pendingQuestion: updated.pendingQuestion,
-          completedFileChanges,
-        })
-      }
-    | Loading({
-        id,
-        title,
-        createdAt,
-        updatedAt,
-        messages,
-        previewFrame,
-        annotationMode,
-        annotations,
-        activePopupAnnotationId,
-        isAgentRunning,
-      }) => {
-        let data = {
-          messages: Client__MessageStore.toArray(messages),
-          annotationMode,
-          annotations,
-          activePopupAnnotationId,
-          isAgentRunning,
-          lastTurnCancelled: false,
-          planEntries: [],
-          queuedUserMessages: [],
-          pendingUserMessageIds: [],
-          turnError: None,
-          pendingQuestion: None,
-        }
-        let updated = fn(data)
-        Loading({
-          id,
-          title,
-          createdAt,
-          updatedAt,
-          messages: Client__MessageStore.fromArray(updated.messages),
-          previewFrame,
-          annotationMode: updated.annotationMode,
-          annotations: updated.annotations,
-          activePopupAnnotationId: updated.activePopupAnnotationId,
-          isAgentRunning: updated.isAgentRunning,
-        })
-      }
-    | New({clientId, previewFrame, annotationMode, annotations, activePopupAnnotationId}) => {
-        let data = {
-          messages: [],
-          annotationMode,
-          annotations,
-          activePopupAnnotationId,
-          isAgentRunning: false,
-          lastTurnCancelled: false,
-          planEntries: [],
-          queuedUserMessages: [],
-          pendingUserMessageIds: [],
-          turnError: None,
-          pendingQuestion: None,
-        }
-        let updated = fn(data)
-        New({
-          clientId,
-          previewFrame,
-          annotationMode: updated.annotationMode,
-          annotations: updated.annotations,
-          activePopupAnnotationId: updated.activePopupAnnotationId,
-        })
-      }
+    | Loaded(data) => Loaded(fn(data))
+    | Loading(data) => Loading(fn(data))
+    | New(data) =>
+      let updated = fn({
+        ...makeLoaded(
+          ~id=data.clientId,
+          ~title="",
+          ~createdAt=0.,
+          ~updatedAt=0.,
+          ~previewFrame=data.previewFrame,
+        ),
+        annotationMode: data.annotationMode,
+        annotations: data.annotations,
+        activePopupAnnotationId: data.activePopupAnnotationId,
+      })
+      New({
+        ...data,
+        annotationMode: updated.annotationMode,
+        annotations: updated.annotations,
+        activePopupAnnotationId: updated.activePopupAnnotationId,
+      })
     | Unloaded(_) => task
     }
   }

@@ -57,7 +57,6 @@ defmodule FrontmanServerWeb.TaskChannel do
         socket
         |> assign(:task_id, task_id)
         |> assign(:framework, task.framework)
-        |> assign(:current_model, task.current_model)
         |> assign(:mcp_init_state, init_state)
         |> assign(:mcp_init_timeout_ref, nil)
         |> assign(:mcp_init_timeout_token, nil)
@@ -237,16 +236,23 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  def handle_info(:config_options_changed, socket) do
-    config_options = current_config_options(socket, socket.assigns[:current_model])
+  def handle_info(event, socket) when event in [:config_options_changed, :model_changed] do
+    case Tasks.get_task(socket.assigns.scope, socket.assigns.task_id) do
+      {:ok, task} ->
+        push(
+          socket,
+          @acp_message,
+          ACP.build_config_option_update_notification(
+            task.id,
+            current_config_options(socket, task)
+          )
+        )
 
-    push(
-      socket,
-      @acp_message,
-      ACP.build_config_option_update_notification(socket.assigns.task_id, config_options)
-    )
+        {:noreply, socket}
 
-    {:noreply, socket}
+      {:error, :not_found} ->
+        {:stop, :normal, socket}
+    end
   end
 
   def handle_info(msg, _socket) do
@@ -684,7 +690,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           @acp_message,
           JsonRpc.success_response(
             id,
-            ACP.build_session_load_result(current_config_options(socket, task.current_model))
+            ACP.build_session_load_result(current_config_options(socket, task))
           )
         )
 
@@ -715,26 +721,23 @@ defmodule FrontmanServerWeb.TaskChannel do
          %{assigns: %{task_id: task_id}} = socket
        )
        when is_binary(value) do
-    case model_value_valid?(socket, value) do
-      true ->
-        {:ok, _task} = Tasks.set_current_model(socket.assigns.scope, task_id, value)
-        config_options = current_config_options(socket, value)
-
-        push(
-          socket,
-          @acp_message,
-          ACP.build_config_option_update_notification(task_id, config_options)
-        )
-
+    case Tasks.set_current_model(socket.assigns.scope, task_id, value) do
+      {:ok, task} ->
         {:reply,
          {:ok,
           %{
             @acp_message =>
-              JsonRpc.success_response(id, ACP.build_set_config_option_result(config_options))
-          }}, assign(socket, :current_model, value)}
+              JsonRpc.success_response(
+                id,
+                ACP.build_session_load_result(current_config_options(socket, task))
+              )
+          }}, socket}
 
-      false ->
-        reply_invalid_params(socket, id, "Unknown model")
+      {:error, :not_found} ->
+        reply_invalid_params(socket, id, "Session not found")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        reply_invalid_params(socket, id, changeset)
     end
   end
 
@@ -751,13 +754,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
-    case selected_model(socket, meta) do
+    case selected_model(meta) do
       {:ok, model} ->
-        Logger.info("process_prompt", %{task_id: task_id, model: model})
-
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
-             {:ok, _task} <- Tasks.set_current_model(scope, task_id, model),
              {:ok, _row} <-
                Tasks.submit_user_message(
                  scope,
@@ -770,7 +770,6 @@ defmodule FrontmanServerWeb.TaskChannel do
                    selected_server_skill_id: meta["selectedServerSkillId"]
                  }
                ) do
-          socket = assign(socket, :current_model, model)
           wake_runner(socket, meta)
 
           Logger.info("User message accepted for task #{task_id}")
@@ -805,7 +804,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         end
 
       :error ->
-        reply_invalid_params(socket, id, "No model is available")
+        reply_invalid_params(socket, id, "Invalid model selection")
     end
   end
 
@@ -1057,49 +1056,23 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp wake_runner(_socket, _meta), do: :ok
 
   defp execution_context(socket, meta) do
-    model =
-      case selected_model(socket, meta || %{}) do
-        {:ok, model} -> model
-        :error -> nil
-      end
-
     %{
-      model: model,
       mcp_tools: socket.assigns.mcp_tools,
       project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
     }
   end
 
-  defp selected_model(socket, %{"model" => model_ref}) do
-    case parse_client_model(model_ref) do
-      {:ok, model} -> {:ok, model}
-      :error -> current_model(socket)
+  defp selected_model(meta) do
+    case Map.fetch(meta, "model") do
+      {:ok, model} -> parse_client_model(model)
+      :error -> {:ok, :session}
     end
   end
 
-  defp selected_model(socket, _meta), do: current_model(socket)
+  defp current_config_options(socket, task) do
+    catalog = Providers.available_models(socket.assigns.scope)
 
-  defp current_model(%{assigns: %{current_model: model}}) when is_binary(model) and model != "",
-    do: {:ok, model}
-
-  defp current_model(socket) do
-    case current_config_options(socket, nil) do
-      [%{"currentValue" => model} | _rest] -> {:ok, model}
-      [] -> :error
-    end
-  end
-
-  defp current_config_options(socket, current_model) do
-    socket.assigns.scope
-    |> Providers.available_models()
-    |> ACP.build_model_config_options(current_model)
-  end
-
-  defp model_value_valid?(socket, model) do
-    case current_config_options(socket, model) do
-      [%{"currentValue" => ^model} | _rest] -> true
-      _missing -> false
-    end
+    ACP.build_model_config_options(catalog, task.current_model)
   end
 
   defp parse_client_model(%{"provider" => "custom", "value" => value}) do

@@ -369,23 +369,32 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert response["error"]["message"] =~ "Method not found"
     end
 
-    test "uses the session model without legacy prompt metadata", %{
+    test "selects the session model, rejects invalid selections, and handles deletion", %{
       socket: socket,
       scope: scope,
       task_id: task_id
     } do
       model = "openrouter:google/gemini-3.1-pro-preview"
 
-      config_ref =
+      select = fn value ->
         push(
           socket,
           "acp:message",
           build_acp_request("session/set_config_option", 2, %{
             "sessionId" => task_id,
             "configId" => "model",
-            "value" => model
+            "value" => value
           })
         )
+      end
+
+      for invalid <- ["", "missing:model"] do
+        assert_reply(select.(invalid), :ok, %{"acp:message" => %{"error" => %{"code" => -32_602}}})
+      end
+
+      assert_reply(select.(model), :ok, %{
+        "acp:message" => %{"result" => %{"configOptions" => [%{"currentValue" => ^model}]}}
+      })
 
       assert_push("acp:message", %{
         "params" => %{
@@ -397,21 +406,9 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       })
 
-      assert_reply(config_ref, :ok, %{
-        "acp:message" => %{"result" => %{"configOptions" => [%{"currentValue" => ^model}]}}
-      })
-
       message_id = Ecto.UUID.generate()
-
-      prompt_ref =
-        push(
-          socket,
-          "acp:message",
-          build_acp_request("session/prompt", 3, %{
-            "prompt" => [%{"type" => "text", "text" => "Hello"}],
-            "_meta" => %{"frontman.dev/messageId" => message_id}
-          })
-        )
+      ref = push(socket, "acp:message", build_prompt_request(message_id: message_id, _meta: %{}))
+      assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
 
       assert_push("acp:message", %{
         "params" => %{
@@ -420,9 +417,98 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         }
       })
 
-      assert_reply(prompt_ref, :ok, %{"acp:message" => %{"result" => %{}}})
       assert {:ok, %{current_model: ^model} = task} = Tasks.get_task_with_history(scope, task_id)
       assert [%Interaction.UserMessage{model: ^model}] = Tasks.interactions(task)
+      :ok = Tasks.delete_task(scope, task_id)
+
+      assert_reply(select.(model), :ok, %{
+        "acp:message" => %{"error" => %{"code" => -32_602, "message" => "Session not found"}}
+      })
+    end
+
+    test "rejects explicit invalid models and skills without changing selection", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
+      {:ok, original} = Tasks.get_task(scope, task_id)
+
+      for meta <- [
+            %{"model" => nil},
+            %{"model" => 42},
+            %{"model" => %{}},
+            %{"model" => "missing:model"},
+            %{"model" => "openrouter:openai/gpt-5.5", "selectedServerSkillId" => "missing"}
+          ] do
+        ref = push(socket, "acp:message", build_prompt_request(_meta: meta))
+        assert_reply(ref, :ok, %{"acp:message" => %{"error" => %{"code" => -32_602}}})
+        assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+        assert task.current_model == original.current_model
+        assert Tasks.interactions(task) == []
+      end
+
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "config_option_update"}}
+      })
+    end
+
+    test "custom compatibility rejects removed selections without replacing them", %{
+      socket: socket,
+      scope: scope,
+      task_id: task_id
+    } do
+      alias FrontmanServer.Providers
+
+      {:ok, provider} =
+        Providers.create_custom_provider(scope, %{
+          "name" => "Local",
+          "base_url" => "https://93.184.216.34/v1",
+          "models" => ["custom-model"]
+        })
+
+      model = "custom:#{provider.id}:custom-model"
+      {:ok, _task} = Tasks.set_current_model(scope, task_id, model)
+
+      for legacy <- [model, %{"provider" => "custom", "value" => model}] do
+        ref = push(socket, "acp:message", build_prompt_request(_meta: %{"model" => legacy}))
+        assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
+      end
+
+      collect_all_pushes()
+      :ok = Providers.delete_custom_provider(scope, provider.id, provider.lock_version)
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "config_option_update",
+            "configOptions" => [%{"currentValue" => ^model, "options" => options}]
+          }
+        }
+      })
+
+      refute Enum.any?(options, &(&1["group"] == "custom:#{provider.id}"))
+
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "error"}}
+      })
+
+      {:ok, before} = Tasks.get_task_with_history(scope, task_id)
+      ref = push(socket, "acp:message", build_prompt_request(_meta: %{}))
+      assert_reply(ref, :ok, %{"acp:message" => %{"error" => %{"code" => -32_602}}})
+      assert {:ok, after_task} = Tasks.get_task_with_history(scope, task_id)
+      assert after_task.current_model == model
+      assert after_task.interaction_rows == before.interaction_rows
+
+      push(socket, "acp:message", build_acp_request("session/load", 6, %{"sessionId" => task_id}))
+
+      assert_push("acp:message", %{
+        "id" => 6,
+        "result" => %{"configOptions" => [%{"currentValue" => ^model}]}
+      })
+
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "config_option_update"}}
+      })
     end
 
     test "forwards prompt model to title generation job", %{
@@ -611,6 +697,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     end
 
     test "rejects changeset errors without accepting a prompt", context do
+      {:ok, original} = Tasks.get_task(context.scope, context.task_id)
       pdf = %{"mimeType" => "application/pdf", "blob" => "AAAA"}
       annotation = %{"annotation" => true, "annotation_id" => "ann-1", "annotation_index" => 0}
 
@@ -640,6 +727,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       end
 
       assert {:ok, task} = Tasks.get_task_with_history(context.scope, context.task_id)
+      assert task.current_model == original.current_model
       assert Tasks.interactions(task) == []
       assert all_enqueued(worker: GenerateTitle) == []
       refute_push("acp:message", %{"params" => %{"update" => %{"state" => "running"}}}, 100)
@@ -668,6 +756,8 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         scope: scope,
         task_id: task_id
       } do
+        {:ok, original} = Tasks.get_task(scope, task_id)
+
         meta = %{
           "model" => %{"provider" => "openrouter", "value" => "google/gemini-3.1-pro-preview"},
           "agent" => "test-frontman"
@@ -694,6 +784,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         assert response["error"]["message"] == unquote(expected_message)
 
         assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
+        assert task.current_model == original.current_model
         assert Tasks.interactions(task) == []
         assert all_enqueued(worker: GenerateTitle) == []
 
@@ -833,7 +924,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       scope: scope
     } do
       task_id = Ecto.UUID.generate()
-      {:ok, _task} = Tasks.create_task(scope, %{id: task_id, framework: "nextjs"})
+
+      {:ok, _task} =
+        Tasks.create_task(scope, %{
+          id: task_id,
+          framework: "nextjs",
+          current_model: @persisted_restart_model
+        })
 
       {:ok, _reply, socket} =
         UserSocket
@@ -1588,16 +1685,20 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "pushes history before a standard load result", %{scope: scope} do
+    test "load replays unselected history and the picker repairs it", %{scope: scope} do
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
-      {:ok, _message} = user_message_fixture(scope, task.id, user_content("history"))
+      model = "openrouter:google/gemini-3.1-pro-preview"
+      {:ok, _message} = user_message_fixture(scope, task.id, user_content("history"), model)
+      {:ok, _completed} = Tasks.record_execution_outcome(scope, task.id, 1, :completed)
 
-      {:ok, _reply, socket} =
+      {1, _} =
+        FrontmanServer.Repo.update_all(Tasks.TaskSchema.by_id(task.id), set: [current_model: nil])
+
+      {:ok, _, socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task.id}", %{})
-
-      collect_all_pushes()
 
       push(
         socket,
@@ -1605,27 +1706,46 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         build_acp_request("session/load", 90, %{"sessionId" => task.id})
       )
 
-      :sys.get_state(socket.channel_pid)
+      assert_push("acp:message", %{"id" => 90, "result" => %{"configOptions" => []}})
 
-      messages =
-        collect_all_pushes()
-        |> Enum.filter(fn {event, _payload} -> event == "acp:message" end)
-        |> Enum.map(&elem(&1, 1))
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "user_message_chunk",
+            "content" => %{"text" => "history"}
+          }
+        }
+      })
 
-      assert [
-               %{
-                 "method" => "session/update",
-                 "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
-               },
-               %{
-                 "id" => 90,
-                 "result" => %{"configOptions" => _config_options}
-               },
-               %{
-                 "method" => "session/update",
-                 "params" => %{"update" => %{"sessionUpdate" => "plan", "entries" => []}}
-               }
-             ] = messages
+      assert {:ok, %{current_model: nil}} = Tasks.get_task(scope, task.id)
+      ref = push(socket, "acp:message", build_prompt_request(_meta: %{}))
+      assert_reply(ref, :ok, %{"acp:message" => %{"error" => %{"code" => -32_602}}})
+
+      ref =
+        push(
+          socket,
+          "acp:message",
+          build_acp_request("session/set_config_option", 92, %{
+            "sessionId" => task.id,
+            "configId" => "model",
+            "value" => model
+          })
+        )
+
+      assert_reply(ref, :ok, %{
+        "acp:message" => %{"result" => %{"configOptions" => [%{"currentValue" => ^model}]}}
+      })
+
+      assert_push("acp:message", %{
+        "params" => %{
+          "update" => %{
+            "sessionUpdate" => "config_option_update",
+            "configOptions" => [%{"currentValue" => ^model}]
+          }
+        }
+      })
+
+      assert {:ok, %{current_model: ^model}} = Tasks.get_task(scope, task.id)
     end
 
     test "restores current todo plan after the load result", %{scope: scope} do
@@ -1734,6 +1854,17 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           model: "openrouter:google/gemini-3.1-pro-preview",
           agent_id: "test-frontman"
         })
+
+      assert_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
+      })
+
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "config_option_update"}}
+      })
+
+      assert {:ok, updated} = Tasks.get_task(scope, task.id)
+      assert updated.current_model == task.current_model
 
       push(
         socket,

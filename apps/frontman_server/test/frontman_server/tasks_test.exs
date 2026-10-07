@@ -18,6 +18,7 @@ defmodule FrontmanServer.TasksTest do
   }
 
   alias FrontmanServer.Protocols.MCP
+  alias FrontmanServer.Providers.OAuthToken
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.Interaction
   alias FrontmanServer.Tasks.InteractionSchema
@@ -36,7 +37,11 @@ defmodule FrontmanServer.TasksTest do
       framework = "nextjs"
 
       {:ok, %TaskSchema{id: ^task_id}} =
-        Tasks.create_task(scope, %{id: task_id, framework: framework})
+        Tasks.create_task(scope, %{
+          id: task_id,
+          framework: framework,
+          current_model: "openrouter:openai/gpt-5.5"
+        })
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.id == task_id
@@ -49,21 +54,59 @@ defmodule FrontmanServer.TasksTest do
     scope: scope
   } do
     id = Ecto.UUID.generate()
+    attrs = %{id: id, framework: "nextjs", current_model: "openrouter:openai/gpt-5.5"}
 
-    results =
-      Task.async_stream(1..2, fn _ ->
-        Tasks.ensure_session(scope, %{id: id, framework: "nextjs"})
-      end)
-
+    results = Task.async_stream(1..2, fn _ -> Tasks.ensure_session(scope, attrs) end)
     Enum.each(results, fn {:ok, result} -> assert {:ok, %TaskSchema{id: ^id}} = result end)
-    assert {:error, _} = Tasks.create_task(scope, %{id: id, framework: "nextjs"})
-    assert {:error, _} = Tasks.ensure_session(scope, %{id: id, framework: "invalid"})
-
-    assert {:error, :not_found} =
-             Tasks.ensure_session(user_scope_fixture(), %{id: id, framework: "vite"})
+    assert {:error, _} = Tasks.create_task(scope, attrs)
+    assert {:error, _} = Tasks.ensure_session(scope, %{attrs | framework: "invalid"})
+    assert {:error, :not_found} = Tasks.ensure_session(user_scope_fixture(), attrs)
 
     assert Repo.aggregate(TaskSchema.by_id(id), :count, :id) == 1
     assert {:ok, %{framework: :nextjs}} = Tasks.get_task(scope, id)
+  end
+
+  describe "model validation" do
+    test "rejects invalid models on creation and selection without writing", %{scope: scope} do
+      task = task_fixture(scope)
+      attrs = %{id: Ecto.UUID.generate(), framework: "nextjs"}
+
+      for model <- [nil, "", "missing:model", 42] do
+        assert {:error, creation} =
+                 Tasks.ensure_session(scope, Map.put(attrs, :current_model, model))
+
+        assert {:error, selection} = Tasks.set_current_model(scope, task.id, model)
+        assert %{current_model: [_]} = errors_on(creation)
+        assert %{current_model: [_]} = errors_on(selection)
+      end
+
+      assert {:error, :not_found} = Tasks.get_task(scope, attrs.id)
+      assert {:ok, %{current_model: model}} = Tasks.get_task(scope, task.id)
+      assert model == task.current_model
+    end
+
+    test "model selection is scoped to the owner", %{scope: scope} do
+      task = task_fixture(scope)
+
+      assert {:error, :not_found} =
+               Tasks.set_current_model(user_scope_fixture(), task.id, task.current_model)
+
+      assert {:error, :not_found} =
+               Tasks.set_current_model(scope, Ecto.UUID.generate(), task.current_model)
+    end
+
+    test "title changes ignore model attributes and support legacy tasks" do
+      for model <- ["openrouter:openai/gpt-5.5", nil] do
+        changeset =
+          TaskSchema.update_changeset(%TaskSchema{current_model: model}, %{
+            short_desc: "Renamed",
+            current_model: "ignored"
+          })
+
+        assert {:ok, %{short_desc: "Renamed", current_model: ^model}} =
+                 Ecto.Changeset.apply_action(changeset, :update)
+      end
+    end
   end
 
   describe "apply_title_suggestion/3" do
@@ -79,9 +122,13 @@ defmodule FrontmanServer.TasksTest do
 
   describe "submit_user_message/2 billing access" do
     for status <- [nil, "canceled", "active"] do
-      test "enforces billing for #{inspect(status)} subscription", %{scope: scope} do
-        status = unquote(status)
-        if status, do: subscription_for_scope_fixture(scope, %{status: status})
+      @tag status: status
+      test "enforces billing for #{inspect(status)}", %{scope: scope, status: status} do
+        case status do
+          nil -> :ok
+          status -> subscription_for_scope_fixture(scope, %{status: status})
+        end
+
         task_id = task_fixture(scope).id
 
         result =
@@ -163,28 +210,80 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "submit_user_message/2" do
-    test "persists an accepted user message without starting a turn", %{scope: scope} do
+    setup {Req.Test, :set_req_test_from_context}
+    setup {Req.Test, :verify_on_exit!}
+
+    test "model rejection preserves refreshed OAuth credentials for a corrected prompt", %{
+      scope: scope
+    } do
       allow_access_for_scope_fixture(scope)
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
 
-      assert {:ok,
-              %InteractionSchema{
-                id: ^message_id,
-                data: %Interaction.UserMessage{id: ^message_id}
-              }} =
+      token =
+        %OAuthToken{user_id: scope.user.id}
+        |> OAuthToken.changeset(%{
+          provider: "anthropic",
+          access_token: "expired-access",
+          refresh_token: "original-refresh",
+          expires_at: DateTime.add(DateTime.utc_now(), -60, :second)
+        })
+        |> Repo.insert!()
+
+      Req.Test.expect(:anthropic_oauth, fn conn ->
+        assert conn.body_params["refresh_token"] == "original-refresh"
+
+        Req.Test.json(conn, %{
+          "access_token" => "refreshed-access",
+          "refresh_token" => "rotated-refresh",
+          "expires_in" => 3600
+        })
+      end)
+
+      prompt = %{
+        task_id: task.id,
+        message_id: message_id,
+        message: user_content("hello"),
+        model: "missing:model",
+        agent_id: "test-frontman"
+      }
+
+      assert {:error, changeset} = Tasks.submit_user_message(scope, prompt)
+      assert errors_on(changeset) == %{current_model: ["is unavailable; select another model"]}
+      assert db_rows(task.id) == []
+
+      assert %OAuthToken{access_token: "refreshed-access", refresh_token: "rotated-refresh"} =
+               Repo.reload!(token)
+
+      assert {:ok, %InteractionSchema{id: ^message_id}} =
+               Tasks.submit_user_message(scope, %{prompt | model: "anthropic:claude-sonnet-4-6"})
+    end
+
+    test "snapshots the session model without starting a turn", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
+      task = task_fixture(scope)
+      message_id = Ecto.UUID.generate()
+
+      assert {:ok, %InteractionSchema{id: ^message_id}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
                  message_id: message_id,
                  message: user_content("hello"),
-                 model: "openrouter:openai/gpt-5.5",
+                 model: :session,
                  agent_id: "test-frontman"
                })
 
-      assert [row] = db_rows(task.id)
-      assert row.type == :user_message
-      assert row.turn_number == nil
-      assert row.data.agent_id == "test-frontman"
+      assert [%{turn_number: nil, data: %{model: model, agent_id: "test-frontman"}} = row] =
+               db_rows(task.id)
+
+      assert row.data.id == message_id
+
+      assert model == task.current_model
+
+      {:ok, _} =
+        Tasks.set_current_model(scope, task.id, "openrouter:google/gemini-3.1-pro-preview")
+
+      assert [^row] = db_rows(task.id)
     end
 
     test "requires agent id", %{scope: scope} do
@@ -202,14 +301,19 @@ defmodule FrontmanServer.TasksTest do
       task = task_fixture(scope)
       start_turn_fixture(scope, task.id, user_content("first"))
 
-      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
+      override = "openrouter:google/gemini-3.1-pro-preview"
+
+      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{model: ^override}}} =
                Tasks.submit_user_message(scope, %{
                  task_id: task.id,
                  message_id: Ecto.UUID.generate(),
                  message: user_content("second"),
-                 model: "openrouter:openai/gpt-5.5",
+                 model: override,
                  agent_id: "test-frontman"
                })
+
+      assert {:ok, updated} = Tasks.get_task(scope, task.id)
+      assert updated.current_model == task.current_model
 
       assert [:user_message, :turn_started, :user_message] =
                task.id
@@ -268,9 +372,13 @@ defmodule FrontmanServer.TasksTest do
                  task_id: task.id,
                  message_id: Ecto.UUID.generate(),
                  message: user_content("hello"),
-                 model: "missing:test",
+                 model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
                })
+
+      providers = Application.fetch_env!(:frontman_server, :providers)
+      on_exit(fn -> Application.put_env(:frontman_server, :providers, providers) end)
+      Application.put_env(:frontman_server, :providers, [])
 
       assert :ok =
                Tasks.execute_next_turn(
@@ -1483,11 +1591,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "record_execution_outcome/4 paused DB round-trip" do
     test "persisted AgentPaused can be loaded back via get_task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-
-      {:ok, %TaskSchema{id: ^task_id}} =
-        Tasks.create_task(scope, %{id: task_id, framework: "nextjs"})
-
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       insert_interaction_row(task_id, :agent_paused, turn_number, %{
@@ -1506,10 +1610,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "to_swarm_messages/1 succeeds when interactions include AgentPaused", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-
-      {:ok, %TaskSchema{id: ^task_id}} =
-        Tasks.create_task(scope, %{id: task_id, framework: "nextjs"})
+      task_id = task_fixture(scope).id
 
       {:ok, _message} =
         user_message_fixture(scope, task_id, [%{"type" => "text", "text" => "Hi"}])
