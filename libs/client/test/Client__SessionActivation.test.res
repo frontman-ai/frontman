@@ -80,10 +80,10 @@ testAsync(
     send(store)
     await wait(() => matches("session/new")->Array.length == 3)
     t->expect(H.sessionId(last("session/new")))->Expect.toBe(id)
-    created(last("session/new"), H.a)
+    created(last("session/new"), H.b)
     await wait(() => matches("session/prompt")->Array.length == 2)
     t->expect(matches("session/set_config_option")->Array.length)->Expect.toBe(0)
-    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(Some(H.a))
+    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(Some(H.b))
     for outcome in 0 to 3 {
       let before = matches("session/set_config_option")->Array.length
       config(store, H.b)
@@ -126,6 +126,7 @@ testAsync(
       ->expect(App.Selectors.selectedModelValue(state(store)))
       ->Expect.toEqual(
         switch outcome {
+        | 0 => selected
         | 1 => Some(H.b)
         | 2 => None
         | _ => Some(H.a)
@@ -178,55 +179,9 @@ testAsync(
 )
 
 testAsync(
-  "legacy session loads before selecting a model and config updates do not stop a turn",
-  async t => {
-    let (store, wire, matches, last, _, configured, _, notify, _) = await H.start()
-    active := Some(store)
-    dispatch(
-      store,
-      SessionsLoadSuccess({
-        sessions: [
-          {
-            sessionId: "legacy",
-            title: "Legacy conversation",
-            createdAt: "2026-01-01T00:00:00Z",
-            updatedAt: "2026-01-01T00:00:00Z",
-          },
-        ],
-      }),
-    )
-    dispatch(store, SwitchTask({taskId: "legacy"}))
-    await wait(() => matches("session/load")->Array.length == 1)
-    let frame = last("session/load")
-    wire.reply(
-      frame,
-      S.decodeOrThrow(
-        {ACP.configOptions: Some([]), modes: None, _meta: None},
-        ~from=ACP.sessionLoadResultSchema,
-        ~to=S.json,
-      ),
-      None,
-    )
-    await wait(() => App.Selectors.getSession(state(store))->Option.isSome)
-    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(None)
-    t->expect(App.Selectors.modelOptions(state(store))->Option.isSome)->Expect.toBe(true)
-    config(store, H.b)
-    await wait(() => matches("session/set_config_option")->Array.length == 1)
-    configured(last("session/set_config_option"), H.b)
-    await wait(() => !App.Selectors.isSubmitting(state(store)))
-    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(Some(H.b))
-    dispatch(store, TaskAction({target: ForTask("legacy"), action: ExecutionStateRunning}))
-    let running = App.Selectors.currentTask(state(store))
-    notify(frame, ConfigOptionUpdate({configOptions: H.options(H.a)}))
-    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(Some(H.a))
-    t->expect(App.Selectors.currentTask(state(store)))->Expect.toEqual(running)
-  },
-)
-
-testAsync(
   "client session-flow integration: cached/channel reconnect replay preserves model, identity and local data",
   async t => {
-    let (store, wire, matches, last, created, _, reject, notify, loaded) = await H.start()
+    let (store, wire, matches, last, created, configured, reject, notify, loaded) = await H.start()
     active := Some(store)
     let newSession = async model => {
       config(store, model)
@@ -325,7 +280,15 @@ testAsync(
           _meta: {agentId: "agent-1", timestamp: "2026-01-01T00:00:00Z"},
         }),
       )
-      loaded(frame, H.a)
+      wire.reply(
+        frame,
+        S.decodeOrThrow(
+          {ACP.configOptions: Some([]), modes: None, _meta: None},
+          ~from=ACP.sessionLoadResultSchema,
+          ~to=S.json,
+        ),
+        None,
+      )
       await wait(() =>
         !App.Selectors.isSubmitting(state(store)) &&
         Task.isLoaded(App.Selectors.currentTask(state(store)))
@@ -333,6 +296,16 @@ testAsync(
       frame
     }
     let old = await replay()
+    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(None)
+    t->expect(App.Selectors.modelOptions(state(store))->Option.isSome)->Expect.toBe(true)
+    config(store, H.a)
+    await wait(() => matches("session/set_config_option")->Array.length == 1)
+    configured(last("session/set_config_option"), H.a)
+    await wait(() => !App.Selectors.isSubmitting(state(store)))
+    let running = App.Selectors.currentTask(state(store))
+    notify(old, ConfigOptionUpdate({configOptions: H.options(H.b)}))
+    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(Some(H.b))
+    t->expect(App.Selectors.currentTask(state(store)))->Expect.toEqual(running)
     t
     ->expect(
       Client__Task__Reducer.Selectors.isAgentRunning(App.Selectors.currentTask(state(store))),

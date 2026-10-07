@@ -32,8 +32,20 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     })
 
     assert_push("acp:message", %{
+      "jsonrpc" => "2.0",
       "id" => 1,
-      "result" => %{"protocolVersion" => 1, "agentInfo" => %{"name" => "frontman-server"}}
+      "result" => %{
+        "protocolVersion" => 1,
+        "agentInfo" => %{"name" => "frontman-server"},
+        "agentCapabilities" => %{
+          "_meta" => %{
+            "frontman.dev" => %{
+              "agents" => [%{"id" => "test-frontman"}, %{"id" => "test-planner"}],
+              "defaultAgentId" => "test-planner"
+            }
+          }
+        }
+      }
     })
   end
 
@@ -78,31 +90,19 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       refute log =~ "envApiKey"
     end
 
-    test "succeeds with matching protocol version", %{socket: socket} do
-      version = ACP.protocol_version()
-
-      request(socket, "initialize", 1, %{
-        "protocolVersion" => version,
-        "clientInfo" => %{"name" => "test-client", "version" => "1.0.0"}
-      })
-
+    test "initializes attribution, catalog, and billing", %{socket: socket} do
+      initialize(socket)
       assert_push("model_catalog_updated", [%{"group" => _, "options" => [_ | _]} | _])
 
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 1,
-        "result" => %{
-          "protocolVersion" => ^version,
-          "agentInfo" => %{"name" => "frontman-server"},
-          "agentCapabilities" => %{
-            "_meta" => %{
-              "frontman.dev" => %{
-                "agents" => [%{"id" => "test-frontman"}, %{"id" => "test-planner"}],
-                "defaultAgentId" => "test-planner"
-              }
-            }
-          }
-        }
+      assert_push("billing_status_updated", %{
+        status: "none",
+        access_allowed: false,
+        has_billing_customer: false,
+        interval: nil,
+        current_period_end: nil,
+        trial_end: nil,
+        cancel_at: nil,
+        canceled_at: nil
       })
     end
 
@@ -123,81 +123,48 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       })
     end
 
-    test "pushes billing status update", %{socket: socket} do
-      version = ACP.protocol_version()
+    test "rejects unsupported or missing protocol versions", %{socket: socket} do
+      for {params, code, message} <- [
+            {%{"protocolVersion" => 999}, -32_600, "Unsupported protocol version"},
+            {%{}, -32_602, "Missing required field: protocolVersion"}
+          ] do
+        request(socket, "initialize", 1, params)
 
-      request(socket, "initialize", 1, %{
-        "protocolVersion" => version,
-        "clientInfo" => %{"name" => "test-client", "version" => "1.0.0"}
-      })
-
-      assert_push("billing_status_updated", %{
-        status: "none",
-        access_allowed: false,
-        has_billing_customer: false,
-        interval: nil,
-        current_period_end: nil,
-        trial_end: nil,
-        cancel_at: nil,
-        canceled_at: nil
-      })
-    end
-
-    test "fails with wrong protocol version", %{socket: socket} do
-      request(socket, "initialize", 1, %{"protocolVersion" => 999})
-
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 1,
-        "error" => %{
-          "code" => -32_600,
-          "message" => "Unsupported protocol version"
-        }
-      })
-    end
-
-    test "fails without protocol version", %{socket: socket} do
-      request(socket, "initialize", 1, %{})
-
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 1,
-        "error" => %{
-          "code" => -32_602,
-          "message" => "Missing required field: protocolVersion"
-        }
-      })
+        assert_push("acp:message", %{
+          "jsonrpc" => "2.0",
+          "id" => 1,
+          "error" => %{"code" => ^code, "message" => ^message}
+        })
+      end
     end
   end
 
   describe "ACP session/new" do
-    test "creates task and returns sessionId", %{socket: socket, scope: scope} do
-      allow_access_for_scope_fixture(scope)
+    for {status, framework, expected} <- [
+          {"active", "nextjs", :nextjs},
+          {"trialing", "vite", :vite}
+        ] do
+      test "creates #{framework} sessions with #{status} billing", %{socket: socket, scope: scope} do
+        subscription_for_scope_fixture(scope, %{status: unquote(status)})
+        initialize(socket, unquote(framework))
+        id = Ecto.UUID.generate()
+        model = "openrouter:google/gemini-3.1-pro-preview"
 
-      initialize(socket)
+        request(socket, "session/new", 2, %{
+          "sessionId" => id,
+          "_meta" => %{"frontman.dev/model" => model}
+        })
 
-      client_session_id = Ecto.UUID.generate()
+        assert_push("acp:message", %{
+          "jsonrpc" => "2.0",
+          "id" => 2,
+          "result" => %{"sessionId" => ^id, "configOptions" => [%{"currentValue" => ^model}]}
+        })
 
-      model = "openrouter:google/gemini-3.1-pro-preview"
-
-      request(socket, "session/new", 2, %{
-        "sessionId" => client_session_id,
-        "_meta" => %{"frontman.dev/model" => model}
-      })
-
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 2,
-        "result" => %{
-          "sessionId" => ^client_session_id,
-          "configOptions" => [%{"currentValue" => ^model = current_model}]
-        }
-      })
-
-      assert {:ok, task} = FrontmanServer.Tasks.get_task_with_history(scope, client_session_id)
-      assert task.id == client_session_id
-      assert task.framework == :nextjs
-      assert task.current_model == current_model
+        assert {:ok, task} = FrontmanServer.Tasks.get_task(scope, id)
+        assert task.framework == unquote(expected)
+        assert task.current_model == model
+      end
     end
 
     test "rejects invalid explicit preferences before creating a session", %{
@@ -241,79 +208,21 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert {:error, :not_found} = FrontmanServer.Tasks.get_task(scope, client_session_id)
     end
 
-    test "creates task for trialing billing", %{socket: socket, scope: scope} do
-      subscription_for_scope_fixture(scope, %{status: "trialing"})
-
+    test "rejects missing or invalid session IDs", %{socket: socket} do
       initialize(socket)
 
-      client_session_id = Ecto.UUID.generate()
-
-      request(socket, "session/new", 2, %{
-        "sessionId" => client_session_id,
-        "_meta" => %{"frontman.dev/model" => "openrouter:openai/gpt-5.5"}
-      })
-
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 2,
-        "result" => %{"sessionId" => ^client_session_id}
-      })
-
-      assert {:ok, _task} = FrontmanServer.Tasks.get_task(scope, client_session_id)
-    end
-
-    for {framework, expected} <- [{"nextjs", :nextjs}, {"vite", :vite}] do
-      test "stores #{framework} framework ID from clientInfo", %{socket: socket, scope: scope} do
-        allow_access_for_scope_fixture(scope)
-        initialize(socket, unquote(framework))
-        id = Ecto.UUID.generate()
-
-        request(socket, "session/new", 2, %{
-          "sessionId" => id,
-          "_meta" => %{"frontman.dev/model" => "openrouter:openai/gpt-5.5"}
-        })
+      for {params, message} <- [
+            {%{}, "Missing required field: sessionId"},
+            {%{"sessionId" => "not-a-valid-uuid"}, "Invalid sessionId: must be a valid UUID"}
+          ] do
+        request(socket, "session/new", 2, params)
 
         assert_push("acp:message", %{
           "jsonrpc" => "2.0",
           "id" => 2,
-          "result" => %{"sessionId" => ^id}
+          "error" => %{"code" => -32_602, "message" => ^message}
         })
-
-        assert {:ok, task} = FrontmanServer.Tasks.get_task_with_history(scope, id)
-        assert task.id == id
-        assert task.framework == unquote(expected)
-        assert Repo.get!(TaskSchema, id).framework == unquote(expected)
       end
-    end
-
-    test "returns error when session/new called without sessionId", %{socket: socket} do
-      initialize(socket)
-
-      request(socket, "session/new", 2, %{})
-
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 2,
-        "error" => %{
-          "code" => -32_602,
-          "message" => "Missing required field: sessionId"
-        }
-      })
-    end
-
-    test "returns error when session/new called with invalid UUID", %{socket: socket} do
-      initialize(socket)
-
-      request(socket, "session/new", 2, %{"sessionId" => "not-a-valid-uuid"})
-
-      assert_push("acp:message", %{
-        "jsonrpc" => "2.0",
-        "id" => 2,
-        "error" => %{
-          "code" => -32_602,
-          "message" => "Invalid sessionId: must be a valid UUID"
-        }
-      })
     end
 
     test "same-user session/new retries return the existing row", %{
@@ -388,45 +297,18 @@ defmodule FrontmanServerWeb.TasksChannelTest do
   end
 
   describe "list_sessions" do
-    test "returns empty list when user has no tasks", %{socket: socket} do
-      ref = push(socket, "list_sessions", %{})
-      assert_reply(ref, :ok, %{"sessions" => []})
-    end
-
-    test "returns sessions with correct fields", %{socket: socket, scope: scope} do
-      task_id = task_fixture(scope).id
-
-      ref = push(socket, "list_sessions", %{})
-      assert_reply(ref, :ok, %{"sessions" => [session]})
-
-      assert session["sessionId"] == task_id
+    test "lists only owned sessions with their metadata", %{socket: socket, scope: scope} do
+      assert_reply(push(socket, "list_sessions", %{}), :ok, %{"sessions" => []})
+      first = task_fixture(scope).id
+      assert_reply(push(socket, "list_sessions", %{}), :ok, %{"sessions" => [session]})
+      assert session["sessionId"] == first
       assert session["title"] == "New Task"
       assert {:ok, _, _} = DateTime.from_iso8601(session["createdAt"])
       assert {:ok, _, _} = DateTime.from_iso8601(session["updatedAt"])
-    end
-
-    test "returns multiple sessions", %{socket: socket, scope: scope} do
-      task1_id = task_fixture(scope).id
-      task2_id = task_fixture(scope).id
-
-      ref = push(socket, "list_sessions", %{})
-      assert_reply(ref, :ok, %{"sessions" => sessions})
-
-      assert length(sessions) == 2
-      session_ids = Enum.map(sessions, & &1["sessionId"])
-      assert task1_id in session_ids
-      assert task2_id in session_ids
-    end
-
-    test "only returns tasks for authenticated user", %{socket: socket, scope: scope} do
-      my_task_id = task_fixture(scope).id
-
-      other_scope = user_scope_fixture()
-      _other_task_id = task_fixture(other_scope, framework: "vite").id
-
-      ref = push(socket, "list_sessions", %{})
-      assert_reply(ref, :ok, %{"sessions" => [session]})
-      assert session["sessionId"] == my_task_id
+      second = task_fixture(scope).id
+      task_fixture(user_scope_fixture(), framework: "vite")
+      assert_reply(push(socket, "list_sessions", %{}), :ok, %{"sessions" => sessions})
+      assert Enum.sort(Enum.map(sessions, & &1["sessionId"])) == Enum.sort([first, second])
     end
   end
 
