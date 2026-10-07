@@ -197,12 +197,9 @@ dev-marketing:
 
 .PHONY: install build rescript-watch rescript-build rescript-format reanalyze clean hooks-install setup-elixir-tools verify-toolchain-pins check-source-comments
 
-.PHONY: security-dependencies test-security
+.PHONY: security-dependencies
 security-dependencies:
 	yarn up -R next sharp js-yaml svgo browserslist postcss-selector-parser qs vitest @vitest/coverage-v8 mermaid
-
-test-security:
-	yarn run -T vitest run --config test/security/vitest.config.ts
 
 install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
