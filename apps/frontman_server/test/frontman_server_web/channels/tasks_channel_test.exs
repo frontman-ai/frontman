@@ -70,7 +70,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
             }
           })
 
-          assert_push("config_options_updated", %{})
+          assert_push("model_catalog_updated", %{groups: _})
           assert_push("acp:message", %{"id" => 1})
         end)
 
@@ -86,7 +86,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "clientInfo" => %{"name" => "test-client", "version" => "1.0.0"}
       })
 
-      assert_push("config_options_updated", %{"configOptions" => _})
+      assert_push("model_catalog_updated", %{groups: _})
 
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
@@ -207,13 +207,15 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       allow_access_for_scope_fixture(scope)
       initialize(socket)
 
-      for model <- [nil, 42, "", "missing:model"] do
+      for meta <- [
+            %{},
+            %{"frontman.dev/model" => nil},
+            %{"frontman.dev/model" => 42},
+            %{"frontman.dev/model" => ""},
+            %{"frontman.dev/model" => "missing:model"}
+          ] do
         id = Ecto.UUID.generate()
-
-        request(socket, "session/new", 2, %{
-          "sessionId" => id,
-          "_meta" => %{"frontman.dev/model" => model}
-        })
+        request(socket, "session/new", 2, %{"sessionId" => id, "_meta" => meta})
 
         assert_push("acp:message", %{"id" => 2, "error" => %{"code" => -32_602}})
         assert {:error, :not_found} = FrontmanServer.Tasks.get_task(scope, id)
@@ -246,7 +248,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       client_session_id = Ecto.UUID.generate()
 
-      request(socket, "session/new", 2, %{"sessionId" => client_session_id})
+      request(socket, "session/new", 2, %{
+        "sessionId" => client_session_id,
+        "_meta" => %{"frontman.dev/model" => "openrouter:openai/gpt-5.5"}
+      })
 
       assert_push("acp:message", %{
         "jsonrpc" => "2.0",
@@ -262,7 +267,11 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         allow_access_for_scope_fixture(scope)
         initialize(socket, unquote(framework))
         id = Ecto.UUID.generate()
-        request(socket, "session/new", 2, %{"sessionId" => id})
+
+        request(socket, "session/new", 2, %{
+          "sessionId" => id,
+          "_meta" => %{"frontman.dev/model" => "openrouter:openai/gpt-5.5"}
+        })
 
         assert_push("acp:message", %{
           "jsonrpc" => "2.0",
@@ -330,7 +339,10 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       assert Repo.aggregate(TaskSchema.by_id(existing_id), :count, :id) == 1
       other_id = task_fixture(user_scope_fixture()).id
 
-      request(socket, "session/new", 3, %{"sessionId" => other_id})
+      request(socket, "session/new", 3, %{
+        "sessionId" => other_id,
+        "_meta" => %{"frontman.dev/model" => model}
+      })
 
       assert_push("acp:message", %{
         "id" => 3,

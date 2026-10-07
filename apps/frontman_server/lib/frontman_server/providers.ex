@@ -480,10 +480,10 @@ defmodule FrontmanServer.Providers do
   end
 
   @doc """
-  Returns model selection data for a user, ready for ACP serialization.
+  Returns the available model catalog without a selected model.
 
   Resolves which providers the user can access, then builds model groups.
-  Returns a domain DTO that ACP translates to `SessionConfigOption` wire format.
+  Session selection is separate from this domain DTO.
 
   ## Parameters
 

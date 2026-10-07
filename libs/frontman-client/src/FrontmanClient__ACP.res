@@ -19,6 +19,39 @@ let requestErrorMessage = Client.requestErrorMessage
 @@live
 let requestErrorIsBillingInactive = Client.requestErrorIsBillingInactive
 
+module ModelCatalog = FrontmanAiFrontmanProtocol.FrontmanProtocol__ModelCatalog
+
+let modelCatalogConfigOptions = ({groups}: ModelCatalog.t): array<Types.sessionConfigOption> => {
+  let groups: array<Types.sessionConfigSelectGroup> =
+    groups
+    ->Array.filter(group => group.options->Array.length > 0)
+    ->Array.map(group => {
+      Types.group: group.id,
+      name: group.name,
+      options: group.options->Array.map(model => {
+        Types.value: model.value,
+        name: model.name,
+        description: None,
+        _meta: None,
+      }),
+      _meta: None,
+    })
+  switch groups->Array.findMap(group => group.options->Array.get(0)) {
+  | None => []
+  | Some(model) => [
+      SelectConfigOption({
+        id: "model",
+        name: "Model",
+        description: None,
+        category: Some(Model),
+        currentValue: model.value,
+        options: Grouped(groups),
+        _meta: None,
+      }),
+    ]
+  }
+}
+
 let attachBillingStatusHandler = (~channel, ~onBillingStatusUpdated) =>
   onBillingStatusUpdated->Option.forEach(callback =>
     channel->Channel.on(~event=Constants.billingStatusUpdatedEvent, ~callback)
@@ -223,7 +256,7 @@ let connect = async (
           signal->Option.forEach(signal => offAbort(signal, dispose))
           state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
           rejectPendingRequests(state)
-          channel->Channel.off(~event=#config_options_updated)
+          channel->Channel.off(~event=#model_catalog_updated)
           channel->Channel.off(~event=#billing_status_updated)
           cleanupChannel(channel)
           Socket.disconnect(socket)
@@ -263,11 +296,11 @@ let connect = async (
       Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
       config.onConfigOptionsUpdated->Option.forEach(callback =>
         channel->Channel.on(
-          ~event=#config_options_updated,
+          ~event=#model_catalog_updated,
           ~callback=payload => {
-            switch payload->Decoders.parseSchema(Types.configOptionsUpdatedSchema) {
-            | Ok({configOptions}) => callback(configOptions)
-            | Error(e) => Log.error(`Failed to parse config_options_updated payload: ${e}`)
+            switch payload->Decoders.parseSchema(ModelCatalog.schema) {
+            | Ok(catalog) => callback(modelCatalogConfigOptions(catalog))
+            | Error(e) => Log.error(`Failed to parse model_catalog_updated payload: ${e}`)
             }
           },
         )

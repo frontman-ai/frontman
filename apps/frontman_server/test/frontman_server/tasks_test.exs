@@ -36,7 +36,11 @@ defmodule FrontmanServer.TasksTest do
       framework = "nextjs"
 
       {:ok, %TaskSchema{id: ^task_id}} =
-        Tasks.create_task(scope, %{id: task_id, framework: framework})
+        Tasks.create_task(scope, %{
+          id: task_id,
+          framework: framework,
+          current_model: "openrouter:openai/gpt-5.5"
+        })
 
       {:ok, task} = Tasks.get_task(scope, task_id)
       assert task.id == task_id
@@ -49,18 +53,18 @@ defmodule FrontmanServer.TasksTest do
     scope: scope
   } do
     id = Ecto.UUID.generate()
+    attrs = %{id: id, framework: "nextjs", current_model: "openrouter:openai/gpt-5.5"}
 
-    results =
-      Task.async_stream(1..2, fn _ ->
-        Tasks.ensure_session(scope, %{id: id, framework: "nextjs"})
-      end)
+    for model <- [nil, "", "missing:model"] do
+      assert {:error, _} = Tasks.ensure_session(scope, %{attrs | current_model: model})
+      assert {:error, :not_found} = Tasks.get_task(scope, id)
+    end
 
+    results = Task.async_stream(1..2, fn _ -> Tasks.ensure_session(scope, attrs) end)
     Enum.each(results, fn {:ok, result} -> assert {:ok, %TaskSchema{id: ^id}} = result end)
-    assert {:error, _} = Tasks.create_task(scope, %{id: id, framework: "nextjs"})
-    assert {:error, _} = Tasks.ensure_session(scope, %{id: id, framework: "invalid"})
-
-    assert {:error, :not_found} =
-             Tasks.ensure_session(user_scope_fixture(), %{id: id, framework: "vite"})
+    assert {:error, _} = Tasks.create_task(scope, attrs)
+    assert {:error, _} = Tasks.ensure_session(scope, %{attrs | framework: "invalid"})
+    assert {:error, :not_found} = Tasks.ensure_session(user_scope_fixture(), attrs)
 
     assert Repo.aggregate(TaskSchema.by_id(id), :count, :id) == 1
     assert {:ok, %{framework: :nextjs}} = Tasks.get_task(scope, id)
@@ -172,9 +176,12 @@ defmodule FrontmanServer.TasksTest do
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
       newer = "openrouter:google/gemini-3.1-pro-preview"
-      assert_raise FunctionClauseError, fn -> Tasks.set_current_model(scope, task.id, "") end
+
+      for invalid <- [nil, "", "missing:model"] do
+        assert {:error, _} = Tasks.set_current_model(scope, task.id, invalid)
+      end
+
       {:ok, _task} = Tasks.set_current_model(scope, task.id, newer)
-      catalog = %{groups: [%{options: [%{value: newer}, %{value: "openrouter:openai/gpt-5.5"}]}]}
 
       assert {:ok,
               %InteractionSchema{
@@ -186,7 +193,7 @@ defmodule FrontmanServer.TasksTest do
                  message_id: message_id,
                  message: user_content("hello"),
                  model: "openrouter:openai/gpt-5.5",
-                 current_model_catalog: catalog,
+                 use_session_model: true,
                  agent_id: "test-frontman"
                })
 
@@ -280,9 +287,13 @@ defmodule FrontmanServer.TasksTest do
                  task_id: task.id,
                  message_id: Ecto.UUID.generate(),
                  message: user_content("hello"),
-                 model: "missing:test",
+                 model: "openrouter:openai/gpt-5.5",
                  agent_id: "test-frontman"
                })
+
+      providers = Application.fetch_env!(:frontman_server, :providers)
+      on_exit(fn -> Application.put_env(:frontman_server, :providers, providers) end)
+      Application.put_env(:frontman_server, :providers, [])
 
       assert :ok =
                Tasks.execute_next_turn(
@@ -1495,11 +1506,7 @@ defmodule FrontmanServer.TasksTest do
 
   describe "record_execution_outcome/4 paused DB round-trip" do
     test "persisted AgentPaused can be loaded back via get_task", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-
-      {:ok, %TaskSchema{id: ^task_id}} =
-        Tasks.create_task(scope, %{id: task_id, framework: "nextjs"})
-
+      task_id = task_fixture(scope).id
       turn_number = start_turn_fixture(scope, task_id)
 
       insert_interaction_row(task_id, :agent_paused, turn_number, %{
@@ -1518,10 +1525,7 @@ defmodule FrontmanServer.TasksTest do
     end
 
     test "to_swarm_messages/1 succeeds when interactions include AgentPaused", %{scope: scope} do
-      task_id = Ecto.UUID.generate()
-
-      {:ok, %TaskSchema{id: ^task_id}} =
-        Tasks.create_task(scope, %{id: task_id, framework: "nextjs"})
+      task_id = task_fixture(scope).id
 
       {:ok, _message} =
         user_message_fixture(scope, task_id, [%{"type" => "text", "text" => "Hi"}])

@@ -26,7 +26,7 @@ defmodule FrontmanServerWeb.TasksChannel do
   @billing_status_updated "billing_status_updated"
   @acp_protocol_version ACP.protocol_version()
   @acp_message ACP.event_acp_message()
-  @acp_config_updated ACP.event_config_options_updated()
+  @model_catalog_updated "model_catalog_updated"
   @acp_list_sessions ACP.event_list_sessions()
   @acp_delete_session ACP.event_delete_session()
   @acp_method_initialize ACP.method_initialize()
@@ -94,8 +94,8 @@ defmodule FrontmanServerWeb.TasksChannel do
 
         push(
           socket,
-          @acp_config_updated,
-          ACP.build_session_load_result(current_config_options(socket))
+          @model_catalog_updated,
+          Providers.available_models(socket.assigns.scope)
         )
 
         push(socket, @billing_status_updated, Billing.status(socket.assigns.scope))
@@ -143,8 +143,7 @@ defmodule FrontmanServerWeb.TasksChannel do
              id: session_id,
              framework: raw_framework,
              current_model: current_model
-           }),
-         {:ok, task} <- Tasks.reconcile_current_model(socket.assigns.scope, task, catalog) do
+           }) do
       push_response(
         socket,
         id,
@@ -175,8 +174,11 @@ defmodule FrontmanServerWeb.TasksChannel do
       nil ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
 
+      {:error, :missing_model} ->
+        push_error(socket, id, JsonRpc.error_invalid_params(), "Model selection is required")
+
       {:error, :unknown_model} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Unknown model")
+        push_error(socket, id, JsonRpc.error_invalid_params(), "Selected model is unavailable")
 
       {:error, _changeset} ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
@@ -200,8 +202,8 @@ defmodule FrontmanServerWeb.TasksChannel do
   def handle_info(:config_options_changed, socket) do
     push(
       socket,
-      @acp_config_updated,
-      ACP.build_session_load_result(current_config_options(socket))
+      @model_catalog_updated,
+      Providers.available_models(socket.assigns.scope)
     )
 
     {:noreply, socket}
@@ -212,20 +214,14 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  defp current_config_options(socket) do
-    socket.assigns.scope |> Providers.available_models() |> ACP.build_model_config_options()
-  end
-
   defp new_model(%{"_meta" => meta}, _catalog) when not is_map(meta),
     do: {:error, :unknown_model}
 
   defp new_model(params, catalog) do
-    values = Tasks.model_values(catalog)
-
-    case Map.fetch(Map.get(params, "_meta", %{}), "frontman.dev/model") do
-      :error -> {:ok, List.first(values)}
-      {:ok, model} -> if model in values, do: {:ok, model}, else: {:error, :unknown_model}
-    end
+    params
+    |> Map.get("_meta", %{})
+    |> Map.get("frontman.dev/model")
+    |> Tasks.validate_model(catalog)
   end
 
   defp validate_uuid_format(string) do

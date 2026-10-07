@@ -23,6 +23,7 @@ defmodule FrontmanServerWeb.ChannelCase do
   alias FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
   alias FrontmanServer.Providers
   alias FrontmanServer.Test.Fixtures.LLMProvider
+  alias FrontmanServer.Test.Fixtures.Tasks, as: TaskFixtures
 
   using do
     quote do
@@ -179,10 +180,7 @@ defmodule FrontmanServerWeb.ChannelCase do
     quote do
       scope = unquote(scope)
       framework = unquote(opts) |> Keyword.get(:framework, "nextjs")
-      task_id = Ecto.UUID.generate()
-
-      {:ok, %FrontmanServer.Tasks.TaskSchema{id: ^task_id}} =
-        FrontmanServer.Tasks.create_task(scope, %{id: task_id, framework: framework})
+      task_id = TaskFixtures.task_fixture(scope, framework: framework).id
 
       {:ok, _reply, socket} =
         FrontmanServerWeb.UserSocket

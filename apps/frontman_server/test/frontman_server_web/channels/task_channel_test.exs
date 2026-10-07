@@ -451,13 +451,12 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "custom compatibility and credential removal advertise persisted fallback", %{
+    test "custom compatibility rejects removed selections without replacing them", %{
       socket: socket,
       scope: scope,
       task_id: task_id
     } do
       alias FrontmanServer.Providers
-      fallback = scope |> Providers.available_models() |> Tasks.model_values() |> hd()
 
       {:ok, provider} =
         Providers.create_custom_provider(scope, %{
@@ -473,36 +472,23 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
       end
 
-      assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
-      assert task.current_model == model
-      assert Enum.all?(Tasks.interactions(task), &(&1.model == model))
       collect_all_pushes()
       :ok = Providers.delete_custom_provider(scope, provider.id, provider.lock_version)
 
       assert_push("acp:message", %{
-        "params" => %{
-          "update" => %{
-            "sessionUpdate" => "config_option_update",
-            "configOptions" => [%{"currentValue" => ^fallback}]
-          }
-        }
+        "params" => %{"update" => %{"sessionUpdate" => "error", "category" => "invalid_model"}}
       })
 
-      assert {:ok, %{current_model: ^fallback}} = Tasks.get_task(scope, task_id)
-      providers = Application.fetch_env!(:frontman_server, :providers)
-      on_exit(fn -> Application.put_env(:frontman_server, :providers, providers) end)
-      Application.put_env(:frontman_server, :providers, [])
-      send(socket.channel_pid, :config_options_changed)
-      assert_push("acp:message", %{"params" => %{"update" => %{"configOptions" => []}}})
+      {:ok, before} = Tasks.get_task_with_history(scope, task_id)
+      ref = push(socket, "acp:message", build_prompt_request(_meta: %{}))
+      assert_reply(ref, :ok, %{"acp:message" => %{"error" => %{"code" => -32_602}}})
+      assert {:ok, after_task} = Tasks.get_task_with_history(scope, task_id)
+      assert after_task.current_model == model
+      assert after_task.interaction_rows == before.interaction_rows
 
-      push(
-        socket,
-        "acp:message",
-        build_acp_request("session/load", 99, %{"sessionId" => task_id})
-      )
-
-      assert_push("acp:message", %{"id" => 99, "result" => %{"configOptions" => []}})
-      assert {:ok, %{current_model: nil}} = Tasks.get_task(scope, task_id)
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"sessionUpdate" => "config_option_update"}}
+      })
     end
 
     test "forwards prompt model to title generation job", %{
@@ -918,7 +904,13 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       scope: scope
     } do
       task_id = Ecto.UUID.generate()
-      {:ok, _task} = Tasks.create_task(scope, %{id: task_id, framework: "nextjs"})
+
+      {:ok, _task} =
+        Tasks.create_task(scope, %{
+          id: task_id,
+          framework: "nextjs",
+          current_model: @persisted_restart_model
+        })
 
       {:ok, _reply, socket} =
         UserSocket
@@ -1673,31 +1665,21 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "pushes history before a standard load result", %{scope: scope} do
+    test "load requires a persisted selection instead of selecting from history", %{scope: scope} do
       task = task_fixture(scope)
-
-      [first, model | _] =
-        scope |> FrontmanServer.Providers.available_models() |> Tasks.model_values()
-
-      refute model == first
+      model = "openrouter:google/gemini-3.1-pro-preview"
       {:ok, _message} = user_message_fixture(scope, task.id, user_content("history"), model)
       {:ok, _completed} = Tasks.record_execution_outcome(scope, task.id, 1, :completed)
 
-      {:ok, _removed} =
-        user_message_fixture(scope, task.id, user_content("removed"), "missing:model")
-
-      assert {:ok, %{current_model: nil}} = Tasks.get_task(scope, task.id)
+      {1, _} =
+        FrontmanServer.Repo.update_all(Tasks.TaskSchema.by_id(task.id), set: [current_model: nil])
 
       {:ok, _reply, socket} =
         UserSocket
         |> socket("user_id", %{scope: scope})
         |> subscribe_and_join("task:#{task.id}", %{})
 
-      assert {:ok, %{current_model: ^model}} = Tasks.get_task(scope, task.id)
       collect_all_pushes()
-
-      {1, _} =
-        FrontmanServer.Repo.update_all(Tasks.TaskSchema.by_id(task.id), set: [current_model: nil])
 
       push(
         socket,
@@ -1705,33 +1687,35 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         build_acp_request("session/load", 90, %{"sessionId" => task.id})
       )
 
-      :sys.get_state(socket.channel_pid)
+      assert_push("acp:message", %{"id" => 90, "error" => %{"code" => -32_602}})
+      assert {:ok, %{current_model: nil}} = Tasks.get_task(scope, task.id)
 
-      messages =
-        collect_all_pushes()
-        |> Enum.filter(fn {event, _payload} -> event == "acp:message" end)
-        |> Enum.map(&elem(&1, 1))
+      {:ok, _task} = Tasks.set_current_model(scope, task.id, model)
+      :sys.get_state(socket.channel_pid)
+      collect_all_pushes()
+
+      push(
+        socket,
+        "acp:message",
+        build_acp_request("session/load", 91, %{"sessionId" => task.id})
+      )
+
+      :sys.get_state(socket.channel_pid)
 
       assert [
                %{
                  "method" => "session/update",
                  "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
                },
+               %{"id" => 91, "result" => %{"configOptions" => [%{"currentValue" => ^model}]}},
                %{
                  "method" => "session/update",
-                 "params" => %{"update" => %{"sessionUpdate" => "user_message_chunk"}}
-               },
-               %{
-                 "id" => 90,
-                 "result" => %{"configOptions" => [%{"currentValue" => ^model}]}
-               },
-               %{
-                 "method" => "session/update",
-                 "params" => %{"update" => %{"sessionUpdate" => "plan", "entries" => []}}
+                 "params" => %{"update" => %{"sessionUpdate" => "plan"}}
                }
-             ] = messages
-
-      assert {:ok, %{current_model: ^model}} = Tasks.get_task(scope, task.id)
+             ] =
+               collect_all_pushes()
+               |> Enum.filter(fn {event, _} -> event == "acp:message" end)
+               |> Enum.map(&elem(&1, 1))
     end
 
     test "restores current todo plan after the load result", %{scope: scope} do

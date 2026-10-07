@@ -34,7 +34,6 @@ defmodule FrontmanServer.Protocols.ACP do
   @timestamp_metadata_key "#{@extension_namespace}/timestamp"
 
   @event_acp_message "acp:message"
-  @event_config_options_updated "config_options_updated"
   @event_title_updated "title_updated"
   @event_list_sessions "list_sessions"
   @event_delete_session "delete_session"
@@ -91,7 +90,6 @@ defmodule FrontmanServer.Protocols.ACP do
   def protocol_version, do: @protocol_version
 
   def event_acp_message, do: @event_acp_message
-  def event_config_options_updated, do: @event_config_options_updated
   def event_title_updated, do: @event_title_updated
   def event_list_sessions, do: @event_list_sessions
   def event_delete_session, do: @event_delete_session
@@ -171,42 +169,33 @@ defmodule FrontmanServer.Protocols.ACP do
 
   Receives the output of `Providers.available_models/1` — a domain DTO
   containing model groups — and serializes it into the ACP wire format.
-  This function has no knowledge of provider
-  internals; all domain logic is encapsulated in the Providers context.
+  The caller must supply the selected session model. This function only encodes
+  the selection; it never chooses a model.
   """
-  def build_model_config_options(catalog),
-    do:
-      build_model_config_options(catalog, List.first(FrontmanServer.Tasks.model_values(catalog)))
-
-  def build_model_config_options(%{groups: groups}, current_value) do
+  def build_model_config_options(%{groups: groups}, current_value)
+      when is_binary(current_value) and current_value != "" do
     groups = Enum.reject(groups, &(&1.options == []))
 
-    case current_value do
-      nil ->
-        []
-
-      selected_value ->
-        [
-          %{
-            "type" => "select",
-            "id" => "model",
-            "name" => "Model",
-            "category" => "model",
-            "currentValue" => selected_value,
-            "options" =>
-              Enum.map(groups, fn %{id: id, name: name, options: options} ->
-                %{
-                  "group" => id,
-                  "name" => name,
-                  "options" =>
-                    Enum.map(options, fn %{name: display_name, value: value} ->
-                      %{"value" => value, "name" => display_name}
-                    end)
-                }
-              end)
-          }
-        ]
-    end
+    [
+      %{
+        "type" => "select",
+        "id" => "model",
+        "name" => "Model",
+        "category" => "model",
+        "currentValue" => current_value,
+        "options" =>
+          Enum.map(groups, fn %{id: id, name: name, options: options} ->
+            %{
+              "group" => id,
+              "name" => name,
+              "options" =>
+                Enum.map(options, fn %{name: display_name, value: value} ->
+                  %{"value" => value, "name" => display_name}
+                end)
+            }
+          end)
+      }
+    ]
   end
 
   @doc "Encodes the resolved agent catalog for ACP metadata."

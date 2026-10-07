@@ -143,26 +143,30 @@ defmodule FrontmanServer.Tasks do
   """
   def create_task(%Scope{} = scope, %{id: task_id, framework: _framework} = attrs, opts \\ [])
       when is_binary(task_id) do
-    attrs
-    |> Map.take([:id, :framework, :current_model])
-    |> Map.put(:short_desc, TaskSchema.default_title())
-    |> Map.put(:user_id, Accounts.scope_user_id(scope))
-    |> TaskSchema.create_changeset()
-    |> Repo.insert(opts)
+    with {:ok, _model} <-
+           validate_model(Map.get(attrs, :current_model), Providers.available_models(scope)) do
+      attrs
+      |> Map.take([:id, :framework, :current_model])
+      |> Map.put(:short_desc, TaskSchema.default_title())
+      |> Map.put(:user_id, Accounts.scope_user_id(scope))
+      |> TaskSchema.create_changeset()
+      |> Repo.insert(opts)
+    end
   end
 
-  def ensure_session(scope, %{id: task_id} = attrs) do
-    with {:ok, _task} <-
-           create_task(scope, attrs, on_conflict: :nothing, conflict_target: :id) do
-      get_task_with_history(scope, task_id)
+  def ensure_session(%Scope{} = scope, %{id: task_id} = attrs) do
+    with {:ok, _task} <- create_task(scope, attrs, on_conflict: :nothing, conflict_target: :id),
+         {:ok, task} <- get_task_with_history(scope, task_id),
+         {:ok, _model} <- validate_model(task.current_model, Providers.available_models(scope)) do
+      {:ok, task}
     end
   end
 
   @doc "Stores the agent-owned current model for a task."
   def set_current_model(%Scope{} = scope, task_id, current_model)
-      when is_binary(task_id) and
-             (is_nil(current_model) or (is_binary(current_model) and current_model != "")) do
+      when is_binary(task_id) do
     with {:ok, task} <- get_task(scope, task_id),
+         {:ok, _model} <- validate_model(current_model, Providers.available_models(scope)),
          {:ok, updated} <-
            task |> TaskSchema.update_changeset(%{current_model: current_model}) |> Repo.update() do
       if task.current_model != current_model,
@@ -181,25 +185,14 @@ defmodule FrontmanServer.Tasks do
   def model_values(%{groups: groups}),
     do: Enum.flat_map(groups, &Enum.map(&1.options, fn option -> option.value end))
 
-  def model_selection(%TaskSchema{} = task, catalog) do
-    values = model_values(catalog)
-
-    preferred =
-      task.current_model ||
-        Enum.find_value(Enum.reverse(task.interaction_rows), fn
-          %{data: %Interaction.UserMessage{model: model}} -> if model in values, do: model
-          _row -> nil
-        end)
-
-    if preferred in values, do: preferred, else: List.first(values)
+  def validate_model(model, catalog) when is_binary(model) and model != "" do
+    case model in model_values(catalog) do
+      true -> {:ok, model}
+      false -> {:error, :unknown_model}
+    end
   end
 
-  def reconcile_current_model(%Scope{} = scope, %TaskSchema{} = task, catalog)
-      when task.user_id == scope.user.id do
-    model = model_selection(task, catalog)
-
-    task |> TaskSchema.update_changeset(%{current_model: model}) |> Repo.update()
-  end
+  def validate_model(_model, _catalog), do: {:error, :missing_model}
 
   defp load_history(task_id) do
     InteractionSchema.for_task(task_id)
@@ -554,7 +547,7 @@ defmodule FrontmanServer.Tasks do
 
   defp accept_user_message(scope, arguments, selected_skill) do
     with %TaskSchema{} = task <- get_task_by_id_for_update(scope, arguments.task_id),
-         model = prompt_model(task, arguments),
+         {:ok, model} <- prompt_model(scope, task, arguments),
          attrs = Interaction.UserMessage.attrs(arguments.message, model, arguments.agent_id),
          attrs = put_selected_skill(attrs, selected_skill),
          {:ok, row} <-
@@ -573,14 +566,12 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp prompt_model(task, %{current_model_catalog: %{} = catalog, model: model}) do
-    case task.current_model in model_values(catalog) do
-      true -> task.current_model
-      false -> model
-    end
+  defp prompt_model(scope, task, %{use_session_model: true}) do
+    validate_model(task.current_model, Providers.available_models(scope))
   end
 
-  defp prompt_model(_task, %{model: model}), do: model
+  defp prompt_model(scope, _task, %{model: model}),
+    do: validate_model(model, Providers.available_models(scope))
 
   defp guard_billing_access(scope) do
     case Billing.allow_access?(scope) do

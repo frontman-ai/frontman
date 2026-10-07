@@ -13,6 +13,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
   setup do
     user = user_fixture()
     scope = Scope.for_user(user)
+    :ok = Providers.upsert_api_key(scope, "openrouter", "sk-test")
     original_openrouter_config = Application.get_env(:req_llm, :openrouter)
 
     on_exit(fn ->
@@ -94,7 +95,7 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
     })
   end
 
-  defp with_openrouter_title_response(scope, content, callback) do
+  defp with_openrouter_title_response(_scope, content, callback) do
     bypass = Bypass.open()
     Application.put_env(:req_llm, :openrouter, base_url: "http://localhost:#{bypass.port}/v1")
 
@@ -123,8 +124,6 @@ defmodule FrontmanServer.Workers.GenerateTitleTest do
 
       Plug.Conn.send_resp(conn, 200, Jason.encode!(response))
     end)
-
-    :ok = Providers.upsert_api_key(scope, "openrouter", "sk-test")
 
     callback.()
   end

@@ -135,6 +135,28 @@ module Integration = {
         })
       }
     )
+  let catalog = model => {
+    module Catalog = FrontmanAiFrontmanProtocol.FrontmanProtocol__ModelCatalog
+    S.decodeOrThrow(
+      {
+        Catalog.groups: switch model {
+        | None => []
+        | Some(model) => [
+            {
+              id: "test",
+              name: "test",
+              options: (model == a ? [a, b] : [b, a])->Array.map(value => {
+                Catalog.value,
+                name: value,
+              }),
+            },
+          ]
+        },
+      },
+      ~from=Catalog.schema,
+      ~to=S.json,
+    )
+  }
   let payload = ((_, _, _, _, payload): frame) => payload
   let request = frame => S.parseOrThrow(payload(frame), ~to=requestSchema)
   let sessionId = frame =>
@@ -225,14 +247,7 @@ module Integration = {
     }
     let instance = makeStore(state, App.handleEffect)
     store := Some(instance)
-    wire.emit(
-      "config_options_updated",
-      S.decodeOrThrow(
-        {Types.configOptions: options(a)},
-        ~from=Types.configOptionsUpdatedSchema,
-        ~to=S.json,
-      ),
-    )
+    wire.emit("model_catalog_updated", catalog(Some(a)))
     let matches = method =>
       frames->Array.filter(frame =>
         switch frame {

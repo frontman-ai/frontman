@@ -145,14 +145,7 @@ testAsync(
           {...state(store), pendingProviderAutoSelect: Some("test")},
         )
         for catalog in 0 to 1 {
-          wire.emit(
-            "config_options_updated",
-            S.decodeOrThrow(
-              {ACP.configOptions: H.options(catalog == 0 ? H.a : H.b)},
-              ~from=ACP.configOptionsUpdatedSchema,
-              ~to=S.json,
-            ),
-          )
+          wire.emit("model_catalog_updated", H.catalog(Some(catalog == 0 ? H.a : H.b)))
           t
           ->expect((
             App.Selectors.selectedModelValue(state(store)),
@@ -207,21 +200,11 @@ testAsync(
       ->expect((matches("session/prompt")->Array.length, App.Selectors.isNewTask(state(store))))
       ->Expect.toEqual((sent, true))
     }
-    wire.emit(
-      "config_options_updated",
-      S.decodeOrThrow({ACP.configOptions: []}, ~from=ACP.configOptionsUpdatedSchema, ~to=S.json),
-    )
+    wire.emit("model_catalog_updated", H.catalog(None))
     t->expect(state(store).draftModelPreference)->Expect.toEqual(None)
     dispatch(store, ConnectionAction(Dispose))
     let disposed = state(store)
-    wire.emit(
-      "config_options_updated",
-      S.decodeOrThrow(
-        {ACP.configOptions: H.options(H.b)},
-        ~from=ACP.configOptionsUpdatedSchema,
-        ~to=S.json,
-      ),
-    )
+    wire.emit("model_catalog_updated", H.catalog(Some(H.b)))
     t->expect(state(store))->Expect.toBe(disposed)
   },
 )

@@ -35,6 +35,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Protocols
+  alias FrontmanServer.Providers.ApiKey
   alias FrontmanServer.Repo
   alias FrontmanServer.Skills
   alias FrontmanServer.Tasks
@@ -550,14 +551,23 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
 
     test "startup failure persists terminal error on the same turn" do
-      scope = Scope.for_user(user_fixture())
+      scope = user_scope_fixture()
       FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task_id = task_with_pubsub_fixture(scope).id
+      execution = execution_request_fixture()
 
-      {:ok, _, 1} =
-        submit_user_message(scope, task_id, user_content("Hello"),
-          model: "openrouter:openai/gpt-5.5"
+      {:ok, _} =
+        Tasks.submit_user_message(
+          scope,
+          Map.merge(execution, %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: user_content("Hello")
+          })
         )
+
+      {1, _} = Repo.delete_all(ApiKey.for_user_and_provider(scope.user.id, "openrouter"))
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
 
@@ -571,7 +581,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
 
     test "submits browser context prompt through production recording path" do
-      scope = Scope.for_user(user_fixture())
+      scope = user_scope_fixture()
       FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
       task_id = task_with_pubsub_fixture(scope).id
 
@@ -604,8 +614,20 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         screenshot_block("ann-hero", Base.encode64("screenshot"), "image/jpeg")
       ]
 
-      {:ok, returned, 1} =
-        submit_user_message(scope, task_id, content_blocks, model: "openrouter:openai/gpt-5.5")
+      execution = execution_request_fixture()
+
+      {:ok, returned} =
+        Tasks.submit_user_message(
+          scope,
+          Map.merge(execution, %{
+            task_id: task_id,
+            message_id: Ecto.UUID.generate(),
+            message: content_blocks
+          })
+        )
+
+      {1, _} = Repo.delete_all(ApiKey.for_user_and_provider(scope.user.id, "openrouter"))
+      assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
 
       assert %Interaction.CurrentPage{url: "http://localhost:4321/"} = returned.data.current_page
 

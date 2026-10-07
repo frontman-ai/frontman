@@ -40,8 +40,6 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
 
     with {:ok, task} <- Tasks.get_task_with_history(scope, task_id),
-         {:ok, task} <-
-           Tasks.reconcile_current_model(scope, task, Providers.available_models(scope)),
          {:ok, _owner} <-
            Registry.register(FrontmanServer.ProcessRegistry, {:task_channel, task_id}, nil) do
       {:ok, history} = TaskHistory.new(task.interaction_rows)
@@ -240,13 +238,20 @@ defmodule FrontmanServerWeb.TaskChannel do
 
   def handle_info(:config_options_changed, socket) do
     {:ok, task} = Tasks.get_task_with_history(socket.assigns.scope, socket.assigns.task_id)
-    config_options = current_config_options(socket, task)
 
-    push(
-      socket,
-      @acp_message,
-      ACP.build_config_option_update_notification(socket.assigns.task_id, config_options)
-    )
+    notification =
+      case current_config_options(socket, task) do
+        {:ok, config_options} ->
+          ACP.build_config_option_update_notification(task.id, config_options)
+
+        {:error, reason} ->
+          ACP.build_error_notification(task.id, model_error_message(reason), DateTime.utc_now(),
+            category: "invalid_model",
+            agent_error_id: Ecto.UUID.generate()
+          )
+      end
+
+    push(socket, @acp_message, notification)
 
     {:noreply, socket}
   end
@@ -675,36 +680,38 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
     Logger.info("ACP session/load request received on session channel for: #{task_id}")
 
-    case Tasks.get_task_with_history(scope, task_id) do
-      {:ok, task} ->
-        config_options = current_config_options(socket, task)
-        {:ok, history} = TaskHistory.new(task.interaction_rows)
-        {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
-        Enum.each(replay.notifications, &push(socket, @acp_message, &1))
+    with {:ok, task} <- Tasks.get_task_with_history(scope, task_id),
+         {:ok, config_options} <- current_config_options(socket, task) do
+      {:ok, history} = TaskHistory.new(task.interaction_rows)
+      {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
+      Enum.each(replay.notifications, &push(socket, @acp_message, &1))
 
-        push(
-          socket,
-          @acp_message,
-          JsonRpc.success_response(
-            id,
-            ACP.build_session_load_result(config_options)
-          )
+      push(
+        socket,
+        @acp_message,
+        JsonRpc.success_response(
+          id,
+          ACP.build_session_load_result(config_options)
         )
+      )
 
-        push_current_todo_plan(socket, Tasks.list_todos(task))
+      push_current_todo_plan(socket, Tasks.list_todos(task))
 
-        socket =
-          socket
-          |> assign(:session_loaded, true)
-          |> assign(:active_turn, TaskHistory.active_turn_context(history))
-          |> redispatch_unresolved_tool_calls()
+      socket =
+        socket
+        |> assign(:session_loaded, true)
+        |> assign(:active_turn, TaskHistory.active_turn_context(history))
+        |> redispatch_unresolved_tool_calls()
 
-        wake_runner(socket, nil)
+      wake_runner(socket, nil)
 
-        {:noreply, socket}
-
+      {:noreply, socket}
+    else
       {:error, :not_found} ->
         push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
+
+      {:error, reason} when reason in [:missing_model, :unknown_model] ->
+        push_acp_error(socket, id, JsonRpc.error_invalid_params(), model_error_message(reason))
     end
   end
 
@@ -720,9 +727,8 @@ defmodule FrontmanServerWeb.TaskChannel do
        when is_binary(value) do
     catalog = Providers.available_models(socket.assigns.scope)
 
-    case value in Tasks.model_values(catalog) do
-      true ->
-        {:ok, _task} = Tasks.set_current_model(socket.assigns.scope, task_id, value)
+    case Tasks.set_current_model(socket.assigns.scope, task_id, value) do
+      {:ok, _task} ->
         config_options = ACP.build_model_config_options(catalog, value)
 
         push(
@@ -738,8 +744,8 @@ defmodule FrontmanServerWeb.TaskChannel do
               JsonRpc.success_response(id, ACP.build_session_load_result(config_options))
           }}, socket}
 
-      false ->
-        reply_invalid_params(socket, id, "Unknown model")
+      {:error, reason} when reason in [:missing_model, :unknown_model] ->
+        reply_invalid_params(socket, id, model_error_message(reason))
     end
   end
 
@@ -757,7 +763,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
 
     case selected_model(socket, meta) do
-      {:ok, model, catalog} ->
+      {:ok, model} ->
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
              {:ok, _row} <-
@@ -768,7 +774,7 @@ defmodule FrontmanServerWeb.TaskChannel do
                    message_id: prompt_message_id(meta),
                    message: content_blocks,
                    model: model,
-                   current_model_catalog: if(Map.has_key?(meta, "model"), do: nil, else: catalog),
+                   use_session_model: not Map.has_key?(meta, "model"),
                    agent_id: agent_id,
                    selected_server_skill_id: meta["selectedServerSkillId"]
                  }
@@ -792,6 +798,9 @@ defmodule FrontmanServerWeb.TaskChannel do
               Tasks.billing_inactive_message(scope)
             )
 
+          {:error, reason} when reason in [:missing_model, :unknown_model] ->
+            reply_invalid_params(socket, id, model_error_message(reason))
+
           {:error, :missing_agent} ->
             reply_invalid_params(socket, id, "Agent is required")
 
@@ -806,8 +815,8 @@ defmodule FrontmanServerWeb.TaskChannel do
             reply_acp_error(socket, id, -32_000, inspect(reason))
         end
 
-      :error ->
-        reply_invalid_params(socket, id, "No model is available")
+      {:error, reason} ->
+        reply_invalid_params(socket, id, model_error_message(reason))
     end
   end
 
@@ -1073,23 +1082,30 @@ defmodule FrontmanServerWeb.TaskChannel do
     selected =
       case Map.fetch(meta, "model") do
         {:ok, model} -> parse_client_model(model)
-        :error -> {:ok, Tasks.model_selection(task, catalog)}
+        :error -> {:ok, task.current_model}
       end
 
     with {:ok, model} <- selected,
-         true <- model in Tasks.model_values(catalog) do
-      {:ok, model, catalog}
+         {:ok, model} <- Tasks.validate_model(model, catalog) do
+      {:ok, model}
     else
-      _invalid -> :error
+      :error -> {:error, :unknown_model}
+      {:error, reason} -> {:error, reason}
     end
   end
 
   defp current_config_options(socket, task) do
     catalog = Providers.available_models(socket.assigns.scope)
-    {:ok, task} = Tasks.reconcile_current_model(socket.assigns.scope, task, catalog)
 
-    ACP.build_model_config_options(catalog, task.current_model)
+    with {:ok, model} <- Tasks.validate_model(task.current_model, catalog) do
+      {:ok, ACP.build_model_config_options(catalog, model)}
+    end
   end
+
+  defp model_error_message(:missing_model), do: "Model selection is required"
+
+  defp model_error_message(:unknown_model),
+    do: "Selected model is unavailable; select another model"
 
   defp parse_client_model(%{"provider" => "custom", "value" => value}) do
     Providers.parse_model_ref(value)

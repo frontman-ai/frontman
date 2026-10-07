@@ -57,7 +57,11 @@ defmodule FrontmanServer.Test.Fixtures.Tasks do
     task_id = Keyword.get(opts, :task_id, Ecto.UUID.generate())
 
     {:ok, %TaskSchema{id: ^task_id} = task} =
-      Tasks.create_task(scope, %{id: task_id, framework: framework})
+      Tasks.create_task(scope, %{
+        id: task_id,
+        framework: framework,
+        current_model: Keyword.get(opts, :current_model, @default_test_model)
+      })
 
     task
   end
