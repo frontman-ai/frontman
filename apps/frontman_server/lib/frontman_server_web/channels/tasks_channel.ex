@@ -136,8 +136,7 @@ defmodule FrontmanServerWeb.TasksChannel do
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
          true <- Billing.allow_access?(socket.assigns.scope),
-         catalog = Providers.available_models(socket.assigns.scope),
-         {:ok, current_model} <- new_model(params, catalog),
+         {:ok, current_model} <- new_model(params),
          {:ok, %Tasks.TaskSchema{id: ^session_id} = task} <-
            Tasks.ensure_session(socket.assigns.scope, %{
              id: session_id,
@@ -149,7 +148,10 @@ defmodule FrontmanServerWeb.TasksChannel do
         id,
         ACP.build_session_new_result(
           session_id,
-          ACP.build_model_config_options(catalog, task.current_model)
+          ACP.build_model_config_options(
+            Providers.available_models(socket.assigns.scope),
+            task.current_model
+          )
         )
       )
     else
@@ -174,11 +176,13 @@ defmodule FrontmanServerWeb.TasksChannel do
       nil ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Missing framework in clientInfo")
 
-      {:error, :missing_model} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Model selection is required")
-
-      {:error, :unknown_model} ->
-        push_error(socket, id, JsonRpc.error_invalid_params(), "Selected model is unavailable")
+      {:error, %Ecto.Changeset{errors: [{field, {message, _}} | _]}} ->
+        push_error(
+          socket,
+          id,
+          JsonRpc.error_invalid_params(),
+          "#{Phoenix.Naming.humanize(field)} #{message}"
+        )
 
       {:error, _changeset} ->
         push_error(socket, id, JsonRpc.error_invalid_params(), "Failed to create session")
@@ -214,15 +218,11 @@ defmodule FrontmanServerWeb.TasksChannel do
     {:noreply, socket}
   end
 
-  defp new_model(%{"_meta" => meta}, _catalog) when not is_map(meta),
-    do: {:error, :unknown_model}
+  defp new_model(%{"_meta" => meta}) when not is_map(meta),
+    do: {:error, :invalid_params}
 
-  defp new_model(params, catalog) do
-    params
-    |> Map.get("_meta", %{})
-    |> Map.get("frontman.dev/model")
-    |> Tasks.validate_model(catalog)
-  end
+  defp new_model(params),
+    do: {:ok, params |> Map.get("_meta", %{}) |> Map.get("frontman.dev/model")}
 
   defp validate_uuid_format(string) do
     case Ecto.UUID.cast(string) do

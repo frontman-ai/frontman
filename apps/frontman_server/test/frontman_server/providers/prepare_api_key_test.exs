@@ -199,6 +199,34 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   end
 
   describe "OAuth availability refresh" do
+    test "failed prompt acceptance cannot roll back an external token refresh", %{scope: scope} do
+      :ok = Providers.upsert_api_key(scope, "openrouter", "test-key")
+      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
+      task = FrontmanServer.Test.Fixtures.Tasks.task_fixture(scope)
+      {:ok, token} = upsert_anthropic_oauth_token(scope, :expired)
+
+      Req.Test.expect(:anthropic_oauth, fn conn ->
+        refute Repo.in_transaction?()
+
+        Req.Test.json(conn, %{
+          "access_token" => "fresh_access",
+          "refresh_token" => "fresh_refresh",
+          "expires_in" => 3600
+        })
+      end)
+
+      assert {:error, %Ecto.Changeset{}} =
+               FrontmanServer.Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message_id: "invalid-uuid",
+                 message: [%{"type" => "text", "text" => "rejected"}],
+                 model: :session,
+                 agent_id: "test-frontman"
+               })
+
+      assert Repo.get!(OAuthToken, token.id).refresh_token == "fresh_refresh"
+    end
+
     test "model config refreshes expired Anthropic token", %{scope: scope} do
       {:ok, _} = upsert_anthropic_oauth_token(scope, :expired)
       expect_anthropic_refresh_success()

@@ -17,6 +17,7 @@ defmodule FrontmanServer.Tasks.TaskSchema do
 
   alias FrontmanServer.Accounts.User
   alias FrontmanServer.Frameworks
+  alias FrontmanServer.Providers
   alias FrontmanServer.Tasks.InteractionSchema
 
   @framework_values Frameworks.ids()
@@ -43,10 +44,11 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   @doc """
   Changeset for creating a new task.
   """
-  def create_changeset(attrs) do
+  def create_changeset(attrs, catalog) do
     %__MODULE__{}
     |> cast(attrs, [:id, :short_desc, :framework, :user_id, :current_model])
-    |> validate_required([:id, :short_desc, :framework, :user_id])
+    |> validate_required([:id, :short_desc, :framework, :user_id, :current_model])
+    |> validate_current_model(catalog)
     |> unique_constraint(:id, name: :tasks_pkey)
     |> foreign_key_constraint(:user_id)
   end
@@ -56,8 +58,26 @@ defmodule FrontmanServer.Tasks.TaskSchema do
   """
   def update_changeset(task, attrs) do
     task
-    |> cast(attrs, [:short_desc, :current_model])
+    |> cast(attrs, [:short_desc])
     |> validate_required([:short_desc])
+  end
+
+  @doc "Changeset for selecting an available conversation model."
+  def model_changeset(task, attrs, catalog) do
+    task
+    |> cast(attrs, [:current_model])
+    |> validate_required([:current_model])
+    |> validate_current_model(catalog)
+  end
+
+  defp validate_current_model(%Ecto.Changeset{valid?: false} = changeset, _catalog),
+    do: changeset
+
+  defp validate_current_model(changeset, catalog) do
+    case Providers.model_available?(catalog, get_field(changeset, :current_model)) do
+      true -> changeset
+      false -> add_error(changeset, :current_model, "is unavailable; select another model")
+    end
   end
 
   def by_id(query \\ __MODULE__, id) do

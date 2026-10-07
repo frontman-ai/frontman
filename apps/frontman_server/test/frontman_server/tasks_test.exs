@@ -70,6 +70,32 @@ defmodule FrontmanServer.TasksTest do
     assert {:ok, %{framework: :nextjs}} = Tasks.get_task(scope, id)
   end
 
+  test "changesets enforce model selection independently of title updates", %{scope: scope} do
+    catalog = FrontmanServer.Providers.available_models(scope)
+
+    attrs = %{
+      id: Ecto.UUID.generate(),
+      framework: "nextjs",
+      short_desc: "Task",
+      user_id: scope.user.id
+    }
+
+    for model <- [nil, "", "missing:model", 42] do
+      changeset = TaskSchema.create_changeset(Map.put(attrs, :current_model, model), catalog)
+      refute changeset.valid?
+      assert Keyword.has_key?(changeset.errors, :current_model)
+    end
+
+    task = task_fixture(scope)
+
+    refute TaskSchema.model_changeset(task, %{current_model: task.current_model}, %{groups: []}).valid?
+
+    changeset = TaskSchema.update_changeset(task, %{short_desc: "Renamed", current_model: nil})
+    assert Ecto.Changeset.apply_changes(changeset).current_model == task.current_model
+
+    assert TaskSchema.update_changeset(%{task | current_model: nil}, %{short_desc: "Legacy"}).valid?
+  end
+
   describe "apply_title_suggestion/3" do
     test "sets the default title once", %{scope: scope} do
       task_id = task_fixture(scope).id
@@ -177,9 +203,18 @@ defmodule FrontmanServer.TasksTest do
       message_id = Ecto.UUID.generate()
       newer = "openrouter:google/gemini-3.1-pro-preview"
 
-      for invalid <- [nil, "", "missing:model"] do
-        assert {:error, _} = Tasks.set_current_model(scope, task.id, invalid)
+      for invalid <- [nil, "", "missing:model", 42] do
+        assert {:error, %Ecto.Changeset{valid?: false, errors: errors}} =
+                 Tasks.set_current_model(scope, task.id, invalid)
+
+        assert Keyword.has_key?(errors, :current_model)
       end
+
+      assert {:error, :not_found} =
+               Tasks.set_current_model(user_scope_fixture(), task.id, newer)
+
+      assert {:error, :not_found} =
+               Tasks.set_current_model(scope, Ecto.UUID.generate(), newer)
 
       {:ok, _task} = Tasks.set_current_model(scope, task.id, newer)
 
@@ -203,6 +238,24 @@ defmodule FrontmanServer.TasksTest do
       assert row.type == :user_message
       assert row.turn_number == nil
       assert row.data.agent_id == "test-frontman"
+    end
+
+    test "legacy prompt overrides leave the conversation selection unchanged", %{scope: scope} do
+      allow_access_for_scope_fixture(scope)
+      task = task_fixture(scope)
+      override = "openrouter:google/gemini-3.1-pro-preview"
+
+      assert {:ok, %{data: %{model: ^override}}} =
+               Tasks.submit_user_message(scope, %{
+                 task_id: task.id,
+                 message_id: Ecto.UUID.generate(),
+                 message: user_content("override"),
+                 model: override,
+                 agent_id: "test-frontman"
+               })
+
+      assert {:ok, updated} = Tasks.get_task(scope, task.id)
+      assert updated.current_model == task.current_model
     end
 
     test "requires agent id", %{scope: scope} do

@@ -172,6 +172,8 @@ defmodule FrontmanServer.Protocols.ACP do
   The caller must supply the selected session model. This function only encodes
   the selection; it never chooses a model.
   """
+  def build_model_config_options(_catalog, nil), do: []
+
   def build_model_config_options(catalog, current_value)
       when is_binary(current_value) and current_value != "" do
     [

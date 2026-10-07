@@ -48,6 +48,22 @@ module SampleConfig = {
 }
 
 describe("Draft catalog and session selection", () => {
+  test("legacy sessions expose the catalog without inventing a selection", t => {
+    let groups = SampleConfig.configWithOpenRouterOnly
+    let state: Types.state = {
+      ...makeState(),
+      connection: Helpers.ready(~sessionId=Some("legacy")),
+      currentTask: Types.Task.Selected("legacy"),
+      modelGroups: Some(groups),
+    }
+    let state = Reducer.next(state, ConnectionAction(SessionConfigReceived([])))->Pair.first
+    t->expect(Reducer.Selectors.selectedModelValue(state))->Expect.toEqual(None)
+    t->expect(Reducer.Selectors.modelOptions(state))->Expect.toEqual(Some(ACP.Grouped(groups)))
+    let selecting =
+      Reducer.next(state, SetSelectedModelValue({value: SampleConfig.openrouter}))->Pair.first
+    t->expect(Reducer.Selectors.isSubmitting(selecting))->Expect.toBe(true)
+  })
+
   test("provider onboarding sets a draft auto-select intent", t => {
     [
       (Reducer.ExchangeAnthropicOAuthCode({code: "code", verifier: "verifier"}), "anthropic"),

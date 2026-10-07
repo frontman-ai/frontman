@@ -324,7 +324,9 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       initialize(socket)
 
-      existing_id = task_fixture(scope, framework: "vite").id
+      existing = task_fixture(scope, framework: "vite")
+      existing_id = existing.id
+      current_model = existing.current_model
       model = "openrouter:google/gemini-3.1-pro-preview"
 
       request(socket, "session/new", 2, %{
@@ -336,12 +338,12 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         "id" => 2,
         "result" => %{
           "sessionId" => ^existing_id,
-          "configOptions" => [%{"currentValue" => ^model}]
+          "configOptions" => [%{"currentValue" => ^current_model}]
         }
       })
 
       assert Repo.get!(TaskSchema, existing_id).framework == :vite
-      assert Repo.get!(TaskSchema, existing_id).current_model == model
+      assert Repo.get!(TaskSchema, existing_id).current_model == current_model
       assert Repo.aggregate(TaskSchema.by_id(existing_id), :count, :id) == 1
       other_id = task_fixture(user_scope_fixture()).id
 

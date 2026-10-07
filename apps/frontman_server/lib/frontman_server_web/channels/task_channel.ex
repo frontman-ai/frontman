@@ -236,24 +236,23 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  def handle_info(:config_options_changed, socket) do
-    {:ok, task} = Tasks.get_task_with_history(socket.assigns.scope, socket.assigns.task_id)
-
-    notification =
-      case current_config_options(socket, task) do
-        {:ok, config_options} ->
-          ACP.build_config_option_update_notification(task.id, config_options)
-
-        {:error, reason} ->
-          ACP.build_error_notification(task.id, model_error_message(reason), DateTime.utc_now(),
-            category: "invalid_model",
-            agent_error_id: Ecto.UUID.generate()
+  def handle_info(event, socket) when event in [:config_options_changed, :model_changed] do
+    case Tasks.get_task(socket.assigns.scope, socket.assigns.task_id) do
+      {:ok, task} ->
+        push(
+          socket,
+          @acp_message,
+          ACP.build_config_option_update_notification(
+            task.id,
+            current_config_options(socket, task)
           )
-      end
+        )
 
-    push(socket, @acp_message, notification)
+        {:noreply, socket}
 
-    {:noreply, socket}
+      {:error, :not_found} ->
+        {:stop, :normal, socket}
+    end
   end
 
   def handle_info(msg, _socket) do
@@ -680,38 +679,35 @@ defmodule FrontmanServerWeb.TaskChannel do
     scope = socket.assigns.scope
     Logger.info("ACP session/load request received on session channel for: #{task_id}")
 
-    with {:ok, task} <- Tasks.get_task_with_history(scope, task_id),
-         {:ok, config_options} <- current_config_options(socket, task) do
-      {:ok, history} = TaskHistory.new(task.interaction_rows)
-      {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
-      Enum.each(replay.notifications, &push(socket, @acp_message, &1))
+    case Tasks.get_task_with_history(scope, task_id) do
+      {:ok, task} ->
+        {:ok, history} = TaskHistory.new(task.interaction_rows)
+        {:ok, replay} = ACPHistory.build(history, task.id, Agents.list_agents(scope))
+        Enum.each(replay.notifications, &push(socket, @acp_message, &1))
 
-      push(
-        socket,
-        @acp_message,
-        JsonRpc.success_response(
-          id,
-          ACP.build_session_load_result(config_options)
+        push(
+          socket,
+          @acp_message,
+          JsonRpc.success_response(
+            id,
+            ACP.build_session_load_result(current_config_options(socket, task))
+          )
         )
-      )
 
-      push_current_todo_plan(socket, Tasks.list_todos(task))
+        push_current_todo_plan(socket, Tasks.list_todos(task))
 
-      socket =
-        socket
-        |> assign(:session_loaded, true)
-        |> assign(:active_turn, TaskHistory.active_turn_context(history))
-        |> redispatch_unresolved_tool_calls()
+        socket =
+          socket
+          |> assign(:session_loaded, true)
+          |> assign(:active_turn, TaskHistory.active_turn_context(history))
+          |> redispatch_unresolved_tool_calls()
 
-      wake_runner(socket, nil)
+        wake_runner(socket, nil)
 
-      {:noreply, socket}
-    else
+        {:noreply, socket}
+
       {:error, :not_found} ->
         push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session not found")
-
-      {:error, reason} when reason in [:missing_model, :unknown_model] ->
-        push_acp_error(socket, id, JsonRpc.error_invalid_params(), model_error_message(reason))
     end
   end
 
@@ -725,27 +721,23 @@ defmodule FrontmanServerWeb.TaskChannel do
          %{assigns: %{task_id: task_id}} = socket
        )
        when is_binary(value) do
-    catalog = Providers.available_models(socket.assigns.scope)
-
     case Tasks.set_current_model(socket.assigns.scope, task_id, value) do
-      {:ok, _task} ->
-        config_options = ACP.build_model_config_options(catalog, value)
-
-        push(
-          socket,
-          @acp_message,
-          ACP.build_config_option_update_notification(task_id, config_options)
-        )
-
+      {:ok, task} ->
         {:reply,
          {:ok,
           %{
             @acp_message =>
-              JsonRpc.success_response(id, ACP.build_session_load_result(config_options))
+              JsonRpc.success_response(
+                id,
+                ACP.build_session_load_result(current_config_options(socket, task))
+              )
           }}, socket}
 
-      {:error, reason} when reason in [:missing_model, :unknown_model] ->
-        reply_invalid_params(socket, id, model_error_message(reason))
+      {:error, :not_found} ->
+        reply_invalid_params(socket, id, "Session not found")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        reply_invalid_params(socket, id, changeset)
     end
   end
 
@@ -797,9 +789,6 @@ defmodule FrontmanServerWeb.TaskChannel do
               Tasks.billing_inactive_message(scope)
             )
 
-          {:error, reason} when reason in [:missing_model, :unknown_model] ->
-            reply_invalid_params(socket, id, model_error_message(reason))
-
           {:error, :missing_agent} ->
             reply_invalid_params(socket, id, "Agent is required")
 
@@ -815,7 +804,7 @@ defmodule FrontmanServerWeb.TaskChannel do
         end
 
       :error ->
-        reply_invalid_params(socket, id, model_error_message(:unknown_model))
+        reply_invalid_params(socket, id, "Invalid model selection")
     end
   end
 
@@ -1083,15 +1072,8 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp current_config_options(socket, task) do
     catalog = Providers.available_models(socket.assigns.scope)
 
-    with {:ok, model} <- Tasks.validate_model(task.current_model, catalog) do
-      {:ok, ACP.build_model_config_options(catalog, model)}
-    end
+    ACP.build_model_config_options(catalog, task.current_model)
   end
-
-  defp model_error_message(:missing_model), do: "Model selection is required"
-
-  defp model_error_message(:unknown_model),
-    do: "Selected model is unavailable; select another model"
 
   defp parse_client_model(%{"provider" => "custom", "value" => value}) do
     Providers.parse_model_ref(value)

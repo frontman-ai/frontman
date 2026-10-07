@@ -500,13 +500,14 @@ module Selectors = {
     switch state.currentTask {
     | Task.New(_) => state.modelGroups->Option.map(groups => ACP.Grouped(groups))
     | Task.Selected(_) =>
-      sessionConfigOptions(state)
-      ->Option.flatMap(options => options->ACP.findConfigOptionByCategory(ACP.Model))
-      ->Option.map(option =>
-        switch option {
-        | SelectConfigOption({options}) => options
+      switch sessionConfigOptions(state) {
+      | None => None
+      | Some(configOptions) =>
+        switch configOptions->ACP.findConfigOptionByCategory(ACP.Model) {
+        | Some(SelectConfigOption({options})) => Some(options)
+        | None => state.modelGroups->Option.map(groups => ACP.Grouped(groups))
         }
-      )
+      }
     }
 
   let agentCatalog = (state: state) => state.agentCatalog

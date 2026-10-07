@@ -143,54 +143,49 @@ defmodule FrontmanServer.Tasks do
   """
   def create_task(%Scope{} = scope, %{id: task_id, framework: _framework} = attrs, opts \\ [])
       when is_binary(task_id) do
-    with {:ok, _model} <-
-           validate_model(Map.get(attrs, :current_model), Providers.available_models(scope)) do
-      attrs
-      |> Map.take([:id, :framework, :current_model])
-      |> Map.put(:short_desc, TaskSchema.default_title())
-      |> Map.put(:user_id, Accounts.scope_user_id(scope))
-      |> TaskSchema.create_changeset()
-      |> Repo.insert(opts)
-    end
+    catalog = Providers.available_models(scope)
+
+    attrs
+    |> Map.put(:short_desc, TaskSchema.default_title())
+    |> Map.put(:user_id, Accounts.scope_user_id(scope))
+    |> TaskSchema.create_changeset(catalog)
+    |> Repo.insert(opts)
   end
 
   def ensure_session(%Scope{} = scope, %{id: task_id} = attrs) do
     with {:ok, _task} <- create_task(scope, attrs, on_conflict: :nothing, conflict_target: :id) do
-      set_current_model(scope, task_id, attrs.current_model)
+      get_task(scope, task_id)
     end
   end
 
-  @doc "Stores the agent-owned current model for a task."
+  @doc "Sets the conversation model. Returns a task, validation changeset, or :not_found."
   def set_current_model(%Scope{} = scope, task_id, current_model)
       when is_binary(task_id) do
-    with {:ok, task} <- get_task(scope, task_id),
-         {:ok, _model} <- validate_model(current_model, Providers.available_models(scope)),
-         {:ok, updated} <-
-           task |> TaskSchema.update_changeset(%{current_model: current_model}) |> Repo.update() do
-      if task.current_model != current_model,
-        do:
-          Phoenix.PubSub.broadcast_from(
-            FrontmanServer.PubSub,
-            self(),
-            topic(task_id),
-            :config_options_changed
-          )
+    catalog = Providers.available_models(scope)
+
+    result =
+      Repo.transact(fn ->
+        with %TaskSchema{} = task <- get_task_by_id_for_update(scope, task_id),
+             {:ok, updated} <-
+               task
+               |> TaskSchema.model_changeset(%{current_model: current_model}, catalog)
+               |> Repo.update() do
+          {:ok, {updated, task.current_model != updated.current_model}}
+        else
+          nil -> {:error, :not_found}
+          {:error, changeset} -> {:error, changeset}
+        end
+      end)
+
+    with {:ok, {updated, changed?}} <- result do
+      case changed? do
+        true -> broadcast_task(task_id, :model_changed)
+        false -> :ok
+      end
 
       {:ok, updated}
     end
   end
-
-  def model_values(%{groups: groups}),
-    do: Enum.flat_map(groups, &Enum.map(&1.options, fn option -> option.value end))
-
-  def validate_model(model, catalog) when is_binary(model) and model != "" do
-    case model in model_values(catalog) do
-      true -> {:ok, model}
-      false -> {:error, :unknown_model}
-    end
-  end
-
-  def validate_model(_model, _catalog), do: {:error, :missing_model}
 
   defp load_history(task_id) do
     InteractionSchema.for_task(task_id)
@@ -516,7 +511,6 @@ defmodule FrontmanServer.Tasks do
           task_id: task_id,
           message_id: _message_id,
           message: [_ | _],
-          model: _model,
           agent_id: agent_id
         } = arguments
       )
@@ -525,26 +519,27 @@ defmodule FrontmanServer.Tasks do
 
     with :ok <- guard_billing_access(scope),
          {:ok, selected_skill} <- selected_skill(scope, selected_server_skill_id),
-         {:ok, {row, selection_changed?}} <-
-           Repo.transact(fn -> accept_user_message(scope, arguments, selected_skill) end) do
-      if selection_changed?, do: broadcast_task(task_id, :config_options_changed)
+         catalog = Providers.available_models(scope),
+         {:ok, row} <-
+           Repo.transact(fn -> accept_user_message(scope, arguments, selected_skill, catalog) end) do
       broadcast_task(task_id, {:interaction, row})
       {:ok, row}
     end
-  end
-
-  def submit_user_message(%Scope{}, %{agent_id: agent_id})
-      when is_binary(agent_id) and agent_id != "" do
-    {:error, :missing_model}
   end
 
   def submit_user_message(%Scope{}, %{model: _model}) do
     {:error, :missing_agent}
   end
 
-  defp accept_user_message(scope, arguments, selected_skill) do
+  defp accept_user_message(scope, arguments, selected_skill, catalog) do
     with %TaskSchema{} = task <- get_task_by_id_for_update(scope, arguments.task_id),
-         {:ok, model} <- prompt_model(scope, task, arguments),
+         {:ok, %{current_model: model}} <-
+           task
+           |> TaskSchema.model_changeset(
+             %{current_model: prompt_model(task, Map.get(arguments, :model))},
+             catalog
+           )
+           |> Ecto.Changeset.apply_action(:update),
          attrs = Interaction.UserMessage.attrs(arguments.message, model, arguments.agent_id),
          attrs = put_selected_skill(attrs, selected_skill),
          {:ok, row} <-
@@ -553,22 +548,16 @@ defmodule FrontmanServer.Tasks do
              type: :user_message,
              data: Map.put(attrs, :id, arguments.message_id),
              turn_number: nil
-           }),
-         {:ok, _task} <-
-           task |> TaskSchema.update_changeset(%{current_model: model}) |> Repo.update() do
-      {:ok, {row, task.current_model != model}}
+           }) do
+      {:ok, row}
     else
       nil -> {:error, :not_found}
       {:error, reason} -> {:error, reason}
     end
   end
 
-  defp prompt_model(scope, task, %{model: :session}) do
-    validate_model(task.current_model, Providers.available_models(scope))
-  end
-
-  defp prompt_model(scope, _task, %{model: model}),
-    do: validate_model(model, Providers.available_models(scope))
+  defp prompt_model(task, :session), do: task.current_model
+  defp prompt_model(_task, model), do: model
 
   defp guard_billing_access(scope) do
     case Billing.allow_access?(scope) do

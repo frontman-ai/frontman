@@ -178,6 +178,52 @@ testAsync(
 )
 
 testAsync(
+  "legacy session loads before selecting a model and config updates do not stop a turn",
+  async t => {
+    let (store, wire, matches, last, _, configured, _, notify, _) = await H.start()
+    active := Some(store)
+    dispatch(
+      store,
+      SessionsLoadSuccess({
+        sessions: [
+          {
+            sessionId: "legacy",
+            title: "Legacy conversation",
+            createdAt: "2026-01-01T00:00:00Z",
+            updatedAt: "2026-01-01T00:00:00Z",
+          },
+        ],
+      }),
+    )
+    dispatch(store, SwitchTask({taskId: "legacy"}))
+    await wait(() => matches("session/load")->Array.length == 1)
+    let frame = last("session/load")
+    wire.reply(
+      frame,
+      S.decodeOrThrow(
+        {ACP.configOptions: Some([]), modes: None, _meta: None},
+        ~from=ACP.sessionLoadResultSchema,
+        ~to=S.json,
+      ),
+      None,
+    )
+    await wait(() => App.Selectors.getSession(state(store))->Option.isSome)
+    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(None)
+    t->expect(App.Selectors.modelOptions(state(store))->Option.isSome)->Expect.toBe(true)
+    config(store, H.b)
+    await wait(() => matches("session/set_config_option")->Array.length == 1)
+    configured(last("session/set_config_option"), H.b)
+    await wait(() => !App.Selectors.isSubmitting(state(store)))
+    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(Some(H.b))
+    dispatch(store, TaskAction({target: ForTask("legacy"), action: ExecutionStateRunning}))
+    let running = App.Selectors.currentTask(state(store))
+    notify(frame, ConfigOptionUpdate({configOptions: H.options(H.a)}))
+    t->expect(App.Selectors.selectedModelValue(state(store)))->Expect.toEqual(Some(H.a))
+    t->expect(App.Selectors.currentTask(state(store)))->Expect.toEqual(running)
+  },
+)
+
+testAsync(
   "client session-flow integration: cached/channel reconnect replay preserves model, identity and local data",
   async t => {
     let (store, wire, matches, last, created, _, reject, notify, loaded) = await H.start()

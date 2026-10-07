@@ -104,8 +104,10 @@ defmodule FrontmanServer.Protocols.ACPTest do
              ] = ACP.build_model_config_options(catalog, "openrouter:gpt")
     end
 
-    test "requires a non-empty selection" do
-      for value <- [nil, "", 42] do
+    test "omits configuration for an unselected legacy session without inventing a default" do
+      assert ACP.build_model_config_options(%{groups: []}, nil) == []
+
+      for value <- ["", 42] do
         assert_raise FunctionClauseError, fn ->
           ACP.build_model_config_options(%{groups: []}, value)
         end
