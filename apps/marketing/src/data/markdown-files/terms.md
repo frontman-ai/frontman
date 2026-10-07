@@ -30,9 +30,9 @@ Accounts are currently personal to the registered user. Team and organization fe
 
 ## Trial, Subscription, and Billing
 
-Frontman may offer a 7-day trial for the hosted service. A valid credit card is required to start the trial. Unless you cancel before the trial ends, the trial automatically converts into a paid monthly subscription.
+Frontman offers a 14-day trial for the hosted service. A valid credit card is required to start the trial. Unless you cancel before the trial ends, the trial automatically converts into a paid subscription with the billing frequency selected at checkout.
 
-Paid subscriptions renew monthly until canceled. Prices are shown in euros and are exclusive of VAT and other applicable taxes unless stated otherwise at checkout. The current self-serve plan is EUR 20 per month plus applicable VAT or taxes.
+Paid subscriptions renew monthly or yearly until canceled, according to the billing frequency selected at checkout. Prices are shown in euros and are exclusive of VAT and other applicable taxes unless stated otherwise at checkout. Frontman Pro costs EUR 15 per seat per month with monthly billing, or EUR 150 per seat per year with yearly billing.
 
 You may cancel your subscription before the next renewal date. Cancellation takes effect at the end of the then-current billing period. You will retain access to the paid hosted service until the end of that billing period, unless your account is suspended or terminated earlier under these Terms.
 
@@ -165,4 +165,4 @@ If any provision of these Terms is invalid or unenforceable, the remaining provi
 
 Our failure to enforce any provision of these Terms does not waive our right to enforce it later.
 
-_Last updated: May 5, 2026_
+_Last updated: October 7, 2026_
