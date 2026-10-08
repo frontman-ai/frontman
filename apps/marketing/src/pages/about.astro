@@ -5,9 +5,9 @@ import Layout from '../layouts/Layout.astro'
 import { authors } from '../content/authors'
 
 const SEO = {
-	title: 'About Frontman: Visual AI Editing for Frontend Teams',
+	title: 'About Frontman: WordPress AI Editing for Marketing Teams',
 	description:
-		'Frontman is built by Danni Friedland and Itay Adler — two co-founders who believe AI coding tools should see what developers see.'
+		'Built by Danni Friedland and Itay Adler, Frontman helps marketing teams turn their decisions into changes on existing WordPress sites.'
 }
 
 const founders = Object.values(authors)
@@ -37,9 +37,9 @@ const personSchemas = founders.map((founder) => ({
 		<div class="w-full max-w-[720px]">
 			<p class="mb-3 font-mono text-[13px] uppercase tracking-[0.12em] text-zinc-500">About</p>
 			<h1 class="mb-3 text-[32px] leading-[1.1] font-bold tracking-[-0.02em] text-zinc-50 sm:text-[42px]">About Frontman</h1>
-			<p class="mb-3 text-[22px] leading-[1.3] font-medium tracking-[-0.01em] text-zinc-400">Built by developers, for developers</p>
+			<p class="mb-3 text-[22px] leading-[1.3] font-medium tracking-[-0.01em] text-zinc-400">Built for the people who own the message.</p>
 			<p class="mb-12 max-w-[580px] text-[17px] leading-[1.6] text-zinc-500 sm:mb-20">
-				Frontman is a source-available AI coding agent with browser tools that see your live DOM and understand your running application. Local framework integrations edit your source code, while a hosted or self-hosted server orchestrates the agent and persists task history. We built it because every other AI coding tool was blind to the UI.
+				You know what your website needs. A lack of WordPress experience—or an agency handoff—should not hold every change hostage. Frontman helps marketing teams make changes to their existing WordPress site from the page itself. You own the direction and review the result. <a href="/blog/autonomyai-wordpress-redesign-case-study/" class="text-zinc-50 underline underline-offset-4">See how AutonomyAI's marketing lead used it</a>.
 			</p>
 
 			<div class="mb-20 grid grid-cols-1 gap-8 sm:grid-cols-2 sm:gap-10">
@@ -49,6 +49,7 @@ const personSchemas = founders.map((founder) => ({
 			</div>
 
 			<div class="border-t border-zinc-800 pt-12">
+				<p class="mb-8 text-[15px] leading-[1.7] text-zinc-300">WordPress is our primary workflow. We also support <a href="/frameworks/" class="text-zinc-50 underline underline-offset-4">Next.js, Astro, and Vite teams</a>, where developers review and deploy source changes.</p>
 				<h2 class="mb-2 text-xl font-semibold tracking-[-0.01em] text-zinc-50">Source-available from day one</h2>
 				<p class="mb-4 max-w-[560px] text-[15px] leading-[1.7] text-zinc-400">
 					Frontman's browser client and JavaScript framework integrations are open source under Apache-2.0, and the WordPress plugin is GPL-2.0-or-later. Frontman Server is AGPL-3.0-only with AI Supplementary Terms restricting AI training and AI-assisted competitive reproduction, making the combined product source-available. You can inspect the code and prompts; relevant context may pass through the server to your selected LLM provider. Contributions are welcome.

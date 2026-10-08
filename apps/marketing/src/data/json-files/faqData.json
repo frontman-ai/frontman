@@ -1,67 +1,67 @@
 [
 	{
 		"question": "What is Frontman?",
-		"reply": "Frontman is an AI website editor for existing sites. It runs inside WordPress or your framework dev server, shows chat beside a live view of your site, and lets you click what you want changed. For WordPress, it uses WordPress-native tools. For Next.js, Astro, and Vite sites, it outputs real code your team can review and merge.",
+		"reply": "Frontman is an AI editor for your existing WordPress site. Describe a change in chat beside the site preview, and Frontman uses WordPress-native tools to make the edits. You inspect the result and ask for adjustments.",
 		"category": "general",
 		"open": true
-	},
-	{
-		"question": "How is this different from AI coding tools like Cursor or Claude Code?",
-		"reply": "Cursor and Claude Code are built for developers working from files or terminals. Frontman starts from the website itself. It sees the live page, selected elements, CSS, CMS or component context, routes, and logs, so website changes start from what marketers, designers, and site owners can actually see.",
-		"category": "general",
-		"open": false
 	},
 	{
 		"question": "Who is Frontman built for?",
-		"reply": "Frontman is built for WordPress site owners and maintainers, plus marketing and design teams responsible for Next.js, Astro, or Vite websites. Developers still install and review code-backed changes, but routine website edits can start from the browser instead of a ticket.",
+		"reply": "Marketing leads and teams who own a WordPress website's message but lack the WordPress expertise or agency availability to implement every update. You bring the content and visual direction. Frontman helps turn those decisions into changes on the site you already have.",
 		"category": "general",
 		"open": false
 	},
 	{
-		"question": "Is it open source?",
-		"reply": "Frontman is source-available on GitHub at github.com/frontman-ai/frontman. The browser client and JavaScript framework integrations are open source under Apache-2.0, and the WordPress plugin is GPL-2.0-or-later. Frontman Server is AGPL-3.0-only with AI Supplementary Terms restricting AI training and AI-assisted competitive reproduction.",
+		"question": "Do I need to learn WordPress or write code?",
+		"reply": "You can request supported changes in plain language without writing code or finding every page-builder control. You still need to judge the result, check links and mobile layouts, and manage publication. Administrator access is required; your site administrator can help with installation if needed.",
 		"category": "general",
 		"open": false
 	},
 	{
-		"question": "What can I actually do with it?",
-		"reply": "Update landing page copy, CTAs, hero sections, spacing, colors, mobile polish, navigation menus, WordPress blocks, Elementor layouts, templates, widgets, media, and WooCommerce content. For code-backed sites, Frontman turns those requests into reviewable source changes.",
+		"question": "Can I keep my existing WordPress site?",
+		"reply": "Yes. Frontman installs as a plugin on your existing WordPress site. There is no migration to a new website builder. It has dedicated tools for Gutenberg and Elementor, plus WooCommerce when active. Themes and plugins vary; supported tools do not guarantee every third-party workflow or plugin configuration.",
+		"category": "general",
+		"open": false
+	},
+	{
+		"question": "What website changes can I make?",
+		"reply": "Update campaign copy, headlines, CTAs, Gutenberg blocks, Elementor sections, and navigation. You can also create or update posts and pages, work with block templates and widgets, and change supported site settings. Some requests need more than one pass. The WordPress setup guide lists the tools and their limits.",
 		"category": "product",
 		"open": true
 	},
 	{
-		"question": "What does the interface look like?",
-		"reply": "For JavaScript frameworks, navigate to localhost/frontman in your browser. For WordPress, open your site's /frontman route. In both cases you get a chat interface alongside a live preview of what the agent is working on.",
+		"question": "Do changes go live immediately?",
+		"reply": "Writes affect the WordPress installation you connect. Published content on a live site can change immediately, before you finish reviewing it. Preview is not a universal approval gate. Start with staging and a backup. Draft publication and staging promotion still use your normal WordPress process.",
 		"category": "product",
 		"open": false
 	},
 	{
-		"question": "Isn't it dangerous to let non-engineers change code?",
-		"reply": "For JavaScript frameworks (Next.js, Astro, Vite), Frontman runs in development only — never in production. Every change produces a standard code diff that goes through your team's normal review process. Nothing gets merged without an engineer approving it.",
+		"question": "Can I undo every change?",
+		"reply": "No. Elementor snapshots and applicable WordPress revisions help recover some changes, but there is no universal undo. Keep site backups and use staging for higher-risk work. The WordPress integration guide explains confirmation and recovery for each supported surface.",
 		"category": "product",
 		"open": false
 	},
 	{
-		"question": "Which frameworks are supported?",
-		"reply": "Frontman supports Next.js, Astro, Vite, and WordPress. For JavaScript frameworks it integrates as middleware, turning your local dev server into an MCP server. For WordPress it installs as a plugin that exposes WordPress-specific tools for posts, pages, blocks, Elementor content, menus, templates, widgets, settings, and WooCommerce when active.",
+		"question": "What do I need to get started?",
+		"reply": "WordPress 6.0+, PHP 7.4+, and administrator access. Install and activate Frontman Agentic AI Editor from the WordPress Plugin Directory, then open Frontman from the admin menu. Sign in with GitHub or Google, arrange Frontman service access, and connect your own supported AI provider. Provider costs are separate from Frontman pricing.",
 		"category": "technical",
 		"open": true
 	},
 	{
-		"question": "Does Frontman support WordPress?",
-		"reply": "Yes. Frontman for WordPress installs from the WordPress Plugin Directory and opens at /frontman on your site. It lets administrators edit posts, pages, Gutenberg blocks, Elementor pages, menus, templates, widgets, settings, cache, and WooCommerce data beside live preview. See / for the product overview and /docs/integrations/wordpress/ for setup.",
+		"question": "Who can access my site through Frontman?",
+		"reply": "Only WordPress users with administrator-level manage_options permission can access Frontman. Tool requests use WordPress nonces and site-setting writes are restricted to supported settings. When you submit a request, relevant site context passes through Frontman's server to your chosen AI provider. Read the privacy policy and security documentation before connecting sensitive content.",
 		"category": "technical",
 		"open": false
 	},
 	{
-		"question": "How does it get context about my app?",
-		"reply": "Frontman gets context from the runtime it is installed into. For JavaScript frameworks, it hooks into your local dev server and browser tools. For WordPress, the plugin exposes WordPress-native content, template, menu, widget, option, Elementor, and WooCommerce tools directly from the running site. In both cases, the agent queries live runtime context instead of relying only on static files.",
+		"question": "Can I use Frontman without WordPress?",
+		"reply": "Yes. Separate Next.js, Astro, and Vite integrations run in a supported development environment. A developer installs the integration and reviews, tests, and deploys the source changes. Developers must check production guards and deployed routes rather than assume the integration disappears automatically. See the framework overview for that workflow.",
 		"category": "technical",
 		"open": false
 	},
 	{
-		"question": "Can the WordPress plugin run in production?",
-		"reply": "Yes. Frontman for WordPress is production-ready and battle-tested. The plugin supports editing live WordPress sites beside a live preview. Keep backups and review changes as part of your normal site workflow.",
+		"question": "Can I inspect or self-host Frontman?",
+		"reply": "Yes. Frontman is source-available on GitHub. The browser client and framework integrations use Apache-2.0, the WordPress plugin uses GPL-2.0-or-later, and Frontman Server uses AGPL-3.0-only with AI Supplementary Terms. Self-hosting requires your own infrastructure, maintenance, and AI-provider access. Pricing and documentation explain the hosted and self-hosted options.",
 		"category": "technical",
 		"open": false
 	}
