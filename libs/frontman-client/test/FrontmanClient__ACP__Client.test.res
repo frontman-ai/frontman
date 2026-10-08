@@ -1,6 +1,10 @@
 open Vitest
 
+@module("vitest") @scope("vi") external unstubAllGlobals: unit => unit = "unstubAllGlobals"
+@module("vitest") @scope("vi") external stubGlobal: (string, 'a) => unit = "stubGlobal"
+
 afterEach(() => {
+  unstubAllGlobals()
   Vi.useRealTimers()->ignore
 })
 
@@ -12,6 +16,10 @@ module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
 module Socket = FrontmanClient__Phoenix__Socket
+
+type wire = {requests: array<JSON.t>}
+@module("./acpReconnectTransport.mjs") external makeTransport: unit => wire = "makeTransport"
+@set external holdTasksJoin: (wire, bool) => unit = "holdTasksJoin"
 
 let initializedState =
   Client.initialState->Client.reduce(
@@ -202,6 +210,51 @@ let loadWithoutDelivery = async connection => {
   )
   (result, events.contents)
 }
+
+[
+  ("abort before socket opens", #abort),
+  ("disconnect before socket opens", #disconnect),
+  ("channel join timeout", #timeout),
+]->Array.forEach(((name, action)) =>
+  testAsync(`ACP startup settles on ${name}`, async t => {
+    stubGlobal("__FRONTMAN_INTERNAL_DEV__", true)
+    Vi.useFakeTimers()->ignore
+    let wire = makeTransport()
+    let controller = WebAPI.AbortController.make()
+    let owned = ref(None)
+    holdTasksJoin(wire, action == #timeout)
+    let pending = ACP.connect(
+      ACP.makeConfig(
+        ~endpoint="ws://localhost/socket",
+        ~loginUrl="https://localhost/login",
+        ~getAuthToken=() => Some("test-token"),
+        ~name="test",
+        ~version="1",
+        ~_meta=JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("wordpress"))])),
+      ),
+      ~signal=controller.signal,
+      ~onConnectionCreated=connection => {
+        owned := Some(connection)
+        switch action {
+        | #abort => WebAPI.AbortController.abort(controller)
+        | #disconnect => ACP.disconnect(connection)
+        | #timeout => ()
+        }
+      },
+      ~onConnectionLost=_ => failwith("Startup cleanup must not report connection loss"),
+    )
+    let error = switch action {
+    | #timeout =>
+      (await Vi.advanceTimersByTimeAsync(20000))->ignore
+      "Channel join timed out"
+    | #abort | #disconnect => "Connection aborted"
+    }
+    t->expect(await pending)->Expect.toEqual(Error(ACP.ConnectionFailed(error)))
+    t->expect(ACP.isInitialized(owned.contents->Option.getOrThrow))->Expect.toBe(false)
+    t->expect(wire.requests)->Expect.toEqual([])
+    t->expect(Vi.getTimerCount())->Expect.toBe(0)
+  })
+)
 
 describe("ACP Client State Reducer", _t => {
   test("initialState has correct defaults", t => {

@@ -561,9 +561,14 @@ describe("Connection Reducer", () => {
     )
   })
 
-  ["socket loss", "control-channel error", "task-channel error"]->Array.forEach(scenario =>
+  [
+    ("socket loss", #socketLoss),
+    ("control-channel error", #controlError),
+    ("task-channel error", #taskError),
+    ("intentional disposal", #dispose),
+  ]->Array.forEach(((name, scenario)) =>
     testAsync(
-      `active runtime fails permanently after ${scenario}`,
+      `active runtime settlement after ${name}`,
       async t => {
         Vi.useFakeTimers()->ignore
         let wire = reconnectWire()
@@ -587,11 +592,13 @@ describe("Connection Reducer", () => {
             WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`),
         )
         let state = ref(initialized())
+        let losses = ref(0)
         let signal = runtime(state.contents).lifetimeAbortController.signal
         let result = await App.ConnectionEffects.connectRuntime(
           ~config={...config, acp: {...config.acp, getAuthToken: () => Some("test")}},
           ~signal,
           ~onConnectionLost=error => {
+            losses := losses.contents + 1
             let (lost, effects) = Reducer.reduce(
               state.contents,
               ConnectionResultReceived({signal, result: Error(error)}),
@@ -624,19 +631,28 @@ describe("Connection Reducer", () => {
         let pending = Reducer.ACP.sendPrompt(session, "hello")
         let sent = wire.requests->Array.length
         switch scenario {
-        | "socket loss" => wire.lose(true)
-        | "control-channel error" => wire.lose(false)
-        | "task-channel error" => triggerChannelError(session.channel, JSON.Encode.null)
-        | _ => failwith("Unknown failure scenario")
+        | #socketLoss => wire.lose(true)
+        | #controlError => wire.lose(false)
+        | #taskError => triggerChannelError(session.channel, JSON.Encode.null)
+        | #dispose =>
+          let (disposed, effects) = Reducer.reduce(state.contents, Dispose)
+          state := disposed
+          effects->Array.forEach(effect => handleEffect(effect, disposed, _ => ()))
         }
         t
         ->expect(await pending)
         ->Expect.toEqual(
           Error(Reducer.ACP.requestErrorFromMessage(Reducer.ACP.Protocol.connectionLost)),
         )
-        t
-        ->expect(Reducer.Selectors.getConnectionStatus(state.contents))
-        ->Expect.toEqual(Error(Reducer.ACP.Protocol.connectionLost))
+        let (status, lossCount) = switch scenario {
+        | #dispose => (Reducer.Selectors.Disconnected, 0)
+        | #socketLoss | #controlError | #taskError => (
+            Error(Reducer.ACP.Protocol.connectionLost),
+            1,
+          )
+        }
+        t->expect(Reducer.Selectors.getConnectionStatus(state.contents))->Expect.toEqual(status)
+        t->expect(losses.contents)->Expect.toBe(lossCount)
         t->expect(Reducer.Selectors.getSession(state.contents))->Expect.toBe(None)
         t->expect(signal.aborted)->Expect.toBe(true)
         let _ = await Vi.advanceTimersByTimeAsync(1000)
