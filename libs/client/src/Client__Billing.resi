@@ -56,3 +56,4 @@ let checkoutOptionDescription: checkoutOption => string
 let checkoutOptionBadge: checkoutOption => option<string>
 let checkoutOptionRequest: checkoutOption => request
 let checkoutOptionRecommended: checkoutOption => bool
+let offeredTrialDays: status => option<int>
