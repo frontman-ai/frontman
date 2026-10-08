@@ -203,7 +203,7 @@ type highlightedAnnotation = {
   selector: string,
 }
 
-type settingsTab = General | Providers | Billing | ProviderSetup
+type settingsTab = General | Providers | Billing | Activation | ProviderSetup
 
 type state = {
   tasks: Dict.t<Task.t>,

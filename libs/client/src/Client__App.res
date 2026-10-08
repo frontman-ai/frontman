@@ -26,40 +26,19 @@ let make = () => {
   }, [fileChangeCount])
 
   let settingsTab = Client__State.useSelector(Client__State.Selectors.settingsModalTab)
-  let settingsOpen = settingsTab->Option.isSome
+  let settingsOpen = switch settingsTab {
+  | None | Some(Activation) => false
+  | _ => true
+  }
   let settingsInitialTab = settingsTab->Option.map(tab =>
     switch tab {
     | General => "general"
     | Providers | ProviderSetup => "providers"
     | Billing => "billing"
+    | Activation => "billing"
     }
   )
-  let billingStatus = Client__State.useSelector(Client__State.Selectors.billingStatus)
-  let billingAccessAllowed = Client__State.useSelector(Client__State.Selectors.billingAccessAllowed)
-
-  React.useEffect(() => {
-    switch billingStatus {
-    | Client__Billing.Loaded(status) if !Client__Billing.isAccessAllowed(status) =>
-      Client__State.Actions.openSettingsModalOnBilling()
-    | _ => ()
-    }
-    None
-  }, [billingStatus])
-
-  let providerSetupRequired = Client__State.useSelector(
-    Client__State.Selectors.providerSetupRequired,
-  )
-
   let openSettingsProviders = () => Client__State.Actions.openProviderSetup()
-
-  let showProviderSetupModal = providerSetupRequired && !settingsOpen && billingAccessAllowed
-  React.useEffect(() => {
-    switch showProviderSetupModal {
-    | true => Client__State.Actions.openProviderSetup()
-    | false => ()
-    }
-    None
-  }, [showProviderSetupModal])
 
   let handleSettingsOpenChange = (value: bool) => {
     switch value {
@@ -74,6 +53,9 @@ let make = () => {
       onOpenChange={handleSettingsOpenChange}
       initialTab=?{settingsInitialTab}
       setup={settingsTab == Some(ProviderSetup)}
+    />
+    <Client__ActivationModal
+      open_={settingsTab == Some(Activation) && authRedirectUrl->Option.isNone}
     />
     {switch authRedirectUrl {
     | Some(loginUrl) =>

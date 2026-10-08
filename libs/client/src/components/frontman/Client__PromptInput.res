@@ -304,8 +304,8 @@ let make = (
   ~selectedAgentId: option<string>,
   ~onAgentChange: string => unit,
   ~onConfigureProvider: unit => unit,
+  ~onPrepareSubmit: unit => bool=() => true,
   ~isAgentRunning: bool,
-  ~hasActiveACPSession: bool,
   ~placeholder: string="What would you like to change?",
   ~disabled: bool=false,
   ~disabledPlaceholder: option<string>=?,
@@ -329,8 +329,6 @@ let make = (
   let formRef = React.useRef(Nullable.null)
   let hasModelOptions =
     modelConfigOption->Option.flatMap(ACP.sessionConfigOptionFirstOption)->Option.isSome
-  let noModelsConfigured =
-    !isModelsConfigLoading && modelConfigOption->Option.isSome && !hasModelOptions
   let hasAgentSelector = switch (agentCatalog, selectedAgentId) {
   | (Some(agents), Some(_)) => agents->Array.length > 0
   | _ => false
@@ -397,22 +395,13 @@ let make = (
   }
 
   let hasSubmittableContent = hasContent || hasAnnotations
-  let noModelSelected = selectedModelValue->Option.isNone
-  let isInputDisabled = !hasActiveACPSession || disabled || noModelsConfigured || noModelSelected
+  let isInputDisabled = disabled
   let isSubmitDisabled = isInputDisabled || !hasSubmittableContent || isEnrichingAnnotations
   let showStopButton = isAgentRunning && !hasSubmittableContent
 
-  let currentPlaceholder = switch (
-    noModelsConfigured,
-    disabled,
-    isModelsConfigLoading,
-    noModelSelected,
-  ) {
-  | (true, _, _, _) => "Connect an AI provider to start chatting."
-  | (_, true, _, _) => disabledPlaceholder->Option.getOr("Input disabled")
-  | (_, _, true, _) => "Loading models..."
-  | (_, _, _, true) => "Select a model to start chatting."
-  | _ => placeholder
+  let currentPlaceholder = switch disabled {
+  | true => disabledPlaceholder->Option.getOr("Preparing your request...")
+  | false => placeholder
   }
 
   <div
@@ -484,7 +473,8 @@ let make = (
         <div className="border-t border-white/8">
           <Client__PromptEditor
             draft
-            onDraftChange=Client__State.Actions.setComposerDraft
+            onDraftChange={Client__State.Actions.setComposerDraft}
+            onPrepareSubmit
             disabled={isInputDisabled}
             placeholder={currentPlaceholder}
             isEnrichingAnnotations

@@ -111,13 +111,11 @@ let subscriptionStatus = (billingStatus: status) => billingStatus.status
 
 let activationMessage = (billingStatus: status) =>
   switch billingStatus.status {
-  | NoSubscription
-  | Incomplete
-  | IncompleteExpired => "Finish billing setup to start using Frontman."
-  | Canceled
-  | Unpaid
-  | PastDue => "Your Frontman access has ended. Start a subscription to continue."
-  | Trialing | Active | UnknownSubscriptionStatus(_) => "Activate billing to start using Frontman."
+  | NoSubscription => "Turn your next idea into a website improvement. Choose a plan to continue."
+  | Incomplete | IncompleteExpired => "Checkout wasn't completed. Your request is still here."
+  | Unpaid | PastDue => "Update your payment method to restore access to Frontman."
+  | Canceled => "Reactivate Frontman to keep your website improvements moving."
+  | Trialing | Active | UnknownSubscriptionStatus(_) => "Check your plan to continue with Frontman."
   }
 
 let subscriptionStatusLabel = status =>
@@ -170,14 +168,26 @@ let checkoutOptionPrice = (option: checkoutOption) => option.price
 let checkoutOptionDescription = (option: checkoutOption) => option.description
 let checkoutOptionBadge = (option: checkoutOption) => option.badge
 let checkoutOptionRequest = (option: checkoutOption) => Checkout(option.interval)
+let checkoutOptionRecommended = (option: checkoutOption) =>
+  switch option.interval {
+  | Yearly => true
+  | Monthly => false
+  }
+
 let offeredTrialDays = (status: status) =>
   switch (status.trialEligible, status.trialDays, status.accessAllowed) {
   | (Some(true), Some(days), false) if days > 0 => Some(days)
   | _ => None
   }
 
-let checkoutOptionRecommended = (option: checkoutOption) =>
-  switch option.interval {
-  | Yearly => true
-  | Monthly => false
+let priceLabel = interval =>
+  switch interval {
+  | Monthly => "€15 per seat / month"
+  | Yearly => "€150 per seat / year"
+  }
+
+let needsPaymentRecovery = (status: status) =>
+  switch (status.status, status.hasBillingCustomer) {
+  | (PastDue | Unpaid, true) => true
+  | _ => false
   }

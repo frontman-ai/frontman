@@ -112,7 +112,6 @@ module ExecutePlanAction = {
 @react.component
 let make = (~onConfigureProvider: unit => unit) => {
   let connectionState = Client__State.useSelector(Client__State.Selectors.getConnectionStatus)
-  let session = Client__State.useSelector(Client__State.Selectors.getSession)
   let sessionError = Client__State.useSelector(Client__State.Selectors.getSessionError)
 
   let isSubmitting = Client__State.useSelector(Client__State.Selectors.isSubmitting)
@@ -131,6 +130,10 @@ let make = (~onConfigureProvider: unit => unit) => {
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
   let billingStatus = Client__State.useSelector(Client__State.Selectors.billingStatus)
+  let billingAccessAllowed = Client__State.useSelector(Client__State.Selectors.billingAccessAllowed)
+  let providerSetupRequired = Client__State.useSelector(
+    Client__State.Selectors.providerSetupRequired,
+  )
   let webPreviewIsSelecting = Client__State.useSelector(
     Client__State.Selectors.webPreviewIsSelecting,
   )
@@ -408,15 +411,17 @@ let make = (~onConfigureProvider: unit => unit) => {
     {switch billingStatus {
     | Client__Billing.Loaded(status) if !Client__Billing.isAccessAllowed(status) =>
       <Client__UI__Alert className="mx-4 mb-2 w-auto">
-        <Client__UI__Alert.Title> {React.string("Billing required")} </Client__UI__Alert.Title>
+        <Client__UI__Alert.Title>
+          {React.string("Keep your next improvement moving")}
+        </Client__UI__Alert.Title>
         <Client__UI__Alert.Description>
           {React.string(Client__Billing.activationMessage(status))}
           <Client__UI__Button
             variant=Client__UI__Button.Variant.Secondary
             size=Client__UI__Button.Size.Sm
-            onClick={_ => Client__State.Actions.openSettingsModalOnBilling()}
+            onClick={_ => Client__State.Actions.openActivation()}
           >
-            {React.string("Open billing")}
+            {React.string("See your plan")}
           </Client__UI__Button>
         </Client__UI__Alert.Description>
       </Client__UI__Alert>
@@ -437,6 +442,18 @@ let make = (~onConfigureProvider: unit => unit) => {
       | false =>
         <PromptInput
           onSubmit={handleSubmit}
+          onPrepareSubmit={() =>
+            switch (
+              billingAccessAllowed,
+              providerSetupRequired,
+              selectedModelValue,
+              hasActiveACPSession,
+            ) {
+            | (true, false, Some(_), true) => true
+            | _ =>
+              Client__State.Actions.continueActivation()
+              false
+            }}
           disabled={isSubmitting}
           onCancel={Client__State.Actions.cancelTurn}
           modelConfigOption
@@ -448,7 +465,6 @@ let make = (~onConfigureProvider: unit => unit) => {
           onAgentChange={agentId => Client__State.Actions.setSelectedAgentId(~agentId)}
           onConfigureProvider
           isAgentRunning
-          hasActiveACPSession={hasActiveACPSession && (isNewTask || session->Option.isSome)}
           onSelectElement={Client__State.Actions.toggleWebPreviewSelection}
           isSelecting={webPreviewIsSelecting}
           hasAnnotations

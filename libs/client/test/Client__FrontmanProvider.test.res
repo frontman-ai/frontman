@@ -9,7 +9,11 @@ let resetStore = () => {
   )
 }
 
-afterEach(_t => resetStore())
+beforeEach(Client__ActivationTestHelpers.setup)
+afterEach(_t => {
+  resetStore()
+  Client__ActivationTestHelpers.unstubAllGlobals()
+})
 
 let errorEffects = category =>
   Reducer.next(
@@ -54,7 +58,7 @@ describe("ACP billing update handling", () => {
     )
     ->Expect.toBe("Alternate billing copy")
     let state = StateStore.getState(Client__State__Store.store)
-    t->expect(state.settingsModalTab)->Expect.toEqual(Some(Client__State__Types.Billing))
+    t->expect(state.settingsModalTab)->Expect.toEqual(Some(Client__State__Types.Activation))
   })
 
   test("does not open settings for non-billing error category", t => {

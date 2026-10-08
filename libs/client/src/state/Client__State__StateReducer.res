@@ -1255,7 +1255,7 @@ module ConnectionEffects = {
 
   let billingRequestErrorMessage = (error, dispatchApp: appAction => unit) => {
     switch ACP.requestErrorIsBillingInactive(error) {
-    | true => dispatchApp(SetSettingsModalTab({tab: Some(Billing)}))
+    | true => dispatchApp(SetSettingsModalTab({tab: Some(Activation)}))
     | false => ()
     }
     ACP.requestErrorMessage(error)
@@ -2262,7 +2262,7 @@ let rec next = (state: state, action) => {
     switch state.connection {
     | Some(connection) if Connection.isCurrentSessionRequest(connection, requestId) =>
       let state = switch Connection.ACP.requestErrorIsBillingInactive(error) {
-      | true => {...state, settingsModalTab: Some(Billing)}
+      | true => {...state, settingsModalTab: Some(Activation)}
       | false => state
       }
       failed(state, Connection.ACP.requestErrorMessage(error))
@@ -2469,7 +2469,16 @@ let rec next = (state: state, action) => {
 
   | SetComposerDraft(text) => {...state, composerDraft: text}->StateReducer.update
   | ContinueActivation =>
-    {...state, settingsModalTab: None}->StateReducer.update(~sideEffect=FocusComposer)
+    switch (
+      Selectors.billingAccessAllowed(state),
+      Selectors.providerSetupRequired(state),
+      state.selectedModelValue,
+    ) {
+    | (true, false, Some(_)) =>
+      {...state, settingsModalTab: None}->StateReducer.update(~sideEffect=FocusComposer)
+    | (true, _, _) => next(state, SetSettingsModalTab({tab: Some(ProviderSetup)}))
+    | _ => next(state, SetSettingsModalTab({tab: Some(Activation)}))
+    }
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {
