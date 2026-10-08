@@ -614,7 +614,7 @@ describe("Connection Reducer", () => {
           (
             await Reducer.ACP.createSession(
               ready.connection,
-              ~sessionId="existing",
+              ~sessionId="12345678-1234-1234-1234-123456789abc",
               ~onUpdate=(_, _) => (),
               ~onTitleUpdated=(_, _) => (),
             )

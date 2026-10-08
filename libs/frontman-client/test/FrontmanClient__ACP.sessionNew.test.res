@@ -3,13 +3,13 @@ open Vitest
 module ACP = FrontmanClient__ACP
 
 type transport = {
-  mutable holdSessionNew: bool,
   frames: array<JSON.t>,
   requests: array<JSON.t>,
 }
 
 @module("./acpReconnectTransport.mjs")
 external makeTransport: unit => transport = "makeTransport"
+@set external holdSessionNew: (transport, bool) => unit = "holdSessionNew"
 @send external reply: (transport, JSON.t, JSON.t) => unit = "reply"
 @send
 external listenerCount: (transport, FrontmanClient__Phoenix__Channel.t, string) => int =
@@ -76,7 +76,7 @@ let create = connection =>
 
 testAsync("stable-ID creation uses ACP params and rejects a changed returned ID", async t => {
   let (wire, connection) = await connect()
-  wire.holdSessionNew = true
+  holdSessionNew(wire, true)
   let pending = create(connection)
   let request = wire.requests->Array.at(-1)->Option.getOrThrow
   let params = request->S.parseOrThrow(~to=S.object(s => s.field("params", S.json)))
