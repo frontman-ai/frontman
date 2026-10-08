@@ -110,8 +110,9 @@ module Actions = {
   let setSettingsModalTab = (tab: option<Client__State__Types.settingsTab>) =>
     Client__State__Store.dispatch(SetSettingsModalTab({tab: tab}))
   let openSettingsModal = () => setSettingsModalTab(Some(Client__State__Types.General))
-  let openSettingsModalOnProviders = () => setSettingsModalTab(Some(Client__State__Types.Providers))
   let openSettingsModalOnBilling = () => setSettingsModalTab(Some(Client__State__Types.Billing))
+  let openProviderSetup = () => setSettingsModalTab(Some(Client__State__Types.ProviderSetup))
+  let continueActivation = () => Client__State__Store.dispatch(ContinueActivation)
   let setComposerDraft = text => Client__State__Store.dispatch(SetComposerDraft(text))
   let dismissBillingCheckout = () => Client__State__Store.dispatch(BillingCheckoutDismissed)
   let requestBilling = request => Client__State__Store.dispatch(RequestBilling(request))

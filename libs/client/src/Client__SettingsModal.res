@@ -484,6 +484,7 @@ module APIKeyCard = {
   @react.component
   let make = (
     ~title,
+    ~hidden=false,
     ~manageHref,
     ~emptyPlaceholder,
     ~description: option<string>=?,
@@ -493,7 +494,7 @@ module APIKeyCard = {
     ~save,
     ~reset,
   ) =>
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+    <div hidden className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm font-semibold text-zinc-100"> {React.string(title)} </span>
@@ -513,7 +514,11 @@ module APIKeyCard = {
       | None => React.null
       }}
       <div className="mt-3 flex items-center gap-3">
+        <label htmlFor={`${title}-api-key`} className="sr-only">
+          {React.string(`${title} API key`)}
+        </label>
         <Input
+          id={`${title}-api-key`}
           type_="password"
           placeholder={apiKeyPlaceholder(settings.source, emptyPlaceholder)}
           value={apiKey}
@@ -536,7 +541,16 @@ module APIKeyCard = {
 }
 
 @react.component
-let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<string>=?) => {
+let make = (
+  ~open_: bool,
+  ~onOpenChange: bool => unit,
+  ~initialTab: option<string>=?,
+  ~setup=false,
+) => {
+  let (setupProvider, setSetupProvider) = React.useState(() => "anthropic")
+  let draft = State.useSelector(State.Selectors.composerDraft)
+  let selectedModel = State.useSelector(State.Selectors.selectedModelValue)
+  let connected = State.useSelector(State.Selectors.hasActiveACPSession)
   let connectionState = State.useSelector(State.Selectors.getConnectionStatus)
   let runtimeConfig = RuntimeConfig.read()
   let frameworkDisplayName = RuntimeConfig.frameworkDisplayName(runtimeConfig.framework)
@@ -603,14 +617,21 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
     onOpenChange={(open_, _) => requestSettingsOpenChange(open_, hasUnsavedChanges, onOpenChange)}
   >
     <Dialog.Content
-      className="sm:max-w-none max-w-none h-[560px] w-[960px] p-0" showCloseButton={false}
+      className={setup
+        ? "dark bg-background text-foreground [&_.text-zinc-500]:text-zinc-400 sm:max-w-xl max-h-[90dvh] h-[640px] p-0"
+        : "dark bg-background text-foreground sm:max-w-none max-w-[calc(100%-2rem)] h-[min(560px,90dvh)] w-[960px] p-0"}
+      showCloseButton={false}
     >
       <div className="flex h-full overflow-hidden">
-        <Dialog.Title className="sr-only"> {React.string("Settings")} </Dialog.Title>
+        <Dialog.Title className="sr-only">
+          {React.string(setup ? "Connect your AI provider" : "Settings")}
+        </Dialog.Title>
         <Dialog.Description className="sr-only">
           {React.string("Manage account, environment, provider connections, and API keys.")}
         </Dialog.Description>
-        <div className="w-56 border-r border-zinc-800 bg-zinc-950/60 px-4 py-5">
+        <div
+          hidden=setup className="w-56 shrink-0 border-r border-zinc-800 bg-zinc-950/60 px-4 py-5"
+        >
           <div className="text-lg font-semibold text-zinc-100"> {React.string("Settings")} </div>
           <div className="mt-1 text-xs text-zinc-500">
             {React.string(
@@ -645,15 +666,70 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col min-h-0">
+        <div className="flex flex-1 flex-col min-h-0 min-w-0">
           <div className="flex justify-end px-4 pt-4 pb-2">
             <Dialog.Close
+              ariaLabel="Close settings"
               className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-xs opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
             >
               <Icons.Cross2Icon />
             </Dialog.Close>
           </div>
           <div className="flex-1 overflow-y-auto px-6 pb-6 pr-6">
+            {switch setup {
+            | false => React.null
+            | true =>
+              <div className="space-y-4 mb-6">
+                <h2 className="text-xl font-semibold">
+                  {React.string("Connect AI. Then make your first change.")}
+                </h2>
+                <p className="text-sm text-zinc-300">
+                  {React.string(
+                    "Choose a provider you already use and connect below. Your provider powers the edits and bills usage separately from Frontman.",
+                  )}
+                </p>
+                {draft == ""
+                  ? React.null
+                  : <p
+                      className="text-sm text-zinc-300 whitespace-pre-wrap break-words max-h-20 overflow-y-auto"
+                    >
+                      {React.string(`Your request: ${draft}`)}
+                    </p>}
+                <label className="block space-y-2 text-sm">
+                  <span> {React.string("1. Choose your provider")} </span>
+                  <select
+                    value=setupProvider
+                    disabled=hasUnsavedChanges
+                    onChange={event =>
+                      setSetupProvider(_ => ReactEvent.Form.target(event)["value"])}
+                    className="w-full rounded-lg border bg-background p-3 focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {[
+                      ("anthropic", "Anthropic · account or API key"),
+                      ("openai", "OpenAI · account"),
+                      ("openrouter", "OpenRouter · API key"),
+                      ("fireworks", "Fireworks AI · API key"),
+                      ("nvidia", "NVIDIA · API key"),
+                      ("custom", "Custom provider"),
+                    ]
+                    ->Array.map(((value, label)) =>
+                      <option key=value value> {React.string(label)} </option>
+                    )
+                    ->React.array}
+                  </select>
+                </label>
+                {switch hasUnsavedChanges {
+                | true =>
+                  <p role="status" className="text-sm text-zinc-300">
+                    {React.string("Save or clear your changes before switching providers.")}
+                  </p>
+                | false => React.null
+                }}
+                <p className="font-medium text-sm">
+                  {React.string("2. Connect your account or save your key")}
+                </p>
+              </div>
+            }}
             {activeTab == "billing"
               ? <Client__SettingsModal__Tab__Billing />
               : activeTab == "general"
@@ -725,10 +801,13 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                 </div>
               </div>
               : <div className="space-y-6">
-                  <div className="text-sm text-zinc-400">
+                  <div hidden=setup className="text-sm text-zinc-400">
                     {React.string("Connect your account")}
                   </div>
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                  <div
+                    hidden={setup && setupProvider != "anthropic"}
+                    className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-zinc-100">
@@ -899,7 +978,10 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     }}
                   </div>
 
-                  <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4">
+                  <div
+                    hidden={setup && setupProvider != "openai"}
+                    className="rounded-lg border border-zinc-800 bg-zinc-900/40 px-4 py-4"
+                  >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-zinc-100">
@@ -985,11 +1067,12 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     </div>
                   </div>
 
-                  <div className="text-sm text-zinc-400">
+                  <div hidden=setup className="text-sm text-zinc-400">
                     {React.string("Bring your own key")}
                   </div>
                   <APIKeyCard
                     title="NVIDIA"
+                    hidden={setup && setupProvider != "nvidia"}
                     manageHref="https://build.nvidia.com/settings/api-keys"
                     emptyPlaceholder="Enter NVIDIA API key"
                     description="Use your NVIDIA API key to access NVIDIA-hosted models."
@@ -1001,6 +1084,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                   />
                   <APIKeyCard
                     title="Fireworks AI"
+                    hidden={setup && setupProvider != "fireworks"}
                     manageHref="https://app.fireworks.ai/api-keys"
                     emptyPlaceholder="Enter Fireworks API key"
                     description="Use your Fireworks API key with Fire Pass to access Kimi K2.5 Turbo."
@@ -1012,6 +1096,7 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                   />
                   <APIKeyCard
                     title="OpenRouter"
+                    hidden={setup && setupProvider != "openrouter"}
                     manageHref="https://openrouter.ai/keys"
                     emptyPlaceholder="Enter OpenRouter API key"
                     settings=keySettings
@@ -1021,12 +1106,35 @@ let make = (~open_: bool, ~onOpenChange: bool => unit, ~initialTab: option<strin
                     reset={State.Actions.resetOpenRouterKeySaveStatus}
                   />
                 </div>}
-            <div className={activeTab == "providers" ? "mt-6" : "hidden"}>
+            <div
+              hidden={setup && setupProvider != "custom"}
+              className={activeTab == "providers" ? "mt-6" : "hidden"}
+            >
               <CustomProvidersSection
                 onDirtyChange={isDirty => setCustomProvidersDirty(_ => isDirty)}
               />
             </div>
           </div>
+          {switch setup {
+          | false => React.null
+          | true =>
+            <div className="border-t p-4 space-y-3">
+              <p className="text-sm" role="status">
+                {React.string(
+                  connected
+                    ? "Your model is selected automatically. Review your request and model next; nothing runs automatically."
+                    : "Reconnect to Frontman to finish setup. Your request stays in this tab.",
+                )}
+              </p>
+              <Button
+                className="w-full min-h-11"
+                disabled={!connected || selectedModel->Option.isNone || hasUnsavedChanges}
+                onClick={_ => State.Actions.continueActivation()}
+              >
+                {React.string("Review my request")}
+              </Button>
+            </div>
+          }}
         </div>
       </div>
     </Dialog.Content>

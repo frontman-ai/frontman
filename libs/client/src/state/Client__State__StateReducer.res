@@ -53,6 +53,7 @@ type rec action =
   | UpdateTaskTitle({taskId: string, title: string})
   | SetSettingsModalTab({tab: option<Client__State__Types.settingsTab>})
   | SetComposerDraft(string)
+  | ContinueActivation
   | BillingStatusReceived(Client__Billing.status)
   | BillingStatusError({error: string})
   | RequestBilling(Client__Billing.request)
@@ -129,6 +130,7 @@ type customProviderMutationRequest =
   | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
+  | FocusComposer
   | ConnectionEffect(Connection.effect)
   | CreateSession({taskId: string, input: promptInput})
   | SendMessage({taskId: string, submission: Client__State__Types.submission})
@@ -1473,6 +1475,12 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
   | FlushSessionActions(actions) =>
     Client__TextDeltaBuffer.flush()
     actions->Array.forEach(action => dispatch(action))
+  | FocusComposer =>
+    WebAPI.Window.setTimeout(
+      WebAPI.Window.current,
+      ~handler=Client__PromptEditor.focus,
+      ~timeout=0,
+    )->ignore
   | AbortBillingRequest(controller) =>
     controller->Option.forEach(controller => WebAPI.AbortController.abort(controller))
   | FetchBillingStatus({apiBaseUrl, signal}) =>
@@ -2460,6 +2468,8 @@ let rec next = (state: state, action) => {
     }
 
   | SetComposerDraft(text) => {...state, composerDraft: text}->StateReducer.update
+  | ContinueActivation =>
+    {...state, settingsModalTab: None}->StateReducer.update(~sideEffect=FocusComposer)
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {

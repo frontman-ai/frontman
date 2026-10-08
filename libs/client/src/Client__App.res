@@ -30,7 +30,7 @@ let make = () => {
   let settingsInitialTab = settingsTab->Option.map(tab =>
     switch tab {
     | General => "general"
-    | Providers => "providers"
+    | Providers | ProviderSetup => "providers"
     | Billing => "billing"
     }
   )
@@ -50,9 +50,16 @@ let make = () => {
     Client__State.Selectors.providerSetupRequired,
   )
 
-  let openSettingsProviders = () => Client__State.Actions.openSettingsModalOnProviders()
+  let openSettingsProviders = () => Client__State.Actions.openProviderSetup()
 
   let showProviderSetupModal = providerSetupRequired && !settingsOpen && billingAccessAllowed
+  React.useEffect(() => {
+    switch showProviderSetupModal {
+    | true => Client__State.Actions.openProviderSetup()
+    | false => ()
+    }
+    None
+  }, [showProviderSetupModal])
 
   let handleSettingsOpenChange = (value: bool) => {
     switch value {
@@ -63,10 +70,10 @@ let make = () => {
 
   <div className="flex flex-col h-screen w-screen bg-background text-foreground">
     <SettingsModal
-      open_={settingsOpen} onOpenChange={handleSettingsOpenChange} initialTab=?{settingsInitialTab}
-    />
-    <Client__ProviderSetupModal
-      open_={showProviderSetupModal} onOpenSettings=openSettingsProviders
+      open_={settingsOpen}
+      onOpenChange={handleSettingsOpenChange}
+      initialTab=?{settingsInitialTab}
+      setup={settingsTab == Some(ProviderSetup)}
     />
     {switch authRedirectUrl {
     | Some(loginUrl) =>
