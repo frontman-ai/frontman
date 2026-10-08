@@ -75,13 +75,16 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
               execution_request_fixture()
           end
 
-        {:ok, _, _} =
-          submit_user_message_and_run(
-            scope,
-            task_id,
-            execution,
-            user_content("Hello")
-          )
+        case unquote(delivery) do
+          :removed_model ->
+            {:ok, task} = Tasks.get_task(scope, task_id)
+            insert_accepted_user_message!(task, "Hello", execution.model)
+            assert :ok = Tasks.execute_next_turn(scope, task_id, execution)
+
+          _provider_error ->
+            {:ok, _, _} =
+              submit_user_message_and_run(scope, task_id, execution, user_content("Hello"))
+        end
 
         assert_receive_interaction(%Interaction.AgentError{} = error, _turn_number)
 

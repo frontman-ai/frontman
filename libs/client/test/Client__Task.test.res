@@ -9,9 +9,10 @@ let testUserMessageId = UserMessageId.make()
 
 module TestHelpers = {
   let makeLoadedTask = () => {
-    Task.makeNew(~previewUrl="http://localhost:3000")
-    ->Task.newToLoaded(~id="test-task-1", ~title="Test Task")
-    ->Task.updateLoadedData(data => {...data, messages: []})
+    Task.makeNew(~previewUrl="http://localhost:3000")->Task.newToLoaded(
+      ~id="test-task-1",
+      ~title="Test Task",
+    )
   }
 
   let makeUnloadedTask = () => {
@@ -47,6 +48,17 @@ module TestHelpers = {
       }),
     )->Pair.first
   }
+
+  let submit = (task, ~id=testUserMessageId, ~text="Hello", ~annotations=[]) =>
+    TaskReducer.next(
+      task,
+      AddUserMessage({
+        id,
+        content: [Client__Task__Types.UserContentPart.Text({text: text})],
+        annotations,
+        agentId: "executor-id",
+      }),
+    )
 
   let getMessages = (task: Task.t): array<Message.t> => {
     TaskReducer.Selectors.messages(task)->Option.getOrThrow(
@@ -128,11 +140,13 @@ describe("Task - Load State Machine", () => {
     t->expect(Task.isLoaded(loadedTask))->Expect.toBe(true)
   })
 
-  test("LoadError reverts Loading to Unloaded for retry", t => {
+  test("LoadError preserves the projection and supports canonical retry", t => {
     let task = TestHelpers.makeLoadingTask()
     let (failedTask, _) = TaskReducer.next(task, LoadError({error: "Network error"}))
 
-    t->expect(Task.isUnloaded(failedTask))->Expect.toBe(true)
+    t->expect(Task.isLoaded(failedTask))->Expect.toBe(true)
+    let (retry, _) = TaskReducer.next(failedTask, LoadStarted({previewUrl: "about:blank"}))
+    t->expect(Task.isLoading(retry))->Expect.toBe(true)
   })
 })
 
@@ -178,15 +192,7 @@ describe("Task - Session Rehydration (Loading history → LoadComplete)", () => 
 describe("Task - Agent Running State", () => {
   test("submitted message stays queued until its accepted turn starts", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (submitted, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-        agentId: "executor-id",
-      }),
-    )
+    let (submitted, _) = TestHelpers.submit(task)
 
     let queued = TestHelpers.getQueuedUserMessages(submitted)
     t->expect(queued->Array.length)->Expect.toBe(1)
@@ -212,15 +218,7 @@ describe("Task - Agent Running State", () => {
 
   test("state updates drive isAgentRunning", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (task2, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-        agentId: "executor-id",
-      }),
-    )
+    let (task2, _) = TestHelpers.submit(task)
     t->expect(TaskReducer.Selectors.isAgentRunning(task2))->Expect.toEqual(Some(false))
 
     let (task3, _) = TaskReducer.next(task2, ExecutionStateRunning)
@@ -366,15 +364,7 @@ describe("Task - Plan Entries", () => {
 describe("Task - Error Handling", () => {
   test("UserMessageSendFailed removes a pending optimistic message and exposes the error", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (pending, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-        agentId: "executor-id",
-      }),
-    )
+    let (pending, _) = TestHelpers.submit(task)
     let messageId = testUserMessageId->UserMessageId.toString
     let (failed, effects) = TaskReducer.next(
       pending,
@@ -392,15 +382,7 @@ describe("Task - Error Handling", () => {
 
   test("UserMessageSendFailed preserves a message already accepted by the server", t => {
     let task = TestHelpers.makeLoadedTask()
-    let (pending, _) = TaskReducer.next(
-      task,
-      AddUserMessage({
-        id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "Hello"})],
-        annotations: [],
-        agentId: "executor-id",
-      }),
-    )
+    let (pending, _) = TestHelpers.submit(task)
     let accepted = TestHelpers.acceptUserMessage(
       pending,
       ~id=testUserMessageId->UserMessageId.toString,
@@ -508,15 +490,7 @@ describe("Task - Error Handling", () => {
       }),
     )
 
-    let (task3, _) = TaskReducer.next(
-      task2,
-      AddUserMessage({
-        id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "New message"})],
-        annotations: [],
-        agentId: "executor-id",
-      }),
-    )
+    let (task3, _) = TestHelpers.submit(task2, ~text="New message")
     t->expect(TaskReducer.Selectors.turnError(task3))->Expect.toEqual(None)
   })
 })
@@ -591,15 +565,7 @@ describe("Task - CancelTurn", () => {
     let task = _startAgentWithStreaming()
     let (cancelled, _) = TaskReducer.next(task, CancelTurn)
     let messageId = UserMessageId.make()
-    let (submitted, _) = TaskReducer.next(
-      cancelled,
-      AddUserMessage({
-        id: messageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "New question"})],
-        annotations: [],
-        agentId: "executor-id",
-      }),
-    )
+    let (submitted, _) = TestHelpers.submit(cancelled, ~id=messageId, ~text="New question")
     let accepted = TestHelpers.acceptUserMessage(
       submitted,
       ~id=messageId->UserMessageId.toString,
@@ -738,14 +704,10 @@ describe("Task - Annotations Cleared on Send (Issue #466)", () => {
     ->expect(TaskReducer.Selectors.activePopupAnnotationId(task)->Option.getOr(None)->Option.isSome)
     ->Expect.toBe(true)
 
-    let (updated, effects) = TaskReducer.next(
+    let (updated, effects) = TestHelpers.submit(
       task,
-      AddUserMessage({
-        id: testUserMessageId,
-        content: [Client__Task__Types.UserContentPart.Text({text: "Fix this"})],
-        annotations: _sampleMessageAnnotations,
-        agentId: "executor-id",
-      }),
+      ~text="Fix this",
+      ~annotations=_sampleMessageAnnotations,
     )
 
     t
@@ -918,15 +880,7 @@ describe("Task - Interactive wait contract", () => {
         runEffects(effects)
         let (answered, effects) = TaskReducer.next(waiting, answerAction)
         runEffects(effects)
-        let (queued, sendEffects) = TaskReducer.next(
-          answered,
-          AddUserMessage({
-            id: testUserMessageId,
-            content: [Client__Task__Types.UserContentPart.Text({text: "Next turn, not an answer"})],
-            annotations: [],
-            agentId: "executor-id",
-          }),
-        )
+        let (queued, sendEffects) = TestHelpers.submit(answered, ~text="Next turn, not an answer")
         t->expect(sendEffects)->Expect.toEqual([])
         switch TestHelpers.getQueuedUserMessages(queued)->Array.get(0) {
         | Some(Message.User({content})) =>

@@ -100,54 +100,76 @@ let replay = actions => {
 describe("ACP message identity", () => {
   test("load results reject stale requests, flush history, and preserve cached tasks", t => {
     module App = Client__State__StateReducer
-    module Store = StateStore
     module Connection = Client__ConnectionReducer
+    module Helpers = Client__ConnectionTestHelpers
     Buffer.reset()
-    let requests: array<Connection.action> = []
-    let operations = []
     let initial = {...App.defaultState, tasks: Dict.fromArray([("task-1", makeLoadingTask())])}
     let getTask = (state: App.state) => state.tasks->Dict.get("task-1")->Option.getOrThrow
-    let rejected = App.next(initial, SwitchTask({taskId: "task-1"}))->Pair.first
-    t->expect(getTask(rejected)->Task.isLoading)->Expect.toBe(false)
-    let cancelled =
-      App.next(initial, TaskLoadFinished({taskId: "task-1", result: Ok(ref())}))->Pair.first
-    t->expect(getTask(cancelled)->Task.isLoading)->Expect.toBe(false)
-    let store = Client__ConnectionTestHelpers.makeStore(
-      {...initial, connection: Client__ConnectionTestHelpers.ready()},
+    [
+      App.SwitchTask({taskId: "task-1"}),
+      TaskLoadFinished({taskId: "task-1", result: Ok(ref())}),
+    ]->Array.forEach(
+      action =>
+        t
+        ->expect(App.next(initial, action)->Pair.first->getTask->Task.isLoading)
+        ->Expect.toBe(false),
+    )
+    let requests: array<Connection.sessionRequestId> = []
+    let operations = []
+    let store = Helpers.makeStore(
+      {...initial, connection: Helpers.ready()},
       (effect, state, dispatch) =>
         switch effect {
-        | ConnectionEffect(ActivateSessionEffect({
-            requestId,
-            operation: (#load(sessionId) | #join(sessionId)) as operation,
-          })) =>
-          operations->Array.push(operation)
-          requests->Array.push(
-            Connection.SessionResultReceived({
-              requestId,
-              sessionId,
-              result: Ok((Client__ConnectionTestHelpers.session(sessionId), None)),
-            }),
-          )
+        | ConnectionEffect(ActivateSessionEffect({requestId, operation: #load("task-1")})) =>
+          operations->Array.push(#load("task-1"))
+          requests->Array.push(requestId)
+        | ConnectionEffect(FetchSessionsEffect(_)) => ()
         | _ => App.handleEffect(effect, state, dispatch)
         },
     )
-    let switchTask = () => store->Store.dispatch(SwitchTask({taskId: "task-1"}))
-    let finish = index =>
-      store->Store.dispatch(ConnectionAction(requests->Array.get(index)->Option.getOrThrow))
+    let dispatch = action => store->StateStore.dispatch(action)
+    let switchTask = () => dispatch(SwitchTask({taskId: "task-1"}))
+    let finish = index => {
+      let requestId = requests->Array.get(index)->Option.getOrThrow
+      dispatch(
+        SessionEvent({
+          requestId,
+          action: TaskAction({
+            target: ForTask("task-1"),
+            action: LoadStarted({previewUrl: "about:blank"}),
+          }),
+        }),
+      )
+      dispatch(
+        SessionEvent({
+          requestId,
+          action: AcpSessionUpdateReceived({
+            taskId: "task-1",
+            update: AgentMessageChunk({
+              messageId: "assistant-1",
+              content: TextContent({text: "History", _meta: None, annotations: None}),
+              _meta: {agentId: "executor-id", timestamp: "2026-01-01T00:00:00Z"},
+            }),
+          }),
+        }),
+      )
+      dispatch(
+        ConnectionAction(
+          SessionResultReceived({
+            requestId,
+            sessionId: "task-1",
+            result: Ok((Helpers.session("task-1"), None)),
+          }),
+        ),
+      )
+    }
     switchTask()
     switchTask()
-    t->expect(store->Store.getState->getTask->Task.isLoading)->Expect.toBe(true)
+    t->expect(store->StateStore.getState->App.Selectors.isSubmitting)->Expect.toBe(true)
     finish(0)
-    t->expect(store->Store.getState->getTask->Task.isLoading)->Expect.toBe(true)
-    let dispatch = action => store->Store.dispatch(action)
-    App.getSessionTextBuffer(dispatch).add(
-      ~taskId="task-1",
-      ~messageId="assistant-1",
-      ~text="History",
-      ~agentId="executor-id",
-    )
+    t->expect(store->StateStore.getState->App.Selectors.isSubmitting)->Expect.toBe(true)
     finish(1)
-    let loaded = store->Store.getState->getTask
+    let loaded = store->StateStore.getState->getTask
     t->expect(Task.isLoaded(loaded))->Expect.toBe(true)
     t->expect(summary(loaded))->Expect.toEqual([("assistant-1", "History")])
     switch Task.getMessages(loaded)->Array.get(0) {
@@ -156,11 +178,11 @@ describe("ACP message identity", () => {
     }
     switchTask()
     t->expect(requests->Array.length)->Expect.toBe(2)
-    store->Store.dispatch(ClearCurrentTask)
+    dispatch(ClearCurrentTask)
     switchTask()
     finish(2)
-    t->expect(operations)->Expect.toEqual([#load("task-1"), #load("task-1"), #join("task-1")])
-    t->expect(store->Store.getState->getTask)->Expect.toBe(loaded)
+    t->expect(operations)->Expect.toEqual([#load("task-1"), #load("task-1"), #load("task-1")])
+    t->expect(store->StateStore.getState->getTask)->Expect.toEqual(loaded)
     Buffer.reset()
   })
 

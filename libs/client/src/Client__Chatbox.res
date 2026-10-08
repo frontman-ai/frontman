@@ -133,7 +133,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let turnError = Client__State.useSelector(Client__State.Selectors.turnError)
   let currentTaskId = Client__State.useSelector(Client__State.Selectors.currentTaskId)
   let retryStatus = Client__State.useSelector(Client__State.Selectors.retryStatus)
-  let configOptions = Client__State.useSelector(Client__State.Selectors.configOptions)
+  let modelOptions = Client__State.useSelector(Client__State.Selectors.modelOptions)
   let agentCatalog = Client__State.useSelector(Client__State.Selectors.agentCatalog)
   let selectedAgentId = Client__State.useSelector(Client__State.Selectors.selectedAgentId)
   let selectedModelValue = Client__State.useSelector(Client__State.Selectors.selectedModelValue)
@@ -148,11 +148,7 @@ let make = (~onConfigureProvider: unit => unit) => {
   let hasEnrichingAnnotations = Client__State.useSelector(
     Client__State.Selectors.hasEnrichingAnnotations,
   )
-  let modelConfigOption =
-    configOptions->Option.flatMap(opts =>
-      FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP.findConfigOptionByCategory(opts, Model)
-    )
-  let isModelsConfigLoading = configOptions->Option.isNone
+  let isModelsConfigLoading = modelOptions->Option.isNone
   let agentForId = agentId => Client__Agent.findOrThrow(agentCatalog, agentId)
 
   let (thinkingState, thinkingMessageId) = UseThinkingState.useWithMessageId(
@@ -455,7 +451,7 @@ let make = (~onConfigureProvider: unit => unit) => {
           onSubmit={handleSubmit}
           disabled={isSubmitting}
           onCancel={Client__State.Actions.cancelTurn}
-          modelConfigOption
+          modelOptions
           isModelsConfigLoading
           selectedModelValue
           onModelChange={value => Client__State.Actions.setSelectedModelValue(~value)}

@@ -33,6 +33,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   @acp_title_updated ACP.event_title_updated()
   @acp_method_session_prompt ACP.method_session_prompt()
   @acp_method_session_load ACP.method_session_load()
+  @acp_method_session_set_config_option "session/set_config_option"
   @mcp_init_timeout_ms 30_000
   @impl true
   def join("task:" <> task_id, _params, socket) do
@@ -44,6 +45,12 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, history} = TaskHistory.new(task.interaction_rows)
 
       SentryContext.set_task_scope_context(scope, task_id)
+
+      Phoenix.PubSub.subscribe(
+        FrontmanServer.PubSub,
+        Providers.config_pubsub_topic(scope.user.id)
+      )
+
       {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
 
       socket =
@@ -86,6 +93,9 @@ defmodule FrontmanServerWeb.TaskChannel do
 
       {:ok, {:request, id, @acp_method_session_load, params}} ->
         handle_session_load(id, params, socket)
+
+      {:ok, {:request, id, @acp_method_session_set_config_option, params}} ->
+        handle_set_config_option(id, params, socket)
 
       {:ok, {:request, id, method, _params}} ->
         reply_acp_error(
@@ -224,6 +234,25 @@ defmodule FrontmanServerWeb.TaskChannel do
   def handle_info({:task_title_changed, task_id, title}, socket) do
     push(socket, @acp_title_updated, %{"sessionId" => task_id, "title" => title})
     {:noreply, socket}
+  end
+
+  def handle_info(event, socket) when event in [:config_options_changed, :model_changed] do
+    case Tasks.get_task(socket.assigns.scope, socket.assigns.task_id) do
+      {:ok, task} ->
+        push(
+          socket,
+          @acp_message,
+          ACP.build_config_option_update_notification(
+            task.id,
+            current_config_options(socket, task)
+          )
+        )
+
+        {:noreply, socket}
+
+      {:error, :not_found} ->
+        {:stop, :normal, socket}
+    end
   end
 
   def handle_info(msg, _socket) do
@@ -661,11 +690,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           @acp_message,
           JsonRpc.success_response(
             id,
-            ACP.build_session_load_result(
-              scope
-              |> Providers.available_models()
-              |> ACP.build_model_config_options()
-            )
+            ACP.build_session_load_result(current_config_options(socket, task))
           )
         )
 
@@ -690,15 +715,47 @@ defmodule FrontmanServerWeb.TaskChannel do
     push_acp_error(socket, id, JsonRpc.error_invalid_params(), "Session does not match channel")
   end
 
-  defp process_prompt(id, %{"prompt" => content_blocks, "_meta" => meta}, socket)
-       when is_map(meta) do
+  defp handle_set_config_option(
+         id,
+         %{"sessionId" => task_id, "configId" => "model", "value" => value},
+         %{assigns: %{task_id: task_id}} = socket
+       )
+       when is_binary(value) do
+    case Tasks.set_current_model(socket.assigns.scope, task_id, value) do
+      {:ok, task} ->
+        {:reply,
+         {:ok,
+          %{
+            @acp_message =>
+              JsonRpc.success_response(
+                id,
+                ACP.build_session_load_result(current_config_options(socket, task))
+              )
+          }}, socket}
+
+      {:error, :not_found} ->
+        reply_invalid_params(socket, id, "Session not found")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        reply_invalid_params(socket, id, changeset)
+    end
+  end
+
+  defp handle_set_config_option(id, _params, socket) do
+    reply_invalid_params(socket, id, "Invalid config option")
+  end
+
+  defp process_prompt(id, %{"prompt" => content_blocks} = params, socket) do
+    meta = Map.get(params, "_meta", %{})
+    process_prompt_content(id, content_blocks, meta, socket)
+  end
+
+  defp process_prompt_content(id, content_blocks, meta, socket) when is_map(meta) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
 
-    case parse_client_model(meta["model"]) do
+    case selected_model(meta) do
       {:ok, model} ->
-        Logger.info("process_prompt", %{task_id: task_id, model: model})
-
         with {:ok, agent_id} <-
                Agents.resolve_agent_id(scope, meta["agent"] || Agents.default_agent_id(scope)),
              {:ok, _row} <-
@@ -706,7 +763,7 @@ defmodule FrontmanServerWeb.TaskChannel do
                  scope,
                  %{
                    task_id: task_id,
-                   message_id: meta["frontman.dev/messageId"],
+                   message_id: prompt_message_id(meta),
                    message: content_blocks,
                    model: model,
                    agent_id: agent_id,
@@ -747,9 +804,12 @@ defmodule FrontmanServerWeb.TaskChannel do
         end
 
       :error ->
-        reply_invalid_params(socket, id, "Model is required")
+        reply_invalid_params(socket, id, "Invalid model selection")
     end
   end
+
+  defp prompt_message_id(%{"frontman.dev/messageId" => message_id}), do: message_id
+  defp prompt_message_id(_meta), do: Ecto.UUID.generate()
 
   defp reply_acp_error(socket, id, code, message) do
     {:reply, {:ok, %{@acp_message => JsonRpc.error_response(id, code, message)}}, socket}
@@ -996,17 +1056,23 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp wake_runner(_socket, _meta), do: :ok
 
   defp execution_context(socket, meta) do
-    model =
-      case parse_client_model(meta && meta["model"]) do
-        {:ok, model} -> model
-        :error -> nil
-      end
-
     %{
-      model: model,
       mcp_tools: socket.assigns.mcp_tools,
       project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
     }
+  end
+
+  defp selected_model(meta) do
+    case Map.fetch(meta, "model") do
+      {:ok, model} -> parse_client_model(model)
+      :error -> {:ok, :session}
+    end
+  end
+
+  defp current_config_options(socket, task) do
+    catalog = Providers.available_models(socket.assigns.scope)
+
+    ACP.build_model_config_options(catalog, task.current_model)
   end
 
   defp parse_client_model(%{"provider" => "custom", "value" => value}) do

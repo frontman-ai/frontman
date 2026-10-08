@@ -26,9 +26,6 @@ module Provider = {
         ~name=clientName,
         ~version=clientVersion,
         ~_meta=RuntimeConfig.toMeta(runtimeConfig),
-        ~onConfigOptionsUpdated=configOptions => {
-          Client__State__Store.dispatch(ConfigOptionsReceived({configOptions: configOptions}))
-        },
         ~onBillingStatusUpdated=payload => {
           switch FrontmanAiFrontmanClient.FrontmanClient__Decoders.parseSchema(
             payload,

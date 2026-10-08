@@ -20,6 +20,14 @@ type connectError = AuthenticationRequired(authRequiredPayload) | ConnectionFail
 type sessionRequestId = ref<unit>
 type configOptions = option<array<ACPTypes.sessionConfigOption>>
 
+type activeSession = {
+  session: ACP.session,
+  requestId: sessionRequestId,
+  configOptions: array<ACPTypes.sessionConfigOption>,
+  configPending: bool,
+  configError: option<string>,
+}
+
 type sessionState =
   | NoSession
   | SessionCreating({
@@ -27,7 +35,7 @@ type sessionState =
       requestId: sessionRequestId,
       onComplete: option<result<string, string> => unit>,
     })
-  | SessionActive({session: ACP.session, requestId: sessionRequestId})
+  | SessionActive(activeSession)
   | SessionCreationFailed(string)
   | SessionFailed({session: ACP.session, error: string})
 
@@ -98,9 +106,19 @@ type action =
       sessionId: string,
       result: result<(ACP.session, configOptions), ACP.requestError>,
     })
-  | CreateSession({sessionId: string, onComplete: result<string, string> => unit})
+  | CreateSession({
+      sessionId: string,
+      modelPreference: string,
+      onComplete: result<string, string> => unit,
+    })
+  | SetModel(string)
+  | ConfigOptionResult({
+      requestId: sessionRequestId,
+      result: result<ACPTypes.configOptionsUpdated, ACP.requestError>,
+    })
+  | SessionConfigReceived(array<ACPTypes.sessionConfigOption>)
   | SessionCommand(ACP.sessionCommand)
-  | LoadTask({taskId: string, needsHistory: bool})
+  | LoadTask({taskId: string})
   | DeleteSession({taskId: string})
   | ClearSession
 
@@ -116,8 +134,9 @@ type effect =
       requestId: sessionRequestId,
       connection: ACP.connection,
       mcpServer: MCPServer.t,
-      operation: [#create(string) | #load(string) | #join(string)],
+      operation: [#create(string, string) | #load(string)],
     })
+  | SetModelEffect({session: ACP.session, requestId: sessionRequestId, value: string})
   | SessionCommandEffect({session: ACP.session, command: ACP.sessionCommand})
   | FetchSessionsEffect({connection: ACP.connection, signal: WebAPI.EventTypes.abortSignal})
   | SessionCompletionEffect({
@@ -163,7 +182,14 @@ module Selectors = {
 
   let getSessionError = (state: state): option<string> =>
     switch state.connection {
-    | Ok(Some({phase: Ready({session: SessionCreationFailed(error) | SessionFailed({error})})})) =>
+    | Ok(Some({
+        phase: Ready({
+          session:
+            SessionActive({configError: Some(error)})
+            | SessionCreationFailed(error)
+            | SessionFailed({error}),
+        }),
+      })) =>
       Some(error)
     | Ok(_) | Error(_) => None
     }
@@ -232,6 +258,16 @@ let isCurrentSessionRequest = (state: state, requestId: sessionRequestId): bool 
   | Ok(_) | Error(_) => false
   }
 
+let withPhase = (state: state, runtime: runtime, phase): state => {
+  ...state,
+  connection: Ok(Some({...runtime, phase})),
+}
+
+let withSession = (state, runtime, ready: readyState, session) => {
+  let ready = {...ready, session}
+  (withPhase(state, runtime, Ready(ready)), ready)
+}
+
 let startSession = (
   state: state,
   runtime: runtime,
@@ -240,19 +276,17 @@ let startSession = (
   ~onComplete=None,
 ) => {
   let sessionId = switch operation {
-  | #create(id) | #load(id) | #join(id) => Some(id)
+  | #create(id, _) | #load(id) => Some(id)
   }
   let requestId = ref()
+  let (state, _) = withSession(
+    state,
+    runtime,
+    ready,
+    SessionCreating({sessionId, requestId, onComplete}),
+  )
   (
-    {
-      ...state,
-      connection: Ok(
-        Some({
-          ...runtime,
-          phase: Ready({...ready, session: SessionCreating({sessionId, requestId, onComplete})}),
-        }),
-      ),
-    },
+    state,
     [
       ...releaseSession(ready.session),
       ActivateSessionEffect({
@@ -283,18 +317,14 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     ) if signal === runtime.lifetimeAbortController.signal && !signal.aborted =>
     switch result {
     | Ok(ready) => (
-        {
-          ...state,
-          connection: Ok(
-            Some({
-              ...runtime,
-              phase: switch ACP.isInitialized(ready.connection) {
-              | true => Ready(ready)
-              | false => Reconnecting(ready)
-              },
-            }),
-          ),
-        },
+        withPhase(
+          state,
+          runtime,
+          switch ACP.isInitialized(ready.connection) {
+          | true => Ready(ready)
+          | false => Reconnecting(ready)
+          },
+        ),
         [FetchSessionsEffect({connection: ready.connection, signal})],
       )
     | Error(AuthenticationRequired(payload)) =>
@@ -302,14 +332,11 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       | Authenticating(_) => [ScheduleAuthRetry({signal: runtime.lifetimeAbortController.signal})]
       | Connecting | WaitingForAuthentication(_) | Ready(_) | Reconnecting(_) | LoggingOut => []
       }
-      (
-        {...state, connection: Ok(Some({...runtime, phase: WaitingForAuthentication(payload)}))},
-        effects,
-      )
+      (withPhase(state, runtime, WaitingForAuthentication(payload)), effects)
     | Error(ConnectionFailed(ACPError(error))) =>
       switch runtime.phase {
       | Authenticating(payload) => (
-          {...state, connection: Ok(Some({...runtime, phase: WaitingForAuthentication(payload)}))},
+          withPhase(state, runtime, WaitingForAuthentication(payload)),
           [
             LogInfo(`ACP auth retry failed: ${error}`),
             ScheduleAuthRetry({signal: runtime.lifetimeAbortController.signal}),
@@ -343,17 +370,17 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       )
     | session => (session, [])
     }
-    (
-      {...state, connection: Ok(Some({...runtime, phase: Reconnecting({...ready, session})}))},
-      effects,
-    )
+    (withPhase(state, runtime, Reconnecting({...ready, session})), effects)
   | (Ok(Some({phase: Reconnecting(ready)} as runtime)), ACPReconnected({signal, result}))
     if signal === runtime.lifetimeAbortController.signal && !signal.aborted =>
     switch result {
-    | Ok(connection) if connection === ready.connection && ACP.isInitialized(connection) => (
-        {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
-        [FetchSessionsEffect({connection, signal})],
-      )
+    | Ok(connection) if connection === ready.connection && ACP.isInitialized(connection) =>
+      let (state, effects) = switch ready.session {
+      | SessionActive({session}) | SessionFailed({session}) =>
+        startSession(state, runtime, ready, ~operation=#load(session.sessionId))
+      | _ => (withPhase(state, runtime, Ready(ready)), [])
+      }
+      (state, Array.concat(effects, [FetchSessionsEffect({connection, signal})]))
     | Ok(_) => (state, [])
     | Error(AuthenticationRequired(payload)) => (
         {
@@ -375,7 +402,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
   | (_, ACPReconnecting(_) | ACPReconnected(_)) => (state, [])
 
   | (Ok(Some({phase: WaitingForAuthentication(payload)} as runtime)), RetryAuthentication) => (
-      {...state, connection: Ok(Some({...runtime, phase: Authenticating(payload)}))},
+      withPhase(state, runtime, Authenticating(payload)),
       [ConnectRuntime({config: state.config, signal: runtime.lifetimeAbortController.signal})],
     )
 
@@ -420,9 +447,20 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     if isCurrentSessionRequest(state, requestId) &&
     sessionId == session.sessionId &&
     expectedSessionId->Option.mapOr(true, expected => expected == sessionId) =>
-    let ready = {...ready, session: SessionActive({session, requestId})}
+    let (state, ready) = withSession(
+      state,
+      runtime,
+      ready,
+      SessionActive({
+        session,
+        requestId,
+        configOptions: configOptions->Option.getOr([]),
+        configPending: false,
+        configError: None,
+      }),
+    )
     (
-      {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
+      state,
       [
         SessionCompletionEffect({
           sessionId: session.sessionId,
@@ -457,9 +495,9 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     | (_, true) => NoSession
     | (_, false) => SessionCreationFailed(ACP.requestErrorMessage(error))
     }
-    let ready = {...ready, session}
+    let (state, ready) = withSession(state, runtime, ready, session)
     (
-      {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
+      state,
       [
         SessionCompletionEffect({sessionId, ready, result: Error(error), onComplete}),
         LogError(`Session failed: ${ACP.requestErrorMessage(error)}`),
@@ -472,9 +510,55 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
 
   | (
       Ok(Some({phase: Ready({session: NoSession | SessionCreationFailed(_)} as ready)} as runtime)),
-      CreateSession({sessionId, onComplete}),
+      CreateSession({sessionId, modelPreference, onComplete}),
     ) =>
-    startSession(state, runtime, ready, ~operation=#create(sessionId), ~onComplete=Some(onComplete))
+    startSession(
+      state,
+      runtime,
+      ready,
+      ~operation=#create(sessionId, modelPreference),
+      ~onComplete=Some(onComplete),
+    )
+
+  | (
+      Ok(Some({phase: Ready({session: SessionActive(active)} as ready)} as runtime)),
+      SetModel(value),
+    ) if !active.configPending => (
+      withSession(
+        state,
+        runtime,
+        ready,
+        SessionActive({...active, configPending: true, configError: None}),
+      )->Pair.first,
+      [
+        SetModelEffect({
+          session: active.session,
+          requestId: active.requestId,
+          value,
+        }),
+      ],
+    )
+  | (
+      Ok(Some({phase: Ready({session: SessionActive(active)} as ready)} as runtime)),
+      ConfigOptionResult({requestId, result}),
+    ) if isCurrentSessionRequest(state, requestId) =>
+    let active = switch result {
+    | Ok({configOptions}) => {...active, configOptions, configPending: false, configError: None}
+    | Error(error) => {
+        ...active,
+        configPending: false,
+        configError: Some(ACP.requestErrorMessage(error)),
+      }
+    }
+    (withSession(state, runtime, ready, SessionActive(active))->Pair.first, [])
+  | (
+      Ok(Some({phase: Ready({session: SessionActive(active)} as ready)} as runtime)),
+      SessionConfigReceived(configOptions),
+    ) => (
+      withSession(state, runtime, ready, SessionActive({...active, configOptions}))->Pair.first,
+      [],
+    )
+  | (_, SetModel(_) | ConfigOptionResult(_) | SessionConfigReceived(_)) => (state, [])
 
   | (Ok(Some({phase: Ready({session: SessionActive({session})})})), SessionCommand(command)) => (
       state,
@@ -489,12 +573,8 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       state,
       [SessionCompletionEffect({sessionId, ready, result: Ok(None), onComplete: None})],
     )
-  | (Ok(Some({phase: Ready(ready)} as runtime)), LoadTask(request)) =>
-    let operation = switch request.needsHistory {
-    | true => #load(request.taskId)
-    | false => #join(request.taskId)
-    }
-    startSession(state, runtime, ready, ~operation)
+  | (Ok(Some({phase: Ready(ready)} as runtime)), LoadTask({taskId})) =>
+    startSession(state, runtime, ready, ~operation=#load(taskId))
   | (_, LoadTask({taskId})) => (
       state,
       [TaskLoadFailed({taskId, error: "Cannot load task: not connected"})],
@@ -519,7 +599,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     | Reconnecting(_) => Reconnecting(ready)
     | _ => Ready(ready)
     }
-    ({...state, connection: Ok(Some({...runtime, phase}))}, effects)
+    (withPhase(state, runtime, phase), effects)
   | (_, ClearSession) => (state, [])
   | (_, CreateSession({onComplete})) => (
       state,

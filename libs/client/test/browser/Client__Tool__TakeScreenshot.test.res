@@ -41,11 +41,13 @@ let checkVisibleMarker = async (t, ~style, ~scrollY) => {
   win->Window.scrollToXY(~x=0.0, ~y=scrollY)
   await Promise.make((resolve, _) => win->Window.requestAnimationFrame(_ => resolve())->ignore)
 
-  let task =
-    Task.makeNew(~previewUrl="about:blank")->Client__Task__Reducer.Lens.setPreviewFrame(
-      ~contentDocument=Some(doc),
-      ~contentWindow=Some(win),
-    )
+  let task = Task.makeNew(
+    ~previewUrl="about:blank",
+  )->Client__Task__Reducer.Lens.updatePreviewFrame(frame => {
+    ...frame,
+    contentDocument: Some(doc),
+    contentWindow: Some(win),
+  })
   StateStore.forceSetStateOnlyUseForTestingDoNotUseOtherwiseAtAll(
     Client__State__Store.store,
     {...originalState, currentTask: Task.New(task)},

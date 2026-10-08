@@ -34,7 +34,6 @@ defmodule FrontmanServer.Protocols.ACP do
   @timestamp_metadata_key "#{@extension_namespace}/timestamp"
 
   @event_acp_message "acp:message"
-  @event_config_options_updated "config_options_updated"
   @event_title_updated "title_updated"
   @event_list_sessions "list_sessions"
   @event_delete_session "delete_session"
@@ -91,7 +90,6 @@ defmodule FrontmanServer.Protocols.ACP do
   def protocol_version, do: @protocol_version
 
   def event_acp_message, do: @event_acp_message
-  def event_config_options_updated, do: @event_config_options_updated
   def event_title_updated, do: @event_title_updated
   def event_list_sessions, do: @event_list_sessions
   def event_delete_session, do: @event_delete_session
@@ -171,29 +169,39 @@ defmodule FrontmanServer.Protocols.ACP do
 
   Receives the output of `Providers.available_models/1` — a domain DTO
   containing model groups — and serializes it into the ACP wire format.
-  This function has no knowledge of provider
-  internals; all domain logic is encapsulated in the Providers context.
+  The caller must supply the selected session model. This function only encodes
+  the selection; it never chooses a model.
   """
-  def build_model_config_options(%{groups: groups}) do
+  def build_model_config_options(_catalog, nil), do: []
+
+  def build_model_config_options(catalog, current_value)
+      when is_binary(current_value) and current_value != "" do
     [
       %{
         "type" => "select",
         "id" => "model",
         "name" => "Model",
         "category" => "model",
-        "options" =>
-          Enum.map(groups, fn %{id: id, name: name, options: options} ->
-            %{
-              "group" => id,
-              "name" => name,
-              "options" =>
-                Enum.map(options, fn %{name: display_name, value: value} ->
-                  %{"value" => value, "name" => display_name}
-                end)
-            }
-          end)
+        "currentValue" => current_value,
+        "options" => build_model_options(catalog)
       }
     ]
+  end
+
+  @doc "Encodes grouped select values without selecting a current value."
+  def build_model_options(%{groups: groups}) do
+    groups
+    |> Enum.reject(&(&1.options == []))
+    |> Enum.map(fn %{id: id, name: name, options: options} ->
+      %{
+        "group" => id,
+        "name" => name,
+        "options" =>
+          Enum.map(options, fn %{name: name, value: value} ->
+            %{"value" => value, "name" => name}
+          end)
+      }
+    end)
   end
 
   @doc "Encodes the resolved agent catalog for ACP metadata."
@@ -205,16 +213,14 @@ defmodule FrontmanServer.Protocols.ACP do
   Builds session/new result payload with config options.
   """
   def build_session_new_result(session_id, config_options) when is_list(config_options) do
-    %{"sessionId" => session_id}
-    |> put_config_options(config_options)
+    Map.put(build_session_load_result(config_options), "sessionId", session_id)
   end
 
   @doc """
   Builds session/load result payload with optional config options.
   """
   def build_session_load_result(config_options) when is_list(config_options) do
-    %{}
-    |> put_config_options(config_options)
+    %{"configOptions" => config_options}
   end
 
   defp agent_entry(%Agent{} = agent) do
@@ -226,11 +232,6 @@ defmodule FrontmanServer.Protocols.ACP do
       "color" => agent.color
     }
   end
-
-  defp put_config_options(result, []), do: result
-
-  defp put_config_options(result, config_options),
-    do: Map.put(result, "configOptions", config_options)
 
   @doc """
   Builds a session summary for the list_sessions channel response.
@@ -247,20 +248,12 @@ defmodule FrontmanServer.Protocols.ACP do
     }
   end
 
-  @doc """
-  Builds the payload for a config_options_updated channel push.
-  """
-  def build_config_options_updated_payload(config_options) when is_list(config_options) do
-    %{"configOptions" => config_options}
-  end
-
-  @doc """
-  Generates ACP session ID.
-
-  Session IDs are UUIDs. In ACP, sessions map 1:1 with tasks.
-  """
-  def generate_session_id do
-    Ecto.UUID.generate()
+  def build_config_option_update_notification(session_id, config_options)
+      when is_list(config_options) do
+    session_update_notification(session_id, %{
+      "sessionUpdate" => "config_option_update",
+      "configOptions" => config_options
+    })
   end
 
   @doc """
