@@ -35,6 +35,16 @@ defmodule FrontmanServerWeb.ChannelCase do
     end
   end
 
+  defmacro assert_acp_reply(pattern, timeout \\ 100) do
+    quote do
+      assert_receive %Phoenix.Socket.Reply{
+                       status: :ok,
+                       payload: %{"acp:message" => unquote(pattern)}
+                     },
+                     unquote(timeout)
+    end
+  end
+
   def mcp_discovery_result(overrides \\ %{}) do
     Map.merge(
       %{

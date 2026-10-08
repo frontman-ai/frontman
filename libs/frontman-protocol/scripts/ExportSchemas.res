@@ -53,6 +53,7 @@ let entries: array<schemaEntry> = [
   {dir: "acp", name: "promptResult", schema: ACP.promptResultSchema->toUnknownSchema},
   {dir: "acp", name: "sessionSummary", schema: ACP.sessionSummarySchema->toUnknownSchema},
   {dir: "acp", name: "listSessionsResult", schema: ACP.listSessionsResultSchema->toUnknownSchema},
+  {dir: "acp", name: "sessionNewParams", schema: ACP.sessionNewParamsSchema->toUnknownSchema},
   {dir: "acp", name: "sessionNewResult", schema: ACP.sessionNewResultSchema->toUnknownSchema},
   {dir: "acp", name: "sessionLoadParams", schema: ACP.sessionLoadParamsSchema->toUnknownSchema},
   {dir: "acp", name: "sessionLoadResult", schema: ACP.sessionLoadResultSchema->toUnknownSchema},

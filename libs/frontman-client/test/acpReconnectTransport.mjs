@@ -4,11 +4,11 @@ export function makeTransport() {
   let socket, tasksJoin, clientInfo;
   const frames = [], requests = [];
   const server = {
-    requests, holdInitialize: false, holdTasksJoin: false, holdSessionJoin: false, holdSessionNew: false, joinError: undefined,
-    reply(frame, result, error) {
+    requests, frames, sessionIdCapability: true, holdInitialize: false, holdTasksJoin: false, holdSessionJoin: false, holdSessionNew: false, joinError: undefined,
+    reply(frame, result, error, status = "ok") {
       const [joinRef, ref, topic, , payload] = frame;
       socket.onmessage({ data: JSON.stringify([joinRef, ref, topic, "phx_reply", {
-        status: "ok", response: { "acp:message": {
+        status, response: { "acp:message": {
           jsonrpc: "2.0", id: payload.id, ...(error ? { error } : { result })
         } }
       }]) });
@@ -18,7 +18,7 @@ export function makeTransport() {
       clientInfo = frame[4].params.clientInfo;
       server.reply(frame, {
         protocolVersion: 1,
-        agentCapabilities: { _meta: { "frontman.dev": {
+        agentCapabilities: { _meta: { "frontman.dev/sessionId": server.sessionIdCapability, "frontman.dev": {
           agentAttribution: { version: 1 },
           agents: [{ id: "agent-1", name: "executor", displayName: "Executor", description: "Executes work", color: "#985DF7" }],
           defaultAgentId: "agent-1"
@@ -62,7 +62,7 @@ export function makeTransport() {
           Promise.resolve().then(() => server.initialize(requests.filter(r => r.method === "initialize").length - 1));
         } else if (payload.method === "session/new" && !server.holdSessionNew) {
           const error = clientInfo?._meta?.framework ? undefined : { code: -32602, message: "Missing framework in clientInfo" };
-          Promise.resolve().then(() => server.reply(frame, { sessionId: payload.params.sessionId }, error));
+          Promise.resolve().then(() => server.reply(frame, { sessionId: payload.params._meta["frontman.dev/sessionId"] }, error));
         }
       }
     }

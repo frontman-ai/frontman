@@ -75,18 +75,40 @@ let validateRequest = (~channel, payload) => {
   validateMessageSize(envelope)
 }
 
-let pushReplyMessageSchema: S.t<JSON.t> = S.object(s => s.field("acp:message", S.json))
+let pushReplyMessageSchema = S.object(s => s.field("acp:message", JsonRpc.Response.schema))
 
-let parsePushReply = payload => {
+let parsePushReply = (~id, ~parseResult, payload) => {
   payload
   ->Decoders.parseSchema(pushReplyMessageSchema)
-  ->Result.mapError(error => `Invalid ACP push reply envelope: ${error}`)
+  ->Result.mapError(error => Client.requestErrorFromMessage(`Invalid ACP push reply: ${error}`))
+  ->Result.flatMap(response =>
+    switch response->JsonRpc.Response.id->Option.flatMap(JsonRpc.Id.toInt) == Some(id) {
+    | false => Error(Client.requestErrorFromMessage("Mismatched ACP response id"))
+    | true =>
+      switch response->JsonRpc.Response.error {
+      | Some(error) =>
+        Error(
+          Client.requestErrorWithCode(
+            ~code=error->JsonRpc.RpcError.code,
+            ~message=error->JsonRpc.RpcError.message,
+          ),
+        )
+      | None =>
+        response
+        ->JsonRpc.Response.result
+        ->Option.getOrThrow
+        ->parseResult
+        ->Result.mapError(Client.requestErrorFromMessage)
+      }
+    }
+  )
 }
 
 let sendRequest = (
   ~channel: Channel.t,
   ~state: ref<Client.state>,
   ~method: requestMethod,
+  ~controlChannel: option<Channel.t>=?,
   ~params: option<JSON.t>,
   ~timeoutMs: int=requestTimeoutMs,
   ~parseResult: JSON.t => result<'a, string>,
@@ -103,63 +125,49 @@ let sendRequest = (
     | Error(error) => Promise.resolve(Error(Client.requestErrorFromMessage(error)))
     | Ok() =>
       Promise.make((resolve, _) => {
-        let idStr = Int.toString(id)
-        let timer = ref(None)
+        let settled = ref(false)
         let pushRef = ref(None)
         let listeners = ref([])
         let finish = result => {
-          timer.contents->Option.forEach(WebAPI.DomGlobal.clearTimeout)
-          pushRef.contents->Option.forEach(Channel.cancelPush)
-          listeners.contents->Array.forEach(((event, ref)) => channel->Channel.off(~event, ~ref))
-          state := state.contents->Client.reduce(Client.ResponseReceived(id))
-          resolve(result)
+          switch settled.contents {
+          | true => ()
+          | false =>
+            settled := true
+            listeners.contents->Array.forEach(((owner, close, error)) => {
+              owner->Channel.off(~event=#phx_close, ~ref=close)
+              owner->Channel.off(~event=#phx_error, ~ref=error)
+            })
+            pushRef.contents->Option.forEach(Channel.cancelPush)
+            resolve(result)
+          }
         }
-
-        let pending: Client.pendingRequest = {
-          resolve: json =>
-            finish(parseResult(json)->Result.mapError(Client.requestErrorFromMessage)),
-          reject: e => finish(Error(e)),
+        let fail = message => finish(Error(Client.requestErrorFromMessage(message)))
+        let closed = _ => fail(connectionLost)
+        let owners = switch controlChannel {
+        | Some(control) if control !== channel => [channel, control]
+        | _ => [channel]
         }
-
         listeners :=
-          [#phx_error, #phx_close]->Array.map(event => (
-            event,
-            channel->Channel.onWithRef(
-              ~event,
-              ~callback=_ => pending.reject(Client.requestErrorFromMessage(connectionLost)),
-            ),
+          owners->Array.map(owner => (
+            owner,
+            owner->Channel.onWithRef(~event=#phx_close, ~callback=closed),
+            owner->Channel.onWithRef(~event=#phx_error, ~callback=closed),
           ))
-        state := state.contents->Client.reduce(Client.RequestSent(id, pending))
-        timer :=
-          Some(
-            WebAPI.DomGlobal.setTimeout(~timeout=timeoutMs, ~handler=() => {
-              pending.reject(
-                Client.requestErrorFromMessage(
-                  `Request ${method} timed out after ${Int.toString(timeoutMs)}ms`,
-                ),
-              )
-            }),
-          )
-
+        state := {...state.contents, currentId: id}
         let push =
           channel->Channel.push(~event=Constants.acpMessageEvent, ~payload, ~timeout=timeoutMs)
         pushRef := Some(push)
-        switch state.contents.pendingRequests->Dict.get(idStr) {
-        | None => Channel.cancelPush(push)
-        | Some(_) => ()
+        switch settled.contents {
+        | true => Channel.cancelPush(push)
+        | false =>
+          push.receive(~status="ok", ~callback=reply =>
+            finish(parsePushReply(~id, ~parseResult, reply))
+          ).receive(~status="error", ~callback=_ =>
+            fail(`Request ${method} failed`)
+          ).receive(~status="timeout", ~callback=_ =>
+            fail(`Request ${method} timed out after ${Int.toString(timeoutMs)}ms`)
+          )->ignore
         }
-        push.receive(~status="ok", ~callback=reply => {
-          switch state.contents.pendingRequests->Dict.get(idStr) {
-          | None => ()
-          | Some(_) =>
-            switch parsePushReply(reply) {
-            | Ok(message) => Client.handleResponse(state, message)
-            | Error(error) => pending.reject(Client.requestErrorFromMessage(error))
-            }
-          }
-        }).receive(~status="error", ~callback=_ =>
-          pending.reject(Client.requestErrorFromMessage("ACP request failed"))
-        )->ignore
       })
     }
   }
@@ -183,19 +191,43 @@ let sendInitialize = (
 let sendSessionNew = (~channel: Channel.t, ~state: ref<Client.state>, ~sessionId: string): promise<
   result<Types.sessionNewResult, Client.requestError>,
 > => {
-  let params = Dict.make()
-  params->Dict.set("sessionId", JSON.Encode.string(sessionId))
-  sendRequest(
-    ~channel,
-    ~state,
-    ~method=#"session/new",
-    ~params=Some(JSON.Encode.object(params)),
-    ~parseResult=Client.parseSessionNewResult,
-  )
+  let capability = switch state.contents.acpState {
+  | Initialized(result) =>
+    switch result.agentCapabilities->Option.flatMap(capabilities => capabilities._meta) {
+    | None => Ok(None)
+    | Some(metadata) => metadata->Decoders.parseSchema(Types.sessionIdCapabilityMetadataSchema)
+    }
+  | _ => Ok(None)
+  }
+  switch capability {
+  | Error(message) => Promise.resolve(Error(Client.requestErrorFromMessage(message)))
+  | Ok(Some(true)) =>
+    let params: Types.sessionNewParams = {
+      cwd: "/",
+      mcpServers: [],
+      additionalDirectories: None,
+      _meta: Some({sessionId: Some(sessionId)}),
+    }
+    let params = params->S.decodeOrThrow(~from=Types.sessionNewParamsSchema, ~to=S.json)
+    sendRequest(
+      ~channel,
+      ~state,
+      ~method=#"session/new",
+      ~params=Some(params),
+      ~parseResult=Client.parseSessionNewResult,
+    )
+  | Ok(_) =>
+    Promise.resolve(
+      Error(
+        Client.requestErrorFromMessage("Agent does not support Frontman retry-safe session IDs"),
+      ),
+    )
+  }
 }
 
 let sendPrompt = (
   ~channel: Channel.t,
+  ~controlChannel: option<Channel.t>=?,
   ~state: ref<Client.state>,
   ~sessionId: string,
   ~prompt: array<JSON.t>,
@@ -214,6 +246,7 @@ let sendPrompt = (
     ~channel,
     ~state,
     ~method=#"session/prompt",
+    ~controlChannel?,
     ~params=Some(promptParams),
     ~parseResult=Client.parsePromptResult,
   )
@@ -290,7 +323,7 @@ let handleIncomingMessage = (
     | Error(parseError) => onParseError->Option.forEach(cb => cb(parseError))
     }
   | Some(method) => Log.warning(`Received unhandled ACP notification: ${method}`)
-  | None => Client.handleResponse(state, payload)
+  | None => Log.error("Received ACP notification without a method")
   }
 }
 

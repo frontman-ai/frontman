@@ -73,11 +73,12 @@ let makeLoadTransport: (array<JSON.t>, JSON.t) => mockTransport = %raw(`
           for (const notification of history) handler(notification);
           if (this.state === "closed") return inertPush;
           events.push("load-response");
-          handler({
-            jsonrpc: "2.0",
-            id: payload.id,
-            result: loadResult
-          });
+          return { ...inertPush, receive(status, callback) {
+            if (status === "ok") callback({"acp:message": {
+              jsonrpc: "2.0", id: payload.id, result: loadResult
+            }});
+            return this;
+          }};
         }
         return inertPush;
       }
@@ -104,7 +105,6 @@ let loadConnectionWithTransport = (history, result, ~onConnectionLost=_ => ()): 
   let state = ref(initializedState)
   let dispose = () => {
     state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
-    ACP.rejectPendingRequests(state)
     ACP.cleanupChannel(transport.channel)
   }
   let connection: ACP.connection = {
@@ -263,27 +263,6 @@ describe("ACP Client State Reducer", _t => {
     t->expect(state.currentId)->Expect.toEqual(0)
     t->expect(state.acpState)->Expect.toEqual(Client.Disconnected)
     t->expect(state.agentAttributionConfiguration)->Expect.toEqual(None)
-    t->expect(state.pendingRequests->Dict.keysToArray->Array.length)->Expect.toEqual(0)
-  })
-
-  test("pending request lifecycle accumulates and removes by ID", t => {
-    let pending: Client.pendingRequest = {
-      resolve: _ => (),
-      reject: _ => (),
-    }
-
-    let state =
-      Client.initialState
-      ->Client.reduce(Client.RequestSent(1, pending))
-      ->Client.reduce(Client.RequestSent(2, pending))
-
-    t->expect(state.currentId)->Expect.toEqual(2)
-    t->expect(state.pendingRequests->Dict.keysToArray->Array.length)->Expect.toEqual(2)
-
-    let state = state->Client.reduce(Client.ResponseReceived(1))
-
-    t->expect(state.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
-    t->expect(state.pendingRequests->Dict.get("2")->Option.isSome)->Expect.toEqual(true)
   })
 
   test("ACPStateChanged action updates acpState", t => {
@@ -519,7 +498,7 @@ describe("ACP Protocol sendRequest", _t => {
         )
 
         t->expect(result)->Expect.toEqual(Ok(wireMethod))
-        t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
+        t->expect(state.contents.currentId)->Expect.toBe(1)
         t->expect(Vi.getTimerCount())->Expect.toBe(0)
       },
     )
@@ -553,32 +532,6 @@ describe("ACP Protocol sendRequest", _t => {
     )
 
     t->expect(result->Result.isError)->Expect.toEqual(true)
-    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
-  })
-
-  testAsync("times out and removes pending request when no response arrives", async t => {
-    Vi.useFakeTimers()->ignore
-    let transport = makeLoadTransport([], loadResult)
-    let state = ref(initializedState)
-    let promise = Protocol.sendRequest(
-      ~channel=transport.channel,
-      ~state,
-      ~method=#"session/prompt",
-      ~params=None,
-      ~timeoutMs=10,
-      ~parseResult=json => Decoders.parseSchema(json, S.string),
-    )
-
-    t->expect(state.contents.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toBe(true)
-    let _ = await Vi.advanceTimersByTimeAsync(10)
-    let result = await promise
-
-    t
-    ->expect(result)
-    ->Expect.toEqual(
-      Error(Client.requestErrorFromMessage("Request session/prompt timed out after 10ms")),
-    )
-    t->expect(state.contents.pendingRequests->Dict.get("1"))->Expect.toEqual(None)
   })
 })
 
@@ -609,119 +562,45 @@ describe("ACP Client transport events", _t => {
   })
 })
 
-describe("ACP Client handleResponse", _t => {
-  test("resolves pending request on success", t => {
-    let resolved = ref(false)
-    let pending: Client.pendingRequest = {
-      resolve: _ => resolved := true,
-      reject: _ => (),
-    }
-
-    let state = ref(Client.initialState->Client.reduce(Client.RequestSent(1, pending)))
-
-    let responseJson = Dict.make()
-    responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
-    responseJson->Dict.set("id", JSON.Encode.int(1))
-    responseJson->Dict.set("result", JSON.Encode.string("success"))
-
-    Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
-
-    t->expect(resolved.contents)->Expect.toEqual(true)
+describe("ACP reply validation", _t => {
+  test("preserves structured billing errors", t => {
+    let reply = JSON.parseOrThrow(`{"acp:message":{"jsonrpc":"2.0","id":4,"error":{"code":-32010,"message":"Alternate billing copy"}}}`)
+    t
+    ->expect(Protocol.parsePushReply(~id=4, ~parseResult=Client.parsePromptResult, reply))
+    ->Expect.toEqual(
+      Error(
+        Client.requestErrorWithCode(
+          ~code=JsonRpc.ErrorCode.billingInactive,
+          ~message="Alternate billing copy",
+        ),
+      ),
+    )
   })
 
-  test("rejects pending request on error", t => {
-    let rejected = ref(false)
-    let pending: Client.pendingRequest = {
-      resolve: _ => (),
-      reject: _ => rejected := true,
-    }
-
-    let state = ref(Client.initialState->Client.reduce(Client.RequestSent(2, pending)))
-
-    let errorObj = Dict.make()
-    errorObj->Dict.set("code", JSON.Encode.int(-32600))
-    errorObj->Dict.set("message", JSON.Encode.string("Invalid request"))
-
-    let responseJson = Dict.make()
-    responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
-    responseJson->Dict.set("id", JSON.Encode.int(2))
-    responseJson->Dict.set("error", JSON.Encode.object(errorObj))
-
-    Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
-
-    t->expect(rejected.contents)->Expect.toEqual(true)
-  })
-
-  test("error response preserves code and message", t => {
-    let rejected = ref(None)
-    let pending: Client.pendingRequest = {
-      resolve: _ => (),
-      reject: err => rejected := Some(err),
-    }
-
-    let state = ref(Client.initialState->Client.reduce(Client.RequestSent(4, pending)))
-
-    let errorObj = Dict.make()
-    errorObj->Dict.set("code", JSON.Encode.int(JsonRpc.ErrorCode.billingInactive))
-    errorObj->Dict.set("message", JSON.Encode.string("Alternate billing copy"))
-
-    let responseJson = Dict.make()
-    responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
-    responseJson->Dict.set("id", JSON.Encode.int(4))
-    responseJson->Dict.set("error", JSON.Encode.object(errorObj))
-
-    Client.handleResponse(state, JSON.Encode.object(responseJson))->ignore
-
-    switch rejected.contents {
-    | Some(err) =>
-      t
-      ->expect(Client.requestErrorCode(err))
-      ->Expect.toEqual(Some(JsonRpc.ErrorCode.billingInactive))
-      t->expect(Client.requestErrorMessage(err))->Expect.toEqual("Alternate billing copy")
-    | None => failwith("Expected rejected error")
-    }
-  })
-
-  testAsync("settlement preserves requests created by the result parser", async t => {
-    Vi.useFakeTimers()->ignore
-    let transport = makeLoadTransport([], loadResult)
-    let state = ref(initializedState)
-    let request = (~parseResult) =>
-      Protocol.sendRequest(
-        ~channel=transport.channel,
-        ~state,
-        ~method=#"session/prompt",
-        ~params=None,
-        ~parseResult,
-      )
-    let followup = ref(None)
-    let pending = request(
-      ~parseResult=json => {
-        followup := Some(request(~parseResult=json => Ok(json)))
-        Ok(json)
+  test("rejects mismatched ids and invalid JSON-RPC responses", t => {
+    [
+      `{"acp:message":{"jsonrpc":"2.0","id":2,"result":{}}}`,
+      `{"acp:message":{"jsonrpc":"1.0","id":1,"result":{}}}`,
+      `{"acp:message":{"jsonrpc":"2.0","id":1,"result":{},"error":{"code":1,"message":"invalid"}}}`,
+    ]->Array.forEach(
+      json => {
+        t
+        ->expect(
+          Protocol.parsePushReply(
+            ~id=1,
+            ~parseResult=Client.parsePromptResult,
+            JSON.parseOrThrow(json),
+          )->Result.isError,
+        )
+        ->Expect.toBe(true)
       },
     )
-    Client.handleResponse(state, JSON.parseOrThrow(`{"jsonrpc":"2.0","id":1,"result":null}`))
-    t->expect(await pending)->Expect.toEqual(Ok(JSON.Encode.null))
-    t->expect(state.contents.currentId)->Expect.toBe(2)
-    t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual(["2"])
-    ACP.cleanupChannel(transport.channel)
-    t
-    ->expect(await followup.contents->Option.getOrThrow)
-    ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
-    t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
-    t->expect(Vi.getTimerCount())->Expect.toBe(0)
   })
 
-  test("unknown agent_turn_complete notification is ignored without resolving prompt", t => {
-    let resolved = ref(None)
+  test("unknown agent_turn_complete notification does not change connection state", t => {
     let parseError = ref(None)
     let updateReceived = ref(false)
-    let pending: Client.pendingRequest = {
-      resolve: json => resolved := json->JSON.Decode.object,
-      reject: _ => (),
-    }
-    let state = ref(Client.initialState->Client.reduce(Client.RequestSent(1, pending)))
+    let state = ref(Client.initialState)
 
     let payload = JSON.Encode.object(
       Dict.fromArray([
@@ -762,8 +641,7 @@ describe("ACP Client handleResponse", _t => {
 
     t->expect(parseError.contents)->Expect.toEqual(None)
     t->expect(updateReceived.contents)->Expect.toEqual(true)
-    t->expect(resolved.contents)->Expect.toEqual(None)
-    t->expect(state.contents.pendingRequests->Dict.get("1")->Option.isSome)->Expect.toEqual(true)
+    t->expect(state.contents)->Expect.toBe(Client.initialState)
   })
 })
 
@@ -811,19 +689,25 @@ describe("ACP session channel lifetime", () => {
             ~parseResult=json => Ok(json),
           )
         let pending = request(first.channel)
-        let other = request(second.channel)
+        let otherSettled = ref(false)
+        let other = request(second.channel)->Promise.then(
+          result => {
+            otherSettled := true
+            Promise.resolve(result)
+          },
+        )
         first.emitEvent(event, JSON.Encode.null)
         t
         ->expect(await pending)
         ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
-        t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual(["2"])
+        t->expect(otherSettled.contents)->Expect.toBe(false)
         ACP.cleanupChannel(first.channel)
         t->expect((await request(first.channel))->Result.isError)->Expect.toBe(true)
         ACP.cleanupChannel(second.channel)
         t
         ->expect(await other)
         ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
-        t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
+        t->expect(otherSettled.contents)->Expect.toBe(true)
         t->expect(Vi.getTimerCount())->Expect.toBe(0)
       },
     )
@@ -885,7 +769,6 @@ describe("ACP session/load ordering", () => {
     t->expect(result == Error(Protocol.connectionLost))->Expect.toBe(false)
     t->expect(transport.events->Array.includes("load-response"))->Expect.toBe(false)
     t->expect(transport.events->Array.filter(event => event == "leave"))->Expect.toEqual(["leave"])
-    t->expect(connection.state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
 
     let (result, events) = await loadWithoutDelivery(
       loadConnection([userUpdate("user-1")], loadResult)->negotiateV1(~id="agent-2"),

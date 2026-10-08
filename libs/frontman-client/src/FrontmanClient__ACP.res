@@ -102,14 +102,6 @@ let cleanupSessionChannel = (session: session): unit => cleanupChannel(session.c
 
 let disconnect = (conn: connection): unit => conn.dispose()
 
-let rejectPendingRequests = (state: ref<Client.state>) => {
-  let pending = state.contents.pendingRequests
-  state := {...state.contents, pendingRequests: Dict.make()}
-  pending
-  ->Dict.valuesToArray
-  ->Array.forEach(request => request.reject(requestErrorFromMessage(Protocol.connectionLost)))
-}
-
 @send
 external onAbort: (WebAPI.EventTypes.abortSignal, @as("abort") _, unit => unit) => unit =
   "addEventListener"
@@ -215,7 +207,6 @@ let connect = async (
           closed := true
           signal->Option.forEach(signal => offAbort(signal, dispose))
           state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
-          rejectPendingRequests(state)
           socket->Socket.channels->Array.forEach(cleanupChannel)
           Socket.disconnect(socket)
           resolve(Error(ConnectionFailed("Connection aborted")))
@@ -438,6 +429,7 @@ let sendPrompt = async (
 
   await Protocol.sendPrompt(
     ~channel=session.channel,
+    ~controlChannel=session.connection.channel,
     ~state=session.connection.state,
     ~sessionId=session.sessionId,
     ~prompt=allBlocks,
@@ -564,6 +556,7 @@ let loadSession = async (
     }
     let loadResult = await Protocol.sendRequest(
       ~channel=session.channel,
+      ~controlChannel=conn.channel,
       ~state=conn.state,
       ~method=#"session/load",
       ~params=Some(
