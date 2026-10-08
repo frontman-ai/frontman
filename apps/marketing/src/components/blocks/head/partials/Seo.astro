@@ -30,7 +30,7 @@ const canonicalUrl = (() => {
 
 const absoluteOgImage = ogImage ? new URL(ogImage, Astro.site).href : undefined
 const absoluteTwitterImage = absoluteOgImage && article ? absoluteOgImage : new URL('/og-twitter.png', Astro.site).href
-const imageAlt = ogImageAlt ?? 'Frontman — The AI agent that lives inside your framework'
+const imageAlt = ogImageAlt ?? 'Frontman — WordPress AI editing for marketing teams'
 const imageType = absoluteOgImage?.endsWith('.webp')
 	? 'image/webp'
 	: absoluteOgImage?.endsWith('.avif')

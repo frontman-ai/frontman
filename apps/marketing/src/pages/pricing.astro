@@ -9,16 +9,16 @@ import FinalCTA from '../components/blocks/CTA/FinalCTA.astro'
 import gridNetBackground from '../assets/grid-net-background.svg'
 
 const SEO = {
-	title: 'Frontman Pro Pricing | AI Website Updates',
+	title: 'WordPress AI Editor Pricing | Frontman Pro',
 	description:
-		'Frontman Pro pricing for updates to existing WordPress and framework websites: €15 per seat/month, a card-required 14-day trial, and separate AI-provider costs.'
+		'Frontman Pro for marketing teams updating existing WordPress sites: €15 per seat/month, a card-required 14-day trial, and separate AI-provider costs.'
 }
 
 
 const planFeatures = [
-	'Visual AI editing in your browser',
-	'Framework source changes for developer review; WordPress edits in the connected site',
-	'Live page context for more accurate edits',
+	'AI editing on your existing WordPress site',
+	'Gutenberg blocks and Elementor sections',
+	'Chat beside your site preview',
 	'Unlimited projects within one organization',
 	'Your AI provider, billed separately'
 ]
@@ -43,7 +43,7 @@ const faqs = [
 	{
 		question: 'Do changes go live automatically?',
 		answer:
-			'Framework integrations edit source files in development. Your team reviews, tests, and deploys them through its normal Git workflow. WordPress writes persist to the connected installation, so published content on a live site can change immediately. Preview is not a universal approval gate. Use staging and backups.'
+			'WordPress writes persist to the connected installation, so published content on a live site can change immediately. Preview is not a universal approval gate. Use staging and backups. Separate framework integrations edit source files in development for your team to review, test, and deploy.'
 	},
 	{
 		question: 'Can I self-host?',
@@ -64,7 +64,7 @@ const pricingJsonLd = {
 		{
 			'@type': 'Service',
 			name: 'Frontman Pro',
-			serviceType: 'AI frontend editing subscription',
+			serviceType: 'AI website editing subscription',
 			provider: {
 				'@type': 'Organization',
 				name: 'Frontman',
@@ -168,9 +168,9 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 		<Row classes="relative z-10">
 			<Col span="10" classes="lg:col-start-2">
 				<div class="relative mx-auto max-w-5xl text-center">
-					<h1 class="pricing-hero-title">Simple pricing for faster website updates.</h1>
+					<h1 class="pricing-hero-title">Take ownership of your WordPress updates.</h1>
 					<p class="pricing-hero-subtitle">
-						Update your existing WordPress, Next.js, Astro, or Vite website with Frontman Pro. WordPress edits persist to the connected site; framework source changes still need developer review, tests, and deployment.
+						For marketing teams ready to make their own website changes instead of handing every update to an agency. Keep your existing WordPress site. Connect your own AI provider; its costs are separate.
 					</p>
 					<div class="mt-8 flex flex-wrap justify-center gap-3" aria-label="Pricing highlights">
 						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">14-day trial</span>
@@ -192,7 +192,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 						</div>
 					</div>
 					<p class="relative mt-4 max-w-2xl text-lg leading-relaxed text-white">
-						For WordPress site owners and framework website teams that want AI-assisted updates without running Frontman infrastructure.
+						For marketing leads who want to update their WordPress site without running Frontman infrastructure.
 					</p>
 					<div class="mt-6 inline-flex w-fit max-w-full rounded-full border border-white/20 bg-primary-700/25 p-1" aria-label="Billing frequency" data-billing-toggle-group>
 						<button type="button" class="cursor-pointer whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-bold text-primary-700 shadow-sm" data-billing-toggle="monthly" aria-pressed="true">Monthly</button>
@@ -210,11 +210,13 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 						</div>
 						<p class="mt-4 text-sm font-semibold text-white" data-price-note>Billed monthly. Switch to yearly to save 17% per seat.</p>
 					</div>
-					<Button type="link" link="/docs/installation/" size="lg" style="white" classes={ctaButtonClass}>Choose your setup</Button>
+					<Button type="link" link="/docs/integrations/wordpress/" size="lg" style="white" classes={ctaButtonClass}>Set up Frontman for WordPress</Button>
 					<p class="mt-4 text-sm leading-relaxed text-white/70">Credit card required. Cancel before day 14. We’ll send a reminder before billing. Taxes calculated at checkout.</p>
 					<ul class="mt-6 grid gap-3 border-t border-white/20 pt-6">
 						{planFeatures.map((feature) => <li class={checkItemClass}>{feature}</li>)}
 					</ul>
+					<p class="mt-6 text-sm leading-6 text-white">Requires WordPress administrator access, Frontman sign-in, and your AI-provider connection. Live edits can affect published content immediately. <a href="/how-it-works/" class="copy-link underline underline-offset-4">See setup and safety</a>.</p>
+					<p class="mt-4 text-sm leading-6 text-white">Also using Next.js, Astro, or Vite? The same plan supports <a href="/frameworks/" class="copy-link underline underline-offset-4">framework integrations</a>, with developer review and deployment.</p>
 				</div>
 			</Col>
 			<Col span="8" classes="lg:col-start-3">
@@ -252,10 +254,10 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 	/>
 
 	<FinalCTA
-		link="/docs/installation/"
-		title="One simple hosted plan. 14-day trial."
-		description="Credit card required. Cancel before billing. Connect your own supported AI provider with separate costs. Choose the WordPress or framework installation path."
-		buttonLabel="Choose your setup"
+		link="/docs/integrations/wordpress/"
+		title="Your WordPress site. One hosted plan."
+		description="14-day trial with a credit card required. Cancel before billing. Connect your own supported AI provider with separate costs."
+		buttonLabel="Set up Frontman for WordPress"
 	/>
 	</div>
 </Layout>

@@ -2,9 +2,9 @@ import type { APIRoute } from 'astro'
 
 const body = `# Frontman
 
-Ship WordPress updates faster. Frontman is an AI editor for existing WordPress sites: describe one update, inspect the page, and refine it. WordPress-native writes persist to the connected installation. Published content on a live site can change immediately; preview is not a universal approval gate. Frontman for WordPress is production-ready. Start with staging and backups; recovery depends on the changed surface.
+Your WordPress site. Your changes. No agency handoff. Frontman is an AI editor for marketing leads who know what their existing site needs but lack WordPress expertise or agency availability. Describe one update, inspect the page, and refine it. WordPress-native writes persist to the connected installation. Published content on a live site can change immediately; preview is not a universal approval gate. Frontman for WordPress is production-ready. Start with staging and backups; recovery depends on the changed surface.
 
-## Choose Your Workflow
+## WordPress First, Frameworks Second
 
 - WordPress: https://frontman.sh/
 - Install the WordPress plugin: https://wordpress.org/plugins/frontman-agentic-ai-editor/
@@ -17,7 +17,8 @@ Framework integrations require a running supported Next.js, Astro, or Vite devel
 ## Core Capabilities
 
 - Select rendered elements and ask Frontman to change copy, spacing, color, layout, menus, or page content.
-- Use runtime context from Next.js, Astro, Vite, React, Vue, Svelte, and WordPress.
+- Edit Gutenberg blocks, Elementor sections, and navigation on your existing WordPress site.
+- Separate Next.js, Astro, and Vite integrations use browser and source context for developer-reviewed changes.
 - Connect a supported AI provider account or save a supported provider key; provider access and costs are separate.
 - Keep developers in control with local development edits and normal git diffs for code-backed sites.
 - Run Frontman Pro hosted or self-host from the source-available repository.
