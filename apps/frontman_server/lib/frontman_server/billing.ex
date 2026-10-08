@@ -86,6 +86,8 @@ defmodule FrontmanServer.Billing do
           status: String.t(),
           access_allowed: boolean(),
           has_billing_customer: boolean(),
+          trial_eligible: boolean(),
+          trial_days: pos_integer(),
           interval: atom() | nil,
           current_period_end: DateTime.t() | nil,
           trial_end: DateTime.t() | nil,
@@ -94,7 +96,13 @@ defmodule FrontmanServer.Billing do
         }
   def status(%Scope{} = scope) do
     subscription = get_current_subscription(scope)
-    status_payload(scope, subscription)
+
+    scope
+    |> status_payload(subscription)
+    |> Map.merge(%{
+      trial_eligible: trial_eligible?(scope),
+      trial_days: Application.fetch_env!(:frontman_server, :stripe) |> Keyword.fetch!(:trial_days)
+    })
   end
 
   @doc """

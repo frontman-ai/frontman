@@ -49,6 +49,10 @@ type status = {
   accessAllowed: bool,
   @as("has_billing_customer")
   hasBillingCustomer: bool,
+  @as("trial_eligible")
+  trialEligible?: bool,
+  @as("trial_days")
+  trialDays?: int,
   interval: @s.null option<interval>,
   @as("current_period_end")
   currentPeriodEnd: @s.null option<string>,
@@ -166,6 +170,12 @@ let checkoutOptionPrice = (option: checkoutOption) => option.price
 let checkoutOptionDescription = (option: checkoutOption) => option.description
 let checkoutOptionBadge = (option: checkoutOption) => option.badge
 let checkoutOptionRequest = (option: checkoutOption) => Checkout(option.interval)
+let offeredTrialDays = (status: status) =>
+  switch (status.trialEligible, status.trialDays, status.accessAllowed) {
+  | (Some(true), Some(days), false) if days > 0 => Some(days)
+  | _ => None
+  }
+
 let checkoutOptionRecommended = (option: checkoutOption) =>
   switch option.interval {
   | Yearly => true
