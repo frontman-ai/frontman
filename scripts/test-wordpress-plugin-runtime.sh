@@ -85,6 +85,7 @@ done
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SentryRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-sentry-test.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/SentryRuntimeTest.php" "$WORDPRESS:/tmp/SentryRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/WordPressRuntimeTest.php" "$WORDPRESS:/tmp/WordPressRuntimeTest.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/fixtures" "$WORDPRESS:/tmp/frontman-media-fixtures"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/CustomCssRuntimeTest.php" "$WORDPRESS:/tmp/CustomCssRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ElementorSnapshotRuntimeTest.php" "$WORDPRESS:/tmp/ElementorSnapshotRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/ActivateWordPressPlugin.php" "$WORDPRESS:/tmp/ActivateWordPressPlugin.php"

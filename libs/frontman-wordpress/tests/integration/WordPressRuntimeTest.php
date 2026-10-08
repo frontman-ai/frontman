@@ -192,6 +192,66 @@ $runtime_call = static function ( string $name, array $arguments ) use ( $cookie
 	}
 	return $data;
 };
+$media_image = imagecreatetruecolor( 320, 240 );
+ob_start();
+imagepng( $media_image );
+$media_content = ob_get_clean();
+$media_upload = $runtime_call( 'wp_upload_media', [
+	'content' => base64_encode( $media_content ),
+	'filename' => 'frontman-runtime-logo.png',
+	'mime_type' => 'image/png',
+	'alt_text' => 'Frontman runtime logo',
+] );
+$media_id = $media_upload['attachment_id'];
+try {
+	clean_post_cache( $media_id );
+	$media_metadata = wp_get_attachment_metadata( $media_id );
+	frontman_runtime_assert( 320 === $media_metadata['width'] && 240 === $media_metadata['height'], 'Upload did not persist image dimensions.' );
+	frontman_runtime_assert( isset( $media_metadata['sizes']['thumbnail'] ), 'Upload did not generate a thumbnail.' );
+	$media_file = get_attached_file( $media_id );
+	$media_thumbnail = dirname( $media_file ) . '/' . $media_metadata['sizes']['thumbnail']['file'];
+	frontman_runtime_assert( file_exists( $media_thumbnail ), 'Upload thumbnail file is missing.' );
+	frontman_runtime_assert( 'Frontman runtime logo' === get_post_meta( $media_id, '_wp_attachment_image_alt', true ), 'Upload did not persist supplied alt text.' );
+	frontman_runtime_assert( false !== strpos( wp_get_attachment_image( $media_id ), 'alt="Frontman runtime logo"' ), 'Rendered attachment omitted supplied alt text.' );
+} finally {
+	wp_delete_attachment( $media_id, true );
+}
+
+$media_mu = WPMU_PLUGIN_DIR . '/frontman-media-runtime.php';
+frontman_runtime_assert( ! file_exists( $media_mu ), 'Media runtime seam already exists.' );
+try {
+	foreach ( [ false, true ] as $preload_image_helpers ) {
+		if ( $preload_image_helpers ) {
+			file_put_contents( $media_mu, "<?php require_once ABSPATH . 'wp-admin/includes/image.php';" );
+		}
+		foreach ( [ 'audio.mp3' => 'audio/mpeg', 'video.mp4' => 'video/mp4' ] as $media_filename => $media_mime ) {
+			$media_content = file_get_contents( '/tmp/frontman-media-fixtures/' . $media_filename );
+			$media_upload = $runtime_call( 'wp_upload_media', [
+				'content' => base64_encode( $media_content ),
+				'filename' => $media_filename,
+				'mime_type' => $media_mime,
+			] );
+			$media_id = $media_upload['attachment_id'];
+			try {
+				clean_post_cache( $media_id );
+				$media_metadata = wp_get_attachment_metadata( $media_id );
+				frontman_runtime_assert( $media_mime === get_post_mime_type( $media_id ), 'Upload did not retain audio/video attachment.' );
+				frontman_runtime_assert( file_exists( get_attached_file( $media_id ) ), 'Audio/video upload file is missing.' );
+				frontman_runtime_assert( strlen( $media_content ) === $media_metadata['filesize'] && 1 === $media_metadata['length'], 'Upload did not persist audio/video metadata.' );
+				if ( 'video/mp4' === $media_mime ) {
+					frontman_runtime_assert( 16 === $media_metadata['width'] && 16 === $media_metadata['height'], 'Upload did not persist video dimensions.' );
+				}
+			} finally {
+				wp_delete_attachment( $media_id, true );
+			}
+		}
+	}
+} finally {
+	if ( file_exists( $media_mu ) ) {
+		unlink( $media_mu );
+	}
+}
+
 $public_mu = WPMU_PLUGIN_DIR . '/frontman-public-runtime.php';
 frontman_runtime_assert( ! file_exists( $public_mu ), 'Public runtime seam already exists.' );
 file_put_contents( $public_mu, <<<'PHP'
