@@ -24,7 +24,9 @@ test("activation preserves the draft and requires explicit review without sendin
   let (finished, effects) = Reducer.next(ready, ContinueActivation)
   t->expect(finished.settingsModalTab)->Expect.toBeNone
   t->expect(finished.composerDraft)->Expect.toBe("Fix mobile signup")
-  t->expect(effects)->Expect.toEqual([Reducer.FocusComposer])
+  t
+  ->expect(effects)
+  ->Expect.toEqual([Reducer.TrackActivation("setup_completed"), Reducer.FocusComposer])
   t->expect(Reducer.Selectors.messages(finished)->Array.length)->Expect.toBe(0)
 })
 

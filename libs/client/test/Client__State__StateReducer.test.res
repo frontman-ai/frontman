@@ -39,7 +39,9 @@ external mockImplementation: (
 ) => unit = "mockImplementation"
 @module("vitest") @scope("vi") external restoreAllMocks: unit => unit = "restoreAllMocks"
 let mockPrompt = handler => spyOnPrompt(acpModule)->mockImplementation(handler)
+beforeEach(Client__ActivationTestHelpers.setup)
 afterEach(() => {
+  Client__ActivationTestHelpers.unstubAllGlobals()
   clearRuntime()
   restoreAllMocks()
 })
@@ -814,6 +816,29 @@ describe("Client State Reducer", () => {
 })
 
 describe("Client State Reducer - Task Completion", () => {
+  test("does not track failed turns as successful completions", t => {
+    let state = TestHelpers.makeStateWithTask(~isAgentRunning=true)
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (failed, _) = Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask(taskId),
+        action: AgentError({
+          id: "failed-turn",
+          error: "Provider rejected the request",
+          category: #unknown,
+        }),
+      }),
+    )
+    let (_, effects) = Reducer.next(
+      failed,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
+    )
+    t
+    ->expect(effects->Array.includes(Reducer.TrackActivation("request_completed")))
+    ->Expect.toBe(false)
+  })
+
   test("completes the first task without promotional effects, including after history loads", t => {
     let state = {
       ...TestHelpers.makeStateWithTask(
@@ -832,7 +857,12 @@ describe("Client State Reducer - Task Completion", () => {
       TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
     )
     t->expect(Reducer.Selectors.isAgentRunning(completedState))->Expect.toBe(false)
-    t->expect(effects)->Expect.toEqual([])
+    t->expect(effects)->Expect.toEqual([Reducer.TrackActivation("request_completed")])
+    let (_, duplicateEffects) = Reducer.next(
+      completedState,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
+    )
+    t->expect(duplicateEffects)->Expect.toEqual([])
 
     let (_, historyEffects) = Reducer.next(completedState, SessionsLoadSuccess({sessions: []}))
     t->expect(historyEffects)->Expect.toEqual([])
@@ -1354,6 +1384,37 @@ describe("Client State Reducer - Task Management Actions", () => {
 describe("Client State Reducer - Billing Settings", () => {
   let parseBillingStatus = json =>
     JSON.parseOrThrow(json)->S.decodeOrThrow(~from=S.json, ~to=Client__Billing.statusSchema)
+
+  test(
+    "keeps the draft through reconnect, canceled checkout, activation and provider setup without sending",
+    t => {
+      let reduce = (state, action) => Reducer.next(state, action)->Pair.first
+      let drafted = reduce(Reducer.defaultState, SetComposerDraft("Fix mobile signup"))
+      let gated = reduce(reduce(drafted, ConnectionAction(Dispose)), ContinueActivation)
+      t->expect(gated.settingsModalTab)->Expect.toEqual(Some(Activation))
+      let canceled = reduce(gated, BillingRequestCancelled({tab: None}))
+      let status = parseBillingStatus(`{"status":"active","access_allowed":true,"has_billing_customer":true,"interval":"monthly","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`)
+      let (active, effects) = Reducer.next(canceled, BillingStatusReceived(status))
+      t->expect(effects)->Expect.toEqual([Reducer.TrackActivation("access_activated")])
+      t->expect(active.settingsModalTab)->Expect.toEqual(Some(Activation))
+      t
+      ->expect(reduce(active, ContinueActivation).settingsModalTab)
+      ->Expect.toEqual(Some(ProviderSetup))
+      let ready = {
+        ...active,
+        selectedModelValue: Some("model"),
+        configOptions: Some(TestHelpers.modelConfigOptions(~models=["model"])),
+      }
+      let (finished, effects) = Reducer.next(ready, ContinueActivation)
+      t->expect(finished.composerDraft)->Expect.toBe("Fix mobile signup")
+      t->expect(finished.settingsModalTab)->Expect.toBeNone
+      t
+      ->expect(effects)
+      ->Expect.toEqual([Reducer.TrackActivation("setup_completed"), Reducer.FocusComposer])
+      let (_, duplicateEffects) = Reducer.next(finished, BillingStatusReceived(status))
+      t->expect(duplicateEffects)->Expect.toEqual([])
+    },
+  )
 
   test("SetSettingsModalTab(Billing) only opens the tab", t => {
     let state: Reducer.state = {

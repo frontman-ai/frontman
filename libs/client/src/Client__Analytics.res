@@ -2,7 +2,7 @@ type relayFailureReason = HttpError | InvalidResponse | NetworkError
 
 type relayOutcome = Success | Failure(relayFailureReason)
 
-type event = RelayConnectionCompleted(relayOutcome)
+type event = RelayConnectionCompleted(relayOutcome) | ActivationStep(string)
 
 let relayFailureReasonToString = reason =>
   switch reason {
@@ -19,11 +19,13 @@ let frameworkProperties = () => {
 let eventName = event =>
   switch event {
   | RelayConnectionCompleted(_) => "relay_connection_completed"
+  | ActivationStep(_) => "activation_step"
   }
 
 let eventProperties = event => {
   let properties = frameworkProperties()
   switch event {
+  | ActivationStep(step) => properties->Dict.set("step", JSON.Encode.string(step))
   | RelayConnectionCompleted(Success) =>
     properties->Dict.set("outcome", JSON.Encode.string("success"))
   | RelayConnectionCompleted(Failure(reason)) =>
