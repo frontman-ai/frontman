@@ -127,9 +127,41 @@ afterEach(() => {
           ->expect(navigations.contents)
           ->Expect.toEqual(["about:blank", "https://billing.stripe.test/session"]),
       )
-      t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.Idle)
+      t
+      ->expect(state.contents.billingFlow)
+      ->Expect.toEqual(
+        switch operation {
+        | Checkout(_) => Billing.AwaitingCheckout
+        | _ => Billing.Idle
+        },
+      )
     },
   )
+})
+
+testAsync("checkout waits for authoritative access and blocks duplicate launches", async t => {
+  request(Checkout(Monthly))
+  pending.contents.resolve(urlResponse())
+  await waitFor(() =>
+    t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.AwaitingCheckout)
+  )
+  request(Checkout(Yearly))
+  t->expect(calls.contents->Array.length)->Expect.toBe(1)
+  dispatch(
+    BillingStatusReceived(
+      S.parseOrThrow(JSON.parseOrThrow(statusJson("none", false)), ~to=Billing.statusSchema),
+    ),
+  )
+  t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.AwaitingCheckout)
+  dispatch(BillingCheckoutDismissed)
+  t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.Idle)
+  state := {...state.contents, billingFlow: AwaitingCheckout}
+  dispatch(
+    BillingStatusReceived(
+      S.parseOrThrow(JSON.parseOrThrow(statusJson("trialing", true)), ~to=Billing.statusSchema),
+    ),
+  )
+  t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.Idle)
 })
 
 testAsync("launch effects report URLs without navigating", async t => {
@@ -143,7 +175,11 @@ testAsync("launch effects report URLs without navigating", async t => {
     t
     ->expect(actions)
     ->Expect.toEqual([
-      Reducer.BillingUrlReceived({tab: tab.contents, url: "https://billing.stripe.test/session"}),
+      Reducer.BillingUrlReceived({
+        tab: tab.contents,
+        url: "https://billing.stripe.test/session",
+        request: CustomerPortal,
+      }),
     ])
   )
   t->expect(navigations.contents)->Expect.toEqual(["about:blank"])

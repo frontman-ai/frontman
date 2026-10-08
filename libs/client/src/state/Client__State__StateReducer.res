@@ -55,7 +55,8 @@ type rec action =
   | BillingStatusReceived(Client__Billing.status)
   | BillingStatusError({error: string})
   | RequestBilling(Client__Billing.request)
-  | BillingUrlReceived({tab: WebAPI.Window.t, url: string})
+  | BillingUrlReceived({tab: WebAPI.Window.t, url: string, request: Client__Billing.request})
+  | BillingCheckoutDismissed
   | BillingLaunchFailed({tab: option<WebAPI.Window.t>, error: string})
   | BillingAuthRequired({tab: option<WebAPI.Window.t>})
   | BillingRequestCancelled({tab: option<WebAPI.Window.t>})
@@ -1502,7 +1503,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
             switch result {
             | Ok({url}) =>
               switch WebAPI.URL.make(~url).protocol {
-              | "https:" => dispatch(BillingUrlReceived({tab, url}))
+              | "https:" => dispatch(BillingUrlReceived({tab, url, request}))
               | _ => failwith("Invalid Stripe URL")
               }
             | Error(RequestFailed(error)) => dispatch(BillingLaunchFailed({tab: Some(tab), error}))
@@ -2458,7 +2459,8 @@ let rec next = (state: state, action) => {
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {
-    | (None, _, _) | (_, Checkout(_) | CustomerPortal, Opening) => state->StateReducer.update
+    | (None, _, _) | (_, Checkout(_) | CustomerPortal, Opening | AwaitingCheckout) =>
+      state->StateReducer.update
     | (Some(apiBaseUrl), _, _) =>
       let controller = switch state.billingAbortController {
       | Some(controller) => controller
@@ -2490,10 +2492,15 @@ let rec next = (state: state, action) => {
         },
       }->StateReducer.update(~sideEffects=effects)
     }
-  | BillingUrlReceived({tab, url}) =>
-    {...state, billingFlow: Client__Billing.Idle}->StateReducer.update(
-      ~sideEffects=[NavigateBillingTab({tab, url})],
-    )
+  | BillingCheckoutDismissed => {...state, billingFlow: Client__Billing.Idle}->StateReducer.update
+  | BillingUrlReceived({tab, url, request}) =>
+    {
+      ...state,
+      billingFlow: switch request {
+      | Checkout(_) => Client__Billing.AwaitingCheckout
+      | Status | CustomerPortal => Client__Billing.Idle
+      },
+    }->StateReducer.update(~sideEffects=[NavigateBillingTab({tab, url})])
   | BillingLaunchFailed({tab, error}) =>
     {...state, billingFlow: Client__Billing.Failed(error)}->StateReducer.update(
       ~sideEffects=[CloseBillingTab(tab)],
@@ -2512,6 +2519,10 @@ let rec next = (state: state, action) => {
       ...state,
       billingStatus: Client__Billing.Loaded(status),
       billingStatusAbortController: None,
+      billingFlow: switch (state.billingFlow, Client__Billing.isAccessAllowed(status)) {
+      | (AwaitingCheckout, true) => Idle
+      | _ => state.billingFlow
+      },
     }->StateReducer.update(
       ~sideEffects=switch state.billingStatusAbortController {
       | None => []
