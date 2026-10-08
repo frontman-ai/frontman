@@ -44,6 +44,7 @@ defmodule FrontmanServer.BillingTest do
                })
 
       assert_received {:start_checkout, _, ^customer, :yearly, _, [trial_eligible: false]}
+      assert %{trial_eligible: false, trial_days: 14} = Billing.status(scope)
     end
   end
 
@@ -150,6 +151,8 @@ defmodule FrontmanServer.BillingTest do
       assert %{
                status: "none",
                access_allowed: false,
+               trial_eligible: true,
+               trial_days: 14,
                has_billing_customer: false,
                interval: nil,
                current_period_end: nil,
@@ -189,6 +192,7 @@ defmodule FrontmanServer.BillingTest do
       assert %{
                status: "trialing",
                access_allowed: true,
+               trial_eligible: false,
                has_billing_customer: true,
                interval: :monthly,
                current_period_end: ^current_period_end
