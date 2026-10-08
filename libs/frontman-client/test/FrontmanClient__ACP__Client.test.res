@@ -690,10 +690,12 @@ describe("ACP session channel lifetime", () => {
           )
         let pending = request(first.channel)
         let otherSettled = ref(false)
-        let other = request(second.channel)->Promise.then(result => {
-          otherSettled := true
-          Promise.resolve(result)
-        })
+        let other = request(second.channel)->Promise.then(
+          result => {
+            otherSettled := true
+            Promise.resolve(result)
+          },
+        )
         first.emitEvent(event, JSON.Encode.null)
         t
         ->expect(await pending)
