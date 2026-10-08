@@ -192,6 +192,31 @@ $runtime_call = static function ( string $name, array $arguments ) use ( $cookie
 	}
 	return $data;
 };
+$media_image = imagecreatetruecolor( 320, 240 );
+ob_start();
+imagepng( $media_image );
+$media_content = ob_get_clean();
+$media_upload = $runtime_call( 'wp_upload_media', [
+	'content' => base64_encode( $media_content ),
+	'filename' => 'frontman-runtime-logo.png',
+	'mime_type' => 'image/png',
+	'alt_text' => 'Frontman runtime logo',
+] );
+$media_id = $media_upload['attachment_id'];
+try {
+	clean_post_cache( $media_id );
+	$media_metadata = wp_get_attachment_metadata( $media_id );
+	frontman_runtime_assert( 320 === $media_metadata['width'] && 240 === $media_metadata['height'], 'Upload did not persist image dimensions.' );
+	frontman_runtime_assert( isset( $media_metadata['sizes']['thumbnail'] ), 'Upload did not generate a thumbnail.' );
+	$media_file = get_attached_file( $media_id );
+	$media_thumbnail = dirname( $media_file ) . '/' . $media_metadata['sizes']['thumbnail']['file'];
+	frontman_runtime_assert( file_exists( $media_thumbnail ), 'Upload thumbnail file is missing.' );
+	frontman_runtime_assert( 'Frontman runtime logo' === get_post_meta( $media_id, '_wp_attachment_image_alt', true ), 'Upload did not persist supplied alt text.' );
+	frontman_runtime_assert( false !== strpos( wp_get_attachment_image( $media_id ), 'alt="Frontman runtime logo"' ), 'Rendered attachment omitted supplied alt text.' );
+} finally {
+	wp_delete_attachment( $media_id, true );
+}
+
 $public_mu = WPMU_PLUGIN_DIR . '/frontman-public-runtime.php';
 frontman_runtime_assert( ! file_exists( $public_mu ), 'Public runtime seam already exists.' );
 file_put_contents( $public_mu, <<<'PHP'

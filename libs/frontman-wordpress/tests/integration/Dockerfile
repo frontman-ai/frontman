@@ -1,7 +1,9 @@
 ARG PHP_VERSION=8.4
 FROM docker.io/library/php:${PHP_VERSION}-apache
 
-RUN docker-php-ext-install mysqli \
+RUN apt-get update && apt-get install -y --no-install-recommends libpng-dev \
+  && rm -rf /var/lib/apt/lists/* \
+  && docker-php-ext-install mysqli gd \
   && a2enmod rewrite \
   && printf '%s\n' \
     '<Directory /var/www/html/>' \
