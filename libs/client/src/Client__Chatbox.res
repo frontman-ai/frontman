@@ -355,37 +355,18 @@ let make = (~onConfigureProvider: unit => unit) => {
     <Client__UpdateBanner />
     <ScrollContainer className="flex-grow overflow-x-hidden">
       <ScrollContainer.ContentWrapper>
-        {switch (hasActiveACPSession, connectionState) {
-        | (true, _) => React.null
-        | (false, Error(message)) =>
+        {switch (hasActiveACPSession, connectionState, sessionError) {
+        | (_, Error(message), _) | (_, _, Some(message)) =>
           <div role="alert" className="py-3 px-4 text-[13px] text-red-400">
             {React.string(message)}
             {React.string(" ")}
             <a href="" className="underline"> {React.string("Reload")} </a>
           </div>
-        | (false, Connecting | LoggingOut | Connected | SessionActive(_) | Disconnected) =>
+        | (true, _, None) => React.null
+        | (false, Connecting | LoggingOut | Connected | SessionActive(_) | Disconnected, None) =>
           <div className="flex items-center gap-2 py-3 px-4 text-[13px] text-zinc-400">
             <span className="shimmer-text"> {React.string("Loading project context...")} </span>
           </div>
-        }}
-
-        {switch sessionError {
-        | Some(message) =>
-          <div role="alert" className="py-3 px-4 text-[13px] text-red-400 break-words">
-            <p> {React.string(`Conversation unavailable: ${message}`)} </p>
-            {switch currentTaskId {
-            | Some(taskId) =>
-              <Client__UI__Button
-                variant=Client__UI__Button.Variant.Secondary
-                size=Client__UI__Button.Size.Sm
-                onClick={_ => Client__State.Actions.switchTask(~taskId)}
-              >
-                {React.string("Retry conversation")}
-              </Client__UI__Button>
-            | None => <p> {React.string("Submit your message again to retry.")} </p>
-            }}
-          </div>
-        | None => React.null
         }}
 
         {switch (hasActiveACPSession, isNewTask, totalItems) {

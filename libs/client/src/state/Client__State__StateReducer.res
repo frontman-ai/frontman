@@ -329,7 +329,7 @@ module Selectors = {
     )
   let apiBaseUrl = (state: state) =>
     switch state.connection {
-    | Some({config, connection: Ok(Some({phase: Ready(_) | Reconnecting(_)}))}) =>
+    | Some({config, connection: Ok(Some({phase: Ready(_)}))}) =>
       Some(Connection.apiBaseUrlFromLoginUrl(config.acp.loginUrl))
     | _ => None
     }
@@ -1145,8 +1145,7 @@ module ConnectionEffects = {
   let connectRuntime = async (
     ~config: config,
     ~signal: WebAPI.EventTypes.abortSignal,
-    ~onReconnecting,
-    ~onReconnect,
+    ~onConnectionLost,
   ): result<readyState, connectError> => {
     let attempt = WebAPI.AbortController.make()
     let attemptSignal = WebAPI.AbortSignal.any([signal, attempt.signal])
@@ -1176,7 +1175,8 @@ module ConnectionEffects = {
       ->Result.mapError(acpError)
       ->Result.flatMap(conn =>
         switch (ACP.isInitialized(conn), ACP.getAgentAttributionConfiguration(conn)) {
-        | (false, _) | (true, Some(_)) => Ok(conn)
+        | (true, Some(_)) => Ok(conn)
+        | (false, _) => Error(ConnectionFailed(ACPError("Connection lost")))
         | (true, None) =>
           Error(ConnectionFailed(ACPError("Frontman requires agent attribution v1")))
         }
@@ -1186,14 +1186,10 @@ module ConnectionEffects = {
         config.acp,
         ~signal=attemptSignal,
         ~onConnectionCreated=conn => connection := Some(conn),
-        ~onReconnecting,
-        ~onReconnect=result => {
-          let result = validateConnection(result)
-          switch result {
-          | Error(error) => fail(error)
-          | Ok(_) => ()
-          }
-          onReconnect(result)
+        ~onConnectionLost=message => {
+          let error = ConnectionFailed(ACPError(message))
+          fail(error)
+          onConnectionLost(error)
         },
       )
       switch validateConnection(result) {
@@ -1337,8 +1333,7 @@ module ConnectionEffects = {
           Client__TextDeltaBuffer.flush()
           complete(Error(billingRequestErrorMessage(error, dispatchApp)))
         }
-      | Ok(Some({phase: Ready(current) | Reconnecting(current)}))
-        if current.session === ready.session =>
+      | Ok(Some({phase: Ready(current)})) if current.session === ready.session =>
         complete(Error("Connection changed before submission completed; send again when ready"))
       | Ok(_) | Error(_) => complete(Error("Conversation changed. Your message was not sent."))
       }
@@ -1347,7 +1342,7 @@ module ConnectionEffects = {
     | CleanupEffect(runtime) =>
       WebAPI.AbortController.abort(runtime.lifetimeAbortController)
       switch runtime.phase {
-      | Ready({connection, session}) | Reconnecting({connection, session}) =>
+      | Ready({connection, session}) =>
         ACP.disconnect(connection)
         releaseSession(session)->Array.forEach(effect =>
           handleEffect(effect, state, dispatch, ~dispatchApp)
@@ -1357,15 +1352,10 @@ module ConnectionEffects = {
     | CleanupConnectionEffect(connection) => ACP.disconnect(connection)
     | ConnectRuntime({config, signal}) =>
       let connect = async () => {
-        let result = await connectRuntime(
-          ~config,
-          ~signal,
-          ~onReconnecting=() => {
-            Client__TextDeltaBuffer.flush()
-            dispatch(ACPReconnecting({signal: signal}))
-          },
-          ~onReconnect=result => dispatch(ACPReconnected({signal, result})),
-        )
+        let result = await connectRuntime(~config, ~signal, ~onConnectionLost=error => {
+          Client__TextDeltaBuffer.flush()
+          dispatch(ConnectionResultReceived({signal, result: Error(error)}))
+        })
         switch (signal.aborted, result) {
         | (true, Ok(ready)) => ACP.disconnect(ready.connection)
         | (true, Error(_)) => ()
@@ -2256,12 +2246,6 @@ let rec next = (state: state, action) => {
       | false => state
       }
       failed(state, Connection.ACP.requestErrorMessage(error))
-    | Some({
-        connection: Ok(Some({
-          phase: Reconnecting({session: SessionActive({requestId: expected})}),
-        })),
-      }) if requestId === expected =>
-      failed(state, "Connection lost; request was not replayed")
     | _ => state->StateReducer.update
     }
   | AddUserMessage({content, annotationId, onComplete} as input) =>
@@ -2301,7 +2285,7 @@ let rec next = (state: state, action) => {
               [
                 SubmissionCompleted({
                   onComplete,
-                  result: Error("Reconnecting this conversation. Send again when it is ready."),
+                  result: Error("Loading this conversation. Send again when it is ready."),
                 }),
               ],
             ),

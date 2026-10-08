@@ -84,18 +84,34 @@ let makeLoadTransport: (array<JSON.t>, JSON.t) => mockTransport = %raw(`
   }
 `)
 
-let loadConnectionWithTransport = (history, result): (ACP.connection, mockTransport) => {
+let loadConnectionWithTransport = (history, result, ~onConnectionLost=_ => ()): (
+  ACP.connection,
+  mockTransport,
+) => {
   let transport = makeLoadTransport(history, result)
   let clientConfig: Client.config = {
     clientInfo: {name: "test", version: "1", title: None, _meta: None},
     clientCapabilities: {fs: None, terminal: None, elicitation: None, _meta: None},
   }
+  let state = ref(initializedState)
+  let dispose = () => {
+    state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
+    ACP.rejectPendingRequests(state)
+    ACP.cleanupChannel(transport.channel)
+  }
   let connection: ACP.connection = {
     socket: transport.socket,
     channel: transport.channel,
     clientConfig,
-    state: ref(initializedState),
-    dispose: () => (),
+    state,
+    dispose,
+    fail: error =>
+      switch Client.isInitialized(state.contents) {
+      | true =>
+        dispose()
+        onConnectionLost(error)
+      | false => ()
+      },
   }
   (connection, transport)
 }
@@ -700,25 +716,22 @@ describe("ACP session channel lifetime", () => {
       `reports idle ${event} but not intentional cleanup`,
       async t => {
         let errors = ref([])
-        let (connection, transport) = loadConnectionWithTransport([], loadResult)
-        let result = await loadSession(
-          connection,
-          ~onLoadResult=_ => (),
-          ~onUpdate=(_, _) => (),
-          ~onParseError=error => errors := errors.contents->Array.concat([error]),
-        )
+        let makeConnection = () =>
+          loadConnectionWithTransport(
+            [],
+            loadResult,
+            ~onConnectionLost=error => errors := errors.contents->Array.concat([error]),
+          )
+        let (connection, transport) = makeConnection()
+        let result = await loadSession(connection, ~onLoadResult=_ => (), ~onUpdate=(_, _) => ())
         result->Result.getOrThrow->ignore
         transport.emitEvent(event, JSON.Encode.null)
         t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
         ACP.cleanupChannel(transport.channel)
         t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
-        let (connection, transport) = loadConnectionWithTransport([], loadResult)
-        let result = await loadSession(
-          connection,
-          ~onLoadResult=_ => (),
-          ~onUpdate=(_, _) => (),
-          ~onParseError=error => errors := errors.contents->Array.concat([error]),
-        )
+        t->expect(ACP.isInitialized(connection))->Expect.toBe(false)
+        let (connection, transport) = makeConnection()
+        let result = await loadSession(connection, ~onLoadResult=_ => (), ~onUpdate=(_, _) => ())
         result->Result.getOrThrow->ignore
         ACP.cleanupChannel(transport.channel)
         t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])

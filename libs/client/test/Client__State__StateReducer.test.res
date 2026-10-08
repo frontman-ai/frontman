@@ -535,11 +535,16 @@ describe("Client State Reducer - Plan Handoff", () => {
 
   test("execute preserves the handoff when its session is unavailable", t => {
     let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
-    let reconnecting = switch state.connection {
+    let lost = switch state.connection {
     | Some({connection: Ok(Some(runtime))}) =>
       let (nextState, _) = Reducer.next(
         state,
-        ConnectionAction(ACPReconnecting({signal: runtime.lifetimeAbortController.signal})),
+        ConnectionAction(
+          ConnectionResultReceived({
+            signal: runtime.lifetimeAbortController.signal,
+            result: Error(ConnectionFailed(ACPError("Connection lost"))),
+          }),
+        ),
       )
       nextState
     | _ => failwith("Expected connected fixture")
@@ -548,7 +553,7 @@ describe("Client State Reducer - Plan Handoff", () => {
       {...state, connection: None},
       {...state, connection: Client__ConnectionTestHelpers.ready()},
       {...state, connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("another-task"))},
-      reconnecting,
+      lost,
     ]->Array.forEach(
       state => {
         let (nextState, effects) = Reducer.next(state, ExecutePendingPlan({id: testUserMessageId}))
@@ -780,7 +785,10 @@ describe("Client State Reducer", () => {
     | _ => failwith("Expected active session")
     }
     let actions: array<Client__ConnectionReducer.action> = [
-      ACPReconnecting({signal: signal}),
+      ConnectionResultReceived({
+        signal,
+        result: Error(ConnectionFailed(ACPError("Connection lost"))),
+      }),
       SessionResultReceived({
         requestId,
         sessionId: "test-task-1",
@@ -2227,12 +2235,16 @@ describe("Client State Reducer - Annotations on Messages", () => {
         t->expect(fail(state)->Reducer.Selectors.queuedUserMessages)->Expect.toEqual([])
         let connection = state.connection->Option.getOrThrow
         let runtime = connection.connection->Result.getOrThrow->Option.getOrThrow
-        let lost =
-          Reducer.next(
-            state,
-            ConnectionAction(ACPReconnecting({signal: runtime.lifetimeAbortController.signal})),
-          )->Pair.first
-        t->expect(fail(lost)->Reducer.Selectors.queuedUserMessages)->Expect.toEqual([])
+        let lost = Reducer.next(
+          state,
+          ConnectionAction(
+            ConnectionResultReceived({
+              signal: runtime.lifetimeAbortController.signal,
+              result: Error(ConnectionFailed(ACPError("Connection lost"))),
+            }),
+          ),
+        )->Pair.first
+        t->expect(fail(lost))->Expect.toBe(lost)
         let newer = {
           ...state,
           connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("session-1")),
