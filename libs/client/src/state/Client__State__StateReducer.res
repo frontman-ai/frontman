@@ -130,6 +130,7 @@ type customProviderMutationRequest =
   | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
+  | TrackActivation(string)
   | FocusComposer
   | ConnectionEffect(Connection.effect)
   | CreateSession({taskId: string, input: promptInput})
@@ -194,6 +195,16 @@ module Lens = {
     let (updated, taskEffects) = TaskReducer.next(task, taskAction)
     let wrappedEffects =
       taskEffects->Array.map(eff => TaskEffect({target: ForTask(taskId), effect: eff}))
+    let wrappedEffects = switch (
+      taskAction,
+      TaskReducer.Selectors.isAgentRunning(task),
+      TaskReducer.Selectors.completedIdleTurn(updated),
+      TaskReducer.Selectors.turnError(updated),
+    ) {
+    | (ExecutionStateIdle, Some(true), Some(_), None) =>
+      Array.concat(wrappedEffects, [TrackActivation("request_completed")])
+    | _ => wrappedEffects
+    }
     let tasks = state.tasks->Dict.copy
     tasks->Dict.set(taskId, updated)
     {...state, tasks}->StateReducer.update(~sideEffects=wrappedEffects)
@@ -1475,6 +1486,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
   | FlushSessionActions(actions) =>
     Client__TextDeltaBuffer.flush()
     actions->Array.forEach(action => dispatch(action))
+  | TrackActivation(step) => Client__Analytics.track(ActivationStep(step))
   | FocusComposer =>
     WebAPI.Window.setTimeout(
       WebAPI.Window.current,
@@ -1566,6 +1578,7 @@ let handleEffect = (effect, state: state, dispatch: action => unit) => {
       ),
     )
   | SendMessage({taskId, submission: {id, content, annotations, agentId, onComplete}}) =>
+    Client__Analytics.track(ActivationStep("request_submitted"))
     let text = TaskReducer.extractTextFromUserContent(content)
     let attachments = TaskReducer.extractAttachmentsFromUserContent(content)
     let (additionalBlocks, _meta) = buildPrompt(
@@ -2467,10 +2480,28 @@ let rec next = (state: state, action) => {
     | None => state->StateReducer.update
     }
 
-  | SetComposerDraft(text) => {...state, composerDraft: text}->StateReducer.update
+  | SetComposerDraft(text) =>
+    {...state, composerDraft: text}->StateReducer.update(
+      ~sideEffects=switch (state.composerDraft->String.trim == "", text->String.trim != "") {
+      | (true, true) => [TrackActivation("request_drafted")]
+      | _ => []
+      },
+    )
   | ContinueActivation =>
-    {...state, settingsModalTab: None}->StateReducer.update(~sideEffect=FocusComposer)
-  | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
+    {...state, settingsModalTab: None}->StateReducer.update(
+      ~sideEffects=switch (state.settingsModalTab, state.selectedModelValue) {
+      | (Some(ProviderSetup), Some(_)) => [TrackActivation("setup_completed"), FocusComposer]
+      | _ => [FocusComposer]
+      },
+    )
+  | SetSettingsModalTab({tab}) =>
+    {...state, settingsModalTab: tab}->StateReducer.update(
+      ~sideEffects=switch (tab, state.settingsModalTab) {
+      | (Some(Billing), Some(Billing)) => []
+      | (Some(Billing), _) => [TrackActivation("offer_viewed")]
+      | _ => []
+      },
+    )
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {
     | (None, _, _) | (_, Checkout(_) | CustomerPortal, Opening | AwaitingCheckout) =>
@@ -2494,7 +2525,11 @@ let rec next = (state: state, action) => {
           AbortBillingRequest(state.billingStatusAbortController),
           FetchBillingStatus({apiBaseUrl, signal}),
         ]
-      | Checkout(_) | CustomerPortal => [OpenBillingTabAndFetchUrl({request, apiBaseUrl, signal})]
+      | Checkout(_) => [
+          TrackActivation("checkout_started"),
+          OpenBillingTabAndFetchUrl({request, apiBaseUrl, signal}),
+        ]
+      | CustomerPortal => [OpenBillingTabAndFetchUrl({request, apiBaseUrl, signal})]
       }
       {
         ...state,
@@ -2538,10 +2573,18 @@ let rec next = (state: state, action) => {
       | _ => state.billingFlow
       },
     }->StateReducer.update(
-      ~sideEffects=switch state.billingStatusAbortController {
-      | None => []
-      | Some(_) => [AbortBillingRequest(state.billingStatusAbortController)]
-      },
+      ~sideEffects=Array.concat(
+        switch state.billingStatusAbortController {
+        | None => []
+        | Some(_) => [AbortBillingRequest(state.billingStatusAbortController)]
+        },
+        switch state.billingStatus {
+        | Loaded(previous)
+          if !Client__Billing.isAccessAllowed(previous) &&
+          Client__Billing.isAccessAllowed(status) => [TrackActivation("access_activated")]
+        | _ => []
+        },
+      ),
     )
   | BillingStatusError({error}) =>
     {

@@ -39,7 +39,9 @@ external mockImplementation: (
 ) => unit = "mockImplementation"
 @module("vitest") @scope("vi") external restoreAllMocks: unit => unit = "restoreAllMocks"
 let mockPrompt = handler => spyOnPrompt(acpModule)->mockImplementation(handler)
+beforeEach(Client__ActivationTestHelpers.setup)
 afterEach(() => {
+  Client__ActivationTestHelpers.unstubAllGlobals()
   clearRuntime()
   restoreAllMocks()
 })
@@ -814,6 +816,37 @@ describe("Client State Reducer", () => {
 })
 
 describe("Client State Reducer - Task Completion", () => {
+  test("does not track failed turns as successful completions", t => {
+    let state = TestHelpers.makeStateWithTask(~isAgentRunning=true)
+    let taskId = TestHelpers.getCurrentTaskId(state)->Option.getOrThrow
+    let (failed, _) = Reducer.next(
+      state,
+      TaskAction({
+        target: ForTask(taskId),
+        action: AgentError({
+          id: "failed-turn",
+          error: "Provider rejected the request",
+          category: #unknown,
+        }),
+      }),
+    )
+    let (_, effects) = Reducer.next(
+      failed,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
+    )
+    t
+    ->expect(
+      effects->Array.some(
+        effect =>
+          switch effect {
+          | Reducer.TrackActivation("request_completed") => true
+          | _ => false
+          },
+      ),
+    )
+    ->Expect.toBe(false)
+  })
+
   test("completes the first task without promotional effects, including after history loads", t => {
     let state = {
       ...TestHelpers.makeStateWithTask(
@@ -832,7 +865,12 @@ describe("Client State Reducer - Task Completion", () => {
       TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
     )
     t->expect(Reducer.Selectors.isAgentRunning(completedState))->Expect.toBe(false)
-    t->expect(effects)->Expect.toEqual([])
+    t->expect(effects)->Expect.toEqual([Reducer.TrackActivation("request_completed")])
+    let (_, duplicateEffects) = Reducer.next(
+      completedState,
+      TaskAction({target: ForTask(taskId), action: ExecutionStateIdle}),
+    )
+    t->expect(duplicateEffects)->Expect.toEqual([])
 
     let (_, historyEffects) = Reducer.next(completedState, SessionsLoadSuccess({sessions: []}))
     t->expect(historyEffects)->Expect.toEqual([])
@@ -1355,7 +1393,7 @@ describe("Client State Reducer - Billing Settings", () => {
   let parseBillingStatus = json =>
     JSON.parseOrThrow(json)->S.decodeOrThrow(~from=S.json, ~to=Client__Billing.statusSchema)
 
-  test("SetSettingsModalTab(Billing) only opens the tab", t => {
+  test("SetSettingsModalTab(Billing) opens the tab and tracks the offer", t => {
     let state: Reducer.state = {
       ...Reducer.defaultState,
       billingStatus: Client__Billing.NotLoaded,
@@ -1368,7 +1406,7 @@ describe("Client State Reducer - Billing Settings", () => {
 
     t->expect(nextState.settingsModalTab)->Expect.toEqual(Some(Client__State__Types.Billing))
     t->expect(nextState.billingStatus)->Expect.toEqual(Client__Billing.NotLoaded)
-    t->expect(effects->Array.length)->Expect.toBe(0)
+    t->expect(effects)->Expect.toEqual([Reducer.TrackActivation("offer_viewed")])
   })
 
   test("billing launch results schedule navigation and cleanup without executing them", t => {
@@ -1463,7 +1501,9 @@ describe("Client State Reducer - Billing Settings", () => {
     t->expect(Reducer.Selectors.billingAccessAllowed(inactiveState))->Expect.toBe(false)
     t->expect(Reducer.Selectors.billingAccessAllowed(activeState))->Expect.toBe(true)
     t->expect(inactiveEffects->Array.length)->Expect.toBe(0)
-    t->expect(activeEffects->Array.length)->Expect.toBe(0)
+    t->expect(activeEffects)->Expect.toEqual([Reducer.TrackActivation("access_activated")])
+    let (_, repeatedEffects) = Reducer.next(activeState, BillingStatusReceived(activeStatus))
+    t->expect(repeatedEffects)->Expect.toEqual([])
   })
 
   test("billingAccessAllowed selector returns derived billing access", t => {

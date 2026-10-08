@@ -52,6 +52,7 @@ let failed = () =>
   }
 
 beforeEach(() => {
+  Client__ActivationTestHelpers.setup()
   Client__EmbeddedAuth.saveToken("editor-account-a")
   calls := []
   navigations := []
