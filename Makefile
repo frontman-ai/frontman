@@ -244,7 +244,7 @@ verify-toolchain-pins:
 
 build:
 	@printf "$(YELLOW)Building ReScript project...$(RESET)\n"
-	yarn rescript
+	yarn rescript build $(RESCRIPT_FLAGS)
 
 rescript-watch:
 	@printf "$(YELLOW)Starting ReScript watch mode...$(RESET)\n"

@@ -68,8 +68,8 @@ jobs:
       - name: Clean ReScript build cache
         run: yarn rescript clean
 
-      - name: Build project
-        run: make build
+      - name: Build project with warnings as errors
+        run: make build RESCRIPT_FLAGS="--warn-error +a"
 
   test-frontman-client:
     name: Test frontman-client
