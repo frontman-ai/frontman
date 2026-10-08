@@ -43,7 +43,6 @@ type phase =
   | WaitingForAuthentication(authRequiredPayload)
   | Authenticating(authRequiredPayload)
   | Ready(readyState)
-  | Reconnecting(readyState)
   | LoggingOut
 
 type runtime = {
@@ -84,11 +83,6 @@ type action =
   | RequireAuthentication
   | RetryAuthentication
   | BeginLogout
-  | ACPReconnecting({signal: WebAPI.EventTypes.abortSignal})
-  | ACPReconnected({
-      signal: WebAPI.EventTypes.abortSignal,
-      result: result<ACP.connection, connectError>,
-    })
   | ConnectionResultReceived({
       signal: WebAPI.EventTypes.abortSignal,
       result: result<readyState, connectError>,
@@ -152,7 +146,7 @@ module Selectors = {
 
   let sessionTaskId = (state: state): option<string> =>
     switch state.connection {
-    | Ok(Some({phase: Ready({session}) | Reconnecting({session})})) =>
+    | Ok(Some({phase: Ready({session})})) =>
       switch session {
       | SessionCreating({sessionId}) => sessionId
       | SessionActive({session}) | SessionFailed({session}) => Some(session.sessionId)
@@ -184,7 +178,7 @@ module Selectors = {
       SessionActive(session.sessionId)
     | Ok(Some({phase: Ready(_)})) => Connected
     | Ok(Some({phase: LoggingOut})) => LoggingOut
-    | Ok(Some({phase: Connecting | Reconnecting(_)})) => Connecting
+    | Ok(Some({phase: Connecting})) => Connecting
     | Ok(Some({phase: WaitingForAuthentication(_) | Authenticating(_)})) => Disconnected
     }
 
@@ -196,7 +190,8 @@ module Selectors = {
     }
 }
 
-let releaseSession = (session, ~error="Conversation changed. Your message was not sent.") =>
+let releaseSession = session => {
+  let error = "Conversation changed. Your message was not sent."
   switch session {
   | SessionCreating({onComplete: Some(onComplete)}) => [
       NotifyRequestRejected(() => onComplete(Error(error))),
@@ -209,6 +204,7 @@ let releaseSession = (session, ~error="Conversation changed. Your message was no
     ]
   | NoSession | SessionCreationFailed(_) => []
   }
+}
 
 let isCurrentConnection = (state: state, signal: WebAPI.EventTypes.abortSignal): bool =>
   switch state.connection {
@@ -285,22 +281,14 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     | Ok(ready) => (
         {
           ...state,
-          connection: Ok(
-            Some({
-              ...runtime,
-              phase: switch ACP.isInitialized(ready.connection) {
-              | true => Ready(ready)
-              | false => Reconnecting(ready)
-              },
-            }),
-          ),
+          connection: Ok(Some({...runtime, phase: Ready(ready)})),
         },
         [FetchSessionsEffect({connection: ready.connection, signal})],
       )
     | Error(AuthenticationRequired(payload)) =>
       let effects = switch runtime.phase {
       | Authenticating(_) => [ScheduleAuthRetry({signal: runtime.lifetimeAbortController.signal})]
-      | Connecting | WaitingForAuthentication(_) | Ready(_) | Reconnecting(_) | LoggingOut => []
+      | Connecting | WaitingForAuthentication(_) | Ready(_) | LoggingOut => []
       }
       (
         {...state, connection: Ok(Some({...runtime, phase: WaitingForAuthentication(payload)}))},
@@ -315,7 +303,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
             ScheduleAuthRetry({signal: runtime.lifetimeAbortController.signal}),
           ],
         )
-      | Connecting | WaitingForAuthentication(_) | Ready(_) | Reconnecting(_) | LoggingOut => (
+      | Connecting | WaitingForAuthentication(_) | Ready(_) | LoggingOut => (
           {...state, connection: Error(ACPError(error))},
           [CleanupEffect(runtime), LogError(`ACP connect failed: ${error}`)],
         )
@@ -325,6 +313,13 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
         [CleanupEffect(runtime), LogError(`Project context connection failed: ${error}`)],
       )
     }
+  | (
+      Ok(Some({phase: Ready(_)} as runtime)),
+      ConnectionResultReceived({signal, result: Error(ConnectionFailed(error))}),
+    ) if signal === runtime.lifetimeAbortController.signal && !signal.aborted => (
+      {...state, connection: Error(error)},
+      [CleanupEffect(runtime), LogError("Connection lost")],
+    )
   | (_, ConnectionResultReceived({result: Ok(ready)})) => (
       state,
       [CleanupConnectionEffect(ready.connection), LogInfo("Stale connection result ignored")],
@@ -334,52 +329,12 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
       [LogInfo("Stale connection result ignored")],
     )
 
-  | (Ok(Some({phase: Ready(ready)} as runtime)), ACPReconnecting({signal}))
-    if signal === runtime.lifetimeAbortController.signal && !signal.aborted =>
-    let (session, effects) = switch ready.session {
-    | SessionCreating(_) => (
-        NoSession,
-        releaseSession(ready.session, ~error="Connection lost; send again when ready"),
-      )
-    | session => (session, [])
-    }
-    (
-      {...state, connection: Ok(Some({...runtime, phase: Reconnecting({...ready, session})}))},
-      effects,
-    )
-  | (Ok(Some({phase: Reconnecting(ready)} as runtime)), ACPReconnected({signal, result}))
-    if signal === runtime.lifetimeAbortController.signal && !signal.aborted =>
-    switch result {
-    | Ok(connection) if connection === ready.connection && ACP.isInitialized(connection) => (
-        {...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))},
-        [FetchSessionsEffect({connection, signal})],
-      )
-    | Ok(_) => (state, [])
-    | Error(AuthenticationRequired(payload)) => (
-        {
-          ...state,
-          connection: Ok(
-            Some({
-              lifetimeAbortController: WebAPI.AbortController.make(),
-              phase: WaitingForAuthentication(payload),
-            }),
-          ),
-        },
-        [CleanupEffect(runtime)],
-      )
-    | Error(ConnectionFailed(error)) => (
-        {...state, connection: Error(error)},
-        [CleanupEffect(runtime)],
-      )
-    }
-  | (_, ACPReconnecting(_) | ACPReconnected(_)) => (state, [])
-
   | (Ok(Some({phase: WaitingForAuthentication(payload)} as runtime)), RetryAuthentication) => (
       {...state, connection: Ok(Some({...runtime, phase: Authenticating(payload)}))},
       [ConnectRuntime({config: state.config, signal: runtime.lifetimeAbortController.signal})],
     )
 
-  | (Ok(Some({phase: Ready(_) | Reconnecting(_)} as runtime)), RequireAuthentication) =>
+  | (Ok(Some({phase: Ready(_)} as runtime)), RequireAuthentication) =>
     let framework = state.config.acp.clientInfo._meta->Option.flatMap(frameworkFromClientInfoMeta)
     let phase = WaitingForAuthentication({
       loginUrl: enrichLoginUrl(~loginUrl=state.config.acp.loginUrl, ~framework),
@@ -393,7 +348,7 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
   | (_, RequireAuthentication | RetryAuthentication) => (state, [])
 
-  | (Ok(Some({phase: Ready(_) | Reconnecting(_)} as runtime)), BeginLogout) =>
+  | (Ok(Some({phase: Ready(_)} as runtime)), BeginLogout) =>
     let lifetimeAbortController = WebAPI.AbortController.make()
     (
       {...state, connection: Ok(Some({lifetimeAbortController, phase: LoggingOut}))},
@@ -512,14 +467,10 @@ let reduce = (state: state, action: action): (state, array<effect>) => {
     )
   | (_, DeleteSession(_)) => (state, [LogError("Cannot delete session: not connected")])
 
-  | (Ok(Some({phase: Ready(ready) | Reconnecting(ready)} as runtime)), ClearSession) =>
+  | (Ok(Some({phase: Ready(ready)} as runtime)), ClearSession) =>
     let effects = releaseSession(ready.session)
     let ready = {...ready, session: NoSession}
-    let phase = switch runtime.phase {
-    | Reconnecting(_) => Reconnecting(ready)
-    | _ => Ready(ready)
-    }
-    ({...state, connection: Ok(Some({...runtime, phase}))}, effects)
+    ({...state, connection: Ok(Some({...runtime, phase: Ready(ready)}))}, effects)
   | (_, ClearSession) => (state, [])
   | (_, CreateSession({onComplete})) => (
       state,

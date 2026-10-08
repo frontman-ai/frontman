@@ -31,7 +31,6 @@ type config = {
   getAuthToken: unit => option<string>,
   clientInfo: Types.implementation,
   clientCapabilities: Types.clientCapabilities,
-  onTitleUpdated: option<(string, string) => unit>,
   onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>,
   onBillingStatusUpdated: option<JSON.t => unit>,
 }
@@ -44,7 +43,6 @@ let makeConfig = (
   ~name: string,
   ~version: string,
   ~_meta: JSON.t,
-  ~onTitleUpdated: option<(string, string) => unit>=?,
   ~onConfigOptionsUpdated: option<array<Types.sessionConfigOption> => unit>=?,
   ~onBillingStatusUpdated: option<JSON.t => unit>=?,
 ): config => {
@@ -57,7 +55,6 @@ let makeConfig = (
     title: None,
     _meta: Some(_meta),
   },
-  onTitleUpdated,
   onConfigOptionsUpdated,
   onBillingStatusUpdated,
   clientCapabilities: {
@@ -74,6 +71,7 @@ type connection = {
   clientConfig: Client.config,
   state: ref<Client.state>,
   dispose: unit => unit,
+  fail: string => unit,
 }
 
 @@live
@@ -81,7 +79,6 @@ type session = {
   sessionId: string,
   channel: Channel.t,
   connection: connection,
-  onUpdate: (string, Types.sessionUpdate) => unit,
 }
 
 type sessionCommand =
@@ -93,24 +90,24 @@ let cleanupChannel = channel => {
   channel->Channel.off(~event=#"acp:message")
   channel->Channel.off(~event=#"mcp:message")
   channel->Channel.off(~event=#title_updated)
-  Channel.leave(channel)->ignore
+  channel->Channel.off(~event=#config_options_updated)
+  channel->Channel.off(~event=#billing_status_updated)
+  switch Channel.state(channel) {
+  | "closed" | "leaving" => ()
+  | _ => Channel.leave(channel)->ignore
+  }
 }
 
 let cleanupSessionChannel = (session: session): unit => cleanupChannel(session.channel)
 
-let disconnect = (conn: connection, ~session: option<session>=?): unit => {
-  conn.dispose()
-  session->Option.forEach(cleanupSessionChannel)
-}
+let disconnect = (conn: connection): unit => conn.dispose()
 
 let rejectPendingRequests = (state: ref<Client.state>) => {
   let pending = state.contents.pendingRequests
   state := {...state.contents, pendingRequests: Dict.make()}
   pending
   ->Dict.valuesToArray
-  ->Array.forEach(request =>
-    request.reject(requestErrorFromMessage("Connection lost; request was not replayed"))
-  )
+  ->Array.forEach(request => request.reject(requestErrorFromMessage(Protocol.connectionLost)))
 }
 
 @send
@@ -120,27 +117,27 @@ external onAbort: (WebAPI.EventTypes.abortSignal, @as("abort") _, unit => unit) 
 external offAbort: (WebAPI.EventTypes.abortSignal, @as("abort") _, unit => unit) => unit =
   "removeEventListener"
 
-let waitForSocket = (socket: Socket.t): promise<result<unit, string>> => {
-  Promise.make((resolve, _) => {
-    socket->Socket.onError(~callback=_ => resolve(Error("Socket connection failed")))
-    socket->Socket.onOpen(~callback=() => resolve(Ok()))
-    socket->Socket.connect
-  })
-}
-
 type joinError =
   | AuthRequired({loginUrl: string})
   | JoinFailed(string)
   | JoinTimedOut(string)
 
-let joinChannel = (channel: Channel.t, ~onResult: result<unit, joinError> => unit=_ => ()): promise<
+let joinChannel = (channel: Channel.t, ~onError: option<string => unit>=?): promise<
   result<unit, joinError>,
 > => {
   Promise.make((resolve, _) => {
-    let resolve = result => {
-      onResult(result)
-      resolve(result)
-    }
+    [#phx_error, #phx_close]->Array.forEach(event =>
+      channel->Channel.on(
+        ~event,
+        ~callback=payload => {
+          resolve(Error(JoinFailed(Protocol.connectionLost)))
+          switch (event, payload == JSON.Encode.string("leave")) {
+          | (#phx_close, true) => ()
+          | _ => onError->Option.forEach(callback => callback(Protocol.connectionLost))
+          }
+        },
+      )
+    )
     Channel.join(channel).receive(~status="ok", ~callback=_ =>
       resolve(Ok())
     ).receive(~status="error", ~callback=err => {
@@ -176,8 +173,7 @@ let connect = async (
   config: config,
   ~signal: option<WebAPI.EventTypes.abortSignal>=?,
   ~onConnectionCreated: option<connection => unit>=?,
-  ~onReconnecting: unit => unit=() => (),
-  ~onReconnect: result<connection, connectError> => unit=_ => (),
+  ~onConnectionLost: string => unit=_ => (),
 ): result<connection, connectError> => {
   Sentry.initialize()
   Sentry.addBreadcrumb(~category=#acp, ~message="Starting ACP connection")
@@ -206,15 +202,12 @@ let connect = async (
     let channel = socket->Socket.channel(~topic=Constants.tasksTopic)
     let state = ref(Client.initialState)
     let clientConfig: Client.config = {
-      channel,
       clientInfo: config.clientInfo,
       clientCapabilities: config.clientCapabilities,
     }
 
     await Promise.make((resolve, _) => {
       let closed = ref(false)
-      let connected = ref(false)
-      let generation = ref(0)
       let rec dispose = () =>
         switch closed.contents {
         | true => ()
@@ -223,43 +216,25 @@ let connect = async (
           signal->Option.forEach(signal => offAbort(signal, dispose))
           state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
           rejectPendingRequests(state)
-          channel->Channel.off(~event=#config_options_updated)
-          channel->Channel.off(~event=#billing_status_updated)
-          cleanupChannel(channel)
+          socket->Socket.channels->Array.forEach(cleanupChannel)
           Socket.disconnect(socket)
           resolve(Error(ConnectionFailed("Connection aborted")))
         }
-      let conn = {socket, channel, clientConfig, state, dispose}
-      let complete = result => {
-        resolve(result)
-        switch connected.contents {
-        | true => onReconnect(result)
-        | false => connected := Result.isOk(result)
-        }
-        switch result {
-        | Error(_) => dispose()
-        | Ok(_) => ()
-        }
-      }
-      let lost = _ => {
+      let fail = message => {
         switch closed.contents {
         | true => ()
         | false =>
-          generation := generation.contents + 1
-          state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Connecting))
-          rejectPendingRequests(state)
-          onReconnecting()
+          resolve(Error(ConnectionFailed(message)))
+          dispose()
+          onConnectionLost(message)
         }
       }
+      let conn = {socket, channel, clientConfig, state, dispose, fail}
+      let lost = _ => fail(Protocol.connectionLost)
+      socket->Socket.onError(~callback=lost)
+      socket->Socket.onClose(~callback=lost)
       channel->Channel.onError(~callback=lost)
-      channel->Channel.onClose(~callback=payload => {
-        switch closed.contents {
-        | true => ()
-        | false =>
-          lost(payload)
-          complete(Error(ConnectionFailed("Channel closed")))
-        }
-      })
+      channel->Channel.onClose(~callback=lost)
       Protocol.attachMessageHandler(~channel, ~state, ~onUpdate=None, ~onParseError=None)
       config.onConfigOptionsUpdated->Option.forEach(callback =>
         channel->Channel.on(
@@ -275,47 +250,32 @@ let connect = async (
       attachBillingStatusHandler(~channel, ~onBillingStatusUpdated=config.onBillingStatusUpdated)
       signal->Option.forEach(signal => onAbort(signal, dispose))
 
-      let initialize = async (joinResult: result<unit, joinError>) => {
-        generation := generation.contents + 1
-        let attempt = generation.contents
-        switch closed.contents {
-        | true => ()
-        | false =>
-          state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Connecting))
-          let result: result<Types.initializeResult, connectError> = switch joinResult {
-          | Error(AuthRequired({loginUrl})) => Error(AuthRequired({loginUrl: loginUrl}))
-          | Error(JoinFailed(message) | JoinTimedOut(message)) => Error(ConnectionFailed(message))
-          | Ok() =>
-            (
-              await Protocol.sendInitialize(~channel, ~state, ~clientConfig)
-            )->Result.mapError(error => ConnectionFailed(requestErrorMessage(error)))
-          }
-          switch (closed.contents, attempt == generation.contents, result) {
-          | (false, true, Ok(result)) =>
-            state :=
-              state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
-            complete(Ok(conn))
-          | (false, true, Error(error)) =>
-            switch joinResult {
-            | Error(JoinTimedOut(_)) if connected.contents => ()
-            | _ => complete(Error(error))
-            }
-          | _ => ()
-          }
+      let initialize = async () => {
+        let result: result<Types.initializeResult, connectError> = switch await joinChannel(
+          channel,
+        ) {
+        | Error(AuthRequired({loginUrl})) => Error(AuthRequired({loginUrl: loginUrl}))
+        | Error(JoinFailed(message) | JoinTimedOut(message)) => Error(ConnectionFailed(message))
+        | Ok() =>
+          (
+            await Protocol.sendInitialize(~channel, ~state, ~clientConfig)
+          )->Result.mapError(error => ConnectionFailed(requestErrorMessage(error)))
+        }
+        switch (closed.contents, result) {
+        | (false, Ok(result)) =>
+          state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Initialized(result)))
+          resolve(Ok(conn))
+        | (false, Error(error)) =>
+          resolve(Error(error))
+          dispose()
+        | (true, _) => ()
         }
       }
-      let start = async () => {
-        switch (await waitForSocket(socket), closed.contents) {
-        | (_, true) => ()
-        | (Error(message), false) => complete(Error(ConnectionFailed(message)))
-        | (Ok(), false) =>
-          joinChannel(channel, ~onResult=result => initialize(result)->ignore)->ignore
-        }
-      }
+      socket->Socket.onOpen(~callback=() => initialize()->ignore)
       onConnectionCreated->Option.forEach(callback => callback(conn))
       switch closed.contents {
       | true => ()
-      | false => start()->ignore
+      | false => Socket.connect(socket)
       }
     })
   }
@@ -356,7 +316,6 @@ let joinSession = async (
   ~onUpdate: (string, Types.sessionUpdate) => unit,
   ~onTitleUpdated: (string, string) => unit,
   ~onParseError: option<string => unit>=?,
-  ~cleanupOnParseError: option<ref<bool>>=?,
   ~mcpServerInterface: option<MCPTypes.serverInterface<'server>>=?,
 ): result<session, string> => {
   switch isInitialized(conn) {
@@ -364,10 +323,7 @@ let joinSession = async (
   | true =>
     let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
     let handleParseError = err => {
-      switch cleanupOnParseError->Option.mapOr(true, enabled => enabled.contents) {
-      | true => cleanupChannel(sessionChannel)
-      | false => ()
-      }
+      cleanupChannel(sessionChannel)
       switch onParseError {
       | Some(callback) => callback(err)
       | None => throw(SessionMessageParseError(err))
@@ -382,14 +338,7 @@ let joinSession = async (
     )
 
     mcpServerInterface->Option.forEach(serverInterface => {
-      let handler: MCP.mcpHandler<'server> = {
-        serverInterface,
-        channel: sessionChannel,
-        sessionId,
-      }
-      sessionChannel->Channel.on(~event=#"mcp:message", ~callback=payload => {
-        MCP.handleMessage(handler, payload)->ignore
-      })
+      MCP.attach(~channel=sessionChannel, ~sessionId, ~serverInterface)->ignore
     })
 
     sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
@@ -399,7 +348,7 @@ let joinSession = async (
       }
     })
 
-    let joinResult = await joinChannel(sessionChannel)
+    let joinResult = await joinChannel(sessionChannel, ~onError=conn.fail)
     let joinResult = switch isInitialized(conn) {
     | true => joinResult
     | false => Error(JoinFailed("ACP connection is not ready"))
@@ -421,7 +370,6 @@ let joinSession = async (
         sessionId,
         channel: sessionChannel,
         connection: conn,
-        onUpdate,
       }
     })
   }
@@ -573,7 +521,6 @@ let loadSession = async (
   let buffering = ref(true)
   let bufferedUpdates = ref([])
   let parseError = ref(None)
-  let cleanupOnParseError = ref(false)
   let validate = Client.makeSessionUpdateValidator(conn.state.contents, ~sessionId)
   let handleUpdate = (sessionId, update) =>
     switch buffering.contents {
@@ -603,7 +550,6 @@ let loadSession = async (
         | Some(_) => ()
         }
       },
-    ~cleanupOnParseError,
     ~mcpServerInterface?,
   )
 
@@ -628,22 +574,19 @@ let loadSession = async (
       ),
       ~parseResult=Client.parseSessionLoadResult,
     )
-    cleanupOnParseError := true
-
-    let validatedLoad =
+    let validatedLoad = switch parseError.contents {
+    | Some(error) => Error(error)
+    | None =>
       loadResult
       ->Result.mapError(requestErrorMessage)
       ->Result.flatMap(result =>
-        switch parseError.contents {
-        | Some(error) => Error(error)
-        | None =>
-          bufferedUpdates.contents
-          ->Array.reduce(Ok(), (validation, (updateSessionId, update)) =>
-            validation->Result.flatMap(() => validate(updateSessionId, update))
-          )
-          ->Result.map(() => result)
-        }
+        bufferedUpdates.contents
+        ->Array.reduce(Ok(), (validation, (updateSessionId, update)) =>
+          validation->Result.flatMap(() => validate(updateSessionId, update))
+        )
+        ->Result.map(() => result)
       )
+    }
 
     switch validatedLoad {
     | Error(error) =>

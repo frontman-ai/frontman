@@ -1,6 +1,10 @@
 open Vitest
 
+@module("vitest") @scope("vi") external unstubAllGlobals: unit => unit = "unstubAllGlobals"
+@module("vitest") @scope("vi") external stubGlobal: (string, 'a) => unit = "stubGlobal"
+
 afterEach(() => {
+  unstubAllGlobals()
   Vi.useRealTimers()->ignore
 })
 
@@ -12,6 +16,10 @@ module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
 module Socket = FrontmanClient__Phoenix__Socket
+
+type wire = {requests: array<JSON.t>}
+@module("./acpReconnectTransport.mjs") external makeTransport: unit => wire = "makeTransport"
+@set external holdTasksJoin: (wire, bool) => unit = "holdTasksJoin"
 
 let initializedState =
   Client.initialState->Client.reduce(
@@ -27,23 +35,28 @@ type mockTransport = {
   channel: Channel.t,
   events: array<string>,
   emit: JSON.t => unit,
+  emitEvent: (string, JSON.t) => unit,
 }
 
 let makeLoadTransport: (array<JSON.t>, JSON.t) => mockTransport = %raw(`
   function(history, loadResult) {
     const handlers = {};
+    let ref = 0;
     const events = [];
     const inertPush = { receive() { return this; }, cancelTimeout() {}, cancelRefEvent() {} };
     const channel = {
-      canPush() { return true; },
-      onError() {},
-      on(event, callback) { handlers[event] = callback; },
-      off(event) {
+      state: "joined",
+      canPush() { return this.state === "joined"; },
+      on(event, callback) { (handlers[event] ||= new Map()).set(++ref, callback); return ref; },
+      off(event, ref) {
+        if (ref !== undefined) { handlers[event]?.delete(ref); return; }
         events.push("off:" + event);
         delete handlers[event];
       },
       leave() {
         events.push("leave");
+        this.state = "closed";
+        handlers.phx_close?.forEach(callback => callback("leave"));
         return inertPush;
       },
       join() {
@@ -56,8 +69,9 @@ let makeLoadTransport: (array<JSON.t>, JSON.t) => mockTransport = %raw(`
       },
       push(event, payload) {
         if (event === "acp:message" && payload.method === "session/load") {
-          const handler = handlers["acp:message"];
+          const handler = payload => handlers["acp:message"]?.forEach(callback => callback(payload));
           for (const notification of history) handler(notification);
+          if (this.state === "closed") return inertPush;
           events.push("load-response");
           handler({
             jsonrpc: "2.0",
@@ -72,24 +86,40 @@ let makeLoadTransport: (array<JSON.t>, JSON.t) => mockTransport = %raw(`
       socket: {channel() { return channel; }},
       channel,
       events,
-      emit(payload) { handlers["acp:message"](payload); }
+      emit(payload) { handlers["acp:message"]?.forEach(callback => callback(payload)); },
+      emitEvent(event, payload) { handlers[event]?.forEach(callback => callback(payload)); }
     };
   }
 `)
 
-let loadConnectionWithTransport = (history, result): (ACP.connection, mockTransport) => {
+let loadConnectionWithTransport = (history, result, ~onConnectionLost=_ => ()): (
+  ACP.connection,
+  mockTransport,
+) => {
   let transport = makeLoadTransport(history, result)
   let clientConfig: Client.config = {
-    channel: transport.channel,
     clientInfo: {name: "test", version: "1", title: None, _meta: None},
     clientCapabilities: {fs: None, terminal: None, elicitation: None, _meta: None},
+  }
+  let state = ref(initializedState)
+  let dispose = () => {
+    state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
+    ACP.rejectPendingRequests(state)
+    ACP.cleanupChannel(transport.channel)
   }
   let connection: ACP.connection = {
     socket: transport.socket,
     channel: transport.channel,
     clientConfig,
-    state: ref(initializedState),
-    dispose: () => (),
+    state,
+    dispose,
+    fail: error =>
+      switch Client.isInitialized(state.contents) {
+      | true =>
+        dispose()
+        onConnectionLost(error)
+      | false => ()
+      },
   }
   (connection, transport)
 }
@@ -156,6 +186,8 @@ let loadCleanupEvents = [
   "off:acp:message",
   "off:mcp:message",
   "off:title_updated",
+  "off:config_options_updated",
+  "off:billing_status_updated",
   "leave",
 ]
 
@@ -178,6 +210,51 @@ let loadWithoutDelivery = async connection => {
   )
   (result, events.contents)
 }
+
+[
+  ("abort before socket opens", #abort),
+  ("disconnect before socket opens", #disconnect),
+  ("channel join timeout", #timeout),
+]->Array.forEach(((name, action)) =>
+  testAsync(`ACP startup settles on ${name}`, async t => {
+    stubGlobal("__FRONTMAN_INTERNAL_DEV__", true)
+    Vi.useFakeTimers()->ignore
+    let wire = makeTransport()
+    let controller = WebAPI.AbortController.make()
+    let owned = ref(None)
+    holdTasksJoin(wire, action == #timeout)
+    let pending = ACP.connect(
+      ACP.makeConfig(
+        ~endpoint="ws://localhost/socket",
+        ~loginUrl="https://localhost/login",
+        ~getAuthToken=() => Some("test-token"),
+        ~name="test",
+        ~version="1",
+        ~_meta=JSON.Encode.object(Dict.fromArray([("framework", JSON.Encode.string("wordpress"))])),
+      ),
+      ~signal=controller.signal,
+      ~onConnectionCreated=connection => {
+        owned := Some(connection)
+        switch action {
+        | #abort => WebAPI.AbortController.abort(controller)
+        | #disconnect => ACP.disconnect(connection)
+        | #timeout => ()
+        }
+      },
+      ~onConnectionLost=_ => failwith("Startup cleanup must not report connection loss"),
+    )
+    let error = switch action {
+    | #timeout =>
+      (await Vi.advanceTimersByTimeAsync(20000))->ignore
+      "Channel join timed out"
+    | #abort | #disconnect => "Connection aborted"
+    }
+    t->expect(await pending)->Expect.toEqual(Error(ACP.ConnectionFailed(error)))
+    t->expect(ACP.isInitialized(owned.contents->Option.getOrThrow))->Expect.toBe(false)
+    t->expect(wire.requests)->Expect.toEqual([])
+    t->expect(Vi.getTimerCount())->Expect.toBe(0)
+  })
+)
 
 describe("ACP Client State Reducer", _t => {
   test("initialState has correct defaults", t => {
@@ -278,14 +355,12 @@ describe("ACP Client Connection State", _t => {
 
 describe("ACP Client buildInitializeParams", _t => {
   test("builds correct JSON structure", t => {
-    let mockChannel = %raw(`{push: () => {}, on: () => {}}`)
     let metadata = JSON.parseOrThrow(`{
       "other.vendor":{"enabled":true},
       "frontman.dev":{"futureFeature":{"version":3}}
     }`)
 
     let config: Client.config = {
-      channel: mockChannel,
       clientInfo: {name: "test-client", version: "1.0.0", title: None, _meta: None},
       clientCapabilities: {
         fs: Some({readTextFile: Some(true), writeTextFile: Some(false)}),
@@ -419,6 +494,7 @@ describe("ACP Protocol sendRequest", _t => {
       async t => {
         Vi.useFakeTimers()->ignore
         let channel = %raw(`{
+        on() { return 1; }, off() {},
         canPush() { return true; },
         push(_event, payload) {
           return {
@@ -452,6 +528,7 @@ describe("ACP Protocol sendRequest", _t => {
   testAsync("rejects malformed Phoenix push reply envelopes immediately", async t => {
     Vi.useFakeTimers()->ignore
     let channel = %raw(`{
+      on() { return 1; }, off() {},
       canPush() { return true; },
       push(_event, _payload) {
         return {
@@ -540,7 +617,7 @@ describe("ACP Client handleResponse", _t => {
       reject: _ => (),
     }
 
-    let state = Client.initialState->Client.reduce(Client.RequestSent(1, pending))
+    let state = ref(Client.initialState->Client.reduce(Client.RequestSent(1, pending)))
 
     let responseJson = Dict.make()
     responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
@@ -559,7 +636,7 @@ describe("ACP Client handleResponse", _t => {
       reject: _ => rejected := true,
     }
 
-    let state = Client.initialState->Client.reduce(Client.RequestSent(2, pending))
+    let state = ref(Client.initialState->Client.reduce(Client.RequestSent(2, pending)))
 
     let errorObj = Dict.make()
     errorObj->Dict.set("code", JSON.Encode.int(-32600))
@@ -582,7 +659,7 @@ describe("ACP Client handleResponse", _t => {
       reject: err => rejected := Some(err),
     }
 
-    let state = Client.initialState->Client.reduce(Client.RequestSent(4, pending))
+    let state = ref(Client.initialState->Client.reduce(Client.RequestSent(4, pending)))
 
     let errorObj = Dict.make()
     errorObj->Dict.set("code", JSON.Encode.int(JsonRpc.ErrorCode.billingInactive))
@@ -605,22 +682,35 @@ describe("ACP Client handleResponse", _t => {
     }
   })
 
-  test("removes request from pending after handling", t => {
-    let pending: Client.pendingRequest = {
-      resolve: _ => (),
-      reject: _ => (),
-    }
-
-    let state = Client.initialState->Client.reduce(Client.RequestSent(3, pending))
-
-    let responseJson = Dict.make()
-    responseJson->Dict.set("jsonrpc", JSON.Encode.string("2.0"))
-    responseJson->Dict.set("id", JSON.Encode.int(3))
-    responseJson->Dict.set("result", JSON.Encode.null)
-
-    let newState = Client.handleResponse(state, JSON.Encode.object(responseJson))
-
-    t->expect(newState.pendingRequests->Dict.get("3"))->Expect.toEqual(None)
+  testAsync("settlement preserves requests created by the result parser", async t => {
+    Vi.useFakeTimers()->ignore
+    let transport = makeLoadTransport([], loadResult)
+    let state = ref(initializedState)
+    let request = (~parseResult) =>
+      Protocol.sendRequest(
+        ~channel=transport.channel,
+        ~state,
+        ~method=#"session/prompt",
+        ~params=None,
+        ~parseResult,
+      )
+    let followup = ref(None)
+    let pending = request(
+      ~parseResult=json => {
+        followup := Some(request(~parseResult=json => Ok(json)))
+        Ok(json)
+      },
+    )
+    Client.handleResponse(state, JSON.parseOrThrow(`{"jsonrpc":"2.0","id":1,"result":null}`))
+    t->expect(await pending)->Expect.toEqual(Ok(JSON.Encode.null))
+    t->expect(state.contents.currentId)->Expect.toBe(2)
+    t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual(["2"])
+    ACP.cleanupChannel(transport.channel)
+    t
+    ->expect(await followup.contents->Option.getOrThrow)
+    ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
+    t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
+    t->expect(Vi.getTimerCount())->Expect.toBe(0)
   })
 
   test("unknown agent_turn_complete notification is ignored without resolving prompt", t => {
@@ -677,6 +767,69 @@ describe("ACP Client handleResponse", _t => {
   })
 })
 
+describe("ACP session channel lifetime", () => {
+  ["phx_error", "phx_close"]->Array.forEach(event => {
+    testAsync(
+      `reports idle ${event} but not intentional cleanup`,
+      async t => {
+        let errors = ref([])
+        let makeConnection = () =>
+          loadConnectionWithTransport(
+            [],
+            loadResult,
+            ~onConnectionLost=error => errors := errors.contents->Array.concat([error]),
+          )
+        let (connection, transport) = makeConnection()
+        let result = await loadSession(connection, ~onLoadResult=_ => (), ~onUpdate=(_, _) => ())
+        result->Result.getOrThrow->ignore
+        transport.emitEvent(event, JSON.Encode.null)
+        t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
+        ACP.cleanupChannel(transport.channel)
+        t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
+        t->expect(ACP.isInitialized(connection))->Expect.toBe(false)
+        let (connection, transport) = makeConnection()
+        let result = await loadSession(connection, ~onLoadResult=_ => (), ~onUpdate=(_, _) => ())
+        result->Result.getOrThrow->ignore
+        ACP.cleanupChannel(transport.channel)
+        t->expect(errors.contents)->Expect.toEqual([Protocol.connectionLost])
+      },
+    )
+
+    testAsync(
+      `${event} settles only requests on the affected channel`,
+      async t => {
+        Vi.useFakeTimers()->ignore
+        let first = makeLoadTransport([], loadResult)
+        let second = makeLoadTransport([], loadResult)
+        let state = ref(initializedState)
+        let request = channel =>
+          Protocol.sendRequest(
+            ~channel,
+            ~state,
+            ~method=#"session/prompt",
+            ~params=None,
+            ~parseResult=json => Ok(json),
+          )
+        let pending = request(first.channel)
+        let other = request(second.channel)
+        first.emitEvent(event, JSON.Encode.null)
+        t
+        ->expect(await pending)
+        ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
+        t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual(["2"])
+        ACP.cleanupChannel(first.channel)
+        t->expect((await request(first.channel))->Result.isError)->Expect.toBe(true)
+        ACP.cleanupChannel(second.channel)
+        t
+        ->expect(await other)
+        ->Expect.toEqual(Error(Client.requestErrorFromMessage(Protocol.connectionLost)))
+        t->expect(state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
+        t->expect(Vi.getTimerCount())->Expect.toBe(0)
+      },
+    )
+  })
+})
+
 describe("ACP session/load ordering", () => {
   testAsync("validates replay with connection configuration before delivery", async t => {
     let events = ref([])
@@ -729,7 +882,10 @@ describe("ACP session/load ordering", () => {
     let (result, events) = await loadWithoutDelivery(connection->negotiateV1)
     t->expect(result->Result.isError)->Expect.toBe(true)
     t->expect(events)->Expect.toEqual([])
-    t->expect(transport.events)->Expect.toEqual(loadCleanupEvents)
+    t->expect(result == Error(Protocol.connectionLost))->Expect.toBe(false)
+    t->expect(transport.events->Array.includes("load-response"))->Expect.toBe(false)
+    t->expect(transport.events->Array.filter(event => event == "leave"))->Expect.toEqual(["leave"])
+    t->expect(connection.state.contents.pendingRequests->Dict.keysToArray)->Expect.toEqual([])
 
     let (result, events) = await loadWithoutDelivery(
       loadConnection([userUpdate("user-1")], loadResult)->negotiateV1(~id="agent-2"),

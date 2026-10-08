@@ -27,29 +27,6 @@ let addUserBlock = (buffer: Buffer.t, ~block, ~messageId) =>
   buffer.addUserBlock(~taskId="task-1", ~messageId, ~block, ~agentId="executor-id")
 
 describe("TextDeltaBuffer", () => {
-  test("discardTask removes only failed task buffers", t => {
-    let flushed = ref([])
-    let buffer = makeBuffer(
-      ~onFlush=(~taskId, ~messageId as _, ~text as _, ~agentId as _) =>
-        flushed := flushed.contents->Array.concat([taskId]),
-    )
-    addAssistant(buffer, ~taskId="failed-task", ~messageId="failed-message", ~text="discard")
-    addAssistant(buffer, ~taskId="healthy-task", ~messageId="healthy-message", ~text="keep")
-
-    buffer.discardTask("failed-task")
-    buffer.flush()
-    addAssistant(
-      buffer,
-      ~taskId="replacement-task",
-      ~messageId="failed-message",
-      ~text="replacement",
-      ~agentId="planner-id",
-    )
-    buffer.flush()
-
-    t->expect(flushed.contents)->Expect.toEqual(["healthy-task", "replacement-task"])
-  })
-
   test("groups user blocks by message before flushing", t => {
     let flushed = ref(None)
     let first = ContentBlock.TextContent({text: "one", _meta: None, annotations: None})
@@ -68,7 +45,7 @@ describe("TextDeltaBuffer", () => {
     ->Expect.toEqual(Some(("task-1", "user-1", [first, second], "executor-id")))
   })
 
-  test("flush synchronously dispatches all pending entries", t => {
+  test("session failure flushes valid received text before reporting completion", t => {
     let flushed: ref<array<flushEntry>> = ref([])
     let buffer = makeBuffer(
       ~onFlush=(~taskId, ~messageId, ~text, ~agentId) => {
@@ -88,8 +65,27 @@ describe("TextDeltaBuffer", () => {
 
     t->expect(flushed.contents->Array.length)->Expect.toBe(0)
 
-    buffer.flush()
-    t->expect(flushed.contents->Array.length)->Expect.toBe(3)
+    let previous = Buffer.active.contents
+    Buffer.active := Some(buffer)
+    let atFailure = ref(0)
+    let state = Client__ConnectionTestHelpers.ready(~sessionId=Some("task-1"))->Option.getOrThrow
+    let ready = switch state.connection {
+    | Ok(Some({phase: Ready(ready)})) => ready
+    | _ => failwith("Expected ready connection")
+    }
+    Client__State__StateReducer.ConnectionEffects.handleEffect(
+      SessionCompletionEffect({
+        sessionId: "task-1",
+        ready,
+        result: Error(Client__ConnectionReducer.ACP.requestErrorFromMessage("Connection lost")),
+        onComplete: Some(_ => atFailure := flushed.contents->Array.length),
+      }),
+      state,
+      _ => (),
+      ~dispatchApp=_ => (),
+    )
+    Buffer.active := previous
+    t->expect(atFailure.contents)->Expect.toBe(3)
 
     let task1Entry =
       flushed.contents->Array.find(e => e.taskId === "task-1" && e.messageId === "message-1")

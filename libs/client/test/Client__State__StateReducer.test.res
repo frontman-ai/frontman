@@ -504,7 +504,9 @@ let plannerPlan = Reducer.Message.Assistant(
 
 let withPlanHandoffContext = (state: Client__State__Types.state): Client__State__Types.state => {
   ...state,
-  connection: Client__ConnectionTestHelpers.ready(),
+  connection: Client__ConnectionTestHelpers.ready(
+    ~sessionId=Reducer.Selectors.currentTaskId(state),
+  ),
   agentCatalog: Some([planner, executor]),
 }
 
@@ -529,6 +531,44 @@ describe("Client State Reducer - Plan Handoff", () => {
 
     let (_, duplicateEffects) = Reducer.next(executing, action)
     t->expect(duplicateEffects)->Expect.toEqual([])
+  })
+
+  test("execute preserves the handoff when its session is unavailable", t => {
+    let state = TestHelpers.makeStateWithTask(~messages=[plannerPlan])->withPlanHandoffContext
+    let lost = switch state.connection {
+    | Some({connection: Ok(Some(runtime))}) =>
+      let (nextState, _) = Reducer.next(
+        state,
+        ConnectionAction(
+          ConnectionResultReceived({
+            signal: runtime.lifetimeAbortController.signal,
+            result: Error(ConnectionFailed(ACPError("Connection lost"))),
+          }),
+        ),
+      )
+      nextState
+    | _ => failwith("Expected connected fixture")
+    }
+    [
+      {...state, connection: None},
+      {...state, connection: Client__ConnectionTestHelpers.ready()},
+      {...state, connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("another-task"))},
+      lost,
+    ]->Array.forEach(
+      state => {
+        let (nextState, effects) = Reducer.next(state, ExecutePendingPlan({id: testUserMessageId}))
+        t->expect(nextState)->Expect.toEqual(state)
+        t->expect(effects)->Expect.toEqual([])
+        t
+        ->expect(
+          Reducer.Selectors.pendingPlanHandoff({
+            ...nextState,
+            connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
+          })->Option.isSome,
+        )
+        ->Expect.toBe(true)
+      },
+    )
   })
 
   test("execute does nothing without a selected model", t => {
@@ -721,6 +761,49 @@ describe("Client State Reducer", () => {
     | (User(_), Assistant(_)) => ()
     | _ => JsExn.throw("Expected User message first, then Assistant message")
     }
+  })
+
+  test("connection and task-channel loss preserve server execution state and received text", t => {
+    let state = {
+      ...TestHelpers.makeStateWithTask(
+        ~isAgentRunning=true,
+        ~messages=[
+          Reducer.Message.Assistant(
+            Streaming({id: "assistant-1", textBuffer: "Received text", agentId: "test-agent"}),
+          ),
+        ],
+      ),
+      connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("test-task-1")),
+    }
+    let (signal, requestId) = switch state.connection {
+    | Some({
+        connection: Ok(Some({
+          lifetimeAbortController,
+          phase: Ready({session: SessionActive({requestId})}),
+        })),
+      }) => (lifetimeAbortController.signal, requestId)
+    | _ => failwith("Expected active session")
+    }
+    let actions: array<Client__ConnectionReducer.action> = [
+      ConnectionResultReceived({
+        signal,
+        result: Error(ConnectionFailed(ACPError("Connection lost"))),
+      }),
+      SessionResultReceived({
+        requestId,
+        sessionId: "test-task-1",
+        result: Error(Client__ConnectionReducer.ACP.requestErrorFromMessage("Connection lost")),
+      }),
+    ]
+    actions->Array.forEach(
+      action => {
+        let (nextState, _) = Reducer.next(state, ConnectionAction(action))
+        t->expect(Reducer.Selectors.getSession(nextState)->Option.isNone)->Expect.toBe(true)
+        t->expect(Reducer.Selectors.isAgentRunning(nextState))->Expect.toBe(true)
+        t->expect(Reducer.Selectors.isStreaming(nextState))->Expect.toBe(true)
+        t->expect(nextState.tasks)->Expect.toEqual(state.tasks)
+      },
+    )
   })
 
   test("Selectors.isStreaming detects streaming messages", t => {
@@ -2144,12 +2227,16 @@ describe("Client State Reducer - Annotations on Messages", () => {
         t->expect(fail(state)->Reducer.Selectors.queuedUserMessages)->Expect.toEqual([])
         let connection = state.connection->Option.getOrThrow
         let runtime = connection.connection->Result.getOrThrow->Option.getOrThrow
-        let lost =
-          Reducer.next(
-            state,
-            ConnectionAction(ACPReconnecting({signal: runtime.lifetimeAbortController.signal})),
-          )->Pair.first
-        t->expect(fail(lost)->Reducer.Selectors.queuedUserMessages)->Expect.toEqual([])
+        let lost = Reducer.next(
+          state,
+          ConnectionAction(
+            ConnectionResultReceived({
+              signal: runtime.lifetimeAbortController.signal,
+              result: Error(ConnectionFailed(ACPError("Connection lost"))),
+            }),
+          ),
+        )->Pair.first
+        t->expect(fail(lost))->Expect.toBe(lost)
         let newer = {
           ...state,
           connection: Client__ConnectionTestHelpers.ready(~sessionId=Some("session-1")),
