@@ -9,7 +9,11 @@ let resetStore = () => {
   )
 }
 
-afterEach(_t => resetStore())
+beforeEach(Client__ActivationTestHelpers.setup)
+afterEach(_t => {
+  Client__ActivationTestHelpers.unstubAllGlobals()
+  resetStore()
+})
 
 let errorEffects = category =>
   Reducer.next(
