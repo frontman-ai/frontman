@@ -1,7 +1,10 @@
 ARG PHP_VERSION=8.4
 FROM docker.io/library/php:${PHP_VERSION}-apache
 
-RUN apt-get update && apt-get install -y --no-install-recommends libpng-dev \
+RUN if grep -q '^VERSION_CODENAME=bullseye$' /etc/os-release; then \
+      sed -i 's|deb.debian.org/debian-security|archive.debian.org/debian-security|g' /etc/apt/sources.list; \
+    fi \
+  && apt-get update && apt-get install -y --no-install-recommends libpng-dev \
   && rm -rf /var/lib/apt/lists/* \
   && docker-php-ext-install mysqli gd \
   && a2enmod rewrite \
