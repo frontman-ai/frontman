@@ -311,7 +311,10 @@ let requiredStringAttr = (attrs: option<jsonAttrs>, name: string) => {
   ->Option.getOrThrow(~message=`Missing string attr ${name}`)
 }
 
-let serializePromptEditorContent = (content: jsonContentNode): serializedPromptEditorContent => {
+let serializePromptEditorContent = (
+  content: jsonContentNode,
+  ~trim=true,
+): serializedPromptEditorContent => {
   let fileAttachments = []
 
   let rec serializeInline = (node: jsonContentNode): string => {
@@ -336,7 +339,10 @@ let serializePromptEditorContent = (content: jsonContentNode): serializedPromptE
     ->Option.getOr([])
     ->Array.map(node => node.content->Option.getOr([])->Array.map(serializeInline)->Array.join(""))
     ->Array.join("\n")
-    ->String.trim
+  let text = switch trim {
+  | true => text->String.trim
+  | false => text
+  }
 
   {text, fileAttachments}
 }
@@ -476,8 +482,13 @@ let pastedTextNode = TiptapCore.makeNode({
   addNodeView: () => TiptapReact.reactNodeViewRenderer(PastedTextView.make),
 })
 
+@send external setDraftContent: (TiptapCore.Commands.t, jsonContentNode) => unit = "setContent"
+
 @react.component
 let make = (
+  ~draft: option<string>=?,
+  ~onDraftChange: string => unit=_ => (),
+  ~onPrepareSubmit: unit => bool=() => true,
   ~disabled: bool,
   ~placeholder: string,
   ~isEnrichingAnnotations: bool,
@@ -500,6 +511,8 @@ let make = (
   let hasAnnotationsRef = React.useRef(hasAnnotations)
   let onHasContentChangeRef = React.useRef(onHasContentChange)
   let onSubmitRef = React.useRef(onSubmit)
+  let onDraftChangeRef = React.useRef(onDraftChange)
+  let onPrepareSubmitRef = React.useRef(onPrepareSubmit)
   let onPreviewImageRef = React.useRef(onPreviewImage)
   let onFileSizeErrorRef = React.useRef(onFileSizeError)
   let lastSubmitSignalRef = React.useRef(submitSignal)
@@ -516,6 +529,8 @@ let make = (
   hasAnnotationsRef.current = hasAnnotations
   onHasContentChangeRef.current = onHasContentChange
   onSubmitRef.current = onSubmit
+  onDraftChangeRef.current = onDraftChange
+  onPrepareSubmitRef.current = onPrepareSubmit
   onPreviewImageRef.current = onPreviewImage
   onFileSizeErrorRef.current = onFileSizeError
 
@@ -563,6 +578,7 @@ let make = (
       !hasAnnotationsRef.current,
     ) {
     | (true, _) | (_, true) => false
+    | (false, false) if !onPrepareSubmitRef.current() => true
     | (false, false) =>
       submittingRef.current = true
       onSubmitRef.current(serialized.text, serialized.fileAttachments)
@@ -722,7 +738,12 @@ let make = (
         }
       },
     },
-    onUpdate: ({editor}) => onHasContentChangeRef.current(!(editor->TiptapCore.isEmpty)),
+    onUpdate: ({editor}) => {
+      onHasContentChangeRef.current(!(editor->TiptapCore.isEmpty))
+      onDraftChangeRef.current(
+        serializePromptEditorContent(editor->TiptapCore.getJSON->Obj.magic, ~trim=false).text,
+      )
+    },
   })
 
   React.useEffect1(() => {
@@ -741,6 +762,36 @@ let make = (
       },
     )
   }, [editor])
+
+  React.useEffect2(() => {
+    switch (editor->Null.toOption, draft) {
+    | (Some(editor), Some(draft)) =>
+      let text = serializePromptEditorContent(
+        editor->TiptapCore.getJSON->Obj.magic,
+        ~trim=false,
+      ).text
+      switch text == draft {
+      | true => ()
+      | false =>
+        editor
+        ->TiptapCore.Commands.commands
+        ->setDraftContent({
+          type_: "doc",
+          content: draft
+          ->String.split("\n")
+          ->Array.map(line => {
+            type_: "paragraph",
+            content: switch line {
+            | "" => []
+            | text => [{type_: "text", text}]
+            },
+          }),
+        })
+      }
+    | _ => ()
+    }
+    None
+  }, (editor, draft))
 
   React.useEffect3(() => {
     editor

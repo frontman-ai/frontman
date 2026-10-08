@@ -30,11 +30,14 @@ type rec jsonContentNode = {
 let acceptedPromptFileTypesString: string
 let parseAcceptedMediaType: string => option<acceptedMediaType>
 let isLongPromptPasteText: string => bool
-let serializePromptEditorContent: jsonContentNode => serializedPromptEditorContent
+let serializePromptEditorContent: (jsonContentNode, ~trim: bool=?) => serializedPromptEditorContent
 let focus: unit => unit
 
 @react.component
 let make: (
+  ~draft: string=?,
+  ~onDraftChange: string => unit=?,
+  ~onPrepareSubmit: unit => bool=?,
   ~disabled: bool,
   ~placeholder: string,
   ~isEnrichingAnnotations: bool,

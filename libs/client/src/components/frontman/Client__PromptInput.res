@@ -284,6 +284,7 @@ module SubmitButton = {
                    bg-[#985DF7] hover:bg-[#8247E5] hover:scale-105
                    disabled:bg-zinc-700/50 disabled:text-zinc-500 disabled:cursor-not-allowed disabled:scale-100"
         title="Send (Enter)"
+        ariaLabel="Send"
       >
         <Icons.SendArrowIcon size=14 />
       </button>
@@ -313,6 +314,7 @@ let make = (
   ~hasAnnotations: bool=false,
   ~isEnrichingAnnotations: bool=false,
 ) => {
+  let draft = Client__State.useSelector(Client__State.Selectors.composerDraft)
   let (hasContent, setHasContent) = React.useState(() => false)
   let (hasComposerFocus, setHasComposerFocus) = React.useState(() => false)
   let (submitSignal, setSubmitSignal) = React.useState(() => 0)
@@ -481,6 +483,8 @@ let make = (
 
         <div className="border-t border-white/8">
           <Client__PromptEditor
+            draft
+            onDraftChange=Client__State.Actions.setComposerDraft
             disabled={isInputDisabled}
             placeholder={currentPlaceholder}
             isEnrichingAnnotations

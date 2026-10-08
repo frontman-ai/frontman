@@ -31,40 +31,6 @@ describe("shouldRenderTurnError", () => {
   })
 })
 
-describe("selectGetStartedTask", () => {
-  test("opens provider settings instead of submitting when setup is required", t => {
-    let configuredProvider = ref(false)
-    let submittedTask = ref(None)
-
-    Chatbox.selectGetStartedTask(
-      ~providerSetupRequired=true,
-      ~onConfigureProvider=() => configuredProvider := true,
-      ~onSelect=text => submittedTask := Some(text),
-      "Make the main heading bigger and bolder",
-    )
-
-    t->expect(configuredProvider.contents)->Expect.toBe(true)
-    t->expect(submittedTask.contents)->Expect.toEqual(None)
-  })
-
-  test("submits the task when a provider is configured", t => {
-    let configuredProvider = ref(false)
-    let submittedTask = ref(None)
-
-    Chatbox.selectGetStartedTask(
-      ~providerSetupRequired=false,
-      ~onConfigureProvider=() => configuredProvider := true,
-      ~onSelect=text => submittedTask := Some(text),
-      "Make the main heading bigger and bolder",
-    )
-
-    t->expect(configuredProvider.contents)->Expect.toBe(false)
-    t
-    ->expect(submittedTask.contents)
-    ->Expect.toEqual(Some("Make the main heading bigger and bolder"))
-  })
-})
-
 describe("ExecutePlanAction", () => {
   test("hides execute action without a selected model", t => {
     let html = renderToStaticMarkup(

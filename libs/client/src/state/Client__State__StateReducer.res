@@ -52,6 +52,7 @@ type rec action =
   | ClearCurrentTask
   | UpdateTaskTitle({taskId: string, title: string})
   | SetSettingsModalTab({tab: option<Client__State__Types.settingsTab>})
+  | SetComposerDraft(string)
   | BillingStatusReceived(Client__Billing.status)
   | BillingStatusError({error: string})
   | RequestBilling(Client__Billing.request)
@@ -279,6 +280,7 @@ let defaultState: state = {
   connection: None,
   userProfile: None,
   settingsModalTab: None,
+  composerDraft: "",
   billingStatus: Client__Billing.NotLoaded,
   billingFlow: Client__Billing.Idle,
   billingAbortController: None,
@@ -549,6 +551,7 @@ module Selectors = {
   }
 
   let settingsModalTab = (state: state) => state.settingsModalTab
+  let composerDraft = (state: state) => state.composerDraft
   let billingStatus = (state: state) => state.billingStatus
   let billingFlow = (state: state) => state.billingFlow
   let billingAccessAllowed = (state: state) => Client__Billing.accessAllowed(state.billingStatus)
@@ -2456,6 +2459,7 @@ let rec next = (state: state, action) => {
     | None => state->StateReducer.update
     }
 
+  | SetComposerDraft(text) => {...state, composerDraft: text}->StateReducer.update
   | SetSettingsModalTab({tab}) => {...state, settingsModalTab: tab}->StateReducer.update
   | RequestBilling(request) =>
     switch (Selectors.apiBaseUrl(state), request, state.billingFlow) {

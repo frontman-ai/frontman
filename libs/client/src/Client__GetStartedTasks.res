@@ -1,12 +1,12 @@
 /**
  * Client__GetStartedTasks - Starter prompts shown in an empty conversation.
  *
- * Clicking a task sends it as a user message immediately.
+ * Clicking a task prepares an editable draft; it never starts an edit.
  */
 let tasks = [
-  "Change the page background to a dark theme",
-  "Make the main heading bigger and bolder",
-  "Add a dark mode toggle to the navigation bar",
+  "Make the main call to action clearer and easier to find",
+  "Fix the layout on mobile without changing the desktop design",
+  "Make the headline clearer about who this page is for",
 ]
 
 type recentTask = {
@@ -28,8 +28,13 @@ let make = (
       id="get-started-heading"
       className="text-lg leading-snug font-semibold text-zinc-100 max-w-[360px] w-full"
     >
-      {React.string("What would you like to accomplish today?")}
+      {React.string("What would you like to improve first?")}
     </h2>
+    <p className="text-sm leading-relaxed text-zinc-300 max-w-[360px] w-full">
+      {React.string(
+        "Select something on your page, or start with an idea below. Review your request before Frontman makes any changes.",
+      )}
+    </p>
     <div className="flex flex-col gap-2 w-full max-w-[360px]">
       {tasks
       ->Array.map(task =>

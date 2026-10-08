@@ -211,6 +211,7 @@ type state = {
   connection: option<Client__ConnectionReducer.state>,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
+  composerDraft: string,
   billingStatus: Client__Billing.state,
   billingFlow: Client__Billing.flow,
   billingAbortController: option<WebAPI.EventTypes.abortController>,
