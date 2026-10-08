@@ -149,6 +149,18 @@ if ( ! function_exists( 'wp_delete_attachment' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_read_audio_metadata' ) ) {
+	function wp_read_audio_metadata( string $file ): array {
+		return [];
+	}
+}
+
+if ( ! function_exists( 'wp_read_video_metadata' ) ) {
+	function wp_read_video_metadata( string $file ): array {
+		return [];
+	}
+}
+
 if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
 	function wp_generate_attachment_metadata( int $attachment_id, string $file ): array {
 		if ( $GLOBALS['frontman_test_metadata_failure'] ) {

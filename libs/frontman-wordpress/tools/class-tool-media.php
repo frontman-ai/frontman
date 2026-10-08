@@ -234,6 +234,9 @@ class Frontman_Tool_Media {
 	}
 
 	private function update_attachment_metadata( int $attachment_id, string $file_path ): void {
+		if ( ! function_exists( 'wp_read_audio_metadata' ) || ! function_exists( 'wp_read_video_metadata' ) ) {
+			require_once ABSPATH . 'wp-admin/includes/media.php';
+		}
 		if ( ! function_exists( 'wp_generate_attachment_metadata' ) ) {
 			require_once ABSPATH . 'wp-admin/includes/image.php';
 		}
