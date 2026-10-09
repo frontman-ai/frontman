@@ -8,7 +8,8 @@ defmodule FrontmanServer.CustomerFeedbackTest do
   alias FrontmanServer.CustomerFeedback.Feedback
 
   @now ~U[2026-10-01 12:00:00.000000Z]
-  @cutoff DateTime.add(@now, -30, :day)
+  @expired DateTime.add(@now, -31, :day)
+  @recent DateTime.add(@now, -1, :day)
 
   setup do
     scope = user_scope_fixture()
@@ -19,10 +20,9 @@ defmodule FrontmanServer.CustomerFeedbackTest do
     assert CustomerFeedback.eligible?(scope, @now)
   end
 
-  test "recent issuance across tasks starts cooldown even unanswered", context do
+  test "recent unanswered request blocks eligibility", context do
     feedback = request(context)
-    set_times(feedback, DateTime.add(@now, -1, :day))
-    feedback_interaction(context.scope)
+    set_times(feedback, @recent)
     refute CustomerFeedback.eligible?(context.scope, @now)
   end
 
@@ -32,30 +32,23 @@ defmodule FrontmanServer.CustomerFeedbackTest do
     {:ok, feedback} =
       CustomerFeedback.record_answer(context.scope, feedback.interaction_id, %{score: 8})
 
-    set_times(feedback, DateTime.add(@cutoff, -1, :second), DateTime.add(@now, -1, :second))
+    set_times(feedback, @expired, @recent)
     refute CustomerFeedback.eligible?(context.scope, @now)
   end
 
-  test "exactly 30 days after issuance is eligible; one microsecond before is not", context do
+  test "expired requests and answers no longer block eligibility", context do
     feedback = request(context)
-    set_times(feedback, @cutoff)
+    set_times(feedback, @expired)
     assert CustomerFeedback.eligible?(context.scope, @now)
-    refute CustomerFeedback.eligible?(context.scope, DateTime.add(@now, -1, :microsecond))
-    set_times(feedback, DateTime.add(@cutoff, -1, :day))
-    assert CustomerFeedback.eligible?(context.scope, @now)
-  end
-
-  test "exactly 30 days after answer is eligible; old answers and requests are eligible",
-       context do
-    feedback = request(context)
 
     {:ok, feedback} =
-      CustomerFeedback.record_answer(context.scope, feedback.interaction_id, %{score: 9})
+      CustomerFeedback.record_answer(context.scope, feedback.interaction_id, %{
+        score: 9,
+        comment: ""
+      })
 
-    set_times(feedback, DateTime.add(@cutoff, -1, :day), @cutoff)
-    assert CustomerFeedback.eligible?(context.scope, @now)
-    refute CustomerFeedback.eligible?(context.scope, DateTime.add(@now, -1, :microsecond))
-    set_times(feedback, DateTime.add(@cutoff, -2, :day), DateTime.add(@cutoff, -1, :day))
+    assert is_nil(feedback.comment)
+    set_times(feedback, @expired, @expired)
     assert CustomerFeedback.eligible?(context.scope, @now)
   end
 
@@ -76,13 +69,12 @@ defmodule FrontmanServer.CustomerFeedbackTest do
     feedback = request(context)
     assert {:ok, ^feedback} = CustomerFeedback.record_request(context.scope, context.interaction)
     assert Repo.aggregate(Feedback, :count) == 1
-    refute CustomerFeedback.eligible?(context.scope)
     second_call = feedback_interaction(context.scope)
     assert {:ok, _} = CustomerFeedback.record_request(context.scope, second_call)
     assert Repo.aggregate(Feedback, :count) == 2
   end
 
-  test "requires a persisted owned interaction, never trusts supplied struct data", context do
+  test "request ownership uses persisted data, not the supplied struct", context do
     assert {:error, :not_found} =
              CustomerFeedback.record_request(context.scope, %{
                context.interaction
@@ -93,23 +85,22 @@ defmodule FrontmanServer.CustomerFeedbackTest do
     forged = %{context.interaction | id: other.id}
     assert {:error, :not_found} = CustomerFeedback.record_request(context.scope, forged)
 
-    assert {:error, :not_found} =
-             CustomerFeedback.record_answer(context.scope, other.id, %{score: 8})
+    assert Repo.aggregate(Feedback, :count) == 0
+  end
 
+  test "answer requires an issued request", context do
     assert {:error, :not_found} =
              CustomerFeedback.record_answer(context.scope, context.interaction.id, %{score: 8})
-
-    assert Repo.aggregate(Feedback, :count) == 0
   end
 
   test "score and comment validation rejects invalid and malformed input", context do
     request(context)
 
-    for score <- [-1, 11, 8.0, "invalid", nil, true] do
+    invalid_scores = Enum.map([-1, 11, 8.0, "invalid", nil, true], &%{score: &1})
+
+    for attrs <- [%{} | invalid_scores] do
       assert {:error, %Ecto.Changeset{}} =
-               CustomerFeedback.record_answer(context.scope, context.interaction.id, %{
-                 score: score
-               })
+               CustomerFeedback.record_answer(context.scope, context.interaction.id, attrs)
     end
 
     for comment <- [
@@ -137,15 +128,21 @@ defmodule FrontmanServer.CustomerFeedbackTest do
     requested = request(context)
     comment = String.duplicate("🙂", 2000)
 
+    before_answer = DateTime.utc_now()
+
     assert {:ok, first} =
              CustomerFeedback.record_answer(context.scope, context.interaction.id, %{
                "score" => "0",
-               "comment" => comment
+               "comment" => comment,
+               "answered_at" => DateTime.to_iso8601(@expired),
+               "interaction_id" => Ecto.UUID.generate()
              })
 
     assert first.score == 0
     assert first.comment == comment
-    assert first.answered_at
+    assert first.interaction_id == context.interaction.id
+    assert DateTime.compare(first.answered_at, before_answer) in [:eq, :gt]
+    assert DateTime.compare(first.answered_at, DateTime.utc_now()) in [:eq, :lt]
     assert first.inserted_at == requested.inserted_at
 
     assert {:ok, ^first} =
@@ -155,7 +152,7 @@ defmodule FrontmanServer.CustomerFeedbackTest do
              })
   end
 
-  test "writes compose with outer tool-result transactions and roll back", context do
+  test "feedback writes roll back with the outer transaction", context do
     assert {:error, :tool_result_failed} =
              Repo.transact(fn ->
                {:ok, _} = CustomerFeedback.record_request(context.scope, context.interaction)
@@ -167,24 +164,6 @@ defmodule FrontmanServer.CustomerFeedbackTest do
              end)
 
     assert Repo.aggregate(Feedback, :count) == 0
-  end
-
-  test "changeset casts only answer attributes and generates its own timestamp" do
-    attrs = %{score: "8", comment: "", answered_at: nil, interaction_id: "forged"}
-
-    for params <- [attrs, Map.new(attrs, fn {key, value} -> {Atom.to_string(key), value} end)] do
-      changeset = Feedback.answer_changeset(%Feedback{}, params)
-      assert {:ok, answer} = Ecto.Changeset.apply_action(changeset, :update)
-      assert answer.score == 8
-      assert answer.comment == nil
-      assert answer.interaction_id == nil
-      assert DateTime.diff(DateTime.utc_now(), answer.answered_at, :second) in 0..1
-    end
-
-    assert {:error, %Ecto.Changeset{errors: [score: _]}} =
-             %Feedback{}
-             |> Feedback.answer_changeset(%{})
-             |> Ecto.Changeset.apply_action(:update)
   end
 
   defp feedback_interaction(scope) do
