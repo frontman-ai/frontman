@@ -74,6 +74,7 @@ module Task = {
         retryStatus: option<retryStatus>,
         imageAttachments: Dict.t<Client__Message.fileAttachmentData>,
         pendingQuestion: option<Client__Question__Types.pendingQuestion>,
+        pendingCustomerFeedback: option<Client__CustomerFeedback__Types.pending>,
         completedFileChanges: Client__FileChanges.snapshot,
       })
 
@@ -264,6 +265,7 @@ module Task = {
         retryStatus: None,
         imageAttachments: Dict.make(),
         pendingQuestion: None,
+        pendingCustomerFeedback: None,
         completedFileChanges: Client__FileChanges.empty,
       })
     | Unloaded(_) | Loading(_) | Loaded(_) =>
@@ -283,6 +285,7 @@ module Task = {
     pendingUserMessageIds: array<string>,
     turnError: option<turnErrorInfo>,
     pendingQuestion: option<Client__Question__Types.pendingQuestion>,
+    pendingCustomerFeedback: option<Client__CustomerFeedback__Types.pending>,
   }
 
   let makeWithId = (
@@ -318,6 +321,7 @@ module Task = {
         retryStatus,
         imageAttachments,
         pendingQuestion,
+        pendingCustomerFeedback,
         completedFileChanges,
       }) => {
         let data = {
@@ -332,6 +336,7 @@ module Task = {
           pendingUserMessageIds,
           turnError,
           pendingQuestion,
+          pendingCustomerFeedback,
         }
         let updated = fn(data)
         Loaded({
@@ -354,6 +359,7 @@ module Task = {
           retryStatus,
           imageAttachments,
           pendingQuestion: updated.pendingQuestion,
+          pendingCustomerFeedback: updated.pendingCustomerFeedback,
           completedFileChanges,
         })
       }
@@ -381,6 +387,7 @@ module Task = {
           pendingUserMessageIds: [],
           turnError: None,
           pendingQuestion: None,
+          pendingCustomerFeedback: None,
         }
         let updated = fn(data)
         Loading({
@@ -409,6 +416,7 @@ module Task = {
           pendingUserMessageIds: [],
           turnError: None,
           pendingQuestion: None,
+          pendingCustomerFeedback: None,
         }
         let updated = fn(data)
         New({
