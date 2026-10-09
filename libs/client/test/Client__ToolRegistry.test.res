@@ -26,7 +26,7 @@ describe("ToolRegistry", _t => {
   test("registers core browser tools for non-Astro frameworks", t => {
     let names = toolNames(Client__RuntimeConfig.Nextjs)
 
-    t->expect(names->Array.length)->Expect.toBe(8)
+    t->expect(names->Array.length)->Expect.toBe(9)
     t->expect(names->Array.includes("take_screenshot"))->Expect.toBe(true)
     t->expect(names->Array.includes("execute_js"))->Expect.toBe(true)
     t->expect(names->Array.includes("set_device_mode"))->Expect.toBe(true)
@@ -34,6 +34,7 @@ describe("ToolRegistry", _t => {
     t->expect(names->Array.includes("interact_with_element"))->Expect.toBe(true)
     t->expect(names->Array.includes("get_dom"))->Expect.toBe(true)
     t->expect(names->Array.includes("search_text"))->Expect.toBe(true)
+    t->expect(names->Array.includes("request_customer_feedback"))->Expect.toBe(true)
   })
 
   test("selects Astro tools without changing the core catalog", t => {
@@ -50,7 +51,7 @@ describe("ToolRegistry", _t => {
         t->expect(names->Array.filter(name => name == "get_dom")->Array.length)->Expect.toBe(1)
         t->expect(names->Array.includes("get_astro_audit"))->Expect.toBe(isAstro)
         switch isAstro {
-        | true => t->expect(names->Array.length)->Expect.toBe(9)
+        | true => t->expect(names->Array.length)->Expect.toBe(10)
         | false => t->expect(registry.tools)->Expect.toEqual(ToolRegistry.coreBrowserTools)
         }
         let (description, properties) =
@@ -87,6 +88,12 @@ describe("ToolRegistry", _t => {
     t->expect(access("take_screenshot"))->Expect.toEqual(Some(JSON.Encode.string("read")))
     t->expect(access("execute_js"))->Expect.toEqual(Some(JSON.Encode.string("read-write")))
     t->expect(access("set_device_mode"))->Expect.toEqual(Some(JSON.Encode.string("write")))
+    t
+    ->expect(access("request_customer_feedback"))
+    ->Expect.toEqual(Some(JSON.Encode.string("write")))
+    t
+    ->expect(metadata("request_customer_feedback")->Dict.get("executionMode"))
+    ->Expect.toEqual(Some(JSON.Encode.string("Interactive")))
     t
     ->expect(metadata("take_screenshot")->Dict.get("executionMode"))
     ->Expect.toEqual(Some(JSON.Encode.string("Synchronous")))

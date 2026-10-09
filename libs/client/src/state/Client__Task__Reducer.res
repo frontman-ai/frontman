@@ -281,6 +281,12 @@ module Selectors = {
     Lens.getStreamingMessage(task)
   }
 
+  let pendingCustomerFeedback = (task: Task.t): option<Client__CustomerFeedback__Types.pending> =>
+    switch task {
+    | Task.Loaded({pendingCustomerFeedback}) => pendingCustomerFeedback
+    | _ => None
+    }
+
   let pendingQuestion = (task: Task.t): option<Client__Question__Types.pendingQuestion> => {
     switch task {
     | Task.Loaded({pendingQuestion}) => pendingQuestion
@@ -296,6 +302,7 @@ module Selectors = {
           isAgentRunning: false,
           lastTurnCancelled: false,
           pendingQuestion: None,
+          pendingCustomerFeedback: None,
         }),
         Some(Message.Assistant(Message.Completed({agentId, _}))),
       ) =>
@@ -386,6 +393,15 @@ type action =
       annotations: array<Message.MessageAnnotation.t>,
       agentId: string,
     })
+  | CustomerFeedbackReceived({
+      toolCallId: string,
+      resolveOk: JSON.t => unit,
+      resolveError: string => unit,
+    })
+  | CustomerFeedbackScoreChanged(int)
+  | CustomerFeedbackCommentChanged(string)
+  | CustomerFeedbackSubmitted
+  | CustomerFeedbackSkipped
   | QuestionReceived({
       questions: array<Client__Question__Types.questionItem>,
       toolCallId: string,
@@ -455,6 +471,11 @@ let actionToString = (action: action): string =>
   | LoadComplete => "LoadComplete"
   | LoadError(_) => "LoadError"
   | UserMessageReceived(_) => "UserMessageReceived"
+  | CustomerFeedbackReceived(_) => "CustomerFeedbackReceived"
+  | CustomerFeedbackScoreChanged(_) => "CustomerFeedbackScoreChanged"
+  | CustomerFeedbackCommentChanged(_) => "CustomerFeedbackCommentChanged"
+  | CustomerFeedbackSubmitted => "CustomerFeedbackSubmitted"
+  | CustomerFeedbackSkipped => "CustomerFeedbackSkipped"
   | QuestionReceived(_) => "QuestionReceived"
   | QuestionStepChanged(_) => "QuestionStepChanged"
   | QuestionOptionToggled(_) => "QuestionOptionToggled"
@@ -509,6 +530,43 @@ let extractAttachmentsFromUserContent = (content: array<UserContentPart.t>): arr
 }
 
 let getTaskIdForError = (task: Task.t): string => Task.getId(task)->Option.getOr("(no id)")
+
+let updatePendingCustomerFeedback = (task, fn) =>
+  switch task {
+  | Task.Loaded({pendingCustomerFeedback: Some(draft)} as data) =>
+    Task.Loaded({...data, pendingCustomerFeedback: fn(draft)})
+  | _ => task
+  }
+
+let submitCustomerFeedback = (task, ~skip) =>
+  switch task {
+  | Task.Loaded({pendingCustomerFeedback: Some({submitting: false} as draft)} as data) =>
+    switch (skip, draft.score) {
+    | (false, None) => (task, [])
+    | (true, _) | (false, Some(_)) =>
+      let response: Client__CustomerFeedback__Types.response = switch skip {
+      | true => Skipped
+      | false =>
+        Answered({
+          score: draft.score->Option.getOrThrow,
+          comment: switch draft.comment {
+          | "" => None
+          | comment => Some(comment)
+          },
+        })
+      }
+      let answerJson =
+        response->S.decodeOrThrow(~from=Client__CustomerFeedback__Types.outputSchema, ~to=S.json)
+      (
+        Task.Loaded({
+          ...data,
+          pendingCustomerFeedback: Some({...draft, submitting: true, error: None}),
+        }),
+        [ResolveQuestionToolEffect({resolveOk: draft.resolveOk, answerJson})],
+      )
+    }
+  | _ => (task, [])
+  }
 
 let updatePendingQuestion = (
   task: Task.t,
@@ -837,6 +895,11 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           }
         | _ => failwith(`[TaskReducer] ToolResultReceived but message ${id} is not a ToolCall`)
         }
+      )->updatePendingCustomerFeedback(draft =>
+        switch complete && draft.toolCallId == id {
+        | true => None
+        | false => Some(draft)
+        }
       ),
       [],
     )
@@ -847,6 +910,11 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         | Message.ToolCall(tool) =>
           Message.ToolCall({...tool, errorText: Some(error), state: Message.OutputError})
         | _ => failwith(`[TaskReducer] ToolErrorReceived but message ${id} is not a ToolCall`)
+        }
+      )->updatePendingCustomerFeedback(draft =>
+        switch draft.toolCallId == id {
+        | true => None
+        | false => Some(draft)
         }
       ),
       [],
@@ -1008,7 +1076,9 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     )
 
   | (Task.Loaded(data), CancelTurn) =>
-    switch data.isAgentRunning || data.pendingQuestion->Option.isSome {
+    switch data.isAgentRunning ||
+    data.pendingQuestion->Option.isSome ||
+    data.pendingCustomerFeedback->Option.isSome {
     | false => (task, [])
     | true =>
       let completed = Lens.completeStreamingMessage(task)
@@ -1028,7 +1098,19 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
         ]
       | None => []
       }
-      let allEffects = Array.concat([SessionCommand(ACP.Cancel)], questionEffects)
+      let feedbackEffects = switch data.pendingCustomerFeedback {
+      | Some(draft) => [
+          RejectQuestionToolEffect({
+            resolveError: draft.resolveError,
+            message: "Cancelled by user",
+          }),
+        ]
+      | None => []
+      }
+      let allEffects = Array.concat(
+        [SessionCommand(ACP.Cancel)],
+        Array.concat(questionEffects, feedbackEffects),
+      )
       switch withCancelledTools {
       | Task.Loaded(d) => (
           Task.Loaded({
@@ -1038,6 +1120,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
             turnError: None,
             retryStatus: None,
             pendingQuestion: None,
+            pendingCustomerFeedback: None,
           })->Lens.refreshCompletedFileChanges,
           allEffects,
         )
@@ -1160,6 +1243,7 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
           retryStatus: None,
           imageAttachments: Dict.make(),
           pendingQuestion: None,
+          pendingCustomerFeedback: None,
           completedFileChanges: Client__FileChanges.aggregateCompleted(
             ~revision=1,
             ~isAgentRunning,
@@ -1175,6 +1259,47 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
   | (Task.Loading({id, title, createdAt, updatedAt}), LoadError({error})) =>
     Log.error(~ctx={"error": error}, "Task load failed")
     (Task.Unloaded({id, title, createdAt, updatedAt}), [])
+
+  | (Task.Loaded(data), CustomerFeedbackReceived({toolCallId, resolveOk, resolveError})) =>
+    let draft: Client__CustomerFeedback__Types.pending = switch data.pendingCustomerFeedback {
+    | Some(draft) if draft.toolCallId == toolCallId => {
+        ...draft,
+        submitting: false,
+        error: None,
+        resolveOk,
+        resolveError,
+      }
+    | _ => {
+        toolCallId,
+        score: None,
+        comment: "",
+        submitting: false,
+        error: None,
+        resolveOk,
+        resolveError,
+      }
+    }
+    (Task.Loaded({...data, pendingCustomerFeedback: Some(draft)}), [])
+  | (Task.Loaded(_), CustomerFeedbackScoreChanged(score)) => (
+      updatePendingCustomerFeedback(task, draft =>
+        switch draft.submitting {
+        | true => Some(draft)
+        | false => Some({...draft, score: Some(score)})
+        }
+      ),
+      [],
+    )
+  | (Task.Loaded(_), CustomerFeedbackCommentChanged(comment)) => (
+      updatePendingCustomerFeedback(task, draft =>
+        switch draft.submitting {
+        | true => Some(draft)
+        | false => Some({...draft, comment})
+        }
+      ),
+      [],
+    )
+  | (Task.Loaded(_), CustomerFeedbackSubmitted) => submitCustomerFeedback(task, ~skip=false)
+  | (Task.Loaded(_), CustomerFeedbackSkipped) => submitCustomerFeedback(task, ~skip=true)
 
   | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
       Task.Loaded({
@@ -1302,6 +1427,11 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
       | RetryTurn(_)
       | UnqueueMessage(_)
       | MessageUnqueued(_)
+      | CustomerFeedbackReceived(_)
+      | CustomerFeedbackScoreChanged(_)
+      | CustomerFeedbackCommentChanged(_)
+      | CustomerFeedbackSubmitted
+      | CustomerFeedbackSkipped
       | QuestionReceived(_)
       | QuestionStepChanged(_)
       | QuestionOptionToggled(_)
