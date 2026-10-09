@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServer.Tasks.CustomerFeedbackSchema do
+defmodule FrontmanServer.CustomerFeedback.Feedback do
   @moduledoc "Persistence for an issued customer feedback request and its optional answer."
 
   use Ecto.Schema
@@ -34,7 +34,7 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackSchema do
       where: feedback.inserted_at > ^cutoff or feedback.answered_at > ^cutoff
   end
 
-  def owned_call(user_id, interaction_id) do
+  def owned_interaction(user_id, interaction_id) do
     from interaction in InteractionSchema,
       join: task in TaskSchema,
       on: task.id == interaction.task_id,

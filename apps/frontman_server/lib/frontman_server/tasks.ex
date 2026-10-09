@@ -28,8 +28,6 @@ defmodule FrontmanServer.Tasks do
     Interaction.ToolCall,
     Interaction.ToolResult,
     RetryCoordinator,
-    CustomerFeedback,
-    CustomerFeedbackSchema,
     Todos.Todo
   ]
 
@@ -55,7 +53,6 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Skills
 
   alias FrontmanServer.Tasks.{
-    CustomerFeedback,
     Execution.ErrorClassifier,
     Execution.LLMClient,
     Execution.ToolExecutor,
@@ -67,6 +64,7 @@ defmodule FrontmanServer.Tasks do
   }
 
   alias FrontmanServer.Tools
+  alias FrontmanServer.Tools.CustomerFeedback
   alias FrontmanServer.Workers.GenerateTitle
   alias SwarmAi.{Loop, Message}
   alias SwarmAi.Message.ContentPart
@@ -799,7 +797,7 @@ defmodule FrontmanServer.Tasks do
       when is_integer(turn_number) and turn_number > 0 and
              execution_mode in [:synchronous, :interactive] do
     with {:ok, schema} <- get_task(scope, task_id),
-         :ok <- validate_feedback_arguments(tool_call_data),
+         :ok <- CustomerFeedback.validate_arguments(tool_call_data),
          {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
       case tool_call_data.name do
         "request_customer_feedback" ->
@@ -811,17 +809,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp validate_feedback_arguments(%SwarmAi.ToolCall{name: "request_customer_feedback"} = call) do
-    case SwarmAi.ToolCall.parse_arguments(call) do
-      {:ok, arguments} when map_size(arguments) == 0 -> :ok
-      _invalid -> {:error, {:invalid_tool_arguments, "Customer feedback takes no arguments"}}
-    end
-  end
-
-  defp validate_feedback_arguments(_call), do: :ok
-
-  defp record_feedback_request(scope, task, %{arguments: arguments} = data, turn_number)
-       when map_size(arguments) == 0 do
+  defp record_feedback_request(scope, task, data, turn_number) do
     Repo.transact(fn ->
       existing = feedback_tool_call(task.id, turn_number, data.tool_call_id)
 
@@ -839,9 +827,6 @@ defmodule FrontmanServer.Tasks do
         {:error, reason}
     end
   end
-
-  defp record_feedback_request(_scope, _task, _data, _turn_number),
-    do: {:error, {:invalid_tool_arguments, "Customer feedback takes no arguments"}}
 
   defp insert_feedback_call(_task, %InteractionSchema{} = row, _data, _turn_number),
     do: {:ok, row}
@@ -941,50 +926,14 @@ defmodule FrontmanServer.Tasks do
          %{name: "request_customer_feedback", id: id},
          result
        ) do
-    case MCP.error?(result) do
-      true ->
-        {:ok, result}
-
-      false ->
-        case feedback_tool_call(task_id, turn_number, id) do
-          %InteractionSchema{} = row -> save_feedback_response(scope, row, result)
-          nil -> {:error, :not_found}
-        end
+    case feedback_tool_call(task_id, turn_number, id) do
+      %InteractionSchema{} = row -> CustomerFeedback.resolve(scope, row, result)
+      nil -> {:error, :not_found}
     end
   end
 
   defp canonical_feedback_result(_scope, _task_id, _turn_number, _tool_call, result),
     do: {:ok, result}
-
-  defp save_feedback_response(scope, row, %{
-         "structuredContent" => %{"outcome" => "skipped"} = output
-       })
-       when map_size(output) == 1 do
-    with {:ok, feedback} <- CustomerFeedback.record_request(scope, row) do
-      {:ok, CustomerFeedback.response(feedback)}
-    end
-  end
-
-  defp save_feedback_response(scope, row, %{
-         "structuredContent" => %{"outcome" => "answered", "score" => _score} = output
-       }) do
-    case map_size(Map.drop(output, ["outcome", "score", "comment"])) do
-      0 ->
-        with {:ok, feedback} <-
-               CustomerFeedback.record_answer(
-                 scope,
-                 row.id,
-                 Map.take(output, ["score", "comment"])
-               ) do
-          {:ok, CustomerFeedback.response(feedback)}
-        end
-
-      _extra ->
-        {:error, :invalid_customer_feedback}
-    end
-  end
-
-  defp save_feedback_response(_scope, _row, _result), do: {:error, :invalid_customer_feedback}
 
   defp publish_tool_result(task_id, row, true) do
     broadcast_task(task_id, {:interaction, row})
@@ -1156,10 +1105,8 @@ defmodule FrontmanServer.Tasks do
     {:ok, history} = load_history(task.id)
 
     tools =
-      case CustomerFeedback.eligible?(scope) do
-        true -> mcp_tools
-        false -> Enum.reject(mcp_tools, &(&1.name == "request_customer_feedback"))
-      end
+      scope
+      |> CustomerFeedback.filter_tools(mcp_tools)
       |> then(&Tools.resolve(Agents.tool_policy(agent), &1))
 
     project_context = project_context(task, history.rows, execution)
