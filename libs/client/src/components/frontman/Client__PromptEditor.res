@@ -489,6 +489,7 @@ let make = (
   ~isEnrichingAnnotations: bool,
   ~hasAnnotations: bool,
   ~commandsRef: React.ref<Nullable.t<commands>>,
+  ~onHasContentChange: bool => unit,
   ~onSubmit: (string, array<editorFileAttachment>) => promise<result<unit, string>>,
   ~onPreviewImage: string => unit,
   ~onFileSizeError: string => unit,
@@ -500,6 +501,8 @@ let make = (
   let disabledRef = React.useRef(disabled)
   let isEnrichingAnnotationsRef = React.useRef(isEnrichingAnnotations)
   let hasAnnotationsRef = React.useRef(hasAnnotations)
+  let hasContentRef = React.useRef(false)
+  let onHasContentChangeRef = React.useRef(onHasContentChange)
   let onSubmitRef = React.useRef(onSubmit)
   let onPreviewImageRef = React.useRef(onPreviewImage)
   let onFileSizeErrorRef = React.useRef(onFileSizeError)
@@ -512,6 +515,7 @@ let make = (
   disabledRef.current = disabled
   isEnrichingAnnotationsRef.current = isEnrichingAnnotations
   hasAnnotationsRef.current = hasAnnotations
+  onHasContentChangeRef.current = onHasContentChange
   onSubmitRef.current = onSubmit
   onPreviewImageRef.current = onPreviewImage
   onFileSizeErrorRef.current = onFileSizeError
@@ -548,12 +552,7 @@ let make = (
     )
   }
 
-  React.useEffect0(() => Some(
-    () => {
-      clearExpandablePasteTimer()
-      Client__State.Actions.composerContentChanged(false)
-    },
-  ))
+  React.useEffect0(() => Some(clearExpandablePasteTimer))
 
   let submitEditor = editor => {
     let snapshot = editor->TiptapCore.getJSON
@@ -722,8 +721,15 @@ let make = (
         }
       },
     },
-    onUpdate: ({editor}) =>
-      Client__State.Actions.composerContentChanged(!(editor->TiptapCore.isEmpty)),
+    onUpdate: ({editor}) => {
+      let hasContent = !(editor->TiptapCore.isEmpty)
+      switch hasContent == hasContentRef.current {
+      | true => ()
+      | false =>
+        hasContentRef.current = hasContent
+        onHasContentChangeRef.current(hasContent)
+      }
+    },
   })
 
   React.useEffect1(() => {

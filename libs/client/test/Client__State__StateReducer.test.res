@@ -12,22 +12,6 @@ module UserMessageId = Client__Message.UserMessageId
 let testUserMessageId = UserMessageId.make()
 let secondTestUserMessageId = UserMessageId.make()
 
-test("composer content presence preserves state identity for repeated updates", t => {
-  let empty = Reducer.defaultState
-  let (unchangedEmpty, effects) = Reducer.next(empty, ComposerContentChanged(false))
-  t->expect(unchangedEmpty)->Expect.toBe(empty)
-  t->expect(effects)->Expect.toEqual([])
-  let (nonEmpty, _) = Reducer.next(empty, ComposerContentChanged(true))
-  t->expect(Reducer.Selectors.composerHasContent(nonEmpty))->Expect.toBe(true)
-  let (unchangedNonEmpty, effects) = Reducer.next(nonEmpty, ComposerContentChanged(true))
-  t->expect(unchangedNonEmpty)->Expect.toBe(nonEmpty)
-  t->expect(effects)->Expect.toEqual([])
-  let (cleared, _) = Reducer.next(nonEmpty, ComposerContentChanged(false))
-  t->expect(Reducer.Selectors.composerHasContent(cleared))->Expect.toBe(false)
-  let (newTask, _) = Reducer.next(nonEmpty, ClearCurrentTask)
-  t->expect(Reducer.Selectors.composerHasContent(newTask))->Expect.toBe(true)
-})
-
 @schema
 type pageRoutingMeta = {astro_client_routing: option<string>}
 

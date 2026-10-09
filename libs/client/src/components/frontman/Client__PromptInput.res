@@ -305,7 +305,7 @@ let make = (
   ~hasAnnotations: bool=false,
   ~isEnrichingAnnotations: bool=false,
 ) => {
-  let hasContent = Client__State.useSelector(Client__State.Selectors.composerHasContent)
+  let (hasContent, setHasContent) = React.useState(() => false)
   let (hasComposerFocus, setHasComposerFocus) = React.useState(() => false)
   let commandsRef: React.ref<Nullable.t<Client__PromptEditor.commands>> = React.useRef(
     Nullable.null,
@@ -476,6 +476,7 @@ let make = (
             isEnrichingAnnotations
             hasAnnotations
             commandsRef
+            onHasContentChange={value => setHasContent(_ => value)}
             onSubmit={(text, inputItems) => onSubmit(~text, ~inputItems)}
             onPreviewImage={src => setPreviewSrc(_ => Some(src))}
             onFileSizeError={message => setFileSizeError(_ => Some(message))}

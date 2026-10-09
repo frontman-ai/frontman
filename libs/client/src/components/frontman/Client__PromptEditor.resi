@@ -46,6 +46,7 @@ let make: (
   ~isEnrichingAnnotations: bool,
   ~hasAnnotations: bool,
   ~commandsRef: React.ref<Nullable.t<commands>>,
+  ~onHasContentChange: bool => unit,
   ~onSubmit: (string, array<editorFileAttachment>) => promise<result<unit, string>>,
   ~onPreviewImage: string => unit,
   ~onFileSizeError: string => unit,
