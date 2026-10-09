@@ -7,6 +7,9 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
+  let composerContentChanged = hasContent =>
+    Client__State__Store.dispatch(ComposerContentChanged(hasContent))
+
   let addUserMessage = (~content, ~annotationId=?) =>
     Promise.make((resolve, _) =>
       Client__State__Store.dispatch(AddUserMessage({content, annotationId, onComplete: resolve}))

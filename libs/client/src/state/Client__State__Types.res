@@ -206,6 +206,7 @@ type highlightedAnnotation = {
 type settingsTab = General | Providers | Billing
 
 type state = {
+  composerHasContent: bool,
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   connection: option<Client__ConnectionReducer.state>,

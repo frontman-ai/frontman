@@ -2,4 +2,4 @@
 "@frontman-ai/client": patch
 ---
 
-Prevent repeated prompt content notifications while typing and remove duplicate notifications when the editor clears. Changing editability no longer emits a text update.
+Move prompt content-presence state into the reducer so typing only updates React when the editor changes between empty and non-empty. Remove duplicate clear notifications and prevent editability changes from emitting text updates.

@@ -50,6 +50,7 @@ type rec action =
   | SwitchTask({taskId: string})
   | DeleteTask({taskId: string})
   | ClearCurrentTask
+  | ComposerContentChanged(bool)
   | UpdateTaskTitle({taskId: string, title: string})
   | SetSettingsModalTab({tab: option<Client__State__Types.settingsTab>})
   | BillingStatusReceived(Client__Billing.status)
@@ -273,6 +274,7 @@ let setAllApiKeySources = (state: state, source) => {
 }
 
 let defaultState: state = {
+  composerHasContent: false,
   tasks: Dict.make(),
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   connection: None,
@@ -315,6 +317,7 @@ let defaultState: state = {
 }
 
 module Selectors = {
+  let composerHasContent = (state: state) => state.composerHasContent
   let getSession = (state: state) =>
     state.connection->Option.flatMap(Connection.Selectors.getSession)
   let getRelay = (state: state) => state.connection->Option.flatMap(Connection.Selectors.getRelay)
@@ -2069,6 +2072,11 @@ let clearConnectionState = (state: state) => {
 
 let rec next = (state: state, action) => {
   switch action {
+  | ComposerContentChanged(hasContent) =>
+    switch hasContent == state.composerHasContent {
+    | true => state->StateReducer.update
+    | false => {...state, composerHasContent: hasContent}->StateReducer.update
+    }
   | InitializeConnection(config) =>
     next(
       {...state, connection: Some(Connection.initialState(config))},
