@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import tailwindcss from "@tailwindcss/vite";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
@@ -8,6 +9,7 @@ const fixtureAsset = (pkg, file) =>
 	`${join(dirname(require.resolve(`${pkg}/package.json`)), file)}?url`;
 
 export default defineConfig({
+	plugins: [tailwindcss()],
 	resolve: {
 		alias: {
 			"draft-fixture-react-umd?url": fixtureAsset(
