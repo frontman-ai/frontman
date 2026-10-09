@@ -37,6 +37,8 @@ defmodule FrontmanServer.Tools.CustomerFeedback do
 
   def resolve(_scope, _interaction, %{"isError" => true} = result), do: {:ok, result}
 
+  def resolve(%Scope{}, nil, _result), do: {:error, :not_found}
+
   def resolve(%Scope{} = scope, %InteractionSchema{} = interaction, result) do
     with :ok <- validate_interaction(interaction),
          {:ok, feedback} <- save_response(scope, interaction, result) do

@@ -926,10 +926,7 @@ defmodule FrontmanServer.Tasks do
          %{name: "request_customer_feedback", id: id},
          result
        ) do
-    case feedback_tool_call(task_id, turn_number, id) do
-      %InteractionSchema{} = row -> CustomerFeedback.resolve(scope, row, result)
-      nil -> {:error, :not_found}
-    end
+    CustomerFeedback.resolve(scope, feedback_tool_call(task_id, turn_number, id), result)
   end
 
   defp canonical_feedback_result(_scope, _task_id, _turn_number, _tool_call, result),

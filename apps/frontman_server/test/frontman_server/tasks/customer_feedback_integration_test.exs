@@ -253,6 +253,15 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
              FrontmanServer.Tools.CustomerFeedback.record_request(scope, interaction)
 
     assert {:ok, _feedback} = CustomerFeedback.record_request(scope, interaction)
+    error = FrontmanServer.Protocols.MCP.tool_result_error("Invalid feedback arguments")
+    assert {:ok, ^error} = FrontmanServer.Tools.CustomerFeedback.resolve(scope, nil, error)
+
+    assert {:error, :not_found} =
+             FrontmanServer.Tools.CustomerFeedback.resolve(
+               scope,
+               nil,
+               browser_result(%{"outcome" => "skipped"})
+             )
   end
 
   defp seed_feedback(_scope, :never), do: :ok
