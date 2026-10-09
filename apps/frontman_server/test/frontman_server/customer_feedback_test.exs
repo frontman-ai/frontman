@@ -42,8 +42,12 @@ defmodule FrontmanServer.CustomerFeedbackTest do
     assert CustomerFeedback.eligible?(context.scope, @now)
 
     {:ok, feedback} =
-      CustomerFeedback.record_answer(context.scope, feedback.interaction_id, %{score: 9})
+      CustomerFeedback.record_answer(context.scope, feedback.interaction_id, %{
+        score: 9,
+        comment: ""
+      })
 
+    assert is_nil(feedback.comment)
     set_times(feedback, @expired, @expired)
     assert CustomerFeedback.eligible?(context.scope, @now)
   end
@@ -92,11 +96,11 @@ defmodule FrontmanServer.CustomerFeedbackTest do
   test "score and comment validation rejects invalid and malformed input", context do
     request(context)
 
-    for score <- [-1, 11, 8.0, "invalid", nil, true] do
+    invalid_scores = Enum.map([-1, 11, 8.0, "invalid", nil, true], &%{score: &1})
+
+    for attrs <- [%{} | invalid_scores] do
       assert {:error, %Ecto.Changeset{}} =
-               CustomerFeedback.record_answer(context.scope, context.interaction.id, %{
-                 score: score
-               })
+               CustomerFeedback.record_answer(context.scope, context.interaction.id, attrs)
     end
 
     for comment <- [
@@ -124,15 +128,21 @@ defmodule FrontmanServer.CustomerFeedbackTest do
     requested = request(context)
     comment = String.duplicate("🙂", 2000)
 
+    before_answer = DateTime.utc_now()
+
     assert {:ok, first} =
              CustomerFeedback.record_answer(context.scope, context.interaction.id, %{
                "score" => "0",
-               "comment" => comment
+               "comment" => comment,
+               "answered_at" => DateTime.to_iso8601(@expired),
+               "interaction_id" => Ecto.UUID.generate()
              })
 
     assert first.score == 0
     assert first.comment == comment
-    assert first.answered_at
+    assert first.interaction_id == context.interaction.id
+    assert DateTime.compare(first.answered_at, before_answer) in [:eq, :gt]
+    assert DateTime.compare(first.answered_at, DateTime.utc_now()) in [:eq, :lt]
     assert first.inserted_at == requested.inserted_at
 
     assert {:ok, ^first} =
@@ -142,7 +152,7 @@ defmodule FrontmanServer.CustomerFeedbackTest do
              })
   end
 
-  test "writes compose with outer tool-result transactions and roll back", context do
+  test "feedback writes roll back with the outer transaction", context do
     assert {:error, :tool_result_failed} =
              Repo.transact(fn ->
                {:ok, _} = CustomerFeedback.record_request(context.scope, context.interaction)
@@ -154,24 +164,6 @@ defmodule FrontmanServer.CustomerFeedbackTest do
              end)
 
     assert Repo.aggregate(Feedback, :count) == 0
-  end
-
-  test "changeset casts only answer attributes and generates its own timestamp" do
-    attrs = %{score: "8", comment: "", answered_at: nil, interaction_id: "forged"}
-
-    for params <- [attrs, Map.new(attrs, fn {key, value} -> {Atom.to_string(key), value} end)] do
-      changeset = Feedback.answer_changeset(%Feedback{}, params)
-      assert {:ok, answer} = Ecto.Changeset.apply_action(changeset, :update)
-      assert answer.score == 8
-      assert answer.comment == nil
-      assert answer.interaction_id == nil
-      assert %DateTime{} = answer.answered_at
-    end
-
-    assert {:error, %Ecto.Changeset{errors: [score: _]}} =
-             %Feedback{}
-             |> Feedback.answer_changeset(%{})
-             |> Ecto.Changeset.apply_action(:update)
   end
 
   defp feedback_interaction(scope) do
