@@ -35,26 +35,15 @@ defmodule FrontmanServer.Tasks.CustomerFeedback do
   end
 
   @doc "Validates an answer and returns the first stored answer on replay."
-  def record_answer(scope, interaction_id, score, comment \\ nil)
-
-  def record_answer(%Scope{} = scope, interaction_id, score, comment)
-      when is_integer(score) and score in 0..10 and (is_nil(comment) or is_binary(comment)) do
-    with :ok <- validate_comment(comment),
-         {:ok, _interaction} <- owned_feedback_call(scope, interaction_id) do
+  def record_answer(%Scope{} = scope, interaction_id, attrs) do
+    with {:ok, _interaction} <- owned_feedback_call(scope, interaction_id) do
       Repo.transact(fn ->
         CustomerFeedbackSchema
         |> Repo.get_by(interaction_id: interaction_id)
-        |> store_answer(score, comment)
+        |> store_answer(attrs)
       end)
     end
   end
-
-  def record_answer(%Scope{}, _interaction_id, score, _comment)
-      when not is_integer(score) or score not in 0..10,
-      do: {:error, :invalid_score}
-
-  def record_answer(%Scope{}, _interaction_id, _score, _comment),
-    do: {:error, :invalid_comment}
 
   @doc "Builds trusted agent guidance and exposes the canonical answer as structured UI data."
   def response(%CustomerFeedbackSchema{score: score, comment: comment}) do
@@ -67,10 +56,10 @@ defmodule FrontmanServer.Tasks.CustomerFeedback do
     |> Map.put("structuredContent", data)
   end
 
-  defp store_answer(nil, _score, _comment), do: {:error, :not_found}
+  defp store_answer(nil, _attrs), do: {:error, :not_found}
 
-  defp store_answer(%CustomerFeedbackSchema{} = feedback, score, comment) do
-    changeset = CustomerFeedbackSchema.answer_changeset(feedback, score, comment)
+  defp store_answer(%CustomerFeedbackSchema{} = feedback, attrs) do
+    changeset = CustomerFeedbackSchema.answer_changeset(feedback, attrs)
 
     with {:ok, answer} <- Ecto.Changeset.apply_action(changeset, :update) do
       feedback.id
@@ -100,21 +89,6 @@ defmodule FrontmanServer.Tasks.CustomerFeedback do
 
       %InteractionSchema{} ->
         {:error, :invalid_tool_call}
-    end
-  end
-
-  defp validate_comment(nil), do: :ok
-
-  defp validate_comment(comment) do
-    case String.valid?(comment) do
-      true ->
-        case String.contains?(comment, "\0") do
-          false -> :ok
-          true -> {:error, :invalid_comment}
-        end
-
-      false ->
-        {:error, :invalid_comment}
     end
   end
 
