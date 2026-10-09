@@ -6,10 +6,10 @@ import {frontmanPropsInjectionPlugin} from "../src/vite-plugin-props-injection.m
 
 const runtimeId = "/project/node_modules/astro/dist/runtime/server/render/component.js"
 
-function runtimeSource({parameters = "result, displayName, Component, props, slots", markHTML = true} = {}) {
+function runtimeSource({parameters = "result, displayName, Component, props, slots", markHTML = true, inlineExport = false} = {}) {
   return `
 ${markHTML ? "function markHTMLString(value) { return value }" : ""}
-function renderComponent(${parameters}) {
+${inlineExport ? "export " : ""}function renderComponent(${parameters}) {
   if (Component && typeof Component.then === "function") {
     return Component.then(resolved => renderComponent(result, displayName, resolved, props, slots))
   }
@@ -19,7 +19,7 @@ function renderComponent(${parameters}) {
     }
   }
 }
-export {renderComponent}
+${inlineExport ? "" : "export {renderComponent}"}
 `
 }
 
@@ -47,8 +47,9 @@ describe("frontmanPropsInjectionPlugin", () => {
     warn.mockRestore()
   })
 
-  test("emits one marker for async recursion and provides a source map", async () => {
-    const {transformed, module} = await loadTransformed(runtimeSource())
+  test.each([false, true])("preserves exports, async recursion and source maps (inline export: %s)", async inlineExport => {
+    const {transformed, module} = await loadTransformed(runtimeSource({inlineExport}))
+    expect(Object.keys(module)).toEqual(["renderComponent"])
     const destination = {value: "", write(value) { this.value += value }}
     const Component = Promise.resolve({moduleId: "C:\\project\\src\\Greeting.astro"})
 
@@ -58,6 +59,7 @@ describe("frontmanPropsInjectionPlugin", () => {
     const marker = decodeMarker(destination.value)
     expect(marker.moduleId).toBe("C:/project/src/Greeting.astro")
     expect(marker.props).toEqual({name: "Astro"})
+    expect(destination.value).toMatch(/<h1>Rendered<\/h1>$/)
     expect(transformed.map).toBeTruthy()
     expect(transformed.map.sources).toEqual([runtimeId])
   })

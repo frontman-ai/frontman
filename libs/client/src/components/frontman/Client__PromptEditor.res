@@ -501,6 +501,7 @@ let make = (
   let disabledRef = React.useRef(disabled)
   let isEnrichingAnnotationsRef = React.useRef(isEnrichingAnnotations)
   let hasAnnotationsRef = React.useRef(hasAnnotations)
+  let hasContentRef = React.useRef(false)
   let onHasContentChangeRef = React.useRef(onHasContentChange)
   let onSubmitRef = React.useRef(onSubmit)
   let onPreviewImageRef = React.useRef(onPreviewImage)
@@ -573,9 +574,7 @@ let make = (
         | Ok() =>
           switch JSON.stringify(snapshot) == JSON.stringify(editor->TiptapCore.getJSON) {
           | false => ()
-          | true =>
-            editor->TiptapCore.Commands.commands->TiptapCore.Commands.clearContent
-            onHasContentChangeRef.current(false)
+          | true => editor->TiptapCore.Commands.commands->TiptapCore.Commands.clearContent
           }
         }
         Promise.resolve()
@@ -722,7 +721,15 @@ let make = (
         }
       },
     },
-    onUpdate: ({editor}) => onHasContentChangeRef.current(!(editor->TiptapCore.isEmpty)),
+    onUpdate: ({editor}) => {
+      let hasContent = !(editor->TiptapCore.isEmpty)
+      switch hasContent == hasContentRef.current {
+      | true => ()
+      | false =>
+        hasContentRef.current = hasContent
+        onHasContentChangeRef.current(hasContent)
+      }
+    },
   })
 
   React.useEffect1(() => {
@@ -746,7 +753,7 @@ let make = (
     editor
     ->Null.toOption
     ->Option.forEach(editor =>
-      editor->TiptapCore.setEditable(!(disabled || isEnrichingAnnotations))
+      editor->TiptapCore.setEditable(!(disabled || isEnrichingAnnotations), ~emitUpdate=false)
     )
     None
   }, (editor, disabled, isEnrichingAnnotations))

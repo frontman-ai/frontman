@@ -53,7 +53,7 @@ external mergeAttributes: (htmlAttributes, Dict.t<string>) => htmlAttributes = "
 @send external configure: (nodeExtension, 'options) => extension = "configure"
 
 @send external getJSON: editor => JSON.t = "getJSON"
-@send external setEditable: (editor, bool) => unit = "setEditable"
+@send external setEditable: (editor, bool, ~emitUpdate: bool=?) => unit = "setEditable"
 @get external isEmpty: editor => bool = "isEmpty"
 @get external state: editor => editorState = "state"
 
