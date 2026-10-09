@@ -21,7 +21,7 @@ type state =
   | Error(string)
 
 type request = Status | Checkout(interval) | CustomerPortal
-type flow = Idle | Opening | Failed(string)
+type flow = Idle | Opening | AwaitingCheckout | Failed(string)
 type checkoutRequest = {interval: interval}
 type urlResponse = {url: string}
 type errorResponse = {error: string, @as("request_id") requestId: option<string>}

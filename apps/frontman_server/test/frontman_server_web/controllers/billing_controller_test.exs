@@ -214,9 +214,9 @@ defmodule FrontmanServerWeb.BillingControllerTest do
   end
 
   for {path, title} <- [
-        {"success", "Stripe checkout complete"},
-        {"cancel", "Stripe checkout closed"},
-        {"customer-portal", "Stripe billing portal closed"}
+        {"success", "Checkout complete. Back to your next improvement."},
+        {"cancel", "Your request is still waiting for you."},
+        {"customer-portal", "Return to your work in Frontman."}
       ] do
     @path path
     @title title
@@ -225,10 +225,10 @@ defmodule FrontmanServerWeb.BillingControllerTest do
       assert response =~ "billing-stripe-return"
       assert response =~ "data-auto-close-window"
       assert response =~ @title
-      assert response =~ "You can close this tab and return to Frontman."
+      assert response =~ "Close this tab to continue in Frontman. No edits run automatically."
 
       assert response =~
-               "Your original Frontman tab updates automatically when Stripe sends a billing event."
+               "Frontman confirms your plan status before you continue. Your draft remains in the original tab."
     end
   end
 end
