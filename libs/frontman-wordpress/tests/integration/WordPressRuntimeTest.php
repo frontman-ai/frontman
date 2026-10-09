@@ -77,6 +77,13 @@ $plugin = plugin_basename( FRONTMAN_PLUGIN_FILE );
 $admin = get_user_by( 'login', 'admin' );
 $cookie = wp_generate_auth_cookie( $admin->ID, time() + HOUR_IN_SECONDS, 'logged_in' );
 require __DIR__ . '/SentryRuntimeTest.php';
+$frontman_page = frontman_runtime_http( 'GET', '/index.php/frontman', $cookie );
+frontman_runtime_assert( 200 === $frontman_page['status'], 'Frontman UI did not render.' );
+frontman_runtime_assert( false !== strpos( $frontman_page['body'], 'data-preview-bridge="page-context-v1"' ), 'Plugin did not declare page-context bridge support.' );
+foreach ( [ '' => false, $cookie => true ] as $visitor_cookie => $expected_bridge ) {
+	$frontend = frontman_runtime_http( 'GET', '/', $visitor_cookie );
+	frontman_runtime_assert( $expected_bridge === ( false !== strpos( $frontend['body'], 'frontman-preview-bridge-js' ) ), 'Preview bridge enqueue did not match administrator access.' );
+}
 $authenticated_context = stream_context_create( [ 'http' => [
 	'ignore_errors' => true,
 	'header' => 'Cookie: ' . LOGGED_IN_COOKIE . '=' . $cookie,

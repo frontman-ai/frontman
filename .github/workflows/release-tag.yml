@@ -62,6 +62,15 @@ jobs:
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
+        with:
+          node-version: '24.4.1'
+
+      - name: Install bridge build dependencies
+        if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
+        run: corepack enable && corepack install && yarn install --immutable
+
       - name: Package WordPress release assets
         if: steps.verify.outputs.is_release == 'true' && steps.tag-check.outputs.exists == 'false'
         run: make package-wordpress-plugin VERSION="${{ steps.extract.outputs.version }}"

@@ -45,6 +45,16 @@ while IFS= read -r -d '' source; do
 done < <(find "$ROOT_DIR/dist/wordpress-dependencies-scoped/vendor" -type f \
   \( -name '*.php' -o -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'NOTICE*' -o -iname 'AUTHORS*' \) -print0)
 
+source="$ROOT_DIR/libs/frontman-preview-bridge/dist/bridge.js"
+for destination in "$EXPORT_DIR/trunk" "$EXPORT_DIR/tags/$VERSION" \
+  "$ROOT_DIR/dist/frontman-wordpress-package/github/frontman-agentic-ai-editor"; do
+  cmp "$source" "$destination/assets/bridge.js"
+done
+unzip -p "$ROOT_DIR/dist/frontman-wordpress-v${VERSION}.zip" \
+  "frontman-agentic-ai-editor/assets/bridge.js" | cmp "$source" -
+tar -xOzf "$ROOT_DIR/dist/frontman-wordpress-org-v${VERSION}.tar.gz" \
+  "frontman-wordpress-org-v${VERSION}/trunk/assets/bridge.js" | cmp "$source" -
+
 check_publish_status 0
 grep -q 'DRY_RUN=1; skipping WordPress.org SVN commit' "$TEMP_DIR/output"
 for forbidden in unexpected.sh .env; do

@@ -12,6 +12,7 @@ lib/
 
 node_modules/
 libs/frontman-wordpress/vendor/
+libs/frontman-wordpress/assets/bridge.js
 
 .env.local
 test/e2e/.env

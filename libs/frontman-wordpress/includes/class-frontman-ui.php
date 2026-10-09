@@ -31,6 +31,20 @@ class Frontman_UI {
 	public function register(): void {
 		add_action( 'admin_menu', [ $this, 'add_admin_menu_link' ] );
 		add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_admin_assets' ] );
+		add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_preview_bridge' ] );
+	}
+
+	public function enqueue_preview_bridge(): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			return;
+		}
+		wp_enqueue_script(
+			'frontman-preview-bridge',
+			FRONTMAN_PLUGIN_URL . 'assets/bridge.js',
+			[],
+			FRONTMAN_VERSION,
+			false
+		);
 	}
 
 	/**
@@ -134,6 +148,7 @@ class Frontman_UI {
 	<div
 		id="frontman-runtime-config"
 		hidden
+		data-preview-bridge="page-context-v1"
 		data-framework="<?php echo esc_attr( $runtime['framework'] ); ?>"
 		data-base-path="<?php echo esc_attr( $runtime['basePath'] ); ?>"
 		data-relay-base-url="<?php echo esc_attr( $runtime['relayBaseUrl'] ); ?>"
