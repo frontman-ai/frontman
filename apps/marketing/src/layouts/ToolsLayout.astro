@@ -1,0 +1,40 @@
+---
+import Layout from './Layout.astro'
+
+type Props = {
+	title: string
+	description: string
+	noindex?: boolean
+}
+
+const { title, description, noindex = false } = Astro.props
+const isDirectory = Astro.url.pathname === '/tools/'
+---
+
+<Layout title={`${title} | Frontman`} description={description} noindex={noindex}>
+	<div class="mx-auto max-w-5xl px-6 pb-16 pt-28 md:pb-24 md:pt-32">
+		<nav aria-label="Breadcrumb" class="mb-8 text-sm text-neutral-300">
+			<ol class="flex flex-wrap items-center gap-2">
+				<li><a href="/">Home</a></li>
+				<li aria-hidden="true">/</li>
+				{isDirectory && <li aria-current="page" class="text-white">Free marketing tools</li>}
+				{!isDirectory && (
+					<>
+						<li><a href="/tools/">Free marketing tools</a></li>
+						<li aria-hidden="true">/</li>
+						<li aria-current="page" class="text-white">{title}</li>
+					</>
+				)}
+			</ol>
+		</nav>
+
+		<header class="mb-8 max-w-2xl">
+			<h1 class="text-3xl md:text-4xl">{title}</h1>
+			<p class="text-base leading-7 text-neutral-300 md:text-lg">{description}</p>
+			<slot name="disclosure" />
+		</header>
+
+		<slot />
+		<slot name="help" />
+	</div>
+</Layout>
