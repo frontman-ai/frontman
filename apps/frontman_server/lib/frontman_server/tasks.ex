@@ -28,8 +28,6 @@ defmodule FrontmanServer.Tasks do
     Interaction.ToolCall,
     Interaction.ToolResult,
     RetryCoordinator,
-    CustomerFeedback,
-    CustomerFeedbackSchema,
     Todos.Todo
   ]
 
