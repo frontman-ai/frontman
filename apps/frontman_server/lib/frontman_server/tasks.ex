@@ -966,12 +966,16 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp save_feedback_response(scope, row, %{
-         "structuredContent" => %{"outcome" => "answered", "score" => score} = output
+         "structuredContent" => %{"outcome" => "answered", "score" => _score} = output
        }) do
     case map_size(Map.drop(output, ["outcome", "score", "comment"])) do
       0 ->
         with {:ok, feedback} <-
-               CustomerFeedback.record_answer(scope, row.id, score, Map.get(output, "comment")) do
+               CustomerFeedback.record_answer(
+                 scope,
+                 row.id,
+                 Map.take(output, ["score", "comment"])
+               ) do
           {:ok, CustomerFeedback.response(feedback)}
         end
 

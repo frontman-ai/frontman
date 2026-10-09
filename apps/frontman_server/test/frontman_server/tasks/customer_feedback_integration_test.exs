@@ -118,7 +118,7 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
       assert feedback.answered_at == nil
       refute Tasks.CustomerFeedback.eligible?(scope)
 
-      assert {:error, :invalid_score} =
+      assert {:error, %Ecto.Changeset{}} =
                Tasks.resolve_tool_request(
                  scope,
                  task_id,
