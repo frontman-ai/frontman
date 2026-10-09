@@ -2478,7 +2478,8 @@ let rec next = (state: state, action) => {
         },
       }->StateReducer.update(~sideEffects=effects)
     }
-  | BillingCheckoutDismissed => {...state, billingFlow: Client__Billing.Idle}->StateReducer.update
+  | BillingCheckoutDismissed =>
+    next({...state, billingFlow: Client__Billing.Idle}, RequestBilling(Status))
   | BillingUrlReceived({tab, url, request}) =>
     {
       ...state,

@@ -21,11 +21,7 @@ afterEach(() => {
       ),
       ~to=Billing.statusSchema,
     )
-    force({
-      ...Reducer.defaultState,
-      connection: Client__ConnectionTestHelpers.ready(),
-      billingStatus: Loaded(billing),
-    })
+    force({...StateStore.getState(Client__State__Store.store), billingStatus: Loaded(billing)})
     render(<Client__SettingsModal__Tab__Billing />)
     await waitFor(() => t->expect(query("button")->Option.isSome)->Expect.toBe(true))
     let text = (container.contents->Option.getOrThrow :> DomTypes.node).textContent->Null.getOrThrow
@@ -62,7 +58,13 @@ afterEach(() => {
           calls.contents->Array.push((url, init.body))
           Promise.resolve(
             WebAPI.Response.fromString(
-              `{"url":"https://billing.stripe.test/session"}`,
+              switch url->String.endsWith("/status") {
+              | true =>
+                loaded(false, false)
+                ->S.decodeOrThrow(~from=Billing.statusSchema, ~to=S.json->S.noValidation(true))
+                ->JSON.stringify
+              | false => `{"url":"https://billing.stripe.test/session"}`
+              },
               ~init={status: 200},
             ),
           )
@@ -83,28 +85,17 @@ afterEach(() => {
           ->expect(navigations.contents)
           ->Expect.toEqual(["about:blank", "https://billing.stripe.test/session"]),
       )
-      t
-      ->expect(calls.contents)
-      ->Expect.toEqual([
-        (
-          "https://api.example/api/billing/checkout",
-          Some(
-            WebAPI.BodyInit.fromString(
-              switch interval {
-              | Monthly => `{"interval":"monthly"}`
-              | Yearly => `{"interval":"yearly"}`
-              },
-            ),
-          ),
-        ),
-      ])
-      t
-      ->expect(StateStore.getState(Client__State__Store.store).settingsModalTab)
-      ->Expect.toEqual(Some(Billing))
+      let body = switch interval {
+      | Monthly => `{"interval":"monthly"}`
+      | Yearly => `{"interval":"yearly"}`
+      }
+      let (url, requestBody) = calls.contents->Array.get(0)->Option.getOrThrow
+      t->expect(url)->Expect.toBe("https://api.example/api/billing/checkout")
+      t->expect(requestBody)->Expect.toEqual(Some(WebAPI.BodyInit.fromString(body)))
       t->expect(query("button[disabled]")->Option.isSome)->Expect.toBe(true)
       await page->getByRole("button", {name: "Canceled checkout? Choose again"})->click
       await button->click
-      await waitFor(() => t->expect(calls.contents->Array.length)->Expect.toBe(2))
+      await waitFor(() => t->expect(calls.contents->Array.length)->Expect.toBe(3))
       let state = StateStore.getState(Client__State__Store.store)
       t->expect(state.settingsModalTab)->Expect.toEqual(Some(Billing))
       t->expect(Client__State.Selectors.messages(state)->Array.length)->Expect.toBe(0)

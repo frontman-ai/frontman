@@ -147,14 +147,22 @@ testAsync("checkout waits for authoritative access and blocks duplicate launches
   )
   request(Checkout(Yearly))
   t->expect(calls.contents->Array.length)->Expect.toBe(1)
-  dispatch(
-    BillingStatusReceived(
-      S.parseOrThrow(JSON.parseOrThrow(statusJson("none", false)), ~to=Billing.statusSchema),
-    ),
+  let status = S.parseOrThrow(
+    JSON.parseOrThrow(statusJson("none", false)),
+    ~to=Billing.statusSchema,
   )
+  dispatch(BillingStatusReceived(status))
   t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.AwaitingCheckout)
+  dispatch(BillingStatusError({error: "Unavailable"}))
+  pending := Promise.withResolvers()
   dispatch(BillingCheckoutDismissed)
   t->expect(state.contents.billingFlow)->Expect.toEqual(Billing.Idle)
+  let (url, _) = calls.contents->Array.get(1)->Option.getOrThrow
+  t->expect(url)->Expect.toBe("https://api.example/api/billing/status")
+  pending.contents.resolve(response(200, statusJson("none", false)))
+  await waitFor(() =>
+    t->expect(state.contents.billingStatus)->Expect.toEqual(Billing.Loaded(status))
+  )
   state := {...state.contents, billingFlow: AwaitingCheckout}
   dispatch(
     BillingStatusReceived(
