@@ -7,8 +7,8 @@ open WebAPI
 type page
 type locator
 type userEvent
-type locatorOptions = {name: string, exact: bool}
-type screenshotOptions = {path: string}
+type locatorOptions = {@live name: string, @live exact: bool}
+type screenshotOptions = {@live path: string}
 @module("vitest/browser") external page: page = "page"
 @module("vitest/browser") external userEvent: userEvent = "userEvent"
 @send external getByRole: (page, string, locatorOptions) => locator = "getByRole"
@@ -54,6 +54,7 @@ let mount = () => {
     container->Element.remove
     stylesheet->Element.remove
   })
+  @live
   let render = (~score=None, ~comment="", ~submitting=false, ~error=?) =>
     root->ReactDOM.Client.Root.render(
       <Client__CustomerFeedbackPanel
@@ -207,9 +208,10 @@ testAsync("radio arrow keys follow ascending scores and remain parent-controlled
     let questionId = group->Element.getAttribute("aria-labelledby")->Null.getOrThrow
     let legend = DomGlobal.document->Document.getElementById(questionId)->Null.getOrThrow
     t->expect(legend.textContent->Null.getOrThrow)->Expect.toBe(question)
-    let _path = await byRole("region", "Feedback preview")->screenshot({
+    let path = await byRole("region", "Feedback preview")->screenshot({
       path: `../../../../.impeccable/review/nps-${width->Int.toString}-${theme}.png`,
     })
+    t->expect(path->String.endsWith(".png"))->Expect.toBe(true)
     await page->viewport(800, 600)
   })
 })
