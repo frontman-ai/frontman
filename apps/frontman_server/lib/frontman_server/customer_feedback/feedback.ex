@@ -4,7 +4,7 @@
 # Licensed under the AGPL-3.0 — see LICENSE for details.
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
-defmodule FrontmanServer.Tasks.CustomerFeedbackSchema do
+defmodule FrontmanServer.CustomerFeedback.Feedback do
   @moduledoc "Persistence for an issued customer feedback request and its optional answer."
 
   use Ecto.Schema
@@ -34,7 +34,7 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackSchema do
       where: feedback.inserted_at > ^cutoff or feedback.answered_at > ^cutoff
   end
 
-  def owned_call(user_id, interaction_id) do
+  def owned_interaction(user_id, interaction_id) do
     from interaction in InteractionSchema,
       join: task in TaskSchema,
       on: task.id == interaction.task_id,
@@ -51,14 +51,21 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackSchema do
     |> unique_constraint(:interaction_id)
   end
 
-  def answer_changeset(%__MODULE__{} = feedback, score, comment)
-      when is_integer(score) and score in 0..10 and (is_nil(comment) or is_binary(comment)) do
+  def answer_changeset(%__MODULE__{} = feedback, attrs) do
     feedback
-    |> change(score: score, comment: comment, answered_at: DateTime.utc_now())
-    |> validate_required([:score, :answered_at])
+    |> cast(attrs, [:score, :comment])
+    |> validate_required([:score])
     |> validate_number(:score, greater_than_or_equal_to: 0, less_than_or_equal_to: 10)
+    |> validate_change(:comment, fn :comment, comment ->
+      with true <- String.valid?(comment),
+           false <- String.contains?(comment, "\0") do
+        []
+      else
+        false -> [comment: "must be valid UTF-8"]
+        true -> [comment: "must not contain NUL characters"]
+      end
+    end)
     |> validate_length(:comment, max: 2000, count: :codepoints)
-    |> check_constraint(:score, name: :customer_feedback_answer)
-    |> check_constraint(:comment, name: :customer_feedback_comment_length)
+    |> put_change(:answered_at, DateTime.utc_now())
   end
 end
