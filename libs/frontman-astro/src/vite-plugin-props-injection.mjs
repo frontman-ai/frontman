@@ -53,12 +53,12 @@ function findClosingBrace(code, openingBrace) {
 }
 
 function findRenderComponent(code) {
-  const declaration = /\bfunction\s+renderComponent\s*\(([^)]*)\)\s*\{/g
+  const declaration = /\b(export\s+)?function\s+renderComponent\s*\(([^)]*)\)\s*\{/g
   const matches = [...code.matchAll(declaration)]
   if (matches.length !== 1) return null
 
   const match = matches[0]
-  const parameters = match[1].split(",").map(parameter => parameter.trim())
+  const parameters = match[2].split(",").map(parameter => parameter.trim())
   if (parameters.length !== 5) return null
 
   const nameStart = match.index + match[0].indexOf("renderComponent")
@@ -66,7 +66,7 @@ function findRenderComponent(code) {
   const closingBrace = findClosingBrace(code, openingBrace)
   if (closingBrace === -1) return null
 
-  return {nameStart, openingBrace, closingBrace}
+  return {nameStart, openingBrace, closingBrace, exportStart: match[1] ? match.index : null}
 }
 
 function hasMarkHTMLStringBinding(code) {
@@ -235,6 +235,10 @@ export function frontmanPropsInjectionPlugin() {
         output.overwrite(call.start, call.end, "__original_renderComponent")
       }
       output.append(wrapperCode)
+      if (renderComponent.exportStart !== null) {
+        output.remove(renderComponent.exportStart, renderComponent.exportStart + "export".length)
+        output.append("\nexport {renderComponent};\n")
+      }
 
       return {
         code: output.toString(),

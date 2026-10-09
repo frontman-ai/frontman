@@ -78,6 +78,6 @@ testAsync(
     await waitFor(() => t->expect(changes)->Expect.toEqual([true, false]))
     await textbox->fill("Another draft")
     await textbox->fill("")
-    t->expect(changes)->Expect.toEqual([true, false, true, false])
+    await waitFor(() => t->expect(changes)->Expect.toEqual([true, false, true, false]))
   },
 )
