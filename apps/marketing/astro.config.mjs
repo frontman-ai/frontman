@@ -266,6 +266,7 @@ export default defineConfig({
         if (/\/docs\/guides\/?$/.test(item.url)) return undefined;
         if (/\/docs\/reference\/env-vars\/?$/.test(item.url)) return undefined;
         if (/\/404\/?$/.test(item.url)) return undefined;
+        if (/\/tools\/?$/.test(item.url)) return undefined;
         if (item.url === "https://frontman.sh/wordpress/") return undefined;
 
         const blogMatch = item.url.match(/\/blog\/([^/]+)\/?$/);
