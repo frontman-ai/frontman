@@ -17,12 +17,12 @@ let run = effects =>
   effects->Array.forEach(effect =>
     Reducer.handleEffect(effect, ~dispatch=_ => (), ~delegate=_ => ())
   )
-let withTool = task =>
+let withTool = (task, ~id="feedback-1") =>
   next(
     task,
     ToolCallReceived({
       toolCall: {
-        id: "feedback-1",
+        id,
         toolName: Tool.name,
         state: InputAvailable,
         inputBuffer: "",
@@ -130,9 +130,40 @@ describe("Customer feedback integration", () => {
     run(effects)
     t->expect(old.contents)->Expect.toEqual(None)
     t->expect(fresh.contents->Option.isSome)->Expect.toBe(true)
-    let different = replay->next(receive(~id="feedback-2"))
-    t->expect(pending(different).score)->Expect.toEqual(None)
-    t->expect(pending(different).comment)->Expect.toBe("")
+  })
+
+  test("distinct pending call rejects without replacing the original draft or resolver", t => {
+    let answer = ref(None)
+    let rejected = ref(None)
+    let draft =
+      task()
+      ->withTool
+      ->withTool(~id="feedback-2")
+      ->next(receive(~resolveOk=json => answer := Some(json)))
+      ->next(CustomerFeedbackScoreChanged(0))
+      ->next(CustomerFeedbackCommentChanged("Keep this"))
+    let (kept, effects) = Reducer.next(
+      draft,
+      receive(~id="feedback-2", ~resolveError=error => rejected := Some(error)),
+    )
+    run(effects)
+    t
+    ->expect(rejected.contents)
+    ->Expect.toEqual(Some("Customer feedback is already pending in this task."))
+    t->expect(pending(kept))->Expect.toEqual(pending(draft))
+    t->expect(answer.contents)->Expect.toEqual(None)
+    let afterError = next(kept, ToolErrorReceived({id: "feedback-2", error: "Already pending"}))
+    t->expect(pending(afterError))->Expect.toEqual(pending(draft))
+    let afterResult = next(
+      afterError,
+      ToolResultReceived({id: "feedback-2", rawOutput: None, content: None, complete: true}),
+    )
+    t->expect(pending(afterResult))->Expect.toEqual(pending(draft))
+    let (_, submitted) = Reducer.next(afterResult, CustomerFeedbackSubmitted)
+    run(submitted)
+    t
+    ->expect(answer.contents->Option.getOrThrow->S.parseOrThrow(~to=Feedback.outputSchema))
+    ->Expect.toEqual(Feedback.Answered({score: 0, comment: Some("Keep this")}))
   })
 
   test("skip resumes through output, cancel rejects, canonical error closes without saving", t => {

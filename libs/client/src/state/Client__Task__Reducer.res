@@ -1260,6 +1260,18 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     Log.error(~ctx={"error": error}, "Task load failed")
     (Task.Unloaded({id, title, createdAt, updatedAt}), [])
 
+  | (
+      Task.Loaded({pendingCustomerFeedback: Some(draft)}),
+      CustomerFeedbackReceived({toolCallId, resolveError}),
+    ) if draft.toolCallId != toolCallId => (
+      task,
+      [
+        RejectQuestionToolEffect({
+          resolveError,
+          message: "Customer feedback is already pending in this task.",
+        }),
+      ],
+    )
   | (Task.Loaded(data), CustomerFeedbackReceived({toolCallId, resolveOk, resolveError})) =>
     let draft: Client__CustomerFeedback__Types.pending = switch data.pendingCustomerFeedback {
     | Some(draft) if draft.toolCallId == toolCallId => {
