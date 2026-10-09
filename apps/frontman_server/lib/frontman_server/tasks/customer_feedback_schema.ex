@@ -51,14 +51,21 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackSchema do
     |> unique_constraint(:interaction_id)
   end
 
-  def answer_changeset(%__MODULE__{} = feedback, score, comment)
-      when is_integer(score) and score in 0..10 and (is_nil(comment) or is_binary(comment)) do
+  def answer_changeset(%__MODULE__{} = feedback, attrs) do
     feedback
-    |> change(score: score, comment: comment, answered_at: DateTime.utc_now())
-    |> validate_required([:score, :answered_at])
+    |> cast(attrs, [:score, :comment])
+    |> validate_required([:score])
     |> validate_number(:score, greater_than_or_equal_to: 0, less_than_or_equal_to: 10)
+    |> validate_change(:comment, fn :comment, comment ->
+      with true <- String.valid?(comment),
+           false <- String.contains?(comment, "\0") do
+        []
+      else
+        false -> [comment: "must be valid UTF-8"]
+        true -> [comment: "must not contain NUL characters"]
+      end
+    end)
     |> validate_length(:comment, max: 2000, count: :codepoints)
-    |> check_constraint(:score, name: :customer_feedback_answer)
-    |> check_constraint(:comment, name: :customer_feedback_comment_length)
+    |> put_change(:answered_at, DateTime.utc_now())
   end
 end
