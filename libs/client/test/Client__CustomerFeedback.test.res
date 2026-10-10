@@ -33,8 +33,8 @@ let task = () =>
       },
     }),
   )
-let completed = (~id="feedback-1", ~complete=true) => Reducer.ToolResultReceived({
-  id,
+let completed = (~complete=true) => Reducer.ToolResultReceived({
+  id: "feedback-1",
   rawOutput: None,
   content: None,
   complete,
