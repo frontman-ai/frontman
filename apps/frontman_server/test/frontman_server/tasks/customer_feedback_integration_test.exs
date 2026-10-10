@@ -242,22 +242,27 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
     assert_receive {:tool_result, "feedback", _, false}
   end
 
-  test "tool identity belongs to the tool, not the feedback context", %{
+  test "feedback context validates tool identity and preserves pre-issuance errors", %{
     scope: scope,
     task_id: task_id
   } do
     request(scope, task_id, "ordinary", "ordinary_tool")
-    interaction = Repo.one!(InteractionSchema.of_type(:tool_call))
+
+    interaction =
+      task_id
+      |> InteractionSchema.for_task()
+      |> InteractionSchema.of_type(:tool_call)
+      |> Repo.one!()
 
     assert {:error, :invalid_tool_call} =
-             FrontmanServer.Tools.CustomerFeedback.record_request(scope, interaction)
+             CustomerFeedback.record_tool_request(scope, interaction)
 
     assert {:ok, _feedback} = CustomerFeedback.record_request(scope, interaction)
     error = FrontmanServer.Protocols.MCP.tool_result_error("Invalid feedback arguments")
-    assert {:ok, ^error} = FrontmanServer.Tools.CustomerFeedback.resolve(scope, nil, error)
+    assert {:ok, ^error} = CustomerFeedback.resolve(scope, nil, error)
 
     assert {:error, :not_found} =
-             FrontmanServer.Tools.CustomerFeedback.resolve(
+             CustomerFeedback.resolve(
                scope,
                nil,
                browser_result(%{"outcome" => "skipped"})

@@ -45,6 +45,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Agents
   alias FrontmanServer.Billing
+  alias FrontmanServer.CustomerFeedback
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.MCP
@@ -64,7 +65,6 @@ defmodule FrontmanServer.Tasks do
   }
 
   alias FrontmanServer.Tools
-  alias FrontmanServer.Tools.CustomerFeedback
   alias FrontmanServer.Workers.GenerateTitle
   alias SwarmAi.{Loop, Message}
   alias SwarmAi.Message.ContentPart
@@ -814,7 +814,7 @@ defmodule FrontmanServer.Tasks do
       existing = feedback_tool_call(task.id, turn_number, data.tool_call_id)
 
       with {:ok, row} <- insert_feedback_call(task, existing, data, turn_number),
-           {:ok, _feedback} <- CustomerFeedback.record_request(scope, row) do
+           {:ok, _feedback} <- CustomerFeedback.record_tool_request(scope, row) do
         {:ok, row}
       end
     end)
