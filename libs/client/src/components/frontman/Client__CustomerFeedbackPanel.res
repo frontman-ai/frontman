@@ -72,6 +72,7 @@ let make = (
             </span>
           </Client__UI__Field.Label>
           <Client__UI__Textarea
+            className="min-h-24 resize-y"
             id=commentId
             value=comment
             maxLength=2000

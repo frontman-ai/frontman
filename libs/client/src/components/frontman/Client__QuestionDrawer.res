@@ -69,12 +69,12 @@ module CustomTextInput = {
         <span className="text-[11px] text-zinc-500"> {React.string("or type your own")} </span>
         <div className="h-px flex-1 bg-zinc-700/50" />
       </div>
-      <textarea
+      <Client__UI__Textarea
         className={[
-          "w-full resize-none rounded-lg border px-3 py-2 text-[12px] text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-1 transition-all duration-100",
+          "resize-none text-[12px] md:text-[12px] text-zinc-200 placeholder:text-zinc-600 focus-visible:ring-1 transition-all duration-100",
           switch isCustomMode {
-          | true => "border-[#8051CD]/60 bg-[#8051CD]/10 focus:ring-[#8051CD]/40"
-          | false => "border-zinc-700/50 bg-zinc-900/50 focus:ring-zinc-600"
+          | true => "border-[#8051CD]/60 focus-visible:border-[#8051CD]/60 bg-[#8051CD]/10 dark:bg-[#8051CD]/10 focus-visible:ring-[#8051CD]/40"
+          | false => "border-zinc-700/50 focus-visible:border-zinc-700/50 bg-zinc-900/50 dark:bg-zinc-900/50 focus-visible:ring-zinc-600"
           },
         ]->Array.join(" ")}
         rows=2
