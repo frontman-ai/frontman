@@ -184,6 +184,34 @@ module Actions = {
   let acknowledgeCustomProviderMutation = () =>
     Client__State__Store.dispatch(AcknowledgeCustomProviderMutation)
 
+  let customerFeedbackReceived = (~taskId, ~toolCallId, ~resolveOk, ~resolveError) =>
+    Client__State__Store.dispatch(
+      TaskAction({
+        target: ForTask(taskId),
+        action: CustomerFeedbackReceived({toolCallId, resolveOk, resolveError}),
+      }),
+    )
+
+  let customerFeedbackScoreChanged = (~taskId, ~score) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: CustomerFeedbackScoreChanged(score)}),
+    )
+
+  let customerFeedbackCommentChanged = (~taskId, ~comment) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: CustomerFeedbackCommentChanged(comment)}),
+    )
+
+  let customerFeedbackSubmitted = (~taskId) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: CustomerFeedbackSubmitted}),
+    )
+
+  let customerFeedbackSkipped = (~taskId) =>
+    Client__State__Store.dispatch(
+      TaskAction({target: ForTask(taskId), action: CustomerFeedbackSkipped}),
+    )
+
   let questionReceived = (~taskId, ~questions, ~toolCallId, ~resolveOk, ~resolveError) =>
     Client__State__Store.dispatch(
       TaskAction({
