@@ -173,6 +173,9 @@ let make = (~onConfigureProvider: unit => unit) => {
 
   let hasPendingQuestion =
     Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
+  let pendingCustomerFeedback = Client__State.useSelector(
+    Client__State.Selectors.pendingCustomerFeedback,
+  )
   let hasAnnotations = Array.length(annotations) > 0
 
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
@@ -439,12 +442,34 @@ let make = (~onConfigureProvider: unit => unit) => {
     </fieldset>
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
-      {switch hasPendingQuestion {
-      | true =>
+      {switch (pendingCustomerFeedback, currentTaskId, hasPendingQuestion) {
+      | (Some(draft), Some(taskId), _) =>
+        <fieldset disabled={!hasActiveACPSession}>
+          <Client__CustomerFeedbackPanel
+            score={draft.score}
+            comment={draft.comment}
+            submitting={draft.submitting}
+            error=?{draft.error}
+            onScoreChanged={score =>
+              Client__State.Actions.customerFeedbackScoreChanged(~taskId, ~score)}
+            onCommentChanged={comment =>
+              Client__State.Actions.customerFeedbackCommentChanged(~taskId, ~comment)}
+            onSubmit={() => Client__State.Actions.customerFeedbackSubmitted(~taskId)}
+            onSkip={() => Client__State.Actions.customerFeedbackSkipped(~taskId)}
+          />
+          <Client__UI__Button
+            variant=Ghost
+            className="w-full min-h-11"
+            onClick={_ => Client__State.Actions.cancelTurn()}
+          >
+            {React.string("Cancel (stop agent)")}
+          </Client__UI__Button>
+        </fieldset>
+      | (_, _, true) =>
         <fieldset disabled={!hasActiveACPSession}>
           <Client__QuestionDrawer />
         </fieldset>
-      | false =>
+      | (_, _, false) =>
         <PromptInput
           onSubmit={handleSubmit}
           disabled={isSubmitting}

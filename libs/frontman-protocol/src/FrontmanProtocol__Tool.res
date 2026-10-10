@@ -52,6 +52,7 @@ module ToolNames = {
   let getDom = "get_dom"
   let searchText = "search_text"
   let question = "question"
+  let requestCustomerFeedback = "request_customer_feedback"
   let getAstroAudit = "get_astro_audit"
 }
 

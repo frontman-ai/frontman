@@ -523,6 +523,13 @@ module Selectors = {
     state.customProviderMutation
   }
 
+  let pendingCustomerFeedback = (state: state): option<Client__CustomerFeedback__Types.pending> =>
+    switch state.currentTask {
+    | Task.Selected(id) =>
+      state.tasks->Dict.get(id)->Option.flatMap(TaskReducer.Selectors.pendingCustomerFeedback)
+    | Task.New(_) => None
+    }
+
   let pendingQuestion = (state: state): option<Client__Question__Types.pendingQuestion> => {
     switch state.currentTask {
     | Task.Selected(id) =>
@@ -2048,7 +2055,15 @@ let clearConnectionState = (state: state) => {
   updatedTasks->Dict.forEachWithKey((task, taskId) => {
     switch task {
     | Task.Loaded(data) =>
-      updatedTasks->Dict.set(taskId, Task.Loaded({...data, pendingQuestion: None}))
+      let pendingCustomerFeedback = data.pendingCustomerFeedback->Option.map(draft => {
+        ...draft,
+        submitting: false,
+        error: Some("Feedback could not be confirmed. Reconnect to continue."),
+      })
+      updatedTasks->Dict.set(
+        taskId,
+        Task.Loaded({...data, pendingQuestion: None, pendingCustomerFeedback}),
+      )
     | Task.New(_) | Task.Unloaded(_) | Task.Loading(_) => ()
     }
   })
