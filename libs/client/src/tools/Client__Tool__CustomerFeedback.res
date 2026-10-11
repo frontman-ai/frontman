@@ -5,7 +5,7 @@ let name = Tool.ToolNames.requestCustomerFeedback
 let access = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Write
 let visibleToAgent = true
 let executionMode = FrontmanAiFrontmanProtocol.FrontmanProtocol__Tool.Interactive
-let description = `Request optional customer feedback about Frontman at a meaningful result checkpoint. The user sees a fixed recommendation question, scores 0..10, an optional comment, and Skip. Do not ask on the first message or automatically on failure. If the user is dissatisfied, follow the server's guidance and continue helping; never request a revised score.`
+let description = `After completing and verifying a useful change, call this tool before your final response, even during the first turn. Do not request feedback on a greeting alone, before doing useful work, or while blocked. The user sees a fixed recommendation question about Frontman, scores 0..10, an optional comment, and Skip. After the user answers or skips, continue according to the server's guidance. Never request another rating in the same task or a revised score.`
 
 type input = unit
 let inputSchema = S.object(_ => ())->S.strict

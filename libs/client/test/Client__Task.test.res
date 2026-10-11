@@ -1004,6 +1004,52 @@ describe("Task - Interactive wait contract", () => {
     )
   })
 
+  test("feedback stays pending until the server confirms the result", t => {
+    let resolved = ref(None)
+    let (withCall, _) = TaskReducer.next(
+      TestHelpers.makeLoadedTask(),
+      ToolCallReceived({
+        toolCall: {
+          id: "feedback-1",
+          toolName: Client__Tool__CustomerFeedback.name,
+          state: InputAvailable,
+          inputBuffer: "",
+          input: None,
+          result: None,
+          errorText: None,
+          parentAgentId: None,
+          spawningToolName: None,
+        },
+      }),
+    )
+    let (waiting, _) = TaskReducer.next(
+      withCall,
+      CustomerFeedbackReceived({
+        toolCallId: "feedback-1",
+        resolveOk: json => resolved := Some(json),
+        resolveError: _ => failwith("Unexpected feedback rejection"),
+      }),
+    )
+    let (selected, _) = TaskReducer.next(waiting, CustomerFeedbackScoreChanged(0))
+    let (submitted, effects) = TaskReducer.next(selected, CustomerFeedbackSubmitted)
+    runEffects(effects)
+    t
+    ->expect(resolved.contents)
+    ->Expect.toEqual(Some(JSON.parseOrThrow(`{"outcome":"answered","score":0}`)))
+    let draft = TaskReducer.Selectors.pendingCustomerFeedback(submitted)->Option.getOrThrow
+    t->expect(draft.submitting)->Expect.toBe(true)
+    let (confirmed, _) = TaskReducer.next(
+      submitted,
+      ToolResultReceived({
+        id: "feedback-1",
+        rawOutput: None,
+        content: None,
+        complete: true,
+      }),
+    )
+    t->expect(TaskReducer.Selectors.pendingCustomerFeedback(confirmed))->Expect.toEqual(None)
+  })
+
   test("historical requires_action replays without reopening the turn", t => {
     let (history, _) = TaskReducer.next(
       TestHelpers.makeLoadingTask(),

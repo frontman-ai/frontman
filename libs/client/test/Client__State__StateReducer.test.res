@@ -139,6 +139,26 @@ module TestHelpers = {
   }
 }
 
+test("disconnect preserves feedback but resets an unconfirmed submission", t => {
+  let waiting = [
+    TaskReducer.CustomerFeedbackReceived({
+      toolCallId: "feedback-1",
+      resolveOk: _ => (),
+      resolveError: _ => (),
+    }),
+    TaskReducer.CustomerFeedbackScoreChanged(0),
+    TaskReducer.CustomerFeedbackCommentChanged("Keep this comment"),
+    TaskReducer.CustomerFeedbackSubmitted,
+  ]->Array.reduce(TestHelpers.makeStateWithTask(), (state, action) =>
+    Reducer.next(state, TaskAction({target: ForTask("test-task-1"), action}))->Pair.first
+  )
+  let (disconnected, _) = Reducer.next(waiting, ConnectionAction(Dispose))
+  let draft = Reducer.Selectors.pendingCustomerFeedback(disconnected)->Option.getOrThrow
+  t
+  ->expect((draft.score, draft.comment, draft.submitting, draft.error->Option.isSome))
+  ->Expect.toEqual((Some(0), "Keep this comment", false, true))
+})
+
 describe("Client State Reducer - Integration Updates", () => {
   let wordpress = StateTypes.WordPressPlugin
   let npm = StateTypes.NpmPackage("@frontman-ai/nextjs")
