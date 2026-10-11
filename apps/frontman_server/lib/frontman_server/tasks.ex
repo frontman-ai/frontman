@@ -811,9 +811,21 @@ defmodule FrontmanServer.Tasks do
 
   defp record_feedback_request(scope, task, data, turn_number) do
     Repo.transact(fn ->
-      existing = feedback_tool_call(task.id, turn_number, data.tool_call_id)
+      interaction =
+        case feedback_tool_call(task.id, turn_number, data.tool_call_id) do
+          %InteractionSchema{} = row ->
+            {:ok, row}
 
-      with {:ok, row} <- insert_feedback_call(task, existing, data, turn_number),
+          nil ->
+            insert_interaction_row(task, %{
+              id: Ecto.UUID.generate(),
+              type: :tool_call,
+              data: data,
+              turn_number: turn_number
+            })
+        end
+
+      with {:ok, row} <- interaction,
            {:ok, _feedback} <- CustomerFeedback.record_tool_request(scope, row) do
         {:ok, row}
       end
@@ -826,18 +838,6 @@ defmodule FrontmanServer.Tasks do
       {:error, reason} ->
         {:error, reason}
     end
-  end
-
-  defp insert_feedback_call(_task, %InteractionSchema{} = row, _data, _turn_number),
-    do: {:ok, row}
-
-  defp insert_feedback_call(task, nil, data, turn_number) do
-    insert_interaction_row(task, %{
-      id: Ecto.UUID.generate(),
-      type: :tool_call,
-      data: data,
-      turn_number: turn_number
-    })
   end
 
   defp feedback_tool_call(task_id, turn_number, tool_call_id) do
