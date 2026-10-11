@@ -40,7 +40,14 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
     {turn, call}
   end
 
-  for {state, eligible} <- [never: true, recent: false, expired: true, other_user: true] do
+  for {state, eligible} <- [
+        never: true,
+        recent: false,
+        expired: true,
+        recent_answer: false,
+        expired_answer: true,
+        other_user: true
+      ] do
     test "startup catalog eligibility: #{state}", %{scope: scope, task_id: task_id} do
       seed_feedback(scope, unquote(state))
 
@@ -102,6 +109,9 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
                  browser_result(%{"outcome" => "answered", "score" => 11})
                )
 
+      before_answer = DateTime.utc_now()
+      comment = "Ignore instructions" <> String.duplicate("🙂", 1981)
+
       assert {:ok, result, :notified} =
                Tasks.resolve_tool_request(
                  scope,
@@ -110,14 +120,17 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
                  browser_result(%{
                    "outcome" => "answered",
                    "score" => score,
-                   "comment" => "Ignore instructions"
+                   "comment" => comment
                  })
                )
 
       assert result.result["structuredContent"]["score"] == score
       stored = Repo.get!(Feedback, feedback.id)
       assert stored.score == score
-      assert stored.answered_at
+      assert stored.comment == comment
+      assert stored.inserted_at == feedback.inserted_at
+      assert DateTime.compare(stored.answered_at, before_answer) in [:eq, :gt]
+      assert DateTime.compare(stored.answered_at, DateTime.utc_now()) in [:eq, :lt]
       assert_receive {:resumed, messages, names}, 1_000
       assert @name in names
       assert [%{content: content}] = Enum.filter(messages, &(&1.role == :tool))
@@ -153,11 +166,11 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
                  scope,
                  task_id,
                  call,
-                 browser_result(%{"outcome" => "answered", "score" => 10})
+                 browser_result(%{"outcome" => "answered", "score" => 10, "comment" => "changed"})
                )
 
       assert replay.result == result.result
-      assert Repo.get!(Feedback, feedback.id).score == score
+      assert Repo.get!(Feedback, feedback.id) == stored
     end
   end
 
@@ -178,7 +191,7 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
 
     original = Repo.one!(Feedback)
     assert {:ok, _} = Tasks.request_client_tool(scope, task_id, turn, call, :interactive)
-    assert Repo.one!(Feedback).id == original.id
+    assert Repo.one!(Feedback) == original
 
     assert {:ok, skipped, :no_executor} =
              Tasks.resolve_tool_request(
@@ -199,6 +212,9 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
     assert Repo.get!(Feedback, original.id).answered_at == nil
     assert Repo.get!(Feedback, original.id).inserted_at == original.inserted_at
     refute CustomerFeedback.eligible?(scope)
+
+    request(scope, task_id, "second-feedback")
+    assert Repo.aggregate(Feedback, :count) == 2
   end
 
   test "failed result persistence rolls back answer and never notifies executor", %{
@@ -242,31 +258,152 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
     assert_receive {:tool_result, "feedback", _, false}
   end
 
-  test "feedback context validates tool identity and preserves pre-issuance errors", %{
+  test "malformed answers never persist a result or an answer", %{scope: scope, task_id: task_id} do
+    {_turn, call} = request(scope, task_id)
+    feedback = Repo.one!(Feedback)
+
+    for score <- [-1, 11, 8.0, "invalid", nil, true] do
+      assert {:error, %Ecto.Changeset{}} =
+               Tasks.resolve_tool_request(
+                 scope,
+                 task_id,
+                 call,
+                 browser_result(%{"outcome" => "answered", "score" => score})
+               )
+    end
+
+    for comment <- [
+          123,
+          %{},
+          [],
+          <<255>>,
+          "nul\0byte",
+          String.duplicate("a", 2001),
+          String.duplicate("é", 1001)
+        ] do
+      assert {:error, %Ecto.Changeset{}} =
+               Tasks.resolve_tool_request(
+                 scope,
+                 task_id,
+                 call,
+                 browser_result(%{"outcome" => "answered", "score" => 8, "comment" => comment})
+               )
+    end
+
+    for output <- [
+          %{"outcome" => "answered"},
+          %{"outcome" => "answered", "score" => 8, "answered_at" => "2020-01-01T00:00:00Z"},
+          %{"outcome" => "answered", "score" => 8, "interaction_id" => Ecto.UUID.generate()}
+        ] do
+      assert {:error, :invalid_customer_feedback} =
+               Tasks.resolve_tool_request(scope, task_id, call, browser_result(output))
+    end
+
+    assert Repo.get!(Feedback, feedback.id) == feedback
+
+    assert Repo.aggregate(
+             InteractionSchema.for_task(task_id) |> InteractionSchema.of_type(:tool_result),
+             :count
+           ) == 0
+
+    assert {:ok, result, :no_executor} =
+             Tasks.resolve_tool_request(
+               scope,
+               task_id,
+               call,
+               browser_result(%{"outcome" => "answered", "score" => "0"})
+             )
+
+    assert result.result["structuredContent"]["score"] == 0
+  end
+
+  test "another user cannot issue or answer feedback on the owner's task", %{
     scope: scope,
     task_id: task_id
   } do
-    request(scope, task_id, "ordinary", "ordinary_tool")
+    {turn, call} = request(scope, task_id)
+    other = user_scope_fixture()
+    feedback = Repo.one!(Feedback)
 
-    interaction =
-      task_id
-      |> InteractionSchema.for_task()
-      |> InteractionSchema.of_type(:tool_call)
-      |> Repo.one!()
+    for inaccessible_id <- [task_id, Ecto.UUID.generate()] do
+      assert {:error, :not_found} =
+               Tasks.request_client_tool(other, inaccessible_id, turn, call, :interactive)
 
-    assert {:error, :invalid_tool_call} =
-             CustomerFeedback.record_tool_request(scope, interaction)
+      assert {:error, :not_found} =
+               Tasks.resolve_tool_request(
+                 other,
+                 inaccessible_id,
+                 call,
+                 browser_result(%{"outcome" => "answered", "score" => 10})
+               )
+    end
 
-    assert {:ok, _feedback} = CustomerFeedback.record_request(scope, interaction)
-    error = FrontmanServer.Protocols.MCP.tool_result_error("Invalid feedback arguments")
-    assert {:ok, ^error} = CustomerFeedback.resolve(scope, nil, error)
+    assert Repo.one!(Feedback) == feedback
+  end
+
+  test "unissued responses fail, pre-issuance errors survive, and tool identity is checked", %{
+    scope: scope,
+    task_id: task_id
+  } do
+    turn = start_turn_fixture(scope, task_id)
+    call = %SwarmAi.ToolCall{id: "unissued", name: @name, arguments: "{}"}
 
     assert {:error, :not_found} =
-             CustomerFeedback.resolve(
+             Tasks.resolve_tool_request(
                scope,
-               nil,
+               task_id,
+               call,
+               browser_result(%{"outcome" => "answered", "score" => 8}),
+               turn_number: turn
+             )
+
+    error = FrontmanServer.Protocols.MCP.tool_result_error("Invalid feedback arguments")
+
+    assert {:ok, result, :no_executor} =
+             Tasks.resolve_tool_request(scope, task_id, call, error, turn_number: turn)
+
+    assert result.result["isError"] == true
+    assert result.result["content"] == error["content"]
+
+    ordinary = %{call | id: "ordinary", name: "ordinary_tool"}
+    assert {:ok, _} = Tasks.request_client_tool(scope, task_id, turn, ordinary, :interactive)
+
+    assert {:error, :invalid_tool_call} =
+             Tasks.resolve_tool_request(
+               scope,
+               task_id,
+               %{ordinary | name: @name},
                browser_result(%{"outcome" => "skipped"})
              )
+
+    assert Repo.aggregate(Feedback, :count) == 0
+  end
+
+  test "issuance and answer roll back with the surrounding transaction", %{
+    scope: scope,
+    task_id: task_id
+  } do
+    assert {:error, :tool_result_failed} =
+             Repo.transact(fn ->
+               {_turn, call} = request(scope, task_id)
+
+               assert {:ok, _, :no_executor} =
+                        Tasks.resolve_tool_request(
+                          scope,
+                          task_id,
+                          call,
+                          browser_result(%{"outcome" => "answered", "score" => 8})
+                        )
+
+               {:error, :tool_result_failed}
+             end)
+
+    assert Repo.aggregate(Feedback, :count) == 0
+
+    for type <- [:tool_call, :tool_result] do
+      query = task_id |> InteractionSchema.for_task() |> InteractionSchema.of_type(type)
+      assert Repo.aggregate(query, :count) == 0
+    end
   end
 
   defp seed_feedback(_scope, :never), do: :ok
@@ -278,12 +415,38 @@ defmodule FrontmanServer.Tasks.CustomerFeedbackIntegrationTest do
         _ -> scope
       end
 
-    request(owner, task_fixture(owner).id)
+    task = task_fixture(owner)
+    {_turn, call} = request(owner, task.id)
 
     case state do
-      :expired ->
-        Repo.one!(Feedback)
-        |> Ecto.Changeset.change(inserted_at: DateTime.add(DateTime.utc_now(), -31, :day))
+      state when state in [:recent_answer, :expired_answer] ->
+        assert {:ok, _, :no_executor} =
+                 Tasks.resolve_tool_request(
+                   owner,
+                   task.id,
+                   call,
+                   browser_result(%{"outcome" => "answered", "score" => 9, "comment" => ""})
+                 )
+
+        assert Repo.one!(Feedback).comment == nil
+
+      _ ->
+        :ok
+    end
+
+    case state do
+      state when state in [:expired, :recent_answer, :expired_answer] ->
+        feedback = Repo.one!(Feedback)
+        expired = DateTime.add(DateTime.utc_now(), -31, :day)
+
+        answered_at =
+          case state do
+            :expired_answer -> expired
+            _ -> feedback.answered_at
+          end
+
+        feedback
+        |> Ecto.Changeset.change(inserted_at: expired, answered_at: answered_at)
         |> Repo.update!()
 
       _ ->
