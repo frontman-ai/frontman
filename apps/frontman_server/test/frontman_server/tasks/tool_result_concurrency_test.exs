@@ -63,7 +63,7 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
     end)
   end
 
-  test "concurrent responses have unique sequences and tool results converge" do
+  test "concurrent dispatches and results converge with unique sequences" do
     Sandbox.unboxed_run(Repo, fn ->
       scope = user_scope_fixture()
 
@@ -80,6 +80,17 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
 
                 receive do
                   :resolve ->
+                    call = %SwarmAi.ToolCall{id: "call_dedup", name: "some_tool", arguments: "{}"}
+
+                    assert {:ok, _} =
+                             Tasks.request_client_tool(
+                               scope,
+                               task_id,
+                               turn_number,
+                               call,
+                               :synchronous
+                             )
+
                     assert {:ok, _} = Tasks.agent_replied(scope, task_id, turn_number, result)
                     resolve(scope, task_id, turn_number, result)
                 after
@@ -112,9 +123,12 @@ defmodule FrontmanServer.Tasks.ToolResultConcurrencyTest do
         {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
         sequences = Enum.map(task.interaction_rows, & &1.sequence)
-        assert length(sequences) == 5
+        assert length(sequences) == 6
         assert sequences == Enum.sort(Enum.uniq(sequences))
         assert Enum.all?(sequences, &(&1 > 0))
+
+        assert [%Interaction.ToolCall{tool_call_id: "call_dedup"}] =
+                 Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolCall{}, &1))
 
         assert [^canonical] =
                  Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))

@@ -424,7 +424,7 @@ defmodule FrontmanServer.Tasks do
     results =
       Enum.map(interrupted, fn {call, _dispatch} ->
         {:ok, {row, true}} =
-          store_tool_result(nil, task, turn_number, call, MCP.tool_result_error(reason))
+          store_tool_result(task, turn_number, call, MCP.tool_result_error(reason))
 
         row
       end)
@@ -796,56 +796,35 @@ defmodule FrontmanServer.Tasks do
       )
       when is_integer(turn_number) and turn_number > 0 and
              execution_mode in [:synchronous, :interactive] do
-    with {:ok, schema} <- get_task(scope, task_id),
-         :ok <- CustomerFeedback.validate_arguments(tool_call_data),
-         {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
-      case tool_call_data.name do
-        "request_customer_feedback" ->
-          record_feedback_request(scope, schema, attrs, turn_number)
-
-        _name ->
-          record_interaction(schema, :tool_call, attrs, turn_number)
-      end
-    end
-  end
-
-  defp record_feedback_request(scope, task, data, turn_number) do
     Repo.transact(fn ->
-      interaction =
-        case feedback_tool_call(task.id, turn_number, data.tool_call_id) do
-          %InteractionSchema{} = row ->
-            {:ok, row}
-
-          nil ->
-            insert_interaction_row(task, %{
-              id: Ecto.UUID.generate(),
-              type: :tool_call,
-              data: data,
-              turn_number: turn_number
-            })
-        end
-
-      with {:ok, row} <- interaction,
-           {:ok, _feedback} <- CustomerFeedback.record_tool_request(scope, row) do
-        {:ok, row}
+      with %TaskSchema{} = task <- get_task_by_id_for_update(scope, task_id),
+           {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode),
+           nil <-
+             InteractionSchema.for_task(task_id)
+             |> InteractionSchema.for_turn(turn_number)
+             |> InteractionSchema.of_type(:tool_call)
+             |> InteractionSchema.data_equals("tool_call_id", tool_call_data.id)
+             |> Repo.one() do
+        insert_interaction_row(task, %{
+          id: Ecto.UUID.generate(),
+          type: :tool_call,
+          data: attrs,
+          turn_number: turn_number
+        })
+      else
+        %InteractionSchema{} = row -> {:ok, row}
+        nil -> {:error, :not_found}
+        {:error, reason} -> {:error, reason}
       end
     end)
     |> case do
       {:ok, row} ->
-        broadcast_task(task.id, {:interaction, row})
+        broadcast_task(task_id, {:interaction, row})
         {:ok, row.data}
 
       {:error, reason} ->
         {:error, reason}
     end
-  end
-
-  defp feedback_tool_call(task_id, turn_number, tool_call_id) do
-    InteractionSchema.for_task(task_id)
-    |> InteractionSchema.for_turn(turn_number)
-    |> InteractionSchema.of_type(:tool_call)
-    |> InteractionSchema.data_equals("tool_call_id", tool_call_id)
-    |> Repo.one()
   end
 
   @doc """
@@ -870,7 +849,7 @@ defmodule FrontmanServer.Tasks do
       case get_task_by_id_for_update(scope, task_id) do
         %TaskSchema{} = task ->
           turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
-          store_tool_result(scope, task, turn_number, tool_call_data, result)
+          store_tool_result(task, turn_number, tool_call_data, result)
 
         nil ->
           {:error, :not_found}
@@ -886,7 +865,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp store_tool_result(scope, task, turn_number, tool_call, result) do
+  defp store_tool_result(task, turn_number, tool_call, result) do
     existing =
       InteractionSchema.for_task(task.id)
       |> InteractionSchema.for_turn(turn_number)
@@ -901,14 +880,26 @@ defmodule FrontmanServer.Tasks do
       nil ->
         {:ok, history} = load_history(task.id)
 
+        dispatch =
+          Enum.find_value(history.rows, fn
+            %InteractionSchema{
+              turn_number: ^turn_number,
+              data: %Interaction.ToolCall{tool_call_id: id} = call
+            }
+            when id == tool_call.id ->
+              call
+
+            _row ->
+              nil
+          end)
+
         with ^turn_number <- History.active_turn_number(history),
-             {:ok, result} <-
-               canonical_feedback_result(scope, task.id, turn_number, tool_call, result),
+             {:ok, attrs} <- Interaction.ToolResult.attrs(tool_call, result, dispatch),
              {:ok, row} <-
                insert_interaction_row(task, %{
                  id: Ecto.UUID.generate(),
                  type: :tool_result,
-                 data: Interaction.ToolResult.attrs(tool_call, result),
+                 data: attrs,
                  turn_number: turn_number
                }) do
           {:ok, {row, true}}
@@ -918,19 +909,6 @@ defmodule FrontmanServer.Tasks do
         end
     end
   end
-
-  defp canonical_feedback_result(
-         scope,
-         task_id,
-         turn_number,
-         %{name: "request_customer_feedback", id: id},
-         result
-       ) do
-    CustomerFeedback.resolve(scope, feedback_tool_call(task_id, turn_number, id), result)
-  end
-
-  defp canonical_feedback_result(_scope, _task_id, _turn_number, _tool_call, result),
-    do: {:ok, result}
 
   defp publish_tool_result(task_id, row, true) do
     broadcast_task(task_id, {:interaction, row})
