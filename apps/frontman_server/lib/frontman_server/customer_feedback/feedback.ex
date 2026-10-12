@@ -5,9 +5,10 @@
 # Additional terms apply — see AI-SUPPLEMENTARY-TERMS.md
 
 defmodule FrontmanServer.CustomerFeedback.Feedback do
-  @moduledoc "Read-only eligibility projection, including feedback issued before interaction wiring."
+  @moduledoc "Persistence for an issued customer feedback request and its optional answer."
 
   use Ecto.Schema
+  import Ecto.Changeset
   import Ecto.Query
 
   alias FrontmanServer.Tasks.InteractionSchema
@@ -15,6 +16,8 @@ defmodule FrontmanServer.CustomerFeedback.Feedback do
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
+  @type t :: %__MODULE__{}
+
   schema "customer_feedback" do
     belongs_to :interaction, InteractionSchema
     field :score, :integer
@@ -24,34 +27,54 @@ defmodule FrontmanServer.CustomerFeedback.Feedback do
   end
 
   def recent_for_user(user_id, cutoff) do
-    legacy =
-      from feedback in __MODULE__,
-        join: interaction in InteractionSchema,
-        on: interaction.id == feedback.interaction_id,
-        join: task in TaskSchema,
-        on: task.id == interaction.task_id,
-        where: task.user_id == ^user_id,
-        where: feedback.inserted_at > ^cutoff or feedback.answered_at > ^cutoff,
-        select: 1
-
-    from request in InteractionSchema,
-      join: task in assoc(request, :task),
-      left_join: answer in InteractionSchema,
-      on:
-        answer.task_id == request.task_id and answer.turn_number == request.turn_number and
-          answer.type == :tool_result and
-          fragment("?->>'tool_call_id'", answer.data) ==
-            fragment("?->>'tool_call_id'", request.data) and
-          fragment("?->>'tool_name'", answer.data) == "request_customer_feedback" and
-          fragment("?->>'is_error'", answer.data) == "false" and
-          fragment("?->'result'->'structuredContent'->>'outcome'", answer.data) == "answered",
+    from feedback in __MODULE__,
+      join: interaction in assoc(feedback, :interaction),
+      join: task in assoc(interaction, :task),
       where: task.user_id == ^user_id,
-      where: request.type == :tool_call,
-      where: fragment("?->>'tool_name'", request.data) == "request_customer_feedback",
-      where:
-        fragment("(?->>'timestamp')::timestamptz", request.data) > ^cutoff or
-          fragment("(?->>'timestamp')::timestamptz", answer.data) > ^cutoff,
-      select: 1,
-      union_all: ^legacy
+      where: feedback.inserted_at > ^cutoff or feedback.answered_at > ^cutoff
+  end
+
+  def owned_interaction(user_id, interaction_id) do
+    from interaction in InteractionSchema,
+      join: task in TaskSchema,
+      on: task.id == interaction.task_id,
+      where: interaction.id == ^interaction_id and task.user_id == ^user_id
+  end
+
+  def tool_request(user_id, task_id, turn_number, tool_call_id) do
+    from interaction in InteractionSchema,
+      join: task in assoc(interaction, :task),
+      where: task.user_id == ^user_id and task.id == ^task_id,
+      where: interaction.turn_number == ^turn_number and interaction.type == :tool_call,
+      where: fragment("?->>'tool_call_id'", interaction.data) == ^tool_call_id,
+      where: fragment("?->>'tool_name'", interaction.data) == "request_customer_feedback"
+  end
+
+  def unanswered(id), do: from(f in __MODULE__, where: f.id == ^id and is_nil(f.answered_at))
+
+  def request_changeset(%__MODULE__{} = feedback) do
+    feedback
+    |> change()
+    |> validate_required([:interaction_id])
+    |> foreign_key_constraint(:interaction_id)
+    |> unique_constraint(:interaction_id)
+  end
+
+  def answer_changeset(%__MODULE__{} = feedback, attrs) do
+    feedback
+    |> cast(attrs, [:score, :comment])
+    |> validate_required([:score])
+    |> validate_number(:score, greater_than_or_equal_to: 0, less_than_or_equal_to: 10)
+    |> validate_change(:comment, fn :comment, comment ->
+      with true <- String.valid?(comment),
+           false <- String.contains?(comment, "\0") do
+        []
+      else
+        false -> [comment: "must be valid UTF-8"]
+        true -> [comment: "must not contain NUL characters"]
+      end
+    end)
+    |> validate_length(:comment, max: 2000, count: :codepoints)
+    |> put_change(:answered_at, DateTime.utc_now())
   end
 end
