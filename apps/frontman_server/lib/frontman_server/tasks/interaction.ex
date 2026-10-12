@@ -816,20 +816,22 @@ defmodule FrontmanServer.Tasks.Interaction do
 
     def attrs(%SwarmAi.ToolCall{} = tc, execution_mode)
         when execution_mode in [:synchronous, :interactive] do
-      tc = SwarmAi.ToolCall.strip_null_arguments(tc)
+      with :ok <- Interaction.CustomerFeedback.validate_arguments(tc) do
+        tc = SwarmAi.ToolCall.strip_null_arguments(tc)
 
-      case SwarmAi.ToolCall.parse_arguments(tc) do
-        {:ok, arguments} ->
-          {:ok,
-           %{
-             tool_call_id: tc.id,
-             tool_name: tc.name,
-             arguments: arguments,
-             execution_mode: execution_mode
-           }}
+        case SwarmAi.ToolCall.parse_arguments(tc) do
+          {:ok, arguments} ->
+            {:ok,
+             %{
+               tool_call_id: tc.id,
+               tool_name: tc.name,
+               arguments: arguments,
+               execution_mode: execution_mode
+             }}
 
-        {:error, message} ->
-          {:error, {:invalid_tool_arguments, message}}
+          {:error, message} ->
+            {:error, {:invalid_tool_arguments, message}}
+        end
       end
     end
   end
@@ -873,6 +875,14 @@ defmodule FrontmanServer.Tasks.Interaction do
         result: result
       }
     end
+
+    def attrs(%{name: "request_customer_feedback"} = tool_call, result, dispatch) do
+      with {:ok, result} <- Interaction.CustomerFeedback.result(dispatch, result) do
+        {:ok, attrs(tool_call, result)}
+      end
+    end
+
+    def attrs(tool_call, result, _dispatch), do: {:ok, attrs(tool_call, result)}
 
     defp scrub_result_metadata(changeset) do
       case get_change(changeset, :result) do
