@@ -5,6 +5,7 @@
 import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { relative, resolve } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
+import { stopProcess } from "./real-services.js";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
 
@@ -96,7 +97,7 @@ async function waitForReady(
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  proc.kill("SIGTERM");
+  await stopProcess(proc);
   throw new Error(
     `[e2e] ${label} at ${url} did not become ready within ${timeoutMs}ms`,
   );
@@ -146,6 +147,7 @@ export async function startNextjs(port: number): Promise<FrameworkServer> {
       cwd: fixtureDir,
       env: { ...process.env, PORT: String(port) } as NodeJS.ProcessEnv,
       stdio: "pipe",
+      detached: true,
     },
   );
 
@@ -168,7 +170,7 @@ export async function startAstro(port: number): Promise<FrameworkServer> {
   killPort(port);
 
   const astroBin = resolveBin(fixtureDir, "astro");
-  const astroEnv = { ...process.env, ASTRO_DEV_BACKGROUND: "0" };
+  const astroEnv: NodeJS.ProcessEnv = { ...process.env, ASTRO_DEV_BACKGROUND: "0" };
   delete astroEnv.VITEST;
   const proc = spawn(
     process.execPath,
@@ -177,6 +179,7 @@ export async function startAstro(port: number): Promise<FrameworkServer> {
       cwd: fixtureDir,
       env: astroEnv,
       stdio: "pipe",
+      detached: true,
     },
   );
 
@@ -204,6 +207,7 @@ export async function startVite(port: number): Promise<FrameworkServer> {
       cwd: fixtureDir,
       env: { ...process.env } as NodeJS.ProcessEnv,
       stdio: "pipe",
+      detached: true,
     },
   );
 
@@ -231,6 +235,7 @@ export async function startVueVite(port: number): Promise<FrameworkServer> {
       cwd: fixtureDir,
       env: { ...process.env } as NodeJS.ProcessEnv,
       stdio: "pipe",
+      detached: true,
     },
   );
 
@@ -252,23 +257,12 @@ export async function stopFramework(
 ): Promise<void> {
   if (!server) return;
 
-  server.proc.kill("SIGTERM");
-  const fixturePath = relative(ROOT, server.fixtureDir);
-
   try {
-    execSync(`git checkout -- "${fixturePath}"`, {
-      cwd: ROOT,
-      stdio: "pipe",
-    });
-  } catch {
-  }
-
-  try {
-    execSync(`git clean -fd -- "${fixturePath}"`, {
-      cwd: ROOT,
-      stdio: "pipe",
-    });
-  } catch {
+    await stopProcess(server.proc);
+  } finally {
+    const fixturePath = relative(ROOT, server.fixtureDir);
+    execSync(`git checkout -- "${fixturePath}"`, { cwd: ROOT, stdio: "pipe" });
+    execSync(`git clean -fd -- "${fixturePath}"`, { cwd: ROOT, stdio: "pipe" });
   }
 }
 

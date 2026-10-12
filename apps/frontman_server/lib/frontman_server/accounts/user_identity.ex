@@ -47,7 +47,13 @@ defmodule FrontmanServer.Accounts.UserIdentity do
       :user_id
     ])
     |> validate_required([:provider, :provider_id, :user_id])
-    |> validate_inclusion(:provider, @providers)
+    |> validate_inclusion(
+      :provider,
+      case Application.get_env(:frontman_server, :env) do
+        :e2e -> ["sso" | @providers]
+        _env -> @providers
+      end
+    )
     |> unique_constraint([:user_id, :provider],
       message: "you have already connected this provider"
     )

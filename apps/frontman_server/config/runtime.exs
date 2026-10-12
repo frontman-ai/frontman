@@ -57,6 +57,37 @@ if config_env() not in [:test, :e2e] do
     webhook_secret: env!("STRIPE_WEBHOOK_SECRET", :string!)
 end
 
+if config_env() == :e2e do
+  case env_boolean.("E2E_SIGNUP_BILLING", false) do
+    true ->
+      workos_key = env!("E2E_WORKOS_API_KEY", :string!)
+      stripe_key = env!("E2E_STRIPE_SECRET_KEY", :string!)
+
+      case {workos_key, stripe_key} do
+        {"sk_test_" <> _, "sk_test_" <> _} -> :ok
+        {"sk_test_" <> _, "rk_test_" <> _} -> :ok
+        _ -> raise "Signup E2E requires WorkOS staging and Stripe test keys"
+      end
+
+      config :workos, WorkOS.Client,
+        api_key: workos_key,
+        client_id: env!("E2E_WORKOS_CLIENT_ID", :string!)
+
+      config :frontman_server,
+        e2e_sso_connection_id: env!("E2E_WORKOS_CONNECTION_ID", :string!)
+
+      config :frontman_server, :stripe,
+        api_base_url: "https://api.stripe.com/v1",
+        secret_key: stripe_key,
+        webhook_secret: env!("E2E_STRIPE_WEBHOOK_SECRET", :string!),
+        monthly_price_id: env!("E2E_STRIPE_MONTHLY_PRICE_ID", :string!),
+        yearly_price_id: env!("E2E_STRIPE_YEARLY_PRICE_ID", :string!)
+
+    false ->
+      :ok
+  end
+end
+
 if config_env() in [:dev, :test, :e2e] do
   db_host = env!("DB_HOST", :string, "localhost")
 

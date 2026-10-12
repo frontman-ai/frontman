@@ -55,7 +55,7 @@ define run_e2e
 	CA_CERT="$${NODE_EXTRA_CA_CERTS:-$$(mkcert -CAROOT)/rootCA.pem}"; \
 	test -r "$$CA_CERT" || { printf "Error: test CA not readable: %s. Run make ssl-setup.\n" "$$CA_CERT"; exit 1; }; \
 	export NODE_EXTRA_CA_CERTS="$$(realpath "$$CA_CERT")"; \
-	cd test/e2e && npx vitest run $(1)
+	cd test/e2e && E2E_SIGNUP_BILLING=$(if $(1),$(if $(filter tests/signup-billing.test.ts,$(1)),true,false),true) npx vitest run $(1)
 endef
 
 .PHONY: help
@@ -127,7 +127,8 @@ HELP_wordpress-composer-lock := Update PHP dependencies while preserving PHP 7.4
 HELP_test-wordpress-sentry := Test PHP diagnostics and SDK coexistence (PHP_VERSION=7.4 or 8.4)
 
 HELP_E2E_TITLE := E2E Tests
-HELP_E2E_TARGETS := e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start
+HELP_E2E_TARGETS := e2e-check e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start e2e-signup-billing
+HELP_e2e-check := Check E2E types and credential/cleanup safety
 HELP_e2e := Run all e2e tests (loads secrets from test/e2e/.env)
 HELP_e2e-nextjs := Run Next.js e2e test
 HELP_e2e-nextjs-compat := Run packed Next.js dev/build compatibility check (NEXT_VERSION=16)
@@ -135,6 +136,7 @@ HELP_e2e-astro := Run Astro e2e test
 HELP_e2e-vite := Run Vite e2e test
 HELP_e2e-vue-vite := Run Vue + Vite e2e test
 HELP_e2e-oauth-start := Run OAuth start smoke e2e test
+HELP_e2e-signup-billing := Run hosted WorkOS SSO signup and real Stripe sandbox checkout
 
 HELP_UTIL_TITLE := Utilities
 HELP_UTIL_TARGETS := kill-all-processes pull-webapi test-webapi debug-task push
@@ -273,7 +275,7 @@ clean:
 
 
 
-.PHONY: e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start
+.PHONY: e2e-check e2e e2e-nextjs e2e-nextjs-compat e2e-astro e2e-vite e2e-vue-vite e2e-oauth-start e2e-signup-billing
 
 e2e:
 	@printf "$(YELLOW)Running all e2e tests...$(RESET)\n"
@@ -300,6 +302,13 @@ e2e-vite:
 e2e-vue-vite:
 	@printf "$(YELLOW)Running Vue + Vite e2e test...$(RESET)\n"
 	$(call run_e2e,tests/vue-vite.test.ts)
+
+e2e-check:
+	cd test/e2e && yarn tsc --noEmit --target ES2022 --module NodeNext --types node --skipLibCheck global-setup.ts tests/*.test.ts helpers/*.test.ts
+	cd test/e2e && npx vitest run --config vitest.helpers.config.ts
+
+e2e-signup-billing:
+	$(call run_e2e,tests/signup-billing.test.ts)
 
 e2e-oauth-start:
 	@printf "$(YELLOW)Running OAuth start smoke e2e test...$(RESET)\n"
