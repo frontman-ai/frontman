@@ -1444,13 +1444,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@changesets/changelog-github@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "@changesets/changelog-github@npm:1.0.0"
+"@changesets/changelog-github@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "@changesets/changelog-github@npm:1.0.1"
   dependencies:
-    "@changesets/get-github-info": "npm:^1.0.0"
+    "@changesets/get-github-info": "npm:^1.0.1"
     "@changesets/types": "npm:^7.0.0"
-  checksum: 10c0/c53082e33b9b78330324634407e8ec06e3d1466d6266e0cd8cb3d72955b0a12009d09b3b09e560fe444b47fca31029ad442ba1af55aa04db401f6f7bbf1353a0
+  checksum: 10c0/d1538b48d8cfa8846ff5428f7c98301342378c5d8fe0c077679dfdcf373f53e989553783159e5e594cf292b61d303560d32de4abb57b77453cc0c872acc8420b
   languageName: node
   linkType: hard
 
@@ -1525,12 +1525,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@changesets/get-github-info@npm:^1.0.0":
-  version: 1.0.0
-  resolution: "@changesets/get-github-info@npm:1.0.0"
+"@changesets/get-github-info@npm:^1.0.1":
+  version: 1.0.1
+  resolution: "@changesets/get-github-info@npm:1.0.1"
   dependencies:
     dataloader: "npm:^2.2.3"
-  checksum: 10c0/ae395c58bb360a425e09f07b342f6de49fdb1e21e9c196a9a821f87d6999fdbaab0e3c588ab5a748e54921d143912b2a9f44c4e7f1761944a7c6106a8449073f
+  checksum: 10c0/7b45b5ebc97b297e1c373ec782c501c3b6cc911badf43e4ebaaf46ce1d8b94f62e4d758705e03d3b9df06b730ab85b9dab5ad76ff070f8ff65ef2fb21647d61b
   languageName: node
   linkType: hard
 
@@ -10247,7 +10247,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "frontman@workspace:."
   dependencies:
-    "@changesets/changelog-github": "npm:^1.0.0"
+    "@changesets/changelog-github": "npm:^1.0.1"
     "@changesets/cli": "npm:^3.0.1"
     "@vitest/coverage-v8": "catalog:"
     cookie: "npm:^2.0.1"
