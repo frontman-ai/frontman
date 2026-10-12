@@ -43,7 +43,7 @@ class Frontman_UI {
 			FRONTMAN_PLUGIN_URL . 'assets/bridge.js',
 			[],
 			FRONTMAN_VERSION,
-			false
+			true
 		);
 	}
 

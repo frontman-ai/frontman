@@ -17,8 +17,13 @@ describe("classic bridge bundle", () => {
 		expect(() => runInNewContext(bundle, {window, URL})).not.toThrow()
 	})
 
-	test("emits one self-contained bridge.js artifact", async () => {
-		expect(await readdir("dist")).toEqual(["bridge.js"])
+	test("emits a self-contained bridge.js artifact and dependency notices", async () => {
+		expect((await readdir("dist")).sort()).toEqual(["bridge-licenses.txt", "bridge.js"])
+		const notices = await readFile("dist/bridge-licenses.txt", "utf8")
+		for (const author of ["BlueHotDog", "Bloomberg Finance L.P.", "Dmitry Zakharov"]) {
+			expect(notices).toContain(author)
+		}
+		expect(notices).toContain("Permission is hereby granted")
 
 		const bundle = await readFile("dist/bridge.js", "utf8")
 		expect(bundle).not.toMatch(/\bimport\s*(?:\(|["'{*])/)

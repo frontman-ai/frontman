@@ -9,6 +9,7 @@ export default defineConfig({
 			name: "FrontmanPreviewBridgeBundle",
 			fileName: () => "bridge.js",
 		},
+		license: {fileName: "bridge-licenses.txt"},
 		minify: "esbuild",
 		sourcemap: false,
 		emptyOutDir: true,

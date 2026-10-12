@@ -420,6 +420,10 @@ jobs:
         if: steps.changes.outputs.bridge == 'true'
         run: yarn install --immutable
 
+      - name: Install bridge test browser
+        if: steps.changes.outputs.bridge == 'true'
+        run: make -C libs/frontman-preview-bridge install-browser
+
       - name: Run focused bridge tests
         if: steps.changes.outputs.bridge == 'true'
         run: make -C libs/frontman-preview-bridge test

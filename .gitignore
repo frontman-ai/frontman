@@ -13,6 +13,7 @@ lib/
 node_modules/
 libs/frontman-wordpress/vendor/
 libs/frontman-wordpress/assets/bridge.js
+libs/frontman-wordpress/assets/bridge-licenses.txt
 
 .env.local
 test/e2e/.env

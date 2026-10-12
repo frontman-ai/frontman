@@ -2426,6 +2426,7 @@ __metadata:
     "@frontman/bindings": "workspace:*"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
+    playwright: "npm:^1.63.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
     vite: "catalog:"

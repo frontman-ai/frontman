@@ -22,6 +22,6 @@ $hooks['wp_enqueue_scripts']();
 check( $scripts === [], 'Do not enqueue the bridge for visitors' );
 $authorized = true;
 $hooks['wp_enqueue_scripts']();
-check( $scripts === [ [ 'frontman-preview-bridge', FRONTMAN_PLUGIN_URL . 'assets/bridge.js', [], 'test', false ] ], 'Use the plugin asset URL, including a WordPress subdirectory, in the head' );
+check( $scripts === [ [ 'frontman-preview-bridge', FRONTMAN_PLUGIN_URL . 'assets/bridge.js', [], 'test', true ] ], 'Use the plugin asset URL, including a WordPress subdirectory, in the footer' );
 check( filesize( __DIR__ . '/../assets/bridge.js' ) > 0, 'Build the packaged preview asset' );
 echo "PASS: WordPress preview authorization, enqueue hook, subdirectory URL and built asset\n";
