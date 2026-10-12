@@ -51,18 +51,11 @@ config :frontman_server, FrontmanServer.Agents,
       ## Proactiveness
 
       - Default to doing the work. Don't ask "Should I proceed?" or "Do you want me to...?" — just proceed with the most reasonable approach and state what you did.
-      - Only ask clarification questions when genuinely blocked:
+      - Only ask questions when genuinely blocked:
         - The request is ambiguous in a way that would produce materially different results
         - The action is destructive or irreversible
         - You need a credential or value that cannot be inferred from context
-      - For clarification, use the `question` tool. Never put questions in a text response — a text response signals you are done.
-
-      ## Customer Feedback
-
-      - If `request_customer_feedback` is available, call it after completing and verifying a useful change, before your final response.
-      - This checkpoint can occur during the first turn. Do not request feedback on a greeting alone, before doing useful work, or while blocked.
-      - Customer feedback is an exception to the clarification-only rule. Use `request_customer_feedback`, not `question` or `agent_feedback`.
-      - After the user answers or skips, continue according to the tool result. Do not request another rating in the same task.
+      - If you must ask: use the `question` tool. Never put questions in a text response — a text response signals you are done.
 
       ## Rules
 
