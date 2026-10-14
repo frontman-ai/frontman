@@ -16,6 +16,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias FrontmanServer.Agents
+  alias FrontmanServer.CustomerFeedback
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
@@ -26,7 +27,6 @@ defmodule FrontmanServerWeb.TaskChannel do
   alias FrontmanServer.Tasks.RetryCoordinator
   alias FrontmanServer.Tasks.Todos.Todo
   alias FrontmanServer.Tools
-  alias FrontmanServer.Tools.CustomerFeedback, as: FeedbackTool
   alias FrontmanServerWeb.TaskChannel.MCPInitializer
   alias MCP.Schema, as: MCPSchema
 
@@ -35,6 +35,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   @acp_method_session_prompt ACP.method_session_prompt()
   @acp_method_session_load ACP.method_session_load()
   @mcp_init_timeout_ms 30_000
+  @customer_feedback_tool "request_customer_feedback"
   @impl true
   def join("task:" <> task_id, _params, socket) do
     scope = socket.assigns.scope
@@ -455,7 +456,20 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp persist_tool_call_result(call, turn_number, result, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
-    {:ok, result} = FeedbackTool.tool_result(scope, task_id, turn_number, call, result)
+
+    result =
+      case {call.name, result} do
+        {@customer_feedback_tool, %{"isError" => true}} ->
+          result
+
+        {@customer_feedback_tool, _result} ->
+          {:ok, request} = Tasks.get_tool_request(scope, task_id, turn_number, call)
+          {:ok, result} = record_customer_feedback_answer(scope, request.id, result)
+          result
+
+        _other ->
+          result
+      end
 
     with {:ok, ^turn_number, _pending} <- open_tool_call(socket, call.id),
          {:ok, interaction, executor_status} <-
@@ -487,6 +501,34 @@ defmodule FrontmanServerWeb.TaskChannel do
         raise "Failed to store MCP tools/call result for task #{task_id}, tool #{call.name}, call #{call.id}: #{inspect(reason)}"
     end
   end
+
+  defp record_customer_feedback_answer(_scope, _id, %{
+         "structuredContent" => %{"outcome" => "skipped"} = output
+       })
+       when map_size(output) == 1,
+       do: {:ok, Map.put(MCP.tool_result_json(output), "structuredContent", output)}
+
+  defp record_customer_feedback_answer(scope, id, %{
+         "structuredContent" => %{"outcome" => "answered", "score" => _score} = output
+       }) do
+    with true <- Map.drop(output, ["outcome", "score", "comment"]) == %{},
+         {:ok, answer} <-
+           CustomerFeedback.record_answer(scope, id, Map.take(output, ["score", "comment"])) do
+      data =
+        case answer.comment do
+          nil -> %{"outcome" => "answered", "score" => answer.score}
+          comment -> %{"outcome" => "answered", "score" => answer.score, "comment" => comment}
+        end
+
+      {:ok, Map.put(MCP.tool_result_json(data), "structuredContent", data)}
+    else
+      false -> {:error, :invalid_customer_feedback}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp record_customer_feedback_answer(_scope, _id, _result),
+    do: {:error, :invalid_customer_feedback}
 
   defp resume_after_tool_result(:notified, socket, _scope, _task_id), do: socket
 
@@ -983,9 +1025,20 @@ defmodule FrontmanServerWeb.TaskChannel do
         :error -> nil
       end
 
+    tools = socket.assigns.mcp_tools
+
+    execution_tools =
+      with true <- Enum.any?(tools, &(&1.name == @customer_feedback_tool)),
+           false <- CustomerFeedback.eligible?(socket.assigns.scope) do
+        Enum.reject(tools, &(&1.name == @customer_feedback_tool))
+      else
+        false -> tools
+        true -> tools
+      end
+
     %{
       model: model,
-      mcp_tools: socket.assigns.mcp_tools,
+      mcp_tools: execution_tools,
       project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
     }
   end
@@ -1105,7 +1158,18 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp route_to_mcp(tool_call, turn_number, socket) do
     task_id = socket.assigns.task_id
     call = %{id: tool_call.tool_call_id, name: tool_call.tool_name}
-    {:ok, _} = FeedbackTool.tool_request(socket.assigns.scope, task_id, turn_number, call)
+
+    case call.name do
+      @customer_feedback_tool ->
+        {:ok, request} =
+          Tasks.get_tool_request(socket.assigns.scope, task_id, turn_number, call)
+
+        {:ok, _} = CustomerFeedback.record_request(socket.assigns.scope, request)
+
+      _other ->
+        :ok
+    end
+
     request_id = System.unique_integer([:positive])
 
     request =

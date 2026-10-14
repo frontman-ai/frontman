@@ -10,16 +10,10 @@ defmodule FrontmanServer.Tools do
   """
 
   alias FrontmanServer.Tools.Backend
-  alias FrontmanServer.Tools.CustomerFeedback
   alias FrontmanServer.Tools.MCP
   alias FrontmanServer.Tools.Skill
 
   @todo_mutations [FrontmanServer.Tools.TodoWrite.name()]
-
-  @doc "Resolves user-eligible tools once when assembling an execution."
-  def resolve(policy, mcp_tools, scope) do
-    resolve(policy, CustomerFeedback.filter_tools(mcp_tools, scope))
-  end
 
   def resolve(policy, mcp_tools) when is_list(mcp_tools) do
     mcp_tools

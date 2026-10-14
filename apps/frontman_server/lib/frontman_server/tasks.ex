@@ -1056,7 +1056,7 @@ defmodule FrontmanServer.Tasks do
        )
        when is_integer(turn_number) and turn_number > 0 and is_list(mcp_tools) do
     {:ok, history} = load_history(task.id)
-    tools = Tools.resolve(Agents.tool_policy(agent), mcp_tools, scope)
+    tools = Tools.resolve(Agents.tool_policy(agent), mcp_tools)
 
     project_context = project_context(task, history.rows, execution)
     system_prompt = Agents.system_prompt(scope, agent, project_context, tools)
