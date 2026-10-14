@@ -284,13 +284,17 @@ class Frontman_Tool_Templates {
 			throw new Frontman_Tool_Error( $post_id->get_error_message() );
 		}
 
-		if ( function_exists( 'wp_set_post_terms' ) ) {
-			wp_set_post_terms( $post_id, [ get_stylesheet() ], 'wp_theme' );
+		$terms = wp_set_post_terms( $post_id, [ get_stylesheet() ], 'wp_theme' );
+		if ( is_wp_error( $terms ) ) {
+			throw new Frontman_Tool_Error( "Template post {$post_id} was saved but theme assignment failed: " . $terms->get_error_message() . '. Read the template before retrying.' );
 		}
 
 		$after_template = $this->find_template( $slug, $type );
-		if ( ! $after_template ) {
-			throw new Frontman_Tool_Error( 'Template was updated but could not be read back.' );
+		if ( ! $after_template || (int) ( $after_template->wp_id ?? 0 ) !== (int) $post_id ) {
+			throw new Frontman_Tool_Error( "Template post {$post_id} was saved but could not be read back as the active template. Read the template before retrying." );
+		}
+		if ( $after_template->content !== $content ) {
+			throw new Frontman_Tool_Error( "Template post {$post_id} was saved but its observed content differs from the requested content. Read the template before retrying." );
 		}
 
 		return [
