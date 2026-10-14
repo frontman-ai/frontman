@@ -1,6 +1,7 @@
 import type { APIRoute } from 'astro'
+import { markdownResponse } from '../content/markdownResponse'
 
-export const GET: APIRoute = () => new Response(`# Frontman authentication and access
+export const GET: APIRoute = () => markdownResponse(`# Frontman authentication and access
 
 ## Public read-only resources
 
@@ -27,5 +28,5 @@ Next.js, Astro, and Vite integrations need a running supported development proje
 - Installation: https://frontman.sh/docs/installation/
 - Self-hosting: https://frontman.sh/docs/reference/self-hosting/
 - Privacy: https://frontman.sh/privacy/
-`, { headers: { 'Content-Type': 'text/markdown; charset=utf-8' } })
+`, '/auth.md')
 export const prerender = true

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "frontman",
+  "version": "1.0.0",
+  "description": "Official Frontman skills for installation, safe agent usage, and documentation navigation.",
+  "author": { "name": "Frontman", "url": "https://frontman.sh" },
+  "homepage": "https://frontman.sh",
+  "repository": "https://github.com/frontman-ai/frontman"
+}

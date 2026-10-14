@@ -17,6 +17,21 @@
 /.well-known/ard.json
   Content-Type: application/json; charset=utf-8
 
+/.well-known/ai-catalog.json
+  Content-Type: application/json; charset=utf-8
+
+/plugin.json
+  Content-Type: application/json; charset=utf-8
+
+/changelog.md
+  Content-Type: text/markdown; charset=utf-8
+
+/.well-known/api-catalog.md
+  Content-Type: text/markdown; charset=utf-8
+
+/api/llms.txt.md
+  Content-Type: text/markdown; charset=utf-8
+
 /.well-known/agent-skills/index.json
   Content-Type: application/json; charset=utf-8
 

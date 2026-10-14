@@ -1,7 +1,8 @@
 import type { APIRoute } from 'astro'
+import { markdownResponse } from '../content/markdownResponse'
 import { pricing, subscriptionTerms } from '../content/pricing'
 
-export const GET: APIRoute = () => new Response(`# Frontman Pro pricing
+export const GET: APIRoute = () => markdownResponse(`# Frontman Pro pricing
 
 ## Hosted plan
 
@@ -30,5 +31,5 @@ WordPress needs administrator access, Frontman sign-in, and an AI-provider conne
 - Terms: https://frontman.sh/terms/
 - Privacy: https://frontman.sh/privacy/
 - DPA: https://frontman.sh/dpa/
-`, { headers: { 'Content-Type': 'text/markdown; charset=utf-8' } })
+`, '/pricing/')
 export const prerender = true

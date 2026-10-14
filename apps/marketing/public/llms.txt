@@ -53,6 +53,10 @@ Frontman is intended for development workflows. RuntimeEnv disables the integrat
 - [OpenAPI description](https://frontman.sh/openapi.json): Documentation index and latest framework adapter versions; no credentials required
 - [Agentic resources](https://frontman.sh/.well-known/ard.json): ARD proposal listing published skills and the public API description
 - [Agent skills index](https://frontman.sh/.well-known/agent-skills/index.json): Official Frontman skill-md artifacts
+- [Frontman Agent Plugin](https://frontman.sh/plugin.json): Official skills package; plugin root in the source repository is apps/marketing/public
+- [AI Catalog](https://frontman.sh/.well-known/ai-catalog.json): Same public resources as ARD, with publisher identity and unsigned source provenance
+- [Frontman API catalog Markdown](https://frontman.sh/.well-known/api-catalog.md): Public read-only API endpoints and access requirements
+- [Frontman changelog Markdown](https://frontman.sh/changelog.md): Maintained release notes
 - [Docs llms.txt](https://frontman.sh/docs/llms.txt): Scoped docs context
 - [API llms.txt](https://frontman.sh/api/llms.txt): Scoped API context
 - [Developers llms.txt](https://frontman.sh/developers/llms.txt): Scoped developer context
