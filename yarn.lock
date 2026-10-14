@@ -2341,7 +2341,7 @@ __metadata:
     react-dom-draft-fixture: "npm:react-dom@18.3.1"
     react-draft-fixture: "npm:react@18.3.1"
     rescript: "catalog:"
-    rescript-base-ui: "npm:^1.6.1"
+    rescript-base-ui: "npm:^1.6.2"
     rescript-vitest: "catalog:"
     shadcn: "npm:^4.21.0"
     streamdown: "npm:^2.6.0"
@@ -13763,9 +13763,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rescript-base-ui@npm:^1.6.1":
-  version: 1.6.1
-  resolution: "rescript-base-ui@npm:1.6.1"
+"rescript-base-ui@npm:^1.6.2":
+  version: 1.6.2
+  resolution: "rescript-base-ui@npm:1.6.2"
   dependencies:
     react: "npm:19.2.4"
     react-dom: "npm:19.2.4"
@@ -13773,7 +13773,7 @@ __metadata:
   peerDependencies:
     "@base-ui/react": ^1.6.0
     "@rescript/react": ^0.15.0
-  checksum: 10c0/6567a3d86b2031d68154acdafa6409c6443dc061699534443c3c60a7a58cf12855c818b82a5b328092f95bdcb942a348f87f3ec061d459e873ec815488fdcde4
+  checksum: 10c0/219cd87ec97444b9e23a263a5799d67fedfb08ceb30de396e5b97b14457a6c1cbc4f7d0d261b4504cc1767bec8c7c5a5972abeff0fe465c3a62934f4eb1c5e54
   languageName: node
   linkType: hard
 

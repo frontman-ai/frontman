@@ -67,7 +67,7 @@
 		"react-dom-draft-fixture": "npm:react-dom@18.3.1",
 		"react-draft-fixture": "npm:react@18.3.1",
 		"rescript": "catalog:",
-		"rescript-base-ui": "^1.6.1",
+		"rescript-base-ui": "^1.6.2",
 		"rescript-vitest": "catalog:",
 		"shadcn": "^4.21.0",
 		"streamdown": "^2.6.0",
