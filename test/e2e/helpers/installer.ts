@@ -20,7 +20,7 @@ import {
 const ROOT = resolve(import.meta.dirname, "../../..");
 const FRONTMAN_SERVER = "localhost:4002";
 
-function resetFixture(fixtureDir: string): void {
+export function resetFixture(fixtureDir: string): void {
   const fixturePath = relative(ROOT, fixtureDir);
   execFileSync("git", ["checkout", "--", fixturePath], { cwd: ROOT, stdio: "pipe" });
   execFileSync("git", ["clean", "-fd", "--", fixturePath], { cwd: ROOT, stdio: "pipe" });

@@ -56,6 +56,17 @@ defmodule FrontmanServer.Accounts.WorkOS do
     {:ok, WorkOS.UserManagement.get_authorization_url(workos_client(), opts)}
   end
 
+  def get_authorization_url("sso", redirect_uri, state) do
+    case test_sso_connection_id() do
+      nil ->
+        {:error, :test_sso_disabled}
+
+      connection_id ->
+        opts = %{connection_id: connection_id, redirect_uri: redirect_uri, state: state}
+        {:ok, WorkOS.UserManagement.get_authorization_url(workos_client(), opts)}
+    end
+  end
+
   def get_authorization_url(provider, _redirect_uri, _state) do
     {:error,
      "Unsupported provider: #{provider}. Supported: #{Enum.join(@supported_providers, ", ")}"}
@@ -237,8 +248,22 @@ defmodule FrontmanServer.Accounts.WorkOS do
   defp workos_to_provider("GitHubOAuth"), do: {:ok, "github"}
   defp workos_to_provider("GoogleOAuth"), do: {:ok, "google"}
 
+  defp workos_to_provider("SSO") do
+    case test_sso_connection_id() do
+      nil -> {:error, :test_sso_disabled}
+      _connection_id -> {:ok, "sso"}
+    end
+  end
+
   defp workos_to_provider(authentication_method) do
     {:error, {:invalid_authentication_method, authentication_method}}
+  end
+
+  defp test_sso_connection_id do
+    case Application.get_env(:frontman_server, :env) do
+      :e2e -> Application.get_env(:frontman_server, :e2e_sso_connection_id)
+      _env -> nil
+    end
   end
 
   defp extract_name(user) do

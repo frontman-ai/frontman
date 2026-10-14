@@ -7,6 +7,9 @@ on:
       - "libs/client/src/**"
       - "libs/frontman-client/src/**"
       - "libs/frontman-nextjs/**"
+      - "libs/frontman-vite/**"
+      - "libs/frontman-astro/**"
+      - "Makefile"
       - "libs/frontman-core/**"
       - "libs/frontman-protocol/**"
       - "libs/bindings/**"
@@ -34,6 +37,7 @@ on:
           - vite
           - vue-vite
           - oauth-start
+          - signup-billing
 
 permissions:
   contents: read
@@ -121,6 +125,12 @@ jobs:
       E2E_OPENAI_ACCESS_TOKEN: ${{ secrets.E2E_CHATGPT_ACCESS_TOKEN }}
       E2E_OPENAI_REFRESH_TOKEN: ${{ secrets.E2E_CHATGPT_REFRESH_TOKEN }}
       E2E_OPENAI_ACCOUNT_ID: ${{ secrets.E2E_CHATGPT_ACCOUNT_ID }}
+      E2E_WORKOS_API_KEY: ${{ secrets.E2E_WORKOS_API_KEY }}
+      E2E_WORKOS_CLIENT_ID: ${{ secrets.E2E_WORKOS_CLIENT_ID }}
+      E2E_WORKOS_CONNECTION_ID: ${{ secrets.E2E_WORKOS_CONNECTION_ID }}
+      E2E_STRIPE_SECRET_KEY: ${{ secrets.E2E_STRIPE_SECRET_KEY }}
+      E2E_STRIPE_MONTHLY_PRICE_ID: ${{ secrets.E2E_STRIPE_MONTHLY_PRICE_ID }}
+      E2E_STRIPE_YEARLY_PRICE_ID: ${{ secrets.E2E_STRIPE_YEARLY_PRICE_ID }}
 
     steps:
       - name: Checkout code
@@ -271,6 +281,9 @@ jobs:
         run: npx playwright install-deps chromium 2>&1 | tail -5
         working-directory: test/e2e
 
+      - name: Check E2E types and cleanup safety
+        run: make e2e-check
+
       - name: Verify screenshot viewport geometry
         run: make -C libs/client test-screenshots
 
@@ -286,6 +299,8 @@ jobs:
 
       - name: Run E2E tests
         working-directory: test/e2e
+        env:
+          E2E_SIGNUP_BILLING: ${{ (github.event.inputs.test_suite == '' || github.event.inputs.test_suite == 'all' || github.event.inputs.test_suite == 'signup-billing') && 'true' || 'false' }}
         run: ${{ steps.test-cmd.outputs.cmd }}
 
       - name: Cleanup workspace

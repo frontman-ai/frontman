@@ -8,9 +8,7 @@ export default defineConfig({
     retry: 1,
 
     pool: "forks",
-    poolOptions: {
-      forks: { singleFork: true },
-    },
+    maxWorkers: 1,
     fileParallelism: false,
     sequence: { concurrent: false },
 

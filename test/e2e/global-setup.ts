@@ -11,6 +11,8 @@
 import { spawn, execSync, type ChildProcess } from "node:child_process";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { startStripeListener, stopProcess } from "./helpers/real-services.js";
 
 const ROOT = resolve(import.meta.dirname, "../..");
 const SERVER_DIR = resolve(ROOT, "apps/frontman_server");
@@ -57,7 +59,7 @@ function parseEnvBoolean(name: string, defaultValue: boolean): boolean {
   );
 }
 
-const E2E_ENV = {
+const E2E_ENV: NodeJS.ProcessEnv = {
   ...process.env,
   MIX_ENV: "e2e",
   PHX_SERVER: parseEnvBoolean("PHX_SERVER", true) ? "true" : "false",
@@ -65,6 +67,9 @@ const E2E_ENV = {
 
 let phoenixProc: ChildProcess | undefined;
 let clientProc: ChildProcess | undefined;
+let stripeProc: ChildProcess | undefined;
+const signupBilling = parseEnvBoolean("E2E_SIGNUP_BILLING", false);
+let databaseCreated = false;
 
 async function waitForServer(
   url: string,
@@ -87,10 +92,30 @@ async function waitForServer(
 }
 
 export async function setup() {
+  try {
+    await start();
+  } catch (error) {
+    try { await teardown(); } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], "[e2e] Setup and cleanup failed");
+    }
+    throw error;
+  }
+}
+
+async function start() {
   console.log("[e2e] Global setup starting…");
+  if (signupBilling) {
+    stripeProc = await startStripeListener();
+    E2E_ENV.E2E_STRIPE_WEBHOOK_SECRET = process.env.E2E_STRIPE_WEBHOOK_SECRET;
+    E2E_ENV.DB_NAME = process.env.DB_NAME = process.env.GITHUB_RUN_ID
+      ? `frontman_server_e2e_${process.env.GITHUB_RUN_ID}`
+      : `frontman_server_e2e_signup_${randomUUID().replaceAll("-", "")}`;
+    if (!/^frontman_server_e2e_(signup_[a-f0-9]{32}|[0-9]+)$/.test(E2E_ENV.DB_NAME)) throw new Error("[e2e] Invalid run database name");
+  }
 
   console.log("  [e2e] Creating and migrating e2e database…");
   execSync("mix ecto.create --quiet", { cwd: SERVER_DIR, env: E2E_ENV, stdio: "pipe" });
+  databaseCreated = true;
   execSync("mix ecto.migrate --quiet", { cwd: SERVER_DIR, env: E2E_ENV, stdio: "pipe" });
 
   console.log("  [e2e] Seeding test user…");
@@ -105,6 +130,7 @@ export async function setup() {
     cwd: SERVER_DIR,
     env: E2E_ENV,
     stdio: "pipe",
+    detached: true,
   });
   phoenixProc.stdout?.on("data", (d: Buffer) => {
     const msg = d.toString();
@@ -125,6 +151,7 @@ export async function setup() {
     cwd: CLIENT_DIR,
     env: { ...process.env },
     stdio: "pipe",
+    detached: true,
   });
   clientProc.stdout?.on("data", (d: Buffer) => {
     const msg = d.toString();
@@ -144,15 +171,15 @@ export async function setup() {
 export async function teardown() {
   console.log("\n[e2e] Global teardown…");
 
-  if (clientProc) {
-    clientProc.kill("SIGTERM");
-    console.log("  [e2e] Client Vite dev server stopped.");
-  }
-
-  if (phoenixProc) {
-    phoenixProc.kill("SIGTERM");
-    console.log("  [e2e] Phoenix server stopped.");
-  }
-
+  const results = await Promise.allSettled([clientProc, phoenixProc, stripeProc].map(stopProcess));
+  const failures = results.filter(result => result.status === "rejected").map(result => result.reason);
+  try {
+    if (signupBilling && databaseCreated) {
+      if (!/^frontman_server_e2e_(signup_[a-f0-9]{32}|[0-9]+)$/.test(E2E_ENV.DB_NAME!)) throw new Error("[e2e] Refusing unsafe DB cleanup");
+      execSync("mix ecto.drop --quiet", { cwd: SERVER_DIR, env: E2E_ENV, stdio: "pipe", timeout: 60_000 });
+      databaseCreated = false;
+    }
+  } catch (error) { failures.push(error); }
+  if (failures.length) throw new AggregateError(failures, "[e2e] Cleanup failed");
   console.log("[e2e] Teardown complete.");
 }

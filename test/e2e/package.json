@@ -10,7 +10,10 @@
 		"test:vue-vite": "vitest run tests/vue-vite.test.ts"
 	},
 	"devDependencies": {
+		"@types/node": "*",
 		"playwright": "^1.63.0",
+		"sury": "catalog:",
+		"typescript": "*",
 		"vitest": "catalog:"
 	}
 }

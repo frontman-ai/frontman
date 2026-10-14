@@ -40,6 +40,14 @@
           </div>
 
           <div class="flex flex-col gap-3">
+            <%= case {Application.get_env(:frontman_server, :env),
+                      Application.get_env(:frontman_server, :e2e_sso_connection_id)} do %>
+              <% {:e2e, connection_id} when is_binary(connection_id) -> %>
+                <.link href={~p"/auth/sso"} class="btn btn-lg btn-block">
+                  Sign in with test SSO
+                </.link>
+              <% _ -> %>
+            <% end %>
             <.link
               href={~p"/auth/github"}
               class="btn btn-lg btn-block border-black bg-black text-white"

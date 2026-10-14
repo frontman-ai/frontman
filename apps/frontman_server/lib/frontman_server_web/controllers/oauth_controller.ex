@@ -17,8 +17,11 @@ defmodule FrontmanServerWeb.OAuthController do
 
   def request(conn, %{"provider" => provider}) do
     redirect_uri = url(~p"/auth/callback")
-    {:ok, url} = Accounts.get_oauth_authorization_url(provider, redirect_uri)
-    redirect(conn, external: url)
+
+    case Accounts.get_oauth_authorization_url(provider, redirect_uri) do
+      {:ok, url} -> redirect(conn, external: url)
+      {:error, _reason} -> send_resp(conn, :not_found, "Not found")
+    end
   end
 
   def callback(conn, %{"code" => code}) do

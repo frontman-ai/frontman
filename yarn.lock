@@ -2605,7 +2605,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@frontman/e2e@workspace:test/e2e"
   dependencies:
+    "@types/node": "npm:*"
     playwright: "npm:^1.63.0"
+    sury: "catalog:"
+    typescript: "npm:*"
     vitest: "catalog:"
   languageName: unknown
   linkType: soft
