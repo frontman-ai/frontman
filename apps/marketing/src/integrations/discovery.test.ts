@@ -87,23 +87,24 @@ test('ARD validates against the pinned current schema and resolves real artifact
 	expect(entries.at(-1).url).toBe('https://frontman.sh/openapi.json')
 })
 
-test('navigation skill frontmatter matches its advertised identity and digest', async () => {
+test('every advertised skill frontmatter matches its identity, digest, and ARD entry', async () => {
 	const { GET } = await import('../pages/.well-known/agent-skills/index.json')
 	const { GET: ardGET } = await import('../pages/.well-known/ard.json')
 	const { skills } = await (await call(GET)).json()
-	const navigation = skills.find((skill: { name: string }) => skill.name === 'frontman-site-navigation')
-	expect(navigation).toBeDefined()
-	const artifact = read(`public${new URL(navigation.url).pathname}`)
-	const frontmatter = artifact.match(/^---\n([\s\S]*?)\n---\n/)
-	expect(frontmatter).not.toBeNull()
-	const metadata = S.parser(S.schema({ name: S.string, description: S.string }))(parseYaml(frontmatter![1]))
-	expect(metadata.name).toBe(navigation.name)
-	expect(metadata.description).toBe(navigation.description)
-	expect(navigation.digest).toBe(`sha256:${createHash('sha256').update(artifact).digest('hex')}`)
 	const { entries } = await (await call(ardGET)).json()
-	const entry = entries.find((entry: { url: string }) => entry.url === navigation.url)
-	expect(entry.displayName).toBe(metadata.name)
-	expect(entry.description).toBe(metadata.description)
+	expect(skills.length).toBeGreaterThan(0)
+	for (const skill of skills) {
+		const artifact = read(`public${new URL(skill.url).pathname}`)
+		const frontmatter = artifact.match(/^---\n([\s\S]*?)\n---\n/)
+		expect(frontmatter, skill.name).not.toBeNull()
+		const metadata = S.parser(S.schema({ name: S.string, description: S.string }))(parseYaml(frontmatter![1]))
+		expect(metadata.name).toBe(skill.name)
+		expect(metadata.description).toBe(skill.description)
+		expect(skill.digest).toBe(`sha256:${createHash('sha256').update(artifact).digest('hex')}`)
+		const entry = entries.find((entry: { url: string }) => entry.url === skill.url)
+		expect(entry.displayName).toBe(metadata.name)
+		expect(entry.description).toBe(metadata.description)
+	}
 })
 
 test('Schema Map uses the current proposal format and points to JSONL, not JSON text sequences', async () => {
