@@ -1004,50 +1004,55 @@ describe("Task - Interactive wait contract", () => {
     )
   })
 
-  test("feedback stays pending until the server confirms the result", t => {
-    let resolved = ref(None)
-    let (withCall, _) = TaskReducer.next(
-      TestHelpers.makeLoadedTask(),
-      ToolCallReceived({
-        toolCall: {
-          id: "feedback-1",
-          toolName: Client__Tool__CustomerFeedback.name,
-          state: InputAvailable,
-          inputBuffer: "",
-          input: None,
-          result: None,
-          errorText: None,
-          parentAgentId: None,
-          spawningToolName: None,
-        },
-      }),
+  test("feedback uses ordinary question submission and skip", t => {
+    [false, true]->Array.forEach(
+      skip => {
+        let resolved = ref(None)
+        let (waiting, _) = TaskReducer.next(
+          TestHelpers.makeLoadedTask(),
+          QuestionReceived({
+            questions: Client__Tool__CustomerFeedback.questions,
+            toolCallId: "feedback-1",
+            resolveOk: json =>
+              resolved :=
+                Some(
+                  json
+                  ->S.parseOrThrow(~to=Client__Tool__Question.outputSchema)
+                  ->Client__Tool__CustomerFeedback.fromQuestionOutput,
+                ),
+            resolveError: _ => failwith("Unexpected feedback rejection"),
+          }),
+        )
+        let rejected = ref(false)
+        let (unchanged, rejections) = TaskReducer.next(
+          waiting,
+          QuestionReceived({
+            questions: [],
+            toolCallId: "another-question",
+            resolveOk: _ => failwith("Unexpected concurrent question resolution"),
+            resolveError: _ => rejected := true,
+          }),
+        )
+        runEffects(rejections)
+        t->expect((unchanged, rejected.contents))->Expect.toEqual((waiting, true))
+        let answered =
+          [
+            TaskReducer.QuestionCustomTextChanged({questionIndex: 0, text: "0"}),
+            QuestionCustomTextChanged({questionIndex: 1, text: "Needs improvement"}),
+          ]->Array.reduce(waiting, (task, action) => TaskReducer.next(task, action)->Pair.first)
+        let (finished, effects) = TaskReducer.next(
+          answered,
+          skip ? QuestionAllSkipped : QuestionSubmitted,
+        )
+        runEffects(effects)
+        let expected: Client__CustomerFeedback__Types.response = switch skip {
+        | true => Skipped
+        | false => Answered({score: 0, comment: Some("Needs improvement")})
+        }
+        t->expect(resolved.contents)->Expect.toEqual(Some(expected))
+        t->expect(TaskReducer.Selectors.pendingQuestion(finished))->Expect.toEqual(None)
+      },
     )
-    let (waiting, _) = TaskReducer.next(
-      withCall,
-      CustomerFeedbackReceived({
-        toolCallId: "feedback-1",
-        resolveOk: json => resolved := Some(json),
-        resolveError: _ => failwith("Unexpected feedback rejection"),
-      }),
-    )
-    let (selected, _) = TaskReducer.next(waiting, CustomerFeedbackScoreChanged(0))
-    let (submitted, effects) = TaskReducer.next(selected, CustomerFeedbackSubmitted)
-    runEffects(effects)
-    t
-    ->expect(resolved.contents)
-    ->Expect.toEqual(Some(JSON.parseOrThrow(`{"outcome":"answered","score":0}`)))
-    let draft = TaskReducer.Selectors.pendingCustomerFeedback(submitted)->Option.getOrThrow
-    t->expect(draft.submitting)->Expect.toBe(true)
-    let (confirmed, _) = TaskReducer.next(
-      submitted,
-      ToolResultReceived({
-        id: "feedback-1",
-        rawOutput: None,
-        content: None,
-        complete: true,
-      }),
-    )
-    t->expect(TaskReducer.Selectors.pendingCustomerFeedback(confirmed))->Expect.toEqual(None)
   })
 
   test("historical requires_action replays without reopening the turn", t => {

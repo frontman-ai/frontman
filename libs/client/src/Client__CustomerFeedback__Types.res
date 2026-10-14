@@ -13,13 +13,3 @@ let outputSchema = S.union([
     Skipped
   })->S.strict,
 ])
-
-type pending = {
-  toolCallId: string,
-  score: option<int>,
-  comment: string,
-  submitting: bool,
-  error: option<string>,
-  resolveOk: JSON.t => unit,
-  resolveError: string => unit,
-}
