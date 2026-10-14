@@ -3,6 +3,7 @@ module SourceLocation = Client__Types.SourceLocation
 type annotationMode =
   | Off
   | Selecting
+  | TextEditing
 
 type boundingBox = {
   x: float,

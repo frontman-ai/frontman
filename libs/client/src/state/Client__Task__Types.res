@@ -173,7 +173,7 @@ module Task = {
     | New(_) | Unloaded(_) | Loading(_) => Client__FileChanges.empty
     }
 
-  let getWebPreviewIsSelecting = (task: t): bool => getAnnotationMode(task) != Annotation.Off
+  let getWebPreviewIsSelecting = (task: t): bool => getAnnotationMode(task) == Annotation.Selecting
 
   let isNew = (task: t): bool =>
     switch task {

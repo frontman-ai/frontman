@@ -388,6 +388,10 @@ module Selectors = {
     !isSubmitting(state) && Task.getWebPreviewIsSelecting(currentTask(state))
   }
 
+  let webPreviewIsTextEditing = (state: state): bool => {
+    Task.getAnnotationMode(currentTask(state)) == Client__Annotation__Types.TextEditing
+  }
+
   let hasEnrichingAnnotations = (state: state): bool => {
     TaskReducer.Selectors.hasEnrichingAnnotations(currentTask(state))->Option.getOr(false)
   }
