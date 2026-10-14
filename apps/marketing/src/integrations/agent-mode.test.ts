@@ -43,7 +43,13 @@ test('agent JSON wins for known routes and first mode value, but never for POST/
 			const body = await response.json()
 			expect(body.canonicalUrl).toBe(canonical)
 			expect(body.description).toContain(description)
+			expect(body.developerResources.openApi).toBe('https://frontman.sh/openapi.json')
+			expect(body.developerResources.agentResourceDirectory).toBe('https://frontman.sh/.well-known/ard.json')
+			expect(response.headers.get('Link')).toContain('</.well-known/api-catalog>; rel="api-catalog"')
+			expect(response.headers.get('Link')).toContain('</openapi.json>; rel="service-desc"')
+			expect(response.headers.get('Link')).toContain('</.well-known/ard.json>; rel="ard"')
 			expect(body.apiEndpoints.every((endpoint: { url: string }) => !endpoint.url.includes('/user/') && !endpoint.url.includes('socket-token'))).toBe(true)
+			expect(JSON.stringify(body)).not.toMatch(/agent-card|server-card/)
 		}
 	}
 	for (const method of ['POST', 'OPTIONS']) {

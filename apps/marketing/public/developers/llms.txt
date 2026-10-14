@@ -16,8 +16,9 @@ Frontman developer resources help agents answer installation, auth, integration,
 
 - llms.txt: https://frontman.sh/llms.txt
 - Full LLM context: https://frontman.sh/llms-full.txt
-- Agent card: https://frontman.sh/.well-known/agent-card.json
-- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
+- Public read-only OpenAPI description: https://frontman.sh/openapi.json
+- API catalog: https://frontman.sh/.well-known/api-catalog
+- Agentic resources (ARD proposal): https://frontman.sh/.well-known/ard.json
 - Agent skills index: https://frontman.sh/.well-known/agent-skills/index.json
 
 ## Frameworks
