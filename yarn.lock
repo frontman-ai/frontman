@@ -2337,7 +2337,7 @@ __metadata:
     streamdown: "npm:^2.6.0"
     sury: "catalog:"
     sury-ppx: "catalog:"
-    tailwind-merge: "npm:^3.6.0"
+    tailwind-merge: "npm:^3.7.0"
     tailwindcss: "npm:^4.3.3"
     tw-animate-css: "npm:^1.4.0"
     vite: "catalog:"
@@ -15103,6 +15103,13 @@ __metadata:
   version: 3.6.0
   resolution: "tailwind-merge@npm:3.6.0"
   checksum: 10c0/a728d929f4786bcb48641db4228cc8c006a7545491783a658fb4d24d177dab960620991d17805a047309228de50ab949ca8d9e112c30183da0432367796ae186
+  languageName: node
+  linkType: hard
+
+"tailwind-merge@npm:^3.7.0":
+  version: 3.7.0
+  resolution: "tailwind-merge@npm:3.7.0"
+  checksum: 10c0/1b1439fe30b6ee63fc3abc1c985bf9beb8529eb2db21cc321bd8c7cf73f36cd4ec80846ea10af8ae09175810f385336c22a6ce355a0b5cce69432d49672f90c1
   languageName: node
   linkType: hard
 
