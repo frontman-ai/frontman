@@ -56,7 +56,7 @@
 	},
 	"devDependencies": {
 		"@changesets/changelog-github": "^1.0.1",
-		"@changesets/cli": "^3.0.1",
+		"@changesets/cli": "^3.0.2",
 		"@vitest/coverage-v8": "catalog:",
 		"vitest": "catalog:"
 	},
