@@ -70,7 +70,7 @@
 		"rescript-base-ui": "^1.6.1",
 		"rescript-vitest": "catalog:",
 		"shadcn": "^4.19.0",
-		"streamdown": "^2.5.0",
+		"streamdown": "^2.6.0",
 		"sury": "catalog:",
 		"sury-ppx": "catalog:",
 		"tailwind-merge": "^3.6.0",
