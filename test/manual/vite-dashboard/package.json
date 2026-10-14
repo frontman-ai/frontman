@@ -9,7 +9,7 @@
     "@frontman-ai/vite": "workspace:*",
     "@vitejs/plugin-react": "^6.1.1",
     "react": "^19.3.0",
-    "react-dom": "^19.2.8",
+    "react-dom": "^19.3.0",
     "vite": "catalog:"
   },
   "devDependencies": {
