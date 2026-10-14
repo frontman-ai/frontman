@@ -2,6 +2,7 @@
 
 import type { StarlightRouteData } from '@astrojs/starlight/route-data'
 import StarlightHead from '@astrojs/starlight/components/Head.astro'
+import { markdownPath } from '../../content/markdownRoutes'
 import { createWebPageSchema } from '../../utils/structuredData.mjs'
 
 type Props = StarlightRouteData
@@ -73,6 +74,7 @@ const pageSchema = {
 ---
 
 <StarlightHead {...Astro.props} />
+{entry && markdownPath(Astro.url.pathname) && <link rel="alternate" type="text/markdown" title="This page in Markdown" href={markdownPath(Astro.url.pathname)} />}
 
 <meta property="og:image" content={ogImage} />
 <meta property="og:image:secure_url" content={ogImage} />

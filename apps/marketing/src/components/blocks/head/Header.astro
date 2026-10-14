@@ -4,6 +4,7 @@ import GoogleSearchConsole from '../../scripts/googleSearchConsole.astro'
 import Seo from './partials/Seo.astro'
 import StructuredData from './partials/StructuredData.astro'
 import { configData } from '../../../config/config'
+import { markdownPath } from '../../../content/markdownRoutes'
 
 import { googleAnalyticsMeasurementID } from '../../../config/analytics'
 import interLatinUrl from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url'
@@ -65,7 +66,7 @@ const {
 <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 <link rel="manifest" href="/site.webmanifest" />
 <link rel="sitemap" href="/sitemap-index.xml" />
-<link rel="alternate" type="text/markdown" title="Frontman markdown homepage" href="/index.md" />
+{markdownPath(Astro.url.pathname) && <link rel="alternate" type="text/markdown" title="This page in Markdown" href={markdownPath(Astro.url.pathname)} />}
 <link
 	rel="service-desc"
 	type="application/linkset+json"
