@@ -15,7 +15,8 @@ defmodule FrontmanServer.CustomerFeedback do
   alias FrontmanServer.CustomerFeedback.Feedback
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Repo
-  alias FrontmanServer.Tasks.InteractionSchema
+  alias FrontmanServer.Tasks
+  alias FrontmanServer.Tasks.{InteractionSchema, TaskSchema}
 
   @doc "Whether the user has no request or answer within the rolling cooldown."
   def eligible?(%Scope{} = scope, now \\ DateTime.utc_now()) do
@@ -60,6 +61,19 @@ defmodule FrontmanServer.CustomerFeedback do
     end
   end
 
+  def tool_request(%Scope{} = scope, task_id, turn, %{name: "request_customer_feedback", id: id}) do
+    scope
+    |> Scope.user_id()
+    |> Feedback.tool_request(task_id, turn, id)
+    |> Repo.one()
+    |> case do
+      nil -> {:error, :not_found}
+      request -> record_request(scope, request)
+    end
+  end
+
+  def tool_request(_scope, _task_id, _turn, _call), do: {:ok, :not_feedback}
+
   def tool_result(_scope, _task_id, _turn, _call, %{"isError" => true} = result),
     do: {:ok, result}
 
@@ -70,14 +84,25 @@ defmodule FrontmanServer.CustomerFeedback do
         %{name: "request_customer_feedback", id: id},
         result
       ) do
-    scope
-    |> Scope.user_id()
-    |> Feedback.tool_request(task_id, turn, id)
-    |> Repo.one()
-    |> case do
-      nil -> {:error, :not_found}
-      request -> record_tool_answer(scope, request.id, result)
-    end
+    Repo.transact(fn ->
+      with %TaskSchema{} <-
+             task_id
+             |> TaskSchema.by_id_for_user(Scope.user_id(scope))
+             |> TaskSchema.locked_for_update()
+             |> Repo.one(),
+           {:ok, ^turn, calls} <- Tasks.get_active_turn_unresolved_tool_calls(scope, task_id),
+           true <- Enum.any?(calls, &(&1.tool_call_id == id)),
+           %InteractionSchema{} = request <-
+             scope |> Scope.user_id() |> Feedback.tool_request(task_id, turn, id) |> Repo.one() do
+        record_tool_answer(scope, request.id, result)
+      else
+        nil -> {:error, :not_found}
+        false -> {:ok, result}
+        {:ok, :no_active_turn} -> {:ok, result}
+        {:ok, _other_turn, _calls} -> {:ok, result}
+        {:error, reason} -> {:error, reason}
+      end
+    end)
   end
 
   def tool_result(_scope, _task_id, _turn, _call, result), do: {:ok, result}

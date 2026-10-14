@@ -16,6 +16,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   require Logger
 
   alias FrontmanServer.Agents
+  alias FrontmanServer.CustomerFeedback
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
   alias FrontmanServer.Protocols.{ACP, JsonRpc, MCP}
@@ -244,7 +245,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, assign(socket, :active_turn, context)}
   end
 
-  defp dispatch_tool_call(tool_call, socket) do
+  defp dispatch_tool_call(tool_call, turn_number, socket) do
     task_id = socket.assigns.task_id
 
     announced = socket.assigns[:announced_tool_calls] || MapSet.new()
@@ -279,13 +280,13 @@ defmodule FrontmanServerWeb.TaskChannel do
         {:noreply, socket}
 
       :mcp ->
-        route_to_mcp(tool_call, socket)
+        route_to_mcp(tool_call, turn_number, socket)
     end
   end
 
   defp handle_interaction(%Tasks.Interaction.ToolCall{} = tool_call, _turn_number, socket) do
     case open_tool_call(socket, tool_call.tool_call_id) do
-      {:ok, pending} -> dispatch_tool_call(pending, socket)
+      {:ok, turn_number, pending} -> dispatch_tool_call(pending, turn_number, socket)
       :error -> {:noreply, socket}
     end
   end
@@ -380,8 +381,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     case pop_mcp_tool_request(socket, id) do
       {:ok, tool_call_id, socket} ->
         case open_tool_call(socket, tool_call_id) do
-          {:ok, tool_call} ->
-            handle_tool_call_response(tool_call, result, socket)
+          {:ok, turn_number, tool_call} ->
+            handle_tool_call_response(tool_call, turn_number, result, socket)
 
           :error ->
             Logger.warning(
@@ -409,14 +410,14 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   defp open_tool_call(socket, tool_call_id) do
-    with {:ok, _turn_number, tool_calls} when is_list(tool_calls) <-
+    with {:ok, turn_number, tool_calls} when is_list(tool_calls) <-
            Tasks.get_active_turn_unresolved_tool_calls(
              socket.assigns.scope,
              socket.assigns.task_id
            ),
          %Tasks.Interaction.ToolCall{} = tool_call <-
            Enum.find(tool_calls, &(&1.tool_call_id == tool_call_id)) do
-      {:ok, tool_call}
+      {:ok, turn_number, tool_call}
     else
       _ -> :error
     end
@@ -427,7 +428,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  defp handle_tool_call_response(tool_call, result, socket) do
+  defp handle_tool_call_response(tool_call, turn_number, result, socket) do
     tools = socket.assigns.mcp_tools
 
     %{output_schema: output_schema} =
@@ -442,7 +443,7 @@ defmodule FrontmanServerWeb.TaskChannel do
           raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
       end
 
-    {:noreply, persist_tool_call_result(tool_call, result, socket)}
+    {:noreply, persist_tool_call_result(tool_call, turn_number, result, socket)}
   end
 
   defp normalize_tool_call_result(%{"content" => content} = result) do
@@ -461,16 +462,13 @@ defmodule FrontmanServerWeb.TaskChannel do
   defp supported_tool_result_content?(%{"type" => "resource_link"}), do: false
   defp supported_tool_result_content?(%{"type" => "resource"}), do: false
 
-  defp persist_tool_call_result(tool_call, result, socket) do
+  defp persist_tool_call_result(tool_call, turn_number, result, socket) do
     task_id = socket.assigns.task_id
     scope = socket.assigns.scope
+    call = %{id: tool_call.tool_call_id, name: tool_call.tool_name}
+    {:ok, result} = CustomerFeedback.tool_result(scope, task_id, turn_number, call, result)
 
-    case Tasks.resolve_tool_request(
-           scope,
-           task_id,
-           %{id: tool_call.tool_call_id, name: tool_call.tool_name},
-           result
-         ) do
+    case Tasks.resolve_tool_request(scope, task_id, call, result, turn_number: turn_number) do
       {:ok, interaction, executor_status} ->
         status = ACP.tool_call_status(interaction.is_error)
 
@@ -544,8 +542,8 @@ defmodule FrontmanServerWeb.TaskChannel do
     case pop_mcp_tool_request(socket, id) do
       {:ok, tool_call_id, socket} ->
         case open_tool_call(socket, tool_call_id) do
-          {:ok, tool_call} ->
-            handle_tool_call_error(tool_call, error, socket)
+          {:ok, turn_number, tool_call} ->
+            handle_tool_call_error(tool_call, turn_number, error, socket)
 
           :error ->
             Logger.warning(
@@ -567,7 +565,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
-  defp handle_tool_call_error(tool_call, error, socket) do
+  defp handle_tool_call_error(tool_call, turn_number, error, socket) do
     task_id = socket.assigns.task_id
     error_message = error["message"] || "Unknown MCP error"
 
@@ -582,7 +580,7 @@ defmodule FrontmanServerWeb.TaskChannel do
     Logger.error("MCP tool execution failed", metadata)
 
     result = MCP.tool_result_error(error_message)
-    {:noreply, persist_tool_call_result(tool_call, result, socket)}
+    {:noreply, persist_tool_call_result(tool_call, turn_number, result, socket)}
   end
 
   defp handle_prompt(id, params, socket) do
@@ -1116,8 +1114,10 @@ defmodule FrontmanServerWeb.TaskChannel do
     |> Enum.member?(tool_call_id)
   end
 
-  defp route_to_mcp(tool_call, socket) do
+  defp route_to_mcp(tool_call, turn_number, socket) do
     task_id = socket.assigns.task_id
+    call = %{id: tool_call.tool_call_id, name: tool_call.tool_name}
+    {:ok, _} = CustomerFeedback.tool_request(socket.assigns.scope, task_id, turn_number, call)
     request_id = System.unique_integer([:positive])
 
     request =

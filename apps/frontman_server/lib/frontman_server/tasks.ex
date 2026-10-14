@@ -409,8 +409,7 @@ defmodule FrontmanServer.Tasks do
 
   defp broadcast_swarm_event(_task_id, _turn_number, _event), do: :ok
 
-  defp finish_turn(scope, task, history, turn_number, kind)
-       when kind in [:cancelled, :terminated] do
+  defp finish_turn(task, history, turn_number, kind) when kind in [:cancelled, :terminated] do
     {preserved, interrupted} =
       history.rows
       |> History.unresolved_tool_calls(turn_number)
@@ -425,7 +424,7 @@ defmodule FrontmanServer.Tasks do
     results =
       Enum.map(interrupted, fn {call, _dispatch} ->
         {:ok, {row, true}} =
-          store_tool_result(scope, task, turn_number, call, MCP.tool_result_error(reason))
+          store_tool_result(task, turn_number, call, MCP.tool_result_error(reason))
 
         row
       end)
@@ -433,7 +432,7 @@ defmodule FrontmanServer.Tasks do
     case preserved do
       [] ->
         with {:ok, terminal} <-
-               finish_turn(scope, task, history, turn_number, build_execution_outcome(kind)) do
+               finish_turn(task, history, turn_number, build_execution_outcome(kind)) do
           {:ok, results ++ terminal}
         end
 
@@ -442,7 +441,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp finish_turn(_scope, task, _history, turn_number, {type, attrs}) do
+  defp finish_turn(task, _history, turn_number, {type, attrs}) do
     with {:ok, row} <-
            insert_interaction_row(task, %{
              id: Ecto.UUID.generate(),
@@ -755,7 +754,7 @@ defmodule FrontmanServer.Tasks do
            {:ok, history} <- load_history(task_id),
            {:ok, _turn} <- History.turn(history, turn_number),
            true <- History.active_turn_number(history) == turn_number do
-        finish_turn(scope, task, history, turn_number, outcome)
+        finish_turn(task, history, turn_number, outcome)
       else
         nil -> {:error, :not_found}
         false -> {:ok, []}
@@ -799,33 +798,7 @@ defmodule FrontmanServer.Tasks do
              execution_mode in [:synchronous, :interactive] do
     with {:ok, schema} <- get_task(scope, task_id),
          {:ok, attrs} <- Interaction.ToolCall.attrs(tool_call_data, execution_mode) do
-      case tool_call_data.name do
-        "request_customer_feedback" -> record_feedback_request(scope, schema, attrs, turn_number)
-        _name -> record_interaction(schema, :tool_call, attrs, turn_number)
-      end
-    end
-  end
-
-  defp record_feedback_request(scope, task, attrs, turn_number) do
-    Repo.transact(fn ->
-      with {:ok, row} <-
-             insert_interaction_row(task, %{
-               id: Ecto.UUID.generate(),
-               type: :tool_call,
-               data: attrs,
-               turn_number: turn_number
-             }),
-           {:ok, _feedback} <- CustomerFeedback.record_request(scope, row) do
-        {:ok, row}
-      end
-    end)
-    |> case do
-      {:ok, row} ->
-        broadcast_task(task.id, {:interaction, row})
-        {:ok, row.data}
-
-      {:error, reason} ->
-        {:error, reason}
+      record_interaction(schema, :tool_call, attrs, turn_number)
     end
   end
 
@@ -851,7 +824,7 @@ defmodule FrontmanServer.Tasks do
       case get_task_by_id_for_update(scope, task_id) do
         %TaskSchema{} = task ->
           turn_number = tool_result_turn_number(task_id, tool_call_id, opts)
-          store_tool_result(scope, task, turn_number, tool_call_data, result)
+          store_tool_result(task, turn_number, tool_call_data, result)
 
         nil ->
           {:error, :not_found}
@@ -867,7 +840,7 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp store_tool_result(scope, task, turn_number, tool_call, result) do
+  defp store_tool_result(task, turn_number, tool_call, result) do
     existing =
       InteractionSchema.for_task(task.id)
       |> InteractionSchema.for_turn(turn_number)
@@ -882,16 +855,15 @@ defmodule FrontmanServer.Tasks do
       nil ->
         {:ok, history} = load_history(task.id)
 
+        attrs = %{
+          id: Ecto.UUID.generate(),
+          type: :tool_result,
+          data: Interaction.ToolResult.attrs(tool_call, result),
+          turn_number: turn_number
+        }
+
         with ^turn_number <- History.active_turn_number(history),
-             {:ok, result} <-
-               CustomerFeedback.tool_result(scope, task.id, turn_number, tool_call, result),
-             {:ok, row} <-
-               insert_interaction_row(task, %{
-                 id: Ecto.UUID.generate(),
-                 type: :tool_result,
-                 data: Interaction.ToolResult.attrs(tool_call, result),
-                 turn_number: turn_number
-               }) do
+             {:ok, row} <- insert_interaction_row(task, attrs) do
           {:ok, {row, true}}
         else
           {:error, reason} -> {:error, reason}
@@ -1068,11 +1040,8 @@ defmodule FrontmanServer.Tasks do
        )
        when is_integer(turn_number) and turn_number > 0 and is_list(mcp_tools) do
     {:ok, history} = load_history(task.id)
-
-    tools =
-      mcp_tools
-      |> CustomerFeedback.filter_tools(scope)
-      |> then(&Tools.resolve(Agents.tool_policy(agent), &1))
+    mcp_tools = CustomerFeedback.filter_tools(mcp_tools, scope)
+    tools = Tools.resolve(Agents.tool_policy(agent), mcp_tools)
 
     project_context = project_context(task, history.rows, execution)
     system_prompt = Agents.system_prompt(scope, agent, project_context, tools)
