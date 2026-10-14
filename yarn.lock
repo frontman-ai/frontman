@@ -367,6 +367,16 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@astrojs/sitemap@npm:^3.7.4":
+  version: 3.7.4
+  resolution: "@astrojs/sitemap@npm:3.7.4"
+  dependencies:
+    sitemap: "npm:^9.0.0"
+    zod: "npm:^4.3.6"
+  checksum: 10c0/6aff00b6963f00a44e14db1cf26c4682702b43417c145d8d7a6871508ecbf80ba8db689b92acb9ab3b3ca9a14f1a1576b57c54d5c70e9e0e7acf477851329d29
+  languageName: node
+  linkType: hard
+
 "@astrojs/starlight-tailwind@npm:^5.0.0":
   version: 5.0.0
   resolution: "@astrojs/starlight-tailwind@npm:5.0.0"
@@ -11082,7 +11092,7 @@ __metadata:
     "@astrojs/check": "npm:^0.9.10"
     "@astrojs/preact": "npm:6.0.5"
     "@astrojs/rss": "npm:4.0.19"
-    "@astrojs/sitemap": "npm:^3.7.3"
+    "@astrojs/sitemap": "npm:^3.7.4"
     "@astrojs/starlight": "npm:0.42.0"
     "@astrojs/starlight-tailwind": "npm:^5.0.0"
     "@fontsource-variable/inter": "npm:^5.3.0"
