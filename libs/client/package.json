@@ -52,7 +52,7 @@
 		"@tailwindcss/vite": "^4.3.3",
 		"@types/babel__core": "^7",
 		"@types/react": "^19.3.0",
-		"@types/react-dom": "^19.2.7",
+		"@types/react-dom": "^19.3.0",
 		"@vitest/browser-playwright": "4.1.11",
 		"@zumer/snapdom": "^2.24.18",
 		"babel-plugin-react-compiler": "^1.0.0",
