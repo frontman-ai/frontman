@@ -2324,7 +2324,7 @@ __metadata:
     dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     draft-js: "npm:0.11.7"
     immutable: "npm:3.8.4"
-    lucide-react: "npm:^1.45.0"
+    lucide-react: "npm:^1.46.0"
     playwright: "npm:^1.63.0"
     react: "npm:^19.3.0"
     react-dom: "npm:^19.3.0"
@@ -10955,12 +10955,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"lucide-react@npm:^1.45.0":
-  version: 1.45.0
-  resolution: "lucide-react@npm:1.45.0"
+"lucide-react@npm:^1.46.0":
+  version: 1.46.0
+  resolution: "lucide-react@npm:1.46.0"
   peerDependencies:
     react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
-  checksum: 10c0/5e4e0d4170bd9318b636ab71df8a5ab6fe4b36687882223c1289e92e898f913eb5f3f4959db1e0fa865e4d9da0f5107d9c0dcaad99f84412192e606c1d7ff0a3
+  checksum: 10c0/abc28c9d70711d0ca9dfc8d777474512a99607df7767b104628ce31413fd7b9ebd66448a0def089c5f817615b51fe3e1e9a06ef0641748483fee6ee5ec66a15a
   languageName: node
   linkType: hard
 
