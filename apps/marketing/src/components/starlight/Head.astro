@@ -74,6 +74,9 @@ const pageSchema = {
 ---
 
 <StarlightHead {...Astro.props} />
+<link rel="api-catalog" type="application/linkset+json" href="/.well-known/api-catalog" />
+<link rel="service-desc" type="application/json" href="/openapi.json" />
+<link rel="ard" type="application/json" title="Agent Resource Directory (proposal)" href="/.well-known/ard.json" />
 {entry && markdownPath(Astro.url.pathname) && <link rel="alternate" type="text/markdown" title="This page in Markdown" href={markdownPath(Astro.url.pathname)} />}
 
 <meta property="og:image" content={ogImage} />

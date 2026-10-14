@@ -68,23 +68,13 @@ const {
 <link rel="sitemap" href="/sitemap-index.xml" />
 {markdownPath(Astro.url.pathname) && <link rel="alternate" type="text/markdown" title="This page in Markdown" href={markdownPath(Astro.url.pathname)} />}
 <link
-	rel="service-desc"
+	rel="api-catalog"
 	type="application/linkset+json"
 	title="Frontman API catalog"
 	href="/.well-known/api-catalog"
 />
-<link
-	rel="service-desc"
-	type="application/json"
-	title="Frontman agent card"
-	href="/.well-known/agent-card.json"
-/>
-<link
-	rel="service-desc"
-	type="application/json"
-	title="Frontman MCP server card"
-	href="/.well-known/mcp/server-card.json"
-/>
+<link rel="service-desc" type="application/json" href="/openapi.json" />
+<link rel="ard" type="application/json" title="Agent Resource Directory (proposal)" href="/.well-known/ard.json" />
 <link rel="alternate" type="application/rss+xml" title="Frontman Blog" href="/rss.xml" />
 <meta name="generator" content={Astro.generator} />
 <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />

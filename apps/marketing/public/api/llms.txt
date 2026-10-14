@@ -1,24 +1,22 @@
-# Frontman API LLM Context
+# Frontman Public Read-Only API Resources
 
-Frontman public API resources support integration metadata, authenticated user sessions, OAuth provider status, and local agent transport.
+> Documentation and framework adapter metadata are available without sign-in or an API key. These resources cannot edit websites.
 
 ## Discovery
 
-- API catalog: https://frontman.sh/.well-known/api-catalog
-- Agent card: https://frontman.sh/.well-known/agent-card.json
-- MCP discovery: https://frontman.sh/.well-known/mcp
-- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
+- [API catalog](https://frontman.sh/.well-known/api-catalog): RFC 9727 linkset
+- [OpenAPI description](https://frontman.sh/openapi.json): Public read contracts
+- [Agentic resources](https://frontman.sh/.well-known/ard.json): ARD proposal listing published skills and API descriptions
 
-## Public Endpoints
+## Public Reads
 
-- GET https://api.frontman.sh/health/ready - service readiness
-- GET https://api.frontman.sh/api/integrations/latest-versions - latest integration package versions
+- [Documentation index](https://frontman.sh/search-index.json): GET returns an array of title, canonical url, and Markdown content for published searchable documentation. Search locally; this is not a general site or pricing index.
+- [Latest adapter versions](https://api.frontman.sh/api/integrations/latest-versions): GET returns a versions map for @frontman-ai/nextjs, @frontman-ai/astro, and @frontman-ai/vite. Results may be cached for 30 minutes. Failed registry reads can be null; timed-out packages can be omitted.
 
-## Authenticated Endpoints
+## Product Access Boundaries
 
-- GET https://api.frontman.sh/api/socket-token - browser client socket token
-- GET https://api.frontman.sh/api/user/me - current user metadata
-- GET https://api.frontman.sh/api/user/api-keys - connected AI provider key status
-- POST https://api.frontman.sh/api/user/api-keys - save AI provider key
+- [Authentication](https://frontman.sh/auth.md): Hosted sign-in, provider access, and WordPress permissions
+- [Provider setup](https://frontman.sh/docs/api-keys/): Supported AI-provider connections
+- [Local integration architecture](https://frontman.sh/docs/reference/architecture/): Framework development tools and authenticated product sessions
 
-Hosted accounts use GitHub or Google OAuth. AI model keys are user-managed BYOK credentials.
+Public content reads are not a website-editing API. Hosted browser sign-in is not delegated OAuth authorization for third-party agents. Product user APIs require embedded-client bearer authentication. The marketing site does not serve a remote public MCP endpoint or an A2A agent service.

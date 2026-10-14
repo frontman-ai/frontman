@@ -83,3 +83,18 @@ test('framework Markdown has one H1 and consistently demotes maintained section 
 	})
 	expect(`# Frontman for Next.js, Astro, and Vite\n${sections.join('\n')}`.match(/^# .+$/gm)).toEqual(['# Frontman for Next.js, Astro, and Vite'])
 })
+
+test('shared discovery uses truthful relations and unambiguous static artifact media types', () => {
+	const headers = readFileSync(new URL('../../public/_headers', import.meta.url), 'utf8')
+	for (const path of ['components/blocks/head/Header.astro', 'components/starlight/Head.astro']) {
+		const head = read(path)
+		for (const relation of ['api-catalog', 'service-desc', 'ard']) expect(head).toContain(`rel="${relation}"`)
+		for (const url of ['/openapi.json', '/.well-known/ard.json']) expect(head).toContain(`href="${url}"`)
+		expect(head).not.toMatch(/agent-card|server-card/)
+	}
+	expect(headers).toContain('/.well-known/api-catalog\n  Content-Type: application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"; charset=utf-8\n  Link: <https://frontman.sh/.well-known/api-catalog>; rel="api-catalog"')
+	expect(headers).toContain('/feeds/structured-data.jsonl\n  Content-Type: application/x-ndjson; charset=utf-8')
+	expect(headers).toContain('/skills/*/SKILL.md\n  Content-Type: text/markdown; profile="urn:air:agent-skills"; charset=utf-8')
+	expect(headers).not.toContain('\n/*.md\n')
+	expect(headers).not.toMatch(/agent-card|server-card|\/\.well-known\/mcp/)
+})

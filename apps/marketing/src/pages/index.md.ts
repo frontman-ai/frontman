@@ -36,8 +36,8 @@ Framework integrations require a running supported Next.js, Astro, or Vite devel
 - Framework Markdown: https://frontman.sh/frameworks.md
 - Agent skills index: https://frontman.sh/.well-known/agent-skills/index.json
 - API catalog: https://frontman.sh/.well-known/api-catalog
-- Agent card: https://frontman.sh/.well-known/agent-card.json
-- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
+- OpenAPI description of public read-only resources: https://frontman.sh/openapi.json
+- Agent Resource Directory (evolving proposal, not MCP/A2A): https://frontman.sh/.well-known/ard.json
 - GitHub: https://github.com/frontman-ai/frontman
 
 ## Authentication And Access

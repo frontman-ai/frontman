@@ -29,8 +29,9 @@ const agentModeBody = {
 		llms: 'https://frontman.sh/llms.txt',
 		fullLlms: 'https://frontman.sh/llms-full.txt',
 		apiCatalog: 'https://frontman.sh/.well-known/api-catalog',
-		agentCard: 'https://frontman.sh/.well-known/agent-card.json',
-		mcpServerCard: 'https://frontman.sh/.well-known/mcp/server-card.json',
+		openApi: 'https://frontman.sh/openapi.json',
+		agentResourceDirectory: 'https://frontman.sh/.well-known/ard.json',
+		discoveryNote: 'ARD is an evolving proposal describing public read-only resources, not an editing protocol.',
 		agentSkills: 'https://frontman.sh/.well-known/agent-skills/index.json',
 		github: 'https://github.com/frontman-ai/frontman',
 	},
@@ -71,7 +72,7 @@ const securityHeaders = {
 	'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), shared-storage=(), attribution-reporting=()',
 	'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.frontman.sh https://www.googletagmanager.com https://www.google-analytics.com https://region1.analytics.google.com; frame-src 'self' https://www.googletagmanager.com https://www.youtube-nocookie.com; worker-src 'self' blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://rankinpublic.xyz",
 }
-const discoveryLink = '</llms.txt>; rel="alternate"; type="text/plain", </llms-full.txt>; rel="alternate"; type="text/plain", </sitemap-index.xml>; rel="sitemap"; type="application/xml", </rss.xml>; rel="alternate"; type="application/rss+xml", </.well-known/api-catalog>; rel="service-desc"; type="application/linkset+json", </.well-known/agent-card.json>; rel="service-desc"; type="application/json", </.well-known/mcp/server-card.json>; rel="service-desc"; type="application/json"'
+const discoveryLink = '</llms.txt>; rel="alternate"; type="text/plain", </llms-full.txt>; rel="alternate"; type="text/plain", </sitemap-index.xml>; rel="sitemap"; type="application/xml", </rss.xml>; rel="alternate"; type="application/rss+xml", </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json", </openapi.json>; rel="service-desc"; type="application/json", </.well-known/ard.json>; rel="ard"; type="application/json"'
 
 function prefersMarkdown(accept: string | null): boolean {
 	const ranges = (accept ?? '').split(',').map((range) => {
