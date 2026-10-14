@@ -1,13 +1,15 @@
 defmodule FrontmanServerWeb.CustomerFeedbackTest do
   use FrontmanServerWeb.ChannelCase, async: false
+  import FrontmanServer.Test.Fixtures.Accounts, only: [user_scope_fixture: 0]
   import FrontmanServer.Test.Fixtures.Tasks
   import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 2]
 
-  alias FrontmanServer.CustomerFeedback
   alias FrontmanServer.CustomerFeedback.Feedback
   alias FrontmanServer.Protocols.{JsonRpc, MCP}
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
+  alias FrontmanServer.Tools
+  alias FrontmanServer.Tools.CustomerFeedback, as: FeedbackTool
   alias FrontmanServerWeb.UserSocket
 
   @name "request_customer_feedback"
@@ -19,6 +21,8 @@ defmodule FrontmanServerWeb.CustomerFeedbackTest do
     call = %SwarmAi.ToolCall{id: "feedback", name: @name, arguments: "{}"}
     {:ok, _} = Tasks.request_client_tool(scope, task.id, turn, call, :interactive)
     assert Repo.aggregate(Feedback, :count) == 0
+    tools = Tools.MCP.from_maps([mcp_tool(@name, %{})])
+    assert Map.has_key?(Tools.resolve(:all, tools, scope), @name)
 
     {:ok, _, socket} =
       UserSocket
@@ -36,6 +40,7 @@ defmodule FrontmanServerWeb.CustomerFeedbackTest do
     })
 
     assert Repo.aggregate(Feedback, :count) == 1
+    refute Map.has_key?(Tools.resolve(:all, tools, scope), @name)
 
     {:ok, _} =
       Registry.register(FrontmanServer.ProcessRegistry, {:tool_call, task.id, call.id}, %{
@@ -61,67 +66,116 @@ defmodule FrontmanServerWeb.CustomerFeedbackTest do
     end
   end
 
-  test "cancellation before an answer prevents late feedback", context do
+  test "a submitted answer racing cancellation stays saved without resuming the task", context do
     Tasks.handle_swarm_event(context.scope, context.task_id, context.turn, {:cancelled, nil})
-    result = reply(%{"outcome" => "answered", "score" => 0})
+    assert_receive {:tool_result, "feedback", _, true}
 
-    assert {:ok, ^result} =
-             CustomerFeedback.tool_result(
-               context.scope,
-               context.task_id,
-               context.turn,
-               context.call,
-               result
-             )
-
-    assert Repo.one!(Feedback).score == nil
-  end
-
-  test "a resolved tool cannot save a late answer while the turn is still active", context do
-    {:ok, _, _} =
-      Tasks.resolve_tool_request(
-        context.scope,
-        context.task_id,
-        context.call,
-        MCP.tool_result_error("Interrupted"),
-        turn_number: context.turn
-      )
-
-    result = reply(%{"outcome" => "answered", "score" => 0})
-
-    assert {:ok, ^result} =
-             CustomerFeedback.tool_result(
-               context.scope,
-               context.task_id,
-               context.turn,
-               context.call,
-               result
-             )
-
-    assert Repo.one!(Feedback).score == nil
-  end
-
-  test "an answer committed before cancellation remains saved without resuming the task",
-       context do
-    {:ok, result} =
-      CustomerFeedback.tool_result(
-        context.scope,
-        context.task_id,
-        context.turn,
-        context.call,
+    push(
+      context.socket,
+      "mcp:message",
+      JsonRpc.success_response(
+        context.request_id,
         reply(%{"outcome" => "answered", "score" => 0})
       )
+    )
 
-    Tasks.handle_swarm_event(context.scope, context.task_id, context.turn, {:cancelled, nil})
+    :sys.get_state(context.socket.channel_pid)
+    assert Repo.one!(Feedback).score == 0
+    refute_receive {:tool_result, "feedback", _, _}
 
-    assert {:ok, cancelled, _status} =
-             Tasks.resolve_tool_request(context.scope, context.task_id, context.call, result,
-               turn_number: context.turn
+    assert {:ok, %{"structuredContent" => %{"score" => 0}}} =
+             FeedbackTool.tool_result(
+               context.scope,
+               context.task_id,
+               context.turn,
+               context.call,
+               reply(%{"outcome" => "answered", "score" => 10})
              )
 
-    assert cancelled.is_error
-    assert Repo.one!(Feedback).score == 0
     refute SwarmAi.running?(FrontmanServer.AgentRuntime, context.task_id)
+  end
+
+  test "a late reply stays bound to its original turn when a call ID is reused", context do
+    {:ok, old_request} =
+      Tasks.get_tool_request(context.scope, context.task_id, context.turn, context.call)
+
+    Tasks.handle_swarm_event(context.scope, context.task_id, context.turn, {:cancelled, nil})
+    assert_receive {:tool_result, "feedback", _, true}
+    next_turn = start_turn_fixture(context.scope, context.task_id)
+
+    {:ok, _} =
+      Tasks.request_client_tool(
+        context.scope,
+        context.task_id,
+        next_turn,
+        context.call,
+        :interactive
+      )
+
+    :sys.get_state(context.socket.channel_pid)
+
+    assert_push("mcp:message", %{
+      "id" => next_request_id,
+      "method" => "tools/call",
+      "params" => %{"name" => @name}
+    })
+
+    {:ok, next_request} =
+      Tasks.get_tool_request(context.scope, context.task_id, next_turn, context.call)
+
+    push(
+      context.socket,
+      "mcp:message",
+      JsonRpc.success_response(
+        context.request_id,
+        reply(%{"outcome" => "answered", "score" => 0})
+      )
+    )
+
+    :sys.get_state(context.socket.channel_pid)
+    assert Repo.get_by!(Feedback, interaction_id: old_request.id).score == 0
+    assert Repo.get_by!(Feedback, interaction_id: next_request.id).score == nil
+    refute_receive {:tool_result, "feedback", _, _}
+
+    push(
+      context.socket,
+      "mcp:message",
+      JsonRpc.success_response(
+        next_request_id,
+        reply(%{"outcome" => "answered", "score" => 9})
+      )
+    )
+
+    assert_receive {:tool_result, "feedback", _, false}
+    assert Repo.get_by!(Feedback, interaction_id: next_request.id).score == 9
+  end
+
+  test "request lookup enforces scope, task, turn, call ID and tool name", context do
+    other_scope = user_scope_fixture()
+    other_task = task_fixture(context.scope)
+
+    for {scope, task_id, turn, call} <- [
+          {other_scope, context.task_id, context.turn, context.call},
+          {context.scope, other_task.id, context.turn, context.call},
+          {context.scope, context.task_id, context.turn + 1, context.call},
+          {context.scope, context.task_id, context.turn, %{context.call | id: "other"}},
+          {context.scope, context.task_id, context.turn, %{context.call | name: "question"}}
+        ] do
+      assert {:error, :not_found} = Tasks.get_tool_request(scope, task_id, turn, call)
+    end
+  end
+
+  test "tool-specific reply validation rejects extra fields", context do
+    assert {:error, :invalid_customer_feedback} =
+             FeedbackTool.tool_result(
+               context.scope,
+               context.task_id,
+               context.turn,
+               context.call,
+               reply(%{"outcome" => "answered", "score" => 0, "extra" => true})
+             )
+
+    assert Repo.one!(Feedback).score == nil
   end
 
   defp reply(output) do

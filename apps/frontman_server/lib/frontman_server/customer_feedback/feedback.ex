@@ -41,15 +41,6 @@ defmodule FrontmanServer.CustomerFeedback.Feedback do
       where: interaction.id == ^interaction_id and task.user_id == ^user_id
   end
 
-  def tool_request(user_id, task_id, turn_number, tool_call_id) do
-    from interaction in InteractionSchema,
-      join: task in assoc(interaction, :task),
-      where: task.user_id == ^user_id and task.id == ^task_id,
-      where: interaction.turn_number == ^turn_number and interaction.type == :tool_call,
-      where: fragment("?->>'tool_call_id'", interaction.data) == ^tool_call_id,
-      where: fragment("?->>'tool_name'", interaction.data) == "request_customer_feedback"
-  end
-
   def unanswered(id), do: from(f in __MODULE__, where: f.id == ^id and is_nil(f.answered_at))
 
   def request_changeset(%__MODULE__{} = feedback) do
