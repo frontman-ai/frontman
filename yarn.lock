@@ -226,22 +226,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/internal-helpers@npm:0.10.4":
-  version: 0.10.4
-  resolution: "@astrojs/internal-helpers@npm:0.10.4"
-  dependencies:
-    "@types/hast": "npm:^3.0.4"
-    "@types/mdast": "npm:^4.0.4"
-    js-yaml: "npm:^4.3.0"
-    picomatch: "npm:^4.0.4"
-    retext-smartypants: "npm:^6.2.0"
-    shiki: "npm:^4.0.2"
-    smol-toml: "npm:^1.6.0"
-    unified: "npm:^11.0.5"
-  checksum: 10c0/2e789920c52597cfde72cb46524be92331b3a9b1d97a03d01e6d714fbbc905202b6949cfd9e5a33d241bf0b3275f5cfe7ffcbf3dd8652b3bc9345a8631b5af3c
-  languageName: node
-  linkType: hard
-
 "@astrojs/internal-helpers@npm:0.11.0":
   version: 0.11.0
   resolution: "@astrojs/internal-helpers@npm:0.11.0"
@@ -294,27 +278,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@astrojs/markdown-satteri@npm:0.3.8":
-  version: 0.3.8
-  resolution: "@astrojs/markdown-satteri@npm:0.3.8"
-  dependencies:
-    "@astrojs/internal-helpers": "npm:0.10.4"
-    "@astrojs/prism": "npm:4.0.2"
-    github-slugger: "npm:^2.0.0"
-    satteri: "npm:^0.10.3"
-  checksum: 10c0/58dc4567a795d19a8cf94d3cdf98b42189b6d71de25e05bb5bc8ca8bf201a30920ee067ecf6b7999035f30f2ec0f7d1525346d5580ae03c8c29545d113ac311c
-  languageName: node
-  linkType: hard
-
-"@astrojs/markdown-satteri@npm:0.4.0":
-  version: 0.4.0
-  resolution: "@astrojs/markdown-satteri@npm:0.4.0"
+"@astrojs/markdown-satteri@npm:0.4.1":
+  version: 0.4.1
+  resolution: "@astrojs/markdown-satteri@npm:0.4.1"
   dependencies:
     "@astrojs/internal-helpers": "npm:0.11.0"
     "@astrojs/prism": "npm:4.0.2"
     github-slugger: "npm:^2.0.0"
     satteri: "npm:^0.10.3"
-  checksum: 10c0/eacaaf65b8316a6d3d2441a341d64ca850a40d18a9c3a21faa90c4d7c6c134fb27f2315676b647df9207aa37b76b51059baf73308cc58330d2a0fce641fc55be
+  checksum: 10c0/04b8ec777ee6e19c212887f022b151f3348a4150c1f66ab33d4927e986722820b9b1c2b6b10c3a45721b11eef429ab33cfca1b342b11b5d040e0a90e79a8f83e
   languageName: node
   linkType: hard
 
@@ -2561,7 +2533,7 @@ __metadata:
   resolution: "@frontman/e2e-astro@workspace:test/e2e/fixtures/astro"
   dependencies:
     "@frontman-ai/astro": "workspace:*"
-    astro: "npm:7.2.8"
+    astro: "npm:7.3.2"
   languageName: unknown
   linkType: soft
 
@@ -7467,13 +7439,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"astro@npm:7.2.10":
-  version: 7.2.10
-  resolution: "astro@npm:7.2.10"
+"astro@npm:7.3.2":
+  version: 7.3.2
+  resolution: "astro@npm:7.3.2"
   dependencies:
     "@astrojs/compiler-rs": "npm:^0.4.0"
     "@astrojs/internal-helpers": "npm:0.11.0"
-    "@astrojs/markdown-satteri": "npm:0.4.0"
+    "@astrojs/markdown-satteri": "npm:0.4.1"
     "@astrojs/telemetry": "npm:3.3.3"
     "@capsizecss/unpack": "npm:^4.0.0"
     "@clack/prompts": "npm:^1.1.0"
@@ -7524,7 +7496,7 @@ __metadata:
     vitefu: "npm:^1.1.2"
     xxhash-wasm: "npm:^1.1.0"
     yargs-parser: "npm:^22.0.0"
-    zod: "npm:^4.3.6"
+    zod: "npm:^4.5.4"
   peerDependencies:
     "@astrojs/markdown-remark": ^7.3.0
   dependenciesMeta:
@@ -7535,79 +7507,7 @@ __metadata:
       optional: true
   bin:
     astro: ./bin/astro.mjs
-  checksum: 10c0/f8f0e093c8194f655aa452841b736ac278b25f6f528865b885191fa62851e6cf50ee926230504ba3f44f9ea27af7c58021a46ef92cb5c56ddb653e1b0935e394
-  languageName: node
-  linkType: hard
-
-"astro@npm:7.2.8":
-  version: 7.2.8
-  resolution: "astro@npm:7.2.8"
-  dependencies:
-    "@astrojs/compiler-rs": "npm:^0.4.0"
-    "@astrojs/internal-helpers": "npm:0.10.4"
-    "@astrojs/markdown-satteri": "npm:0.3.8"
-    "@astrojs/telemetry": "npm:3.3.3"
-    "@capsizecss/unpack": "npm:^4.0.0"
-    "@clack/prompts": "npm:^1.1.0"
-    "@oslojs/encoding": "npm:^1.1.0"
-    am-i-vibing: "npm:^0.4.0"
-    aria-query: "npm:^5.3.2"
-    axobject-query: "npm:^4.1.0"
-    ci-info: "npm:^4.4.0"
-    clsx: "npm:^2.1.1"
-    common-ancestor-path: "npm:^2.0.0"
-    cookie: "npm:^2.0.1"
-    devalue: "npm:^5.8.1"
-    diff: "npm:^9.0.0"
-    dset: "npm:^3.1.4"
-    es-module-lexer: "npm:^2.0.0"
-    esbuild: "npm:^0.28.0"
-    find-proc: "npm:0.1.0"
-    flattie: "npm:^1.1.1"
-    fontace: "npm:~0.4.1"
-    get-tsconfig: "npm:5.0.0-beta.4"
-    github-slugger: "npm:^2.0.0"
-    html-escaper: "npm:3.0.3"
-    http-cache-semantics: "npm:^4.2.0"
-    js-yaml: "npm:^4.3.0"
-    jsonc-parser: "npm:^3.3.1"
-    magic-string: "npm:^1.0.0"
-    magicast: "npm:^0.5.2"
-    mrmime: "npm:^2.0.1"
-    neotraverse: "npm:^1.0.1"
-    obug: "npm:^2.1.1"
-    p-limit: "npm:^7.3.0"
-    p-queue: "npm:^9.1.0"
-    package-manager-detector: "npm:^1.6.0"
-    piccolore: "npm:^0.1.3"
-    picomatch: "npm:^4.0.4"
-    semver: "npm:^7.7.4"
-    sharp: "npm:^0.35.4"
-    shiki: "npm:^4.0.2"
-    smol-toml: "npm:^1.6.0"
-    svgo: "npm:^4.0.1"
-    tinyclip: "npm:^0.1.12"
-    tinyexec: "npm:^1.0.4"
-    tinyglobby: "npm:^0.2.15"
-    ultrahtml: "npm:^1.6.0"
-    unifont: "npm:~0.7.5"
-    unstorage: "npm:^1.17.5"
-    vite: "npm:^8.0.13"
-    vitefu: "npm:^1.1.2"
-    xxhash-wasm: "npm:^1.1.0"
-    yargs-parser: "npm:^22.0.0"
-    zod: "npm:^4.3.6"
-  peerDependencies:
-    "@astrojs/markdown-remark": 7.2.4
-  dependenciesMeta:
-    sharp:
-      optional: true
-  peerDependenciesMeta:
-    "@astrojs/markdown-remark":
-      optional: true
-  bin:
-    astro: ./bin/astro.mjs
-  checksum: 10c0/72e44f7931b438c59b48f5c2bd73efe0d0d16f5944576f1f5b6c8b5f198f1c35260300392e0ad11c1ea45c954dddf196b2d995c5065a1eeef48e47bf1387d66d
+  checksum: 10c0/5f0d36d7f9aba7c7f7cec7147fb8a2ed39de0b9fe2695c1ade0b892272c8c6a36238fa2fc02203e955033a0ec8513adfc55f2f3fba67a0d9c0697a8b3a8ef407
   languageName: node
   linkType: hard
 
@@ -12049,7 +11949,7 @@ __metadata:
     "@tailwindcss/typography": "npm:^0.5.20"
     "@tailwindcss/vite": "npm:^4.3.3"
     ajv: "npm:^8.20.0"
-    astro: "npm:7.2.10"
+    astro: "npm:7.3.2"
     astro-broken-links-checker: "npm:^1.1.0"
     astro-icon: "npm:^1.2.0"
     hc-starlight: "npm:^0.0.8"
@@ -17793,6 +17693,13 @@ __metadata:
   version: 4.3.6
   resolution: "zod@npm:4.3.6"
   checksum: 10c0/860d25a81ab41d33aa25f8d0d07b091a04acb426e605f396227a796e9e800c44723ed96d0f53a512b57be3d1520f45bf69c0cb3b378a232a00787a2609625307
+  languageName: node
+  linkType: hard
+
+"zod@npm:^4.5.4":
+  version: 4.6.5
+  resolution: "zod@npm:4.6.5"
+  checksum: 10c0/32eb6c5e98becbe045675b2141c3611451c16ba567f9779231d79af41c4d651ca1c22f154aef7e6c6e77b929f23e43f1154ca05b82e119e922353725d6776af5
   languageName: node
   linkType: hard
 
