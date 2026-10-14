@@ -100,6 +100,7 @@ function negotiatedResponse(response: Response, request: Request, alternate?: st
 	}
 	const vary = headers.get('Vary')?.split(',').map(value => value.trim()) ?? []
 	if (!vary.some(value => ['accept', '*'].includes(value.toLowerCase()))) vary.push('Accept')
+	if (!vary.some(value => ['user-agent', '*'].includes(value.toLowerCase()))) vary.push('User-Agent')
 	headers.set('Vary', vary.join(', '))
 	headers.set('Cache-Control', 'no-store')
 	headers.set('CDN-Cache-Control', 'no-store')
@@ -121,11 +122,15 @@ export const onRequest = async (context: PagesContext) => {
 			headers: { 'Content-Type': 'application/json; charset=utf-8' },
 		}), request, alternate!)
 	}
-	if (!alternate) return context.next()
+	const bot = /\b(?:GPTBot|ClaudeBot|Claude-SearchBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Applebot|Google-Extended|Applebot-Extended|ora-agent|DeepSeekBot)\b/i.test(request.headers.get('User-Agent') ?? '')
+	const wantsMarkdown = prefersMarkdown(request.headers.get('Accept')) || bot
 	const html = await context.next()
-	if (html.status === 404) return html
+	if (html.status === 404 && wantsMarkdown) return negotiatedResponse(new Response('# Page not found\n\nThis Frontman resource does not exist. Find documentation and supported resources in [llms.txt](https://frontman.sh/llms.txt).\n', {
+		status: 404, headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+	}), request)
+	if (!alternate || html.status === 404) return html
 	if (html.status >= 300 && html.status < 400 && html.status !== 304) return negotiatedResponse(html, request)
 	const markdown = await context.env.ASSETS.fetch(new Request(new URL(alternate, url.origin), { method: 'GET' }))
 	if (!markdown.ok || markdown.headers.get('Content-Type')?.split(';')[0] !== 'text/markdown') return negotiatedResponse(html, request)
-	return negotiatedResponse(prefersMarkdown(request.headers.get('Accept')) ? markdown : html, request, alternate)
+	return negotiatedResponse(wantsMarkdown ? markdown : html, request, alternate)
 }

@@ -2,12 +2,33 @@ import { expect, test } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { docsMarkdown } from '../content/docsMarkdown'
+import { markdownResponse } from '../content/markdownResponse'
+import { parse as parseYaml } from 'yaml'
+import { vi } from 'vitest'
+
+vi.stubEnv('SITE', 'https://frontman.sh')
 import { markdownPath } from '../content/markdownRoutes'
 import { pricing, billingPlans, subscriptionTerms } from '../content/pricing'
 import { GET as pricingGet } from '../pages/pricing.md'
 import { GET as authGet } from '../pages/auth.md'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+
+test('Markdown response metadata safely preserves titles, canonical URLs and maintained content', async () => {
+	const body = '# Frontman: "quoted" title\n\nOriginal content.'
+	const response = markdownResponse(body, '/docs/installation/')
+	const text = await response.text()
+	const metadata = parseYaml(text.match(/^---\n([\s\S]*?)\n---\n/)![1])
+	expect(metadata).toEqual({ title: 'Frontman: "quoted" title', canonical: 'https://frontman.sh/docs/installation/' })
+	expect(text).toContain(body)
+	expect(() => markdownResponse('No heading', '/broken')).toThrow('Markdown title is missing')
+	for (const route of [pricingGet, authGet, (await import('../pages/index.md')).GET]) {
+		expect(await (await route({} as never)).text()).toMatch(/^---\ntitle: .+\ncanonical: .+\n---\n\n# /)
+	}
+	for (const path of ['/changelog/', '/.well-known/api-catalog', '/api/llms.txt']) {
+		expect(markdownPath(path)).toBe(`${path.replace(/\/$/, '')}.md`)
+	}
+})
 
 test('pricing Markdown and HTML use the same maintained values and subscription terms', async () => {
 	const markdown = await (await pricingGet({} as never)).text()

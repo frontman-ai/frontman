@@ -74,11 +74,11 @@ test('query/credential/validator canaries never reach assets or response links',
 	expect(response.headers.get('Link')).not.toMatch(/canary|evil|private/)
 	expect(response.headers.get('Link')).toContain('</docs/installation.md>')
 	expect(response.headers.get('Link')).toContain('</custom>')
-	expect(response.headers.get('Vary')).toBe('Origin, Accept')
+	expect(response.headers.get('Vary')).toBe('Origin, Accept, User-Agent')
 })
 
 test('unknown routes, missing twins, direct assets and canonical redirects retain their status/type', async () => {
-	for (const path of ['/missing/?mode=agent', '/index.md', '/pricing.md', '/docs/installation.md', '/docs/a//', '/docs/%2F/']) {
+	for (const path of ['/index.md', '/pricing.md', '/docs/installation.md']) {
 		const unchanged = new Response('original', { status: path.includes('.md') ? 200 : 404 })
 		expect(await run(request(path, 'text/markdown'), async () => { throw new Error('Unexpected lookup') }, async () => unchanged)).toBe(unchanged)
 	}
@@ -86,7 +86,7 @@ test('unknown routes, missing twins, direct assets and canonical redirects retai
 		const html = new Response('HTML fallback', { status, headers: { 'Content-Type': 'text/html' } })
 		const fallback = await run(request('/docs/missing/', 'text/markdown'), async () => html, async () => html)
 		expect(fallback.status).toBe(status)
-		expect(fallback.headers.get('Content-Type')).toBe('text/html')
+		expect(fallback.headers.get('Content-Type')).toContain(status === 404 ? 'text/markdown' : 'text/html')
 		expect(fallback.headers.get('Link') ?? '').not.toContain('/docs/missing.md')
 	}
 	const redirect = await run(request('/frameworks', 'text/markdown'), async () => { throw new Error('Redirect lookup') }, async () => new Response(null, { status: 301, headers: { Location: '/frameworks/' } }))
@@ -98,7 +98,7 @@ test('unknown routes, missing twins, direct assets and canonical redirects retai
 	const selected = await run(request('/', 'text/markdown'), async () => new Response('# Markdown', { headers: { 'Content-Type': 'text/markdown', 'Content-Encoding': 'gzip', 'Referrer-Policy': 'no-referrer', Vary: 'Origin, aCcEpT' } }))
 	expect(selected.headers.get('Content-Encoding')).toBe('gzip')
 	expect(selected.headers.get('Referrer-Policy')).toBe('no-referrer')
-	expect(selected.headers.get('Vary')).toBe('Origin, aCcEpT')
+	expect(selected.headers.get('Vary')).toBe('Origin, aCcEpT, User-Agent')
 })
 
 test('HTML conditional validators cannot produce Markdown 304; security policy matches static headers', async () => {
@@ -112,6 +112,40 @@ test('HTML conditional validators cannot produce Markdown 304; security policy m
 		}
 		expect(response.headers.get('CDN-Cache-Control')).toBe('no-store')
 	}
+})
+
+test('AI bot user agents receive Markdown without changing human HTML or agent JSON', async () => {
+	for (const agent of [
+		'GPTBot/1.0', 'ClaudeBot/1.0', 'Claude-SearchBot/1.0', 'ChatGPT-User/1.0', 'PerplexityBot/1.0',
+		'Google-Extended/1.0', 'Applebot-Extended/1.0', 'ora-agent/1.0', 'DeepSeekBot/1.0',
+		'Mozilla/5.0 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)',
+		'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot',
+	]) {
+		const response = await run(new Request('https://frontman.sh/', { headers: { 'User-Agent': agent, Accept: 'text/html' } }))
+		expect(await response.text()).toBe('# Markdown')
+		expect(response.headers.get('Vary')).toContain('User-Agent')
+	}
+	for (const agent of ['Mozilla/5.0', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)']) {
+		const human = await run(new Request('https://frontman.sh/', { headers: { 'User-Agent': agent, Accept: 'text/html' } }))
+		expect(await human.text()).toBe('HTML')
+	}
+	const agentJson = await run(new Request('https://frontman.sh/?mode=agent', { headers: { 'User-Agent': 'OAI-SearchBot/1.0', Accept: 'text/html' } }))
+	expect(agentJson.headers.get('Content-Type')).toContain('application/json')
+	expect((await agentJson.json()).name).toBe('Frontman')
+})
+
+test('missing resources retain 404 and give agents Markdown help without looking up assets', async () => {
+	for (const path of ['/missing/?mode=agent', '/docs/missing/', '/missing.md']) {
+		for (const method of ['GET', 'HEAD']) {
+			const response = await run(request(path, 'text/markdown', method), async () => { throw new Error('Unexpected lookup') },
+				async () => new Response('HTML 404', { status: 404, headers: { 'Content-Type': 'text/html' } }))
+			expect(response.status).toBe(404)
+			expect(response.headers.get('Content-Type')).toContain('text/markdown')
+			expect(await response.text()).toBe(method === 'HEAD' ? '' : '# Page not found\n\nThis Frontman resource does not exist. Find documentation and supported resources in [llms.txt](https://frontman.sh/llms.txt).\n')
+		}
+	}
+	const original = new Response('HTML 404', { status: 404 })
+	expect(await run(request('/missing/', 'text/html'), assets.fetch, async () => original)).toBe(original)
 })
 
 test('both sequential representation orders remain distinct and uncacheable', async () => {

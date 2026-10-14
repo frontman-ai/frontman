@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro'
+import { markdownResponse } from '../content/markdownResponse'
 
 const body = `# Frontman
 
@@ -51,12 +52,6 @@ WordPress requires WordPress 6.0+, PHP 7.4+, and administrator access. Open Fron
 - Terms: https://frontman.sh/terms/
 `
 
-export const GET: APIRoute = () => {
-	return new Response(body, {
-		headers: {
-			'Content-Type': 'text/markdown; charset=utf-8',
-		},
-	})
-}
+export const GET: APIRoute = () => markdownResponse(body, '/')
 
 export const prerender = true

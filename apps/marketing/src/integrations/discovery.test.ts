@@ -1,6 +1,7 @@
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { APIRoute, APIContext } from 'astro'
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import * as S from 'sury'
 import { parse as parseYaml } from 'yaml'
@@ -11,6 +12,10 @@ import ardSchema from './fixtures/ard-entry.schema.json'
 const read = (path: string) => readFileSync(path, 'utf8')
 const call = async (route: APIRoute) => await route({} as APIContext)
 beforeAll(() => { vi.stubEnv('SITE', 'https://frontman.sh') })
+vi.mock('node:child_process', async importOriginal => {
+	const actual = await importOriginal<typeof import('node:child_process')>()
+	return { ...actual, execFileSync: vi.fn(actual.execFileSync) }
+})
 
 const ajv = new Ajv2020({ strict: false })
 	.addFormat('uri', (value: string) => S.is(S.url, value))
@@ -75,16 +80,34 @@ test('ARD validates against the pinned current schema and resolves real artifact
 	expect(validate(manifest), JSON.stringify(validate.errors)).toBe(true)
 	const { entries } = await (await call(GET)).json()
 	const { skills } = await (await call(skillsGET)).json()
+	expect((await (await call(GET)).json()).specVersion).toBe('1.0')
 	expect(entries.length).toBe(skills.length + 1)
+	for (const entry of entries) {
+		expect(entry.trustManifest.identity).toBe('https://frontman.sh/')
+		expect(entry.identifier.split(':')[2]).toBe(new URL(entry.trustManifest.identity).hostname)
+		expect(ajv.compile(ardSchema.$defs.TrustManifest)(entry.trustManifest)).toBe(true)
+		const { sourceId, sourceDigest } = entry.trustManifest.provenance[0]
+		const source = new URL(sourceId)
+		expect(source.origin).toBe('https://raw.githubusercontent.com')
+		const match = source.pathname.match(/^\/frontman-ai\/frontman\/([a-f0-9]{40})\/(apps\/marketing\/.+)$/)!
+		expect(match).not.toBeNull()
+		const committedBytes = execFileSync('git', ['show', `${match[1]}:${match[2]}`])
+		expect(sourceDigest).toBe(`sha256:${createHash('sha256').update(committedBytes).digest('hex')}`)
+		expect('url' in entry).not.toBe('data' in entry)
+	}
+	const { GET: catalogGET } = await import('../pages/.well-known/ai-catalog.json')
+	expect(await (await call(catalogGET)).json()).toEqual(await (await call(GET)).json())
 	for (const skill of skills) {
 		const artifact = readFileSync(`public${new URL(skill.url).pathname}`)
 		expect(skill.digest).toBe(`sha256:${createHash('sha256').update(artifact).digest('hex')}`)
 		const entry = entries.find((entry: { url: string }) => entry.url === skill.url)
 		expect(entry.type).toBe('text/markdown; profile="urn:air:agent-skills"')
 		expect(entry.representativeQueries.length).toBeGreaterThanOrEqual(2)
+		expect(entry.trustManifest.provenance[0].sourceDigest).toBe(skill.digest)
 	}
 	expect(entries.filter((entry: { type: string }) => /mcp|a2a/.test(entry.type))).toEqual([])
 	expect(entries.at(-1).url).toBe('https://frontman.sh/openapi.json')
+	expect(entries.at(-1).trustManifest.provenance[0].sourceDigest).toBe(`sha256:${createHash('sha256').update(read('src/pages/openapi.json.ts')).digest('hex')}`)
 })
 
 test('every advertised skill frontmatter matches its identity, digest, and ARD entry', async () => {
@@ -105,6 +128,19 @@ test('every advertised skill frontmatter matches its identity, digest, and ARD e
 		expect(entry.displayName).toBe(metadata.name)
 		expect(entry.description).toBe(metadata.description)
 	}
+})
+
+test('official Agent Plugin uses the portable manifest and adjacent skill layout', async () => {
+	const plugin = S.parser(S.jsonString, S.schema({
+		'$schema': S.literal('https://agent-plugins.org/schemas/1.0.0/plugin.schema.json'),
+		name: S.literal('frontman'), version: S.string, description: S.string,
+		author: S.schema({ name: S.string, url: S.string }), homepage: S.string, repository: S.string,
+	}))(read('public/plugin.json'))
+	expect(plugin.homepage).toBe('https://frontman.sh')
+	expect(plugin.repository).toBe('https://github.com/frontman-ai/frontman')
+	const { skills } = await import('../pages/.well-known/agent-skills/index.json')
+	for (const skill of skills) expect(existsSync(`public/skills/${skill.name}/SKILL.md`)).toBe(true)
+	expect(read('public/llms.txt')).toContain('https://frontman.sh/plugin.json')
 })
 
 test('Schema Map uses the current proposal format and points to JSONL, not JSON text sequences', async () => {
@@ -132,6 +168,13 @@ test('robots adds only Schema Map discovery, leaving crawler policy bytes unchan
 	expect(body).toContain('Schemamap: https://frontman.sh/schema-map.xml')
 	const groups = source.slice(source.indexOf('User-agent:'), source.indexOf('Sitemap:'))
 	expect(createHash('sha256').update(groups).digest('hex')).toBe('2ed3a1d6c913884b05ca2b2724e8f087402c4ee4361a75eeac216d6cf929b8be')
+})
+
+test('provenance refuses source bytes that differ from the pinned commit', async () => {
+	vi.resetModules()
+	vi.mocked(execFileSync).mockReturnValueOnce('a'.repeat(40)).mockReturnValueOnce(Buffer.from('different committed bytes'))
+	await expect(import('../pages/.well-known/ard.json')).rejects.toThrow('before publishing its provenance')
+	vi.resetModules()
 })
 
 test('removed protocol routes have no source, rewrite, or incoming public-index links', () => {
