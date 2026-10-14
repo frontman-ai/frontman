@@ -18,6 +18,8 @@ defmodule FrontmanServer.CustomerFeedback do
   alias FrontmanServer.Tasks
   alias FrontmanServer.Tasks.{InteractionSchema, TaskSchema}
 
+  @tool_name "request_customer_feedback"
+
   @doc "Whether the user has no request or answer within the rolling cooldown."
   def eligible?(%Scope{} = scope, now \\ DateTime.utc_now()) do
     cutoff = DateTime.add(now, -30, :day)
@@ -52,16 +54,16 @@ defmodule FrontmanServer.CustomerFeedback do
   end
 
   def filter_tools(tools, %Scope{} = scope) when is_list(tools) do
-    with true <- Enum.any?(tools, &(&1.name == "request_customer_feedback")),
+    with true <- Enum.any?(tools, &(&1.name == @tool_name)),
          false <- eligible?(scope) do
-      Enum.reject(tools, &(&1.name == "request_customer_feedback"))
+      Enum.reject(tools, &(&1.name == @tool_name))
     else
       false -> tools
       true -> tools
     end
   end
 
-  def tool_request(%Scope{} = scope, task_id, turn, %{name: "request_customer_feedback", id: id}) do
+  def tool_request(%Scope{} = scope, task_id, turn, %{name: @tool_name, id: id}) do
     scope
     |> Scope.user_id()
     |> Feedback.tool_request(task_id, turn, id)
@@ -81,7 +83,7 @@ defmodule FrontmanServer.CustomerFeedback do
         %Scope{} = scope,
         task_id,
         turn,
-        %{name: "request_customer_feedback", id: id},
+        %{name: @tool_name, id: id},
         result
       ) do
     Repo.transact(fn ->
