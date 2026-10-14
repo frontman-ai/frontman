@@ -2334,7 +2334,7 @@ __metadata:
     "@tiptap/pm": "npm:3.31.3"
     "@tiptap/react": "npm:3.31.3"
     "@types/babel__core": "npm:^7"
-    "@types/react": "npm:^19.2.18"
+    "@types/react": "npm:^19.3.0"
     "@types/react-dom": "npm:^19.2.7"
     "@vitest/browser-playwright": "npm:4.1.11"
     "@zumer/snapdom": "npm:^2.24.18"
@@ -2347,7 +2347,7 @@ __metadata:
     immutable: "npm:3.8.4"
     lucide-react: "npm:^1.45.0"
     playwright: "npm:^1.63.0"
-    react: "npm:^19.2.8"
+    react: "npm:^19.3.0"
     react-dom: "npm:^19.2.8"
     react-dom-draft-fixture: "npm:react-dom@18.3.1"
     react-draft-fixture: "npm:react@18.3.1"
@@ -2364,7 +2364,7 @@ __metadata:
     vite: "catalog:"
     vitest: "catalog:"
   peerDependencies:
-    react: ^19.2.8
+    react: ^19.3.0
     react-dom: ^19.2.8
   languageName: unknown
   linkType: soft
@@ -2459,7 +2459,7 @@ __metadata:
     dom-element-to-component-source: "npm:@frontman-ai/dom-element-to-component-source@0.5.0"
     lighthouse: "npm:^13.4.1"
     next: "npm:^16.3.6"
-    react: "npm:^19.2.8"
+    react: "npm:^19.3.0"
     react-dom: "npm:^19.2.8"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
@@ -2500,7 +2500,7 @@ __metadata:
     "@testing-library/dom": "npm:^10.4.1"
     "@testing-library/react": "npm:^16.3.3"
     jsdom: "npm:^30.0.1"
-    react: "npm:^19.2.8"
+    react: "npm:^19.3.0"
     react-dom: "npm:^19.2.8"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
@@ -2508,7 +2508,7 @@ __metadata:
     vite: "catalog:"
     vitest: "catalog:"
   peerDependencies:
-    react: ^19.2.8
+    react: ^19.3.0
     react-dom: ^19.2.8
   languageName: unknown
   linkType: soft
@@ -2549,7 +2549,7 @@ __metadata:
     "@rescript/react": "npm:^0.15.0"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
-    react: "npm:^19.2.8"
+    react: "npm:^19.3.0"
     react-dom: "npm:^19.2.8"
     rescript: "catalog:"
     sentry-testkit: "npm:^7.5.0"
@@ -2573,7 +2573,7 @@ __metadata:
     "@opentelemetry/api": "npm:^1.9.1"
     "@opentelemetry/sdk-node": "npm:^0.221.0"
     next: "npm:~16.3.6"
-    react: "npm:^19.2.8"
+    react: "npm:^19.3.0"
     react-dom: "npm:^19.2.8"
   languageName: unknown
   linkType: soft
@@ -2584,7 +2584,7 @@ __metadata:
   dependencies:
     "@frontman-ai/vite": "workspace:*"
     "@vitejs/plugin-react": "npm:^6.1.1"
-    react: "npm:^19.2.8"
+    react: "npm:^19.3.0"
     react-dom: "npm:^19.2.8"
     vite: "catalog:"
   languageName: unknown
@@ -2637,7 +2637,7 @@ __metadata:
     "@frontman-ai/vite": "workspace:*"
     "@tailwindcss/vite": "npm:^4.3.3"
     "@vitejs/plugin-react": "npm:^6.1.1"
-    react: "npm:^19.2.8"
+    react: "npm:^19.3.0"
     react-dom: "npm:^19.2.8"
     tailwindcss: "npm:^4.3.3"
     vite: "catalog:"
@@ -6522,12 +6522,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/react@npm:^19.2.18":
-  version: 19.2.18
-  resolution: "@types/react@npm:19.2.18"
+"@types/react@npm:^19.3.0":
+  version: 19.3.0
+  resolution: "@types/react@npm:19.3.0"
   dependencies:
     csstype: "npm:^3.2.2"
-  checksum: 10c0/d04216172b4b4362b310017c210dfbe019fb4f4e7dffd0313e70b3acb3051d5c3e76e7e84e3cf4c6a3c824993ffadfe3949e589a6398a09d4200e7670e2962de
+  checksum: 10c0/fbcabf303f935ca9f36ed2dcf81751cf84744098c5a683c8a62a0fa7edd31714b48d5c46b12fd0014f7f2dfe4d9ec6de428a850748eec719a70294e51029551b
   languageName: node
   linkType: hard
 
@@ -14481,10 +14481,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react@npm:^19.2.8":
-  version: 19.2.8
-  resolution: "react@npm:19.2.8"
-  checksum: 10c0/5f86bdb56426652fd6d989d30a6f2e603c057272c47c9ca3a3fbe190a3a39ee9ccce937d63cfc039717abed1b8891d6a499134bc35311acc07eafdacd86537cd
+"react@npm:^19.3.0":
+  version: 19.3.0
+  resolution: "react@npm:19.3.0"
+  checksum: 10c0/dd3099c3c43a7122bc01223bb26b0f8d5ba13cca569af6fb94a005fb54fa73223c9cb203bb226d40cfd49a82cbeef2e36ce84062a3a6d5b9fe8f4437694c7b52
   languageName: node
   linkType: hard
 
