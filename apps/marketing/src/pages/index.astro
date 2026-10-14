@@ -88,6 +88,12 @@ const pageJsonLd = {
 	ogImageAlt="Frontman WordPress Plugin Released"
 >
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(pageJsonLd)} />
+	<script>
+		import { registerHomepageTools } from '../integrations/webmcp.mjs'
+		void registerHomepageTools(document).catch((error) => {
+			console.error('[WebMCP] Page tool registration failed.', error)
+		})
+	</script>
 
 	<section class="wp-hero">
 		<div class="wp-hero__bg">
@@ -149,7 +155,7 @@ const pageJsonLd = {
 		</div>
 	</section>
 
-	<section class="wp-section wp-section--dark">
+	<section id="wordpress-features" class="wp-section wp-section--dark">
 		<div class="wp-container">
 			<div class="wp-section-header">
 				<p class="wp-label">Everyday updates</p>
@@ -191,17 +197,17 @@ const pageJsonLd = {
 				<div class="wp-install__details">
 					<p><strong>Requirements</strong> · WordPress 6.0+ · PHP 7.4+ · Administrator access</p>
 					<div class="wp-install__links">
-						<a href={setupGuideUrl}>WordPress setup guide</a>
-						<a href="/pricing/">Pricing</a>
-						<a href="/docs/api-keys/">Provider connection guide</a>
+						<a class="wp-setup-link" href={setupGuideUrl}>WordPress setup guide</a>
+						<a class="wp-setup-link" href="/pricing/">Pricing</a>
+						<a class="wp-setup-link" href="/docs/api-keys/">Provider connection guide</a>
 					</div>
-					<p>Using Next.js, Astro, or Vite? <a href="/frameworks/#install" data-ga-event="click_framework_setup" data-ga-category="conversion" data-ga-label="wordpress_home_setup">Framework setup →</a><br />Developers review, test, and deploy source changes.</p>
+					<p>Using Next.js, Astro, or Vite? <a class="wp-setup-link" href="/frameworks/#install" data-ga-event="click_framework_setup" data-ga-category="conversion" data-ga-label="wordpress_home_setup">Framework setup →</a><br />Developers review, test, and deploy source changes.</p>
 				</div>
 			</div>
 		</div>
 	</section>
 
-	<section class="wp-section wp-section--dark">
+	<section id="wordpress-safety" class="wp-section wp-section--dark">
 		<div class="wp-container wp-split">
 			<div>
 				<p class="wp-label">Safety</p>

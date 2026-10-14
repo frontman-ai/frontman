@@ -26,7 +26,7 @@ export function createHomepageTools(document) {
     {
       name: "search_frontman",
       title: "Search Frontman",
-      description: "Search Frontman's documentation, features, integrations, and known limitations with concise keywords. Returns matching excerpts and source URLs, or no_results when nothing matches. Does not contact the team or submit a request. The query stays in the browser.",
+      description: "Search Frontman's public documentation only, using concise keywords. Does not search pricing or marketing pages. Returns matching excerpts and source URLs, or no_results when nothing matches. Does not contact the team or submit a request. The query stays in the browser.",
       inputSchema: searchInputSchema,
       annotations: { readOnlyHint: true },
       execute: async (input, { signal }) => {
@@ -99,12 +99,21 @@ export function createHomepageTools(document) {
       name: "how_to_install",
       title: "How to install Frontman",
       description:
-        "Return installation instructions for the framework selected on the homepage. Does not install anything.",
+        "Return WordPress setup and safety on the homepage, or instructions for the selected stack on /frameworks/. Does not install anything.",
       inputSchema,
       annotations: { readOnlyHint: true },
       execute: async (input, { signal = new AbortController().signal } = {}) => {
         parseWith(validateInput, input);
         signal.throwIfAborted();
+        const wordpress = document.querySelector("#install .wp-install");
+        if (wordpress) {
+          return [
+            readFeatureText(wordpress, ".wp-install__steps"),
+            readFeatureText(wordpress, ".wp-install__details"),
+            readFeatureText(document, "#wordpress-safety .wp-copy"),
+            `Setup guide: ${wordpress.querySelector(".wp-install__links a").href}`,
+          ].join("\n\n");
+        }
         const framework = document.querySelector("[data-install-agent]")?.dataset.agentFramework;
         if (!Object.hasOwn(agentInstructions, framework)) {
           throw new Error("The selected installation framework is not available.");
@@ -116,12 +125,27 @@ export function createHomepageTools(document) {
       name: "list_features",
       title: "List Frontman features",
       description:
-        "Read feature titles, descriptions, and introductions from the homepage without changing it.",
+        "Read feature titles, descriptions, and capabilities from the current page without changing it.",
       inputSchema,
       annotations: { readOnlyHint: true },
       execute: async (input, { signal = new AbortController().signal } = {}) => {
         parseWith(validateInput, input);
         signal.throwIfAborted();
+        const wordpress = document.querySelector("#wordpress-features");
+        if (wordpress) {
+          const highlights = [...wordpress.querySelectorAll(".wp-capability")];
+          const features = [...wordpress.querySelectorAll(".wp-more-capabilities li")];
+          if (!highlights.length || !features.length) throw new Error("The WordPress features are not available.");
+          return {
+            highlights: highlights.map(item => ({
+              title: readFeatureText(item, "h3"),
+              description: readFeatureText(item, "p"),
+            })),
+            title: readFeatureText(wordpress, "h2"),
+            description: readFeatureText(wordpress, ".wp-more-capabilities summary"),
+            features: features.map(item => item.textContent.trim()),
+          };
+        }
         const highlights = [...document.querySelectorAll('.feature-section[id^="feature-highlight-"]')];
         const section = document.querySelector(".compact-features-section");
         const items = section?.querySelectorAll(".feature-row");
@@ -155,7 +179,7 @@ export function createHomepageTools(document) {
     },
     {
       name: "jump_to_install",
-      description: "Scroll to the homepage installation section. Does not install anything.",
+      description: "Scroll to the current page's installation section. Does not install anything.",
       inputSchema,
       execute: async (input, { signal = new AbortController().signal } = {}) => {
         parseWith(validateInput, input);
@@ -174,6 +198,7 @@ export function createHomepageTools(document) {
 
 export async function registerHomepageTools(document) {
   if (typeof document.modelContext?.registerTool !== "function") return;
+  if (!["/", "/frameworks/", "/frameworks"].includes(document.defaultView.location.pathname)) return;
 
   const registration = new AbortController();
   try {

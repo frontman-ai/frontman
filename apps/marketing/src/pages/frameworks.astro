@@ -46,6 +46,12 @@ const faqJsonLd = {
 
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+	<script>
+		import { registerHomepageTools } from '../integrations/webmcp.mjs'
+		void registerHomepageTools(document).catch((error) => {
+			console.error('[WebMCP] Page tool registration failed.', error)
+		})
+	</script>
 	<Hero />
 	<section id="site-type" class="bg-neutral-950 px-6 py-14 text-neutral-100">
 		<div class="mx-auto max-w-5xl">
@@ -83,6 +89,16 @@ const faqJsonLd = {
 	</section>
 	<FeatureHighlights />
 	<FrameworkSupport />
+	<section class="bg-neutral-950 px-6 py-10 text-center text-neutral-300" aria-labelledby="official-packages">
+		<h2 id="official-packages" class="text-xl font-semibold text-white">Official Frontman developer packages</h2>
+		<p class="mx-auto mt-4 max-w-3xl">
+			Use <a class="underline underline-offset-4" href="https://www.npmjs.com/package/@frontman-ai/nextjs">@frontman-ai/nextjs</a>,
+			<a class="underline underline-offset-4" href="https://www.npmjs.com/package/@frontman-ai/astro">@frontman-ai/astro</a>, or
+			<a class="underline underline-offset-4" href="https://www.npmjs.com/package/@frontman-ai/vite">@frontman-ai/vite</a>.
+			Source and issues: <a class="underline underline-offset-4" href="https://github.com/frontman-ai/frontman">frontman-ai/frontman on GitHub</a>.
+			The unscoped npm package <code>frontman</code> is not this product.
+		</p>
+	</section>
 
 	<section class="bg-neutral-950 px-6 py-10 text-center text-neutral-300">
 		<p class="mx-auto max-w-3xl text-base leading-relaxed">
