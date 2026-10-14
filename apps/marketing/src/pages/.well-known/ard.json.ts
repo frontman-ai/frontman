@@ -2,9 +2,11 @@ import type { APIRoute } from 'astro'
 import * as S from 'sury'
 import { skills } from './agent-skills/index.json'
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import openapiSource from '../openapi.json.ts?raw'
 
 const origin = new URL(import.meta.env.SITE).origin
+const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
 const queries: Record<string, string[]> = {
 	'frontman-site-navigation': ['Where are Frontman documentation and support?', 'Which public resources can I read without signing in?'],
 	'frontman-installation': ['How do I install Frontman for WordPress?', 'How do I set up Frontman in a development project?'],
@@ -41,9 +43,11 @@ const manifest = {
 		const skill = skills.find(skill => skill.url === entry.url)
 		const source = skill ? `public/skills/${skill.name}/SKILL.md` : 'src/pages/openapi.json.ts'
 		const digest = skill ? skill.digest : `sha256:${createHash('sha256').update(openapiSource).digest('hex')}`
+		const committedSource = execFileSync('git', ['show', `${sourceCommit}:apps/marketing/${source}`])
+		if (digest !== `sha256:${createHash('sha256').update(committedSource).digest('hex')}`) throw new Error(`Commit ${source} before publishing its provenance`)
 		return { ...entry, trustManifest: {
 			identity: `${origin}/`, identityType: 'https' as const,
-			provenance: [{ relation: 'publishedFrom' as const, sourceId: `https://github.com/frontman-ai/frontman/blob/main/apps/marketing/${source}`, sourceDigest: digest }],
+			provenance: [{ relation: 'publishedFrom' as const, sourceId: `https://raw.githubusercontent.com/frontman-ai/frontman/${sourceCommit}/apps/marketing/${source}`, sourceDigest: digest }],
 		} }
 	}),
 }

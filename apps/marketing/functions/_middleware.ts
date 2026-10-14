@@ -122,7 +122,7 @@ export const onRequest = async (context: PagesContext) => {
 			headers: { 'Content-Type': 'application/json; charset=utf-8' },
 		}), request, alternate!)
 	}
-	const bot = /\b(?:GPTBot|ClaudeBot|ChatGPT-User|PerplexityBot|Google-Extended|Applebot-Extended|ora-agent|DeepSeekBot)\b/i.test(request.headers.get('User-Agent') ?? '')
+	const bot = /\b(?:GPTBot|ClaudeBot|Claude-SearchBot|ChatGPT-User|OAI-SearchBot|PerplexityBot|Applebot|Google-Extended|Applebot-Extended|ora-agent|DeepSeekBot)\b/i.test(request.headers.get('User-Agent') ?? '')
 	const wantsMarkdown = prefersMarkdown(request.headers.get('Accept')) || bot
 	const html = await context.next()
 	if (html.status === 404 && wantsMarkdown) return negotiatedResponse(new Response('# Page not found\n\nThis Frontman resource does not exist. Find documentation and supported resources in [llms.txt](https://frontman.sh/llms.txt).\n', {

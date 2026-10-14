@@ -115,13 +115,23 @@ test('HTML conditional validators cannot produce Markdown 304; security policy m
 })
 
 test('AI bot user agents receive Markdown without changing human HTML or agent JSON', async () => {
-	for (const agent of ['GPTBot', 'ClaudeBot', 'ChatGPT-User', 'PerplexityBot', 'Google-Extended', 'Applebot-Extended', 'ora-agent', 'DeepSeekBot']) {
-		const response = await run(new Request('https://frontman.sh/', { headers: { 'User-Agent': `${agent}/1.0`, Accept: 'text/html' } }))
+	for (const agent of [
+		'GPTBot/1.0', 'ClaudeBot/1.0', 'Claude-SearchBot/1.0', 'ChatGPT-User/1.0', 'PerplexityBot/1.0',
+		'Google-Extended/1.0', 'Applebot-Extended/1.0', 'ora-agent/1.0', 'DeepSeekBot/1.0',
+		'Mozilla/5.0 AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)',
+		'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko); compatible; OAI-SearchBot/1.0; +https://openai.com/searchbot',
+	]) {
+		const response = await run(new Request('https://frontman.sh/', { headers: { 'User-Agent': agent, Accept: 'text/html' } }))
 		expect(await response.text()).toBe('# Markdown')
 		expect(response.headers.get('Vary')).toContain('User-Agent')
 	}
-	const human = await run(new Request('https://frontman.sh/', { headers: { 'User-Agent': 'Mozilla/5.0', Accept: 'text/html' } }))
-	expect(await human.text()).toBe('HTML')
+	for (const agent of ['Mozilla/5.0', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)']) {
+		const human = await run(new Request('https://frontman.sh/', { headers: { 'User-Agent': agent, Accept: 'text/html' } }))
+		expect(await human.text()).toBe('HTML')
+	}
+	const agentJson = await run(new Request('https://frontman.sh/?mode=agent', { headers: { 'User-Agent': 'OAI-SearchBot/1.0', Accept: 'text/html' } }))
+	expect(agentJson.headers.get('Content-Type')).toContain('application/json')
+	expect((await agentJson.json()).name).toBe('Frontman')
 })
 
 test('missing resources retain 404 and give agents Markdown help without looking up assets', async () => {

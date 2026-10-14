@@ -21,7 +21,6 @@ test('Markdown response metadata safely preserves titles, canonical URLs and mai
 	const metadata = parseYaml(text.match(/^---\n([\s\S]*?)\n---\n/)![1])
 	expect(metadata).toEqual({ title: 'Frontman: "quoted" title', canonical: 'https://frontman.sh/docs/installation/' })
 	expect(text).toContain(body)
-	expect(response.headers.get('Link')).toBe('<https://frontman.sh/docs/installation/>; rel="canonical"')
 	expect(() => markdownResponse('No heading', '/broken')).toThrow('Markdown title is missing')
 	for (const route of [pricingGet, authGet, (await import('../pages/index.md')).GET]) {
 		expect(await (await route({} as never)).text()).toMatch(/^---\ntitle: .+\ncanonical: .+\n---\n\n# /)

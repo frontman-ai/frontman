@@ -1,6 +1,7 @@
 import { beforeAll, expect, test, vi } from 'vitest'
 import type { APIRoute, APIContext } from 'astro'
 import { createHash } from 'node:crypto'
+import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync } from 'node:fs'
 import * as S from 'sury'
 import { parse as parseYaml } from 'yaml'
@@ -11,6 +12,10 @@ import ardSchema from './fixtures/ard-entry.schema.json'
 const read = (path: string) => readFileSync(path, 'utf8')
 const call = async (route: APIRoute) => await route({} as APIContext)
 beforeAll(() => { vi.stubEnv('SITE', 'https://frontman.sh') })
+vi.mock('node:child_process', async importOriginal => {
+	const actual = await importOriginal<typeof import('node:child_process')>()
+	return { ...actual, execFileSync: vi.fn(actual.execFileSync) }
+})
 
 const ajv = new Ajv2020({ strict: false })
 	.addFormat('uri', (value: string) => S.is(S.url, value))
@@ -81,8 +86,13 @@ test('ARD validates against the pinned current schema and resolves real artifact
 		expect(entry.trustManifest.identity).toBe('https://frontman.sh/')
 		expect(entry.identifier.split(':')[2]).toBe(new URL(entry.trustManifest.identity).hostname)
 		expect(ajv.compile(ardSchema.$defs.TrustManifest)(entry.trustManifest)).toBe(true)
-		expect(entry.trustManifest.provenance[0].sourceId).toMatch(/^https:\/\/github.com\/frontman-ai\/frontman\/blob\/main\//)
-		expect(entry.trustManifest.provenance[0].sourceDigest).toMatch(/^sha256:[a-f0-9]{64}$/)
+		const { sourceId, sourceDigest } = entry.trustManifest.provenance[0]
+		const source = new URL(sourceId)
+		expect(source.origin).toBe('https://raw.githubusercontent.com')
+		const match = source.pathname.match(/^\/frontman-ai\/frontman\/([a-f0-9]{40})\/(apps\/marketing\/.+)$/)!
+		expect(match).not.toBeNull()
+		const committedBytes = execFileSync('git', ['show', `${match[1]}:${match[2]}`])
+		expect(sourceDigest).toBe(`sha256:${createHash('sha256').update(committedBytes).digest('hex')}`)
 		expect('url' in entry).not.toBe('data' in entry)
 	}
 	const { GET: catalogGET } = await import('../pages/.well-known/ai-catalog.json')
@@ -158,6 +168,13 @@ test('robots adds only Schema Map discovery, leaving crawler policy bytes unchan
 	expect(body).toContain('Schemamap: https://frontman.sh/schema-map.xml')
 	const groups = source.slice(source.indexOf('User-agent:'), source.indexOf('Sitemap:'))
 	expect(createHash('sha256').update(groups).digest('hex')).toBe('2ed3a1d6c913884b05ca2b2724e8f087402c4ee4361a75eeac216d6cf929b8be')
+})
+
+test('provenance refuses source bytes that differ from the pinned commit', async () => {
+	vi.resetModules()
+	vi.mocked(execFileSync).mockReturnValueOnce('a'.repeat(40)).mockReturnValueOnce(Buffer.from('different committed bytes'))
+	await expect(import('../pages/.well-known/ard.json')).rejects.toThrow('before publishing its provenance')
+	vi.resetModules()
 })
 
 test('removed protocol routes have no source, rewrite, or incoming public-index links', () => {

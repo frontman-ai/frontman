@@ -3,6 +3,6 @@ export function markdownResponse(body: string, canonicalPath: string): Response 
 	if (!title) throw new Error(`Markdown title is missing: ${canonicalPath}`)
 	const canonical = new URL(canonicalPath, import.meta.env.SITE).href
 	return new Response(`---\ntitle: ${JSON.stringify(title)}\ncanonical: ${JSON.stringify(canonical)}\n---\n\n${body}`, {
-		headers: { 'Content-Type': 'text/markdown; charset=utf-8', Link: `<${canonical}>; rel="canonical"` },
+		headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
 	})
 }
