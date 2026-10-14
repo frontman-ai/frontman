@@ -7,11 +7,12 @@ import Button from '../components/ui/Button.astro'
 import HomeFAQ from '../components/blocks/FAQ/HomeFAQ.astro'
 import FinalCTA from '../components/blocks/CTA/FinalCTA.astro'
 import gridNetBackground from '../assets/grid-net-background.svg'
+import { pricing, billingPlans, savingsPercent, subscriptionTerms } from '../content/pricing'
 
 const SEO = {
 	title: 'WordPress AI Editor Pricing | Frontman Pro',
 	description:
-		'Frontman Pro for marketing teams updating existing WordPress sites: €15 per seat/month, a card-required 14-day trial, and separate AI-provider costs.'
+		`Frontman Pro for marketing teams updating existing WordPress sites: €${pricing.monthly} per seat/month, a card-required ${pricing.trialDays}-day trial, and separate AI-provider costs.`
 }
 
 
@@ -75,8 +76,8 @@ const pricingJsonLd = {
 				{
 					'@type': 'Offer',
 					name: 'Frontman Pro monthly seat',
-					price: '15',
-					priceCurrency: 'EUR',
+					price: String(pricing.monthly),
+					priceCurrency: pricing.currency,
 					availability: 'https://schema.org/InStock',
 					url: 'https://frontman.sh/pricing/',
 					category: 'subscription',
@@ -85,8 +86,8 @@ const pricingJsonLd = {
 				{
 					'@type': 'Offer',
 					name: 'Frontman Pro yearly seat',
-					price: '150',
-					priceCurrency: 'EUR',
+					price: String(pricing.yearly),
+					priceCurrency: pricing.currency,
 					availability: 'https://schema.org/InStock',
 					url: 'https://frontman.sh/pricing/',
 					category: 'subscription',
@@ -117,29 +118,18 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 
 <Layout title={SEO.title} description={SEO.description}>
 	<script is:inline type="application/ld+json" set:html={JSON.stringify(pricingJsonLd)} />
-	<script is:inline>
+	<script>
+		import { billingPlans } from '../content/pricing'
 			document.addEventListener('DOMContentLoaded', () => {
-			const billingToggleButtons = document.querySelectorAll('[data-billing-toggle]')
-			const priceAmount = document.querySelector('[data-price-amount]')
-			const pricePeriod = document.querySelector('[data-price-period]')
-			const priceNote = document.querySelector('[data-price-note]')
+			const billingToggleButtons = document.querySelectorAll<HTMLButtonElement>('[data-billing-toggle]')
+			const priceAmount = document.querySelector<HTMLElement>('[data-price-amount]')!
+			const pricePeriod = document.querySelector<HTMLElement>('[data-price-period]')!
+			const priceNote = document.querySelector<HTMLElement>('[data-price-note]')!
 			const activeBillingClass = 'cursor-pointer whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-bold text-primary-700 shadow-sm'
 			const inactiveBillingClass = 'cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold text-white/70 transition-colors hover:text-white'
-			const billingPlans = {
-				monthly: {
-					amount: '15',
-					period: 'per seat / month',
-					note: 'Billed monthly. Switch to yearly to save 17% per seat.'
-				},
-				yearly: {
-					amount: '12.50',
-					period: 'per seat / month',
-					note: '€150 per seat billed yearly. Save €30 a year compared to monthly billing.'
-				}
-			}
 
-			const setBillingPlan = (button) => {
-				const selectedBilling = button.getAttribute('data-billing-toggle')
+			const setBillingPlan = (button: HTMLButtonElement) => {
+				const selectedBilling = button.getAttribute('data-billing-toggle') as keyof typeof billingPlans
 				const selectedPlan = billingPlans[selectedBilling]
 
 				priceAmount.textContent = selectedPlan.amount
@@ -196,22 +186,22 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 					</p>
 					<div class="mt-6 inline-flex w-fit max-w-full rounded-full border border-white/20 bg-primary-700/25 p-1" aria-label="Billing frequency" data-billing-toggle-group>
 						<button type="button" class="cursor-pointer whitespace-nowrap rounded-full bg-white px-4 py-2 text-sm font-bold text-primary-700 shadow-sm" data-billing-toggle="monthly" aria-pressed="true">Monthly</button>
-						<button type="button" class="cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold text-white/70 transition-colors hover:text-white" data-billing-toggle="yearly" aria-pressed="false">Yearly · save 17%</button>
+						<button type="button" class="cursor-pointer whitespace-nowrap rounded-full px-4 py-2 text-sm font-bold text-white/70 transition-colors hover:text-white" data-billing-toggle="yearly" aria-pressed="false">Yearly · save {savingsPercent}%</button>
 					</div>
 					<div class="mt-7 rounded-[1.25rem] border border-white/20 bg-white/10 p-4 shadow-inner shadow-primary-950/20 sm:p-5">
 						<div class="flex flex-wrap items-end gap-x-4 gap-y-2">
 							<div class="flex flex-wrap items-end gap-x-4">
 								<span class="inline-flex items-start gap-x-1">
 									<span class="pt-3 text-3xl font-bold leading-none text-white">€</span>
-									<span class="text-6xl font-black leading-none tracking-[-0.06em] text-white md:text-8xl" data-price-amount>15</span>
+									<span class="text-6xl font-black leading-none tracking-[-0.06em] text-white md:text-8xl" data-price-amount>{pricing.monthly}</span>
 								</span>
 							</div>
 							<p class="text-lg font-bold leading-none text-white/90" data-price-period>per seat / month</p>
 						</div>
-						<p class="mt-4 text-sm font-semibold text-white" data-price-note>Billed monthly. Switch to yearly to save 17% per seat.</p>
+						<p class="mt-4 text-sm font-semibold text-white" data-price-note>{billingPlans.monthly.note}</p>
 					</div>
 					<Button type="link" link="/docs/integrations/wordpress/" size="lg" style="white" classes={ctaButtonClass}>Set up Frontman for WordPress</Button>
-					<p class="mt-4 text-sm leading-relaxed text-white/70">Credit card required. Cancel before day 14. We’ll send a reminder before billing. Taxes calculated at checkout.</p>
+					<p class="mt-4 text-sm leading-relaxed text-white/70">{subscriptionTerms} We’ll send a reminder before billing.</p>
 					<ul class="mt-6 grid gap-3 border-t border-white/20 pt-6">
 						{planFeatures.map((feature) => <li class={checkItemClass}>{feature}</li>)}
 					</ul>

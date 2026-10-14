@@ -31,10 +31,13 @@ Framework integrations require a running supported Next.js, Astro, or Vite devel
 - Configuration: https://frontman.sh/docs/reference/configuration/
 - Architecture: https://frontman.sh/docs/reference/architecture/
 - Self-hosting: https://frontman.sh/docs/reference/self-hosting/
-- Agent card: https://frontman.sh/.well-known/agent-card.json
-- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
+- Pricing: https://frontman.sh/pricing.md
+- Authentication and public access: https://frontman.sh/auth.md
+- Framework Markdown: https://frontman.sh/frameworks.md
 - Agent skills index: https://frontman.sh/.well-known/agent-skills/index.json
 - API catalog: https://frontman.sh/.well-known/api-catalog
+- Agent card: https://frontman.sh/.well-known/agent-card.json
+- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
 - GitHub: https://github.com/frontman-ai/frontman
 
 ## Authentication And Access
