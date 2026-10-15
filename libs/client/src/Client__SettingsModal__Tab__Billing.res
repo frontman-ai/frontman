@@ -52,7 +52,7 @@ let make = () => {
   let billingFlow = State.useSelector(State.Selectors.billingFlow)
   let connected = State.useSelector(State.Selectors.hasActiveACPSession)
   let opening = billingFlow === Billing.Opening
-  let disabled = opening || !connected
+  let disabled = opening || billingFlow == Billing.AwaitingCheckout || !connected
 
   <div className="space-y-4">
     {switch billingFlow {
@@ -61,6 +61,16 @@ let make = () => {
         <Alert.Title> {React.string("Could not open billing")} </Alert.Title>
         <Alert.Description> {React.string(error)} </Alert.Description>
       </Alert>
+    | AwaitingCheckout =>
+      <div className="space-y-2">
+        <p className="text-sm"> {React.string("Complete checkout in the new tab.")} </p>
+        <Button disabled={!connected} onClick={_ => State.Actions.requestBilling(Status)}>
+          {React.string("Check activation")}
+        </Button>
+        <Button variant=Button.Variant.Ghost onClick={_ => State.Actions.dismissBillingCheckout()}>
+          {React.string("Canceled checkout? Choose again")}
+        </Button>
+      </div>
     | Idle | Opening => React.null
     }}
     {switch billingStatus {

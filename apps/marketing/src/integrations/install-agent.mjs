@@ -72,8 +72,6 @@ export const setupInstallAgent = (document, clipboard = globalThis.navigator.cli
   const tabs = root.querySelectorAll("[data-framework]")
   let interactionVersion = 0
 
-  button.setAttribute("aria-label", "Copy setup instructions for coding agent")
-
   const showCopyIcon = () => {
     copyIcon.removeAttribute("hidden")
     successIcon.setAttribute("hidden", "")

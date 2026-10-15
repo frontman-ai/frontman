@@ -1,30 +1,21 @@
 import type { APIRoute } from 'astro'
 
-const siteUrl = new URL(import.meta.env.SITE)
-const origin = siteUrl.origin
+const origin = new URL(import.meta.env.SITE).origin
 
 const schemaMap = `<?xml version="1.0" encoding="UTF-8"?>
-<schemaMap xmlns="https://nlweb.ai/schemas/schemamap/1.0">
-  <feed>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:sf="http://schema.org/schemas/schemafeed/0.1">
+  <url>
     <loc>${origin}/feeds/structured-data.jsonl</loc>
-    <type>application/ld+json-seq</type>
-    <name>Frontman structured data feed</name>
-    <description>Machine-readable Organization and Service entities for Frontman.</description>
-  </feed>
-  <feed>
+    <sf:contentType>structuredData/schema.org</sf:contentType>
+  </url>
+  <url>
     <loc>${origin}/rss.xml</loc>
-    <type>application/rss+xml</type>
-    <name>Frontman blog RSS</name>
-    <description>Frontman articles and product updates.</description>
-  </feed>
-</schemaMap>`
+    <sf:contentType>structuredData/rss</sf:contentType>
+  </url>
+</urlset>`
 
-export const GET: APIRoute = () => {
-	return new Response(schemaMap, {
-		headers: {
-			'Content-Type': 'application/xml; charset=utf-8',
-		},
-	})
-}
-
+export const GET: APIRoute = () => new Response(schemaMap, {
+	headers: { 'Content-Type': 'application/xml; charset=utf-8' },
+})
 export const prerender = true

@@ -81,6 +81,14 @@ defmodule FrontmanServer.Tasks.InteractionSchema do
     from(i in query, where: i.turn_number == ^turn_number)
   end
 
+  def recent_tool_interactions(user_id, tool_name, since) do
+    from i in data_equals("tool_name", tool_name),
+      join: task in assoc(i, :task),
+      where: task.user_id == ^user_id,
+      where: i.type in [:tool_call, :tool_result],
+      where: i.inserted_at > ^since
+  end
+
   def ordered(query \\ __MODULE__) do
     from(i in query, order_by: [asc: i.sequence, asc: i.inserted_at, asc: i.id])
   end

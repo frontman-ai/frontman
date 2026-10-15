@@ -71,7 +71,7 @@ type state =
 
 type request = Status | Checkout(interval) | CustomerPortal
 
-type flow = Idle | Opening | Failed(string)
+type flow = Idle | Opening | AwaitingCheckout | Failed(string)
 
 @schema
 type checkoutRequest = {interval: interval}

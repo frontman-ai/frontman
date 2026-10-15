@@ -4,16 +4,59 @@
   Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), shared-storage=(), attribution-reporting=()
   Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.frontman.sh https://www.googletagmanager.com https://www.google-analytics.com https://region1.analytics.google.com; frame-src 'self' https://www.googletagmanager.com https://www.youtube-nocookie.com; worker-src 'self' blob:; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://rankinpublic.xyz
-  Link: </llms.txt>; rel="alternate"; type="text/plain", </llms-full.txt>; rel="alternate"; type="text/plain", </index.md>; rel="alternate"; type="text/markdown", </sitemap-index.xml>; rel="sitemap"; type="application/xml", </rss.xml>; rel="alternate"; type="application/rss+xml", </.well-known/api-catalog>; rel="service-desc"; type="application/linkset+json", </.well-known/agent-card.json>; rel="service-desc"; type="application/json", </.well-known/mcp/server-card.json>; rel="service-desc"; type="application/json"
+  Link: </llms.txt>; rel="alternate"; type="text/plain", </llms-full.txt>; rel="alternate"; type="text/plain", </sitemap-index.xml>; rel="sitemap"; type="application/xml", </rss.xml>; rel="alternate"; type="application/rss+xml", </.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json", </openapi.json>; rel="service-desc"; type="application/json", </.well-known/ard.json>; rel="ard"; type="application/json"
   No-Vary-Search: params=(ref utm_source utm_medium utm_campaign utm_term utm_content gclid fbclid msclkid)
 
 /.well-known/api-catalog
-  Content-Type: application/linkset+json; charset=utf-8
+  Content-Type: application/linkset+json; profile="https://www.rfc-editor.org/info/rfc9727"; charset=utf-8
+  Link: <https://frontman.sh/.well-known/api-catalog>; rel="api-catalog"
 
-/.well-known/mcp
+/openapi.json
   Content-Type: application/json; charset=utf-8
 
+/.well-known/ard.json
+  Content-Type: application/json; charset=utf-8
+
+/.well-known/ai-catalog.json
+  Content-Type: application/json; charset=utf-8
+
+/plugin.json
+  Content-Type: application/json; charset=utf-8
+
+/changelog.md
+  Content-Type: text/markdown; charset=utf-8
+
+/.well-known/api-catalog.md
+  Content-Type: text/markdown; charset=utf-8
+
+/api/llms.txt.md
+  Content-Type: text/markdown; charset=utf-8
+
+/.well-known/agent-skills/index.json
+  Content-Type: application/json; charset=utf-8
+
+/feeds/structured-data.jsonl
+  Content-Type: application/x-ndjson; charset=utf-8
+
+/skills/*/SKILL.md
+  Content-Type: text/markdown; profile="urn:air:agent-skills"; charset=utf-8
+
 /index.md
+  Content-Type: text/markdown; charset=utf-8
+
+/pricing.md
+  Content-Type: text/markdown; charset=utf-8
+
+/auth.md
+  Content-Type: text/markdown; charset=utf-8
+
+/frameworks.md
+  Content-Type: text/markdown; charset=utf-8
+
+/docs.md
+  Content-Type: text/markdown; charset=utf-8
+
+/docs/*.md
   Content-Type: text/markdown; charset=utf-8
 
 /schema-map.xml

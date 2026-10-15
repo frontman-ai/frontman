@@ -241,7 +241,7 @@ module Textarea = {
     ~onClick=?,
     ~onKeyDown=?,
   ) =>
-    <textarea
+    <Client__UI__Textarea
       ?id
       ?children
       ?style

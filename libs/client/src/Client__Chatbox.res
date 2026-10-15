@@ -171,8 +171,17 @@ let make = (~onConfigureProvider: unit => unit) => {
     ~hasActiveACPSession,
   )
 
-  let hasPendingQuestion =
-    Client__State.useSelector(Client__State.Selectors.pendingQuestion)->Option.isSome
+  let pendingQuestion = Client__State.useSelector(Client__State.Selectors.pendingQuestion)
+  let hasPendingQuestion = pendingQuestion->Option.isSome
+  let feedbackQuestion = pendingQuestion->Option.filter(pq =>
+    messages->Array.some(message =>
+      switch message {
+      | Message.ToolCall(call) =>
+        call.id == pq.toolCallId && call.toolName == Client__Tool__CustomerFeedback.name
+      | _ => false
+      }
+    )
+  )
   let hasAnnotations = Array.length(annotations) > 0
 
   let pendingPlanHandoff = Client__State.useSelector(Client__State.Selectors.pendingPlanHandoff)
@@ -439,12 +448,38 @@ let make = (~onConfigureProvider: unit => unit) => {
     </fieldset>
     <div className="border-t border-white/8 shrink-0">
       <Client__SelectedElementDisplay />
-      {switch hasPendingQuestion {
-      | true =>
+      {switch (feedbackQuestion, currentTaskId, hasPendingQuestion) {
+      | (Some(pq), Some(taskId), _) =>
+        <fieldset disabled={!hasActiveACPSession}>
+          <Client__CustomerFeedbackPanel
+            score={Client__Tool__CustomerFeedback.answerText(pq.answers, 0)->Option.map(text =>
+              text->Int.fromString->Option.getOrThrow
+            )}
+            comment={Client__Tool__CustomerFeedback.answerText(pq.answers, 1)->Option.getOr("")}
+            onScoreChanged={score =>
+              Client__State.Actions.questionCustomTextChanged(
+                ~taskId,
+                ~questionIndex=0,
+                ~text=score->Int.toString,
+              )}
+            onCommentChanged={text =>
+              Client__State.Actions.questionCustomTextChanged(~taskId, ~questionIndex=1, ~text)}
+            onSubmit={() => Client__State.Actions.questionSubmitted(~taskId)}
+            onSkip={() => Client__State.Actions.questionAllSkipped(~taskId)}
+          />
+          <Client__UI__Button
+            variant=Ghost
+            className="w-full min-h-11"
+            onClick={_ => Client__State.Actions.questionCancelled(~taskId)}
+          >
+            {React.string("Cancel (stop agent)")}
+          </Client__UI__Button>
+        </fieldset>
+      | (_, _, true) =>
         <fieldset disabled={!hasActiveACPSession}>
           <Client__QuestionDrawer />
         </fieldset>
-      | false =>
+      | (_, _, false) =>
         <PromptInput
           onSubmit={handleSubmit}
           disabled={isSubmitting}

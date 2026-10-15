@@ -32,11 +32,14 @@ defmodule FrontmanServerWeb.BillingController do
     end
   end
 
-  def stripe_return_success(conn, _params), do: stripe_return(conn, "Stripe checkout complete")
-  def stripe_return_cancel(conn, _params), do: stripe_return(conn, "Stripe checkout closed")
+  def stripe_return_success(conn, _params),
+    do: stripe_return(conn, "Checkout complete. Back to your next improvement.")
+
+  def stripe_return_cancel(conn, _params),
+    do: stripe_return(conn, "Your request is still waiting for you.")
 
   def stripe_return_customer_portal(conn, _params),
-    do: stripe_return(conn, "Stripe billing portal closed")
+    do: stripe_return(conn, "Return to your work in Frontman.")
 
   defp checkout_url(conn, interval) do
     return_urls = %{
@@ -54,7 +57,7 @@ defmodule FrontmanServerWeb.BillingController do
     render(conn, :stripe_return,
       page_title: title,
       title: title,
-      message: "You can close this tab and return to Frontman."
+      message: "Close this tab to continue in Frontman. No edits run automatically."
     )
   end
 end

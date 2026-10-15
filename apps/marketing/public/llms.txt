@@ -43,14 +43,20 @@ Frontman is intended for development workflows. RuntimeEnv disables the integrat
 - [Homepage](https://frontman.sh/): WordPress product overview and plugin installation
 - [For frameworks](https://frontman.sh/frameworks/): Next.js, Astro, and Vite overview, feature highlights, and installation instructions
 - [Markdown homepage](https://frontman.sh/index.md): Canonical markdown summary for agents
+- [Pricing Markdown](https://frontman.sh/pricing.md): Trial, subscription terms, and separate provider costs
+- [Authentication Markdown](https://frontman.sh/auth.md): Public reads versus authenticated product access
+- [Framework Markdown](https://frontman.sh/frameworks.md): Framework setup and development workflow
 - [FAQ](https://frontman.sh/faq/): Answers to common questions about features, frameworks, safety, and technical details
 - [Developer docs](https://frontman.sh/docs/): Installation, authentication, integrations, usage, and reference guides
 - [API keys and providers](https://frontman.sh/docs/api-keys/): Bring-your-own-key authentication docs for Claude, ChatGPT, and OpenRouter
-- [API catalog](https://frontman.sh/.well-known/api-catalog): Linkset for API, docs, and agent discovery resources
-- [Agent card](https://frontman.sh/.well-known/agent-card.json): A2A-style Frontman agent capabilities
-- [MCP discovery](https://frontman.sh/.well-known/mcp): Frontman MCP discovery endpoint
-- [MCP server card](https://frontman.sh/.well-known/mcp/server-card.json): Frontman agent integration metadata
+- [API catalog](https://frontman.sh/.well-known/api-catalog): RFC 9727 catalog of public read-only resources, not an editing API
+- [OpenAPI description](https://frontman.sh/openapi.json): Documentation index and latest framework adapter versions; no credentials required
+- [Agentic resources](https://frontman.sh/.well-known/ard.json): ARD proposal listing published skills and the public API description
 - [Agent skills index](https://frontman.sh/.well-known/agent-skills/index.json): Official Frontman skill-md artifacts
+- [Frontman Agent Plugin](https://frontman.sh/plugin.json): Official skills package; plugin root in the source repository is apps/marketing/public
+- [AI Catalog](https://frontman.sh/.well-known/ai-catalog.json): Same public resources as ARD, with publisher identity and unsigned source provenance
+- [Frontman API catalog Markdown](https://frontman.sh/.well-known/api-catalog.md): Public read-only API endpoints and access requirements
+- [Frontman changelog Markdown](https://frontman.sh/changelog.md): Maintained release notes
 - [Docs llms.txt](https://frontman.sh/docs/llms.txt): Scoped docs context
 - [API llms.txt](https://frontman.sh/api/llms.txt): Scoped API context
 - [Developers llms.txt](https://frontman.sh/developers/llms.txt): Scoped developer context

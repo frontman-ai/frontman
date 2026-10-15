@@ -1176,6 +1176,16 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     Log.error(~ctx={"error": error}, "Task load failed")
     (Task.Unloaded({id, title, createdAt, updatedAt}), [])
 
+  | (Task.Loaded({pendingQuestion: Some(pq)}), QuestionReceived({toolCallId, resolveError}))
+    if pq.toolCallId != toolCallId => (
+      task,
+      [
+        RejectQuestionToolEffect({
+          resolveError,
+          message: "An interactive question is already pending in this task.",
+        }),
+      ],
+    )
   | (Task.Loaded(data), QuestionReceived({questions, toolCallId, resolveOk, resolveError})) => (
       Task.Loaded({
         ...data,

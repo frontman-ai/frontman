@@ -34,13 +34,23 @@ updates:
       - "libs/frontman-nextjs/test/cli/fixtures/**"
       - "test/sites/blog-starter/**"
     groups:
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "rescript-vitest"
       rescript:
         patterns:
           - "rescript"
           - "@rescript/*"
           - "sury"
           - "sury-ppx"
-          - "rescript-vitest"
 
   - package-ecosystem: "npm"
     directory: "/test/sites/vue-vite-app"

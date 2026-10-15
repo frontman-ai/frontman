@@ -1,13 +1,16 @@
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
+import tailwindcss from "@tailwindcss/vite";
 import { playwright } from "@vitest/browser-playwright";
 import { defineConfig } from "vitest/config";
 
 const require = createRequire(import.meta.url);
-const fixtureAsset = (pkg, file) =>
-	`${join(dirname(require.resolve(`${pkg}/package.json`)), file)}?url`;
+const draftRequire = createRequire(require.resolve("draft-js/package.json"));
+const fixtureAsset = (pkg, file, resolveFrom = require) =>
+	`${join(dirname(resolveFrom.resolve(`${pkg}/package.json`)), file)}?url`;
 
 export default defineConfig({
+	plugins: [tailwindcss()],
 	resolve: {
 		alias: {
 			"draft-fixture-react-umd?url": fixtureAsset(
@@ -22,6 +25,7 @@ export default defineConfig({
 			"draft-fixture-immutable-umd?url": fixtureAsset(
 				"immutable",
 				"dist/immutable.js",
+				draftRequire,
 			),
 		},
 	},

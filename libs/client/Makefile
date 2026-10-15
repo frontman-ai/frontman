@@ -33,6 +33,7 @@ test: build
 	yarn vitest run
 
 test-screenshots: build
+	$(MAKE) build-lib
 	yarn vitest run --config vitest.browser.config.js $(BROWSER_TEST_FILTER)
 
 test-browser-forms: build

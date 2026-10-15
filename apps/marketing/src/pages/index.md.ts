@@ -1,4 +1,5 @@
 import type { APIRoute } from 'astro'
+import { markdownResponse } from '../content/markdownResponse'
 
 const body = `# Frontman
 
@@ -31,10 +32,13 @@ Framework integrations require a running supported Next.js, Astro, or Vite devel
 - Configuration: https://frontman.sh/docs/reference/configuration/
 - Architecture: https://frontman.sh/docs/reference/architecture/
 - Self-hosting: https://frontman.sh/docs/reference/self-hosting/
-- Agent card: https://frontman.sh/.well-known/agent-card.json
-- MCP server card: https://frontman.sh/.well-known/mcp/server-card.json
+- Pricing: https://frontman.sh/pricing.md
+- Authentication and public access: https://frontman.sh/auth.md
+- Framework Markdown: https://frontman.sh/frameworks.md
 - Agent skills index: https://frontman.sh/.well-known/agent-skills/index.json
 - API catalog: https://frontman.sh/.well-known/api-catalog
+- OpenAPI description of public read-only resources: https://frontman.sh/openapi.json
+- Agent Resource Directory (evolving proposal, not MCP/A2A): https://frontman.sh/.well-known/ard.json
 - GitHub: https://github.com/frontman-ai/frontman
 
 ## Authentication And Access
@@ -48,12 +52,6 @@ WordPress requires WordPress 6.0+, PHP 7.4+, and administrator access. Open Fron
 - Terms: https://frontman.sh/terms/
 `
 
-export const GET: APIRoute = () => {
-	return new Response(body, {
-		headers: {
-			'Content-Type': 'text/markdown; charset=utf-8',
-		},
-	})
-}
+export const GET: APIRoute = () => markdownResponse(body, '/')
 
 export const prerender = true

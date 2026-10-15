@@ -1463,7 +1463,11 @@ describe("Client State Reducer - Billing Settings", () => {
     }
     let url = "https://billing.stripe.test/session"
     let cases: array<(Reducer.action, Client__Billing.flow, array<Reducer.effect>)> = [
-      (BillingUrlReceived({tab, url}), Idle, [NavigateBillingTab({tab, url})]),
+      (
+        BillingUrlReceived({tab, url, request: CustomerPortal}),
+        Idle,
+        [NavigateBillingTab({tab, url})],
+      ),
       (
         BillingLaunchFailed({tab: Some(tab), error: "Unavailable"}),
         Failed("Unavailable"),
