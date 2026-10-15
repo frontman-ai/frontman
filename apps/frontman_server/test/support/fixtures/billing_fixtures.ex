@@ -100,7 +100,7 @@ defmodule FrontmanServer.BillingFixtures do
         )
 
       %Subscription{} = subscription ->
-        if Subscription.allow_access?(subscription) do
+        if Subscription.allows_runs?(subscription) do
           subscription
         else
           raise "scope already has a subscription that does not allow access"

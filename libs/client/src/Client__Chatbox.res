@@ -421,7 +421,7 @@ let make = (~onConfigureProvider: unit => unit) => {
     <Client__PlanList entries=planEntries />
     {switch billingStatus {
     | Client__Billing.Loaded(status)
-      if !Client__Billing.isAccessAllowed(status) ||
+      if !Client__Billing.canStartTurn(status) ||
       Client__Billing.pretrialRunsRemaining(status)->Option.isSome =>
       <Client__UI__Alert className="mx-4 mb-2 w-auto">
         <Client__UI__Alert.Title>

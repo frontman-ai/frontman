@@ -142,7 +142,7 @@ defmodule FrontmanServerWeb.TasksChannel do
     with {:ok, session_id} <- session_new_id(params),
          raw_framework when is_binary(raw_framework) <-
            extract_framework(socket.assigns[:acp_client_info]),
-         true <- Billing.allow_run?(socket.assigns.scope),
+         true <- Billing.can_start_turn?(socket.assigns.scope),
          {:ok, %Tasks.TaskSchema{id: ^session_id}} <-
            Tasks.ensure_session(
              socket.assigns.scope,

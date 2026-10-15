@@ -552,7 +552,8 @@ module Selectors = {
   let settingsModalTab = (state: state) => state.settingsModalTab
   let billingStatus = (state: state) => state.billingStatus
   let billingFlow = (state: state) => state.billingFlow
-  let billingAccessAllowed = (state: state) => Client__Billing.accessAllowed(state.billingStatus)
+  let billingCanStartTurn = (state: state) =>
+    Client__Billing.canStartTurnFromState(state.billingStatus)
 
   let providerSetupRequired = (state: state): bool => {
     switch (apiBaseUrl(state), state.configOptions) {
@@ -2250,14 +2251,14 @@ let rec next = (state: state, action) => {
       failed(state, Connection.ACP.requestErrorMessage(error))
     | _ => state->StateReducer.update
     }
-  | AddUserMessage({onComplete}) if Client__Billing.requiresBilling(state.billingStatus) =>
+  | AddUserMessage({onComplete}) if Client__Billing.turnStartBlocked(state.billingStatus) =>
     {...state, settingsModalTab: Some(Billing)}->StateReducer.update(
       ~sideEffect=SubmissionCompleted({
         onComplete,
         result: Error("Start a Frontman trial to continue."),
       }),
     )
-  | ExecutePendingPlan(_) if Client__Billing.requiresBilling(state.billingStatus) =>
+  | ExecutePendingPlan(_) if Client__Billing.turnStartBlocked(state.billingStatus) =>
     {...state, settingsModalTab: Some(Billing)}->StateReducer.update
   | AddUserMessage({content, annotationId, onComplete} as input) =>
     let reject = error =>
@@ -2516,8 +2517,8 @@ let rec next = (state: state, action) => {
       ...state,
       billingStatus: Client__Billing.Loaded(status),
       billingStatusAbortController: None,
-      billingFlow: switch (state.billingFlow, Client__Billing.isAccessAllowed(status)) {
-      | (AwaitingCheckout, true) => Idle
+      billingFlow: switch (state.billingFlow, Client__Billing.canStartCheckout(status)) {
+      | (AwaitingCheckout, false) => Idle
       | _ => state.billingFlow
       },
     }->StateReducer.update(

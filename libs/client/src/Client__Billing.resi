@@ -34,11 +34,11 @@ type checkoutOption
 
 let statusSchema: S.t<status>
 
-let accessAllowed: state => bool
-let isAccessAllowed: status => bool
+let canStartTurnFromState: state => bool
+let canStartTurn: status => bool
 let pretrialRunsRemaining: status => option<int>
 let canStartCheckout: status => bool
-let requiresBilling: state => bool
+let turnStartBlocked: state => bool
 let canManage: status => bool
 
 let subscriptionStatus: status => subscriptionStatus

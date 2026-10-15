@@ -86,7 +86,7 @@ defmodule FrontmanServer.Billing do
   """
   @spec status(Scope.t()) :: %{
           status: String.t(),
-          access_allowed: boolean(),
+          can_start_turn: boolean(),
           pretrial_runs_remaining: non_neg_integer() | nil,
           has_billing_customer: boolean(),
           trial_eligible: boolean(),
@@ -127,20 +127,20 @@ defmodule FrontmanServer.Billing do
   end
 
   @doc """
-  Returns whether billing allows access for the scoped user.
+  Returns whether the user's subscription permits new runs, excluding the BYOK allowance.
   """
-  @spec allow_access?(Scope.t()) :: boolean()
-  def allow_access?(%Scope{} = scope) do
+  @spec subscription_allows_runs?(Scope.t()) :: boolean()
+  def subscription_allows_runs?(%Scope{} = scope) do
     scope
     |> get_current_subscription()
-    |> Subscription.allow_access?()
+    |> Subscription.allows_runs?()
   end
 
-  @doc "Allows a new run with either subscription access or unused BYOK allowance."
-  def allow_run?(%Scope{} = scope) do
+  @doc "Checks permission to start a new turn, not to continue an already-claimed turn."
+  def can_start_turn?(%Scope{} = scope) do
     case get_current_subscription(scope) do
       nil -> remaining_runs(scope) > 0
-      subscription -> Subscription.allow_access?(subscription)
+      subscription -> Subscription.allows_runs?(subscription)
     end
   end
 
@@ -183,7 +183,7 @@ defmodule FrontmanServer.Billing do
   defp status_payload(scope, %Subscription{} = subscription) do
     %{
       status: subscription.status,
-      access_allowed: Subscription.allow_access?(subscription),
+      can_start_turn: Subscription.allows_runs?(subscription),
       pretrial_runs_remaining: nil,
       has_billing_customer: has_billing_customer?(scope, subscription),
       interval: subscription.interval,
@@ -199,7 +199,7 @@ defmodule FrontmanServer.Billing do
 
     %{
       status: "none",
-      access_allowed: remaining > 0,
+      can_start_turn: remaining > 0,
       pretrial_runs_remaining: remaining,
       has_billing_customer: has_billing_customer?(scope, nil),
       interval: nil,

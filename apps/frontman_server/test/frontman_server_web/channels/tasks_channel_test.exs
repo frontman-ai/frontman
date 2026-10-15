@@ -29,7 +29,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("billing_status_updated", %{
         status: "active",
-        access_allowed: true,
+        can_start_turn: true,
         has_billing_customer: true,
         interval: :monthly
       })
@@ -83,7 +83,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
         })
 
         assert_push("config_options_updated", %{"configOptions" => _})
-        assert_push("billing_status_updated", %{status: "none", access_allowed: true})
+        assert_push("billing_status_updated", %{status: "none", can_start_turn: true})
 
         assert_acp_reply(%{
           "jsonrpc" => "2.0",
@@ -154,7 +154,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
 
       assert_push("billing_status_updated", %{
         status: "none",
-        access_allowed: true,
+        can_start_turn: true,
         pretrial_runs_remaining: 5,
         has_billing_customer: false,
         interval: nil,
@@ -289,7 +289,8 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "id" => ^request_id,
           "error" => %{
             "code" => -32_010,
-            "message" => "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
+            "message" =>
+              "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
           }
         })
       end

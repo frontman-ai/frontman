@@ -1141,11 +1141,13 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
   end
 
   describe "interactive waits and serial recovery" do
-    test "application shutdown preserves approval, interrupts the write, and resumes the same turn",
+    @tag billing: :pretrial
+    test "application shutdown preserves approval and resumes the fifth turn with no allowance left",
          context do
       Process.flag(:trap_exit, true)
       Sandbox.mode(Repo, :auto)
       %{scope: scope} = setup_user(context)
+      for _ <- 1..4, do: :ok = FrontmanServer.Billing.consume_pretrial_run(scope)
       task_id = task_with_pubsub_fixture(scope, framework: "wordpress").id
 
       on_exit(fn ->
@@ -1220,15 +1222,15 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert {:ok, 1, [%Interaction.ToolCall{tool_name: "approval"}]} =
                Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
 
-      {:ok, _} =
-        Tasks.submit_user_message(
-          scope,
-          Map.merge(execution_request_fixture(), %{
-            task_id: task_id,
-            message_id: Ecto.UUID.generate(),
-            message: user_content("Queued next turn")
-          })
-        )
+      assert {:error, :billing_inactive} =
+               Tasks.submit_user_message(
+                 scope,
+                 Map.merge(execution_request_fixture(), %{
+                   task_id: task_id,
+                   message_id: Ecto.UUID.generate(),
+                   message: user_content("New turns require billing")
+                 })
+               )
 
       assert {:ok, _, _} =
                Tasks.resolve_tool_request(
@@ -1257,8 +1259,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
                "yes"
              ]
 
-      refute Enum.any?(messages, &(extract_content_text(&1.content) =~ "Queued next turn"))
       assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      assert %{pretrial_runs_remaining: 0} = FrontmanServer.Billing.status(scope)
       assert length(turn_started_rows(task_id)) == 1
       refute_receive {:interaction, %{data: %Interaction.ToolCall{tool_name: "write_file"}}}, 50
     end
