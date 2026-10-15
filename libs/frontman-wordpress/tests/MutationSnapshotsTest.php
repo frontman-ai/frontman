@@ -21,6 +21,12 @@ $GLOBALS['frontman_test_cache_cleared'] = [];
 
 class WP_Post extends stdClass {}
 
+class WP_Error {
+	public function get_error_message(): string {
+		return 'Theme assignment rejected';
+	}
+}
+
 function current_user_can( string $capability, ...$args ): bool {
 	return true;
 }
@@ -119,7 +125,7 @@ if ( ! function_exists( '__' ) ) {
 
 if ( ! function_exists( 'is_wp_error' ) ) {
 	function is_wp_error( $value ): bool {
-		return false;
+		return $value instanceof WP_Error;
 	}
 }
 
@@ -608,7 +614,10 @@ if ( ! function_exists( 'get_block_templates' ) ) {
 }
 
 if ( ! function_exists( 'wp_set_post_terms' ) ) {
-	function wp_set_post_terms( int $post_id, array $terms, string $taxonomy ): void {
+	function wp_set_post_terms( int $post_id, array $terms, string $taxonomy ) {
+		if ( isset( $GLOBALS['frontman_test_template_assignment'] ) ) {
+			return ( $GLOBALS['frontman_test_template_assignment'] )( $post_id );
+		}
 		foreach ( $GLOBALS['frontman_test_block_templates'] as $template ) {
 			if ( isset( $template->wp_id ) && (int) $template->wp_id === $post_id ) {
 				$template->theme = $terms[0] ?? null;
@@ -1523,6 +1532,52 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 			'content' => $slash_sensitive_template,
 		] );
 		$this->assert_same( $slash_sensitive_template, $updated_with_backslashes['after']['content'], 'wp_update_template preserves backslashes through WordPress unslashing' );
+
+		$input = [ 'slug' => 'home', 'type' => 'wp_template', 'content' => '<p>Saved content</p>' ];
+		$cases = [
+			'theme assignment failed: Theme assignment rejected' => static function( int $post_id ) {
+				return new WP_Error();
+			},
+			'could not be read back as the active template' => static function( int $post_id ) {
+				foreach ( $GLOBALS['frontman_test_block_templates'] as $template ) {
+					if ( (int) ( $template->wp_id ?? 0 ) === $post_id ) {
+						$template->wp_id = $post_id + 100;
+					}
+				}
+				return [];
+			},
+			'Read the template before retrying.' => static function( int $post_id ) {
+				$GLOBALS['frontman_test_block_templates'] = array_values( array_filter(
+					$GLOBALS['frontman_test_block_templates'],
+					static function( $template ) use ( $post_id ) { return (int) ( $template->wp_id ?? 0 ) !== $post_id; }
+				) );
+				return [];
+			},
+			'observed content differs' => static function( int $post_id ) {
+				foreach ( $GLOBALS['frontman_test_block_templates'] as $template ) {
+					if ( (int) ( $template->wp_id ?? 0 ) === $post_id ) {
+						$template->content = '<p>Filtered content</p>';
+					}
+				}
+				return [];
+			},
+		];
+		foreach ( $cases as $error => $assignment ) {
+			$templates = array_map( static function( $template ) { return clone $template; }, $GLOBALS['frontman_test_block_templates'] );
+			$GLOBALS['frontman_test_template_assignment'] = $assignment;
+			try {
+				$this->assert_error_contains(
+					static function() use ( $tool, $input ) { $tool->update_template( $input ); },
+					$error,
+					'wp_update_template rejects unverified saves'
+				);
+				$post_id = $updated_with_backslashes['after']['wp_id'];
+				$this->assert_same( $input['content'], get_post( $post_id )->post_content, 'Failed verification does not undo the saved post' );
+			} finally {
+				unset( $GLOBALS['frontman_test_template_assignment'] );
+				$GLOBALS['frontman_test_block_templates'] = $templates;
+			}
+		}
 	}
 
 	private function test_cache_tools(): void {
