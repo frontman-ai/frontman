@@ -785,21 +785,13 @@ defmodule FrontmanServer.Tasks do
      }}
   end
 
-  @doc "Returns a persisted tool request owned by the user with the exact turn and call identity."
-  def get_tool_request(%Scope{} = scope, task_id, turn_number, %{id: call_id, name: tool_name})
-      when is_binary(task_id) and is_integer(turn_number) and turn_number > 0 do
-    with {:ok, _task} <- get_task(scope, task_id) do
-      InteractionSchema.for_task(task_id)
-      |> InteractionSchema.for_turn(turn_number)
-      |> InteractionSchema.of_type(:tool_call)
-      |> InteractionSchema.data_equals("tool_call_id", call_id)
-      |> InteractionSchema.data_equals("tool_name", tool_name)
-      |> Repo.one()
-      |> case do
-        %InteractionSchema{} = request -> {:ok, request}
-        nil -> {:error, :not_found}
-      end
-    end
+  @doc "Whether the user has a tool request or result after the given timestamp."
+  def tool_used_since?(%Scope{} = scope, tool_name, %DateTime{} = since)
+      when is_binary(tool_name) do
+    scope
+    |> Accounts.scope_user_id()
+    |> InteractionSchema.recent_tool_interactions(tool_name, since)
+    |> Repo.exists?()
   end
 
   @doc "Records a client-handled tool request in the given turn."
