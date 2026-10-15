@@ -216,6 +216,15 @@ defmodule FrontmanServer.BillingTest do
     end
   end
 
+  test "allowance belongs to the user and survives conversation deletion" do
+    scope = AccountsFixtures.user_scope_fixture()
+    task = FrontmanServer.Test.Fixtures.Tasks.task_fixture(scope)
+    assert :ok = Billing.consume_pretrial_run(scope)
+    assert :ok = FrontmanServer.Tasks.delete_task(scope, task.id)
+    assert %{pretrial_runs_remaining: 4} = Billing.status(scope)
+    assert %{pretrial_runs_remaining: 5} = Billing.status(AccountsFixtures.user_scope_fixture())
+  end
+
   describe "get_current_subscription/1" do
     test "returns nil when the scoped user has no subscription" do
       user = AccountsFixtures.user_fixture()

@@ -549,6 +549,27 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert second_part.text == "Now tighten copy"
     end
 
+    test "missing credentials leave the accepted message unclaimed and allowance unspent" do
+      scope = Scope.for_user(user_fixture())
+      task = task_with_pubsub_fixture(scope)
+      message = insert_accepted_user_message!(task, "Edit")
+      execution = execution_request_fixture()
+      assert {:error, :no_api_key} = Tasks.execute_next_turn(scope, task.id, execution)
+      assert [] == turn_started_rows(task.id)
+      assert %{pretrial_runs_remaining: 5} = FrontmanServer.Billing.status(scope)
+
+      :ok = FrontmanServer.Providers.upsert_api_key(scope, "openrouter", "sk-or-test")
+      expect_llm_responses(["Done"])
+      assert :ok = Tasks.execute_next_turn(scope, task.id, execution)
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
+      message_id = message.id
+
+      assert [%{data: %Interaction.TurnStarted{user_message_ids: [^message_id]}}] =
+               turn_started_rows(task.id)
+
+      assert %{pretrial_runs_remaining: 4} = FrontmanServer.Billing.status(scope)
+    end
+
     test "startup failure persists terminal error on the same turn" do
       scope = Scope.for_user(user_fixture())
       FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
@@ -1602,12 +1623,14 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
     end
 
     @tag :capture_log
-    test "retryable provider failures retry only after channel timer fires", %{
+    @tag billing: :pretrial
+    test "fifth-turn retry waits for the channel timer and survives subscription cancellation", %{
       task_id: task_id,
       scope: scope,
       socket: socket
     } do
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+      for _ <- 1..4, do: :ok = FrontmanServer.Billing.consume_pretrial_run(scope)
 
       attempts = :counters.new(1, [])
 
@@ -1647,6 +1670,8 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
         }
       })
 
+      assert %{pretrial_runs_remaining: 0} = FrontmanServer.Billing.status(scope)
+      FrontmanServer.BillingFixtures.subscription_for_scope_fixture(scope, %{status: "canceled"})
       %{assigns: %{retry_state: retry_state}} = :sys.get_state(socket.channel_pid)
       send(socket.channel_pid, {:fire_retry, retry_state.timer_token})
 
