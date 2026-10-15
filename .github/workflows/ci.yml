@@ -394,6 +394,7 @@ jobs:
             bridge:
               - 'libs/frontman-preview-bridge/**'
               - 'libs/frontman-protocol/**'
+              - 'libs/frontman-astro-browser/**'
               - 'package.json'
               - '.yarnrc.yml'
               - 'yarn.lock'
