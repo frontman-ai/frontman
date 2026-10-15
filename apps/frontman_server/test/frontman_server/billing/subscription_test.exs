@@ -3,14 +3,14 @@ defmodule FrontmanServer.Billing.SubscriptionTest do
 
   alias FrontmanServer.Billing.Subscription
 
-  describe "allows_runs?/1" do
+  describe "allow_access?/1" do
     test "returns false without a subscription" do
-      refute Subscription.allows_runs?(nil)
+      refute Subscription.allow_access?(nil)
     end
 
     test "returns true for trialing and active subscriptions" do
-      assert Subscription.allows_runs?(%Subscription{status: "trialing"})
-      assert Subscription.allows_runs?(%Subscription{status: "active"})
+      assert Subscription.allow_access?(%Subscription{status: "trialing"})
+      assert Subscription.allow_access?(%Subscription{status: "active"})
     end
 
     test "returns false for past due and other inactive subscription statuses" do
@@ -22,7 +22,7 @@ defmodule FrontmanServer.Billing.SubscriptionTest do
             "incomplete_expired",
             "paused"
           ] do
-        refute Subscription.allows_runs?(%Subscription{status: status})
+        refute Subscription.allow_access?(%Subscription{status: status})
       end
     end
   end

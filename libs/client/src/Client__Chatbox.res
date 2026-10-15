@@ -439,12 +439,7 @@ let make = (~onConfigureProvider: unit => unit) => {
             size=Client__UI__Button.Size.Sm
             onClick={_ => Client__State.Actions.openSettingsModalOnBilling()}
           >
-            {React.string(
-              switch Client__Billing.pretrialRunsRemaining(status) {
-              | Some(_) => "Start 14-day trial"
-              | None => "Open billing"
-              },
-            )}
+            {React.string("Open billing")}
           </Client__UI__Button>
         </Client__UI__Alert.Description>
       </Client__UI__Alert>

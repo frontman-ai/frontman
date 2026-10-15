@@ -126,21 +126,16 @@ let canManage = (billingStatus: status) => billingStatus.hasBillingCustomer
 let subscriptionStatus = (billingStatus: status) => billingStatus.status
 
 let activationMessage = (billingStatus: status) =>
-  switch (billingStatus.pretrialRunsRemaining, billingStatus.status) {
-  | (Some(0), _) => "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
-  | (Some(_), _) => "Use your own AI provider. AI usage is billed by your provider, not Frontman."
-  | (
-      _,
-      NoSubscription | Incomplete | IncompleteExpired,
-    ) => "Finish billing setup to start using Frontman."
-  | (
-      _,
-      Canceled | Unpaid | PastDue,
-    ) => "Your Frontman access has ended. Start a subscription to continue."
-  | (
-      _,
-      Trialing | Active | UnknownSubscriptionStatus(_),
-    ) => "Activate billing to start using Frontman."
+  switch billingStatus.status {
+  | NoSubscription
+    if billingStatus.canStartTurn => "Use your own AI provider. AI usage is billed by your provider, not Frontman."
+  | NoSubscription
+  | Incomplete
+  | IncompleteExpired => "Finish billing setup to start using Frontman."
+  | Canceled
+  | Unpaid
+  | PastDue => "Your Frontman access has ended. Start a subscription to continue."
+  | Trialing | Active | UnknownSubscriptionStatus(_) => "Activate billing to start using Frontman."
   }
 
 let subscriptionStatusLabel = status =>

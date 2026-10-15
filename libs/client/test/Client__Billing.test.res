@@ -3,6 +3,17 @@ open Vitest
 let parseStatus = json =>
   JSON.parseOrThrow(json)->S.decodeOrThrow(~from=S.json, ~to=Client__Billing.statusSchema)
 
+let activeStatus = parseStatus(`{
+  "status": "active",
+  "can_start_turn": true,
+  "has_billing_customer": true,
+  "interval": "monthly",
+  "current_period_end": null,
+  "trial_end": null,
+  "cancel_at": null,
+  "canceled_at": null
+}`)
+
 describe("Client__Billing", _t => {
   test("only advertises a positive server-confirmed trial for inactive eligible users", t => {
     [
@@ -25,6 +36,7 @@ describe("Client__Billing", _t => {
         t->expect(Client__Billing.offeredTrialDays(status))->Expect.toEqual(expected)
       },
     )
+    t->expect(Client__Billing.offeredTrialDays(activeStatus))->Expect.toBeNone
   })
 
   test("parses billing status wire payload", t => {
@@ -106,5 +118,15 @@ describe("Client__Billing", _t => {
     ->expect(Client__Billing.subscriptionStatus(status))
     ->Expect.toEqual(Client__Billing.UnknownSubscriptionStatus("paused"))
     t->expect(Client__Billing.statusLabel(status))->Expect.toBe("paused")
+  })
+
+  test("derives app access from billing state", t => {
+    t
+    ->expect(Client__Billing.canStartTurnFromState(Client__Billing.Loaded(activeStatus)))
+    ->Expect.toBe(true)
+    t->expect(Client__Billing.canStartTurnFromState(Client__Billing.NotLoaded))->Expect.toBe(false)
+    t
+    ->expect(Client__Billing.canStartTurnFromState(Client__Billing.Error("boom")))
+    ->Expect.toBe(false)
   })
 })

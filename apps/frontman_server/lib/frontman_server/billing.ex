@@ -133,14 +133,14 @@ defmodule FrontmanServer.Billing do
   def subscription_allows_runs?(%Scope{} = scope) do
     scope
     |> get_current_subscription()
-    |> Subscription.allows_runs?()
+    |> Subscription.allow_access?()
   end
 
   @doc "Checks permission to start a new turn, not to continue an already-claimed turn."
   def can_start_turn?(%Scope{} = scope) do
     case get_current_subscription(scope) do
       nil -> remaining_runs(scope) > 0
-      subscription -> Subscription.allows_runs?(subscription)
+      subscription -> Subscription.allow_access?(subscription)
     end
   end
 
@@ -183,7 +183,7 @@ defmodule FrontmanServer.Billing do
   defp status_payload(scope, %Subscription{} = subscription) do
     %{
       status: subscription.status,
-      can_start_turn: Subscription.allows_runs?(subscription),
+      can_start_turn: Subscription.allow_access?(subscription),
       pretrial_runs_remaining: nil,
       has_billing_customer: has_billing_customer?(scope, subscription),
       interval: subscription.interval,

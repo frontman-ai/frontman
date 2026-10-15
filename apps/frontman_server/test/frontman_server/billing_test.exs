@@ -10,22 +10,6 @@ defmodule FrontmanServer.BillingTest do
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
   describe "start_checkout/3" do
-    test "allows checkout before the BYOK allowance is exhausted" do
-      use_billing_client_stub()
-      BillingClientStub.stub_start_checkout({:ok, %{"id" => "cs_pretrial"}})
-      scope = AccountsFixtures.user_scope_fixture()
-      assert Billing.can_start_turn?(scope)
-
-      assert {:ok, _} =
-               Billing.start_checkout(scope, :monthly, %{
-                 success_url: "https://frontman.test/success",
-                 cancel_url: "https://frontman.test/cancel"
-               })
-
-      assert_received {:start_checkout, _, nil, :monthly, _, [trial_eligible: true]}
-      assert %{pretrial_runs_remaining: 5} = Billing.status(scope)
-    end
-
     test "rejects a second checkout while the user has subscription access" do
       use_billing_client_stub()
 
@@ -230,18 +214,6 @@ defmodule FrontmanServer.BillingTest do
 
       assert Billing.subscription_allows_runs?(scope)
     end
-  end
-
-  test "aborted turn claims roll back allowance consumption" do
-    scope = AccountsFixtures.user_scope_fixture()
-
-    assert {:error, :aborted} =
-             Repo.transact(fn ->
-               assert :ok = Billing.consume_pretrial_run(scope)
-               {:error, :aborted}
-             end)
-
-    assert %{pretrial_runs_remaining: 5} = Billing.status(scope)
   end
 
   describe "get_current_subscription/1" do

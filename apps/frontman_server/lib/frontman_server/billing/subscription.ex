@@ -39,12 +39,12 @@ defmodule FrontmanServer.Billing.Subscription do
       where: s.status == "trialing" or not is_nil(s.trial_end)
   end
 
-  def allows_runs?(%__MODULE__{status: status})
+  def allow_access?(%__MODULE__{status: status})
       when status in ["trialing", "active"],
       do: true
 
-  def allows_runs?(nil), do: false
-  def allows_runs?(%__MODULE__{}), do: false
+  def allow_access?(nil), do: false
+  def allow_access?(%__MODULE__{}), do: false
 
   @doc false
   def changeset(subscription, attrs) do
