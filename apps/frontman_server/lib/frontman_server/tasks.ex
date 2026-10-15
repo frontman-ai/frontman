@@ -785,6 +785,15 @@ defmodule FrontmanServer.Tasks do
      }}
   end
 
+  @doc "Whether the user has a tool request or result after the given timestamp."
+  def tool_used_since?(%Scope{} = scope, tool_name, %DateTime{} = since)
+      when is_binary(tool_name) do
+    scope
+    |> Accounts.scope_user_id()
+    |> InteractionSchema.recent_tool_interactions(tool_name, since)
+    |> Repo.exists?()
+  end
+
   @doc "Records a client-handled tool request in the given turn."
   def request_client_tool(
         %Scope{} = scope,

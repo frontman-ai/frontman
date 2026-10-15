@@ -14,6 +14,7 @@ let coreBrowserTools: array<tool> = [
   module(Client__Tool__GetDom),
   module(Client__Tool__SearchText),
   module(Client__Tool__Question),
+  module(Client__Tool__CustomerFeedback),
 ]
 
 let forFramework = (framework: Client__RuntimeConfig.frameworkId): t => {

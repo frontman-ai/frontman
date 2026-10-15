@@ -1004,6 +1004,20 @@ describe("Task - Interactive wait contract", () => {
     )
   })
 
+  test("a second interactive request cannot replace the pending question", t => {
+    let rejected = ref(None)
+    let request = toolCallId => TaskReducer.QuestionReceived({
+      questions,
+      toolCallId,
+      resolveOk: _ => failwith("Unexpected resolution"),
+      resolveError: _ => rejected := Some(toolCallId),
+    })
+    let (waiting, _) = TaskReducer.next(TestHelpers.makeLoadedTask(), request("first"))
+    let (unchanged, effects) = TaskReducer.next(waiting, request("second"))
+    runEffects(effects)
+    t->expect((unchanged, rejected.contents))->Expect.toEqual((waiting, Some("second")))
+  })
+
   test("historical requires_action replays without reopening the turn", t => {
     let (history, _) = TaskReducer.next(
       TestHelpers.makeLoadingTask(),

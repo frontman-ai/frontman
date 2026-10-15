@@ -999,9 +999,25 @@ defmodule FrontmanServerWeb.TaskChannel do
         :error -> nil
       end
 
+    tools = socket.assigns.mcp_tools
+    feedback_tool = "request_customer_feedback"
+    cutoff = DateTime.add(DateTime.utc_now(), -30, :day)
+
+    execution_tools =
+      case Enum.any?(tools, &(&1.name == feedback_tool)) do
+        true ->
+          case Tasks.tool_used_since?(socket.assigns.scope, feedback_tool, cutoff) do
+            true -> Enum.reject(tools, &(&1.name == feedback_tool))
+            false -> tools
+          end
+
+        false ->
+          tools
+      end
+
     %{
       model: model,
-      mcp_tools: socket.assigns.mcp_tools,
+      mcp_tools: execution_tools,
       project_traits: Frameworks.project_traits_from_meta(meta, socket.assigns.framework)
     }
   end
