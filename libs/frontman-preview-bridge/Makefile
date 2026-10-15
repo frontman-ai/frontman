@@ -24,7 +24,6 @@ install-browser:
 	yarn playwright install --with-deps chromium
 
 test: build
-	yarn vite build --mode test-parent
 	yarn vitest run
 
 format:

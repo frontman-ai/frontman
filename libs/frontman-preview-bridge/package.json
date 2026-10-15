@@ -14,6 +14,7 @@
 		"@rescript/webapi": "workspace:*"
 	},
 	"devDependencies": {
+		"@vitest/browser-playwright": "4.1.11",
 		"playwright": "^1.63.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
