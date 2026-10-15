@@ -2408,7 +2408,7 @@ __metadata:
     "@frontman/bindings": "workspace:*"
     "@rescript/runtime": "catalog:"
     "@rescript/webapi": "workspace:*"
-    "@vitest/browser-playwright": "npm:4.1.11"
+    "@vitest/browser-playwright": "npm:5.0.4"
     playwright: "npm:^1.63.0"
     rescript: "catalog:"
     rescript-vitest: "catalog:"
