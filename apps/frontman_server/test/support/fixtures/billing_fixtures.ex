@@ -3,6 +3,10 @@ defmodule FrontmanServer.BillingFixtures do
   This module defines test helpers for creating billing entities.
   """
 
+  use Boundary,
+    top_level?: true,
+    check: [in: false, out: false]
+
   alias FrontmanServer.Billing
   alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription}
   alias FrontmanServer.Repo
