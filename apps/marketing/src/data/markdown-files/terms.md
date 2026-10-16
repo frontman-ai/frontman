@@ -30,7 +30,7 @@ Accounts are currently personal to the registered user. Team and organization fe
 
 ## Trial, Subscription, and Billing
 
-Frontman offers a 14-day trial for the hosted service. A valid credit card is required to start the trial. Unless you cancel before the trial ends, the trial automatically converts into a paid subscription with the billing frequency selected at checkout.
+Frontman includes five free uses per account, with no card required. They never expire and are not replenished. Start a 7-day free Frontman Pro trial anytime with a valid credit card. Trial and paid access do not spend free uses. Unused uses remain available after either ends. AI-provider access and usage costs are separate. Cancel before the trial ends to avoid billing. Otherwise, your trial automatically becomes a paid subscription at the billing frequency selected at checkout.
 
 Paid subscriptions renew monthly or yearly until canceled, according to the billing frequency selected at checkout. Prices are shown in euros and are exclusive of VAT and other applicable taxes unless stated otherwise at checkout. Frontman Pro costs EUR 15 per seat per month with monthly billing, or EUR 150 per seat per year with yearly billing.
 

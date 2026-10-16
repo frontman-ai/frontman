@@ -36,7 +36,7 @@ Frontman is intended for development workflows. RuntimeEnv disables the integrat
 - **Framework integrations** — Next.js, Astro, and Vite (React, Vue, Svelte) with deep runtime context
 - **Bring your own AI** — Anthropic and OpenAI OAuth connections; supported saved keys for Anthropic, OpenRouter, Fireworks AI, and NVIDIA. See provider setup docs for current access.
 - **Built-in Lighthouse audits** — run performance and accessibility audits without leaving the browser
-- **Source-available** — package-specific licenses. Hosted Frontman Pro has a card-required 14-day trial; provider usage is billed separately. See [pricing](https://frontman.sh/pricing/).
+- **Source-available** — package-specific licenses. Try Frontman free: five uses, no card. AI-provider costs are separate. See [pricing](https://frontman.sh/pricing/).
 
 ## Docs
 

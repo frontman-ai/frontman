@@ -31,11 +31,17 @@ defmodule FrontmanServer.BillingTest do
       BillingClientStub.stub_start_checkout({:ok, %{"id" => "cs_returning"}})
       scope = AccountsFixtures.user_scope_fixture()
       customer = customer_for_scope_fixture(scope)
+      run_allowance_fixture(scope, 4)
 
-      subscription_for_customer_fixture(scope, customer, %{
-        status: "canceled",
-        trial_end: ~U[2026-01-01 00:00:00Z]
-      })
+      subscription =
+        subscription_for_customer_fixture(scope, customer, %{
+          status: "trialing",
+          trial_end: ~U[2026-01-01 00:00:00Z]
+        })
+
+      assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
+      subscription |> Ecto.Changeset.change(status: "canceled") |> Repo.update!()
+      assert %{can_start_turn: true, pretrial_runs_remaining: 1} = Billing.status(scope)
 
       assert {:ok, %{"id" => "cs_returning"}} =
                Billing.start_checkout(scope, :yearly, %{
@@ -44,7 +50,8 @@ defmodule FrontmanServer.BillingTest do
                })
 
       assert_received {:start_checkout, _, ^customer, :yearly, _, [trial_eligible: false]}
-      assert %{trial_eligible: false, trial_days: 14} = Billing.status(scope)
+      assert %{trial_eligible: false, trial_days: 7} = Billing.status(scope)
+      assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
       assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
     end
   end
@@ -154,7 +161,7 @@ defmodule FrontmanServer.BillingTest do
                can_start_turn: true,
                pretrial_runs_remaining: 5,
                trial_eligible: true,
-               trial_days: 14,
+               trial_days: 7,
                has_billing_customer: false,
                interval: nil,
                current_period_end: nil,
@@ -283,6 +290,7 @@ defmodule FrontmanServer.BillingTest do
 
     test "payment failure blocks access until the subscription becomes active again" do
       scope = AccountsFixtures.user_scope_fixture()
+      run_allowance_fixture(scope, 5)
       event = subscription_webhook_event(scope.user.id)
       assert {:ok, :processed} = Webhooks.process_event(event)
       assert Billing.subscription_allows_runs?(scope)

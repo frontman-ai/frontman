@@ -72,6 +72,7 @@ defmodule FrontmanServer.TasksTest do
       test "enforces billing for #{inspect(status)} subscription", %{scope: scope} do
         status = unquote(status)
         if status, do: subscription_for_scope_fixture(scope, %{status: status})
+        if status in ["past_due", "canceled"], do: run_allowance_fixture(scope, 5)
         task_id = task_fixture(scope).id
 
         result =

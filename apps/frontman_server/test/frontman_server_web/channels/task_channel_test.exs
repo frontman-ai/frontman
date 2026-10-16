@@ -796,8 +796,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       assert_reply(ref, :ok, %{
         "acp:message" => %{
           "error" => %{
-            "message" =>
-              "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
+            "message" => "Keep going with a 7-day free Pro trial. Card required."
           }
         }
       })

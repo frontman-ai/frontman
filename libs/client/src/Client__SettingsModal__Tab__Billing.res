@@ -92,7 +92,7 @@ let make = () => {
           </Card.Action>
           <Card.Title> {React.string("Plan status")} </Card.Title>
           <Card.Description>
-            {React.string("Stripe manages payment methods, invoices, and cancellation.")}
+            {React.string("Manage payments and cancellation in Stripe.")}
           </Card.Description>
         </Card.Header>
         <Card.Content className="space-y-4">

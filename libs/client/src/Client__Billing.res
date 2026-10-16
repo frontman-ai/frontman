@@ -111,9 +111,8 @@ let pretrialRunsRemaining = (billingStatus: status) => billingStatus.pretrialRun
 
 let canStartCheckout = (billingStatus: status) =>
   switch billingStatus.status {
-  | NoSubscription => true
   | Trialing | Active | PastDue => false
-  | _ => !billingStatus.canStartTurn
+  | _ => true
   }
 
 let turnStartBlocked = billingStatus =>
@@ -128,8 +127,9 @@ let subscriptionStatus = (billingStatus: status) => billingStatus.status
 
 let activationMessage = (billingStatus: status) =>
   switch billingStatus.status {
-  | NoSubscription
-    if billingStatus.canStartTurn => "Use your own AI provider. AI usage is billed by your provider, not Frontman."
+  | _
+    if billingStatus.canStartTurn &&
+    billingStatus.pretrialRunsRemaining->Option.isSome => "Make your next update. Your AI provider bills separately."
   | NoSubscription
   | Incomplete
   | IncompleteExpired => "Finish billing setup to start using Frontman."

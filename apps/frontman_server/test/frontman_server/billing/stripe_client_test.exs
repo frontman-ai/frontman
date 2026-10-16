@@ -36,7 +36,8 @@ defmodule FrontmanServer.Billing.StripeClientTest do
         assert params["client_reference_id"] == user.id
         refute Map.has_key?(params, "customer_email")
         assert params["customer"] == "cus_existing"
-        assert params["subscription_data[trial_period_days]"] == "14"
+        assert params["subscription_data[trial_period_days]"] == "7"
+        assert params["payment_method_collection"] == "always"
         assert params["subscription_data[metadata][user_id]"] == user.id
 
         assert params["subscription_data[metadata][interval]"] ==
