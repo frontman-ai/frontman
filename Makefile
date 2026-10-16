@@ -199,7 +199,7 @@ dev-marketing:
 
 .PHONY: security-dependencies
 security-dependencies:
-	yarn up -R next sharp js-yaml svgo browserslist postcss-selector-parser qs vitest @vitest/coverage-v8 mermaid
+	yarn up -R next sharp js-yaml svgo browserslist postcss-selector-parser qs vitest @vitest/browser-playwright @vitest/coverage-v8 mermaid
 
 install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
