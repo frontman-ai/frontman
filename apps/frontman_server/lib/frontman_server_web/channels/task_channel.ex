@@ -45,6 +45,11 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:ok, history} = TaskHistory.new(task.interaction_rows)
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
 
+      Phoenix.PubSub.subscribe(
+        FrontmanServer.PubSub,
+        Providers.config_pubsub_topic(scope.user.id)
+      )
+
       SentryContext.set_task_scope_context(scope, task_id)
       {init_state, init_actions} = MCPInitializer.start(task_id, scope, task.framework)
 
@@ -156,6 +161,11 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, socket}
   end
 
+  def handle_info(:config_options_changed, socket) do
+    if Billing.can_start_turn?(socket.assigns.scope), do: wake_runner(socket, nil)
+    {:noreply, socket}
+  end
+
   def handle_info({:execute_next_turn, execution}, socket) do
     case Tasks.execute_next_turn(socket.assigns.scope, socket.assigns.task_id, execution) do
       result when result in [:ok, :already_running, :no_accepted_messages] ->
@@ -164,7 +174,7 @@ defmodule FrontmanServerWeb.TaskChannel do
       {:error, :billing_inactive} ->
         push_agent_error(
           socket,
-          Ecto.UUID.generate(),
+          nil,
           Tasks.billing_inactive_message(socket.assigns.scope),
           "frontman_billing"
         )
@@ -174,7 +184,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         push_agent_error(
           socket,
-          Ecto.UUID.generate(),
+          nil,
           "Could not start this run. Check your AI provider and selected model.",
           "billing"
         )
@@ -931,7 +941,7 @@ defmodule FrontmanServerWeb.TaskChannel do
 
         push_agent_error(
           socket,
-          retried_error_id,
+          nil,
           "That response can no longer be retried. Please send a new message instead.",
           "retry_unavailable"
         )

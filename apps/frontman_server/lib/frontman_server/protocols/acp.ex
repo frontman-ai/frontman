@@ -347,6 +347,7 @@ defmodule FrontmanServer.Protocols.ACP do
   Sent when the agent encounters an error. Always delivered as a notification
   so the client can display it regardless of whether a pending prompt exists.
 
+  Use a persisted `agent_error_id` for execution failures, or nil when no retryable turn exists.
   Pass `retry_opts` when the server is scheduling an automatic retry. The client
   uses `retryAt` to show a countdown and infers retry state from its presence.
 

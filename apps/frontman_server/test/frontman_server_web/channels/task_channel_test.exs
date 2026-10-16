@@ -2418,6 +2418,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{
             "sessionUpdate" => "error",
             "category" => "retry_unavailable",
+            "_meta" => %{"frontman.dev/agentErrorId" => nil},
             "message" =>
               "That response can no longer be retried. Please send a new message instead."
           }

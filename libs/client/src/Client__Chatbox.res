@@ -353,7 +353,7 @@ let make = (~onConfigureProvider: unit => unit) => {
           onRetry=?{retryTurnHandler(
             ~hasActiveACPSession,
             ~taskId=currentTaskId,
-            ~retryErrorId=Some(Message.ErrorMessage.id(err)),
+            ~retryErrorId=Message.ErrorMessage.retryErrorId(err),
           )}
         />
       </div>

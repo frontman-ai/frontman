@@ -428,7 +428,7 @@ describe("Task - Error Handling", () => {
     )
     let (failed, effects) = TaskReducer.next(
       streaming,
-      AgentError({id: "agent-error-1", error: "Quota exhausted", category: #quota}),
+      AgentError({id: Some("agent-error-1"), error: "Quota exhausted", category: #quota}),
     )
 
     t
@@ -467,7 +467,7 @@ describe("Task - Error Handling", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
-        id: "agent-error-1",
+        id: Some("agent-error-1"),
         error: "Some error",
         category: #unknown,
       }),
@@ -492,7 +492,7 @@ describe("Task - Error Handling", () => {
     let (task2, _) = TaskReducer.next(
       task,
       AgentError({
-        id: "agent-error-1",
+        id: Some("agent-error-1"),
         error: "Previous error",
         category: #unknown,
       }),
