@@ -527,7 +527,7 @@ defmodule FrontmanServer.Tasks do
   def billing_inactive_message(%Scope{} = scope) do
     case Billing.get_current_subscription(scope) do
       nil ->
-        "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
+        "You've used your 5 BYOK runs. Start your 7-day free Pro trial (card required)."
 
       %Billing.Subscription{} ->
         "Your Frontman access has ended. Start a subscription to continue."

@@ -44,7 +44,7 @@ defmodule FrontmanServer.BillingTest do
                })
 
       assert_received {:start_checkout, _, ^customer, :yearly, _, [trial_eligible: false]}
-      assert %{trial_eligible: false, trial_days: 14} = Billing.status(scope)
+      assert %{trial_eligible: false, trial_days: 7} = Billing.status(scope)
       assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
     end
   end
@@ -154,7 +154,7 @@ defmodule FrontmanServer.BillingTest do
                can_start_turn: true,
                pretrial_runs_remaining: 5,
                trial_eligible: true,
-               trial_days: 14,
+               trial_days: 7,
                has_billing_customer: false,
                interval: nil,
                current_period_end: nil,
@@ -186,6 +186,7 @@ defmodule FrontmanServer.BillingTest do
           status: "trialing",
           interval: :monthly,
           price_id: "price_monthly_test",
+          trial_end: ~U[2026-06-01 00:00:00Z],
           current_period_end: ~U[2026-06-01 00:00:00Z]
         })
 
@@ -195,6 +196,8 @@ defmodule FrontmanServer.BillingTest do
                status: "trialing",
                can_start_turn: true,
                trial_eligible: false,
+               trial_days: 7,
+               trial_end: ~U[2026-06-01 00:00:00Z],
                has_billing_customer: true,
                interval: :monthly,
                current_period_end: ^current_period_end

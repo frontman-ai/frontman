@@ -37,6 +37,20 @@ afterEach(() => {
   })
 )
 
+[true, false]->Array.forEach(eligible =>
+  testAsync(`billing settings explain trial eligibility ${Bool.toString(eligible)}`, async t => {
+    force({...Reducer.defaultState, billingStatus: Loaded(loaded(false, eligible))})
+    render(<Client__SettingsModal__Tab__Billing />)
+    await waitFor(() => t->expect(query("button")->Option.isSome)->Expect.toBe(true))
+    let text = (container.contents->Option.getOrThrow :> DomTypes.node).textContent->Null.getOrThrow
+    t->expect(text->String.includes("7-day free Pro trial"))->Expect.toBe(eligible)
+    t->expect(text->String.includes("Card required."))->Expect.toBe(eligible)
+    t->expect(text->String.includes("5 lifetime no-card BYOK runs"))->Expect.toBe(eligible)
+    t->expect(text->String.includes("EUR 15/month or EUR 150/year"))->Expect.toBe(true)
+    t->expect(text->String.includes("AI provider costs are separate."))->Expect.toBe(true)
+  })
+)
+
 [Billing.Monthly, Billing.Yearly]->Array.forEach(interval =>
   testAsync(
     `billing settings launch ${Billing.intervalLabel(interval)} checkout directly`,

@@ -290,7 +290,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
           "error" => %{
             "code" => -32_010,
             "message" =>
-              "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
+              "You've used your 5 BYOK runs. Start your 7-day free Pro trial (card required)."
           }
         })
       end

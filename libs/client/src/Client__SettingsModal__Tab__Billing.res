@@ -137,6 +137,17 @@ let make = () => {
           | false => React.null
           | true =>
             <div className="divide-y">
+              <p className="py-3 text-xs text-muted-foreground">
+                {React.string(
+                  switch Billing.offeredTrialDays(status) {
+                  | Some(days) =>
+                    `After your 5 lifetime no-card BYOK runs, start a ${Int.toString(
+                        days,
+                      )}-day free Pro trial. Card required. Then EUR 15/month or EUR 150/year unless canceled before the trial ends. AI provider costs are separate.`
+                  | None => "Subscribe to Pro for EUR 15/month or EUR 150/year. AI provider costs are separate."
+                  },
+                )}
+              </p>
               {Billing.checkoutOptions
               ->Array.map(option =>
                 <div

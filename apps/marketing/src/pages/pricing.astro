@@ -12,7 +12,7 @@ import { pricing, billingPlans, savingsPercent, subscriptionTerms } from '../con
 const SEO = {
 	title: 'WordPress AI Editor Pricing | Frontman Pro',
 	description:
-		`Frontman Pro for marketing teams updating existing WordPress sites: €${pricing.monthly} per seat/month, a card-required ${pricing.trialDays}-day trial, and separate AI-provider costs.`
+		`Frontman Pro for marketing teams updating existing WordPress sites: €${pricing.monthly} per seat/month, ${pricing.freeRuns} lifetime free BYOK runs without a card, then a card-required ${pricing.trialDays}-day free trial, and separate AI-provider costs.`
 }
 
 
@@ -27,9 +27,14 @@ const planFeatures = [
 
 const faqs = [
 	{
+		question: 'Can I try Frontman without a credit card?',
+		answer:
+			`${pricing.freeRuns} lifetime free BYOK runs need no credit card and do not expire. After those runs, you can start a ${pricing.trialDays}-day free Pro trial with a credit card. AI-provider costs are separate at every stage.`
+	},
+	{
 		question: 'Can I cancel during the trial?',
 		answer:
-			'Yes. Cancel before day 14 to avoid billing. A credit card is required to start the trial.'
+			`Yes. Cancel before the ${pricing.trialDays}-day free Pro trial ends to avoid billing. A credit card is required for the trial, not for the ${pricing.freeRuns} lifetime free BYOK runs. Otherwise, Pro costs €${pricing.monthly} per seat/month or €${pricing.yearly} per seat/year at your selected billing frequency.`
 	},
 	{
 		question: 'What does one seat include?',
@@ -81,7 +86,7 @@ const pricingJsonLd = {
 					availability: 'https://schema.org/InStock',
 					url: 'https://frontman.sh/pricing/',
 					category: 'subscription',
-					description: 'Hosted Frontman Pro seat billed monthly. AI provider usage is billed separately.'
+					description: `Hosted Frontman Pro seat billed monthly. ${subscriptionTerms}`
 				},
 				{
 					'@type': 'Offer',
@@ -91,7 +96,7 @@ const pricingJsonLd = {
 					availability: 'https://schema.org/InStock',
 					url: 'https://frontman.sh/pricing/',
 					category: 'subscription',
-					description: 'Hosted Frontman Pro seat billed yearly. AI provider usage is billed separately.'
+					description: `Hosted Frontman Pro seat billed yearly. ${subscriptionTerms}`
 				}
 			]
 		},
@@ -163,7 +168,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 						For marketing teams ready to make their own website changes instead of handing every update to an agency. Keep your existing WordPress site. Connect your own AI provider; its costs are separate.
 					</p>
 					<div class="mt-8 flex flex-wrap justify-center gap-3" aria-label="Pricing highlights">
-						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">14-day trial</span>
+						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">{pricing.freeRuns} lifetime free BYOK runs · no card; then {pricing.trialDays}-day free Pro trial · card required</span>
 					</div>
 				</div>
 			</Col>
@@ -246,7 +251,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 	<FinalCTA
 		link="/docs/integrations/wordpress/"
 		title="Your WordPress site. One hosted plan."
-		description="14-day trial with a credit card required. Cancel before billing. Connect your own supported AI provider with separate costs."
+		description={`${pricing.freeRuns} lifetime free BYOK runs without a card, then a ${pricing.trialDays}-day free Pro trial with a card required. After the trial, €${pricing.monthly}/seat/month or €${pricing.yearly}/seat/year unless canceled. AI-provider costs are separate.`}
 		buttonLabel="Set up Frontman for WordPress"
 	/>
 	</div>

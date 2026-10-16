@@ -146,7 +146,7 @@ config :frontman_server, :stripe,
   api_base_url: "https://api.stripe.com/v1",
   api_version: "2025-03-31.basil",
   signature_tolerance_seconds: 300,
-  trial_days: 14
+  trial_days: 7
 
 config :frontman_server, FrontmanServerWeb.Endpoint,
   url: [host: "localhost"],

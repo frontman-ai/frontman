@@ -19,9 +19,9 @@ describe("Client__Billing", _t => {
     [
       (true, 14, false, Some(14)),
       (true, 7, false, Some(7)),
-      (false, 14, false, None),
+      (false, 7, false, None),
       (true, 0, false, None),
-      (true, 14, true, Some(14)),
+      (true, 7, true, Some(7)),
     ]->Array.forEach(
       ((eligible, days, access, expected)) => {
         let status = parseStatus(
@@ -37,6 +37,30 @@ describe("Client__Billing", _t => {
       },
     )
     t->expect(Client__Billing.offeredTrialDays(activeStatus))->Expect.toBeNone
+  })
+
+  test("keeps no-card runs separate from trial billing", t => {
+    let status = parseStatus(`{
+      "status": "none",
+      "can_start_turn": true,
+      "pretrial_runs_remaining": 5,
+      "has_billing_customer": false,
+      "trial_eligible": true,
+      "trial_days": 7,
+      "interval": null,
+      "current_period_end": null,
+      "trial_end": null,
+      "cancel_at": null,
+      "canceled_at": null
+    }`)
+
+    t->expect(Client__Billing.pretrialRunsRemaining(status))->Expect.toEqual(Some(5))
+    t->expect(Client__Billing.offeredTrialDays(status))->Expect.toEqual(Some(7))
+    t
+    ->expect(Client__Billing.activationMessage(status))
+    ->Expect.toBe(
+      "Your first 5 lifetime BYOK runs need no card. AI usage is billed separately by your provider.",
+    )
   })
 
   test("parses billing status wire payload", t => {
@@ -100,6 +124,7 @@ describe("Client__Billing", _t => {
     ->expect(Client__Billing.currentPeriodEnd(status))
     ->Expect.toEqual(Some("2026-05-31T16:04:41Z"))
     t->expect(Client__Billing.cancelAt(status))->Expect.toEqual(Some("2026-05-31T16:04:41Z"))
+    t->expect(Client__Billing.trialEnd(status))->Expect.toEqual(Some("2026-05-31T16:04:41Z"))
   })
 
   test("preserves unknown subscription statuses", t => {

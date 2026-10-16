@@ -36,7 +36,7 @@ config :frontman_server, :stripe,
   extra_headers: {PaperTiger.Test, :sandbox_headers, []},
   monthly_price_id: "price_monthly_test",
   yearly_price_id: "price_yearly_test",
-  trial_days: 14
+  trial_days: 7
 
 config :paper_tiger,
   start: true,

@@ -129,7 +129,7 @@ let subscriptionStatus = (billingStatus: status) => billingStatus.status
 let activationMessage = (billingStatus: status) =>
   switch billingStatus.status {
   | NoSubscription
-    if billingStatus.canStartTurn => "Use your own AI provider. AI usage is billed by your provider, not Frontman."
+    if billingStatus.canStartTurn => "Your first 5 lifetime BYOK runs need no card. AI usage is billed separately by your provider."
   | NoSubscription
   | Incomplete
   | IncompleteExpired => "Finish billing setup to start using Frontman."

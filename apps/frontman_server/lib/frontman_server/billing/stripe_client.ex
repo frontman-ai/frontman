@@ -86,6 +86,7 @@ defmodule FrontmanServer.Billing.StripeClient do
   defp checkout_session_params(user, customer, interval, return_urls, opts) do
     base_params = [
       {"mode", "subscription"},
+      {"payment_method_collection", "always"},
       {"line_items[0][price]", stripe_config!(price_id_key(interval))},
       {"line_items[0][quantity]", "1"},
       {"managed_payments[enabled]", "true"},

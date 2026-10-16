@@ -141,7 +141,7 @@ Frontman uses BYOK (bring your own key). Connect any LLM provider:
 - **OpenRouter** — Claude, GPT, Gemini, Kimi, MiniMax, and hundreds of other models
 - **Fireworks AI**, **NVIDIA**, **Google**, and **xAI**
 
-You pay your LLM provider directly at their standard rates. Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription. Self-hosting is available under the repository terms.
+You pay your LLM provider directly at their standard rates. Frontman offers five lifetime free BYOK runs without a credit card, then a 7-day free Pro trial with a credit card required. After the trial, Pro costs EUR 15/seat/month or EUR 150/seat/year unless canceled. AI-provider costs are separate. Self-hosting is available under the repository terms.
 
 ## Self-Hosting and License
 

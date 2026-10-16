@@ -33,7 +33,7 @@ Frontman integrates with Next.js, Astro, and Vite. The framework plugin exposes 
 
 ### Hosted service and licensing
 
-Frontman Pro offers a 14-day trial with a credit card required, followed by a paid subscription. AI provider usage is billed separately. Supported connections include Anthropic and OpenAI OAuth, plus saved keys for Anthropic, OpenRouter, Fireworks AI, and NVIDIA. See the provider setup docs for current access. Self-hosting is available under the repository terms. The browser client and JavaScript integrations use Apache-2.0, the WordPress plugin uses GPL-2.0-or-later, and the server uses AGPL-3.0-only with AI Supplementary Terms.
+Frontman offers five lifetime free BYOK runs without a credit card, then a 7-day free Pro trial with a credit card required. After the trial, Pro costs EUR 15/seat/month or EUR 150/seat/year unless canceled. AI-provider costs are separate. Supported connections include Anthropic and OpenAI OAuth, plus saved keys for Anthropic, OpenRouter, Fireworks AI, and NVIDIA. See the provider setup docs for current access. Self-hosting is available under the repository terms. The browser client and JavaScript integrations use Apache-2.0, the WordPress plugin uses GPL-2.0-or-later, and the server uses AGPL-3.0-only with AI Supplementary Terms.
 
 ## Suitable Uses
 
