@@ -8,14 +8,22 @@ defmodule FrontmanServer.Billing.SubscriptionTest do
       refute Subscription.allow_access?(nil)
     end
 
-    test "returns true for trialing, active, and past_due subscriptions" do
+    test "returns true for trialing and active subscriptions" do
       assert Subscription.allow_access?(%Subscription{status: "trialing"})
       assert Subscription.allow_access?(%Subscription{status: "active"})
-      assert Subscription.allow_access?(%Subscription{status: "past_due"})
     end
 
-    test "returns false for other subscription statuses" do
-      refute Subscription.allow_access?(%Subscription{status: "canceled"})
+    test "returns false for past due and other inactive subscription statuses" do
+      for status <- [
+            "past_due",
+            "unpaid",
+            "canceled",
+            "incomplete",
+            "incomplete_expired",
+            "paused"
+          ] do
+        refute Subscription.allow_access?(%Subscription{status: status})
+      end
     end
   end
 end
