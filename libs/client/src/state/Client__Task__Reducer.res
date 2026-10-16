@@ -370,7 +370,7 @@ type action =
   | ExecutionStateIdle
   | ExecutionStateRequiresAction
   | CancelTurn
-  | AgentError({id: string, error: string, category: Client__ErrorCategory.t})
+  | AgentError({id: option<string>, error: string, category: Client__ErrorCategory.t})
   | UserMessageSendFailed({id: Message.UserMessageId.t, error: string})
   | RetryingUpdate({retryStatus: Types.Task.retryStatus})
   | RetryTurn({retriedErrorId: string})
@@ -1047,17 +1047,23 @@ let next = (task: Task.t, action: action): (Task.t, array<effect>) => {
     }
 
   | (Task.Loading(_), AgentError({id, error, category})) =>
-    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
+    let errorMsg = Message.Error(Message.ErrorMessage.make(~id?, ~error, ~category))
     (task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg), [])
 
   | (Task.Loaded(_), AgentError({id, error, category})) =>
-    let errorMsg = Message.Error(Message.ErrorMessage.make(~id, ~error, ~category))
-    let completed = task->Lens.completeStreamingMessage->Lens.insertMessage(errorMsg)
+    let errorMessage = Message.ErrorMessage.make(~id?, ~error, ~category)
+    let completed =
+      task->Lens.completeStreamingMessage->Lens.insertMessage(Message.Error(errorMessage))
     switch completed {
     | Task.Loaded(data) => (
         Task.Loaded({
           ...data,
-          turnError: Some({id, message: error, category, retryErrorId: Some(id)}),
+          turnError: Some({
+            id: Message.ErrorMessage.id(errorMessage),
+            message: error,
+            category,
+            retryErrorId: id,
+          }),
           isAgentRunning: false,
           retryStatus: None,
         })->Lens.refreshCompletedFileChanges,

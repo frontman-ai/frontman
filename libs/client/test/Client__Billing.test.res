@@ -5,7 +5,7 @@ let parseStatus = json =>
 
 let activeStatus = parseStatus(`{
   "status": "active",
-  "access_allowed": true,
+  "can_start_turn": true,
   "has_billing_customer": true,
   "interval": "monthly",
   "current_period_end": null,
@@ -21,11 +21,11 @@ describe("Client__Billing", _t => {
       (true, 7, false, Some(7)),
       (false, 14, false, None),
       (true, 0, false, None),
-      (true, 14, true, None),
+      (true, 14, true, Some(14)),
     ]->Array.forEach(
       ((eligible, days, access, expected)) => {
         let status = parseStatus(
-          `{"status":"none","access_allowed":${Bool.toString(
+          `{"status":"none","can_start_turn":${Bool.toString(
               access,
             )},"has_billing_customer":false,"trial_eligible":${Bool.toString(
               eligible,
@@ -42,7 +42,7 @@ describe("Client__Billing", _t => {
   test("parses billing status wire payload", t => {
     let status = parseStatus(`{
       "status": "past_due",
-      "access_allowed": false,
+      "can_start_turn": false,
       "has_billing_customer": true,
       "interval": "yearly",
       "current_period_end": null,
@@ -53,7 +53,7 @@ describe("Client__Billing", _t => {
 
     t->expect(Client__Billing.subscriptionStatus(status))->Expect.toEqual(Client__Billing.PastDue)
     t->expect(Client__Billing.interval(status))->Expect.toEqual(Some(Client__Billing.Yearly))
-    t->expect(Client__Billing.isAccessAllowed(status))->Expect.toBe(false)
+    t->expect(Client__Billing.canStartTurn(status))->Expect.toBe(false)
   })
 
   test("checkout eligibility is separate from usage access", t => {
@@ -66,14 +66,14 @@ describe("Client__Billing", _t => {
     ]->Array.forEach(
       ((subscriptionStatus, accessAllowed, expected)) => {
         let status = parseStatus(
-          `{"status":"${subscriptionStatus}","access_allowed":${Bool.toString(
+          `{"status":"${subscriptionStatus}","can_start_turn":${Bool.toString(
               accessAllowed,
             )},"has_billing_customer":true,"interval":null,"current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
         )
         t->expect(Client__Billing.canStartCheckout(status))->Expect.toBe(expected)
         switch Client__Billing.subscriptionStatus(status) {
         | PastDue =>
-          t->expect(Client__Billing.isAccessAllowed(status))->Expect.toBe(false)
+          t->expect(Client__Billing.canStartTurn(status))->Expect.toBe(false)
           t->expect(Client__Billing.canManage(status))->Expect.toBe(true)
           t
           ->expect(Client__Billing.activationMessage(status))
@@ -87,7 +87,7 @@ describe("Client__Billing", _t => {
   test("parses live billing update date fields", t => {
     let status = parseStatus(`{
       "status": "trialing",
-      "access_allowed": true,
+      "can_start_turn": true,
       "has_billing_customer": true,
       "interval": "monthly",
       "current_period_end": "2026-05-31T16:04:41Z",
@@ -105,7 +105,7 @@ describe("Client__Billing", _t => {
   test("preserves unknown subscription statuses", t => {
     let status = parseStatus(`{
       "status": "paused",
-      "access_allowed": false,
+      "can_start_turn": false,
       "has_billing_customer": true,
       "interval": null,
       "current_period_end": null,
@@ -122,9 +122,11 @@ describe("Client__Billing", _t => {
 
   test("derives app access from billing state", t => {
     t
-    ->expect(Client__Billing.accessAllowed(Client__Billing.Loaded(activeStatus)))
+    ->expect(Client__Billing.canStartTurnFromState(Client__Billing.Loaded(activeStatus)))
     ->Expect.toBe(true)
-    t->expect(Client__Billing.accessAllowed(Client__Billing.NotLoaded))->Expect.toBe(false)
-    t->expect(Client__Billing.accessAllowed(Client__Billing.Error("boom")))->Expect.toBe(false)
+    t->expect(Client__Billing.canStartTurnFromState(Client__Billing.NotLoaded))->Expect.toBe(false)
+    t
+    ->expect(Client__Billing.canStartTurnFromState(Client__Billing.Error("boom")))
+    ->Expect.toBe(false)
   })
 })

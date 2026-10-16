@@ -1492,7 +1492,7 @@ describe("Client State Reducer - Billing Settings", () => {
   test("BillingStatusReceived stores global billing status", t => {
     let billingStatus = parseBillingStatus(`{
       "status": "active",
-      "access_allowed": true,
+      "can_start_turn": true,
       "has_billing_customer": true,
       "interval": "monthly",
       "current_period_end": null,
@@ -1515,7 +1515,7 @@ describe("Client State Reducer - Billing Settings", () => {
   test("BillingStatusReceived updates inactive billing to active", t => {
     let inactiveStatus = parseBillingStatus(`{
       "status": "none",
-      "access_allowed": false,
+      "can_start_turn": false,
       "has_billing_customer": false,
       "interval": null,
       "current_period_end": null,
@@ -1525,7 +1525,7 @@ describe("Client State Reducer - Billing Settings", () => {
     }`)
     let activeStatus = parseBillingStatus(`{
       "status": "active",
-      "access_allowed": true,
+      "can_start_turn": true,
       "has_billing_customer": true,
       "interval": "monthly",
       "current_period_end": null,
@@ -1543,16 +1543,16 @@ describe("Client State Reducer - Billing Settings", () => {
       BillingStatusReceived(activeStatus),
     )
 
-    t->expect(Reducer.Selectors.billingAccessAllowed(inactiveState))->Expect.toBe(false)
-    t->expect(Reducer.Selectors.billingAccessAllowed(activeState))->Expect.toBe(true)
+    t->expect(Reducer.Selectors.billingCanStartTurn(inactiveState))->Expect.toBe(false)
+    t->expect(Reducer.Selectors.billingCanStartTurn(activeState))->Expect.toBe(true)
     t->expect(inactiveEffects->Array.length)->Expect.toBe(0)
     t->expect(activeEffects->Array.length)->Expect.toBe(0)
   })
 
-  test("billingAccessAllowed selector returns derived billing access", t => {
+  test("billingCanStartTurn selector returns derived billing access", t => {
     let activeStatus = parseBillingStatus(`{
       "status": "active",
-      "access_allowed": true,
+      "can_start_turn": true,
       "has_billing_customer": true,
       "interval": null,
       "current_period_end": null,
@@ -1562,7 +1562,7 @@ describe("Client State Reducer - Billing Settings", () => {
     }`)
     let inactiveStatus = parseBillingStatus(`{
       "status": "none",
-      "access_allowed": false,
+      "can_start_turn": false,
       "has_billing_customer": false,
       "interval": null,
       "current_period_end": null,
@@ -1573,7 +1573,7 @@ describe("Client State Reducer - Billing Settings", () => {
 
     t
     ->expect(
-      Reducer.Selectors.billingAccessAllowed({
+      Reducer.Selectors.billingCanStartTurn({
         ...Reducer.defaultState,
         billingStatus: Client__Billing.Loaded(activeStatus),
       }),
@@ -1582,7 +1582,7 @@ describe("Client State Reducer - Billing Settings", () => {
 
     t
     ->expect(
-      Reducer.Selectors.billingAccessAllowed({
+      Reducer.Selectors.billingCanStartTurn({
         ...Reducer.defaultState,
         billingStatus: Client__Billing.Loaded(inactiveStatus),
       }),
@@ -1591,7 +1591,7 @@ describe("Client State Reducer - Billing Settings", () => {
 
     t
     ->expect(
-      Reducer.Selectors.billingAccessAllowed({
+      Reducer.Selectors.billingCanStartTurn({
         ...Reducer.defaultState,
         billingStatus: Client__Billing.NotLoaded,
       }),
@@ -1600,7 +1600,7 @@ describe("Client State Reducer - Billing Settings", () => {
 
     t
     ->expect(
-      Reducer.Selectors.billingAccessAllowed({
+      Reducer.Selectors.billingCanStartTurn({
         ...Reducer.defaultState,
         billingStatus: Client__Billing.Error("boom"),
       }),

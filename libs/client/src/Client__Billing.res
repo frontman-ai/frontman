@@ -45,8 +45,10 @@ type interval =
 type status = {
   @s.matches(subscriptionStatusSchema)
   status: subscriptionStatus,
-  @as("access_allowed")
-  accessAllowed: bool,
+  @as("can_start_turn")
+  canStartTurn: bool,
+  @as("pretrial_runs_remaining")
+  pretrialRunsRemaining: @s.nullable option<int>,
   @as("has_billing_customer")
   hasBillingCustomer: bool,
   @as("trial_eligible")
@@ -97,18 +99,27 @@ type checkoutOption = {
   badge: option<string>,
 }
 
-let accessAllowed = billingStatus =>
+let canStartTurnFromState = billingStatus =>
   switch billingStatus {
-  | Loaded({accessAllowed: true}) => true
+  | Loaded({canStartTurn: true}) => true
   | NotLoaded | Error(_) | Loaded(_) => false
   }
 
-let isAccessAllowed = (billingStatus: status) => billingStatus.accessAllowed
+let canStartTurn = (billingStatus: status) => billingStatus.canStartTurn
+
+let pretrialRunsRemaining = (billingStatus: status) => billingStatus.pretrialRunsRemaining
 
 let canStartCheckout = (billingStatus: status) =>
   switch billingStatus.status {
+  | NoSubscription => true
   | Trialing | Active | PastDue => false
-  | _ => !billingStatus.accessAllowed
+  | _ => !billingStatus.canStartTurn
+  }
+
+let turnStartBlocked = billingStatus =>
+  switch billingStatus {
+  | Loaded({canStartTurn: false}) => true
+  | _ => false
   }
 
 let canManage = (billingStatus: status) => billingStatus.hasBillingCustomer
@@ -117,6 +128,8 @@ let subscriptionStatus = (billingStatus: status) => billingStatus.status
 
 let activationMessage = (billingStatus: status) =>
   switch billingStatus.status {
+  | NoSubscription
+    if billingStatus.canStartTurn => "Use your own AI provider. AI usage is billed by your provider, not Frontman."
   | NoSubscription
   | Incomplete
   | IncompleteExpired => "Finish billing setup to start using Frontman."
@@ -177,8 +190,8 @@ let checkoutOptionDescription = (option: checkoutOption) => option.description
 let checkoutOptionBadge = (option: checkoutOption) => option.badge
 let checkoutOptionRequest = (option: checkoutOption) => Checkout(option.interval)
 let offeredTrialDays = (status: status) =>
-  switch (status.trialEligible, status.trialDays, status.accessAllowed) {
-  | (Some(true), Some(days), false) if days > 0 => Some(days)
+  switch (status.trialEligible, status.trialDays, canStartCheckout(status)) {
+  | (Some(true), Some(days), true) if days > 0 => Some(days)
   | _ => None
   }
 

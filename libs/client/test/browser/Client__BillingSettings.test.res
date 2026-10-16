@@ -17,7 +17,7 @@ afterEach(() => {
   testAsync(`existing ${status} ${interval} plans do not assume a renewal price`, async t => {
     let billing = S.parseOrThrow(
       JSON.parseOrThrow(
-        `{"status":"${status}","access_allowed":true,"has_billing_customer":true,"interval":"${interval}","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
+        `{"status":"${status}","can_start_turn":true,"has_billing_customer":true,"interval":"${interval}","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
       ),
       ~to=Billing.statusSchema,
     )

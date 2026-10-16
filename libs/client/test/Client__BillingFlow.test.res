@@ -42,7 +42,7 @@ let request = operation => dispatch(RequestBilling(operation))
 let flush = () => Promise.make((resolve, _) => {setTimeout(() => resolve(), 0)->ignore})
 let urlResponse = () => response(200, `{"url":"https://billing.stripe.test/session"}`)
 let statusJson = (status, access) =>
-  `{"status":"${status}","access_allowed":${Bool.toString(
+  `{"status":"${status}","can_start_turn":${Bool.toString(
       access,
     )},"has_billing_customer":true,"interval":"monthly","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`
 let failed = () =>
@@ -315,7 +315,7 @@ test("blocked popups do not create unused checkout", t => {
       request(Status)
       pending.contents.resolve(response(200, statusJson("active", true)))
       await waitFor(
-        () => t->expect(Reducer.Selectors.billingAccessAllowed(state.contents))->Expect.toBe(true),
+        () => t->expect(Reducer.Selectors.billingCanStartTurn(state.contents))->Expect.toBe(true),
       )
     | _ =>
       dispatch(
@@ -353,7 +353,7 @@ testAsync("status refresh uses same bearer without opening tab", async t => {
   request(Status)
   pending.contents.resolve(response(200, statusJson("trialing", true)))
   await waitFor(() =>
-    t->expect(Reducer.Selectors.billingAccessAllowed(state.contents))->Expect.toBe(true)
+    t->expect(Reducer.Selectors.billingCanStartTurn(state.contents))->Expect.toBe(true)
   )
   t->expect(opened.contents)->Expect.toBe(0)
   let (url, init) = calls.contents->Array.get(0)->Option.getOrThrow

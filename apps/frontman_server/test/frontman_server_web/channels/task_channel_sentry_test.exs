@@ -13,8 +13,16 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
     only: [interaction_event: 2, tool_call: 2, tool_call: 3, tool_result: 3, tool_result: 4]
 
   import FrontmanServer.Test.Fixtures.Tasks
+  import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 1]
 
   alias FrontmanServer.Protocols.{JsonRpc, MCP}
+  alias FrontmanServer.Repo
+  alias FrontmanServer.Tasks.InteractionSchema
+
+  defp await_completion(task_id) do
+    assert_receive {:interaction, %{task_id: ^task_id, type: :agent_completed}}, 5_000
+    refute_running_eventually(task_id)
+  end
 
   setup %{scope: scope} do
     Sentry.Test.setup_sentry(dedup_events: false)
@@ -25,6 +33,8 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
     complete_mcp_handshake(socket)
 
     turn_number = start_turn_fixture(scope, task_id)
+    turn_started = Repo.get_by!(InteractionSchema, task_id: task_id, type: :turn_started)
+    send(socket.channel_pid, {:interaction, turn_started})
     {:ok, socket: socket, task_id: task_id, turn_number: turn_number}
   end
 
@@ -124,6 +134,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
         }
       })
 
+      await_completion(task_id)
       reports = Sentry.Test.pop_sentry_reports()
 
       mcp_error_reports =
@@ -168,6 +179,7 @@ defmodule FrontmanServerWeb.TaskChannelSentryTest do
 
       :sys.get_state(socket.channel_pid)
 
+      await_completion(task_id)
       reports = Sentry.Test.pop_sentry_reports()
 
       mcp_error_reports =

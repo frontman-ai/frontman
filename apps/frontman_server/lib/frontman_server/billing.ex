@@ -15,8 +15,10 @@ defmodule FrontmanServer.Billing do
 
   alias FrontmanServer.Accounts
   alias FrontmanServer.Accounts.Scope
-  alias FrontmanServer.Billing.{Customer, Subscription}
+  alias FrontmanServer.Billing.{Customer, RunAllowance, Subscription}
   alias FrontmanServer.Repo
+
+  @pretrial_run_limit 5
 
   @type interval :: :monthly | :yearly
 
@@ -84,7 +86,8 @@ defmodule FrontmanServer.Billing do
   """
   @spec status(Scope.t()) :: %{
           status: String.t(),
-          access_allowed: boolean(),
+          can_start_turn: boolean(),
+          pretrial_runs_remaining: non_neg_integer() | nil,
           has_billing_customer: boolean(),
           trial_eligible: boolean(),
           trial_days: pos_integer(),
@@ -124,13 +127,37 @@ defmodule FrontmanServer.Billing do
   end
 
   @doc """
-  Returns whether billing allows access for the scoped user.
+  Returns whether the user's subscription permits new runs, excluding the BYOK allowance.
   """
-  @spec allow_access?(Scope.t()) :: boolean()
-  def allow_access?(%Scope{} = scope) do
+  @spec subscription_allows_runs?(Scope.t()) :: boolean()
+  def subscription_allows_runs?(%Scope{} = scope) do
     scope
     |> get_current_subscription()
     |> Subscription.allow_access?()
+  end
+
+  @doc "Advisory new-turn eligibility. authorize_new_turn/1 makes the authoritative billing decision."
+  def can_start_turn?(%Scope{} = scope) do
+    case get_current_subscription(scope) do
+      nil -> remaining_runs(scope) > 0
+      subscription -> Subscription.allow_access?(subscription)
+    end
+  end
+
+  @doc "Authorizes a new turn, consuming allowance when needed. Call inside the turn-claim transaction."
+  @spec authorize_new_turn(Scope.t()) ::
+          {:ok, :subscription | :pretrial} | {:error, :billing_inactive}
+  def authorize_new_turn(%Scope{} = scope) do
+    case get_current_subscription(scope) do
+      nil ->
+        consume_pretrial_run(scope)
+
+      subscription ->
+        case Subscription.allow_access?(subscription) do
+          true -> {:ok, :subscription}
+          false -> {:error, :billing_inactive}
+        end
+    end
   end
 
   @doc """
@@ -145,10 +172,28 @@ defmodule FrontmanServer.Billing do
     |> Repo.one()
   end
 
+  defp consume_pretrial_run(scope) do
+    case Repo.insert_all(RunAllowance, [%{user_id: Accounts.scope_user_id(scope), used: 1}],
+           conflict_target: :user_id,
+           on_conflict: RunAllowance.increment_below(@pretrial_run_limit)
+         ) do
+      {1, _} -> {:ok, :pretrial}
+      {0, _} -> {:error, :billing_inactive}
+    end
+  end
+
+  defp remaining_runs(scope) do
+    case Repo.get(RunAllowance, Accounts.scope_user_id(scope)) do
+      nil -> @pretrial_run_limit
+      %RunAllowance{used: used} -> @pretrial_run_limit - used
+    end
+  end
+
   defp status_payload(scope, %Subscription{} = subscription) do
     %{
       status: subscription.status,
-      access_allowed: Subscription.allow_access?(subscription),
+      can_start_turn: Subscription.allow_access?(subscription),
+      pretrial_runs_remaining: nil,
       has_billing_customer: has_billing_customer?(scope, subscription),
       interval: subscription.interval,
       current_period_end: subscription.current_period_end,
@@ -159,9 +204,12 @@ defmodule FrontmanServer.Billing do
   end
 
   defp status_payload(scope, nil) do
+    remaining = remaining_runs(scope)
+
     %{
       status: "none",
-      access_allowed: false,
+      can_start_turn: remaining > 0,
+      pretrial_runs_remaining: remaining,
       has_billing_customer: has_billing_customer?(scope, nil),
       interval: nil,
       current_period_end: nil,

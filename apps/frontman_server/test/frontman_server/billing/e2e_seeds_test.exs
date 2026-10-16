@@ -22,7 +22,7 @@ defmodule FrontmanServer.Billing.E2ESeedsTest do
     user = Accounts.get_user_by_email("e2e@frontman.local")
     scope = Scope.for_user(user)
 
-    assert Billing.allow_access?(scope)
+    assert Billing.subscription_allows_runs?(scope)
     assert Repo.aggregate(Customer.for_user(user.id), :count) == 1
     assert Repo.aggregate(Subscription.for_user(user.id), :count) == 1
   end

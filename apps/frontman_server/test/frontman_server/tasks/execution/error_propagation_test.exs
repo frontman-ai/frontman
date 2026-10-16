@@ -40,7 +40,22 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
       assert reason =~ "image exceeds the maximum allowed size"
     end
 
-    for delivery <- [:error, :stream_raise, :removed_model] do
+    test "removed models are rejected before a turn is recorded", %{
+      task_id: task_id,
+      scope: scope
+    } do
+      assert {:error, :unknown_model} =
+               submit_user_message_and_run(
+                 scope,
+                 task_id,
+                 execution_request_fixture(model: "openai_codex:gpt-5.4-mini"),
+                 user_content("Hello")
+               )
+
+      refute Repo.get_by(InteractionSchema, task_id: task_id, type: :turn_started)
+    end
+
+    for delivery <- [:error, :stream_raise] do
       @tag :capture_log
       test "#{delivery} preserves safe, non-retryable model guidance in storage and PubSub", %{
         task_id: task_id,
@@ -56,30 +71,19 @@ defmodule FrontmanServer.Tasks.Execution.ErrorPropagationTest do
             }
           )
 
-        execution =
+        failure =
           case unquote(delivery) do
-            :removed_model ->
-              execution_request_fixture(model: "openai_codex:gpt-5.4-mini")
-
-            delivery ->
-              failure =
-                case delivery do
-                  :error ->
-                    request
-
-                  :stream_raise ->
-                    Stream.exception(cause: request, reason: "HTTP 400")
-                end
-
-              expect_llm_responses([{delivery, failure}])
-              execution_request_fixture()
+            :error -> request
+            :stream_raise -> Stream.exception(cause: request, reason: "HTTP 400")
           end
+
+        expect_llm_responses([{unquote(delivery), failure}])
 
         {:ok, _, _} =
           submit_user_message_and_run(
             scope,
             task_id,
-            execution,
+            execution_request_fixture(),
             user_content("Hello")
           )
 

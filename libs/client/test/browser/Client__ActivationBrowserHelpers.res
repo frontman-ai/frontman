@@ -37,7 +37,7 @@ let force = state =>
 let loaded = (access, eligible) =>
   S.parseOrThrow(
     JSON.parseOrThrow(
-      `{"status":"${access ? "trialing" : "none"}","access_allowed":${Bool.toString(
+      `{"status":"${access ? "trialing" : "none"}","can_start_turn":${Bool.toString(
           access,
         )},"has_billing_customer":false,"trial_eligible":${Bool.toString(
           eligible,

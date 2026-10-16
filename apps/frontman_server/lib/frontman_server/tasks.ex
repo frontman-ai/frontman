@@ -518,7 +518,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp guard_billing_access(scope) do
-    case Billing.allow_access?(scope) do
+    case Billing.can_start_turn?(scope) do
       true -> :ok
       false -> {:error, :billing_inactive}
     end
@@ -527,7 +527,7 @@ defmodule FrontmanServer.Tasks do
   def billing_inactive_message(%Scope{} = scope) do
     case Billing.get_current_subscription(scope) do
       nil ->
-        "Finish billing setup to start using Frontman."
+        "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
 
       %Billing.Subscription{} ->
         "Your Frontman access has ended. Start a subscription to continue."
@@ -584,8 +584,16 @@ defmodule FrontmanServer.Tasks do
 
   defp start_next_turn(%Scope{} = scope, task_id) when is_binary(task_id) do
     case claim_next_turn(scope, task_id) do
-      {:ok, {task_schema, turn_started_row, turn_number, turn_model, agent, first_message}} ->
+      {:ok,
+       {task_schema, turn_started_row, turn_number, turn_model, agent, first_message,
+        billing_authorization}} ->
         broadcast_task(task_id, {:interaction, turn_started_row})
+
+        case billing_authorization do
+          :pretrial -> Billing.broadcast_status_changed(Accounts.scope_user_id(scope))
+          :subscription -> :ok
+        end
+
         enqueue_title_generation(scope, task_id, first_message, turn_model, turn_number)
         {:ok, task_schema, turn_number, turn_model, agent}
 
@@ -625,16 +633,22 @@ defmodule FrontmanServer.Tasks do
            end),
          user_message_ids = Enum.map(accepted_messages, & &1.id),
          {:ok, agent} <- Agents.get_agent(scope, agent_id),
+         {:ok, _access} <- Providers.resolve_model_access(scope, turn_model),
+         {:ok, billing_authorization} <- Billing.authorize_new_turn(scope),
          {:ok, turn_started_row} <-
            insert_interaction_row(task_schema, %{
              id: Ecto.UUID.generate(),
              type: :turn_started,
-             data: %{agent_id: agent.id, user_message_ids: user_message_ids},
+             data: %{
+               agent_id: agent.id,
+               user_message_ids: user_message_ids
+             },
              turn_number: turn_number
            }),
          :ok <- insert_skill_used_rows(task_schema, accepted_messages, turn_number) do
       {:ok,
-       {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message}}
+       {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message,
+        billing_authorization}}
     else
       {:error, reason} -> {:error, reason}
       {nil, []} -> {:error, :no_accepted_messages}
@@ -934,10 +948,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc "Records a retry request and starts execution."
+  @doc "Retries an already-authorized turn without charging or rechecking billing."
   def retry_execution(scope, task_id, retried_error_id, execution) do
-    with :ok <- guard_billing_access(scope),
-         {:ok, schema} <- get_task(scope, task_id),
+    with {:ok, schema} <- get_task(scope, task_id),
          {:ok, history} = load_history(task_id),
          {:ok, turn_number} <- retry_turn_number(history.rows, retried_error_id),
          :ok <- ensure_latest_retry_turn(retried_error_id, turn_number, history),
@@ -1001,10 +1014,9 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  @doc "Resumes execution for the active turn."
+  @doc "Resumes an already-authorized active turn without charging or rechecking billing."
   def resume_execution(scope, task_id, execution) do
-    with :ok <- guard_billing_access(scope),
-         {:ok, task} <- get_task(scope, task_id),
+    with {:ok, task} <- get_task(scope, task_id),
          {:ok, history} <- load_history(task.id),
          turn_number when is_integer(turn_number) <- History.active_turn_number(history),
          {:ok, agent} <- turn_agent(scope, history, turn_number),

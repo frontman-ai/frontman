@@ -45,6 +45,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert_received {:start_checkout, _, ^customer, :yearly, _, [trial_eligible: false]}
       assert %{trial_eligible: false, trial_days: 14} = Billing.status(scope)
+      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
     end
   end
 
@@ -150,7 +151,8 @@ defmodule FrontmanServer.BillingTest do
 
       assert %{
                status: "none",
-               access_allowed: false,
+               can_start_turn: true,
+               pretrial_runs_remaining: 5,
                trial_eligible: true,
                trial_days: 14,
                has_billing_customer: false,
@@ -168,7 +170,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert %{
                status: "none",
-               access_allowed: false,
+               can_start_turn: true,
                has_billing_customer: true
              } = Billing.status(scope)
     end
@@ -191,7 +193,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert %{
                status: "trialing",
-               access_allowed: true,
+               can_start_turn: true,
                trial_eligible: false,
                has_billing_customer: true,
                interval: :monthly,
@@ -200,19 +202,29 @@ defmodule FrontmanServer.BillingTest do
     end
   end
 
-  describe "allow_access?/1" do
+  describe "subscription_allows_runs?/1" do
     test "returns false when the user has no subscription" do
       user = AccountsFixtures.user_fixture()
       scope = Scope.for_user(user)
 
-      refute Billing.allow_access?(scope)
+      refute Billing.subscription_allows_runs?(scope)
     end
 
     test "returns true for active subscriptions" do
       scope = scope_with_subscription_fixture("active")
 
-      assert Billing.allow_access?(scope)
+      assert Billing.subscription_allows_runs?(scope)
+      assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
     end
+  end
+
+  test "allowance belongs to the user and survives conversation deletion" do
+    scope = AccountsFixtures.user_scope_fixture()
+    task = FrontmanServer.Test.Fixtures.Tasks.task_fixture(scope)
+    assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
+    assert :ok = FrontmanServer.Tasks.delete_task(scope, task.id)
+    assert %{pretrial_runs_remaining: 4} = Billing.status(scope)
+    assert %{pretrial_runs_remaining: 5} = Billing.status(AccountsFixtures.user_scope_fixture())
   end
 
   describe "get_current_subscription/1" do
@@ -262,7 +274,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert %{
                status: "active",
-               access_allowed: true,
+               can_start_turn: true,
                has_billing_customer: true,
                interval: :monthly,
                current_period_end: ^current_period_end
@@ -273,7 +285,7 @@ defmodule FrontmanServer.BillingTest do
       scope = AccountsFixtures.user_scope_fixture()
       event = subscription_webhook_event(scope.user.id)
       assert {:ok, :processed} = Webhooks.process_event(event)
-      assert Billing.allow_access?(scope)
+      assert Billing.subscription_allows_runs?(scope)
 
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
 
@@ -285,9 +297,10 @@ defmodule FrontmanServer.BillingTest do
 
       assert {:ok, :processed} = Webhooks.process_event(past_due_event)
       assert_receive :billing_status_changed
-      refute Billing.allow_access?(scope)
+      refute Billing.subscription_allows_runs?(scope)
+      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
 
-      assert %{status: "past_due", access_allowed: false, has_billing_customer: true} =
+      assert %{status: "past_due", can_start_turn: false, has_billing_customer: true} =
                Billing.status(scope)
 
       recovered_event =
@@ -297,8 +310,8 @@ defmodule FrontmanServer.BillingTest do
 
       assert {:ok, :processed} = Webhooks.process_event(recovered_event)
       assert_receive :billing_status_changed
-      assert Billing.allow_access?(scope)
-      assert %{status: "active", access_allowed: true} = Billing.status(scope)
+      assert Billing.subscription_allows_runs?(scope)
+      assert %{status: "active", can_start_turn: true} = Billing.status(scope)
     end
 
     test "checkout webhook broadcasts billing status change" do
@@ -311,7 +324,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert %{
                status: "none",
-               access_allowed: false,
+               can_start_turn: true,
                has_billing_customer: true
              } = Billing.status(scope)
     end

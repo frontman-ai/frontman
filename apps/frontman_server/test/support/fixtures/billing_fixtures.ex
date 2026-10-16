@@ -3,10 +3,18 @@ defmodule FrontmanServer.BillingFixtures do
   This module defines test helpers for creating billing entities.
   """
 
+  use Boundary,
+    top_level?: true,
+    check: [in: false, out: false]
+
   alias FrontmanServer.Billing
   alias FrontmanServer.Billing.{Customer, StripeEvent, Subscription}
   alias FrontmanServer.Repo
   alias FrontmanServer.Test.Fixtures.Accounts
+
+  def run_allowance_fixture(scope, used) do
+    Repo.insert!(%Billing.RunAllowance{user_id: scope.user.id, used: used})
+  end
 
   @doc """
   Generate a billing customer for an existing user scope.

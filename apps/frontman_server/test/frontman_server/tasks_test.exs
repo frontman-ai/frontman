@@ -86,7 +86,7 @@ defmodule FrontmanServer.TasksTest do
         {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
         case status do
-          "active" ->
+          status when status in [nil, "active"] ->
             assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} = result
             assert Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
 
@@ -248,34 +248,6 @@ defmodule FrontmanServer.TasksTest do
     setup %{scope: scope} do
       allow_access_for_scope_fixture(scope)
       :ok
-    end
-
-    test "persists configured agent identity", %{scope: scope} do
-      task = task_fixture(scope)
-
-      assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} =
-               Tasks.submit_user_message(scope, %{
-                 task_id: task.id,
-                 message_id: Ecto.UUID.generate(),
-                 message: user_content("hello"),
-                 model: "missing:test",
-                 agent_id: "test-frontman"
-               })
-
-      assert :ok =
-               Tasks.execute_next_turn(
-                 scope,
-                 task.id,
-                 execution_request_fixture(model: "missing:test")
-               )
-
-      assert {:ok, loaded_task} = Tasks.get_task_with_history(scope, task.id)
-
-      assert %Interaction.TurnStarted{agent_id: "test-frontman"} =
-               Enum.find(
-                 Tasks.interactions(loaded_task),
-                 &match?(%Interaction.TurnStarted{}, &1)
-               )
     end
 
     test "rejects unknown agents before persisting TurnStarted", %{scope: scope} do

@@ -777,9 +777,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
   end
 
   describe "session/prompt billing access" do
-    test "rejects inactive billing before persisting prompt or enqueuing title generation", %{
+    test "rejects exhausted allowance before persisting prompt or enqueuing title generation", %{
       scope: scope
     } do
+      FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 5)
       task_id = Ecto.UUID.generate()
       {:ok, _task} = Tasks.create_task(scope, task_id, "nextjs")
 
@@ -794,7 +795,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
 
       assert_reply(ref, :ok, %{
         "acp:message" => %{
-          "error" => %{"message" => "Finish billing setup to start using Frontman."}
+          "error" => %{
+            "message" =>
+              "You've used your 5 BYOK runs. Start your 14-day Frontman trial to continue."
+          }
         }
       })
 
@@ -2414,6 +2418,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
           "update" => %{
             "sessionUpdate" => "error",
             "category" => "retry_unavailable",
+            "_meta" => %{"frontman.dev/agentErrorId" => nil},
             "message" =>
               "That response can no longer be retried. Please send a new message instead."
           }
