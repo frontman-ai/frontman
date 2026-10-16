@@ -6,9 +6,26 @@ pubDate: 2026-10-16T00:00:00Z
 author: 'Danni Friedland'
 articleSection: 'Comparison or Buyer Guide'
 tags: ['wordpress', 'themes', 'small-business', 'comparison']
+comparisonItems:
+  - name: 'Astra'
+    url: 'https://wpastra.com/'
+  - name: 'Divi'
+    url: 'https://www.elegantthemes.com/gallery/divi/'
+  - name: 'Kadence'
+    url: 'https://www.liquidweb.com/software/kadence/theme/'
+  - name: 'GeneratePress'
+    url: 'https://generatepress.com/'
+  - name: 'OceanWP'
+    url: 'https://wordpress.org/themes/oceanwp/'
+  - name: 'Neve'
+    url: 'https://themeisle.com/themes/neve/'
+  - name: 'Hello Elementor'
+    url: 'https://elementor.com/hello-theme/'
 image: '/blog/best-wordpress-themes-small-business-cover.png'
-imageAlt: 'Seven WordPress theme options for small business websites and their Frontman editing workflows'
+imageAlt: 'Frontman logo above the title Best WordPress Themes for Small Business Websites'
 ---
+
+<p class="text-sm">Sources reviewed: <time datetime="2026-10-16">October 16, 2026</time>. Theme details are source-reported, not independently tested for this guide.</p>
 
 ## Recommendations and scope [1](<https://teamupdraft.com/blog/best-wordpress-themes-for-small-business>) [2]
 
@@ -94,11 +111,13 @@ Choose by the work your business needs: content and search visibility, store fea
 
 ## Next step: match the editing surface to the task [2]
 
-Before choosing a theme, identify whether expected updates involve native WordPress content, menus, or a proprietary theme or builder control. Compare that list with the installation’s available Frontman operations; for controls not documented there, plan to use the theme’s native editing workflow. [2]
+Before choosing a theme, identify whether expected updates involve native WordPress content, menus, or a proprietary theme or builder control. Compare that list with the installation’s available [Frontman operations](/docs/integrations/wordpress/); for controls not documented there, plan to use the theme’s native editing workflow. [2]
 
 ## Sources
 
 1. [Best WordPress themes for your small business](<https://teamupdraft.com/blog/best-wordpress-themes-for-small-business>)
-2. Frontman product documentation supplied by the publisher; not independent theme compatibility or performance testing.
+2. [Frontman WordPress guide](/docs/integrations/wordpress/) — public setup and workflow reference. Product claims are publisher-supplied, not independent theme compatibility or performance testing.
 3. [Business WordPress Themes](<https://wordpress.com/themes/filter/business>)
 4. [26 Best Free WordPress Themes \(My Personal Favorites for 2026\)](<https://wpforms.com/best-free-wordpress-themes>)
+
+[2]: /docs/integrations/wordpress/
