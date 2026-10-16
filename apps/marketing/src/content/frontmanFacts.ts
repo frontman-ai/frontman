@@ -10,7 +10,7 @@ export const frontmanLicensePricingFeature =
 	'Apache-2.0 browser/JS; GPL-2.0-or-later WordPress; AGPL-3.0-only server plus AI Supplementary Terms'
 
 export const frontmanPricingFeatures = [
-	'Five lifetime free BYOK runs without a card; optional 7-day free Pro trial anytime (card required)',
+	'Five free uses, no card. 7-day free Pro trial (card required).',
 	'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
 	'Or sign in with Claude/ChatGPT subscription via OAuth',
 	frontmanLicensePricingFeature,

@@ -137,7 +137,7 @@ If your engineering team already uses Cursor, this is the lowest-friction option
 | Click-to-edit | Yes | Yes | No | No | Yes |
 | Usable by designers | After dev setup | Yes (standalone) | No | No | No |
 | Works with any framework | No (Next/Astro/Vite) | Yes | Yes | No (Phoenix) | No (React/Next) |
-| Cost for a team | Five lifetime free BYOK runs (no card), plus optional 7-day free Pro trial anytime (card required); EUR 15/seat/month or EUR 150/seat/year unless canceled; AI costs separate | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
+| Cost for a team | Five free uses, no card. Pro: EUR 15/seat/month or EUR 150/seat/year. AI costs separate. | EUR 20/seat/mo | Free | $10/mo | Cursor subscription |
 | Account required | No | Yes | No | Yes | Yes (Cursor) |
 | Component source mapping | Exact | Best-effort | No | No | Unknown |
 | Open source / source-available | Source-available | Yes | Yes | Yes | No |

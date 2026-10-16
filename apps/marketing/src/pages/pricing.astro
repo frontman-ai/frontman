@@ -29,7 +29,7 @@ const faqs = [
 	{
 		question: 'Can I cancel during the trial?',
 		answer:
-			`Yes. Cancel before the ${pricing.trialDays}-day free Pro trial ends to avoid billing. A credit card is required for the trial, not for the ${pricing.freeRuns} lifetime free BYOK runs. Otherwise, Pro costs €${pricing.monthly} per seat/month or €${pricing.yearly} per seat/year at your selected billing frequency.`
+			`Yes. Cancel before your ${pricing.trialDays}-day trial ends to avoid billing. Your unused free uses stay available.`
 	},
 	{
 		question: 'What does one seat include?',
@@ -160,10 +160,10 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 				<div class="relative mx-auto max-w-5xl text-center">
 					<h1 class="pricing-hero-title">Take ownership of your WordPress updates.</h1>
 					<p class="pricing-hero-subtitle">
-						For marketing teams ready to make their own website changes instead of handing every update to an agency. Keep your existing WordPress site. Connect your own AI provider; its costs are separate.
+						Ship website updates without waiting for handoffs. Tell Frontman what to change on your existing WordPress site.
 					</p>
 					<div class="mt-8 flex flex-wrap justify-center gap-3" aria-label="Pricing highlights">
-						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">{pricing.freeRuns} lifetime free BYOK runs · no card; optional {pricing.trialDays}-day free Pro trial anytime · card required</span>
+						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">{pricing.freeRuns} free uses · no card</span>
 					</div>
 				</div>
 			</Col>
@@ -201,7 +201,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 						<p class="mt-4 text-sm font-semibold text-white" data-price-note>{billingPlans.monthly.note}</p>
 					</div>
 					<Button type="link" link="/docs/integrations/wordpress/" size="lg" style="white" classes={ctaButtonClass}>Set up Frontman for WordPress</Button>
-					<p class="mt-4 text-sm leading-relaxed text-white/70">{subscriptionTerms} We’ll send a reminder before billing.</p>
+					<p class="mt-4 text-sm leading-relaxed text-white/70">{subscriptionTerms}</p>
 					<ul class="mt-6 grid gap-3 border-t border-white/20 pt-6">
 						{planFeatures.map((feature) => <li class={checkItemClass}>{feature}</li>)}
 					</ul>
@@ -246,7 +246,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 	<FinalCTA
 		link="/docs/integrations/wordpress/"
 		title="Your WordPress site. One hosted plan."
-		description={`${pricing.freeRuns} lifetime free BYOK runs without a card, plus an optional ${pricing.trialDays}-day free Pro trial anytime (card required). After the trial, €${pricing.monthly}/seat/month or €${pricing.yearly}/seat/year unless canceled. AI-provider costs are separate.`}
+		description={`Try Frontman free. ${pricing.freeRuns} free uses, no card. AI-provider costs are separate.`}
 		buttonLabel="Set up Frontman for WordPress"
 	/>
 	</div>

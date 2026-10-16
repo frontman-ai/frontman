@@ -74,7 +74,7 @@ Google's MCP server exposes DevTools state to AI agents. Your agent can query th
 | Client runtime   | Yes                  | Yes           | Yes         | Yes        |
 | Server runtime   | Yes                  | Limited       | Yes (deep)  | No         |
 | Standalone agent | Yes                  | Yes           | No          | No         |
-| Pricing | Five lifetime free BYOK runs (no card), plus optional 7-day free Pro trial anytime (card required); EUR 15/seat/month or EUR 150/seat/year unless canceled; AI costs separate | Trial limits; paid plans | $10/mo | No platform fee |
+| Pricing | Five free uses, no card. Pro: EUR 15/seat/month or EUR 150/seat/year. AI costs separate. | Trial limits; paid plans | $10/mo | No platform fee |
 | BYOK             | Yes                  | No            | Yes         | Yes        |
 | Next.js          | Yes                  | Yes           | Thin        | Yes        |
 | Astro            | Yes                  | No            | No          | Yes        |

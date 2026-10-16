@@ -92,9 +92,7 @@ let make = () => {
           </Card.Action>
           <Card.Title> {React.string("Plan status")} </Card.Title>
           <Card.Description>
-            {React.string(
-              "Five lifetime free BYOK runs need no card and never expire or refill. Eligible accounts can start an optional Pro trial anytime with a card. Trial and paid usage preserve unused runs for afterwards. AI costs are separate. Stripe manages payments and cancellation.",
-            )}
+            {React.string("Manage payments and cancellation in Stripe.")}
           </Card.Description>
         </Card.Header>
         <Card.Content className="space-y-4">
