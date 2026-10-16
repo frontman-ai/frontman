@@ -12,7 +12,7 @@ import { pricing, billingPlans, savingsPercent, subscriptionTerms } from '../con
 const SEO = {
 	title: 'WordPress AI Editor Pricing | Frontman Pro',
 	description:
-		`Frontman Pro for marketing teams updating existing WordPress sites: €${pricing.monthly} per seat/month, ${pricing.freeRuns} lifetime free BYOK runs without a card, plus an optional ${pricing.trialDays}-day free trial anytime (card required). AI-provider costs are separate.`
+		`Frontman Pro for marketing teams updating existing WordPress sites: €${pricing.monthly} per seat/month, a card-required ${pricing.trialDays}-day trial, and separate AI-provider costs.`
 }
 
 
@@ -26,11 +26,6 @@ const planFeatures = [
 
 
 const faqs = [
-	{
-		question: 'Can I try Frontman without a credit card?',
-		answer:
-			`${pricing.freeRuns} lifetime free BYOK runs need no credit card and do not expire or refill. You can start an optional ${pricing.trialDays}-day free Pro trial anytime with a credit card. Trial and paid usage do not consume free runs. Unused runs remain available after trial or subscription access ends. AI-provider costs are separate.`
-	},
 	{
 		question: 'Can I cancel during the trial?',
 		answer:
@@ -86,7 +81,7 @@ const pricingJsonLd = {
 					availability: 'https://schema.org/InStock',
 					url: 'https://frontman.sh/pricing/',
 					category: 'subscription',
-					description: `Hosted Frontman Pro seat billed monthly. ${subscriptionTerms}`
+					description: 'Hosted Frontman Pro seat billed monthly. AI provider usage is billed separately.'
 				},
 				{
 					'@type': 'Offer',
@@ -96,7 +91,7 @@ const pricingJsonLd = {
 					availability: 'https://schema.org/InStock',
 					url: 'https://frontman.sh/pricing/',
 					category: 'subscription',
-					description: `Hosted Frontman Pro seat billed yearly. ${subscriptionTerms}`
+					description: 'Hosted Frontman Pro seat billed yearly. AI provider usage is billed separately.'
 				}
 			]
 		},

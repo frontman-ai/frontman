@@ -36,7 +36,7 @@ defmodule FrontmanServer.Billing do
       %Subscription{status: status} when status in ["trialing", "active", "past_due"] ->
         {:error, :subscription_already_active}
 
-      _ ->
+      _subscription ->
         user = Accounts.scope_user(scope)
         customer = Customer |> Customer.for_user(user.id) |> Repo.one()
 
@@ -184,19 +184,19 @@ defmodule FrontmanServer.Billing do
   end
 
   defp status_payload(scope, %Subscription{} = subscription) do
-    remaining =
+    {can_start_turn, remaining} =
       case Subscription.allow_access?(subscription) do
-        true -> nil
-        false -> remaining_runs(scope)
+        true ->
+          {true, nil}
+
+        false ->
+          remaining = remaining_runs(scope)
+          {remaining > 0, remaining}
       end
 
     %{
       status: subscription.status,
-      can_start_turn:
-        case remaining do
-          nil -> true
-          remaining -> remaining > 0
-        end,
+      can_start_turn: can_start_turn,
       pretrial_runs_remaining: remaining,
       has_billing_customer: has_billing_customer?(scope, subscription),
       interval: subscription.interval,

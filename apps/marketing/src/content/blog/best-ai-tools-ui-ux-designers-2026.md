@@ -134,7 +134,7 @@ The hard limits: only three frameworks supported. No Angular, no Ember, no stati
 
 If your team has designers or PMs who file tickets for padding changes and color fixes, Frontman is built for that specific problem.
 
-> The gap between seeing a design bug and fixing it shouldn't be a 4-day ticket. [Try five lifetime free BYOK runs (no credit card) →](/frameworks/)
+> The gap between seeing a design bug and fixing it shouldn't be a 4-day ticket. [Start your Frontman trial (credit card required) →](/frameworks/)
 
 ## AI Image and Asset Generation
 

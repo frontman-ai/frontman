@@ -44,9 +44,7 @@ let urlResponse = () => response(200, `{"url":"https://billing.stripe.test/sessi
 let statusJson = (status, access) =>
   `{"status":"${status}","can_start_turn":${Bool.toString(
       access,
-    )},"pretrial_runs_remaining":${status == "none"
-      ? "0"
-      : "null"},"has_billing_customer":true,"interval":"monthly","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`
+    )},"has_billing_customer":true,"interval":"monthly","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`
 let failed = () =>
   switch state.contents.billingFlow {
   | Failed(_) => true

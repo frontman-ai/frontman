@@ -92,7 +92,9 @@ let make = () => {
           </Card.Action>
           <Card.Title> {React.string("Plan status")} </Card.Title>
           <Card.Description>
-            {React.string("Stripe manages payment methods, invoices, and cancellation.")}
+            {React.string(
+              "Five lifetime free BYOK runs need no card and never expire or refill. Eligible accounts can start an optional Pro trial anytime with a card. Trial and paid usage preserve unused runs for afterwards. AI costs are separate. Stripe manages payments and cancellation.",
+            )}
           </Card.Description>
         </Card.Header>
         <Card.Content className="space-y-4">
@@ -107,11 +109,6 @@ let make = () => {
           | None => React.null
           }}
           <div className="divide-y">
-            {switch Billing.pretrialRunsRemaining(status) {
-            | Some(remaining) =>
-              renderDetailRow(~label="Lifetime BYOK runs remaining", ~value=Int.toString(remaining))
-            | None => React.null
-            }}
             {switch Billing.interval(status) {
             | Some(interval) =>
               renderDetailRow(~label="Interval", ~value=Billing.intervalLabel(interval))
@@ -142,17 +139,6 @@ let make = () => {
           | false => React.null
           | true =>
             <div className="divide-y">
-              <p className="py-3 text-xs text-muted-foreground">
-                {React.string(
-                  switch Billing.offeredTrialDays(status) {
-                  | Some(days) =>
-                    `Start a ${Int.toString(
-                        days,
-                      )}-day free Pro trial anytime. Unused lifetime no-card BYOK runs stay available afterwards. Card required. Then EUR 15/month or EUR 150/year unless canceled before the trial ends. AI provider costs are separate.`
-                  | None => "Subscribe to Pro for EUR 15/month or EUR 150/year. AI provider costs are separate."
-                  },
-                )}
-              </p>
               {Billing.checkoutOptions
               ->Array.map(option =>
                 <div
