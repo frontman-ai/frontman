@@ -780,7 +780,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
     test "rejects exhausted allowance before persisting prompt or enqueuing title generation", %{
       scope: scope
     } do
-      for _ <- 1..5, do: :ok = FrontmanServer.Billing.consume_pretrial_run(scope)
+      FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 5)
       task_id = Ecto.UUID.generate()
       {:ok, _task} = Tasks.create_task(scope, task_id, "nextjs")
 

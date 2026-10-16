@@ -15,14 +15,14 @@ defmodule FrontmanServer.Billing.RunAllowanceTest do
           Task.async_stream(
             1..12,
             fn _ ->
-              Sandbox.unboxed_run(Repo, fn -> Billing.consume_pretrial_run(scope) end)
+              Sandbox.unboxed_run(Repo, fn -> Billing.authorize_new_turn(scope) end)
             end,
             max_concurrency: 12,
             timeout: 5_000
           )
           |> Enum.map(fn {:ok, result} -> result end)
 
-        assert Enum.count(results, &(&1 == :ok)) == 5
+        assert Enum.count(results, &(&1 == {:ok, :pretrial})) == 5
         assert Enum.count(results, &(&1 == {:error, :billing_inactive})) == 7
         assert %{pretrial_runs_remaining: 0} = Billing.status(scope)
       after

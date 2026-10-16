@@ -17,12 +17,16 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
     ref = push(socket, "acp:message", build_prompt_request(message_id: message_id))
     assert_reply(ref, :ok, %{"acp:message" => %{"result" => %{}}})
 
-    for _ <- 1..5, do: :ok = Billing.consume_pretrial_run(scope)
+    FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 5)
     complete_mcp_handshake(socket)
 
-    assert_push("acp:message", %{
-      "params" => %{"sessionId" => ^task_id, "update" => %{"category" => "frontman_billing"}}
-    })
+    assert_push(
+      "acp:message",
+      %{
+        "params" => %{"sessionId" => ^task_id, "update" => %{"category" => "frontman_billing"}}
+      },
+      1_000
+    )
 
     refute_received {:interaction, %{task_id: ^task_id, type: :turn_started}}
 

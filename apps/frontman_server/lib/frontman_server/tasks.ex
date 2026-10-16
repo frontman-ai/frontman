@@ -524,20 +524,6 @@ defmodule FrontmanServer.Tasks do
     end
   end
 
-  defp authorize_turn(scope, model) do
-    case Billing.subscription_allows_runs?(scope) do
-      true ->
-        {:ok, false}
-
-      false ->
-        with :ok <- guard_billing_access(scope),
-             {:ok, _access} <- Providers.resolve_model_access(scope, model),
-             :ok <- Billing.consume_pretrial_run(scope) do
-          {:ok, true}
-        end
-    end
-  end
-
   def billing_inactive_message(%Scope{} = scope) do
     case Billing.get_current_subscription(scope) do
       nil ->
@@ -600,12 +586,12 @@ defmodule FrontmanServer.Tasks do
     case claim_next_turn(scope, task_id) do
       {:ok,
        {task_schema, turn_started_row, turn_number, turn_model, agent, first_message,
-        allowance_consumed?}} ->
+        billing_authorization}} ->
         broadcast_task(task_id, {:interaction, turn_started_row})
 
-        case allowance_consumed? do
-          true -> Billing.broadcast_status_changed(Accounts.scope_user_id(scope))
-          false -> :ok
+        case billing_authorization do
+          :pretrial -> Billing.broadcast_status_changed(Accounts.scope_user_id(scope))
+          :subscription -> :ok
         end
 
         enqueue_title_generation(scope, task_id, first_message, turn_model, turn_number)
@@ -647,7 +633,8 @@ defmodule FrontmanServer.Tasks do
            end),
          user_message_ids = Enum.map(accepted_messages, & &1.id),
          {:ok, agent} <- Agents.get_agent(scope, agent_id),
-         {:ok, allowance_consumed?} <- authorize_turn(scope, turn_model),
+         {:ok, _access} <- Providers.resolve_model_access(scope, turn_model),
+         {:ok, billing_authorization} <- Billing.authorize_new_turn(scope),
          {:ok, turn_started_row} <-
            insert_interaction_row(task_schema, %{
              id: Ecto.UUID.generate(),
@@ -661,7 +648,7 @@ defmodule FrontmanServer.Tasks do
          :ok <- insert_skill_used_rows(task_schema, accepted_messages, turn_number) do
       {:ok,
        {task_schema, turn_started_row, turn_number, turn_model, agent, first_accepted_message,
-        allowance_consumed?}}
+        billing_authorization}}
     else
       {:error, reason} -> {:error, reason}
       {nil, []} -> {:error, :no_accepted_messages}

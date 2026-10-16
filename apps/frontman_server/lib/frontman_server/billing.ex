@@ -136,7 +136,7 @@ defmodule FrontmanServer.Billing do
     |> Subscription.allow_access?()
   end
 
-  @doc "Checks permission to start a new turn, not to continue an already-claimed turn."
+  @doc "Advisory new-turn eligibility. authorize_new_turn/1 makes the authoritative billing decision."
   def can_start_turn?(%Scope{} = scope) do
     case get_current_subscription(scope) do
       nil -> remaining_runs(scope) > 0
@@ -144,27 +144,19 @@ defmodule FrontmanServer.Billing do
     end
   end
 
-  @doc "Consumes a BYOK run inside the transaction that records its turn."
-  def consume_pretrial_run(%Scope{} = scope) do
+  @doc "Authorizes a new turn, consuming allowance when needed. Call inside the turn-claim transaction."
+  @spec authorize_new_turn(Scope.t()) ::
+          {:ok, :subscription | :pretrial} | {:error, :billing_inactive}
+  def authorize_new_turn(%Scope{} = scope) do
     case get_current_subscription(scope) do
       nil ->
-        case Repo.insert_all(RunAllowance, [%{user_id: Accounts.scope_user_id(scope), used: 1}],
-               conflict_target: :user_id,
-               on_conflict: RunAllowance.increment_below(@pretrial_run_limit)
-             ) do
-          {1, _} -> :ok
-          {0, _} -> {:error, :billing_inactive}
+        consume_pretrial_run(scope)
+
+      subscription ->
+        case Subscription.allow_access?(subscription) do
+          true -> {:ok, :subscription}
+          false -> {:error, :billing_inactive}
         end
-
-      %Subscription{} ->
-        {:error, :billing_inactive}
-    end
-  end
-
-  defp remaining_runs(scope) do
-    case Repo.get(RunAllowance, Accounts.scope_user_id(scope)) do
-      nil -> @pretrial_run_limit
-      %RunAllowance{used: used} -> @pretrial_run_limit - used
     end
   end
 
@@ -178,6 +170,23 @@ defmodule FrontmanServer.Billing do
     Subscription
     |> Subscription.for_user(user_id)
     |> Repo.one()
+  end
+
+  defp consume_pretrial_run(scope) do
+    case Repo.insert_all(RunAllowance, [%{user_id: Accounts.scope_user_id(scope), used: 1}],
+           conflict_target: :user_id,
+           on_conflict: RunAllowance.increment_below(@pretrial_run_limit)
+         ) do
+      {1, _} -> {:ok, :pretrial}
+      {0, _} -> {:error, :billing_inactive}
+    end
+  end
+
+  defp remaining_runs(scope) do
+    case Repo.get(RunAllowance, Accounts.scope_user_id(scope)) do
+      nil -> @pretrial_run_limit
+      %RunAllowance{used: used} -> @pretrial_run_limit - used
+    end
   end
 
   defp status_payload(scope, %Subscription{} = subscription) do

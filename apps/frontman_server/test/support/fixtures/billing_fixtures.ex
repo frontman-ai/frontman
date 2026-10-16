@@ -8,6 +8,10 @@ defmodule FrontmanServer.BillingFixtures do
   alias FrontmanServer.Repo
   alias FrontmanServer.Test.Fixtures.Accounts
 
+  def run_allowance_fixture(scope, used) do
+    Repo.insert!(%Billing.RunAllowance{user_id: scope.user.id, used: used})
+  end
+
   @doc """
   Generate a billing customer for an existing user scope.
   """

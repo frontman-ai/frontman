@@ -280,7 +280,7 @@ defmodule FrontmanServerWeb.TasksChannelTest do
     } do
       id = task_fixture(scope).id
       new_id = Ecto.UUID.generate()
-      for _ <- 1..5, do: :ok = Billing.consume_pretrial_run(scope)
+      run_allowance_fixture(scope, 5)
 
       for {request_id, session_id} <- [{2, id}, {3, new_id}] do
         push_session_new(socket, request_id, session_new_params(session_id))

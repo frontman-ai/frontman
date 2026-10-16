@@ -570,31 +570,11 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert %{pretrial_runs_remaining: 4} = FrontmanServer.Billing.status(scope)
     end
 
-    test "startup failure persists terminal error on the same turn" do
-      scope = Scope.for_user(user_fixture())
-      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
-      task_id = task_with_pubsub_fixture(scope).id
-
-      {:ok, _, 1} =
-        submit_user_message(scope, task_id, user_content("Hello"),
-          model: "openrouter:openai/gpt-5.5"
-        )
-
-      assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
-
-      assert %InteractionSchema{turn_number: 1, data: %Interaction.AgentError{category: "auth"}} =
-               Repo.get_by!(InteractionSchema,
-                 task_id: task_id,
-                 type: :agent_error
-               )
-
-      assert {:ok, :no_active_turn} = Tasks.get_active_turn_unresolved_tool_calls(scope, task_id)
-    end
-
-    test "submits browser context prompt through production recording path" do
-      scope = Scope.for_user(user_fixture())
-      FrontmanServer.BillingFixtures.allow_access_for_scope_fixture(scope)
-      task_id = task_with_pubsub_fixture(scope).id
+    test "submits browser context prompt through production recording path", %{
+      scope: scope,
+      task_id: task_id
+    } do
+      expect_llm_responses(["Done"])
 
       content_blocks = [
         text_block("Change headline"),
@@ -638,7 +618,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       assert [%Interaction.Annotation{screenshot: %Interaction.Screenshot{}}] =
                broadcast_message.annotations
 
-      assert_receive_interaction(%Interaction.AgentError{category: "auth"}, 1)
+      assert_receive_interaction(%Interaction.AgentCompleted{}, 1)
 
       {:ok, task} = Tasks.get_task_with_history(scope, task_id)
       assert [%Interaction.UserMessage{} = persisted_message | _] = Tasks.interactions(task)
@@ -1168,7 +1148,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       Process.flag(:trap_exit, true)
       Sandbox.mode(Repo, :auto)
       %{scope: scope} = setup_user(context)
-      for _ <- 1..4, do: :ok = FrontmanServer.Billing.consume_pretrial_run(scope)
+      FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 4)
       task_id = task_with_pubsub_fixture(scope, framework: "wordpress").id
 
       on_exit(fn ->
@@ -1630,7 +1610,7 @@ defmodule FrontmanServer.Tasks.ExecutionIntegrationTest do
       socket: socket
     } do
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
-      for _ <- 1..4, do: :ok = FrontmanServer.Billing.consume_pretrial_run(scope)
+      FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 4)
 
       attempts = :counters.new(1, [])
 

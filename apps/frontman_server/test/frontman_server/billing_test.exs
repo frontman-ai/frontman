@@ -45,6 +45,7 @@ defmodule FrontmanServer.BillingTest do
 
       assert_received {:start_checkout, _, ^customer, :yearly, _, [trial_eligible: false]}
       assert %{trial_eligible: false, trial_days: 14} = Billing.status(scope)
+      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
     end
   end
 
@@ -213,13 +214,14 @@ defmodule FrontmanServer.BillingTest do
       scope = scope_with_subscription_fixture("active")
 
       assert Billing.subscription_allows_runs?(scope)
+      assert {:ok, :subscription} = Billing.authorize_new_turn(scope)
     end
   end
 
   test "allowance belongs to the user and survives conversation deletion" do
     scope = AccountsFixtures.user_scope_fixture()
     task = FrontmanServer.Test.Fixtures.Tasks.task_fixture(scope)
-    assert :ok = Billing.consume_pretrial_run(scope)
+    assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
     assert :ok = FrontmanServer.Tasks.delete_task(scope, task.id)
     assert %{pretrial_runs_remaining: 4} = Billing.status(scope)
     assert %{pretrial_runs_remaining: 5} = Billing.status(AccountsFixtures.user_scope_fixture())
