@@ -165,6 +165,23 @@ defmodule FrontmanServerWeb.TasksChannelTest do
       })
     end
 
+    test "billing change exposes usable fallback for a canceled subscription", %{
+      socket: socket,
+      scope: scope
+    } do
+      subscription_for_scope_fixture(scope, %{status: "canceled"})
+      run_allowance_fixture(scope, 2)
+      assert :ok = FrontmanServer.Billing.broadcast_status_changed(scope.user.id)
+
+      assert_push("billing_status_updated", %{
+        status: "canceled",
+        can_start_turn: true,
+        pretrial_runs_remaining: 3
+      })
+
+      assert Process.alive?(socket.channel_pid)
+    end
+
     for invalid_version <- [-1, 65_536, 1.0, 1.5, "1", true, false, nil, %{}, []] do
       @invalid_version invalid_version
       test "rejects malformed protocol version #{inspect(invalid_version)}", %{socket: socket} do

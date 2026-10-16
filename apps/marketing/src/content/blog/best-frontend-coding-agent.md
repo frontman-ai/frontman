@@ -252,7 +252,7 @@ Cursor and GitHub Copilot are the natural shortlist for developers who want AI i
 
 **Limits:** supported frontend stacks only; not the default for backend refactors, large migrations, or heavily abstracted component systems.
 
-**Pricing:** Five lifetime free BYOK runs (no card), then 7-day free Pro trial (card required); EUR 15/seat/month or EUR 150/seat/year unless canceled; AI costs separate; self-hosting available under repository terms.
+**Pricing:** Five lifetime free BYOK runs (no card), plus optional 7-day free Pro trial anytime (card required); EUR 15/seat/month or EUR 150/seat/year unless canceled; AI costs separate; self-hosting available under repository terms.
 
 **Sources/proof:** [frontman.sh](/frameworks/), [pricing](/pricing/); source-backed plus one narrow internal case study.
 
@@ -408,7 +408,7 @@ Pricing changes quickly. These notes come from public source review on May 21, 2
 
 | Tool | Free plan or trial | Paid starting price | Pricing model | Notes |
 | --- | --- | --- | --- | --- |
-| Frontman | Five lifetime free BYOK runs (no card), then 7-day free Pro trial (card required); self-hosting available | EUR 15/seat/month or EUR 150/seat/year | Hosted per seat; BYOK AI billed separately | Unlimited projects per org listed in source review; credit card required for hosted trial. |
+| Frontman | Five lifetime free BYOK runs (no card), plus optional 7-day free Pro trial anytime (card required); self-hosting available | EUR 15/seat/month or EUR 150/seat/year | Hosted per seat; BYOK AI billed separately | Unlimited projects per org listed in source review; credit card required for hosted trial. |
 | Kombai | 300 credits/month, 150 signup credits, 50 daily credits | $20/month Pro | Credit-based subscription | Team plan listed at $40/user/month shared pool. |
 | Cursor | Hobby free | $20/month Individual | Seat subscription with included usage | Teams listed at $40/user/month; exact Hobby limits may change. |
 | Claude Code | Claude Free exists; Claude Code generally uses Claude subscription or Anthropic Console/API auth | $20/month Claude Pro or API pay-as-you-go | Subscription or token billing | API costs depend on model and token use. |

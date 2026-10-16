@@ -57,10 +57,10 @@ defmodule FrontmanServerWeb.BillingControllerTest do
     end
   end
 
-  for interval <- ~w(monthly yearly), remaining <- 1..5 do
+  for interval <- ~w(monthly yearly), remaining <- 0..5 do
     @interval interval
     @remaining remaining
-    test "#{interval} checkout with #{remaining} runs left is a policy conflict", %{
+    test "#{interval} checkout with #{remaining} runs left preserves the allowance", %{
       conn: conn,
       scope: scope
     } do
@@ -70,17 +70,20 @@ defmodule FrontmanServerWeb.BillingControllerTest do
           remaining -> run_allowance_fixture(scope, 5 - remaining)
         end
 
+      BillingClientStub.stub_start_checkout(
+        {:ok, %{"url" => "https://checkout.stripe.test/session"}}
+      )
+
       conn = post(conn, ~p"/api/billing/checkout", %{"interval" => @interval})
 
-      assert json_response(conn, 409)["error"] ==
-               "Use your remaining no-card BYOK runs before starting checkout for Pro."
+      assert json_response(conn, 200) == %{"url" => "https://checkout.stripe.test/session"}
 
       assert Sentry.Test.pop_sentry_reports() == []
 
       assert FrontmanServer.Repo.get(FrontmanServer.Billing.RunAllowance, scope.user.id) ==
                allowance
 
-      refute_received {:start_checkout, _, _, _, _, _}
+      assert_received {:start_checkout, _, _, _, _, [trial_eligible: true]}
     end
   end
 

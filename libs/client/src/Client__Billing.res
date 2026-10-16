@@ -111,9 +111,8 @@ let pretrialRunsRemaining = (billingStatus: status) => billingStatus.pretrialRun
 
 let canStartCheckout = (billingStatus: status) =>
   switch billingStatus.status {
-  | NoSubscription => billingStatus.pretrialRunsRemaining == Some(0)
   | Trialing | Active | PastDue => false
-  | _ => !billingStatus.canStartTurn
+  | _ => true
   }
 
 let turnStartBlocked = billingStatus =>
@@ -128,8 +127,9 @@ let subscriptionStatus = (billingStatus: status) => billingStatus.status
 
 let activationMessage = (billingStatus: status) =>
   switch billingStatus.status {
-  | NoSubscription
-    if billingStatus.canStartTurn => "Your first 5 lifetime BYOK runs need no card. AI usage is billed separately by your provider."
+  | _
+    if billingStatus.canStartTurn &&
+    billingStatus.pretrialRunsRemaining->Option.isSome => "Your remaining lifetime BYOK runs are available without a card. Pro access does not use these runs; unused runs stay available afterwards. AI usage is billed separately by your provider."
   | NoSubscription
   | Incomplete
   | IncompleteExpired => "Finish billing setup to start using Frontman."

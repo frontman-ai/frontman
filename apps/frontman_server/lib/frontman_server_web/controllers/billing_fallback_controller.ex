@@ -17,14 +17,6 @@ defmodule FrontmanServerWeb.BillingFallbackController do
     )
   end
 
-  def call(conn, {:error, {:billing, :checkout, :pretrial_runs_remaining}}) do
-    render_error(
-      conn,
-      :conflict,
-      "Use your remaining no-card BYOK runs before starting checkout for Pro."
-    )
-  end
-
   def call(conn, {:error, {:billing, :customer_portal, :billing_customer_missing}}) do
     render_error(conn, :unprocessable_entity, "There is no billing account to manage yet.")
   end

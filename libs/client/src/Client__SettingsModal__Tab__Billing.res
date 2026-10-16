@@ -107,6 +107,11 @@ let make = () => {
           | None => React.null
           }}
           <div className="divide-y">
+            {switch Billing.pretrialRunsRemaining(status) {
+            | Some(remaining) =>
+              renderDetailRow(~label="Lifetime BYOK runs remaining", ~value=Int.toString(remaining))
+            | None => React.null
+            }}
             {switch Billing.interval(status) {
             | Some(interval) =>
               renderDetailRow(~label="Interval", ~value=Billing.intervalLabel(interval))
@@ -141,9 +146,9 @@ let make = () => {
                 {React.string(
                   switch Billing.offeredTrialDays(status) {
                   | Some(days) =>
-                    `After your 5 lifetime no-card BYOK runs, start a ${Int.toString(
+                    `Start a ${Int.toString(
                         days,
-                      )}-day free Pro trial. Card required. Then EUR 15/month or EUR 150/year unless canceled before the trial ends. AI provider costs are separate.`
+                      )}-day free Pro trial anytime. Unused lifetime no-card BYOK runs stay available afterwards. Card required. Then EUR 15/month or EUR 150/year unless canceled before the trial ends. AI provider costs are separate.`
                   | None => "Subscribe to Pro for EUR 15/month or EUR 150/year. AI provider costs are separate."
                   },
                 )}

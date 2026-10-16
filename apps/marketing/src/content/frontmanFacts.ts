@@ -11,7 +11,7 @@ export const frontmanLicensePricingFeature =
 
 export const frontmanPricingFeatures = [
 	'Five lifetime free BYOK runs; no credit card; no expiry',
-	'Then a 7-day free Pro trial; credit card required',
+	'Optional 7-day free Pro trial anytime; credit card required',
 	'After trial: EUR 15/seat/month or EUR 150/seat/year unless canceled',
 	'Bring your own API keys (Claude, ChatGPT, OpenRouter)',
 	'Or sign in with Claude/ChatGPT subscription via OAuth',

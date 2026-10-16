@@ -32,14 +32,11 @@ defmodule FrontmanServer.Billing do
           {:ok, map()} | {:error, term()}
   def start_checkout(%Scope{} = scope, interval, return_urls)
       when is_map(return_urls) do
-    with nil <- get_current_subscription(scope),
-         remaining when remaining > 0 <- remaining_runs(scope) do
-      {:error, :pretrial_runs_remaining}
-    else
+    case get_current_subscription(scope) do
       %Subscription{status: status} when status in ["trialing", "active", "past_due"] ->
         {:error, :subscription_already_active}
 
-      _exhausted_or_returning ->
+      _ ->
         user = Accounts.scope_user(scope)
         customer = Customer |> Customer.for_user(user.id) |> Repo.one()
 
@@ -141,9 +138,9 @@ defmodule FrontmanServer.Billing do
 
   @doc "Advisory new-turn eligibility. authorize_new_turn/1 makes the authoritative billing decision."
   def can_start_turn?(%Scope{} = scope) do
-    case get_current_subscription(scope) do
-      nil -> remaining_runs(scope) > 0
-      subscription -> Subscription.allow_access?(subscription)
+    case subscription_allows_runs?(scope) do
+      true -> true
+      false -> remaining_runs(scope) > 0
     end
   end
 
@@ -151,15 +148,9 @@ defmodule FrontmanServer.Billing do
   @spec authorize_new_turn(Scope.t()) ::
           {:ok, :subscription | :pretrial} | {:error, :billing_inactive}
   def authorize_new_turn(%Scope{} = scope) do
-    case get_current_subscription(scope) do
-      nil ->
-        consume_pretrial_run(scope)
-
-      subscription ->
-        case Subscription.allow_access?(subscription) do
-          true -> {:ok, :subscription}
-          false -> {:error, :billing_inactive}
-        end
+    case subscription_allows_runs?(scope) do
+      true -> {:ok, :subscription}
+      false -> consume_pretrial_run(scope)
     end
   end
 
@@ -193,10 +184,20 @@ defmodule FrontmanServer.Billing do
   end
 
   defp status_payload(scope, %Subscription{} = subscription) do
+    remaining =
+      case Subscription.allow_access?(subscription) do
+        true -> nil
+        false -> remaining_runs(scope)
+      end
+
     %{
       status: subscription.status,
-      can_start_turn: Subscription.allow_access?(subscription),
-      pretrial_runs_remaining: nil,
+      can_start_turn:
+        case remaining do
+          nil -> true
+          remaining -> remaining > 0
+        end,
+      pretrial_runs_remaining: remaining,
       has_billing_customer: has_billing_customer?(scope, subscription),
       interval: subscription.interval,
       current_period_end: subscription.current_period_end,

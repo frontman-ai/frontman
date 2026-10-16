@@ -12,7 +12,7 @@ import { pricing, billingPlans, savingsPercent, subscriptionTerms } from '../con
 const SEO = {
 	title: 'WordPress AI Editor Pricing | Frontman Pro',
 	description:
-		`Frontman Pro for marketing teams updating existing WordPress sites: €${pricing.monthly} per seat/month, ${pricing.freeRuns} lifetime free BYOK runs without a card, then a card-required ${pricing.trialDays}-day free trial, and separate AI-provider costs.`
+		`Frontman Pro for marketing teams updating existing WordPress sites: €${pricing.monthly} per seat/month, ${pricing.freeRuns} lifetime free BYOK runs without a card, plus an optional ${pricing.trialDays}-day free trial anytime (card required). AI-provider costs are separate.`
 }
 
 
@@ -29,7 +29,7 @@ const faqs = [
 	{
 		question: 'Can I try Frontman without a credit card?',
 		answer:
-			`${pricing.freeRuns} lifetime free BYOK runs need no credit card and do not expire. After those runs, you can start a ${pricing.trialDays}-day free Pro trial with a credit card. AI-provider costs are separate at every stage.`
+			`${pricing.freeRuns} lifetime free BYOK runs need no credit card and do not expire or refill. You can start an optional ${pricing.trialDays}-day free Pro trial anytime with a credit card. Trial and paid usage do not consume free runs. Unused runs remain available after trial or subscription access ends. AI-provider costs are separate.`
 	},
 	{
 		question: 'Can I cancel during the trial?',
@@ -168,7 +168,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 						For marketing teams ready to make their own website changes instead of handing every update to an agency. Keep your existing WordPress site. Connect your own AI provider; its costs are separate.
 					</p>
 					<div class="mt-8 flex flex-wrap justify-center gap-3" aria-label="Pricing highlights">
-						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">{pricing.freeRuns} lifetime free BYOK runs · no card; then {pricing.trialDays}-day free Pro trial · card required</span>
+						<span class="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-primary-950/20 backdrop-blur">{pricing.freeRuns} lifetime free BYOK runs · no card; optional {pricing.trialDays}-day free Pro trial anytime · card required</span>
 					</div>
 				</div>
 			</Col>
@@ -251,7 +251,7 @@ const ctaButtonClass = 'mt-8 w-full sm:w-auto'
 	<FinalCTA
 		link="/docs/integrations/wordpress/"
 		title="Your WordPress site. One hosted plan."
-		description={`${pricing.freeRuns} lifetime free BYOK runs without a card, then a ${pricing.trialDays}-day free Pro trial with a card required. After the trial, €${pricing.monthly}/seat/month or €${pricing.yearly}/seat/year unless canceled. AI-provider costs are separate.`}
+		description={`${pricing.freeRuns} lifetime free BYOK runs without a card, plus an optional ${pricing.trialDays}-day free Pro trial anytime (card required). After the trial, €${pricing.monthly}/seat/month or €${pricing.yearly}/seat/year unless canceled. AI-provider costs are separate.`}
 		buttonLabel="Set up Frontman for WordPress"
 	/>
 	</div>

@@ -3,7 +3,7 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
 
   import FrontmanServer.ExecutionCase, only: [refute_running_eventually: 1]
   import FrontmanServer.Test.Fixtures.Accounts, only: [user_fixture: 0]
-  import FrontmanServer.Test.Fixtures.Tasks, only: [task_topic: 1]
+  import FrontmanServer.Test.Fixtures.Tasks, only: [task_topic: 1, user_content: 1]
 
   alias FrontmanServer.{Accounts, Billing, Providers}
   alias FrontmanServer.Tasks.Interaction
@@ -55,6 +55,45 @@ defmodule FrontmanServer.Tasks.PretrialRunsTest do
              })
 
     assert_turn_completed(task_id, message_id)
+  end
+
+  test "cancellation webhook wakes queued work using retained lifetime runs", %{scope: scope} do
+    FrontmanServer.BillingFixtures.run_allowance_fixture(scope, 2)
+    subscription = FrontmanServer.BillingFixtures.subscription_for_scope_fixture(scope)
+    {socket, task_id} = join_task_channel(scope)
+    complete_mcp_handshake(socket)
+    :sys.get_state(socket.channel_pid)
+    Phoenix.PubSub.subscribe(FrontmanServer.PubSub, task_topic(task_id))
+    message_id = Ecto.UUID.generate()
+
+    assert {:ok, _} =
+             FrontmanServer.Tasks.submit_user_message(scope, %{
+               task_id: task_id,
+               message_id: message_id,
+               message: user_content("queued before cancellation"),
+               model: "openrouter:openai/gpt-5.5",
+               agent_id: "test-frontman"
+             })
+
+    LLMProvider.expect_llm_responses(["Completed using retained allowance"])
+
+    assert {:ok, :processed} =
+             Billing.Webhooks.process_event(%{
+               "id" => "evt_cancel_#{scope.user.id}",
+               "type" => "customer.subscription.updated",
+               "data" => %{
+                 "object" => %{
+                   "id" => subscription.stripe_subscription_id,
+                   "customer" => subscription.stripe_customer_id,
+                   "status" => "canceled",
+                   "metadata" => %{"user_id" => scope.user.id}
+                 }
+               }
+             })
+
+    assert_turn_completed(task_id, message_id)
+    assert %{can_start_turn: true, pretrial_runs_remaining: 2} = Billing.status(scope)
+    refute Billing.subscription_allows_runs?(scope)
   end
 
   test "saving provider credentials starts the exact queued message without offering turn retry" do

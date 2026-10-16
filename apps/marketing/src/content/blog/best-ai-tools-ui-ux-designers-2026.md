@@ -14,7 +14,7 @@ faq:
   - question: 'What''s the difference between AI design tools and AI coding tools for designers?'
     answer: 'AI design tools (Figma AI, Google Stitch, Midjourney) help you create mockups, wireframes, and images. AI coding tools for designers (Frontman, v0) let you generate or modify actual source code. Design tools produce artifacts that need a developer handoff. Coding tools for designers skip or reduce that handoff.'
   - question: 'Can I try an AI tool for UI/UX designers that edits real code?'
-    answer: 'Frontman is source-available and self-hostable. Frontman offers five lifetime free BYOK runs without a credit card, then a 7-day free Pro trial with a credit card required. After the trial, Pro costs EUR 15/seat/month or EUR 150/seat/year unless canceled. AI-provider costs are separate. Its browser client and JavaScript framework integrations are Apache-2.0, its WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. You bring your own provider account for Claude, OpenAI, or OpenRouter and pay the LLM provider directly. It works with Next.js, Astro, and Vite projects (React, Vue, Svelte).'
+    answer: 'Frontman is source-available and self-hostable. Frontman offers five lifetime free BYOK runs without a credit card. You can start an optional 7-day free Pro trial anytime with a credit card. After the trial, Pro costs EUR 15/seat/month or EUR 150/seat/year unless canceled. AI-provider costs are separate. Its browser client and JavaScript framework integrations are Apache-2.0, its WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms. You bring your own provider account for Claude, OpenAI, or OpenRouter and pay the LLM provider directly. It works with Next.js, Astro, and Vite projects (React, Vue, Svelte).'
   - question: 'How do AI tools help UI/UX designers ship faster?'
     answer: 'AI tools speed up different parts of the design-to-code pipeline. Image generators speed up asset creation. Prototyping tools speed up concept validation. Code generators like v0 skip the build-from-scratch phase. And browser-based code editors like Frontman eliminate the ticket queue entirely — designers can make visual changes themselves and have them reviewed by engineering, cutting multi-day cycles to minutes.'
 author: 'Danni Friedland'
@@ -41,7 +41,7 @@ If you want a narrower comparison of tools that generate or edit frontend source
 | [UX Pilot](#ux-pilot) | UI screens + heatmaps | Free–$39/mo | Yes |
 | [Uizard](#uizard) | Wireframes + prototypes | Free–$49/mo | Yes |
 | [Relume](#relume) | Wireframes + sitemaps | Free–paid plans | Yes |
-| [Frontman](#frontman) | Source code edits in your codebase | Five lifetime free BYOK runs (no card), then 7-day free Pro trial (card required); EUR 15/seat/month or EUR 150/seat/year unless canceled; AI costs separate | No |
+| [Frontman](#frontman) | Source code edits in your codebase | Five lifetime free BYOK runs (no card), plus optional 7-day free Pro trial anytime (card required); EUR 15/seat/month or EUR 150/seat/year unless canceled; AI costs separate | No |
 | [Midjourney](#midjourney) | Images | $10–$60/mo | N/A (assets only) |
 | [Adobe Firefly](#adobe-firefly) | Images + vectors | Creative Cloud subscription | N/A (assets only) |
 | [v0 by Vercel](#v0) | React/Next.js code | Free–$30/mo | Minimal (code output) |
@@ -128,7 +128,7 @@ This category is different.
 
 Frontman installs as middleware in your dev server (Next.js, Astro, or Vite). Navigate to `localhost/frontman` and you get a chat interface next to a live view of your running app. Click any element, describe what you want changed, and Frontman edits the actual source file with hot reload.
 
-Designers and PMs can fix visual issues without opening an IDE or filing a ticket. Edits go through your team's normal code review process, so engineering stays in control. Frontman is self-hostable and BYOK with Claude, OpenAI, or OpenRouter. Frontman offers five lifetime free BYOK runs without a credit card, then a 7-day free Pro trial with a credit card required. After the trial, Pro costs EUR 15/seat/month or EUR 150/seat/year unless canceled. AI-provider costs are separate.
+Designers and PMs can fix visual issues without opening an IDE or filing a ticket. Edits go through your team's normal code review process, so engineering stays in control. Frontman is self-hostable and BYOK with Claude, OpenAI, or OpenRouter. Frontman offers five lifetime free BYOK runs without a credit card. You can start an optional 7-day free Pro trial anytime with a credit card. After the trial, Pro costs EUR 15/seat/month or EUR 150/seat/year unless canceled. AI-provider costs are separate.
 
 The hard limits: only three frameworks supported. No Angular, no Ember, no static HTML sites. Source mapping breaks on deeply abstracted component libraries. If your design system wraps every component in three HOCs, Frontman won't reliably trace back to the right source file. The community is small (~130 GitHub stars), documentation has gaps, and complex multi-file refactors are outside its scope. This is a tool for visual tweaks and UI iteration, not for rewriting your data layer.
 

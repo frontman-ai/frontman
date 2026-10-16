@@ -26,10 +26,12 @@ defmodule FrontmanServer.BillingTest do
       refute_received {:start_checkout, _, _, _, _, _}
     end
 
-    test "rejects fresh users and every unused allowance without calling Stripe" do
+    test "allows checkout at every lifetime allowance balance without consuming runs" do
       use_billing_client_stub()
 
-      for interval <- [:monthly, :yearly], used <- [nil, 1, 2, 3, 4] do
+      BillingClientStub.stub_start_checkout({:ok, %{"id" => "cs_trial"}})
+
+      for interval <- [:monthly, :yearly], used <- [nil, 1, 2, 3, 4, 5] do
         scope = AccountsFixtures.user_scope_fixture()
 
         allowance =
@@ -40,7 +42,7 @@ defmodule FrontmanServer.BillingTest do
 
         before_checkout = Billing.status(scope)
 
-        assert {:error, :pretrial_runs_remaining} =
+        assert {:ok, %{"id" => "cs_trial"}} =
                  Billing.start_checkout(scope, interval, %{
                    success_url: "https://frontman.test/success",
                    cancel_url: "https://frontman.test/cancel"
@@ -48,32 +50,7 @@ defmodule FrontmanServer.BillingTest do
 
         assert Billing.status(scope) == before_checkout
         assert Repo.get(Billing.RunAllowance, scope.user.id) == allowance
-        refute_received {:start_checkout, _, _, _, _, _}
-      end
-    end
-
-    test "allows an exhausted first-time user to start an eligible seven-day trial" do
-      use_billing_client_stub()
-      BillingClientStub.stub_start_checkout({:ok, %{"id" => "cs_trial"}})
-
-      for interval <- [:monthly, :yearly] do
-        scope = AccountsFixtures.user_scope_fixture()
-        allowance = run_allowance_fixture(scope, 5)
-        user_id = scope.user.id
-
-        assert {:ok, %{"id" => "cs_trial"}} =
-                 Billing.start_checkout(scope, interval, %{
-                   success_url: "https://frontman.test/success",
-                   cancel_url: "https://frontman.test/cancel"
-                 })
-
-        assert_received {:start_checkout, %{id: ^user_id}, nil, ^interval, _,
-                         [trial_eligible: true]}
-
-        assert %{pretrial_runs_remaining: 0, trial_eligible: true, trial_days: 7} =
-                 Billing.status(scope)
-
-        assert Repo.get(Billing.RunAllowance, user_id) == allowance
+        assert_received {:start_checkout, _, _, ^interval, _, [trial_eligible: true]}
       end
     end
 
@@ -99,7 +76,8 @@ defmodule FrontmanServer.BillingTest do
 
         assert_received {:start_checkout, _, ^customer, ^interval, _, [trial_eligible: false]}
         assert %{trial_eligible: false, trial_days: 7} = Billing.status(scope)
-        assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+        assert Billing.can_start_turn?(scope)
+        refute Billing.subscription_allows_runs?(scope)
         assert Repo.get(Billing.RunAllowance, scope.user.id) == allowance
       end
     end
@@ -286,6 +264,78 @@ defmodule FrontmanServer.BillingTest do
     assert %{pretrial_runs_remaining: 5} = Billing.status(AccountsFixtures.user_scope_fixture())
   end
 
+  test "trial preserves partial allowance and cancellation restores only unused runs" do
+    scope = AccountsFixtures.user_scope_fixture()
+    assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
+    assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
+    allowance = Repo.get!(Billing.RunAllowance, scope.user.id)
+
+    trial =
+      scope.user.id
+      |> subscription_webhook_event()
+      |> put_in(["data", "object", "status"], "trialing")
+      |> put_in(["data", "object", "trial_end"], 1_780_243_481)
+
+    assert {:ok, :processed} = Webhooks.process_event(trial)
+
+    assert %{can_start_turn: true, pretrial_runs_remaining: nil, trial_eligible: false} =
+             Billing.status(scope)
+
+    for _ <- 1..12, do: assert({:ok, :subscription} = Billing.authorize_new_turn(scope))
+    assert Repo.get!(Billing.RunAllowance, scope.user.id) == allowance
+
+    canceled =
+      trial
+      |> Map.put("id", trial["id"] <> "_canceled")
+      |> Map.put("type", "customer.subscription.updated")
+      |> put_in(["data", "object", "status"], "canceled")
+
+    assert {:ok, :processed} = Webhooks.process_event(canceled)
+    refute Billing.subscription_allows_runs?(scope)
+
+    assert %{
+             can_start_turn: true,
+             pretrial_runs_remaining: 3,
+             trial_eligible: false,
+             trial_end: ~U[2026-05-31 16:04:41Z]
+           } = Billing.status(scope)
+
+    for remaining <- [2, 1, 0] do
+      assert Billing.can_start_turn?(scope)
+      assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
+      assert %{pretrial_runs_remaining: ^remaining} = Billing.status(scope)
+    end
+
+    refute Billing.can_start_turn?(scope)
+    assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+    assert %{can_start_turn: false, pretrial_runs_remaining: 0} = Billing.status(scope)
+    assert Repo.get!(Billing.RunAllowance, scope.user.id).used == 5
+  end
+
+  test "entitled subscriptions never create an allowance ledger" do
+    for status <- ["trialing", "active"] do
+      scope = scope_with_subscription_fixture(status)
+      for _ <- 1..12, do: assert({:ok, :subscription} = Billing.authorize_new_turn(scope))
+      assert Billing.can_start_turn?(scope)
+      assert %{can_start_turn: true, pretrial_runs_remaining: nil} = Billing.status(scope)
+      assert Repo.get(Billing.RunAllowance, scope.user.id) == nil
+    end
+  end
+
+  test "every inactive subscription can use remaining lifetime allowance, then is denied" do
+    for status <- ["canceled", "incomplete", "incomplete_expired", "past_due", "unpaid"] do
+      scope = scope_with_subscription_fixture(status)
+      run_allowance_fixture(scope, 4)
+      refute Billing.subscription_allows_runs?(scope)
+      assert Billing.can_start_turn?(scope)
+      assert %{can_start_turn: true, pretrial_runs_remaining: 1} = Billing.status(scope)
+      assert {:ok, :pretrial} = Billing.authorize_new_turn(scope)
+      refute Billing.can_start_turn?(scope)
+      assert %{can_start_turn: false, pretrial_runs_remaining: 0} = Billing.status(scope)
+      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+    end
+  end
+
   describe "get_current_subscription/1" do
     test "returns nil when the scoped user has no subscription" do
       user = AccountsFixtures.user_fixture()
@@ -340,8 +390,9 @@ defmodule FrontmanServer.BillingTest do
              } = Billing.status(scope)
     end
 
-    test "payment failure blocks access until the subscription becomes active again" do
+    test "payment failure blocks exhausted users until the subscription becomes active again" do
       scope = AccountsFixtures.user_scope_fixture()
+      run_allowance_fixture(scope, 5)
       event = subscription_webhook_event(scope.user.id)
       assert {:ok, :processed} = Webhooks.process_event(event)
       assert Billing.subscription_allows_runs?(scope)

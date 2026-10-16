@@ -15,13 +15,13 @@ let activeStatus = parseStatus(`{
 }`)
 
 describe("Client__Billing", _t => {
-  test("only advertises a positive server-confirmed trial for inactive eligible users", t => {
+  test("only advertises a positive server-confirmed trial for eligible checkout users", t => {
     [
       (true, 14, false, Some(14)),
       (true, 7, false, Some(7)),
       (false, 7, false, None),
       (true, 0, false, None),
-      (true, 7, true, None),
+      (true, 7, true, Some(7)),
     ]->Array.forEach(
       ((eligible, days, access, expected)) => {
         let status = parseStatus(
@@ -55,11 +55,11 @@ describe("Client__Billing", _t => {
     }`)
 
     t->expect(Client__Billing.pretrialRunsRemaining(status))->Expect.toEqual(Some(5))
-    t->expect(Client__Billing.offeredTrialDays(status))->Expect.toBeNone
+    t->expect(Client__Billing.offeredTrialDays(status))->Expect.toEqual(Some(7))
     t
     ->expect(Client__Billing.activationMessage(status))
     ->Expect.toBe(
-      "Your first 5 lifetime BYOK runs need no card. AI usage is billed separately by your provider.",
+      "Your remaining lifetime BYOK runs are available without a card. Pro access does not use these runs; unused runs stay available afterwards. AI usage is billed separately by your provider.",
     )
   })
 
@@ -85,8 +85,13 @@ describe("Client__Billing", _t => {
       ("active", true, false),
       ("trialing", true, false),
       ("past_due", false, false),
+      ("past_due", true, false),
+      ("unpaid", true, true),
       ("none", false, true),
       ("canceled", false, true),
+      ("canceled", true, true),
+      ("incomplete", true, true),
+      ("none", true, true),
       ("incomplete", false, true),
       ("incomplete_expired", false, true),
       ("unpaid", false, true),
@@ -95,25 +100,36 @@ describe("Client__Billing", _t => {
         let status = parseStatus(
           `{"status":"${subscriptionStatus}","can_start_turn":${Bool.toString(
               accessAllowed,
-            )},"pretrial_runs_remaining":${subscriptionStatus == "none"
-              ? "0"
-              : "5"},"has_billing_customer":true,"interval":null,"current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
+            )},"pretrial_runs_remaining":${switch subscriptionStatus {
+            | "active" | "trialing" => "null"
+            | _ => accessAllowed ? "4" : "0"
+            }},"has_billing_customer":true,"interval":null,"current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
         )
         t->expect(Client__Billing.canStartCheckout(status))->Expect.toBe(expected)
         switch Client__Billing.subscriptionStatus(status) {
-        | PastDue =>
+        | PastDue if !accessAllowed =>
           t->expect(Client__Billing.canStartTurn(status))->Expect.toBe(false)
           t->expect(Client__Billing.canManage(status))->Expect.toBe(true)
           t
           ->expect(Client__Billing.activationMessage(status))
           ->Expect.toBe("Your payment failed. Manage billing in Stripe to restore access.")
+        | _
+          if accessAllowed && subscriptionStatus != "active" && subscriptionStatus != "trialing" =>
+          t
+          ->expect(Client__Billing.activationMessage(status)->String.includes("runs are available"))
+          ->Expect.toBe(true)
+          t
+          ->expect(
+            Client__Billing.activationMessage(status)->String.includes("Start a subscription"),
+          )
+          ->Expect.toBe(false)
         | _ => ()
         }
       },
     )
   })
 
-  test("first checkout requires an explicitly exhausted allowance", t => {
+  test("trial checkout is available at every allowance balance", t => {
     [0, 1, 2, 3, 4, 5]->Array.forEach(
       remaining => {
         let status = parseStatus(
@@ -123,10 +139,10 @@ describe("Client__Billing", _t => {
               remaining,
             )},"has_billing_customer":false,"trial_eligible":true,"trial_days":7,"interval":null,"current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
         )
-        t->expect(Client__Billing.canStartCheckout(status))->Expect.toBe(remaining == 0)
+        t->expect(Client__Billing.canStartCheckout(status))->Expect.toBe(true)
         t
         ->expect(Client__Billing.offeredTrialDays(status))
-        ->Expect.toEqual(remaining == 0 ? Some(7) : None)
+        ->Expect.toEqual(Some(7))
       },
     )
     t
@@ -135,7 +151,7 @@ describe("Client__Billing", _t => {
         parseStatus(`{"status":"none","can_start_turn":false,"has_billing_customer":false,"interval":null,"current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`),
       ),
     )
-    ->Expect.toBe(false)
+    ->Expect.toBe(true)
   })
 
   test("parses live billing update date fields", t => {

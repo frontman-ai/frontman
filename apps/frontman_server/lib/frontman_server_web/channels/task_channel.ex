@@ -157,7 +157,7 @@ defmodule FrontmanServerWeb.TaskChannel do
   end
 
   def handle_info(:billing_status_changed, socket) do
-    if Billing.subscription_allows_runs?(socket.assigns.scope), do: wake_runner(socket, nil)
+    if Billing.can_start_turn?(socket.assigns.scope), do: wake_runner(socket, nil)
     {:noreply, socket}
   end
 

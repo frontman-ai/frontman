@@ -250,25 +250,6 @@ test("blocked popups do not create unused checkout", t => {
   })
 })
 
-testAsync("checkout shows the unused-run policy conflict without navigating to Stripe", async t => {
-  request(Checkout(Monthly))
-  pending.contents.resolve(
-    response(
-      409,
-      `{"error":"Use your remaining no-card BYOK runs before starting checkout for Pro."}`,
-    ),
-  )
-  await waitFor(() =>
-    t
-    ->expect(state.contents.billingFlow)
-    ->Expect.toEqual(
-      Billing.Failed("Use your remaining no-card BYOK runs before starting checkout for Pro."),
-    )
-  )
-  t->expect(closed.contents)->Expect.toBe(1)
-  t->expect(navigations.contents)->Expect.toEqual(["about:blank"])
-})
-
 ["network", "unsafe URL"]->Array.forEach(mode => {
   testAsync(`${mode} closes tab and allows retry`, async t => {
     request(CustomerPortal)

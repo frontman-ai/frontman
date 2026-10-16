@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Billing.RunAllowance do
-  @moduledoc "Lifetime BYOK runs used before a user's first subscription."
+  @moduledoc "Lifetime free BYOK run usage preserved across subscriptions."
   use Ecto.Schema
   import Ecto.Query
 
