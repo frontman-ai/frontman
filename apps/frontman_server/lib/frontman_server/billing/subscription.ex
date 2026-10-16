@@ -40,7 +40,7 @@ defmodule FrontmanServer.Billing.Subscription do
   end
 
   def allow_access?(%__MODULE__{status: status})
-      when status in ["trialing", "active", "past_due"],
+      when status in ["trialing", "active"],
       do: true
 
   def allow_access?(nil), do: false

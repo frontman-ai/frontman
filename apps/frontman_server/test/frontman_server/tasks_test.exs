@@ -68,7 +68,7 @@ defmodule FrontmanServer.TasksTest do
   end
 
   describe "submit_user_message/2 billing access" do
-    for status <- [nil, "canceled", "active"] do
+    for status <- [nil, "past_due", "canceled", "active"] do
       test "enforces billing for #{inspect(status)} subscription", %{scope: scope} do
         status = unquote(status)
         if status, do: subscription_for_scope_fixture(scope, %{status: status})
