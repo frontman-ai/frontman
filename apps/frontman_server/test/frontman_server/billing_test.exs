@@ -26,26 +26,82 @@ defmodule FrontmanServer.BillingTest do
       refute_received {:start_checkout, _, _, _, _, _}
     end
 
-    test "allows a canceled subscriber to return without a second trial" do
+    test "rejects fresh users and every unused allowance without calling Stripe" do
+      use_billing_client_stub()
+
+      for interval <- [:monthly, :yearly], used <- [nil, 1, 2, 3, 4] do
+        scope = AccountsFixtures.user_scope_fixture()
+
+        allowance =
+          case used do
+            nil -> nil
+            used -> run_allowance_fixture(scope, used)
+          end
+
+        before_checkout = Billing.status(scope)
+
+        assert {:error, :pretrial_runs_remaining} =
+                 Billing.start_checkout(scope, interval, %{
+                   success_url: "https://frontman.test/success",
+                   cancel_url: "https://frontman.test/cancel"
+                 })
+
+        assert Billing.status(scope) == before_checkout
+        assert Repo.get(Billing.RunAllowance, scope.user.id) == allowance
+        refute_received {:start_checkout, _, _, _, _, _}
+      end
+    end
+
+    test "allows an exhausted first-time user to start an eligible seven-day trial" do
+      use_billing_client_stub()
+      BillingClientStub.stub_start_checkout({:ok, %{"id" => "cs_trial"}})
+
+      for interval <- [:monthly, :yearly] do
+        scope = AccountsFixtures.user_scope_fixture()
+        allowance = run_allowance_fixture(scope, 5)
+        user_id = scope.user.id
+
+        assert {:ok, %{"id" => "cs_trial"}} =
+                 Billing.start_checkout(scope, interval, %{
+                   success_url: "https://frontman.test/success",
+                   cancel_url: "https://frontman.test/cancel"
+                 })
+
+        assert_received {:start_checkout, %{id: ^user_id}, nil, ^interval, _,
+                         [trial_eligible: true]}
+
+        assert %{pretrial_runs_remaining: 0, trial_eligible: true, trial_days: 7} =
+                 Billing.status(scope)
+
+        assert Repo.get(Billing.RunAllowance, user_id) == allowance
+      end
+    end
+
+    test "allows returning subscribers with unused runs without a second trial" do
       use_billing_client_stub()
       BillingClientStub.stub_start_checkout({:ok, %{"id" => "cs_returning"}})
-      scope = AccountsFixtures.user_scope_fixture()
-      customer = customer_for_scope_fixture(scope)
 
-      subscription_for_customer_fixture(scope, customer, %{
-        status: "canceled",
-        trial_end: ~U[2026-01-01 00:00:00Z]
-      })
+      for status <- ["canceled", "incomplete"], interval <- [:monthly, :yearly] do
+        scope = AccountsFixtures.user_scope_fixture()
+        allowance = run_allowance_fixture(scope, 1)
+        customer = customer_for_scope_fixture(scope)
 
-      assert {:ok, %{"id" => "cs_returning"}} =
-               Billing.start_checkout(scope, :yearly, %{
-                 success_url: "https://frontman.test/success",
-                 cancel_url: "https://frontman.test/cancel"
-               })
+        subscription_for_customer_fixture(scope, customer, %{
+          status: status,
+          trial_end: ~U[2026-01-01 00:00:00Z]
+        })
 
-      assert_received {:start_checkout, _, ^customer, :yearly, _, [trial_eligible: false]}
-      assert %{trial_eligible: false, trial_days: 7} = Billing.status(scope)
-      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+        assert {:ok, %{"id" => "cs_returning"}} =
+                 Billing.start_checkout(scope, interval, %{
+                   success_url: "https://frontman.test/success",
+                   cancel_url: "https://frontman.test/cancel"
+                 })
+
+        assert_received {:start_checkout, _, ^customer, ^interval, _, [trial_eligible: false]}
+        assert %{trial_eligible: false, trial_days: 7} = Billing.status(scope)
+        assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
+        assert Repo.get(Billing.RunAllowance, scope.user.id) == allowance
+      end
     end
   end
 

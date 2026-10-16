@@ -41,7 +41,9 @@ let loaded = (access, eligible) =>
           access,
         )},"has_billing_customer":false,"trial_eligible":${Bool.toString(
           eligible,
-        )},"trial_days":7,"interval":"monthly","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
+        )},"pretrial_runs_remaining":${access
+          ? "null"
+          : "0"},"trial_days":7,"interval":"monthly","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
     ),
     ~to=Billing.statusSchema,
   )

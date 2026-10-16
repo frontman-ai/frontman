@@ -111,7 +111,7 @@ let pretrialRunsRemaining = (billingStatus: status) => billingStatus.pretrialRun
 
 let canStartCheckout = (billingStatus: status) =>
   switch billingStatus.status {
-  | NoSubscription => true
+  | NoSubscription => billingStatus.pretrialRunsRemaining == Some(0)
   | Trialing | Active | PastDue => false
   | _ => !billingStatus.canStartTurn
   }

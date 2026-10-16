@@ -22,8 +22,10 @@ defmodule FrontmanServerWeb.BillingControllerTest do
     @interval interval
     test "#{interval} checkout preserves bearer identity despite a different browser account", %{
       conn: conn,
-      user: user
+      user: user,
+      scope: scope
     } do
+      run_allowance_fixture(scope, 5)
       %{conn: conn, scope: browser_scope} = register_and_log_in_user(%{conn: conn})
       allow_access_for_scope_fixture(browser_scope)
 
@@ -52,6 +54,55 @@ defmodule FrontmanServerWeb.BillingControllerTest do
 
       assert urls.cancel_url ==
                FrontmanServerWeb.Endpoint.url() <> "/billing/stripe-return/cancel"
+    end
+  end
+
+  for interval <- ~w(monthly yearly), remaining <- 1..5 do
+    @interval interval
+    @remaining remaining
+    test "#{interval} checkout with #{remaining} runs left is a policy conflict", %{
+      conn: conn,
+      scope: scope
+    } do
+      allowance =
+        case @remaining do
+          5 -> nil
+          remaining -> run_allowance_fixture(scope, 5 - remaining)
+        end
+
+      conn = post(conn, ~p"/api/billing/checkout", %{"interval" => @interval})
+
+      assert json_response(conn, 409)["error"] ==
+               "Use your remaining no-card BYOK runs before starting checkout for Pro."
+
+      assert Sentry.Test.pop_sentry_reports() == []
+
+      assert FrontmanServer.Repo.get(FrontmanServer.Billing.RunAllowance, scope.user.id) ==
+               allowance
+
+      refute_received {:start_checkout, _, _, _, _, _}
+    end
+  end
+
+  for interval <- ~w(monthly yearly), status <- ~w(canceled incomplete) do
+    @interval interval
+    @status status
+    test "#{interval} checkout permits returning #{status} subscribers with unused runs", %{
+      conn: conn,
+      scope: scope
+    } do
+      run_allowance_fixture(scope, 1)
+      subscription_for_scope_fixture(scope, %{status: @status})
+
+      BillingClientStub.stub_start_checkout(
+        {:ok, %{"url" => "https://checkout.stripe.test/return"}}
+      )
+
+      conn = post(conn, ~p"/api/billing/checkout", %{"interval" => @interval})
+
+      assert json_response(conn, 200) == %{"url" => "https://checkout.stripe.test/return"}
+      assert_received {:start_checkout, _, _, _, _, [trial_eligible: true]}
+      assert Sentry.Test.pop_sentry_reports() == []
     end
   end
 
@@ -169,6 +220,7 @@ defmodule FrontmanServerWeb.BillingControllerTest do
             :customer_portal
 
           "checkout" ->
+            run_allowance_fixture(scope, 5)
             BillingClientStub.stub_start_checkout({:error, reason})
             :checkout
         end
@@ -214,13 +266,16 @@ defmodule FrontmanServerWeb.BillingControllerTest do
     assert Sentry.Test.pop_sentry_reports() == []
   end
 
-  test "programming errors still raise", %{conn: conn} do
+  test "programming errors still raise", %{conn: conn, scope: scope} do
+    run_allowance_fixture(scope, 5)
+
     assert_raise RuntimeError, "unexpected checkout through billing client stub", fn ->
       post(conn, ~p"/api/billing/checkout", %{"interval" => "monthly"})
     end
   end
 
-  test "unknown provider errors are reported without inspecting them", %{conn: conn} do
+  test "unknown provider errors are reported without inspecting them", %{conn: conn, scope: scope} do
+    run_allowance_fixture(scope, 5)
     BillingClientStub.stub_start_checkout({:error, {:unexpected, "private-provider-data"}})
     conn = post(conn, ~p"/api/billing/checkout", %{"interval" => "monthly"})
     refute inspect(json_response(conn, 502)) =~ "private-provider-data"

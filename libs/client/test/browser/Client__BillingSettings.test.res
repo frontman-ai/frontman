@@ -51,6 +51,52 @@ afterEach(() => {
   })
 )
 
+[1, 2, 3, 4, 5]->Array.forEach(remaining =>
+  testAsync(
+    `billing settings hide checkout with ${Int.toString(remaining)} free runs left`,
+    async t => {
+      let billing = S.parseOrThrow(
+        JSON.parseOrThrow(
+          `{"status":"none","can_start_turn":true,"pretrial_runs_remaining":${Int.toString(
+              remaining,
+            )},"has_billing_customer":false,"trial_eligible":true,"trial_days":7,"interval":null,"current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
+        ),
+        ~to=Billing.statusSchema,
+      )
+      force({...Reducer.defaultState, billingStatus: Loaded(billing)})
+      render(<Client__SettingsModal__Tab__Billing />)
+      await waitFor(
+        () => t->expect(query("[data-slot='card-title']")->Option.isSome)->Expect.toBe(true),
+      )
+      t->expect(query("button")->Option.isSome)->Expect.toBe(false)
+      let text =
+        (container.contents->Option.getOrThrow :> DomTypes.node).textContent->Null.getOrThrow
+      t->expect(text->String.includes("Choose Monthly"))->Expect.toBe(false)
+      t->expect(text->String.includes("Choose Yearly"))->Expect.toBe(false)
+      t->expect(text->String.includes("7-day free Pro trial"))->Expect.toBe(false)
+    },
+  )
+)
+
+["canceled", "incomplete"]->Array.forEach(status =>
+  testAsync(`returning ${status} accounts can checkout with retained runs`, async t => {
+    let billing = S.parseOrThrow(
+      JSON.parseOrThrow(
+        `{"status":"${status}","can_start_turn":false,"pretrial_runs_remaining":4,"has_billing_customer":true,"trial_eligible":false,"trial_days":7,"interval":null,"current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
+      ),
+      ~to=Billing.statusSchema,
+    )
+    force({...Reducer.defaultState, billingStatus: Loaded(billing)})
+    render(<Client__SettingsModal__Tab__Billing />)
+    await waitFor(
+      () => t->expect(query("[data-slot='card-title']")->Option.isSome)->Expect.toBe(true),
+    )
+    let text = (container.contents->Option.getOrThrow :> DomTypes.node).textContent->Null.getOrThrow
+    t->expect(text->String.includes("Choose Monthly"))->Expect.toBe(true)
+    t->expect(text->String.includes("Choose Yearly"))->Expect.toBe(true)
+  })
+)
+
 [Billing.Monthly, Billing.Yearly]->Array.forEach(interval =>
   testAsync(
     `billing settings launch ${Billing.intervalLabel(interval)} checkout directly`,

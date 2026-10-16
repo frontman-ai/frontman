@@ -44,7 +44,9 @@ let urlResponse = () => response(200, `{"url":"https://billing.stripe.test/sessi
 let statusJson = (status, access) =>
   `{"status":"${status}","can_start_turn":${Bool.toString(
       access,
-    )},"has_billing_customer":true,"interval":"monthly","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`
+    )},"pretrial_runs_remaining":${status == "none"
+      ? "0"
+      : "null"},"has_billing_customer":true,"interval":"monthly","current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`
 let failed = () =>
   switch state.contents.billingFlow {
   | Failed(_) => true
@@ -246,6 +248,25 @@ test("blocked popups do not create unused checkout", t => {
     )
     t->expect(closed.contents)->Expect.toBe(1)
   })
+})
+
+testAsync("checkout shows the unused-run policy conflict without navigating to Stripe", async t => {
+  request(Checkout(Monthly))
+  pending.contents.resolve(
+    response(
+      409,
+      `{"error":"Use your remaining no-card BYOK runs before starting checkout for Pro."}`,
+    ),
+  )
+  await waitFor(() =>
+    t
+    ->expect(state.contents.billingFlow)
+    ->Expect.toEqual(
+      Billing.Failed("Use your remaining no-card BYOK runs before starting checkout for Pro."),
+    )
+  )
+  t->expect(closed.contents)->Expect.toBe(1)
+  t->expect(navigations.contents)->Expect.toEqual(["about:blank"])
 })
 
 ["network", "unsafe URL"]->Array.forEach(mode => {
