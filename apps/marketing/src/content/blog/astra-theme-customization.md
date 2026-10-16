@@ -1,7 +1,7 @@
 ---
 title: 'Astra Theme Customization: Delegate the Work, Review the Result'
 seoTitle: 'Astra Theme Customization With Frontman'
-description: 'Customize Astra settings, headers, typography, colors, and templates. Delegate the work to Frontman and review changes with screenshots and DOM inspection.'
+description: 'Customize Astra layouts, headers, typography, colors, and templates. Follow the manual steps or give Frontman a concrete task, then check the result.'
 pubDate: 2026-10-16T00:00:00Z
 image: '/blog/astra-theme-customization-cover.png'
 imageAlt: 'Frontman cover reading Astra Theme Customization: Delegate the Work, Review the Result'
@@ -10,49 +10,99 @@ articleSection: 'Technical Explainer'
 tags: ['wordpress', 'astra', 'website-customization', 'nontechnical-users']
 ---
 
-## Astra customization starts with settings—and ends with the rendered site
+## Astra customization starts with the change you want
 
-Astra customization happens across theme settings, page-builder options, and the pages visitors actually see. In WordPress, open Appearance > Customize to reach the Customizer; its desktop, tablet, and mobile previews let you inspect different device views. The Astra dashboard also contains Astra settings and information about other features. You can activate modules and options you need, which then become available in the Customizer. [1](https://wpastra.com/docs/manage-customizer-options)
+A more compact header. Less empty space on mobile. Headings that match your brand. You know the result you want, but Astra customization can involve theme settings, page-builder overrides, and several pages to check.
 
-A saved setting is not the same as a checked result. Page builders can override theme settings in specific sections, so a global option may not describe what appears across the website. Frontman is an AI agent that supports Astra customization and can do customization work for people who do not want to operate theme settings manually. It can use screenshots and inspect the DOM—the page structure the browser renders—to review visual output and structure. That is a way to examine the result, not a guarantee of correctness or a replacement for your judgment. [2](https://wpastra.com/docs/typography-free) [3](https://wpastra.com/docs/colors-background)
+Frontman is our AI agent for making changes to your existing WordPress site. Instead of finding every setting yourself, describe the result you want and ask the agent to inspect what controls it. Frontman can use screenshots and inspect the DOM—the page structure the browser renders—to help check the result.
 
-## Responsive previews show views, but not every setting is responsive
+The sections below explain the manual Astra route and give you a task to delegate to Frontman. The prompts are suggested starting points, not recordings of completed Astra workflows. Ask the agent to identify the available editing path first. If a required Astra setting is unsupported, use the manual route for that step.
 
-The Customizer’s device simulators show how the site may look in desktop, tablet, and mobile views. The documentation says settings can be adjusted separately for each view, but look for a responsive editing icon beside an option before assuming it supports separate values. That icon indicates responsive editing is available for that option. [1](https://wpastra.com/docs/manage-customizer-options)
+**Before you edit:** Work on a staging copy and keep a backup. WordPress edits can affect the connected site immediately, including published pages. Preview is not a universal approval gate.
 
-Spacing controls have their own details. Margin and padding values may be linked across top, right, bottom, and left; unlinking them allows individual editing. Where unit icons appear, they let you choose a unit. Astra’s example contrasts fixed pixel padding with percentage padding that adjusts to screen or element size. [1](https://wpastra.com/docs/manage-customizer-options)
+## Adjust responsive layout and spacing
 
-## Header rows and spacing shape the site’s shared frame
+**What you want:** Less empty space on a phone without squeezing the desktop layout.
 
-Astra’s free theme offers a drag-and-drop header builder. Its rows are Above, Primary, and Below; elements such as buttons, widgets, and menus can be added and moved into position. The builder’s General tab provides settings for individual elements. [4](https://wpastra.com/guides-and-tutorials/wordpress-customize-header) [5](https://wpastra.com/docs/create-header-with-header-builder)
+### The manual Astra route
 
-Header spacing is separate from element placement. The main Design tab provides controls for header width and spacing, while settings for each row include its height and design. Astra’s documentation also describes designing a header for responsive devices. [4](https://wpastra.com/guides-and-tutorials/wordpress-customize-header) [5](https://wpastra.com/docs/create-header-with-header-builder)
+In WordPress, open Appearance > Customize. The Customizer’s device simulators show desktop, tablet, and mobile views. Look for a responsive editing icon beside a setting before assuming it supports separate values for each view. [1](https://wpastra.com/docs/manage-customizer-options)
 
-These Astra controls explain the available customization options; they do not establish that Frontman operates a particular header control or responsive setting. The product evidence confirms Astra customization support, not control-by-control integration.
+Margin and padding values can be linked across top, right, bottom, and left. Unlink them to edit each side separately. Where unit icons appear, you can choose a unit: pixels provide fixed spacing, while percentages scale with the relevant screen or element size. [1](https://wpastra.com/docs/manage-customizer-options)
 
-## Global typography and colors can be overridden by page builders
+### Do it with Frontman
 
-Astra’s typography settings are at Appearance > Customize > Global > Typography. The documented base-font controls cover body text and headings, and body font settings also apply to posts. You can set a common heading style and individual sizes for H1 to H6. A page builder can override theme typography in specific sections, so the global setting may not describe every rendered page. [2](https://wpastra.com/docs/typography-free)
+Describe where the spacing feels wrong instead of hunting through controls and guessing values. Give the agent both the change and the layout you want to preserve.
 
-Global colors are at Appearance > Customize > Global > Colors. Astra describes Text Color for body text and descriptions, Theme Color for theme elements such as buttons, and Link Color and Link Hover Color for linked text. The background setting applies to the body across the site; when both a background color and image are set, the guide advises adjusting color opacity so the image remains visible. [3](https://wpastra.com/docs/colors-background)
+> The homepage has too much space between sections on mobile. Inspect what controls that spacing, then reduce it without changing the desktop layout. Check the result at mobile and desktop widths and tell me which widths you checked.
 
-Builder color settings can override theme colors for builder content, while other pages and posts continue to use theme settings. Astra warns that page and post text or heading colors may differ from the Blog Archive or Posts, and that these settings are not automatically synced. Inspect the affected rendered pages rather than treating a global setting as proof that every section matches. [3](https://wpastra.com/docs/colors-background)
+**What to check afterward:** Comfortable spacing, no horizontal overflow, and an unchanged desktop layout. Screenshots at a few widths do not cover every device, so also open the page on a phone.
 
-## Astra Pro Site Builder adds custom templates and display conditions
+## Make the header more compact
 
-A custom template in Astra is a separate Astra Pro capability. Astra’s documentation says the Site Builder module in Astra Pro can create templates for specific purposes and categorizes layouts as Single and Archive. The cited material does not explain the difference between those categories. [6](https://wpastra.com/docs/custom-template) [7](https://wpindigo.com/astra-pro-vs-elementor-pro)
+**What you want:** A header that leaves more room for your content while keeping navigation usable.
 
-Template settings can specify where a template appears, which user roles can see it, and whether it is visible across devices or only selected devices. The documentation also describes a visibility duration and saving the settings with Publish or Update. These conditions matter because a template’s saved design alone does not tell you where or when it will appear. [6](https://wpastra.com/docs/custom-template)
+### The manual Astra route
 
-Astra Pro is a prerequisite for the documented Site Builder module. Frontman’s Astra support does not establish that it supplies an Astra Pro license or unlocks paid features; those remain separate product requirements. [6](https://wpastra.com/docs/custom-template) [7](https://wpindigo.com/astra-pro-vs-elementor-pro)
+Astra’s free theme offers a drag-and-drop header builder. Its rows are Above, Primary, and Below. You can add and move elements such as buttons, widgets, and menus. The builder’s General tab provides settings for individual elements. [4](https://wpastra.com/guides-and-tutorials/wordpress-customize-header) [5](https://wpastra.com/docs/create-header-with-header-builder)
 
-## Use Frontman as an agent, not as a substitute for review
+Element placement and spacing are separate. The main Design tab provides header width and spacing controls, while each row has height and design settings. Astra also documents header design for responsive devices. [4](https://wpastra.com/guides-and-tutorials/wordpress-customize-header) [5](https://wpastra.com/docs/create-header-with-header-builder)
 
-A general illustrative request could be: “Help customize my Astra site for the changes I describe, then review the result with screenshots and DOM inspection.” This describes a proposed task, not a demonstrated run or a promise that the agent can operate a specific Customizer control. Frontman is the agent doing customization work; your review still matters.
+### Do it with Frontman
 
-Frontman reports that current users customize sites 10× faster. That is a publisher-reported user observation, not a controlled benchmark or independently verified study; results vary with user experience and the changes being made. Screenshots and DOM inspection can help examine visual output and page structure, but they do not establish perfect verification, exhaustive device coverage, or automatic correctness.
+Start with the visible header rather than learning which row or setting controls each part. Tell the agent what must stay so that a smaller header does not lose an important link or button.
 
-We built Frontman, so this is our product’s role in an Astra workflow, not an independent product evaluation. Describe the customization you want, then review the resulting screenshots and DOM with the distinction between theme settings, builder overrides, and rendered pages in mind. Keep Astra Pro requirements separate from Frontman’s confirmed Astra support. [2](https://wpastra.com/docs/typography-free) [3](https://wpastra.com/docs/colors-background) [6](https://wpastra.com/docs/custom-template) [7](https://wpindigo.com/astra-pro-vs-elementor-pro)
+> Inspect this header and identify the available editing path. Make it more compact while keeping the logo, navigation links, and contact button. On mobile, keep the menu accessible. Explain any unsupported steps before changing anything.
+
+**What to check afterward:** The logo stays readable, links work, and the mobile menu opens and closes correctly. Check another page too: a shared header change can affect more than the page you started on.
+
+## Match typography and colors to your brand
+
+**What you want:** Consistent headings and buttons, without unexpected changes to body text or other pages.
+
+### The manual Astra route
+
+Open Appearance > Customize > Global > Typography. Astra provides base-font controls for body text and headings, including a common heading style and individual sizes for H1 to H6. Body font settings also apply to posts. Page builders can override theme typography in specific sections. [2](https://wpastra.com/docs/typography-free)
+
+For colors, open Appearance > Customize > Global > Colors. Text Color controls body text and descriptions. Theme Color applies to theme elements such as buttons. Link Color and Link Hover Color control linked text. The body background supports a color and an image; adjust color opacity so the image remains visible when you use both. [3](https://wpastra.com/docs/colors-background)
+
+Builder colors can override theme colors, and page or post colors are not automatically synced with archive colors. A saved global setting is not proof that every page matches. [3](https://wpastra.com/docs/colors-background)
+
+### Do it with Frontman
+
+Delegate the investigation as well as the edit. You do not need to diagnose whether Astra or a page builder controls an inconsistent heading before asking for a change. Supply your actual font names and color values so the agent has a clear target.
+
+> Use our brand font and colors listed below for the homepage headings and buttons. Inspect what controls them and find any page-builder overrides that cause inconsistencies. Keep body text readable. Explain whether the proposed changes also affect other pages before applying them.
+
+**What to check afterward:** Headings and buttons match your supplied brand values, text has readable contrast, and hover states remain clear. Check a blog post and archive page for unintended changes too.
+
+## Plan shared templates with Astra Pro
+
+**What you want:** A consistent blog-post design that appears on the right content, not across unrelated pages.
+
+### The manual Astra route
+
+Astra Pro’s Site Builder module provides custom templates, with layouts categorized as Single and Archive. Template settings specify where a template appears, which user roles can see it, and which devices show it. The documentation also describes a visibility duration. Save the settings with Publish or Update. [6](https://wpastra.com/docs/custom-template)
+
+Astra Pro is required for this Site Builder workflow. Frontman does not supply an Astra Pro license or unlock paid theme features. [6](https://wpastra.com/docs/custom-template)
+
+### Do it with Frontman
+
+Start with the intended design and where it belongs. Ask Frontman to inspect the prerequisites and available tools before you commit to a template workflow.
+
+> Check whether this site has the Astra Pro features needed for a shared blog-post template. I want the design to apply to blog posts, not landing pages. Identify the available editing path and explain any unsupported steps before making changes.
+
+This is a prerequisite and planning task, not a promise that Frontman can create or configure every Astra Pro template. Use Site Builder for any unsupported steps.
+
+**What to check afterward:** The template appears on the intended posts and stays off unrelated pages. Check its user-role, device, and duration rules as well as its design.
+
+## Try your first Astra update with Frontman
+
+[Set up Frontman for WordPress](/docs/integrations/wordpress/), then open it from the WordPress admin menu. Setup requires administrator access, Frontman sign-in and service access, and an AI-provider connection.
+
+Choose one small change on your staging site. Use a prompt above, replacing the page and design details with your own. Ask Frontman to explain what it changed and show the result. Check the page yourself, then refine the request if something still looks wrong.
+
+You provide the direction; the agent takes on the inspection and supported editing work. The manual Astra instructions remain available whenever you need them.
 
 ## Sources
 
@@ -62,4 +112,3 @@ We built Frontman, so this is our product’s role in an Astra workflow, not an 
 4. [How To Customize the Header in WordPress (Beginner’s Guide)](https://wpastra.com/guides-and-tutorials/wordpress-customize-header)
 5. [How To Create a Header With Astra Header Builder](https://wpastra.com/docs/create-header-with-header-builder)
 6. [Custom Template in Astra](https://wpastra.com/docs/custom-template)
-7. [Astra Pro vs Elementor Pro – Which One is Better in 2026?](https://wpindigo.com/astra-pro-vs-elementor-pro)
