@@ -56,6 +56,34 @@ describe("Client__Billing", _t => {
     t->expect(Client__Billing.isAccessAllowed(status))->Expect.toBe(false)
   })
 
+  test("checkout eligibility is separate from usage access", t => {
+    [
+      ("active", true, false),
+      ("trialing", true, false),
+      ("past_due", false, false),
+      ("none", false, true),
+      ("canceled", false, true),
+    ]->Array.forEach(
+      ((subscriptionStatus, accessAllowed, expected)) => {
+        let status = parseStatus(
+          `{"status":"${subscriptionStatus}","access_allowed":${Bool.toString(
+              accessAllowed,
+            )},"has_billing_customer":true,"interval":null,"current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
+        )
+        t->expect(Client__Billing.canStartCheckout(status))->Expect.toBe(expected)
+        switch Client__Billing.subscriptionStatus(status) {
+        | PastDue =>
+          t->expect(Client__Billing.isAccessAllowed(status))->Expect.toBe(false)
+          t->expect(Client__Billing.canManage(status))->Expect.toBe(true)
+          t
+          ->expect(Client__Billing.activationMessage(status))
+          ->Expect.toBe("Your payment failed. Manage billing in Stripe to restore access.")
+        | _ => ()
+        }
+      },
+    )
+  })
+
   test("parses live billing update date fields", t => {
     let status = parseStatus(`{
       "status": "trialing",

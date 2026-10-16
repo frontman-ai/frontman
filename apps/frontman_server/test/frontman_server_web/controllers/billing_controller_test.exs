@@ -108,6 +108,18 @@ defmodule FrontmanServerWeb.BillingControllerTest do
     refute_received {:start_checkout, _, _, _, _, _}
   end
 
+  test "past-due account must recover payment instead of starting another checkout", %{
+    conn: conn,
+    scope: scope
+  } do
+    subscription_for_scope_fixture(scope, %{status: "past_due"})
+    conn = post(conn, ~p"/api/billing/checkout", %{"interval" => "monthly"})
+
+    assert json_response(conn, 409)["error"] =~ "Manage billing in Stripe"
+    assert Sentry.Test.pop_sentry_reports() == []
+    refute_received {:start_checkout, _, _, _, _, _}
+  end
+
   test "active bearer account rejects checkout even when the browser account has no plan", %{
     conn: conn,
     scope: scope
@@ -115,7 +127,7 @@ defmodule FrontmanServerWeb.BillingControllerTest do
     %{conn: conn} = register_and_log_in_user(%{conn: conn})
     allow_access_for_scope_fixture(scope)
     conn = post(conn, ~p"/api/billing/checkout", %{"interval" => "monthly"})
-    assert json_response(conn, 409)["error"] =~ "already have an active subscription"
+    assert json_response(conn, 409)["error"] =~ "already have a subscription"
     assert Sentry.Test.pop_sentry_reports() == []
     refute_received {:start_checkout, _, _, _, _, _}
   end

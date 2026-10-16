@@ -133,9 +133,9 @@ let make = () => {
             </div>
           | false => React.null
           }}
-          {switch Billing.isAccessAllowed(status) {
-          | true => React.null
-          | false =>
+          {switch Billing.canStartCheckout(status) {
+          | false => React.null
+          | true =>
             <div className="divide-y">
               {Billing.checkoutOptions
               ->Array.map(option =>

@@ -30,11 +30,11 @@ defmodule FrontmanServer.Billing do
           {:ok, map()} | {:error, term()}
   def start_checkout(%Scope{} = scope, interval, return_urls)
       when is_map(return_urls) do
-    case allow_access?(scope) do
-      true ->
+    case get_current_subscription(scope) do
+      %Subscription{status: status} when status in ["trialing", "active", "past_due"] ->
         {:error, :subscription_already_active}
 
-      false ->
+      _subscription ->
         user = Accounts.scope_user(scope)
         customer = Customer |> Customer.for_user(user.id) |> Repo.one()
 

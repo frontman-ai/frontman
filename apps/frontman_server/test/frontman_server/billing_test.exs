@@ -10,10 +10,10 @@ defmodule FrontmanServer.BillingTest do
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
   describe "start_checkout/3" do
-    test "rejects a second checkout while the user has subscription access" do
+    test "rejects a second checkout for active, trialing, and past-due subscriptions" do
       use_billing_client_stub()
 
-      for status <- ["trialing", "active"] do
+      for status <- ["trialing", "active", "past_due"] do
         scope = scope_with_subscription_fixture(status)
 
         assert {:error, :subscription_already_active} =

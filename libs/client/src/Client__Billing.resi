@@ -36,6 +36,7 @@ let statusSchema: S.t<status>
 
 let accessAllowed: state => bool
 let isAccessAllowed: status => bool
+let canStartCheckout: status => bool
 let canManage: status => bool
 
 let subscriptionStatus: status => subscriptionStatus
