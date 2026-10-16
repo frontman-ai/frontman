@@ -112,6 +112,7 @@ let pretrialRunsRemaining = (billingStatus: status) => billingStatus.pretrialRun
 let canStartCheckout = (billingStatus: status) =>
   switch billingStatus.status {
   | NoSubscription => true
+  | Trialing | Active | PastDue => false
   | _ => !billingStatus.canStartTurn
   }
 
@@ -132,9 +133,9 @@ let activationMessage = (billingStatus: status) =>
   | NoSubscription
   | Incomplete
   | IncompleteExpired => "Finish billing setup to start using Frontman."
+  | PastDue => "Your payment failed. Manage billing in Stripe to restore access."
   | Canceled
-  | Unpaid
-  | PastDue => "Your Frontman access has ended. Start a subscription to continue."
+  | Unpaid => "Your Frontman access has ended. Start a subscription to continue."
   | Trialing | Active | UnknownSubscriptionStatus(_) => "Activate billing to start using Frontman."
   }
 

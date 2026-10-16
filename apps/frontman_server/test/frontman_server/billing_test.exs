@@ -10,7 +10,7 @@ defmodule FrontmanServer.BillingTest do
   alias FrontmanServer.Test.Fixtures.Accounts, as: AccountsFixtures
 
   describe "start_checkout/3" do
-    test "rejects a second checkout while the user has subscription access" do
+    test "rejects a second checkout for active, trialing, and past-due subscriptions" do
       use_billing_client_stub()
 
       for status <- ["trialing", "active", "past_due"] do
@@ -285,7 +285,7 @@ defmodule FrontmanServer.BillingTest do
       scope = AccountsFixtures.user_scope_fixture()
       event = subscription_webhook_event(scope.user.id)
       assert {:ok, :processed} = Webhooks.process_event(event)
-      assert Billing.allow_access?(scope)
+      assert Billing.subscription_allows_runs?(scope)
 
       Phoenix.PubSub.subscribe(FrontmanServer.PubSub, Billing.status_topic(scope.user.id))
 
@@ -297,9 +297,10 @@ defmodule FrontmanServer.BillingTest do
 
       assert {:ok, :processed} = Webhooks.process_event(past_due_event)
       assert_receive :billing_status_changed
-      refute Billing.allow_access?(scope)
+      refute Billing.subscription_allows_runs?(scope)
+      assert {:error, :billing_inactive} = Billing.authorize_new_turn(scope)
 
-      assert %{status: "past_due", access_allowed: false, has_billing_customer: true} =
+      assert %{status: "past_due", can_start_turn: false, has_billing_customer: true} =
                Billing.status(scope)
 
       recovered_event =
@@ -309,8 +310,8 @@ defmodule FrontmanServer.BillingTest do
 
       assert {:ok, :processed} = Webhooks.process_event(recovered_event)
       assert_receive :billing_status_changed
-      assert Billing.allow_access?(scope)
-      assert %{status: "active", access_allowed: true} = Billing.status(scope)
+      assert Billing.subscription_allows_runs?(scope)
+      assert %{status: "active", can_start_turn: true} = Billing.status(scope)
     end
 
     test "checkout webhook broadcasts billing status change" do

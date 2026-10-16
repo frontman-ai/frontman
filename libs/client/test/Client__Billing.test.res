@@ -66,14 +66,14 @@ describe("Client__Billing", _t => {
     ]->Array.forEach(
       ((subscriptionStatus, accessAllowed, expected)) => {
         let status = parseStatus(
-          `{"status":"${subscriptionStatus}","access_allowed":${Bool.toString(
+          `{"status":"${subscriptionStatus}","can_start_turn":${Bool.toString(
               accessAllowed,
             )},"has_billing_customer":true,"interval":null,"current_period_end":null,"trial_end":null,"cancel_at":null,"canceled_at":null}`,
         )
         t->expect(Client__Billing.canStartCheckout(status))->Expect.toBe(expected)
         switch Client__Billing.subscriptionStatus(status) {
         | PastDue =>
-          t->expect(Client__Billing.isAccessAllowed(status))->Expect.toBe(false)
+          t->expect(Client__Billing.canStartTurn(status))->Expect.toBe(false)
           t->expect(Client__Billing.canManage(status))->Expect.toBe(true)
           t
           ->expect(Client__Billing.activationMessage(status))
