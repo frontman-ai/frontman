@@ -11,6 +11,7 @@ defmodule FrontmanServer.Accounts.User do
 
   use Ecto.Schema
   import Ecto.Changeset
+  import Ecto.Query
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -31,6 +32,10 @@ defmodule FrontmanServer.Accounts.User do
     has_one(:billing_subscription, through: [:billing_customer, :subscription])
 
     timestamps(type: :utc_datetime)
+  end
+
+  def without_first_message(user_id) do
+    from(user in __MODULE__, where: user.id == ^user_id and is_nil(user.first_message_at))
   end
 
   @doc """

@@ -31,6 +31,16 @@ defmodule FrontmanServer.Accounts do
     |> Map.fetch!(:id)
   end
 
+  @doc "Records the first accepted prompt once, including for a stale scope."
+  def record_first_message(%Scope{} = scope) do
+    scope
+    |> scope_user_id()
+    |> User.without_first_message()
+    |> Repo.update_all(set: [first_message_at: DateTime.utc_now(:second)])
+
+    :ok
+  end
+
   @doc """
   Gets a user by email.
 
