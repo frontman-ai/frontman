@@ -199,7 +199,7 @@ dev-marketing:
 
 .PHONY: security-dependencies
 security-dependencies:
-	yarn up -R next sharp js-yaml svgo browserslist postcss-selector-parser qs vitest @vitest/coverage-v8 mermaid
+	yarn up -R next sharp js-yaml svgo browserslist postcss-selector-parser qs vitest @vitest/browser-playwright @vitest/coverage-v8 mermaid
 
 install:
 	@printf "$(YELLOW)Installing dependencies...$(RESET)\n"
@@ -577,7 +577,14 @@ release:
 	@printf "$(GREEN)Release workflow triggered.$(RESET)\n"
 	@echo "Watch for the PR at: https://github.com/frontman-ai/frontman/pulls"
 
-.PHONY: build-wordpress-dependencies wordpress-composer-lock test-wordpress-sentry
+.PHONY: build-wordpress-dependencies wordpress-composer-lock test-wordpress-sentry build-wordpress-preview test-wordpress-preview
+
+test-wordpress-preview: build-wordpress-preview
+	@$(or $(CONTAINER_RUNTIME),docker) run --rm -v "$(CURDIR):/workspace:ro" -w /workspace docker.io/library/php:$(or $(PHP_VERSION),8.4)-cli php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/PreviewBridgeTest.php
+
+build-wordpress-preview:
+	$(MAKE) -C libs/frontman-preview-bridge build
+	cp libs/frontman-preview-bridge/dist/bridge.js libs/frontman-preview-bridge/dist/bridge-licenses.txt libs/frontman-wordpress/assets/
 
 build-wordpress-dependencies:
 	@bash ./scripts/build-wordpress-dependencies.sh

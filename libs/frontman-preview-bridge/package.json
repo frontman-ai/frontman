@@ -7,12 +7,15 @@
 	"type": "module",
 	"dependencies": {
 		"@bluehotdog/reworker": "https://github.com/frontman-ai/reworker.git#head=main",
+		"@frontman-ai/astro-browser": "workspace:*",
 		"@frontman-ai/frontman-protocol": "workspace:*",
 		"@frontman/bindings": "workspace:*",
 		"@rescript/runtime": "catalog:",
 		"@rescript/webapi": "workspace:*"
 	},
 	"devDependencies": {
+		"@vitest/browser-playwright": "catalog:",
+		"playwright": "^1.63.0",
 		"rescript": "catalog:",
 		"rescript-vitest": "catalog:",
 		"vite": "catalog:",

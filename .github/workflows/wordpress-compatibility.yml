@@ -3,6 +3,9 @@ name: WordPress Compatibility
 on:
   pull_request:
     paths:
+      - "libs/frontman-preview-bridge/**"
+      - "libs/frontman-protocol/**"
+      - "libs/frontman-astro-browser/**"
       - "libs/frontman-wordpress/**"
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
@@ -11,10 +14,16 @@ on:
       - "scripts/validate-wordpress-plugin-release.sh"
       - ".github/workflows/wordpress-compatibility.yml"
       - "Makefile"
+      - "package.json"
+      - ".yarnrc.yml"
+      - "yarn.lock"
   push:
     branches:
       - main
     paths:
+      - "libs/frontman-preview-bridge/**"
+      - "libs/frontman-protocol/**"
+      - "libs/frontman-astro-browser/**"
       - "libs/frontman-wordpress/**"
       - "scripts/build-wordpress-dependencies.sh"
       - "scripts/wordpress-*.php"
@@ -23,6 +32,9 @@ on:
       - "scripts/validate-wordpress-plugin-release.sh"
       - ".github/workflows/wordpress-compatibility.yml"
       - "Makefile"
+      - "package.json"
+      - ".yarnrc.yml"
+      - "yarn.lock"
 
 permissions:
   contents: read
@@ -54,8 +66,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
-      - name: Build isolated PHP dependencies
-        run: make build-wordpress-dependencies
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24.4.1'
+
+      - name: Install bridge build dependencies
+        run: corepack enable && corepack install && yarn install --immutable
+
+      - name: Package plugin and run WordPress runtime tests
+        env:
+          WORDPRESS_VERSION: ${{ matrix.wordpress }}
+          PHP_VERSION: ${{ matrix.php }}
+          YOAST_VERSION: ${{ matrix.yoast }}
+        run: make test-wordpress-runtime
 
       - name: Run isolated PHP tests
         run: |
@@ -64,10 +87,3 @@ jobs:
             -w /workspace \
             "php:${{ matrix.php }}-cli" \
             sh -ec 'for test in libs/frontman-wordpress/tests/*Test.php; do php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php "$test"; done; php -d auto_prepend_file=libs/frontman-wordpress/tests/ErrorHandler.php libs/frontman-wordpress/tests/SentryTest.php --site-first'
-
-      - name: Run WordPress runtime tests
-        env:
-          WORDPRESS_VERSION: ${{ matrix.wordpress }}
-          PHP_VERSION: ${{ matrix.php }}
-          YOAST_VERSION: ${{ matrix.yoast }}
-        run: bash scripts/test-wordpress-plugin-runtime.sh
