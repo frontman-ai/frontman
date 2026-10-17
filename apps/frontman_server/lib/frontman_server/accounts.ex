@@ -31,6 +31,21 @@ defmodule FrontmanServer.Accounts do
     |> Map.fetch!(:id)
   end
 
+  @doc """
+  Checks fresh activation candidacy, not permission to send, within inclusive UTC signup bounds.
+  Only trust cohorts after full prompt-writer rollout; callers supply cutoff and age bounds.
+  """
+  def activation_candidate?(
+        %Scope{} = scope,
+        %DateTime{time_zone: "Etc/UTC"} = signup_cutoff,
+        %DateTime{time_zone: "Etc/UTC"} = eligible_before
+      ) do
+    scope
+    |> scope_user_id()
+    |> User.activation_candidate(signup_cutoff, eligible_before)
+    |> Repo.exists?()
+  end
+
   @doc "Records the first accepted prompt once, including for a stale scope."
   def record_first_message(%Scope{} = scope) do
     scope
