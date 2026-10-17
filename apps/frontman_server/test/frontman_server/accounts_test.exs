@@ -83,6 +83,34 @@ defmodule FrontmanServer.AccountsTest do
       assert is_nil(user.hashed_password)
       assert is_nil(user.confirmed_at)
       assert is_nil(user.password)
+      assert is_nil(Repo.reload!(user).first_message_at)
+      assert User.__schema__(:type, :first_message_at) == :utc_datetime
+    end
+
+    test "ignores supplied first-message timestamps" do
+      attrs = valid_user_attributes(first_message_at: ~U[2026-06-02 12:00:00Z])
+      assert {:ok, user} = Accounts.register_user(attrs)
+      assert is_nil(Repo.reload!(user).first_message_at)
+
+      assert {:ok, oauth_user} =
+               %User{}
+               |> User.oauth_registration_changeset(%{attrs | email: unique_user_email()})
+               |> Repo.insert()
+
+      assert is_nil(Repo.reload!(oauth_user).first_message_at)
+      changeset = Accounts.change_user_email(user, %{first_message_at: attrs.first_message_at})
+      refute Ecto.Changeset.changed?(changeset, :first_message_at)
+    end
+
+    test "persists a trusted UTC-second first-message timestamp" do
+      user = unconfirmed_user_fixture()
+      observed_at = ~U[2026-06-02 12:00:00Z]
+
+      user
+      |> Ecto.Changeset.change(first_message_at: observed_at)
+      |> Repo.update!()
+
+      assert Repo.reload!(user).first_message_at == observed_at
     end
   end
 
