@@ -1,5 +1,5 @@
 defmodule FrontmanServer.Workers.SyncResendContactTest do
-  use FrontmanServer.DataCase, async: true
+  use FrontmanServer.DataCase, async: false
   use Oban.Testing, repo: FrontmanServer.Repo
 
   alias FrontmanServer.Test.Fixtures.Accounts
@@ -11,7 +11,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
     Application.put_env(
       :frontman_server,
       SyncResendContact,
-      Keyword.put(original_config, :req_options, plug: {Req.Test, :resend})
+      Keyword.put(original_config, :req_options, plug: {Req.Test, :resend}, retry: false)
     )
 
     on_exit(fn ->
@@ -22,7 +22,7 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
   end
 
   describe "perform/1" do
-    test "syncs the user to Resend Contacts on success" do
+    test "syncs contact details without subscription preferences, including repeated calls" do
       user = Accounts.user_fixture(%{name: "Steve Wozniak"})
 
       Req.Test.stub(:resend, fn conn ->
@@ -31,12 +31,13 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
 
         assert payload["email"] == user.email
         assert payload["first_name"] == "Steve"
-        assert payload["unsubscribed"] == false
+        refute Map.has_key?(payload, "unsubscribed")
         assert payload["segments"] == [%{"id" => "5786d8bb-df16-413c-a06d-64d1a579cc2f"}]
 
         Req.Test.json(conn, %{"object" => "contact", "id" => "abc-123"})
       end)
 
+      assert :ok = perform_job(SyncResendContact, %{user_id: user.id})
       assert :ok = perform_job(SyncResendContact, %{user_id: user.id})
     end
 
@@ -74,6 +75,14 @@ defmodule FrontmanServer.Workers.SyncResendContactTest do
       end)
 
       assert {:error, _reason} = perform_job(SyncResendContact, %{user_id: user.id})
+    end
+
+    test "returns transport errors" do
+      user = Accounts.user_fixture()
+      Req.Test.expect(:resend, &Req.Test.transport_error(&1, :timeout))
+
+      assert {:error, %Req.TransportError{reason: :timeout}} =
+               perform_job(SyncResendContact, %{user_id: user.id})
     end
 
     test "discards the job when user does not exist" do
