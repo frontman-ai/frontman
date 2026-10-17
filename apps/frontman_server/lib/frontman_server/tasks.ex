@@ -496,7 +496,8 @@ defmodule FrontmanServer.Tasks do
          user_message_attrs = Interaction.UserMessage.attrs(content_blocks, model, agent_id),
          user_message_attrs = put_selected_skill(user_message_attrs, selected_skill),
          {:ok, task_schema} <- get_task(scope, task_id) do
-      record_interaction_row(
+      accept_user_message(
+        scope,
         task_schema,
         %{
           id: message_id,
@@ -515,6 +516,21 @@ defmodule FrontmanServer.Tasks do
 
   def submit_user_message(%Scope{}, %{model: _model}) do
     {:error, :missing_agent}
+  end
+
+  defp accept_user_message(scope, task, attrs) do
+    Repo.transact(fn ->
+      :ok = Accounts.record_first_message(scope)
+      insert_interaction_row(task, attrs)
+    end)
+    |> case do
+      {:ok, row} ->
+        broadcast_task(task.id, {:interaction, row})
+        {:ok, row}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   defp guard_billing_access(scope) do

@@ -90,9 +90,11 @@ defmodule FrontmanServer.TasksTest do
           status when status in [nil, "active"] ->
             assert {:ok, %InteractionSchema{data: %Interaction.UserMessage{}}} = result
             assert Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
+            assert Repo.reload!(scope.user).first_message_at
 
           _ ->
             assert {:error, :billing_inactive} = result
+            assert is_nil(Repo.reload!(scope.user).first_message_at)
             refute Enum.any?(Tasks.interactions(task), &match?(%Interaction.UserMessage{}, &1))
             refute_enqueued(worker: GenerateTitle, args: %{task_id: task_id})
         end
@@ -159,6 +161,20 @@ defmodule FrontmanServer.TasksTest do
       task = task_fixture(scope)
       message_id = Ecto.UUID.generate()
 
+      arguments = %{
+        task_id: task.id,
+        message_id: Ecto.UUID.generate(),
+        message: user_content("again"),
+        model: "openrouter:openai/gpt-5.5",
+        agent_id: "test-frontman"
+      }
+
+      Phoenix.PubSub.subscribe(FrontmanServer.PubSub, "task:#{task.id}")
+      assert {:error, _} = Tasks.submit_user_message(scope, %{arguments | message_id: nil})
+      assert is_nil(Repo.reload!(scope.user).first_message_at)
+      assert db_rows(task.id) == []
+      refute_receive {:interaction, _}
+
       assert {:ok,
               %InteractionSchema{
                 id: ^message_id,
@@ -176,6 +192,12 @@ defmodule FrontmanServer.TasksTest do
       assert row.type == :user_message
       assert row.turn_number == nil
       assert row.data.agent_id == "test-frontman"
+      assert_receive {:interaction, %InteractionSchema{id: ^message_id}}
+      assert %DateTime{} = Repo.reload!(scope.user).first_message_at
+      observed_at = ~U[2026-06-02 12:00:00Z]
+      scope.user |> Ecto.Changeset.change(first_message_at: observed_at) |> Repo.update!()
+      assert {:ok, _} = Tasks.submit_user_message(scope, arguments)
+      assert Repo.reload!(scope.user).first_message_at == observed_at
     end
 
     test "requires agent id", %{scope: scope} do
@@ -228,9 +250,14 @@ defmodule FrontmanServer.TasksTest do
           agent_id: "test-frontman"
         })
 
+      observed_at = Repo.reload!(scope.user).first_message_at
+      assert %DateTime{} = observed_at
       assert Tasks.unqueue_user_message(scope, task.id, message_id) == :ok
       assert db_rows(task.id) == []
       assert all_enqueued(worker: GenerateTitle) == []
+      assert Repo.reload!(scope.user).first_message_at == observed_at
+      assert :ok = Tasks.delete_task(scope, task.id)
+      assert Repo.reload!(scope.user).first_message_at == observed_at
     end
 
     test "refuses a message already claimed by a turn", %{scope: scope} do
