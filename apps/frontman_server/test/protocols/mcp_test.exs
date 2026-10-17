@@ -2,8 +2,38 @@ defmodule FrontmanServer.Protocols.MCPTest do
   use ExUnit.Case, async: true
 
   import ExUnit.CaptureLog
+  import FrontmanServer.Test.Fixtures.Tools, only: [mcp_tool: 2]
 
   alias FrontmanServer.Protocols.MCP
+  alias FrontmanServer.Protocols.MCP.Schema
+  alias FrontmanServerWeb.ChannelCase
+
+  test "implicit and explicit 2020-12 compile local refs and enforce output constraints" do
+    for dialect <- [%{}, %{"$schema" => "https://json-schema.org/draft/2020-12/schema"}] do
+      schema =
+        Map.merge(dialect, %{
+          "type" => "object",
+          "$defs" => %{"name" => %{"type" => "string", "minLength" => 1}},
+          "properties" => %{"name" => %{"$ref" => "#/$defs/name"}},
+          "required" => ["name"],
+          "unevaluatedProperties" => false
+        })
+
+      tool = mcp_tool("local_refs", %{"inputSchema" => schema, "outputSchema" => schema})
+      assert :ok = Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+
+      result = Map.put(MCP.tool_result_text("name"), "structuredContent", %{"name" => "Ada"})
+      assert :ok = Schema.validate_call_tool_result(result, schema)
+
+      for invalid <- [%{"name" => ""}, %{"name" => 1}, %{}, %{"name" => "Ada", "extra" => 1}] do
+        assert :error =
+                 Schema.validate_call_tool_result(
+                   Map.put(result, "structuredContent", invalid),
+                   schema
+                 )
+      end
+    end
+  end
 
   test "builds required MCP 2026 request metadata" do
     meta = MCP.request_params()["_meta"]
