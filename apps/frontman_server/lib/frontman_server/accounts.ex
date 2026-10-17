@@ -88,6 +88,10 @@ defmodule FrontmanServer.Accounts do
   """
   def deliver_welcome_email(%User{} = user), do: UserNotifier.deliver_welcome(user)
 
+  @doc "Builds a first follow-up without sending; the unsubscribe URL must be trusted."
+  def first_follow_up_email(recipient, unsubscribe_url),
+    do: UserNotifier.first_follow_up_email(recipient, unsubscribe_url)
+
   @doc """
   Registers a user.
 
