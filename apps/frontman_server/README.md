@@ -71,6 +71,15 @@ Cancellation without a live worker and concurrent continuation admission remain 
 Reconnect still redispatches unresolved synchronous calls. Abrupt process loss can therefore repeat external writes.
 The client still supports one pending question form.
 
+## Retained activation snapshot
+
+With `psql` installed, export `ACTIVATION_SNAPSHOT_DATABASE` (letters, digits, underscores only) and standard `PGHOST`, `PGPORT`, `PGUSER`, and authentication environment through your approved secret channel. Run `make -C apps/frontman_server activation-snapshot`.
+Use an already-authorized read-only connection; never put credentials in command arguments or logs. URLs and connection strings are rejected; service overrides are removed.
+The runner replaces inherited `PGOPTIONS`: read-only transaction, 15-second statement timeout, 5-second connection timeout, no psqlrc or password prompts. Errors report status only because libpq diagnostics can expose credentials.
+This command starts no application and retrieves no secrets. Production execution requires separate authorization.
+Counts describe retained history across 12 complete UTC signup weeks, with unequal cohort ages and deletion bias—not lifetime inactivity or causal conversion.
+Run `make -C apps/frontman_server test-activation-snapshot-runner` without a database to check the runner.
+
 ## Learn more
 
 * Official website: https://www.phoenixframework.org/
