@@ -123,6 +123,56 @@ defmodule FrontmanServer.AccountsTest do
     end
   end
 
+  describe "activation_candidate?/3" do
+    test "includes exact UTC signup bounds and excludes outside or reversed bounds" do
+      lower = ~U[2026-06-01 12:00:00Z]
+      upper = ~U[2026-06-02 12:00:00Z]
+
+      for {signup, expected} <- [
+            {DateTime.add(lower, -1), false},
+            {lower, true},
+            {upper, true},
+            {DateTime.add(upper, 1), false}
+          ] do
+        user =
+          unconfirmed_user_fixture()
+          |> Ecto.Changeset.change(inserted_at: signup, confirmed_at: lower)
+          |> Repo.update!()
+
+        scope = Scope.for_user(user)
+        assert Accounts.activation_candidate?(scope, lower, upper) == expected
+        refute Accounts.activation_candidate?(scope, upper, lower)
+      end
+    end
+
+    test "reloads scoped eligibility despite stale fields, other users, deletion or missing IDs" do
+      bound = ~U[2026-06-02 12:00:00Z]
+
+      user =
+        unconfirmed_user_fixture()
+        |> Ecto.Changeset.change(inserted_at: bound)
+        |> Repo.update!()
+
+      scope = Scope.for_user(user)
+      refute Accounts.activation_candidate?(scope, bound, bound)
+      confirmed = user |> Ecto.Changeset.change(confirmed_at: bound) |> Repo.update!()
+      assert Accounts.activation_candidate?(scope, bound, bound)
+
+      other =
+        unconfirmed_user_fixture()
+        |> Ecto.Changeset.change(inserted_at: bound, confirmed_at: bound)
+        |> Repo.update!()
+
+      confirmed |> Ecto.Changeset.change(first_message_at: bound) |> Repo.update!()
+      refute Accounts.activation_candidate?(scope, bound, bound)
+      assert Accounts.activation_candidate?(Scope.for_user(other), bound, bound)
+      Repo.delete!(other)
+      refute Accounts.activation_candidate?(Scope.for_user(other), bound, bound)
+      missing = Scope.for_user(%User{id: Ecto.UUID.generate()})
+      refute Accounts.activation_candidate?(missing, bound, bound)
+    end
+  end
+
   describe "sudo_mode?/2" do
     test "validates the authenticated_at time" do
       now = DateTime.utc_now()
