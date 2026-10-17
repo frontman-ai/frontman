@@ -213,8 +213,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
     end
 
     test "fails initialization for unsupported tool JSON Schemas" do
-      # JSV 0.22 defaults resolver: [] to Embedded/Internal: no network resolver,
-      # but not same-document-only (jsv.ex and resolver/{embedded,internal}.ex).
       for schema_key <- ["inputSchema", "outputSchema"],
           invalid_schema <- [
             %{"type" => "object", "properties" => %{"value" => %{"type" => "unsupported"}}},
