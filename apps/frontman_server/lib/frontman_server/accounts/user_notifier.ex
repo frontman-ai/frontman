@@ -17,6 +17,38 @@ defmodule FrontmanServer.Accounts.UserNotifier do
 
   @from {"Danni from Frontman", "danni@frontman.sh"}
 
+  @doc """
+  Builds, but never sends, a first follow-up using a trusted unsubscribe URL.
+  """
+  def first_follow_up_email(recipient, unsubscribe_url) when is_binary(unsubscribe_url) do
+    body = """
+    Hey there,
+
+    Try one small change: ask Frontman to "Make this button's text clearer."
+
+    Open /frontman on your running app or site to return to Frontman.
+    For a local app, start your development server first.
+    On WordPress, open Frontman from the admin menu.
+    After signing in, return to /frontman on your app or site.
+
+    Need installation help? https://frontman.sh/docs/installation/
+    Need setup help? https://frontman.sh/docs/api-keys/
+
+    Danni
+    Founder, Frontman
+    """
+
+    new()
+    |> to(recipient)
+    |> from(@from)
+    |> subject("Try one small change with Frontman")
+    |> text_body(body <> "\nUnsubscribe: " <> unsubscribe_url)
+    |> html_body("""
+    <pre>#{html_escape(body)}</pre>
+    <p><a href="#{html_escape(unsubscribe_url)}">Unsubscribe</a></p>
+    """)
+  end
+
   defp html_escape(text) do
     text
     |> Phoenix.HTML.html_escape()
