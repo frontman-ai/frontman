@@ -29,7 +29,7 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
            Enum.flat_map(tools, fn tool ->
              tool |> Map.take(["inputSchema", "outputSchema"]) |> Map.values()
            end),
-         true <- Enum.all?(schemas, &schema_depth_valid?(&1, 0)),
+         true <- Enum.all?(schemas, &schema_depth_valid?(&1, 64)),
          true <-
            Enum.all?(
              schemas,
@@ -50,7 +50,7 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
   def validate_call_tool_result(result, output_schema) when is_map(output_schema) do
     with :ok <- validate_call_tool_result(result),
          {:ok, structured_content} <- Map.fetch(result, "structuredContent"),
-         true <- schema_depth_valid?(output_schema, 0),
+         true <- schema_depth_valid?(output_schema, 64),
          {:ok, schema} <- JSV.build(output_schema, atoms: false, warnings: :silent),
          {:ok, _validated_data} <- JSV.validate(structured_content, schema, cast: false) do
       :ok
@@ -61,20 +61,21 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
 
   def validate_call_tool_result(result, nil), do: validate_call_tool_result(result)
 
-  defp schema_depth_valid?(value, depth) when is_map(value) or is_list(value) do
-    case depth <= 64 do
+  defp schema_depth_valid?(scalar, _remaining) when not (is_map(scalar) or is_list(scalar)),
+    do: true
+
+  defp schema_depth_valid?(value, remaining) do
+    case remaining >= 0 do
       true when is_map(value) ->
-        Enum.all?(value, fn {_key, child} -> schema_depth_valid?(child, depth + 1) end)
+        Enum.all?(value, fn {_key, child} -> schema_depth_valid?(child, remaining - 1) end)
 
       true ->
-        Enum.all?(value, &schema_depth_valid?(&1, depth + 1))
+        Enum.all?(value, &schema_depth_valid?(&1, remaining - 1))
 
       false ->
         false
     end
   end
-
-  defp schema_depth_valid?(_scalar, _depth), do: true
 
   defp validate(data, schema) do
     case JSV.validate(data, schema) do
