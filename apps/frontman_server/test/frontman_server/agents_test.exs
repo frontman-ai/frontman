@@ -227,6 +227,28 @@ defmodule FrontmanServer.AgentsTest do
       assert wp_prompt =~ "## Annotated Elements Context"
     end
 
+    test "WordPress navigation guidance checks template parts and separate viewport sources", %{
+      scope: scope
+    } do
+      {:ok, agent} = Agents.get_agent(scope, @executor_id)
+
+      assert [%{text: prompt}] =
+               Agents.system_prompt(scope, agent, %{@empty_context | framework: :wordpress}, %{})
+
+      assert prompt =~ "`wp_list_navigation_menus` only lists `wp_navigation` posts"
+      assert prompt =~ "`core/group` blocks in a template part"
+      assert prompt =~ "Before claiming a navigation link is missing"
+      assert prompt =~ "match its text/URL to its source"
+      assert prompt =~ "`wp_list_templates` and `wp_read_template` with `type=wp_template_part`"
+      assert prompt =~ "Do not assume desktop and mobile share a source"
+      assert prompt =~ "returned `wp_id` with `wp_list_blocks`"
+      assert prompt =~ "returned nested `path`"
+      assert prompt =~ "without a `wp_id`, use the template tools"
+
+      assert [%{text: other_prompt}] = Agents.system_prompt(scope, agent, @empty_context, %{})
+      refute other_prompt =~ "Before claiming a navigation link is missing"
+    end
+
     test "WordPress guidance selects SEO tools and refreshes only after persistence", %{
       scope: scope
     } do
