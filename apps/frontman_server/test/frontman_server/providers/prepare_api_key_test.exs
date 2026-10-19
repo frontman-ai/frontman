@@ -113,7 +113,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
     } do
       {:ok, _} = upsert_openai_oauth_token(scope, :valid)
 
-      for id <- ~w(gpt-6-sol gpt-6-luna) do
+      for id <- ~w(gpt-6.1-sol gpt-6-sol gpt-6-luna) do
         {:ok, {model, opts}} = Providers.resolve_model_access(scope, "openai_codex:#{id}")
         {:ok, request} = OpenAICodex.prepare_request(:chat, model, "Hello", opts)
         body = request |> OpenAICodex.encode_body() |> Map.fetch!(:body) |> Jason.decode!()
@@ -159,7 +159,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
         )
 
       assert {:error, :invalid_oauth_token} =
-               Providers.resolve_model_access(scope, "openai_codex:gpt-5.5")
+               Providers.resolve_model_access(scope, "openai_codex:gpt-6.1-sol")
     end
 
     test "reads runtime catalog and separates group, credential, and transport", %{scope: scope} do
@@ -226,7 +226,7 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
   test "current Claude models encode required adaptive thinking through OAuth", %{scope: scope} do
     {:ok, _} = upsert_anthropic_oauth_token(scope, :valid)
 
-    for id <- ~w(claude-opus-5-5 claude-sonnet-5-5 claude-fable-5-1) do
+    for id <- ~w(claude-opus-5-5 claude-sonnet-5-5 claude-fable-5-1 claude-haiku-5-5) do
       {:ok, {model, opts}} = Providers.resolve_model_access(scope, "anthropic:#{id}")
 
       {:ok, request} =
@@ -260,7 +260,8 @@ defmodule FrontmanServer.Providers.PrepareApiKeyTest do
           )
         ]
 
-        for {_name, id} <- Application.fetch_env!(:frontman_server, :providers)[group].models do
+        for entry <- Application.fetch_env!(:frontman_server, :providers)[group].models do
+          id = elem(entry, 1)
           bypass = Bypass.open()
 
           Bypass.expect_once(bypass, "POST", "/v1/chat/completions", fn conn ->
