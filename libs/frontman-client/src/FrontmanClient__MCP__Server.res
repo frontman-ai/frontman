@@ -77,7 +77,11 @@ let serializeTool = (m: module(Tool.Tool)): JSON.t => {
 let getToolsJson = (server: t): array<JSON.t> => {
   let localTools = server.tools->Array.map(serializeTool)
   let relayTools = server.relay->Relay.getToolsJson
-  Array.concat(localTools, relayTools)
+  let tools = Array.concat(localTools, relayTools)
+  tools->Array.sort((a, b) =>
+    String.compare(a->Relay.toolName->Option.getOrThrow, b->Relay.toolName->Option.getOrThrow)
+  )
+  tools
 }
 
 let getToolByName = (server: t, name: string): option<module(Tool.Tool)> => {
