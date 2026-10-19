@@ -96,9 +96,6 @@ defmodule FrontmanServer.Agents.SystemPrompt do
     - Use `wp_duplicate_post` to clone existing WordPress pages/posts so Elementor data and safe post metadata are copied.
     - After `wp_create_post` or `wp_duplicate_post` creates a page draft, navigate the preview to the returned permalink with `execute_js` instead of reloading the previous page, then continue editing or verifying the returned `post_id`.
     - When adding a WordPress page/post to a navigation menu, pass `post_id` to `wp_create_menu_item` instead of creating a custom URL item.
-    - `wp_list_navigation_menus` only lists `wp_navigation` posts, not every rendered navigation link. A block theme can build a desktop mega-menu from `core/group` blocks in a template part while using separate mobile navigation.
-    - Before claiming a navigation link is missing, inspect the rendered target at the relevant viewport and match its text/URL to its source. Use `wp_list_templates` and `wp_read_template` with `type=wp_template_part` to inspect header parts as well as navigation posts. Do not assume desktop and mobile share a source.
-    - For a post-backed template part, use the returned `wp_id` with `wp_list_blocks`, then `wp_read_block`/`wp_update_block` with the returned nested `path`. For a theme-file part without a `wp_id`, use the template tools; do not invent a post ID or edit theme files directly.
 
     **For design questions**:
     First check which theme is active with WordPress tools.

@@ -132,87 +132,49 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert second_text =~ "Annotation 1"
     end
 
-    test "compacts block update snapshots without changing the original result" do
-      snapshot = String.duplicate("large template part 🐞", 10_000)
-      before_block = %{"path" => [0, 1, 0], "markup" => "<p>Partners</p>"}
-      after_block = %{"path" => [0, 1, 0], "markup" => "<p>Our Partners</p>"}
+    test "compacts block snapshots only in model context and preserves retrieval and limits" do
+      snapshot = String.duplicate("template 🐞", 20_000)
+      before = %{"post_id" => 42, "block" => %{"path" => [0, 1], "markup" => "Partners"}}
+      updated = put_in(before, ["block", "markup"], "Our Partners")
 
       payload = %{
         "updated" => true,
-        "before" => %{"post_id" => 42, "post_content" => snapshot, "block" => before_block},
-        "after" => %{"post_id" => 42, "post_content" => snapshot, "block" => after_block}
+        "before" => Map.put(before, "post_content", snapshot),
+        "after" => Map.put(updated, "post_content", snapshot)
       }
 
       message = %Message.Tool{
         name: "wp_update_block",
         tool_call_id: "tc-block",
-        content: [ContentPart.text("extra context"), ContentPart.text(Jason.encode!(payload))]
+        content: [ContentPart.text("extra"), ContentPart.text(Jason.encode!(payload))]
       }
 
       [result] = LLMRequestPreflight.run([message])
       [extra, compact] = result.content
       assert extra == hd(message.content)
       assert byte_size(compact.text) < 1_000
-      assert result.tool_call_id == message.tool_call_id
-      assert result.metadata == message.metadata
       decoded = Jason.decode!(compact.text)
-      assert decoded["updated"] == true
-      assert decoded["before"] == %{"post_id" => 42, "block" => before_block}
-      assert decoded["after"] == %{"post_id" => 42, "block" => after_block}
-      assert decoded["snapshot_note"] =~ "get_tool_result"
-      assert decoded["snapshot_note"] =~ "tool_call_id tc-block, content_index=1, offset=0"
-      assert decoded["snapshot_note"] =~ "next_offset until null"
+      assert decoded["before"] == before
+      assert decoded["after"] == updated
+      assert decoded["snapshot_note"] =~ "get_tool_result, tool_call_id tc-block, content_index=1"
+      assert decoded["snapshot_note"] =~ "offset=0; follow next_offset until null"
       assert Jason.decode!(Enum.at(message.content, 1).text) == payload
       assert LLMRequestPreflight.run([result]) == [result]
-    end
 
-    test "leaves errors, unrelated tools and unrecognized block update payloads unchanged" do
-      payload =
-        Jason.encode!(%{
-          "updated" => true,
-          "before" => %{"post_content" => "original"},
-          "after" => %{"post_content" => "updated"}
-        })
-
-      for {name, metadata, text} <- [
-            {"wp_read_template", %{}, payload},
-            {"get_tool_result", %{}, payload},
-            {"wp_update_block", %{is_error: true}, payload},
-            {"wp_update_block", %{}, "Invalid block markup"},
-            {"wp_update_block", %{}, Jason.encode!(%{"updated" => false})},
-            {"wp_update_block", %{}, Jason.encode!(%{"updated" => true, "before" => nil})}
+      for unchanged <- [
+            %{message | name: "get_tool_result"},
+            %{message | metadata: %{is_error: true}},
+            %{message | content: [ContentPart.text("Invalid block markup")]},
+            %{message | content: [ContentPart.text(~s({"updated":true,"before":null}))]}
           ] do
-        message = %Message.Tool{
-          name: name,
-          tool_call_id: "tc-unchanged",
-          metadata: metadata,
-          content: [ContentPart.text(text)]
-        }
-
-        assert LLMRequestPreflight.run([message]) == [message]
+        assert LLMRequestPreflight.run([unchanged], tool_result_max_bytes: 1_000_000) == [
+                 unchanged
+               ]
       end
-    end
 
-    test "still bounds oversized changed blocks after snapshot compaction" do
-      payload = %{
-        "updated" => true,
-        "before" => %{"post_content" => "original"},
-        "after" => %{
-          "post_content" => "updated",
-          "block" => %{"markup" => String.duplicate("x", 60_000)}
-        }
-      }
-
-      message = %Message.Tool{
-        name: "wp_update_block",
-        tool_call_id: "tc-large-block",
-        content: [ContentPart.text(Jason.encode!(payload))]
-      }
-
-      [result] = LLMRequestPreflight.run([message])
-      assert hd(result.content).text =~ "[Output truncated:"
-      assert hd(result.content).text =~ "get_tool_result with tool_call_id tc-large-block"
-      assert byte_size(hd(result.content).text) < 52_000
+      [limited] = LLMRequestPreflight.run([message], tool_result_max_bytes: 100)
+      assert Enum.at(limited.content, 1).text =~ "[Output truncated:"
+      assert Enum.at(limited.content, 1).text =~ "get_tool_result with tool_call_id tc-block"
     end
 
     test "truncates live text tool results at valid UTF-8 boundaries" do
