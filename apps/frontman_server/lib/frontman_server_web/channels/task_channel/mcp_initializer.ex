@@ -190,6 +190,9 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
          {:ok, seen_tool_names} <- track_tool_names(tools, seen_tool_names) do
       {:ok, tools, Map.get(result, "nextCursor"), seen_tool_names}
     else
+      {:error, :unsupported_dialect} ->
+        {:error, "Unsupported MCP JSON Schema dialect; supported: 2020-12, draft-07"}
+
       {:error, {:duplicate_tool_name, name}} ->
         {:error, "MCP tools/list returned duplicate tool name: #{name}"}
 

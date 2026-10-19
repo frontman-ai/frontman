@@ -470,6 +470,9 @@ defmodule FrontmanServerWeb.TaskChannel do
         :ok ->
           normalize_tool_call_result(result)
 
+        {:error, :unsupported_dialect} ->
+          raise "Unsupported MCP JSON Schema dialect (supported: 2020-12, draft-07) for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
+
         :error ->
           raise "Invalid MCP tools/call result for task #{socket.assigns.task_id}, tool #{tool_call.tool_name}, call #{tool_call.tool_call_id}"
       end
