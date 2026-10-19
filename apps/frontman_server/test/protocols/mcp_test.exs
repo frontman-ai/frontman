@@ -56,6 +56,28 @@ defmodule FrontmanServer.Protocols.MCPTest do
     end
   end
 
+  test "schema node budget counts containers and scalars across siblings, separately per schema" do
+    for {count, expected} <- [{9_997, :ok}, {9_998, :error}],
+        default <- [
+          List.duplicate(nil, count),
+          %{"left" => List.duplicate(nil, 5_000), "right" => List.duplicate(nil, count - 5_002)}
+        ] do
+      schema = %{"type" => "object", "default" => default}
+
+      for field <- ["inputSchema", "outputSchema"] do
+        tool = mcp_tool("nodes", %{field => schema})
+        assert expected == Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+      end
+
+      result = Map.put(MCP.tool_result_text("nodes"), "structuredContent", %{})
+      assert expected == Schema.validate_call_tool_result(result, schema)
+    end
+
+    schema = %{"type" => "object", "default" => List.duplicate(nil, 9_997)}
+    tool = mcp_tool("separate", %{"inputSchema" => schema, "outputSchema" => schema})
+    assert :ok = Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+  end
+
   test "ordinary composition and productive local recursion remain accepted" do
     schema = %{
       "type" => "object",
