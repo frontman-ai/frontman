@@ -208,7 +208,7 @@ class Frontman_Tool_Menus {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_navigation_menus',
-			'Lists block-theme navigation menus stored as wp_navigation posts.',
+			'Lists saved wp_navigation posts. Does not discover navigation built directly in templates or template parts.',
 			[ 'type' => 'object', 'additionalProperties' => false, 'properties' => new \stdClass() ],
 			[ $this, 'list_navigation_menus' ]
 		) );

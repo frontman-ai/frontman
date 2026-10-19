@@ -9,7 +9,7 @@ defmodule FrontmanServer.Observability.ConsoleHandlerTest do
 
   @table :frontman_console_timing
 
-  setup do
+  setup_all do
     ConsoleHandler.setup()
 
     on_exit(fn ->

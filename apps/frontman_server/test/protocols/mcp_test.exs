@@ -35,6 +35,62 @@ defmodule FrontmanServer.Protocols.MCPTest do
     end
   end
 
+  test "schema container depth allows 64 edges and scalar leaves at 65, but not containers" do
+    for wrap <- [&%{"child" => &1}, &[&1]], depth <- [64, 65] do
+      nested = Enum.reduce(1..depth, true, fn _edge, child -> wrap.(child) end)
+      schema = %{"type" => "object", "default" => nested}
+
+      expected =
+        case depth do
+          64 -> :ok
+          65 -> :error
+        end
+
+      for field <- ["inputSchema", "outputSchema"] do
+        tool = mcp_tool("depth", %{field => schema})
+        assert expected == Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+      end
+
+      result = Map.put(MCP.tool_result_text("depth"), "structuredContent", %{})
+      assert expected == Schema.validate_call_tool_result(result, schema)
+    end
+  end
+
+  test "schema node budget counts containers and scalars across siblings, separately per schema" do
+    for {count, expected} <- [{9_997, :ok}, {9_998, :error}],
+        default <- [
+          List.duplicate(nil, count),
+          %{"left" => List.duplicate(nil, 5_000), "right" => List.duplicate(nil, count - 5_002)}
+        ] do
+      schema = %{"type" => "object", "default" => default}
+
+      for field <- ["inputSchema", "outputSchema"] do
+        tool = mcp_tool("nodes", %{field => schema})
+        assert expected == Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+      end
+
+      result = Map.put(MCP.tool_result_text("nodes"), "structuredContent", %{})
+      assert expected == Schema.validate_call_tool_result(result, schema)
+    end
+
+    schema = %{"type" => "object", "default" => List.duplicate(nil, 9_997)}
+    tool = mcp_tool("separate", %{"inputSchema" => schema, "outputSchema" => schema})
+    assert :ok = Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+  end
+
+  test "ordinary composition and productive local recursion remain accepted" do
+    schema = %{
+      "type" => "object",
+      "allOf" => [%{"properties" => %{"child" => %{"$ref" => "#"}}}]
+    }
+
+    tool = mcp_tool("recursive", %{"inputSchema" => schema, "outputSchema" => schema})
+    assert :ok = Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+
+    result = Map.put(MCP.tool_result_text("recursive"), "structuredContent", %{"child" => %{}})
+    assert :ok = Schema.validate_call_tool_result(result, schema)
+  end
+
   test "builds required MCP 2026 request metadata" do
     meta = MCP.request_params()["_meta"]
 
