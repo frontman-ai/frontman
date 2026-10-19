@@ -1,5 +1,5 @@
 ---
-"@frontman/frontman-server-assets": patch
+"@frontman-ai/frontman-wordpress": patch
 ---
 
-Guide WordPress navigation edits through template parts as well as navigation posts, including separate desktop and mobile menus. Omit full post snapshots from block-update model context while keeping changed blocks visible and original results available through paged retrieval.
+Clarify that navigation listing returns saved wp_navigation posts, not navigation built directly in templates or template parts.

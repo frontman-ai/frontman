@@ -208,7 +208,7 @@ class Frontman_Tool_Menus {
 
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_list_navigation_menus',
-			'Lists only wp_navigation posts, not every rendered navigation link. Block themes may build desktop mega-menus from core/group blocks in header template parts, separate from mobile navigation. Before claiming a link is missing, match its rendered text/URL at the relevant viewport against navigation posts and header parts: use wp_list_templates and wp_read_template with type=wp_template_part. For post-backed parts, use the returned wp_id with wp_list_blocks and nested paths with wp_read_block/wp_update_block; for theme-file parts without wp_id, use template tools.',
+			'Lists saved wp_navigation posts. Does not discover navigation built directly in templates or template parts.',
 			[ 'type' => 'object', 'additionalProperties' => false, 'properties' => new \stdClass() ],
 			[ $this, 'list_navigation_menus' ]
 		) );

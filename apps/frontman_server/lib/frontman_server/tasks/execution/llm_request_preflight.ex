@@ -144,55 +144,10 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflight do
 
   defp truncate_tool_result(%Message.Tool{content: content} = msg, max_bytes)
        when is_list(content) do
-    content =
-      content
-      |> Enum.with_index()
-      |> Enum.map(fn {part, index} ->
-        part
-        |> compact_block_update(msg, index)
-        |> maybe_truncate(max_bytes, msg.tool_call_id)
-      end)
-
-    %{msg | content: content}
+    %{msg | content: Enum.map(content, &maybe_truncate(&1, max_bytes, msg.tool_call_id))}
   end
 
   defp truncate_tool_result(msg, _max_bytes), do: msg
-
-  defp compact_block_update(part, %Message.Tool{metadata: %{is_error: true}}, _index), do: part
-
-  defp compact_block_update(
-         %ContentPart{type: :text, text: text} = part,
-         %Message.Tool{name: "wp_update_block", tool_call_id: tool_call_id},
-         index
-       )
-       when is_binary(text) and is_binary(tool_call_id) do
-    case Jason.decode(text) do
-      {:ok,
-       %{
-         "updated" => true,
-         "before" => %{"post_content" => before_content} = before_snapshot,
-         "after" => %{"post_content" => after_content} = after_snapshot
-       } = result}
-      when is_binary(before_content) and is_binary(after_content) ->
-        compact =
-          result
-          |> Map.put("before", Map.delete(before_snapshot, "post_content"))
-          |> Map.put("after", Map.delete(after_snapshot, "post_content"))
-          |> Map.put(
-            "snapshot_note",
-            "Full before/after post_content omitted from model context. Retrieve the original " <>
-              "with get_tool_result, tool_call_id #{tool_call_id}, content_index=#{index}, " <>
-              "offset=0; follow next_offset until null."
-          )
-
-        %{part | text: Jason.encode!(compact)}
-
-      _ ->
-        part
-    end
-  end
-
-  defp compact_block_update(part, _message, _index), do: part
 
   defp maybe_truncate(%ContentPart{type: :text, text: text} = part, max_bytes, tool_call_id)
        when is_binary(text) do

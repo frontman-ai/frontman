@@ -132,51 +132,6 @@ defmodule FrontmanServer.Tasks.Execution.LLMRequestPreflightTest do
       assert second_text =~ "Annotation 1"
     end
 
-    test "compacts block snapshots only in model context and preserves retrieval and limits" do
-      snapshot = String.duplicate("template 🐞", 20_000)
-      before = %{"post_id" => 42, "block" => %{"path" => [0, 1], "markup" => "Partners"}}
-      updated = put_in(before, ["block", "markup"], "Our Partners")
-
-      payload = %{
-        "updated" => true,
-        "before" => Map.put(before, "post_content", snapshot),
-        "after" => Map.put(updated, "post_content", snapshot)
-      }
-
-      message = %Message.Tool{
-        name: "wp_update_block",
-        tool_call_id: "tc-block",
-        content: [ContentPart.text("extra"), ContentPart.text(Jason.encode!(payload))]
-      }
-
-      [result] = LLMRequestPreflight.run([message])
-      [extra, compact] = result.content
-      assert extra == hd(message.content)
-      assert byte_size(compact.text) < 1_000
-      decoded = Jason.decode!(compact.text)
-      assert decoded["before"] == before
-      assert decoded["after"] == updated
-      assert decoded["snapshot_note"] =~ "get_tool_result, tool_call_id tc-block, content_index=1"
-      assert decoded["snapshot_note"] =~ "offset=0; follow next_offset until null"
-      assert Jason.decode!(Enum.at(message.content, 1).text) == payload
-      assert LLMRequestPreflight.run([result]) == [result]
-
-      for unchanged <- [
-            %{message | name: "get_tool_result"},
-            %{message | metadata: %{is_error: true}},
-            %{message | content: [ContentPart.text("Invalid block markup")]},
-            %{message | content: [ContentPart.text(~s({"updated":true,"before":null}))]}
-          ] do
-        assert LLMRequestPreflight.run([unchanged], tool_result_max_bytes: 1_000_000) == [
-                 unchanged
-               ]
-      end
-
-      [limited] = LLMRequestPreflight.run([message], tool_result_max_bytes: 100)
-      assert Enum.at(limited.content, 1).text =~ "[Output truncated:"
-      assert Enum.at(limited.content, 1).text =~ "get_tool_result with tool_call_id tc-block"
-    end
-
     test "truncates live text tool results at valid UTF-8 boundaries" do
       boundary_text = String.duplicate("a", 98) <> "🐞" <> String.duplicate("b", 100)
 
