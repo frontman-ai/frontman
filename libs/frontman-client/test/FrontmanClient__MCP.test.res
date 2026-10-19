@@ -154,6 +154,54 @@ describe("MCP 2026-07-28", () => {
     t->expect(tool->Dict.get("executionMode")->Option.isNone)->Expect.toBe(true)
   })
 
+  testAsync(
+    "canonicalizes mixed catalogs without changing definitions or registration arrays",
+    async t => {
+      module UpperTool = {
+        include ThrowingTool
+        let name = "A"
+      }
+      let relayTool = name =>
+        JSON.parseOrThrow(
+          `{"name":"${name}","description":"relay tool","inputSchema":{"type":"object","x-input":true},"outputSchema":{"type":"array"},"annotations":{"readOnlyHint":true},"_meta":{"custom":{"keep":true}},"x-tool":[1,null]}`,
+        )
+      let lower = relayTool("a")
+      let last = relayTool("z")
+      let server = await makeServer(~tools=[module(ThrowingTool), module(UpperTool)])
+      let first = {...server, relay: {...server.relay, tools: [last, lower]}}
+      let second = {
+        ...server,
+        tools: [module(UpperTool), module(ThrowingTool)],
+        relay: {...server.relay, tools: [lower, last]},
+      }
+      let expected = [
+        MCPServer.serializeTool(module(UpperTool)),
+        lower,
+        MCPServer.serializeTool(module(ThrowingTool)),
+        last,
+      ]
+      let snapshot = server => (
+        server.MCPServer.tools
+        ->Array.map(MCPServer.serializeTool)
+        ->JSON.Encode.array
+        ->JSON.stringify,
+        server.relay.tools->JSON.Encode.array->JSON.stringify,
+      )
+      let before = [snapshot(first), snapshot(second)]
+      [first, second]->Array.forEach(
+        server => {
+          [1, 2]->Array.forEach(
+            _ => {
+              let tools = MCPServer.buildToolsListResult(server).tools
+              t->expect(tools)->Expect.toEqual(expected)
+            },
+          )
+        },
+      )
+      t->expect([snapshot(first), snapshot(second)])->Expect.toEqual(before)
+    },
+  )
+
   testAsync("handles discovery, listing, and tool execution", async t => {
     let context = ref(None)
     let call = async (id, method, params) => {
