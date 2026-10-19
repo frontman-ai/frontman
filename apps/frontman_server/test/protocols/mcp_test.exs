@@ -147,6 +147,36 @@ defmodule FrontmanServer.Protocols.MCPTest do
     end
   end
 
+  @tag compatibility_policy:
+         "Error omission and invalid error data: task_channel_test.exs, " <>
+           "validates structured content only when tool errors provide it"
+  @tag coverage: "Strict JSON types, not custom-casting behavior"
+  test "completed structured output accepts JSON values and rejects incompatible JSON types" do
+    for {schema, value, incompatible} <- [
+          {%{"type" => "array", "items" => %{"type" => "integer"}}, [0, 1], [%{}, "[]", nil]},
+          {%{"type" => "string"}, "text", [0, false, nil, []]},
+          {%{"type" => "integer"}, 0, ["0", false, nil, 0.5]},
+          {%{"type" => "number"}, 0.5, ["0.5", false, nil]},
+          {%{"type" => "boolean"}, false, ["false", 0, nil]},
+          {%{"type" => "null"}, nil, ["null", 0, false, %{}, []]},
+          {%{"type" => "object"}, %{}, ["{}", 0, false, nil, []]}
+        ] do
+      result = Map.put(MCP.tool_result_text("output"), "structuredContent", value)
+      assert :ok = Schema.validate_call_tool_result(result, schema)
+
+      for invalid <- incompatible do
+        assert :error =
+                 Schema.validate_call_tool_result(
+                   Map.put(result, "structuredContent", invalid),
+                   schema
+                 )
+      end
+
+      assert :error =
+               Schema.validate_call_tool_result(Map.delete(result, "structuredContent"), schema)
+    end
+  end
+
   test "builds required MCP 2026 request metadata" do
     meta = MCP.request_params()["_meta"]
 
