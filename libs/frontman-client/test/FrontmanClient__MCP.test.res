@@ -194,9 +194,6 @@ describe("MCP 2026-07-28", () => {
             _ => {
               let tools = MCPServer.buildToolsListResult(server).tools
               t->expect(tools)->Expect.toEqual(expected)
-              t
-              ->expect(tools->Array.map(Relay.toolName))
-              ->Expect.toEqual([Some("A"), Some("a"), Some("throwing_tool"), Some("z")])
             },
           )
         },
