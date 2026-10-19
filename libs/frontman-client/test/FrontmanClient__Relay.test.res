@@ -60,7 +60,7 @@ describe("Relay.connect", _t => {
   })
 })
 
-testAsync("preserves relayed MCP tool metadata and parses legacy results", async t => {
+testAsync("preserves tool metadata and round-trips legacy SSE results", async t => {
   let tool = JSON.parseOrThrow(`{
     "name":"tool",
     "title":"Tool",
@@ -71,13 +71,22 @@ testAsync("preserves relayed MCP tool metadata and parses legacy results", async
     "annotations":{"title":"Tool annotation","readOnlyHint":true},
     "_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"},"vendor/example":{"x":1}}
   }`)
-  let config = Relay.makeConfig(~baseUrl="http://localhost", ~fetch=async (_, _) =>
-    WebAPI.Response.fromString(
-      `{"tools":[${JSON.stringify(
-          tool,
-        )}],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`,
-    )
-  )
+  let resultBody = ref("")
+  let requests = []
+  let config = Relay.makeConfig(~baseUrl="http://localhost", ~fetch=async (url, _) => {
+    requests->Array.push(url)
+    switch url {
+    | "http://localhost/frontman/tools" =>
+      WebAPI.Response.fromString(
+        `{"tools":[${JSON.stringify(
+            tool,
+          )}],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`,
+      )
+    | "http://localhost/frontman/tools/call" =>
+      WebAPI.Response.fromString(`event: result\ndata: ${resultBody.contents}\n\n`)
+    | _ => JsError.throwWithMessage(`Unexpected relay URL: ${url}`)
+    }
+  })
   let controller = WebAPI.AbortController.make()
   let relay = (await Relay.connect(config, ~signal=controller.signal))->Result.getOrThrow
 
@@ -85,9 +94,24 @@ testAsync("preserves relayed MCP tool metadata and parses legacy results", async
   ->expect(relay->Relay.getToolsJson->Array.get(0)->Option.map(json => JSON.stringify(json)))
   ->Expect.toEqual(Some(JSON.stringify(tool)))
   t->expect(relay->Relay.hasTool("tool"))->Expect.toBe(true)
-  JSON.parseOrThrow(`{"content":[]}`)
-  ->S.parseOrThrow(~to=FrontmanClient__MCP__Types.callToolResultSchema)
-  ->ignore
+  let values = ["null", "0", "false"]
+  for index in 0 to values->Array.length - 1 {
+    let value = values->Array.getUnsafe(index)
+    let fields = `"content":[{"type":"text","text":"relay result"}],"structuredContent":${value},"_meta":{"vendor/result":{"tag":"kept"},"progressToken":0}`
+    resultBody := `{${fields}}`
+    let result = (await Relay.executeTool(relay, ~name="tool"))->Result.getOrThrow
+    let encoded =
+      result->S.decodeOrThrow(~from=FrontmanClient__MCP__Types.callToolResultSchema, ~to=S.json)
+    t->expect(encoded)->Expect.toEqual(JSON.parseOrThrow(`{"resultType":"complete",${fields}}`))
+  }
+  t
+  ->expect(requests)
+  ->Expect.toEqual([
+    "http://localhost/frontman/tools",
+    "http://localhost/frontman/tools/call",
+    "http://localhost/frontman/tools/call",
+    "http://localhost/frontman/tools/call",
+  ])
   WebAPI.AbortController.abort(controller)
   t
   ->expect(await Relay.executeTool(relay, ~name="tool"))
