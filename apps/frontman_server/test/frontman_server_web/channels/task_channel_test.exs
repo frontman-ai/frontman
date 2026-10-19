@@ -1483,6 +1483,28 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       end
     end
 
+    test "preserves unsupported output dialect diagnostics without leaking schemas", context do
+      :sys.replace_state(context.socket.channel_pid, fn socket ->
+        tools =
+          Enum.map(socket.assigns.mcp_tools, fn tool ->
+            %{tool | output_schema: %{"$schema" => "urn:private-schema-marker"}}
+          end)
+
+        Phoenix.Socket.assign(socket, :mcp_tools, tools)
+      end)
+
+      log =
+        capture_log(fn ->
+          assert_tool_result_crash(
+            context,
+            [],
+            "Unsupported MCP JSON Schema dialect (supported: 2020-12, draft-07)"
+          )
+        end)
+
+      refute log =~ "private-schema-marker"
+    end
+
     test "crashes loudly for malformed MCP tool results", context do
       assert_tool_result_crash(context, "invalid", "Invalid MCP tools/call result")
     end

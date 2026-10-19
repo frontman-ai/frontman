@@ -40,13 +40,10 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
              tool |> Map.take(["inputSchema", "outputSchema"]) |> Map.values()
            end),
          true <- Enum.all?(schemas, &(schema_nodes_remaining(&1, 64, 10_000) != :error)),
-         true <-
-           Enum.all?(
-             schemas,
-             &match?({:ok, _schema}, build_schema(&1))
-           ) do
+         :ok <- Enum.reduce_while(schemas, :ok, &validate_catalog_schema/2) do
       :ok
     else
+      {:error, :unsupported_dialect} = error -> error
       _error -> :error
     end
   end
@@ -65,17 +62,29 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
          {:ok, _validated_data} <- JSV.validate(structured_content, schema, cast: false) do
       :ok
     else
+      {:error, :unsupported_dialect} = error -> error
       _error -> :error
     end
   end
 
   def validate_call_tool_result(result, nil), do: validate_call_tool_result(result)
 
+  defp validate_catalog_schema(document, :ok) do
+    case build_schema(document) do
+      {:ok, _schema} -> {:cont, :ok}
+      {:error, :unsupported_dialect} = error -> {:halt, error}
+      _error -> {:halt, :error}
+    end
+  end
+
   defp build_schema(document) do
-    with {:ok, metaschema} <-
-           Map.fetch(@metaschemas, Map.get(document, "$schema", @default_dialect)),
+    with dialect when is_binary(dialect) <- Map.get(document, "$schema", @default_dialect),
+         {:ok, metaschema} <- Map.fetch(@metaschemas, dialect),
          {:ok, _validated_document} <- JSV.validate(document, metaschema, cast: false) do
       JSV.build(document, atoms: false, warnings: :silent)
+    else
+      :error -> {:error, :unsupported_dialect}
+      _error -> :error
     end
   end
 

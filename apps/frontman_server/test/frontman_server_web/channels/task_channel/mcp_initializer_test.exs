@@ -217,7 +217,6 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
           invalid_schema <- [
             %{"type" => "object", "properties" => %{"value" => %{"type" => "unsupported"}}},
             %{"type" => "unsupported"},
-            %{"type" => "object", "$schema" => "urn:frontman:test:unsupported-dialect"},
             %{"type" => "object", "$ref" => "https://schemas.example.invalid/tool.json"},
             %{"type" => "object", "$ref" => "http://127.0.0.1:9/tool.json"},
             %{"type" => "object", "$ref" => "http://169.254.0.1:9/tool.json"}
@@ -240,6 +239,26 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
                    Map.put(MCP.tool_result_text("invalid schema"), "structuredContent", %{}),
                    invalid_schema
                  )
+      end
+    end
+
+    test "reports unsupported dialects without exposing schemas" do
+      for field <- ["inputSchema", "outputSchema"] do
+        schema = %{"type" => "object", "$schema" => "urn:private-schema-marker"}
+        tool = mcp_tool("unsupported", %{field => schema})
+
+        assert {:error, :unsupported_dialect} =
+                 MCP.Schema.validate_tools_list_result(tools_result([tool]))
+
+        result = Map.put(MCP.tool_result_text("ok"), "structuredContent", %{})
+
+        assert {:error, :unsupported_dialect} =
+                 MCP.Schema.validate_call_tool_result(result, schema)
+
+        assert {%{status: :failed}, [{:initialization_failed, message}]} =
+                 MCPInitializer.handle_response(tools_state(1), 1, tools_result([tool]))
+
+        assert message == "Unsupported MCP JSON Schema dialect; supported: 2020-12, draft-07"
       end
     end
 
