@@ -20,6 +20,16 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
   @tools_list_result @tools_list_result_path |> File.read!() |> Jason.decode!() |> JSV.build!()
   @call_tool_result @call_tool_result_path |> File.read!() |> Jason.decode!() |> JSV.build!()
 
+  @default_dialect "https://json-schema.org/draft/2020-12/schema"
+  @metaschemas [JSV.Resolver.Embedded.Draft202012.Schema, JSV.Resolver.Embedded.Draft7.Schema]
+               |> Enum.flat_map(fn module ->
+                 document = module.json_schema()
+                 dialect = String.trim_trailing(document["$id"], "#")
+                 validator = JSV.build!(document)
+                 [{dialect, validator}, {dialect <> "#", validator}]
+               end)
+               |> Map.new()
+
   def validate_discover_result(result), do: validate(result, @discover_result)
 
   def validate_tools_list_result(result) do
@@ -33,7 +43,7 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
          true <-
            Enum.all?(
              schemas,
-             &match?({:ok, _schema}, JSV.build(&1, atoms: false, warnings: :silent))
+             &match?({:ok, _schema}, build_schema(&1))
            ) do
       :ok
     else
@@ -51,7 +61,7 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
     with :ok <- validate_call_tool_result(result),
          {:ok, structured_content} <- Map.fetch(result, "structuredContent"),
          remaining when is_integer(remaining) <- schema_nodes_remaining(output_schema, 64, 10_000),
-         {:ok, schema} <- JSV.build(output_schema, atoms: false, warnings: :silent),
+         {:ok, schema} <- build_schema(output_schema),
          {:ok, _validated_data} <- JSV.validate(structured_content, schema, cast: false) do
       :ok
     else
@@ -60,6 +70,14 @@ defmodule FrontmanServer.Protocols.MCP.Schema do
   end
 
   def validate_call_tool_result(result, nil), do: validate_call_tool_result(result)
+
+  defp build_schema(document) do
+    with {:ok, metaschema} <-
+           Map.fetch(@metaschemas, Map.get(document, "$schema", @default_dialect)),
+         {:ok, _validated_document} <- JSV.validate(document, metaschema, cast: false) do
+      JSV.build(document, atoms: false, warnings: :silent)
+    end
+  end
 
   defp schema_nodes_remaining(_value, _depth, 0), do: :error
 

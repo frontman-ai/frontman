@@ -91,6 +91,62 @@ defmodule FrontmanServer.Protocols.MCPTest do
     assert :ok = Schema.validate_call_tool_result(result, schema)
   end
 
+  test "metaschemas reject malformed keywords across all runtime compilation paths" do
+    for dialect <- [
+          nil,
+          "https://json-schema.org/draft/2020-12/schema",
+          "http://json-schema.org/draft-07/schema#"
+        ],
+        invalid <- [
+          %{"minLength" => -1},
+          %{"minItems" => -1},
+          %{"properties" => %{"nested" => %{"minLength" => -1}}},
+          %{"required" => "x"},
+          %{"required" => [1]},
+          %{"required" => ["x", "x"]},
+          %{"enum" => "x"},
+          %{"$schema" => nil}
+        ] do
+      schema =
+        case dialect do
+          nil -> %{"type" => "object"}
+          uri -> %{"type" => "object", "$schema" => uri}
+        end
+
+      schema = Map.merge(schema, invalid)
+
+      for field <- ["inputSchema", "outputSchema"] do
+        tool = mcp_tool("invalid", %{field => schema})
+        assert :error = Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+      end
+
+      result = Map.put(MCP.tool_result_text("invalid"), "structuredContent", %{})
+      assert :error = Schema.validate_call_tool_result(result, schema)
+    end
+  end
+
+  test "supported dialect aliases preserve dialect keywords, extensions and untyped outputs" do
+    for {dialect, keywords} <- [
+          {"https://json-schema.org/draft/2020-12/schema",
+           %{"prefixItems" => [%{"type" => "string"}]}},
+          {"http://json-schema.org/draft-07/schema", %{"items" => [%{"type" => "string"}]}}
+        ],
+        suffix <- ["", "#"] do
+      output = Map.merge(keywords, %{"$schema" => dialect <> suffix, "x-extension" => true})
+      input = Map.put(output, "type", "object")
+      tool = mcp_tool("dialect", %{"inputSchema" => input, "outputSchema" => output})
+      assert :ok = Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+      result = Map.put(MCP.tool_result_text("dialect"), "structuredContent", ["valid"])
+      assert :ok = Schema.validate_call_tool_result(result, output)
+
+      assert :error =
+               Schema.validate_call_tool_result(Map.put(result, "structuredContent", [1]), output)
+
+      tool = Map.put(tool, "inputSchema", output)
+      assert :error = Schema.validate_tools_list_result(ChannelCase.mcp_tools_result([tool]))
+    end
+  end
+
   test "builds required MCP 2026 request metadata" do
     meta = MCP.request_params()["_meta"]
 
