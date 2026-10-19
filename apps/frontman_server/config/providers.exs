@@ -6,12 +6,12 @@ providers = [
      display_name: "OpenAI",
      models: [
        {"GPT-6 Astra", "gpt-6-astra"},
+       {"GPT-6.1 Sol", "gpt-6.1-sol"},
        {"GPT-6 Sol", "gpt-6-sol"},
        {"GPT-6 Luna", "gpt-6-luna"},
        {"GPT-5.6 Terra", "gpt-5.6-terra"},
        {"GPT-5.6 Sol", "gpt-5.6-sol"},
        {"GPT-5.6 Luna", "gpt-5.6-luna"},
-       {"GPT-5.5", "gpt-5.5"},
        {"GPT-5.3 Codex Spark", "gpt-5.3-codex-spark"}
      ]
    }},
@@ -22,6 +22,7 @@ providers = [
        {"Claude Opus 5.5", "claude-opus-5-5"},
        {"Claude Sonnet 5.5", "claude-sonnet-5-5"},
        {"Claude Fable 5.1", "claude-fable-5-1"},
+       {"Claude Haiku 5.5", "claude-haiku-5-5"},
        {"Claude Opus 5", "claude-opus-5"},
        {"Claude Sonnet 5", "claude-sonnet-5"},
        {"Claude Fable 5", "claude-fable-5"},
@@ -29,9 +30,7 @@ providers = [
        {"Claude Opus 4.7", "claude-opus-4-7"},
        {"Claude Opus 4.6", "claude-opus-4-6"},
        {"Claude Opus 4.5", "claude-opus-4-5"},
-       {"Claude Opus 4", "claude-opus-4-20250514"},
        {"Claude Sonnet 4.6", "claude-sonnet-4-6"},
-       {"Claude Sonnet 4", "claude-sonnet-4-20250514"},
        {"Claude Haiku 4.5", "claude-haiku-4-5-20251001"}
      ]
    }},
@@ -40,8 +39,13 @@ providers = [
      display_name: "OpenRouter",
      models: [
        {"GPT-6 Astra", "openai/gpt-6-astra"},
+       {"GPT-6 Astra Pro", "openai/gpt-6-astra-pro"},
+       {"GPT-6.1 Sol", "openai/gpt-6.1-sol"},
+       {"GPT-6.1 Sol Pro", "openai/gpt-6.1-sol-pro"},
        {"GPT-6 Sol", "openai/gpt-6-sol"},
+       {"GPT-6 Sol Pro", "openai/gpt-6-sol-pro"},
        {"GPT-6 Luna", "openai/gpt-6-luna"},
+       {"GPT-6 Luna Pro", "openai/gpt-6-luna-pro"},
        {"GPT-5.6 Terra", "openai/gpt-5.6-terra"},
        {"GPT-5.6 Sol", "openai/gpt-5.6-sol"},
        {"GPT-5.6 Luna", "openai/gpt-5.6-luna"},
@@ -50,6 +54,7 @@ providers = [
        {"Claude Opus 5.5", "anthropic/claude-opus-5.5"},
        {"Claude Sonnet 5.5", "anthropic/claude-sonnet-5.5"},
        {"Claude Fable 5.1", "anthropic/claude-fable-5.1"},
+       {"Claude Haiku 5.5", "anthropic/claude-haiku-5.5"},
        {"Claude Opus 5", "anthropic/claude-opus-5"},
        {"Claude Sonnet 5", "anthropic/claude-sonnet-5"},
        {"Claude Opus 4.8", "anthropic/claude-opus-4.8"},
@@ -57,13 +62,44 @@ providers = [
        {"Claude Haiku Latest", "~anthropic/claude-haiku-latest"},
        {"Claude Sonnet 4.6", "anthropic/claude-sonnet-4.6"},
        {"Claude Haiku 4.5", "anthropic/claude-haiku-4.5"},
+       {"Gemini 4 Argon", "google/gemini-4-argon"},
+       {"Gemini 3.8 Flash", "google/gemini-3.8-flash"},
        {"Gemini 3.1 Pro Preview", "google/gemini-3.1-pro-preview"},
        {"Gemini Flash Latest", "~google/gemini-flash-latest"},
        {"Gemini Pro Latest", "~google/gemini-pro-latest"},
+       {"Kimi K3", "moonshotai/kimi-k3"},
        {"Kimi Latest", "~moonshotai/kimi-latest"},
+       {"MiniMax M3.1 Flash (free)", "minimax/minimax-m3.1-flash:free",
+        %{
+          provider: :openrouter,
+          id: "minimax/minimax-m3.1-flash:free",
+          modalities: %{input: [:text, :image, :video], output: [:text]},
+          limits: %{context: 1_000_000, output: 524_288},
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            tools: %{enabled: true},
+            streaming: %{text: true, tool_calls: true}
+          }
+        }},
        {"MiniMax M3", "minimax/minimax-m3"},
+       {"DeepSeek V4.1 Flash 1017", "deepseek/deepseek-v4.1-flash-1017",
+        %{
+          provider: :openrouter,
+          id: "deepseek/deepseek-v4.1-flash-1017",
+          modalities: %{input: [:text, :image], output: [:text]},
+          limits: %{context: 1_048_576, output: 393_216},
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            tools: %{enabled: true},
+            streaming: %{text: true, tool_calls: true}
+          }
+        }},
        {"DeepSeek V4.1 Flash", "deepseek/deepseek-v4.1-flash"},
+       {"GLM 5.3 Prime", "z-ai/glm-5.3-prime"},
        {"GLM 5.3", "z-ai/glm-5.3"},
+       {"GLM 5.3 FlashX", "z-ai/glm-5.3-flashx"},
        {"GLM 5.3 Flash", "z-ai/glm-5.3-flash"},
        {"Qwen3.8 Max Prime", "qwen/qwen3.8-max-prime"},
        {"Grok 4.7", "x-ai/grok-4.7"}
@@ -74,9 +110,24 @@ providers = [
      display_name: "Fireworks AI",
      models: [
        {"Kimi K3 Fast", "accounts/fireworks/routers/kimi-k3-fast"},
+       {"Kimi K3", "accounts/fireworks/models/kimi-k3"},
        {"Ember 1", "accounts/fireworks/models/ember-1"},
+       {"DeepSeek V4.1 Flash 1017", "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+        %{
+          provider: :fireworks_ai,
+          id: "accounts/fireworks/models/deepseek-v4p1-flash-1017",
+          modalities: %{input: [:text, :image], output: [:text]},
+          limits: %{context: 1_048_576},
+          capabilities: %{
+            chat: true,
+            reasoning: %{enabled: true},
+            tools: %{enabled: true},
+            streaming: %{text: true, tool_calls: true}
+          }
+        }},
        {"DeepSeek V4.1 Flash", "accounts/fireworks/models/deepseek-v4p1-flash"},
        {"GLM 5.3 Fast", "accounts/fireworks/routers/glm-5p3-fast"},
+       {"GLM 5.3", "accounts/fireworks/models/glm-5p3"},
        {"GLM 5.3 Flash", "accounts/fireworks/models/glm-5p3-flash"},
        {"MiniMax M3", "accounts/fireworks/models/minimax-m3"},
        {"Qwen3.8 Max", "accounts/fireworks/models/qwen3p8-max"}
@@ -87,6 +138,7 @@ providers = [
      display_name: "NVIDIA",
      models: [
        {"Kimi K3", "moonshotai/kimi-k3"},
+       {"DeepSeek V4.1 Flash", "deepseek-ai/deepseek-v4.1-flash"},
        {"GLM 5.3", "z-ai/glm-5.3"},
        {"GLM 5.3 Flash", "z-ai/glm-5.3-flash"}
      ]
