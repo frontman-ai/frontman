@@ -202,6 +202,81 @@ describe("MCP 2026-07-28", () => {
     },
   )
 
+  testAsync("rejects every catalog collision before listing or execution", async t => {
+    let executions = ref(0)
+    let requests = ref(0)
+    module CountingTool = {
+      include ThrowingTool
+      let name = "question"
+      let execute = async (_input, ~taskId as _, ~toolCallId as _) => {
+        executions := executions.contents + 1
+        Types.CallToolResult.makeText("ok")
+      }
+    }
+    let server = await makeServer(~tools=[module(ThrowingTool)])
+    let last = JSON.parseOrThrow(`{"name":"z","inputSchema":{"type":"object"}}`)
+    let local: module(MCPServer.Tool.Tool) = module(CountingTool)
+    let tool = MCPServer.serializeTool(local)
+    let relay = {
+      ...server.relay,
+      config: {
+        ...server.relay.config,
+        fetch: async (_, _) => {
+          requests := requests.contents + 1
+          JsError.throwWithMessage("unexpected relay request")
+        },
+      },
+    }
+    for category in 0 to 2 {
+      let (tools, remote) = switch category {
+      | 0 => ([local, local], [])
+      | 1 => ([local], [tool])
+      | _ => ([], [tool, tool])
+      }
+      let server = {
+        ...server,
+        tools: Array.concat(server.tools, tools),
+        relay: {...relay, tools: Array.concat([last], remote)},
+      }
+      let snapshot = () => (
+        server.tools->Array.map(MCPServer.serializeTool)->JSON.Encode.array->JSON.stringify,
+        server.relay.tools->JSON.Encode.array->JSON.stringify,
+      )
+      let before = snapshot()
+      let call = async (method, params) => {
+        let (channel, calls) = MockChannel.make()
+        let handler = {
+          MCP.serverInterface: MCPServer.toInterface(server),
+          channel,
+          sessionId: "task-1",
+        }
+        await MCP.handleMessage(handler, request(~id=1, ~method, ~params))
+        calls
+      }
+      let discovery = await call("server/discover", metadata)
+      t->expect(response(discovery)->Dict.get("result")->Option.isSome)->Expect.toBe(true)
+      for attempt in 0 to 2 {
+        let (method, params) = switch attempt {
+        | 1 => ("tools/list", metadata)
+        | _ => ("tools/call", toolParams)
+        }
+        let calls = await call(method, params)
+        t->expect(calls.contents->Array.length)->Expect.toBe(1)
+        t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.serverError))
+        t
+        ->expect(
+          response(calls)
+          ->JSON.Encode.object
+          ->JSON.stringify
+          ->String.includes("Duplicate tool name: question"),
+        )
+        ->Expect.toBe(true)
+        t->expect((executions.contents, requests.contents))->Expect.toEqual((0, 0))
+        t->expect(snapshot())->Expect.toEqual(before)
+      }
+    }
+  })
+
   testAsync("handles discovery, listing, and tool execution", async t => {
     let context = ref(None)
     let call = async (id, method, params) => {

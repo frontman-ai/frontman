@@ -81,6 +81,14 @@ let getToolsJson = (server: t): array<JSON.t> => {
   tools->Array.sort((a, b) =>
     String.compare(a->Relay.toolName->Option.getOrThrow, b->Relay.toolName->Option.getOrThrow)
   )
+  let names = Dict.make()
+  tools->Array.forEach(tool => {
+    let name = tool->Relay.toolName->Option.getOrThrow
+    switch names->Dict.has(name) {
+    | true => JsError.throwWithMessage(`Duplicate tool name: ${name}`)
+    | false => names->Dict.set(name, true)
+    }
+  })
   tools
 }
 
@@ -192,6 +200,7 @@ let executeTool = async (
   ~taskId: string,
   ~callId: string,
 ): Types.executeToolResult => {
+  getToolsJson(server)->ignore
   switch getToolByName(server, name) {
   | Some(toolModule) => await executeLocalTool(toolModule, ~arguments, ~taskId, ~toolCallId=callId)
   | None =>
