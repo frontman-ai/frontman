@@ -36,14 +36,7 @@ That installs the plugin. Before editing, sign in to Frontman, confirm service a
 
 Frontman puts an AI agent directly inside your WordPress site. Open `/frontman`, describe the change you want, and the agent works through WordPress-specific tools while you watch the live site preview.
 
-It can handle the workflows that usually send you hunting through admin screens:
-
-- Create, edit, and delete posts and pages
-- Insert, update, and rearrange Gutenberg blocks
-- Edit Elementor pages with Elementor-aware tools
-- Update navigation menus and menu items
-- Read and change safe site options like title, tagline, and permalink settings
-- Browse block templates and template parts
+The [current WordPress capability guide](/docs/integrations/wordpress/#what-the-agent-can-do) lists supported content, Elementor, menu, template, and settings operations. That inventory evolves independently of this directory-release announcement.
 
 The important part is not that there is a chat box. WordPress already has plenty of AI chat boxes. The important part is that the agent operates next to a live preview of the page it is changing. You describe the result you want, the plugin runs the appropriate WordPress tools, and you verify the change in the same workflow.
 
@@ -71,9 +64,7 @@ This matters because WordPress work is rarely just "write some text." It is usua
 
 The plugin runs inside WordPress and respects WordPress permissions. Only administrators can access Frontman. Tool requests are validated through the plugin. Site option writes are restricted to safe allowlists. The goal is not to bolt a generic coding agent onto a CMS and hope it behaves. The goal is to expose the right WordPress operations to the agent and keep the user in control.
 
-That architecture is why Frontman can handle more than draft generation. It can work with Gutenberg blocks, Elementor content, menus, templates, widgets, and settings. It can move between the visible page and the underlying WordPress structures that produce it.
-
-That is the useful version of AI for WordPress: not a blank prompt box, not a content generator isolated from the page, but an agent that can see the site, use WordPress tools, and show you what changed.
+For the execution architecture behind those operations, read the [original WordPress integration announcement](/blog/wordpress-integration/#architecture). For current access, confirmation, and live-site mutation boundaries, use the [WordPress threat model](/blog/security/#wordpress-live-site-threat-model).
 
 ### Production-ready, with review in the loop
 
