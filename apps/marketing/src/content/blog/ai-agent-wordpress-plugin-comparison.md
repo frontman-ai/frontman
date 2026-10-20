@@ -6,7 +6,7 @@ description: 'A practical comparison of Frontman, AI Engine, MCP plugins, Elemen
 image: '/blog/ai-agent-wordpress-plugin-comparison-cover.png'
 tags: ['wordpress', 'comparison', 'ai']
 comparisonItems:
-  - name: 'Frontman - Agentic AI Editor'
+  - name: 'Frontman - AI Website Editor'
     url: 'https://wordpress.org/plugins/frontman-agentic-ai-editor/'
     description: 'A WordPress AI agent plugin focused on editing real site content beside a live preview.'
   - name: 'AI Engine'
@@ -51,7 +51,7 @@ The useful comparison is not "which AI plugin has the most features." That is sp
 
 | Tool | Best for | Strongest feature | Tradeoff |
 | --- | --- | --- | --- |
-| [Frontman - Agentic AI Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/) | Editing an existing WordPress site with an agent and live preview | Posts, pages, blocks, Elementor, menus, templates, settings, WooCommerce, and visual verification in one workflow | Keep backups and review changes; use staging for higher-risk work |
+| [Frontman - AI Website Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/) | Editing an existing WordPress site with an agent and live preview | Posts, pages, blocks, Elementor, menus, templates, settings, WooCommerce, and visual verification in one workflow | Keep backups and review changes; use staging for higher-risk work |
 | [AI Engine](https://wordpress.org/plugins/ai-engine/) | Broad WordPress AI framework | Chatbots, content generation, embeddings, provider support, AI forms, MCP | Excellent breadth, but the core workflow is not a live site-editing preview |
 | [StifLi Flex MCP](https://wordpress.org/plugins/stifli-flex-mcp/) | Connecting external AI clients to WordPress via MCP | OAuth, tool profiles, many tools, rollback/undo focus | Powerful MCP surface, but still centered on client/tool execution rather than visual page review |
 | [WordPress MCP Adapter](https://github.com/wordpress/mcp-adapter) | Developers exposing WordPress abilities to AI clients | Official bridge between WordPress abilities and [Model Context Protocol](https://modelcontextprotocol.io/introduction) | Infrastructure, not a finished editor for site owners |
@@ -175,4 +175,4 @@ There are content AI plugins. There are MCP servers. There are site builders. An
 
 Frontman belongs in the last category. It is not the broadest AI plugin. It is not the canonical MCP adapter. It is not a site generator. It is the WordPress agent workflow for people who need to change the page, see the result, and stay inside the same loop.
 
-Install [Frontman - Agentic AI Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open `/frontman`, and start on staging. For the product overview, see [Frontman for WordPress](/). The better workflow is not more AI buttons in wp-admin. It is an agent that changes WordPress while the page stays visible.
+Install [Frontman - AI Website Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), open `/frontman`, and start on staging. For the product overview, see [Frontman for WordPress](/). The better workflow is not more AI buttons in wp-admin. It is an agent that changes WordPress while the page stays visible.

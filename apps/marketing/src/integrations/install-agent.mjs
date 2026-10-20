@@ -48,7 +48,7 @@ Before making changes:
 - Read https://frontman.sh/docs/installation/ and the linked WordPress guide.
 - Explain each wp-admin step, but leave administrator actions to me.
 
-Guide me through finding Frontman Agentic AI Editor in wp-admin, installing and activating it, then opening Frontman from the admin menu.
+Guide me through finding Frontman - AI Website Editor in wp-admin, installing and activating it, then opening Frontman from the admin menu.
 
 Do not ask for or enter credentials. I will complete WordPress administrator actions, GitHub or Google OAuth, and AI provider setup. Report the verification steps and any site-specific risks I should review.`,
 }

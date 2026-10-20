@@ -43,7 +43,7 @@
 	},
 	{
 		"question": "What do I need to get started?",
-		"reply": "WordPress 6.0+, PHP 7.4+, and administrator access. Install and activate Frontman Agentic AI Editor from the WordPress Plugin Directory, then open Frontman from the admin menu. Sign in with GitHub or Google, arrange Frontman service access, and connect your own supported AI provider. Provider costs are separate from Frontman pricing.",
+		"reply": "WordPress 6.0+, PHP 7.4+, and administrator access. Install and activate Frontman - AI Website Editor from the WordPress Plugin Directory, then open Frontman from the admin menu. Sign in with GitHub or Google, arrange Frontman service access, and connect your own supported AI provider. Provider costs are separate from Frontman pricing.",
 		"category": "technical",
 		"open": true
 	},

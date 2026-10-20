@@ -8,7 +8,7 @@ articleSection: 'Product Announcement'
 image: '/blog/frontman-now-supports-wordpress-cover.png'
 imageAlt: 'Frontman AI editing for WordPress announcement cover'
 tags: ['announcement', 'wordpress']
-updatedDate: 2026-06-17T00:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 ---
 
 We started Frontman with a clear idea: put an AI agent inside the app, not the editor. That worked great for JavaScript frameworks like Next.js, Astro, and Vite. But one question kept coming up: what about WordPress?
@@ -32,7 +32,7 @@ Frontman for WordPress comes with a full set of tools purpose-built for the plat
 - **Content Management**: Create, edit, and organize posts and pages. Update blocks, reorder content, change copy.
 - **Elementor Editing**: Update Elementor pages with Elementor-aware tools and version-aware edits.
 - **Menu Management**: List, inspect, and update navigation menus and menu items.
-- **Site Settings**: Read and update WordPress options. Change the site title, toggle settings, configure plugins.
+- **Site Settings**: Read and update allowlisted core WordPress options, such as the site title and tagline. This is not arbitrary plugin configuration; check the [current supported operations](/docs/integrations/wordpress/#what-the-agent-can-do).
 - **Template Inspection**: Browse block templates and template parts from your active theme.
 - **Widget Areas**: List widget areas and update widget configurations.
 

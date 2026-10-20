@@ -65,7 +65,7 @@ Use when: The source presents Astra as a customizable, lightweight all\-round op
 
 Skip when: The source says Astra’s Pro options can overwhelm beginners. If you need direct control of Astra\-specific header settings, Frontman’s documented operations do not establish that access. [1](<https://teamupdraft.com/blog/best-wordpress-themes-for-small-business>) [2]
 
-Hypothetical task: Request an update to page text stored as Gutenberg block content. Frontman documents operations for modifying Gutenberg block trees, but this does not establish Astra\-specific compatibility or access to its header\-and\-footer builder. Use Astra’s native editing workflow for those controls. [2]
+Hypothetical task: Request an update to page text stored as Gutenberg block content. Frontman documents operations for modifying Gutenberg block trees, but this does not establish Astra\-specific compatibility or access to its header\-and\-footer builder. Use Astra’s native editing workflow for those controls. [2] For the next step after choosing a theme, see the [Astra layout and customization guide](/blog/astra-theme-customization/#adjust-responsive-layout-and-spacing).
 
 ## Divi [1](<https://teamupdraft.com/blog/best-wordpress-themes-for-small-business>) [2]
 
