@@ -11,10 +11,9 @@ defmodule FrontmanServer.Workers.SyncResendContact do
   Enqueued atomically inside the Ecto transaction that creates the user
   (via `Ecto.Multi`), so the job only exists if the user was persisted.
 
-  Idempotency: uses Oban's unique constraint on `user_id` to guarantee
-  at-most-once sync even if the job is retried. The Resend Contacts API
-  is itself idempotent on email — re-adding an existing contact just
-  updates their info.
+  Oban uniqueness limits duplicate jobs, not repeated provider requests.
+  Contact creation omits subscription preferences; this alone does not prove
+  that Resend preserves preferences on duplicate creation.
   """
 
   use Oban.Worker,
@@ -56,7 +55,6 @@ defmodule FrontmanServer.Workers.SyncResendContact do
              json: %{
                email: email,
                first_name: first_name(name),
-               unsubscribed: false,
                segments: [%{id: mailer_config[:segment_id]}]
              },
              headers: [{"authorization", "Bearer #{mailer_config[:api_key]}"}]

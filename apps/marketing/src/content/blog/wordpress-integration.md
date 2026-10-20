@@ -8,7 +8,7 @@ articleSection: 'Product Announcement'
 image: '/blog/frontman-now-supports-wordpress-cover.png'
 imageAlt: 'Frontman AI editing for WordPress announcement cover'
 tags: ['announcement', 'wordpress']
-updatedDate: 2026-06-17T00:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 ---
 
 We started Frontman with a clear idea: put an AI agent inside the app, not the editor. That worked great for JavaScript frameworks like Next.js, Astro, and Vite. But one question kept coming up: what about WordPress?
@@ -27,36 +27,13 @@ No code editor required. No terminal. Just a chat interface alongside a live vie
 
 ## What the Agent Can Do
 
-Frontman for WordPress comes with a full set of tools purpose-built for the platform:
+The integration adds dedicated WordPress operations rather than treating every page as a source file. Examples include changing post or page content, inspecting Elementor widgets, managing menus, and updating allowlisted core settings.
 
-- **Content Management**: Create, edit, and organize posts and pages. Update blocks, reorder content, change copy.
-- **Elementor Editing**: Update Elementor pages with Elementor-aware tools and version-aware edits.
-- **Menu Management**: List, inspect, and update navigation menus and menu items.
-- **Site Settings**: Read and update WordPress options. Change the site title, toggle settings, configure plugins.
-- **Template Inspection**: Browse block templates and template parts from your active theme.
-- **Widget Areas**: List widget areas and update widget configurations.
-
-All of this through natural language. Say "change the site title to Star Wars Cantina" or "update the homepage hero text" and the agent handles the rest.
+The [current capability guide](/docs/integrations/wordpress/#what-the-agent-can-do) owns the complete inventory and limits. Supported core settings do not imply arbitrary plugin configuration.
 
 ## How Frontman Compares to Other AI WordPress Plugins
 
-There are already AI plugins in the WordPress ecosystem. Here's how Frontman is different.
-
-**AI Engine** (100k+ installs) and **StifLi Flex MCP** are the closest alternatives. Both expose WordPress tools to AI via MCP and let you manage content through chat. AI Engine is a mature, feature-rich plugin with chatbots, embeddings, content generation, and WooCommerce support. StifLi Flex MCP focuses on being a full MCP server with 117+ tools and connects to external clients like Claude Desktop and ChatGPT.
-
-Frontman takes a fundamentally different approach:
-
-- **Visual feedback loop.** Frontman shows a live preview of your site alongside the chat. When the agent edits a post or updates a template, it refreshes the preview so you can verify the result in context. Other plugins give you a chat panel in wp-admin. You have to navigate to your site separately to verify what changed.
-
-- **Elementor and WordPress-native workflows.** AI Engine and StifLi expose broad WordPress tools. Frontman focuses on editing what users actually see: posts, pages, Gutenberg blocks, Elementor content, menus, templates, widgets, and settings inside a live preview.
-
-- **Built for the frontend.** Other AI WordPress plugins started as chatbot and content-generation tools, then added site management later. Frontman started as a frontend development tool. It was built to edit what users actually see. That shows in how it handles Elementor edits, template updates, and visual content changes.
-
-- **Cross-framework.** Frontman isn't WordPress-only. The same agent works with Next.js, Astro, and Vite. If your team works across frameworks, you get one tool that works everywhere.
-
-- **Source-available.** Frontman's source code, including every prompt, every tool definition, and every piece of agent logic, is available on [GitHub](https://github.com/frontman-ai/frontman). The browser client and JavaScript framework integrations are Apache-2.0, the WordPress plugin is GPL-2.0-or-later, and Frontman Server is AGPL-3.0-only with AI Supplementary Terms.
-
-The difference is the workflow: Frontman edits WordPress beside a live preview. AI Engine has 100k+ installs, a Pro tier, WooCommerce tools, embeddings, and years of polish. If you need a production-ready AI content pipeline today, AI Engine is solid. If you want an agent that can edit actual WordPress content, Elementor pages, menus, templates, widgets, and settings inside a live preview, that's what Frontman does. For the broader comparison, read [AI Agent Plugins for WordPress Compared](/blog/ai-agent-wordpress-plugin-comparison/).
+This announcement introduces the WordPress execution path. Choosing between live site editing, AI content features, and external-client tool access is a separate decision: use [AI Agent Plugins for WordPress Compared](/blog/ai-agent-wordpress-plugin-comparison/). For the broader category map, use [Best WordPress AI Plugins](/blog/best-wordpress-ai-plugins-2026/).
 
 For one customer result, read how [AutonomyAI's marketing lead redesigned its Elementor site without an agency](/blog/autonomyai-wordpress-redesign-case-study/). The case study separates customer-reported project claims from facts confirmed through public sources and does not present the result as a universal benchmark.
 
@@ -81,7 +58,7 @@ Keep backups and review changes in the live preview. Use staging for higher-risk
 
 ## Getting Started
 
-Frontman is now available in the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/). Install it from **Plugins > Add New Plugin** in wp-admin.
+For directory availability and its launch context, see the [WordPress plugin release announcement](/blog/frontman-wordpress-plugin-released/). For today's installation, account, and provider requirements, use the [WordPress setup guide](/docs/integrations/wordpress/#installation).
 
 Before installing it on your site, [watch one complete staging-safe task](/blog/best-wordpress-ai-plugins-2026/#frontman-workflow-demo) from request through reviewed result.
 

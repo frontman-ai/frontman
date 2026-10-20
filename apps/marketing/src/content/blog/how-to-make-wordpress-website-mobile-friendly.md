@@ -2,6 +2,7 @@
 title: 'How to Make an Existing WordPress Website Mobile Friendly'
 seoTitle: 'How to Make a WordPress Website Mobile Friendly'
 pubDate: 2026-10-17T00:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 description: 'Fix cramped WordPress columns with native controls, see Frontman’s editing workflow, and check mobile navigation, forms, and layouts before publishing.'
 author: 'Danni Friedland'
 articleSection: 'Tutorial'
@@ -110,7 +111,7 @@ The benefit is not another set of responsive controls. It is help translating th
 
 ### Make one focused change
 
-1. **Install the plugin.** In WordPress admin, go to **Plugins → Add New Plugin**, search for **Frontman Agentic AI Editor**, then install and activate it. You can also use the [plugin page in the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/).
+1. **Install the plugin.** In WordPress admin, go to **Plugins → Add New Plugin**, search for **Frontman - AI Website Editor**, then install and activate it. You can also use the [plugin page in the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/).
 2. **Open Frontman from the admin menu.** Sign in if prompted, return to the WordPress admin, and connect your supported AI provider.
 3. **Open the affected page’s preview.** Describe the desired mobile behavior and what should remain unchanged.
 4. **Inspect the result before promoting it.** Check mobile, tablet, and desktop layouts. Promote the staging change through your normal WordPress process only after reviewing it.
@@ -136,7 +137,7 @@ Editor previews are useful, but also inspect the actual page in a browser and on
 
 If a change is not visible, caching may be involved; Frontman’s WordPress guide documents supported cache inspection and cache-clear requests.
 
-A better layout is not the same as a faster site. Large images, hosting, and caching can still affect load time. A visual change does not guarantee search rankings, accessibility compliance, or correct behavior across every device and browser.
+A better layout is not the same as a faster site. For Elementor sites, [diagnose page speed separately](/blog/how-to-make-elementor-website-faster/#diagnose-page-speed-and-choose-one-change). Large images, hosting, and caching can still affect load time. A visual change does not guarantee search rankings, accessibility compliance, or correct behavior across every device and browser.
 
 Frontman’s WordPress changes also have different recovery options. Some tools require explicit confirmation, and Elementor changes have Frontman rollback snapshots. But there is **no plugin-wide one-click undo** for Gutenberg, menus, templates, widgets, settings, or other supported surfaces. Use WordPress revisions or trash where applicable, and rely on a verified backup when needed. The [WordPress integration guide](/docs/integrations/wordpress/) explains the limits by change type.
 
@@ -159,4 +160,4 @@ Need setup details? Read the [WordPress installation guide](/docs/integrations/w
 - [WordPress: Columns block and Stack on mobile setting](https://wordpress.org/documentation/article/columns-block/#settings-tabs)
 - [Browserling: Responsive website testing](https://www.browserling.com/responsive-testing)
 - [Frontman WordPress integration guide](/docs/integrations/wordpress/) and [agent workflow guide](/docs/using/how-the-agent-works/)
-- [Frontman Agentic AI Editor on the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/)
+- [Frontman - AI Website Editor on the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/)

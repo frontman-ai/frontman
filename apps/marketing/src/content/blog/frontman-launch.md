@@ -7,10 +7,10 @@ articleSection: 'Product Announcement'
 image: '/blog/frontman-launch-cover.png'
 imageAlt: 'Frontman browser interface for selecting and editing live UI elements'
 tags: ['announcement', 'open-source', 'ai', 'design-systems', 'collaboration']
-updatedDate: 2026-04-14T00:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 ---
 
-AI coding agents [cannot see your frontend](/blog/introducing-frontman/). They read source files and guess what the rendered output looks like. Frontman takes a different approach — it connects to your browser.
+Browser access is now part of several coding-agent workflows. Frontman's [browser-first thesis](/blog/introducing-frontman/#the-product-thesis) is narrower: start from the element a person selects, then connect available browser and framework evidence to the source change.
 
 ### What Frontman Does
 
