@@ -17,6 +17,42 @@ defmodule FrontmanServer.Accounts.UserNotifier do
 
   @from {"Danni from Frontman", "danni@frontman.sh"}
 
+  @doc """
+  Builds, but never sends, a first follow-up using a trusted unsubscribe URL.
+  """
+  def first_follow_up_email(recipient, unsubscribe_url) when is_binary(unsubscribe_url) do
+    body = """
+    Hey,
+
+    That “can we just…” idea? Try it.
+
+    Here are a few things to ask Frontman:
+
+    - “Give this page a dark mode.”
+    - “Turn these cards into a side-by-side comparison.”
+    - “Make this section look good on mobile.”
+    - “Make this page feel like a luxury brand.”
+
+    You describe the change. Frontman makes the edits on your existing site,
+    so you can see how they look and keep refining.
+
+    Pick one. See where it goes.
+
+    Danni
+    Founder, Frontman
+    """
+
+    new()
+    |> to(recipient)
+    |> from(@from)
+    |> subject("Some cool ideas to start with Frontman")
+    |> text_body(body <> "\nUnsubscribe: " <> unsubscribe_url)
+    |> html_body("""
+    <pre>#{html_escape(body)}</pre>
+    <p><a href="#{html_escape(unsubscribe_url)}">Unsubscribe</a></p>
+    """)
+  end
+
   defp html_escape(text) do
     text
     |> Phoenix.HTML.html_escape()
