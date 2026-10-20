@@ -2,7 +2,6 @@
 title: 'Vertically Integrated Agents Are Better at Token Optimization'
 seoTitle: 'AI Agent Token Optimization'
 pubDate: 2026-06-29T13:00:00Z
-updatedDate: 2026-10-20T00:00:00Z
 description: 'Why vertically integrated agents use fewer requests and fewer tokens by starting with runtime context, source mapping, and verification built into the workflow.'
 author: 'Danni Friedland'
 articleSection: 'Technical Explainer'
@@ -117,9 +116,19 @@ Vertical integration lets the agent use those facts directly.
 
 ## Case Study: Same Code Quality, Different Token Usage
 
-Our [single-task Frontman, OpenCode, and Claude Code case study](/blog/frontman-vs-opencode-claude-code-case-study/#the-result) recorded fewer requests and tokens for Frontman on an `astro-consent` integration in our own marketing site. All three completed the task with roughly similar first-pass implementation quality. The original article contains the results, configuration, and limitations rather than a second copy of the table here.
+We saw this in a small internal case study. We gave the same real frontend task to Frontman, OpenCode, and Claude Code: integrate `astro-consent` into the Frontman marketing site.
 
-This was one internal task in an environment that favored Frontman's integration, and Claude Code used a different model. It does not establish universal savings, prove better code, or isolate architecture as the only cause. It motivates measuring exploration and verification effort in your own workflow.
+All three agents completed the task. The first implementation quality was roughly the same. The difference was token usage and request count.
+
+| Agent | Requests | Prompt tokens | Completion tokens | Reasoning tokens | Total tokens | Cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Frontman | 18 | 1,388,944 | 8,114 | 2,073 | 1,399,131 | $1.354412 |
+| OpenCode | 56 | 3,625,774 | 13,497 | 4,401 | 3,643,672 | $3.472750 |
+| Claude Code | 86 | 5,223,274 | 21,127 | 6,021 | 5,250,422 | $5.472750 |
+
+On that task, Frontman used 68% fewer requests than OpenCode and 79% fewer requests than Claude Code. It used 62% fewer total tokens than OpenCode and 73% fewer total tokens than Claude Code.
+
+The honest takeaway is narrow. Frontman did not prove it writes better code. It proved that, for a runtime-dependent frontend task, a vertically integrated agent can reach and verify a similar result with fewer requests because the environment starts closer to the problem.
 
 The model still matters. Prompt quality still matters. Cache behavior, provider routing, and pricing still matter. But the architecture around the model mattered too.
 

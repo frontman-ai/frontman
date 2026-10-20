@@ -2,7 +2,7 @@
 title: 'Best Frontend Coding Agent for Semi-Technical Teams'
 seoTitle: 'Best Frontend Coding Agent: 2026 Guide for Teams'
 pubDate: 2026-05-23T05:00:00Z
-updatedDate: 2026-10-20T00:00:00Z
+updatedDate: 2026-10-06T00:00:00Z
 description: 'Compare frontend coding agents for UI edits, React code, existing codebases, browser runtime context, screenshots, logs, pricing, and review.'
 image: '/blog/best-frontend-coding-agent-cover.webp'
 tags: ['comparison', 'ai', 'frontend']
@@ -85,7 +85,7 @@ The best frontend coding agent for semi-technical teams depends on the job: Fron
 
 Original source/pricing review: May 21, 2026. Cursor Browser and visual-editor capabilities rechecked October 6, 2026; other pricing snapshots were not refreshed. Benchmark evidence is limited to the Frontman vs OpenCode vs Claude Code case study; no eight-tool benchmark wins are claimed.
 
-Use this guide to choose a tool. For team setup and review ownership, [run a bounded team pilot](/blog/best-ai-coding-agents-frontend-development-teams-2026/#run-a-bounded-team-pilot).
+Use this guide to choose a tool. For team setup, review ownership, and a bounded pilot, use the [frontend-team adoption guide](/blog/best-ai-coding-agents-frontend-development-teams-2026/).
 
 Most AI coding-agent roundups are written for developers choosing an editor. That misses the frontend problem. Frontend work is not only code generation. It is editing an existing UI, preserving a design system, checking mobile behavior, reviewing diffs, and deciding whether a non-engineer can safely participate without shipping broken code.
 
@@ -175,7 +175,20 @@ React terminology follows the official [React documentation](https://react.dev/)
 
 ### Frontman Case-Study Evidence
 
-The only firsthand evidence used here is the [Frontman vs OpenCode vs Claude Code case study](/blog/frontman-vs-opencode-claude-code-case-study/#the-result). On one `astro-consent` integration in our existing Astro marketing app, Frontman reached similar first-pass code quality with fewer recorded requests and tokens. The original case study owns the complete results and method; this guide uses it as one limited input, not a benchmark of every tool below.
+The only firsthand evidence used here is the [Frontman vs OpenCode vs Claude Code case study](/blog/frontman-vs-opencode-claude-code-case-study/). The task was integrating `astro-consent` into the Frontman marketing site, an existing Astro app with Google Analytics already configured.
+
+| Agent | Requests | Prompt tokens | Completion tokens | Reasoning tokens | Total tokens | Cached prompt tokens | Non-cached prompt tokens | Cost |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Frontman | 18 | 1,388,944 | 8,114 | 2,073 | 1,399,131 | 1,296,384 | 92,560 | $1.354412 |
+| OpenCode | 56 | 3,625,774 | 13,497 | 4,401 | 3,643,672 | 3,345,408 | 280,366 | $3.472750 |
+| Claude Code | 86 | 5,223,274 | 21,127 | 6,021 | 5,250,422 | 5,145,408 | 105,014 | $5.472750 |
+
+- **68% fewer requests than OpenCode**
+- **79% fewer requests than Claude Code**
+- **62% fewer total tokens than OpenCode**
+- **73% fewer total tokens than Claude Code**
+- **61% lower reported cost than OpenCode**
+- **75% lower reported cost than Claude Code**
 
 Allowed takeaway: on this one runtime-dependent frontend task, Frontman reached and verified similar first-pass code quality with fewer requests and fewer tokens because it started with browser and framework context.
 

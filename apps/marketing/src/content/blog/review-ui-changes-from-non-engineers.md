@@ -106,7 +106,7 @@ Use this checklist:
 - **Shared component impact:** If a shared component changed, are other usages still safe?
 - **Rollback:** Can this be reverted cleanly if the visual result is wrong?
 
-This is not a full architecture review. It is a focused review of whether a UI patch belongs in the codebase. If AI assists that review, require inspectable source evidence using an [evidence-backed code-review template](/blog/ai-code-review-hallucination/#the-template); a filled-in template still does not replace tests or human judgment.
+This is not a full architecture review. It is a focused review of whether a UI patch belongs in the codebase.
 
 That focus is the point. Engineers should not spend three days translating "make this card use the right token" into code. They should spend three minutes verifying that the patch uses the right token and does not break the component.
 

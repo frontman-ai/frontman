@@ -117,7 +117,7 @@ Before accepting output, inspect:
 6. **Behavior:** Did event handlers, accessibility semantics, responsive states, and data flow remain intact?
 7. **Verification:** Does browser result match request, and do project checks pass?
 
-Use the [engineering checklist for shared-component impact and source diffs](/blog/review-ui-changes-from-non-engineers/#what-engineers-should-check) for approval. Keep batch small enough that reviewer can map each annotation to diff hunk. Split unrelated pages or risk classes into separate prompts and pull requests. No universal selection count is safe; diff comprehensibility is governing limit.
+Keep batch small enough that reviewer can map each annotation to diff hunk. Split unrelated pages or risk classes into separate prompts and pull requests. No universal selection count is safe; diff comprehensibility is governing limit.
 
 ## When to Use Multi-Selection
 

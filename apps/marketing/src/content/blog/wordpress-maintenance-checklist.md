@@ -194,8 +194,8 @@ Before these checks, record the URLs, flows, viewport sizes, test tool, test loc
 
 - Find broken internal and external links on important pages.
 - Review 404 reports for damaged internal paths.
-- Check page speed for important templates and user flows. For an Elementor page, [investigate a slow page with external reports and one bounded edit](/blog/how-to-make-elementor-website-faster/#diagnose-page-speed-and-choose-one-change).
-- Check desktop and mobile layout at common widths. Use the [mobile layout, navigation, and forms checklist](/blog/how-to-make-wordpress-website-mobile-friendly/#before-you-publish-check-the-experience-and-recovery-path).
+- Check page speed for important templates and user flows.
+- Check desktop and mobile layout at common widths.
 - Review forms, search, downloads, embeds, and media.
 - Update stale business hours, prices, staff, offers, and legal notices.
 - Remove spam comments and expired drafts when they create operational noise.

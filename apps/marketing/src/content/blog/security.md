@@ -83,7 +83,7 @@ The [Terms](/terms/) and [DPA](/dpa/) assign customers responsibility for select
 
 ## Credentials and authentication
 
-The hosted-service [Privacy Policy](/privacy/) states that stored API keys and provider credentials use server-side application-level encryption. Authorized personnel and systems may access or decrypt credentials when needed to provide, secure, maintain, troubleshoot, or support the service.
+The hosted-service [Privacy Policy](/privacy/#api-keys-and-credentials) states that stored API keys and provider credentials use server-side application-level encryption. Authorized personnel and systems may access or decrypt credentials when needed to provide, secure, maintain, troubleshoot, or support the service.
 
 Before adoption:
 

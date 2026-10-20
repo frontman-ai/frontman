@@ -89,8 +89,6 @@ This prompt is deliberately stricter than "make this animate." Frontman exposes 
 
 ### 3. Review the visible result
 
-Also [check the wider mobile page experience](/blog/how-to-make-wordpress-website-mobile-friendly/#before-you-publish-check-the-experience-and-recovery-path): a working scroll effect does not establish usable navigation or forms.
-
 Do not stop at a successful tool response. In the live preview:
 
 - Scroll forward and backward through the entire active range.
@@ -118,8 +116,6 @@ That is useful, but it is not a substitute for a site backup. Frontman does not 
 **Frontman does not make arbitrary generated code trustworthy.** GSAP loading, selectors, media readiness, mobile behavior, accessibility, and asset performance still require review. Current Elementor settings also vary by version and widget configuration.
 
 For accessibility, honor [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion). Large scrubbed motion can be uncomfortable for some visitors. A static poster, ordinary playback control, or disabled scrub behavior is better than ignoring an explicit reduced-motion preference.
-
-If the effect appears costly, [measure the performance cost of page elements](/blog/how-to-make-elementor-website-faster/#diagnose-page-speed-and-choose-one-change) with an external test before changing widgets. Frontman's WordPress plugin does not run Lighthouse.
 
 Also review current [GSAP installation and licensing guidance](https://gsap.com/docs/v3/Installation) before shipping third-party scripts.
 

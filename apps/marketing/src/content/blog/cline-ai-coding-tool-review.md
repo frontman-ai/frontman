@@ -328,8 +328,6 @@ Use Cline when the task starts in code. Use Frontman when the task starts in the
 
 ## Best Cline Alternatives
 
-For the broader shortlist, [compare maintained open-source coding tools by workflow](/blog/best-open-source-ai-coding-tools-2026/#best-open-source-ai-coding-tools-by-workflow). Keep this review focused on whether Cline fits your own model, permissions, and review needs.
-
 ### ZooCode or Roo-Style Forks
 
 If you liked Roo Code's mode system, evaluate maintained Roo-style forks. The main question is project health: releases, contributors, issue response, and whether the fork has a clear roadmap after Roo Code's archive.

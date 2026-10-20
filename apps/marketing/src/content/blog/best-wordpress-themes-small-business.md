@@ -33,8 +33,6 @@ Disclosure: We build Frontman. These source\-based theme recommendations and hyp
 
 There is no single best WordPress theme for every small business. The source recommends Astra or Kadence as flexible starting points, GeneratePress for businesses prioritizing performance and search visibility, OceanWP for online stores, and Divi for visual control without code. These are that source’s recommendations, not universal rankings or firsthand tests by us. [1](<https://teamupdraft.com/blog/best-wordpress-themes-for-small-business>)
 
-A theme choice is separate from the editing-tool choice. If you need a drag-and-drop canvas or agent-based editing, [choose a visual WordPress page builder](/blog/best-wordpress-visual-website-builders/#best-wordpress-visual-builders-at-a-glance) by that workflow, not the theme name alone.
-
 ## Quick comparison: which theme fits your small business?
 
 These source-reported tradeoffs help narrow the shortlist. The Frontman examples use supported WordPress editing surfaces, not verified theme-specific integrations. [1](<https://teamupdraft.com/blog/best-wordpress-themes-for-small-business>) [2]
@@ -62,8 +60,6 @@ Documented operations include editing Gutenberg block content, updating posts an
 The product document says to inspect before changing, avoid theme and plugin filesystem editing, and refresh before verifying. After saving WordPress changes, refresh; if results look stale, check caches. These are publisher\-supplied product descriptions, not independent performance verification. [2]
 
 ## Astra [1](<https://teamupdraft.com/blog/best-wordpress-themes-for-small-business>) [2]
-
-After choosing it, follow the [Astra spacing and responsive-layout guide](/blog/astra-theme-customization/#adjust-responsive-layout-and-spacing). It separates native controls from supported Frontman task prompts rather than claiming theme-specific compatibility tests.
 
 Use when: The source presents Astra as a customizable, lightweight all\-round option, with niche starter templates and a header\-and\-footer builder, including in the free version. [1](<https://teamupdraft.com/blog/best-wordpress-themes-for-small-business>)
 

@@ -73,7 +73,7 @@ WordPress can store multiple menus, so editing a menu does not guarantee that th
 
 ## Edit a Header or Footer in a Classic Theme
 
-Classic themes do not use the Site Editor. Their controls depend on what the theme registered. If the active theme is Astra, follow the specific steps to [make an Astra header more compact](/blog/astra-theme-customization/#make-the-header-more-compact); those controls are not universal to classic themes.
+Classic themes do not use the Site Editor. Their controls depend on what the theme registered.
 
 1. Open **Appearance > Customize**.
 2. Look for **Header**, **Footer**, **Site Identity**, **Menus**, or **Widgets**.

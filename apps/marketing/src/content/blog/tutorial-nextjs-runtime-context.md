@@ -137,8 +137,6 @@ Verify all of these before keeping the change:
 
 Next.js applies CSS updates immediately during development through Fast Refresh, but its documentation recommends checking the production build because CSS output and ordering can differ between development and production.
 
-For an optional page-quality follow-up on supported JavaScript framework integrations, [run a reproducible Lighthouse audit](/blog/lighthouse-audits-without-leaving-the-browser/#reproducible-audit-workflow). It does not prove this overflow fix is correct or replace the checks above; the WordPress plugin does not expose this Lighthouse tool.
-
 ## What runtime context contributed
 
 This bug is solvable from source alone. Runtime context reduces ambiguity about which rendered element, route, and viewport the request concerns. Frontman's distributed flow is:

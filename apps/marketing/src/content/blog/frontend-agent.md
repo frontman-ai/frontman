@@ -2,7 +2,6 @@
 title: 'Frontend Agent: How Browser-Based AI Is Changing UI Development'
 seoTitle: 'Frontend Agent: Browser-Based AI for UI Development'
 pubDate: 2026-06-12T05:00:00Z
-updatedDate: 2026-10-20T00:00:00Z
 description: 'Learn what a frontend agent is, how browser-based AI tools use DOM context and live UI feedback, and where they fit in frontend development workflows.'
 author: 'Danni Friedland'
 articleSection: 'Technical Explainer'
@@ -74,8 +73,6 @@ There are limits. A frontend agent is not a product owner, accessibility expert,
 
 ## Frontend Tools, Tool Calling, and Browser Context
 
-For the implementation distinction between session updates and executable tools, read [how Frontman's agent harness uses ACP](/blog/building-agentic-harness-agent-client-protocol/#the-four-pieces-of-frontmans-harness).
-
 Tool calling is what separates an agent from a chatbot. A chatbot can suggest code. An agent can ask for a screenshot, inspect a DOM node, search files, edit a component, and then check the result.
 
 Frontend tools usually fall into two groups. Client tools run in the browser and can click elements, read the DOM, gather selected-node metadata, or capture screenshots. Server tools run closer to the development environment and can read files, search code, use web search tools when relevant, inspect routes, and write changes.
@@ -88,7 +85,7 @@ The context window also matters. A strong frontend agent chooses relevant contex
 
 Getting started with a frontend agent usually begins in local development. The developer adds a framework integration, starts the dev server, and opens a special route or overlay in the browser. For the concrete install flow, see the [Frontman quickstart](/blog/getting-started/).
 
-With Frontman, setup is designed around framework middleware. Next.js, Astro, and Vite integrations support a development-server editing workflow. Do not assume all integration code is stripped from every production build: Next.js entrypoints can remain, with route handling off outside development unless explicitly enabled. Verify the [deployment and compatibility boundaries](/docs/reference/compatibility/#production-environments). That separation matters: teams do not want an AI editing interface shipped to users by accident. It also keeps the workflow anchored in local development, where developers can see every file change as a normal reviewable diff. If your stack is Next.js, the [runtime context tutorial](/blog/tutorial-nextjs-runtime-context/) walks through a complete click-to-fix example.
+With Frontman, setup is designed around framework middleware. A Next.js, Astro, or Vite project can expose Frontman during development, while production builds strip it out. That separation matters: teams do not want an AI editing interface shipped to users by accident. It also keeps the workflow anchored in local development, where developers can see every file change as a normal reviewable diff. If your stack is Next.js, the [runtime context tutorial](/blog/tutorial-nextjs-runtime-context/) walks through a complete click-to-fix example.
 
 The first tasks should be small and visible. Instead of asking the agent to rebuild an entire application, a team might start with:
 
@@ -127,8 +124,6 @@ Evals are becoming another important layer. An eval can check whether an agent c
 Approval flows should match task risk. Changing button copy may need light review. Refactoring shared layout components, updating authentication UI, or touching checkout pages should require stricter review. Before accepting a change, teams should inspect the git diff, run relevant lint or tests, check responsive breakpoints, and verify accessibility-sensitive UI such as labels, focus states, and keyboard paths. Goal: keep speed from turning into silent regressions.
 
 ## Roadmap: Where Frontend Agents Are Going
-
-Our [August plan, execution, and diff-review release](/blog/frontman-august-2026-release/#one-continuous-frontend-agent-workflow) records one step in that direction; it is a dated announcement, not a complete current capability reference.
 
 From our perspective building Frontman, the roadmap for frontend agents points toward deeper context and tighter feedback loops. Today, many agents can read files and make edits. The next generation will understand more of the live application: component provenance, user flows, network timing, server logs, accessibility trees, and design-system rules.
 

@@ -158,7 +158,7 @@ It's not a UI design tool, and it won't generate layouts or prototypes. But it s
 
 ## AI Code Generation
 
-These tools produce actual code. Creation and existing-project editing can overlap, so check repository support rather than assuming every product only generates a fresh project.
+These tools produce actual code, but they generate new projects rather than editing your existing codebase.
 
 ### v0
 
@@ -166,11 +166,9 @@ These tools produce actual code. Creation and existing-project editing can overl
 
 Describe a UI component or page in plain English, get React + Tailwind + shadcn/ui code. The February 2026 update added Git integration, a VS Code-style editor, database connectivity, and agentic workflows.
 
-The [v0 GitHub documentation](https://v0.app/docs/github) describes importing existing repositories and working through branches, previews, and pull requests. It is not limited to copying newly generated components into an app. Check framework fit and review routing, data behavior, design-system reuse, and accessibility before accepting any output.
+The code quality is close to production-ready. shadcn/ui components mean the output follows real design system patterns, not random CSS. Git integration lets you create branches and PRs from the chat. The sandbox runtime lets you preview full-stack apps before committing.
 
-For one possible handoff after a prototype reaches your repository, follow the [proposed pricing-section editing workflow](/blog/frontman-vs-v0/#1-record-the-existing-pricing-section). It is an illustrative review procedure, not evidence that switching tools is faster or required.
-
-**Scope correction, October 20, 2026:** v0 can work with existing repositories; the earlier fresh-project-only description is withdrawn. This correction does not re-verify the other product or pricing snapshots in this roundup.
+The catch: it's tied to React/Next.js and Tailwind. If your team uses Vue, Svelte, or a custom design system, the output needs significant rework. Complex interactions and state management still need manual work. And the generated code lands in a sandbox — getting it into your existing project's architecture, routing, and data layer is engineering work. v0 is a starting-point generator, not a full implementation tool.
 
 ## What's Not on This List
 

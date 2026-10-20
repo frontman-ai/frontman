@@ -1,7 +1,6 @@
 ---
 title: 'AI Code Reviews Hallucinate Without Evidence'
 pubDate: 2026-03-25T05:00:00Z
-updatedDate: 2026-10-20T00:00:00Z
 description: 'AI code reviews pattern-match the genre of analysis without doing the work. A structured reasoning template fixes this — here is the one we use.'
 image: '/blog/ai-code-review-hallucination-cover.png'
 tags: ['ai', 'developer-tools']
@@ -26,7 +25,7 @@ Shubham Ugare and Satish Chandra at Meta published "Agentic Code Reasoning" (arX
 
 The template requires the model to produce intermediate artifacts — a table of every function it examined, a trace of how data flows through the code, a list of properties it claims are true with line-number evidence — before it can output an answer. You can verify each artifact independently. If a row in the function trace table is wrong, you can see it. If a data flow claim skips a mutation, the gap is visible.
 
-The template makes laziness expensive. Not impossible — a model can still hallucinate a line number — but now that hallucination is checkable. A model can still fabricate a plausible row with a file path, line number, and behavior. The benefit is making that claimed evidence available for inspection, not making fabrication impossible.
+The template makes laziness expensive. Not impossible — a model can still hallucinate a line number — but now that hallucination is checkable. A model that hasn't read a function can't fill in a row that requires the function's file path, line number, and verified behavior. The structure demands work product that can't be fabricated without doing the work.
 
 ### The Template
 
@@ -70,7 +69,7 @@ Four sections. Each one closes a specific escape route.
 
 ### How Each Section Works
 
-The **function trace table** forces the model to list every function it examined, with the file path, line number, and a description of the behavior it verified by reading source. The model can't claim a function behaves a certain way without pointing to the exact lines where it confirmed that behavior. Blank rows and fabricated line numbers become easier to challenge when reviewers check the cited source; the template itself cannot prove the model read it.
+The **function trace table** forces the model to list every function it examined, with the file path, line number, and a description of the behavior it verified by reading source. The model can't claim a function behaves a certain way without pointing to the exact lines where it confirmed that behavior. When you must point to the source, you either read it or leave the row blank. Blank rows are visible. Fabricated line numbers are checkable.
 
 The **data flow analysis** picks a variable and tracks its life: where it was created, where it changed (or explicitly that it never changed), and where it was consumed. This is the section that would have caught my timezone bug. The third provider's timezone value was created in the webhook parser, never passed into the normalization function, and consumed only in the log formatter. The normalization function used a hardcoded default. Tracing the variable makes this gap visible on inspection.
 
@@ -108,11 +107,9 @@ With the template, the same review produces:
 > - Found: no `default` parameter (models/order.py:8)
 > - Conclusion: SUPPORTED — Python-created Orders will have status=None until the ORM flushes and the DB applies the server default.
 
-The second review found a real bug that the first review declared handled. The template made that claim inspectable by requiring specific edge cases and source locations. It did not make fabricated evidence impossible.
+The second review found a real bug that the first review declared handled. The template made it impossible to claim "edge cases appear to be handled" without specifying which edge cases and where the handling occurs.
 
 ### Why Structured Output Beats "Be Thorough"
-
-Put these evidence checks inside the [team review loop](/blog/review-ui-changes-from-non-engineers/#the-review-loop), not in place of it. A model can fabricate a plausible trace or citation; reviewers must inspect the referenced source and run the checks appropriate to the change.
 
 The standard approach — telling a model "please be thorough" or "check edge cases carefully" — changes the style of the response, not the substance. The model produces tokens associated with thoroughness ("Upon careful examination") without examining anything. You get a more confident-sounding review, not a more accurate one.
 
@@ -124,4 +121,4 @@ Meta's results bear this out. Five to twelve percentage points of accuracy impro
 
 The template is forty lines. Drop it into whatever AI coding tool you use. The next time you ask it to review code, it'll show you the trace table, the data flow, the semantic properties, and the counter-argument before it gives you an answer. If any section is thin, you'll know. If the model skipped the work, the gap will be visible.
 
-At [Frontman](https://frontman.sh), we build an AI agent that makes visual changes directly on running applications. Generated source edits can break the local preview before review, which is why they still belong on a working branch behind normal pull-request and release controls. Structured reasoning isn't academic for us. It's how we keep the agent honest.
+At [Frontman](https://frontman.sh), we build an AI agent that makes visual changes directly on running applications. When the AI misreads your code, the change breaks your app in real time — there's no pull request buffer to catch it. Structured reasoning isn't academic for us. It's how we keep the agent honest.

@@ -22,7 +22,7 @@ The sections below explain the manual Astra route and give you a task to delegat
 
 ## Adjust responsive layout and spacing
 
-**What you want:** Less empty space on a phone without squeezing the desktop layout. If the failing element is unclear, [diagnose mobile layout problems first](/blog/how-to-make-wordpress-website-mobile-friendly/#diagnose-the-mobile-problem-first); theme spacing is only one possible cause.
+**What you want:** Less empty space on a phone without squeezing the desktop layout.
 
 ### The manual Astra route
 
@@ -40,7 +40,7 @@ Describe where the spacing feels wrong instead of hunting through controls and g
 
 ## Make the header more compact
 
-**What you want:** A header that leaves more room for your content while keeping navigation usable. First [find whether the header belongs to the theme or a builder](/blog/how-to-edit-wordpress-header-footer/#find-what-controls-the-header-or-footer). The Astra route applies when Astra controls it.
+**What you want:** A header that leaves more room for your content while keeping navigation usable.
 
 ### The manual Astra route
 

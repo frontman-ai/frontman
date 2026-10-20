@@ -52,9 +52,9 @@ Check the public page after the request. If the relevant cache is not supported,
 
 ## Retest and keep or restore the change
 
-[Keep a maintenance evidence log](/blog/wordpress-maintenance-checklist/#keep-a-maintenance-evidence-log) containing the reports, edit, and recovery information. Retest the same staging URL with the same external tool under comparable device and cache conditions. [Record the change, rollback point, and verification result](/blog/wordpress-maintenance-checklist/#keep-a-maintenance-evidence-log). If results vary, repeat the test rather than treating one score as proof. Check that the page still works on desktop and mobile, including its CTA and forms.
+Retest the same staging URL with the same external tool under comparable device and cache conditions. [Record the change, rollback point, and verification result](/blog/wordpress-maintenance-checklist/#keep-a-maintenance-evidence-log). If results vary, repeat the test rather than treating one score as proof. Check that the page still works on desktop and mobile, including its CTA and forms.
 
-Use the [mobile page and forms checklist](/blog/how-to-make-wordpress-website-mobile-friendly/#before-you-publish-check-the-experience-and-recovery-path) for the wider QA pass. If you share before-and-after reports, Frontman can compare the findings you provide; it does not run the tests. Decide whether to keep the Elementor change or restore its saved snapshot. Restoration requires a separate confirmation. There is no universal undo, so use the relevant Elementor rollback ID and keep your backup as a separate recovery option.
+If you share before-and-after reports, Frontman can compare the findings you provide; it does not run the tests. Decide whether to keep the Elementor change or restore its saved snapshot. Restoration requires a separate confirmation. There is no universal undo, so use the relevant Elementor rollback ID and keep your backup as a separate recovery option.
 
 **Prompt for Frontman:**
 

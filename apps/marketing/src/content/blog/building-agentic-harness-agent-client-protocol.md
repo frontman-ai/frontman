@@ -163,7 +163,7 @@ The tool result itself may travel through MCP. The user-visible status travels t
 
 ### Why MCP Is Separate
 
-ACP and MCP solve adjacent problems. Neither protocol name establishes which evidence a tool supplies; the [five layers of coding-agent context](/blog/runtime-context-gap/#a-five-layer-context-taxonomy) distinguish static files, process state, browser state, source provenance, and verification.
+ACP and MCP solve adjacent problems.
 
 ACP answers: what is happening in the agent session?
 
