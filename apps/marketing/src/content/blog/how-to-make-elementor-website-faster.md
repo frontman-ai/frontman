@@ -16,9 +16,9 @@ A slow Elementor page needs a diagnosis, not a pile of speed plugins. Start with
 
 ## Set up safely before editing
 
-We built Frontman. Its WordPress plugin, **Frontman - AI Website Editor**, can inspect Elementor page data and widgets, make supported Elementor edits, and return a rollback ID for Elementor content changes. Install it from the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, open **Frontman** in WordPress admin, and connect a supported AI provider. See the [Frontman WordPress setup guide](https://frontman.sh/docs/integrations/wordpress/).
+We built Frontman. Its WordPress plugin, **Frontman - AI Website Editor**, can inspect Elementor page data and widgets, make supported Elementor edits, and return a rollback ID for Elementor content changes. Install it from the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, open **Frontman** in WordPress admin, and connect a supported AI provider. See the [Frontman WordPress setup guide](/docs/integrations/wordpress/#installation).
 
-Use a staging copy and make a backup before the first mutation. WordPress writes affect the connected site; preview is not an approval gate. Some actions require confirmation, but not every edit does. Keep the rollback ID returned for an Elementor change. Restoring a snapshot requires separate confirmation, and rollback is not a universal undo system.
+Use a staging copy and [make a backup before the first mutation](/blog/wordpress-maintenance-checklist/#before-you-change-production). WordPress writes affect the connected site; preview is not an approval gate. Some actions require confirmation, but not every edit does. Keep the rollback ID returned for an Elementor change. [Restoring a snapshot requires separate confirmation](/docs/integrations/wordpress/#confirmation-and-rollback), and rollback is not a universal undo system.
 
 ## Diagnose page speed and choose one change
 
@@ -34,7 +34,7 @@ For testing guidance, see [Elementor’s slow-site guide](https://elementor.com/
 
 For example, suppose a page has a nonessential video embed below its CTA, and the report and widget inspection make that embed a plausible suspect. Ask Frontman to identify the exact widget and propose removing only that embed while keeping the CTA and surrounding content. If you confirm, Frontman can remove the widget when the change is supported. This is an illustrative hypothesis, not a measured result: removing an embed may not unload scripts shared elsewhere on the page or site.
 
-After the edit, note the rollback ID. Check the page on desktop and mobile, including its CTA and forms. If Frontman cannot make the specific change through supported Elementor controls, don’t force it; hand the task to a person who can.
+After the edit, note the rollback ID. [Check the page on desktop and mobile, including its CTA and forms](/blog/how-to-make-wordpress-website-mobile-friendly/#before-you-publish-check-the-experience-and-recovery-path). If Frontman cannot make the specific change through supported Elementor controls, don’t force it; hand the task to a person who can.
 
 ## Handle images outside the page edit
 
@@ -52,7 +52,7 @@ Check the public page after the request. If the relevant cache is not supported,
 
 ## Retest and keep or restore the change
 
-Retest the same staging URL with the same external tool under comparable device and cache conditions. If results vary, repeat the test rather than treating one score as proof. Check that the page still works on desktop and mobile, including its CTA and forms.
+Retest the same staging URL with the same external tool under comparable device and cache conditions. [Record the change, rollback point, and verification result](/blog/wordpress-maintenance-checklist/#keep-a-maintenance-evidence-log). If results vary, repeat the test rather than treating one score as proof. Check that the page still works on desktop and mobile, including its CTA and forms.
 
 If you share before-and-after reports, Frontman can compare the findings you provide; it does not run the tests. Decide whether to keep the Elementor change or restore its saved snapshot. Restoration requires a separate confirmation. There is no universal undo, so use the relevant Elementor rollback ID and keep your backup as a separate recovery option.
 
