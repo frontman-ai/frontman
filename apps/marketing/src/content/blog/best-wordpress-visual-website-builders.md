@@ -87,7 +87,7 @@ Bricks is a reasonable alternative to investigate if you prioritize detailed con
 - **Consider Thrive Architect** if conversion-oriented page elements are a priority.
 - **Consider Bricks** if you want more technical control and are willing to work in a more developer-oriented interface.
 
-We built Frontman, and its supported actions do not cover every WordPress setting or provide universal rollback. To try its supported AI-assisted workflow, [Install Frontman for WordPress](https://wordpress.org/plugins/frontman-agentic-ai-editor/). Use the [WordPress setup guide](/docs/integrations/wordpress/) to connect it. Human review is required before publication.
+We built Frontman, and its supported actions do not cover every WordPress setting or provide universal rollback. To try its supported AI-assisted workflow, [Install Frontman for WordPress](https://wordpress.org/plugins/frontman-agentic-ai-editor/). Use the [WordPress setup guide](/docs/integrations/wordpress/) to connect it.
 
 ## Sources
 
