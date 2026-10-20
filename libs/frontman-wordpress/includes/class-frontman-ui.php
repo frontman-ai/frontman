@@ -108,6 +108,7 @@ class Frontman_UI {
 			'relayBaseUrl' => self::url( '' ),
 			'wpNonce'      => Frontman_Auth::create_nonce(),
 			'wordpressPluginsUrl' => network_admin_url( 'plugins.php' ),
+			'wordpressLoginUrl' => wp_login_url( self::url( '/frontman' ) ),
 		];
 
 		$entrypoint_url = null;
@@ -139,6 +140,7 @@ class Frontman_UI {
 		data-relay-base-url="<?php echo esc_attr( $runtime['relayBaseUrl'] ); ?>"
 		data-wp-nonce="<?php echo esc_attr( $runtime['wpNonce'] ); ?>"
 		data-wordpress-plugins-url="<?php echo esc_url( $runtime['wordpressPluginsUrl'] ); ?>"
+		data-wordpress-login-url="<?php echo esc_url( $runtime['wordpressLoginUrl'] ); ?>"
 	></div>
 	<?php if ( $entrypoint_url ) : ?>
 	<span id="frontman-entrypoint-url" hidden><?php echo esc_url( $entrypoint_url ); ?></span>

@@ -38,6 +38,7 @@ type parsed = {
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
   wordpressPluginsUrl: option<string>,
+  wordpressLoginUrl: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
 }
@@ -49,6 +50,7 @@ type t = {
   relayBaseUrl: option<string>,
   wpNonce: option<string>,
   wordpressPluginsUrl: option<string>,
+  wordpressLoginUrl: option<string>,
   projectRoot: option<string>,
   traits: option<array<string>>,
 }
@@ -62,8 +64,20 @@ let read = (): t => {
   `)
   let json = getRuntime()->Nullable.toOption->Option.getOrThrow
   let config = S.parseOrThrow(json, ~to=parsedSchema)
+  let framework = frameworkIdFromString(config.framework)
+  let wordpressLoginUrl = switch (framework, config.wordpressLoginUrl) {
+  | (Wordpress, None) =>
+    WebAPI.DomGlobal.document
+    ->WebAPI.Document.querySelector("#frontman-runtime-config")
+    ->Null.toOption
+    ->Option.flatMap(element =>
+      element->WebAPI.Element.getAttribute("data-wordpress-login-url")->Null.toOption
+    )
+    ->Option.filter(value => value->String.trim != "")
+  | (_, loginUrl) => loginUrl
+  }
   {
-    framework: frameworkIdFromString(config.framework),
+    framework,
     basePath: switch config.basePath {
     | Some("") | None => "frontman"
     | Some(bp) => bp
@@ -71,6 +85,7 @@ let read = (): t => {
     relayBaseUrl: config.relayBaseUrl,
     wpNonce: config.wpNonce,
     wordpressPluginsUrl: config.wordpressPluginsUrl,
+    wordpressLoginUrl,
     projectRoot: config.projectRoot,
     traits: config.traits,
   }
