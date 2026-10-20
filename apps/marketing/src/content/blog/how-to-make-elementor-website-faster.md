@@ -16,7 +16,7 @@ Install Frontman on a staging copy of your WordPress site, and make a backup bef
 
 ## 1. Install Frontman on staging and protect the site
 
-Install **Frontman Agentic AI Editor** from the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, and open **Frontman** in your WordPress admin. Sign in if prompted and connect a supported AI provider. Follow the [Frontman WordPress setup guide](https://frontman.sh/docs/integrations/wordpress/).
+Install **Frontman - AI Website Editor** from the [WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, and open **Frontman** in your WordPress admin. Sign in if prompted and connect a supported AI provider. Follow the [Frontman WordPress setup guide](https://frontman.sh/docs/integrations/wordpress/).
 
 Before editing, confirm that the staging site is separate from production, take a backup, and establish how you would restore it. Frontman’s Elementor edits return rollback IDs, but rollback is not a universal undo system. Keep the ID for each edit; restoring an Elementor snapshot requires separate confirmation.
 
