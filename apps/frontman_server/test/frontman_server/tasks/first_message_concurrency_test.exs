@@ -9,7 +9,7 @@ defmodule FrontmanServer.Tasks.FirstMessageConcurrencyTest do
   alias FrontmanServer.Repo
   alias FrontmanServer.Tasks
 
-  test "concurrent accepted prompts retain one first observation" do
+  test "two barrier-synchronized accepted prompts retain one first observation" do
     Sandbox.unboxed_run(Repo, fn ->
       scope = user_scope_fixture()
 

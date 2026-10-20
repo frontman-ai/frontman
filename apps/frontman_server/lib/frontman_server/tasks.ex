@@ -35,6 +35,7 @@ defmodule FrontmanServer.Tasks do
     deps: [
       FrontmanServer,
       FrontmanServer.Accounts,
+      FrontmanServer.PromptAcceptance,
       FrontmanServer.Providers,
       FrontmanServer.Skills,
       FrontmanServer.Protocols.MCP
@@ -47,6 +48,7 @@ defmodule FrontmanServer.Tasks do
   alias FrontmanServer.Billing
   alias FrontmanServer.Frameworks
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.PromptAcceptance
   alias FrontmanServer.Protocols.MCP
   alias FrontmanServer.Providers
   alias FrontmanServer.Repo
@@ -519,10 +521,7 @@ defmodule FrontmanServer.Tasks do
   end
 
   defp accept_user_message(scope, task, attrs) do
-    Repo.transact(fn ->
-      :ok = Accounts.record_first_message(scope)
-      insert_interaction_row(task, attrs)
-    end)
+    PromptAcceptance.accept(scope, fn -> insert_interaction_row(task, attrs) end)
     |> case do
       {:ok, row} ->
         broadcast_task(task.id, {:interaction, row})
