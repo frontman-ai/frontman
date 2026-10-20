@@ -12,7 +12,7 @@ defmodule FrontmanServer.Accounts.FirstFollowUpEmailTest do
     assert %Swoosh.Email{} = email
     assert email.to == [{"", "reader@example.test"}]
     assert email.from == {"Danni from Frontman", "danni@frontman.sh"}
-    assert email.subject == "Try one small change with Frontman"
+    assert email.subject == "Some cool ideas to start with Frontman"
     assert email.text_body =~ "\nUnsubscribe: " <> url
 
     assert email.html_body =~
@@ -22,14 +22,16 @@ defmodule FrontmanServer.Accounts.FirstFollowUpEmailTest do
     refute email.html_body =~ url
 
     for text <- [
-          "Hey there,",
-          "Make this button's text clearer.",
-          "Open /frontman on your running app or site",
-          "start your development server first",
-          "open Frontman from the admin menu",
-          "After signing in, return to /frontman on your app or site.",
-          "https://frontman.sh/docs/installation/",
-          "https://frontman.sh/docs/api-keys/",
+          "Hey,",
+          "That “can we just…” idea? Try it.",
+          "Here are a few things to ask Frontman:",
+          "- “Give this page a dark mode.”",
+          "- “Turn these cards into a side-by-side comparison.”",
+          "- “Make this section look good on mobile.”",
+          "- “Make this page feel like a luxury brand.”",
+          "You describe the change. Frontman makes the edits on your existing site,",
+          "so you can see how they look and keep refining.",
+          "Pick one. See where it goes.",
           "Founder, Frontman"
         ] do
       assert email.text_body =~ text

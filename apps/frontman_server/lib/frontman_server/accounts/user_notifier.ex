@@ -22,17 +22,21 @@ defmodule FrontmanServer.Accounts.UserNotifier do
   """
   def first_follow_up_email(recipient, unsubscribe_url) when is_binary(unsubscribe_url) do
     body = """
-    Hey there,
+    Hey,
 
-    Try one small change: ask Frontman to "Make this button's text clearer."
+    That “can we just…” idea? Try it.
 
-    Open /frontman on your running app or site to return to Frontman.
-    For a local app, start your development server first.
-    On WordPress, open Frontman from the admin menu.
-    After signing in, return to /frontman on your app or site.
+    Here are a few things to ask Frontman:
 
-    Need installation help? https://frontman.sh/docs/installation/
-    Need setup help? https://frontman.sh/docs/api-keys/
+    - “Give this page a dark mode.”
+    - “Turn these cards into a side-by-side comparison.”
+    - “Make this section look good on mobile.”
+    - “Make this page feel like a luxury brand.”
+
+    You describe the change. Frontman makes the edits on your existing site,
+    so you can see how they look and keep refining.
+
+    Pick one. See where it goes.
 
     Danni
     Founder, Frontman
@@ -41,7 +45,7 @@ defmodule FrontmanServer.Accounts.UserNotifier do
     new()
     |> to(recipient)
     |> from(@from)
-    |> subject("Try one small change with Frontman")
+    |> subject("Some cool ideas to start with Frontman")
     |> text_body(body <> "\nUnsubscribe: " <> unsubscribe_url)
     |> html_body("""
     <pre>#{html_escape(body)}</pre>
