@@ -58,6 +58,8 @@ The default breakpoints are:
 | Tablet | Above 480px and up to 782px |
 | Base style | All widths unless overridden |
 
+To turn release-specific behavior into an actual page check, [verify an existing site's mobile layout](/blog/how-to-make-wordpress-website-mobile-friendly/#diagnose-the-mobile-problem-first).
+
 This is useful, but it creates another place where responsive behavior can live. A theme's CSS, page-builder settings, Global Styles, and individual block overrides can all affect the same element. Test existing pages at real viewport widths after upgrading. The official [responsive styles dev note](https://make.wordpress.org/core/2026/08/05/responsive-block-styles-and-configurable-viewports-in-wordpress-7-1/) documents the generated media queries and `theme.json` format.
 
 ### Media Processing Can Move Into the Browser

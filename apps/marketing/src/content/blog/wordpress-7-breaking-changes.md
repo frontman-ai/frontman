@@ -7,7 +7,7 @@ articleSection: 'Operational Audit'
 image: '/blog/wordpress-7-breaking-changes-cover.png'
 imageAlt: 'WordPress 7 breaking changes and fixes cover'
 tags: ['wordpress', 'tutorial']
-updatedDate: 2026-04-25T00:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 faq:
   - question: 'Should I update to WordPress 7 right away or wait?'
     answer: 'Wait at least 2-4 weeks after GA. Let the plugin ecosystem catch up. Run a staging audit first using the checklist in this post, and have a rollback plan ready before touching production.'
@@ -18,20 +18,22 @@ faq:
   - question: 'How do I roll back from WordPress 7 to 6.9?'
     answer: 'Restore from a full backup (files + database) taken before the upgrade. The WP-CLI downgrade method works but does not revert database schema changes. Always test the rollback process on staging first.'
   - question: 'What breaks in WordPress 7?'
-    answer: 'The biggest breaking changes are: the iframed editor (breaks meta boxes and admin JS), Block API Version 3 enforcement, the Interactivity API effect-to-watch rename, DataViews replacing groupByField, and the PHP 7.4 minimum requirement.'
+    answer: 'Audit editor iframe compatibility, Interactivity API changes, DataViews, and the PHP minimum against your installed versions. WordPress 7.0 keeps a non-iframed post-editor fallback for inserted lower-version blocks; unconditional post-editor iframing is a WordPress 7.1 change, not WordPress 7.0 enforcement.'
   - question: 'Is WordPress 7 safe to install?'
     answer: 'WordPress 7 is stable core software, but the breaking changes are significant. The risk is not WordPress itself crashing — it is your plugins, themes, and custom code breaking silently. Test on staging with your full plugin stack before upgrading production.'
   - question: 'How to test WordPress 7 before updating?'
     answer: 'Create a staging copy of your production site with identical plugins, theme, and PHP version. Install WP7 on staging. Run through critical user flows: post editing, WooCommerce checkout (if applicable), form submissions, and any custom admin screens. Check the browser console for deprecation warnings.'
   - question: 'WordPress 7 real-time collaboration — do I need it?'
-    answer: 'Real-time collaboration is opt-in per post type. If your site has a single author or you do not co-edit posts simultaneously, you will not notice a difference. The feature generates roughly 480 requests per minute per editing session, which may stress shared hosting.'
+    answer: 'Check the final release and your configuration rather than inferring availability from pre-release plans. The WordPress 7.1 Field Guide says collaborative editing is not enabled in that final release. Measure any enabled collaboration workload on your own stack rather than assuming a fixed request rate.'
 ---
 
 Every WordPress 7 upgrade guide says "test on staging." None of them say what to do when the test fails. We dug through 12 dev notes, Trac tickets, and plugin developer reports to build the audit and rollback playbook that every other guide skips.
 
-WordPress 7 is the largest core release since Gutenberg landed in WordPress 5.0. The [delay from April to mid-to-late May 2026](https://make.wordpress.org/core/2026/03/31/extending-the-7-0-cycle/) bought extra time for the real-time collaboration database architecture, but the breaking changes shipped as planned. There are six categories of them, and they affect different parts of your stack in different ways.
+WordPress 7 is the largest core release since Gutenberg landed in WordPress 5.0. The [delay from April to mid-to-late May 2026](https://make.wordpress.org/core/2026/03/31/extending-the-7-0-cycle/) bought extra time for the real-time collaboration database architecture, but a pre-release plan does not establish final feature availability. Keep the 7.0 and 7.1 editor behaviors separate when auditing your stack. There are six categories of them, and they affect different parts of your stack in different ways.
 
 This post covers each breaking change, the fix for it, and what to do if the fix isn't feasible for your site right now.
+
+**Correction, October 20, 2026:** WordPress 7.0 does not enforce post-editor iframing unconditionally. The fallback and asset-hook guidance below now distinguish 7.0 from 7.1, and the recommendation to force fallback with an old registered block has been removed. The iframe notes, editor asset guide, and [7.1 Field Guide](https://make.wordpress.org/core/2026/08/05/wordpress-7-1-field-guide/) were checked for this correction; other migration topics below have not been re-audited in this update.
 
 Looking for the next release? Read the separate [WordPress 7.1 new features, breaking changes, and upgrade checklist](/blog/wordpress-7-1-new-features-breaking-changes/). It tracks the August 19 release without replacing this WordPress 7 audit.
 
@@ -39,7 +41,7 @@ Looking for the next release? Read the separate [WordPress 7.1 new features, bre
 
 Before getting into the individual breaking changes, here's the scope. WordPress 7 touches:
 
-- **The editor architecture** (iframed by default, Block API Version 3)
+- **The editor architecture** (conditional post-editor iframing in 7.0, with a lower-version-block fallback)
 - **State management** (Interactivity API rewrites)
 - **Admin UI framework** (DataViews replacing legacy list tables)
 - **PHP floor** (7.2 and 7.3 dropped)
@@ -52,11 +54,11 @@ Once the compatibility audit passes, keep the first post-upgrade change bounded 
 
 ## Breaking change #1: The iframed editor and Block API Version 3
 
-WordPress 7 [loads the post editor inside an iframe](https://make.wordpress.org/core/2026/02/24/iframed-editor-changes-in-wordpress-7-0/). This is the change that breaks the most plugins.
+The [WordPress 7.0 iframe dev note](https://make.wordpress.org/core/2026/02/24/iframed-editor-changes-in-wordpress-7-0/) explicitly says iframe enforcement is **not** part of 7.0. Core checks the blocks inserted in the post: if all use API version 3 or higher, it uses an iframe; a lower-version block retains the non-iframed fallback. The [7.1 dev note](https://make.wordpress.org/core/2026/08/03/iframed-editor-changes-in-wordpress-7-1/) removes that fallback and makes the post editor always iframed. The Gutenberg plugin can enforce iframing separately, so record whether it is active.
 
 ### What breaks
 
-Any JavaScript that accesses `document` or `window` from the admin page and expects to reach editor content will fail. The editor DOM is now in a separate iframe, so `document.querySelector` in the parent frame returns nothing from the editor.
+When the post editor is iframed, code that uses the admin document's global `document` or `window` to reach canvas content can target the wrong document. Derive the canvas document from an element inside it instead. This does not mean every plugin or every WordPress 7.0 post editor fails.
 
 This affects:
 - Classic meta boxes that read or write editor content
@@ -111,15 +113,15 @@ const ref = useRefEffect((element) => {
 });
 ```
 
-**For scripts**, move them from `admin_enqueue_scripts` to `enqueue_block_editor_assets`. The former loads in the parent frame. The latter loads inside the iframe where the editor lives.
+**For scripts and styles**, distinguish editor UI from canvas content. WordPress documents `enqueue_block_editor_assets` for editor-interface assets and `enqueue_block_assets` for block/content assets, which are also loaded in the iframed editor on supported versions. Do not move every admin script to one hook and assume it now runs inside the canvas. Follow the [editor asset-enqueueing guide](https://developer.wordpress.org/block-editor/how-to-guides/enqueueing-assets-in-the-editor/).
 
 ### How to roll back
 
 If your plugins break and the authors haven't released updates:
 
-1. Identify which blocks are still on `apiVersion: 2` — those are preventing the iframe from loading, which is actually protecting you temporarily
-2. If all blocks are version 3 and the iframe is breaking your admin JS, you can force the legacy behavior by ensuring at least one registered block stays on `apiVersion: 2` (not recommended long-term, but buys time)
-3. The actual rollback: restore from pre-upgrade backup. WP-CLI's `core download --version=6.9.x --force` replaces the files but does not revert database changes. If WordPress 7 ran any schema migrations, file-only rollback is not enough.
+1. Record Core and Gutenberg plugin versions and identify the inserted blocks involved. In Core 7.0 the fallback checks inserted blocks, not merely the presence of an old registered block.
+2. Do not deliberately downgrade a block's API version as a recovery strategy. WordPress 7.1 does not provide that fallback; fix the integration or restore the tested earlier environment.
+3. Restore from a usable pre-upgrade backup if needed. Replacing Core files alone does not revert database changes; verify recovery of both files and data.
 
 ## Breaking change #2: Classic meta boxes disable collaboration
 
@@ -389,7 +391,7 @@ Use this to audit your site before upgrading. Each item maps to a breaking chang
 - All custom blocks are on `apiVersion: 3` (`grep -r "apiVersion" wp-content/ --include="*.json"`)
 - No plugins use `effect()` from the Interactivity API (`grep -r "effect(" wp-content/plugins/ --include="*.js" -l`)
 - No plugins reference `state.navigation.hasStarted` or `state.navigation.hasFinished`
-- All admin scripts use `enqueue_block_editor_assets`, not `admin_enqueue_scripts`
+- Editor UI and canvas-content assets use the appropriate hooks; do not assume `enqueue_block_editor_assets` places every script inside the iframe
 - Classic meta boxes are identified (`grep -r "add_meta_box" wp-content/plugins/ --include="*.php" -l`)
 - WooCommerce is version 9.x+ (if applicable)
 - Full backup taken (files + database)

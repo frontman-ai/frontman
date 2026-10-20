@@ -129,6 +129,8 @@ The result is real source code that goes through your normal review process.
 
 ### Next Steps
 
+For a concrete second exercise, [reproduce and fix a Next.js mobile-overflow bug](/blog/tutorial-nextjs-runtime-context/#1-create-a-page-with-a-known-bug). For a Next.js-specific overview before that exercise, see [editing components in your browser](/blog/edit-nextjs-visually/).
+
 - [Installation guide](/docs/installation/)
 - [Next.js integration](/docs/integrations/nextjs/)
 - [Vite integration](/docs/integrations/vite/)
