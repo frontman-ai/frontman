@@ -22,6 +22,8 @@ The sections below explain the manual Astra route and give you a task to delegat
 
 ## Adjust responsive layout and spacing
 
+For checks beyond spacing, use the [mobile layout and usability checklist](/blog/how-to-make-wordpress-website-mobile-friendly/#before-you-publish-check-the-experience-and-recovery-path).
+
 **What you want:** Less empty space on a phone without squeezing the desktop layout.
 
 ### The manual Astra route
@@ -39,6 +41,8 @@ Describe where the spacing feels wrong instead of hunting through controls and g
 **What to check afterward:** Comfortable spacing, no horizontal overflow, and an unchanged desktop layout. Screenshots at a few widths do not cover every device, so also open the page on a phone.
 
 ## Make the header more compact
+
+First [identify what controls the visible header](/blog/how-to-edit-wordpress-header-footer/#find-what-controls-the-header-or-footer). An Elementor template or custom implementation may own it instead of Astra's header settings.
 
 **What you want:** A header that leaves more room for your content while keeping navigation usable.
 

@@ -3,6 +3,7 @@ title: 'Make an Elementor Video Play on Scroll With Frontman'
 seoTitle: 'How to Make a Video Play on Scroll in Elementor'
 description: 'Build a scroll-controlled Elementor video with GSAP, then use Frontman to inspect, edit, preview, and roll back the page safely.'
 pubDate: 2026-07-17T00:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 image: '/blog/play-video-on-scroll-elementor-with-frontman-cover.png'
 imageAlt: 'Frontman cover reading Make an Elementor Video Play on Scroll With Frontman'
 author: 'Danni Friedland'
@@ -113,7 +114,7 @@ That is useful, but it is not a substitute for a site backup. Frontman does not 
 
 **Elementor AI may be simpler when your whole workflow already lives inside the Elementor editor.** Elementor has its own official prompt-driven tutorial for this effect. Frontman is more useful when the request crosses page structure, widget data, preview verification, and rollback concerns.
 
-**Frontman does not make arbitrary generated code trustworthy.** GSAP loading, selectors, media readiness, mobile behavior, accessibility, and asset performance still require review. Current Elementor settings also vary by version and widget configuration.
+**Frontman does not make arbitrary generated code trustworthy.** GSAP loading, selectors, media readiness, mobile behavior, accessibility, and asset performance still require review. If the page loads slowly, [diagnose its page-speed findings before choosing an edit](/blog/how-to-make-elementor-website-faster/#diagnose-page-speed-and-choose-one-change); removing the effect is not automatically the right fix. Current Elementor settings also vary by version and widget configuration.
 
 For accessibility, honor [`prefers-reduced-motion`](https://developer.mozilla.org/en-US/docs/Web/CSS/@media/prefers-reduced-motion). Large scrubbed motion can be uncomfortable for some visitors. A static poster, ordinary playback control, or disabled scrub behavior is better than ignoring an explicit reduced-motion preference.
 

@@ -1,6 +1,7 @@
 ---
 title: 'Frontman WordPress Plugin Is Live'
 pubDate: 2026-05-14T05:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 description: 'The Frontman WordPress plugin is now live in the WordPress Plugin Directory. Install it from wp-admin and edit your site with an AI agent.'
 author: 'Itay Adler'
 image: '/blog/frontman-wordpress-plugin-released-cover.png'
@@ -15,7 +16,7 @@ Open wp-admin. Search for the plugin. Click install. Activate it. Start editing 
 
 That is now the Frontman workflow.
 
-[Frontman for WordPress](/) is live in the WordPress Plugin Directory as **Frontman - Agentic AI Editor**. It puts an AI agent inside your WordPress site, next to a live preview, with tools for posts, pages, blocks, Elementor pages, menus, templates, widgets, and settings. You can install it from the [Frontman WordPress plugin page](https://wordpress.org/plugins/frontman-agentic-ai-editor/).
+[Frontman for WordPress](/) is live in the WordPress Plugin Directory as **Frontman - AI Website Editor**. It puts an AI agent inside your WordPress site, next to a live preview, with tools for posts, pages, blocks, Elementor pages, menus, templates, widgets, and settings. You can install it from the [Frontman WordPress plugin page](https://wordpress.org/plugins/frontman-agentic-ai-editor/).
 
 If you are comparing the broader category before installing anything, read [Best WordPress AI Plugins in 2026](/blog/best-wordpress-ai-plugins-2026/) for how Frontman, AI Engine, Elementor AI, Divi AI, AIOSEO, WPForms AI, and WordPress AI builders fit different jobs.
 
@@ -24,12 +25,12 @@ If you are comparing the broader category before installing anything, read [Best
 Install it from wp-admin like any other WordPress plugin:
 
 1. Open **Plugins -> Add New Plugin** in WordPress.
-2. Search for **Frontman Agentic AI Editor**.
+2. Search for **Frontman - AI Website Editor**.
 3. Click **Install Now**.
 4. Click **Activate**.
 5. Visit `/frontman` on your site while logged in as an administrator.
 
-That is the whole setup. No terminal. No separate server. No framework config. Frontman runs as a WordPress plugin and serves the editing experience from `/frontman`.
+That installs the plugin. Before editing, sign in to Frontman, confirm service access, and connect your own supported AI provider; provider costs are separate. Follow the [current WordPress installation guide](/docs/integrations/wordpress/#installation) for requirements and configuration. No terminal, separate local server, or framework config is needed.
 
 ### What the plugin gives you
 
@@ -84,6 +85,6 @@ Frontman is production-ready and battle-tested. Keep backups. Review changes in 
 
 ### Try it
 
-Install [Frontman - Agentic AI Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, and open `/frontman` on your site.
+Install [Frontman - AI Website Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, and open `/frontman` on your site.
 
-The better workflow is simple: stay inside the site, describe the change, watch the preview, and review what changed before it ships.
+The better workflow is simple: describe the change beside the page, inspect the saved result, and use your normal staging or draft publication process. Published content on a live installation can change immediately; the preview is not a universal approval gate.

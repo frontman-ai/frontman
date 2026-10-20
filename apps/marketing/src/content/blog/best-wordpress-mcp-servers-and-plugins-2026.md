@@ -262,4 +262,4 @@ Reject the candidate if an underprivileged write succeeds, a revoked token remai
 
 Need the workflow to start in Claude, ChatGPT, or Cursor? Follow the selected server's official setup guide.
 
-Need visually reviewed WordPress editing without an external MCP client? Install [Frontman - Agentic AI Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/) on staging, then review its [current integration boundaries](/docs/integrations/wordpress/) before you connect a production site.
+Need visually reviewed WordPress editing without an external MCP client? Install [Frontman - AI Website Editor](https://wordpress.org/plugins/frontman-agentic-ai-editor/) on staging, then review its [current integration boundaries](/docs/integrations/wordpress/) before you connect a production site.
