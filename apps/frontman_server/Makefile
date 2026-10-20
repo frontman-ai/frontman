@@ -128,12 +128,5 @@ credo:
 
 check: lint test
 
-.PHONY: activation-snapshot test-activation-snapshot-runner
-activation-snapshot:
-	@sh priv/scripts/activation_snapshot.sh
-
-test-activation-snapshot-runner:
-	@sh test/activation_snapshot_runner.sh
-
 debug-task:
 	$(OP_RUN) mix debug_task $(ARGS)
