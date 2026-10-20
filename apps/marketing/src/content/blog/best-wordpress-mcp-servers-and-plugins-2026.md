@@ -102,6 +102,8 @@ These are source-checked entry requirements, not estimates of total operating co
 
 ## What a WordPress MCP server actually does
 
+Do not confuse these servers with [WebMCP's browser-exposed tools](/blog/what-is-webmcp/#webmcp-vs-mcp). Similar tool vocabulary does not make their execution environments or permission boundaries interchangeable.
+
 The [Model Context Protocol](https://modelcontextprotocol.io/docs/getting-started/intro) gives an AI client a standard way to discover and call tools and read resources. In WordPress, an MCP tool might retrieve a post, create a draft, update product stock, read an SEO field, or invoke a custom plugin action.
 
 WordPress 6.9 added the [Abilities API](https://developer.wordpress.org/apis/abilities-api/), a registry for typed, discoverable units of functionality. An Ability defines input and output schemas and an execution callback, and it can define a permission callback. The official MCP Adapter's default server exposes eligible public Abilities through discovery, information, and execution tools. Developers can create custom servers that expose selected Abilities directly as MCP tools, resources, or prompts.

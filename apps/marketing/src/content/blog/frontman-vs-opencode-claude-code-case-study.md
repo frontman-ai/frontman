@@ -200,6 +200,6 @@ The result changed how we talk about Frontman internally. We should not claim th
 
 It showed something more practical: when the task depends on a running frontend, the agent wastes fewer turns if the running frontend is part of its normal working environment.
 
-The model still matters. The prompt still matters. For frontend work, this run suggests the environment around the model matters too.
+The model still matters. The prompt still matters. For frontend work, this run suggests the environment around the model matters too. To design your own evaluation, use [what to measure for agent token usage](/blog/vertically-integrated-agents-token-optimization/#what-to-measure), rather than assuming this one result predicts another task.
 
 [Try Frontman](https://frontman.sh/frameworks/#install) on your own frontend task and compare the loop yourself.

@@ -1,97 +1,73 @@
 ---
 title: 'Browser-Aware AI Coding Tools Compared'
 pubDate: 2026-02-23T06:00:00Z
-description: "Frontman, Stagewise, Tidewave, Chrome DevTools MCP, and Onlook: how each one connects to your running app, what they can and can't see, and who each is for."
+description: 'Compare Frontman, Stagewise, Cursor Browser, Tidewave, and Chrome DevTools MCP by editing workflow, runtime access, setup, and review boundaries.'
 image: '/blog/browser-aware-ai-tools-2026-cover.png'
 tags: ['comparison', 'ai', 'developer-tools']
-updatedDate: 2026-03-10T00:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 author: 'Danni Friedland'
 articleSection: 'Comparison or Buyer Guide'
 imageAlt: 'Comparison of browser-aware AI coding tools and their runtime context'
 ---
 
-There's a new category of AI coding tools emerging: ones that connect to your running application instead of just reading source files. The pitch is the same across all of them — give the AI runtime context so it stops guessing about what your app actually looks like and does.
+**Choose Frontman for browser-led edits in a supported existing app, Cursor Browser when your team wants to stay in Cursor, Stagewise for an agentic IDE with integrated browsing, or Chrome DevTools MCP to extend an existing agent.** Tidewave is worth evaluating for its Phoenix and Rails workflow.
 
-The implementations are very different. Some hook into the dev server. Some proxy the browser. Some expose DevTools via MCP. Some are free, some charge monthly, some are experimental. Most "tool roundup" articles are either thinly disguised ads or surface-level feature lists. This is neither — we're involved with Frontman (one of the tools listed), and we'll be transparent about where it's stronger and where it's weaker.
+We built Frontman. These are workflow recommendations based on the linked product sources, not a shared hands-on benchmark. Architecture sources for Cursor, Stagewise, Chrome DevTools MCP, and Tidewave were checked October 20, 2026; no new comparative performance or pricing test was run.
 
-### Why This Category Exists
+## Why This Category Exists
 
-AI coding tools — Cursor, Copilot, Claude Code, Windsurf — work from source files. They don't see the rendered DOM, computed styles, or layout geometry on the client side. They don't see the compiled module graph, registered routes, server logs, or middleware state on the server side. For any web application with a runtime, the AI is guessing about a significant chunk of the application's behavior.
+A source file does not capture the page's current viewport, resolved styles, interaction state, or console errors. Browser tools can supply that evidence. Framework integration can add another layer: the source and runtime information needed to turn an observation into a maintainable edit.
 
-Runtime-aware tools try to close this gap — what we call [the runtime context gap](/blog/runtime-context-gap/). Here's how each one does it.
+This is no longer a clean split between browser-aware products and file-only IDEs. [Cursor Browser](https://cursor.com/docs/agent/tools/browser), for example, documents screenshots, interaction, console output, and network traffic. Compare the configured workflow, not a categorical claim that IDE agents cannot see a page. The [browser-aware explainer](/blog/what-are-browser-aware-ai-coding-tools/#three-approaches-different-capabilities) covers the integration patterns.
 
-### Frontman
+## Comparison Table
 
-**Website:** [frontman.sh](/frameworks/) | **License:** Apache-2.0 browser client and JavaScript integrations; GPL-2.0-or-later WordPress plugin; AGPL-3.0-only server plus AI Supplementary Terms | **Stars:** ~131
+| Tool | Starting workspace | Choose it when | Main boundary to check |
+| --- | --- | --- | --- |
+| Frontman | Running app beside chat | Teammates want to point at an existing UI and request a supported change | Framework compatibility, source-mapping availability, provider setup, and human source review |
+| Stagewise | Agentic IDE with browsing and codebase access | You want browsing and a coding agent in one environment | Whether its workspace, tools, and review flow fit your existing project |
+| Cursor Browser | Browser tools inside Cursor | Developers already use Cursor and need browser evidence alongside code | IDE access, tool approvals, and source-review responsibilities |
+| Chrome DevTools MCP | Browser-debugging tools connected to an agent | You want to add browser inspection to a client you already use | Client setup, browser access, permissions, and separate source investigation |
+| Tidewave | AI development toolkit for Phoenix and Rails | Your app matches its documented stack and development workflow | Exact integration, tool access, and current setup requirements |
 
-Framework middleware for Next.js, Astro, and Vite. Installs _inside_ the framework's dev server, so it has native access to both client-side context (DOM, component tree, computed styles) and server-side context (routes, compiled module graph, server logs). Both exposed via MCP.
+## Frontman
 
-**Strengths:** Deepest framework integration. BYOK — connect Claude, OpenAI, or OpenRouter directly. Source-available with an Apache-2.0 browser client and JavaScript framework integrations, a GPL-2.0-or-later WordPress plugin, plus self-hosting available.
+Frontman combines browser tools with a project integration. The browser supplies screenshots, DOM inspection, and computed styles; the JavaScript framework integration exposes project files and framework context. The server orchestrates the agent and persists task history. Relevant context can pass to the selected model provider.
 
-**Weaknesses:** Early stage. Rough edges, incomplete documentation, small community. Limited to supported frameworks. Source mapping breaks on deeply abstracted component libraries.
+**Use it when:** the task starts with an existing rendered element and your team wants a visual interface plus reviewable source edits. **Skip it when:** the main job is terminal orchestration, a backend refactor, or an unsupported stack. Source mapping can fail; visual context does not guarantee correct code or token reuse.
 
-_Disclosure: We built this._
+Hosted Frontman requires sign-in and a supported model connection. The product is source-available under its package-specific licenses; self-hosting moves the server to your infrastructure, not automatically offline. See [compatibility](/docs/reference/compatibility/), [security](/blog/security/), and [current pricing](/pricing/).
 
-### Stagewise
+## Stagewise
 
-**Website:** [stagewise.io](https://stagewise.io) | **License:** AGPL-3.0 | **Stars:** ~6,500 | **Backing:** YC S25
+The current [Stagewise README](https://github.com/stagewise-io/stagewise#about-the-project) describes an open-source agentic IDE with a coding agent, browser console/debugger access, temporary website changes, connected-codebase edits, and external IDE integration. It also documents bring-your-own-key and custom providers. The old proxy-only, no-BYOK description is not an adequate account of this product.
 
-Started as a browser toolbar, now evolving into a standalone agent with CLI injection. `npx stagewise@latest` starts a proxy and injects a toolbar into your running app. Two modes: standalone (hosted agent, account required) or bridge (connects to Cursor/Copilot).
+**Use it when:** you want browsing and agentic development together in an IDE workflow. **Skip it when:** your requirement is specifically Frontman's supported framework-runtime integration rather than a different workspace. Verify source-location and framework requirements on your actual project; neither universal support nor a blanket lack of Astro/Svelte support follows from the architecture.
 
-**Strengths:** Most polished UX. Active community. Supports React, Next.js, Vue, Angular plus CSS frameworks. YC credibility.
+For detailed product tradeoffs, use [Frontman vs Stagewise](/vs/stagewise/). Check the vendor's current plans before purchasing rather than relying on historical prompt limits in a roundup.
 
-**Weaknesses:** ~10 free prompts/day, EUR 20/month for ~100/day. Requires account and OAuth. Proxy architecture means limited server-side visibility. No BYOK — inference goes through their servers. No Astro or Svelte support.
+## Cursor Browser
 
-### Tidewave
+Cursor's [browser documentation](https://cursor.com/docs/agent/tools/browser) describes an integrated browser with screenshots, page interactions, console messages, and network traffic. Browser tools have their own approval controls.
 
-**Website:** [tidewave.ai](https://tidewave.ai) | **Stars:** ~1,600 | **Created by:** José Valim (Elixir creator)
+**Use it when:** developers already work in Cursor and need to inspect and test the running page while editing code. **Skip it when:** non-engineers need a workflow outside an IDE. Browser automation does not by itself establish exact framework source mapping or correct design-system reuse. See [Frontman vs Cursor](/vs/cursor/) for the focused comparison.
 
-Not a coding agent itself — an MCP enhancement layer that gives your existing agent (Claude Code, Codex) access to runtime state. Deep backend integration: database queries, runtime evaluation, stack traces, live process state. Built for Phoenix/Elixir primarily.
+## Chrome DevTools MCP (Google)
 
-**Strengths:** Deep backend integration unmatched by anything else. Built by José Valim. Works with your existing agent.
+[Chrome DevTools MCP](https://github.com/ChromeDevTools/chrome-devtools-mcp) exposes browser-debugging tools to an AI coding assistant. It is a tool server, not a complete editing interface for a site owner.
 
-**Weaknesses:** JS framework support is thin (~28 stars on `tidewave_js`). $10/month. Not standalone. If you're a JS/TS developer, this isn't built for you yet.
+**Use it when:** you want browser inspection in a configured agent workflow. **Skip it when:** you want a ready-made non-developer editing experience rather than client/tool configuration. The [Puppeteer MCP alternatives guide](/blog/puppeteer-mcp-alternatives-claude-code/) separates debugging, repeatable automation, browser access, and source mapping.
 
-### Chrome DevTools MCP (Google)
+## Tidewave
 
-Google's MCP server exposes DevTools state to AI agents. Your agent can query the DOM, read console output, inspect network requests, and run performance diagnostics. Our guide to [Chrome DevTools MCP browser debugging](/blog/puppeteer-mcp-alternatives-claude-code/) compares it with Playwright MCP, Claude in Chrome, and the archived Puppeteer reference server.
+[Tidewave](https://tidewave.ai) presents an AI development toolkit for Phoenix and Rails. Evaluate it for those applications rather than using old star counts or a generic claim that all runtime tools provide the same server visibility.
 
-**Strengths:** Official Google project. Framework-agnostic. Free and open.
+**Use it when:** your project matches its documented stack and you want to evaluate its integrated development workflow. **Skip it when:** that integration does not cover your stack. Check current framework-specific documentation before adoption.
 
-**Weaknesses:** Raw — no agent included. Browser-only (no server-side context). Requires manual setup.
+## Which One Should You Use?
 
-### Onlook (Honorable Mention)
+Choose a representative task, record the starting revision, and require a source diff plus browser evidence. Confirm who can install the integration, approve tool actions, and review the result. A polished preview is not an accepted change.
 
-**Website:** [onlook.dev](https://onlook.dev) | **Stars:** ~24,700 | **Backing:** YC
+For the architectural criteria, use the [runtime-context taxonomy](/blog/runtime-context-gap/#a-five-layer-context-taxonomy). To compare more general tools, use the [frontend coding-agent buyer guide](/blog/best-frontend-coding-agent/). If you choose Frontman, [make one first edit](/blog/getting-started/) before evaluating larger changes.
 
-"Cursor for Designers" — a Figma-like visual editor for React/Next.js. Different category (visual design tool, not runtime-aware coding agent), but overlaps in the "non-engineers editing code" use case. Uses a sandboxed web container, not your real dev server.
-
-### Comparison Table
-
-| Feature          | Frontman             | Stagewise     | Tidewave    | Chrome MCP |
-| ---------------- | -------------------- | ------------- | ----------- | ---------- |
-| Architecture     | Framework middleware | Browser proxy | MCP server  | MCP server |
-| Client runtime   | Yes                  | Yes           | Yes         | Yes        |
-| Server runtime   | Yes                  | Limited       | Yes (deep)  | No         |
-| Standalone agent | Yes                  | Yes           | No          | No         |
-| Pricing | Five free uses, no card. Pro: EUR 15/seat/month or EUR 150/seat/year. AI costs separate. | Trial limits; paid plans | $10/mo | No platform fee |
-| BYOK             | Yes                  | No            | Yes         | Yes        |
-| Next.js          | Yes                  | Yes           | Thin        | Yes        |
-| Astro            | Yes                  | No            | No          | Yes        |
-| Svelte           | Yes                  | No            | No          | Yes        |
-| Vue              | Yes                  | Yes           | No          | Yes        |
-| Account required | Yes (hosted Pro)     | Yes           | Yes         | No         |
-
-### Which One Should You Use?
-
-**Phoenix/Rails/Django developer:** Tidewave. Deep backend runtime that nothing else matches.
-
-**Want the most polished UX and don't mind paying:** Stagewise. The YC backing shows.
-
-**Want deep framework integration + local control:** Frontman. See [how deep framework integration affects design system consistency](/blog/what-are-browser-aware-ai-coding-tools/). Source-available and BYOK for local development. Hosted Frontman Pro is available now. The tradeoff is that it's early-stage with rougher edges.
-
-**Want to add browser context to your existing agent:** Chrome DevTools MCP. Bare-bones but framework-agnostic and free.
-
-**Designer who wants a visual editor:** Onlook. Different category entirely.
-
-The category is real — and it's part of a broader wave of [open-source AI coding agents](/blog/best-open-source-ai-coding-tools-2026/). Six months ago this wasn't a thing. Now there are five projects with different architectures attacking the same problem. Some will be dead in a year. Some will be table stakes. Try them on a real project and decide for yourself. [Get started with Frontman](/blog/getting-started/), read the [frontend agent explainer](/blog/frontend-agent/), use the [frontend AI tools](/blog/best-frontend-coding-agent/) buyer guide, or see the detailed [Frontman vs Cursor](/vs/cursor/) and [Frontman vs Stagewise](/vs/stagewise/) comparisons.
+**Correction, October 20, 2026:** This guide previously described IDE agents as unable to inspect browser state and Stagewise as a proxy-only product without BYOK. The revised comparison reflects the linked primary sources and removes unsupported framework exclusions and historical vendor limits.

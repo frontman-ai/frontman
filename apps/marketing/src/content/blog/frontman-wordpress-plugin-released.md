@@ -1,6 +1,7 @@
 ---
 title: 'Frontman WordPress Plugin Is Live'
 pubDate: 2026-05-14T05:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 description: 'The Frontman WordPress plugin is now live in the WordPress Plugin Directory. Install it from wp-admin and edit your site with an AI agent.'
 author: 'Itay Adler'
 image: '/blog/frontman-wordpress-plugin-released-cover.png'
@@ -8,6 +9,8 @@ imageAlt: 'Frontman WordPress plugin release announcement'
 articleSection: 'Product Announcement'
 tags: ['announcement', 'wordpress']
 ---
+
+This announcement marks Frontman's availability in the WordPress Plugin Directory. For current installation, requirements, and recovery details, use the [WordPress setup guide](/docs/integrations/wordpress/).
 
 Installing an AI editor on a WordPress site should feel like installing a WordPress plugin.
 
@@ -27,22 +30,16 @@ Install it from wp-admin like any other WordPress plugin:
 2. Search for **Frontman Agentic AI Editor**.
 3. Click **Install Now**.
 4. Click **Activate**.
-5. Visit `/frontman` on your site while logged in as an administrator.
+5. Open **Frontman** from the WordPress admin menu while logged in as an administrator.
+6. Complete separate Frontman sign-in, confirm service access, and connect your own supported AI provider. Provider costs are separate.
 
-That is the whole setup. No terminal. No separate server. No framework config. Frontman runs as a WordPress plugin and serves the editing experience from `/frontman`.
+The plugin requires WordPress 6.0+ and PHP 7.4+. It loads Frontman's hosted interface and connects to the Frontman service; plugin activation alone is not complete agent setup. No terminal or framework configuration is needed for this plugin installation.
 
 ### What the plugin gives you
 
 Frontman puts an AI agent directly inside your WordPress site. Open `/frontman`, describe the change you want, and the agent works through WordPress-specific tools while you watch the live site preview.
 
-It can handle the workflows that usually send you hunting through admin screens:
-
-- Create, edit, and delete posts and pages
-- Insert, update, and rearrange Gutenberg blocks
-- Edit Elementor pages with Elementor-aware tools
-- Update navigation menus and menu items
-- Read and change safe site options like title, tagline, and permalink settings
-- Browse block templates and template parts
+Its [current WordPress tool inventory](/docs/integrations/wordpress/#what-the-agent-can-do) covers supported content, Gutenberg, Elementor, navigation, templates, widgets, and selected settings. Use that maintained reference for exact capabilities rather than treating this release announcement as a complete list.
 
 The important part is not that there is a chat box. WordPress already has plenty of AI chat boxes. The important part is that the agent operates next to a live preview of the page it is changing. You describe the result you want, the plugin runs the appropriate WordPress tools, and you verify the change in the same workflow.
 
@@ -80,10 +77,12 @@ This is a release announcement, not a claim that every WordPress edge case has b
 
 WordPress is not one platform in practice. It is thousands of themes, page builders, hosting environments, cache layers, security plugins, custom post types, and old decisions nobody remembers making. Usually in production. Usually five minutes before someone needs the page fixed.
 
-Frontman is production-ready and battle-tested. Keep backups. Review changes in the live preview. Use staging for higher-risk changes. The plugin can make real changes to content, menus, templates, Elementor pages, and settings. That power is the point. It is also why the workflow has to be treated seriously.
+Frontman supports production installations, but published content can change immediately, before visual review. Preview is not an approval gate, and not every mutation requires confirmation. Keep backups and use staging for higher-risk work. Elementor rollback snapshots do not constitute a universal undo system; read the [confirmation and recovery limits](/docs/integrations/wordpress/#confirmation-and-rollback).
 
 ### Try it
 
 Install [Frontman - Agentic AI Editor from the WordPress Plugin Directory](https://wordpress.org/plugins/frontman-agentic-ai-editor/), activate it, and open `/frontman` on your site.
 
-The better workflow is simple: stay inside the site, describe the change, watch the preview, and review what changed before it ships.
+Start with a staging site, describe one supported change, and inspect the result before using your normal publication process.
+
+**Correction, October 20, 2026:** Plugin activation is not the whole setup: hosted sign-in, service access, and a supported provider connection are also required. Preview does not defer writes to the connected installation.

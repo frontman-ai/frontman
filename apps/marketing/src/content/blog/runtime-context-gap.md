@@ -127,6 +127,8 @@ Runtime-aware systems should make evidence and uncertainty visible, not merely a
 
 ## The Architectural Takeaway
 
+For one operational application, see [how local context can reduce agent exploration](/blog/vertically-integrated-agents-token-optimization/#local-context-before-model-context). That is a measurement hypothesis, not a universal token-savings guarantee.
+
 No single context layer is the truth for every task. Source describes intent and possible behavior. Runtime instruments provide observations. Framework metadata provides provenance. Tests and review decide whether a proposed change is acceptable.
 
 Better coding-agent architecture connects those layers without pretending observation replaces engineering judgment. For workflow selection across browser, IDE, and terminal tools, read [Frontman vs Cursor vs Claude Code](/blog/frontman-vs-cursor-vs-claude-code/). For hands-on setup, see the [Next.js runtime context tutorial](/blog/tutorial-nextjs-runtime-context/).

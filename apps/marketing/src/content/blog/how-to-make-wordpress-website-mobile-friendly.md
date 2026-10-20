@@ -39,7 +39,7 @@ WordPress provides built-in responsive controls in some editors and themes. Depe
 | A button below a huge image | Image dimensions and the section’s reading order | Reduce the mobile image size or adjust the mobile arrangement where supported. |
 | A difficult menu | Whether it opens and its links fit on screen | Check the theme or navigation block’s mobile menu settings. |
 
-These are starting points, not universal settings. Gutenberg, Elementor, and individual themes expose different controls.
+These are starting points, not universal settings. Gutenberg, Elementor, and individual themes expose different controls. For a navigation problem, [identify what controls the header and menu](/blog/how-to-edit-wordpress-header-footer/#find-what-controls-the-header-or-footer) before changing an unrelated page block.
 
 ## Fix cramped Gutenberg columns without another plugin
 

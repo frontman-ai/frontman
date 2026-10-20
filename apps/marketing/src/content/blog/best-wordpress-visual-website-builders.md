@@ -44,17 +44,17 @@ Frontman’s WordPress tools act on the connected installation. They are not arb
 
 ## Before you try it
 
-Start with a backup and use staging for higher-risk changes. Writes to published content on a live site can take effect immediately, before visual review. The preview is not a universal approval gate, and not all mutations require confirmation. Frontman provides rollback snapshots for Elementor changes only; that does not mean other WordPress changes have a universal one-click rollback. Recovery for other surfaces depends on WordPress revisions, trash where applicable, backups, or manual restoration.
+Start with a backup and use staging for higher-risk changes. Writes to published content on a live site can take effect immediately, before visual review. The preview is not a universal approval gate, and not all mutations require confirmation. Frontman provides rollback snapshots for Elementor changes only; that does not mean other WordPress changes have a universal one-click rollback. Recovery for other surfaces depends on WordPress revisions, trash where applicable, backups, or manual restoration. Establish a [WordPress production-change recovery process](/blog/wordpress-maintenance-checklist/#before-you-change-production) before editing a live site.
 
 ## When a traditional builder is a better choice
 
 ### WordPress block editor: start with the built-in option
 
-If your pages use ordinary WordPress content and blocks, try the block editor before adding another layer. It is the most direct fit for a core WordPress workflow, and the source material notes that block plugins can extend it. For more elaborate layouts, templates, or visual controls, a dedicated builder may suit you better.
+If your pages use ordinary WordPress content and blocks, try the block editor before adding another layer. It is the most direct fit for a core WordPress workflow, and the source material notes that block plugins can extend it. For more elaborate layouts, templates, or visual controls, a dedicated builder may suit you better. If the immediate problem is cramped columns, try the [native Gutenberg mobile-stacking fix](/blog/how-to-make-wordpress-website-mobile-friendly/#fix-cramped-gutenberg-columns-without-another-plugin) before choosing another tool.
 
 ### Elementor: choose breadth and a dedicated canvas
 
-Elementor is a strong conventional choice when you want a live drag-and-drop interface, extensive design controls, and a large ecosystem of widgets and third-party add-ons. That breadth can also make the interface feel like more than you need for simple pages. Frontman supports Elementor when it is active, so the options are not mutually exclusive: Elementor supplies the builder interface; Frontman can act on supported Elementor content through its WordPress integration.
+Elementor is a strong conventional choice when you want a live drag-and-drop interface, extensive design controls, and a large ecosystem of widgets and third-party add-ons. That breadth can also make the interface feel like more than you need for simple pages. Frontman supports Elementor when it is active, so the options are not mutually exclusive: Elementor supplies the builder interface; Frontman can act on supported Elementor content through its WordPress integration. The [AutonomyAI Elementor redesign case study](/blog/autonomyai-wordpress-redesign-case-study/#what-this-result-does-not-prove) provides a customer example with explicit evidence limits, not a comparative benchmark.
 
 ### SeedProd: choose a landing-page-focused workflow
 
