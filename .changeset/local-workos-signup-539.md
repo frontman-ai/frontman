@@ -2,4 +2,4 @@
 "@frontman/frontman-server-assets": patch
 ---
 
-Add local transport coverage for WorkOS signup, repeated login, and identity linking without changing production request defaults.
+Cover OAuth signup, email verification, repeat login, and identity linking through HTTP routes, with local WorkOS responses and persisted account, session, and job assertions.
