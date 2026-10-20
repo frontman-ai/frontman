@@ -81,12 +81,12 @@ let getToolsJson = (server: t): array<JSON.t> => {
   tools->Array.sort((a, b) =>
     String.compare(a->Relay.toolName->Option.getOrThrow, b->Relay.toolName->Option.getOrThrow)
   )
-  let names = Dict.make()
+  let names = Set.make()
   tools->Array.forEach(tool => {
     let name = tool->Relay.toolName->Option.getOrThrow
-    switch names->Dict.has(name) {
+    switch names->Set.has(name) {
     | true => JsError.throwWithMessage(`Duplicate tool name: ${name}`)
-    | false => names->Dict.set(name, true)
+    | false => names->Set.add(name)
     }
   })
   tools
