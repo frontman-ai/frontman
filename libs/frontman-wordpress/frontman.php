@@ -49,6 +49,7 @@ define( 'FRONTMAN_PLUGIN_URL', frontman_plugin_dir_url( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
 
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-auth.php';
+Frontman_Auth::register();
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-plugin-dependencies.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';

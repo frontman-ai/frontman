@@ -19,6 +19,40 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Frontman_Auth {
 	private const NONCE_ACTION = 'frontman_request';
+	private static ?string $cookie_failure = null;
+	private static bool $diagnostic_logged = false;
+
+	public static function register(): void {
+		foreach ( [
+			'auth_cookie_malformed' => 'malformed',
+			'auth_cookie_expired' => 'expired',
+			'auth_cookie_bad_username' => 'bad_username',
+			'auth_cookie_bad_hash' => 'bad_hash',
+			'auth_cookie_bad_session_token' => 'bad_session',
+		] as $hook => $category ) {
+			add_action( $hook, static function () use ( $category ): void {
+				if ( 'malformed' !== $category || null === self::$cookie_failure ) {
+					self::$cookie_failure = $category;
+				}
+			}, 10, 0 );
+		}
+	}
+
+	private static function log_auth_rejection(): void {
+		if ( self::$diagnostic_logged || ! Frontman_Sentry::sanitize_enabled( get_option( 'frontman_php_diagnostics', false ) ) ) {
+			return;
+		}
+
+		$has_cookie = defined( 'LOGGED_IN_COOKIE' ) && isset( $_COOKIE[ LOGGED_IN_COOKIE ] );
+		$category = $has_cookie ? ( self::$cookie_failure ?? 'no_native_reason' ) : 'absent_cookie';
+		self::$diagnostic_logged = true;
+		error_log( 'Frontman auth diagnostics: ' . wp_json_encode( [
+			'category' => $category,
+			'wordpress_version' => get_bloginfo( 'version' ),
+			'php_version' => PHP_VERSION,
+			'plugin_version' => FRONTMAN_VERSION,
+		] ) );
+	}
 
 	/**
 	 * Check if the current request is authorized.
@@ -92,6 +126,9 @@ class Frontman_Auth {
 		if ( $is_api ) {
 			nocache_headers();
 			$code = $error->get_error_code();
+			if ( 'frontman_not_authenticated' === $code && 401 === $status ) {
+				self::log_auth_rejection();
+			}
 			if ( in_array( $code, [ 'frontman_missing_nonce', 'frontman_invalid_nonce' ], true ) && true === self::check() ) {
 				header( 'X-WP-Nonce: ' . self::create_nonce() );
 			}
