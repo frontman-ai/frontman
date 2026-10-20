@@ -1,7 +1,8 @@
 ---
 title: 'Edit Next.js Components in Your Browser'
 pubDate: 2026-04-14T05:00:00Z
-description: 'Frontman connects to your running Next.js app and lets you click any element to edit the source. No file hunting, no class name guessing — just click and describe.'
+updatedDate: 2026-10-20T00:00:00Z
+description: 'Use Frontman for browser-led edits in a supported Next.js app. Understand setup, source-mapping limits, shared components, and a reproducible next exercise.'
 author: 'Danni Friedland'
 articleSection: 'Tutorial'
 image: '/blog/edit-nextjs-visually-cover.png'
@@ -13,7 +14,7 @@ faq:
   - question: 'Does this work with the App Router?'
     answer: 'Yes. Frontman supports both the App Router and the Pages Router. It understands Server Components and Client Components and handles them appropriately — server-only components are edited in source, client components get live hot-reload verification.'
   - question: 'What happens when I click a shared component — does it change every instance?'
-    answer: 'Frontman tells you before making the change. If you click a Button that appears in 12 places across your app, it will show you that the edit affects the shared component and where it is used. You can proceed (changing all instances) or narrow the change to a local override at that specific usage site.'
+    answer: 'An edit to a shared implementation can affect other instances. Ask the agent to identify shared impact, review actual callers and the source diff, and prefer instance-level props when the request is local. Do not assume the tool automatically finds every usage or prevents a broad change.'
   - question: 'Can I use this without being a developer?'
     answer: 'Yes. Designers and PMs use Frontman to make visual changes — spacing, colors, typography, copy — without knowing which file to edit. Engineers set it up once. After that, anyone can click elements in the browser and describe changes in plain language.'
 ---
@@ -24,9 +25,9 @@ Frontman removes that wall. You edit Next.js components by clicking them in the 
 
 ## What "Edit Next.js Visually" Actually Means
 
-When Frontman runs alongside your dev server, it connects to your running Next.js app and builds a map: every element you can see in the browser is linked to the exact component and file that renders it.
+Frontman combines the selected element's browser context with source metadata exposed by the framework integration. Source mapping can be missing or incomplete, so not every element resolves to an exact file and line.
 
-Click any element. You see:
+Depending on available metadata, a selection can include:
 
 - Which component renders it (e.g., `PricingCard` in `components/pricing/PricingCard.tsx`)
 - The actual computed style values, not the class string
@@ -35,7 +36,9 @@ Click any element. You see:
 
 Describe what you want. Frontman edits the source file directly, and Next.js hot module replacement shows you the result immediately, in the same browser tab at the same scroll position.
 
-## Setup: Two Minutes
+<span id="setup-two-minutes"></span>
+
+## Set Up the Next.js Integration
 
 **1. Run the installer:**
 
@@ -51,13 +54,13 @@ This adds the package and creates the correct Next.js entrypoint automatically: 
 npm run dev
 ```
 
-Open your browser. The Frontman sidebar appears. Click anything.
+Open `/frontman` on the development server, complete Frontman sign-in, and connect a supported model provider. Follow the [current setup guide](/docs/integrations/nextjs/) for requirements and troubleshooting; provider access is not supplied by installing the package.
 
-There is no step 3 for development. The generated entrypoint can remain in production builds, but the package runtime only handles routes when `NODE_ENV=development` by default. Set `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1` to opt in outside development. Set `FRONTMAN_ENABLED=0` to force it off.
+The supported editing workflow is development. The generated entrypoint can remain in production builds, but the package runtime only handles routes when `NODE_ENV=development` by default. Set `FRONTMAN_ENABLE_IN_PRODUCTION=1` or `FRONTMAN_ENABLED=1` to opt in outside development. Set `FRONTMAN_ENABLED=0` to force it off.
 
 ## The Workflow
 
-Here is what editing the hero section of a Next.js marketing page looks like:
+The following sequences illustrate the handoff difference; they are not recordings or measured timing results. For a complete exercise, [follow the reproducible Next.js overflow tutorial](/blog/tutorial-nextjs-runtime-context/#1-create-a-page-with-a-known-bug).
 
 **Without Frontman:**
 
@@ -70,20 +73,18 @@ You: *find PageHero.tsx, locate the h1 class*
 You: *change font-bold to font-semibold, save*
 You: *check browser* — correct component, but the subheading also needs fixing
 You: *find the subheading, update that too, save*
-Time: 8 minutes if you know the codebase. 45 minutes if you don't.
 ```
 
 **With Frontman:**
 
 ```text
 You: *click the heading in the browser*
-Frontman: *selects the h1 in PageHero.tsx:23*
+Frontman: *uses the selected element's available source context*
 You: "Make this semibold instead of bold"
 Frontman: *updates class, hot-reload fires*
 You: *see correct result instantly, click the subheading*
 You: "Same treatment"
 Frontman: *edits, hot-reload fires*
-Time: 30 seconds.
 ```
 
 ## What You Can Change

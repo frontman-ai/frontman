@@ -79,6 +79,8 @@ A reviewer sees `24px` padding on one card where system guidance specifies `spac
 4. If shared, code owner checks all usages before deciding whether default should change.
 5. CI validates code; design reviews rendered result; code owner approves or requests revision.
 
+For several related inconsistencies on one page, see the [multi-select batch example](/blog/multi-select/#concrete-batch-example). Keep local-versus-shared ownership explicit for each selected element.
+
 No elapsed-time promise is implied. Shared impact can make a visually small request technically substantial.
 
 ## Use Tickets for Coordination, Not Translation
