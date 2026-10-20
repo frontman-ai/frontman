@@ -196,6 +196,8 @@ We would call it evidence for one narrow thing: on a real frontend integration t
 
 ## What We Took From The Run
 
+For the architectural hypothesis this run illustrates, read [vertical integration and token optimization](/blog/vertically-integrated-agents-token-optimization/). The [runtime context taxonomy](/blog/runtime-context-gap/#a-five-layer-context-taxonomy) separates the evidence layers; this case study owns the task, measurements, and limits.
+
 The result changed how we talk about Frontman internally. We should not claim that browser context automatically produces better code. This run did not show that.
 
 It showed something more practical: when the task depends on a running frontend, the agent wastes fewer turns if the running frontend is part of its normal working environment.

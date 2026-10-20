@@ -8,7 +8,7 @@ articleSection: 'Tutorial'
 image: '/blog/edit-website-without-developer-cover.png'
 imageAlt: 'Product manager editing a website directly in the browser'
 tags: ['product-management', 'design-ops', 'cross-functional']
-updatedDate: 2026-10-06T00:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 faq:
   - question: 'Do I need to set up a development environment to use Frontman?'
     answer: 'For Next.js, Astro, or Vite, an engineer first configures Frontman in a running development app and grants workspace access. For WordPress, an administrator installs the plugin through wp-admin without a framework development app. Both workflows require Frontman sign-in, service access, and a supported AI provider with separate costs.'
@@ -32,7 +32,22 @@ For an existing WordPress site, use the [WordPress plugin setup guide](/docs/int
 
 For Next.js, Astro, or Vite, ask a developer to complete the [setup brief](/marketing-teams/#developer-setup) and [installation](/docs/installation/) in a supported running development environment. Agree on workspace access and a reviewer. Provider access and costs are separate in both workflows; see [pricing](/pricing/) and [provider setup](/docs/api-keys/).
 
-Pick one heading or CTA label. State the exact replacement and ask Frontman to leave links, behavior, and other content unchanged. Inspect the resulting page at desktop and mobile widths, then refine the copy if needed. Framework source changes still need developer review, tests, and deployment. WordPress drafts and staging promotion use your normal publication process.
+Pick one heading or CTA label, then complete one small edit:
+
+1. Open the intended page and select the target element when available.
+2. Request the exact text replacement while preserving links, behavior, and unrelated content.
+3. Check the changed label at desktop and mobile widths. Test the existing link or action, not just its appearance.
+4. For framework source changes, send the focused diff and checks through normal developer review. For WordPress, use the normal staging or draft publication process.
+
+An illustrative request—not a customer result:
+
+```text
+On the pricing page, change the primary CTA label from
+"Get Started" to "Start Trial" at desktop and mobile widths.
+Do not change click behavior, routing, analytics, or other CTAs.
+```
+
+Your acceptance criteria are the exact label, unchanged action, no unintended wrapping at the checked widths, and no unrelated changes.
 
 If your native CMS editor already handles the update, use it. Self-service is a choice of workflow, not a requirement to add AI.
 
@@ -72,30 +87,13 @@ This is a governance boundary, not a claim that visual code is always harmless. 
 
 Self-service works when authorship does not imply authority to ship.
 
-| Responsibility                                    | Recommended owner                      |
-| ------------------------------------------------- | -------------------------------------- |
-| State user-visible intent and acceptance criteria | Product manager                        |
-| Produce focused source edit                       | Product manager with an editing tool   |
-| Check design-system fit                           | Designer or design-system owner        |
-| Review source diff and technical impact           | Engineer or code owner                 |
-| Run automated checks                              | CI                                     |
-| Approve merge and deployment                      | Existing repository and release owners |
-
-Do not give a self-service author a weaker review lane. Existing branch protection, required checks, code ownership, and deployment permissions should continue to apply.
+The PM supplies intent and a focused proposal; design and engineering owners review the relevant impact, and existing release owners control merge and deployment. Use the [canonical UI review loop](/blog/review-ui-changes-from-non-engineers/#the-review-loop) rather than creating a weaker PM-specific approval lane.
 
 ## Turn the Boundary Into a Self-Service Policy
 
 This article defines who may author which changes. Use [How Teams Review UI Changes From Non-Engineers](/blog/review-ui-changes-from-non-engineers/) as the canonical approval workflow for every eligible proposal rather than creating a PM-specific review lane.
 
-Require the PM to state what users should see and where. Avoid broad prompts such as "improve this page."
-
-```text
-On the pricing page, change the primary CTA label from
-"Get Started" to "Start Trial" at desktop and mobile widths.
-Do not change click behavior, routing, analytics, or other CTAs.
-```
-
-This is an illustrative example, not a report of a customer request or production change.
+Require the PM to state what users should see and where, as in the bounded update above. Avoid broad prompts such as "improve this page."
 
 Frontman connects its browser workspace to a running development app through a framework integration. An authorized PM can select the visible element, provide this requirement, and inspect the hot-reloaded result. Filesystem operations execute through the local integration; relevant task context passes through the Frontman server to the selected model provider. See the [security model](/blog/security/) for system boundaries.
 
@@ -116,7 +114,7 @@ These measures reveal whether self-service reduces handoffs or merely moves work
 
 ## Roll Out in Stages
 
-Start with a small allowlist: one site area, named authors, copy-only changes, and mandatory engineering approval. Review the first set of changes together. Expand to styling or component props only after diffs remain focused and reviewers trust the process.
+Start with one site area, named authors, copy-only changes, and mandatory engineering approval. Use the [bounded team pilot](/blog/best-ai-coding-agents-frontend-development-teams-2026/#run-a-bounded-team-pilot) to evaluate review effort before expanding the allowlist.
 
 The goal is not to remove developers from website work. It is to reserve engineering implementation time for changes that need engineering judgment while keeping engineering control over what ships.
 

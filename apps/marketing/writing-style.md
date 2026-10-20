@@ -28,6 +28,32 @@ Problem diagnosis
 
 Preserve this six-stage intent path. Any separate eight-step production workflow is a proposed operationalization of how the team might research, draft, review, and publish content; it is not the editorial model. The eight-step list under **Tutorial** below describes article anatomy, not a mandatory production process.
 
+## Topic Ownership and Deep Links
+
+Keep one primary reference for each recurring explanation. Sibling posts should retain the short context and safety checks their own task needs, then link to the relevant section rather than reproduce the full guide.
+
+| Topic | Primary owner | Sibling-post boundary |
+| --- | --- | --- |
+| Browser-awareness definition and evidence layers | `what-are-browser-aware-ai-coding-tools.md`; taxonomy in `runtime-context-gap.md` | Link to the tool comparison for vendor selection; do not duplicate pricing tables |
+| Browser-aware vendor selection | `browser-aware-ai-tools-2026.md` | Compare current workflows, not a second architecture textbook |
+| Frontend product shortlist | `best-frontend-coding-agent.md` | Delegate adoption procedure to the team guide |
+| Team adoption and evaluation | `best-ai-coding-agents-frontend-development-teams-2026.md` | Own the pilot and evidence record, not full product reviews |
+| Existing-codebase investigation | `6-ai-coding-tools-production.md` | Own repository navigation and verification, not the frontend shortlist |
+| WordPress AI category selection | `best-wordpress-ai-plugins-2026.md` | Agent and MCP details belong in the specialist comparisons |
+| WordPress editing-agent tradeoffs | `ai-agent-wordpress-plugin-comparison.md` | Send authentication and MCP deployment selection to the MCP guide |
+| WordPress MCP selection | `best-wordpress-mcp-servers-and-plugins-2026.md` | Keep tool discovery distinct from visual editing and approval |
+| WordPress setup, capabilities, confirmation and rollback | `/docs/integrations/wordpress/` | Announcements own dated events, not competing current inventories |
+| Elementor page speed | `how-to-make-elementor-website-faster.md` | External measurement and supported edits; not responsive-layout or encoding guidance |
+| Mobile layout and usability | `how-to-make-wordpress-website-mobile-friendly.md` | A mobile layout improvement does not establish faster loading |
+| Scroll-controlled Elementor video | `play-video-on-scroll-elementor-with-frontman.md` | Own interaction mechanics and reduced motion, not generic speed optimization |
+| Recurring WordPress operation and recovery planning | `wordpress-maintenance-checklist.md` | Delegate a specific repair to its tutorial |
+| Internal consent-banner benchmark | `frontman-vs-opencode-claude-code-case-study.md` | Full methods, table and limits live here; summarize narrowly elsewhere |
+| Self-service first edit | `edit-website-without-developer.md` | Keep the practical edit; delegate detailed approval policy |
+| Code-backed UI review | `review-ui-changes-from-non-engineers.md` | Do not transfer Git/CI approval assumptions to live WordPress database edits |
+| Design-system ownership | `team-collaboration.md` | Own decision roles, not another review or installation guide |
+
+Use contextual, descriptive links at the point a reader needs the next explanation. Verify section fragments against rendered HTML. Preserve concise immediate-write, backup, and review warnings before mutations even when a deeper guide is linked. A workflow demo or redesign case study is not evidence of performance gains. Check query overlap and existing traffic before any merge or redirect; textual similarity alone is insufficient.
+
 ## Frontmatter
 
 Every post requires:
