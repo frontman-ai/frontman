@@ -11,6 +11,17 @@ function redirects301_check( bool $ok, string $message ): void {
 
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
 $tools = Frontman_Tools::instance();
+if ( in_array( '--coexist', $argv, true ) ) {
+	redirects301_check( Frontman_Tool_301_Redirects::is_available() && Frontman_Tool_Redirection::is_available(), 'Both plugins must be active.' );
+	$registry = new Frontman_Tools();
+	( new Frontman_Tool_Redirection() )->register( $registry );
+	( new Frontman_Tool_301_Redirects() )->register( $registry );
+	foreach ( [ 'wp_list_redirects', 'wp_create_redirect', 'wp_delete_redirect', 'wp_301_redirects_list', 'wp_301_redirects_create', 'wp_301_redirects_delete' ] as $name ) {
+		redirects301_check( null !== $registry->get( $name ) && null !== $tools->get( $name ), 'Missing coexisting tool: ' . $name );
+	}
+	echo "OK (both real redirect adapters coexist)\n";
+	exit( 0 );
+}
 if ( in_array( '--setup', $argv, true ) ) {
 	redirects301_check( ! Frontman_Tool_301_Redirects::is_available(), 'Inactive plugin available.' );
 	redirects301_check( null === $tools->get( 'wp_301_redirects_list' ), 'Inactive tool registered.' );
