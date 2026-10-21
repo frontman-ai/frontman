@@ -117,7 +117,7 @@ precommit:
 	mix deps.unlock --unused
 	mix format
 	mix credo --strict
-	mix test
+	$(MAKE) test
 
 strict-compile:
 	mix compile --warnings-as-errors --all-warnings
