@@ -173,10 +173,38 @@ verification on the new head. Stop on an unrelated or ambiguous failure and
 explain that the change has not landed. Do not bypass a failing check just
 because it is not enforced by branch protection.
 
+### Codex review gate
+
+Codex review is mandatory before merging, even if GitHub does not expose it as a
+required check. After the final push, record the PR head SHA and request
+`@codex review` in a PR comment unless a completed review already covers that exact
+head or a review of that head is already pending. Do not submit duplicate requests.
+
+Wait for Codex to finish and verify its reported reviewed commit matches the
+current PR head. A request acknowledgement, an eyes reaction, a different bot's
+review, green CI, or a review of an earlier commit is not completion evidence.
+If completion or the reviewed SHA cannot be verified, stop and report that
+landing is waiting for Codex; do not merge.
+
+Read the complete review summary and all inline findings and replies, including
+paginated results. Address every valid actionable finding with a fix and relevant
+tests. Reply to findings with the resolution and evidence. Explain disagreements
+explicitly; if a finding remains disputed, obtain a maintainer decision instead
+of silently dismissing it. Resolve a thread only when its concern is demonstrably
+addressed or the maintainer has accepted the documented disposition.
+
+Any subsequent push, including fixes, conflict resolutions, or documentation
+changes, invalidates the exact-head review gate. Rerun affected checks and request
+and wait for Codex review of the new head. Repeat until the current head has a
+completed Codex review and no actionable findings remain unresolved.
+Missing or unavailable Codex review is a blocker, not an implicit waiver.
+
 ## Land and confirm
 
 1. Immediately before merging, re-read the PR head, base, check results, rules,
-   and review state. If the head changed, verify the new version before proceeding.
+   and review state, including completed Codex review of that exact head and the
+   disposition of every finding. If the head changed, verify the new version
+   before proceeding.
 2. Squash the verified PR using
    `gh pr merge <PR-number> --repo frontman-ai/frontman --squash --match-head-commit <verified-head-SHA>`.
    Replace both placeholders with the discovered PR and exact verified SHA.
