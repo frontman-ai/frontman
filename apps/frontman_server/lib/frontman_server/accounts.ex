@@ -32,17 +32,16 @@ defmodule FrontmanServer.Accounts do
   end
 
   @doc """
-  Checks fresh activation candidacy, not permission to send, within inclusive UTC signup bounds.
-  Only trust cohorts after full prompt-writer rollout; callers supply cutoff and age bounds.
+  Checks fresh activation candidacy, not permission to send, with an inclusive UTC signup age bound.
+  Existing users are excluded by the first-message backfill; callers supply the age bound.
   """
   def activation_candidate?(
         %Scope{} = scope,
-        %DateTime{time_zone: "Etc/UTC"} = signup_cutoff,
         %DateTime{time_zone: "Etc/UTC"} = eligible_before
       ) do
     scope
     |> scope_user_id()
-    |> User.activation_candidate(signup_cutoff, eligible_before)
+    |> User.activation_candidate(eligible_before)
     |> Repo.exists?()
   end
 

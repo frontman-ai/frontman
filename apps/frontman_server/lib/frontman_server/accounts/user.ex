@@ -34,10 +34,9 @@ defmodule FrontmanServer.Accounts.User do
     timestamps(type: :utc_datetime)
   end
 
-  def activation_candidate(user_id, signup_cutoff, eligible_before) do
+  def activation_candidate(user_id, eligible_before) do
     from(user in without_first_message(user_id),
       where: not is_nil(user.confirmed_at),
-      where: user.inserted_at >= ^signup_cutoff,
       where: user.inserted_at <= ^eligible_before
     )
   end

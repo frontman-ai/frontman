@@ -123,25 +123,23 @@ defmodule FrontmanServer.AccountsTest do
     end
   end
 
-  describe "activation_candidate?/3" do
-    test "includes exact UTC signup bounds and excludes outside or reversed bounds" do
-      lower = ~U[2026-06-01 12:00:00Z]
-      upper = ~U[2026-06-02 12:00:00Z]
+  describe "activation_candidate?/2" do
+    test "includes signups at or before the UTC age bound and excludes newer signups" do
+      bound = ~U[2026-06-02 12:00:00Z]
 
       for {signup, expected} <- [
-            {DateTime.add(lower, -1), false},
-            {lower, true},
-            {upper, true},
-            {DateTime.add(upper, 1), false}
+            {DateTime.add(bound, -365, :day), true},
+            {DateTime.add(bound, -1), true},
+            {bound, true},
+            {DateTime.add(bound, 1), false}
           ] do
         user =
           unconfirmed_user_fixture()
-          |> Ecto.Changeset.change(inserted_at: signup, confirmed_at: lower)
+          |> Ecto.Changeset.change(inserted_at: signup, confirmed_at: bound)
           |> Repo.update!()
 
         scope = Scope.for_user(user)
-        assert Accounts.activation_candidate?(scope, lower, upper) == expected
-        refute Accounts.activation_candidate?(scope, upper, lower)
+        assert Accounts.activation_candidate?(scope, bound) == expected
       end
     end
 
@@ -154,9 +152,9 @@ defmodule FrontmanServer.AccountsTest do
         |> Repo.update!()
 
       scope = Scope.for_user(user)
-      refute Accounts.activation_candidate?(scope, bound, bound)
+      refute Accounts.activation_candidate?(scope, bound)
       confirmed = user |> Ecto.Changeset.change(confirmed_at: bound) |> Repo.update!()
-      assert Accounts.activation_candidate?(scope, bound, bound)
+      assert Accounts.activation_candidate?(scope, bound)
 
       other =
         unconfirmed_user_fixture()
@@ -164,12 +162,12 @@ defmodule FrontmanServer.AccountsTest do
         |> Repo.update!()
 
       confirmed |> Ecto.Changeset.change(first_message_at: bound) |> Repo.update!()
-      refute Accounts.activation_candidate?(scope, bound, bound)
-      assert Accounts.activation_candidate?(Scope.for_user(other), bound, bound)
+      refute Accounts.activation_candidate?(scope, bound)
+      assert Accounts.activation_candidate?(Scope.for_user(other), bound)
       Repo.delete!(other)
-      refute Accounts.activation_candidate?(Scope.for_user(other), bound, bound)
+      refute Accounts.activation_candidate?(Scope.for_user(other), bound)
       missing = Scope.for_user(%User{id: Ecto.UUID.generate()})
-      refute Accounts.activation_candidate?(missing, bound, bound)
+      refute Accounts.activation_candidate?(missing, bound)
     end
   end
 
