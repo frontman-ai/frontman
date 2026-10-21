@@ -85,6 +85,7 @@ let make = () => {
       onToggleChat={() => setChatOpen(prev => !prev)}
       onSettingsClick={() => Client__State.Actions.openSettingsModal()}
     />
+    <Client__WordPressLoginBanner />
     <div className="flex flex-1 min-h-0 w-full">
       {switch isResizing {
       | true => <div className="fixed inset-0 z-50 cursor-col-resize" />

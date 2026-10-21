@@ -32,6 +32,8 @@ type promptInput = {
 
 type rec action =
   | InitializeConnection(Connection.config)
+  | WordPressAuthenticationRequired(option<string>)
+  | ReloadAfterWordPressLogin
   | ConnectionAction(Connection.action)
   | ConnectionEvent({signal: WebAPI.EventTypes.abortSignal, action: action})
   | SessionEvent({requestId: Connection.sessionRequestId, action: action})
@@ -128,6 +130,7 @@ type customProviderMutationRequest =
   | DeleteCustomProviderRequest({id: string, lockVersion: int})
 
 type effect =
+  | ReloadFrontman
   | ConnectionEffect(Connection.effect)
   | CreateSession({taskId: string, input: promptInput})
   | SendMessage({taskId: string, submission: Client__State__Types.submission})
@@ -277,6 +280,7 @@ let defaultState: state = {
   tasks: Dict.make(),
   currentTask: Task.New(Task.makeNew(~previewUrl=getInitialUrl())),
   connection: None,
+  wordPressLoginRecovery: None,
   userProfile: None,
   settingsModalTab: None,
   billingStatus: Client__Billing.NotLoaded,
@@ -316,6 +320,7 @@ let defaultState: state = {
 }
 
 module Selectors = {
+  let wordPressLoginRecovery = (state: state) => state.wordPressLoginRecovery
   let getSession = (state: state) =>
     state.connection->Option.flatMap(Connection.Selectors.getSession)
   let getRelay = (state: state) => state.connection->Option.flatMap(Connection.Selectors.getRelay)
@@ -1460,6 +1465,7 @@ module ConnectionEffects = {
 
 let handleEffect = (effect, state: state, dispatch: action => unit) => {
   switch effect {
+  | ReloadFrontman => WebAPI.Window.current->WebAPI.Window.location->WebAPI.Location.reload
   | BufferAssistantText({taskId, messageId, text, agentId}) =>
     getSessionTextBuffer(dispatch).add(~taskId, ~messageId, ~text, ~agentId)
   | BufferUserBlock({taskId, messageId, block, agentId}) =>
@@ -2071,6 +2077,12 @@ let clearConnectionState = (state: state) => {
 
 let rec next = (state: state, action) => {
   switch action {
+  | WordPressAuthenticationRequired(loginUrl) =>
+    switch state.wordPressLoginRecovery {
+    | Some(_) => state->StateReducer.update
+    | None => {...state, wordPressLoginRecovery: Some({loginUrl: loginUrl})}->StateReducer.update
+    }
+  | ReloadAfterWordPressLogin => state->StateReducer.update(~sideEffects=[ReloadFrontman])
   | InitializeConnection(config) =>
     next(
       {...state, connection: Some(Connection.initialState(config))},

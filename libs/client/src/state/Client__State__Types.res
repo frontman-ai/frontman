@@ -209,6 +209,7 @@ type state = {
   tasks: Dict.t<Task.t>,
   currentTask: Task.currentTask,
   connection: option<Client__ConnectionReducer.state>,
+  wordPressLoginRecovery: option<{loginUrl: option<string>}>,
   userProfile: option<userProfile>,
   settingsModalTab: option<settingsTab>,
   billingStatus: Client__Billing.state,

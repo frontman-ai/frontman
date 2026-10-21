@@ -7,6 +7,11 @@ module UserContentPart = Client__State__Types.UserContentPart
 module AssistantContentPart = Client__State__Types.AssistantContentPart
 
 module Actions = {
+  let wordPressAuthenticationRequired = loginUrl =>
+    Client__State__Store.dispatch(WordPressAuthenticationRequired(loginUrl))
+
+  let reloadAfterWordPressLogin = () => Client__State__Store.dispatch(ReloadAfterWordPressLogin)
+
   let addUserMessage = (~content, ~annotationId=?) =>
     Promise.make((resolve, _) =>
       Client__State__Store.dispatch(AddUserMessage({content, annotationId, onComplete: resolve}))

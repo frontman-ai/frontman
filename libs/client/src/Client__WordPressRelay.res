@@ -2,7 +2,7 @@ module Relay = FrontmanAiFrontmanClient.FrontmanClient__Relay
 
 @new external makeHeaders: option<WebAPI.HeadersInit.t> => WebAPI.FetchTypes.headers = "Headers"
 
-let makeConfig = (~baseUrl, ~nonce: option<string>) => {
+let makeConfig = (~baseUrl, ~nonce: option<string>, ~onAuthenticationRequired=?) => {
   let nonce = ref(nonce)
   let fetch = async (url, init: WebAPI.FetchTypes.requestInit) => {
     let headers = makeHeaders(init.headers)
@@ -15,7 +15,10 @@ let makeConfig = (~baseUrl, ~nonce: option<string>) => {
       cache: WebAPI.FetchTypes.NoStore,
     }
     let response = await WebAPI.Fetch.fetch(url, ~init)
-    switch (response.status, response.headers->WebAPI.Headers.get("X-WP-Nonce")->Null.toOption) {
+    let response = switch (
+      response.status,
+      response.headers->WebAPI.Headers.get("X-WP-Nonce")->Null.toOption,
+    ) {
     | (403, Some(replacement)) if replacement->String.trim != "" =>
       let failure = await Relay.readHttpError(response->WebAPI.Response.clone)
       switch failure.code {
@@ -27,6 +30,22 @@ let makeConfig = (~baseUrl, ~nonce: option<string>) => {
       }
     | _ => response
     }
+    switch (response.status, onAuthenticationRequired) {
+    | (401, Some(notify)) =>
+      let failure = await Relay.readHttpError(response->WebAPI.Response.clone)
+      switch failure.code {
+      | Some("frontman_not_authenticated") =>
+        let aborted =
+          init.signal->Option.flatMap(Null.toOption)->Option.mapOr(false, signal => signal.aborted)
+        switch aborted {
+        | false => notify()
+        | true => ()
+        }
+      | _ => ()
+      }
+    | _ => ()
+    }
+    response
   }
   Relay.makeConfig(~baseUrl, ~fetch)
 }
