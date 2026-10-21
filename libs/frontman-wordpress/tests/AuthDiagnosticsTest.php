@@ -25,6 +25,29 @@ function current_user_can( string $capability ): bool {
 	return $GLOBALS['admin'];
 }
 function get_option( string $name, $default = false ) { return $GLOBALS['options'][ $name ] ?? $default; }
+function add_option( $key, $value, $deprecated = '', $autoload = false ): bool {
+        if ( isset( $GLOBALS['stored_options'][ $key ] ) ) {
+                return false;
+        }
+        $GLOBALS['stored_options'][ $key ] = $value;
+        return true;
+}
+class DiagnosticDatabase {
+        public string $options = 'wp_options';
+        public function prepare( $sql, ...$args ): array {
+                check( false !== strpos( $sql, 'CAST(option_value AS UNSIGNED) <= %d' ), 'Throttle must use an atomic conditional update.' );
+                return $args;
+        }
+        public function query( array $args ): int {
+                [ $now, $key, $cutoff ] = $args;
+                if ( ! isset( $GLOBALS['stored_options'][ $key ] ) || $GLOBALS['stored_options'][ $key ] > $cutoff ) {
+                        return 0;
+                }
+                $GLOBALS['stored_options'][ $key ] = (int) $now;
+                return 1;
+        }
+}
+$GLOBALS['wpdb'] = new DiagnosticDatabase();
 function get_bloginfo( string $name ): string { return '6.0.9'; }
 function __( string $message, string $domain ): string { return $message; }
 function wp_json_encode( $data ) { return json_encode( $data ); }
@@ -66,7 +89,7 @@ foreach ( [ 'malformed', 'expired', 'bad_username', 'bad_hash', 'bad_session_tok
 
 $log = tempnam( sys_get_temp_dir(), 'frontman-auth-test-' );
 $previous_log = ini_set( 'error_log', $log );
-function reset_request( $enabled = true, bool $cookie = true, ?string $hook = null ): void {
+function reset_request( $enabled = true, bool $cookie = true, ?string $hook = null, bool $keep_storage = false ): void {
 	foreach ( [ 'cookie_failure' => null, 'diagnostic_logged' => false ] as $name => $value ) {
 		$property = new ReflectionProperty( Frontman_Auth::class, $name );
 		if ( PHP_VERSION_ID < 80100 ) {
@@ -74,7 +97,10 @@ function reset_request( $enabled = true, bool $cookie = true, ?string $hook = nu
 		}
 		$property->setValue( null, $value );
 	}
-	$GLOBALS['options'] = [ 'frontman_php_diagnostics' => $enabled ];
+	$GLOBALS['options'] = [ 'frontman_auth_diagnostics' => $enabled ];
+	if ( ! $keep_storage ) {
+	        $GLOBALS['stored_options'] = [];
+	}
 	$GLOBALS['logged_in'] = false;
 	$GLOBALS['admin'] = false;
 	$GLOBALS['resolved'] = false;
@@ -98,6 +124,28 @@ function reject_request(): void {
 }
 
 try {
+        reset_request( false );
+        $GLOBALS['options'] = [ 'frontman_php_diagnostics' => true ];
+        reject_request();
+        check( '' === file_get_contents( $log ), 'Existing Sentry consent must not enable auth diagnostics.' );
+        check( [] === $GLOBALS['stored_options'], 'Disabled diagnostics must not write throttle state.' );
+
+        reset_request();
+        reject_request();
+        reset_request( true, true, null, true );
+        reject_request();
+        check( '' === file_get_contents( $log ), 'Separate requests must share the throttle.' );
+        reset_request( true, true, 'auth_cookie_expired', true );
+        reject_request();
+        check( false !== strpos( file_get_contents( $log ), 'expired' ), 'Different categories must have independent windows.' );
+        $GLOBALS['stored_options']['frontman_auth_diagnostic_no_native_reason'] = time() - 301;
+        reset_request( true, true, null, true );
+        reject_request();
+        check( '' !== file_get_contents( $log ), 'Logging must resume after five minutes.' );
+        reset_request( true, true, null, true );
+        reject_request();
+        check( '' === file_get_contents( $log ), 'The renewed window must suppress subsequent requests.' );
+
 	foreach ( [
 		[ null, false, 'absent_cookie' ],
 		[ 'auth_cookie_malformed', false, 'absent_cookie' ],

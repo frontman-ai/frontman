@@ -30,6 +30,11 @@ class Frontman_Sentry {
 			'default' => false,
 			'sanitize_callback' => [ self::class, 'sanitize_enabled' ],
 		] );
+		register_setting( 'frontman_diagnostics', 'frontman_auth_diagnostics', [
+		        'type' => 'boolean',
+		        'default' => false,
+		        'sanitize_callback' => [ self::class, 'sanitize_enabled' ],
+		] );
 	}
 
 	public static function render_settings(): void {
@@ -48,6 +53,12 @@ class Frontman_Sentry {
 				</label>
 				<p><?php esc_html_e( 'Reports include exception types, sanitized stack traces, tool names, and software versions. They exclude exception messages, tool arguments, source code, site URLs, and user data. Sentry receives the server IP address when delivering reports. You can disable reporting here at any time.', 'frontman-agentic-ai-editor' ); ?></p>
 				<p><a href="https://frontman.sh/privacy/" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Frontman Privacy Policy', 'frontman-agentic-ai-editor' ); ?></a> · <a href="https://sentry.io/privacy/" target="_blank" rel="noopener noreferrer"><?php esc_html_e( 'Sentry Privacy Policy', 'frontman-agentic-ai-editor' ); ?></a></p>
+				<input type="hidden" name="frontman_auth_diagnostics" value="0">
+				<label>
+				        <input type="checkbox" name="frontman_auth_diagnostics" value="1" <?php checked( self::sanitize_enabled( get_option( 'frontman_auth_diagnostics', false ) ) ); ?>>
+				        <?php esc_html_e( 'Enable authentication diagnostics in the server PHP error log.', 'frontman-agentic-ai-editor' ); ?>
+				</label>
+				<p><?php esc_html_e( 'Records contain only fixed authentication failure categories and WordPress, PHP, and plugin versions. They exclude credentials, request content, URLs, and user data. Each category is logged at most once every five minutes per site. These records are not sent to Sentry. You can disable logging here at any time.', 'frontman-agentic-ai-editor' ); ?></p>
 				<?php submit_button(); ?>
 			</form>
 		</div>

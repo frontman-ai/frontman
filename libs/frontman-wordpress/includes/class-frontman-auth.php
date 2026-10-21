@@ -39,19 +39,39 @@ class Frontman_Auth {
 	}
 
 	private static function log_auth_rejection(): void {
-		if ( self::$diagnostic_logged || ! Frontman_Sentry::sanitize_enabled( get_option( 'frontman_php_diagnostics', false ) ) ) {
+		if ( self::$diagnostic_logged || ! Frontman_Sentry::sanitize_enabled( get_option( 'frontman_auth_diagnostics', false ) ) ) {
 			return;
 		}
 
 		$has_cookie = defined( 'LOGGED_IN_COOKIE' ) && isset( $_COOKIE[ LOGGED_IN_COOKIE ] );
 		$category = $has_cookie ? ( self::$cookie_failure ?? 'no_native_reason' ) : 'absent_cookie';
 		self::$diagnostic_logged = true;
+		if ( ! self::claim_diagnostic_window( $category ) ) {
+		        return;
+		}
 		error_log( 'Frontman auth diagnostics: ' . wp_json_encode( [
 			'category' => $category,
 			'wordpress_version' => get_bloginfo( 'version' ),
 			'php_version' => PHP_VERSION,
 			'plugin_version' => FRONTMAN_VERSION,
 		] ) );
+	}
+
+	private static function claim_diagnostic_window( string $category ): bool {
+	        global $wpdb;
+	        $key = 'frontman_auth_diagnostic_' . $category;
+	        $now = time();
+	        if ( add_option( $key, $now, '', false ) ) {
+	                return true;
+	        }
+
+	        // Compare and update atomically across workers; fixed keys bound storage per site.
+	        return 1 === $wpdb->query( $wpdb->prepare(
+	                "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND CAST(option_value AS UNSIGNED) <= %d",
+	                (string) $now,
+	                $key,
+	                $now - 300
+	        ) );
 	}
 
 	/**
