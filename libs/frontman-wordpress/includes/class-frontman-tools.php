@@ -123,6 +123,9 @@ class Frontman_Tools {
 	 * Register a tool definition.
 	 */
 	public function add( Frontman_Tool_Definition $tool ): void {
+		if ( isset( $this->tools[ $tool->name ] ) ) {
+			throw new \LogicException( 'Duplicate tool registration: ' . $tool->name );
+		}
 		$this->tools[ $tool->name ] = $tool;
 	}
 
