@@ -93,10 +93,9 @@ done
 "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-authors-runtime.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostAuthorsRuntimeTest.php" "$WORDPRESS:/tmp/PostAuthorsRuntimeTest.php"
-"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostContentRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-content-runtime.php"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/LandingPageRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-landing-page-runtime.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PostContentRuntimeTest.php" "$WORDPRESS:/tmp/PostContentRuntimeTest.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/TemplateCreationRuntimeTest.php" "$WORDPRESS:/tmp/TemplateCreationRuntimeTest.php"
-"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PageTemplateRuntimeFixture.php" "$WORDPRESS:/var/www/html/wp-content/mu-plugins/frontman-page-template-runtime.php"
 "$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/PageTemplateRuntimeTest.php" "$WORDPRESS:/tmp/PageTemplateRuntimeTest.php"
 if [[ -n "$YOAST_VERSION" ]]; then
   "$RUNTIME" exec "$WORDPRESS" mkdir -p /var/www/html/wp-content/mu-plugins /var/www/html/wp-content/plugins/wordpress-seo
