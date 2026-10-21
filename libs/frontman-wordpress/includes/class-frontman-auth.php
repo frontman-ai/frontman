@@ -65,7 +65,6 @@ class Frontman_Auth {
 	                return true;
 	        }
 
-	        // Compare and update atomically across workers; fixed keys bound storage per site.
 	        return 1 === $wpdb->query( $wpdb->prepare(
 	                "UPDATE {$wpdb->options} SET option_value = %s WHERE option_name = %s AND CAST(option_value AS UNSIGNED) <= %d",
 	                (string) $now,
