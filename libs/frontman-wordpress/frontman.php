@@ -3,7 +3,7 @@
  * Plugin Name:       Frontman - AI Website Editor
  * Plugin URI:        https://frontman.sh
  * Description:       Edit WordPress with AI beside a live preview. Update pages, posts, Elementor layouts, WooCommerce data, menus, and settings faster.
- * Version:           5.3.0
+ * Version:           5.4.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Frontman AI
@@ -43,12 +43,13 @@ if ( ! function_exists( 'frontman_plugin_dir_url' ) ) {
 	}
 }
 
-define( 'FRONTMAN_VERSION', '5.3.0' );
+define( 'FRONTMAN_VERSION', '5.4.0' );
 define( 'FRONTMAN_PLUGIN_DIR', frontman_plugin_dir_path( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_URL', frontman_plugin_dir_url( __FILE__ ) );
 define( 'FRONTMAN_PLUGIN_FILE', __FILE__ );
 
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-auth.php';
+Frontman_Auth::register();
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-plugin-dependencies.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-tools.php';
 require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';

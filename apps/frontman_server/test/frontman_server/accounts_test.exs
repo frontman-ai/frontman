@@ -83,6 +83,103 @@ defmodule FrontmanServer.AccountsTest do
       assert is_nil(user.hashed_password)
       assert is_nil(user.confirmed_at)
       assert is_nil(user.password)
+      assert is_nil(Repo.reload!(user).first_message_at)
+    end
+
+    test "registers valid input without accepting a forged first-message timestamp" do
+      email = unique_user_email()
+
+      attrs = %{
+        "email" => email,
+        "name" => unique_user_name(),
+        "first_message_at" => "2026-06-03T12:00:00Z"
+      }
+
+      assert {:ok, user} = Accounts.register_user(attrs)
+      persisted = Repo.reload!(user)
+      assert persisted.email == email
+      assert is_nil(persisted.first_message_at)
+    end
+  end
+
+  describe "OAuth registration" do
+    test "inserts valid provider input without accepting a forged first-message timestamp" do
+      email = unique_user_email()
+
+      attrs = %{
+        "email" => email,
+        "name" => unique_user_name(),
+        "first_message_at" => "2026-06-03T12:00:00Z"
+      }
+
+      assert {:ok, user} =
+               %User{}
+               |> User.oauth_registration_changeset(attrs)
+               |> Repo.insert()
+
+      persisted = Repo.reload!(user)
+      assert persisted.email == email
+      assert is_nil(persisted.first_message_at)
+    end
+  end
+
+  describe "activation_candidate?/2" do
+    test "accepts subsecond UTC bounds without including the next second" do
+      bound = ~U[2026-06-02 12:00:00.999999Z]
+      signup_second = ~U[2026-06-02 12:00:00Z]
+
+      for {signup, expected} <- [
+            {signup_second, true},
+            {DateTime.add(signup_second, 1), false}
+          ] do
+        user =
+          unconfirmed_user_fixture()
+          |> Ecto.Changeset.change(inserted_at: signup, confirmed_at: signup_second)
+          |> Repo.update!()
+
+        assert Accounts.activation_candidate?(Scope.for_user(user), bound) == expected
+      end
+    end
+
+    test "includes signups at or before the UTC age bound and excludes newer signups" do
+      bound = ~U[2026-06-02 12:00:00Z]
+
+      for {signup, expected} <- [
+            {DateTime.add(bound, -1), true},
+            {bound, true},
+            {DateTime.add(bound, 1), false}
+          ] do
+        user =
+          unconfirmed_user_fixture()
+          |> Ecto.Changeset.change(inserted_at: signup, confirmed_at: bound)
+          |> Repo.update!()
+
+        scope = Scope.for_user(user)
+        assert Accounts.activation_candidate?(scope, bound) == expected
+      end
+    end
+
+    test "uses current confirmation and first-prompt state for the scoped user" do
+      bound = ~U[2026-06-02 12:00:00Z]
+
+      user =
+        unconfirmed_user_fixture()
+        |> Ecto.Changeset.change(inserted_at: bound)
+        |> Repo.update!()
+
+      scope = Scope.for_user(user)
+      refute Accounts.activation_candidate?(scope, bound)
+      confirmed = user |> Ecto.Changeset.change(confirmed_at: bound) |> Repo.update!()
+      assert Accounts.activation_candidate?(scope, bound)
+
+      other =
+        unconfirmed_user_fixture()
+        |> Ecto.Changeset.change(inserted_at: bound, confirmed_at: bound)
+        |> Repo.update!()
+
+      confirmed |> Ecto.Changeset.change(first_message_at: bound) |> Repo.update!()
+      refute Accounts.activation_candidate?(scope, bound)
+      assert Accounts.activation_candidate?(Scope.for_user(other), bound)
     end
   end
 
@@ -107,6 +204,25 @@ defmodule FrontmanServer.AccountsTest do
     test "returns a user changeset" do
       assert %Ecto.Changeset{} = changeset = Accounts.change_user_email(%User{})
       assert changeset.required == [:email]
+    end
+
+    for {attempt, forged_at} <- [replacement: "2026-06-03T12:00:00Z", clearing: nil] do
+      test "changes email without accepting milestone #{attempt}" do
+        observed_at = ~U[2026-06-02 12:00:00Z]
+
+        user =
+          unconfirmed_user_fixture()
+          |> Ecto.Changeset.change(first_message_at: observed_at)
+          |> Repo.update!()
+
+        email = unique_user_email()
+        attrs = %{"email" => email, "first_message_at" => unquote(forged_at)}
+
+        assert {:ok, updated} = user |> Accounts.change_user_email(attrs) |> Repo.update()
+        persisted = Repo.reload!(updated)
+        assert persisted.email == email
+        assert persisted.first_message_at == observed_at
+      end
     end
   end
 

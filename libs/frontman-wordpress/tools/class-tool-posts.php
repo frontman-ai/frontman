@@ -22,6 +22,10 @@ class Frontman_Tool_Posts {
 	 * Register all post tools.
 	 */
 	public function register( Frontman_Tools $tools ): void {
+		$template_schema = [
+			'type' => 'string',
+			'description' => 'Pages only: an available native page-template slug/file, or default to reset. Omit on update to preserve. Read the actual assignment in wp_read_post.template.',
+		];
 		$categories_schema = [
 			'type' => 'array',
 			'items' => [ 'type' => 'integer', 'minimum' => 1 ],
@@ -124,6 +128,7 @@ class Frontman_Tool_Posts {
 					],
 					'categories' => $categories_schema,
 					'tags' => $tags_schema,
+					'template' => $template_schema,
 					'post_type' => [
 						'type'        => 'string',
 						'description' => 'Post type slug.',
@@ -197,6 +202,7 @@ class Frontman_Tool_Posts {
 					],
 					'categories' => $categories_schema,
 					'tags' => $tags_schema,
+					'template' => $template_schema,
 					'excerpt' => [
 						'type'        => 'string',
 						'description' => 'New post excerpt.',
@@ -297,6 +303,7 @@ class Frontman_Tool_Posts {
 			'modified'  => $post->post_modified,
 			'author'    => (int) $post->post_author,
 			'slug'      => $post->post_name,
+			'template'  => 'page' === $post->post_type ? $this->page_template( $post->ID ) : null,
 			'permalink' => get_permalink( $post ),
 			'categories' => $this->read_terms( $post, 'category' ),
 			'tags'       => $this->read_terms( $post, 'post_tag' ),
@@ -430,16 +437,76 @@ class Frontman_Tool_Posts {
 		}
 	}
 
+	/** Retain raw values until validated, including null versus omission. */
+	public static function validate_template_input( array $input ): void {
+		if ( array_key_exists( 'template', $input ) && ! is_string( $input['template'] ) ) {
+			throw new Frontman_Tool_Error( 'template must be a string.' );
+		}
+	}
+
+	private function check_page_template( array $input, string $type, ?\WP_Post $post = null ): void {
+		self::validate_template_input( $input );
+		if ( ! array_key_exists( 'template', $input ) ) {
+			return;
+		}
+		if ( 'page' !== $type ) {
+			throw new Frontman_Tool_Error( 'template assignment is only supported for pages.' );
+		}
+		if ( 'default' !== $input['template'] && ! array_key_exists( $input['template'], wp_get_theme()->get_page_templates( $post, 'page' ) ) ) {
+			throw new Frontman_Tool_Error( 'Requested template is not available for pages in the active theme. No changes were saved.' );
+		}
+	}
+
+	private function page_template( int $id ): string {
+		$template = get_page_template_slug( $id );
+		return '' === $template ? 'default' : $template;
+	}
+
+	private function verify_page_template( int $id, string $expected ): void {
+		if ( $this->page_template( $id ) !== $expected ) {
+			throw new Frontman_Tool_Error( "Post {$id} was saved, but page template readback differs from the requested assignment. Partial writes may remain; no rollback was performed. Use wp_read_post before retrying." );
+		}
+	}
+
+	/** Reject destructive sanitization before any write; native save filters remain enabled. */
+	private function check_content( array $input ): void {
+		if ( ! array_key_exists( 'content', $input ) ) {
+			return;
+		}
+		if ( ! is_string( $input['content'] ) ) {
+			throw new Frontman_Tool_Error( 'content must be a string.' );
+		}
+		if ( ! current_user_can( 'unfiltered_html' ) && wp_kses_post( $input['content'] ) !== $input['content'] ) {
+			throw new Frontman_Tool_Error( 'Content contains HTML not permitted without unfiltered_html. No changes were saved; remove the denied HTML or use an authorized account.' );
+		}
+	}
+
+	/** Verify the actual stored content, including changes made by native/plugin filters. */
+	private function verify_content( int $id, string $expected ): void {
+		$post = get_post( $id );
+		if ( ! $post || $post->post_content !== $expected ) {
+			throw new Frontman_Tool_Error( "Post {$id} was saved, but content readback did not match the requested content. Partial writes may remain; no rollback was performed. Use wp_read_post before retrying." );
+		}
+	}
+
 	/**
 	 * wp_create_post handler.
 	 */
 	public function create_post( array $input ): array {
+		if ( in_array( sanitize_key( $input['post_type'] ?? 'post' ), [ 'wp_template', 'wp_template_part' ], true ) ) {
+			throw new Frontman_Tool_Error( 'Use wp_create_template to create theme-linked templates or parts.' );
+		}
 		self::validate_taxonomy_input( $input );
 		$this->check_write_permissions( $input, sanitize_key( $input['post_type'] ?? 'post' ) );
+		if ( ! array_key_exists( 'content', $input ) ) {
+			throw new Frontman_Tool_Error( 'content is required when creating a post and must be a string.' );
+		}
+		$this->check_content( $input );
+		$this->check_page_template( $input, sanitize_key( $input['post_type'] ?? 'post' ) );
 		$assignments = $this->check_taxonomies( $input, sanitize_key( $input['post_type'] ?? 'post' ), sanitize_key( $input['status'] ?? 'draft' ) );
 		$post_data = [
 			'post_title'   => sanitize_text_field( $input['title'] ),
-			'post_content' => wp_kses_post( $input['content'] ),
+			'post_content' => $input['content'],
 			'post_type'    => sanitize_key( $input['post_type'] ?? 'post' ),
 			'post_status'  => sanitize_key( $input['status'] ?? 'draft' ),
 		];
@@ -453,11 +520,19 @@ class Frontman_Tool_Posts {
 		if ( array_key_exists( 'author', $input ) ) {
 			$post_data['post_author'] = $input['author'];
 		}
+		if ( array_key_exists( 'template', $input ) ) {
+			$post_data['page_template'] = $input['template'];
+		}
 		$post_id = wp_insert_post( wp_slash( $post_data ), true );
 
 		if ( is_wp_error( $post_id ) ) {
 			throw new Frontman_Tool_Error( $post_id->get_error_message() );
 		}
+
+		if ( 'page' === $post_data['post_type'] ) {
+			$this->verify_page_template( (int) $post_id, $input['template'] ?? 'default' );
+		}
+		$this->verify_content( (int) $post_id, $post_data['post_content'] );
 
 		return [
 			'id'        => $post_id,
@@ -480,6 +555,9 @@ class Frontman_Tool_Posts {
 			throw new Frontman_Tool_Error( "Post not found: {$source_id}" );
 		}
 
+		if ( in_array( $source->post_type, [ 'wp_template', 'wp_template_part' ], true ) ) {
+			throw new Frontman_Tool_Error( 'Use wp_create_template instead of duplicating templates or parts.' );
+		}
 		$title  = isset( $input['title'] ) ? sanitize_text_field( $input['title'] ) : trim( (string) $source->post_title ) . ' Copy';
 
 		$post_data = [
@@ -524,6 +602,8 @@ class Frontman_Tool_Posts {
 		}
 
 		$this->check_write_permissions( $input, $post->post_type, $post );
+		$this->check_content( $input + [ 'content' => $post->post_content ] );
+		$this->check_page_template( $input, $post->post_type, $post );
 		$assignments = $this->check_taxonomies( $input, $post->post_type, sanitize_key( $input['status'] ?? $post->post_status ) );
 		$before = $this->read_post( [ 'id' => $id ] );
 
@@ -545,7 +625,7 @@ class Frontman_Tool_Posts {
 			$post_data['post_title'] = sanitize_text_field( $input['title'] );
 		}
 		if ( isset( $input['content'] ) ) {
-			$post_data['post_content'] = wp_kses_post( $input['content'] );
+			$post_data['post_content'] = $input['content'];
 		}
 		if ( isset( $input['status'] ) ) {
 			$post_data['post_status'] = sanitize_key( $input['status'] );
@@ -554,11 +634,19 @@ class Frontman_Tool_Posts {
 			$post_data['post_excerpt'] = sanitize_textarea_field( $input['excerpt'] );
 		}
 
+		if ( array_key_exists( 'template', $input ) ) {
+			$post_data['page_template'] = $input['template'];
+		}
 		$result = wp_update_post( wp_slash( $post_data ), true );
 
 		if ( is_wp_error( $result ) ) {
 			throw new Frontman_Tool_Error( $result->get_error_message() );
 		}
+
+		if ( 'page' === $post->post_type ) {
+			$this->verify_page_template( $id, $input['template'] ?? $before['template'] );
+		}
+		$this->verify_content( $id, $input['content'] ?? $before['content'] );
 
 		return [
 			'before' => $before,

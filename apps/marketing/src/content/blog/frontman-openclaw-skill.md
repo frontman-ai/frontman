@@ -1,6 +1,7 @@
 ---
 title: 'Use Frontman With OpenClaw'
 pubDate: 2026-03-24T05:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 description: 'Frontman is now available as an OpenClaw skill. Give your AI agent the ability to click elements in a running web app, describe changes in plain English, and get real source file edits with hot reload. No IDE required.'
 author: 'Danni Friedland'
 articleSection: 'Product Announcement'
@@ -22,11 +23,9 @@ faq:
     answer: 'Yes. Since OpenClaw supports messaging channels like Slack, Telegram, and Discord, non-technical team members can describe UI changes in those channels. The OpenClaw agent with the Frontman skill handles the browser interaction, element selection, and code editing. The resulting diff goes through your normal code review process.'
 ---
 
-OpenClaw has changed how developers interact with AI agents. Instead of chatting in a terminal, you have an assistant that controls your browser, runs shell commands, manages files, and works across every messaging app you already use. It has 250,000+ GitHub stars for a reason.
+Use OpenClaw to set up a supported project and open Frontman's editing workspace. Then use Frontman to inspect the selected UI, request a source change, and review the result.
 
-But there is a gap in its browser capabilities when it comes to frontend development. OpenClaw's browser tool can click buttons, fill forms, and read pages — the same things a QA automation script does. What it cannot do is understand your component tree, read computed CSS values, resolve source map locations, or make targeted edits to the right source file when you point at a button and say "make this match the design system."
-
-That is the problem Frontman solves. And now it is available as an OpenClaw skill.
+The distinction is orchestration, not whether OpenClaw can access a browser. The [published skill instructions](https://github.com/frontman-ai/frontman/blob/main/openclaw-skill/SKILL.md#usage-with-openclaw) tell OpenClaw to interact with Frontman's browser interface; Frontman's own agent runs the visual editing loop.
 
 ### What the Skill Does
 
@@ -45,25 +44,18 @@ The skill adds Frontman to your OpenClaw agent's toolkit. Frontman installs as a
 - **Element selection** — click any element to target it for editing
 - **Console logs and build errors** — piped from the dev server
 
-When you tell your OpenClaw agent "fix the spacing on the hero section," it opens your app in the browser, uses Frontman's MCP tools to inspect the element, identifies the source component, generates the edit, and writes it to the file. Hot reload shows you the result. The whole loop happens in seconds.
+For a request such as "fix the spacing on the hero section," the documented handoff is through Frontman's interface: OpenClaw opens the Frontman URL, selects the target through browser interaction, and submits the request in chat. Frontman's agent uses the available browser and framework tools to inspect and edit the project. Review the resulting page and source diff; the skill does not guarantee a correct edit.
 
 ### Why This Matters
 
-Most AI coding tools work from source files. They read your JSX, guess what it renders, and hope the edit looks right. You do not see the result until you switch to the browser and check.
+The skill connects OpenClaw's orchestration workflow to Frontman's browser and framework tools. The [runtime context taxonomy](/blog/runtime-context-gap/#a-five-layer-context-taxonomy) explains the evidence layers; this guide focuses on connecting the two tools rather than repeating that architecture.
 
-Frontman works backward. It starts from what you see in the browser — the rendered pixels — and traces back to the source. It knows that the card on screen is not just a `<div>` — it is your `Card` component from `@company/ui`, line 47 of `Card.tsx`, with a `box-shadow` that computes to `0 4px 6px rgba(0,0,0,0.1)`.
+Keep the responsibilities clear:
 
-Combined with OpenClaw, you get an agent that can:
-
-1. Run shell commands to set up your environment
-2. Start your dev server
-3. Open the app in the browser
-4. Click elements and understand what they are at the component level
-5. Make precise source-level edits
-6. Verify the result visually through screenshots
-7. Iterate until it matches the design
-
-All from a single natural language instruction in Slack, Telegram, or your terminal.
+1. OpenClaw uses its permitted shell and browser tools for project setup and opening the workspace.
+2. In Frontman's interface, select the element and submit a bounded editing request.
+3. Frontman's agent inspects available context and makes supported source edits.
+4. Review the source diff, browser result, and checks before accepting the change.
 
 ### The Setup
 
@@ -84,13 +76,13 @@ npx astro add @frontman-ai/astro
 npx @frontman-ai/vite install
 ```
 
-Start your dev server and tell your agent to open `localhost:3000/frontman` (or whichever port your framework uses). The skill handles the rest.
+Start your dev server and tell your agent to open `localhost:3000/frontman` (or whichever port your framework uses). Follow the [current installation guide](/docs/installation/) for Frontman sign-in, service access, and provider configuration.
 
 ### For Teams
 
 The combination is especially useful for product teams. Designers and PMs do not need to learn an IDE or a terminal. They describe what they want changed in Slack — where OpenClaw is already listening. The agent uses Frontman to make the edit, takes a screenshot of the result, and posts it back to the channel. The engineer reviews the diff as a normal pull request.
 
-This turns "can you move this 4px to the left" from a three-day ticket lifecycle into a thirty-second conversation.
+Keep the normal [UI review loop](/blog/review-ui-changes-from-non-engineers/#the-review-loop): a message or screenshot is not merge approval. Task duration depends on the change, setup, and required review.
 
 ### Source-Available Frontman, Open-Source Integrations
 

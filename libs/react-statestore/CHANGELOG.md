@@ -1,5 +1,13 @@
 # @frontman-ai/react-statestore
 
+## 1.0.3
+
+### Patch Changes
+
+- [#1905](https://github.com/frontman-ai/frontman/pull/1905) [`c101951`](https://github.com/frontman-ai/frontman/commit/c101951b95cbb762f103da2f9b9210d5ec7a6449) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the jsdom test dependency from 30.0.1 to 30.1.0.
+
+- [#1910](https://github.com/frontman-ai/frontman/pull/1910) [`58c1989`](https://github.com/frontman-ai/frontman/commit/58c19896ec1714a4a5c9dd772df0aa62dbd5f905) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update use-sync-external-store to 1.7.0.
+
 ## 1.0.2
 
 ### Patch Changes

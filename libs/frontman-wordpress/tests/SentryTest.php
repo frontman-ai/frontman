@@ -14,7 +14,7 @@ define( 'FRONTMAN_VERSION', '5.0.0' );
 function get_option( string $name, $default = false ) { return $GLOBALS['options'][ $name ] ?? $default; }
 function get_bloginfo( string $name ): string { return '6.0.9'; }
 function wp_get_environment_type(): string { return 'staging'; }
-function register_setting( string $group, string $name, array $args ): void { $GLOBALS['setting'] = [ $group, $name, $args ]; }
+function register_setting( string $group, string $name, array $args ): void { $GLOBALS['settings'][ $name ] = [ $group, $name, $args ]; }
 function check( bool $condition, string $message ): void {
 	if ( ! $condition ) {
 		throw new RuntimeException( $message );
@@ -32,8 +32,11 @@ require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-sentry.php';
 Frontman_Sentry::capture( new RuntimeException( 'Not opted in' ), 'wp_test' );
 check( ! class_exists( 'FrontmanVendor\\Sentry\\ClientBuilder', false ), 'Disabled reporting must not load the SDK.' );
 Frontman_Sentry::register_setting();
-check( false === $GLOBALS['setting'][2]['default'], 'Diagnostics must default to off.' );
-check( is_callable( $GLOBALS['setting'][2]['sanitize_callback'] ), 'Consent must have a settings sanitizer.' );
+foreach ( [ 'frontman_php_diagnostics', 'frontman_auth_diagnostics' ] as $name ) {
+        check( isset( $GLOBALS['settings'][ $name ] ), 'Both diagnostic options must be registered independently.' );
+        check( false === $GLOBALS['settings'][ $name ][2]['default'], 'Diagnostics must default to off.' );
+        check( is_callable( $GLOBALS['settings'][ $name ][2]['sanitize_callback'] ), 'Consent must have a settings sanitizer.' );
+}
 foreach ( [ null, false, 0, '0', 'false', 'yes', [], [ '1' ] ] as $value ) {
 	check( ! Frontman_Sentry::sanitize_enabled( $value ), 'Only explicit opt-in should enable reporting.' );
 }

@@ -167,6 +167,11 @@ class Frontman_Tools {
 		if ( class_exists( 'Frontman_Tool_Posts' ) && in_array( $name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
 			Frontman_Tool_Posts::validate_author_input( $input );
 			Frontman_Tool_Posts::validate_taxonomy_input( $input );
+			Frontman_Tool_Posts::validate_template_input( $input );
+		}
+		if ( 'wp_create_template' === $name && class_exists( 'Frontman_Tool_Templates' ) ) {
+			Frontman_Tool_Templates::validate_create_input( $input );
+			return array_intersect_key( $input, array_flip( [ 'slug', 'type', 'title', 'content', 'area' ] ) );
 		}
 		if ( 'wp_find_users' === $name && class_exists( 'Frontman_Tool_Users' ) ) {
 			return Frontman_Tool_Users::validate_input( $input );
@@ -285,7 +290,7 @@ class Frontman_Tools {
 				return filter_var( $value, FILTER_VALIDATE_BOOLEAN );
 
 			case 'string':
-				if ( 'slug' === $field_name && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
+				if ( in_array( $field_name, [ 'slug', 'content', 'template' ], true ) && in_array( $tool_name, [ 'wp_create_post', 'wp_update_post' ], true ) ) {
 					return $value;
 				}
 

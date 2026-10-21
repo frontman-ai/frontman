@@ -7,12 +7,14 @@ image: '/blog/lighthouse-audits-cover.png'
 imageAlt: 'Lighthouse audits inside Frontman'
 articleSection: 'Product Announcement'
 tags: ['performance', 'ai', 'developer-tools']
-updatedDate: 2026-07-30T00:00:00Z
+updatedDate: 2026-10-20T00:00:00Z
 ---
 
 Frontman includes a `lighthouse` tool for auditing a URL from the same agent session used to inspect and edit a project. It does not replace Lighthouse or guarantee a higher score. It gives the agent a structured subset of a Lighthouse run so measurement and code changes can happen in one reviewable workflow.
 
 Google describes [Lighthouse](https://developer.chrome.com/docs/lighthouse/overview) as an automated tool for performance, accessibility, SEO, and other page-quality audits. Lighthouse findings are indicators: each failed audit still needs investigation, an appropriate fix, and another measurement.
+
+This tool runs through the JavaScript framework integrations, not the WordPress plugin. WordPress users should use external speed tests and the [WordPress-specific capability guide](/docs/integrations/wordpress/#what-the-agent-can-do), rather than assuming this audit command is available there.
 
 ## What Frontman actually runs
 
@@ -67,7 +69,7 @@ Only three failing issues per category are returned. Fixing one can expose anoth
 
 ## How to interpret results
 
-Lighthouse is a lab test, not a measurement of every real user's experience. Scores can move because of machine load, network conditions, page state, Chrome or Lighthouse versions, third-party requests, and application changes. Run multiple times when a small score difference matters, and use field data where available for production decisions.
+Lighthouse is a lab test, not a measurement of every real user's experience. It supplies one kind of [verification evidence](/blog/runtime-context-gap/#layer-5-verification-context), not proof that every production flow is correct. Scores can move because of machine load, network conditions, page state, Chrome or Lighthouse versions, third-party requests, and application changes. Run multiple times when a small score difference matters, and use field data where available for production decisions.
 
 Also preserve category boundaries:
 

@@ -127,7 +127,15 @@ test('setup links retain local contrast/underline styles and copy status names t
   const install = source('../components/blocks/install/InstallSteps.astro')
   expect(install).toContain('@apply text-primary-700 underline underline-offset-4')
   expect(source('./install-agent.mjs')).not.toContain('button.setAttribute("aria-label"')
-  expect(source('../pages/frameworks.astro').match(/class="underline underline-offset-4" href="https:\/\/(www.npmjs.com|github.com)/g)).toHaveLength(4)
+  const page = new JSDOM(source('../pages/frameworks.astro'))
+  pages.push(page)
+  const links = [...page.window.document.querySelectorAll('a[class="underline underline-offset-4"]')]
+  expect(links).toHaveLength(4)
+  for (const link of links) {
+    const url = new URL(link.getAttribute('href')!)
+    expect(url.protocol).toBe('https:')
+    expect(['www.npmjs.com', 'github.com']).toContain(url.hostname)
+  }
 })
 
 test('copy names follow initial, failure, retry success and selected-stack labels', async () => {

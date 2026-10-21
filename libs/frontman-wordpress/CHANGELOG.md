@@ -1,5 +1,27 @@
 # @frontman-ai/frontman-wordpress
 
+## 5.3.1
+
+### Patch Changes
+
+- [#1833](https://github.com/frontman-ai/frontman/pull/1833) [`25c573a`](https://github.com/frontman-ai/frontman/commit/25c573a13620ad7028b6dbf21f0f99c70f4de5ac) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Load WordPress image and media helpers during uploads so image, audio, and video metadata, image thumbnails, and supplied alt text are saved. Delete the new attachment and its files if metadata generation throws.
+
+- [#1911](https://github.com/frontman-ai/frontman/pull/1911) [`91ecc1a`](https://github.com/frontman-ai/frontman/commit/91ecc1a56ed5d55a1090a8e70d3dc018e1120ee7) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Clarify that navigation listing returns saved wp_navigation posts, not navigation built directly in templates or template parts.
+
+- [#1824](https://github.com/frontman-ai/frontman/pull/1824) [`a29d066`](https://github.com/frontman-ai/frontman/commit/a29d06602a9d896e9ab55b5c11cfd66253f88526) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Support creating and updating block and Custom HTML widgets, and preserve clickable links in text widgets. Widget removal retains settings for recovery with the existing move tool, including recovery from WordPress's inactive widgets. Reject noncanonical widget IDs before reading or mutating instances. Validate settings and permissions, preserve plugin metadata, and report failed saves with recovery instructions.
+
+- [#1878](https://github.com/frontman-ai/frontman/pull/1878) [`a24dc40`](https://github.com/frontman-ai/frontman/commit/a24dc40b99ddc871f7219d2775ac529161725a82) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Report template theme-assignment failures and reject readback that resolves a different post or content. Errors after saving identify the saved post; readback errors ask the agent to inspect the template before retrying.
+
+- [#1927](https://github.com/frontman-ai/frontman/pull/1927) [`e292959`](https://github.com/frontman-ai/frontman/commit/e292959a0af11beb9229c8a3944b0bbd519f5f21) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add separately opted-in local diagnostics for rejected WordPress API authentication, limited to cookie failure categories and software versions. Limit each category to one record per site every five minutes. Authentication and nonce behavior are unchanged.
+
+- [#1928](https://github.com/frontman-ai/frontman/pull/1928) [`059145c`](https://github.com/frontman-ai/frontman/commit/059145c2c4a59dcb99792ee3e4d3b82b63744d2b) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Show a persistent WordPress login recovery banner when the relay reports that WordPress authentication is required. Keep saved work and Frontman authentication unchanged; let users log in and reload before asking the agent to continue.
+
+- [#1929](https://github.com/frontman-ai/frontman/pull/1929) [`7e702cf`](https://github.com/frontman-ai/frontman/commit/7e702cfec7564cf4fbc647afdcbff92fdc7a6dbf) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Preserve post embed HTML for authorized users. Reject denied or malformed content before saving, and report partial saves when native filters change the stored content.
+
+- [#1929](https://github.com/frontman-ai/frontman/pull/1929) [`7e702cf`](https://github.com/frontman-ai/frontman/commit/7e702cfec7564cf4fbc647afdcbff92fdc7a6dbf) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Allow native page-template assignment when creating or updating pages. Validate availability before saving, preserve omitted assignments, support default resets, and return verified actual assignments with partial-save errors on persistence failure.
+
+- [#1929](https://github.com/frontman-ai/frontman/pull/1929) [`7e702cf`](https://github.com/frontman-ai/frontman/commit/7e702cfec7564cf4fbc647afdcbff92fdc7a6dbf) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Add verified, theme-linked block template and template-part creation. Reject collisions and generic orphan-producing creation paths, validate raw inputs, and report partial saves with raw-post recovery IDs. Require theme support for block templates, accept registered template-part areas, and verify stored markup before WordPress adds hooked blocks.
+
 ## 5.3.0
 
 ### Minor Changes

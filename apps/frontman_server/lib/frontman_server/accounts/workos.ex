@@ -376,10 +376,13 @@ defmodule FrontmanServer.Accounts.WorkOS do
   defp post_authenticate_request(body, context, attempt \\ 1) do
     require Logger
 
-    case Req.post("#{@workos_api_base}/user_management/authenticate",
-           json: body,
-           receive_timeout: @workos_auth_receive_timeout_ms,
-           connect_options: [timeout: @workos_auth_connect_timeout_ms]
+    case Req.post(
+           "#{@workos_api_base}/user_management/authenticate",
+           [
+             json: body,
+             receive_timeout: @workos_auth_receive_timeout_ms,
+             connect_options: [timeout: @workos_auth_connect_timeout_ms]
+           ] ++ Application.get_env(:frontman_server, :workos_req_options, [])
          ) do
       {:ok, %Req.Response{status: 200, body: response_body}} ->
         {:ok, response_body}

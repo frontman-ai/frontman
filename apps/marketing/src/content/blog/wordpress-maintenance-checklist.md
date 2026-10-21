@@ -1,6 +1,7 @@
 ---
 title: 'WordPress Maintenance Checklist: What to Check, Automate, and Escalate'
 seoTitle: 'WordPress Maintenance Checklist by Frequency'
+updatedDate: 2026-10-20T00:00:00Z
 pubDate: 2026-08-27T00:00:00Z
 description: 'A risk-based WordPress maintenance checklist for backups, updates, security, performance, verification, automation, and professional escalation.'
 author: 'Itay Adler'
@@ -194,7 +195,7 @@ Before these checks, record the URLs, flows, viewport sizes, test tool, test loc
 
 - Find broken internal and external links on important pages.
 - Review 404 reports for damaged internal paths.
-- Check page speed for important templates and user flows.
+- Check page speed for important templates and user flows. For Elementor pages, use the focused [page-speed diagnosis and edit workflow](/blog/how-to-make-elementor-website-faster/#diagnose-page-speed-and-choose-one-change).
 - Check desktop and mobile layout at common widths.
 - Review forms, search, downloads, embeds, and media.
 - Update stale business hours, prices, staff, offers, and legal notices.
