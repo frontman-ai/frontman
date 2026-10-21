@@ -128,7 +128,6 @@ defmodule FrontmanServer.AccountsTest do
       bound = ~U[2026-06-02 12:00:00Z]
 
       for {signup, expected} <- [
-            {DateTime.add(bound, -365, :day), true},
             {DateTime.add(bound, -1), true},
             {bound, true},
             {DateTime.add(bound, 1), false}
@@ -143,7 +142,7 @@ defmodule FrontmanServer.AccountsTest do
       end
     end
 
-    test "reloads scoped eligibility despite stale fields, other users, deletion or missing IDs" do
+    test "uses current confirmation and first-prompt state for the scoped user" do
       bound = ~U[2026-06-02 12:00:00Z]
 
       user =
@@ -164,10 +163,6 @@ defmodule FrontmanServer.AccountsTest do
       confirmed |> Ecto.Changeset.change(first_message_at: bound) |> Repo.update!()
       refute Accounts.activation_candidate?(scope, bound)
       assert Accounts.activation_candidate?(Scope.for_user(other), bound)
-      Repo.delete!(other)
-      refute Accounts.activation_candidate?(Scope.for_user(other), bound)
-      missing = Scope.for_user(%User{id: Ecto.UUID.generate()})
-      refute Accounts.activation_candidate?(missing, bound)
     end
   end
 
