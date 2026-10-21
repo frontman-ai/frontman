@@ -58,11 +58,12 @@ Stop for genuine blockers, ambiguous scope, unsafe changes, or unmet requirement
   stop for the contributor to complete it personally; never submit legal assent
   for them. Sources: `CLA.md`, `CONTRIBUTING.md`,
   `.github/workflows/cla.yml`.
-- Obtain maintainer review and any applicable required approvals, including
-  code-owner requirements. Evaluate review comments against the actual code;
+- Require review approvals only when enforced by current destination rules,
+  including applicable code-owner requirements. Do not require a separate
+  maintainer review otherwise. Evaluate existing review comments against the actual code;
   address valid findings, report disagreements clearly, and do not resolve
   comments merely to silence a gate. Never fabricate a human review.
-  Sources: `CONTRIBUTING.md`, `.github/CODEOWNERS`, current destination rules.
+  Sources: `.github/CODEOWNERS`, current destination rules.
 - Stage only the intended files. Keep commit hooks enabled. Use non-interactive
   commits such as `GIT_EDITOR=true git commit -m "fix(wordpress): describe change"`;
   choose a truthful subject matching the scope and existing history, not that

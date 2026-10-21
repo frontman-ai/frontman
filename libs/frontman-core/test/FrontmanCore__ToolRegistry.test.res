@@ -41,25 +41,14 @@ describe("ToolRegistry", _t => {
 
   test("serializes metadata and only real output schemas", t => {
     let definitions = ToolRegistry.coreTools()->ToolRegistry.getToolDefinitions
-    let object = tool => tool->JSON.Decode.object->Option.getOrThrow
-    let name = tool => object(tool)->Dict.get("name")->Option.flatMap(JSON.Decode.string)
-    let metadata = tool =>
-      object(tool)
-      ->Dict.get("_meta")
-      ->Option.flatMap(JSON.Decode.object)
-      ->Option.flatMap(meta => meta->Dict.get("ai.frontman/tool-metadata"))
-      ->Option.flatMap(JSON.Decode.object)
-    let readFile = definitions->Array.find(d => name(d) == Some("read_file"))->Option.getOrThrow
-    let listFiles = definitions->Array.find(d => name(d) == Some("list_files"))->Option.getOrThrow
-
-    t
-    ->expect(
-      metadata(readFile)
-      ->Option.flatMap(meta => meta->Dict.get("access"))
-      ->Option.flatMap(JSON.Decode.string),
+    let readFile = definitions->Array.find(d => d.name == "read_file")->Option.getOrThrow
+    let listFiles = definitions->Array.find(d => d.name == "list_files")->Option.getOrThrow
+    let accessSchema = S.object(
+      s => s.field("ai.frontman/tool-metadata", S.object(s => s.field("access", S.string))),
     )
-    ->Expect.toEqual(Some("read"))
-    t->expect(object(readFile)->Dict.get("outputSchema")->Option.isSome)->Expect.toBe(true)
-    t->expect(object(listFiles)->Dict.get("outputSchema"))->Expect.toEqual(None)
+
+    t->expect(readFile._meta->S.parseOrThrow(~to=accessSchema))->Expect.toBe("read")
+    t->expect(readFile.outputSchema->Option.isSome)->Expect.toBe(true)
+    t->expect(listFiles.outputSchema)->Expect.toEqual(None)
   })
 })

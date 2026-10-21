@@ -88,14 +88,15 @@ describe("MCP wire contracts", () => {
       `{"type":"object","$schema":"https://json-schema.org/draft/2020-12/schema","unevaluatedProperties":false}`,
       `{"type":"object","x-frontman":{"nested":[0,false,null]}}`,
     ]
-    let schemas = [MCP.toolJsonSchema, FrontmanProtocol__Relay.remoteToolSchema]
+    let roundTrips = [
+      json => typedRoundTrip(MCP.toolJsonSchema, json),
+      json => typedRoundTrip(FrontmanProtocol__Relay.remoteToolSchema, json),
+    ]
     inputs->Array.forEach(
       input => {
         let json = `{"name":"search","inputSchema":${input},"_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"}}}`
-        schemas->Array.forEach(
-          schema => {
-            t->expect(parseJson(schema, json))->Expect.toEqual(JSON.parseOrThrow(json))
-          },
+        roundTrips->Array.forEach(
+          roundTrip => t->expect(roundTrip(json))->Expect.toEqual(JSON.parseOrThrow(json)),
         )
       },
     )
@@ -135,19 +136,22 @@ describe("MCP wire contracts", () => {
       `{"anyOf":[{"type":"null"},{"type":"string"}],"x-frontman":true}`,
     ]
     let invalid = [`null`, `true`, `[]`, `0`, `"object"`]
-    let schemas = [MCP.toolJsonSchema, FrontmanProtocol__Relay.remoteToolSchema]
-    schemas->Array.forEach(
-      schema => {
+    let roundTrips = [
+      json => typedRoundTrip(MCP.toolJsonSchema, json),
+      json => typedRoundTrip(FrontmanProtocol__Relay.remoteToolSchema, json),
+    ]
+    roundTrips->Array.forEach(
+      roundTrip => {
         valid->Array.forEach(
           output => {
             let json = `{"name":"search","inputSchema":{"type":"object"},"outputSchema":${output},"_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"}}}`
-            t->expect(parseJson(schema, json))->Expect.toEqual(JSON.parseOrThrow(json))
+            t->expect(roundTrip(json))->Expect.toEqual(JSON.parseOrThrow(json))
           },
         )
         invalid->Array.forEach(
           output => {
             let json = `{"name":"search","inputSchema":{"type":"object"},"outputSchema":${output},"_meta":{"ai.frontman/tool-metadata":{"visibleToAgent":true,"access":"read"}}}`
-            t->expect(parses(schema, json))->Expect.toBe(false)
+            t->expect(() => roundTrip(json))->Expect.toThrow
           },
         )
       },

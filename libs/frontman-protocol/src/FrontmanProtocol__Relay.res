@@ -3,8 +3,6 @@ module MCP = FrontmanProtocol__MCP
 let protocolVersion = "2.0"
 let legacyProtocolVersion = "1.0"
 
-type remoteTool = JSON.t
-
 @schema
 type legacyRemoteTool = {
   name: string,
@@ -33,31 +31,24 @@ let remoteToolMetaSchema = S.object(s => {
   s.flatten(S.dict(S.json))->JSON.Encode.object
 })
 
-let remoteToolShapeSchema = S.object(s => {
-  s.field("name", S.string->S.min(1))->ignore
-  s.field("title", S.option(S.string))->ignore
-  s.field("description", S.option(S.string))->ignore
-  s.field("icons", S.option(S.array(MCP.iconSchema)))->ignore
-  s.field("inputSchema", MCP.toolInputSchema)->ignore
-  s.field("outputSchema", S.option(S.dict(S.json)))->ignore
-  s.field("annotations", S.option(MCP.toolAnnotationsSchema))->ignore
-  s.field("_meta", remoteToolMetaSchema)->ignore
-  s.flatten(S.dict(S.json))->JSON.Encode.object
-})
+@schema
+type remoteTool = {
+  name: @s.matches(S.string->S.min(1)) string,
+  title?: string,
+  description?: string,
+  icons?: array<@s.matches(MCP.preservingJson(MCP.iconSchema)) JSON.t>,
+  inputSchema: @s.matches(MCP.preservingJson(MCP.toolInputSchema)) JSON.t,
+  outputSchema?: @s.matches(MCP.preservingJson(S.dict(S.json))) JSON.t,
+  annotations?: @s.matches(MCP.preservingJson(MCP.toolAnnotationsSchema)) JSON.t,
+  _meta: @s.matches(MCP.preservingJson(remoteToolMetaSchema)) JSON.t,
+}
 
-let remoteToolSchema = MCP.preservingJson(remoteToolShapeSchema)
-
+@schema
 type toolsResponse = {
   tools: array<remoteTool>,
   serverInfo: MCP.info,
-  protocolVersion: string,
+  protocolVersion: @s.matches(S.literal(protocolVersion)) string,
 }
-
-let toolsResponseSchema = S.object(s => {
-  tools: s.field("tools", S.array(remoteToolSchema)),
-  serverInfo: s.field("serverInfo", MCP.infoSchema),
-  protocolVersion: s.field("protocolVersion", S.literal(protocolVersion)),
-})
 
 @schema
 type legacyToolsResponse = {

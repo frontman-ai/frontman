@@ -38,16 +38,13 @@ let parseToolsResponse = (json: JSON.t): result<Types.toolsResponse, string> => 
       ),
       "visibleToAgent": JSON.Encode.bool(tool.visibleToAgent),
     }
-    let definition = dict{
-      "name": JSON.Encode.string(tool.name),
-      "description": JSON.Encode.string(tool.description),
-      "inputSchema": tool.inputSchema,
-      "_meta": JSON.Encode.object(dict{"ai.frontman/tool-metadata": JSON.Encode.object(metadata)}),
+    {
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      outputSchema: ?tool.outputSchema,
+      _meta: JSON.Encode.object(dict{"ai.frontman/tool-metadata": JSON.Encode.object(metadata)}),
     }
-    tool.outputSchema->Option.forEach(outputSchema =>
-      definition->Dict.set("outputSchema", outputSchema)
-    )
-    JSON.Encode.object(definition)
   }
   let protocolVersionSchema = S.object(s => s.field("protocolVersion", S.string))
 
@@ -147,16 +144,11 @@ let connect = async (config: config, ~signal: WebAPI.EventTypes.abortSignal): re
   }
 }
 
-let getToolsJson = (relay: connected): array<JSON.t> => relay.tools
-
-let toolName = tool =>
-  tool
-  ->JSON.Decode.object
-  ->Option.flatMap(tool => tool->Dict.get("name"))
-  ->Option.flatMap(JSON.Decode.string)
+let getToolsJson = (relay: connected): array<JSON.t> =>
+  relay.tools->Array.map(tool => tool->S.decodeOrThrow(~from=Types.remoteToolSchema, ~to=S.json))
 
 let hasTool = (relay: connected, name: string): bool =>
-  relay->getToolsJson->Array.some(tool => tool->toolName == Some(name))
+  relay.tools->Array.some(tool => tool.name == name)
 
 let executeTool = async (
   relay: connected,
