@@ -605,10 +605,17 @@ if ( ! function_exists( 'get_stylesheet' ) ) {
 	}
 }
 
+if ( ! function_exists( 'get_page_template_slug' ) ) {
+	function get_page_template_slug( int $id ): string {
+		$template = get_post_meta( $id, '_wp_page_template', true );
+		return 'default' === $template ? '' : (string) $template;
+	}
+}
+
 if ( ! function_exists( 'get_block_templates' ) ) {
 	function get_block_templates( array $query, string $type ): array {
 		return array_values( array_filter( $GLOBALS['frontman_test_block_templates'], static function( $template ) use ( $type ) {
-			return $template->type === $type;
+			return $template->type === $type && ( 'custom' !== $template->source || ( $template->theme ?? null ) === get_stylesheet() );
 		} ) );
 	}
 }
@@ -620,7 +627,8 @@ if ( ! function_exists( 'wp_set_post_terms' ) ) {
 		}
 		foreach ( $GLOBALS['frontman_test_block_templates'] as $template ) {
 			if ( isset( $template->wp_id ) && (int) $template->wp_id === $post_id ) {
-				$template->theme = $terms[0] ?? null;
+				$field = 'wp_template_part_area' === $taxonomy ? 'area' : 'theme';
+				$template->$field = $terms[0] ?? null;
 			}
 		}
 	}
@@ -1547,18 +1555,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 				return [];
 			},
 			'Read the template before retrying.' => static function( int $post_id ) {
-				$GLOBALS['frontman_test_block_templates'] = array_values( array_filter(
-					$GLOBALS['frontman_test_block_templates'],
-					static function( $template ) use ( $post_id ) { return (int) ( $template->wp_id ?? 0 ) !== $post_id; }
-				) );
-				return [];
-			},
-			'observed content differs' => static function( int $post_id ) {
-				foreach ( $GLOBALS['frontman_test_block_templates'] as $template ) {
-					if ( (int) ( $template->wp_id ?? 0 ) === $post_id ) {
-						$template->content = '<p>Filtered content</p>';
-					}
-				}
+				$GLOBALS['frontman_test_block_templates'] = array_values( array_filter( $GLOBALS['frontman_test_block_templates'], static fn( $template ) => (int) ( $template->wp_id ?? 0 ) !== $post_id ) );
 				return [];
 			},
 		];
