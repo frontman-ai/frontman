@@ -99,4 +99,25 @@ foreach ( [
 		}
 	}
 }
-echo "OK (301 Redirects read)\n";
+function redirects301_reject( callable $action ): void {
+	try {
+		$action();
+		throw new RuntimeException( 'Invalid mutation accepted.' );
+	} catch ( Frontman_Tool_Error $expected ) {
+	}
+}
+$input = [ 'source' => '/frontman-301-old/', 'target' => '/frontman-301-new/', 'confirm' => true ];
+foreach ( [ [ 'confirm' => 'true' ], [ 'confirm' => false ], [ 'source' => '/' ],
+	[ 'target' => '/frontman-301-old/' ], [ 'target' => 'https://example.org/../unsafe' ] ] as $invalid ) {
+	redirects301_reject( static function () use ( $adapter, $input, $invalid ) {
+		$adapter->create_redirect( array_replace( $input, $invalid ) );
+	} );
+}
+redirects301_check( $initial === $adapter->list_redirects( [] ), 'Rejected writes changed storage.' );
+wp_set_current_user( 0 );
+redirects301_reject( static function () use ( $adapter, $input ) { $adapter->create_redirect( $input ); } );
+wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
+$created = $adapter->create_redirect( $input );
+redirects301_check( null === $created['before'] && $created['after']['old_link'] === $input['source'], 'Create snapshot.' );
+redirects301_reject( static function () use ( $adapter, $input ) { $adapter->create_redirect( $input ); } );
+echo "OK (301 Redirects create)\n";
