@@ -124,6 +124,23 @@ defmodule FrontmanServer.AccountsTest do
   end
 
   describe "activation_candidate?/2" do
+    test "accepts subsecond UTC bounds without including the next second" do
+      bound = ~U[2026-06-02 12:00:00.999999Z]
+      signup_second = ~U[2026-06-02 12:00:00Z]
+
+      for {signup, expected} <- [
+            {signup_second, true},
+            {DateTime.add(signup_second, 1), false}
+          ] do
+        user =
+          unconfirmed_user_fixture()
+          |> Ecto.Changeset.change(inserted_at: signup, confirmed_at: signup_second)
+          |> Repo.update!()
+
+        assert Accounts.activation_candidate?(Scope.for_user(user), bound) == expected
+      end
+    end
+
     test "includes signups at or before the UTC age bound and excludes newer signups" do
       bound = ~U[2026-06-02 12:00:00Z]
 

@@ -34,11 +34,14 @@ defmodule FrontmanServer.Accounts do
   @doc """
   Checks fresh activation candidacy, not permission to send, with an inclusive UTC signup age bound.
   Existing users are excluded by the first-message backfill; callers supply the age bound.
+  Bounds are truncated to seconds to match stored signup timestamps.
   """
   def activation_candidate?(
         %Scope{} = scope,
         %DateTime{time_zone: "Etc/UTC"} = eligible_before
       ) do
+    eligible_before = DateTime.truncate(eligible_before, :second)
+
     scope
     |> scope_user_id()
     |> User.activation_candidate(eligible_before)
