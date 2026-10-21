@@ -24,6 +24,40 @@ class Frontman_Tool_301_Redirects {
 		) );
 	}
 
+	private function path( $value ): string {
+		if ( ! is_string( $value ) || strlen( $value ) > 2000
+			|| ! preg_match( '~^/[a-zA-Z0-9/._\x7e-]*$~D', $value )
+			|| strpos( $value, '//' ) !== false || preg_match( '~(?:^|/)\.{1,2}(?:/|$)~', $value ) ) {
+			throw new Frontman_Tool_Error( 'Use a literal ASCII site-relative path without query, fragment, encoding or dot segments.' );
+		}
+		return $value;
+	}
+
+	private function target( $value ): string {
+		if ( is_string( $value ) && substr( $value, 0, 1 ) === '/' ) {
+			return get_bloginfo( 'url' ) . $this->path( $value );
+		}
+		if ( ! is_string( $value ) || strlen( $value ) > 2000
+			|| preg_match( '/[\x00-\x20\x7f\\\\]/', $value )
+			|| preg_match( '/%(?:0[0-9a-f]|1[0-9a-f]|7f)/i', $value )
+			|| ! filter_var( $value, FILTER_VALIDATE_URL ) ) {
+			throw new Frontman_Tool_Error( 'Target must be a safe site-relative path or absolute HTTP(S) URL.' );
+		}
+		$parts = wp_parse_url( $value );
+		if ( ! in_array( strtolower( $parts['scheme'] ?? '' ), [ 'http', 'https' ], true )
+			|| isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
+			throw new Frontman_Tool_Error( 'Only HTTP(S) targets without credentials are supported.' );
+		}
+		return $value;
+	}
+
+	private function confirm( array $input ): void {
+		$this->guard();
+		if ( true !== ( $input['confirm'] ?? null ) ) {
+			throw new Frontman_Tool_Error( 'User approval and exact confirm=true are required.' );
+		}
+	}
+
 	private function guard(): void {
 		if ( ! self::is_available() || ! current_user_can( 'manage_options' ) ) {
 			throw new Frontman_Tool_Error( '301 Redirects 1.05 must be active; manage_options is required.' );
