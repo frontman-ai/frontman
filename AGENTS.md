@@ -1,246 +1,61 @@
 # Agent Guidelines for Frontman
 
+## Worktrees & Development
 
-## Worktree Workflow
+Use git worktrees for parallel feature development:
 
-This repo uses git worktrees for parallel feature development with isolated agent sessions.
-
-**Create worktree:**
 ```bash
 make worktree-create BRANCH=feature/my-feature
 cd .worktrees/feature/my-feature
 ```
 
-**Secrets:**
-- Development platform and authentication secrets (currently WorkOS credentials) are stored as `op://` references in `apps/frontman_server/envs/.dev.secrets.env` and resolved at runtime via 1Password CLI (`op run`)
-- The server Makefile wraps `mix phx.server` with `op run --env-file=envs/.dev.secrets.env` so secrets are injected as env vars
-- Requires 1Password CLI (`op`) to be installed and authenticated
-- If the server fails on startup with WORKOS errors, ensure `op` is signed in (`op signin`)
-- To connect to servers, use Tailscale
-
-**Structure:**
-- `.worktrees/<branch-name>/` - Worktree directory
+- Use Make targets for development tasks. `yarn changeset` is the exception for changelog entries.
+- Development secrets are `op://` references in `apps/frontman_server/envs/.dev.secrets.env`.
+- The server Makefile injects them through `op run`; keep the 1Password CLI installed and authenticated.
+- If startup fails with WorkOS authentication errors, check `op signin`.
+- Use Tailscale to connect to servers.
 
 ## Key Principles
 
-- Prefer small PRs, this is a hard rule, PRs that are above 500 net-new lines of code has a low probability of merging, it's your critical job to look for ways to rethink the architecture to cleanup more than just adding.
-- Keep changes DRY and simple: reuse existing execution paths and prefer a small guard over extracting a new API or abstraction when that is enough.
-- ReScript codebase - functional style, Result types for errors
-- File naming: `Client__ComponentName.res` (flat folder + namespacing)
-- Task runner: Makefiles only - never yarn/npm scripts directly
-- Test files: `*.test.res.mjs`
-- Prefer `switch` over `if/else` — use pattern matching for control flow, even for simple boolean/option checks
+- Keep PRs below 500 net-new lines. Prefer smaller changes.
+- Reuse existing execution paths. Prefer a small guard over a new abstraction.
+- Prefer integration tests over unit tests, and always read the full test file before adding a new test.
 
-## Raw JS vs ReScript
+## ReScript
 
-- Prefer ReScript/WebAPI bindings and typed externals over `%raw` JavaScript.
-- Dont write bindings without exploring if the exists in `libs/bindings` or WebAPI and such libs
-- Write JS only with my explicit permission
-- Use `%raw` only when there is no practical typed binding or the browser API cannot be expressed cleanly in ReScript.
-- Keep `%raw` blocks minimal and isolated to small interop boundaries; keep business logic and event handling in ReScript.
-- For DOM/browser events, prefer typed ReScript handlers plus small externals for missing fields instead of full raw listener implementations.
-- Use `Js.typeof(value)` for runtime type checks — it compiles directly to JS `typeof` and returns a `string` (`"string"`, `"number"`, `"boolean"`, `"object"`, `"function"`, `"undefined"`). No `%raw` needed.
-- For JS built-ins not in the standard library, prefer typed externals over `%raw` wrappers:
-  ```rescript
-  // GOOD — typed external, compiles to Array.isArray(x)
-  @scope("Array") @val
-  external isArray: 'a => bool = "isArray"
+- Use functional style and Result types for expected errors.
+- Use flat, namespaced filenames such as `Client__ComponentName.res`.
+- Name ReScript test files `*.test.res.mjs`.
+- Prefer `switch` over `if/else`, including boolean and option checks.
+- Before adding bindings, check `libs/bindings` and existing WebAPI libraries.
+- Prefer typed bindings and externals over `%raw`. Keep unavoidable `%raw` limited to small interop boundaries.
+- Write JavaScript only with explicit user permission.
+- Use `Js.typeof(value)` for runtime type checks.
+- Use Sury schemas for JSON parsing and serialization. Prefer `@schema` over manual `JSON.Decode.*` or `Dict.get` parsing.
 
-  // BAD — unnecessary %raw for something that has a clean binding
-  let isArray: 'a => bool = %raw(`function(v) { return Array.isArray(v) }`)
-  ```
+## Error Handling
 
-## Error Handling Philosophy
+- Crash on broken invariants. Use `Option.getOrThrow` or `Result.getOrThrow` for values that must exist.
+- Handle expected user and network errors explicitly. Never swallow exceptions or hide bugs with default values.
+- Do not add fallback clauses that silently ignore invalid server channel payloads.
 
-**Crash early and obviously. Never swallow exceptions.**
+## Client State (`libs/client`)
 
-- Use `Option.getOrThrow`, `Result.getOrThrow` when the value should always exist
-- Let pattern match failures crash - they surface bugs faster than silent fallbacks
-- No defensive `Option.getOr(defaultValue)` to hide unexpected states
-- No catch-all handlers that silently ignore malformed input
-- When something unexpected happens, crash loudly so we see the error and fix the root cause
-- Server channel handlers: no fallback clauses for invalid payloads (zero silent failures)
+- Route all API calls, state changes, and side effects through `Client__State.Actions` and the StateReducer.
+- Read state through `Client__State.useSelector` and selectors.
+- Add actions and effects in `Client__State__StateReducer.res`; expose action creators in `Client__State.res`.
+- Bypass the reducer only with explicit user permission.
 
-## JSON Parsing with Sury
+## Changelog & Releases
 
-**Always use Sury schemas for JSON parsing/serialization** instead of manual `JSON.Decode.*` / `Dict.get` patterns.
-
-### Using @schema annotation (preferred)
-Add `@schema` annotation to type definitions for automatic schema derivation:
-```rescript
-@schema
-type userConfig = {
-  name: string,
-  age: int,
-  email: option<string>,
-}
-
-// Sury automatically generates `userConfigSchema`
-// Use it for parsing (wrap in try/catch for error handling):
-try {
-  let config = S.parseJsonOrThrow(json, userConfigSchema)
-  // use config
-} catch {
-| _ => // handle error
-}
-
-// And serialization:
-try {
-  let jsonString = S.reverseConvertToJsonStringOrThrow(config, userConfigSchema)
-  // use jsonString
-} catch {
-| _ => // handle error
-}
-```
-
-### Field annotations
-Use `@s.describe` for field documentation:
-```rescript
-@schema
-type input = {
-  @s.describe("The user's full name")
-  name: string,
-  @s.describe("Age in years")
-  age: int,
-}
-```
-
-### Why Sury over manual parsing?
-- **Type-safe**: Compile-time guarantees for JSON structure
-- **Less boilerplate**: No manual `Dict.get` + `Option.flatMap` chains
-- **Automatic**: Schema derived from type definition
-- **Bidirectional**: Same schema for parsing and serialization
-- **Better errors**: Structured error messages on parse failure
-
-## State Management in Client (libs/client)
-
-**All API calls and side effects MUST go through the StateReducer** unless explicitly instructed otherwise.
-
-### Architecture
-- `Client__State.res` - Public API: `useSelector`, `Actions`, `Selectors`
-- `Client__State__StateReducer.res` - Reducer with actions, effects, and state transitions
-- `Client__State__Store.res` - Store instance and dispatch
-- `Client__State__Types.res` - Type definitions
-
-### Reading State
-Always use selectors via `useSelector`:
-```rescript
-let messages = Client__State.useSelector(Client__State.Selectors.messages)
-let isStreaming = Client__State.useSelector(Client__State.Selectors.isStreaming)
-```
-
-### Dispatching Actions (Including API Calls)
-Use `Client__State.Actions.*` for ALL state changes and API operations:
-```rescript
-// User interactions
-Client__State.Actions.addUserMessage(~content)
-Client__State.Actions.switchTask(~taskId)
-
-// API operations - these trigger side effects
-Client__State.Actions.fetchApiKeySettings()
-Client__State.Actions.saveOpenRouterKey(~key)
-```
-
-### Adding New API Actions
-1. **Define the action** in `Client__State__StateReducer.res`:
-   ```rescript
-   type action =
-     | ...
-     | FetchSomething
-     | FetchSomethingSuccess({data: someType})
-     | FetchSomethingError({error: string})
-   ```
-
-2. **Define the effect** for async work:
-   ```rescript
-   type effect =
-     | ...
-     | FetchSomethingEffect({apiBaseUrl: string})
-   ```
-
-3. **Handle the action** in `next` function - return state + effects:
-   ```rescript
-   | FetchSomething =>
-     state->FrontmanReactStatestore.StateReducer.update(
-       ~sideEffects=[FetchSomethingEffect({apiBaseUrl: state.apiBaseUrl})],
-     )
-   ```
-
-4. **Implement the effect handler** in `handleEffect`:
-   ```rescript
-   | FetchSomethingEffect({apiBaseUrl}) =>
-     let fetch = async () => {
-       let response = await Fetch.fetch(...)
-       if response.ok {
-         dispatch(FetchSomethingSuccess({data: ...}))
-       } else {
-         dispatch(FetchSomethingError({error: "..."}))
-       }
-     }
-     fetch()->ignore
-   ```
-
-5. **Expose action creator** in `Client__State.res`:
-   ```rescript
-   module Actions = {
-     let fetchSomething = () => dispatch(FetchSomething)
-   }
-   ```
-
-### What NOT to Do
-```rescript
-// BAD - Direct API call in component
-@react.component
-let make = () => {
-  let handleClick = async () => {
-    let response = await Fetch.fetch("/api/something")
-    // ...
-  }
-}
-
-// GOOD - Dispatch action that triggers effect
-@react.component
-let make = () => {
-  let handleClick = () => {
-    Client__State.Actions.fetchSomething()
-  }
-}
-```
-
-### Exception
-Only bypass the reducer when explicitly requested for:
-- One-off debugging/testing
-- External library integrations that manage their own state
-- Performance-critical operations where the overhead is unacceptable
-
-## Changelog & Changesets
-
-**All notable changes must be tracked via changesets.**
-
-When making a change that should appear in the changelog, run `yarn changeset` and follow the prompts. This creates a markdown fragment in `.changeset/` describing the change.
-
-- A CI check (`changelog-check.yml`) blocks PRs that don't include a changeset or direct `CHANGELOG.md` update
-- Add the `skip-changelog` label to bypass for chore/docs-only PRs
-- Changesets accumulate silently on `main` — no auto-PR is created on merge
-- To release: run `make release` which triggers a GitHub workflow that runs `yarn changeset version`, creates a `release/vX.Y.Z` branch, and opens a PR for review
-- When the release PR is merged, `release-tag.yml` automatically creates a git tag and GitHub Release
-- The marketing site reads `/CHANGELOG.md` at build time for the `/changelog` page — keep entries in [Keep a Changelog](https://keepachangelog.com/) format: `## [version] - YYYY-MM-DD`
-
-## Pull Requests
-
-After creating or updating a PR, push your branch as usual.
-
-```bash
-# After creating a PR
-gh pr create --title "..." --body "..."
-git push
-
-# Or use the Make target wrapper
-make push
-```
-
-The `make push` target is a convenience wrapper around `git push`.
+- Track notable changes with `yarn changeset` fragments in `.changeset/`.
+- CI requires a changeset or direct `CHANGELOG.md` update. Use `skip-changelog` only for chore/docs-only PRs.
+- Changesets accumulate on `main`. Run `make release` to open a release PR.
+- Merging the release PR creates the git tag and GitHub Release.
+- The marketing site reads `CHANGELOG.md`. Keep entries in Keep a Changelog format: `## [version] - YYYY-MM-DD`.
+- Push branch updates before creating or updating a PR.
 
 ## Reference Docs
-- `agent_docs/elixir-style.md` — **FrontmanStyle for Elixir. Must follow when writing any Elixir code.**
-- `agent_docs/rescript-guide.md` — ReScript patterns when needed.
+
+- `agent_docs/elixir-style.md` — required before writing Elixir code.
+- `agent_docs/rescript-guide.md` — ReScript patterns.
