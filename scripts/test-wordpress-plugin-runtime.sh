@@ -138,6 +138,14 @@ if [[ "$MULTISITE_STATUS" -ne 0 || "$MULTISITE_OUTPUT" != *"OK (Multisite author
   exit 1
 fi
 
+curl -fsSL 'https://downloads.wordpress.org/plugin/301-redirects.1.05.zip' -o "$BUILD_DIR/301-redirects.zip"
+printf '%s  %s\n' '3423c49888af0d73e458fd9d5c1439ba7ca00d9da7ccb1b6c8ed0ac423011c8d' "$BUILD_DIR/301-redirects.zip" | sha256sum --check --status
+unzip -q "$BUILD_DIR/301-redirects.zip" -d "$BUILD_DIR/301-redirects"
+"$RUNTIME" cp "$BUILD_DIR/301-redirects/301-redirects" "$WORDPRESS:/var/www/html/wp-content/plugins/301-redirects"
+"$RUNTIME" cp "$ROOT_DIR/libs/frontman-wordpress/tests/integration/Redirects301RuntimeTest.php" "$WORDPRESS:/tmp/Redirects301RuntimeTest.php"
+"$RUNTIME" exec "$WORDPRESS" php /tmp/Redirects301RuntimeTest.php --setup
+"$RUNTIME" exec "$WORDPRESS" php /tmp/Redirects301RuntimeTest.php
+
 case "$WORDPRESS_VERSION" in
   6.[0-6].*) printf 'Skipping Redirection 5.10.0: requires WordPress 6.7+.\n'; exit 0 ;;
 esac
