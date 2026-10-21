@@ -79,7 +79,7 @@ class Frontman_Tool_Templates {
 					'type' => [ 'type' => 'string', 'enum' => [ 'wp_template', 'wp_template_part' ] ],
 					'title' => [ 'type' => 'string', 'description' => 'Human-readable title.' ],
 					'content' => [ 'type' => 'string', 'description' => 'Block markup.' ],
-					'area' => [ 'type' => 'string', 'enum' => [ 'header', 'footer', 'uncategorized' ], 'description' => 'Parts only; defaults to uncategorized.' ],
+					'area' => [ 'type' => 'string', 'enum' => array_column( get_allowed_block_template_part_areas(), 'area' ), 'description' => 'Registered template-part area. Parts only; defaults to uncategorized.' ],
 				],
 				'required' => [ 'slug', 'type', 'title', 'content' ],
 			],
@@ -289,8 +289,8 @@ class Frontman_Tool_Templates {
 		if ( '' === trim( $input['title'] ) || sanitize_text_field( $input['title'] ) !== $input['title'] ) {
 			throw new Frontman_Tool_Error( 'title must be nonempty plain text.' );
 		}
-		if ( array_key_exists( 'area', $input ) && ( 'wp_template_part' !== $input['type'] || ! in_array( $input['area'], [ 'header', 'footer', 'uncategorized' ], true ) ) ) {
-			throw new Frontman_Tool_Error( 'area is only supported for parts and must be header, footer, or uncategorized.' );
+		if ( array_key_exists( 'area', $input ) && ( 'wp_template_part' !== $input['type'] || ! in_array( $input['area'], array_column( get_allowed_block_template_part_areas(), 'area' ), true ) ) ) {
+			throw new Frontman_Tool_Error( 'area must be a registered template-part area and is only supported for parts.' );
 		}
 	}
 
@@ -298,6 +298,9 @@ class Frontman_Tool_Templates {
 		self::validate_create_input( $input );
 		if ( ! current_user_can( 'edit_theme_options' ) ) {
 			throw new Frontman_Tool_Error( 'Creating templates requires edit_theme_options.' );
+		}
+		if ( 'wp_template' === $input['type'] && ! current_theme_supports( 'block-templates' ) ) {
+			throw new Frontman_Tool_Error( 'Creating block templates requires active theme support for block-templates.' );
 		}
 		if ( $this->find_template( $input['slug'], $input['type'] ) ) {
 			throw new Frontman_Tool_Error( 'Template already exists; use wp_update_template.' );
@@ -345,7 +348,7 @@ class Frontman_Tool_Templates {
 			if ( ! $after || (int) ( $after->wp_id ?? 0 ) !== (int) $post_id ) {
 				throw new Frontman_Tool_Error( 'could not be read back as the active template' );
 			}
-			if ( $after->content !== $post_data['post_content'] ) {
+			if ( get_post( $post_id )->post_content !== $post_data['post_content'] ) {
 				throw new Frontman_Tool_Error( 'its observed content differs from the requested content' );
 			}
 			if ( $after->id !== $theme . '//' . $slug || $after->slug !== $slug || $after->type !== $type || ( $after->theme ?? null ) !== $theme || $after->title !== $post_data['post_title'] || ( null !== $area && ( $after->area ?? null ) !== $area ) ) {

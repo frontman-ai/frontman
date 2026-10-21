@@ -1555,18 +1555,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 				return [];
 			},
 			'Read the template before retrying.' => static function( int $post_id ) {
-				$GLOBALS['frontman_test_block_templates'] = array_values( array_filter(
-					$GLOBALS['frontman_test_block_templates'],
-					static function( $template ) use ( $post_id ) { return (int) ( $template->wp_id ?? 0 ) !== $post_id; }
-				) );
-				return [];
-			},
-			'observed content differs' => static function( int $post_id ) {
-				foreach ( $GLOBALS['frontman_test_block_templates'] as $template ) {
-					if ( (int) ( $template->wp_id ?? 0 ) === $post_id ) {
-						$template->content = '<p>Filtered content</p>';
-					}
-				}
+				$GLOBALS['frontman_test_block_templates'] = array_values( array_filter( $GLOBALS['frontman_test_block_templates'], static fn( $template ) => (int) ( $template->wp_id ?? 0 ) !== $post_id ) );
 				return [];
 			},
 		];

@@ -38,6 +38,10 @@ if ( ! function_exists( 'wp_json_encode' ) ) {
 	}
 }
 
+function get_allowed_block_template_part_areas(): array {
+	return [ [ 'area' => 'header' ], [ 'area' => 'footer' ], [ 'area' => 'uncategorized' ] ];
+}
+
 require_once __DIR__ . '/../includes/class-frontman-tools.php';
 require_once __DIR__ . '/../tools/class-tool-posts.php';
 require_once __DIR__ . '/../tools/class-tool-blocks.php';

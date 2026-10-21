@@ -71,6 +71,40 @@ $file_update = $call( 'wp_update_template', [ 'slug' => $files[0]->slug, 'conten
 frontman_runtime_assert( 'theme' === $file_update['before']['source'] && 'custom' === $file_update['after']['source'] && $theme === $file_update['after']['theme'] && $files[0]->slug === $file_update['after']['slug'], 'Updating existing theme-file template failed' );
 
 $tool = new Frontman_Tool_Templates();
+$before_count = $count();
+remove_theme_support( 'block-templates' );
+try {
+	try { $tool->create_template( $base ); throw new RuntimeException( 'Unsupported block template accepted' ); }
+	catch ( Frontman_Tool_Error $e ) { frontman_runtime_assert( false !== strpos( $e->getMessage(), 'block-templates' ), 'Wrong theme support error' ); }
+	frontman_runtime_assert( $before_count === $count(), 'Unsupported block template wrote state' );
+} finally { add_theme_support( 'block-templates' ); }
+$custom_area = static function( array $areas ): array { $areas[] = [ 'area' => 'frontman-sidebar', 'label' => 'Sidebar' ]; return $areas; };
+add_filter( 'default_wp_template_part_areas', $custom_area );
+try {
+	$registry = new Frontman_Tools(); $tool->register( $registry );
+	foreach ( get_allowed_block_template_part_areas() as $definition ) {
+		$area = $definition['area'];
+		$result = $registry->call( 'wp_create_template', array_merge( $base, [ 'slug' => 'frontman-area-' . $area, 'type' => 'wp_template_part', 'area' => $area ] ) );
+		frontman_runtime_assert( ! $result['isError'], 'Registered template-part area rejected: ' . $area . json_encode( $result ) );
+		$part = $tool->read_template( [ 'slug' => 'frontman-area-' . $area, 'type' => 'wp_template_part' ] );
+		frontman_runtime_assert( $area === $part['area'] && in_array( $area, $registry->get( 'wp_create_template' )->input_schema['properties']['area']['enum'], true ), 'Registered area missing from saved part or schema' );
+	}
+} finally { remove_filter( 'default_wp_template_part_areas', $custom_area ); }
+if ( function_exists( 'apply_block_hooks_to_content' ) ) {
+	register_block_type( 'frontman/runtime-hook', [ 'api_version' => 2, 'block_hooks' => [ 'core/paragraph' => 'after' ] ] );
+	try {
+		foreach ( [ 'wp_template', 'wp_template_part' ] as $type ) {
+			$input = array_merge( $base, [ 'slug' => 'frontman-hook-' . $type, 'type' => $type, 'content' => '<!-- wp:paragraph --><p>Anchor</p><!-- /wp:paragraph -->' ] );
+			$created = $tool->create_template( $input );
+			frontman_runtime_assert( $input['content'] === get_post( $created['after']['wp_id'] )->post_content, 'Hooked create changed stored markup' );
+			$updated = $tool->update_template( array_merge( $input, [ 'content' => str_replace( 'Anchor', 'Updated anchor', $input['content'] ) ] ) );
+			foreach ( [ $created, $updated ] as $result ) {
+				frontman_runtime_assert( false !== strpos( $result['after']['content'], 'wp:frontman/runtime-hook' ), 'Hook fixture did not transform discovered content' );
+			}
+			frontman_runtime_assert( str_replace( 'Anchor', 'Updated anchor', $input['content'] ) === get_post( $updated['after']['wp_id'] )->post_content, 'Hooked update changed stored markup' );
+		}
+	} finally { unregister_block_type( 'frontman/runtime-hook' ); }
+}
 foreach ( [ 'theme', 'area', 'content', 'slug' ] as $failure ) {
 	$input = array_merge( $base, [ 'slug' => 'frontman-failure-' . $failure, 'type' => 'wp_template_part', 'area' => 'header' ] );
 	$taxonomy = 'theme' === $failure ? 'wp_theme' : 'wp_template_part_area';
