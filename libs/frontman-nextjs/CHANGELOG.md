@@ -1,5 +1,15 @@
 # @frontman-ai/nextjs
 
+## 2.0.3
+
+### Patch Changes
+
+- [#1907](https://github.com/frontman-ai/frontman/pull/1907) [`b75692b`](https://github.com/frontman-ai/frontman/commit/b75692b42c571f8ce48ca010b4b2d4d833ebf25b) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update the Sentry Next.js SDK to 10.75.0.
+
+- [#1822](https://github.com/frontman-ai/frontman/pull/1822) [`1cf5dd8`](https://github.com/frontman-ai/frontman/commit/1cf5dd81a84896cf0bee1773cedbbf12ebf6feb6) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Update vulnerable dependencies and the Next.js test site. Keep TLS certificate validation enabled in E2E tests. Run test installers without shell interpolation. Render browser-test logs and tool metadata as text. Remove unused token permissions from mirror workflows.
+
+- [#1909](https://github.com/frontman-ai/frontman/pull/1909) [`dbc7125`](https://github.com/frontman-ai/frontman/commit/dbc712584fa4105e4ed103ada401cc5c5e8a36d1) Thanks [@dependabot](https://github.com/apps/dependabot)! - Update Lighthouse from 13.4.1 to 13.5.0 for performance, accessibility, best-practices, and SEO audits.
+
 ## 2.0.2
 
 ### Patch Changes

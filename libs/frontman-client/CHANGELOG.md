@@ -1,5 +1,19 @@
 # @frontman-ai/frontman-client
 
+## 4.0.4
+
+### Patch Changes
+
+- [#1818](https://github.com/frontman-ai/frontman/pull/1818) [`3e527dc`](https://github.com/frontman-ai/frontman/commit/3e527dc7ec76333f9886926eec02b8de974927ef) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Return supported ACP version 1 for valid initialization requests. Reject missing or malformed versions and dispose connections after unsupported response versions.
+
+  Use standard session creation fields with optional namespaced retry IDs. Require the advertised retry-ID capability in Frontman clients. Reject unsupported workspace and MCP configuration. Preserve scoped retry identity and reject returned-ID mismatches.
+
+  CAUTION: Do not use the unchanged automatic server-first rollout for this breaking session-creation cutover. Deployment requires a separately approved, enforceable client-reload/admission strategy and paired server/client rollback. Old clients send incompatible root session IDs. New clients cannot create sessions on the old server. Publication together does not replace old code in open tabs or custom client URLs. This stage does not change immediate prompt acceptance or its existing 120-second timeout.
+
+- [#1818](https://github.com/frontman-ai/frontman/pull/1818) [`3e527dc`](https://github.com/frontman-ai/frontman/commit/3e527dc7ec76333f9886926eec02b8de974927ef) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Use Phoenix replies for ACP requests and settle pending requests when their channel closes. Remove duplicate request tracking and timers. Deploy the updated server before the client; existing clients already support Phoenix replies.
+
+- [#1668](https://github.com/frontman-ai/frontman/pull/1668) [`84fffb0`](https://github.com/frontman-ai/frontman/commit/84fffb0c2badfa3dbed2b2e51c15efd4d76b5161) Thanks [@BlueHotDog](https://github.com/BlueHotDog)! - Fix connection loss and server-initiated channel closure that left the agent UI stuck. Preserve received text and the last server-reported execution state. Settle pending ACP requests and disable disconnected controls. Require a reload to recover conversation history instead of automatically rejoining a stale session. Send composer commands directly to the editor instead of routing them through state and effects.
+
 ## 4.0.3
 
 ### Patch Changes
