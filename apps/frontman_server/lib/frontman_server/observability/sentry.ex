@@ -19,7 +19,7 @@ defmodule FrontmanServer.Observability.Sentry do
 
   defp json_safe(value) do
     case Jason.encode(value) do
-      {:ok, _encoded} -> value
+      {:ok, encoded} -> Jason.decode!(encoded)
       {:error, _reason} -> inspect(value)
     end
   end

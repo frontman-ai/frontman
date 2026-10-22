@@ -42,7 +42,11 @@ defmodule FrontmanServer.SentryTest do
       [event] = Sentry.Test.pop_sentry_reports()
       assert [%{metadata: metadata}] = event.extra.changeset_errors.role
       assert metadata.type == inspect(type)
-      assert is_binary(Jason.encode!(event))
+
+      assert {:ok, _json} =
+               event
+               |> Sentry.Client.render_event()
+               |> Sentry.JSON.encode(Sentry.Config.json_library())
     end
 
     @tag :capture_log

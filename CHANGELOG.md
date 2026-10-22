@@ -3,6 +3,13 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [Unreleased]
+
+### Fixed
+
+- Include nested changeset validation errors in Sentry reports. Preserve the original exception diagnostics and convert unsupported error metadata to JSON-safe values.
+
 ## [5.4.0] - 2026-10-21
 
 
