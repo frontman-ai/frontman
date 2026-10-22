@@ -68,6 +68,7 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-cache.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-public-files.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-seo.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-redirection.php';
+require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-301-redirects.php';
 require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-angie.php';
 
 /**
@@ -99,6 +100,10 @@ function frontman_bootstrap(): void {
 
 	if ( Frontman_Tool_Redirection::is_available() ) {
 		( new Frontman_Tool_Redirection() )->register( $tools );
+	}
+
+	if ( Frontman_Tool_301_Redirects::is_available() ) {
+		( new Frontman_Tool_301_Redirects() )->register( $tools );
 	}
 
 	if ( null === Frontman_Tool_Seo::unavailable_reason() ) {
