@@ -1,6 +1,6 @@
 type t
 
-type channel
+type channel = FrontmanBindings.Phoenix.channel
 
 @@live
 type socketOptions = {

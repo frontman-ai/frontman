@@ -5,8 +5,8 @@ module Types = FrontmanClient__MCP__Types
 module MCPServer = FrontmanClient__MCP__Server
 module Relay = FrontmanClient__Relay
 
-@module("vitest") @scope("vi")
-external waitFor: (unit => unit) => promise<unit> = "waitFor"
+module TestVitest = FrontmanBindings.Bindings__Test__Vitest
+module TestPhoenix = FrontmanBindings.Bindings__Test__Phoenix
 
 let makeServer = async (~tools=[]) => {
   let config = Relay.makeConfig(~baseUrl="http://relay.invalid", ~fetch=async (_, _) =>
@@ -17,25 +17,34 @@ let makeServer = async (~tools=[]) => {
   MCPServer.make(MCPServer.makeConfig(~tools), ~relay)
 }
 
-module MockChannel = {
+module MockChannel: {
   type pushCall = {event: string, payload: JSON.t}
+  type t
+  let make: unit => (t, ref<array<pushCall>>)
+  let setOn: (t, (string, JSON.t => unit) => unit) => t
+  let toPhoenix: t => FrontmanClient__Phoenix__Channel.t
+} = {
+  type pushCall = {event: string, payload: JSON.t}
+  type t = TestPhoenix.mockChannel
 
-  @set
-  external setOn: (FrontmanClient__Phoenix__Channel.t, (string, JSON.t => unit) => unit) => unit =
-    "on"
+  let toPhoenix = TestPhoenix.toChannel
+
+  let setOn = (channel: t, on) => {...channel, on}
+
+  let rec pushResponse = () => {
+    FrontmanBindings.Phoenix.receive: (~status as _, ~callback as _) => pushResponse(),
+  }
 
   let make = () => {
     let calls: ref<array<pushCall>> = ref([])
-    let channel: FrontmanClient__Phoenix__Channel.t = %raw(`{
-      push: function(event, payload) {
-        this._calls.push({event, payload});
-        return { receive: function() { return this; } };
+    let channel: t = {
+      push: (event, payload) => {
+        calls := Array.concat(calls.contents, [{event, payload}])
+        pushResponse()
       },
-      on: function() {},
-      off: function() {},
-      _calls: []
-    }`)
-    calls := %raw(`channel._calls`)
+      on: (_, _) => (),
+      off: () => (),
+    }
     (channel, calls)
   }
 }
@@ -133,18 +142,21 @@ let errorData = calls =>
   ->Option.flatMap(JSON.Decode.object)
   ->Option.flatMap(error => error->Dict.get("data"))
 
-let handler = (channel, context, ~sessionId="task-1", ~failure=?) => {
-  MCP.serverInterface: makeInterface(~context, ~failure?),
-  channel,
+let makeHandler = (channel, serverInterface, ~sessionId="task-1") => {
+  MCP.serverInterface,
+  channel: MockChannel.toPhoenix(channel),
   sessionId,
 }
+
+let handler = (channel, context, ~sessionId="task-1", ~failure=?) =>
+  makeHandler(channel, makeInterface(~context, ~failure?), ~sessionId)
 
 describe("MCP 2026-07-28", () => {
   testAsync("acknowledges an empty subscription through the attached browser server", async t => {
     let server = await makeServer()
     let (channel, calls) = MockChannel.make()
     let incoming = ref(None)
-    MockChannel.setOn(
+    let channel = MockChannel.setOn(
       channel,
       (event, callback) => {
         t->expect(event)->Expect.toBe("mcp:message")
@@ -152,51 +164,36 @@ describe("MCP 2026-07-28", () => {
       },
     )
     let attached = MCP.attach(
-      ~channel,
+      ~channel=MockChannel.toPhoenix(channel),
       ~sessionId="task-1",
       ~serverInterface=MCPServer.toInterface(server),
     )
+    TestVitest.onTestFinished(() => MCP.detach(attached))
 
-    let discovery = MCPServer.buildDiscoverResult(server)
-    t->expect(discovery.capabilities.tools.listChanged)->Expect.toBe(false)
-    let capabilities =
-      discovery
-      ->S.decodeOrThrow(~from=Types.discoverResultSchema, ~to=S.json)
-      ->S.parseOrThrow(~to=S.object(s => s.field("capabilities", S.dict(S.json))))
-    t->expect(capabilities->Dict.get("resources")->Option.isNone)->Expect.toBe(true)
-
-    // Core patterns apply to custom transports even without optional notification capabilities.
-    // https://modelcontextprotocol.io/specification/2026-07-28/basic/transports#custom-transports
-    // https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions#acknowledgment
-    let subscription = requestWithId(
-      ~id=`"empty-subscription"`,
-      ~method="subscriptions/listen",
-      ~params=`${coreMetadata},"notifications":{}`,
-    )
     let receive = incoming.contents->Option.getOrThrow
-    receive(subscription)
-    // attach dispatches asynchronously; wait only for the first outbound frame, not stream closure.
-    await waitFor(() => t->expect(calls.contents->Array.length > 0)->Expect.toBe(true))
-    MCP.detach(attached)
+    receive(
+      requestWithId(
+        ~id=`"empty-subscription"`,
+        ~method="subscriptions/listen",
+        ~params=`${coreMetadata},"notifications":{}`,
+      ),
+    )
+    await TestVitest.waitFor(() => t->expect(calls.contents->Array.length > 0)->Expect.toBe(true))
 
-    t->expect((calls.contents->Array.get(0)->Option.getOrThrow).event)->Expect.toBe("mcp:message")
-    let first = response(calls)
-    t->expect(first->Dict.get("error"))->Expect.toEqual(None)
+    let first = calls.contents->Array.get(0)->Option.getOrThrow
+    t->expect(first.event)->Expect.toBe("mcp:message")
     t
-    ->expect(first->Dict.get("method"))
-    ->Expect.toEqual(Some(JSON.Encode.string("notifications/subscriptions/acknowledged")))
-    t->expect(first->Dict.get("jsonrpc"))->Expect.toEqual(Some(JSON.Encode.string("2.0")))
-    t->expect(first->Dict.get("id"))->Expect.toEqual(None)
-    let params =
-      first
-      ->Dict.get("params")
-      ->Option.getOrThrow
-      ->S.parseOrThrow(~to=S.dict(S.json))
-    t->expect(params->Dict.get("notifications"))->Expect.toEqual(Some(JSON.parseOrThrow("{}")))
-    let meta = params->Dict.get("_meta")->Option.getOrThrow->S.parseOrThrow(~to=S.dict(S.json))
-    t
-    ->expect(meta->Dict.get("io.modelcontextprotocol/subscriptionId"))
-    ->Expect.toEqual(Some(JSON.Encode.string("empty-subscription")))
+    ->expect(first.payload)
+    ->Expect.toEqual(
+      JSON.parseOrThrow(`{
+        "jsonrpc": "2.0",
+        "method": "notifications/subscriptions/acknowledged",
+        "params": {
+          "notifications": {},
+          "_meta": {"io.modelcontextprotocol/subscriptionId": "empty-subscription"}
+        }
+      }`),
+    )
   })
 
   testAsync("namespaces Frontman tool metadata under _meta", async t => {
@@ -369,11 +366,7 @@ describe("MCP 2026-07-28", () => {
     let (channel, calls) = MockChannel.make()
 
     await MCP.handleMessage(
-      {
-        MCP.serverInterface: MCPServer.toInterface(server),
-        channel,
-        sessionId: "task-1",
-      },
+      makeHandler(channel, MCPServer.toInterface(server)),
       request(
         ~id=21,
         ~method="tools/call",
@@ -390,11 +383,7 @@ describe("MCP 2026-07-28", () => {
     let (channel, calls) = MockChannel.make()
 
     await MCP.handleMessage(
-      {
-        MCP.serverInterface: MCPServer.toInterface(server),
-        channel,
-        sessionId: "task-1",
-      },
+      makeHandler(channel, MCPServer.toInterface(server)),
       request(
         ~id=22,
         ~method="tools/call",

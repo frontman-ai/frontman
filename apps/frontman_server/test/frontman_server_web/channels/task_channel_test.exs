@@ -1046,7 +1046,7 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
     end
 
-    test "state-only input_required survives without becoming a final success", %{
+    test "explicitly declines state-only input_required without a final success", %{
       socket: socket,
       task_id: task_id,
       scope: scope
@@ -1055,7 +1055,6 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       tool_call_id = tool_call.tool_call_id
       turn_number = start_turn_fixture(scope, task_id)
       register_tool_receiver(task_id, tool_call_id)
-
       {:ok, _interaction} = persist_tool_call_fixture(scope, task_id, turn_number, tool_call)
 
       assert_push("mcp:message", %{
@@ -1063,50 +1062,52 @@ defmodule FrontmanServerWeb.TaskChannelTest do
         "id" => mcp_request_id,
         "params" => %{
           "name" => "testTool",
-          "_meta" => %{
-            "ai.frontman/execution-context" => %{"callId" => ^tool_call_id}
-          }
+          "_meta" => %{"ai.frontman/execution-context" => %{"callId" => ^tool_call_id}}
         }
       })
 
-      # MCP 2026-07-28 permits requestState without inputRequests or optional capabilities.
-      # https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr
-      # Retrying is optional; an explicit local decline error is allowed, not a final success.
-      result = %{
-        "resultType" => "input_required",
-        "requestState" => "opaque-server-state"
-      }
-
+      result = %{"resultType" => "input_required", "requestState" => "opaque-server-state"}
       push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
       :sys.get_state(socket.channel_pid)
 
       assert Process.alive?(socket.channel_pid)
+      assert_receive {:tool_result, ^tool_call_id,
+                      [%SwarmAi.Message.ContentPart{type: :text, text: message}], true}
+      assert is_binary(message)
+      assert String.trim(message) != ""
       refute_receive {:tool_result, ^tool_call_id, _, false}
 
       assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
 
-      refute Enum.any?(Tasks.interactions(task), fn
-               %Interaction.ToolResult{tool_call_id: ^tool_call_id, is_error: false} ->
-                 true
-
+      assert [
                %Interaction.ToolResult{
                  tool_call_id: ^tool_call_id,
-                 result: %{"resultType" => "input_required"}
-               } ->
-                 true
+                 is_error: true,
+                 result: %{
+                   "isError" => true,
+                   "content" => [%{"type" => "text", "text" => ^message}]
+                 } = persisted_result
+               }
+             ] = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
 
-               _interaction ->
-                 false
-             end)
+      refute Map.has_key?(persisted_result, "resultType")
+      refute Map.has_key?(persisted_result, "requestState")
 
-      refute_push("acp:message", %{
+      assert_push("acp:message", %{
+        "method" => "session/update",
         "params" => %{
+          "sessionId" => ^task_id,
           "update" => %{
             "sessionUpdate" => "tool_call_update",
             "toolCallId" => ^tool_call_id,
-            "status" => "completed"
+            "status" => "failed",
+            "content" => [%{"type" => "content", "content" => %{"text" => ^message}}]
           }
         }
+      })
+
+      refute_push("acp:message", %{
+        "params" => %{"update" => %{"toolCallId" => ^tool_call_id, "status" => "completed"}}
       })
     end
 
