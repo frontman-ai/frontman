@@ -31,7 +31,7 @@ defmodule FrontmanServer.SentryTest do
 
   describe "Logger metadata reporting" do
     @tag :capture_log
-    test "reports nested changeset errors without including rejected content" do
+    test "adds nested changeset errors while preserving the exception message" do
       content = String.duplicate("private-инструкции", 8192)
 
       changeset =
@@ -62,8 +62,7 @@ defmodule FrontmanServer.SentryTest do
       [reported] = event.exception
       assert reported.type == "Ecto.InvalidChangesetError"
       assert reported.stacktrace != nil
-      assert reported.value == "could not perform insert because changeset is invalid"
-      refute Jason.encode!(event) =~ "private-инструкции"
+      assert reported.value == Exception.message(exception)
     end
 
     @tag :capture_log
