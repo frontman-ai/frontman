@@ -405,7 +405,7 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializer do
   end
 
   defp process_project_context_result(result, state, init_step, tool_name, parser) do
-    with :ok <- MCPSchema.validate_call_tool_result(result),
+    with {:ok, result} <- MCPSchema.resolve_call_tool_result(result),
          false <- MCP.error?(result) do
       parser.(result, state)
     else

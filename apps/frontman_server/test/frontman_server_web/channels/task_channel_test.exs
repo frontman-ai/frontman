@@ -1067,14 +1067,24 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       })
 
       result = %{"resultType" => "input_required", "requestState" => "opaque-server-state"}
-      push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
-      :sys.get_state(socket.channel_pid)
+
+      log =
+        capture_log(fn ->
+          push(socket, "mcp:message", JsonRpc.success_response(mcp_request_id, result))
+          :sys.get_state(socket.channel_pid)
+        end)
+
+      refute log =~ "opaque-server-state"
 
       assert Process.alive?(socket.channel_pid)
+
       assert_receive {:tool_result, ^tool_call_id,
                       [%SwarmAi.Message.ContentPart{type: :text, text: message}], true}
+
       assert is_binary(message)
       assert String.trim(message) != ""
+      assert message =~ "declines MRTR retry"
+      refute message =~ "opaque-server-state"
       refute_receive {:tool_result, ^tool_call_id, _, false}
 
       assert {:ok, task} = Tasks.get_task_with_history(scope, task_id)
@@ -1083,10 +1093,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                %Interaction.ToolResult{
                  tool_call_id: ^tool_call_id,
                  is_error: true,
-                 result: %{
-                   "isError" => true,
-                   "content" => [%{"type" => "text", "text" => ^message}]
-                 } = persisted_result
+                 result:
+                   %{
+                     "isError" => true,
+                     "content" => [%{"type" => "text", "text" => ^message}]
+                   } = persisted_result
                }
              ] = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
 

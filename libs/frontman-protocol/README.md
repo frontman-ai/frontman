@@ -38,7 +38,7 @@ Browser discovery advertises `tools.listChanged: false`. Discovery and catalogs 
 See [shared contracts](src/FrontmanProtocol__MCP.res), [browser dispatch](../frontman-client/src/FrontmanClient__MCP.res), and [Elixir discovery validation](../../apps/frontman_server/lib/frontman_server_web/channels/task_channel/mcp_initializer.ex).
 
 **Pending core work, not optional exemptions:**
-- Elixir currently validates tool responses as completed results. A valid `input_required` interim, including a state-only result, does not receive distinct handling.
+- Elixir validates `input_required` interims before final tool results and explicitly declines retry with a tool error. It rejects input requests for unadvertised capabilities and does not retain opaque state.
 - The browser currently rejects `subscriptions/listen` as an unknown method. Subscription acknowledgment and closure remain pending even with no supported change notifications.
 
 These gaps prevent a claim of complete MCP conformance. Optional client-input features do not exempt implementations from core message patterns.

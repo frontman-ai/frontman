@@ -284,6 +284,28 @@ defmodule FrontmanServerWeb.TaskChannel.MCPInitializerTest do
   end
 
   describe "handle_response/3 with tool-level errors (isError: true)" do
+    test "declines MRTR for both project context tools without logging or retaining opaque state" do
+      for {request_id, state, next_status} <- [
+            {1, rules_state(1), :loading_project_structure},
+            {2, structure_state(2), :ready}
+          ] do
+        log =
+          capture_log(fn ->
+            {new_state, [_action]} =
+              MCPInitializer.handle_response(state, request_id, %{
+                "resultType" => "input_required",
+                "requestState" => "private-interim-state"
+              })
+
+            assert new_state.status == next_status
+            refute inspect(new_state) =~ "private-interim-state"
+          end)
+
+        assert log =~ "Tool error loading"
+        refute log =~ "private-interim-state"
+      end
+    end
+
     test "advances initialization without reporting private tool errors" do
       for {request_id, state, step, next_status} <- [
             {1, rules_state(1), "project_rules", :loading_project_structure},
