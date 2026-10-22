@@ -1,5 +1,7 @@
 import Config
 
+config :sentry, before_send: {FrontmanServer.Observability.Sentry, :before_send}
+
 config :frontman_server, :scopes,
   user: [
     default: true,

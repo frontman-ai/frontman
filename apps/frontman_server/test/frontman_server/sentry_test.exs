@@ -15,6 +15,11 @@ defmodule FrontmanServer.SentryTest do
   end
 
   describe "Sentry configuration" do
+    test "leaves unrelated events unchanged" do
+      event = %Sentry.Event{original_exception: %RuntimeError{message: "unrelated"}}
+      assert FrontmanServer.Observability.Sentry.before_send(event) == event
+    end
+
     test "sentry is in test mode" do
       assert Application.get_env(:sentry, :test_mode) == true
     end
@@ -25,6 +30,42 @@ defmodule FrontmanServer.SentryTest do
   end
 
   describe "Logger metadata reporting" do
+    @tag :capture_log
+    test "reports nested changeset errors without including rejected content" do
+      content = String.duplicate("private-инструкции", 8192)
+
+      changeset =
+        FrontmanServer.Tasks.InteractionSchema.changeset(
+          %FrontmanServer.Tasks.InteractionSchema{task_id: Ecto.UUID.generate()},
+          %{
+            id: Ecto.UUID.generate(),
+            type: :discovered_project_rule,
+            data: %{path: "AGENTS.md", content: content}
+          }
+        )
+
+      assert changeset.errors == []
+      refute changeset.valid?
+
+      {exception, stacktrace} =
+        try do
+          raise Ecto.InvalidChangesetError, action: :insert, changeset: changeset
+        rescue
+          exception in Ecto.InvalidChangesetError -> {exception, __STACKTRACE__}
+        end
+
+      Logger.error("changeset crash", crash_reason: {exception, stacktrace})
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert event.extra.changeset_errors.data.content == ["should be at most 65536 byte(s)"]
+      assert event.original_exception == exception
+      [reported] = event.exception
+      assert reported.type == "Ecto.InvalidChangesetError"
+      assert reported.stacktrace != nil
+      assert reported.value == "could not perform insert because changeset is invalid"
+      refute Jason.encode!(event) =~ "private-инструкции"
+    end
+
     @tag :capture_log
     test "captures Logger errors with metadata" do
       Logger.error(
