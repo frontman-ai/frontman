@@ -31,7 +31,7 @@ defmodule FrontmanServer.SentryTest do
 
   describe "Logger metadata reporting" do
     @tag :capture_log
-    test "reports nested changeset errors without including rejected content" do
+    test "adds nested changeset errors while preserving the exception message" do
       content = String.duplicate("private-инструкции", 8192)
 
       changeset =
@@ -48,8 +48,11 @@ defmodule FrontmanServer.SentryTest do
       Logger.error("changeset crash", crash_reason: {exception, []})
 
       [event] = Sentry.Test.pop_sentry_reports()
-      assert event.extra.changeset_errors.data.content == ["should be at most 65536 byte(s)"]
-      refute Jason.encode!(event) =~ "private-инструкции"
+      assert [%{message: message, metadata: metadata}] = event.extra.changeset_errors.data.content
+      assert message == "should be at most %{count} byte(s)"
+      assert metadata.count == 65536
+      [reported] = event.exception
+      assert reported.value == Exception.message(exception)
     end
 
     @tag :capture_log
