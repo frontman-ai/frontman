@@ -5,7 +5,9 @@ defmodule FrontmanServer.SentryTest do
 
   alias FrontmanServer.Accounts.Scope
   alias FrontmanServer.Accounts.User
+  alias FrontmanServer.Observability.Sentry, as: SentryReporting
   alias FrontmanServer.Observability.SentryContext
+  alias FrontmanServer.Tasks.InteractionSchema
 
   setup do
     Sentry.Test.setup_sentry(dedup_events: false)
@@ -16,8 +18,8 @@ defmodule FrontmanServer.SentryTest do
 
   describe "Sentry configuration" do
     test "leaves unrelated events unchanged" do
-      event = %Sentry.Event{original_exception: %RuntimeError{message: "unrelated"}}
-      assert FrontmanServer.Observability.Sentry.before_send(event) == event
+      event = Sentry.Event.transform_exception(%RuntimeError{message: "unrelated"}, [])
+      assert SentryReporting.before_send(event) == event
     end
 
     test "sentry is in test mode" do
@@ -35,8 +37,8 @@ defmodule FrontmanServer.SentryTest do
       content = String.duplicate("private-инструкции", 8192)
 
       changeset =
-        FrontmanServer.Tasks.InteractionSchema.changeset(
-          %FrontmanServer.Tasks.InteractionSchema{task_id: Ecto.UUID.generate()},
+        InteractionSchema.changeset(
+          %InteractionSchema{task_id: Ecto.UUID.generate()},
           %{
             id: Ecto.UUID.generate(),
             type: :discovered_project_rule,
@@ -45,12 +47,12 @@ defmodule FrontmanServer.SentryTest do
         )
 
       exception = Ecto.InvalidChangesetError.exception(action: :insert, changeset: changeset)
-      Logger.error("changeset crash", crash_reason: {exception, []})
+      :logger.error(%{reason: {exception, []}})
 
       [event] = Sentry.Test.pop_sentry_reports()
       assert [%{message: message, metadata: metadata}] = event.extra.changeset_errors.data.content
       assert message == "should be at most %{count} byte(s)"
-      assert metadata.count == 65536
+      assert metadata.count == 65_536
       [reported] = event.exception
       assert reported.value == Exception.message(exception)
     end
