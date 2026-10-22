@@ -54,6 +54,12 @@ class Frontman_Router {
 	 *   Suffix: /any/path/frontman (UI with that path in the web preview)
 	 */
 	public function intercept( \WP $wp ): void {
+		Frontman_Sentry::boundary( 'request', function () use ( $wp ): void {
+			$this->dispatch( $wp );
+		} );
+	}
+
+	private function dispatch( \WP $wp ): void {
 		$request_uri = $this->get_request_path();
 		$method      = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_key( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : 'GET';
 		$route       = $this->classify_route( $request_uri, $method );

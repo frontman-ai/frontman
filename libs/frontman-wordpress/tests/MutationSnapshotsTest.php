@@ -1101,7 +1101,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 	private function test_privacy_options_are_read_only(): void {
 		$tool = new Frontman_Tool_Options();
-		$tools = Frontman_Tools::instance();
+		$tools = new Frontman_Tools();
 		$tool->register( $tools );
 		$original = $GLOBALS['frontman_test_options'];
 		$values = [ 'wp_page_for_privacy_policy' => 42, 'comment_registration' => '0', 'require_name_email' => '1' ];
@@ -1143,7 +1143,7 @@ class Frontman_Mutation_Snapshots_Test_Runner {
 
 	private function test_option_schemas_match_permissions(): void {
 		$tool = new Frontman_Tool_Options();
-		$tools = Frontman_Tools::instance();
+		$tools = new Frontman_Tools();
 		$tool->register( $tools );
 		$writable = [
 			'blogname', 'blogdescription', 'siteurl', 'home', 'admin_email', 'posts_per_page',

@@ -74,6 +74,13 @@ require_once FRONTMAN_PLUGIN_DIR . 'tools/class-tool-angie.php';
  * Main plugin bootstrap.
  */
 function frontman_init(): void {
+	Frontman_Sentry::boundary( 'init', 'frontman_bootstrap' );
+}
+
+/**
+ * Register tools and plugin hooks inside the initialization boundary.
+ */
+function frontman_bootstrap(): void {
 	$tools = Frontman_Tools::instance();
 	( new Frontman_Tool_Posts() )->register( $tools );
 	( new Frontman_Tool_Users() )->register( $tools );
