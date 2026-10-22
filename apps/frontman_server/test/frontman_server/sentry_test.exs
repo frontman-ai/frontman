@@ -57,7 +57,9 @@ defmodule FrontmanServer.SentryTest do
       Logger.error("changeset crash", crash_reason: {exception, stacktrace})
 
       [event] = Sentry.Test.pop_sentry_reports()
-      assert event.extra.changeset_errors.data.content == ["should be at most 65536 byte(s)"]
+      assert [%{message: message, metadata: metadata}] = event.extra.changeset_errors.data.content
+      assert message == "should be at most %{count} byte(s)"
+      assert metadata.count == 65536
       assert event.original_exception == exception
       [reported] = event.exception
       assert reported.type == "Ecto.InvalidChangesetError"
