@@ -10,6 +10,48 @@ type mcpHandler<'server> = {
   serverInterface: Types.serverInterface<'server>,
   channel: Channel.t,
   sessionId: string,
+  subscriptions: ref<array<JsonRpc.Id.t>>,
+  transportListeners: ref<array<(Channel.channelEvent, int)>>,
+}
+
+@schema
+type subscriptionFilter = {
+  toolsListChanged: option<bool>,
+  promptsListChanged: option<bool>,
+  resourcesListChanged: option<bool>,
+  resourceSubscriptions: option<array<string>>,
+}
+
+let filterSchema = S.json->S.transform(s => {
+  parser: value =>
+    switch value {
+    | Object(_) => value->S.parseOrThrow(~to=subscriptionFilterSchema)
+    | _ => s.fail("Expected notification filter object")
+    },
+  serializer: value => value->S.decodeOrThrow(~from=subscriptionFilterSchema, ~to=S.json),
+})
+
+let listenParamsSchema = S.object(s => s.field("notifications", filterSchema))
+let cancelledParamsSchema = S.object(s => {
+  let id = s.field("requestId", JsonRpc.Id.schema)
+  s.field("reason", S.option(S.string))->ignore
+  id
+})
+
+let subscriptionMeta = id =>
+  JSON.Encode.object(
+    dict{
+      "io.modelcontextprotocol/subscriptionId": id->S.decodeOrThrow(
+        ~from=JsonRpc.Id.schema,
+        ~to=S.json,
+      ),
+    },
+  )
+
+let sendNotification = (handler, method, params) => {
+  let payload =
+    JsonRpc.Notification.make(~method, ~params=Some(params))->JsonRpc.Notification.toJson
+  handler.channel->Channel.push(~event=#"mcp:message", ~payload)->ignore
 }
 
 @@live
@@ -188,6 +230,8 @@ let handleToolsCall = async (
 let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit => {
   try {
     switch parse(payload) {
+    | Ok(Request({id})) if handler.subscriptions.contents->Array.some(active => active == id) =>
+      sendError(handler, id, Types.ErrorCode.invalidRequest, "Request ID already active")
     | Ok(Request({id, method, params})) =>
       switch parseParams(params, Types.discoverParamsSchema, "Missing request params") {
       | Error(msg) =>
@@ -200,10 +244,39 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
           | "server/discover" => handleDiscover(handler, id, params)
           | "tools/list" => handleToolsList(handler, id, params)
           | "tools/call" => await handleToolsCall(handler, id, params)
+          | "subscriptions/listen" =>
+            switch parseParams(params, listenParamsSchema, "Missing subscription filter") {
+            | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, msg)
+            | Ok(_) =>
+              switch handler.subscriptions.contents->Array.length >= 128 {
+              | true =>
+                sendError(handler, id, Types.ErrorCode.serverError, "Subscription limit reached")
+              | false =>
+                handler.subscriptions := Array.concat(handler.subscriptions.contents, [id])
+                // No change notification categories are advertised by this browser server.
+                sendNotification(
+                  handler,
+                  "notifications/subscriptions/acknowledged",
+                  JSON.Encode.object(
+                    dict{
+                      "_meta": subscriptionMeta(id),
+                      "notifications": JSON.Encode.object(Dict.make()),
+                    },
+                  ),
+                )
+              }
+            }
           | _ =>
             sendError(handler, id, Types.ErrorCode.methodNotFound, `Method not found: ${method}`)
           }
         }
+      }
+    | Ok(Notification({method: "notifications/cancelled", params})) =>
+      switch parseParams(params, cancelledParamsSchema, "Missing cancellation params") {
+      | Ok(id) =>
+        handler.subscriptions :=
+          handler.subscriptions.contents->Array.filter(active => active != id)
+      | Error(_) => Log.error("Invalid MCP cancellation params")
       }
     | Ok(Notification(_)) => ()
     | Error(msg) =>
@@ -226,16 +299,58 @@ let attach = (
   ~sessionId: string,
   ~serverInterface: Types.serverInterface<'server>,
 ): mcpHandler<'server> => {
-  let handler = {serverInterface, channel, sessionId}
+  let handler = {
+    serverInterface,
+    channel,
+    sessionId,
+    subscriptions: ref([]),
+    transportListeners: ref([]),
+  }
 
   channel->Channel.on(~event=#"mcp:message", ~callback=payload => {
     handleMessage(handler, payload)->ignore
   })
+  // A dropped channel cannot preserve request streams across the next join.
+  handler.transportListeners :=
+    [#phx_close, #phx_error]->Array.map(event => {
+      let listener = channel->Channel.onWithRef(~event, ~callback=_ => {
+        handler.subscriptions := []
+      })
+      (event, listener)
+    })
 
   handler
 }
 
 @@live
 let detach = (handler: mcpHandler<'server>): unit => {
+  let active = handler.subscriptions.contents
+  handler.subscriptions := []
+  active->Array.forEach(id => {
+    sendNotification(
+      handler,
+      "notifications/cancelled",
+      JSON.Encode.object(
+        dict{
+          "requestId": id->S.decodeOrThrow(~from=JsonRpc.Id.schema, ~to=S.json),
+          "_meta": subscriptionMeta(id),
+        },
+      ),
+    )
+    sendResponse(
+      handler,
+      id,
+      JSON.Encode.object(
+        dict{
+          "resultType": JSON.Encode.string("complete"),
+          "_meta": subscriptionMeta(id),
+        },
+      ),
+    )
+  })
+  handler.transportListeners.contents->Array.forEach(((event, listener)) =>
+    handler.channel->Channel.off(~event, ~ref=listener)
+  )
+  handler.transportListeners := []
   handler.channel->Channel.off(~event=#"mcp:message")
 }

@@ -16,6 +16,7 @@ Types for AI agent communication:
 - `server/discover` - Capability and version discovery
 - `tools/list` - List available tools
 - `tools/call` - Execute a tool
+- `subscriptions/listen` - Open a notification stream
 
 #### MCP baseline and deployment prerequisites
 
@@ -37,17 +38,31 @@ Elixir separately requires the browser to advertise both `ai.frontman/execution-
 Browser discovery advertises `tools.listChanged: false`. Discovery and catalogs use `cacheScope: "private"` and `ttlMs: 0`.
 See [shared contracts](src/FrontmanProtocol__MCP.res), [browser dispatch](../frontman-client/src/FrontmanClient__MCP.res), and [Elixir discovery validation](../../apps/frontman_server/lib/frontman_server_web/channels/task_channel/mcp_initializer.ex).
 
-**Pending core work, not optional exemptions:**
-- Elixir validates `input_required` interims before final tool results and explicitly declines retry with a tool error. It rejects input requests for unadvertised capabilities and does not retain opaque state.
-- The browser currently rejects `subscriptions/listen` as an unknown method. Subscription acknowledgment and closure remain pending even with no supported change notifications.
+The browser accepts `subscriptions/listen` and validates its notification filter.
+Its acknowledgment accepts `{}` because the browser advertises no change-event support.
+The request remains active until cancellation, attachment teardown, or transport closure.
+Numeric and string request IDs remain distinct.
+Each attachment permits at most 128 active subscriptions and rejects duplicate active subscription IDs.
 
-These gaps prevent a claim of complete MCP conformance. Optional client-input features do not exempt implementations from core message patterns.
-Automatic MRTR retry is not implemented. The MCP rules permit a client to decline retry, but recognition of valid interims remains necessary.
+The Phoenix binding uses `notifications/cancelled` with `requestId` for client cancellation, without a response.
+On browser detach, the server sends `notifications/cancelled` and a graceful completion for each active subscription.
+Both messages carry the subscription ID in `_meta`.
+Channel error and close events clear subscriptions without a response or automatic replay.
+Clients must send a new listen request after reconnection.
+
+Phoenix accepts server notification envelopes separately from responses.
+It logs and ignores unopened subscription notifications without a JSON-RPC reply.
+Phoenix does not open subscriptions by default or expose a subscription API.
+No resource, prompt, or catalog-refresh dynamics are implemented.
+Automatic MRTR retry is not implemented.
+Elixir recognizes valid `input_required` interims and reports a controlled tool failure rather than retrying.
+It rejects input requests for unadvertised capabilities and does not retain opaque state.
 
 ACP retains its independent `initialize` exchange on `acp:message`.
 The framework/WordPress relay uses separate protocol versions `1.0` and `2.0`.
 MCP version changes do not replace either contract or impose Streamable HTTP headers or GET removal on the relay.
-The browser currently ignores MCP notifications, including `notifications/cancelled`. ACP session cancellation does not provide MCP request cancellation.
+Browser MCP cancellation removes active subscriptions. It does not cancel tool execution.
+ACP session cancellation does not provide MCP request cancellation.
 On reconnect, the channel redispatches unresolved tool calls without a read/write guard. External writes can repeat.
 This documentation does not fix replay safety or authorize uncertain-write replay.
 
