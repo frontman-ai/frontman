@@ -17,7 +17,7 @@ type channelEvent = [
   | #billing_status_updated
 ]
 
-type rec pushResponse = {receive: (~status: string, ~callback: JSON.t => unit) => pushResponse}
+type pushResponse = FrontmanBindings.Phoenix.pushResponse
 
 @send external cancelTimeout: pushResponse => unit = "cancelTimeout"
 @send external cancelRefEvent: pushResponse => unit = "cancelRefEvent"

@@ -5,6 +5,9 @@ module Types = FrontmanClient__MCP__Types
 module MCPServer = FrontmanClient__MCP__Server
 module Relay = FrontmanClient__Relay
 
+module TestVitest = FrontmanBindings.Bindings__Test__Vitest
+module TestPhoenix = FrontmanBindings.Bindings__Test__Phoenix
+
 let makeServer = async (~tools=[]) => {
   let config = Relay.makeConfig(~baseUrl="http://relay.invalid", ~fetch=async (_, _) =>
     WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`)
@@ -14,21 +17,34 @@ let makeServer = async (~tools=[]) => {
   MCPServer.make(MCPServer.makeConfig(~tools), ~relay)
 }
 
-module MockChannel = {
-  type pushCall = {payload: JSON.t}
+module MockChannel: {
+  type pushCall = {event: string, payload: JSON.t}
+  type t
+  let make: unit => (t, ref<array<pushCall>>)
+  let setOn: (t, (string, JSON.t => unit) => unit) => t
+  let toPhoenix: t => FrontmanClient__Phoenix__Channel.t
+} = {
+  type pushCall = {event: string, payload: JSON.t}
+  type t = TestPhoenix.mockChannel
+
+  let toPhoenix = TestPhoenix.toChannel
+
+  let setOn = (channel: t, on) => {...channel, on}
+
+  let rec pushResponse = () => {
+    FrontmanBindings.Phoenix.receive: (~status as _, ~callback as _) => pushResponse(),
+  }
 
   let make = () => {
     let calls: ref<array<pushCall>> = ref([])
-    let channel: FrontmanClient__Phoenix__Channel.t = %raw(`{
-      push: function(event, payload) {
-        this._calls.push({event, payload});
-        return { receive: function() { return this; } };
+    let channel: t = {
+      push: (event, payload) => {
+        calls := Array.concat(calls.contents, [{event, payload}])
+        pushResponse()
       },
-      on: function() {},
-      off: function() {},
-      _calls: []
-    }`)
-    calls := %raw(`channel._calls`)
+      on: (_, _) => (),
+      off: () => (),
+    }
     (channel, calls)
   }
 }
@@ -126,13 +142,60 @@ let errorData = calls =>
   ->Option.flatMap(JSON.Decode.object)
   ->Option.flatMap(error => error->Dict.get("data"))
 
-let handler = (channel, context, ~sessionId="task-1", ~failure=?) => {
-  MCP.serverInterface: makeInterface(~context, ~failure?),
-  channel,
+let makeHandler = (channel, serverInterface, ~sessionId="task-1") => {
+  MCP.serverInterface,
+  channel: MockChannel.toPhoenix(channel),
   sessionId,
 }
 
+let handler = (channel, context, ~sessionId="task-1", ~failure=?) =>
+  makeHandler(channel, makeInterface(~context, ~failure?), ~sessionId)
+
 describe("MCP 2026-07-28", () => {
+  testAsync("acknowledges an empty subscription through the attached browser server", async t => {
+    let server = await makeServer()
+    let (channel, calls) = MockChannel.make()
+    let incoming = ref(None)
+    let channel = MockChannel.setOn(
+      channel,
+      (event, callback) => {
+        t->expect(event)->Expect.toBe("mcp:message")
+        incoming := Some(callback)
+      },
+    )
+    let attached = MCP.attach(
+      ~channel=MockChannel.toPhoenix(channel),
+      ~sessionId="task-1",
+      ~serverInterface=MCPServer.toInterface(server),
+    )
+    TestVitest.onTestFinished(() => MCP.detach(attached))
+
+    let receive = incoming.contents->Option.getOrThrow
+    receive(
+      requestWithId(
+        ~id=`"empty-subscription"`,
+        ~method="subscriptions/listen",
+        ~params=`${coreMetadata},"notifications":{}`,
+      ),
+    )
+    await TestVitest.waitFor(() => t->expect(calls.contents->Array.length > 0)->Expect.toBe(true))
+
+    let first = calls.contents->Array.get(0)->Option.getOrThrow
+    t->expect(first.event)->Expect.toBe("mcp:message")
+    t
+    ->expect(first.payload)
+    ->Expect.toEqual(
+      JSON.parseOrThrow(`{
+        "jsonrpc": "2.0",
+        "method": "notifications/subscriptions/acknowledged",
+        "params": {
+          "notifications": {},
+          "_meta": {"io.modelcontextprotocol/subscriptionId": "empty-subscription"}
+        }
+      }`),
+    )
+  })
+
   testAsync("namespaces Frontman tool metadata under _meta", async t => {
     let server = await makeServer(~tools=[module(ThrowingTool)])
     let tool =
@@ -303,11 +366,7 @@ describe("MCP 2026-07-28", () => {
     let (channel, calls) = MockChannel.make()
 
     await MCP.handleMessage(
-      {
-        MCP.serverInterface: MCPServer.toInterface(server),
-        channel,
-        sessionId: "task-1",
-      },
+      makeHandler(channel, MCPServer.toInterface(server)),
       request(
         ~id=21,
         ~method="tools/call",
@@ -324,11 +383,7 @@ describe("MCP 2026-07-28", () => {
     let (channel, calls) = MockChannel.make()
 
     await MCP.handleMessage(
-      {
-        MCP.serverInterface: MCPServer.toInterface(server),
-        channel,
-        sessionId: "task-1",
-      },
+      makeHandler(channel, MCPServer.toInterface(server)),
       request(
         ~id=22,
         ~method="tools/call",

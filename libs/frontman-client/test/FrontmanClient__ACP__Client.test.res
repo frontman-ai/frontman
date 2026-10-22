@@ -1,7 +1,6 @@
 open Vitest
 
-@module("vitest") @scope("vi") external unstubAllGlobals: unit => unit = "unstubAllGlobals"
-@module("vitest") @scope("vi") external stubGlobal: (string, 'a) => unit = "stubGlobal"
+open FrontmanBindings.Bindings__Test__Vitest
 
 afterEach(() => {
   unstubAllGlobals()
@@ -16,6 +15,8 @@ module Types = FrontmanAiFrontmanProtocol.FrontmanProtocol__ACP
 module JsonRpc = FrontmanAiFrontmanProtocol.FrontmanProtocol__JsonRpc
 module Channel = FrontmanClient__Phoenix__Channel
 module Socket = FrontmanClient__Phoenix__Socket
+
+module TestPhoenix = FrontmanBindings.Bindings__Test__Phoenix
 
 type wire = {requests: array<JSON.t>}
 @module("./acpReconnectTransport.mjs") external makeTransport: unit => wire = "makeTransport"
@@ -135,11 +136,11 @@ let attributionConfiguration = (~id="agent-1") =>
   )->S.parseOrThrow(~to=Types.agentAttributionConfigurationMetadataSchema)
 
 let negotiateV1 = (connection: ACP.connection, ~id="agent-1"): ACP.connection => {
-  ...connection,
-  state: ref({
-    ...initializedState,
-    agentAttributionConfiguration: Some(attributionConfiguration(~id)),
-  }),
+  connection.state := {
+      ...connection.state.contents,
+      agentAttributionConfiguration: Some(attributionConfiguration(~id)),
+    }
+  connection
 }
 
 let userUpdate = (
@@ -426,6 +427,26 @@ describe("ACP Client parseInitializeResult", _t => {
     ->Expect.toEqual(Some("agent-2"))
   })
 
+  test("negotiated connections share state with dispose and fail closures", t => {
+    let connection = loadConnection([], loadResult)
+    let negotiated = connection->negotiateV1
+    negotiated.dispose()
+    t->expect(ACP.isInitialized(negotiated))->Expect.toBe(false)
+    t->expect(negotiated.state)->Expect.toBe(connection.state)
+
+    let errors = ref([])
+    let (connection, _) = loadConnectionWithTransport(
+      [],
+      loadResult,
+      ~onConnectionLost=error => errors := errors.contents->Array.concat([error]),
+    )
+    let negotiated = connection->negotiateV1
+    negotiated.fail("connection lost")
+    negotiated.fail("duplicate failure")
+    t->expect(ACP.isInitialized(negotiated))->Expect.toBe(false)
+    t->expect(errors.contents)->Expect.toEqual(["connection lost"])
+  })
+
   test("does not mislabel unrelated initialize validation errors", t => {
     let json = JSON.parseOrThrow(`{
       "protocolVersion":1,
@@ -539,12 +560,13 @@ describe("ACP Client transport events", _t => {
   test("billing status event invokes callback", t => {
     let eventNames: ref<array<string>> = ref([])
     let callbacks: ref<array<JSON.t => unit>> = ref([])
-    let channel: FrontmanClient__Phoenix__Channel.t = %raw(`({
-      on: function(event, callback) {
-        eventNames.push(event);
-        callbacks.push(callback);
-      }
-    })`)
+    let channel = TestPhoenix.makeRecordingChannel(
+      ~on=(event, callback) => {
+        eventNames := eventNames.contents->Array.concat([event])
+        callbacks := callbacks.contents->Array.concat([callback])
+        callbacks.contents->Array.length
+      },
+    )
     let received: ref<option<JSON.t>> = ref(None)
 
     FrontmanClient__ACP.attachBillingStatusHandler(
