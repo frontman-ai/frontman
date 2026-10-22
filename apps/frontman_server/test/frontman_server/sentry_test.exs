@@ -32,6 +32,19 @@ defmodule FrontmanServer.SentryTest do
   end
 
   describe "Logger metadata reporting" do
+    test "serializes parameterized type metadata from cast errors" do
+      type = Ecto.ParameterizedType.init(Ecto.Enum, values: [:admin])
+      changeset = Ecto.Changeset.cast({%{}, %{role: type}}, %{role: "invalid"}, [:role])
+      exception = Ecto.InvalidChangesetError.exception(action: :insert, changeset: changeset)
+
+      Sentry.capture_exception(exception)
+
+      [event] = Sentry.Test.pop_sentry_reports()
+      assert [%{metadata: metadata}] = event.extra.changeset_errors.role
+      assert metadata.type == inspect(type)
+      assert is_binary(Jason.encode!(event))
+    end
+
     @tag :capture_log
     test "adds nested changeset errors while preserving the exception message" do
       content = String.duplicate("private-инструкции", 8192)

@@ -8,11 +8,19 @@ defmodule FrontmanServer.Observability.Sentry do
       ) do
     errors =
       PolymorphicEmbed.traverse_errors(changeset, fn {message, opts} ->
-        %{message: message, metadata: Map.new(opts)}
+        metadata = Map.new(opts, fn {key, value} -> {key, json_safe(value)} end)
+        %{message: message, metadata: metadata}
       end)
 
     %{event | extra: Map.put(event.extra, :changeset_errors, errors)}
   end
 
   def before_send(event), do: event
+
+  defp json_safe(value) do
+    case Jason.encode(value) do
+      {:ok, _encoded} -> value
+      {:error, _reason} -> inspect(value)
+    end
+  end
 end
