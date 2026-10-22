@@ -1071,8 +1071,10 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       :sys.get_state(socket.channel_pid)
 
       assert Process.alive?(socket.channel_pid)
+
       assert_receive {:tool_result, ^tool_call_id,
                       [%SwarmAi.Message.ContentPart{type: :text, text: message}], true}
+
       assert is_binary(message)
       assert String.trim(message) != ""
       refute_receive {:tool_result, ^tool_call_id, _, false}
@@ -1083,10 +1085,11 @@ defmodule FrontmanServerWeb.TaskChannelTest do
                %Interaction.ToolResult{
                  tool_call_id: ^tool_call_id,
                  is_error: true,
-                 result: %{
-                   "isError" => true,
-                   "content" => [%{"type" => "text", "text" => ^message}]
-                 } = persisted_result
+                 result:
+                   %{
+                     "isError" => true,
+                     "content" => [%{"type" => "text", "text" => ^message}]
+                   } = persisted_result
                }
              ] = Enum.filter(Tasks.interactions(task), &match?(%Interaction.ToolResult{}, &1))
 
