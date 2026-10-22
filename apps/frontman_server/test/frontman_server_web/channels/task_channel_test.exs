@@ -1112,6 +1112,29 @@ defmodule FrontmanServerWeb.TaskChannelTest do
       refute_push("acp:message", %{
         "params" => %{"update" => %{"toolCallId" => ^tool_call_id, "status" => "completed"}}
       })
+
+      refute_push("mcp:message", %{"method" => "tools/call"})
+    end
+
+    test "validates state-only interims without applying the final output schema" do
+      result = %{"resultType" => "input_required", "requestState" => "opaque-state"}
+
+      assert :ok = MCP.Schema.validate_call_tool_result(result)
+      assert :ok = MCP.Schema.validate_call_tool_result(result, @logged_output_schema)
+
+      for invalid <- [
+            Map.delete(result, "requestState"),
+            Map.put(result, "requestState", nil),
+            Map.put(result, "requestState", %{}),
+            Map.put(result, "_meta", "invalid"),
+            Map.put(result, "inputRequests", %{}),
+            Map.put(result, "inputRequests", nil),
+            Map.put(result, "inputRequests", %{"roots" => %{"method" => "roots/list"}}),
+            Map.put(result, "resultType", "unknown")
+          ] do
+        assert :error = MCP.Schema.validate_call_tool_result(invalid)
+        assert :error = MCP.Schema.validate_call_tool_result(invalid, @logged_output_schema)
+      end
     end
 
     test "validates structured content only when tool errors provide it" do

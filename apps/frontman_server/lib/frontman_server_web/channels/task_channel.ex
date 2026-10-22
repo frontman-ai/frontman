@@ -477,6 +477,12 @@ defmodule FrontmanServerWeb.TaskChannel do
     {:noreply, persist_tool_call_result(tool_call, result, socket)}
   end
 
+  defp normalize_tool_call_result(%{"resultType" => "input_required"}) do
+    MCP.tool_result_error(
+      "MCP tool requires additional input; Frontman does not support continuing this request."
+    )
+  end
+
   defp normalize_tool_call_result(%{"content" => content} = result) do
     case Enum.find(content, &(not supported_tool_result_content?(&1))) do
       nil ->
