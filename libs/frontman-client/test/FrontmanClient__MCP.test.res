@@ -8,6 +8,20 @@ module Relay = FrontmanClient__Relay
 module TestVitest = FrontmanBindings.Bindings__Test__Vitest
 module TestPhoenix = FrontmanBindings.Bindings__Test__Phoenix
 
+@val @scope("JSON")
+external stringifyLogContext: 'a => string = "stringify"
+
+let cancellationLogs: ref<option<ref<string>>> = ref(None)
+
+FrontmanLogs.Logs.addHandler({
+  id: "mcp-cancellation-test",
+  run: (~component as _, ~stacktrace, ~level as _, message, context, error) =>
+    cancellationLogs.contents->Option.forEach(logs => {
+      let entry = (message, context, stacktrace, error->Option.flatMap(JsExn.message))
+      logs := logs.contents ++ stringifyLogContext(entry)
+    }),
+})
+
 let makeServer = async (~tools=[]) => {
   let config = Relay.makeConfig(~baseUrl="http://relay.invalid", ~fetch=async (_, _) =>
     WebAPI.Response.fromString(`{"tools":[],"serverInfo":{"name":"test","version":"1"},"protocolVersion":"2.0"}`)
@@ -21,7 +35,7 @@ module MockChannel: {
   type pushCall = {event: string, payload: JSON.t}
   type t
   let make: unit => (t, ref<array<pushCall>>)
-  let setOn: (t, (string, JSON.t => unit) => unit) => t
+  let setOn: (t, (string, JSON.t => unit) => unit, ~allEvents: bool=?) => t
   let toPhoenix: t => FrontmanClient__Phoenix__Channel.t
 } = {
   type pushCall = {event: string, payload: JSON.t}
@@ -29,7 +43,14 @@ module MockChannel: {
 
   let toPhoenix = TestPhoenix.toChannel
 
-  let setOn = (channel: t, on) => {...channel, on}
+  let setOn = (channel: t, on, ~allEvents=false) => {
+    ...channel,
+    on: (event, callback) =>
+      switch (event, allEvents) {
+      | ("mcp:message", _) | (_, true) => on(event, callback)
+      | (_, false) => ()
+      },
+  }
 
   let rec pushResponse = () => {
     FrontmanBindings.Phoenix.receive: (~status as _, ~callback as _) => pushResponse(),
@@ -146,12 +167,235 @@ let makeHandler = (channel, serverInterface, ~sessionId="task-1") => {
   MCP.serverInterface,
   channel: MockChannel.toPhoenix(channel),
   sessionId,
+  subscriptions: ref([]),
+  transportListeners: ref([]),
 }
 
 let handler = (channel, context, ~sessionId="task-1", ~failure=?) =>
   makeHandler(channel, makeInterface(~context, ~failure?), ~sessionId)
 
 describe("MCP 2026-07-28", () => {
+  testAsync(
+    "rejects active subscription ID reuse by other methods and bounds active streams",
+    async t => {
+      let (channel, calls) = MockChannel.make()
+      let context = ref(None)
+      let attached = MCP.attach(
+        ~channel=MockChannel.toPhoenix(channel),
+        ~sessionId="task-1",
+        ~serverInterface=makeInterface(~context),
+      )
+      let _ = await Array.make(~length=128, ())
+      ->Array.mapWithIndex(
+        async (_, id) =>
+          await MCP.handleMessage(
+            attached,
+            request(
+              ~id,
+              ~method="subscriptions/listen",
+              ~params=`${coreMetadata},"notifications":{}`,
+            ),
+          ),
+      )
+      ->Promise.all
+      t->expect(calls.contents->Array.length)->Expect.toBe(128)
+      calls := []
+      await MCP.handleMessage(attached, request(~id=0, ~method="tools/call", ~params=toolParams))
+      t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidRequest))
+      t->expect(context.contents)->Expect.toEqual(None)
+      calls := []
+      await MCP.handleMessage(
+        attached,
+        request(
+          ~id=128,
+          ~method="subscriptions/listen",
+          ~params=`${coreMetadata},"notifications":{}`,
+        ),
+      )
+      t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.serverError))
+      MCP.detach(attached)
+    },
+  )
+
+  testAsync(
+    "drops subscription streams on channel error or close without replaying them",
+    async t => {
+      let _ = await ["phx_error", "phx_close"]
+      ->Array.map(
+        async closeEvent => {
+          let (channel, calls) = MockChannel.make()
+          let listeners = Dict.make()
+          let channel = MockChannel.setOn(
+            channel,
+            (event, callback) => listeners->Dict.set(event, callback),
+            ~allEvents=true,
+          )
+          let attached = MCP.attach(
+            ~channel=MockChannel.toPhoenix(channel),
+            ~sessionId="task-1",
+            ~serverInterface=makeInterface(~context=ref(None)),
+          )
+          let listen = request(
+            ~id=1,
+            ~method="subscriptions/listen",
+            ~params=`${coreMetadata},"notifications":{}`,
+          )
+          await MCP.handleMessage(attached, listen)
+          let close = listeners->Dict.get(closeEvent)->Option.getOrThrow
+          close(JSON.Encode.null)
+          MCP.detach(attached)
+          t->expect(calls.contents->Array.length)->Expect.toBe(1)
+        },
+      )
+      ->Promise.all
+    },
+  )
+
+  testAsync("validates subscription filters before acknowledging", async t => {
+    let _ = await [
+      "null",
+      "[]",
+      `{"toolsListChanged":"yes"}`,
+      `{"promptsListChanged":1}`,
+      `{"resourcesListChanged":[]}`,
+      `{"resourceSubscriptions":[1]}`,
+      `{"toolsListChanged":null}`,
+      `{"resourceSubscriptions":null}`,
+    ]
+    ->Array.map(
+      async filter => {
+        let (channel, calls) = MockChannel.make()
+        await MCP.handleMessage(
+          handler(channel, ref(None)),
+          request(
+            ~id=1,
+            ~method="subscriptions/listen",
+            ~params=`${coreMetadata},"notifications":${filter}`,
+          ),
+        )
+        t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidParams))
+        t->expect(calls.contents->Array.length)->Expect.toBe(1)
+      },
+    )
+    ->Promise.all
+  })
+
+  testAsync("keeps distinct subscription IDs active until cancelled or detached", async t => {
+    let (channel, calls) = MockChannel.make()
+    let attached = MCP.attach(
+      ~channel=MockChannel.toPhoenix(channel),
+      ~sessionId="task-1",
+      ~serverInterface=makeInterface(~context=ref(None)),
+    )
+    let listen = async id =>
+      await MCP.handleMessage(
+        attached,
+        requestWithId(
+          ~id,
+          ~method="subscriptions/listen",
+          ~params=`${coreMetadata},"notifications":{"toolsListChanged":true,"promptsListChanged":true,"resourcesListChanged":true,"resourceSubscriptions":["file:///x"]}`,
+        ),
+      )
+    await listen("1")
+    await listen(`"1"`)
+    t->expect(calls.contents->Array.length)->Expect.toBe(2)
+    [(0, "1"), (1, `"1"`)]->Array.forEach(
+      ((index, id)) => {
+        let payload = calls.contents->Array.get(index)->Option.getOrThrow
+        t
+        ->expect(payload.payload)
+        ->Expect.toEqual(
+          JSON.parseOrThrow(
+            `{
+        "jsonrpc":"2.0","method":"notifications/subscriptions/acknowledged",
+        "params":{"notifications":{},"_meta":{"io.modelcontextprotocol/subscriptionId":${id}}}
+      }`,
+          ),
+        )
+      },
+    )
+    await listen("1")
+    let duplicate = calls.contents->Array.get(2)->Option.getOrThrow
+    t
+    ->expect(duplicate.payload->JSON.stringify->String.includes("already active"))
+    ->Expect.toBe(true)
+    await MCP.handleMessage(
+      attached,
+      JSON.parseOrThrow(`{
+      "jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}
+    }`),
+    )
+    t->expect(calls.contents->Array.length)->Expect.toBe(3)
+    // Reusing the cancelled numeric ID is legal; its string counterpart remains active.
+    await listen("1")
+    t->expect(calls.contents->Array.length)->Expect.toBe(4)
+    MCP.detach(attached)
+    let endings = calls.contents->Array.slice(~start=4, ~end=8)->Array.map(call => call.payload)
+    t
+    ->expect(endings)
+    ->Expect.toEqual(
+      [`"1"`, "1"]->Array.flatMap(
+        id => [
+          JSON.parseOrThrow(
+            `{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":${id},"_meta":{"io.modelcontextprotocol/subscriptionId":${id}}}}`,
+          ),
+          JSON.parseOrThrow(
+            `{"jsonrpc":"2.0","id":${id},"result":{"resultType":"complete","_meta":{"io.modelcontextprotocol/subscriptionId":${id}}}}`,
+          ),
+        ],
+      ),
+    )
+    MCP.detach(attached)
+    t->expect(calls.contents->Array.length)->Expect.toBe(8)
+  })
+
+  testAsync(
+    "ignores malformed and unknown cancellation without ending active subscriptions",
+    async t => {
+      let logs = ref("")
+      cancellationLogs := Some(logs)
+      TestVitest.onTestFinished(() => cancellationLogs := None)
+      let (channel, calls) = MockChannel.make()
+      let attached = MCP.attach(
+        ~channel=MockChannel.toPhoenix(channel),
+        ~sessionId="task-1",
+        ~serverInterface=makeInterface(~context=ref(None)),
+      )
+      await MCP.handleMessage(
+        attached,
+        request(
+          ~id=2,
+          ~method="subscriptions/listen",
+          ~params=`${coreMetadata},"notifications":{}`,
+        ),
+      )
+      let _ = await [
+        `{"requestId":{"private":"REQUEST_ID_SENTINEL"},"reason":"REASON_SENTINEL"}`,
+        `{"requestId":2,"reason":{"private":"REASON_SENTINEL"}}`,
+        `{"requestId":3}`,
+      ]
+      ->Array.map(
+        async params => {
+          await MCP.handleMessage(
+            attached,
+            JSON.parseOrThrow(
+              `{"jsonrpc":"2.0","method":"notifications/cancelled","params":${params}}`,
+            ),
+          )
+        },
+      )
+      ->Promise.all
+      t
+      ->expect(logs.contents->String.includes("Invalid MCP cancellation params"))
+      ->Expect.toBe(true)
+      t->expect(logs.contents->String.includes("REQUEST_ID_SENTINEL"))->Expect.toBe(false)
+      t->expect(logs.contents->String.includes("REASON_SENTINEL"))->Expect.toBe(false)
+      t->expect(calls.contents->Array.length)->Expect.toBe(1)
+      MCP.detach(attached)
+      t->expect(calls.contents->Array.length)->Expect.toBe(3)
+    },
+  )
+
   testAsync("acknowledges an empty subscription through the attached browser server", async t => {
     let server = await makeServer()
     let (channel, calls) = MockChannel.make()
