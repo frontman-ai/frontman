@@ -231,7 +231,6 @@ class Frontman_UI {
 		);
 
 		wp_enqueue_script( self::CLIENT_SCRIPT_HANDLE, $client_url, [ self::PAGE_SCRIPT_HANDLE ], FRONTMAN_VERSION, true );
-		// Filters must return their value; the void action boundary is not a filter wrapper.
 		add_filter( 'script_loader_tag', [ $this, 'add_module_type_to_client_script' ], 10, 3 );
 	}
 

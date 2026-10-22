@@ -157,7 +157,7 @@ check( 2 === count( $transport->events ), 'Failing transport must have been exer
 $boundary_events = [];
 \FrontmanVendor\Sentry\State\Scope::addGlobalEventProcessor( static function ( Event $event ) use ( &$boundary_events ) {
 	$boundary_events[] = $event;
-	return null; // Never send test events over the network.
+	return null;
 } );
 $completed = false;
 Frontman_Sentry::boundary( 'init', static function () use ( &$completed ): void {
@@ -210,7 +210,6 @@ foreach ( $GLOBALS['hooks'] as $registrations ) {
 		check( 10 === $priority && 1 === $accepted_args, 'Preserve WordPress default priority and accepted args.' );
 	}
 }
-// Fail rendering before any markup, as WordPress would on an unexpected PHP error.
 function esc_html_e( $value, $domain ): void { throw $GLOBALS['hook_failure']; }
 foreach ( [ '0', '1' ] as $consent ) {
 	$GLOBALS['options']['frontman_php_diagnostics'] = $consent;
