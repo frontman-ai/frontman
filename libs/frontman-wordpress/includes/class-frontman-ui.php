@@ -35,6 +35,12 @@ class Frontman_UI {
 	}
 
 	public function enqueue_preview_bridge(): void {
+		Frontman_Sentry::boundary( 'wp_enqueue_scripts', function (): void {
+			$this->enqueue_preview_bridge_assets();
+		} );
+	}
+
+	private function enqueue_preview_bridge_assets(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			return;
 		}
@@ -53,14 +59,22 @@ class Frontman_UI {
 	 * @param string $hook_suffix Current admin page hook suffix.
 	 */
 	public function enqueue_admin_assets( string $hook_suffix ): void {
-		unset( $hook_suffix );
-		$this->enqueue_admin_menu_icon_style();
+		Frontman_Sentry::boundary( 'admin_enqueue_scripts', function () use ( $hook_suffix ): void {
+			unset( $hook_suffix );
+			$this->enqueue_admin_menu_icon_style();
+		} );
 	}
 
 	/**
 	 * Add a menu link that points to /frontman (external to wp-admin).
 	 */
 	public function add_admin_menu_link(): void {
+		Frontman_Sentry::boundary( 'admin_menu', function (): void {
+			$this->register_admin_menu_link();
+		} );
+	}
+
+	private function register_admin_menu_link(): void {
 		$menu_icon_url = esc_url( FRONTMAN_PLUGIN_URL . 'assets/frontman-menu-icon.svg' );
 
 		add_menu_page(
@@ -74,8 +88,10 @@ class Frontman_UI {
 		);
 
 		add_action( 'load-toplevel_page_frontman', function (): void {
-			wp_safe_redirect( self::url( '/frontman' ) );
-			exit;
+			Frontman_Sentry::boundary( 'load-toplevel_page_frontman', static function (): void {
+				wp_safe_redirect( self::url( '/frontman' ) );
+				exit;
+			} );
 		} );
 	}
 
@@ -215,6 +231,7 @@ class Frontman_UI {
 		);
 
 		wp_enqueue_script( self::CLIENT_SCRIPT_HANDLE, $client_url, [ self::PAGE_SCRIPT_HANDLE ], FRONTMAN_VERSION, true );
+		// Filters must return their value; the void action boundary is not a filter wrapper.
 		add_filter( 'script_loader_tag', [ $this, 'add_module_type_to_client_script' ], 10, 3 );
 	}
 

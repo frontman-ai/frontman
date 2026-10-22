@@ -14,7 +14,30 @@ define( 'FRONTMAN_VERSION', '5.0.0' );
 function get_option( string $name, $default = false ) { return $GLOBALS['options'][ $name ] ?? $default; }
 function get_bloginfo( string $name ): string { return '6.0.9'; }
 function wp_get_environment_type(): string { return 'staging'; }
-function register_setting( string $group, string $name, array $args ): void { $GLOBALS['settings'][ $name ] = [ $group, $name, $args ]; }
+function register_setting( string $group, string $name, array $args ): void {
+	if ( isset( $GLOBALS['hook_failure'] ) ) { throw $GLOBALS['hook_failure']; }
+	$GLOBALS['settings'][ $name ] = [ $group, $name, $args ];
+}
+function add_action( $hook, $callback, $priority = 10, $accepted_args = 1 ): void {
+	$GLOBALS['hooks'][ $hook ][] = [ $callback, $priority, $accepted_args ];
+}
+function current_user_can( $capability ): bool { return $GLOBALS['authorized'] ?? true; }
+function esc_url( $value ) {
+	if ( isset( $GLOBALS['hook_failure'] ) ) { throw $GLOBALS['hook_failure']; }
+	return $value;
+}
+function __( $value, $domain ) { return $value; }
+function esc_html__( $value, $domain ) { return $value; }
+function wp_die( $message ): void { $GLOBALS['denied'] = true; }
+function add_menu_page( ...$args ): void {}
+function add_options_page( ...$args ): void {
+	if ( isset( $GLOBALS['hook_failure'] ) ) { throw $GLOBALS['hook_failure']; }
+	$GLOBALS['settings_callback'] = $args[4];
+}
+function wp_enqueue_style( ...$args ): void { throw $GLOBALS['hook_failure']; }
+function wp_enqueue_script( ...$args ): void { throw $GLOBALS['hook_failure']; }
+function home_url( $path ): string { return 'https://example.test' . $path; }
+function wp_safe_redirect( $url ): void { throw $GLOBALS['hook_failure']; }
 function check( bool $condition, string $message ): void {
 	if ( ! $condition ) {
 		throw new RuntimeException( $message );
@@ -164,5 +187,53 @@ try {
 	check( 'Consent disabled' === $caught->getMessage(), 'Disabled reporting must still rethrow.' );
 }
 check( 2 === count( $boundary_events ), 'Boundaries must respect diagnostics consent.' );
+
+define( 'FRONTMAN_PLUGIN_URL', 'https://example.test/plugin/' );
+require_once FRONTMAN_PLUGIN_DIR . 'includes/class-frontman-ui.php';
+$ui = new Frontman_UI();
+$ui->register();
+Frontman_Sentry::register();
+check( [ $ui, 'enqueue_admin_assets' ] === $GLOBALS['hooks']['admin_enqueue_scripts'][0][0], 'Named callbacks must retain their removable WordPress identity.' );
+check( [ Frontman_Sentry::class, 'register_setting' ] === $GLOBALS['hooks']['admin_init'][0][0], 'Settings callback identity must remain stable.' );
+foreach ( $GLOBALS['hooks']['admin_menu'] as [ $callback ] ) { $callback(); }
+$callbacks = [
+	[ $GLOBALS['hooks']['admin_menu'][0][0], [] ],
+	[ $GLOBALS['hooks']['admin_menu'][1][0], [] ],
+	[ $GLOBALS['hooks']['admin_init'][0][0], [] ],
+	[ $GLOBALS['hooks']['admin_enqueue_scripts'][0][0], [ 'dashboard' ] ],
+	[ $GLOBALS['hooks']['wp_enqueue_scripts'][0][0], [] ],
+	[ $GLOBALS['hooks']['load-toplevel_page_frontman'][0][0], [] ],
+	[ $GLOBALS['settings_callback'], [] ],
+];
+foreach ( $GLOBALS['hooks'] as $registrations ) {
+	foreach ( $registrations as [ , $priority, $accepted_args ] ) {
+		check( 10 === $priority && 1 === $accepted_args, 'Preserve WordPress default priority and accepted args.' );
+	}
+}
+// Fail rendering before any markup, as WordPress would on an unexpected PHP error.
+function esc_html_e( $value, $domain ): void { throw $GLOBALS['hook_failure']; }
+foreach ( [ '0', '1' ] as $consent ) {
+	$GLOBALS['options']['frontman_php_diagnostics'] = $consent;
+	foreach ( $callbacks as [ $callback, $args ] ) {
+		$failure = new LogicException( 'Deferred private failure' );
+		$GLOBALS['hook_failure'] = $failure;
+		$before = count( $boundary_events );
+		ob_start();
+		try {
+			$callback( ...$args );
+			throw new RuntimeException( 'Deferred callback swallowed exception.' );
+		} catch ( LogicException $caught ) {
+			check( $failure === $caught, 'Registered callback must propagate the original throwable.' );
+		} finally {
+			ob_end_clean();
+		}
+		check( $before + (int) $consent === count( $boundary_events ), 'Deferred callbacks must report once only with consent.' );
+	}
+}
+$GLOBALS['authorized'] = false;
+$before = count( $boundary_events );
+$GLOBALS['settings_callback']();
+$GLOBALS['hooks']['wp_enqueue_scripts'][0][0]();
+check( $GLOBALS['denied'] && $before === count( $boundary_events ), 'Ordinary authorization denials must not be reported.' );
 
 fwrite( STDOUT, "OK (Sentry consent, privacy, SDK isolation, exception capture, transport failure)\n" );

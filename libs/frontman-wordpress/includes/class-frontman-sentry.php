@@ -15,6 +15,10 @@ class Frontman_Sentry {
 
 	/**
 	 * Report unexpected entry-point failures without changing WordPress error handling.
+	 *
+	 * Action callbacks keep their registered identity, priority and accepted arguments.
+	 * This opt-in boundary installs no global handlers and emits no response output.
+	 * Deferred callbacks run after bootstrap, not inside its boundary.
 	 */
 	public static function boundary( string $entry_point, callable $callback ): void {
 		try {
@@ -28,7 +32,9 @@ class Frontman_Sentry {
 	public static function register(): void {
 		add_action( 'admin_init', [ self::class, 'register_setting' ] );
 		add_action( 'admin_menu', static function (): void {
-			add_options_page( 'Frontman', 'Frontman', 'manage_options', 'frontman-diagnostics', [ self::class, 'render_settings' ] );
+			self::boundary( 'diagnostics_admin_menu', static function (): void {
+				add_options_page( 'Frontman', 'Frontman', 'manage_options', 'frontman-diagnostics', [ self::class, 'render_settings' ] );
+			} );
 		} );
 	}
 
@@ -37,6 +43,10 @@ class Frontman_Sentry {
 	}
 
 	public static function register_setting(): void {
+		self::boundary( 'admin_init', [ self::class, 'register_diagnostic_settings' ] );
+	}
+
+	private static function register_diagnostic_settings(): void {
 		register_setting( 'frontman_diagnostics', self::OPTION, [
 			'type' => 'boolean',
 			'default' => false,
@@ -52,7 +62,12 @@ class Frontman_Sentry {
 	public static function render_settings(): void {
 		if ( ! current_user_can( 'manage_options' ) ) {
 			wp_die( esc_html__( 'Administrator access required.', 'frontman-agentic-ai-editor' ) );
+			return;
 		}
+		self::boundary( 'diagnostics_settings', [ self::class, 'render_settings_form' ] );
+	}
+
+	private static function render_settings_form(): void {
 		?>
 		<div class="wrap">
 			<h1><?php esc_html_e( 'Frontman PHP Diagnostics', 'frontman-agentic-ai-editor' ); ?></h1>
