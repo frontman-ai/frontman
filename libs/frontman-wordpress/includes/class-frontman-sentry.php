@@ -13,6 +13,18 @@ class Frontman_Sentry {
 	private const OPTION = 'frontman_php_diagnostics';
 	private const DSN = 'https://442ae992e5a5ccfc42e6910220aeb2a9@o4510512511320064.ingest.de.sentry.io/4510512546185296';
 
+	/**
+	 * Report unexpected entry-point failures without changing WordPress error handling.
+	 */
+	public static function boundary( string $entry_point, callable $callback ): void {
+		try {
+			$callback();
+		} catch ( \Throwable $exception ) {
+			self::capture( $exception, $entry_point );
+			throw $exception;
+		}
+	}
+
 	public static function register(): void {
 		add_action( 'admin_init', [ self::class, 'register_setting' ] );
 		add_action( 'admin_menu', static function (): void {

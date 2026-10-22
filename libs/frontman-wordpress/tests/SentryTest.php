@@ -131,4 +131,38 @@ Frontman_Sentry::capture( new RuntimeException( 'Tool failure' ), 'wp_test', $tr
 check( '' === ob_get_clean(), 'Transport failures must not corrupt the SSE response.' );
 check( 2 === count( $transport->events ), 'Failing transport must have been exercised.' );
 
+$boundary_events = [];
+\FrontmanVendor\Sentry\State\Scope::addGlobalEventProcessor( static function ( Event $event ) use ( &$boundary_events ) {
+	$boundary_events[] = $event;
+	return null; // Never send test events over the network.
+} );
+$completed = false;
+Frontman_Sentry::boundary( 'init', static function () use ( &$completed ): void {
+	$completed = true;
+} );
+check( $completed && [] === $boundary_events, 'Successful boundaries must run without reporting.' );
+foreach ( [ 'init', 'request' ] as $entry_point ) {
+	$failure = new LogicException( 'Private initialization details' );
+	try {
+		Frontman_Sentry::boundary( $entry_point, static function () use ( $failure ): void {
+			throw $failure;
+		} );
+		throw new RuntimeException( 'Boundary swallowed the exception.' );
+	} catch ( LogicException $caught ) {
+		check( $failure === $caught, 'Boundaries must rethrow the original exception.' );
+	}
+}
+check( 2 === count( $boundary_events ), 'Each failed boundary must report exactly once.' );
+check( 'init' === $boundary_events[0]->getTags()['tool_name'], 'Initialization reports must identify the entry point.' );
+check( 'request' === $boundary_events[1]->getTags()['tool_name'], 'Request reports must identify the entry point.' );
+$GLOBALS['options']['frontman_php_diagnostics'] = '0';
+try {
+	Frontman_Sentry::boundary( 'init', static function (): void {
+		throw new RuntimeException( 'Consent disabled' );
+	} );
+} catch ( RuntimeException $caught ) {
+	check( 'Consent disabled' === $caught->getMessage(), 'Disabled reporting must still rethrow.' );
+}
+check( 2 === count( $boundary_events ), 'Boundaries must respect diagnostics consent.' );
+
 fwrite( STDOUT, "OK (Sentry consent, privacy, SDK isolation, exception capture, transport failure)\n" );
