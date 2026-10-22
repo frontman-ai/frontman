@@ -8,6 +8,69 @@ defmodule FrontmanServer.Protocols.MCPTest do
   alias FrontmanServer.Protocols.MCP.Schema
   alias FrontmanServerWeb.ChannelCase
 
+  test "declines valid MRTR interims without applying final output constraints or retaining state" do
+    output_schema = %{"type" => "object", "required" => ["final"]}
+
+    for fields <- [
+          %{"requestState" => "opaque-private-state"},
+          %{"inputRequests" => %{}},
+          %{"inputRequests" => %{}, "requestState" => ""}
+        ] do
+      result = Map.put(fields, "resultType", "input_required")
+      assert {:ok, declined} = Schema.resolve_call_tool_result(result, output_schema)
+      assert declined["isError"] == true
+      assert MCP.extract_content_text(declined) =~ "declines MRTR retry"
+      refute Jason.encode!(declined) =~ "opaque-private-state"
+      refute Map.has_key?(declined, "requestState")
+      refute Map.has_key?(declined, "inputRequests")
+    end
+  end
+
+  test "rejects malformed MRTR envelopes and unnegotiated input requests" do
+    capabilities = MCP.request_params()["_meta"]["io.modelcontextprotocol/clientCapabilities"]
+    refute Map.has_key?(capabilities, "roots")
+    refute Map.has_key?(capabilities, "sampling")
+    refute Map.has_key?(capabilities, "elicitation")
+
+    for fields <- [
+          %{},
+          %{"requestState" => nil},
+          %{"requestState" => %{}},
+          %{"inputRequests" => []},
+          %{"inputRequests" => nil, "requestState" => "opaque"},
+          %{"inputRequests" => %{}, "_meta" => []},
+          %{"inputRequests" => %{"invalid" => false}},
+          %{
+            "inputRequests" => %{
+              "roots" => %{"method" => "roots/list"},
+              "sampling" => %{
+                "method" => "sampling/createMessage",
+                "params" => %{"messages" => [], "maxTokens" => 100}
+              }
+            },
+            "requestState" => "opaque"
+          }
+        ] do
+      assert :error =
+               fields
+               |> Map.put("resultType", "input_required")
+               |> Schema.resolve_call_tool_result()
+    end
+  end
+
+  test "normal complete results retain final validation and are returned unchanged" do
+    result = Map.put(MCP.tool_result_text("done"), "structuredContent", %{"final" => true})
+    schema = %{"type" => "object", "required" => ["final"]}
+    assert {:ok, ^result} = Schema.resolve_call_tool_result(result, schema)
+
+    assert :error =
+             Schema.resolve_call_tool_result(Map.delete(result, "structuredContent"), schema)
+
+    error = MCP.tool_result_error("failed")
+    assert {:ok, ^error} = Schema.resolve_call_tool_result(error, schema)
+    assert :error = Schema.resolve_call_tool_result(%{"resultType" => "unknown"})
+  end
+
   test "implicit and explicit 2020-12 compile local refs and enforce output constraints" do
     for dialect <- [%{}, %{"$schema" => "https://json-schema.org/draft/2020-12/schema"}] do
       schema =
