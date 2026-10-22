@@ -15,7 +15,7 @@ if ( in_array( '--setup', $argv, true ) ) {
 	redirects301_check( ! Frontman_Tool_301_Redirects::is_available(), 'Inactive plugin available.' );
 	redirects301_check( null === $tools->get( 'wp_301_redirects_list' ), 'Inactive tool registered.' );
 	redirects301_check( ! is_wp_error( activate_plugin( '301-redirects/301-redirects.php' ) ), 'Activation failed.' );
-	$GLOBALS['redirectsplugins']->getAll(); // Plugin-owned initialization, not adapter behavior.
+	$GLOBALS['redirectsplugins']->getAll();
 	exit( 0 );
 }
 

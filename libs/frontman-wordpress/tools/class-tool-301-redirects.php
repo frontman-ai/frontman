@@ -37,7 +37,6 @@ class Frontman_Tool_301_Redirects {
 			throw new Frontman_Tool_Error( 'page must be a non-negative integer within the supported offset range.' );
 		}
 		global $wpdb;
-		// Do not call getAll(): it can create or rename tables during a read.
 		$rows = $wpdb->get_results( $wpdb->prepare(
 			"SELECT id, title, section, old_link, new_link FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC LIMIT %d OFFSET %d",
 			100, $page * 100
