@@ -18,8 +18,8 @@ class Frontman_Tool_301_Redirects {
 	public function register( Frontman_Tools $tools ): void {
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_301_redirects_list',
-			'Lists WebFactory 301 Redirects rules (exact URL matching, fixed 301). Inspect this store and Redirection separately; ask the user about ownership and conflicts before choosing a store. Never automatically select a provider.',
-			[ 'type' => 'object', 'properties' => new stdClass(), 'additionalProperties' => false ],
+			'Lists WebFactory 301 Redirects rules (exact URL matching, fixed 301). Page is zero-based with up to 100 rules per page. Inspect this store and Redirection separately; ask the user about ownership and conflicts before choosing a store. Never automatically select a provider.',
+			[ 'type' => 'object', 'properties' => [ 'page' => [ 'type' => 'integer', 'minimum' => 0 ] ], 'additionalProperties' => false ],
 			[ $this, 'list_redirects' ], 'read', true, true
 		) );
 	}
@@ -32,12 +32,23 @@ class Frontman_Tool_301_Redirects {
 
 	public function list_redirects( array $input ): array {
 		$this->guard();
+		$page = $input['page'] ?? 0;
+		if ( ! is_int( $page ) || $page < 0 || $page > intdiv( PHP_INT_MAX, 100 ) ) {
+			throw new Frontman_Tool_Error( 'page must be a non-negative integer within the supported offset range.' );
+		}
 		global $wpdb;
 		// Do not call getAll(): it can create or rename tables during a read.
-		$rows = $wpdb->get_results( "SELECT id, title, section, old_link, new_link FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC", ARRAY_A );
+		$rows = $wpdb->get_results( $wpdb->prepare(
+			"SELECT id, title, section, old_link, new_link FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC LIMIT %d OFFSET %d",
+			100, $page * 100
+		), ARRAY_A );
 		if ( ! is_array( $rows ) || $wpdb->last_error ) {
 			throw new Frontman_Tool_Error( 'Cannot read 301 Redirects storage. Initialize it in the plugin admin and inspect database errors.' );
 		}
-		return [ 'redirects' => $rows ];
+		$total = $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}ts_redirects" );
+		if ( null === $total || $wpdb->last_error ) {
+			throw new Frontman_Tool_Error( 'Cannot count 301 Redirects storage. Inspect database errors.' );
+		}
+		return [ 'redirects' => $rows, 'page' => $page, 'per_page' => 100, 'total' => (int) $total ];
 	}
 }
