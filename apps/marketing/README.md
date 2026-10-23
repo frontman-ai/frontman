@@ -66,6 +66,39 @@ The official integrations are [@frontman-ai/nextjs](https://www.npmjs.com/packag
 Their source repository is [frontman-ai/frontman](https://github.com/frontman-ai/frontman).
 The unscoped npm package `frontman` is unrelated.
 
+## Search recovery monitoring
+
+The read-only comparison uses the team's connected Search Console and GA4 tools through `treg`.
+It requires Python 3 and a signed-in `treg` connection with access to the Frontman properties.
+It does not read provider credentials or change Google configuration.
+
+From the repository root:
+
+```sh
+make -s -C apps/marketing seo-monitor END_DATE=2026-10-21 DAYS=14 > seo-snapshot.json
+```
+
+Use the latest complete Search Console date for `END_DATE`.
+The command rejects incomplete final days and compares equal periods with matching weekdays.
+It returns property totals, page losses, homepage query/country/device rows, GA4 landing pages, and event counts.
+Query rows omit anonymized traffic and cannot replace property totals.
+Keep snapshots outside Git unless the team explicitly wants to share the analytics data.
+
+Acquisition events use the existing consent gate:
+
+- `click_wordpress_plugin`: WordPress.org outbound intent.
+- `click_framework_setup`: navigation to the framework guide.
+- `copy_agent_install_instructions`: instruction-request click, not proof of successful copying.
+- `install_intent`: successful copying of an install command or manual setup step, not a completed installation.
+
+The new intent event includes an allowlisted framework, site type, placement, destination, and pathname.
+Explicit intent parameters contain no clipboard contents, query strings, or fragments.
+Existing automatic Google URL collection is unchanged.
+Confirmed installation, signup, and paid activation need product-side completion events and consent-aware attribution.
+Do not mark outbound intent as a completed signup or purchase.
+
+The [diagnosis and experiment record](../../GOOGLE-API-REPORT-frontman.sh.md) tracks the baseline, deployment gates, and remaining checks.
+
 ## Template Credit
 
 The initial site structure was based on the [Foxi Astro theme](https://github.com/oxygenna/foxi-astro) by Oxygenna (MIT licensed).

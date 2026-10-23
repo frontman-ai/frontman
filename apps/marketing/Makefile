@@ -1,12 +1,14 @@
 .DEFAULT_GOAL := help
-.PHONY: help install test dev build deploy indexnow blog-cover
+.PHONY: help install test seo-monitor dev build deploy indexnow blog-cover
 
 PORT ?= 4321
+DAYS ?= 14
 
-HELP_TARGETS := help install test dev build deploy indexnow blog-cover
+HELP_TARGETS := help install test seo-monitor dev build deploy indexnow blog-cover
 HELP_help := Display available commands
 HELP_install := Install dependencies
 HELP_test := Run marketing tests
+HELP_seo-monitor := Compare Google organic periods — END_DATE=YYYY-MM-DD [DAYS=14]
 HELP_dev := Start development server
 HELP_build := Build for production
 HELP_deploy := Build and deploy to Cloudflare Pages
@@ -21,6 +23,10 @@ install:
 
 test:
 	yarn run -T vitest run src/integrations/*.test.ts src/integrations/*.test.mjs src/content/*.test.mjs src/utils/*.test.mjs
+
+seo-monitor:
+	@test -n "$(END_DATE)" || (echo "Usage: make seo-monitor END_DATE=YYYY-MM-DD [DAYS=14]" >&2; exit 1)
+	@python3 -B scripts/seo_monitor.py --end-date "$(END_DATE)" --days "$(DAYS)"
 
 dev:
 	yarn dev --port $(PORT)

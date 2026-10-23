@@ -13,6 +13,9 @@ type Props = {
 	'data-ga-event'?: string
 	'data-ga-category'?: string
 	'data-ga-label'?: string
+	'data-ga-placement'?: string
+	'data-ga-destination'?: string
+	'data-ga-task-family'?: string
 }
 const {
 	type = 'button',
@@ -26,8 +29,16 @@ const {
 	classes,
 	'data-ga-event': gaEvent,
 	'data-ga-category': gaCategory,
-	'data-ga-label': gaLabel
+	'data-ga-label': gaLabel,
+	'data-ga-placement': gaPlacement,
+	'data-ga-destination': gaDestination,
+	'data-ga-task-family': gaTaskFamily
 } = Astro.props
+const dimensions = {
+	'data-ga-placement': gaPlacement,
+	'data-ga-destination': gaDestination,
+	'data-ga-task-family': gaTaskFamily
+}
 ---
 
 {
@@ -46,6 +57,7 @@ const {
 			{...(gaEvent ? { 'data-ga-event': gaEvent } : {})}
 			{...(gaCategory ? { 'data-ga-category': gaCategory } : {})}
 			{...(gaLabel ? { 'data-ga-label': gaLabel } : {})}
+			{...dimensions}
 		>
 			<slot />
 		</a>
@@ -64,6 +76,7 @@ const {
 			{...(gaEvent ? { 'data-ga-event': gaEvent } : {})}
 			{...(gaCategory ? { 'data-ga-category': gaCategory } : {})}
 			{...(gaLabel ? { 'data-ga-label': gaLabel } : {})}
+			{...dimensions}
 		>
 			<slot />
 		</button>
