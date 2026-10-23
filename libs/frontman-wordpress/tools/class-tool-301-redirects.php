@@ -48,6 +48,7 @@ class Frontman_Tool_301_Redirects {
 			|| isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
 			throw new Frontman_Tool_Error( 'Only HTTP(S) targets without credentials are supported.' );
 		}
+		$this->path( $parts['path'] ?? '/' );
 		return $value;
 	}
 

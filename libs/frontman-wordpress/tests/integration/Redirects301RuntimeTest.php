@@ -71,17 +71,23 @@ try {
 wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
 foreach ( [
 	'path' => [ '/', '/literal/', '/case-sensitive' ],
-	'target' => [ '/destination/', 'https://example.org/destination?x=1' ],
+	'target' => [ '/destination/', 'https://example.org', 'https://example.org?x=%61#section', 'https://example.org/destination?x=1' ],
 ] as $method => $valid ) {
 	$validator = new ReflectionMethod( $adapter, $method );
 	$validator->setAccessible( true );
 	foreach ( $valid as $value ) {
-		redirects301_check( is_string( $validator->invoke( $adapter, $value ) ), 'Valid URL rejected.' );
+		$expected = $method === 'target' && substr( $value, 0, 1 ) === '/' ? get_bloginfo( 'url' ) . $value : $value;
+		redirects301_check( $expected === $validator->invoke( $adapter, $value ), 'Valid URL changed or rejected.' );
 	}
 }
 foreach ( [
 	'path' => [ null, '//evil.test', '/a/../b', '/a?x=1', '/a#b', '/%61', '/a*', "/a\n" ],
-	'target' => [ null, '//evil.test', 'javascript:alert(1)', 'ftp://example.org/', 'https://user:pass@example.org/', "https://example.org/\r\n", 'https://example.org/%0d' ],
+	'target' => [
+		null, '//evil.test', 'javascript:alert(1)', 'ftp://example.org/', 'https://user:pass@example.org/',
+		"https://example.org/\r\n", 'https://example.org/%0d', 'https://example.org/%61',
+		'https://example.org/a:b', 'https://example.org/a/../b', 'https://example.org/a*',
+		'http://example.org/a/./b', 'http://example.org/a//b',
+	],
 ] as $method => $invalid ) {
 	$validator = new ReflectionMethod( $adapter, $method );
 	$validator->setAccessible( true );
