@@ -96,7 +96,7 @@ The route requires WordPress 6.9 or later, initialized Yoast metadata methods, a
 
 Supported objects are posts, pages, and editable non-attachment custom post types with an admin interface, including authorized drafts and private content. Revisions, autosaves, attachments, and internal WordPress object types are not supported.
 
-The post ID must be a positive integer. An update must include a title or description. Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags.
+The post ID must be a positive integer. An update must include a title, description, or focus_keyphrase. Omitted fields stay unchanged. Empty strings clear overrides and restore Yoast templates or defaults, not necessarily empty rendered tags.
 
 Results confirm stored overrides, not rendered HTML or search-engine indexing. Yoast expands variables on later requests. External full-page caches and CDNs have separate refresh behavior.
 
