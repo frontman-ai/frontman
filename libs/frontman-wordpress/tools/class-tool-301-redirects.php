@@ -44,14 +44,13 @@ class Frontman_Tool_301_Redirects {
 		if ( ! is_int( $id ) || $id < 1 || ! is_string( $input['expected_source'] ?? null ) ) {
 			throw new Frontman_Tool_Error( 'Positive integer ID and exact expected_source are required.' );
 		}
-		$before = $this->list_redirects( [] )['redirects'];
+		$before = $this->redirect_snapshot();
 		$found = array_values( array_filter( $before, static function ( $row ) use ( $id ) { return (int) $row['id'] === $id; } ) );
 		if ( count( $found ) !== 1 || $found[0]['old_link'] !== $input['expected_source'] ) {
 			throw new Frontman_Tool_Error( 'Rule missing or source changed. List rules before deleting.' );
 		}
 		global $wpdb;
 		$row = $found[0];
-		// Compare the complete snapshot, case-sensitively, at the write boundary.
 		$result = $wpdb->query( $wpdb->prepare(
 			"DELETE FROM {$wpdb->prefix}ts_redirects WHERE id = %d AND BINARY old_link = %s AND BINARY new_link = %s AND BINARY title = %s AND BINARY section = %s",
 			$id, $row['old_link'], $row['new_link'], $row['title'], $row['section']
@@ -60,7 +59,7 @@ class Frontman_Tool_301_Redirects {
 			throw new Frontman_Tool_Error( 'Delete failed or rule changed. Inspect rules before retrying.' );
 		}
 		$expected = array_values( array_filter( $before, static function ( $row ) use ( $id ) { return (int) $row['id'] !== $id; } ) );
-		if ( $this->list_redirects( [] )['redirects'] !== $expected ) {
+		if ( $this->redirect_snapshot() !== $expected ) {
 			throw new Frontman_Tool_Error( 'Could not verify deletion and preservation. Inspect rules before retrying.' );
 		}
 		return [ 'before' => $row, 'after' => null ];
