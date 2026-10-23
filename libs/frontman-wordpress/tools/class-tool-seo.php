@@ -1,6 +1,6 @@
 <?php
 /**
- * Provider-neutral SEO tools for the tested Yoast route.
+ * Provider-neutral SEO tools for the runtime-validated Yoast route.
  * @package Frontman
  */
 if ( ! defined( 'ABSPATH' ) ) {
@@ -9,7 +9,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Frontman_Tool_Seo {
 	private const YOAST = 'wordpress-seo/wp-seo.php';
-	private const SUPPORTED_YOAST_VERSIONS = [ '28.4', '19.9' ];
 	private const META = [ 'title' => '_yoast_wpseo_title', 'description' => '_yoast_wpseo_metadesc' ];
 	public function register( Frontman_Tools $tools ): void {
 		$schema = [
@@ -49,13 +48,6 @@ class Frontman_Tool_Seo {
 			|| Frontman_Plugin_Dependencies::is_available( 'all-in-one-seo-pack-pro/all_in_one_seo_pack.php' )
 			|| Frontman_Plugin_Dependencies::is_available( 'autodescription/autodescription.php' ) || defined( 'THE_SEO_FRAMEWORK_VERSION' ) ) {
 			return __( 'Yoast SEO Premium or another active SEO plugin conflicts with this route.', 'frontman-agentic-ai-editor' );
-		}
-		if ( ! in_array( WPSEO_VERSION, self::SUPPORTED_YOAST_VERSIONS, true ) ) {
-			return sprintf(
-				/** translators: 1: installed Yoast version, 2: tested Yoast versions. */
-				__( 'Unsupported Yoast SEO version %1$s; tested versions: %2$s.', 'frontman-agentic-ai-editor' ),
-				(string) WPSEO_VERSION, implode( ', ', self::SUPPORTED_YOAST_VERSIONS )
-			);
 		}
 		if ( ! isset( $wp_version ) || version_compare( (string) $wp_version, '6.9', '<' ) ) {
 			return __( 'SEO tools require WordPress 6.9 or later.', 'frontman-agentic-ai-editor' );

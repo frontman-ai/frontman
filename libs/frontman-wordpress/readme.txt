@@ -51,7 +51,7 @@ Use Frontman to:
 * Update WooCommerce products and other supported store data
 * Change navigation menus, templates, template parts, and supported widgets
 * Update Additional CSS and allowlisted site settings
-* Read or update supported SEO title and description overrides when a tested provider is available
+* Read or update supported SEO title and description overrides when a compatible provider is available
 * Inspect a page and explain which supported WordPress structure can control it
 
 == How Frontman Works ==
@@ -76,9 +76,9 @@ Consider the remaining pages before selecting an account. If multiple accounts c
 
 == Optional SEO Tools ==
 
-`wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. The tested versions are Yoast SEO Free 28.4 and 19.9. Frontman does not install Yoast.
+`wp_read_seo` reads stored SEO title and description overrides. `wp_update_seo` updates one or both overrides. Eligibility depends on Yoast SEO Free runtime capabilities, not an exact version list. Frontman does not install Yoast.
 
-The route requires WordPress 6.9 or later. Tests cover Yoast 28.4 on WordPress 7.0.2 with PHP 7.4 and 8.4. Tests also cover Yoast 19.9 on WordPress 6.9.9 with PHP 8.2. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
+The route requires WordPress 6.9 or later, initialized Yoast metadata methods, and registered metadata sanitizers. The integration-test matrix includes Yoast 28.6 on WordPress 7.0.2 with PHP 8.4, Yoast 28.4 on WordPress 7.0.2 with PHP 7.4 and 8.4, and Yoast 19.9 on WordPress 6.9.9 with PHP 8.2. These pins define test coverage, not production eligibility. Future Yoast versions must pass the same runtime contract. Premium and active Rank Math, All in One SEO, or The SEO Framework disable these tools. Frontman cannot detect every custom SEO owner.
 
 `wp_get_site_info` returns `seo_unavailable_reason`. A nonempty reason explains why Frontman does not register the SEO tools. A null reason means the compatibility checks pass. Each post still requires edit permissions.
 
