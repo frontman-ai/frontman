@@ -22,6 +22,57 @@ class Frontman_Tool_301_Redirects {
 			[ 'type' => 'object', 'properties' => [ 'page' => [ 'type' => 'integer', 'minimum' => 0 ] ], 'additionalProperties' => false ],
 			[ $this, 'list_redirects' ], 'read', true, true
 		) );
+		$tools->add( new Frontman_Tool_Definition(
+			'wp_301_redirects_create',
+			'Creates one fixed 301 in WebFactory 301 Redirects only. Inspect both redirect stores and ask about ownership/conflicts first. Exact URL matching: slash, case and query variants are distinct. No child-path coverage or chain detection. Requires approval; verify public HTTP and clear caches. Never blindly retry failures.',
+			[ 'type' => 'object', 'additionalProperties' => false, 'required' => [ 'source', 'target', 'confirm' ],
+				'properties' => [ 'source' => [ 'type' => 'string' ], 'target' => [ 'type' => 'string' ], 'confirm' => [ 'type' => 'boolean' ] ] ],
+			[ $this, 'create_redirect' ], 'read-write', true, true
+		) );
+	}
+
+	public function create_redirect( array $input ): array {
+		$this->confirm( $input );
+		$source = $this->path( $input['source'] ?? null );
+		$target = $this->target( $input['target'] ?? null );
+		$site = get_bloginfo( 'url' );
+		$destination = wp_parse_url( $target );
+		$this->path( $destination['path'] ?? '/' );
+		$origin = wp_parse_url( untrailingslashit( $site ) . $source );
+		if ( '/' === $source || ( strtolower( $origin['host'] ) === strtolower( $destination['host'] )
+			&& rtrim( strtolower( $origin['path'] ), '/' ) === rtrim( strtolower( $destination['path'] ?? '/' ), '/' ) ) ) {
+			throw new Frontman_Tool_Error( 'Root sources and direct self redirects are not supported.' );
+		}
+		$before = $this->redirect_snapshot();
+		foreach ( $before as $row ) {
+			if ( str_replace( $site, '', $row['old_link'] ) === $source ) {
+				throw new Frontman_Tool_Error( 'Source already exists. Inspect existing rules instead.' );
+			}
+		}
+		global $wpdb;
+		$result = $wpdb->insert( $wpdb->prefix . 'ts_redirects', [
+			'title' => '', 'section' => '', 'old_link' => $source, 'new_link' => $target,
+		], [ '%s', '%s', '%s', '%s' ] );
+		$id = (string) $wpdb->insert_id;
+		if ( 1 !== $result || $wpdb->last_error ) {
+			throw new Frontman_Tool_Error( 'Insert failed. Inspect wp_301_redirects_list before retrying.' );
+		}
+		$after = $this->redirect_snapshot();
+		$saved = array_values( array_filter( $after, static function ( $row ) use ( $id ) { return (string) $row['id'] === $id; } ) );
+		$others = array_values( array_filter( $after, static function ( $row ) use ( $id ) { return (string) $row['id'] !== $id; } ) );
+		if ( count( $saved ) !== 1 || $saved[0]['old_link'] !== $source || $saved[0]['new_link'] !== $target || $others !== $before ) {
+			throw new Frontman_Tool_Error( 'Could not verify insert and preservation. Inspect rules before retrying.' );
+		}
+		return [ 'before' => null, 'after' => $saved[0] ];
+	}
+
+	private function redirect_snapshot(): array {
+		global $wpdb;
+		$rows = $wpdb->get_results( "SELECT id, title, section, old_link, new_link FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC", ARRAY_A );
+		if ( ! is_array( $rows ) || $wpdb->last_error ) {
+			throw new Frontman_Tool_Error( 'Cannot read 301 Redirects storage. Initialize it in the plugin admin and inspect database errors.' );
+		}
+		return $rows;
 	}
 
 	private function path( $value ): string {
@@ -35,7 +86,7 @@ class Frontman_Tool_301_Redirects {
 
 	private function target( $value ): string {
 		if ( is_string( $value ) && substr( $value, 0, 1 ) === '/' ) {
-			return get_bloginfo( 'url' ) . $this->path( $value );
+			return untrailingslashit( get_bloginfo( 'url' ) ) . $this->path( $value );
 		}
 		if ( ! is_string( $value ) || strlen( $value ) > 2000
 			|| preg_match( '/[\x00-\x20\x7f\\\\]/', $value )
