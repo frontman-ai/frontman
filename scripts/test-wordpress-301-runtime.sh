@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Focused runtime contract without unrelated preview/Sentry build dependencies.
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 RUNTIME="${CONTAINER_RUNTIME:-docker}"
