@@ -44,14 +44,13 @@ class Frontman_Tool_301_Redirects {
 		if ( ! is_int( $id ) || $id < 1 || ! is_string( $input['expected_source'] ?? null ) ) {
 			throw new Frontman_Tool_Error( 'Positive integer ID and exact expected_source are required.' );
 		}
-		$before = $this->list_redirects( [] )['redirects'];
+		$before = $this->redirect_snapshot();
 		$found = array_values( array_filter( $before, static function ( $row ) use ( $id ) { return (int) $row['id'] === $id; } ) );
 		if ( count( $found ) !== 1 || $found[0]['old_link'] !== $input['expected_source'] ) {
 			throw new Frontman_Tool_Error( 'Rule missing or source changed. List rules before deleting.' );
 		}
 		global $wpdb;
 		$row = $found[0];
-		// Compare the complete snapshot, case-sensitively, at the write boundary.
 		$result = $wpdb->query( $wpdb->prepare(
 			"DELETE FROM {$wpdb->prefix}ts_redirects WHERE id = %d AND BINARY old_link = %s AND BINARY new_link = %s AND BINARY title = %s AND BINARY section = %s",
 			$id, $row['old_link'], $row['new_link'], $row['title'], $row['section']
@@ -60,7 +59,7 @@ class Frontman_Tool_301_Redirects {
 			throw new Frontman_Tool_Error( 'Delete failed or rule changed. Inspect rules before retrying.' );
 		}
 		$expected = array_values( array_filter( $before, static function ( $row ) use ( $id ) { return (int) $row['id'] !== $id; } ) );
-		if ( $this->list_redirects( [] )['redirects'] !== $expected ) {
+		if ( $this->redirect_snapshot() !== $expected ) {
 			throw new Frontman_Tool_Error( 'Could not verify deletion and preservation. Inspect rules before retrying.' );
 		}
 		return [ 'before' => $row, 'after' => null ];
@@ -73,20 +72,18 @@ class Frontman_Tool_301_Redirects {
 		$site = get_bloginfo( 'url' );
 		$destination = wp_parse_url( $target );
 		$this->path( $destination['path'] ?? '/' );
-		$origin = wp_parse_url( $site . $source );
+		$origin = wp_parse_url( untrailingslashit( $site ) . $source );
 		if ( '/' === $source || ( strtolower( $origin['host'] ) === strtolower( $destination['host'] )
 			&& rtrim( strtolower( $origin['path'] ), '/' ) === rtrim( strtolower( $destination['path'] ?? '/' ), '/' ) ) ) {
 			throw new Frontman_Tool_Error( 'Root sources and direct self redirects are not supported.' );
 		}
-		$before = $this->list_redirects( [] )['redirects'];
+		$before = $this->redirect_snapshot();
 		foreach ( $before as $row ) {
-			// Mirror the plugin's str_replace, including legacy absolute sources.
 			if ( str_replace( $site, '', $row['old_link'] ) === $source ) {
 				throw new Frontman_Tool_Error( 'Source already exists. Inspect existing rules instead.' );
 			}
 		}
 		global $wpdb;
-		// Best-effort duplicate check: the plugin schema has no unique source constraint.
 		$result = $wpdb->insert( $wpdb->prefix . 'ts_redirects', [
 			'title' => '', 'section' => '', 'old_link' => $source, 'new_link' => $target,
 		], [ '%s', '%s', '%s', '%s' ] );
@@ -94,13 +91,22 @@ class Frontman_Tool_301_Redirects {
 		if ( 1 !== $result || $wpdb->last_error ) {
 			throw new Frontman_Tool_Error( 'Insert failed. Inspect wp_301_redirects_list before retrying.' );
 		}
-		$after = $this->list_redirects( [] )['redirects'];
+		$after = $this->redirect_snapshot();
 		$saved = array_values( array_filter( $after, static function ( $row ) use ( $id ) { return (string) $row['id'] === $id; } ) );
 		$others = array_values( array_filter( $after, static function ( $row ) use ( $id ) { return (string) $row['id'] !== $id; } ) );
 		if ( count( $saved ) !== 1 || $saved[0]['old_link'] !== $source || $saved[0]['new_link'] !== $target || $others !== $before ) {
 			throw new Frontman_Tool_Error( 'Could not verify insert and preservation. Inspect rules before retrying.' );
 		}
 		return [ 'before' => null, 'after' => $saved[0] ];
+	}
+
+	private function redirect_snapshot(): array {
+		global $wpdb;
+		$rows = $wpdb->get_results( "SELECT id, title, section, old_link, new_link FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC", ARRAY_A );
+		if ( ! is_array( $rows ) || $wpdb->last_error ) {
+			throw new Frontman_Tool_Error( 'Cannot read 301 Redirects storage. Initialize it in the plugin admin and inspect database errors.' );
+		}
+		return $rows;
 	}
 
 	private function path( $value ): string {
@@ -114,7 +120,7 @@ class Frontman_Tool_301_Redirects {
 
 	private function target( $value ): string {
 		if ( is_string( $value ) && substr( $value, 0, 1 ) === '/' ) {
-			return get_bloginfo( 'url' ) . $this->path( $value );
+			return untrailingslashit( get_bloginfo( 'url' ) ) . $this->path( $value );
 		}
 		if ( ! is_string( $value ) || strlen( $value ) > 2000
 			|| preg_match( '/[\x00-\x20\x7f\\\\]/', $value )

@@ -68,6 +68,34 @@ try {
 		} catch ( Frontman_Tool_Error $expected ) {
 		}
 	}
+	$input = [ 'source' => '/frontman-large-store/', 'target' => '/frontman-target/', 'confirm' => true ];
+	redirects301_reject( static function () use ( $adapter, $input ) {
+		$adapter->create_redirect( array_replace( $input, [ 'source' => '/frontman-pagination-104' ] ) );
+	} );
+	$before = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC", ARRAY_A );
+	$site_filter = static function ( $url ) { return trailingslashit( $url ); };
+	add_filter( 'bloginfo_url', $site_filter );
+	try {
+		foreach ( [ $input['source'], untrailingslashit( get_bloginfo( 'url' ) ) . $input['source'] ] as $self ) {
+			redirects301_reject( static function () use ( $adapter, $input, $self ) {
+				$adapter->create_redirect( array_replace( $input, [ 'target' => $self ] ) );
+			} );
+		}
+		$created = $adapter->create_redirect( $input );
+		$id = (int) $created['after']['id'];
+		$inserted_ids[] = $id;
+		redirects301_check( $created['after']['new_link'] === untrailingslashit( get_bloginfo( 'url' ) ) . $input['target'], 'Trailing-slash target.' );
+		redirects301_check( $before === $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}ts_redirects WHERE id != $id ORDER BY id ASC", ARRAY_A ), 'Large-store preservation.' );
+		redirects301_reject( static function () use ( $adapter, $input ) { $adapter->create_redirect( $input ); } );
+		$deleted = $adapter->delete_redirect( [ 'id' => $id, 'expected_source' => $input['source'], 'confirm' => true ] );
+		redirects301_check( $deleted['before'] === $created['after'] && null === $deleted['after'], 'Delete beyond first page.' );
+		redirects301_check( $before === $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC", ARRAY_A ), 'Large-store delete preservation.' );
+		$adapter->delete_redirect( [ 'id' => $inserted_ids[0], 'expected_source' => '/frontman-pagination-0', 'confirm' => true ] );
+		$expected = array_values( array_filter( $before, static function ( $row ) use ( $inserted_ids ) { return (int) $row['id'] !== $inserted_ids[0]; } ) );
+		redirects301_check( $expected === $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC", ARRAY_A ), 'First-page delete preservation.' );
+	} finally {
+		remove_filter( 'bloginfo_url', $site_filter );
+	}
 } finally {
 	foreach ( $inserted_ids as $id ) {
 		$wpdb->delete( "{$wpdb->prefix}ts_redirects", [ 'id' => $id ], [ '%d' ] );
