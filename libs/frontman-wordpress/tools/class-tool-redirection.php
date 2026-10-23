@@ -18,7 +18,7 @@ class Frontman_Tool_Redirection {
 		$confirm = [ 'type' => 'boolean', 'description' => 'Must be true after user approval.' ];
 		$definitions = [
 			'wp_list_redirects' => [
-				'Lists Redirection rules and enabled WordPress groups. Page is zero-based; each page contains up to 100 rules and 100 groups. Optional source filters source URLs by substring. Inspect existing rules before creating one, including regex rules that may overlap.',
+				'Lists Redirection rules and enabled WordPress groups. Page is zero-based; each page contains up to 100 rules and 100 groups. Optional source filters source URLs by substring. Inspect existing rules before creating one, including regex rules that may overlap. If WebFactory 301 Redirects is installed, inspect its separate store too and ask the user about ownership/conflicts; never automatically choose a provider.',
 				[ 'page' => [ 'type' => 'integer', 'minimum' => 0 ], 'source' => $path ], [], 'list_redirects', 'read',
 			],
 			'wp_create_redirect' => [
