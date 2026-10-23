@@ -76,6 +76,12 @@ try {
 		redirects301_check( $created['after']['new_link'] === untrailingslashit( get_bloginfo( 'url' ) ) . $input['target'], 'Trailing-slash target.' );
 		redirects301_check( $before === $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}ts_redirects WHERE id != $id ORDER BY id ASC", ARRAY_A ), 'Large-store preservation.' );
 		redirects301_reject( static function () use ( $adapter, $input ) { $adapter->create_redirect( $input ); } );
+		$deleted = $adapter->delete_redirect( [ 'id' => $id, 'expected_source' => $input['source'], 'confirm' => true ] );
+		redirects301_check( $deleted['before'] === $created['after'] && null === $deleted['after'], 'Delete beyond first page.' );
+		redirects301_check( $before === $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC", ARRAY_A ), 'Large-store delete preservation.' );
+		$adapter->delete_redirect( [ 'id' => $inserted_ids[0], 'expected_source' => '/frontman-pagination-0', 'confirm' => true ] );
+		$expected = array_values( array_filter( $before, static function ( $row ) use ( $inserted_ids ) { return (int) $row['id'] !== $inserted_ids[0]; } ) );
+		redirects301_check( $expected === $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}ts_redirects ORDER BY id ASC", ARRAY_A ), 'First-page delete preservation.' );
 	} finally {
 		remove_filter( 'bloginfo_url', $site_filter );
 	}
@@ -142,4 +148,17 @@ wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
 $created = $adapter->create_redirect( $input );
 redirects301_check( null === $created['before'] && $created['after']['old_link'] === $input['source'], 'Create snapshot.' );
 redirects301_reject( static function () use ( $adapter, $input ) { $adapter->create_redirect( $input ); } );
-echo "OK (301 Redirects create)\n";
+$delete = [ 'id' => (int) $created['after']['id'], 'expected_source' => $input['source'], 'confirm' => true ];
+foreach ( [ [ 'id' => '1' ], [ 'expected_source' => '/wrong/' ], [ 'confirm' => 1 ] ] as $invalid ) {
+	redirects301_reject( static function () use ( $adapter, $delete, $invalid ) {
+		$adapter->delete_redirect( array_replace( $delete, $invalid ) );
+	} );
+}
+wp_set_current_user( 0 );
+redirects301_reject( static function () use ( $adapter, $delete ) { $adapter->delete_redirect( $delete ); } );
+wp_set_current_user( get_user_by( 'login', 'admin' )->ID );
+$deleted = $adapter->delete_redirect( $delete );
+redirects301_check( $deleted['before'] === $created['after'] && null === $deleted['after'], 'Delete snapshot.' );
+redirects301_check( $initial === $adapter->list_redirects( [] ), 'Unrelated rules changed.' );
+redirects301_reject( static function () use ( $adapter, $delete ) { $adapter->delete_redirect( $delete ); } );
+echo "OK (301 Redirects mutations)\n";
