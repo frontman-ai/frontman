@@ -81,8 +81,6 @@ Existing automatic Google URL collection is unchanged.
 Confirmed installation, signup, and paid activation need product-side completion events and consent-aware attribution.
 Do not mark outbound intent as a completed signup or purchase.
 
-The [diagnosis and experiment record](../../GOOGLE-API-REPORT-frontman.sh.md) tracks the baseline, deployment gates, and remaining checks.
-
 ## Template Credit
 
 The initial site structure was based on the [Foxi Astro theme](https://github.com/oxygenna/foxi-astro) by Oxygenna (MIT licensed).
