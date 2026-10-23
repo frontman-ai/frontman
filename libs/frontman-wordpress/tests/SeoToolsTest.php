@@ -45,7 +45,6 @@ if ( ! isset( $argv[1] ) ) {
 		}
 	}
 }
-// Declare the provider only after checking that missing methods block both handlers.
 if ( ! class_exists( 'WPSEO_Meta' ) ) {
 	class WPSEO_Meta {
 		public static function get_value() {}
