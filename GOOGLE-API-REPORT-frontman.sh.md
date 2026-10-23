@@ -214,7 +214,6 @@ No ranking improvement or recovery date is guaranteed.
 - Frontend articles: reviewed, preserved, and not redirected or merged.
 - Analytics: preserved legacy event names and the existing consent gate.
 - Installation intent: records successful command/manual-step copying with an allowlisted framework and site type.
-- Reporting: added `make seo-monitor` with matched periods, final-day checks, landing pages, and separate event counts.
 
 The live search check returned the previous homepage title for a site-restricted query.
 This was a free web-search observation, not a controlled country/device Google SERP snapshot.
@@ -243,10 +242,9 @@ Confirmed installations, new accounts, and paid activation remain separate produ
 - Local Chromium: exercised real built installation controls and clipboard writes for Astro, Vite, and WordPress.
 - Consent denial and revocation suppressed explicit acquisition events during that workflow.
 - External browser requests were blocked, so the workflow sent no verification events to production analytics.
-- The live `seo-monitor` command succeeded for `END_DATE=2026-10-21 DAYS=14`.
 - No new unit-test files remain.
 
-The live comparison returned 263 clicks in each 14-day period.
+The live Google data comparison through October 21 returned 263 clicks in each 14-day period.
 Impressions changed from 26,920 to 26,653.
 GA4 Google organic sessions changed from 60 to 42.
 That difference reinforces the need to keep Search Console and consent-dependent GA4 measures separate.
@@ -256,12 +254,13 @@ That difference reinforces the need to keep Search Console and consent-dependent
 Deployment timestamp: pending. These changes are not deployed.
 First Google recrawl of the changed homepage: pending.
 Scheduled recurring monitoring: not configured.
+Follow-up comparisons use Search Console and GA4 reports. No monitoring script ships with the marketing site.
 
-1. Before deployment, save a fresh snapshot with the latest complete reporting date.
+1. Before deployment, export Search Console and GA4 baselines through the latest complete reporting date.
 2. Record the deployment timestamp and revision.
 3. In Search Console, inspect Manual Actions, Security Issues, and the sitemap warning details.
 4. Record the first homepage recrawl after deployment.
-5. After 14 complete post-recrawl days, save another snapshot.
+5. After 14 complete post-recrawl days, export the same reports again.
 6. Compare its recent period with the saved predeployment baseline.
 7. Exclude deployment and recrawl transition days from causal interpretation.
 8. Review the same query/country/device segments, not only aggregate CTR.

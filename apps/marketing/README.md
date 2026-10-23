@@ -66,23 +66,7 @@ The official integrations are [@frontman-ai/nextjs](https://www.npmjs.com/packag
 Their source repository is [frontman-ai/frontman](https://github.com/frontman-ai/frontman).
 The unscoped npm package `frontman` is unrelated.
 
-## Search recovery monitoring
-
-The read-only comparison uses the team's connected Search Console and GA4 tools through `treg`.
-It requires Python 3 and a signed-in `treg` connection with access to the Frontman properties.
-It does not read provider credentials or change Google configuration.
-
-From the repository root:
-
-```sh
-make -s -C apps/marketing seo-monitor END_DATE=2026-10-21 DAYS=14 > seo-snapshot.json
-```
-
-Use the latest complete Search Console date for `END_DATE`.
-The command rejects incomplete final days and compares equal periods with matching weekdays.
-It returns property totals, page losses, homepage query/country/device rows, GA4 landing pages, and event counts.
-Query rows omit anonymized traffic and cannot replace property totals.
-Keep snapshots outside Git unless the team explicitly wants to share the analytics data.
+## Acquisition measurement
 
 Acquisition events use the existing consent gate:
 
