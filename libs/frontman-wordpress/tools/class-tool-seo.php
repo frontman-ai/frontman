@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Frontman_Tool_Seo {
 	private const YOAST = 'wordpress-seo/wp-seo.php';
-	private const META = [ 'title' => '_yoast_wpseo_title', 'description' => '_yoast_wpseo_metadesc' ];
+	private const META = [ 'title' => 'title', 'description' => 'metadesc' ];
 	public function register( Frontman_Tools $tools ): void {
 		$schema = [
 			'type'                 => 'object',
@@ -28,7 +28,7 @@ class Frontman_Tool_Seo {
 			'title'       => [ 'type' => 'string', 'description' => 'SEO title override.' ],
 			'description' => [ 'type' => 'string', 'description' => 'SEO description override.' ],
 		];
-		$schema['anyOf'] = [ [ 'required' => [ 'title' ] ], [ 'required' => [ 'description' ] ] ];
+		$schema['anyOf'] = array_map( static fn( string $field ): array => [ 'required' => [ $field ] ], array_keys( self::META ) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_seo',
 			'Updates SEO overrides. Omitted fields stay unchanged; empty strings restore provider defaults.',
@@ -62,7 +62,8 @@ class Frontman_Tool_Seo {
 			}
 		}
 		$registered = get_registered_meta_keys( 'post' );
-		foreach ( self::META as $meta_key ) {
+		foreach ( self::META as $key ) {
+			$meta_key = '_yoast_wpseo_' . $key;
 			if ( ! is_callable( $registered[ $meta_key ]['sanitize_callback'] ?? null )
 				|| false === has_filter( 'sanitize_post_meta_' . $meta_key, [ 'WPSEO_Meta', 'sanitize_post_meta' ] ) ) {
 				return $runtime_reason;
@@ -71,19 +72,19 @@ class Frontman_Tool_Seo {
 		return null;
 	}
 	public static function validate_input( string $tool, array $input ): array {
-		$allowed = 'wp_read_seo' === $tool ? [ 'id' ] : [ 'id', 'title', 'description' ];
+		$allowed = 'wp_read_seo' === $tool ? [ 'id' ] : array_merge( [ 'id' ], array_keys( self::META ) );
 		if ( ! in_array( $tool, [ 'wp_read_seo', 'wp_update_seo' ], true ) || array_diff( array_keys( $input ), $allowed ) ) {
 			throw new Frontman_Tool_Error( __( 'Invalid SEO tool input.', 'frontman-agentic-ai-editor' ) );
 		}
 		if ( ! isset( $input['id'] ) || ! is_int( $input['id'] ) || $input['id'] < 1 ) {
 			throw new Frontman_Tool_Error( __( 'id must be a positive integer.', 'frontman-agentic-ai-editor' ) );
 		}
-		foreach ( [ 'title', 'description' ] as $field ) {
+		foreach ( self::META as $field => $key ) {
 			if ( array_key_exists( $field, $input ) && ( ! is_string( $input[ $field ] ) || 1 !== preg_match( '//u', $input[ $field ] ) ) ) {
 				throw new Frontman_Tool_Error( __( 'SEO values must be valid UTF-8 strings.', 'frontman-agentic-ai-editor' ) );
 			}
 		}
-		if ( 'wp_update_seo' === $tool && ! array_key_exists( 'title', $input ) && ! array_key_exists( 'description', $input ) ) {
+		if ( 'wp_update_seo' === $tool && ! array_intersect_key( $input, self::META ) ) {
 			throw new Frontman_Tool_Error( __( 'Provide title or description.', 'frontman-agentic-ai-editor' ) );
 		}
 		return $input;
@@ -99,9 +100,9 @@ class Frontman_Tool_Seo {
 		$before    = $this->snapshot( $input['id'] );
 		$expected  = [];
 		try {
-			foreach ( self::META as $field => $meta_key ) {
+			foreach ( self::META as $field => $key ) {
 				if ( array_key_exists( $field, $input ) ) {
-					$expected[ $field ] = '' === $input[ $field ] ? '' : sanitize_meta( $meta_key, $input[ $field ], 'post', $post_type );
+					$expected[ $field ] = '' === $input[ $field ] ? '' : sanitize_meta( '_yoast_wpseo_' . $key, $input[ $field ], 'post', $post_type );
 					if ( ! is_string( $expected[ $field ] ) || 1 !== preg_match( '//u', $expected[ $field ] ) ) {
 						throw new \UnexpectedValueException();
 					}
@@ -112,11 +113,10 @@ class Frontman_Tool_Seo {
 		}
 		$wanted = array_replace( $before, $expected );
 		$after  = $before;
-		foreach ( self::META as $field => $meta_key ) {
+		foreach ( self::META as $field => $key ) {
 			if ( ! array_key_exists( $field, $expected ) ) {
 				continue;
 			}
-			$key = 'description' === $field ? 'metadesc' : 'title';
 			try {
 				if ( '' === $input[ $field ] ) {
 					\WPSEO_Meta::delete( $key, $input['id'] );
@@ -159,25 +159,28 @@ class Frontman_Tool_Seo {
 		if ( ! current_user_can( 'edit_post', $id ) ) {
 			throw new Frontman_Tool_Error( __( 'You cannot edit this post.', 'frontman-agentic-ai-editor' ) );
 		}
-		foreach ( self::META as $meta_key ) {
-			if ( ! current_user_can( 'edit_post_meta', $id, $meta_key ) ) {
+		foreach ( self::META as $key ) {
+			if ( ! current_user_can( 'edit_post_meta', $id, '_yoast_wpseo_' . $key ) ) {
 				throw new Frontman_Tool_Error( __( 'You cannot edit this post SEO metadata.', 'frontman-agentic-ai-editor' ) );
 			}
 		}
 		return $post->post_type;
 	}
 	private function snapshot( int $id ): array {
+		$values = [];
 		try {
-			$title       = \WPSEO_Meta::get_value( 'title', $id );
-			$description = \WPSEO_Meta::get_value( 'metadesc', $id );
+			foreach ( self::META as $field => $key ) {
+				$values[ $field ] = \WPSEO_Meta::get_value( $key, $id );
+			}
 		} catch ( \Throwable $error ) {
 			throw new Frontman_Tool_Error( __( 'Yoast could not read the stored SEO overrides.', 'frontman-agentic-ai-editor' ) );
 		}
-		if ( ! is_string( $title ) || ! is_string( $description )
-			|| 1 !== preg_match( '//u', $title ) || 1 !== preg_match( '//u', $description ) ) {
-			throw new Frontman_Tool_Error( __( 'Yoast returned invalid SEO overrides.', 'frontman-agentic-ai-editor' ) );
+		foreach ( $values as $value ) {
+			if ( ! is_string( $value ) || 1 !== preg_match( '//u', $value ) ) {
+				throw new Frontman_Tool_Error( __( 'Yoast returned invalid SEO overrides.', 'frontman-agentic-ai-editor' ) );
+			}
 		}
-		return [ 'title' => $title, 'description' => $description ];
+		return $values;
 	}
 	private function persistence_error( int $id, array $before, array $wanted ): void {
 		try {
