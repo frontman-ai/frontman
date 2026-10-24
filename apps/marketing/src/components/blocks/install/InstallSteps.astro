@@ -142,8 +142,9 @@ const frameworks = [
 							class="agent-handoff__button"
 							data-copy-agent-instructions
 							data-ga-event="copy_agent_install_instructions"
-							data-ga-category="conversion"
+							data-ga-category="engagement"
 							data-ga-label="install_step"
+							data-ga-destination="nextjs"
 							aria-describedby="agent-copy-status"
 						>
 							<span data-copy-agent-icon>
@@ -161,7 +162,7 @@ const frameworks = [
 						</button>
 						<span id="agent-copy-status" class="sr-only" data-copy-agent-status aria-live="polite"></span>
 					</div>
-					<a class="plugin-directory-link" data-plugin-directory-link href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" hidden>Open WordPress Plugin Directory &rarr;</a>
+					<a class="plugin-directory-link" data-plugin-directory-link href="https://wordpress.org/plugins/frontman-agentic-ai-editor/" target="_blank" rel="noopener noreferrer" data-ga-event="click_wordpress_plugin" data-ga-category="engagement" data-ga-label="install_step" data-ga-destination="wordpress_org" hidden>Open WordPress Plugin Directory &rarr;</a>
 				</div>
 			</div>
 
@@ -449,8 +450,10 @@ const frameworks = [
 
 <script>
 	import { setupInstallAgent } from '../../../integrations/install-agent.mjs'
+	import { trackInstallIntent } from '../../../integrations/install-intent'
 
 	document.addEventListener('DOMContentLoaded', () => {
+		const installRoot = document.querySelector('[data-install-agent]')
 		const tabs = document.querySelectorAll('.framework-tab')
 		const stepsTimeline = document.querySelector('.steps-timeline')
 		const installCommand = document.querySelector('[data-install-command]')
@@ -467,6 +470,10 @@ const frameworks = [
 			tab.addEventListener('click', () => {
 				tabs.forEach((t) => t.classList.remove('active'))
 				tab.classList.add('active')
+				const framework = tab.getAttribute('data-framework')
+				if (framework) {
+					installRoot?.querySelector('[data-copy-agent-instructions]')?.setAttribute('data-ga-destination', framework)
+				}
 
 				const command = tab.getAttribute('data-command')
 				if (installCommand && command) {
@@ -505,8 +512,12 @@ const frameworks = [
 			btn.addEventListener('click', async () => {
 				const code = btn.closest('.terminal-body')?.querySelector('code')?.textContent
 				if (code) {
+					const framework = installRoot?.getAttribute('data-agent-framework')
 					try {
 						await navigator.clipboard.writeText(code)
+						if (installRoot && btn.getAttribute('data-copy') === 'install') {
+							trackInstallIntent(installRoot, framework)
+						}
 						const originalHTML = btn.innerHTML
 					btn.innerHTML = `
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" aria-hidden="true">
