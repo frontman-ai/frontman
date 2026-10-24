@@ -9,7 +9,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 class Frontman_Tool_Seo {
 	private const YOAST = 'wordpress-seo/wp-seo.php';
-	private const META = [ 'title' => 'title', 'description' => 'metadesc' ];
+	private const META = [ 'title' => 'title', 'description' => 'metadesc', 'focus_keyphrase' => 'focuskw' ];
 	public function register( Frontman_Tools $tools ): void {
 		$schema = [
 			'type'                 => 'object',
@@ -19,7 +19,7 @@ class Frontman_Tool_Seo {
 		];
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_read_seo',
-			'Reads stored SEO title and description overrides for an editable post.',
+			'Reads stored SEO title, description, and focus keyphrase for an editable post.',
 			$schema,
 			[ $this, 'read_seo' ],
 			'read'
@@ -27,11 +27,12 @@ class Frontman_Tool_Seo {
 		$schema['properties'] += [
 			'title'       => [ 'type' => 'string', 'description' => 'SEO title override.' ],
 			'description' => [ 'type' => 'string', 'description' => 'SEO description override.' ],
+			'focus_keyphrase' => [ 'type' => 'string', 'description' => 'Single Yoast focus keyphrase, not secondary keywords.' ],
 		];
 		$schema['anyOf'] = array_map( static fn( string $field ): array => [ 'required' => [ $field ] ], array_keys( self::META ) );
 		$tools->add( new Frontman_Tool_Definition(
 			'wp_update_seo',
-			'Updates SEO overrides. Omitted fields stay unchanged; empty strings restore provider defaults.',
+			'Updates SEO overrides or the focus keyphrase. Omitted fields stay unchanged; empty strings restore provider defaults.',
 			$schema,
 			[ $this, 'update_seo' ],
 			'read-write'
@@ -85,7 +86,7 @@ class Frontman_Tool_Seo {
 			}
 		}
 		if ( 'wp_update_seo' === $tool && ! array_intersect_key( $input, self::META ) ) {
-			throw new Frontman_Tool_Error( __( 'Provide title or description.', 'frontman-agentic-ai-editor' ) );
+			throw new Frontman_Tool_Error( __( 'Provide title, description, or focus_keyphrase.', 'frontman-agentic-ai-editor' ) );
 		}
 		return $input;
 	}

@@ -11,12 +11,16 @@ add_action( 'init', static function (): void {
 		'supports' => [ 'title', 'editor', 'excerpt', 'custom-fields' ],
 	] );
 } );
-add_filter( 'map_meta_cap', static function ( array $caps, string $cap ) use ( $frontman_seo_test ): array {
+add_filter( 'map_meta_cap', static function ( array $caps, string $cap, int $user_id, array $args ) use ( $frontman_seo_test ): array {
 	if ( ( 'deny-object' === $frontman_seo_test && 'edit_post' === $cap ) || ( 'deny-meta' === $frontman_seo_test && 'edit_post_meta' === $cap ) ) {
 		return [ 'do_not_allow' ];
 	}
+	if ( 'deny-focus' === $frontman_seo_test && 'edit_post_meta' === $cap && '_yoast_wpseo_focuskw' === ( $args[1] ?? '' ) ) {
+		return [ 'do_not_allow' ];
+	}
 	return $caps;
-}, PHP_INT_MAX, 2 );
+}, PHP_INT_MAX, 4 );
+add_filter( 'wpseo_sanitize_post_meta__yoast_wpseo_focuskw', static fn( string $value ): string => $value . ' [focus-filter]' );
 add_filter( 'wpseo_sanitize_post_meta__yoast_wpseo_title', static function ( string $value ): string {
 	return $value . ' [runtime-filter]';
 } );
@@ -30,13 +34,17 @@ add_filter( 'update_post_metadata', static function ( $check, int $id, string $k
 	if ( 'silent-title' === $frontman_seo_test && '_yoast_wpseo_title' === $key ) {
 		return true;
 	}
-	return 'fail-write' === $frontman_seo_test && '_yoast_wpseo_metadesc' === $key ? false : $check;
+	return ( 'fail-write' === $frontman_seo_test && '_yoast_wpseo_metadesc' === $key )
+		|| ( 'fail-focus' === $frontman_seo_test && '_yoast_wpseo_focuskw' === $key ) ? false : $check;
 }, PHP_INT_MAX, 3 );
 add_filter( 'get_post_metadata', static function ( $value, int $id, string $key ) use ( $frontman_seo_test ) {
 	global $wpdb;
 	if ( 'fail-read' === $frontman_seo_test && '' === $key
 		&& $wpdb->get_var( $wpdb->prepare( "SELECT meta_id FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = '_yoast_wpseo_title'", $id ) ) ) {
 		throw new RuntimeException( 'Injected read-back failure.' );
+	}
+	if ( 'read-focus' === $frontman_seo_test && '' === $key && $wpdb->get_var( $wpdb->prepare( "SELECT meta_id FROM {$wpdb->postmeta} WHERE post_id = %d AND meta_key = '_yoast_wpseo_focuskw'", $id ) ) ) {
+		throw new RuntimeException( 'Injected focus read-back failure.' );
 	}
 	return $value;
 }, PHP_INT_MAX, 3 );

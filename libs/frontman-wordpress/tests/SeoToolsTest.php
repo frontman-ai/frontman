@@ -13,7 +13,7 @@ $tools = new Frontman_Tools();
 $seo->register( $tools );
 if ( 1 !== $tools->get( 'wp_read_seo' )->input_schema['properties']['id']['minimum']
 	|| isset( $tools->get( 'wp_read_seo' )->input_schema['anyOf'] )
-	|| [ [ 'required' => [ 'title' ] ], [ 'required' => [ 'description' ] ] ] !== $tools->get( 'wp_update_seo' )->input_schema['anyOf'] ) {
+	|| [ [ 'required' => [ 'title' ] ], [ 'required' => [ 'description' ] ], [ 'required' => [ 'focus_keyphrase' ] ] ] !== $tools->get( 'wp_update_seo' )->input_schema['anyOf'] ) {
 	throw new RuntimeException( 'SEO schemas do not match runtime requirements.' );
 }
 foreach ( [ [], [ 'wordpress-seo/wp-seo.php' ], [ 'wordpress-seo/wp-seo.php' ] ] as $case => $active_plugins ) {
@@ -57,6 +57,7 @@ function get_registered_meta_keys( string $type ): array {
 	return [
 		'_yoast_wpseo_title' => [ 'sanitize_callback' => [ 'WPSEO_Meta', 'sanitize_post_meta' ] ],
 		'_yoast_wpseo_metadesc' => [ 'sanitize_callback' => [ 'WPSEO_Meta', 'sanitize_post_meta' ] ],
+		'_yoast_wpseo_focuskw' => [ 'sanitize_callback' => [ 'WPSEO_Meta', 'sanitize_post_meta' ] ],
 	];
 }
 function has_filter( string $hook, $callback ) { return 10; }
@@ -67,12 +68,18 @@ $valid = [ 'id' => 7, 'title' => "  Café %%title%% \\ \"quoted\"  ", 'descripti
 if ( $valid !== $tools->sanitize_input( 'wp_update_seo', $valid ) ) {
 	throw new RuntimeException( 'Valid raw SEO input changed before the handler.' );
 }
+$focus = [ 'id' => 7, 'focus_keyphrase' => "  Café \\ \"quoted\"  " ];
+if ( $focus !== $tools->sanitize_input( 'wp_update_seo', $focus ) ) {
+	throw new RuntimeException( 'Valid raw focus input changed before the handler.' );
+}
 
 $invalid = [
 	[ 'wp_read_seo', [ 'id' => '7' ] ],
 	[ 'wp_read_seo', [ 'id' => 0 ] ],
 	[ 'wp_update_seo', [ 'id' => 7 ] ],
 	[ 'wp_update_seo', [ 'id' => 7, 'title' => null ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => 123 ] ],
+	[ 'wp_update_seo', [ 'id' => 7, 'focus_keyphrase' => "bad\xC3\x28" ] ],
 	[ 'wp_update_seo', [ 'id' => 7, 'title' => "bad\xC3\x28" ] ],
 	[ 'wp_update_seo', [ 'id' => 7, 'title' => 'safe', 'meta_key' => '_danger' ] ],
 ];
