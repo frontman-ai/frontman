@@ -168,6 +168,7 @@ let makeHandler = (channel, serverInterface, ~sessionId="task-1") => {
   channel: MockChannel.toPhoenix(channel),
   sessionId,
   subscriptions: ref([]),
+  toolCalls: ref([]),
   transportListeners: ref([]),
 }
 
@@ -175,6 +176,104 @@ let handler = (channel, context, ~sessionId="task-1", ~failure=?) =>
   makeHandler(channel, makeInterface(~context, ~failure?), ~sessionId)
 
 describe("MCP 2026-07-28", () => {
+  testAsync("reserves pending and suspended tool IDs without conflating string IDs", async t => {
+    let _ = await [
+      Types.Completed(Types.CallToolResult.makeText("ok")),
+      Types.Suspended,
+      Types.ProtocolError({code: Types.ErrorCode.invalidParams, message: "Invalid tool"}),
+    ]
+    ->Array.map(
+      async outcome => {
+        let (channel, calls) = MockChannel.make()
+        let resolveTool = ref(_ => ())
+        let deferred = Promise.make((resolve, _) => resolveTool := resolve)
+        let serverInterface = {
+          ...makeInterface(~context=ref(None)),
+          executeTool: (_, _) => deferred,
+        }
+        let attached = MCP.attach(
+          ~channel=MockChannel.toPhoenix(channel),
+          ~sessionId="task-1",
+          ~serverInterface,
+        )
+        let pending = MCP.handleMessage(
+          attached,
+          request(~id=1, ~method="tools/call", ~params=toolParams),
+        )
+        let listen = async id =>
+          await MCP.handleMessage(
+            attached,
+            requestWithId(
+              ~id,
+              ~method="subscriptions/listen",
+              ~params=`${coreMetadata},"notifications":{}`,
+            ),
+          )
+        await MCP.handleMessage(
+          attached,
+          JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":1}}`),
+        )
+        await listen("1")
+        t->expect(errorCode(calls))->Expect.toEqual(Some(Types.ErrorCode.invalidRequest))
+        t->expect(calls.contents->Array.length)->Expect.toBe(1)
+        calls := []
+        await listen(`"1"`)
+        t->expect(calls.contents->Array.length)->Expect.toBe(1)
+        t->expect(errorCode(calls))->Expect.toEqual(None)
+        calls := []
+        resolveTool.contents(outcome)
+        await pending
+        t->expect(calls.contents->Array.length)->Expect.toBe(outcome == Types.Suspended ? 0 : 1)
+        calls := []
+        await listen("1")
+        t
+        ->expect(errorCode(calls))
+        ->Expect.toEqual(outcome == Types.Suspended ? Some(Types.ErrorCode.invalidRequest) : None)
+        t->expect(calls.contents->Array.length)->Expect.toBe(1)
+        MCP.detach(attached)
+      },
+    )
+    ->Promise.all
+  })
+
+  testAsync("does not send late tool responses after detach or transport loss", async t => {
+    let _ = await ["detach", "phx_error", "phx_close"]
+    ->Array.map(
+      async event => {
+        let (channel, calls) = MockChannel.make()
+        let listeners = Dict.make()
+        let channel = MockChannel.setOn(
+          channel,
+          (event, callback) => listeners->Dict.set(event, callback),
+          ~allEvents=true,
+        )
+        let resolveTool = ref(_ => ())
+        let deferred = Promise.make((resolve, _) => resolveTool := resolve)
+        let attached = MCP.attach(
+          ~channel=MockChannel.toPhoenix(channel),
+          ~sessionId="task-1",
+          ~serverInterface={
+            ...makeInterface(~context=ref(None)),
+            executeTool: (_, _) => deferred,
+          },
+        )
+        let pending = MCP.handleMessage(
+          attached,
+          request(~id=1, ~method="tools/call", ~params=toolParams),
+        )
+        switch event {
+        | "detach" => MCP.detach(attached)
+        | _ => (listeners->Dict.get(event)->Option.getOrThrow)(JSON.Encode.null)
+        }
+        resolveTool.contents(Types.Completed(Types.CallToolResult.makeText("ok")))
+        await pending
+        t->expect(calls.contents)->Expect.toEqual([])
+        MCP.detach(attached)
+      },
+    )
+    ->Promise.all
+  })
+
   testAsync(
     "rejects active subscription ID reuse by other methods and bounds active streams",
     async t => {
@@ -326,7 +425,6 @@ describe("MCP 2026-07-28", () => {
     }`),
     )
     t->expect(calls.contents->Array.length)->Expect.toBe(3)
-    // Reusing the cancelled numeric ID is legal; its string counterpart remains active.
     await listen("1")
     t->expect(calls.contents->Array.length)->Expect.toBe(4)
     MCP.detach(attached)

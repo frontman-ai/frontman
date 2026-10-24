@@ -45,6 +45,130 @@ let connect = async () => {
 let create = connection =>
   ACP.createSession(connection, ~sessionId, ~onUpdate=(_, _) => (), ~onTitleUpdated=(_, _) => ())
 
+@send
+external trigger: (FrontmanClient__Phoenix__Channel.t, string, JSON.t) => unit = "trigger"
+@send external lose: (transport, bool) => unit = "lose"
+@set external setJoinError: (transport, JSON.t) => unit = "joinError"
+
+let mcpInterface: FrontmanClient__MCP__Types.serverInterface<unit> = {
+  server: (),
+  buildDiscoverResult: _ => failwith("Unexpected discovery"),
+  buildToolsListResult: _ => failwith("Unexpected listing"),
+  executeTool: async (_, _) => Suspended,
+}
+
+let listenRequest = JSON.parseOrThrow(`{
+  "jsonrpc":"2.0","id":"stream","method":"subscriptions/listen",
+  "params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}},"notifications":{}}
+}`)
+
+[#close, #disconnect, #parseError]->Array.forEach(outcome =>
+  testAsync("session MCP teardown precedes leave and is idempotent", async t => {
+    let (wire, connection) = await connect()
+    let (session, _) =
+      (
+        await ACP.createSession(
+          connection,
+          ~sessionId,
+          ~onUpdate=(_, _) => (),
+          ~onTitleUpdated=(_, _) => (),
+          ~onParseError=_ => (),
+          ~mcpServerInterface=mcpInterface,
+        )
+      )->Result.getOrThrow
+    trigger(session.channel, "mcp:message", listenRequest)
+    switch outcome {
+    | #close => ACP.cleanupSessionChannel(session)
+    | #disconnect => ACP.disconnect(connection)
+    | #parseError =>
+      trigger(
+        session.channel,
+        "acp:message",
+        JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"session/update","params":{}}`),
+      )
+    }
+    let sessionFrames = () =>
+      wire.frames->Array.filter(
+        frame =>
+          frame->S.parseOrThrow(~to=S.array(S.json))->Array.at(2) ==
+            Some(JSON.Encode.string(`task:${sessionId}`)),
+      )
+    let endings =
+      sessionFrames()
+      ->Array.slice(~start=2, ~end=5)
+      ->Array.map(
+        frame => frame->S.parseOrThrow(~to=S.array(S.json))->Array.slice(~start=3, ~end=5),
+      )
+    t
+    ->expect(endings)
+    ->Expect.toEqual([
+      [
+        JSON.Encode.string("mcp:message"),
+        JSON.parseOrThrow(`{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":"stream","_meta":{"io.modelcontextprotocol/subscriptionId":"stream"}}}`),
+      ],
+      [
+        JSON.Encode.string("mcp:message"),
+        JSON.parseOrThrow(`{"jsonrpc":"2.0","id":"stream","result":{"resultType":"complete","_meta":{"io.modelcontextprotocol/subscriptionId":"stream"}}}`),
+      ],
+      [JSON.Encode.string("phx_leave"), JSON.parseOrThrow(`{}`)],
+    ])
+    let count = sessionFrames()->Array.length
+    ACP.cleanupSessionChannel(session)
+    ACP.disconnect(connection)
+    t->expect(sessionFrames()->Array.length)->Expect.toBe(count)
+    t->expect(wire->listenerCount(session.channel, "mcp:message"))->Expect.toBe(0)
+  })
+)
+
+testAsync("failed session joins remove MCP listeners and registered cleanup", async t => {
+  let (wire, connection) = await connect()
+  setJoinError(wire, JSON.parseOrThrow(`{"reason":"rejected"}`))
+  let result = await ACP.createSession(
+    connection,
+    ~sessionId,
+    ~onUpdate=(_, _) => (),
+    ~onTitleUpdated=(_, _) => (),
+    ~mcpServerInterface=mcpInterface,
+  )
+  t->expect(result->Result.isError)->Expect.toBe(true)
+  t->expect(connection.sessionCleanups.contents)->Expect.toEqual([])
+  t
+  ->expect(connection.socket->FrontmanClient__Phoenix__Socket.channels->Array.length)
+  ->Expect.toBe(1)
+})
+
+[false, true]->Array.forEach(transportLoss =>
+  testAsync(
+    `connection loss drops MCP streams without terminal sends (${Bool.toString(transportLoss)})`,
+    async t => {
+      let (wire, connection) = await connect()
+      let (session, _) =
+        (
+          await ACP.createSession(
+            connection,
+            ~sessionId,
+            ~onUpdate=(_, _) => (),
+            ~onTitleUpdated=(_, _) => (),
+            ~mcpServerInterface=mcpInterface,
+          )
+        )->Result.getOrThrow
+      trigger(session.channel, "mcp:message", listenRequest)
+      wire->lose(transportLoss)
+      ACP.cleanupSessionChannel(session)
+      ACP.disconnect(connection)
+      let messages =
+        wire.frames->Array.filter(
+          frame =>
+            frame->S.parseOrThrow(~to=S.array(S.json))->Array.at(3) ==
+              Some(JSON.Encode.string("mcp:message")),
+        )
+      t->expect(messages->Array.length)->Expect.toBe(1)
+      t->expect(connection.sessionCleanups.contents)->Expect.toEqual([])
+      t->expect(wire->listenerCount(session.channel, "mcp:message"))->Expect.toBe(0)
+    },
+  )
+)
+
 [
   JSON.Encode.null,
   JSON.Encode.bool(false),

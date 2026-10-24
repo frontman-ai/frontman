@@ -11,16 +11,16 @@ type mcpHandler<'server> = {
   channel: Channel.t,
   sessionId: string,
   subscriptions: ref<array<JsonRpc.Id.t>>,
+  toolCalls: ref<array<(JsonRpc.Id.t, ref<bool>)>>,
   transportListeners: ref<array<(Channel.channelEvent, int)>>,
 }
 
-@schema
-type subscriptionFilter = {
-  toolsListChanged: option<bool>,
-  promptsListChanged: option<bool>,
-  resourcesListChanged: option<bool>,
-  resourceSubscriptions: option<array<string>>,
-}
+let subscriptionFilterSchema = S.object(s => {
+  s.field("toolsListChanged", S.option(S.bool))->ignore
+  s.field("promptsListChanged", S.option(S.bool))->ignore
+  s.field("resourcesListChanged", S.option(S.bool))->ignore
+  s.field("resourceSubscriptions", S.option(S.array(S.string)))->ignore
+})
 
 let filterSchema = S.json->S.transform(s => {
   parser: value =>
@@ -184,6 +184,22 @@ let handleToolsCall = async (
   id: JsonRpc.Id.t,
   params: option<JSON.t>,
 ): unit => {
+  let active = ref(true)
+  handler.toolCalls := handler.toolCalls.contents->Array.concat([(id, active)])
+  let finish = send =>
+    switch active.contents {
+    | false => ()
+    | true =>
+      active := false
+      handler.toolCalls :=
+        handler.toolCalls.contents->Array.filter(((_, token)) => token !== active)
+      send()
+    }
+  let sendResponse = (handler, id, result) => finish(() => sendResponse(handler, id, result))
+  let sendError = (handler, id, code, message, ~data=?) =>
+    finish(() => sendError(handler, id, code, message, ~data?))
+  let sendMetadataError = (handler, id, error) =>
+    finish(() => sendMetadataError(handler, id, error))
   switch parseParams(params, Types.toolCallParamsSchema, "Missing params for tools/call") {
   | Error(msg) => sendError(handler, id, Types.ErrorCode.invalidParams, `Invalid params: ${msg}`)
   | Ok(params) =>
@@ -230,7 +246,9 @@ let handleToolsCall = async (
 let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit => {
   try {
     switch parse(payload) {
-    | Ok(Request({id})) if handler.subscriptions.contents->Array.some(active => active == id) =>
+    | Ok(Request({id}))
+      if handler.subscriptions.contents->Array.some(active => active == id) ||
+        handler.toolCalls.contents->Array.some(((active, _)) => active == id) =>
       sendError(handler, id, Types.ErrorCode.invalidRequest, "Request ID already active")
     | Ok(Request({id, method, params})) =>
       switch parseParams(params, Types.discoverParamsSchema, "Missing request params") {
@@ -253,7 +271,6 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
                 sendError(handler, id, Types.ErrorCode.serverError, "Subscription limit reached")
               | false =>
                 handler.subscriptions := Array.concat(handler.subscriptions.contents, [id])
-                // No change notification categories are advertised by this browser server.
                 sendNotification(
                   handler,
                   "notifications/subscriptions/acknowledged",
@@ -293,6 +310,12 @@ let handleMessage = async (handler: mcpHandler<'server>, payload: JSON.t): unit 
   }
 }
 
+let dropRequests = handler => {
+  handler.subscriptions := []
+  handler.toolCalls.contents->Array.forEach(((_, active)) => active := false)
+  handler.toolCalls := []
+}
+
 @@live
 let attach = (
   ~channel: Channel.t,
@@ -304,17 +327,17 @@ let attach = (
     channel,
     sessionId,
     subscriptions: ref([]),
+    toolCalls: ref([]),
     transportListeners: ref([]),
   }
 
   channel->Channel.on(~event=#"mcp:message", ~callback=payload => {
     handleMessage(handler, payload)->ignore
   })
-  // A dropped channel cannot preserve request streams across the next join.
   handler.transportListeners :=
     [#phx_close, #phx_error]->Array.map(event => {
       let listener = channel->Channel.onWithRef(~event, ~callback=_ => {
-        handler.subscriptions := []
+        dropRequests(handler)
       })
       (event, listener)
     })
@@ -323,9 +346,9 @@ let attach = (
 }
 
 @@live
-let detach = (handler: mcpHandler<'server>): unit => {
-  let active = handler.subscriptions.contents
-  handler.subscriptions := []
+let detach = (handler: mcpHandler<'server>, ~notify=true): unit => {
+  let active = notify ? handler.subscriptions.contents : []
+  dropRequests(handler)
   active->Array.forEach(id => {
     sendNotification(
       handler,

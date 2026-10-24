@@ -70,6 +70,7 @@ type connection = {
   channel: Channel.t,
   clientConfig: Client.config,
   state: ref<Client.state>,
+  sessionCleanups: ref<array<bool => unit>>,
   dispose: unit => unit,
   fail: string => unit,
 }
@@ -79,6 +80,7 @@ type session = {
   sessionId: string,
   channel: Channel.t,
   connection: connection,
+  cleanup: unit => unit,
 }
 
 type sessionCommand =
@@ -98,7 +100,7 @@ let cleanupChannel = channel => {
   }
 }
 
-let cleanupSessionChannel = (session: session): unit => cleanupChannel(session.channel)
+let cleanupSessionChannel = (session: session): unit => session.cleanup()
 
 let disconnect = (conn: connection): unit => conn.dispose()
 
@@ -193,6 +195,7 @@ let connect = async (
     let socket = Socket.make(~endpoint=config.endpoint, ~opts=socketOpts)
     let channel = socket->Socket.channel(~topic=Constants.tasksTopic)
     let state = ref(Client.initialState)
+    let sessionCleanups = ref([])
     let clientConfig: Client.config = {
       clientInfo: config.clientInfo,
       clientCapabilities: config.clientCapabilities,
@@ -200,6 +203,7 @@ let connect = async (
 
     await Promise.make((resolve, _) => {
       let closed = ref(false)
+      let notify = ref(true)
       let rec dispose = () =>
         switch closed.contents {
         | true => ()
@@ -207,6 +211,7 @@ let connect = async (
           closed := true
           signal->Option.forEach(signal => offAbort(signal, dispose))
           state := state.contents->Client.reduce(Client.ACPStateChanged(Client.Disconnected))
+          sessionCleanups.contents->Array.forEach(cleanup => cleanup(notify.contents))
           socket->Socket.channels->Array.forEach(cleanupChannel)
           Socket.disconnect(socket)
           resolve(Error(ConnectionFailed("Connection aborted")))
@@ -215,12 +220,13 @@ let connect = async (
         switch closed.contents {
         | true => ()
         | false =>
+          notify := false
           resolve(Error(ConnectionFailed(message)))
           dispose()
           onConnectionLost(message)
         }
       }
-      let conn = {socket, channel, clientConfig, state, dispose, fail}
+      let conn = {socket, channel, clientConfig, state, sessionCleanups, dispose, fail}
       let lost = _ => fail(Protocol.connectionLost)
       socket->Socket.onError(~callback=lost)
       socket->Socket.onClose(~callback=lost)
@@ -313,8 +319,21 @@ let joinSession = async (
   | false => Error("ACP connection is not ready")
   | true =>
     let sessionChannel = conn.socket->Socket.channel(~topic=Constants.makeTaskTopic(sessionId))
+    let detach = ref(_ => ())
+    let cleaned = ref(false)
+    let rec cleanup = notify =>
+      switch cleaned.contents {
+      | true => ()
+      | false =>
+        cleaned := true
+        detach.contents(notify)
+        conn.sessionCleanups :=
+          conn.sessionCleanups.contents->Array.filter(registered => registered !== cleanup)
+        cleanupChannel(sessionChannel)
+      }
+    conn.sessionCleanups := conn.sessionCleanups.contents->Array.concat([cleanup])
     let handleParseError = err => {
-      cleanupChannel(sessionChannel)
+      cleanup(true)
       switch onParseError {
       | Some(callback) => callback(err)
       | None => throw(SessionMessageParseError(err))
@@ -329,7 +348,8 @@ let joinSession = async (
     )
 
     mcpServerInterface->Option.forEach(serverInterface => {
-      MCP.attach(~channel=sessionChannel, ~sessionId, ~serverInterface)->ignore
+      let handler = MCP.attach(~channel=sessionChannel, ~sessionId, ~serverInterface)
+      detach := (notify => MCP.detach(handler, ~notify=notify && Channel.canPush(sessionChannel)))
     })
 
     sessionChannel->Channel.on(~event=#title_updated, ~callback=payload => {
@@ -347,7 +367,7 @@ let joinSession = async (
 
     joinResult
     ->Result.mapError(err => {
-      cleanupChannel(sessionChannel)
+      cleanup(true)
       let errMsg = switch err {
       | AuthRequired({loginUrl}) => `Auth required: ${loginUrl}`
       | JoinFailed(msg) | JoinTimedOut(msg) => msg
@@ -361,6 +381,7 @@ let joinSession = async (
         sessionId,
         channel: sessionChannel,
         connection: conn,
+        cleanup: () => cleanup(true),
       }
     })
   }
