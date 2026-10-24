@@ -35,7 +35,7 @@ defmodule FrontmanServerWeb.ClientTokenControllerTest do
     assert :error =
              Phoenix.ChannelTest.connect(
                FrontmanServerWeb.UserSocket,
-               %{"origin" => "https://customer.example"},
+               %{},
                connect_info: %{
                  auth_token: token,
                  x_headers: [{"x-frontman-socket-origin", "https://customer.example"}]
